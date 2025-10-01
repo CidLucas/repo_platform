@@ -10,3 +10,4 @@ src/vizu_shared_models.egg-info/SOURCES.txt
 src/vizu_shared_models.egg-info/dependency_links.txt
 src/vizu_shared_models.egg-info/requires.txt
 src/vizu_shared_models.egg-info/top_level.txt
+tests/test_model.py

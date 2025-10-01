@@ -1,0 +1,28 @@
+[project]
+name = "vizu-db-connector"
+version = "0.1.0"
+description = "Modelos SQLAlchemy e conector de banco de dados para o ecossistema Vizu."
+authors = [
+    {name = "Equipe Vizu", email = "infra@vizu.ai"},
+]
+requires-python = ">=3.11"
+dependencies = [
+    # SQLAlchemy Core + ORM
+    "sqlalchemy",
+    # Driver do Postgres para SQLAlchemy
+    "psycopg2-binary",
+]
+
+[project.optional-dependencies]
+# Dependências para rodar os testes e as migrações
+test = [
+    "pytest",
+    "alembic",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

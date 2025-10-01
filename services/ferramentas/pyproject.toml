@@ -1,0 +1,14 @@
+[project]
+name = "ferramentas-crawler"
+version = "0.1.0"
+description = "Um serviço para extrair conteúdo de documentações web utilizando crawl4ai."
+authors = [
+    {name = "Seu Nome", email = "seu@email.com"},
+]
+requires-python = ">=3.8"
+dependencies = [
+    "crawl4ai",
+]
+
+[tool.setuptools]
+packages = ["ferramentas_crawler"]

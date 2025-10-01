@@ -1,0 +1,2 @@
+# Principal dependência para o crawler assíncrono
+crawl4ai

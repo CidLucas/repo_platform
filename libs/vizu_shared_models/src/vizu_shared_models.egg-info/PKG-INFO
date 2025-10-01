@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: vizu-shared-models
+Version: 0.1.0
+Summary: Modelos de dados Pydantic compartilhados para o ecossistema Vizu.
+Author-email: Equipe Vizu <lucas@vizubr.com>
+Requires-Python: >=3.11
+Requires-Dist: pydantic[email]
+Provides-Extra: test
+Requires-Dist: pytest; extra == "test"

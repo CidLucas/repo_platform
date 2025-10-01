@@ -1,0 +1,29 @@
+[project]
+name = "vizu-shared-models"
+version = "0.1.0"
+description = "Modelos de dados Pydantic compartilhados para o ecossistema Vizu."
+authors = [
+    {name = "Equipe Vizu", email = "infra@vizu.ai"},
+]
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic[email]",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+
+# --- SEÇÃO CORRIGIDA ---
+[tool.pytest.ini_options]
+# 1. Adiciona o diretório 'src' ao PYTHONPATH.
+#    Isso permite que os testes importem o código da aplicação.
+pythonpath = ["src"]
+
+# 2. Informa ao pytest que os testes estão no diretório 'tests'.
+testpaths = ["tests"]

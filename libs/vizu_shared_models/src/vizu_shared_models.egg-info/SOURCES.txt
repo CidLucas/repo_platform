@@ -1,0 +1,12 @@
+pyproject.toml
+src/vizu_shared_models/__init__.py
+src/vizu_shared_models/cliente_final.py
+src/vizu_shared_models/cliente_vizu.py
+src/vizu_shared_models/configuracao.py
+src/vizu_shared_models/conversa.py
+src/vizu_shared_models/core.py
+src/vizu_shared_models.egg-info/PKG-INFO
+src/vizu_shared_models.egg-info/SOURCES.txt
+src/vizu_shared_models.egg-info/dependency_links.txt
+src/vizu_shared_models.egg-info/requires.txt
+src/vizu_shared_models.egg-info/top_level.txt

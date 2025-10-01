@@ -3,8 +3,8 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-# Importamos nossa Base, que conhece todas as nossas tabelas
-from vizu_db_connector.models.base import Base
+from vizu_db_connector import models
+
 
 # Usa uma variável de ambiente para o DB de teste, com um fallback
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://user:password@localhost:5432/vizu_db_test")
@@ -20,13 +20,10 @@ def create_tables(engine):
     Fixture principal de setup: cria todas as tabelas no início dos testes
     e as remove no final. `autouse=True` garante que ela sempre execute.
     """
-    # Remove qualquer resquício de tabelas antigas
-    Base.metadata.drop_all(engine)
-    # Cria todas as tabelas que herdam da nossa Base
-    Base.metadata.create_all(engine)
+    models.Base.metadata.drop_all(engine)
+    models.Base.metadata.create_all(engine)
     yield
-    # Limpeza: remove todas as tabelas ao final da sessão de testes
-    Base.metadata.drop_all(engine)
+    models.Base.metadata.drop_all(engine)
 
 @pytest.fixture
 def db_session(engine, create_tables) -> Session:
@@ -47,3 +44,4 @@ def db_session(engine, create_tables) -> Session:
     session.close()
     transaction.rollback()
     connection.close()
+

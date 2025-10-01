@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from vizu_db_connector.models.fonte_de_dados import FonteDeDados, TipoFonte
 from vizu_db_connector.models.cliente_vizu import ClienteVizu
 from vizu_shared_models.cliente_vizu import TipoCliente, TierCliente
 
@@ -30,3 +31,38 @@ def test_create_cliente_vizu(db_session: Session):
     assert cliente_do_banco.tier == TierCliente.ENTERPRISE
     assert cliente_do_banco.id is not None
     assert cliente_do_banco.api_key is not None
+
+    def test_create_fonte_de_dados_for_cliente(db_session: Session):
+        """
+    Testa a criação de uma FonteDeDados e seu relacionamento com ClienteVizu.
+    """
+    # 1. Setup: Criar um cliente "pai" primeiro
+    cliente_pai = ClienteVizu(
+        nome_empresa="Empresa Fonte de Dados",
+        tipo_cliente=TipoCliente.EXTERNO,
+        tier=TierCliente.SME
+    )
+    db_session.add(cliente_pai)
+    db_session.commit()
+    db_session.refresh(cliente_pai)
+
+    # 2. Criação: Criar a FonteDeDados associada ao cliente
+    nova_fonte = FonteDeDados(
+        cliente_vizu_id=cliente_pai.id,
+        tipo_fonte=TipoFonte.URL,
+        caminho="https://vizu.ai/docs"
+    )
+    db_session.add(nova_fonte)
+    db_session.commit()
+    db_session.refresh(nova_fonte)
+
+    # 3. Asserts: Verificar os dados da fonte
+    assert nova_fonte.id is not None
+    assert nova_fonte.tipo_fonte == TipoFonte.URL
+    assert nova_fonte.cliente_vizu_id == cliente_pai.id
+
+    # 4. Verificar o relacionamento a partir do cliente
+    #    Recarregar o cliente da sessão para ver as mudanças do relacionamento
+    db_session.refresh(cliente_pai)
+    assert len(cliente_pai.fontes_de_dados) == 1
+    assert cliente_pai.fontes_de_dados[0].caminho == "https://vizu.ai/docs"

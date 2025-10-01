@@ -11,6 +11,8 @@ dependencies = [
     "sqlalchemy",
     # Driver do Postgres para SQLAlchemy
     "psycopg2-binary",
+    "vizu-shared-models @ file:///${PROJECT_ROOT}/libs/vizu_shared_models",
+
 ]
 
 [project.optional-dependencies]
@@ -18,6 +20,7 @@ dependencies = [
 test = [
     "pytest",
     "alembic",
+
 ]
 
 [tool.setuptools.packages.find]

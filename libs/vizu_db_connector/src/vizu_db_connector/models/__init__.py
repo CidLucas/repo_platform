@@ -8,6 +8,8 @@ from .cliente_vizu import ClienteVizu
 from .configuracao import ConfiguracaoNegocio
 from .cliente_final import ClienteFinal
 from .conversa import Conversa, Mensagem
+from .fonte_de_dados import FonteDeDados
+from .credencial_servico_externo import CredencialServicoExterno
 
 __all__ = [
     "Base",
@@ -16,4 +18,6 @@ __all__ = [
     "ClienteFinal",
     "Conversa",
     "Mensagem",
+    "FonteDeDados",
+    "CredencialServicoExterno",
 ]

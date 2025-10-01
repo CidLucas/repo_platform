@@ -4,6 +4,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID as pgUUID
 
 from .base import Base, TimestampMixin
+from typing import List # Adicionar este import
 
 # Reutilizamos os Enums definidos em vizu-shared-models para consistência,
 # mas poderíamos redefini-los aqui se quisessemos desacoplar totalmente.
@@ -27,3 +28,10 @@ class ClienteVizu(Base, TimestampMixin):
     # Relacionamentos
     configuracao = relationship("ConfiguracaoNegocio", back_populates="cliente_vizu", uselist=False)
     clientes_finais = relationship("ClienteFinal", back_populates="cliente_vizu")
+
+    configuracao = relationship("ConfiguracaoNegocio", back_populates="cliente_vizu", uselist=False)
+    clientes_finais = relationship("ClienteFinal", back_populates="cliente_vizu")
+
+    # Adicionar estas duas linhas:
+    fontes_de_dados: Mapped[List["FonteDeDados"]] = relationship("FonteDeDados", back_populates="cliente_vizu")
+    credenciais: Mapped[List["CredencialServicoExterno"]] = relationship("CredencialServicoExterno", back_populates="cliente_vizu")

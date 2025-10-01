@@ -5,6 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID as pgUUID
 
 from .base import Base, TimestampMixin
+from sqlalchemy import func # Importar 'func'
 
 # Reutilizamos o Enum do nosso pacote de modelos Pydantic
 from vizu_shared_models.conversa import Remetente
@@ -14,7 +15,7 @@ class Conversa(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(pgUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     cliente_final_id: Mapped[int] = mapped_column(Integer, ForeignKey("cliente_final.id"))
-    timestamp_inicio: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    timestamp_inicio: Mapped[datetime] = mapped_column(DateTime, server_default=func.now()) # Usar server_default
 
     # Relacionamentos
     cliente_final = relationship("ClienteFinal", back_populates="conversas")

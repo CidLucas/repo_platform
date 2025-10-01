@@ -5,6 +5,7 @@ import uuid
 
 # Define um tipo UUID que funciona em diferentes bancos de dados
 from sqlalchemy.types import UUID as pgUUID
+from sqlalchemy import func  # Importar 'func'
 
 class Base(DeclarativeBase):
     """
@@ -12,14 +13,12 @@ class Base(DeclarativeBase):
     """
     pass
 
+
 class TimestampMixin:
-    """
-    Mixin para adicionar colunas de timestamp padrão (criado_em, atualizado_em).
-    """
     criado_em: Mapped[datetime] = mapped_column(
-        server_default=text("TIMEZONE('utc', now())")
+        server_default=func.now()  # Usar a função now() do banco
     )
     atualizado_em: Mapped[datetime] = mapped_column(
-        server_default=text("TIMEZONE('utc', now())"),
-        onupdate=datetime.utcnow
+        server_default=func.now(),
+        onupdate=func.now()  # Usar a função now() do banco também no update
     )

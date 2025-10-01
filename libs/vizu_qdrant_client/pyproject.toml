@@ -1,0 +1,26 @@
+[project]
+name = "vizu-qdrant-client"
+version = "0.1.0"
+description = "Cliente Python para interagir com o banco de dados vetorial Qdrant no ecossistema Vizu."
+authors = [
+    {name = "Equipe Vizu", email = "infra@vizu.ai"},
+]
+requires-python = ">=3.11"
+dependencies = [
+    # Cliente oficial do Qdrant
+    "qdrant-client[fastembed]",
+    # Para ler configurações de .env durante o desenvolvimento
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

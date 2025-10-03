@@ -1,29 +1,22 @@
-[project]
+[tool.poetry]
 name = "vizu-shared-models"
 version = "0.1.0"
 description = "Modelos de dados Pydantic compartilhados para o ecossistema Vizu."
-authors = [
-    {name = "Equipe Vizu", email = "infra@vizu.ai"},
-]
-requires-python = ">=3.11"
-dependencies = [
-    "pydantic[email]",
-]
+authors = ["Equipe Vizu <infra@vizu.ai>"]
+readme = "README.md"
+packages = [{include = "vizu_shared_models", from = "src"}]
 
-[project.optional-dependencies]
-test = [
-    "pytest",
-]
+[tool.poetry.dependencies]
+python = "~3.11"
+pydantic = {extras = ["email"], version = "^2.8.2"}
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.2"
 
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
-# --- SEÇÃO CORRIGIDA ---
 [tool.pytest.ini_options]
-# 1. Adiciona o diretório 'src' ao PYTHONPATH.
-#    Isso permite que os testes importem o código da aplicação.
 pythonpath = ["src"]
-
-# 2. Informa ao pytest que os testes estão no diretório 'tests'.
 testpaths = ["tests"]

@@ -1,14 +1,23 @@
-[project]
-name = "ferramentas-crawler"
+[tool.poetry]
+name = "ferramentas-vizu"
 version = "0.1.0"
-description = "Um serviço para extrair conteúdo de documentações web utilizando crawl4ai."
-authors = [
-    {name = "Seu Nome", email = "seu@email.com"},
-]
-requires-python = ">=3.8"
-dependencies = [
-    "crawl4ai",
-]
+description = "Ferramentas CLI internas para auxiliar no desenvolvimento e operações da Vizu."
+authors = ["Vizu Engineering <eng@vizu.ai>"]
+readme = "README.md"
+package-mode = false
 
-[tool.setuptools]
-packages = ["ferramentas_crawler"]
+[tool.poetry.dependencies]
+python = "~3.11"
+beautifulsoup4 = "^4.12.3"
+requests = "^2.32.3"
+# --- ATUALIZANDO A VERSÃO DO CRAWL4AI ---
+crawl4ai = "^0.7.0"
+lxml = "^5.2.2"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

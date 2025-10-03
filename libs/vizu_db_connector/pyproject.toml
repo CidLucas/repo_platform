@@ -1,30 +1,25 @@
-[project]
+[tool.poetry]
 name = "vizu-db-connector"
 version = "0.1.0"
-description = "Modelos SQLAlchemy e conector de banco de dados para o ecossistema Vizu."
-authors = [
-    {name = "Equipe Vizu", email = "infra@vizu.ai"},
-]
-requires-python = ">=3.11"
-dependencies = [
-    # SQLAlchemy Core + ORM
-    "sqlalchemy",
-    # Driver do Postgres para SQLAlchemy
-    "psycopg2-binary",
-    "vizu-shared-models @ file:///${PROJECT_ROOT}/libs/vizu_shared_models",
+description = "Conector de banco de dados padronizado para o ecossistema Vizu."
+authors = ["Equipe Vizu <infra@vizu.ai>"]
+readme = "README.md"
+packages = [{include = "vizu_db_connector", from = "src"}]
 
-]
+[tool.poetry.dependencies]
+python = "~3.11"
+sqlalchemy = "^2.0.31"
+psycopg2-binary = "^2.9.9"
+alembic = "^1.13.2"
+pydantic-settings = "^2.3.4"
+vizu-shared-models = {path = "../vizu_shared_models", develop = true}
 
-[project.optional-dependencies]
-# Dependências para rodar os testes e as migrações
-test = [
-    "pytest",
-    "alembic",
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.2"
 
-]
-
-[tool.setuptools.packages.find]
-where = ["src"]
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

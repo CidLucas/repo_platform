@@ -4,6 +4,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import UUID as pgUUID
 
 from .base import Base
+from vizu_shared_models.core import BaseSchema
+from vizu_shared_models.credencial_servico_externo import CredencialServicoExternoBase
 
 class CredencialServicoExterno(Base):
     __tablename__ = "credencial_servico_externo"

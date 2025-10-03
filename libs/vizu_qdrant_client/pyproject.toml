@@ -1,25 +1,22 @@
-[project]
+[tool.poetry]
 name = "vizu-qdrant-client"
 version = "0.1.0"
-description = "Cliente Python para interagir com o banco de dados vetorial Qdrant no ecossistema Vizu."
-authors = [
-    {name = "Equipe Vizu", email = "infra@vizu.ai"},
-]
-requires-python = ">=3.11"
-dependencies = [
-    # Cliente oficial do Qdrant
-    "qdrant-client[fastembed]",
-    # Para ler configurações de .env durante o desenvolvimento
-    "python-dotenv",
-]
+description = "Cliente padronizado para Qdrant no ecossistema Vizu."
+authors = ["Equipe Vizu <infra@vizu.ai>"]
+readme = "README.md"
+packages = [{include = "vizu_qdrant_client", from = "src"}]
 
-[project.optional-dependencies]
-test = [
-    "pytest",
-]
+[tool.poetry.dependencies]
+python = "~3.11"
+qdrant-client = "^1.9.2"
+pydantic-settings = "^2.3.4"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

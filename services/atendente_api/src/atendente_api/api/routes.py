@@ -4,20 +4,16 @@ from fastapi import APIRouter, Depends, Request, Response, HTTPException, Header
 from sqlalchemy.orm import Session
 from twilio.request_validator import RequestValidator
 
-# Importações dos nossos módulos
-from atendente_api.core.config import get_settings, Settings
+from ..core.config import get_settings, Settings
+from ..services.context_service import ContextService
+from ..services.redis_service import get_redis_service, RedisService
+from ..core.graph import create_agent_graph
 from vizu_db_connector.core import get_db
-from atendente_api.services.context_service import ContextService
-from atendente_api.services.redis_service import get_redis_service, RedisService
-from atendente_api.core.graph import create_agent_graph
 
-# --- CORREÇÃO FINAL: Dependência para o Validador do Twilio ---
+# --- Dependência para o Validador do Twilio ---
 def get_twilio_validator(settings: Settings = Depends(get_settings)) -> RequestValidator:
-    """
-    Dependência que cria e fornece o validador do Twilio.
-    Isso garante que get_settings() só seja chamado quando a validação for necessária.
-    """
     return RequestValidator(settings.TWILIO_AUTH_TOKEN)
+
 
 async def validate_twilio_request(
     request: Request,

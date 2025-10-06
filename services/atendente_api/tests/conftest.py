@@ -5,7 +5,7 @@ import os
 import pytest
 import fakeredis
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
 
 # --- Fixture de Setup do Ambiente (Executa Primeiro) ---
@@ -33,11 +33,11 @@ if libs_path not in sys.path:
     sys.path.insert(0, libs_path)
 
 # Importa APÓS a configuração do path e das variáveis de ambiente
-from vizu_db_connector.models.base import Base
 from atendente_api.main import app
 from atendente_api.api.routes import validate_twilio_request
 from atendente_api.services.redis_service import get_redis_service, RedisService
 from vizu_db_connector.core import get_db
+from vizu_db_connector.models.base import Base
 
 
 # --- Fixtures de Banco de Dados e Cliente de Teste ---

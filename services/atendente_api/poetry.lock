@@ -3296,6 +3296,25 @@ type = "directory"
 url = "../../libs/vizu_db_connector"
 
 [[package]]
+name = "vizu-llm-service"
+version = "0.1.0"
+description = "Biblioteca centralizada da Vizu para roteamento e instanciação de modelos de linguagem (LLMs)."
+optional = false
+python-versions = "~3.11"
+groups = ["main"]
+files = []
+develop = true
+
+[package.dependencies]
+langchain-community = "^0.2.7"
+langchain-openai = "^0.1.9"
+pydantic-settings = "^2.3.4"
+
+[package.source]
+type = "directory"
+url = "../../libs/vizu_llm_service"
+
+[[package]]
 name = "vizu-qdrant-client"
 version = "0.1.0"
 description = "Cliente padronizado para Qdrant no ecossistema Vizu."
@@ -3650,4 +3669,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.11"
-content-hash = "11acd1758ebc5c6a6bb29630cf1ca08b03c7da502c1ab4a2235ac1cebb6070b0"
+content-hash = "3e3302f545ae58b3340bd389b1338dafda9e491eebf87faa1c0e655c4d5bda46"

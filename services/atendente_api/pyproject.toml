@@ -24,6 +24,7 @@ langchain-qdrant = "^0.1.1"
 vizu-db-connector = {path = "../../libs/vizu_db_connector", develop = true}
 vizu-qdrant-client = {path = "../../libs/vizu_qdrant_client", develop = true}
 vizu-shared-models = {path = "../../libs/vizu_shared_models", develop = true}
+vizu-llm-service = {path = "../../libs/vizu_llm_service", develop = true}
 
 # --- Dependências de Desenvolvimento ---
 [tool.poetry.group.dev.dependencies]

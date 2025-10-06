@@ -1,0 +1,64 @@
+version: "3.8"
+
+services:
+  # --- Serviço de Banco de Dados ---
+  postgres:
+    image: postgres:15-alpine
+    container_name: vizu_postgres_dev
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: vizu_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # --- Serviço de Cache ---
+  redis:
+    image: redis:7-alpine
+    container_name: vizu_redis_dev
+    ports:
+      - "6379:6379"
+
+  # --- Serviço de Inferência de LLM ---
+  ollama_service:
+    container_name: vizu_ollama_dev
+    # Constrói a imagem a partir do Dockerfile que criamos no serviço ollama_service
+    build:
+      context: ./services/ollama_service
+    ports:
+      - "11434:11434"
+    # Para usar GPU (opcional, requer setup da Nvidia Docker Toolkit):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # --- Serviço Principal da Aplicação ---
+  atendente_api:
+    container_name: vizu_atendente_api_dev
+    # Constrói a imagem a partir do Dockerfile que acabamos de criar
+    build:
+      context: ./services/atendente_api
+    ports:
+      - "8000:8000"
+    # Define as variáveis de ambiente que a aplicação precisa para se conectar aos outros serviços
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/vizu_db
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_BASE_URL=http://ollama_service:11434
+      # Adicione outras chaves de API e configurações aqui
+      - LANGCHAIN_API_KEY=...
+      - TWILIO_AUTH_TOKEN=...
+    # Define que este serviço só deve iniciar depois que os outros estiverem prontos
+    depends_on:
+      - postgres
+      - redis
+      - ollama_service
+
+volumes:
+  postgres_data:

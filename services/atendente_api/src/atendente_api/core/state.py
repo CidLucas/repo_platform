@@ -22,5 +22,5 @@ class AgentState(TypedDict):
                           informações do cliente e suas configurações de negócio.
     """
 
-    messages: Annotated[List[BaseMessage], "message_updater"]
+    messages: Annotated[List[BaseMessage], "message_updater"] #add_messages do langgraph
     contexto_cliente: VizuClientContext

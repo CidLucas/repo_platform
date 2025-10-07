@@ -1,0 +1,4 @@
+test_id,client_persona_id,user_phone,input_question,golden_answer
+TC-001,persona-001,5521999990001,"Gostaria de marcar uma consulta para a próxima sexta às 15h","{""tool_name"": ""scheduling_tool"", ""arguments"": {""datetime_str"": ""2025-10-10T15:00:00""}}"
+TC-002,persona-001,5521999990001,"Quanto custa o procedimento de limpeza de pele?","{""tool_name"": ""rag_tool"", ""arguments"": {""query"": ""preço limpeza de pele""}}"
+TC-003,persona-002,5521999990002,"Vocês têm pão de queijo hoje?","{""tool_name"": ""sql_tool"", ""arguments"": {""query"": ""SELECT estoque FROM produtos WHERE nome = 'pão de queijo'""}}"

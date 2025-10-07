@@ -12,7 +12,7 @@ async def main():
     consolidado em um único arquivo Markdown.
     """
     sites_to_crawl = [
-        {"name": "Poetry", "start_url": "https://python-poetry.org/docs/"}
+        {"name": "langsmith", "start_url": "https://docs.langchain.com/langsmith"}
     ]
     all_results_markdown = []
 
@@ -43,7 +43,7 @@ async def main():
 
         # --- CAMADA 1: EXCLUSÃO EXPLÍCITA DE TAGS DE NAVEGAÇÃO ---
         # A forma mais eficiente de remover menus, cabeçalhos e rodapés.
-        excluded_tags=["nav", "aside", "header", "footer"],
+        excluded_tags=["nav", "footer"],
 
         # Ignorar cache para garantir que sempre tenhamos a documentação mais recente
         cache_mode=CacheMode.BYPASS,
@@ -56,7 +56,7 @@ async def main():
         for site in sites_to_crawl:
             site_name = site["name"]
             # Um nome de arquivo mais agnóstico
-            output_filename = "knowledge_base.md"
+            output_filename = "f'{site_name}Docs.md"
             start_url = site["start_url"]
             print(f"\n--- Processando: {site_name} ---")
 

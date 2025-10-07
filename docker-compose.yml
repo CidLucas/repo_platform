@@ -1,64 +1,68 @@
-version: "3.8"
-
 services:
-  # --- Serviço de Banco de Dados ---
   postgres:
     image: postgres:15-alpine
+    platform: linux/amd64 # Adicione esta linha
+
     container_name: vizu_postgres_dev
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: vizu_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  # --- Serviço de Cache ---
   redis:
     image: redis:7-alpine
+    platform: linux/amd64
     container_name: vizu_redis_dev
+
     ports:
       - "6379:6379"
 
-  # --- Serviço de Inferência de LLM ---
   ollama_service:
     container_name: vizu_ollama_dev
-    # Constrói a imagem a partir do Dockerfile que criamos no serviço ollama_service
+    platform: linux/amd64
     build:
-      context: ./services/ollama_service
+      # O contexto agora é a raiz do monorepo
+      context: .
+      # Especificamos o caminho para o Dockerfile a partir da raiz
+      dockerfile: ./services/ollama_service/Dockerfile
     ports:
       - "11434:11434"
-    # Para usar GPU (opcional, requer setup da Nvidia Docker Toolkit):
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
 
-  # --- Serviço Principal da Aplicação ---
   atendente_api:
     container_name: vizu_atendente_api_dev
-    # Constrói a imagem a partir do Dockerfile que acabamos de criar
+    platform: linux/amd64
     build:
-      context: ./services/atendente_api
+      # O contexto também é a raiz do monorepo
+      context: .
+      # Especificamos o caminho para o Dockerfile
+      dockerfile: ./services/atendente_api/Dockerfile
     ports:
       - "8000:8000"
-    # Define as variáveis de ambiente que a aplicação precisa para se conectar aos outros serviços
     environment:
       - DATABASE_URL=postgresql://user:password@postgres:5432/vizu_db
       - REDIS_URL=redis://redis:6379/0
       - OLLAMA_BASE_URL=http://ollama_service:11434
-      # Adicione outras chaves de API e configurações aqui
-      - LANGCHAIN_API_KEY=...
-      - TWILIO_AUTH_TOKEN=...
-    # Define que este serviço só deve iniciar depois que os outros estiverem prontos
+      - LANGCHAIN_API_KEY=sua_chave_langchain # Lembre-se de preencher
+      - TWILIO_AUTH_TOKEN=seu_token_twilio # Lembre-se de preencher
     depends_on:
       - postgres
       - redis
       - ollama_service
+    # 👇 SESSÃO ADICIONADA AQUI 👇
+    volumes:
+      # Mapeia o código-fonte da API para permitir hot-reloading
+      - ./services/atendente_api/src:/app/src
+      # Mapeia as bibliotecas compartilhadas para que alterações nelas reflitam no container
+      - ./libs/vizu_db_connector/src:/app/libs/vizu_db_connector/src
+      - ./libs/vizu_llm_service/src:/app/libs/vizu_llm_service/src
+      - ./libs/vizu_qdrant_client/src:/app/libs/vizu_qdrant_client/src
+      - ./libs/vizu_shared_models/src:/app/libs/vizu_shared_models/src
+      # Mapeia a pasta de ferramentas para que os scripts de avaliação fiquem acessíveis
+    working_dir: /app
 
 volumes:
   postgres_data:

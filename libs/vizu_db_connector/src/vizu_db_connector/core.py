@@ -8,7 +8,7 @@ from typing import Generator
 # Isso está alinhado com o nosso princípio de Agnosticismo: a aplicação não
 # deve ter credenciais "hardcoded". Fornecemos um valor padrão para facilitar
 # o desenvolvimento local com Docker.
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/vizu_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@postgres:5432/vizu_db")
 
 
 # --- 2. Criação da Engine ---

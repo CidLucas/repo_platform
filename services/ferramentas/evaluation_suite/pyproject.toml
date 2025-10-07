@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "evaluation-suite"
+version = "0.1.0"
+description = "Vizu Evaluation Suite for AI Workflows"
+authors = ["Lucas Cid <lucas@vizubr.com>"]
+readme = "README.md"
+package-mode = false  # <--- ADICIONE ESTA LINHA
+
+[tool.poetry.dependencies]
+python = "^3.11"
+jupyter = "^1.0.0"
+pandas = "^2.2.2"
+requests = "^2.32.3"
+langsmith = "^0.1.84"
+python-dotenv = "^1.0.1"
+sqlalchemy = "^2.0.31"
+psycopg2-binary = "^2.9.9"
+tqdm = "^4.66.4"
+langchain = "^0.2.11"
+langgraph = "^0.1.7"
+langchain-core = "^0.2.22"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

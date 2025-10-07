@@ -1,1680 +1,779 @@
-# Documentação de Poetry
+# Documentação de twilio
 
-## Fonte: https://python-poetry.org/docs/
+## Fonte: https://www.twilio.com/docs
 
-Poetry is a tool for and in Python. It allows you to declare the libraries your project depends on and it will manage (install/update) them for you. Poetry offers a lockfile to ensure repeatable installs, and can build your project for distribution.
-Poetry requires . It is multi-platform and the goal is to make it work equally well on Linux, macOS and Windows.
-If you are viewing documentation for the development branch, you may wish to install a preview or development version of Poetry. See the installation instructions to use a preview or alternate version of Poetry.
-is used to install Python CLI applications globally while still isolating them in virtual environments. will manage upgrades and uninstalls when used to install Poetry.
-  1. If is not already installed, you can follow any of the options in the . Any non-ancient version of will do.
-  2. You can skip this step, if you simply want the latest version and already installed Poetry as described in the previous step. This step details advanced usages of this installation method. For example, installing Poetry from source, having multiple versions installed at the same time etc.
-can also install versions of Poetry in parallel, which allows for easy testing of alternate or prerelease versions. Each version is given a unique, user-specified suffix, which will be used to create a unique binary name:
-Finally, can install any valid , which allows for installations of the development version from , or even for local testing of pull requests:
-
-
-We provide a custom installer that will install Poetry in a new virtual environment and allows Poetry to manage its own environment.
-  1. The installer script is available directly at , and is developed in . The script can be executed directly (i.e. ‘curl python’) or downloaded and then executed from disk (e.g. in a CI environment).
-  2. You can skip this step, if you simply want the latest version and already installed Poetry as described in the previous step. This step details advanced usages of this installation method. For example, installing Poetry from source, using a pre-release build, configuring a different installation location etc.
-If you want to install prerelease versions, you can do so by passing the option to the installation script or by using the environment variable:
-If you want to install different versions of Poetry in parallel, a good approach is the installation with pipx and suffix.
-  3.   4.   5.   6. If you decide Poetry isn’t your thing, you can completely remove it from your system by running the installer again with the option or by setting the environment variable before executing the installer.
-
-
-Poetry can be installed manually using and the module. By doing so you will essentially perform the steps carried out by the official installer. As this is an advanced installation method, these instructions are Unix-only and omit specific examples such as installing from .
-Unlike development environments, where making use of the latest tools is desirable, in a CI environment reproducibility should be made the priority. Here are some suggestions for installing Poetry in such an environment.
-Whatever method you use, it is highly recommended to explicitly control the version of Poetry used, so that you are able to upgrade after performing your own validation. Each install method has a different syntax for setting the version that is used in the following examples.
-Just as is a powerful tool for development use, it is equally useful in a CI environment and should be one of your top choices for use of Poetry in CI.
-The official installer script () offers a streamlined and simplified installation of Poetry, sufficient for developer use or for simple pipelines. However, in a CI environment the other two supported installation methods (pipx and manual) should be seriously considered.
-Downloading a copy of the installer script to a place accessible by your CI pipelines (or maintaining a copy of the ) is strongly suggested, to ensure your pipeline’s stability and to maintain control over what code is executed.
-By default, the installer will install to a user-specific directory. In more complex pipelines that may make accessing Poetry difficult (especially in cases like multi-stage container builds). It is highly suggested to make use of when using the official installer in CI, as that way the exact paths can be controlled.
-For maximum control in your CI environment, installation with is fully supported and something you should consider. While this requires more explicit commands and knowledge of Python packaging from you, it in return offers the best debugging experience, and leaves you subject to the fewest external tools.
-If you install Poetry via , ensure you have Poetry installed into an isolated environment that is as the target environment managed by Poetry. If Poetry and your project are installed into the same environment, Poetry is likely to upgrade or uninstall its own dependencies (causing hard-to-debug and understand errors).
-Poetry should always be installed in a dedicated virtual environment to isolate it from the rest of your system. Each of the above described installation methods ensures that. It should in no case be installed in the environment of the project that is to be managed by Poetry. This ensures that Poetry’s own dependencies will not be accidentally upgraded or uninstalled. In addition, the isolated virtual environment in which poetry is installed should not be activated for running poetry commands.
+## Build better and engage your customers across all channels with our API reference documentation, quickstarts, SDKs and multi-language code samples.
+[ ](https://www.twilio.com/docs/verify/quickstarts)
+[ Format and validate phone numbers to increase deliverability. Add on data packages to get even more in-depth carrier and caller information.](https://www.twilio.com/docs/lookup/quickstart)
 
 
 ---
 
-## Fonte: https://install.python-poetry.org
+## Fonte: https://www.twilio.com/code-exchange
 
-```
-#!/usr/bin/env python3
-r"""
-This script will install Poetry and its dependencies in an isolated fashion.
-
-It will perform the following steps:
-    * Create a new virtual environment using the built-in venv module, or the virtualenv zipapp if venv is unavailable.
-      This will be created at a platform-specific path (or `$POETRY_HOME` if `$POETRY_HOME` is set:
-        - `~/Library/Application Support/pypoetry` on macOS
-        - `$XDG_DATA_HOME/pypoetry` on Linux/Unix (`$XDG_DATA_HOME` is `~/.local/share` if unset)
-        - `%APPDATA%\pypoetry` on Windows
-    * Update pip inside the virtual environment to avoid bugs in older versions.
-    * Install the latest (or a given) version of Poetry inside this virtual environment using pip.
-    * Install a `poetry` script into a platform-specific path (or `$POETRY_HOME/bin` if `$POETRY_HOME` is set):
-        - `~/.local/bin` on Unix
-        - `%APPDATA%\Python\Scripts` on Windows
-    * Attempt to inform the user if they need to add this bin directory to their `$PATH`, as well as how to do so.
-    * Upon failure, write an error log to `poetry-installer-error-<hash>.log and restore any previous environment.
-
-This script performs minimal magic, and should be relatively stable. However, it is optimized for interactive developer
-use and trivial pipelines. If you are considering using this script in production, you should consider manually-managed
-installs, or use of pipx as alternatives to executing arbitrary, unversioned code from the internet. If you prefer this
-script to alternatives, consider maintaining a local copy as part of your infrastructure.
-
-For full documentation, visit https://python-poetry.org/docs/#installation.
-"""
-import sys
-
-
-# Eager version check so we fail nicely before possible syntax errors
-if sys.version_info < (3, 6):  # noqa: UP036
-    sys.stdout.write("Poetry installer requires Python 3.6 or newer to run!\n")
-    sys.exit(1)
-
-
-import argparse
-import json
-import os
-import re
-import shutil
-import subprocess
-import sysconfig
-import tempfile
-
-from contextlib import closing
-from contextlib import contextmanager
-from functools import cmp_to_key
-from io import UnsupportedOperation
-from pathlib import Path
-from typing import Optional
-from urllib.request import Request
-from urllib.request import urlopen
-
-
-SHELL = os.getenv("SHELL", "")
-WINDOWS = sys.platform.startswith("win") or (sys.platform == "cli" and os.name == "nt")
-MINGW = sysconfig.get_platform().startswith("mingw")
-MACOS = sys.platform == "darwin"
-
-FOREGROUND_COLORS = {
-    "black": 30,
-    "red": 31,
-    "green": 32,
-    "yellow": 33,
-    "blue": 34,
-    "magenta": 35,
-    "cyan": 36,
-    "white": 37,
-}
-
-BACKGROUND_COLORS = {
-    "black": 40,
-    "red": 41,
-    "green": 42,
-    "yellow": 43,
-    "blue": 44,
-    "magenta": 45,
-    "cyan": 46,
-    "white": 47,
-}
-
-OPTIONS = {"bold": 1, "underscore": 4, "blink": 5, "reverse": 7, "conceal": 8}
-
-
-def style(fg, bg, options):
-    codes = []
-
-    if fg:
-        codes.append(FOREGROUND_COLORS[fg])
-
-    if bg:
-        codes.append(BACKGROUND_COLORS[bg])
-
-    if options:
-        if not isinstance(options, (list, tuple)):
-            options = [options]
-
-        for option in options:
-            codes.append(OPTIONS[option])
-
-    return "\033[{}m".format(";".join(map(str, codes)))
-
-
-STYLES = {
-    "info": style("cyan", None, None),
-    "comment": style("yellow", None, None),
-    "success": style("green", None, None),
-    "error": style("red", None, None),
-    "warning": style("yellow", None, None),
-    "b": style(None, None, ("bold",)),
-}
-
-
-def is_decorated():
-    if WINDOWS:
-        return (
-            os.getenv("ANSICON") is not None
-            or os.getenv("ConEmuANSI") == "ON"  # noqa: SIM112
-            or os.getenv("Term") == "xterm"  # noqa: SIM112
-        )
-
-    if not hasattr(sys.stdout, "fileno"):
-        return False
-
-    try:
-        return os.isatty(sys.stdout.fileno())
-    except UnsupportedOperation:
-        return False
-
-
-def is_interactive():
-    if not hasattr(sys.stdin, "fileno"):
-        return False
-
-    try:
-        return os.isatty(sys.stdin.fileno())
-    except UnsupportedOperation:
-        return False
-
-
-def colorize(style, text):
-    if not is_decorated():
-        return text
-
-    return f"{STYLES[style]}{text}\033[0m"
-
-
-def string_to_bool(value):
-    value = value.lower()
-
-    return value in {"true", "1", "y", "yes"}
-
-
-def data_dir() -> Path:
-    if os.getenv("POETRY_HOME"):
-        return Path(os.getenv("POETRY_HOME")).expanduser()
-
-    if WINDOWS:
-        base_dir = Path(_get_win_folder("CSIDL_APPDATA"))
-    elif MACOS:
-        base_dir = Path("~/Library/Application Support").expanduser()
-    else:
-        base_dir = Path(os.getenv("XDG_DATA_HOME", "~/.local/share")).expanduser()
-
-    base_dir = base_dir.resolve()
-    return base_dir / "pypoetry"
-
-
-def bin_dir() -> Path:
-    if os.getenv("POETRY_HOME"):
-        return Path(os.getenv("POETRY_HOME")).expanduser() / "bin"
-
-    if WINDOWS and not MINGW:
-        return Path(_get_win_folder("CSIDL_APPDATA")) / "Python/Scripts"
-    else:
-        return Path("~/.local/bin").expanduser()
-
-
-def _get_win_folder_from_registry(csidl_name):
-    import winreg as _winreg
-
-    shell_folder_name = {
-        "CSIDL_APPDATA": "AppData",
-        "CSIDL_COMMON_APPDATA": "Common AppData",
-        "CSIDL_LOCAL_APPDATA": "Local AppData",
-    }[csidl_name]
-
-    key = _winreg.OpenKey(
-        _winreg.HKEY_CURRENT_USER,
-        r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders",
-    )
-    path, _ = _winreg.QueryValueEx(key, shell_folder_name)
-
-    return path
-
-
-def _get_win_folder_with_ctypes(csidl_name):
-    import ctypes
-
-    csidl_const = {
-        "CSIDL_APPDATA": 26,
-        "CSIDL_COMMON_APPDATA": 35,
-        "CSIDL_LOCAL_APPDATA": 28,
-    }[csidl_name]
-
-    buf = ctypes.create_unicode_buffer(1024)
-    ctypes.windll.shell32.SHGetFolderPathW(None, csidl_const, None, 0, buf)
-
-    # Downgrade to short path name if have highbit chars. See
-    # <http://bugs.activestate.com/show_bug.cgi?id=85099>.
-    has_high_char = False
-    for c in buf:
-        if ord(c) > 255:
-            has_high_char = True
-            break
-    if has_high_char:
-        buf2 = ctypes.create_unicode_buffer(1024)
-        if ctypes.windll.kernel32.GetShortPathNameW(buf.value, buf2, 1024):
-            buf = buf2
-
-    return buf.value
-
-
-if WINDOWS:
-    try:
-        from ctypes import windll  # noqa: F401
-
-        _get_win_folder = _get_win_folder_with_ctypes
-    except ImportError:
-        _get_win_folder = _get_win_folder_from_registry
-
-
-PRE_MESSAGE = """# Welcome to {poetry}!
-
-This will download and install the latest version of {poetry},
-a dependency and package manager for Python.
-
-It will add the `poetry` command to {poetry}'s bin directory, located at:
-
-{poetry_home_bin}
-
-You can uninstall at any time by executing this script with the --uninstall option,
-and these changes will be reverted.
-"""
-
-POST_MESSAGE = """{poetry} ({version}) is installed now. Great!
-
-You can test that everything is set up by executing:
-
-`{test_command}`
-"""
-
-POST_MESSAGE_NOT_IN_PATH = """{poetry} ({version}) is installed now. Great!
-
-To get started you need {poetry}'s bin directory ({poetry_home_bin}) in your `PATH`
-environment variable.
-{configure_message}
-Alternatively, you can call {poetry} explicitly with `{poetry_executable}`.
-
-You can test that everything is set up by executing:
-
-`{test_command}`
-"""
-
-POST_MESSAGE_CONFIGURE_UNIX = """
-Add `export PATH="{poetry_home_bin}:$PATH"` to your shell configuration file.
-"""
-
-POST_MESSAGE_CONFIGURE_FISH = """
-You can execute `set -U fish_user_paths {poetry_home_bin} $fish_user_paths`
-"""
-
-POST_MESSAGE_CONFIGURE_WINDOWS = """
-You can choose and execute one of the following commands in PowerShell:
-
-A. Append the bin directory to your user environment variable `PATH`:
-
-```
-[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";{poetry_home_bin}", "User")
-```
-
-B. Try to append the bin directory to PATH every when you run PowerShell (>=6 recommended):
-
-```
-echo 'if (-not (Get-Command poetry -ErrorAction Ignore)) {{ $env:Path += ";{poetry_home_bin}" }}' | Out-File -Append $PROFILE
-```
-"""
-
-
-class PoetryInstallationError(RuntimeError):
-    def __init__(self, return_code: int = 0, log: Optional[str] = None):
-        super().__init__()
-        self.return_code = return_code
-        self.log = log
-
-
-class VirtualEnvironment:
-    def __init__(self, path: Path) -> None:
-        self._path = path
-        self._bin_path = self._path.joinpath(
-            "Scripts" if WINDOWS and not MINGW else "bin"
-        )
-        # str is for compatibility with subprocess.run on CPython <= 3.7 on Windows
-        self._python = str(
-            self._path.joinpath(self._bin_path, "python.exe" if WINDOWS else "python")
-        )
-
-    @property
-    def path(self):
-        return self._path
-
-    @property
-    def bin_path(self):
-        return self._bin_path
-
-    @classmethod
-    def make(cls, target: Path) -> "VirtualEnvironment":
-        if not sys.executable:
-            raise ValueError(
-                "Unable to determine sys.executable. Set PATH to a sane value or set it"
-                " explicitly with PYTHONEXECUTABLE."
-            )
-
-        try:
-            # on some linux distributions (eg: debian), the distribution provided python
-            # installation might not include ensurepip, causing the venv module to
-            # fail when attempting to create a virtual environment
-            # we import ensurepip but do not use it explicitly here
-            import ensurepip  # noqa: F401
-            import venv
-
-            builder = venv.EnvBuilder(clear=True, with_pip=True, symlinks=False)
-            context = builder.ensure_directories(target)
-
-            if (
-                WINDOWS
-                and hasattr(context, "env_exec_cmd")
-                and context.env_exe != context.env_exec_cmd
-            ):
-                target = target.resolve()
-
-            builder.create(target)
-        except ImportError:
-            # fallback to using virtualenv package if venv is not available, eg: ubuntu
-            python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-            virtualenv_bootstrap_url = (
-                f"https://bootstrap.pypa.io/virtualenv/{python_version}/virtualenv.pyz"
-            )
-
-            with tempfile.TemporaryDirectory(prefix="poetry-installer") as temp_dir:
-                virtualenv_pyz = Path(temp_dir) / "virtualenv.pyz"
-                request = Request(
-                    virtualenv_bootstrap_url, headers={"User-Agent": "Python Poetry"}
-                )
-                virtualenv_pyz.write_bytes(urlopen(request).read())
-                cls.run(
-                    sys.executable, virtualenv_pyz, "--clear", "--always-copy", target
-                )
-
-        # We add a special file so that Poetry can detect
-        # its own virtual environment
-        target.joinpath("poetry_env").touch()
-
-        env = cls(target)
-
-        # this ensures that outdated system default pip does not trigger older bugs
-        env.pip("install", "--disable-pip-version-check", "--upgrade", "pip")
-
-        return env
-
-    @staticmethod
-    def run(*args, **kwargs) -> subprocess.CompletedProcess:
-        completed_process = subprocess.run(
-            args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            **kwargs,
-        )
-        if completed_process.returncode != 0:
-            raise PoetryInstallationError(
-                return_code=completed_process.returncode,
-                log=completed_process.stdout.decode(),
-            )
-        return completed_process
-
-    def python(self, *args, **kwargs) -> subprocess.CompletedProcess:
-        return self.run(self._python, *args, **kwargs)
-
-    def pip(self, *args, **kwargs) -> subprocess.CompletedProcess:
-        return self.python("-m", "pip", *args, **kwargs)
-
-
-class Cursor:
-    def __init__(self) -> None:
-        self._output = sys.stdout
-
-    def move_up(self, lines: int = 1) -> "Cursor":
-        self._output.write(f"\x1b[{lines}A")
-
-        return self
-
-    def move_down(self, lines: int = 1) -> "Cursor":
-        self._output.write(f"\x1b[{lines}B")
-
-        return self
-
-    def move_right(self, columns: int = 1) -> "Cursor":
-        self._output.write(f"\x1b[{columns}C")
-
-        return self
-
-    def move_left(self, columns: int = 1) -> "Cursor":
-        self._output.write(f"\x1b[{columns}D")
-
-        return self
-
-    def move_to_column(self, column: int) -> "Cursor":
-        self._output.write(f"\x1b[{column}G")
-
-        return self
-
-    def move_to_position(self, column: int, row: int) -> "Cursor":
-        self._output.write(f"\x1b[{row + 1};{column}H")
-
-        return self
-
-    def save_position(self) -> "Cursor":
-        self._output.write("\x1b7")
-
-        return self
-
-    def restore_position(self) -> "Cursor":
-        self._output.write("\x1b8")
-
-        return self
-
-    def hide(self) -> "Cursor":
-        self._output.write("\x1b[?25l")
-
-        return self
-
-    def show(self) -> "Cursor":
-        self._output.write("\x1b[?25h\x1b[?0c")
-
-        return self
-
-    def clear_line(self) -> "Cursor":
-        """
-        Clears all the output from the current line.
-        """
-        self._output.write("\x1b[2K")
-
-        return self
-
-    def clear_line_after(self) -> "Cursor":
-        """
-        Clears all the output from the current line after the current position.
-        """
-        self._output.write("\x1b[K")
-
-        return self
-
-    def clear_output(self) -> "Cursor":
-        """
-        Clears all the output from the cursors' current position
-        to the end of the screen.
-        """
-        self._output.write("\x1b[0J")
-
-        return self
-
-    def clear_screen(self) -> "Cursor":
-        """
-        Clears the entire screen.
-        """
-        self._output.write("\x1b[2J")
-
-        return self
-
-
-class Installer:
-    METADATA_URL = "https://pypi.org/pypi/poetry/json"
-    VERSION_REGEX = re.compile(
-        r"v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:\.(\d+))?"
-        "("
-        "[._-]?"
-        r"(?:(stable|beta|b|rc|RC|alpha|a|patch|pl|p)((?:[.-]?\d+)*)?)?"
-        "([.-]?dev)?"
-        ")?"
-        r"(?:\+[^\s]+)?"
-    )
-
-    def __init__(
-        self,
-        version: Optional[str] = None,
-        preview: bool = False,
-        force: bool = False,
-        accept_all: bool = False,
-        git: Optional[str] = None,
-        path: Optional[str] = None,
-    ) -> None:
-        self._version = version
-        self._preview = preview
-        self._force = force
-        self._accept_all = accept_all
-        self._git = git
-        self._path = path
-
-        self._cursor = Cursor()
-        self._bin_dir = None
-        self._data_dir = None
-
-    @property
-    def bin_dir(self) -> Path:
-        if not self._bin_dir:
-            self._bin_dir = bin_dir()
-        return self._bin_dir
-
-    @property
-    def data_dir(self) -> Path:
-        if not self._data_dir:
-            self._data_dir = data_dir()
-        return self._data_dir
-
-    @property
-    def version_file(self) -> Path:
-        return self.data_dir.joinpath("VERSION")
-
-    def allows_prereleases(self) -> bool:
-        return self._preview
-
-    def run(self) -> int:
-        if self._git:
-            version = self._git
-        elif self._path:
-            version = self._path
-        else:
-            try:
-                version, current_version = self.get_version()
-            except ValueError:
-                return 1
-
-        if version is None:
-            return 0
-
-        self.display_pre_message()
-        self.ensure_directories()
-
-        def _is_self_upgrade_supported(x):
-            mx = self.VERSION_REGEX.match(x)
-
-            if mx is None:
-                # the version is not semver, perhaps scm or file
-                # we assume upgrade is supported
-                return True
-
-            vx = (*tuple(int(p) for p in mx.groups()[:3]), mx.group(5))
-            return vx >= (1, 1, 7)
-
-        if version and not _is_self_upgrade_supported(version):
-            self._write(
-                colorize(
-                    "warning",
-                    f"You are installing {version}. When using the current installer, "
-                    "this version does not support updating using the 'self update' "
-                    "command. Please use 1.1.7 or later.",
-                )
-            )
-            if not self._accept_all:
-                continue_install = input("Do you want to continue? ([y]/n) ") or "y"
-                if continue_install.lower() in {"n", "no"}:
-                    return 0
-
-        try:
-            self.install(version)
-        except subprocess.CalledProcessError as e:
-            raise PoetryInstallationError(
-                return_code=e.returncode, log=e.output.decode()
-            ) from e
-
-        self._write("")
-        self.display_post_message(version)
-
-        return 0
-
-    def install(self, version):
-        """
-        Installs Poetry in $POETRY_HOME.
-        """
-        self._write(
-            "Installing {} ({})".format(
-                colorize("info", "Poetry"), colorize("info", version)
-            )
-        )
-
-        with self.make_env(version) as env:
-            self.install_poetry(version, env)
-            self.make_bin(version, env)
-            self.version_file.write_text(version)
-            self._install_comment(version, "Done")
-
-            return 0
-
-    def uninstall(self) -> int:
-        if not self.data_dir.exists():
-            self._write(
-                "{} is not currently installed.".format(colorize("info", "Poetry"))
-            )
-
-            return 1
-
-        version = None
-        if self.version_file.exists():
-            version = self.version_file.read_text().strip()
-
-        if version:
-            self._write(
-                "Removing {} ({})".format(
-                    colorize("info", "Poetry"), colorize("b", version)
-                )
-            )
-        else:
-            self._write("Removing {}".format(colorize("info", "Poetry")))
-
-        shutil.rmtree(str(self.data_dir))
-        for script in ["poetry", "poetry.bat", "poetry.exe"]:
-            if self.bin_dir.joinpath(script).exists():
-                self.bin_dir.joinpath(script).unlink()
-
-        return 0
-
-    def _install_comment(self, version: str, message: str):
-        self._overwrite(
-            "Installing {} ({}): {}".format(
-                colorize("info", "Poetry"),
-                colorize("b", version),
-                colorize("comment", message),
-            )
-        )
-
-    @contextmanager
-    def make_env(self, version: str) -> VirtualEnvironment:
-        env_path = self.data_dir.joinpath("venv")
-        env_path_saved = env_path.with_suffix(".save")
-
-        if env_path.exists():
-            self._install_comment(version, "Saving existing environment")
-            if env_path_saved.exists():
-                shutil.rmtree(env_path_saved)
-            shutil.move(env_path, env_path_saved)
-
-        try:
-            self._install_comment(version, "Creating environment")
-            yield VirtualEnvironment.make(env_path)
-        except Exception as e:
-            if env_path.exists():
-                self._install_comment(
-                    version, "An error occurred. Removing partial environment."
-                )
-                shutil.rmtree(env_path)
-
-            if env_path_saved.exists():
-                self._install_comment(
-                    version, "Restoring previously saved environment."
-                )
-                shutil.move(env_path_saved, env_path)
-
-            raise e
-        else:
-            if env_path_saved.exists():
-                shutil.rmtree(env_path_saved, ignore_errors=True)
-
-    def make_bin(self, version: str, env: VirtualEnvironment) -> None:
-        self._install_comment(version, "Creating script")
-        self.bin_dir.mkdir(parents=True, exist_ok=True)
-
-        script = "poetry.exe" if WINDOWS else "poetry"
-        target_script = env.bin_path.joinpath(script)
-
-        if self.bin_dir.joinpath(script).exists():
-            self.bin_dir.joinpath(script).unlink()
-
-        try:
-            self.bin_dir.joinpath(script).symlink_to(target_script)
-        except OSError:
-            # This can happen if the user
-            # does not have the correct permission on Windows
-            shutil.copy(target_script, self.bin_dir.joinpath(script))
-
-    def install_poetry(self, version: str, env: VirtualEnvironment) -> None:
-        self._install_comment(version, "Installing Poetry")
-
-        if self._git:
-            specification = "git+" + version
-        elif self._path:
-            specification = version
-        else:
-            specification = f"poetry=={version}"
-
-        env.pip("install", specification)
-
-    def display_pre_message(self) -> None:
-        kwargs = {
-            "poetry": colorize("info", "Poetry"),
-            "poetry_home_bin": colorize("comment", self.bin_dir),
-        }
-        self._write(PRE_MESSAGE.format(**kwargs))
-
-    def display_post_message(self, version: str) -> None:
-        if WINDOWS:
-            return self.display_post_message_windows(version)
-
-        if SHELL == "fish":
-            return self.display_post_message_fish(version)
-
-        return self.display_post_message_unix(version)
-
-    def display_post_message_windows(self, version: str) -> None:
-        path = self.get_windows_path_var()
-
-        message = POST_MESSAGE_NOT_IN_PATH
-        if path and str(self.bin_dir) in path:
-            message = POST_MESSAGE
-
-        self._write(
-            message.format(
-                poetry=colorize("info", "Poetry"),
-                version=colorize("b", version),
-                poetry_home_bin=colorize("comment", self.bin_dir),
-                poetry_executable=colorize("b", self.bin_dir.joinpath("poetry")),
-                configure_message=POST_MESSAGE_CONFIGURE_WINDOWS.format(
-                    poetry_home_bin=colorize("comment", self.bin_dir)
-                ),
-                test_command=colorize("b", "poetry --version"),
-            )
-        )
-
-    def get_windows_path_var(self) -> Optional[str]:
-        import winreg
-
-        with winreg.ConnectRegistry(
-            None, winreg.HKEY_CURRENT_USER
-        ) as root, winreg.OpenKey(root, "Environment", 0, winreg.KEY_ALL_ACCESS) as key:
-            path, _ = winreg.QueryValueEx(key, "PATH")
-
-            return path
-
-    def display_post_message_fish(self, version: str) -> None:
-        fish_user_paths = subprocess.check_output(
-            ["fish", "-c", "echo $fish_user_paths"]
-        ).decode("utf-8")
-
-        message = POST_MESSAGE_NOT_IN_PATH
-        if fish_user_paths and str(self.bin_dir) in fish_user_paths:
-            message = POST_MESSAGE
-
-        self._write(
-            message.format(
-                poetry=colorize("info", "Poetry"),
-                version=colorize("b", version),
-                poetry_home_bin=colorize("comment", self.bin_dir),
-                poetry_executable=colorize("b", self.bin_dir.joinpath("poetry")),
-                configure_message=POST_MESSAGE_CONFIGURE_FISH.format(
-                    poetry_home_bin=colorize("comment", self.bin_dir)
-                ),
-                test_command=colorize("b", "poetry --version"),
-            )
-        )
-
-    def display_post_message_unix(self, version: str) -> None:
-        paths = os.getenv("PATH", "").split(":")
-
-        message = POST_MESSAGE_NOT_IN_PATH
-        if paths and str(self.bin_dir) in paths:
-            message = POST_MESSAGE
-
-        self._write(
-            message.format(
-                poetry=colorize("info", "Poetry"),
-                version=colorize("b", version),
-                poetry_home_bin=colorize("comment", self.bin_dir),
-                poetry_executable=colorize("b", self.bin_dir.joinpath("poetry")),
-                configure_message=POST_MESSAGE_CONFIGURE_UNIX.format(
-                    poetry_home_bin=colorize("comment", self.bin_dir)
-                ),
-                test_command=colorize("b", "poetry --version"),
-            )
-        )
-
-    def ensure_directories(self) -> None:
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.bin_dir.mkdir(parents=True, exist_ok=True)
-
-    def get_version(self):
-        current_version = None
-        if self.version_file.exists():
-            current_version = self.version_file.read_text().strip()
-
-        self._write(colorize("info", "Retrieving Poetry metadata"))
-
-        metadata = json.loads(self._get(self.METADATA_URL).decode())
-
-        def _compare_versions(x, y):
-            mx = self.VERSION_REGEX.match(x)
-            my = self.VERSION_REGEX.match(y)
-
-            vx = (*tuple(int(p) for p in mx.groups()[:3]), mx.group(5))
-            vy = (*tuple(int(p) for p in my.groups()[:3]), my.group(5))
-
-            if vx < vy:
-                return -1
-            elif vx > vy:
-                return 1
-
-            return 0
-
-        self._write("")
-        releases = sorted(
-            metadata["releases"].keys(), key=cmp_to_key(_compare_versions)
-        )
-
-        if self._version and self._version not in releases:
-            msg = f"Version {self._version} does not exist."
-            self._write(colorize("error", msg))
-
-            raise ValueError(msg)
-
-        version = self._version
-        if not version:
-            for release in reversed(releases):
-                m = self.VERSION_REGEX.match(release)
-                if m.group(5) and not self.allows_prereleases():
-                    continue
-
-                version = release
-
-                break
-
-        if current_version == version and not self._force:
-            self._write(
-                f'The latest version ({colorize("b", version)}) is already installed.'
-            )
-
-            return None, current_version
-
-        return version, current_version
-
-    def _write(self, line) -> None:
-        sys.stdout.write(line + "\n")
-
-    def _overwrite(self, line) -> None:
-        if not is_decorated():
-            return self._write(line)
-
-        self._cursor.move_up()
-        self._cursor.clear_line()
-        self._write(line)
-
-    def _get(self, url):
-        request = Request(url, headers={"User-Agent": "Python Poetry"})
-
-        with closing(urlopen(request)) as r:
-            return r.read()
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Installs the latest (or given) version of poetry"
-    )
-    parser.add_argument(
-        "-p",
-        "--preview",
-        help="install preview version",
-        dest="preview",
-        action="store_true",
-        default=False,
-    )
-    parser.add_argument("--version", help="install named version", dest="version")
-    parser.add_argument(
-        "-f",
-        "--force",
-        help="install on top of existing version",
-        dest="force",
-        action="store_true",
-        default=False,
-    )
-    parser.add_argument(
-        "-y",
-        "--yes",
-        help="accept all prompts",
-        dest="accept_all",
-        action="store_true",
-        default=False,
-    )
-    parser.add_argument(
-        "--uninstall",
-        help="uninstall poetry",
-        dest="uninstall",
-        action="store_true",
-        default=False,
-    )
-    parser.add_argument(
-        "--path",
-        dest="path",
-        action="store",
-        help=(
-            "Install from a given path (file or directory) instead of "
-            "fetching the latest version of Poetry available online."
-        ),
-    )
-    parser.add_argument(
-        "--git",
-        dest="git",
-        action="store",
-        help=(
-            "Install from a git repository instead of fetching the latest version "
-            "of Poetry available online."
-        ),
-    )
-
-    args = parser.parse_args()
-
-    installer = Installer(
-        version=args.version or os.getenv("POETRY_VERSION"),
-        preview=args.preview or string_to_bool(os.getenv("POETRY_PREVIEW", "0")),
-        force=args.force,
-        accept_all=args.accept_all
-        or string_to_bool(os.getenv("POETRY_ACCEPT", "0"))
-        or not is_interactive(),
-        path=args.path,
-        git=args.git,
-    )
-
-    if args.uninstall or string_to_bool(os.getenv("POETRY_UNINSTALL", "0")):
-        return installer.uninstall()
-
-    try:
-        return installer.run()
-    except PoetryInstallationError as e:
-        installer._write(colorize("error", "Poetry installation failed."))
-
-        if e.log is not None:
-            import traceback
-
-            _, path = tempfile.mkstemp(
-                suffix=".log",
-                prefix="poetry-installer-error-",
-                dir=str(Path.cwd()),
-                text=True,
-            )
-            installer._write(colorize("error", f"See {path} for error logs."))
-            tb = "".join(traceback.format_tb(e.__traceback__))
-            text = f"{e.log}\nTraceback:\n\n{tb}"
-            Path(path).write_text(text)
-
-        return e.return_code
-
-
-if __name__ == "__main__":
-    sys.exit(main())
-
-```
-
+[ ](https://www.twilio.com/code-exchange/agent-notes-flex-plugin)[ ](https://www.twilio.com/code-exchange/ai-voice-assistant-openai-realtime-api)[ ](https://www.twilio.com/code-exchange/anonymous-sms-conversation)[ Bi-directional SMS communication between provider and patient, leveraging Twilio's real-time Messaging API and integration with your EHR  ](https://www.twilio.com/code-exchange/appointment-management-healthcare)[ ](https://www.twilio.com/code-exchange/appointment-reminders-sms)[ ](https://www.twilio.com/code-exchange/basic-ivr)
 
 
 ---
 
-## Fonte: https://python-poetry.org
+## Fonte: https://status.twilio.com
 
-```
-  show --tree
- 0.8.0 A utility belt for advanced users...
-└──  <3.0.0,>=2.0.1
-    ├──  >=2017.4.17
-    ├──  >=3.0.2,<3.1.0
-    ├──  >=2.5,<2.7
-    └──  <1.23,>=1.21.1
-
-  show --latest
-     Python datetimes made easy.
-     A high-level Python Web framework ...
-    Python HTTP for Humans.
-
-```
-
+- We are still experiencing SMS delivery delays when sending messages to Ooredoo Network in Tunisia. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 8 hours or as soon as more information becomes available.
+- We are still experiencing SMS delivery delays when sending messages to Ooredoo Network in Tunisia. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 4 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays when sending messages to Ooredoo Network in Tunisia. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays when sending messages to Ooredoo Network in Tunisia. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+The AT&T network in the United States and Canada is conducting a planned maintenance from 06 October 2025 at 20:00 PDT until 07 October 2025 at 04:00 PDT. During the maintenance window, there could be intermittent delays delivering MMS to and from AT&T United States and Canada handsets.
+Our service partner is conducting an emergency maintenance from 06 October 2025 at 21:00 PDT until 06 October 2025 at 23:00 PDT. During the maintenance window, there could be intermittent API request failures for the following carriers and country: Rogers Canada, Telus Canada, Bell Canada.Impacted Products: Lookup Identity Match, Verify Silent Network Auth, Lookup SIM Swap, Lookup Line Type Intelligence [Twilio API], Legacy Identity MatchAndAttributes
+A subset of small networks in the US are conducting an emergency maintenance from 06 October 2025 at 22:00 PDT until 07 October 2025 at 01:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from small US carriers handsets.
+Our MMS carrier partner in the United States is conducting a planned maintenance from 07 October 2025 at 01:00 PDT until 07 October 2025 at 03:00 PDT. During the maintenance window, there could be intermittent delays delivering MMS to and from United States handsets via subset of United States short codes.
+The M1 network in Singapore is conducting a series of planned maintenances from 07 October 2025 at 10:30 PDT until 08 October 2025 at 14:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from M1 Singapore handsets.Note, the maintenance will be carried out on each of the following dates and times:07 October 2025 at 10:30 PDT until 07 October 2025 at 15:00 PDT08 October 2025 at 11:00 PDT until 08 October 2025 at 14:00 PDT
+The MTT network in Russia is conducting a planned maintenance from 07 October 2025 at 13:00 PDT until 07 October 2025 at 13:59 PDT. During the maintenance window, there could be intermittent delays delivering SMS to MTT Russia handsets.
+The MegaFon network in Russia is conducting a planned maintenance from 07 October 2025 at 14:00 PDT until 07 October 2025 at 18:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to MegaFon Russia handsets.
+Our carrier partner Wind Tre Italy is conducting an emergency maintenance from 07 October 2025 at 14:00 PDT until 07 October 2025 at 18:00 PDT. During the maintenance window, there could be intermittent API request failures for Wind Tre Italy customers.Impacted Products: Verify Silent Network Auth, Lookup SIM Swap, Lookup Identity Match, Legacy Identity MatchAndAttributes
+Our SMS carrier partner in Spain is conducting a planned maintenance from 07 October 2025 at 20:00 PDT until 07 October 2025 at 22:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from Spain handsets via subset of Spain long codes.
+The AT&T network in the United States is conducting a planned maintenance from 07 October 2025 at 20:00 PDT until 08 October 2025 at 04:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS and MMS to and from AT&T United States handsets.
+The MegaFon network in Russia is conducting a planned maintenance from 08 October 2025 at 13:00 PDT until 08 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to MegaFon Russia handsets.
+The Gazprombank Mobile network in Russia is conducting a planned maintenance from 08 October 2025 at 13:00 PDT until 08 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Gazprombank Mobile Russia handsets.
+The Tele2 network in Russia is conducting a planned maintenance from 08 October 2025 at 13:00 PDT until 08 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Tele2 Russia handsets.
+The Telenor network in Pakistan is conducting a planned maintenance from 08 October 2025 at 15:00 PDT until 08 October 2025 at 18:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Telenor Pakistan handsets.
+The Grameenphone network in Bangladesh is conducting a planned maintenance from 08 October 2025 at 15:00 PDT until 08 October 2025 at 18:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Grameenphone Bangladesh handsets.
+Twilio is conducting a planned maintenance from 08 October 2025 at 20:00 PDT until 09 October 2025 at 00:00 PDT. During the maintenance window, there could be intermittent delays or failures delivering SMS and MMS to and from United States and Canada handsets via subset of long codes, short codes and toll free numbers.
+The Win Mobile, Volna mobile and Personnal Communicational networks in Russia are conducting a planned maintenance from 09 October 2025 at 13:33 PDT until 09 October 2025 at 22:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Win Mobile, Volna mobile and Personnal Communicational Russia handsets.
+The Vodafone network in Qatar is conducting a planned maintenance from 11 October 2025 at 14:00 PDT until 11 October 2025 at 20:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Vodafone Qatar handsets.
+The Telefonica network in Mexico is conducting a planned maintenance from 12 October 2025 at 21:00 PDT until 13 October 2025 at 05:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from Telefonica Mexico handsets.
+The Tele2 network in Russia is conducting a planned maintenance from 13 October 2025 at 13:00 PDT until 13 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Tele2 Russia handsets.
+The Vodafone network in Ireland is conducting a planned maintenance from 13 October 2025 at 15:30 PDT until 13 October 2025 at 22:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Vodafone Ireland handsets.
+The Telefonica network in Mexico is conducting a planned maintenance from 13 October 2025 at 21:00 PDT until 14 October 2025 at 05:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from Telefonica Mexico handsets.
+The Verizon network in the United States is conducting an emergency maintenance from 13 October 2025 at 21:00 PDT until 14 October 2025 at 02:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from Verizon United States handsets when sending via long codes and short codes.
+A subset of small networks in the US are conducting a planned maintenance from 14 October 2025 at 02:00 PDT until 14 October 2025 at 04:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS and MMS to and from small US carriers handsets when sending via short codes.
+Our Voice carrier partner in Germany and Austria is conducting a planned maintenance from 14 October 2025 at 17:00 PDT until 14 October 2025 at 21:00 PDT. During the maintenance window, there could be intermittent call disconnects or call failures to Twilio Germany and Austria phone numbers.
+The Claro network in Brazil is conducting a planned maintenance from 14 October 2025 at 19:30 PDT until 15 October 2025 at 00:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Claro Brazil handsets.
+The Verizon network in the United States is conducting a planned maintenance from 14 October 2025 at 21:00 PDT until 15 October 2025 at 02:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS and MMS to and from Verizon United States handsets.
+Our SMS carrier partner in Hong Kong is conducting a planned maintenance from 15 October 2025 at 09:00 PDT until 15 October 2025 at 15:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from Hong Kong handsets via subset of Hong Kong long codes.
+The Tele2 network in Russia is conducting a planned maintenance from 15 October 2025 at 13:00 PDT until 15 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Tele2 Russia handsets.
+Twilio is conducting a planned maintenance from 15 October 2025 at 20:00 PDT until 16 October 2025 at 00:00 PDT. During the maintenance window, there could be intermittent delays or failures delivering SMS and MMS to and from United States and Canada handsets via subset of long codes, short codes and toll free numbers.
+Our SMS and MMS carrier partner in the United States is conducting a planned maintenance from 19 October 2025 at 23:00 PDT until 20 October 2025 at 04:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS and MMS to and from United States handsets.
+The Tele2 network in Russia is conducting a planned maintenance from 20 October 2025 at 13:00 PDT until 20 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Tele2 Russia handsets.
+The SingTel network in Singapore is conducting a planned maintenance from 21 October 2025 at 10:00 PDT until 21 October 2025 at 14:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from SingTel Singapore handsets.
+The Tele2 network in Russia is conducting a planned maintenance from 22 October 2025 at 13:00 PDT until 22 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Tele2 Russia handsets.
+Twilio is conducting a planned maintenance from 22 October 2025 at 20:00 PDT until 23 October 2025 at 00:00 PDT. During the maintenance window, there could be intermittent delays or failures delivering SMS and MMS to and from United States and Canada handsets via subset of long codes, short codes and toll free numbers.
+The Tele2 network in Russia is conducting a planned maintenance from 27 October 2025 at 13:00 PDT until 27 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Tele2 Russia handsets.
+The Tele2 network in Russia is conducting a planned maintenance from 29 October 2025 at 13:00 PDT until 29 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Tele2 Russia handsets.
+Twilio is conducting a planned maintenance from 29 October 2025 at 20:00 PDT until 30 October 2025 at 00:00 PDT. During the maintenance window, there could be intermittent delays or failures delivering SMS and MMS to and from United States and Canada handsets via subset of long codes, short codes and toll free numbers.
+Twilio is conducting a planned maintenance from 05 November 2025 at 20:00 PST until 06 November 2025 at 00:00 PST. During the maintenance window, there could be intermittent delays or failures delivering SMS and MMS to and from United States and Canada handsets via subset of long codes, short codes and toll free numbers.
+Twilio is conducting a planned maintenance from 12 November 2025 at 20:00 PST until 13 November 2025 at 00:00 PST. During the maintenance window, there could be intermittent delays or failures delivering SMS and MMS to and from United States and Canada handsets via subset of long codes, short codes and toll free numbers.
+Twilio is conducting a planned maintenance from 19 November 2025 at 20:00 PST until 20 November 2025 at 00:00 PST. During the maintenance window, there could be intermittent delays or failures delivering SMS and MMS to and from United States and Canada handsets via subset of long codes, short codes and toll free numbers.
+Twilio is conducting a planned maintenance from 25 November 2025 at 20:00 PST until 26 November 2025 at 00:00 PST. During the maintenance window, there could be intermittent delays or failures delivering SMS and MMS to and from United States and Canada handsets via subset of long codes, short codes and toll free numbers.
+- We are no longer experiencing MS delivery delays when sending messages to Xl Axiata Network in Indonesia. This incident has been resolved.
+- We are observing recovery in SMS delivery delays when sending messages to Xl Axiata Network in Indonesia. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays when sending messages to Xl Axiata Network in Indonesia. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- The MegaFon network in Russia is conducting a planned maintenance from 06 October 2025 at 13:00 PDT until 06 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to MegaFon Russia handsets.
+- The Beeline network in Russia is conducting a planned maintenance from 06 October 2025 at 14:00 PDT until 06 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Beeline Russia handsets.
+- The Gazprom Telekom network in Russia is conducting a planned maintenance from 06 October 2025 at 13:00 PDT until 06 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Gazprom Telekom Russia handsets.
+- The MTT network in Russia is conducting a planned maintenance from 06 October 2025 at 13:00 PDT until 06 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to MTT Russia handsets.
+- The Tele2 network in Russia is conducting a planned maintenance from 06 October 2025 at 13:00 PDT until 06 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Tele2 Russia handsets.
+- The Beeline network in Russia is conducting a planned maintenance from 06 October 2025 at 13:00 PDT until 06 October 2025 at 13:59 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Beeline Russia handsets.
+- The issue affecting WhatsApp Sandbox functionality, particularly when sending messages to phone numbers in Brazil, Mexico, India, and Indonesia, has been resolved.
+- We are continuing to investigate errors affecting WhatsApp Sandbox functionality, particularly when sending messages to phone numbers in Brazil, Mexico, India, and Indonesia. We will provide an update in 24 hours or as soon as more information becomes available.
+- We are continuing to investigate errors affecting WhatsApp Sandbox functionality, particularly when sending messages to phone numbers in Brazil, Mexico, India, and Indonesia. We will provide an update in 24 hours or as soon as more information becomes available.
+- We are continuing to investigate errors affecting WhatsApp Sandbox functionality, particularly when sending messages to phone numbers in Brazil, Mexico, India, and Indonesia. We will provide an update in 16 hours or as soon as more information becomes available.
+- We still continue to investigate errors impacting WhatsApp Sandbox functionality, particularly when attempting to send messages to phone numbers in Brazil, Mexico, India, and Indonesia. We will provide another update in 8 hours or as soon as more information becomes available.
+- We are continuing to investigate errors impacting WhatsApp Sandbox functionality, particularly when attempting to send messages to phone numbers in Brazil, Mexico, India, and Indonesia. We will provide another update in 4 hours or as soon as more information becomes available.
+- We are continuing to investigate errors impacting WhatsApp Sandbox functionality, particularly when attempting to send messages to phone numbers in Brazil, Mexico, India, and Indonesia. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to investigate errors impacting WhatsApp Sandbox functionality, particularly when attempting to send messages to phone numbers in Brazil, Mexico, India, and Indonesia. We will provide another update in 1 hour or as soon as more information becomes available.
+- Our engineering team has detected a potential issue regarding the WhatsApp sandbox. Our engineering team has been alerted and is actively investigating. We will update as soon as we have more information.
+- We are no longer experiencing SMS delivery delays to multiple networks in Malaysia and African countries. This incident has been resolved.
+- We are observing recovery in SMS delivery delays to multiple networks in Malaysia and African countries. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.List of Impacted Networks: Malaysia Digi NetworkMalaysia Celcom NetworkMalaysia Red One (XOX) NetworkAngola Movicel NetworkComoros Telma NetworkTanzania Tigo NetworkTanzania Zantel NetworkCentral African Republic Telecel Centraf NetworkGhana Vodafone NetworkMali Telecel Network
+- We are observing recovery in SMS delivery delays to multiple networks in Malaysia and African countries. We will continue monitoring the service to ensure a full recovery. We will provide another update in 30 mins or as soon as more information becomes available.List of Impacted Networks: Malaysia Digi NetworkMalaysia Celcom NetworkMalaysia Red One (XOX) NetworkAngola Movicel NetworkComoros Telma NetworkTanzania Tigo NetworkTanzania Zantel NetworkCentral African Republic Telecel Centraf NetworkGhana Vodafone NetworkMali Telecel Network
+- We are experiencing SMS delivery delays to multiple networks in Malaysia and African countries. Our engineers are working with our carrier partner to resolve the issue. We will provide an update in 1 hour or as soon as more information becomes available. List of Impacted Networks: Malaysia Digi NetworkMalaysia Celcom NetworkMalaysia Red One (XOX) NetworkAngola Movicel NetworkComoros Telma NetworkTanzania Tigo NetworkTanzania Zantel NetworkCentral African Republic Telecel Centraf NetworkGhana Vodafone NetworkMali Telecel Network
+- The issue regarding the service interruption with the Function Invocations API, where functions invocations can fail with 500 error, has been resolved.
+- We are observing improvement for the service interruption with the Function Invocations API, where functions invocations can fail with 500 error. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are observing improvement for the service interruption with the Function Invocations API, where functions invocations can fail with 500 error. We expect to provide another update in 30 mins or as soon as more information becomes available.
+- We are investigating a service interruption with the Function Invocations API, Functions invocations can fail with 500 error. We expect to provide another update in 1 hour or as soon as more information becomes available.
+- We are no longer experiencing SMS delivery delays and failures when sending messages to Claro network in Honduras. This incident has been resolved.
+- We are observing recovery in SMS delivery delays and failures when sending messages to Claro network in Honduras. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are observing recovery in SMS delivery delays and failures when sending messages to Claro network in Honduras. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We keep having SMS delivery delays and failures when sending messages to Claro network in Honduras. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 24 hours or as soon as more information becomes available.
+- We still continue to experience SMS delivery delays and failures when sending messages to Claro network in Honduras. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 24 hours or as soon as more information becomes available.
+- We still continue to experience SMS delivery delays and failures when sending messages to Claro network in Honduras. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 16 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery delays and failures when sending messages to Claro network in Honduras. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 8 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery delays and failures when sending messages to Claro network in Honduras. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 4 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery delays and failures when sending messages to Claro network in Honduras. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays and failures when sending messages to Claro network in Honduras. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- The T-Mobile network in the United States is conducting a planned maintenance from 05 October 2025 at 21:00 PDT until 06 October 2025 at 01:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS and MMS to and from T-Mobile United States handsets when sending via long codes and short codes.
+- Event Streams was degraded for approximately 40 minutes between 05 October 2025 03:37 PST until 05 October 2025 04:17 PST due to an issue with Segment . During this period, customers might have experienced delays in Event Streams delivery to Segment. The issue has now been resolved.
+- We are no longer experiencing SMS delivery delays when sending messages to MTN in Nigeria. This incident has been resolved.
+- We are observing recovery in SMS delivery delays when sending messages to MTN in Nigeria. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We continue to experience SMS delivery delays to MTN in Nigeria. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 4 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays to MTN in Nigeria. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays to MTN in Nigeria. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are no longer experiencing loud and distorted ringing tones in voice calls using TwiML Dial. This incident has been resolved.
+- We have mitigated the issue that caused loud and distorted ringing tones in some voice calls using TwiML Dial. We are monitoring the system and expect to provide another update within 30 minutes or as soon as more information becomes available.
+- We have identified an issue which caused loud and distorted ringing tones are heard in some voice calls with TwiML Dial. We are implementing mitigations and expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are investigating an issue where loud and distorted ringing tones are heard in some voice calls with TwiML Dial. We expect to provide another update in 1 hour or as soon as more information becomes available.
+- Our engineers are currently investigating the customer impact of a retroactive issue with Abnormal ringing tone on JS SDK Clients. We will follow up and provide customer impact details within 2 hours.
+- Early media ringtone for calls to T-Mobile numbers in the United States now operating normally. We will continue to monitor for system stability. We'll provide another update in 2 hours or as soon as more information becomes available.
+- Early media ringtone for calls to T-Mobile numbers in the United States now operating normally. We will continue to monitor for system stability. We'll provide another update in 2 hours or as soon as more information becomes available.
+- Early media ringtone for calls to T-Mobile numbers in the United States now operating normally. We will continue to monitor for system stability. We'll provide another update in 30 minutes or as soon as more information becomes available.
+- We are investigating an issue impacting early media ringtone for calls to T-Mobile numbers in the United States. Our engineers are actively working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- Our monitoring systems have detected a potential issue impacting early media ringtone for calls routing via T-Mobile. Our engineering team has been alerted and is actively investigating. We will provide updates as soon as more information is available.
+- The incident impacting Verify messages has been mitigated. We will continue to monitor closely. We will provide another updates in 30 minutes.
+- We are no longer experiencing delivery report delays when sending messages to multiple networks in United States of America via subset of short codes. This incident has been resolved.
+- We are observing recovery for SMS delivery when sending messages to multiple networks in United States of America via subset of short codes. We will continue to monitor to ensure full service recovery. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays when sending messages to multiple networks in United States of America via subset of short codes . Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- The incident impacting MMS, SMS, OTT, Voice Insights, Verify and Lookup in US1 has been resolved and systems are operating normally at this time.
+- We are observing recovery to degradation across MMS, SMS, OTT, Voice Insights, Verify and Lookup in US1. We will continue to monitor closely. We will provide another updates in 30 minutes.We are consolidating the following status posts in this communication: and 
+- We are observing recovery to degradation across MMS, SMS, OTT, Voice Insights, and Lookup in US1. We will continue to monitor closely. We will provide another updates in 30 minutes.We are consolidating the following status posts in this communication: and 
+- Our monitoring systems have detected increased latency for the Lookup V1 and V2 API. Our engineering team has been alerted and is actively investigating. We will update as soon as we have more information.
+- We are no longer experiencing MMS delivery delays when sending messages to multiple networks in Italy. This incident has been resolved.
+- We are observing recovery in SMS delivery delays when sending messages to multiple networks in Italy. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays when sending messages to multiple networks in Italy. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are no longer experiencing delivery report delays when sending messages to Azercell network in Azerbaijan. This incident has been resolved.
+- We are observing recovery in SMS delivery delays when sending messages to Azercell network in Azerbaijan. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery delays and failures when sending messages to Azercell network in Azerbaijan. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays and failures when sending messages to Azercell network in Azerbaijan. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are still experiencing increase of 500 errors for SMS and MMS messages , however, since there are several Twilio impacted services, we're resolving this post and we're consolidating all impacted products and services into one post. You can check the status of this at 
+- Our monitoring systems have detected an increase of 500 errors for SMS and MMS messages. Customers sending messages may also see latency when sending their messages. Our engineering team has been alerted and is actively investigating. We will update as soon as we have more information.
+- We are experiencing issues with the Verify's SMS messages not being delivered, impacting multiple Twilio services. We’re consolidating the StatusPage posts: . Our engineering teams are actively working to resolve these issues.
+- Our monitoring systems have detected a potential issue Verify's SMS messages not being delivered. Our engineering team has been alerted and is actively investigating. We will update as soon as we have more information.
+- We are no longer experiencing delivery report delays when sending messages to Etisalat in Egypt. This incident has been resolved.
+- We are continuing to observe recovery in SMS delivery delays when sending messages to Etisalat in Egypt. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are observing recovery in SMS delivery delays when sending messages to Etisalat in Egypt. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We continue experiencing SMS delivery delays when sending messages to Etisalat in Egypt. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 8 hours or as soon as more information becomes available.
+- We continue experiencing SMS delivery delays when sending messages to Etisalat in Egypt. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 4 hours or as soon as more information becomes available.
+- We continue experiencing SMS delivery delays when sending messages to Etisalat in Egypt. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We continue experiencing SMS delivery delays when sending messages to Etisalat in Egypt. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays when sending messages to Etisalat in Egypt. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- The issue affecting call failures to and from a subset of Twilio Malaysia phone numbers has been resolved, and the service is functioning normally at this time.
+- We are continuing to monitor for the issue causing call failures to and from a subset of Twilio Malaysia phone numbers. We will continue to monitor to ensure a full recovery. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to monitor for the issue causing call failures to and from a subset of Twilio Malaysia phone numbers. We will continue to monitor to ensure a full recovery. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We have started seeing recovery for the issue causing call failures to and from a subset of Twilio Malaysia phone numbers. We will continue to monitor to ensure a full recovery. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to investigate the issue causing call failures to and from a subset of Twilio Malaysia phone numbers. We are actively working with our carrier partner to resolve the issue. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- The issue causing call failures to and from a subset of Twilio Malaysia phone numbers has been identified. We are actively working with our carrier partner to resolve the issue. We expect to provide another update in 1 hour or as soon as more information becomes available.
+- We are no longer experiencing SMS delivery delays when sending messages to Telefonica O2 network in Germany. This incident has been resolved.
+- We are observing recovery in SMS delivery delays and failures when sending messages to Telefonica O2 network in Germany. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery delays and failures when sending messages to Telefonica O2 network in Germany. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays and failures when sending messages to Telefonica O2 network in Germany. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are experiencing SMS delivery delays and failures when sending messages to Telefonica O2 network in Germany. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are no longer experiencing SMS delivery delays and failures to the BTC network in Botswana. This incident has been resolved.
+- We are observing recovery in SMS delivery delays and failures to the BTC network in Botswana. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We continue experiencing SMS delivery delays and failures to the BTC network in Botswana. Our engineers are working with our carrier partners to resolve the issue. We will provide another update in 16 hours or as soon as more information becomes available.
+- We continue experiencing SMS delivery delays and failures to the BTC network in Botswana. Our engineers are working with our carrier partners to resolve the issue. We will provide another update in 8 hours or as soon as more information becomes available.
+- We continue experiencing SMS delivery delays and failures to the BTC network in Botswana. Our engineers are working with our carrier partners to resolve the issue. We will provide another update in 4 hours or as soon as more information becomes available.
+- We continue experiencing SMS delivery delays and failures to the BTC network in Botswana. Our engineers are working with our carrier partners to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays and failures to the BTC network in Botswana. Our engineers are working with our carrier partners to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are no longer experiencing SMS delivery delays and failures when sending messages to multiple networks in Spain. This incident has been resolved.
+- We are observing recovery in SMS delivery delays and failures when sending messages to multiple networks in Spain. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery delays and failures when sending messages to multiple networks in Spain. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays and failures when sending messages to multiple networks in Spain. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- The Verizon network in the United States is conducting an emergency maintenance from 30 September 2025 at 21:00 PDT until 03 October 2025 at 03:00 PDT. During the maintenance window, there could be intermittent delays delivering MMS to and from Verizon United States handsets.We are aware of the short notice and are working with our Carrier Partners to provide earlier notification where possible.
+- We are observing recovery in Deepgram transcription completions and will continue monitoring the service to ensure full restoration. The next update will be provided in 30 minutes or sooner if additional information becomes available.
+- The MTS network in Russia is conducting a planned maintenance from 02 October 2025 at 12:00 PDT until 02 October 2025 at 15:30 PDT. During the maintenance window, there could be intermittent delays delivering SMS to MTS Russia handsets.We are aware of the short notice and are working with our Carrier Partners to provide earlier notification where possible.
+- The Twilio Programmable Messaging API is partially degraded for 50secs from Oct 2nd, 2024, 13:46:10 UTC to Oct 2nd, 2024, 13:47:00 UTC . During this period of time, customers sending a message may have received elevated volumes of 5xx's in API responses. This issue has now been mitigated.
+- We are no longer experiencing issues with Event Streams where events are being delivered with increased latency. The incident has been resolved.
+- Our engineers have identified and mitigated the issue. Event Stream delivery lag is now showing signs of recovery. We will continue to monitor the situation and provide an update in 2 hours or as soon as more information becomes available.
+- We continue to experience issues with Event Streams where events are being delivered with increased latency. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are no longer experiencing SMS delivery delays when sending messages to Claro network in Honduras. The incident has been resolved.
+- We are observing recovery in SMS delivery delays when sending messages to Claro network in Honduras. We will continue to monitor the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We continue to experience SMS delivery delays when sending messages to Claro network in Honduras. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays when sending messages to Claro network in Honduras. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- Our SMS carrier partner in Malaysia is conducting an emergency maintenance from 02 October 2025 at 01:00 PDT until 02 October 2025 at 04:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Malaysia handsets.
+- We are observing successful SMS delivery to du in United Arab Emirates. We will continue to monitor to ensure full service recovery. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery failures to du in United Arab Emirates. Our engineers are working with our carrier partner to resolve the issue. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery failures to du in United Arab Emirates. Our engineers are working with our carrier partner to resolve the issue. We expect to provide another update in 1 hour or as soon as more information becomes available.
+- Our service partner is conducting a planned maintenance from 01 October 2025 at 22:00 PDT until 02 October 2025 at 02:00 PDT. During the maintenance window, there could be intermittent API request failures for the following carriers and country: Rogers Canada, Telus Canada, Bell Canada.Impacted Products: Verify Silent Network Auth, Lookup Identity Match, Lookup SIM Swap, Legacy Identity MatchAndAttributes, Lookup Line Type Intelligence [Twilio API]
+- We are no longer experiencing SMS delivery delays when sending messages to Twilio Phone Numbers in US via Subset of Shortcodes. This incident has been resolved.
+- We are observing recovery in SMS delivery delays when sending messages to Twilio Phone Numbers in US via Subset of Shortcodes. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery delays when sending messages to Twilio Phone Numbers in US via Subset of Shortcodes. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays when sending messages to Twilio Phone Numbers in US via Subset of Shortcodes. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- The issue affecting call failures from a subset of Twilio's phone numbers to Slovakia has been resolved, and the service is functioning normally at this time.
+- We have started seeing recovery for call failures from a subset of Twilio's phone numbers to Slovakia. We will continue to monitor to ensure a full recovery. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to experience call failures from a subset of Twilio's phone numbers to Slovakia. Our engineers are working with our carrier partner to resolve the issue. We expect to provide another update in 8 hours or as soon as more information becomes available.
+- We are experiencing call failures from a subset of Twilio's phone numbers to Slovakia. Our engineers are working with our carrier partner to resolve the issue. We expect to provide another update in 4 hours or as soon as more information becomes available.
+- We are experiencing call failures from a subset of Twilio's phone numbers to Slovakia. Our engineers are working with our carrier partner to resolve the issue. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing call failures from a subset of Twilio's phone numbers to Slovakia. Our engineers are working with our carrier partner to resolve the issue. We expect to provide another update in 1 hour or as soon as more information becomes available.
+- Twilio is conducting a planned maintenance from 01 October 2025 at 20:00 PDT until 02 October 2025 at 00:00 PDT. During the maintenance window, there could be intermittent delays or failures delivering SMS and MMS to and from United States and Canada handsets via subset of long codes, short codes and toll free numbers.
+- Our SMS carrier partner in the United Kingdom is conducting an emergency maintenance from 01 October 2025 at 14:00 PDT until 01 October 2025 at 22:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from United Kingdom handsets.We are aware of the short notice and are working with our Carrier Partners to provide earlier notification where possible.
+- Our SMS carrier partner in the United States is conducting a planned maintenance from 01 October 2025 at 19:00 PDT until 01 October 2025 at 21:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from United States handsets via United States short codes.
+- We are no longer experiencing SMS delivery delays when sending messages to Free Mobile and Bouygues Telecom in France for a Subset of Longcodes. This incident has been resolved.
+- We continue to observe recovery in SMS delivery delays to Free Mobile and Bouygues Telecom in France for a subset of long codes. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are observing recovery in SMS delivery delays to Free Mobile and Bouygues Telecom in France for a subset of long codes. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery delays to Free Mobile and Bouygues Telecom in France for a subset of longcodes. Our engineers are working with our carrier partners to resolve the issue. We will provide another update in 16 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery delays to Free Mobile and Bouygues Telecom in France for a subset of longcodes. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 8 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery delays to Free Mobile and Bouygues Telecom in France for a subset of longcodes. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 4 hours or as soon as more information becomes available.
+- We are continuing to experience SMS Delivery Delays to Free Mobile and Bouygues Telecom in France for a Subset of Longcodes. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are still experiencing SMS Delivery Delays to Free Mobile and Bouygues Telecom in France for a Subset of Longcodes. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hour or as soon as more information becomes available.
+- We are experiencing SMS Delivery Delays to Free Mobile and Bouygues Telecom in France for a Subset of Longcodes. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- The Gazprombank Mobile network in Russia is conducting a planned maintenance from 01 October 2025 at 13:00 PDT until 01 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Gazprombank Mobile Russia handsets.
+- The Tele2 network in Russia is conducting a planned maintenance from 01 October 2025 at 13:00 PDT until 01 October 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Tele2 Russia handsets.
+- The Sotovaja Svjaz MOTIV network in Russia is conducting a planned maintenance from 01 October 2025 at 11:00 PDT until 01 October 2025 at 16:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Sotovaja Svjaz MOTIV Russia handsets.
+- We are no longer experiencing MMS delivery delays to multiple networks in the US via a subset of long codes. This incident has been resolved.
+- We are observing recovery in MMS delivery delays to multiple networks in the US via a subset of long codes. We will continue to monitor the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We continue to experience MMS delivery delays to multiple networks in the US via a subset of long codes Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing MMS delivery delays to multiple networks in the US via a subset of long codes Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are no longer experiencing SMS delivery delays when sending messages to the AWCC network in Afghanistan. The incident has been resolved.
+- We are observing recovery in SMS delivery delays when sending messages to the AWCC network in Afghanistan. We will continue to monitor the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery delays when sending messages to the AWCC network in Afghanistan. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 16 hours or as soon as more information becomes available.
+- We are still experiencing SMS delivery delays when sending messages to AWCC Network in Afghanistan. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 8 hours or as soon as more information becomes available.
+- We are still experiencing SMS delivery delays when sending messages to AWCC network in Afghanistan. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 4 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery delays when sending messages to AWCC network in Afghanistan. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 4 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery delays when sending messages to AWCC network in Afghanistan. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays when sending messages to AWCC network in Afghanistan. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are no longer experiencing delivery receipt delays when sending messages to the Net One Network in Zimbabwe. The incident has been resolved.
+- We are observing recovery in delivery receipt delays when sending messages to Net One Network in Zimbabwe. We will continue to monitor the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to experience delivery receipt delays when sending messages to Net One Network in Zimbabwe. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 8 hours or as soon as more information becomes available.
+- We are continuing to experience delivery receipt delays when sending messages to Net One Network in Zimbabwe. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 4 hours or as soon as more information becomes available.
+- We are continuing to experience delivery receipt delays when sending messages to Net One Network in Zimbabwe. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing delivery receipt delays when sending messages to Net One Network in Zimbabwe. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are observing recovery for the WhatsApp sandbox functionality. We will continue to monitor to ensure a full recovery. We expect to provide another update in 16 hours or as soon as more information becomes available.
+- We have started seeing recovery for the WhatsApp sandbox functionality. We will continue to monitor to ensure a full recovery. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to investigate a service disruption in WhatsApp sandbox functionality, particularly when attempting to send messages to Brazilian phone numbers. We will provide an update in 4 hours, or as soon as we receive more information.
+- We are continuing to investigate a service disruption in WhatsApp sandbox functionality, particularly when attempting to send messages to Brazilian phone numbers. We will provide an update in 2 hours, or as soon as we receive more information.
+- We are investigating a service disruption in WhatsApp sandbox functionality, particularly when attempting to send messages to Brazilian phone numbers. We will provide an update in 2 hours, or as soon as we receive more information.
+- The AT&T network in the United States is conducting a planned maintenance from 30 September 2025 at 20:00 PDT until 01 October 2025 at 04:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from AT&T United States handsets when sending via subset of long codes and short codes.
+- The AT&T network in the United States is conducting a planned maintenance from 30 September 2025 at 20:00 PDT until 01 October 2025 at 04:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS and MMS to and from AT&T United States handsets.
+- A subset of small networks in the US are conducting a planned maintenance from 30 September 2025 at 19:00 PDT until 01 October 2025 at 02:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from small US carriers handsets.
+- A subset of small networks in the US are conducting a planned maintenance from 30 September 2025 at 21:00 PDT until 01 October 2025 at 02:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from small US carriers handsets.
+- Our carrier partner Three United Kingdom is conducting a planned maintenance from 30 September 2025 at 21:30 PDT until 30 September 2025 at 23:30 PDT. During the maintenance window, there could be intermittent API request failures for Three United Kingdom customers.Impacted Products: Verify Silent Network Auth, Lookup SIM Swap, Lookup Identity Match, Legacy Identity MatchAndAttributes
+- We are no longer experiencing MMS delivery delays when sending messages to Cingular Wireless (AT&T) in the United States of America via a subset of long codes. This incident has been resolved.
+- We are observing recovery in MMS delivery when sending messages to Cingular Wireless (AT&T) in the United States of America via a subset of long codes. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to experience MMS delivery delays when sending messages to Cingular Wireless (AT&T) in the United States of America via Subset of Longcodes. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing MMS Delivery Delays to Cingular Wireless (AT&T) in United States of America 311-180 via Subset of Longcodes. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- Our carrier partner Vodafone United Kingdom is conducting an emergency maintenance from 30 September 2025 at 15:15 PDT until 30 September 2025 at 19:30 PDT. During the maintenance window, there could be intermittent API request failures for Vodafone United Kingdom customers.Impacted Products: Lookup Identity Match, Legacy Identity MatchAndAttributesWe are aware of the short notice and are working with our Carrier Partners to provide earlier notification where possible.
+- Our SMS carrier partner in France is conducting a planned maintenance from 30 September 2025 at 13:00 PDT until 30 September 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from France handsets.
+- The MegaFon network in Russia is conducting a series of planned maintenances from 29 September 2025 at 13:00 PDT until 30 September 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to MegaFon Russia handsets.Note, the maintenance will be carried out on each of the following dates and times:29 September 2025 at 13:00 PDT until 29 September 2025 at 17:00 PDT30 September 2025 at 13:00 PDT until 30 September 2025 at 17:00 PDT
+- The MTS network in Russia is conducting a planned maintenance from 30 September 2025 at 14:00 PDT until 30 September 2025 at 15:30 PDT. During the maintenance window, there could be intermittent delays delivering SMS to MTS Russia handsets.
+- The StarHub network in Singapore is conducting a planned maintenance from 30 September 2025 at 09:00 PDT until 30 September 2025 at 14:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from StarHub Singapore handsets.
+[SMS Delivery Report Delays & Delivery Failures to Dish & C-spire Network in United States of America via Subset of Shortcodes](https://status.twilio.com/incidents/q65fyn8pdf0w)
+- We are no longer experiencing SMS Delivery Report Delays & Delivery Failures to Dish & C-spire Network in United States of America via Subset of Shortcodes. This incident has been resolved.
+- We continue to observe recovery in SMS Delivery Report Delays & Delivery Failures to Dish & C-spire Network in United States of America via Subset of Shortcodes. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are observing recovery in SMS Delivery Report Delays & Delivery Failures to Dish & C-spire Network in United States of America via Subset of Shortcodes. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to experience delays in receiving message delivery reports when sending to Dish Network in United States of America via Subset of Shortcodes. Our engineers are working with our carrier partner to resolve the issue. We expect to provide another update in 4 hours or as soon as more information becomes available.
+- We are continuing to experience delays in receiving message delivery reports when sending to Dish Network in United States of America via Subset of Shortcodes. Our engineers are working with our carrier partner to resolve the issue. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing delays in receiving message delivery reports when sending to Dish Network in United States of America via Subset of Shortcodes. Our engineers are working with our carrier partner to resolve the issue. We expect to provide another update in 1 hour or as soon as more information becomes available.
+- The Indosat and Three networks in Indonesia are conducting a planned maintenance from 30 September 2025 at 09:00 PDT until 30 September 2025 at 13:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Indosat and Three Indonesia handsets.
+- We are no longer experiencing SMS delivery failures in United Kingdom of Great Britain and Northern Ireland. This incident has been resolved.
+- We are observing successful SMS delivery United Kingdom of Great Britain and Northern Ireland. We will continue to monitor to ensure full service recovery. We expect to provide another update in 2 hours or as soon as more information becomes available
+- We are experiencing SMS delivery failures in United Kingdom of Great Britain and Northern Ireland. Our engineers are working with our carrier partner to resolve the issue. We expect to provide another update in 1 hour or as soon as more information becomes available.
+- We are no longer experiencing SMS delivery delays & Failures to 365 Wireless LLC in United States of America via Subset of Longcodes. This incident has been resolved.
+- We are still observing recovery in SMS delivery delays and failures when sending messages to 365 Wireless LLC in United States of America via subset of Longcodes. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are observing recovery in SMS delivery delays and failures when sending messages to 365 Wireless LLC in United States of America via subset of Longcodes. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays and failures when sending messages to 365 Wireless LLC in United States of America via subset of Longcodes. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- Twilio platform was degraded for ~75 minutes between 08:30 and 09:45 UTC on 09/30/2025. During this period of time customers may have experienced SMS failures from and to Twilio Platform. The issue has now been resolved.
+- The T-Mobile network in the United States is conducting a planned maintenance from 29 September 2025 at 22:00 PDT until 30 September 2025 at 06:00 PDT. During the maintenance window, there could be intermittent delays delivering MMS to and from T-Mobile United States handsets when sending via subset of short codes.
+- The T-Mobile network in the United States is conducting a planned maintenance from 29 September 2025 at 23:00 PDT until 30 September 2025 at 06:00 PDT. During the maintenance window, there could be intermittent delays delivering MMS to and from T-Mobile United States handsets.
+- The AT&T network in the United States is conducting an emergency maintenance from 30 September 2025 at 01:00 PDT until 30 September 2025 at 05:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from AT&T United States handsets when sending via long codes.We are aware of the short notice and are working with our Carrier Partners to provide earlier notification where possible.
+- Our SMS carrier partner in Malaysia is conducting a series of emergency maintenances from 29 September 2025 at 01:00 PDT until 30 September 2025 at 04:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Malaysia handsets.Note, the maintenance will be carried out on each of the following dates and times:29 September 2025 at 01:00 PDT until 29 September 2025 at 03:00 PDT30 September 2025 at 01:00 PDT until 30 September 2025 at 04:00 PDT
+- The AT&T network in the United States is conducting a planned maintenance from 29 September 2025 at 20:00 PDT until 30 September 2025 at 04:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS and MMS to and from AT&T United States handsets.
+- We are no longer experiencing SMS delivery delays when sending messages to Multiple Networks in Colombia. This incident has been resolved.
+- We are observing recovery in SMS delivery delays when sending messages to Multiple Networks in Colombia. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are observing recovery in SMS delivery delays when sending messages to Multiple Networks in Colombia. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays when sending messages to Multiple Networks in Colombia. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are no longer experiencing SMS delivery failures and delays to DiGi and Celcom Network in Malaysia. This incident has been resolved.
+- We are observing recovery in SMS delivery failures and delays to DiGi and Celcom Network in Malaysia. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are observing recovery in SMS delivery failures and delays to DiGi and Celcom Network in Malaysia. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery failures and delays to DiGi and Celcom Network in Malaysia. Our engineers are working with our carrier partner to resolve the issue. We expect to provide another update in 1 hour or as soon as more information becomes available.
+- Our MMS carrier partner in the United States is conducting an emergency maintenance from 29 September 2025 at 22:00 PDT until 30 September 2025 at 02:00 PDT. During the maintenance window, there could be intermittent delays delivering MMS to and from United States handsets via subset of United States short codes.We are aware of the short notice and are working with our Carrier Partners to provide earlier notification where possible.
+- Our carrier partner EE United Kingdom is conducting a planned maintenance from 29 September 2025 at 08:00 PDT until 30 September 2025 at 01:00 PDT. During the maintenance window, there could be intermittent API request failures for EE United Kingdom customers.Impacted Products: Verify Silent Network Auth, Lookup Identity Match, Lookup SIM Swap, Legacy Identity MatchAndAttributes
+- We are no longer experiencing SMS delivery reports delays when sending messages to Altice Network in the US. This incident has been resolved.
+- We are observing recovery in SMS delivery reports delays when sending messages to Altice Network in the US. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are still experiencing SMS delivery reports delays when sending messages to Altice Network in the US. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 24 hours or as soon as more information becomes available.
+- We are still experiencing SMS delivery reports delays when sending messages to Altice Network in the US. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 24 hours or as soon as more information becomes available.
+- We are still experiencing SMS delivery reports delays when sending messages to Altice Network in the US. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 24 hours or as soon as more information becomes available.
+- We are still experiencing SMS delivery reports delays when sending messages to Altice Network in the US. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 24 hours or as soon as more information becomes available.
+- We are still experiencing SMS delivery reports delays when sending messages to Altice Network in the US. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 16 hours or as soon as more information becomes available.
+- We are still experiencing SMS delivery reports delays when sending messages to Altice Network in the US. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 8 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery reports delays when sending messages to Altice Network in the US. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 4 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery reports when sending messages to Altice Network in US. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- Our SMS carrier partner in the United States is conducting a planned maintenance from 29 September 2025 at 19:00 PDT until 29 September 2025 at 21:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from United States handsets via subset of United States short codes.
+- We have fully investigated the SMS Delivery Failures to Multiple Networks In Multiple Countries, and it was determined that the impact was limited to a small set of customers, who have been contacted individually to address any concerns. All systems are operational.
+- Our monitoring systems have detected a potential issue in SMS Delivery Failures to Multiple Countries. Our engineering team has been alerted and is actively investigating. We will update as soon as we have more information.
+- We are no longer experiencing SMS Delivery Delays and Failures to Zain/CelTel in Niger 614-02. This incident has been resolved.
+- We continue observing recovery in SMS Delivery Delays and Failures to Zain/CelTel in Niger 614-02. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are observing recovery in SMS Delivery Delays and Failures to Zain/CelTel in Niger 614-02. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS Delivery Delays and Failures to Zain/CelTel in Niger 614-02. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are no longer experiencing SMS delivery delays when sending messages to MTN network in the Ivory Coast. This incident has been resolved.
+- We are observing recovery in SMS Delivery Delays to MTN network in the Ivory Coast. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS Delivery Delays to MTN network in the Ivory Coast. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- The Gazprombank Mobile network in Russia is conducting a planned maintenance from 29 September 2025 at 13:00 PDT until 29 September 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Gazprombank Mobile Russia handsets.
+- The Beeline network in Russia is conducting a planned maintenance from 29 September 2025 at 14:00 PDT until 29 September 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Beeline Russia handsets.
+- The Tele2 network in Russia is conducting a series of planned maintenances from 01 September 2025 at 13:00 PDT until 29 September 2025 at 17:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Tele2 Russia handsets.Note, the maintenance will be carried out on each of the following dates and times:01 September 2025 at 13:00 PDT until 01 September 2025 at 17:00 PDT03 September 2025 at 13:00 PDT until 03 September 2025 at 17:00 PDT08 September 2025 at 13:00 PDT until 08 September 2025 at 17:00 PDT10 September 2025 at 13:00 PDT until 10 September 2025 at 17:00 PDT15 September 2025 at 13:00 PDT until 15 September 2025 at 17:00 PDT17 September 2025 at 13:00 PDT until 17 September 2025 at 17:00 PDT22 September 2025 at 13:00 PDT until 22 September 2025 at 17:00 PDT24 September 2025 at 13:00 PDT until 24 September 2025 at 17:00 PDT29 September 2025 at 13:00 PDT until 29 September 2025 at 17:00 PDTWe are aware of the short notice and are working with our Carrier Partners to provide earlier notification where possible.
+- The Tinkoff Mobile network in Russia is conducting a planned maintenance from 29 September 2025 at 15:00 PDT until 29 September 2025 at 15:40 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Tinkoff Mobile Russia handsets.
+- Engineers identified a spike in messages delayed in being sent from Meta to Twilio from 1:00 PM PST to 1:21 PM PST. Those messages have been resent and successfully processed.
+- A WhatsApp issue with inbound messages has been identified. Customers may have experienced issues in receiving WhatsApp messages. Our engineers are working to get this resolved. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are no longer experiencing SMS Delivery Delays and Failures To T-mobile Network in United States of America. This incident has been resolved.
+- We are observing a recovery when sending SMS To T-mobile Network in the United States of America. We will continue to monitor to ensure full service recovery. We expect to provide another update in 4 hours or as soon as more information becomes available.
+- We are observing a recovery when sending SMS To T-mobile Network in the United States of America. We will continue to monitor to ensure full service recovery. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays when sending messages to T-Mobile Network in the United States of America. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are no longer experiencing errors while using the WhatsApp Sandbox with Brazil WhatsApp Addresses. This incident has been resolved.
+- WhatsApp Sandbox with Brazil WhatsApp addresses is now operating normally. We will continue to monitor for system stability. We'll provide another update in 8 hours or as soon as more information becomes available.
+- WhatsApp Sandbox with Brazil WhatsApp addresses is now operating normally. We will continue to monitor for system stability. We'll provide another update in 4 hours or as soon as more information becomes available.
+- WhatsApp Sandbox with Brazil WhatsApp addresses is now operating normally. We will continue to monitor for system stability. We'll provide another update in 2 hours or as soon as more information becomes available.
+- We are continuing to investigate errors while using the WhatsApp Sandbox with Brazil WhatsApp addresses. We expect to provide another update in 24 hours or as soon as more information becomes available.
+- We are continuing to investigate errors while using the WhatsApp Sandbox with Brazil WhatsApp addresses. We expect to provide another update in 24 hours or as soon as more information becomes available.
+- We are continuing to investigate errors while using the WhatsApp Sandbox with Brazil WhatsApp addresses. We expect to provide another update in 24 hours or as soon as more information becomes available.
+- We are continuing to investigate errors while using the WhatsApp Sandbox with Brazil WhatsApp addresses. We expect to provide another update in 16 hours or as soon as more information becomes available.
+- We are continuing to investigate errors while using the WhatsApp Sandbox with Brazil WhatsApp addresses. We expect to provide another update in 8 hours or as soon as more information becomes available.
+- We are continuing to investigate errors while using the WhatsApp Sandbox with Brazil WhatsApp addresses. We expect to provide another update in 4 hours or as soon as more information becomes available.
+- We are continuing to investigate errors while using the WhatsApp Sandbox with Brazil WhatsApp addresses. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- Our engineering team has detected a potential issue regarding the WhatsApp sandbox. Our engineering team has been alerted and is actively investigating. We will update as soon as we have more information.
+- The Tele2 network in Russia is conducting an emergency maintenance from 29 September 2025 at 09:00 PDT until 29 September 2025 at 10:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to Tele2 Russia handsets.We are aware of the short notice and are working with our Carrier Partners to provide earlier notification where possible.
+- We are observing recovery in Outbound Messages via WhatsApp. We will continue monitoring the service to ensure a full recovery. We will provide another update in 4 hours or as soon as more information becomes available.
+- We are continuing to observe errors when sending outbound messages via WhatsApp. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are observing multiple WhatsApp permission denied errors for customers trying to send messages. We expect to provide another update in 1 hour or as soon as more information becomes available.
+- We are no longer experiencing errors related to SMS Delivery Delays to a Subset of Longcodes in Norway. This incident has been resolved.
+- We are observing recovery in SMS delivery delays in Norway when sending messages. We will continue monitoring the service to ensure a full recovery. We will provide another update in 4 hours or as soon as more information becomes available.
+- We are continuing to experience SMS delivery delays when sending messages to a Subset of Longcodes in Norway. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays when sending messages to a Subset of Longcodes in Norway. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- The T-Mobile network in the United States is conducting a planned maintenance from 28 September 2025 at 23:00 PDT until 29 September 2025 at 06:00 PDT. During the maintenance window, there could be intermittent delays delivering MMS to and from T-Mobile United States handsets.
+- Our SMS carrier partner in the United States is conducting an emergency maintenance from 28 September 2025 at 23:40 PDT until 29 September 2025 at 05:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to and from United States handsets via United States short codes.We are aware of the short notice and are working with our Carrier Partners to provide earlier notification where possible.
+- We are no longer experiencing MMS inbound delivery delays when sending messages from T-Mobile US and Delivery Report Delays when sending to T-Mobile US via Subset of Short codes. This incident has been resolved.
+- We have started seeing recovery for the MMS inbound delivery delays when sending messages from T-Mobile US and Delivery Report Delays when sending to T-Mobile US via Subset of Short codes. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are still experiencing MMS inbound delivery delays when sending messages from T-Mobile US and Delivery Report Delays when sending to T-Mobile US via Subset of Short codes. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 4 hours or as soon as more information becomes available.
+- We are experiencing MMS inbound delivery delays when sending messages from T-Mobile US and Delivery Report Delays when sending to T-Mobile US via Subset of Short codes. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing MMS inbound delivery delays when sending messages from T-Mobile US and Delivery Report Delays when sending to T-Mobile US via Subset of Short codes. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are experiencing MMS delivery delays when sending messages to T-Mobile in United States of America via Subset of Shortcodes. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- The MegaFon network in Russia is conducting a planned maintenance from 28 September 2025 at 14:00 PDT until 28 September 2025 at 16:00 PDT. During the maintenance window, there could be intermittent delays delivering SMS to MegaFon Russia handsets.
+[MMS/SMS Delivery Delays & Failures via Multiple Networks in United States of America and Canada via Subset of Twilio numbers](https://status.twilio.com/incidents/7s283m34yp1d)
+- We are no longer experiencing MMS/SMS delivery failures to multiple networks in the United States of America and Canada via subset of Twilio numbers. This incident has been resolved.
+- We are observing successful MMS/SMS delivery delays & failures to multiple networks in the United States of America and Canada via subset of Twilio numbers. We will continue to monitor to ensure full service recovery. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are still experiencing MMS/SMS delivery delays & failures to multiple networks in United States of America and Canada via subset of Twilio numbers. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays & failures to multiple networks in United States of America and Canada via subset of Twilio numbers. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are observing recovery in SMS delivery delays in Mexico when sending messages. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays in Mexico when sending messages. Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- Twilio experienced Zipwhip message delays for 58 minutes between 9:30 AM and 10:28 AM Pacific Time. The issue has now been resolved.
+- We are no longer experiencing SMS delivery delays when sending messages to Claro in Brazil. This incident has been resolved.
+- We are continuing to observe recovery in SMS delivery delays to Claro in Brazil. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are observing recovery in SMS delivery delays to Claro in Brazil. We will continue monitoring the service to ensure a full recovery. We will provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery delays to Claro in Brazil.Our engineers are working with our carrier partner to resolve the issue. We will provide another update in 1 hour or as soon as more information becomes available.
+- We are continuing to observe successful SMS deliveries to Globe in Philippines. We will continue to monitor to ensure full service recovery. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are observing successful SMS deliveries to Globe in Philippines.We will continue to monitor to ensure full service recovery. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery failures to Globe in Philippines. Our engineers are working with our carrier partner to resolve the issue. We expect to provide another update in 2 hours or as soon as more information becomes available.
+- We are experiencing SMS delivery failures to Globe in Philippines. Our engineers are working with our carrier partner to resolve the issue. We expect to provide another update in 1 hour or as soon as more information becomes available.
 
 
 ---
 
-## Fonte: https://python-poetry.org/docs/libraries
+## Fonte: https://www.twilio.com/docs/lookup
 
-While Poetry does not enforce any release convention, it used to encourage the use of within the scope of and supports that are especially suitable for semver.
-For your library, you may commit the file if you want to. This can help your team to always test against the same dependency versions. However, this lock file will not have any effect on other projects that depend on it. It only has an effect on the main project.
-Poetry will automatically include some license-related files when building a package - in the directory when building a , and in the root folder when building an :
-The command will then use the specified build backend to build your package in an isolated environment. Ensure you have specified any additional settings according to the documentation of the build backend you are using.
-Poetry will publish to by default. Anything that is published to PyPI is available automatically through Poetry. Since is on PyPI we can depend on it without having to specify any additional repositories.
-This will package and publish the library to PyPI, on the condition that you are a registered user and you have properly.
-In order to publish to a private repository, you will need to add it to your global list of repositories. See for more information.
-
-
----
-
-## Fonte: https://python-poetry.org/docs/1.8
-
-Poetry is a tool for and in Python. It allows you to declare the libraries your project depends on and it will manage (install/update) them for you. Poetry offers a lockfile to ensure repeatable installs, and can build your project for distribution.
-Poetry requires . It is multi-platform and the goal is to make it work equally well on Linux, macOS and Windows.
-Poetry should always be installed in a dedicated virtual environment to isolate it from the rest of your system. It should in no case be installed in the environment of the project that is to be managed by Poetry. This ensures that Poetry’s own dependencies will not be accidentally upgraded or uninstalled. (Each of the following installation methods ensures that Poetry is installed into an isolated environment.) In addition, the isolated virtual environment in which poetry is installed should not be activated for running poetry commands.
-If you are viewing documentation for the development branch, you may wish to install a preview or development version of Poetry. See the installation instructions to use a preview or alternate version of Poetry.
-is used to install Python CLI applications globally while still isolating them in virtual environments. will manage upgrades and uninstalls when used to install Poetry.
-  1. If is not already installed, you can follow any of the options in the . Any non-ancient version of will do.
-  2. You can skip this step, if you simply want the latest version and already installed Poetry as described in the previous step. This step details advanced usages of this installation method. For example, installing Poetry from source, having multiple versions installed at the same time etc.
-can also install versions of Poetry in parallel, which allows for easy testing of alternate or prerelease versions. Each version is given a unique, user-specified suffix, which will be used to create a unique binary name:
-Finally, can install any valid , which allows for installations of the development version from , or even for local testing of pull requests:
-
-
-We provide a custom installer that will install Poetry in a new virtual environment and allows Poetry to manage its own environment.
-  1. The installer script is available directly at , and is developed in . The script can be executed directly (i.e. ‘curl python’) or downloaded and then executed from disk (e.g. in a CI environment).
-The installer has been deprecated and removed from the Poetry repository. Please migrate from the in-tree version to the standalone version described above.
-Note: On some systems, may still refer to Python 2 instead of Python 3. We always suggest the binary to avoid ambiguity.
-  2. You can skip this step, if you simply want the latest version and already installed Poetry as described in the previous step. This step details advanced usages of this installation method. For example, installing Poetry from source, using a pre-release build, configuring a different installation location etc.
-If you want to install prerelease versions, you can do so by passing the option to the installation script or by using the environment variable:
-If you want to install different versions of Poetry in parallel, a good approach is the installation with pipx and suffix.
-  3.   4.   5. Poetry series releases are not able to update in-place to or newer series releases. To migrate to newer releases, uninstall using your original install method, and then reinstall using the .
-  6. If you decide Poetry isn’t your thing, you can completely remove it from your system by running the installer again with the option or by setting the environment variable before executing the installer.
-
-
-Poetry can be installed manually using and the module. By doing so you will essentially perform the steps carried out by the official installer. As this is an advanced installation method, these instructions are Unix-only and omit specific examples such as installing from .
-Unlike development environments, where making use of the latest tools is desirable, in a CI environment reproducibility should be made the priority. Here are some suggestions for installing Poetry in such an environment.
-Whatever method you use, it is highly recommended to explicitly control the version of Poetry used, so that you are able to upgrade after performing your own validation. Each install method has a different syntax for setting the version that is used in the following examples.
-Just as is a powerful tool for development use, it is equally useful in a CI environment and should be one of your top choices for use of Poetry in CI.
-The official installer script () offers a streamlined and simplified installation of Poetry, sufficient for developer use or for simple pipelines. However, in a CI environment the other two supported installation methods (pipx and manual) should be seriously considered.
-Downloading a copy of the installer script to a place accessible by your CI pipelines (or maintaining a copy of the ) is strongly suggested, to ensure your pipeline’s stability and to maintain control over what code is executed.
-By default, the installer will install to a user-specific directory. In more complex pipelines that may make accessing Poetry difficult (especially in cases like multi-stage container builds). It is highly suggested to make use of when using the official installer in CI, as that way the exact paths can be controlled.
-For maximum control in your CI environment, installation with is fully supported and something you should consider. While this requires more explicit commands and knowledge of Python packaging from you, it in return offers the best debugging experience, and leaves you subject to the fewest external tools.
-If you install Poetry via , ensure you have Poetry installed into an isolated environment that is as the target environment managed by Poetry. If Poetry and your project are installed into the same environment, Poetry is likely to upgrade or uninstall its own dependencies (causing hard-to-debug and understand errors).
-supports generating completion scripts for Bash, Fish, and Zsh. See for full details, but the gist is as simple as using one of the following:
-
-
----
-
-## Fonte: https://python-poetry.org/docs/repositories
-
-By default, Poetry discovers and installs packages from . But, you want to install a dependency to your project for a ? Let’s do it.
-Depending on your system configuration, credentials might be saved in your command line history. Many shells do not save commands to history when they are prefixed by a space character. For more information, please refer to your shell’s documentation.
-If you would like to provide the password interactively, you can simply omit in your command. And Poetry will prompt you to enter the credential manually.
-Great, now all that is left is to publish your package. Assuming you’d want to share it privately with your team, you can configure the endpoint for your .
-If you need to use a different credential for your , then it is recommended to use a different name for your publishing repository.
-By default, if you have not configured any primary source, Poetry is configured to use the Python ecosystem’s canonical package index . You can alter this behavior and exclusively look up packages only from the configured package sources by adding at least one primary source.
-Except for the implicitly configured source for named , package sources are local to a project and must be configured within the project’s file. This is the same configuration used when publishing a package.
-Consequently, when a Poetry project is e.g., installed using Pip (as a normal package or in editable mode), package sources will be ignored and the dependencies in question downloaded from PyPI by default.
-If is undefined, the source is considered a primary source, which disables the implicit PyPI source and takes precedence over supplemental sources.
-All primary package sources are searched for each dependency without a . If you configure at least one primary source, the implicit PyPI source is disabled.
-The implicit PyPI source is disabled automatically if at least one primary source is configured. If you want to use PyPI in addition to a primary source, configure it explicitly with a certain priority, e.g.
-Because PyPI is internally configured with Poetry, the PyPI repository cannot be configured with a given URL. Remember, you can always use to ensure the validity of the file.
-Package sources configured as supplemental are only searched if no other (higher-priority) source yields a compatible package distribution. This is particularly convenient if the response time of the source is high and relatively few package distributions are to be fetched from this source.
-Take into account that someone could publish a new package to a primary source which matches a package in your supplemental source. They could coincidentally or intentionally replace your dependency with something you did not expect.
-If package sources are configured as explicit, these sources are only searched when a package configuration that it should be found on this package source.
-All package sources (including possibly supplemental sources) will be searched during the package lookup process. These network requests will occur for all primary sources, regardless of if the package is found at one or more sources, and all supplemental sources until the package is found.
-In order to limit the search for a specific package to a particular package repository, you can specify the source explicitly.
-A repository that is configured to be the only source for retrieving a certain package can itself have any priority. In particular, it does not need to have priority . If a repository is configured to be the source of a package, it will be the only source that is considered for that package and the repository priority will have no effect on the resolution.
-Package keys are not inherited by their dependencies. In particular, if is configured to be found in , and depends on that is also to be found on , then needs to be configured as such in . The easiest way to achieve this is to add with a wildcard constraint:
-Package source constraints are strongly suggested for all packages that are expected to be provided only by one specific source to avoid dependency confusion attacks.
-If the package’s published metadata is invalid, Poetry will download the available bdist/sdist to inspect it locally to identify the relevant metadata.
-Poetry can fetch and install package dependencies from public or private custom repositories that implement the simple repository API as described in .
-When using sources that distribute large wheels without providing file checksum in file URLs, Poetry will download each candidate wheel at least once in order to generate the checksum. This can manifest as long dependency resolution times when adding packages from this source.
-In addition to , Poetry can also handle simple API repositories that implement (). This is helpful in reducing dependency resolution time for packages from these sources as Poetry can avoid having to download each candidate distribution, in order to determine associated metadata.
-The need for this stems from the fact that Poetry’s lock file is platform-agnostic. This means, in order to resolve dependencies for a project, Poetry needs metadata for all platform-specific distributions. And when this metadata is not readily available, downloading the distribution and inspecting it locally is the only remaining option.
-Some projects choose to release their binary distributions via a single page link source that partially follows the structure of a package page in .
-Poetry treats repositories to which you publish packages as user-specific and not project-specific configuration unlike . Poetry, today, only supports the when publishing your project.
-URLs are typically different to the same one provided by the repository for the simple API. You’ll note that in the example of , both the host () as well as the path () are different to its simple API ().
-Note that it is recommended to use when uploading packages to PyPI. Once you have created a new token, you can tell Poetry to use it:
-If a system keyring is available and supported, the password is stored to and retrieved from the keyring. In the above example, the credential will be stored using the name . If access to keyring fails or is unsupported, this will fall back to writing the password to the file along with the username.
-If you do not want to use the keyring, you can tell Poetry to disable it and store the credentials in plaintext config files:
-Poetry will fall back to Pip style use of keyring so that backends like Microsoft’s get a chance to retrieve valid credentials. It will need to be properly installed into Poetry’s virtualenv, preferably by installing a plugin.
-where is the name of the repository in uppercase (e.g. ). See for more information on how to configure Poetry with environment variables.
-If your password starts with a dash (e.g., randomly generated tokens in a CI environment), it will be parsed as a command line option instead of a password. You can prevent this by adding double dashes to prevent any following argument from being parsed as an option.
-Empty usernames are discouraged. However, Poetry will honor them if a password is configured without it. This is unfortunately commonplace practice, while not best practice, for private indices that use tokens. When a password is stored into the system keyring with an empty username, Poetry will use a literal as the username to circumvent .
-Poetry supports repositories that are secured by a custom certificate authority as well as those that require certificate-based client authentication. The following will configure the “foo” repository to validate the repository’s certificate using a custom certificate authority and use a client certificate (note that these config variables do not both need to be set):
-The value of can be set to if certificate verification is required to be skipped. This is useful for cases where a package source with self-signed certificates is used.
-Further, every HTTP backed package source caches metadata associated with a package once it is fetched or generated. Additionally, downloaded files (package distributions) are also cached.
-If you encounter issues with package sources, one of the simplest steps you might take to debug an issue is rerunning your command with the flag.
-
-
----
-
-## Fonte: https://python-poetry.org/docs/faq
-
-While the dependency resolver at the heart of Poetry is highly optimized and should be fast enough for most cases, with certain sets of dependencies, it can take time to find a valid solution.
-This is due to the fact that not all libraries on PyPI have properly declared their metadata and, as such, they are not available via the PyPI JSON API. At this point, Poetry has no choice but to download the packages and inspect them to get the necessary information. This is an expensive operation, both in bandwidth and time, which is why it seems this is a long process.
-At the moment, there is no way around it. However, if you notice that Poetry is downloading many versions of a single package, you can lessen the workload by constraining that one package in your pyproject.toml more narrowly. That way, Poetry does not have to sift through so many versions of it, which may speed up the locking process considerably in some cases.
-  * A major version bump (incrementing the first number) is only done for breaking changes if a deprecation cycle is not possible, and many users have to perform some manual steps to migrate from one version to the next one.
-  * A minor version bump (incrementing the second number) may include new features as well as new deprecations and drop features deprecated in an earlier minor release.
-  * A micro version bump (incrementing the third number) usually only includes bug fixes. Deprecated features will not be dropped in a micro release.
-
-
-Because of its large user base, even small changes not considered relevant by most users can turn out to be a breaking change for some users in hindsight. Sticking to strict and (almost) always bumping the major version instead of the minor version does not seem desirable since the minor version will not carry any meaning anymore.
-A version constraint without an upper bound such as or will allow updates to any future version of the dependency. This includes major versions breaking backward compatibility.
-Once a release of your package is published, you cannot tweak its dependencies anymore in case a dependency breaks BC – you have to do a new release but the previous one stays broken. (Users can still work around the broken dependency by restricting it by themselves.)
-To avoid such issues, you can define an upper bound on your constraints, which you can increase in a new release after testing that your package is compatible with the new major version of your dependency.
-However, when defining an upper bound, users of your package are not able to update a dependency beyond the upper bound even if it does not break anything and is fully compatible with your package. You have to release a new version of your package with an increased upper-bound first.
-If your package is used as a library in other packages, it might be better to avoid upper bounds and thus unnecessary dependency conflicts (unless you already know for sure that the next release of the dependency will break your package). If your package is used as an application, it might be worth defining an upper bound.
-. Provided that you are using >= 4, you can use it in combination with the PEP 517 compliant build system provided by Poetry. (With tox 3, you have to set the option.)
-can be configured in multiple ways. It depends on what should be the code under test and which dependencies should be installed.
-will create an package of the project and uses to install it in a fresh environment. Thus, dependencies are resolved by in the first place. But afterward, we run Poetry, which will install the locked dependencies into the environment.
-will not do any install. Poetry installs all the dependencies and the current package in editable mode. Thus, tests are running against the local files and not the built and installed package.
-Note that does not forward the environment variables of your current shell session by default. This may cause Poetry to not be able to install dependencies in the environments if you have configured credentials using the system keyring on Linux systems or using environment variables in general. You can use the to forward the required variables explicitly or to forward all of them. Linux systems may require forwarding the variable to allow access to the system keyring, though this may vary between desktop environments.
-Be aware that this will cause Poetry to write passwords to plaintext config files. You will need to set the credentials again after changing this setting.
-While Poetry automatically creates virtual environments to always work isolated from the global Python installation, there are rare scenarios where the use of a Poetry managed virtual environment is not possible or preferred.
-The recommended best practice, including when installing an application within a container, is to make use of a virtual environment. This can also be managed by another tool.
-### Why is Poetry telling me that the current project’s supported Python range is not compatible with one or more packages’ Python requirements? 
-Unlike , Poetry doesn’t resolve for just the Python in the current environment. Instead, it makes sure that a dependency is resolvable within the given Python version range in .
-This means your project aims to be compatible with any Python version >=3.7,<4.0. Whenever you try to add a dependency whose Python requirement doesn’t match the whole range, Poetry will tell you this, e.g.:
-```
-The current project's supported Python range (>=3.7.0,<4.0.0) is not compatible with some of the required packages Python requirement:
-    - scipy requires Python >=3.7,<3.11, so it will not be installable for Python >=3.11,<4.0.0
-
-```
-
-Usually you will want to match the supported Python range of your project with the upper bound of the failing dependency. Alternatively, you can tell Poetry to install this dependency , if you know that it’s not needed in all versions.
-If you do not want to set an upper bound in the metadata when building your project, you can omit it in the section and only set it in :
-For example, if Poetry builds a distribution for a project that uses a version that is not valid, according to , third party tools will be unable to parse the version correctly.
-### Poetry busts my Docker cache because it requires me to COPY my source files in before installing 3rd party dependencies 
-By default, running requires you to have your source files present (both the “root” package and any directory path dependencies you might have). This interacts poorly with Docker’s caching mechanisms because any change to a source file will make any layers (subsequent commands in your Dockerfile) re-run. For example, you might have a Dockerfile that looks something like this:
-As soon as source file changes, the cache for the layer will be invalidated, which forces all 3rd party dependencies (likely the slowest step out of these) to be installed again if you changed any files in .
-```
-
-```
-
-The two key options we are using here are (skips installing the project source) and (skips installing any local directory path dependencies, you can omit this if you don’t have any). .
-Poetry’s default HTTP request timeout is 15 seconds, the same as . Similar to , the environment variable can be set to alter this value.
-Poetry should seamlessly support both section only configuration as well using the section. This lets you decide when and if you would like to migrate to using the section as .
-Due to the nature of this change some manual changes to your file is unavoidable in order start using the section. The following tabs show a transition example. If you wish to retain Poetry’s richer syntax it is recommended that you use dynamic dependencies as described in the second tab below.
-```
-
-```
-
-```
-
-```
-
-  * The dependency, in this example was replaced with . However, note that if you need an upper bound on supported Python versions refer to the documentation .
+Improve your message deliverability with Twilio Lookup. You can validate and identify phone number types and carriers, format numbers for local standards, assess risks, verify ownership, and ensure compliance with industry best practices. Reach the right recipients while maintaining accuracy and security.
+  * : Detect VoIP phone numbers, often associated with bots, before sending SMS messages.
+  * : Identify landline phone numbers to prevent undeliverable SMS messages and avoid unnecessary delivery costs.
+  * : Verify whether the current owner of a phone number is the same as the previous owner.
+  * : Detect potential fraud by identifying SIM swaps before sending one-time passwords (OTPs).
 
 
 
 
 ---
 
-## Fonte: https://python-poetry.org/docs/basic-usage
+## Fonte: https://www.twilio.com/docs/serverless/functions-assets
 
-For the basic usage introduction we will be installing , a datetime library. If you have not yet installed Poetry, refer to the chapter.
-The file is what is the most important here. This will orchestrate your project and its dependencies. For now, it looks like this:
-Poetry assumes your package contains a package with the same name as located in the root of your project. If this is not the case, populate to specify your packages and their locations.
-Similarly, the traditional file is replaced by the , , and sections. is additionally implicitly populated by your . For full documentation on the project format, see the of the documentation.
-Unlike with other packages, Poetry will not automatically install a python interpreter for you. If you want to run Python files in your package like a script or application, you must python interpreter to run them.
-Poetry will require you to explicitly specify what versions of Python you intend to support, and its universal locking will guarantee that your project is installable (and all dependencies claim support for) all supported Python versions. Again, it’s important to remember that – unlike other dependencies – setting a Python version is merely specifying which versions of Python you intend to support.
-When you run , you must have access to some version of a Python interpreter that satisfies this constraint available on your system. Poetry will not install a Python interpreter for you.
-Instead of creating a new project, Poetry can be used to ‘initialize’ a pre-populated directory. To interactively create a file in directory :
-Poetry can be operated in two different modes. The default mode is the , which is the right mode if you want to package your project into an sdist or a wheel and perhaps publish it to a package index. In this mode, some metadata such as and , which are required for packaging, are mandatory. Further, the project itself will be installed in editable mode when running .
-In this mode, metadata such as and are optional. Therefore, it is not possible to build a distribution or publish the project to a package index. Further, when running , Poetry does not try to install the project itself, but only its dependencies (same as ).
-Poetry uses this information to search for the right set of files in package “repositories” that you register in the section, or on by default.
-By default, Poetry creates a virtual environment in . You can change the value by editing the Poetry configuration. Additionally, you can use the configuration variable to create virtual environments within your project directory.
-Poetry will detect and respect an existing virtual environment that has been externally activated. This is a powerful mechanism that is intended to be an alternative to Poetry’s built-in, simplified environment management.
-To take advantage of this, simply activate a virtual environment using your preferred method or tooling, before running any Poetry commands that expect to manipulate an environment.
-To run your script simply use . Likewise if you have command line tools such as or you can run them using .
-If managing your own virtual environment externally, you do not need to use since you will, presumably, already have activated that virtual environment and made available the correct python instance. For example, these commands should output the same python path:
-In our example, we are requesting the package with the version constraint . This means any version greater or equal to 2.1.0 and less than 3.0.0.
-Please read for more in-depth information on versions, how versions relate to each other, and on the different ways you can specify dependencies.
-When you specify a dependency in , Poetry first takes the name of the package that you have requested and searches for it in any repository you have registered using the key. If you have not registered any extra repositories, or it does not find a package with that name in the repositories you have specified, it falls back to PyPI.
-When Poetry finds the right package, it then attempts to find the best match for the version constraint you have specified.
-If you have never run the command before and there is also no file present, Poetry simply resolves all dependencies listed in your file and downloads the latest version of their files.
-When Poetry has finished installing, it writes all the packages and their exact versions that it downloaded to the file, locking the project to those specific versions. You should commit the file to your project repo so that all people working on the project are locked to the same versions of dependencies (more below).
-This brings us to the second scenario. If there is already a file as well as a file when you run , it means either you ran the command before, or someone else on the project ran the command and committed the file to the project (which is good).
-Either way, running when a file is present resolves and installs all dependencies that you listed in , but Poetry uses the exact versions listed in to ensure that the package versions are consistent for everyone working on your project. As a result you will have all dependencies requested by your file, but they may not all be at the very latest available versions (some dependencies listed in the file may have released newer versions since the file was created). This is by design, it ensures that your project does not break because of unexpected changes in dependencies.
-Committing this file to VC is important because it will cause anyone who sets up the project to use the exact same versions of the dependencies that you are using. Your CI server, production machines, other developers in your team, everything and everyone runs on the same dependencies, which mitigates the potential for bugs affecting only some parts of the deployments. Even if you develop alone, in six months when reinstalling the project you can feel confident the dependencies installed are still working even if your dependencies released many new versions since then. (See note below about using the update command.)
-If you have added the recommended section to your project’s pyproject.toml then you successfully install your project and its dependencies into a virtual environment using a command like . However, pip will not use the lock file to determine dependency versions as the poetry-core build system is intended for library developers (see next section).
-Library developers have more to consider. Your users are application developers, and your library will run in a Python environment you don’t control.
-The application ignores your library’s lock file. It can use whatever dependency version meets the constraints in your . The application will probably use the latest compatible dependency version. If your library’s falls behind some new dependency version that breaks things for your users, you’re likely to be the last to find out about it.
-A simple way to avoid such a scenario is to omit the file. However, by doing so, you sacrifice reproducibility and performance to a certain extent. Without a lockfile, it can be difficult to find the reason for failing tests, because in addition to obvious code changes an unnoticed library update might be the culprit. Further, Poetry will have to lock before installing a dependency if has been omitted. Depending on the number of dependencies, locking may take a significant amount of time.
-If you do not want to give up the reproducibility and performance benefits, consider a regular refresh of to stay up-to-date and reduce the risk of sudden breakage for users.
-As mentioned above, the file prevents you from automatically getting the latest versions of your dependencies. To update to the latest versions, use the command. This will fetch the latest matching versions (according to your file) and update the lock file with the new versions. (This is equivalent to deleting the file and running again.)
+Traffic to a communications-based application is unpredictable, and properly scaling for spikes is difficult. Functions and Assets is a serverless environment for your Node.js code and static files that handles scaling, hosting, and maintenance for you so that you can focus on your application code instead of stressing about server uptime. Find the documentation, sample code, and developer tools needed to build something amazing.
+You're just a few clicks away from deploying a Function that can scale to any number of incoming SMS, Calls, and more. No need to deploy or manage your own server. Let's get started!
+You can also use the Twilio CLI and Serverless Toolkit to quickly deploy a pre-made app template, or bootstrap your own app from scratch.
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+Learn how Functions and Assets works to provide scaling, reliability, and flexibility for your app. Building an application in Functions and Assets has some key differences from building on your own server using Express or Flask. Set yourself up for success by learning the key concepts and JavaScript methods that you'll be interacting with on your development journey.
+Use these docs to learn about Functions and Assets core concepts, the different steps involved in building in the cloud, and examples of common use cases.
+If you want to streamline your workflow, bootstrap and deploy apps quickly, easily integrate with your own CI/CD pipeline, and develop from the comfort of your own IDE, then the Serverless toolkit will be the Twilio CLI plugin for you.
 
 
 ---
 
-## Fonte: https://python-poetry.org/docs/building-extension-modules
+## Fonte: https://www.twilio.com/docs/flex
 
-While this feature has been around since almost the beginning of the Poetry project and has needed minimal changes, it is still considered unstable. You can participate in the discussions about stabilizing this feature .
-Poetry allows a project developer to introduce support for, build and distribute native extensions within their project. In order to achieve this, at the highest level, the following steps are required.
-  1. The build dependencies, in this context, refer to those Python packages that are required in order to successfully execute your build script. Common examples include , , , etc., depending on how your extension is built.
-You must assume that only Python built-ins are available by default in a build environment. This means, if you need even packages like , it must be explicitly declared.
-It is recommended that you consider specifying version constraints to all entries in in order to avoid surprises if one of the packages introduce a breaking change. For example, you can set to to ensure no major version upgrades are used.
-If you wish to develop the build script within your project’s virtual environment, then you must also add the dependencies to your project explicitly to a dependency group - the name of which is not important.
-  2. The build script can be a free-form Python script that uses any dependency specified in the previous step. This can be named as needed, but be located within the project root directory (or a subdirectory) and also be included in your source distribution. You can see the for inspiration.
-The build script is always executed from the project root. And it is expected to move files around to their destinations as expected by Poetry as per your file.
-The name of the build script is arbitrary. Common practice has been to name it , however, this is not mandatory. You consider if feasible.
-  3. The key takeaway here should be the following. You can refer to the documentation for information on each of the relevant sections.
+Flex is a digital engagement center for sales and customer support teams that gives companies control over how they communicate with customers and prospects across all channels, and at every stage of the customer journey.
 
 
-```
+Learn how to add channels, create engagement workflows and intelligent routing, and gain operational insights. As a developer, Flex enables you to customize and deploy your contact center with tools like the programmable Flex UI, the Plugin Builder, and Flex Insights.
+Learn how to set up and administer your Flex contact center. Learn about Flex core concepts and the different steps involved in setting up and managing your Flex instance.
+Explore how common use cases work in Flex. Whether you're starting an outbound call, initiating a warm transfer, or monitoring agent activity, the end user guides will provide you and your agents the context you need to get the most out of Flex's existing architecture.
 
-```
-
-
-
-Prior to executing the build script, Poetry creates a temporary virtual environment with your project’s active Python version and then installs all dependencies specified under into this environment. It should be noted that no packages will be present in this environment at the time of creation.
-
-
----
-
-## Fonte: https://python-poetry.org/docs/cli
-
-To get help from the command-line, simply call to see the complete list of commands, then combined with any of those can give you more information.
-  * : Increase the verbosity of messages: “-v” for normal output, “-vv” for more verbose output and “-vvv” for debug.
-  * : The working directory for the Poetry command (defaults to the current working directory). All command-line arguments will be resolved relative to the given directory.
-  * : Specify another path as the project root. All command-line arguments will be resolved relative to the current working directory or directory specified using option if used.
-
-
-A package is looked up, by default, only from . You can modify the default source (PyPI); or add and use or .
-```
-
-```
-
-If you try to add a package that is already present, you will get an error. However, if you specify a constraint, like above, the dependency will be updated by using the specified constraint.
-Alternatively, you can specify it in the file. It means that changes in the local directory will be reflected directly in environment.
-The attribute is a Poetry-specific feature, so it is not included in the package distribution metadata. In other words, it is only considered when using Poetry to install the project.
-Some shells may treat square braces ( and ) as special characters. It is suggested to always quote arguments containing these characters to prevent unexpected shell expansion.
-
-
-The command will trigger the build system defined in the file according to . If necessary the build process happens in an isolated environment.
-
-
-When using , the identifier must be compliant. This is useful for adding build numbers, platform specificities, etc. for private packages.
-Local version identifiers SHOULD NOT be used when publishing upstream projects to a public index server, but MAY be used to identify private builds created directly from the project source.
-To only remove a specific package from a cache, you have to specify the cache entry in the following form :
-
-
-The command groups subcommands that are useful for, as the name suggests, debugging issues you might have when using Poetry with your projects.
-The command helps when debugging dependency resolution issues. The command attempts to resolve your dependencies and list the chosen packages and versions.
-The command is useful when you want to see the supported packaging tags for your project’s active virtual environment. This is useful when Poetry cannot install any known binary distributions for a dependency.
-This command does not activate the virtual environment, but only displays the activation command, for more information on how to use this command see .
-The command removes virtual environments associated with the project. You can specify multiple Python executables or virtual environment names to remove all matching ones. Alternatively, you can remove all associated virtual environments using the option.
-  * : The python executables associated with, or names of the virtual environments which are to be removed. Can be specified multiple times.
-
-
-  * : The python executable to use. This can be a version number (if not on Windows) or a path to the python binary.
-
-
-See for information on how to install a plugin. As described in , you can also define in your that the plugin is required for the development of your project:
-
-
-Normally, you should prefer to to avoid untracked outdated packages. However, if you have set to install dependencies into your system environment, which is discouraged, or to make system site-packages available in your virtual environment, you should use because will normally not work well in these cases.
-If there is a file in the current directory, it will use the exact versions from there instead of resolving them. This ensures that everyone using the library will get the same versions of the dependencies.
-You can also specify the extras you want installed by passing the option (See for more info). Pass to install all defined extras for a project.
-This is mainly useful for caching in CI or when building Docker images. See the for more information on this option.
-By default does not compile Python source files to bytecode during installation. This speeds up the installation process, but the first execution may take a little more time because Python then compiles source files to bytecode automatically. If you want to compile source files to bytecode during installation, you can use the option:
-
-
-By default, packages that have already been added to the lock file before will not be updated. To update all dependencies to the latest available compatible versions, use or , which normally produce the same result. This command is also available as a pre-commit hook. See for more information.
-This command will help you kickstart your new Python project by creating a new Poetry project. By default, a layout is chosen.
-```
-
-```
-
-  * : Specify the readme file extension. Default is . If you intend to publish to PyPI keep the in mind.
-
-
-
-
-The command shows Python versions available in the environment. This includes both installed and discovered System managed and Poetry managed installations.
-
-
-
-Especially on Windows, commands that update or remove packages may be problematic so that other methods for installing plugins and updating Poetry are recommended. See and for more information.
-The command installs Poetry plugins and make them available at runtime. Additionally, it can also be used to upgrade Poetry’s own dependencies or inject additional packages into the runtime environment
-
-
-
-The command behaves similar to the show command, but working within Poetry’s runtime environment. This lists all packages installed within the Poetry install environment.
-
-
-```
-
-```
-
-  * : When showing the full list, or a for a single package, display whether they are a direct dependency or required by other packages.
-
-
-You cannot use the name for a custom repository as it is reserved for use by the default PyPI source. However, you can set the priority of PyPI:
-The command makes sure that the project’s environment is in sync with the file. It is similar to but it additionally removes packages that are not tracked in the lock file.
-If there is a file in the current directory, it will use the exact versions from there instead of resolving them. This ensures that everyone using the library will get the same versions of the dependencies.
-You can also specify the extras you want installed by passing the option (See for more info). Pass to install all defined extras for a project.
-This is mainly useful for caching in CI or when building Docker images. See the for more information on this option.
-By default does not compile Python source files to bytecode during installation. This speeds up the installation process, but the first execution may take a little more time because Python then compiles source files to bytecode automatically. If you want to compile source files to bytecode during installation, you can use the option:
-
-
-Note that this will not update versions for dependencies outside their specified in the file. In other terms, will be a no-op if the version constraint specified for is or and is available. In order for to be updated, you must update the constraint, for example . You can do this using the command.
-
-
-This command shows the current version of the project or bumps the version of the project and writes the new version back to if a valid bump rule is provided.
-
-
----
-
-## Fonte: https://python-poetry.org/docs/configuration
-
-Poetry can be configured via the command () or directly in the file that will be automatically created when you first run that command. This file can typically be found in one of the following directories:
-Sometimes, in particular when using Poetry with CI tools, it’s easier to use environment variables and not have to execute configuration commands.
-The environment variables must be prefixed by and are comprised of the uppercase name of the setting and with dots and dashes replaced by underscore, here is an example:
-If Poetry renames or remove config options it might be necessary to migrate explicit set options. This is possible by running:
-Set the maximum number of workers while using the parallel installer. The is determined by . If this raises a exception, is assumed to be 1.
-If this configuration parameter is set to a value greater than , the number of maximum workers is still limited at .
-When set, this configuration allows users to disallow the use of binary distribution format for all, none or specific packages.
-As with all configurations described here, this is a user specific configuration. This means that this is not taken into consideration when a lockfile is generated or dependencies are resolved. This is applied only when selecting which distribution for dependency should be installed into a Poetry managed environment.
-Unless this is required system-wide, if configured globally, you could encounter slower install times across all your projects if incorrectly set.
-Configure to be passed to a package’s build backend if it has to be built from a directory or vcs source; or a source distribution during installation.
-This is only used when a compatible binary distribution (wheel) is not available for a package. This can be used along with option to force a build with these configurations when a dependency of your project with the specified name is being installed.
-Poetry does not offer a similar option in the file as these are, in majority of cases, not universal and vary depending on the target installation environment.
-If you want to use a project specific configuration it is recommended that this configuration be set locally, in your project’s file.
-Set the maximum number of retries in an unstable network. This setting has no effect if the server does not support HTTP range requests.
-If the config option is set and the lock file is at least version 2.1 (created by Poetry 2.0 or above), the installer will not re-resolve dependencies but evaluate the locked markers to decide which of the locked dependencies have to be installed into the target environment.
-Do not download entire wheels to extract metadata but use to only download the METADATA files of wheels. Especially with slow network connections, this setting can speed up dependency resolution significantly. If the cache has already been filled or the server does not support HTTP range requests, this setting makes no difference.
-If set to , Poetry will not create a new virtual environment. If it detects an already enabled virtual environment or an existing one in or it will install dependencies into them, otherwise it will install dependencies into the systems python environment.
-If Poetry detects it’s running within an activated virtual environment, it will never create a new virtual environment, regardless of the value set for .
-Be aware that installing dependencies into the system environment likely upgrade or uninstall existing packages and thus break other applications. Installing additional Python packages after installing the project might break the Poetry project in return.
-This is why it is recommended to always create a virtual environment. This is also true in Docker containers, as they might contain additional Python packages as well.
-If set to , the virtualenv will be created and expected in a folder named within the root directory of the project.
-If a virtual environment has already been created for the project under , setting this variable to will not cause to create or use a local virtual environment.
-In order for this setting to take effect for a project already in that state, you must delete the virtual environment folder located in .
-You can find out where the current project’s virtual environment (if there is one) is stored with the command .
-If set to the parameter is passed to on creation of the virtual environment, so that all needed files are copied into it instead of symlinked.
-If set to the parameter is passed to on creation of the virtual environment. This means when a new virtual environment is created, will not be installed in the environment.
-Poetry, for its internal operations, uses the wheel embedded in the package installed as a dependency in Poetry’s runtime environment. If a user runs when this option is set to , the the embedded instance of is used.
-You can safely set this to , if you desire a virtual environment with no additional packages. This is desirable for production environments.
-This setting controls the global virtual environment storage path. It most likely will not be useful at the local level. To store virtual environments in the project root, see .
-By default, Poetry will use the activated Python version to create a new virtual environment. If set to , the Python version used during Poetry installation is used.
-
-
----
-
-## Fonte: https://python-poetry.org/docs/contributing
-
-The following is a set of guidelines for contributing to Poetry on GitHub. These are mostly guidelines, not rules. Use your best judgement, and feel free to propose changes to this document in a pull request.
-This section guides you through submitting a bug report for Poetry. Following these guidelines helps maintainers and the community understands your report, reproduces the behavior, and finds related reports.
-
-
-If you find a issue that seems like it is the same thing that you’re experiencing, open a new issue and include a link to the original issue in the body of your new one.
-
-
-  * . This could be an example repository, a sequence of steps run in a container, or just a pyproject.toml for very simple cases.
-  * If so, provide details about how often the problem happens and under which conditions it normally happens.
-
-
-  * If the problem started happening recently, What’s the most recent version in which the problem does not happen?
-  * This could include use of special container images, newer CPU architectures like Apple Silicon, or corporate proxies that intercept or modify your network traffic.
-
-
-
-To give others the best chance to understand and reproduce your issue, please be sure to put extra effort into your reproduction steps. You can both rule out local configuration issues on your end, and ensure others can cleanly reproduce your issue if attempt all reproductions in a pristine container (or VM), and provide the steps you performed inside that container/VM in your issue report.
-This section guides you through submitting an enhancement suggestion for Poetry, including completely new features as well as improvements to existing functionality. Following these guidelines helps maintainers and the community understand your suggestion and find related suggestions.
-
-
-One of the simplest ways to get started contributing to a project is through improving documentation. Poetry is constantly evolving, and this means that sometimes our documentation has gaps. You can help by adding missing sections, editing the existing content to be more accessible, or creating new content such as tutorials, FAQs, etc.
-Issues pertaining to the documentation are usually marked with the , which will also trigger a preview of the changes as rendered by this website.
-If you are a first time contributor, and are looking for an issue to take on, you might want to look for at the for candidates. We do our best to curate good issues for first-time contributors there, but do fall behind – so if you don’t see anything good, feel free to ask.
-If you would like to take on an issue, feel free to comment on the issue tagging . We are more than happy to discuss solutions on the issue. If you would like help with navigating the code base, are looking for something to work on, or want feedback on a design or change, join us on our or start a .
-You should first fork the Poetry repository and then clone it locally, so that you can make pull requests against the project. If you are new to Git and pull request-based development, GitHub provides a you will find helpful.
-When you contribute to Poetry, automated tools will be run to make sure your code is suitable to be merged. Besides pytest, you will need to make sure your code typechecks properly using :
-Finally, a great deal of linting tools are run on your code, to try and ensure consistent code style and root out common mistakes. The tool is used to install and run these tools, and requires one-time setup:
-pre-commit will now run and check your code every time you make a commit. By default, it will only run on changed files, but you can run it on all files manually (this may be useful if you altered the pre-commit config):
-  * Fill out the pull request body completely and describe your changes as accurately as possible. The pull request body should be kept up to date as it will usually form the base for the final merge commit and the changelog entry.
-  * Be sure that your pull request contains tests that cover the changed or added code. Tests are generally required for code be to be considered mergeable, and code without passing tests will not be merged.
-  * Ensure your pull request passes the mypy and pre-commit checks. Remember that you can run these tools locally instead of relying on remote CI.
-  * If your changes warrant a documentation change, the pull request must also update the documentation. Make sure to review the documentation preview generated by CI for any rendering issues.
-
-
-Make sure your branch is against the latest base branch. A maintainer might ask you to ensure the branch is up-to-date prior to merging your pull request (especially if there have been CI changes on the base branch), and will also ask you to fix any conflicts.
-All pull requests, unless otherwise instructed, need to be first accepted into the branch. Maintainers will generally decide if any backports to other branches are required, and carry them out as needed.
-If you have an issue that hasn’t had any attention, you can ping us on the issue. Please give us reasonable time to get to your issue first, and avoid pinging any individuals directly, especially if they are not part of the Poetry team.
-If you are helping with the triage of reported issues, this section provides some useful information to assist you in your contribution.
-  1. Determine what area and versions of Poetry the issue is related to, and set the appropriate labels (e.g. , , ), and remove the label.
-  2. If requested information (such as debug logs, pyproject.toml, etc.) is not provided and is relevant, request it from the author. 
-  3. Ensure the issue is not already resolved. Try reproducing it on the latest stable release, the latest prerelease (if present), and the development branch.
-  4. If the issue cannot be reproduced, 
-  5. If the issue can be reproduced, 
-
-
-When trying to reproduce issues, you often want to use multiple versions of Poetry at the same time. makes this easy to do:
-```
-
-```
 
 
 
 ---
 
-## Fonte: https://python-poetry.org/docs/pyproject
+## Fonte: https://www.twilio.com/docs/glossary
 
-In package mode, the only required fields are and (either in the section or in the section). Other fields are optional. In non-package mode, the and fields are required if using the section.
-If you want to set the version dynamically via or you are using a plugin, which sets the version dynamically, you should add to dynamic and define the base version in the section, for example:
-Specifying license as a table, e.g. is deprecated. If you used to specify a license file, e.g. , use instead.
-A list of glob patterns that match the license files of the package relative to the root of the project source tree.
-If you need an upper bound for locking, but do not want to define an upper bound in your package metadata, you can omit the upper bound in the field and add it in the section.
-Poetry supports arbitrary plugins, which are exposed as the ecosystem-standard and discoverable using . This is similar to (and compatible with) the entry points feature of . The syntax for registering a plugin is:
+Ahoy, a signal word originally used to call a ship, was once a standard way to greet others and was Alexander Graham Bell's suggested greeting for answering the telephone.
+An Alphanumeric Sender ID is your company name or brand used as the Sender ID in one-way SMS messages sent to supported countries. Alphanumeric Sender IDs may be up to 11 characters long. Accepted characters include both upper- and lower-case Ascii letters, the digits 0 through 9, and the space character. They may not be only numerals.
+An Application Programming Interface (API) is provided by a service owner so that others may use the features and functions enabled by the service. APIs describe how a consumer will make requests of the service, and what they will receive in return.
+An Application Programming Interface (API) Key is a unique identifier that is used to authenticate a developer or program to an API.
+An Application, often shortened to 'app', is a program, or set of programs, that allows end-users to perform particular functions. For example, ecommerce companies provide applications to customers to facilitate purchases and service.
+Application-to-Person messaging (A2P) is any kind of message traffic in which a person is receiving messages from an application rather than another individual, and which is not expected to receive a reply. A2P message includes, but is not limited to, marketing communications, appointment reminders, chatbots, notifications, and one-time passwords (OTPs) or PIN codes.
+An Appointment Reminder is a message sent by a business to notify a customer of an upcoming event, such as an eye test, a restaurant booking or a package delivery. While some businesses call customers to remind them of their appointments, text messaging has emerged as the preferred channel for this kind of communication.
+An Area Code Overlay is an area code that covers the same geographical space as another area code. In North America, each area code has a potential capacity of around 8 million unique phone numbers — 7,919,900, to be exact. Many area codes have exhausted all possible phone numbers, so one or more area codes are added to accommodate.
+An Arrival Alert is sent by a business to inform one of its customers when they might expect their product or service to arrive.
+Attribute-Based Routing is a process used by contact center applications to distribute tasks according to a set of defined characteristics.
+An Authentication Token (auth token) is a piece of information that verifies the identity of a user to a website, server, or anyone requesting verification of the user's identity.
+Autonomous Agents are artificial intelligence (AI) systems that can perform a series of complex tasks entirely undirected to achieve a goal. An autonomous agent needs to reason, plan and interact with the necessary systems and real world to solve a problem.
+Basic Authentication is a method for an HTTP user agent (e.g., a web browser) to provide a username and password when making a request.
+C# — pronounced "see sharp" — is an object-oriented and statically typed computer programming language created by Microsoft for use on its .NET platform. Its name comes from the C language, from which it inherits a similar syntax.
+Call Attribution is a way to track calls by tying phone numbers to data from an ad source, such as keywords, sessions or campaigns. It provides visibility into digital campaigns and allows accurate measurement of marketing return on investment (RoI).
+A call center is the heart of customer service for many businesses, where customers call in for help and reps call out for sales. It's referred to as a call center because traditional models of customer service are based on phone support as the main method of contact between customers and companies. A modern call center is often referred to as a contact center.
+Call routing refers to the procedure of sending voice calls to a specific queue based on predetermined criteria. A call routing system is also known as an automatic call distributor (ACD).
+Call Tracking is a software-based performance marketing technique that generates and assigns a unique phone number to a specific advertisement or marketing campaign. Call Tracking systems then follow and analyze leads through that phone number channel to understand the channel's true effectiveness and ROI or receive a commission for driving that lead.
+Call transcription is the conversion of a voice or video call audio track into written words to be stored as plain text in a conversational language. Call transcription can either be live - as a call or event happens - or based on the recording of a past conversation.
+Call Whisper, also commonly referred to as Call Screening, involves playing a message to the callee while the caller continues to hear ringing. It can provide additional information such as the source or purpose of the call to the callee before the call begins and even allow the callee to accept or reject the call based on that information.
+A chatbot is an artificial intelligence (AI) program that creates conversational interaction between the chatbot and another user through voice commands or text chats.
+Click-to-call, sometimes called click-to-talk or click-to-dial, is a way to let people connect with a company representative by phone while they're browsing a website or in an app.
+Cloud contact centers make contact center software functionality that was previously only accessible through on-premise hardware available through the internet. A cloud contact center provides quick and easy access to the tools and services businesses need to communicate in today's web-based world.
+A contact center is a business's central point for managing all customer communications across all channels. A company's contact center is usually integrated with their customer relationship management (CRM) system, where all interactions between the organization and the public are tracked, coordinated, and managed.
+Customer engagement is the emotional connection between your company and your customers, sentiments which strongly influence their buying decisions. Customers who actively engage with a business tend to be more loyal and spend their money supporting brands they feel connected to.
+Customer experience (CX) refers to the interactions between a customer and an organization throughout all points of contact along the customer journey. Based on this customer experience definition, customer loyalty and company revenue growth will naturally follow positive interactions with your brand.
+A customer journey is the total sum of experiences a customer has when interacting with a business or organization. Rather than focusing on a specific interaction, the customer journey takes all points of contact into account.
+Customer relationship management, usually referred to as CRM, is a method for managing an organization's relationships with its customers. Most often, the term CRM refers to a CRM system—which is software for managing contacts, streamlining sales processes, and improving business relationships.
+Short for Customer Satisfaction Score, CSAT is a measurement to determine whether a customer feels their expectations have been fulfilled by a company's products and services.
+Direct Inward Dialing (DID) is a telephone service that allows a phone number to ring through directly to a specific phone at a business instead of going to a menu or a queue and needing to dial an extension. A phone number that is used like this is often called a "DID" (and multiple numbers are called "DIDs").
+DTMF, or Dual-Tone Multi-Frequency tones, are in-band telecommunications signals sent over voice frequencies. Commonly used over telephone lines, DTMF tones are also commonly called Touch Tones.
+Dynamic Number Insertion (DNI) is a call tracking feature where a unique phone number is tied to each ad source. This helps marketers analyze offline behavior much in the same way they track online behavior with the help of cookies.
+E.164 is the international telephone numbering plan that ensures each device on the PSTN has a globally unique number. This numbering plan allows phone calls and text messages to be correctly routed to individual phones in different countries. E.164 numbers are formatted as and can have a maximum of fifteen digits.
+ETA Alerts, or Estimated Time of Arrival Alerts, are periodic notifications on the status of an item, delivery, or person that include a probable time of arrival at the destination. Usually delivered through SMS messages or voice calls, ETA alerts keep customers updated on the location and timing of their upcoming deliveries.
+The Flex Dialpad is a native feature of the Flex UI v1.18.0 and above which offers all of the theming and customizability features of a React component. Flex Dialpad allows agents to make outbound calls to customers directly from the UI and real-time and historical reporting through Flex Insights. With the programmable Flex Dialpad, developers can build click-to-dial use cases via the new Action Framework action, startOutboundCall. For instance, you can program the Dialpad in such a way that Flex retrieves contact data from your business application and subsequently present it to an agent. This kind of automation avoids any possible risk of misdialing and reduces time-to-call by leveraging data that resides in your application.
+Flex Insights allows you to perform workforce optimization (WFO) in Twilio Flex. It provides a 360-degree view of every conversation in your Flex contact center so that you can provide agents with valuable feedback, knowledge, and skills.
+The General Data Protection Regulation (GDPR) of the European Union (EU) is a law that regulates the handling of personal data and outlines the rights individuals have with regard to their data. It was implemented on May 25, 2018. It applies to any that processes the data of a person in the EU. This applies whether the organization is based in the EU or elsewhere.
+GPRS, or General Packet Radio Service, is a best-effort packet-switching communications protocol for cellular networks. GPRS was one of the first widely used data transfer protocols on cellular networks, first standardized in began to support GPRS in 2000.
+GSM-7 is a character encoding standard which packs the most commonly used letters and symbols in many languages into 7 bits each for usage on GSM networks. As SMS messages are transmitted 140 8-bit octets at a time, GSM-7 encoded SMS messages can carry up to 160 characters.
+Interactive voice response (IVR), also known as a phone tree, provides an automated telephony system for callers using voice and touch-tones (DTMF).
+Jitter is the variation in periodicity of a signal or periodic event from its target or true frequency. In telecommunications, jitter further refers to the variation in latency of packets carrying voice or video data over a communications channel.
+Large Language Models or LLMs are artificial intelligence models that can generate and process human-like text. Some popular LLMs include OpenAI's GPT-4, Google's Gemini and Meta's Llama 2.
+Latency is the time delay between the initiation of an event and its perception by some observer. In networking and telecommunications, latency is the time between a sender causing a change in a system's state and its reception by an observer. Network latency is often informally used interchangeably with lag.
+Live chat is a type of online chat distinguished by its simplicity and user accessibility. Live chat appears in a web browser or in mobile applications, usually via a small pop-up modal through which the visitor can exchange text messages with a chat operator in real time.
+A long code number is a standard phone number used to send and receive voice calls and SMS messages. Phone numbers are typically called "long codes" (10-digit numbers in many countries) when comparing them with SMS short codes (5-6 digit numbers).
+Machine learning is an application of artificial intelligence that enables computer programs to learn and improve automatically as they are exposed to new data, without being explicitly programmed.
+Masked Calling is a technique used in ecommerce to protect buyers' and sellers' personal phone numbers. Each party gets a temporary number, allowing them to communicate for a specified time period. When the time period expires, the numbers are recycled and reassigned to other parties on the platform. This prevents transactions from happening outside the platform. 
+Masked Phone Numbers are a common pattern to anonymize communication between multiple parties and hide participant phone numbers. Instead of dialing directly from phone to phone, users communicate via a third ('proxy') phone number that forwards a call to the eventual destination. 
+A Mean Opinion Score (MOS) is a numerical measure of the human-judged overall quality of an event or experience. In telecommunications, a Mean Opinion Score is a ranking of the quality of voice and video sessions. Most often judged on a scale of 1 (bad) to 5 (excellent), Mean Opinion Scores are the average of a number of other human-scored individual parameters. Although originally Mean Opinion Scores were derived from surveys of expert observers, today a MOS is often produced by an Objective Measurement Method approximating a human ranking.
+A single SMS message technically supports up to 160 characters, or up to 70 if the message contains one or more Unicode characters (such as emoji or Chinese characters). However, modern phones and mobile networks support message concatenation, which enables longer messages to be sent. Messages longer than 160 characters are automatically split into parts (called "segments") and then re-assembled when they are received. Message concatenation allows you to send long SMS messages, but this increases your per-message cost, because SMS are billed per segment. The 160-character limit is for messages encoded using the GSM-7 character set. Messages not encoded with GSM-7 are limited to 70 characters. For detail on how these character limits change on concatenated (multi-segment) messages, see below. Twilio's platform supports long messages up to 1600 characters across all Programmable Messaging channels, including SMS and RCS. However, for SMS messaging, Twilio recommends sending messages that are no more than 320 characters to ensure the best deliverability and user experience. RCS supports a more size-efficient character encoding scheme called UTF-8. With UTF-8, Unicode characters are natively supported and take up less character-length space that would otherwise lead to higher segment counts over SMS.
+MMS, short for Multimedia Messaging Service, is a standard way to send multimedia such as pictures, videos, and other attachments over text messaging channels.
+In a multichannel contact center, companies connect with customers via multiple communications channels – such as email, social media, web chat, and voice. However, just because customers connect via multiple channels does not mean that their experience is seamless.
+Twilio's Lookup API returns phone numbers in national format, a string containing the phone number formatted according to the most common style in the associated country.
+Natural language processing (NLP) describes the methods computers use to parse human speech. It's been a branch of research in linguistics, computer science, and artificial intelligence (AI) for many decades. In what follows, we'll explore what NLP is and discuss some of its applications.
+Natural language understanding (NLU) uses the power of machine learning to convert speech to text and analyze its intent during any interaction.
+Net promoter score, often referred to as NPS, is an important metric that measures how likely customers are to recommend a business. The idea behind NPS is companies who are recommended by their customers are more likely to grow.
+Network Address Translation (NAT) is the modification of in-transit network packets to map one IP address space to another. It is most commonly used in IP Masquerading, where a large private IP network shares a relatively small number of publicly facing IP addresses behind a router or gateway.
+A network edge is a location where a computer network interfaces with the Internet. A network connected to the Internet may have one or more network edges located in data centers throughout the world.
+North American Area Codes are prefixed to a phone number to assist in routing phone calls in North America. The North American Numbering Plan (NANP) dictates the regional and non-geographic area codes assigned to signatory countries. The United States, Canada, some Caribbean countries, and all US territories are covered by the plan.
+In an omnichannel contact center, all communication channels (e.g., phone, SMS, online chat, and email) connect and integrate to provide a seamless customer experience. Omnichannel contact centers also let agents switch between channels with a single user interface without losing context from customer interactions across channels.
+An on-premise contact center is a model where the customer houses all the required software and hardware. Companies that use an on-premise system generally employ or contract specialized IT staff to configure, upgrade, and maintain the contact center.
+Order notifications give businesses the ability to inform customers of the status of their order, which could include confirmations, pricing adjustments, delays in fulfillment, or delivery scheduling.
+P2P stands for Person-to-Person messaging. In simple terms, this is when two or more people communicate over text messaging. For example, when you send a text message from your phone to another person's phone, that's P2P. Under some circumstances, this may also include traffic that goes through an API to connect two people, however some countries (including the US and Canada) do not consider any application-mediated traffic to be P2P.
+Packet loss refers to the failure of packets to reach their destination on a network. Packet loss is most often a consequence of network congestion and usually caused by network equipment dropping, ignoring, misdelivering, or discarding packets.
+Post-dial delay (PDD) is the measurement of how long it takes for a calling party to hear a ringback tone after initiating a call. Technically it is the delta between the SIP INVITE and a 180 Ringing or 183 Session Progress response. 
+Personally Identifiable Information (PII), or personal data, is data that corresponds to a single person. PII might be a phone number, national ID number, email address, or any data that can be used, either on its own or with any other information, to contact, identify, or locate a person.
+A phone tree or phone menu is an automated navigation menu presented to voice callers. Using interactive voice response with DTMF codes (touch tones) or voice recognition, a phone menu helps a caller find automated information, complete a transaction, talk to the proper human operator, or leave a voicemail with a company.
+A platform is any combination of hardware and software used as a foundation upon which applications, services, processes, or other technologies are built, hosted, and/or run. Platforms offer the ability to build within an existing technical framework, decreasing both development time and cost.
+PBX, short for Private Branch Exchange, is a phone system in an enterprise that manages incoming and outgoing phone calls as well as an organization's internal communications.
+The PSTN (Publicly Switched Telephone Network) is the network that carries your voice calls when you call from a landline or cell phone. It refers to the worldwide network of voice-carrying telephone infrastructure, including privately-owned and government-owned infrastructure.
+A push notification (also known as a server push notification) is the delivery of information to a computing device from an application server where the request for the transaction is initiated by the server rather than by an explicit request from the client. While 'push notification' is most often used to refer to notifications on mobile devices, web applications also leverage this technology.
+React (or sometimes ReactJS) is a JavaScript library for building user interfaces. It's sometimes also referred to as a framework. The library focuses on creating declarative UIs using a component-based concept. Although React is often connected to front-end JavaScript development it can also be used to render views server-side in React Native. While React is open source, it is mainly developed by Facebook.
+A REST API allows software programs to expose functionality and data to other programs over the Internet in a consistent format. APIs are considered RESTful if the means of accessing the API provider's functionality adhere to the architectural style of REST.
+Retrieval-augmented generation is a technique in which relevant content (typically text) gets retrieved and pre-processed to augment the prompt that gets passed to a Large Language Model to provide additional knowledge and improve accuracy.
+A software development kit, or SDK, is a downloadable software package that contains the tools you need to build on a platform.
+Sentiment Analysis, or opinion mining, is the process of determining whether language reflects positive, negative, or neutral sentiment. Using sentiment algorithms, developers and brand managers can gain insights into customer opinions about a topic.
+Serverless architecture (also known as serverless computing or function as a service, FaaS) is a software design pattern where applications are hosted by a third-party service, eliminating the need for server software and hardware management by the developer. Applications are broken up into individual functions that can be invoked and scaled individually.
+Session Initiation Protocol (SIP) is a signalling protocol for initiating, terminating, and modifying user sessions over an IP network. Most commonly, SIP is used for Voice Over IP (VoIP) services, but is also often used for other communications sessions such as video calls and instant messaging sessions.
+The acronym SIM stands for Subscriber Identification Module. A SIM is used to authorize a subscriber to access a mobile network. SIMs can come in many form-factors, including cards and chips.
+A SIP INVITE is a SIP request message that initiates a SIP call. A SIP INVITE is made up of lines of text. The first line in an INVITE is called a Request-Line, which is followed by more lines of text called headers. The headers contain information about the INVITE, such as the identity of the caller, whether the INVITE was forwarded before being sent to the recipient, and the number of times a call may be forwarded. 
+What is SIP Calling? SIP (Session Initiation Protocol) trunking refers to phone calls that are routed over the Internet rather than traditional phone lines. SIP calling, therefore, refers to the act of placing calls via a SIP trunk. Because SIP calls take place across the Internet, they tend to be cheaper and more efficient than calls placed through traditional phone systems. Physical connections to a phone company are eliminated with the use of a SIP trunk. Using SIP trunks, a SIP provider can connect multiple channels to your private branch exchange (Voice-over-IP (VoIP) infrastructure.
+SMS stands for Short Message Service and is another name for a text message. An SMS is generally sent from one mobile device to another over the cellular network. SMS is a text-only standard first formalized in 1985 in the Global System for Mobile Communications (GSM) standards.
+A SMS API is well-defined software interface which enables code to send SMS Gateway. As the infrastructures for SMS communications and the internet are mostly divided, SMS APIs are often used to 'bridge the gap' between telecommunications carrier networks and the wider web. SMS APIs are used to allow web applications to send and receive text messages through logic written for standard web frameworks.
+SMS Delivery is a measure of the percentage of outgoing SMS and MMS messages which are received at their intended destination. While sometimes referring to the status of a single message, SMS delivery usually is a rate of delivered versus intended messages and summarized as an 'SMS Delivery Rate.'
+An SMS Gateway enables a computer to send and receive SMS text messages to and from a SMS capable device over the global telecommunications network (normally to a mobile phone). The SMS Gateway translates the message sent, and makes it compatible for delivery over the network to be able to reach the recipient.
+SMS Notifications are out-of-band text messages sent in response to events or transactions which occur somewhere else. While often used as a marketing tool to increase the percentage of returning visitors, SMS notifications are very useful for organization and public safety purposes as well.
+SMS pumping fraud happens when fraudsters take advantage of a phone number input field to receive a one-time passcode, an app download link, or anything else via SMS. The messages are sent to a range of numbers controlled by a specific mobile network operator (MNO) and the fraudsters get a share of the generated revenue. 
+An SMS tracker is software that uncovers detailed information about the delivery and content of text and picture messages. It allows anyone to analyze an individual message or group of messages to see delivery patterns, encoding details, and error conditions. 
+Sticky Sender is a valuable feature for SMS or Voice marketing where all outbound customer contact comes from a single number. This 'sticky' or 'unchanging' number increases customer familiarity and trust. With a two-way Voice or SMS system, it also allows customers to contact businesses and organizations through the very same number.
+Studio Flow Context is the data and information captured in a Liquid Template Language by specifying the data type and desired variable.
+The TCPA (Telephone Consumer Protection Act) is a federal statute enacted in 1991 designed to safeguard consumer privacy. This legislation restricts telemarketing communications via voice calls, SMS texts, and fax.
+Toll fraud, also known as International Revenue Sharing Fraud (IRSF), happens when an application is exploited to generate a high volume of voice calls to the fraudster's own international premium rate numbers. The victim of the toll fraud bears the entire financial responsibility for each minute of the call.
+TOTP stands for Time-based One-Time Passwords and is a common form of two-factor authentication (2FA). Unique numeric passwords are generated with a standardized algorithm that uses the current time as an input. The time-based passwords are available offline and provide user-friendly, increased account security when used as a second factor.
+TLS, or Transport Layer Security, is a widely used cryptographic protocol that ensures data security during communication over a network. The TLS protocol, like its predecessor SSL (Secure Sockets Layer), is primarily designed to enable reliable, authenticated, and secure communication between two or more computer applications. In modern browsers, connections secured with TLS are usually indicated by a lock icon next to the URL.
+TwiML, or the Twilio Markup Language, is an XML based language which instructs Twilio on how to handle various events such as incoming and outgoing calls, SMS messages and MMS messages. When building a Twilio application you will use TwiML when communicating your desired actions to Twilio.
+Two-factor authentication (commonly abbreviated 2FA) adds an extra layer of security to your user's account login by requiring two types of authentication. This is usually something your user knows and something they have.
+UCS-2 is a character encoding standard in which characters are represented by a fixed-length 16 bits (2 bytes). It is used as a fallback on many GSM networks when a message cannot be encoded using GSM-7 or when a language requires more than 128 characters to be rendered.
+Unicode is an international character encoding standard that provides a unique number for every character across languages and scripts, making almost all characters accessible across platforms, programs, and devices.
+UTF-8 is a variable-width character encoding standard that uses between one and four eight-bit bytes to represent all valid Unicode code points.
+A virtual phone number is a standard telephone number that is not locked down to a specific phone. A virtual number can route a voice call or text message to any phone or workflow. With virtual numbers powered by an API, complex software workflows can be built that are triggered by calls and texts.
+Virtual SMS enables you to send and receive SMS text messages over the internet without having to use a physical phone. This is especially useful when you want to use software to communicate with telephone networks that would be impossible on a physical phone, e.g. Uber notifying a customer that their car is outside or to have local phone numbers in different countries.
+A PSTN) and applications connected to the internet. By using a voice API, software developers can program voice calling into their applications without specialized telecommunications knowledge and hardware.
+Voice Proxy is the technique used to protect users' private information by providing an intermediary number so that neither sender nor receiver can see the other's true phone number during voice calls or SMS exchanges.
+Voice trace is a voice quality troubleshooting feature that captures the media stream for calls and stores them for Twilio Support to use in their investigations. 
+Voice Over Internet Protocol (VoIP) is a category of hardware and software that enables voice calls to be made and received over the internet.
+HTTP callbacks. They are triggered by some event in a web application and can facilitate integrating different applications or third-party APIs, like Twilio.
+Web Real-Time Communication (WebRTC) is a collection of communications protocols and APIs originally developed by Google that enable real-time voice and video communication over peer-to-peer connections.
+A WebSocket is a persistent bi-directional communication channel between a client (e.g. a browser) and a backend service. In contrast with HTTP request/response connections, websockets can transport any number of protocols and provide server-to-client message delivery without polling.
+Workforce Optimization (WFO) is the process of performing quality checks to ensure that all a company staff's interactions with its customers are performed to the same standard
 
 
-If you do not want to set the version dynamically via and you are not using a plugin, which sets the version dynamically, prefer over this setting.
-This is a list of authors and should contain at least one author. Authors must be in the form .
-This is a list of maintainers and should be distinct from authors. Maintainers may contain an email and be in the form .
-The file(s) can be of any format, but if you intend to publish to PyPI keep the in mind. README paths are implicitly relative to .
-To be specific, you can set for on macOS and Windows, but Linux users can’t after cloning your repo. This is because macOS and Windows are case-insensitive and case-preserving.
-The contents of the README file(s) are used to populate the of your distribution’s metadata (similar to in setuptools). When multiple files are specified they are concatenated with newlines.
-If your project structure differs from the standard one supported by , you can specify the packages you want to include in the final distribution.
-The parameter is designed to specify the relative destination path where the package will be located upon installation. This allows for greater control over the organization of packages within your project’s structure.
-For instance, if you have a package named and you want to also include another package named , you will need to specify explicitly:
-You can explicitly specify to Poetry that a set of globs should be ignored or included for the purposes of packaging. The globs specified in the exclude field identify a set of files that are not included when a package is built. has priority over .
-When a wheel is installed, its includes are unpacked straight into the directory. Pay attention to include top level files and directories with common names like , , or only in sdists and in wheels.
-If a VCS is being used for a package, the exclude field will be seeded with the VCS’ ignore settings ( for git, for example).
-Poetry is configured to look for dependencies on by default. Only the name and a version string are required in this case.
-If you specify the compatible python versions in both and in , then Poetry will use the information in for locking, but the python versions must be a subset of those allowed by .
-For example, the following is invalid and will result in an error, because versions and greater are allowed by , but not by .
-See for a more in-depth look at how to manage dependency groups and for more information on other keys and specifying version ranges.
-This tells Poetry to include the specified file, relative to your project directory, in distribution builds. It will then be copied to the appropriate installation directory for your operating system when your package is installed.
-In its table form, the value of each script can contain a and . The supported types are and . When the value is a string, it is inferred to be a script.
+---
+
+## Fonte: https://www.twilio.com/docs/sendgrid
+
+Find the documentation, sample code, and developer tools you need to build your transactional and marketing email solutions on the platform that offers a 99% deliverability rate.
+Get started quickly with the Twilio SendGrid Mail Send API and our open-source SDKs. The sample code below will send your first message in no time.
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ```
 
 ```
 
-Any extras you don’t specify will be removed. Note this behavior is different from not selected for installation, e.g., those not specified via .
-Note that and the variations mentioned above (, , etc.) only work on dependencies defined in the current project. If you want to install extras defined by dependencies, you’ll have to express that in the dependency itself:
-Poetry supports arbitrary plugins, which are exposed as the ecosystem-standard and discoverable using . This is similar to (and compatible with) the entry points feature of . The syntax for registering a plugin is:
 
 
-A constraint for the Poetry version that is required for this project. If you are using a Poetry version that is not allowed by this constraint, an error will be raised.
-Poetry is compliant with PEP-517, by providing a lightweight core library, so if you use Poetry to manage your Python project, you should reference it in the section of the file like so:
 
 
----
-
-## Fonte: https://python-poetry.org/docs/pre-commit-hooks
-
-If you specify the for a hook in your , the defaults are overwritten. You must fully specify all arguments for your hook if you make use of .
-The hook calls the command to make sure all locked packages are installed. In order to install this hook, you either need to specify , or you have to install it via .
-Poetry follows a branching strategy where the default branch is the active development branch, and fixes get backported to stable branches. New tags are assigned in these stable branches.
-does not support such a branching strategy and has decided to not implement an option, either on the or the , to define a branch for looking up the latest available tag.
-You can avoid changing the to an unexpected value by using the parameter (may be specified multiple times), to explicitly list repositories that should be updated. An option to explicitly exclude repositories into .
-Since can be used as a pre-commit hook itself, the easiest way to make use of it would be to include it inside :
 
 
----
-
-## Fonte: https://python-poetry.org/docs/managing-dependencies
-
-Poetry supports specifying main dependencies in the section of your according to PEP 621. For legacy reasons and to define additional information that are only used by Poetry the sections can be used.
-To declare a new dependency group, use a section according to PEP 735 or a section where is the name of your dependency group (for instance, ):
-All dependencies across groups since they will be resolved regardless of whether they are required for installation or not (see ).
-Think of dependency groups as associated with your dependencies: they don’t have any bearings on whether their dependencies will be resolved and installed , they are simply a way to organize the dependencies logically.
-Dependency groups, other than the implicit group, must only contain dependencies you need in your development process. To declare a set of dependencies, which add additional functionality to the project during runtime, use instead.
-A dependency group can be declared as optional. This makes sense when you have a group of dependencies that are only required in a particular environment or for a specific purpose.
-Optional group dependencies will be resolved alongside other dependencies, so special care should be taken to ensure they are compatible with each other.
-You can include dependencies from one group in another group. This is useful when you want to aggregate dependencies from multiple groups into a single group.
-The default set of dependencies for a project includes the implicit group as well as all groups that are not explicitly marked as an .
-Finally, in some case you might want to install of dependencies without installing the default set of dependencies. For that purpose, you can use the option.
-Poetry supports what’s called dependency synchronization. Dependency synchronization ensures that the locked dependencies in the file are the only ones present in the environment, removing anything that’s not necessary.
-The command can be combined with any related options to synchronize the environment with specific groups. Note that extras are separate. Any extras not selected for install are always removed.
-When using the command without the option, you can install any subset of optional groups without removing those that are already installed. This is very useful, for example, in multi-stage Docker builds, where you run multiple times in different build stages.
 
 
----
-
-## Fonte: https://python-poetry.org/docs/plugins
-
-For example if your environment poses special requirements on the behaviour of Poetry which do not apply to the majority of its users or if you wish to accomplish something with Poetry in a way that is not desired by most users.
-A plugin is a regular Python package which ships its code as part of the package and may also depend on further packages.
-The method of the plugin is called after the plugin is loaded and receives an instance of as well as an instance of .
-Using these two objects all configuration can be read and all public internal objects and state can be manipulated as desired.
-However, it is recommended to register a new factory in the command loader to defer the loading of the command when it’s actually called.
 
 
-Let’s see how to implement an application event handler. For this example we will see how to load environment variables from a file before executing a command.
-The binary in Poetry’s virtual environment can also be used to install and remove plugins. The environment variable here is used to represent the path to the virtual environment. The can be referenced if you are not sure where Poetry has been installed.
-The command will ensure that the plugin is compatible with the current version of Poetry and install the needed packages for the plugin to work.
-If the plugin is not installed in Poetry’s own environment when running , it will be installed only for the current project under in the project’s directory.
-You can even overwrite a plugin in Poetry’s own environment with another version. However, if a plugin’s dependencies are not compatible with packages in Poetry’s own environment, installation will fail.
-When writing a plugin, you will probably access internals of Poetry, since there is no stable public API. Although we try our best to deprecate methods first, before removing them, sometimes the signature of an internal method has to be changed.
-As the author of a plugin, you are probably testing your plugin against the latest release of Poetry. Additionally, you should consider testing against the latest release branch and the main branch of Poetry and schedule a CI job that runs regularly even if you did not make any changes to your plugin. This way, you will notice internal changes that break your plugin immediately and can prepare for the next Poetry release.
 
 
----
 
-## Fonte: https://python-poetry.org/docs/managing-environments
 
-What this means is that it will always work isolated from your global Python installation. To achieve this, it will first check if it’s currently running inside a virtual environment. If it is, it will use it directly without creating a new one. But if it’s not, it will use one that it has already created or create a brand new one for you.
-By default, Poetry will try to use the Python version used during Poetry’s installation to create the virtual environment for the current project.
-However, for various reasons, this Python version might not be compatible with the range supported by the project. In this case, Poetry will try to find one that is and use it. If it’s unable to do so then you will be prompted to activate one explicitly, see .
-If you use a tool like to manage different Python versions, you can switch the current of your shell and Poetry will use it to create the new environment.
-Sometimes this might not be feasible for your system, especially Windows where is not available, or you simply prefer to have a more explicit control over your environment. For this specific purpose, you can use the command to tell Poetry which Python version to use for the current project.
-If you want to disable the explicitly activated virtual environment, you can use the special Python version to retrieve the default behavior:
-The command prints the activate command of the virtual environment to the console. You can run the output command manually or feed it to the eval command of your shell to activate the environment. This way you won’t leave the current shell.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ```
 
 ```
 
-If you only want to know the path to the python executable (useful for running mypy from a global environment without installing it in the virtual environment), you can pass the option to :
 
 
----
 
-## Fonte: https://python-poetry.org/docs/dependency-specification
 
-Dependencies for a project can be specified in various forms, which depend on the type of the dependency and on the optional constraints that might be needed for it to be installed.
-In many cases, can be replaced with . However, there are some cases where you might still need to use . For example, if you want to define additional information that is not required for building but only for locking (for example, an explicit source), you can enrich dependency information in the section.
-Alternatively, you can add to and define your dependencies completely in the section. Using only the section might make sense in non-package mode when you will not build an sdist or a wheel.
-specify a minimal version with the ability to update to later versions of the same level. For example, if you specify a major, minor, and patch version, only patch-level changes are allowed. If you only specify a major, and minor version, then minor- and patch-level changes are allowed.
-This will tell Poetry to install this version and this version only. If other dependencies require a different version, the solver will ultimately fail and abort any installation or update procedures.
-allow compatible updates to a specified version. An update is allowed if the new version number does not modify the left-most non-zero digit in the major, minor, patch grouping. For instance, if we previously ran and wanted to update the library and ran , poetry would update us to version if it was available, but would not update us to . If instead, we had specified the version string as , poetry would update to but not . is not considered compatible with any other version.
-specify a minimal version with some ability to update. If you specify a major, minor, and patch version or only a major and minor version, only patch-level changes are allowed. If you only specify a major version, then minor- and patch-level changes are allowed.
-When adding dependencies via , you can use the operator. This is understood similarly to the syntax, but also allows prefixing any specifiers that are valid in . For example:
-To depend on a library located in a repository, the minimum information you need to specify is the location of the repository:
-Since we haven’t specified any other information, Poetry assumes that we intend to use the latest commit on the branch to build our project.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ```
 
 ```
 
-We fall back to legacy system git client implementation in cases where is used. This fallback will be removed in a future release where helpers can be better supported natively.
-In cases where you encounter issues with the default implementation, you may wish to explicitly configure the use of the system git client via a shell subprocess call.
-Keep in mind that all combinations of possible extras available in your project need to be compatible with each other. This means that in order to use differing or incompatible versions across different combinations, you need to make your extra markers . For example, the following installs PyTorch from one source repository with CPU versions when the extra is specified, while the other installs from another repository with a separate version set for GPUs when the extra specified:
-For the CPU case, we have to specify because the version specified is not compatible with the GPU () version.
-Let’s say you have a dependency on the package which is only compatible with Python 3.6–3.7 up to version 1.9, and compatible with Python 3.8+ from version 2.0: you would declare it like so:
-Direct origin (/ / ) dependencies can satisfy the requirement of a dependency that doesn’t explicitly specify a source, even when mutually exclusive markers are used. For instance, in the following example, the url package will also be a valid solution for the second requirement:
-Sometimes you may instead want to use a direct origin dependency for specific conditions (i.e., a compiled package that is not available on PyPI for a certain platform/architecture) while falling back on source repositories in other cases. In this case you should explicitly ask for your dependency to be satisfied by another . For example:
-In the case of more complex dependency specifications, you may find that you end up with lines which are very long and difficult to read. In these cases, you can shift from using “inline table” syntax to the “standard table” syntax.
-As a single line, this is a lot to digest. To make this a bit easier to work with, you can do the following:
-The same information is still present, and ends up providing the exact same specification. It’s simply split into multiple, slightly more readable, lines.
-Per default, Poetry will prefer stable releases and only choose a pre-release if no stable release satisfies a version constraint. In some cases, this may result in a solution containing pre-releases even if another solution without pre-releases exists.
-If you want to disallow pre-releases for a specific dependency, you can set to . In this case, dependency resolution will fail if there is no solution without choosing a pre-release.
-If you want to prefer the latest version of a dependency even if it is a pre-release, you can set to so that Poetry makes no distinction between stable and pre-release versions during dependency resolution.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+Jump to an email quickstart in your programming language of choice for a full guide on how to implement the code samples above.
+Sending email is just the start. With SendGrid, you get rich data that allows you to establish and maintain a complete email program. You can also parse inbound messages to create rich email-based experiences for your customers.
+Looking to leverage SendGrid's reliability and scale for your SMTP needs or integrate with a cloud partner such as Azure? You can do that too.
+
+
 
 
 ---
 
-## Fonte: https://python-poetry.org/docs/main
+## Fonte: https://www.twilio.com/docs/conversational-intelligence
 
-Poetry is a tool for and in Python. It allows you to declare the libraries your project depends on and it will manage (install/update) them for you. Poetry offers a lockfile to ensure repeatable installs, and can build your project for distribution.
-Poetry requires . It is multi-platform and the goal is to make it work equally well on Linux, macOS and Windows.
-If you are viewing documentation for the development branch, you may wish to install a preview or development version of Poetry. See the installation instructions to use a preview or alternate version of Poetry.
-is used to install Python CLI applications globally while still isolating them in virtual environments. will manage upgrades and uninstalls when used to install Poetry.
-  1. If is not already installed, you can follow any of the options in the . Any non-ancient version of will do.
-  2. You can skip this step, if you simply want the latest version and already installed Poetry as described in the previous step. This step details advanced usages of this installation method. For example, installing Poetry from source, having multiple versions installed at the same time etc.
-can also install versions of Poetry in parallel, which allows for easy testing of alternate or prerelease versions. Each version is given a unique, user-specified suffix, which will be used to create a unique binary name:
-Finally, can install any valid , which allows for installations of the development version from , or even for local testing of pull requests:
-
-
-We provide a custom installer that will install Poetry in a new virtual environment and allows Poetry to manage its own environment.
-  1. The installer script is available directly at , and is developed in . The script can be executed directly (i.e. ‘curl python’) or downloaded and then executed from disk (e.g. in a CI environment).
-  2. You can skip this step, if you simply want the latest version and already installed Poetry as described in the previous step. This step details advanced usages of this installation method. For example, installing Poetry from source, using a pre-release build, configuring a different installation location etc.
-If you want to install prerelease versions, you can do so by passing the option to the installation script or by using the environment variable:
-If you want to install different versions of Poetry in parallel, a good approach is the installation with pipx and suffix.
-  3.   4.   5.   6. If you decide Poetry isn’t your thing, you can completely remove it from your system by running the installer again with the option or by setting the environment variable before executing the installer.
-
-
-Poetry can be installed manually using and the module. By doing so you will essentially perform the steps carried out by the official installer. As this is an advanced installation method, these instructions are Unix-only and omit specific examples such as installing from .
-Unlike development environments, where making use of the latest tools is desirable, in a CI environment reproducibility should be made the priority. Here are some suggestions for installing Poetry in such an environment.
-Whatever method you use, it is highly recommended to explicitly control the version of Poetry used, so that you are able to upgrade after performing your own validation. Each install method has a different syntax for setting the version that is used in the following examples.
-Just as is a powerful tool for development use, it is equally useful in a CI environment and should be one of your top choices for use of Poetry in CI.
-The official installer script () offers a streamlined and simplified installation of Poetry, sufficient for developer use or for simple pipelines. However, in a CI environment the other two supported installation methods (pipx and manual) should be seriously considered.
-Downloading a copy of the installer script to a place accessible by your CI pipelines (or maintaining a copy of the ) is strongly suggested, to ensure your pipeline’s stability and to maintain control over what code is executed.
-By default, the installer will install to a user-specific directory. In more complex pipelines that may make accessing Poetry difficult (especially in cases like multi-stage container builds). It is highly suggested to make use of when using the official installer in CI, as that way the exact paths can be controlled.
-For maximum control in your CI environment, installation with is fully supported and something you should consider. While this requires more explicit commands and knowledge of Python packaging from you, it in return offers the best debugging experience, and leaves you subject to the fewest external tools.
-If you install Poetry via , ensure you have Poetry installed into an isolated environment that is as the target environment managed by Poetry. If Poetry and your project are installed into the same environment, Poetry is likely to upgrade or uninstall its own dependencies (causing hard-to-debug and understand errors).
-Poetry should always be installed in a dedicated virtual environment to isolate it from the rest of your system. Each of the above described installation methods ensures that. It should in no case be installed in the environment of the project that is to be managed by Poetry. This ensures that Poetry’s own dependencies will not be accidentally upgraded or uninstalled. In addition, the isolated virtual environment in which poetry is installed should not be activated for running poetry commands.
+Voice Intelligence is now Conversational Intelligence, which reflects our expansion into analyzing conversations across all customer touchpoints. For more information, see the .
+Use AI-powered cross-channel analysis to boost lead generation, spot compliance risks early, and improve agent performance, seamlessly and at scale.  
+Pick the docs that are right for you. These guides, overviews, and API reference docs will get you across the deploy line, straight to HTTP .
+Our most advanced and flexible language intelligence yet. Use LLM-powered Language Operators for sophisticated natural language understanding tasks. Now available in Public Beta.
 
 
 ---
 
-## Fonte: https://python-poetry.org/docs
+## Fonte: https://www.twilio.com/docs/messaging
 
-Poetry is a tool for and in Python. It allows you to declare the libraries your project depends on and it will manage (install/update) them for you. Poetry offers a lockfile to ensure repeatable installs, and can build your project for distribution.
-Poetry requires . It is multi-platform and the goal is to make it work equally well on Linux, macOS and Windows.
-If you are viewing documentation for the development branch, you may wish to install a preview or development version of Poetry. See the installation instructions to use a preview or alternate version of Poetry.
-is used to install Python CLI applications globally while still isolating them in virtual environments. will manage upgrades and uninstalls when used to install Poetry.
-  1. If is not already installed, you can follow any of the options in the . Any non-ancient version of will do.
-  2. You can skip this step, if you simply want the latest version and already installed Poetry as described in the previous step. This step details advanced usages of this installation method. For example, installing Poetry from source, having multiple versions installed at the same time etc.
-can also install versions of Poetry in parallel, which allows for easy testing of alternate or prerelease versions. Each version is given a unique, user-specified suffix, which will be used to create a unique binary name:
-Finally, can install any valid , which allows for installations of the development version from , or even for local testing of pull requests:
+Send and receive text and media messages programmatically. SMS messages don't require an app or internet, and have the highest open rates.
 
 
-We provide a custom installer that will install Poetry in a new virtual environment and allows Poetry to manage its own environment.
-  1. The installer script is available directly at , and is developed in . The script can be executed directly (i.e. ‘curl python’) or downloaded and then executed from disk (e.g. in a CI environment).
-  2. You can skip this step, if you simply want the latest version and already installed Poetry as described in the previous step. This step details advanced usages of this installation method. For example, installing Poetry from source, using a pre-release build, configuring a different installation location etc.
-If you want to install prerelease versions, you can do so by passing the option to the installation script or by using the environment variable:
-If you want to install different versions of Poetry in parallel, a good approach is the installation with pipx and suffix.
-  3.   4.   5.   6. If you decide Poetry isn’t your thing, you can completely remove it from your system by running the installer again with the option or by setting the environment variable before executing the installer.
 
 
-Poetry can be installed manually using and the module. By doing so you will essentially perform the steps carried out by the official installer. As this is an advanced installation method, these instructions are Unix-only and omit specific examples such as installing from .
-Unlike development environments, where making use of the latest tools is desirable, in a CI environment reproducibility should be made the priority. Here are some suggestions for installing Poetry in such an environment.
-Whatever method you use, it is highly recommended to explicitly control the version of Poetry used, so that you are able to upgrade after performing your own validation. Each install method has a different syntax for setting the version that is used in the following examples.
-Just as is a powerful tool for development use, it is equally useful in a CI environment and should be one of your top choices for use of Poetry in CI.
-The official installer script () offers a streamlined and simplified installation of Poetry, sufficient for developer use or for simple pipelines. However, in a CI environment the other two supported installation methods (pipx and manual) should be seriously considered.
-Downloading a copy of the installer script to a place accessible by your CI pipelines (or maintaining a copy of the ) is strongly suggested, to ensure your pipeline’s stability and to maintain control over what code is executed.
-By default, the installer will install to a user-specific directory. In more complex pipelines that may make accessing Poetry difficult (especially in cases like multi-stage container builds). It is highly suggested to make use of when using the official installer in CI, as that way the exact paths can be controlled.
-For maximum control in your CI environment, installation with is fully supported and something you should consider. While this requires more explicit commands and knowledge of Python packaging from you, it in return offers the best debugging experience, and leaves you subject to the fewest external tools.
-If you install Poetry via , ensure you have Poetry installed into an isolated environment that is as the target environment managed by Poetry. If Poetry and your project are installed into the same environment, Poetry is likely to upgrade or uninstall its own dependencies (causing hard-to-debug and understand errors).
-Poetry should always be installed in a dedicated virtual environment to isolate it from the rest of your system. Each of the above described installation methods ensures that. It should in no case be installed in the environment of the project that is to be managed by Poetry. This ensures that Poetry’s own dependencies will not be accidentally upgraded or uninstalled. In addition, the isolated virtual environment in which poetry is installed should not be activated for running poetry commands.
+Send text and media messages from your brand—not from a phone number—programmatically. RCS supports rich content (like or ), read receipts, and more.
+
+
+Send and receive Facebook Messenger messages programmatically. Facebook Messenger supports more content types, persistent conversations, and can cost less for high-volume messaging than SMS.
+Verify, Conversations, and Flex are tailored toward specific use cases. Looking to build data-driven customer experiences? Check out Twilio Engage.
+Fight fraud and protect user accounts. Verify users via SMS, Silent Network Auth, voice, WhatsApp, TOTP, push, Silent Device Approval, and email.
 
 
 ---
 
-## Fonte: https://python-poetry.org/history
+## Fonte: https://www.twilio.com/docs/serverless/functions-assets/functions
 
+is a serverless environment that empowers developers to quickly create production-grade, event-driven Twilio applications that scale with their businesses.
+  * - Use Functions as a first-class member of the Twilio console with a pre-initialized built in
 
 
+Twilio Functions replaces your need to find hosting or stand up a server to serve TwiML or any other HTTP-based responses. With Functions, you no longer have to worry about maintaining or scaling your web infrastructure—it's all managed seamlessly by Twilio, scaling with your use case.
+Typical use cases include manipulating voice calls, serving up tokens for our mobile SDKs, or invoking the Twilio REST API in response to an event, such as an inbound SMS.
+The Twilio Functions and Assets Editor brings together Functions, Assets, Dependencies, Environment Variables, and Debugging in the same window. You can upload and create . You can access all your Functions to edit them in multiple tabs simultaneously.
+We have put together code examples that you can use to get your application development started with Twilio Functions and Assets.
 
-  * Fix an issue where a dependency that was required for a specific Python version was not installed into an environment of a pre-release Python version ().
 
 
 
+Now that you've been introduced to what Functions can do, it's important to also have an understanding of how this all works, particularly the way that requests are sent to your Function.
+If you'd rather skip that and get straight to the nuts and bolts of all the values and tools at your disposal from within a Function, we understand.
 
 
 
-  * Fix an issue where the option did not work if a plugin, which accesses the poetry instance during its activation, was installed ().
-  * Fix an issue where printed additional information to stdout instead of stderr so that the output could not be used as designed ().
 
+---
 
-  * Fix an issue where optional dependencies defined in the section were treated as non-optional when a source was defined for them in the section ().
+## Fonte: https://www.twilio.com/docs/lookup/quickstart
 
+The Lookup API allows you to query information on a phone number so that you can make a trusted interaction with your user. With Lookup, you can format and validate phone numbers with the free Basic Lookup request to increase deliverability and get detailed information on a number's carrier and caller by adding on optional data packages. See for more details on Lookup's capabilities.
+  * : Returns the phone number in and national formats and performs basic phone number validation. This is a free feature.
+  * : Returns the line type of a phone number including mobile, landline, fixed VoIP, non-fixed VoIP, toll-free, and more. This is a paid feature, .
 
 
+To authenticate requests to the Twilio APIs, Twilio supports . Use your as the username and your as the password. You can create an API key either or .
+: Twilio recommends using API keys for authentication in production apps. For local testing, you can use your Account SID as the username and your Auth token as the password. You can find your Account SID and Auth Token in the .
+is the only required parameter and represents the phone number you are querying in E.164 or national format. If the phone number is provided in national format, please also specify the country in the optional parameter . Otherwise, will default to US.
+In some cases, non-US phone numbers in national format with no + sign or CountryCode query parameter are being processed as valid. This is not changing in V1 in the future but it is an unintended behavior and could lead to ambiguous validation responses.
+A Basic Lookup returns the provided phone number in E.164 and national formats and validates the phone number. Note that this is a free feature.
+See this example below for how you can use a Twilio SDK in your preferred language to perform the same request.
+```
 
 
-  * Fix an issue where building a dependency from source failed because of a conflict between build-system dependencies that were not required for the target environment ().
-  * Fix an issue where installation failed with a permission error when using the system environment as a user without write access to system site packages ().
-  * Fix an issue where a version of a dependency that is not compatible with the project’s python constraint was locked. ().
-  * Fix an issue where Poetry wrongly reported that the current project’s supported Python range is not compatible with some of the required packages Python requirement ().
-  * Fix an issue where the requested extras of a dependency were ignored if the same dependency (with same extras) was specified in multiple groups ().
 
 
 
-  * Fix an issue where optional dependencies that are not part of an extra were included in the wheel metadata ().
 
 
 
@@ -1682,10 +781,6 @@ Poetry should always be installed in a dedicated virtual environment to isolate 
 
 
 
-  * Fix an issue where locking packages with a digit at the end of the name and non-standard sdist names failed ().
-  * Fix an issue where installing multiple dependencies from the same git repository failed sporadically due to a race condition ().
-  * Fix an issue where the wrong environment was used for checking if an installed package is from system site packages ().
-  * Fix an issue where tried to uninstall system site packages if the virtual environment was created with ().
 
 
 
@@ -1693,24 +788,25 @@ Poetry should always be installed in a dedicated virtual environment to isolate 
 
 
 
-  * Fix an issue where the hash of a metadata file could not be calculated correctly due to an encoding issue ().
-  * Fix an issue where a hint to non-package mode was not compliant with the final name of the setting ().
 
 
 
+```
 
+Lookup supports a number of data packages that allow you to query for additional carrier and caller information relating to a phone number. See for a full list of available packages and how to onboard to each one.
+The Line Type Intelligence package allows you to get the line type of a phone number including mobile, landline, fixed VoIP, non-fixed VoIP, toll-free, and more. Note that this is a paid feature.
+The video below shows how to check a phone number's line type with Lookup using Node.js and the Twilio Node .
+All of the fields we saw in the previous Basic Lookup request are present along with new information included in the object.
+```
 
-  * Fix an issue where metadata of sdists that call CLI tools of their build requirements could not be determined ().
 
 
 
-  * Fix an issue where the project’s directory was not recognized as git repository on Windows due to an encoding issue ().
 
 
 
 
 
-  * Fix an issue where a cryptic error message is printed if there is no metadata entry in the lockfile ().
 
 
 
@@ -1718,127 +814,231 @@ Poetry should always be installed in a dedicated virtual environment to isolate 
 
 
 
-  * Fix an issue where did not respect the source if the same version of a package has been locked from different sources ().
 
 
 
 
 
 
+```
 
+Note: This shows the raw API response from Twilio. Responses from SDKs (Java, Python, etc.) may look a little different.
+Note: This shows the raw API response from Twilio. Responses from SDKs (Java, Python, etc.) may look a little different.
 
-  * Fix an issue where an unclear error message is printed if the project name is the same as one of its dependencies ().
 
+---
 
+## Fonte: https://www.twilio.com/docs/openapi
 
+is an industry-standard format for describing RESTful APIs. allow you to integrate the Twilio API with a wide variety of community tools. They also enable API mocking and testing, the generation of client libraries, integrations with Postman, and more.
 
-  * When trying to install wheels with invalid files, Poetry does not fail anymore but only prints a warning. This mitigates an unintended change introduced in Poetry 1.4.1 ().
 
 
-  * Fix an issue where Poetry could freeze when building a project with a build script if it generated enough output to fill the OS pipe buffer ().
 
+---
 
+## Fonte: https://www.twilio.com/docs/libraries
 
+Server-side SDKs make it easy for you to use Twilio's REST APIs, generate TwiML, and perform other common server-side programming tasks. These SDKs are available in a variety of popular programming languages.
+Twilio's OpenAPI specification empowers you with a broad set of developer tooling, ranging from Postman collections to API mocking to automatic client generation in over 40 programming languages.
+Twilio's JavaScript SDKs are used in the browser to create video conversations, make VoIP phone calls, or implement real-time omnichannel chat. Get started with the SDK you need.
+Our iOS SDKs enable native apps to create video conversations, make VoIP phone calls, and embed real-time omnichannel chat. Get started with the SDK you need.
+Android SDKs enable you to create video conversations, make phone calls, and embed real-time omnichannel chat in your native Android apps. Get started with the SDK you need.
+The Flex SDKs allow you to change the look, feel, and functionality of your Flex Contact Center using Javascript and React.
 
 
-  * Fix an issue where a pre-release of a dependency was chosen even if a stable release fulfilled the constraint (, ).
-  * Fix an issue where poetry commands failed due to special characters in the path of the project or virtual environment ().
+---
 
+## Fonte: https://www.twilio.com/docs/serverless
 
+Quickly build and deploy anything with Serverless offerings on Twilio. Stand up a proof of concept, complex integrations, and robust APIs with no code, low code, or full code options. Integrate your stack using Twilio developer tools and keep costs low with pay-as-you-go pricing.
+You can pick the right Serverless solution for your use case. All of our products work in isolation or together to help you build your Twilio applications, without having to worry about your infrastructure.
+  * Host HTTP endpoints, create custom Studio logic, or integrate Twilio with your own systems using Functions written in Node.js. Host your application assets on Twilio's CDN. Upload and manage media files, images, and privacy control settings from one platform.
+  * Write and host Twilio's markup language (), and customize the behavior using Handlebars. Prototype without your own web server.
+  * Use drag-and-drop widgets to define communication tasks with no code. Quickly build call center workflows, call forwarders, SMS surveys, and more.
+  * Build in-app collaboration and continuous experiences across devices. Twilio persists state in the cloud, and synchronizes published changes to subscribed devices.
 
 
+  * Create a proof of concept hosted on Twilio's platform in minutes - no code required. Modify common functionality through configuration variables or the Functions source code.
+  * Directly integrate your Functions and Assets deployments into your CI/CD and DevOps flows using our CLI and SDK tooling.
+  * Test your Twilio apps with the Twilio Dev Phone when you don't have easy, reliable access to SMS and calling capabilities.
 
 
 
-  * Fix an issue where a package from the wrong source was installed for a multiple-constraints dependency with different sources ().
 
+---
 
-  * is now raised on version and constraint parsing errors, and includes information on the package that caused the error ().
-  * Fix an issue where relative paths were encoded into package requirements, instead of a file:// URL as required by PEP 508 ().
+## Fonte: https://www.twilio.com/docs/events
 
+The Event Streams REST API provides access to a unified stream of every interaction sent or received on Twilio. Event Streams supports streaming events to multiple sinks (destinations), unlike the single-producer-to-single-consumer model. Event Streams provides the following capabilities:
+  * Stream your data to your existing systems by configuring a persistent streaming technology such as . You can also send events to or webhooks.
+  * Consume data from multiple Twilio products with consistent metadata, well-defined and versioned schemas, and control over which events you want delivered.
+  * Queues your events if your system goes down and delivers them when it's back up, with event queuing for up to 4 hours.
 
 
-  * Fix an issue where the deprecated JSON API was used to query PyPI for available versions of a package ().
-  * Fix an issue where the installation of dependencies failed if pip is a dependency and is updated in parallel to other dependencies ().
-  * Fix an issue where invalid constraints, which are ignored, were only reported in a debug message instead of a warning ().
+Twilio logs actions within our platform as events. Use the Event Streams REST API to set up and manage subscriptions to specific events. You can stream events to multiple sinks (destinations).
+An Event Streams subscription specifies the event types and schema versions that you want to receive. A sink is the destination for your subscription. You can configure Event Streams to send events to Amazon Kinesis, Segment, or webhooks.
+Event Streams guarantees at-least-once delivery of events. Twilio sends each event to your system at least once, and we might send the same event more than once when retrying delivery after a failure. Learn more about .
+Receiving events in order isn't guaranteed. Event Streams might deliver events out of order, especially when . All events have timestamps that you can use to determine the order of events.
+Event Streams is additive and doesn't replace webhooks. Twilio continues to support existing webhooks and add new webhooks for TwiML use cases and for customers who prefer per-channel integrations.
+Some are informational, while others require a response in Twilio Markup Language (TwiML). The delivery of an event using Event Streams is similar to an informational webhook.
+Event Streams isn't a replacement for webhooks that respond with TwiML, because Twilio delivers events asynchronously and there is no bi-directional channel to send a response to an event. If you need to take action in response to an event, then you'll need to do so outside of the Event Streams channel and product.
+  * Event Streams provides a consistent format for all data, making it easier to consume when you're using multiple products or a product that's built on top of multiple products, such as Flex and Studio.
+  * Event Streams provides at-least-once delivery of events. If an event isn't delivered, because of an error within Twilio or an error from your server, then Event Streams attempts redelivery.
 
 
+Event Streams usually delivers events within seconds. However, Event Streams focuses on reliable delivery. Thus, Event Streams does not provide any guarantees (SLA or otherwise) regarding latency.
 
-  * Fix an issue where caret constraints of pre-releases with a major version of 0 resulted in an empty version range ().
 
+Event Streams supports both ISVs (Independent Software Vendors) and direct customers. You can configure Event Streams for subaccounts, but there is no way to receive events from all subaccounts with a single Event Streams subscription. Instead, create an Event Streams subscription for each subaccount.
+Event Streams is available at no additional cost. You pay only for the underlying Twilio products that generate the events.
+  * When the sink URL contains user credentials, Event Streams adds the header to every request, even if the service has not yet returned a response.
 
 
+You can start using Event Streams by creating Sink and Subscription resources. The following guides can help you get started with the Event Streams API:
 
 
+You can have up to 100 Sink resources and 100 Subscription resources per account. Every subaccount can also have up to 100 Sink resources and 100 Subscription resources.
 
 
+---
 
+## Fonte: https://www.twilio.com/docs/sendgrid/ui/sending-email/how-to-send-email-with-marketing-campaigns
 
-  * Fixed an issue where neither Python nor a managed venv can be found, when using Python from MS Store ()
+This page refers to the most recent Marketing Campaigns product. If you're using legacy Marketing Campaigns, your workflow will be a little different and your screen won't look the same as the screenshots. .
+Before you begin, go to your SendGrid to verify that your timezone and account email address are correct. Verifying your account information ensures that when you upload contacts, you receive notifications and that we deliver scheduled email at the right time. You can also add additional email addresses to receive account notifications by going to the Marketing page and selecting . From Notifications, you can add a different email address to which we will send important account notifications, like contact export activity.
+Your time zone is set at the account level, you'll need to navigate to your account settings to change it.
 
 
+Specifying a in Marketing Campaigns is required by CAN-SPAM regulations, and provides identity information about where the emails are coming from in each email you send.
+  * - the email address of the person or company you want recipients to reply to. (Can also be a role address.)
 
-: This release fixes a critical issue that prevented hashes from being retrieved when locking dependencies, due to a breaking change on PyPI JSON API (see and for more details).
 
+If your email domain doesn't match one of your domains, you'll need to verify this email address before using this sender. We'll send this email address a verification email after you save this sender.
+By default, notifications about your account's Marketing Campaigns activity, CSV upload summaries, sender verifications, and list or segment exports will send to the email you signed up with on your parent account. You can also opt-in to receive email notifications from SendGrid to up to 10 email addresses by following the instructions .
+provide your recipients with an alternative to opting out of all email that you send, by giving them the opportunity to specify the kinds of email that they would no longer like to receive.
 
-  * Fixed an issue where dependencies hashes could not be retrieved when locking due to a breaking change on PyPI JSON API ()
-  * Fixed an issue where a dependency with non-requested extras could not be installed if it is requested with extras by another dependency ()
 
 
+  1. Select the template that you want to use for your email. You can select a blank template, a custom template that you have already created, or one of SendGrid's responsive pre-built templates. For more information, see .
 
-  * Fixed an issue where dependencies hashes could not be retrieved when locking due to a breaking change on PyPI JSON API ()
 
+You can also create a template from an existing Single Send by selecting the action menu next to the email you'd like to reuse and selecting .
+The offers users powerful drag & drop editing tools, making it possible to build beautiful emails using a library of content modules like text boxes,images, buttons, and more. For those familiar with HTML, there are options to edit the HTML of individual modules, drag in a custom code module, or to import an entire HTML email with drag & drop markup.
+The provides users who are importing, editing, or crafting custom HTML a robust, IDE-like environment, featuring side-by-side code and preview panes, syntax highlighting, error flagging and image management.
+Inside the Design Editor, you use the , and tabs to design and configure your email. Inside the Code Editor, you can click the left tab to expand the settings window, and then you can configure your email using the and tabs.
+If you have dedicated IPs, you can set up that allow you separate your traffic and potentially enhance your deliverability by protecting your sender reputation. To utilize IP pools for Single Sends, navigate to and from the IP Pool drop-down, select the IP pool you wish to use.
+  1. Add your custom content by clicking the tab in the Design Editor, or by editing the HTML code in the Code Editor.
 
 
+  1. As you're editing your email, you can see what it looks like by clicking from within the design editor, or, from the code editor simply toggle between , , and . You can also preview from the Single Sends index page by hovering over the action menu and clicking .
+  2. You can test your email by sending it to yourself and up to 10 other recipients. We'll automatically append "Test - " to the subject line so your recipients know it's a test and not the real send. From , click and enter the email addresses to send your test to.
+  3. For more robust, automated testing, we offer for both Automation and Single Sends so you can see what your email looks like across different operating systems, browsers, and inboxes.
+  4. With your email fully tested and ready to go, click or . You'll have the chance to do a final review of settings before confirming your send!
 
-  * Fixed an issue where dependency resolution takes a while because Poetry checks all possible combinations even markers are mutually exclusive ()
 
 
 
+---
 
+## Fonte: https://www.twilio.com/docs/api/errors
 
-  * Poetry now raises an error if the python version in the project environment is no longer compatible with the project ().
+Below is a full list of all possible Twilio REST API error codes. Read our guidance on for general help. You can also .  
+At least one of the following fields is required for a contact: first_name, middle_name, last_name, legal_name, preferred_name, unique_customer_provided_id or channel  
+Alphanumeric Sender ID used to send this message is generic or not authorized to be used by this account  
+---  
+Auto Channel Failed: None of the available channels could be selected due to validation errors. Check your debugger messages in console.  
+---  
+Could not execute the request because the channel module has been misconfigured. Please check the Channel configuration in Twilio  
+Failed to send freeform message because you are outside the allowed window. If you are using WhatsApp, please use a Message Template.  
+This operation is blocked because the RCS agent has not launched, the recipient has not accepted the invitation to become a tester, or the RCS sender only works in certain regions.  
+Warning! Facebook says your page is engaging in behavior that may be considered bothersome or abusive by users. To avoid messaging restrictions being placed on your Page, Facebook requires you to immediately decrease the rate at which you are sending messages outside the 24-hour window to this person.  
+When you send a message from a template, the template syncing process can take up to 10 minutes to complete. Wait a few minutes, and then try sending your message again
 
 
+---
 
+## Fonte: https://www.twilio.com/docs/marketplace
 
+Twilio Marketplace is a platform where customers can discover, evaluate, and integrate third-party applications and services that enhance or complement Twilio's existing APIs. Marketplace simplifies the process of finding and installing third-party solutions without requiring extensive technical expertise.
+The Marketplace catalog features a wide variety of Listings including no-code referral listings, pre-built integrations, communication tools, and more. These solutions integrate seamlessly with Twilio, further extending its capabilities and functionality. Customers can browse and install or configure Listings directly from Marketplace or via the associated partners' websites.
+Listings are pre-integrated partner technologies available in the Marketplace catalog. Listings make it possible to quickly build rich communications experiences using the Twilio API and third-party capabilities. You can choose the right technology for your needs without having to learn, test, and manage different platforms.
 
 
+If you're a Twilio partner or ISV (independent software vendor) interested in publishing a Listing on Marketplace, visit the for more information.
 
 
 
-: Lock files might need to be regenerated for the first fix below to take effect. You can use to do so the option.
 
+---
 
+## Fonte: https://www.twilio.com/docs/phone-numbers
 
+Twilio's virtual phone numbers give you instant access to local, national, mobile, and toll-free phone numbers in over 100 countries for your voice call and messaging applications. Leverage local phone numbers for your customers to call and text, or use your own number.
+To verify that you and your customers don't receive unwanted calls and text messages meant for previous owners, every phone number available through the Phone Numbers API goes through a rigorous screening process, including meticulous testing of network providers.
+With the Phone Numbers APIs, you can available Twilio phone numbers, your Twilio numbers, port a phone number you own to Twilio, and more.
+_Not a developer? Check out our for features, capabilities, and more information._
+If you are an Australian Consumer customer, Twilio's Critical Information Summary (CIS) can be found .
 
 
+---
 
-  * Fixed an error in the command when no lock file existed and a verbose flag was passed to the command. ()
+## Fonte: https://www.twilio.com/docs/iam
 
+The Identity and Access Management section covers how to manage your accounts (projects), securely authenticate Twilio REST API requests, and best practices for accessing Twilio.
+  * helps organizations in compliance-heavy industries meet strict security requirements, such as not relying on shared secrets, validating the sender, or verifying message content.
+  * helps manage user access and offers granular, product-specific roles that can be assigned at the organization, account, or subaccount level.
+  * mitigates compliance and security risks for organizations by giving businesses control over user authentication and user revocation via corporate mandated tools.
 
-  * When using system environments as an unprivileged user, user site and bin directories are created if they do not already exist. ()
 
 
-  * Fixed locking of nested extra activations. If you were affected by this issue, you will need to regenerate the lock file using . ()
 
+---
 
+## Fonte: https://www.twilio.com/docs
 
+## Build better and engage your customers across all channels with our API reference documentation, quickstarts, SDKs and multi-language code samples.
+[ ](https://www.twilio.com/docs/verify/quickstarts)
+[ Format and validate phone numbers to increase deliverability. Add on data packages to get even more in-depth carrier and caller information.](https://www.twilio.com/docs/lookup/quickstart)
 
-  * Fixed incorrect selection of configured source url when a publish repository url configuration with the same name already exists. ()
 
+---
 
+## Fonte: https://www.twilio.com/docs/global-infrastructure
 
+You can ensure that your users have the best experience possible, regardless of location, by architecting your applications with our Global Infrastructure in mind.
+Twilio Regions are the data centers where your application's Twilio data is processed and stored. Select a Region close to your application to optimize for application performance, or select a Region in the geographic area where you want your application's data to reside.
+Select the Twilio Region nearest to your application servers to achieve the shortest possible round trips between your servers and Twilio's compute and storage infrastructure. Shorter round trips typically result in lower latency and improved quality and responsiveness for your application.
+Minimizing round-trip distance and latency is especially critical in highly interactive applications such as real-time voice systems, video applications, or chat interfaces.
+By opting to configure your application to use a specific Twilio Region, you can ensure that your application's Twilio data remains within the corresponding territory at all times. This level of data storage locality control can be critical for businesses that need to adhere to regulations that require customer data to remain within regional boundaries.
+Note that during this initial phase of the rollout of Twilio Regions, Twilio does not guarantee that all data will remain within your selected Region.
+Not all products and features are available in Regions outside of US1. For a full list of regional product and feature availability, refer to our page.
+Twilio's Edge Locations are the onramps and offramps to Twilio's high-speed internal network - the data ingress and egress (entry and exit) points located on the that we operate in major cities throughout the world.
+Your servers and SDK or SIP clients can minimize network latency for Twilio connections by connecting to the Edge Location nearest to them. Additionally, you can ensure resilience by having alternate Edge Locations to connect to in the case that one Edge Location becomes unavailable.
+Note that regardless of which Twilio Region your application uses, its traffic to and from the Twilio Region will always transit via an Edge Location. Any Edge Location can be used in combination with any Region.
+You can control which specific Edge Location your application servers or clients connect to in order to optimize the efficiency of your connection to Twilio. Additionally, some Twilio server-side SDKs provide an option to leverage Twilio's Global Low Latency mechanism to based on DNS request latency measurements.
+If the Edge Location that your application or clients are using becomes unavailable due to natural disaster, equipment failure, or any other reason, you can configure it to connect to an alternate Edge Location.
+To learn more about architecting your Twilio Voice powered application for maximum resiliency, see our guide to .
 
 
-  * When running under Python 2.7 on Windows, install command will be limited to one worker to mitigate threading issue ().
+---
 
+## Fonte: https://www.twilio.com/docs/serverless/twiml-bins
 
+TwiML Bins are a serverless solution that help you provide Twilio-hosted instructions to your Twilio applications. They're a useful way to prototype and explore Twilio's capabilities without needing to set up your own web server to respond to requests.
+You can use Twilio's Markup Language (TwiML) to instruct Twilio what to do when you have an incoming message, or what should happen during a phone call. With TwiML Bins, you can host any valid TwiML directly with Twilio, and Twilio will handle hosting and scaling as you launch your app.
+Create your first TwiML Bin, connect it to your phone number, test it, and learn how you can pass additional data into your TwiML Bins.
+TwiML Bins support limited logic-based templating using Handlebars to modify your TwiML response. For example, based on the text from an incoming SMS, or if the message contained a picture.
+Check out our other serverless offerings for alternative ways to build complex Twilio applications, without having to worry about hosting and scaling.
 
 
+---
 
+## Fonte: https://www.twilio.com/docs/verify
 
-  * The lock files are now versioned to ease transitions for lock file format changes, with warnings being displayed on incompatibility detection ().
+Fight fraud and protect user accounts. Quickly verify users via SMS, Passkeys, Silent Network Auth, Voice, WhatsApp, TOTP, Push, Silent Device Approval, and Email.
+With just a few lines of code, you'll send your first verification token to a user's device with the Verify API. Add a few more and you can check the verification token. Create and manage or with the API. Choose the channel and your programming language to get started.
+```
 
 
 
@@ -1852,7 +1052,6 @@ Poetry should always be installed in a dedicated virtual environment to isolate 
 
 
 
-  * Fixed an error where invalid virtual environments would be silently used. They will not be recreated and a warning will be displayed ().
 
 
 
@@ -1865,9 +1064,12 @@ Poetry should always be installed in a dedicated virtual environment to isolate 
 
 
 
+```
 
+These short tutorials, sample apps, and API reference docs will get you up and running with a variety of channels.
 
 
+Verify solves complex development challenges so you can focus on the code that counts. From carrier regulations to device-specific capabilities, Verify spots and solves for mission critical communication variables, ensuring your message is always delivered.
 
 
 
@@ -1876,28 +1078,412 @@ Poetry should always be installed in a dedicated virtual environment to isolate 
 
 
 
+---
 
+## Fonte: https://www.twilio.com/docs/verify/quickstarts
 
+These quickstarts will teach you how to verify user identity with Twilio. We'll walk you step-by-step through signing up for Twilio, setting up your development environment, sending your first phone verification token, and validating the tokens.
 
 
+---
 
+## Fonte: https://www.twilio.com/docs/video
 
+Add high-quality audio and video call functionality to your web, iOS, and Android applications. Customize and scale with Twilio Video APIs, SDKs, and helper tools.
+Choose the docs that work for you. Dig deep into Twilio Video components. Explore the APIs. Check out specific use cases where companies deploy Twilio Video in production applications.
 
 
-  * Poetry now attempts to find not only in the directory it was invoked in, but in all its parents up to the root. This allows to run Poetry commands in project subdirectories.
+Twilio offers other tools to enhance your Video applications such as adding in-application chat and synchronizing your application's state across devices.
 
 
+---
 
+## Fonte: https://www.twilio.com/docs/trust-hub
 
+Advanced communications services must follow carrier and regulator rules. Every channel and market can have a unique set of rules. These rules can change as the ecosystem evolves. To manage these regulatory changes, Twilio created .
+Twilio Trust Hub simplifies compliance. Trust Hub stores the core customer identity as a compliance Customer Profile. After Twilio verifies this identity, you can use it with a variety of Trust Products. These products include the US and Canadian communication services like:
+  * Secure Telephone Identity Revisited and Signature-based Handling of Asserted information using toKENs () and Caller ID Name () for voice calls
 
 
+Twilio Trust Hub confirms your identity using Know Your Customer (KYC) verification processes. These processes grants a trust level to customers from Twilio. This trust grants customers access to the advanced communication services.
+To understand its customers and their platform usage, Twilio requires specific data. This includes data like business name, address, and number. Once verified, Twilio stores this data in a Customer Profile.
+The Customer Profile verification goes through a three step process. A Customer Profile moves from draft to review to approval or rejection. The status of a Customer Profile displays as one of the following labels.
+  1. Choose or . 
 
 
+  1.   2.   3.   4.   5.   6.      * To add another rep, click . The section displays. Complete the fields as you did for the first representative.
+  7. 
 
+  1.   2. 
 
+To use everything in the Twilio platform, you need a Customer Profile. The Primary Customer Profile represents your organization's core identity. With this data, Twilio verifies your identity. We also use this data manage your compliance across our services.
+If you have additional brands or businesses, create a secondary Customer Profile for each. A Secondary Customer Profile manages distinct business identities that relate to the primary Customer Profile. When the business or brand you want to register differs from the managing company, you need a secondary profile. A secondary Customer Profile requires a .
+After submitting your Customer Profile, our operations team reviews the data. The team sets the Customer Profile status to In Review. This can take up to 48 hours. The team tries to confirm your data and can approve or reject your submission. When complete, Twilio updates the profile status as Approved or Rejected. We also send you an email with your profile status.
+  * To confirm your business identity, Twilio may reach out to the authorized representatives given in your Customer Profiles during the vetting process. - To learn more about how Twilio retains these records, consult our .
 
 
+Twilio rejects a Customer Profile submission in certain circumstances. Twilio may not be able to validate some of the data included in the Profile. If this occurs with your submission, review the rejection reason, fix the issue with your application, and resubmit.
+To view your Customer Profiles, go to the of the Twilio Console.
+You can't update approved and under review profiles. If you update an approved profile, Twilio may need to review it again.
+You can delete a draft or rejected profile in the Trust Hub. This removes the profile. You can create a new one if needed. To delete an approved profile, contact Twilio Support.
 
+
+---
+
+## Fonte: https://www.twilio.com/docs/studio
+
+We started Twilio to unlock the imagination of builders. Now any builder can visually create, edit, and manage communication workflows in Twilio Studio, our low-code/no-code application builder. Drag and drop widgets to build voice, messaging, and communications apps, and save the coding work for higher-order tasks. You can use Studio to craft everything from order notifications, to phone trees, to survey tools, to SMS-enabled chatbots.
+_Interested in plans and pricing? See our product page. Additional fees for the underlying Twilio services are not included in Studio pricing and will be charged separately._
+Learn how to use Studio to develop compliant healthcare applications on Twilio with our whitepaper.
+Get inspired with guides based on our ready-made flow templates and common business use cases. Learn how to make an IVR, survey, and more in minutes.
+
+
+---
+
+## Fonte: https://www.twilio.com/docs/twilio-cli
+
+The Twilio CLI is a tool to help you build faster, test your applications, and simplify the process of working with Twilio APIs from the command line. With the Twilio CLI and its plugin ecosystem, common tasks like managing phone numbers, calling Twilio APIs, and testing your webhook handlers are simpler.
+Get up and running with the Twilio CLI with these guides. Refer to the left-hand nav for our full documentation.
+
+
+---
+
+## Fonte: https://www.twilio.com/docs/usage
+
+While Twilio spans a broad range of products that help you build incredible communications experiences, your account, subaccounts, applications, and security apply to everything you want to build.
+These docs will help you interact with the REST API to manage your accounts, help you set up your development environment to build apps with Twilio, use your trial account to test your work and protect your Twilio accounts, applications, and users against fraud.
+If you're just getting started with Twilio, you may want to jump straight into one of our quickstarts for the product you're most interested in, whether that's , , or 2FA with .
+  * Get step-by-step instructions for setting up your development environment for , , , , , , or 
+
+
+Whether you're using Programmable Voice or building two-factor authentication with Verify, can give you insight into your usage, accounts, applications, and more:
+
+
+  * Learn how to secure your applications by validating incoming requests, whether you're using , , , , , , or .
+
+
+
+
+---
+
+## Fonte: https://www.twilio.com/docs/voice
+
+With Twilio, you can quickly make and receive voice calls in your application. We provide the docs, code samples, SDKs, and developer tools you need on your journey. You bring your imagination. Let's build something amazing together.
+With just a few lines of code, you'll make your first outgoing phone call with the Voice API. Add a few more and your app can respond to incoming callers. Choose your programming language to get started.
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+Pick the docs that are right for you. These short tutorials, sample apps, and API reference docs will get you from to .
+
+
+Your application is unique, but you're not alone - we've got the building blocks you need to grow and scale. Use Twilio with your current VoIP system, debug call issues, find the right data, and queue and modify calls. Deploy your app with confidence.
+Twilio's takes your apps to the next level and helps you target the right improvements. Surface , , and issues while monitoring the carrier and hang-up data you need to improve your service.
+If you are an Australian Consumer customer, Twilio's Critical Information Summary (CIS) can be found .
+
+
+Solve problems before they crop up. Protect your users' and employees' privacy in multi-way conversations and quickly match jobs to worker skills and qualifications.
+
+
+---
+
+## Fonte: https://www.twilio.com/docs/sip-trunking
+
+In order to use Twilio Elastic SIP Trunking, you'll need a Twilio account. if you don't already have one.
+  * Features 
+
+
+  * A SIP enabled network element (e.g. Session Border Controller, SIP Call Server, IP-PBX, SIP-PRI IAD, etc.) with access to the internet.
+  * 
+
+Log into the console and go to the "Elastic SIP Trunking" section. Your will be displayed, providing a high level overview of your Trunking usage: Minutes, Calls & Cost.
+
+
+Under the "Manage" menu you will have access to all of the configuration aspects of your Trunks. Specifically, you will have links to:
+  * : Manage your IP Access Control Lists (a set of IPs that are allowed to reach your SIP Domain).
+
+
+Twilio Elastic SIP Trunking is a cloud based solution that provides connectivity for IP-based communications infrastructure to connect to the PSTN, for making and receiving telephone calls to the 'rest of the world' via any broadband internet connection.
+  * : Configure the settings for receiving incoming traffic on your Twilio numbers to deliver calls to your communications infrastructure from the PSTN.
+
+
+From the navigation bar item you'll be able to view a full list of your Elastic SIP Trunks and click on each one to modify its configuration. You also have the ability to delete a given trunk from this view.
+From this drop-down you can enable call recording for this trunk. When enabled, all calls are recorded (both origination and termination traffic), in a pay-as-you-go consumption model. Recording options for a single channel or dual channels can be selected. The default setting of a trunk is Do Not Record. You can select:
+  * : If enabled, silence will be trimmed from the recording. If disabled, silence will not be trimmed from the recording.
+
+
+Twilio extended the maximum call duration on Elastic SIP Trunking calls from 4 hours to 24 hours. This allows the business to have extended conversations that last longer than 4 hours. You can see details .
+Encryption ensures that the call media and associated signalling remains private during transmission. Transport Layer Security (TLS) provides encryption for SIP signaling and Secure Real-time Transport Protocol (SRTP) provides encryption for call content/media packets. Learn about how to enable and troubleshoot TLS issues from this .
+The TLS protocol is designed to establish a secure connection between a client and a server communicating over an insecure channel. RFC 5246, the Transport Layer Security (TLS) Protocol, Version 1.2, specifies Version 1.2 of the Transport Layer Security (TLS) protocol.
+  * and above. To comply with industry-standard security requirements, Twilio no longer supports and for inbound or outbound Elastic SIP Trunking calls and SIP registration.
+
+
+: When TLS is enabled, you will no longer be able to view the SIP signalling packets in the PCAP captures within the Call Logs section.
+SRTP provides a framework for the encryption of RTP & RTCP. RFC 4568, Session Description Protocol (SDP) Security Description (SDES) for Media Streams, defines such a protocol specifically designed to exchange cryptographic material using a newly defined SDP crypto attribute.
+
+
+When Secure Trunking is enabled, any non-encrypted calls will be rejected. Please ensure you configure the use of TLS in your by including the parameter. If the transport parameter is present on any of your URIs specifying a different transport (e.g. ), it will be ignored and TLS will be used. By default port 5061 will be used for TLS, however you may specify the port you wish to use in your Origination URI.
+TLS is used to encrypt SIP signaling between SIP endpoints. In order for this to function properly, devices in your network that communicate directly with Twilio must be configured to trust Twilio's TLS/SSL Certificate. Twilio uses certificates issued by a CA (Certificate Authority). You may need to add additional root certificates to your communications infrastructure to establish the authenticity of Twilio's certificate on the network. . (Last updated September 1, 2023).
+Please be aware that the Twilio CA bundle may be updated in the future, for example when root certificates expire or are distrusted by the CA. In such cases we will notify you to update your SIP devices. Please ensure that your email address is up to date in your account information to ensure you receive such communication.
+Asterisk ships by default with driver and works well with Twilio. However, if you have some reason to run driver with Asterisk, note the following:
+  * Asterisk 13.8 cert2 can also use the latest driver, which at this time is 2.5.5. Twilio works well with it despite the following message appearing in your log:
+
+
+```
+
+
+
+
+
+
+     
+
+
+
+
+
+
+
+```
+
+The following link is a guide to installing a non-bundled version of . Change the version to 2.5.5 in the steps.
+When Call Transfer is enabled, Twilio will consume an incoming SIP REFER from your communications infrastructure and create an INVITE message to the address in the Refer-To header. Please go for more details.
+In general, your IP communications infrastructure should use your public IP address in the SDP and that will be the ONLY destination where Twilio will send media towards. However, if you're traversing a non-SIP aware NAT, you may not know your public IP and your SDP will include your private IP address, typically leading to one-way audio issues. Twilio is able to resolve this by latching onto the incoming RTP media stream and sending RTP towards that destination by enabling Symmetric RTP.
+When Symmetric RTP is enabled Twilio will detect where the remote RTP stream is coming from and start sending RTP to that destination instead of the one negotiated in the SDP. This setting is more vulnerable to RTP attacks.
+When Symmetric RTP is disabled, Twilio will send RTP to the destination negotiated in the SDP. This setting is considered to be more secure and therefore recommended.
+Configuring your termination settings will allow you to place outgoing traffic from your communications infrastructure to the PSTN. In order to use a trunk for termination it must have a Termination SIP URI and at least one authentication scheme (IP Access Control Lists and/or Credentials Lists).
+Configure a SIP Domain Name to uniquely identify your Termination SIP URI for this trunk. This URI will be used by your communications infrastructure to direct SIP traffic towards Twilio.
+_Twilio recommends that you use a dash instead of a dot to improve readability of your domain. However, in some cases you may prefer a sub-domain like a.b.pstn.twilio.com of the higher-level domain b.pstn.twilio.com_
+
+
+If you wish to manually connect to a specific geographic edge location that is closest to the location of your communications infrastructure, you may do so by pointing your communications infrastructure to any of the following localized Termination SIP URIs:
+Twilio's Elastic SIP Trunking uses an FQDN () as a Termination URI that is used by your communications infrastructure to direct SIP traffic towards Twilio. As explained in the previous section, localized Termination URIs are available.
+For each edge location we have 3-4 IP addresses that are used for reliability purposes (see . Each of these IP addresses represents a unique public edge for our Elastic SIP Trunking services into the Twilio cloud, distributed across multiple Availability Zones for reliability purposes.
+We strongly recommend that you avoid directing your SIP traffic to a single IP address. Instead, utilize all available IP addresses and implement failover in case one IP is not responding. For more information, review our .
+A common strategy, which we deploy internally and what we have instructed our carriers to do towards us as well, is that if there is no response to an INVITE, go to the next IP after 4 seconds. A single machine behind a single IP will always fail at some point so the overall solution must take that into consideration and guard itself towards these failures.
+Furthermore, if there is a complete Ashburn outage, it is recommended that you failover to another (e.g. If connecting to , failover to ), keeping in mind that the Edge Location will in turn resolve to 3-4 different IP addresses for reliability.
+Configure the authentication details to ensure the security/authenticity of your termination traffic. You must configure a minimum of either an ACL or credential authentication. If you configure both, then both ACLs credentials are enforced.
+  * Give the Access Control List a friendly name that is descriptive of what that list of IPs. Something like "Dallas Datacenter IPs".
+  * Add IPs to your new IP Access Control List (these should be the IP addresses used for outbound SIP traffic by your Communications Infrastructure border elements, e.g. SBC).
+
+
+  * Enter a username (these should be the username used for digest authentication for outbound SIP traffic by your communications infrastructure border elements, e.g. SBC).
+
+
+If you are using User Credentials, your SIP INVITE will be challenged with a requesting the appropriate user credentials.
+By the end of this step your trunk will be able to process termination calls from your communications infrastructure, via Twilio, to the PSTN.
+You must specify a Caller ID Number that either corresponds to a Twilio DID on your account or a Caller ID Number that has been verified on the or with the .
+If a Caller ID Number is not specified in the SIP INVITE's From Field, then the Remote-Party-ID or the P-Asserted-Identity will be used.
+For Trial accounts, in addition to using a verified Caller ID, you can only call numbers that are also verified. To remove this restriction, Upgrade your account via the .
+Make sure that any phone numbers sent via SIP to Twilio are always E.164-formatted (e.g.). If E.164 format is not used, then the call will be rejected with a SIP response.
+Configuring your origination settings will allow you to receive incoming traffic from the PSTN to a Twilio number, delivered to your communications infrastructure. With phone numbers available in over 100 countries, Twilio gives you a truly global SIP Trunk. A minimum of one Twilio number should be associated with this trunk if you're configuring it for origination.
+Configure your origination SIP URI, which identifies the network element entry point into your communications infrastructure (e.g. IP-PBX, SBC). The host part of the SIP URI may be either an IP address or a Fully Qualified Domain Name (FQDN).
+Twilio will automatically populate the user part of the SIP URI based on the Twilio number the call from the PSTN is destined towards. For example, if the call from the PSTN is received for Twilio number +14158675309, which is associated with this trunk, the resulting URI sent to your communications infrastructure will be:
+Alternatively, you may also configure a specific user-part (e.g. "anniebp") within the origination SIP URI. Note that the same URI will be used for all Numbers associated with this trunk. Hence, if the call from the PSTN is received for Twilio number +14158675309, which is associated with this trunk, the resulting URI towards your communications infrastructure will still be the following for all phone numbers:
+It is possible to send any SIP header beginning with the prefix, by appending them to the origination SIP URI. For example, you could configure: to send on all originated calls.
+By default, Twilio sends originating SIP requests towards your communications infrastructure over UDP. This may be customized to be sent over TCP rather than UDP. Change this by using the transport parameter in the origination SIP URI:
+Alternatively, you may customize it to use TLS for SIP signalling. When using TLS, the default port will be 5061, however a different one may be specified. Change this by using the transport parameter in the origination SIP URI, and optionally by specifying a different port number:
+Note: Elastic SIP Trunking Origination URI configurations using the URI scheme in order to enable end-to-end encryption is NOT supported by Twilio. However, we do support URI schemes using for point-to-point encryption.
+If you configure your Elastic SIP Trunking Origination URIs to use schemes, these URIs will be handled as if they were URIs using TLS transport. Twilio will effectively adjust the URI internally to instead be routed using the scheme and on the outbound messages, resulting in point-to-point encryption between Twilio and the customer equipment.
+Twilio strongly suggests not using schemes in your Twilio SIP configurations, as this could cause possibly unintended behavior, due to how we process such URIs. Instead, we suggest using schemes with TLS transport. This method, along with the security of our voice architecture and Super Network, is an effective way of adding encryption to your Twilio SIP connections.
+To specify the geographic from which Twilio will send the originating SIP traffic towards your communication infrastructure, you must include the parameter in your Origination SIP URI. For example, if the parameter is included in your Origination SIP URI, Twilio will send the SIP traffic from the Europe Ireland edge location:
+If the parameter is not specified or is incorrect, Twilio will send the Originating SIP traffic from the edge location where the incoming PSTN call comes in.
+Note: You must make sure you allow the of the Twilio edge location for SIP signalling and RTP media traffic.
+The priority field determines the precedence of use of the SIP URI. Twilio will always use the SIP URI with the lowest-numbered priority value first, and fallback to other SIP URIs of equal or higher value if the session to that SIP URI fails.
+If a service has multiple origination SIP URIs with the same priority value, Twilio will use the weight field to determine which SIP URI to use. The weight value is relevant only in relation to other SIP URIs with the same priority value.
+ranks the importance of the URI. Values range from 0 to 65535, where the lowest number represents the highest importance. is used to determine the share of load when more than one URI has the same priority. Its values range from 1 to 65535. The higher the value, the more load a URI is given.
+It is possible to enable or disable an origination SIP URI. When an origination SIP URI is enabled, it's active in the route selection. If it is not enabled, then it will not be used for routing traffic towards your communications infrastructure.
+In the following example, both the priority and weight fields are used to provide a combination of load balancing and failover services.
+The first three SIP URIs share a priority of 10, so the weight field's value will be used Twilio to determine which server to contact. The sum of all three values is 100, so will be used 60% of the time. The two SIP URIs and will be used for 20% of requests each. If is unavailable, these two remaining machines will share the load equally, since they will each be selected 50% of the time.
+If all three servers with priority 10 are unavailable, the record with the next lowest priority value will be chosen, which is . Note: If any of the following SIP status codes are returned ("2xx", "400", "404", "405", "410", "416", "482", "484", "486", "6xx"), Twilio will not fail over to the next origination SIP URI. If there is no SIP response from a given server, Twilio will fail over after 4 seconds.
+In the case of a disaster preventing your calls from being delivered to your origination SIP URI above, you can configure a Disaster Recovery URL pointing to an application built on Twilio's powerful scripting tool called TwiML. You can use TwiML to build an application that will manage calls as required by your disaster recovery plan, including replicating the functionality of your PBX (e.g. IVR).
+For more information on building your TwiML application, please refer to the and . When calls are redirected to your disaster recovery URL, normal Twilio Voice rates apply: see .
+CNAM is an acronym which stands for Caller ID Name. CNAM is used to display the calling party's name alongside the phone number, to help users easily identify a caller.
+When you enable CNAM Lookup, the Caller ID Name is inserted in the SIP INVITE via the "From", and "Contact" and (if applicable) "P-Asserted-Identity" fields for each caller.
+Note that CNAM lookups for US/CA numbers are billed per lookup, even if data may not be available. Currently, requesting Caller ID Name Lookup for international numbers will return null values, but will not be billed.
+When you have selected a Trunk, navigate to the "Origination" Settings (via the left-hand sub-menu). Here, you will see a switch where you can enable CNAM Lookup. You will know the setting has been enabled when the switch has turned 'blue' and the word 'ENABLED' appears.
+  * CNAM Lookup is billed per successful lookup (this includes the case where the Name is not available for a Number in the CNAM National databases). It is known that many AT&T numbers are not published to the CNAM National databases.
+
+
+Call redirect enables you to redirect a Trunking Origination call. Your communications infrastructure can redirect an incoming INVITE by responding with a SIP 302 (Moved Temporarily). This response contains a contact header field with the new addresses that should be tried.
+  * Twilio supports a single redirection per call: 
+    * Twilio honors the first URI of the SIP 302 response: Multiple URIs in the SIP header except the first one or multiple SIP headers except the first one will be ignored.
+  * The parameter is not supported in a SIP 302 contact URI. The redirected call will use the same egress edge location as the original call
+  * The parameter is not supported in a SIP 302 contact URI. The redirected call will use the same Interconnect Connection as the original call
+
+
+When Twilio receives incoming traffic on your Twilio numbers from the PSTN to be directed to your communications infrastructure, it will add a SIP header noting the Twilio number that was dialed. This header serves as a historical record that indicates that the call was diverted from the dialed number to the Origination SIP URI of your SIP Trunk. An example of what this header might look like is shown below.
+When Twilio receives outgoing traffic from your communications infrastructure to the PSTN, your SIP message can sometimes include SIP headers if the call was previously forwarded. Twilio will forward SIP headers it receives to the carriers.
+To combat any malicious addition of Diversion headers, Twilio will check all Diversion headers it receives that contain the Twilio domain. Twilio will verify that the phone number included in the header matches one associated with your Twilio account (either a Twilio number owned by the account or a verified Caller ID). If the header fails this check, Twilio will remove the header.
+
+
+In the "Numbers" section you will be able to view all numbers currently associated with this trunk. Recall that all of these numbers share the same origination & general settings.
+A minimum of a single Twilio Phone Number is required to be able to receive incoming calls from the PSTN to your communications infrastructure via your Twilio Trunk.
+Select the country code, and search for available numbers matching any patterns (e.g. +14158675309) you might want to look for in your number.
+Once you find the Twilio number you would like to buy, go ahead and purchase it and continue to set up your number.
+Under the "Voice" section select the "SIP Trunking" radio button, and from the dropdown list below select the desired SIP Trunk you would like to associate this Number with. Don't forget to save your configuration changes.
+In the "Numbers" section select "Associate a Number with this Trunk", which will display a list of all of your existing Twilio numbers. Click on the one you would like to associate with this trunk.
+This will take you to the number view where you can modify that number's configuration. Under the "Voice" section, select the "SIP Trunking" radio button, and from the dropdown list below select the desired SIP Trunk you would like to associate this number with. Don't forget to save your configuration changes.
+  * From the "Numbers" section of a given trunk, you can directly disassociate a phone number from the numbers list displayed by clicking on the trash button.
+  * By changing the "Voice" configuration of a given number to a different trunk or by configuring it with an application or URL
+
+
+Note that when you do this, the number is disassociated from the trunk but it is not released from your account.
+Twilio phone numbers are billed on a monthly basis. Unless you are actively using a number, or you want to keep a number reserved for future use, you can reduce your costs by releasing your unused numbers. In order to release the number, go to the "Voice and Messaging" section, click on "Numbers" and release the desired number from that page.
+  * From the "Trunks" section, using the trunks list displayed. Note that when you do this, all numbers associated with this trunk will be automatically disassociated from the trunk but not released. In order to release it please go to the "Voice and Messaging" section, click on "Numbers" and release the desired numbers from that section.
+
+
+Note that when you do this, all numbers previously associated with this trunk will be disassociated from the trunk, but they will not be released from your account. Twilio phone numbers are billed on a monthly basis. Unless you are actively using a number, or you want to keep a number reserved for future use, you can reduce your costs by releasing your unused numbers. In order to release the number, please go to the "Voice and Messaging" section, click on "Numbers" and release the desired number from that section.
+  * Configure your Termination URIs for your Twilio Trunk, optionally using a Localized Termination URI if you wish to manually connect to a specific geographic edge location of the Twilio platform.
+  * Ensure that your infrastructure sends a value of 70 for the header per RFC 3261 section 8.1.1.6, to ensure your call is processed successfully.
+  * Optionally set-up your Communications Infrastructure to issue SIP OPTIONS messages as a ping mechanism to your Elastic SIP Trunk (Send the Message Request To: Termination URI you created ()); the Twilio platform will respond appropriately. Please maintain the Ping lower than 1 SIP OPTIONS every 10-15 seconds to avoid your requests from being banned by our Platform.
+
+
+If you're deploying behind a NAT without a Session Border Controller, it's important to keep open the NAT translation binding.
+  * For Signaling, when using UDP, this may be achieved by periodically sending SIP OPTIONS to Twilio, which will respond with a 200OK.
+  * For Signaling, when using TCP or TLS, this may be achieved by periodically sending SIP OPTIONS to Twilio, or CR-LF keep-alives (periodically sending a double-CRLF (the "ping") then wait to receive a single CRLF (the "pong") from Twilio), the latter has the smallest overhead.
+
+
+You MUST allow of Twilio's following IP address ranges and ports on your firewall for SIP signalling and RTP media traffic. This is important if you have Numbers in different edge locations and for resiliency purposes (e.g. if North America Virginia gateways are down, then North America Oregon gateways will be used). Twilio does not guarantee which edge location the media will egress from, without using the parameter since it can depend on which PSTN-SIP Gateway delivers the call to which Twilio edge location.
+For further information to help you configure your infrastructure with your Twilio Elastic SIP Trunk, refer to the SIP Trunking .
+
+
+---
+
+## Fonte: https://www.twilio.com/docs/voice/conversationrelay
+
+Twilio's ConversationRelay empowers you to build powerful AI voice experiences for your customers. Let Twilio handle the heavy lifting of speech recognition, text-to-speech, and voice synthesis, so you can focus on building your application.
+After you've completed the , you are ready to start building your first application. Tap on one of the below tutorials to get started with building your first ConversationRelay app.
+ConversationRelay is flexible — and there are many ways to build an application that uses it. Tap on the links below to find tutorials and reference documentation for ConversationRelay and related Twilio services.
+
+
+ConversationRelay uses artificial intelligence and machine learning technologies. We want you to understand how these technologies work, what data they use, and how they're trained. That's why we provide for our AI-powered features. Tap on the name of a provider to learn more about the characteristics of their TTS and STT models.
+ConversationRelay uses the Default Base Model provided by the Model Vendor. The Base Model is not trained using Customer Data.
+ConversationRelay uses the Default Base Model provided by the Model Vendor. The Base Model is not trained using Customer Data.
+ConversationRelay uses the Default Base Model provided by the Model Vendor. The Base Model is not trained using Customer Data.
+ConversationRelay uses the Default Base Model provided by the Model Vendor. The Base Model is not trained using Customer Data.
+ConversationRelay uses the Default Base Model provided by the Model Vendor. The Base Model is not trained using Customer Data.
+ConversationRelay uses the Default Base Model provided by the Model Vendor. The Base Model is not trained using Customer Data.
+Programmable Voice uses the default Base Model provided by the Model Vendor. The Base Model is not trained using customer data.
+Twilio offers other tools to enhance your voice applications such as adding in-application chat and synchronizing your application's state across devices.
+
+
+---
+
+## Fonte: https://www.twilio.com/en-us/blog
+
+[ For the third year, Twilio is named a Leader in the 2025 ®Gartner Magic Quadrant™ for Communications Platform as a Service  ](https://www.twilio.com/en-us/blog/insights/gartner-magic-quadrant-cpaas-recognition-2025)
+  * [ ](https://www.twilio.com/en-us/blog/developers/tutorials/product/warm-transfer-openai-realtime-programmable-sip)
+
+
+
+
+
+
+  * [ Twilio Segment extends real-time CDP to unlock AI and power dynamic customer engagement that adapts to every customer at scale ](https://www.twilio.com/en-us/blog/events/signal-2023-launch-blog)
+
+
+
+
+
+
+
+
+---
+
+## Fonte: https://www.twilio.com/en-us/events
+
+We regularly host in-person and virtual events where you can learn from Twilio product experts and developers. You bring your ideas for a better customer experience. We’ll help you bring them to life.
+Builders, assemble for another unmissable SIGNAL! Join us in Sydney where we’re bringing together developers, business leaders, and innovators from industry-leading companies for a full day of networking and hands-on building.
+Join our live and on-demand events that bring together industry experts and thought leaders to share stories and insights about digital transformation.
+Turn insights into action. Join our virtual event series to explore real-world use cases, hear from industry experts, and discover new ways to connect with your customers.
+[ ](https://transformtogether.twilio.com/transformseattle25/begin?utm_campaign=TransformTogether&utm_medium=web&utm_source=twilio&utm_content=event_listing) [ ](https://signal.twilio.com/sydney2025/begin?utm_campaign=signal&utm_medium=web&utm_source=twilio&utm_content=event_listing) [ ](https://talks.twilio.com/twilio-talks/unlocking-the-future-of-ai-powered-engagement?utm_source=events&utm_medium=referral&utm_campaign=all_ic_event_first_party_2025_oct_twilio_talks_cai_ww_dp_) [ ](https://transformtogether.twilio.com/nyc25/begin?utm_campaign=TransformTogether&utm_medium=web&utm_source=twilio&utm_content=event_listing) [ ](https://signal.twilio.com/london2025/begin?utm_campaign=signal&utm_medium=web&utm_source=twilio&utm_content=event_listing)
+Start building your ideal customer engagement experience. Sign up for a free account to get started today. No credit card required.
+
+
+---
+
+## Fonte: https://www.twilio.com/en-us/guidelines
+
+To use phone numbers in many countries, both Twilio and our customers must adhere to local country regulations. Read about compliance considerations.
+"Porting" refers to the transfer of phone numbers between to service providers on behalf of an end user. Learn more about country-specific considerations.
+Short codes (generally 5 - 6 digits) allow direct customer communication through SMS. Using short codes results in higher message volumes, within shorter time periods, than long-code or toll-free numbers.
+For the benefit of all our customers, these guidelines are provided to help you comply with applicable requirements and to help ensure Twilio's platform remains compliant with global telecommunications ecosystem requirements. These guidelines represent our current understanding of common compliance requirements generally applicable to Twilio and its customers, and do not constitute legal advice. By posting these guidelines, Twilio makes no assurances regarding the legal compliance of your application built using our APIs. You are expected to understand and abide by all compliance obligations applicable to your specific application. You should check these pages regularly for updates as telecommunications ecosystem requirements continue to evolve and change, and the information below may be updated or changed without notice.
+
+
+---
+
+## Fonte: https://www.twilio.com/en-us/champions
+
+Are you a passionate developer eager to build with Twilio? Do you enjoy promoting best practices and inspiring other developers? 
+Twilio Champions are many things—technical experts, end users, developers, and so much more. At every hackathon or meetup, Champions are the passionate and knowledgeable builders eager to share their Twilio expertise. 
+If this sounds like you, and you want to continue to inspire other builders, we want to hear from you!
+
+
+At Twilio, we aim to recognize, reward, and empower our Twilio Champions with the support and resources they need. As a token of our appreciation, Champions have access to:
+
+
+
+
+If you’re unsure if you meet all the qualifications listed above but are passionate about building with Twilio and inspiring others, we still highly encourage you to apply! 
+
+
+---
+
+## Fonte: https://www.twilio.com/en-us/changelog
+
+See additions and changes to the Twilio platform and Twilio Segment Customer Data Platform. You can also subscribe to our Changelog RSS feed below.
+With this feature, you can ensure your Conversational Intelligence Transcripts and Language Operator Results are encrypted using your own public key, at the moment they are generated. Only you, the private key holder, can access the decrypted content.
+You now have even greater control over your customers’ sensitive conversation data and operator insights, helping you to meet the highest security standards.
+The Lookup Bulk API is now in Private Beta. Submit a file containing a list of phone numbers to run high-volume lookups in a single request, ideal for one-time or recurring contact list scrubs.
+Twilio Frontline was built to help customer-facing teams stay connected on the go, whether that meant real estate agents closing deals from the field or healthcare workers checking in on patients. But as customer needs evolved, it became clear that a one-size-fits-all mobile solution couldn’t keep up with the demand for flexibility, deep integration, and control.
+Frontline entered End of Sale on February 9, 2023, and since then, we’ve focused on helping teams transition to solutions that better fit their unique workflows. Building on that direction, we’re now officially retiring the product on September 30, 2026. The app will remain available to existing customers through that time, but is no longer under active development.
+  * : Our preferred partner for most mobile-first use cases like sales, service, and field teams. SpokePhone has deep integration with the Twilio platform, supports Voice and all Conversations channels, offers robust call routing, transfers, and analytics, and works seamlessly alongside Flex deployments.
+  * ): Best for teams that only need Voice, SMS, and MMS. Features include a collaborative team inbox, AI-powered call transcription and summaries, voicemail transcription, and automated SMS replies for faster customer response.
+  * : Ideal for Salesforce-centric teams. Provides deep integration with Salesforce tools, supports Voice, SMS/MMS, and additional channels like WhatsApp, and includes AI-based conversational insights.
+
+
+For support navigating options or finding the right fit, customers can connect with their Twilio Account Team or 
+Twilio is grateful for everything customers have built with Frontline, and is here to support thoughtful, seamless transitions as teams plan what’s next.
+Flex helps businesses create tailored customer engagement experiences, no matter where their teams work. To extend that power beyond the desktop, we introduced Flex Mobile to keep teams connected and productive on-the-go.
+During Flex Mobile’s time as a beta product, it became clear that no two organizations use the app in the same way, which is a testament to Flex itself—Flex’s core strength has always been its flexibility, which empowers you to shape customer experiences to fit your team’s unique needs.
+As we listened to your feedback and observed how you used Flex Mobile, we saw that a single mobile app can’t capture the unique requirements of every organization. Rather than stretching one app to fit all use cases, we decided to do what Twilio does best: empower you with the tools, services, and trusted partners you need to build or choose the right mobile solution for your business. 
+**As a result, we’ve decided not to move Flex Mobile into General Availability. Flex Mobile will End of Sale (EOS) on September 30, 2025.** After this date, the Flex Mobile app won’t be available to new users. If you’re already using Flex Mobile, rest assured that we’ll continue to support you throughout the transition period.
+We haven't set a retirement date yet, but when we do, we’ll provide you with advance notice and the resources to help you make a smooth transition. 
+  * : Supports most mobile-first use cases like sales, service, and field teams. SpokePhone has deep integration with the Twilio platform, supports Voice and all Conversations channels, offers robust call routing, transfers, and analytics, and works seamlessly alongside Flex deployments.
+  * : Best for teams that only need Voice, SMS, and MMS. Features include a collaborative team inbox, AI-powered call transcription and summaries, voicemail transcription, and automated SMS replies for faster customer response.
+  * : Ideal for Salesforce-centric teams. Fastcall provides deep integration with Salesforce tools, supports Voice, SMS/MMS, and additional channels like WhatsApp, and includes AI-based conversational insights.
+
+
+We’re grateful for everything you’ve built with Flex Mobile, and we understand that change isn’t always easy. If you need guidance or support, we’re here to help you as you plan your next steps.
+As of September 30, 2025, for Voice channel and can now support healthcare use cases that contain protected health information (PHI) for organizations that are subject to the Health Insurance Portability and Accountability Act (HIPAA). Twilio will sign Business Associate Addendums (BAA) with covered entities and business associates for .
+All self-service Twilio Messaging customers can instantly onboard to higher messages per second (MPS) capacity, for shortcode and toll-free traffic, through purchase of Pro in Console. To learn more about the TOE Pro self-serve options currently available in Console, navigate to the .
+Twilio customers can now directly define flows through WhatsApp and send them with Twilio. This enables customers to use the full capabilities offered by WhatsApp. It now also supports flows powered with . Endpoints let you pass data directly between your services and Meta to provide a personalized and dynamic experience to your customers.
+Twilio now supports sending messages containing flows in session without template approval in addition to as an approved template with WhatsApp/flows. 
+We have added support for designating a display name to be included in the From header for calls to SIP destinations initiated via the .
 
 
 ---

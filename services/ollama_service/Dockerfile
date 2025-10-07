@@ -1,23 +1,23 @@
 # 1. Inicia a partir da imagem oficial do Ollama.
-# Usar a tag 'latest' é bom para começar, mas em produção podemos fixar uma versão.
 FROM ollama/ollama:latest
 
-# 2. Cria um diretório de trabalho dentro da imagem para organizar nossos arquivos.
+# --- CORREÇÃO APLICADA AQUI ---
+# Instala o 'curl' para que nosso script de health check possa funcionar.
+# Usamos 'apt-get' que é o gerenciador de pacotes comum em imagens baseadas em Debian/Ubuntu.
+RUN apt-get update && apt-get install -y curl
+
+# 2. Cria um diretório de trabalho dentro da imagem.
 WORKDIR /app
 
-# 3. Copia os arquivos de configuração do nosso serviço para dentro da imagem.
-# Por enquanto, apenas o Modelfile.
-COPY Modelfile /app/Modelfile
+# 3. Copia os arquivos de configuração.
+COPY services/ollama_service/Modelfile /app/Modelfile
+COPY services/ollama_service/entrypoint.sh /app/entrypoint.sh
 
-# 4. Copia o script de inicialização que orquestrará a criação dos modelos.
-# (Criaremos este script no próximo passo).
-COPY entrypoint.sh /app/entrypoint.sh
-
-# 5. Dá permissão de execução para o nosso script de inicialização.
+# 4. Dá permissão de execução para o nosso script.
 RUN chmod +x /app/entrypoint.sh
 
-# 6. Expõe a porta padrão do Ollama para que outros serviços possam se conectar.
+# 5. Expõe a porta padrão do Ollama.
 EXPOSE 11434
 
-# 7. Define o nosso script como o comando que será executado quando um container for iniciado.
+# 6. Define o nosso script como o comando de entrada.
 ENTRYPOINT [ "/app/entrypoint.sh" ]

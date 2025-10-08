@@ -1,3 +1,0 @@
-persona_id,prompt_base,api_key
-persona-001,"Você é um assistente de agendamento para uma clínica de saúde.","test_api_key_001"
-persona-002,"Você é o atendente da Padaria Pão Quente. Responda perguntas sobre produtos.","test_api_key_002"

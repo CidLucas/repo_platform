@@ -1,90 +1,98 @@
 # services/ferramentas/evaluation_suite/run_evaluation.py
 
 import os
+import sys
 import pandas as pd
 from dotenv import load_dotenv
 from langsmith import Client
-from langsmith.evaluation import evaluate
-from langsmith.schemas import Example
 from langchain_core.messages import HumanMessage
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite import SqliteSaver
+from tqdm import tqdm
+from datetime import datetime
+import importlib
 
-# Carrega as variáveis de ambiente. Garanta que LANGCHAIN_PROJECT esteja no seu .env!
+# --- Configurações ---
 load_dotenv()
-
-from workflows.boleta_trader.workflow import get_workflow
-from workflows.boleta_trader.evaluator import evaluate_boleta
-
-def prepare_langsmith_dataset(client: Client, dataset_name: str, csv_path: str):
-    """Garante que o dataset exista no LangSmith, recriando-o se necessário."""
-    if client.has_dataset(dataset_name=dataset_name):
-        client.delete_dataset(dataset_name=dataset_name)
-
-    dataset = client.upload_csv(
-        csv_file=csv_path,
-        input_keys=['test_id', 'phone_number', 'message'],
-        output_keys=['golden_answer'],
-        name=dataset_name,
-        description="Dataset para avaliação robusta do workflow de extração de boletas."
-    )
-    print(f"Dataset '{dataset_name}' carregado com sucesso.")
-    return dataset
+WORKFLOW_UNDER_TEST = "boleta_trader"
+PROJECT_NAME_PREFIX = "Boleta-Trader-Ev"
 
 def main():
     """
-    Orquestra a avaliação de ponta a ponta usando as melhores práticas do LangSmith.
+    Orquestra a avaliação simulando CONVERSAS COMPLETAS e avaliando o resultado
+    final de cada uma.
     """
-    print("Iniciando a avaliação automatizada do workflow 'Boleta Trader'...")
+    print(f"--- Iniciando avaliação do workflow '{WORKFLOW_UNDER_TEST}' ---")
 
+    # --- 1. Setup do Ambiente e LangSmith ---
+    if not os.getenv("LANGCHAIN_API_KEY"):
+        print("--- ❌ ERRO: 'LANGCHAIN_API_KEY' não encontrada no .env ---", file=sys.stderr)
+        sys.exit(1)
+
+    workflow_module = importlib.import_module(f"workflows.{WORKFLOW_UNDER_TEST}.workflow")
+    evaluator_module = importlib.import_module(f"workflows.{WORKFLOW_UNDER_TEST}.evaluator")
+
+    project_name = f"{PROJECT_NAME_PREFIX}-{WORKFLOW_UNDER_TEST}-{datetime.now().strftime('%Y%m%d-%H%M')}"
+    os.environ["LANGCHAIN_PROJECT"] = project_name
     client = Client()
 
-    dataset_name = "Boleta Trader Evals"
-    csv_path = "workflows/boleta_trader/data/dataset.csv"
-    prepare_langsmith_dataset(client, dataset_name, csv_path)
+    # --- 2. Preparação da Simulação ---
+    dataset_csv_path = f"workflows/{WORKFLOW_UNDER_TEST}/data/dataset.csv"
+    eval_df = pd.read_csv(dataset_csv_path)
+    eval_df['conversation_id'] = eval_df['test_id'].apply(lambda x: x.split('_')[0])
+    print(f"Dataset com {len(eval_df)} mensagens em {eval_df['conversation_id'].nunique()} conversas carregado.")
 
-    # Instancia o checkpointer de memória e o workflow
-    memory = MemorySaver()
-    app = get_workflow(checkpointer=memory)
+    print(f"\n--- INICIANDO SIMULAÇÃO POR CONVERSA ---")
+    print(f"Traces serão enviados para o projeto: '{project_name}' no LangSmith\n")
 
-    def target_for_eval(row: dict):
-        """
-        Função-alvo que o `evaluate` chamará para CADA LINHA do dataset.
-        Ela gerencia o estado da conversa usando o 'test_id'.
-        """
-        # 1. Extrai os dados da linha do dataset
-        test_id = str(row['test_id'])
-        phone_number = str(row['phone_number'])
-        message_content = row['message']
+    evaluation_results = []
 
-        # 2. Configura a memória para usar o test_id como a chave da conversa
-        config = {"configurable": {"thread_id": test_id}}
+    # --- 3. Execução: Itera sobre cada CONVERSA ---
+    for conv_id, group in tqdm(eval_df.groupby('conversation_id'), desc="Processando Conversas"):
+        memory = SqliteSaver.from_conn_string(":memory:")
+        app_with_memory = workflow_module.get_workflow(checkpointer=memory)
+        config = {"configurable": {"thread_id": conv_id}}
 
-        # 3. Formata a entrada para o workflow
-        message = HumanMessage(content=message_content, name=phone_number)
-        inputs = {"messages": [message]}
+        final_state = None
+        for _, row in group.iterrows():
+            human_message = HumanMessage(content=row['message'], name=str(row['phone_number']))
+            inputs = {"messages": [human_message]}
 
-        # 4. Invoca o workflow. O checkpointer garante que o estado correto seja carregado.
-        final_state = app.invoke(inputs, config=config)
+            # #########################################################
+            # ## CORREÇÃO DEFINITIVA DO KEYERROR APLICADA AQUI ##
+            # #########################################################
+            # O último 'chunk' emitido pelo stream é o estado final.
+            for chunk in app_with_memory.stream(inputs, config=config, stream_mode="values"):
+                final_state = chunk
+            # #########################################################
 
-        # 5. Retorna o output relevante para o avaliador.
-        #    Se uma boleta foi extraída, ela estará aqui. Senão, o campo será None.
-        return {"boleta_extraida": final_state.get('boleta_extraida')}
+        # --- 4. Avaliação: Acontece no final da conversa ---
+        golden_answer = group.iloc[-1]['golden_answer']
 
-    print("Executando o workflow em todo o dataset usando o `evaluate` do LangSmith...")
+        if pd.notna(golden_answer):
+            mock_run_obj = type('obj', (object,), {'outputs': final_state})()
+            example = type('obj', (object,), {'outputs': {'golden_answer': golden_answer}})()
+            eval_result = evaluator_module.evaluate_boleta(mock_run_obj, example)
+            evaluation_results.append({"conversation_id": conv_id, **eval_result})
 
-    evaluate(
-        target_for_eval,
-        data=dataset_name,
-        evaluators=[evaluate_boleta], # Nosso avaliador customizado
-        experiment_prefix="boleta-trader-robust-run",
-        metadata={
-            "version": "3.0",
-            "description": "Avaliação robusta usando a função evaluate com gerenciamento de estado."
-        }
-    )
+    print("\n--- ✅ SIMULAÇÃO CONCLUÍDA ---")
 
-    print("\n--- ✅ AVALIAÇÃO CONCLUÍDA ---")
-    print(f"Verifique os resultados detalhados no seu projeto '{os.getenv('LANGCHAIN_PROJECT')}' no LangSmith!")
+    # --- 5. Relatório Final ---
+    print("\n--- RELATÓRIO FINAL DA AVALIAÇÃO ---")
+    if evaluation_results:
+        results_df = pd.DataFrame(evaluation_results)
+        successes = results_df[results_df['score'] == 1].shape[0]
+        total_tests = len(results_df)
+        accuracy = (successes / total_tests) * 100 if total_tests > 0 else 0
+
+        print(f"Total de Conversas com Boleta Avaliadas: {total_tests}")
+        print(f"Sucessos: {successes}")
+        print(f"Taxa de Acerto: {accuracy:.2f}%\n")
+        print("Resultados Detalhados:")
+        print(results_df.to_string(index=False))
+    else:
+        print("Nenhuma conversa com 'golden_answer' foi encontrada para avaliar.")
+
+    print(f"\nVerifique os traces detalhados no projeto '{project_name}' no LangSmith.")
 
 if __name__ == "__main__":
     main()

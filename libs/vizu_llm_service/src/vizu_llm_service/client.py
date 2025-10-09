@@ -1,7 +1,6 @@
 from enum import Enum
 from .config import get_llm_settings
 from langchain_community.chat_models import ChatOllama
-from langchain_openai import ChatOpenAI
 from langchain_core.language_models.chat_models import BaseChatModel
 
 class ModelTier(str, Enum):
@@ -44,11 +43,3 @@ def get_model(
 
         # --- Lógica de Fallback ---
         # Se a conexão com o Ollama falhar, tenta usar o fallback se configurado.
-        if settings.OPENAI_API_KEY:
-            print("INFO: Acionando modelo de fallback (OpenAI)...")
-            return ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
-
-        # Se não houver fallback, o erro é levantado.
-        raise ConnectionError(
-            "Falha ao conectar ao modelo primário (Ollama) e nenhum modelo de fallback foi configurado."
-        )

@@ -12,7 +12,7 @@ async def main():
     consolidado em um único arquivo Markdown.
     """
     sites_to_crawl = [
-        {"name": "langsmith", "start_url": "https://docs.langchain.com/langsmith"}
+        {"name": "langsmith", "start_url": "https://docs.smith.langchain.com/reference/python/reference?_gl=1*11kmn7u*_gcl_au*MjExNDU5Nzk3OS4xNzU4NzY3Njgy*_ga*MTgxNTYwMDA5LjE3NTk5NDk3MjU.*_ga_47WX3HKKY2*czE3NTk5NTcwMTEkbzIkZzEkdDE3NTk5NTcwNTUkajE2JGwwJGgw"}
     ]
     all_results_markdown = []
 
@@ -33,7 +33,7 @@ async def main():
     # --- CONFIGURAÇÃO DO CRAWLER COM AS MELHORES PRÁTICAS ---
     config = CrawlerRunConfig(
         # Estratégia de crawling profundo (1 nível a partir da URL inicial)
-        deep_crawl_strategy=BFSDeepCrawlStrategy(max_depth=1, include_external=False),
+        deep_crawl_strategy=BFSDeepCrawlStrategy(max_depth=2, include_external=False),
 
         # Estratégia de scraping performática
         scraping_strategy=LXMLWebScrapingStrategy(),
@@ -43,7 +43,7 @@ async def main():
 
         # --- CAMADA 1: EXCLUSÃO EXPLÍCITA DE TAGS DE NAVEGAÇÃO ---
         # A forma mais eficiente de remover menus, cabeçalhos e rodapés.
-        excluded_tags=["nav", "footer"],
+        excluded_tags=["nav","header", "footer"],
 
         # Ignorar cache para garantir que sempre tenhamos a documentação mais recente
         cache_mode=CacheMode.BYPASS,

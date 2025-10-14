@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "vizu_qdrant_client", from = "src"}]
 
 [tool.poetry.dependencies]
-python = "~3.11"
+python = "^3.11"
 qdrant-client = "^1.9.2"
 pydantic-settings = "^2.3.4"
 

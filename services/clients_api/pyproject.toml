@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "clients-api"
+version = "0.1.0"
+description = "API para gerenciar Clientes Vizu e suas credenciais de serviços externos."
+authors = ["Vizu DevOps <devops@vizu.ai>"]
+readme = "README.md"
+packages = [{include = "clients_api", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "~3.11"
+fastapi = "^0.111.0"
+uvicorn = {extras = ["standard"], version = "^0.24.0"}
+pydantic-settings = "^2.1.0"
+cryptography = "^41.0.6"
+
+# Bibliotecas compartilhadas da Vizu
+vizu-db-connector = { path = "../../libs/vizu_db_connector" }
+vizu-observability-bootstrap = { path = "../../libs/vizu_observability_bootstrap" }
+vizu-shared-models = { path = "../../libs/vizu_shared_models" }
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,8 +1,8 @@
+# Bloco principal que contém a definição de todos os serviços (contêineres).
 services:
   postgres:
     image: postgres:15-alpine
-    platform: linux/amd64 # Adicione esta linha
-
+    platform: linux/amd64
     container_name: vizu_postgres_dev
     environment:
       POSTGRES_USER: user
@@ -17,52 +17,95 @@ services:
     image: redis:7-alpine
     platform: linux/amd64
     container_name: vizu_redis_dev
-
     ports:
       - "6379:6379"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    command: ["--config=/etc/otel/otel-collector-config.yaml"]
+    volumes:
+      - ./docker-configs/otel-collector/otel-collector-config.yaml:/etc/otel/otel-collector-config.yaml
+    ports:
+      - "4317:4317"
+      - "13133:13133"
 
   ollama_service:
     container_name: vizu_ollama_dev
     platform: linux/amd64
     build:
-      # O contexto agora é a raiz do monorepo
       context: .
-      # Especificamos o caminho para o Dockerfile a partir da raiz
       dockerfile: ./services/ollama_service/Dockerfile
     ports:
-      - "11434:11434"
+      - "11435:11434"
 
-  atendente_api:
-    container_name: vizu_atendente_api_dev
+  atendente_core:
+    container_name: vizu_atendente_core
     platform: linux/amd64
     build:
-      # O contexto também é a raiz do monorepo
       context: .
-      # Especificamos o caminho para o Dockerfile
-      dockerfile: ./services/atendente_api/Dockerfile
+      dockerfile: ./services/atendente_core/Dockerfile
     ports:
       - "8000:8000"
     environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - DATABASE_URL=postgresql://user:password@postgres:5432/vizu_db
       - REDIS_URL=redis://redis:6379/0
       - OLLAMA_BASE_URL=http://ollama_service:11434
-      - LANGCHAIN_API_KEY=sua_chave_langchain # Lembre-se de preencher
-      - TWILIO_AUTH_TOKEN=seu_token_twilio # Lembre-se de preencher
+      - LANGCHAIN_API_KEY=sua_chave_langchain
+      - TWILIO_AUTH_TOKEN=seu_token_twilio
     depends_on:
       - postgres
       - redis
       - ollama_service
-    # 👇 SESSÃO ADICIONADA AQUI 👇
+      - otel-collector
+    # Volumes para desenvolvimento, permitindo hot-reload.
     volumes:
-      # Mapeia o código-fonte da API para permitir hot-reloading
-      - ./services/atendente_api/src:/app/src
-      # Mapeia as bibliotecas compartilhadas para que alterações nelas reflitam no container
-      - ./libs/vizu_db_connector/src:/app/libs/vizu_db_connector/src
-      - ./libs/vizu_llm_service/src:/app/libs/vizu_llm_service/src
-      - ./libs/vizu_qdrant_client/src:/app/libs/vizu_qdrant_client/src
-      - ./libs/vizu_shared_models/src:/app/libs/vizu_shared_models/src
-      # Mapeia a pasta de ferramentas para que os scripts de avaliação fiquem acessíveis
-    working_dir: /app
+      - ./services/atendente_core/src:/app/atendente_core
+      - ./libs:/app/libs
 
+  clients_api:
+    container_name: clients_api
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./services/clients_api/Dockerfile
+    ports:
+      - "8002:8000"
+    # Volumes comentados para um build mais próximo do ambiente de produção.
+    # volumes:
+    #   - ./services/clients_api/src:/app/services/clients_api/src
+    #   - ./libs:/app/libs
+    environment:
+      - PYTHONPATH=/app/src:/app/libs # <-- ATENÇÃO: Verifique se o WORKDIR no Dockerfile é /app
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - CREDENTIALS_ENCRYPTION_KEY=k_7xJ_a-bCDeFgHiJkLmNoPqRsTuVwXyZa_BcDeFgH=
+      - DATABASE_URL=postgresql://user:password@postgres:5432/vizu_db
+    depends_on:
+      - otel-collector
+      - postgres
+
+  clientes_finais_api:
+    container_name: clientes_finais_api
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./services/clientes_finais_api/Dockerfile
+    ports:
+      - "8004:8000"
+    environment:
+      # PYTHONPATH alinhado com o WORKDIR /home/appuser/app do Dockerfile.
+      - PYTHONPATH=/home/appuser/app:/home/appuser/app/libs
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - DATABASE_URL=postgresql://user:password@postgres:5432/vizu_db
+    depends_on:
+      - otel-collector
+      - postgres
+    profiles:
+      - "clientes-finais"
+      - "full"
+
+# Bloco principal para definir volumes nomeados, que persistem dados.
 volumes:
   postgres_data:
+    # O driver padrão 'local' é usado se não especificado.

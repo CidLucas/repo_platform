@@ -1,0 +1,18 @@
+# Em otel-collector-config.yaml
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+exporters:
+  # O 'logging' exporter imprime a telemetria recebida no console. Perfeito para depuração.
+  logging:
+    loglevel: debug
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [logging]

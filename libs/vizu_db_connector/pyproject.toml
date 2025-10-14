@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "vizu_db_connector", from = "src"}]
 
 [tool.poetry.dependencies]
-python = "~3.11"
+python = "^3.11"
 sqlalchemy = "^2.0.31"
 psycopg2-binary = "^2.9.9"
 alembic = "^1.13.2"

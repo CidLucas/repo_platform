@@ -1,0 +1,301 @@
+test_id,data,hora,nome_fantasia,message
+1000,06/08/25,11:10:41,interlocutor_4,130k
+1001,06/08/25,11:10:46,interlocutor_4,cotação pfvr?
+1002,06/08/25,11:11:06,interlocutor_7,4930
+1003,06/08/25,11:11:39,interlocutor_7,<LOCATION>
+1004,06/08/25,11:12:12,interlocutor_4,fecha
+1005,06/08/25,11:12:24,interlocutor_7,<LOCATION>
+1006,06/08/25,11:13:31,interlocutor_7,"BRL 714,090.00 // USDT 130.000"
+1007,06/08/25,11:40:19,interlocutor_4,Tem como liquidar mais 100k?
+1008,06/08/25,11:40:36,interlocutor_7,tem sim
+1009,06/08/25,11:40:39,interlocutor_7,<PERSON> enviamos
+1010,06/08/25,11:40:44,interlocutor_4,Obrigado
+1011,06/08/25,11:41:11,interlocutor_7,"saldo att: -BRL 849,690.00"
+1012,06/08/25,11:48:03,interlocutor_4,"Quando puder mandar a cripto, agradeço ‎<This message was edited>"
+1013,06/08/25,11:48:15,interlocutor_6,6022bfa818b31e13de16eb848bf659cb3735ed2c827237b9f04459acbc9b4474
+1014,06/08/25,11:48:17,interlocutor_6,100.000
+1015,06/08/25,11:48:22,interlocutor_4,Obrigado!
+1016,06/08/25,12:39:33,interlocutor_4,"Pessoal, quanto falta pra liquidar mais uma de 100k?"
+1017,06/08/25,12:39:47,interlocutor_7,1sec
+1018,06/08/25,12:40:30,interlocutor_4,<LOCATION> o que der por favor.
+1019,06/08/25,12:40:52,interlocutor_4,"Já foi 350, falta uma de 100 e outra de 130 ‎<This message was edited>"
+1020,06/08/25,12:41:19,interlocutor_7,mandar mais 100 aí
+1021,06/08/25,12:41:31,interlocutor_4,Valeu!
+1022,06/08/25,12:43:03,interlocutor_6,864ce427cd193fe615b9369032857c070eb92b6cff414516df2aa12e360bb1c0
+1023,06/08/25,12:43:04,interlocutor_6,100.000
+1024,06/08/25,13:38:37,interlocutor_4,"Cota 44.176,00"
+1025,06/08/25,13:39:03,interlocutor_7,opa
+1026,06/08/25,13:39:09,interlocutor_4,Cotação pfvr
+1027,06/08/25,13:39:32,interlocutor_7,4985
+1028,06/08/25,13:40:10,interlocutor_7,<LOCATION>
+1029,06/08/25,13:40:18,interlocutor_4,Já passei
+1030,06/08/25,13:40:25,interlocutor_7,ok
+1031,06/08/25,13:41:02,interlocutor_4,fecha
+1032,06/08/25,13:41:20,interlocutor_7,<LOCATION>
+1033,06/08/25,13:42:22,interlocutor_7,"BRL 242,901.74 // USDT 44.176"
+1034,06/08/25,13:45:20,interlocutor_7,"saldo: -BRL 802,591.73"
+1035,06/08/25,13:53:35,interlocutor_4,Ok
+1036,06/08/25,14:20:45,interlocutor_4,‎This message was deleted.
+1037,06/08/25,14:20:49,interlocutor_4,‎This message was deleted.
+1038,06/08/25,14:21:02,interlocutor_4,Off
+1039,06/08/25,15:00:06,interlocutor_6,<LOCATION> consegue liquidar o restante?
+1040,06/08/25,15:00:39,interlocutor_4,1 min
+1041,06/08/25,15:17:53,interlocutor_7,<LOCATION>  teria interesse em 200k a 5.4770 ?
+1042,06/08/25,15:18:20,interlocutor_4,Conseguem liquidar mais?
+1043,06/08/25,15:19:56,interlocutor_4,Devo quanto pra você?
+1044,06/08/25,15:20:04,interlocutor_7,"-BRL 502,591.73"
+1045,06/08/25,15:20:16,interlocutor_4,Mesmo com esses 300?
+1046,06/08/25,15:20:31,interlocutor_7,sim
+1047,06/08/25,15:21:03,interlocutor_7,viu ai ?
+1048,06/08/25,15:21:39,interlocutor_4,Preciso liquidar primeiro.
+1049,06/08/25,15:21:47,interlocutor_7,off
+1050,06/08/25,15:21:49,interlocutor_7,beleza
+1051,06/08/25,15:23:48,interlocutor_6,1d41fd1bc7429724ff30944831cc9f07274836bac88dcea226e4901a32320488
+1052,06/08/25,15:23:50,interlocutor_6,44.176
+1053,06/08/25,15:34:06,interlocutor_4,Tem como dar um double check nesse valor aqui? ‎<This message was edited>
+1054,06/08/25,15:34:15,interlocutor_7,tem sim
+1055,06/08/25,15:34:17,interlocutor_7,1 min
+1056,06/08/25,15:37:03,interlocutor_4,Não ta batendo aqui. ‎<This message was edited>
+1057,06/08/25,15:39:01,interlocutor_7,"-BRL 12,591.73"
+1058,06/08/25,15:39:06,interlocutor_4,Ah tah
+1059,06/08/25,15:39:11,interlocutor_4,Que susto
+1060,06/08/25,15:39:14,interlocutor_7,"Perdão, faltou contar uma de 490k"
+1061,06/08/25,15:39:17,interlocutor_4,Manda tudo pfvr
+1062,06/08/25,15:39:40,interlocutor_7,<PERSON> envio
+1063,06/08/25,15:41:42,interlocutor_7,enviando 130k
+1064,06/08/25,15:42:04,interlocutor_4,Ok
+1065,06/08/25,15:42:47,interlocutor_6,3ac3a63b4d5868e0964fc6b305209be2081dbb53f45fe2971ae3493104618f0a
+1066,06/08/25,15:42:49,interlocutor_6,130.000
+1067,06/08/25,15:44:17,interlocutor_7,zeramos
+1068,06/08/25,15:44:45,interlocutor_4,Ok
+1069,07/08/25,09:08:04,interlocutor_4,"Bom dia, mesa on?"
+1070,07/08/25,09:09:18,interlocutor_6,bom dia
+1071,07/08/25,09:09:19,interlocutor_6,mesa on
+1072,07/08/25,09:09:32,interlocutor_4,<LOCATION>.
+1073,07/08/25,09:36:52,interlocutor_4,100k
+1074,07/08/25,09:36:58,interlocutor_4,cotação
+1075,07/08/25,09:37:11,interlocutor_7,1s
+1076,07/08/25,09:37:58,interlocutor_7,4820
+1077,07/08/25,09:38:03,interlocutor_7,<LOCATION>
+1078,07/08/25,09:38:14,interlocutor_4,ok
+1079,07/08/25,09:38:18,interlocutor_4,fecha
+1080,07/08/25,09:39:09,interlocutor_7,<LOCATION>
+1081,07/08/25,09:39:29,interlocutor_7,"BRL 548,200.00 // USDT 100.000"
+1082,07/08/25,09:44:43,interlocutor_4,100k novamente
+1083,07/08/25,09:44:54,interlocutor_4,rapidão <LOCATION>
+1084,07/08/25,09:45:05,interlocutor_7,4810
+1085,07/08/25,09:45:21,interlocutor_4,fecha
+1086,07/08/25,09:45:26,interlocutor_7,<LOCATION>
+1087,07/08/25,09:45:54,interlocutor_7,"BRL 548,100.00 // USDT 100.000"
+1088,07/08/25,10:35:09,interlocutor_4,150k
+1089,07/08/25,10:35:24,interlocutor_7,opa
+1090,07/08/25,10:35:27,interlocutor_4,Me ajuda no preço
+1091,07/08/25,10:35:32,interlocutor_7,1s
+1092,07/08/25,10:36:17,interlocutor_4,Quanto
+1093,07/08/25,10:36:22,interlocutor_7,4760
+1094,07/08/25,10:36:38,interlocutor_4,1s
+1095,07/08/25,10:37:19,interlocutor_7,4780
+1096,07/08/25,10:38:17,interlocutor_4,Consegue apertar um pouco?
+1097,07/08/25,10:38:58,interlocutor_7,4775
+1098,07/08/25,10:39:18,interlocutor_4,‎This message was deleted.
+1099,07/08/25,10:39:36,interlocutor_7,tinha fechado aqui
+1100,07/08/25,10:39:42,interlocutor_4,<PERSON>
+1101,07/08/25,10:40:47,interlocutor_7,"BRL 821,625.00 // USDT 150.000"
+1102,07/08/25,10:46:05,interlocutor_4,"<PERSON>, eu tô precisando de um pouco mais de velocidade na hora de passar a cotação. Se tiver como, ajudaria bastante."
+1103,07/08/25,10:46:18,interlocutor_7,beleza
+1104,07/08/25,11:06:49,interlocutor_4,Tem como adiantar uma de 100?
+1105,07/08/25,11:07:16,interlocutor_4,Já já mando o resto
+1106,07/08/25,11:07:36,interlocutor_7,dá sim
+1107,07/08/25,11:07:38,interlocutor_7,enviando
+1108,07/08/25,11:07:44,interlocutor_4,Obrigado!
+1109,07/08/25,11:08:38,interlocutor_6,3c3a970831d1cec5021fd4d387e625e64336f8f9b3ba240d67bfe6a8bec75d64
+1110,07/08/25,11:08:40,interlocutor_6,100.000
+1111,07/08/25,11:09:37,interlocutor_4,Obrigado!
+1112,07/08/25,12:26:04,interlocutor_4,Tudo liquidado
+1113,07/08/25,12:26:10,interlocutor_4,Pode mandar a cripto pfvr?
+1114,07/08/25,12:27:16,interlocutor_7,<PERSON> enviamos
+1115,07/08/25,12:28:10,interlocutor_4,<LOCATION>.
+1116,07/08/25,12:29:58,interlocutor_6,<PERSON>
+1117,07/08/25,12:30:00,interlocutor_6,250.000
+1118,07/08/25,14:02:04,interlocutor_4,250k
+1119,07/08/25,14:02:16,interlocutor_4,cotação
+1120,07/08/25,14:02:19,interlocutor_4,pfvr
+1121,07/08/25,14:02:47,interlocutor_7,1s
+1122,07/08/25,14:02:47,interlocutor_4,galera?
+1123,07/08/25,14:03:09,interlocutor_7,4780
+1124,07/08/25,14:03:28,interlocutor_4,fecha
+1125,07/08/25,14:03:49,interlocutor_7,<LOCATION>
+1126,07/08/25,14:05:14,interlocutor_7,"BRL 1,369,500.00 // USDT 250.000"
+1127,07/08/25,14:12:45,interlocutor_4,cota 100k
+1128,07/08/25,14:12:49,interlocutor_4,me ajuda no preço
+1129,07/08/25,14:12:51,interlocutor_4,pfvr
+1130,07/08/25,14:12:59,interlocutor_7,4770
+1131,07/08/25,14:13:14,interlocutor_4,fecha
+1132,07/08/25,14:15:36,interlocutor_7,<LOCATION>
+1133,07/08/25,14:16:41,interlocutor_7,"BRL 547,700.00 // USDT 100.000"
+1134,07/08/25,14:29:57,interlocutor_4,Tem como já ir adiantando os 250k @<PHONE_NUMBER> @<PHONE_NUMBER> tô pagando o resto agora
+1135,07/08/25,14:30:06,interlocutor_7,Um momento
+1136,07/08/25,14:30:36,interlocutor_4,Já paguei aliás
+1137,07/08/25,14:31:01,interlocutor_7,Enviando
+1138,07/08/25,14:31:04,interlocutor_4,Manda o mais rápido possível
+1139,07/08/25,14:31:12,interlocutor_4,Operação crítica aqui
+1140,07/08/25,14:32:58,interlocutor_6,8585cd731180311c5d21cdc4eb6b063d1004db4946d5970530f3692fecba4aeb
+1141,07/08/25,14:33:00,interlocutor_6,250.000
+1142,07/08/25,14:33:23,interlocutor_7,"saldo att: -BRL 447,200.00"
+1143,07/08/25,14:34:21,interlocutor_4,Obrigado
+1144,07/08/25,14:47:57,interlocutor_4,20k
+1145,07/08/25,14:48:13,interlocutor_4,Cotação pfvr
+1146,07/08/25,14:48:26,interlocutor_7,4830
+1147,07/08/25,14:48:45,interlocutor_4,fecha
+1148,07/08/25,14:49:06,interlocutor_7,<LOCATION>
+1149,07/08/25,14:50:38,interlocutor_7,"BRL 109,660.00 // USDT 20.000"
+1150,07/08/25,15:09:22,interlocutor_4,Falta quanto?
+1151,07/08/25,15:09:42,interlocutor_4,96k?
+1152,07/08/25,15:10:01,interlocutor_7,"-BRL 96,860.00"
+1153,07/08/25,15:10:57,interlocutor_4,Manda os 120k de uma vez pfvr
+1154,07/08/25,15:13:48,interlocutor_6,dfe7949ecf4e873025b4e5e737f019ae15c13a2189c62b1230c6b5b3d67979c9
+1155,07/08/25,15:13:50,interlocutor_6,120.000
+1156,07/08/25,15:13:58,interlocutor_7,zeramos
+1157,07/08/25,15:14:01,interlocutor_4,Show
+1158,07/08/25,16:10:25,interlocutor_4,100k
+1159,07/08/25,16:10:28,interlocutor_4,Cotação
+1160,07/08/25,16:10:30,interlocutor_4,<LOCATION>
+1161,07/08/25,16:10:38,interlocutor_7,4690
+1162,07/08/25,16:10:56,interlocutor_7,4680
+1163,07/08/25,16:11:10,interlocutor_4,1s
+1164,07/08/25,16:12:09,interlocutor_4,Negociando
+1165,07/08/25,16:12:33,interlocutor_7,ok
+1166,07/08/25,16:12:49,interlocutor_4,off
+1167,07/08/25,16:12:58,interlocutor_7,off
+1168,08/08/25,09:09:48,interlocutor_4,Bom dia a todos!
+1169,08/08/25,09:09:57,interlocutor_4,mesa aberta?
+1170,08/08/25,09:09:57,interlocutor_7,Bom dia!!
+1171,08/08/25,09:10:03,interlocutor_7,sim
+1172,08/08/25,09:10:11,interlocutor_4,<LOCATION>
+1173,08/08/25,09:14:28,interlocutor_4,50K
+1174,08/08/25,09:14:38,interlocutor_7,4500
+1175,08/08/25,09:14:55,interlocutor_4,ok
+1176,08/08/25,09:15:00,interlocutor_4,fecha
+1177,08/08/25,09:15:19,interlocutor_7,<LOCATION>
+1178,08/08/25,09:16:39,interlocutor_4,50.000 USDT = 272.500 BRL
+1179,08/08/25,09:17:58,interlocutor_4,150k
+1180,08/08/25,09:18:01,interlocutor_4,me ajuda no preço
+1181,08/08/25,09:18:21,interlocutor_7,4470
+1182,08/08/25,09:18:41,interlocutor_4,fecha
+1183,08/08/25,09:19:53,interlocutor_7,<LOCATION>
+1184,08/08/25,09:20:03,interlocutor_4,150.000 USDT = 817.050 BRL
+1185,08/08/25,09:20:09,interlocutor_4,cota 100k
+1186,08/08/25,09:20:20,interlocutor_4,rápidão pfvr
+1187,08/08/25,09:20:31,interlocutor_7,4490
+1188,08/08/25,09:21:03,interlocutor_7,4500
+1189,08/08/25,09:21:12,interlocutor_7,4490
+1190,08/08/25,09:21:15,interlocutor_4,consegue apertar um pouco?
+1191,08/08/25,09:21:20,interlocutor_7,4480
+1192,08/08/25,09:21:45,interlocutor_4,fecha
+1193,08/08/25,09:22:14,interlocutor_7,<LOCATION>
+1194,08/08/25,09:22:44,interlocutor_7,"BRL 544,800.00 // USDT 100.000"
+1195,08/08/25,09:22:53,interlocutor_4,100.000 USDT = 544.800 <LOCATION>
+1196,08/08/25,09:26:01,interlocutor_4,70k
+1197,08/08/25,09:26:05,interlocutor_4,me ajuda no preço
+1198,08/08/25,09:26:18,interlocutor_4,cotação
+1199,08/08/25,09:26:30,interlocutor_7,beleza
+1200,08/08/25,09:26:40,interlocutor_4,?
+1201,08/08/25,09:26:42,interlocutor_7,4490
+1202,08/08/25,09:27:10,interlocutor_4,off
+1203,08/08/25,09:27:16,interlocutor_7,off
+1204,08/08/25,09:28:31,interlocutor_4,200k
+1205,08/08/25,09:28:34,interlocutor_4,rápido
+1206,08/08/25,09:28:41,interlocutor_4,ajuda no preço
+1207,08/08/25,09:28:41,interlocutor_7,4470
+1208,08/08/25,09:28:58,interlocutor_7,4460
+1209,08/08/25,09:29:21,interlocutor_4,fecha
+1210,08/08/25,09:29:28,interlocutor_7,<LOCATION>
+1211,08/08/25,09:30:14,interlocutor_7,"BRL 1,089,200.00 // USDT 200.000"
+1212,08/08/25,09:38:24,interlocutor_4,100k
+1213,08/08/25,09:38:27,interlocutor_4,cotação
+1214,08/08/25,09:38:32,interlocutor_7,4440
+1215,08/08/25,09:38:54,interlocutor_4,fecha
+1216,08/08/25,09:39:00,interlocutor_7,<LOCATION>
+1217,08/08/25,09:39:50,interlocutor_7,"BRL 544,400.00 // USDT 100.000"
+1218,08/08/25,09:40:36,interlocutor_4,mais 100k
+1219,08/08/25,09:40:39,interlocutor_4,pfvr
+1220,08/08/25,09:40:41,interlocutor_4,cotação
+1221,08/08/25,09:40:51,interlocutor_7,4450
+1222,08/08/25,09:41:06,interlocutor_4,fecha
+1223,08/08/25,09:41:14,interlocutor_7,<LOCATION>
+1224,08/08/25,09:42:00,interlocutor_4,100.000 USDT = 544.500 BRL
+1225,08/08/25,09:51:15,interlocutor_4,Total que eu tenho que pagar até agora?
+1226,08/08/25,09:51:41,interlocutor_7,-BRL <PERSON>
+1227,08/08/25,10:30:49,interlocutor_4,50k
+1228,08/08/25,10:31:02,interlocutor_7,opa
+1229,08/08/25,10:31:18,interlocutor_4,ajuda no preço
+1230,08/08/25,10:31:18,interlocutor_7,4460
+1231,08/08/25,10:31:40,interlocutor_4,fecha
+1232,08/08/25,10:32:08,interlocutor_7,<LOCATION>
+1233,08/08/25,10:32:57,interlocutor_7,"BRL 272,300.00 // USDT 50.000"
+1234,08/08/25,11:01:45,interlocutor_4,"<PERSON>, consegue adiantar 200k?"
+1235,08/08/25,11:01:57,interlocutor_7,Um momento
+1236,08/08/25,11:04:05,interlocutor_7,vamos enviar aqui
+1237,08/08/25,11:06:37,interlocutor_4,"Show! Quando puder, agradeço."
+1238,08/08/25,11:06:38,interlocutor_6,e2e71f725236cef27286fc6fa9dc8b1a9b3fec6c729cabd90ec185b07c3ccdaf
+1239,08/08/25,11:06:40,interlocutor_6,200.000
+1240,08/08/25,11:06:42,interlocutor_4,Valeu!
+1241,08/08/25,11:11:42,interlocutor_4,"Se der pra mandar mais alguma coisa, agradeço."
+1242,08/08/25,11:15:10,interlocutor_6,e716db9027e271e53d2e0e39cbc70c4a76f340bcf586ec06821168b85df09233
+1243,08/08/25,11:15:12,interlocutor_6,50.000
+1244,08/08/25,11:15:33,interlocutor_4,Obrigado
+1245,08/08/25,11:30:35,interlocutor_6,"<LOCATION> temos um lote de 950k usdt a 5,4450"
+1246,08/08/25,11:37:14,interlocutor_7,<LOCATION>
+1247,08/08/25,11:42:48,interlocutor_6,c2ef0008670cacc9a6260da1c1ff0b67f6e79fd184081e61c90639904640cc2e
+1248,08/08/25,11:42:50,interlocutor_6,150.000
+1249,08/08/25,11:53:37,interlocutor_7,<LOCATION>
+1250,08/08/25,11:53:52,interlocutor_7,ainda conseguimos um preço bom nesse lote
+1251,08/08/25,11:54:19,interlocutor_7,pode ser parcial o volume
+1252,08/08/25,12:38:26,interlocutor_4,Tá disponível ainda?
+1253,08/08/25,12:38:49,interlocutor_6,deixa eu ver
+1254,08/08/25,12:38:52,interlocutor_6,qual seria o volume?
+1255,08/08/25,12:39:56,interlocutor_6,<LOCATION>
+1256,08/08/25,12:40:24,interlocutor_4,1s
+1257,08/08/25,12:55:12,interlocutor_4,"Lote nesse preço ainda 5,4450?"
+1258,08/08/25,12:56:13,interlocutor_7,sim
+1259,08/08/25,12:56:17,interlocutor_7,consigo manter
+1260,08/08/25,12:56:22,interlocutor_7,vamos ?
+1261,08/08/25,12:56:28,interlocutor_4,Deixa eu ver
+1262,08/08/25,12:57:13,interlocutor_4,Aguardando resposta aqui.
+1263,08/08/25,12:57:23,interlocutor_7,temos 600k aqui
+1264,08/08/25,12:57:46,interlocutor_7,se levar tudo consigo um desconto
+1265,08/08/25,12:59:47,interlocutor_7,vamos?
+1266,08/08/25,12:59:54,interlocutor_4,Não tive resposta
+1267,08/08/25,13:00:46,interlocutor_7,"4430 consigo fazer,  pelos 600k"
+1268,08/08/25,13:02:01,interlocutor_4,Se alguém morder eu aviso
+1269,08/08/25,13:03:05,interlocutor_7,qualquer coisa me fala que vejo se consigo manter o preço
+1270,08/08/25,13:03:34,interlocutor_4,Ok
+1271,08/08/25,13:04:00,interlocutor_7,Talvez consiga até negociar melhor
+1272,08/08/25,13:04:11,interlocutor_7,aí a gente vê
+1273,08/08/25,13:05:25,interlocutor_4,"Boa, tô chamando o pessoal aqui."
+1274,08/08/25,13:06:54,interlocutor_4,"Eu mandei 3.250.000 total, tem como liquidar mais?"
+1275,08/08/25,13:07:15,interlocutor_7,"tem sim, um momento"
+1276,08/08/25,13:11:31,interlocutor_7,Enviando + 150k
+1277,08/08/25,13:12:34,interlocutor_6,<PERSON>
+1278,08/08/25,13:12:35,interlocutor_6,150.000
+1279,08/08/25,13:12:40,interlocutor_7,"saldo: -BRL 834,750.00"
+1280,08/08/25,13:49:52,interlocutor_4,Se eu mandar 400k BRL dá pra liquidar mais quanto?
+1281,08/08/25,13:50:23,interlocutor_7,deixa eu ver aqui
+1282,08/08/25,13:52:11,interlocutor_7,+100k
+1283,08/08/25,13:52:28,interlocutor_4,Obrigado.
+1284,08/08/25,13:54:46,interlocutor_4,Liquida o equivalente pra mim pfvr?
+1285,08/08/25,13:56:28,interlocutor_7,vamos adiantas os 200 restantes
+1286,08/08/25,13:56:33,interlocutor_7,adiantar*
+1287,08/08/25,13:56:39,interlocutor_4,Obrigado!
+1288,08/08/25,14:07:01,interlocutor_4,"Quando puder, agradeço."
+1289,08/08/25,14:07:14,interlocutor_6,ja havia mandado
+1290,08/08/25,14:07:15,interlocutor_6,c086e67653fc88b105f729e751100ab21a9abf79814df8fb0221f49571c916e5
+1291,08/08/25,14:07:59,interlocutor_7,"saldo: -BRL 394,750.00"
+1292,08/08/25,14:08:05,interlocutor_4,Obrigado!
+1293,08/08/25,14:45:06,interlocutor_6,"em interesse em 60k usdt a 5,44?@<PHONE_NUMBER>"
+1294,08/08/25,14:48:27,interlocutor_4,Vou ver se alguém morde
+1295,08/08/25,14:49:31,interlocutor_6,foi aqui
+1296,08/08/25,14:49:40,interlocutor_6,se tiver mais aviso
+1297,08/08/25,14:53:58,interlocutor_4,Me cota 1 BTC pfvr?
+1298,08/08/25,14:54:22,interlocutor_6,opa
+1299,08/08/25,14:54:23,interlocutor_6,um momento

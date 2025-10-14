@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{include = "vizu_shared_models", from = "src"}]
 
 [tool.poetry.dependencies]
-python = "~3.11"
+python = "^3.11"
 pydantic = {extras = ["email"], version = "^2.8.2"}
 
 [tool.poetry.group.dev.dependencies]

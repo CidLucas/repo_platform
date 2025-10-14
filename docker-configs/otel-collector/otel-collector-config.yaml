@@ -1,0 +1,19 @@
+# Em docker-configs/otel-collector/otel-collector-config.yaml
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+exporters:
+  # CORREÇÃO: Renomeado de 'logging' para 'debug'
+  debug:
+    # A verbosidade agora é controlada por esta chave
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [debug] # <-- CORREÇÃO AQUI TAMBÉM

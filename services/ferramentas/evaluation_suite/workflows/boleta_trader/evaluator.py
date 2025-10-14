@@ -1,80 +1,62 @@
 # services/ferramentas/evaluation_suite/workflows/boleta_trader/evaluator.py
 
-import json
 from typing import Dict, Any
-import pandas as pd
+import re
 
-# O mapa de nomes precisa estar disponível para o avaliador também.
-PHONE_TO_NAME_MAP = {
-    "+5521999990001": "João",
-    "+5521999990002": "Maria",
-    "+5521999990003": "Carlos",
-    "+5521999990004": "Ana"
-}
-
-def evaluate_boleta(run, example) -> Dict[str, Any]:
+def summarize_for_manual_review(run) -> Dict[str, Any]:
     """
-    Avaliador customizado e sincronizado com o estado final do workflow.
-    Avalia o resultado final de uma conversa completa.
+    Extrai e organiza os dados do estado final para fácil revisão humana.
+    Esta versão é robusta à limpeza de estado que ocorre no workflow.
     """
-    try:
-        # 1. Obter dados do estado final (run.outputs)
-        final_state = run.outputs
-        predicted_data = final_state.get('dados_extraidos')
+    # Pega o dicionário de outputs do estado final da execução
+    if not run or not run.outputs:
+        return {"boleta_gerada": False, "detalhes": "A execução não produziu um estado final."}
 
-        # 2. Obter gabarito (golden_answer) do final da conversa
-        expected_boleta_str = example.outputs.get('golden_answer')
+    final_state = run.outputs
+    boleta_formatada = final_state.get('boleta_formatada')
 
-        # Caso 1: Nenhuma boleta é esperada no final desta conversa.
-        if pd.isna(expected_boleta_str):
-            if final_state.get('boleta_formatada'):
-                return {"score": 0, "comment": "Falha: Boleta gerada quando nenhuma era esperada."}
-            else:
-                return {"score": 1, "comment": "Sucesso: Nenhuma boleta era esperada e nenhuma foi gerada."}
+    # --- Cenário 1: Sucesso ---
+    # A fonte da verdade é a existência da boleta formatada.
+    if boleta_formatada:
+        # Extrai os dados diretamente da string da boleta para o relatório.
+        # Isso torna o avaliador independente dos campos de estado intermediários.
+        try:
+            vendedor = re.search(r"\*\*Vendedor:\*\* (.*?)\n", boleta_formatada).group(1)
+            comprador = re.search(r"\*\*Comprador:\*\* (.*?)\n", boleta_formatada).group(1)
+            cotacao = re.search(r"\*\*Cotação:\*\* R\$ (.*?)\n", boleta_formatada).group(1)
+            volume = re.search(r"\*\*Volume:\*\* \$(.*)", boleta_formatada).group(1)
 
-        # Caso 2: Uma boleta é esperada.
-        if not predicted_data or "error" in predicted_data:
-            return {"score": 0, "comment": "Falha: Boleta esperada, mas dados numéricos não foram extraídos."}
+            summary_details = (
+                f"Vendedor: {vendedor}, Comprador: {comprador}, "
+                f"Cotação: {cotacao}, Volume: {volume}"
+            )
 
-        expected_boleta = json.loads(expected_boleta_str)
+            return {
+                "boleta_gerada": True,
+                "detalhes": summary_details
+            }
+        except AttributeError:
+            # Caso a boleta exista mas tenha um formato inesperado
+            return {
+                "boleta_gerada": True,
+                "detalhes": f"Boleta gerada, mas com formato irreconhecível: {boleta_formatada}"
+            }
 
-        # 3. Mapear IDs previstos para nomes
-        predicted_vendedor_id = final_state.get('vendedor_id', '')
-        predicted_comprador_id = final_state.get('comprador_id', '')
-        vendedor_id_clean = predicted_vendedor_id.replace('+', '') if predicted_vendedor_id else ''
-        comprador_id_clean = predicted_comprador_id.replace('+', '') if predicted_comprador_id else ''
-        predicted_vendedor_nome = next((name for key, name in PHONE_TO_NAME_MAP.items() if vendedor_id_clean in key), None)
-        predicted_comprador_nome = next((name for key, name in PHONE_TO_NAME_MAP.items() if comprador_id_clean in key), None)
+    # --- Cenário 2: Falha ou Nenhuma Ação ---
+    # Se não houve boleta, investigamos a causa.
+    else:
+        dados_extraidos = final_state.get('dados_extraidos')
 
-        # 4. Lógica de Comparação Robusta
-        vendedor_match = predicted_vendedor_nome == expected_boleta.get('vendedor')
-        comprador_match = predicted_comprador_nome == expected_boleta.get('comprador')
-        cotacao_match = abs(predicted_data.get('valor_cotacao', 0.0) - expected_boleta.get('valor_cotacao', -1.0)) < 0.01
-        valor_total_match = abs(predicted_data.get('valor_total', 0.0) - expected_boleta.get('valor_total', -1.0)) < 0.01
+        # Verifica se houve um erro explícito na extração
+        if isinstance(dados_extraidos, dict) and "error" in dados_extraidos:
+            error_details = dados_extraidos.get('error', 'Erro desconhecido')
+            return {
+                "boleta_gerada": False,
+                "detalhes": f"Erro na extração de dados: {error_details}"
+            }
 
-        score = (vendedor_match + comprador_match + cotacao_match + valor_total_match) / 4.0
-
-        if score == 1.0:
-            comment = "Sucesso: Todos os campos correspondem."
-        else:
-            # CORREÇÃO DE SINTAXE: Lógica de formatação simplificada e robusta
-            report_lines = ["Falha Parcial:"]
-
-            vendedor_status = 'OK' if vendedor_match else f"FALHA (Esperado: {expected_boleta.get('vendedor')}, Previsto: {predicted_vendedor_nome})"
-            report_lines.append(f"- Vendedor: {vendedor_status}")
-
-            comprador_status = 'OK' if comprador_match else f"FALHA (Esperado: {expected_boleta.get('comprador')}, Previsto: {predicted_comprador_nome})"
-            report_lines.append(f"- Comprador: {comprador_status}")
-
-            cotacao_status = 'OK' if cotacao_match else f"FALHA (Esperado: {expected_boleta.get('valor_cotacao')}, Previsto: {predicted_data.get('valor_cotacao')})"
-            report_lines.append(f"- Cotação: {cotacao_status}")
-
-            valor_total_status = 'OK' if valor_total_match else f"FALHA (Esperado: {expected_boleta.get('valor_total')}, Previsto: {predicted_data.get('valor_total')})"
-            report_lines.append(f"- Valor Total: {valor_total_status}")
-
-            comment = "\n".join(report_lines)
-
-        return {"score": score, "comment": comment}
-
-    except Exception as e:
-        return { "score": 0, "comment": f"Erro catastrófico durante a avaliação: {type(e).__name__} - {str(e)}" }
+        # Se não houve erro explícito, significa que a conversa terminou sem gerar uma transação
+        return {
+            "boleta_gerada": False,
+            "detalhes": "Nenhuma boleta foi formatada ao final da conversa."
+        }

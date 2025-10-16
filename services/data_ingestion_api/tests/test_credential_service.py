@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, patch
 from pydantic import ValidationError
 
 # Corrija as importações internas para usar o caminho do arquivo (sem o nome do pacote):
-from src.schemas import BigQueryCredentialCreate, CredencialResponse, SQLCredentialCreate
-from services.credential_service import CredentialService
+from data_ingestion_api.schemas.schemas import BigQueryCredentialCreate, CredencialResponse, SQLCredentialCreate
+from data_ingestion_api.services.credential_service import CredentialService
 
 # Fixture auxiliar para dados de payload
 @pytest.fixture
@@ -35,14 +35,14 @@ def mock_credential_service(mocker):
     
     # 1. Mock do Secret Manager (Simula o envio e retorno do Secret ID)
     mock_store_secret = mocker.patch(
-        'services.credential_service.secret_manager.store_secret',
+        'data_ingestion_api.services.credential_service.secret_manager.store_secret',
         new_callable=AsyncMock
     )
     mock_store_secret.return_value = "vizu-prod-secret-id-gcp-12345"
     
     # 2. Mock do Vizu DB Connector (Simula a persistência do Secret ID)
     mock_save_ref = mocker.patch(
-        'services.credential_service.db_connector.save_credential_reference',
+        'data_ingestion_api.services.credential_service.db_connector.save_credential_reference',
         new_callable=AsyncMock
     )
     mock_save_ref.return_value = {
@@ -55,7 +55,7 @@ def mock_credential_service(mocker):
 
     # 3. Mock do Rollback (delete_secret) - NOVO
     mock_delete_secret = mocker.patch(
-        'services.credential_service.secret_manager.delete_secret',
+        'data_ingestion_api.services.credential_service.secret_manager.delete_secret',
         new_callable=AsyncMock
     )
     mock_delete_secret.return_value = True # Sucesso no rollback

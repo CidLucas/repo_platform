@@ -17,6 +17,8 @@ pydantic = "^2.7.4"
 psycopg2-binary = "^2.9.9"
 google-cloud-bigquery = "^3.21.0" # Para o Conector BigQuery (Enterprise)
 google-auth = "^2.29.0"     # Para autenticação GCP
+pandas = "^2.2.0" 
+db-dtypes = "^1.2.0"
 
 # --- DEPENDÊNCIAS INTERNAS DO MONOREPO (LINKS PARA LIBS/) ---
 # O Poetry resolve o caminho relativo para instalar em modo editável

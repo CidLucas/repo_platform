@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, Field
 
 from .core import BaseSchema
 
@@ -36,3 +36,10 @@ class ClienteVizuInDB(ClienteVizuBase):
     id: uuid.UUID
     api_key: str
     criado_em: datetime
+
+class ClienteVizuRead(ClienteVizuBase):
+    id: uuid.UUID
+    criado_em: datetime
+
+    # Esta linha permite que este modelo seja criado a partir do seu objeto do banco de dados.
+    model_config = ConfigDict(from_attributes=True)

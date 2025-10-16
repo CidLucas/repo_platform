@@ -1,0 +1,41 @@
+[tool.poetry]
+name = "data-processing"
+version = "0.1.0"
+description = "Worker Assíncrono para Extração, Transformação e Carga (ETL/ELT) de dados de clientes Vizu."
+authors = ["Vizu Engineering Team"]
+license = "Proprietary"
+# Define que o código fonte está na pasta src/
+packages = [{include = "src"}] 
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+# Dependências para manipulação de dados
+pandas = "^2.2.0" 
+
+# Dependências do GCP que o worker usará para Pub/Sub e Secret Manager (real)
+google-cloud-pubsub = "^2.19.0" 
+google-cloud-storage = "^2.16.0" 
+
+# --- DEPENDÊNCIAS INTERNAS DO MONOREPO ---
+# O Worker precisa da API (para usar o BigQueryConnector) e do DB Connector
+vizu-db-connector = {path = "../../libs/vizu_db_connector", develop = true}
+data-ingestion-api = {path = "../../services/data_ingestion_api", develop = true}
+
+
+[tool.poetry.group.dev.dependencies]
+# Essenciais para Testabilidade
+pytest = "^8.2.2"
+pytest-asyncio = "^0.23.6"
+pytest-mock = "^3.14.0" # CRÍTICO para mockar os conectores e Secret Manager
+black = "^24.4.2"
+
+# Configuração para o Pytest (Testabilidade)
+[tool.pytest.ini_options]
+# Adiciona a pasta src/ e a raiz do projeto ao PYTHONPATH do teste
+pythonpath = ["src", "."] 
+testpaths = ["tests"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

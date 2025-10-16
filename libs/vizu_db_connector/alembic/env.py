@@ -22,7 +22,7 @@ import vizu_db_connector.models.conversa
 # access to the values within the .ini file in use.
 config = context.config
 
-from vizu_db_connector.core import DATABASE_URL
+from vizu_db_connector.database import DATABASE_URL
 if DATABASE_URL:
     config.set_main_option('sqlalchemy.url', DATABASE_URL)
 

@@ -23,6 +23,14 @@ class ClienteVizuBase(BaseSchema):
 class ClienteVizuCreate(ClienteVizuBase):
     pass
 
+class ClienteVizuUpdate(ClienteVizuBase):
+
+    # Em uma implementação real de PATCH, os campos seriam opcionais:
+    nome_empresa: str | None = Field(None, max_length=255)
+    tipo_cliente: TipoCliente | None = None
+    tier: TierCliente | None = None
+
+    pass
 
 class ClienteVizuInDB(ClienteVizuBase):
     id: uuid.UUID

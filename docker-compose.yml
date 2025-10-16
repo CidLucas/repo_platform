@@ -13,6 +13,21 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  db-manager:
+    container_name: vizu_db_manager
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./services/db_manager/Dockerfile
+    command: ["migrate"]
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/vizu_db
+      # --- CORREÇÃO ADICIONAL E CRUCIAL ---
+      # Garante que o Python possa encontrar as bibliotecas compartilhadas.
+      - PYTHONPATH=/app/db_manager:/app/libs/vizu_db_connector/src:/app/libs/vizu_shared_models/src:/app/libs/vizu_observability_bootstrap/src
+    depends_on:
+      - postgres
+
   redis:
     image: redis:7-alpine
     platform: linux/amd64
@@ -79,7 +94,7 @@ services:
     environment:
       - PYTHONPATH=/app/src:/app/libs # <-- ATENÇÃO: Verifique se o WORKDIR no Dockerfile é /app
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - CREDENTIALS_ENCRYPTION_KEY=k_7xJ_a-bCDeFgHiJkLmNoPqRsTuVwXyZa_BcDeFgH=
+      - CREDENTIALS_ENCRYPTION_KEY=aemyqQi3hs1d_8-bOKnCs1nmdo5TaDEiEpcbTEiB6vE=
       - DATABASE_URL=postgresql://user:password@postgres:5432/vizu_db
     depends_on:
       - otel-collector
@@ -109,3 +124,6 @@ services:
 volumes:
   postgres_data:
     # O driver padrão 'local' é usado se não especificado.
+  # --- Ferramenta de Gerenciamento de Banco de Dados ---
+  # Este serviço não é uma API, mas uma ferramenta CLI para operações de DB.
+  # Ele não fica rodando; nós o executamos sob demanda com 'docker-compose run'.

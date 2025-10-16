@@ -1,31 +1,23 @@
-import logging
+# services/clients_api/src/clients_api/services/client_service.py (VERSÃO FINAL)
 from sqlalchemy.orm import Session
-from vizu_db_connector.models import ClienteVizu
-from vizu_shared_models.cliente_vizu import ClienteVizuCreate
+from vizu_db_connector.crud import BaseCRUD # <-- CORREÇÃO: Importa da biblioteca compartilhada
+from vizu_shared_models.cliente_vizu import ClienteVizuCreate, ClienteVizuUpdate
+from vizu_db_connector.models.cliente_vizu import ClienteVizu
+from ..core.security import create_api_key
 
-logger = logging.getLogger(__name__)
+class ClienteVizuService(BaseCRUD[ClienteVizu, ClienteVizuCreate, ClienteVizuUpdate]):
+    # A lógica de CRUD (get, get_multi, etc.) é herdada automaticamente.
+    # Nós apenas sobrescrevemos ou adicionamos a lógica específica deste serviço.
+    def create_cliente_vizu(self, db_session: Session, *, cliente_in: ClienteVizuCreate) -> ClienteVizu:
+        api_key, hashed_api_key = create_api_key()
+        obj_in_data = cliente_in.model_dump()
+        db_obj = self.model(**obj_in_data, api_key=hashed_api_key)
 
-class ClientService:
-    def __init__(self, db: Session):
-        self.db = db
+        db_session.add(db_obj)
+        db_session.commit()
+        db_session.refresh(db_obj)
 
-    def get_by_email(self, email: str) -> ClienteVizu | None:
-        """Busca um cliente pelo email de contato."""
-        return self.db.query(ClienteVizu).filter(ClienteVizu.email_contato == email).first()
-
-    def create(self, *, cliente_create: ClienteVizuCreate) -> ClienteVizu:
-        """Cria um novo objeto ClienteVizu no banco de dados."""
-
-        db_obj = ClienteVizu(
-            nome_empresa=cliente_create.nome_empresa,
-            email_contato=cliente_create.email_contato,
-            telefone_contato=cliente_create.telefone_contato,
-            setor=cliente_create.setor
-        )
-
-        self.db.add(db_obj)
-        self.db.commit()
-        self.db.refresh(db_obj)
-
-        logger.info(f"ClienteVizu '{db_obj.nome_empresa}' persistido no banco de dados.")
+        setattr(db_obj, 'api_key', api_key)
         return db_obj
+
+# A instância singleton é removida. O router obterá a instância via injeção de dependência.

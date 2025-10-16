@@ -20,3 +20,12 @@ class ConfiguracaoNegocioCreate(ConfiguracaoNegocioBase):
 class ConfiguracaoNegocioInDB(ConfiguracaoNegocioBase):
     id: int
     cliente_vizu_id: uuid.UUID
+
+
+class ConfiguracaoNegocioUpdate(ConfiguracaoNegocioBase):
+
+    # Em uma implementação real de PATCH, os campos seriam opcionais:
+    prompt_base: str | None = Field(None, description="O prompt principal que define a personalidade e as instruções do agente de IA.")
+    horario_funcionamento: Dict[str, Any] | None = Field(None, description='Objeto JSON para armazenar os horários de operação. Ex: {"seg-sex": "09:00-18:00"}')
+    ferramenta_rag_habilitada: bool = Field(default=False)
+    pass

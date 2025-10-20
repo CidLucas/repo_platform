@@ -1,24 +1,41 @@
 [tool.poetry]
-name = "evaluation-suite"
+name = "vizu-evaluation-suite"
 version = "0.1.0"
-description = "Vizu Evaluation Suite for AI Workflows"
+description = "Suíte de avaliação para as APIs da Vizu, para testar prompts, modelos e lógicas de negócio."
 authors = ["Lucas Cid <lucas@vizubr.com>"]
 readme = "README.md"
-package-mode = false
+packages = [{include = "evaluation_suite", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-jupyter = "^1.0.0"
-pandas = "^2.2.2"
-requests = "^2.32.3"
-langsmith = "^0.1.84"
-python-dotenv = "^1.0.1"
-sqlalchemy = "^2.0.31"
-psycopg2-binary = "^2.9.9"
-tqdm = "^4.66.4"
+streamlit = "^1.30.0"
+pandas = "^2.1.0"
+httpx = "^0.26.0"
+pydantic-settings = "^2.1.0"
+loguru = "^0.7.2"
+python-dotenv = "^1.0.0"
+vizu_db_connector = {path = "../../libs/vizu_db_connector", develop = true}
+vizu_shared_models = {path = "../../libs/vizu_shared_models", develop = true}
 
-# Dependências da LangChain para o workflow
-langchain = "^0.2.11"
-langgraph = "^0.1.7"
-langchain-core = "^0.2.22"
-langchain-community = "^0.2.10" # <-- ADICIONADA para ChatOllama
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+pytest-asyncio = "^0.21.0"
+pytest-httpx = "^0.29.0"
+ruff = "^0.1.6"
+black = "^23.11.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+# ATUALIZADO: Configuração padronizada, igual à clients_api
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = [
+  "src",
+  "../../libs"
+]
+testpaths = [
+    "tests",
+]

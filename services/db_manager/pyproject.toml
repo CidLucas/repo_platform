@@ -29,7 +29,8 @@ vizu-shared-models = { path = "../../libs/vizu_shared_models" }
 # Elas não são incluídas na imagem Docker final.
 pytest = "^8.2.0"  # Para futuros testes unitários.
 ruff = "^0.4.4"    # Nosso linter e formatador padrão.
-
+sqlalchemy-utils = "^0.41.1" # <-- Movido para cá
+pytest-dotenv = "^0.5.2"
 
 [build-system]
 # --- Seção 4: Configuração de Ferramentas (Build) ---

@@ -3,7 +3,7 @@ services:
   postgres:
     image: postgres:15-alpine
     platform: linux/amd64
-    container_name: vizu_postgres_dev
+    container_name: vizu_postgres
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password

@@ -10,6 +10,7 @@ from .cliente_final import ClienteFinal
 from .conversa import Conversa, Mensagem
 from .fonte_de_dados import FonteDeDados
 from .credencial_servico_externo import CredencialServicoExterno
+from .evaluation import EvaluationRun, TestResult  # <-- ADICIONE ESTA LINHA
 
 __all__ = [
     "Base",
@@ -20,4 +21,7 @@ __all__ = [
     "Mensagem",
     "FonteDeDados",
     "CredencialServicoExterno",
+    "EvaluationRun",
+    "TestResult",
+
 ]

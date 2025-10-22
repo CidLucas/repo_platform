@@ -137,6 +137,24 @@ services:
       - otel-collector
       - postgres
 
+
+  evaluation_suite:
+    build:
+      context: .
+      dockerfile: ./ferramentas/evaluation_suite/Dockerfile
+    ports:
+      # Expõe a porta padrão do Streamlit (8501)
+      - "8501:8501"
+    env_file:
+      # Carrega as variáveis de ambiente que definimos
+      - ./ferramentas/evaluation_suite/.env.example
+    environment:
+      # Garante que o Python encontre nossas libs dentro do container
+      - PYTHONPATH=/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_shared_models/src
+    depends_on:
+      - postgres
+      - atendente_core # Garante que a suíte só suba depois da API que ela vai testar
+
 # Bloco principal para definir volumes nomeados, que persistem dados.
 volumes:
   postgres_data:

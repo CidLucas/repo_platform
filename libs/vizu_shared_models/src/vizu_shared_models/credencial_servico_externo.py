@@ -16,3 +16,11 @@ class CredencialServicoExternoCreate(CredencialServicoExternoBase):
 class CredencialServicoExternoInDB(CredencialServicoExternoBase):
     id: int
     cliente_vizu_id: uuid.UUID
+
+
+  #db_dialeto="postgresql",
+   #     db_user="user_mock",
+    #    db_password="pass_mock",
+     #   db_host="host.mock.com",
+      #  db_port=5432,
+       # db_name="db_mock"

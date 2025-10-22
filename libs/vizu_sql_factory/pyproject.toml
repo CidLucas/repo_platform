@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "vizu_sql_factory"
+version = "0.1.0"
+description = "Factory para criar SQL agents/tools da Vizu"
+authors = ["Lucas Cid <lucas@vizubr.com>"]
+readme = "README.md"
+packages = [{include = "vizu_sql_factory", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+# --- DEFINIÇÕES ATUALIZADAS E CORRIGIDAS ---
+# Esta lib usa o 'core' e o 'community' (para o SQLDatabase e create_sql_agent)
+langchain-core = "^1.0.0"
+langchain-community = "^0.3.31"
+sqlalchemy = "^2.0.31"
+# (langchain e langchain-openai removidos)
+
+# Dependências locais
+vizu_llm_service = {path = "../../libs/vizu_llm_service", develop = true}
+vizu_context_service = {path = "../../libs/vizu_context_service", develop = true}
+vizu_shared_models = {path = "../../libs/vizu_shared_models", develop = true}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.2"
+pytest-mock = "^3.14.0"
+pytest-cov = "^5.0.0"
+
+# Configuração de PYTHONPATH para testes
+[tool.pytest.ini_options]
+pythonpath = [
+    "src",
+    "../../libs"
+]

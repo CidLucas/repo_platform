@@ -8,13 +8,20 @@ packages = [{include = "vizu_llm_service", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-pydantic-settings = "^2.3.4"
-# ATUALIZAÇÃO: Alinhando com as novas versões do ecossistema LangChain
-langchain-community = "^0.3.0"
-langchain-openai = "^0.2.0"
+pydantic-settings = "^2.11.0"
+
+# --- DEFINIÇÕES ATUALIZADAS E CORRIGIDAS ---
+# Pacotes de IA que esta lib REALMENTE usa:
+langchain-core = "^1.0.0"
+langchain-community = "^0.3.31"        # Para ChatOllama
+langchain-huggingface = "^1.0.0"      # Para HuggingFaceEmbeddings
+sentence-transformers = "^3.0.1"      # Dependência do HuggingFaceEmbeddings
+
+langfuse = "^3.6.2"
+# langchain-openai foi removido
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.2.2"
+pytest = "^8.4.2"
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "vizu_rag_factory"
+version = "0.1.0"
+description = "Factory para criar RAG runnables/tools da Vizu"
+authors = ["Lucas Cid <lucas@vizubr.com>"]
+readme = "README.md"
+packages = [{include = "vizu_rag_factory", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+# --- DEFINIÇÕES ATUALIZADAS E CORRIGIDAS ---
+# Esta lib usa os componentes 'core' do LangChain
+langchain-core = "^1.0.0"
+# (langchain e langchain-openai removidos)
+
+# Dependências locais
+vizu_llm_service = {path = "../../libs/vizu_llm_service", develop = true}
+vizu_context_service = {path = "../../libs/vizu_context_service", develop = true}
+vizu_qdrant_client = {path = "../../libs/vizu_qdrant_client", develop = true}
+vizu_shared_models = {path = "../../libs/vizu_shared_models", develop = true}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.2"
+pytest-mock = "^3.14.0"
+pytest-cov = "^5.0.0"
+
+# Configuração de PYTHONPATH para testes
+[tool.pytest.ini_options]
+pythonpath = [
+    "src",
+    "../../libs"
+]

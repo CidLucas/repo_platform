@@ -120,6 +120,23 @@ services:
       - "clientes-finais"
       - "full"
 
+  # --- Analytics API (O SERVIÇO QUE FALTAVA) ---
+  analytics_api:
+    container_name: analytics_api
+    platform: linux/amd64
+    # IMPORTANTE: Usamos 'image' em vez de 'build' para usar a imagem
+    # que acabámos de construir com o 'tar'.
+    image: vizu/analytics-api:latest
+    ports:
+      - "8005:80" # A API expõe 80 (do Dockerfile), mapeamos para 8005 no seu Mac
+    environment:
+      # A URL do banco que funciona DENTRO da rede do compose.
+      - DATABASE_URL=postgresql://user:password@postgres:5432/vizu_db
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    depends_on:
+      - otel-collector
+      - postgres
+
 # Bloco principal para definir volumes nomeados, que persistem dados.
 volumes:
   postgres_data:

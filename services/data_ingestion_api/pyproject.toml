@@ -6,7 +6,9 @@ version = "0.1.0"
 description = "Microsserviço de Conectores Enterprise para Ingestão de Dados da Vizu (DAS)."
 authors = ["Vizu Engineering Team"]
 license = "Proprietary"
-packages = [{include = "src"}] # Garante que o Python veja a pasta como pacote
+packages = [
+    {include = "data_ingestion_api", from = "src"} 
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -16,6 +18,7 @@ pydantic = "^2.7.4"
 # Dependências de Conectividade Cloud/DB
 psycopg2-binary = "^2.9.9"
 google-cloud-bigquery = "^3.21.0" # Para o Conector BigQuery (Enterprise)
+google-cloud-pubsub = "^2.21.0"
 google-auth = "^2.29.0"     # Para autenticação GCP
 pandas = "^2.2.0" 
 db-dtypes = "^1.2.0"

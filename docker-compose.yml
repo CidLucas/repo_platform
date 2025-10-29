@@ -120,23 +120,22 @@ services:
       - "clientes-finais"
       - "full"
 
-
-  evaluation_suite:
-    build:
-      context: .
-      dockerfile: ./ferramentas/evaluation_suite/Dockerfile
+  # --- Analytics API (O SERVIÇO QUE FALTAVA) ---
+  analytics_api:
+    container_name: analytics_api
+    platform: linux/amd64
+    # IMPORTANTE: Usamos 'image' em vez de 'build' para usar a imagem
+    # que acabámos de construir com o 'tar'.
+    image: vizu/analytics-api:latest
     ports:
-      # Expõe a porta padrão do Streamlit (8501)
-      - "8501:8501"
-    env_file:
-      # Carrega as variáveis de ambiente que definimos
-      - ./ferramentas/evaluation_suite/.env.example
+      - "8005:80" # A API expõe 80 (do Dockerfile), mapeamos para 8005 no seu Mac
     environment:
-      # Garante que o Python encontre nossas libs dentro do container
-      - PYTHONPATH=/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_shared_models/src
+      # A URL do banco que funciona DENTRO da rede do compose.
+      - DATABASE_URL=postgresql://user:password@postgres:5432/vizu_db
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     depends_on:
+      - otel-collector
       - postgres
-      - atendente_core # Garante que a suíte só suba depois da API que ela vai testar
 
 # Bloco principal para definir volumes nomeados, que persistem dados.
 volumes:

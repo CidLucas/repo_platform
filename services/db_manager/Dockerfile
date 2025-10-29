@@ -27,9 +27,10 @@ WORKDIR /app
 
 COPY --from=builder /app/services/db_manager/.venv ./.venv
 COPY ./services/db_manager/src/db_manager ./db_manager
-COPY ./libs/vizu_db_connector/alembic.ini ./alembic.ini
-COPY ./libs/vizu_db_connector/alembic ./alembic
-COPY ./libs/vizu_shared_models ./vizu_shared_models
+COPY ./services/db_manager/alembic ./alembic
+COPY ./services/db_manager/alembic.ini ./alembic.ini
+COPY ./libs/vizu_db_connector ./libs/vizu_db_connector
+COPY ./libs/vizu_shared_models ./libs/vizu_shared_models
 ENV PATH="/app/.venv/bin:$PATH"
 
 ENTRYPOINT ["python", "-m", "db_manager.main"]

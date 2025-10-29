@@ -5,8 +5,8 @@ from typing import Generator
 
 # --- 1. Configuração da Conexão ---
 # A URL de conexão com o banco de dados é lida de uma variável de ambiente.
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@postgres:5432/vizu_db")
-TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://user:password@postgres:5432/vizu_db_test")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://user:password@localhost:5433/vizu_db")
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql+psycopg2://user:password@localhost:5433/vizu_db_test")
 
 # --- 2. Criação da Engine ---
 # A 'engine' é o ponto central de comunicação com o banco de dados.

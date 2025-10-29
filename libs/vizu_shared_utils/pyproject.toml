@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "vizu-shared-utils"
+version = "0.1.0"
+description = "Biblioteca compartilhada da Vizu para funções utilitárias (transformação, normalização, etc)."
+authors = ["Vizu Engineering Team"] # Conforme Master Prompt
+packages = [{include = "vizu_shared_utils", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pandas = "^2.0.0" # Dependência para data_transformers.py
+
+# Dependência da nossa outra biblioteca compartilhada (o Pydantic)
+# Isso garante que o poetry saiba onde encontrar os modelos de schema
+vizu-shared-models = {path = "../vizu_shared_models", develop = true}
+
+
+[tool.poetry.group.dev.dependencies]
+# Dependências para rodar os testes
+pytest = "^8.0.0"
+pytest-cov = "^5.0.0" # Para relatório de cobertura de testes
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.pytest.ini_options]
+# Diz ao pytest para procurar o código-fonte na pasta 'src'
+pythonpath = ["src"]
+testpaths = ["tests"]
+# Configuração Vizu: falha se a cobertura de testes for menor que 85%
+addopts = "--cov=src/vizu_shared_utils --cov-report=term-missing --cov-fail-under=85"

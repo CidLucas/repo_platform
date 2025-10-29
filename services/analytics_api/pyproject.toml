@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "analytics-api"
+version = "0.1.0"
+description = "API de Analytics Vizu (Silver -> Gold)"
+authors = ["Vizu Engineering Team"]
+
+[tool.poetry.dependencies]
+python = "~3.11"
+fastapi = "^0.111.1"
+uvicorn = "^0.30.1"
+pandas = "^2.2.2"  # Para os cálculos (Silver -> Gold)
+
+# --- Dependências das nossas Bibliotecas Internas ---
+vizu-db-connector = { path = "../../libs/vizu_db_connector", develop = true }
+vizu-shared-models = { path = "../../libs/vizu_shared_models", develop = true }
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "src",
+    "../../libs"
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,30 @@
+# services/data_ingestion_worker/pyproject.toml
+
+[tool.poetry]
+name = "data-ingestion-worker"
+version = "0.1.0"
+description = "Worker Serverless para processamento assíncrono de jobs de ingestão (Cloud Function)."
+authors = ["Sua Equipe Vizu <engenharia@vizubr.com>"]
+packages = [{include = "data_ingestion_worker", from = "src"}]
+
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pydantic = "^2.7.4" # Versão unificada da Vizu
+pandas = "^2.2.0"   # Versão unificada (exemplo, use a que for padrão)
+google-cloud-pubsub = "^2.21.0"
+# O Worker precisa do código do API para o BigQueryConnector e a Exceção
+
+# [CORREÇÃO] Dependência explícita para o serviço vizinho no monorepo
+
+# --- DEPENDÊNCIAS INTERNAS DO MONOREPO (LINKS PARA LIBS/) ---
+vizu-db-connector = {path = "../../libs/vizu_db_connector", develop = true}
+vizu-shared-models = {path = "../../libs/vizu_shared_models", develop = true}
+data-ingestion-api = {path = "../data_ingestion_api", develop = true}
+vizu-shared-utils = {path = "../../libs/vizu_shared_utils", develop = true}
+python-dotenv = "^1.1.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.2"        # Versão unificada da Vizu
+pytest-asyncio = "^0.23.6"
+pytest-mock = "^3.14.0"

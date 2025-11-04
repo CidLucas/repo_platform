@@ -51,7 +51,7 @@ def create_rag_runnable(
         # ... (logging)
         return None
 
-    collection_name = str(contexto.id)
+    collection_name = str(contexto.collection_rag)
     logger.info(f"contexto.id (coleção: {collection_name})...")
 
     try:

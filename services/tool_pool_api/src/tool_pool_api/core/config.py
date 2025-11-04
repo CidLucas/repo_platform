@@ -2,7 +2,9 @@ import logging
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings
+from dotenv import load_dotenv
 
+load_dotenv()
 # Configura um logger básico para mensagens de inicialização
 log = logging.getLogger(__name__)
 
@@ -23,13 +25,12 @@ class Settings(BaseSettings):
     # --- Observabilidade ---
     SENTRY_DSN: str = ""
     OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
+    MCP_AUTH_GOOGLE_CLIENT_ID: str = ""
+    MCP_AUTH_GOOGLE_CLIENT_SECRET_ID: str = "" # ID do segredo no Secret Manager
+    MCP_AUTH_BASE_URL: str = "http://localhost:8000"
+    MCP_AUTH_REQUIRED_SCOPES: str = "email,profile"
 
-    class Config:
-        # Define a origem das variáveis (arquivo .env)
-        # Em produção, as variáveis virão do ambiente do Cloud Run.
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
+
 
 
 @lru_cache

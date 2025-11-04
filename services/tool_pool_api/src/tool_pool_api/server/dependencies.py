@@ -1,101 +1,207 @@
 import logging
-from typing import AsyncGenerator
+import os
+from functools import lru_cache
+from typing import Optional, List
 
-from redis.asyncio import Redis as AsyncRedis
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+# --- CORREÇÃO AQUI ---
 from fastapi import Depends
+# ---------------------
+from fastmcp.exceptions import ToolError
+from fastmcp.server.dependencies import AccessToken, get_access_token
+# Importa o provider OAuth pré-configurado para Google
+from fastmcp.server.auth.providers.google import GoogleProvider
 
-# 1. Importa nosso loader de configuração
-from tool_pool_api.core.config import get_settings, Settings
+from tool_pool_api.core.config import Settings, get_settings
 
-# 2. Importa as fábricas e serviços das nossas libs (Fase 1)
+# Importações Vizu
 from vizu_context_service.context_service import ContextService
-from vizu_context_service.dependencies import get_redis_client as get_vizu_redis_client # Renomeado para evitar conflito
-from vizu_context_service.redis_service import RedisService
-from vizu_db_connector.database import SessionLocal
+from vizu_context_service.dependencies import \
+    get_context_service as get_vizu_context_service
+from vizu_shared_models.cliente_vizu import VizuClientContext
 
-# Configura o logger
 logger = logging.getLogger(__name__)
 
-# --- Funções de Injeção de Dependência ---
+# --- DEPENDÊNCIAS DE SERVIÇO VIZU (Existentes) ---
 
+@lru_cache
 def get_app_settings() -> Settings:
-    """Retorna uma instância singleton cacheada das configurações da aplicação."""
     return get_settings()
 
+@lru_cache
+def get_context_service() -> ContextService:
+    logger.debug("Getting context service")
+    return get_vizu_context_service()
 
-def get_db_session_factory(
-    settings: Settings = Depends(get_app_settings)
-) -> SessionLocal:
+async def load_context_from_token(
+    ctx_service: ContextService,
+    access_token: Optional[AccessToken]
+) -> VizuClientContext:
     """
-    Retorna a fábrica de sessões do banco de dados (Vizu DB).
-    Esta fábrica será usada pelo ContextService para buscar dados quando o cache falhar.
+    Função helper pura e testável.
+    Carrega o VizuClientContext com base no token de acesso.
     """
-    # Note: SessionLocal já é uma fábrica de sessões configurada com um engine.
-    # Se precisarmos de um async_sessionmaker, vizu_db_connector precisará ser atualizado.
-    return SessionLocal
-
-
-def get_redis_async_client(
-    settings: Settings = Depends(get_app_settings)
-) -> AsyncRedis:
-    """
-    Retorna um cliente Redis assíncrono.
-    """
-    # TODO: Implementar a criação de um cliente Redis assíncrono com base em settings.REDIS_URL
-    # Por enquanto, retornamos um mock ou um cliente básico.
-    logger.warning("Usando cliente Redis assíncrono mockado/básico. Implementar criação real com REDIS_URL.")
-    return AsyncRedis(host='localhost', port=6379, db=0) # Placeholder
-
-
-def get_redis_service(
-    redis_client: AsyncRedis = Depends(get_redis_async_client)
-) -> RedisService:
-    """
-    Retorna o serviço de Redis (wrapper em volta do cliente).
-    """
-    return RedisService(redis_client)
-
-
-def get_context_service(
-    db_session_factory: SessionLocal = Depends(get_db_session_factory),
-    redis_service: RedisService = Depends(get_redis_service)
-) -> ContextService:
-    """
-    Retorna o serviço de Contexto, injetando suas dependências (DB e Redis).
-    Este é o serviço que o MCP usará para buscar o VizuClientContext.
-    """
-    # Cria uma sessão síncrona a partir da fábrica para o ContextService
-    db_session = db_session_factory()
     try:
-        return ContextService(
-            db_session=db_session,
-            cache_service=redis_service
+        if not access_token:
+            logger.warning("Tentativa de acesso sem AccessToken no contexto.")
+            raise ToolError("Autenticação necessária. Token não encontrado.")
+
+        # O 'sub' (subject) do token JWT é o ID do usuário externo
+        external_user_id = access_token.claims.get("sub")
+        user_email = access_token.claims.get("email", "EmailNãoDisponível")
+
+        if not external_user_id:
+            logger.error(f"Token inválido. Claim 'sub' (subject) não encontrada. Email: {user_email}")
+            raise ToolError("Token de autenticação inválido: 'subject' não encontrado.")
+
+        logger.debug(
+            f"Carregando contexto 'lazy' para external_user_id: {external_user_id} "
+            f"(Email: {user_email})"
         )
-    finally:
-        db_session.close() # Garante que a sessão seja fechada após o uso
 
-# --- Singletons Globais (para uso direto onde a injeção não é possível/prática) ---
-# Estes são os singletons que o MCP pode precisar acessar diretamente.
-# Eles dependem das funções de injeção acima.
+        vizu_context = await ctx_service.get_context_by_external_user_id(
+            external_user_id=external_user_id
+        )
 
-# O singleton do ContextService é o mais importante para o MCP.
-# Não inicializamos mais em nível de módulo para permitir mocking em testes.
+        if not vizu_context:
+            logger.error(
+                f"Contexto Vizu não encontrado para o external_user_id: {external_user_id} "
+                f"(Email: {user_email})"
+            )
+            raise ToolError(
+                f"Nenhum cliente Vizu associado a este usuário. (ID: {external_user_id})"
+            )
 
-logger.info("Todas as dependências globais foram inicializadas.")
+        # Sucesso!
+        return vizu_context
+
+    except Exception as e:
+        if isinstance(e, ToolError):
+            raise e
+        logger.error(
+            f"Falha ao carregar VizuClientContext da dependência: {e}",
+            exc_info=True
+        )
+        raise ToolError("Erro interno ao autorizar o contexto do cliente.")
+# --- NOVAS DEPENDÊNCIAS DE AUTENTICAÇÃO (OAuth) ---
+
+def _get_google_secret(secret_id: str) -> Optional[str]:
+    """
+    Busca o Google Client Secret.
+
+    Para testes (conforme combinado), lê da variável de ambiente
+    'MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV'.
+    Em produção, deve buscar do Google Secret Manager usando 'secret_id'.
+    """
+    if not secret_id:
+        logger.warning(
+            "'MCP_AUTH_GOOGLE_CLIENT_SECRET_ID' não configurado. "
+            "Tentando fallback para .env 'MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV'..."
+        )
+
+    # Lógica de fallback para testes com .env
+    dev_secret = os.getenv("MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV")
+    if dev_secret:
+        logger.debug("Usando Google Client Secret do .env (MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV)")
+        return dev_secret
+
+    if not secret_id:
+        logger.error("Nenhum ID de secret nem segredo de dev (.env) fornecidos para o Google Auth.")
+        return None
+
+    # --- LÓGICA DE PRODUÇÃO (Google Secret Manager) ---
+    # TODO: Implementar a busca do 'secret_id' no Google Secret Manager
+    logger.warning(
+        f"Lógica do Secret Manager para '{secret_id}' ainda não implementada. "
+        "Auth falhará se o segredo de dev não estiver no .env."
+    )
+    return None # Retorna None por enquanto
 
 
-# --- Funções de Injeção (Opcional, mas boa prática) ---
-# Embora possamos importar os singletons diretamente,
-# criar 'getters' nos prepara para injeção de dependência futura.
+@lru_cache
+def get_auth_provider() -> Optional[GoogleProvider]:
+    """
+    Instancia e retorna o GoogleProvider (OAuthProxy) se configurado.
+    Esta função é cacheada e chamada na inicialização do servidor.
+    """
+    settings = get_app_settings()
 
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Dependência do FastAPI/MCP para obter uma sessão de DB (se necessário)."""
-    # Esta função agora usa a db_session_factory obtida via injeção.
-    # Se db_session_factory for síncrona, isso precisará ser adaptado.
-    # Por enquanto, assume que SessionLocal pode ser usada em um contexto async.
-    async with db_session_factory() as session:
-        yield session
+    google_secret = _get_google_secret(
+        settings.MCP_AUTH_GOOGLE_CLIENT_SECRET_ID
+    )
+
+    if not all([
+        settings.MCP_AUTH_GOOGLE_CLIENT_ID,
+        google_secret,
+        settings.MCP_AUTH_BASE_URL
+    ]):
+        logger.warning(
+            "Autenticação Google (OAuth) desabilitada. Faltam uma ou mais configs: "
+            "MCP_AUTH_GOOGLE_CLIENT_ID, MCP_AUTH_GOOGLE_CLIENT_SECRET_ID (ou _DEV), "
+            "ou MCP_AUTH_BASE_URL."
+        )
+        return None
+
+    try:
+        # Parseia os escopos do .env (string separada por vírgula)
+        scopes = [
+            scope.strip() for scope in settings.MCP_AUTH_REQUIRED_SCOPES.split(",")
+            if scope.strip()
+        ]
+        if not scopes:
+            logger.warning("Nenhum 'MCP_AUTH_REQUIRED_SCOPES' definido, usando padrões.")
+            scopes = ["email", "profile"] # Escopos mínimos
+
+        logger.info(f"Configurando GoogleProvider com escopos: {scopes}")
+
+        provider = GoogleProvider(
+            client_id=settings.MCP_AUTH_GOOGLE_CLIENT_ID,
+            client_secret=google_secret,
+            base_url=settings.MCP_AUTH_BASE_URL,
+            required_scopes=scopes
+        )
+        logger.info("GoogleProvider (OAuthProxy) instanciado com sucesso.")
+        return provider
+
+    except Exception as e:
+        logger.error(f"Falha ao instanciar GoogleProvider: {e}", exc_info=True)
+        return None
 
 
-# get_context_service já está definido acima.
+async def get_current_vizu_context(
+    ctx_service: ContextService = Depends(get_context_service)
+) -> VizuClientContext:
+    """
+    Dependência FastMCP para "lazy load" do VizuClientContext.
+    """
+    try:
+
+
+        user_email = access_token.claims.get("email", "EmailNãoDisponível")
+        logger.debug(
+            f"Carregando contexto 'lazy' para external_user_id: {external_user_id} "
+            f"(Email: {user_email})"
+        )
+
+        vizu_context = await ctx_service.get_context_by_external_user_id(
+            external_user_id=external_user_id
+        )
+
+        if not vizu_context:
+            logger.error(
+                f"Contexto Vizu não encontrado para o external_user_id: {external_user_id} "
+                f"(Email: {user_email})"
+            )
+            raise ToolError(
+                f"Nenhum cliente Vizu associado a este usuário. (ID: {external_user_id})"
+            )
+
+        return vizu_context
+
+    except Exception as e:
+        if isinstance(e, ToolError):
+            raise e
+        logger.error(
+            f"Falha ao carregar VizuClientContext da dependência: {e}",
+            exc_info=True
+        )
+        raise ToolError("Erro interno ao autorizar o contexto do cliente.")

@@ -1,3 +1,4 @@
+import asyncio
 from sqlalchemy.orm import Session
 from uuid import UUID
 import logging
@@ -38,9 +39,9 @@ class ContextService:
         """Helper para gerar a chave de cache padronizada."""
         return f"{self.CACHE_KEY_PREFIX}{cliente_id}"
 
-    def get_client_context_by_id(self, cliente_id: UUID) -> Optional[VizuClientContext]:
+    async def get_client_context_by_id(self, cliente_id: UUID) -> Optional[VizuClientContext]:
         """
-        Obtém o contexto completo do cliente, usando cache.
+        Obtém o contexto completo do cliente, usando cache. (Versão Async)
         """
         if not cliente_id:
             logger.warning("Tentativa de obter contexto com cliente_id nulo.")
@@ -48,27 +49,32 @@ class ContextService:
 
         cache_key = self._get_cache_key(cliente_id)
 
-        # 1. Tentar obter do Cache
-        cached_context_dict = self.cache.get_json(cache_key)
+        # 1. Tentar obter do Cache (usando asyncio.to_thread para I/O síncrono)
+        cached_context_dict = await asyncio.to_thread(
+            self.cache.get_json, cache_key
+        )
+
         if cached_context_dict:
             try:
-                # Desserializa do dict para o modelo Pydantic
+                # Desserializa do dict para o modelo Pydantic (rápido, sem thread)
                 return VizuClientContext.model_validate(cached_context_dict)
             except Exception as e:
                 logger.error(f"Falha ao validar contexto do cache {cache_key}: {e}")
-                # Cache está corrompido, deletar
-                self.cache.delete(cache_key)
+                # Cache está corrompido, deletar (I/O síncrono)
+                await asyncio.to_thread(self.cache.delete, cache_key)
 
         logger.debug(f"Cache miss. Buscando contexto no DB para: {cliente_id}")
 
-        # 2. Se falhar, buscar no Banco de Dados
+        # 2. Se falhar, buscar no Banco de Dados (usando asyncio.to_thread)
         try:
             # Esta função (ex: crud.get_full_client_context) deve ser criada
             # na libs/vizu_db_connector e fazer os joins necessários
             # para montar o VizuClientContext (cliente, config, credenciais, etc.)
 
             # SUPONDO que o crud.get_cliente_vizu_by_id já faz os joins
-            cliente_db = crud.get_cliente_vizu_by_id(self.db, cliente_id)
+            cliente_db = await asyncio.to_thread(
+                crud.get_cliente_vizu_by_id, self.db, cliente_id
+            )
 
             if not cliente_db:
                 logger.warning(f"Contexto não encontrado no DB para: {cliente_id}")
@@ -78,8 +84,9 @@ class ContextService:
             # (Isto pode exigir uma lógica de mapeamento mais complexa)
             client_context = VizuClientContext.model_validate(cliente_db)
 
-            # 3. Armazenar no Cache
-            self.cache.set_json(
+            # 3. Armazenar no Cache (usando asyncio.to_thread)
+            await asyncio.to_thread(
+                self.cache.set_json,
                 key=cache_key,
                 data=client_context,
                 ttl_seconds=self.CACHE_TTL_SECONDS
@@ -91,8 +98,9 @@ class ContextService:
             logger.error(f"Erro de DB ao buscar contexto para {cliente_id}: {e}")
             return None
 
-    def clear_context_cache(self, cliente_id: UUID) -> None:
+    async def clear_context_cache(self, cliente_id: UUID) -> None:
         """Invalida (deleta) o cache para um cliente específico."""
         cache_key = self._get_cache_key(cliente_id)
-        self.cache.delete(cache_key)
+        # (usando asyncio.to_thread para I/O síncrono)
+        await asyncio.to_thread(self.cache.delete, cache_key)
         logger.info(f"Cache de contexto invalidado para: {cliente_id}")

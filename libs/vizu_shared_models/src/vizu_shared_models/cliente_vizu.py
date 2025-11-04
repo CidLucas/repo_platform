@@ -61,6 +61,7 @@ class VizuClientContext(BaseSchema):
     horario_funcionamento: Dict[str, Any] | None
     ferramenta_rag_habilitada: bool
     ferramenta_sql_habilitada: bool
+    collection_rag: str | None
 
     # Lista de credenciais já decifradas
     # Usamos o modelo Pydantic 'CredencialServicoExternoBase' para a tipagem

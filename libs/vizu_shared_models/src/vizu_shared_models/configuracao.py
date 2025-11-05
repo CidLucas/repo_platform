@@ -9,8 +9,8 @@ class ConfiguracaoNegocioBase(BaseSchema):
     horario_funcionamento: Dict[str, Any] | None = Field(None, description='Objeto JSON para armazenar os horários de operação. Ex: {"seg-sex": "09:00-18:00"}')
     ferramenta_rag_habilitada: bool = Field(default=False)
     # Adicionar outras flags de ferramentas conforme necessário
-    # ferramenta_sql_habilitada: bool = Field(default=False)
-    # ferramenta_agendamento_habilitada: bool = Field(default=False)
+    ferramenta_sql_habilitada: bool = Field(default=False)
+    ferramenta_agendamento_habilitada: bool = Field(default=False)
 
 
 class ConfiguracaoNegocioCreate(ConfiguracaoNegocioBase):

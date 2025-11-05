@@ -12,7 +12,7 @@ async def main():
     consolidado em um único arquivo Markdown.
     """
     sites_to_crawl = [
-        {"name": "pytest", "start_url": "https://docs.pytest.org/en/stable/how-to/index.html#how-to"}
+        {"name": "MCP Server", "start_url": "https://modelcontextprotocol.io/docs/getting-started/intro"}
     ]
     all_results_markdown = []
 

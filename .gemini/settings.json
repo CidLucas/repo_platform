@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "SearchFastMcp": {
+      "command": "https://gofastmcp.com/mcp",
+      "args": []
+    }
+  }
+}

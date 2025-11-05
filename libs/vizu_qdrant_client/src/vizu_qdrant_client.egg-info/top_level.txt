@@ -1,1 +1,0 @@
-vizu_qdrant_client

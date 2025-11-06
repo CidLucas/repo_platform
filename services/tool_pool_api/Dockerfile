@@ -9,7 +9,8 @@ WORKDIR /app
 
 # 1. COPIE as 'libs' primeiro. (Camada de cache para dependências)
 # Copiamos todas as libs que o tool_pool_api vai precisar
-COPY ./libs/mcp ./libs/mcp
+COPY ./libs/vizu_llm_service ./libs/vizu_llm_service
+COPY ./libs/vizu_qdrant_client ./libs/vizu_qdrant_client
 COPY ./libs/vizu_context_service ./libs/vizu_context_service
 COPY ./libs/vizu_rag_factory ./libs/vizu_rag_factory
 COPY ./libs/vizu_sql_factory ./libs/vizu_sql_factory
@@ -41,12 +42,13 @@ COPY ./services/tool_pool_api/src ./src
 
 # 7. COPIE o código fonte das 'libs' (Necessário para execução)
 WORKDIR /app
-COPY ./libs/mcp/src ./libs/mcp/src
 COPY ./libs/vizu_context_service/src ./libs/vizu_context_service/src
 COPY ./libs/vizu_rag_factory/src ./libs/vizu_rag_factory/src
 COPY ./libs/vizu_sql_factory/src ./libs/vizu_sql_factory/src
 COPY ./libs/vizu_db_connector/src ./libs/vizu_db_connector/src
 COPY ./libs/vizu_shared_models/src ./libs/vizu_shared_models/src
+COPY ./libs/vizu_llm_service/src ./libs/vizu_llm_service/src
+COPY ./libs/vizu_qdrant_client/src ./libs/vizu_qdrant_client/src
 # (Adicionar vizu_generic_tools/src aqui quando for criada)
 
 # 8. Define o WORKDIR final de volta para o serviço

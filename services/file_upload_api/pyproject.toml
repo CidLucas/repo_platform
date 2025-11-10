@@ -1,0 +1,42 @@
+[tool.poetry]
+name = "file-upload-api"
+version = "0.1.0"
+description = "API síncrona para upload e enfileiramento de arquivos na Vizu."
+authors = ["Lucas Cid <lucas@vizubr.com>"]
+readme = "README.md"
+packages = [{include = "file_upload_api", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.111.0"
+uvicorn = {extras = ["standard"], version = "^0.29.0"}
+pydantic-settings = "^2.2.1"
+python-multipart = "^0.0.9" # Essencial para FastAPI lidar com UploadFile
+
+# --- Dependências de Infra (GCP) ---
+google-cloud-storage = "^2.16.0"
+google-cloud-pubsub = "^2.19.0"
+
+# --- Dependências internas do monorepo Vizu ---
+vizu-observability-bootstrap = { path = "../../libs/vizu_observability_bootstrap" }
+vizu-shared-models = { path = "../../libs/vizu_shared_models" }
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+ruff = "^0.4.4"
+httpx = "^0.27.0"         # Necessário para o TestClient do FastAPI
+pytest-mock = "^3.14.0"    # Essencial para mockar GCS/PubSub
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+# --- Configuração Definitiva do Pytest para o Monorepo ---
+# Garante que 'src' e 'libs' sejam visíveis para importação
+[tool.pytest.ini_options]
+pythonpath = [
+    "src",
+    "../../libs"
+]

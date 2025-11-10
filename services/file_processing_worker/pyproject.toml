@@ -1,0 +1,46 @@
+[tool.poetry]
+name = "file-processing-worker"
+version = "0.1.0"
+description = "Worker assíncrono para processamento e embedding de arquivos."
+authors = ["Lucas Cid <lucas@vizubr.com>"]
+readme = "README.md"
+packages = [{include = "file_processing_worker", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pydantic-settings = "^2.2.1"
+
+# --- Dependências de Infra (GCP) ---
+# Necessário para baixar o arquivo do GCS
+google-cloud-storage = "^2.16.0"
+# Necessário para receber/confirmar a mensagem Pub/Sub
+google-cloud-pubsub = "^2.19.0"
+
+# --- Dependências de Parsing (Lógica de Negócio) ---
+# Biblioteca moderna para extração de texto de PDFs
+pypdf = "^4.2.0"
+# Usaremos pandas para ler CSVs (é mais robusto que o 'csv' nativo)
+pandas = "^2.2.2"
+
+# --- Dependências internas do monorepo Vizu ---
+vizu-observability-bootstrap = { path = "../../libs/vizu_observability_bootstrap" }
+vizu-shared-models = { path = "../../libs/vizu_shared_models" }
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+ruff = "^0.4.4"
+pytest-mock = "^3.14.0" # Essencial para mockar GCS/PubSub
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+# --- Configuração Definitiva do Pytest para o Monorepo ---
+# Garante que 'src' e 'libs' sejam visíveis para importação
+[tool.pytest.ini_options]
+pythonpath = [
+    "src",
+    "../../libs"
+]

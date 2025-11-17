@@ -12,16 +12,17 @@ class LLMSettings(BaseSettings):
     """
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # URL base do nosso servidor Ollama interno.
+    # URL base do nosso servidor Ollama interno (para LLMs)
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
-    # --- REMOVIDO ---
-    # OPENAI_API_KEY: str | None = None
-
     # --- ADICIONADO ---
-    # Define o modelo de embedding padrão do Hugging Face.
-    # Usaremos um modelo leve e popular.
-    DEFAULT_EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+    # URL do nosso novo microserviço de embedding
+    EMBEDDING_SERVICE_URL: str = "http://localhost:11435"
+
+    # --- REMOVIDO ---
+    # A biblioteca cliente não precisa mais saber o nome do modelo,
+    # apenas a URL do serviço.
+    # DEFAULT_EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
 
     # Configurações do Langfuse (permanecem)
     LANGFUSE_HOST: str | None = Field(default=None)

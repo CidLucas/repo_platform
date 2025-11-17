@@ -25,6 +25,8 @@ pandas = "^2.2.2"
 # --- Dependências internas do monorepo Vizu ---
 vizu-observability-bootstrap = { path = "../../libs/vizu_observability_bootstrap" }
 vizu-shared-models = { path = "../../libs/vizu_shared_models" }
+vizu_qdrant_client = {path = "../../libs/vizu_qdrant_client" }
+vizu_llm_service = {path = "../../libs/vizu_llm_service" }
 
 
 [tool.poetry.group.dev.dependencies]

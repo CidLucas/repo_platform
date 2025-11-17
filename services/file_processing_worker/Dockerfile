@@ -3,13 +3,16 @@
 # --- ESTÁGIO 1: BUILDER ---
 FROM python:3.11-slim as builder
 
+ENV POETRY_NO_INTERACTION=1
+ENV POETRY_VIRTUALENVS_IN_PROJECT=true
+
 WORKDIR /app
 RUN pip install poetry
 COPY . .
 
 # Aponta para o diretório do nosso novo serviço
 WORKDIR /app/services/file_processing_worker
-RUN poetry install --no-root --no-dev
+RUN poetry install --no-root
 
 # --- ESTÁGIO 2: FINAL (PRODUÇÃO) ---
 FROM python:3.11-slim as final

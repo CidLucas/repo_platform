@@ -2,11 +2,7 @@
 .venv/
 venv/
 
-# Arquivos de Cache Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+
 
 # Arquivos de Configuração de IDEs
 .vscode/
@@ -16,8 +12,16 @@ __pycache__/
 .env
 *.env.local
 
-# Arquivos de Sistema
-.DS_Store
 
 # Ignorar arquivos de sistema do macOS
-**/.DS_Store
+# Arquivos de Sistema do macOS
+.DS_Store
+*/.DS_Store
+
+# Arquivos de Cache e Compilados do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*/**/__pycache__/
+*/**/*.pyc

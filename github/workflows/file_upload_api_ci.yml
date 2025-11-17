@@ -1,0 +1,115 @@
+name: CI/CD - file-upload-api
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'services/file_upload_api/**'
+      - 'libs/**'
+      - '.github/workflows/file_upload_api_ci.yml'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'services/file_upload_api/**'
+      - 'libs/**'
+      - '.github/workflows/file_upload_api_ci.yml'
+  workflow_dispatch:
+
+env:
+  # --- Padrões Vizu: Variáveis de Configuração do Pipeline ---
+  SERVICE_NAME: file-upload-api
+  SERVICE_PATH: services/file_upload_api
+  DOCKERFILE_PATH: ./services/file_upload_api/Dockerfile
+  GCP_REGION: us-central1
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }} # <-- Mudar se o nome do secret for outro
+  GAR_REPO_NAME: vizu-services-registry # <-- Mudar se o nome do Artifact Registry for outro
+
+jobs:
+  # --- Padrão Vizu: Job de Teste (CI) ---
+  test:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ${{ env.SERVICE_PATH }}
+
+    steps:
+      - name: 1. Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 2. Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 3. Install Poetry
+        run: pip install poetry
+
+      - name: 4. Install dependencies (incluindo dev)
+        run: poetry install
+
+      - name: 5. Run tests with Pytest
+        run: poetry run pytest
+
+  # --- Padrão Vizu: Job de Build & Push (CD) ---
+  build-and-push:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: 1. Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 2. Authenticate to Google Cloud
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }} # <-- Mudar nome do Secret
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }} # <-- Mudar nome do Secret
+
+      - name: 3. Login to Artifact Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GCP_REGION }}-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.gcloud-auth.outputs.access_token }}
+
+      - name: 4. Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: . # O contexto é a RAIZ do monorepo (necessário para as libs)
+          file: ${{ env.DOCKERFILE_PATH }}
+          push: true
+          tags: |
+            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_NAME }}/${{ env.SERVICE_NAME }}:latest
+            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+
+  # --- Padrão Vizu: Job de Deploy (CD) ---
+  deploy-staging:
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: 1. Authenticate to Google Cloud
+        uses: 'google-github-actions/auth@v2'
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SERVICE_ACCOUNT }}
+
+      - name: 2. Deploy to Cloud Run (Staging)
+        uses: 'google-github-actions/deploy-cloudrun@v2'
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          region: ${{ env.GCP_REGION }}
+          image: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_NAME }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          # (Opcional: vincular a SA da API, se necessário)
+          # service_account: ${{ env.SERVICE_NAME }}-sa@${{ env.GCP_PROJECT_ID }}.iam.gserviceaccount.com

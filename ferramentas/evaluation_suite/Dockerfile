@@ -2,12 +2,12 @@
 FROM python:3.11-slim as builder
 
 # Instala o Poetry (nosso gerenciador de pacotes padrão)
-RUN pip install poetry
 
 # Configura o Poetry para não criar virtualenvs fora do projeto, facilitando a cópia
 ENV POETRY_NO_INTERACTION=1
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 WORKDIR /app
+RUN pip install poetry
 
 # 1. COPIE as 'libs' primeiro. Este é o passo crucial para o cache do Docker no monorepo.
 #    Se as libs não mudam, este layer não é reconstruído.

@@ -1,4 +1,4 @@
-from .cliente_vizu import ClienteVizuBase, ClienteVizuCreate, ClienteVizuInDB
+from .cliente_vizu import ClienteVizuBase, ClienteVizuCreate, ClienteVizuInDB,ClienteVizuRead, VizuClientContext
 from .configuracao import ConfiguracaoNegocioBase, ConfiguracaoNegocioCreate, ConfiguracaoNegocioInDB
 from .cliente_final import ClienteFinalBase, ClienteFinalCreate, ClienteFinalInDB
 from .conversa import ConversaBase, ConversaCreate, ConversaInDB, MensagemBase, MensagemCreate, MensagemInDB
@@ -26,5 +26,7 @@ __all__ = [
     "EvaluationRunRead",
     "TestResultBase",
     "TestResultRead",
+    "VizuClientContext",
+    "ClienteVizuRead"
 ]
 

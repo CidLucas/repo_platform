@@ -1,3 +1,17 @@
+# Define a versão do compose para garantir compatibilidade
+
+# Bloco de extensões (YAML Anchors) para definir variáveis comuns
+x-common-env:
+  # O &common-env define o "apelido" da âncora
+  common: &common-env
+    DATABASE_URL: postgresql://user:password@postgres:5432/vizu_db
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  atendente: &atendente-env
+    REDIS_URL: redis://redis:6379/0
+    OLLAMA_BASE_URL: http://ollama_service:11434
+    LANGCHAIN_API_KEY: sua_chave_langchain
+    TWILIO_AUTH_TOKEN: seu_token_twilio
+
 # Bloco principal que contém a definição de todos os serviços (contêineres).
 services:
   postgres:
@@ -5,6 +19,7 @@ services:
     platform: linux/amd64
     container_name: vizu_postgres
     environment:
+      # Formato CHAVE: VALOR (mapa)
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: vizu_db
@@ -12,6 +27,11 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d vizu_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   db-manager:
     container_name: vizu_db_manager
@@ -21,12 +41,13 @@ services:
       dockerfile: ./services/db_manager/Dockerfile
     command: ["migrate"]
     environment:
-      - DATABASE_URL=postgresql://user:password@postgres:5432/vizu_db
-      # --- CORREÇÃO ADICIONAL E CRUCIAL ---
-      # Garante que o Python possa encontrar as bibliotecas compartilhadas.
-      - PYTHONPATH=/app/db_manager:/app/libs/vizu_db_connector/src:/app/libs/vizu_shared_models/src:/app/libs/vizu_observability_bootstrap/src
+      # --- CORREÇÃO ---
+      # O "<<" faz o merge do mapa definido na âncora
+      <<: *common-env
+      PYTHONPATH: /app/db_manager:/app/libs/vizu_db_connector/src:/app/libs/vizu_shared_models/src:/app/libs/vizu_observability_bootstrap/src
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
   redis:
     image: redis:7-alpine
@@ -34,6 +55,20 @@ services:
     container_name: vizu_redis_dev
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant_db:
+    image: qdrant/qdrant:latest
+    container_name: vizu_qdrant_dev
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
@@ -53,6 +88,19 @@ services:
       dockerfile: ./services/ollama_service/Dockerfile
     ports:
       - "11435:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      # Esta checagem continua a mesma...
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:11434 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      # Aumentamos as tentativas para 5
+      retries: 5
+      # --- ESTA É A MUDANÇA MAIS IMPORTANTE ---
+      # Dá 5 minutos (300s) de carência para o container iniciar.
+      # Falhas de healthcheck durante este período não contam.
+      start_period: 300s
 
   atendente_core:
     container_name: vizu_atendente_core
@@ -63,21 +111,90 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - DATABASE_URL=postgresql://user:password@postgres:5432/vizu_db
-      - REDIS_URL=redis://redis:6379/0
-      - OLLAMA_BASE_URL=http://ollama_service:11434
-      - LANGCHAIN_API_KEY=sua_chave_langchain
-      - TWILIO_AUTH_TOKEN=seu_token_twilio
+      # --- CORREÇÃO ---
+      <<: [ *common-env, *atendente-env ]
     depends_on:
-      - postgres
-      - redis
-      - ollama_service
-      - otel-collector
-    # Volumes para desenvolvimento, permitindo hot-reload.
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama_service:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
     volumes:
       - ./services/atendente_core/src:/app/atendente_core
       - ./libs:/app/libs
+
+  file_upload_api:
+    container_name: vizu_file_upload_api
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./services/file_upload_api/Dockerfile #
+    ports:
+      # Mapeia para a porta 8001 do host (o container expõe 8000)
+      - "8001:8000"
+    volumes:
+      # Volume para hot-reload
+      - ./services/file_upload_api/src/file_upload_api:/home/appuser/app/file_upload_api
+      - ./libs:/home/appuser/app/libs
+    environment:
+      <<: *common-env
+      # Variáveis específicas do config.py
+      # !! IMPORTANTE: Preencha com seus valores !!
+      GCP_PROJECT_ID: "seu-projeto-gcp"
+      GCS_BUCKET_NAME: "seu-bucket-gcs"
+      PUBSUB_TOPIC_ID: "seu-topico-pubsub"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"] #
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  file_processing_worker:
+    container_name: vizu_file_processing_worker
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./services/file_processing_worker/Dockerfile #
+    ports:
+      # Mapeia para a porta 8002 do host (o container expõe 8000)
+      - "8002:8000"
+    volumes:
+      # Volume para hot-reload
+      - ./services/file_processing_worker/src/file_processing_worker:/home/appuser/app/file_processing_worker
+      - ./libs:/home/appuser/app/libs
+    environment:
+      <<: *common-env
+      # Variáveis específicas do config.py
+      # !! IMPORTANTE: Preencha com seus valores !!
+      GCP_PROJECT_ID: "seu-projeto-gcp"
+      PUBSUB_SUBSCRIPTION_ID: "sua-subscription-id-pubsub"
+      GCS_BUCKET_NAME: "seu-bucket-gcs"
+      QDRANT_COLLECTION_NAME: "vizu_knowledge_base" # Ou o nome que preferir
+
+      # Aponta para os nomes dos serviços DENTRO do Docker
+      QDRANT_HOST: "qdrant_db"
+      QDRANT_PORT: "6334" # Porta HTTP do Qdrant
+
+      # Sobrescreve a URL do cliente de embedding (Passo 2)
+      EMBEDDING_SERVICE_URL: "http://embedding_service:11435"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant_db: # <-- Dependência crucial
+        condition: service_healthy
+      embedding_service: # <-- Dependência crucial
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"] #
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   clients_api:
     container_name: clients_api
@@ -87,18 +204,19 @@ services:
       dockerfile: ./services/clients_api/Dockerfile
     ports:
       - "8002:8000"
-    # Volumes comentados para um build mais próximo do ambiente de produção.
-    # volumes:
-    #   - ./services/clients_api/src:/app/services/clients_api/src
-    #   - ./libs:/app/libs
+    volumes:
+      - ./services/clients_api/src:/app/src
+      - ./libs:/app/libs
     environment:
-      - PYTHONPATH=/app/src:/app/libs # <-- ATENÇÃO: Verifique se o WORKDIR no Dockerfile é /app
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - CREDENTIALS_ENCRYPTION_KEY=aemyqQi3hs1d_8-bOKnCs1nmdo5TaDEiEpcbTEiB6vE=
-      - DATABASE_URL=postgresql://user:password@postgres:5432/vizu_db
+      # --- CORREÇÃO ---
+      <<: *common-env
+      PYTHONPATH: /app/src:/app/libs
+      CREDENTIALS_ENCRYPTION_KEY: aemyqQi3hs1d_8-bOKnCs1nmdo5TaDEiEpcbTEiB6vE=
     depends_on:
-      - otel-collector
-      - postgres
+      postgres:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
 
   clientes_finais_api:
     container_name: clientes_finais_api
@@ -108,39 +226,117 @@ services:
       dockerfile: ./services/clientes_finais_api/Dockerfile
     ports:
       - "8004:8000"
+    volumes:
+      - ./services/clientes_finais_api/src:/home/appuser/app/src
+      - ./libs:/home/appuser/app/libs
     environment:
-      # PYTHONPATH alinhado com o WORKDIR /home/appuser/app do Dockerfile.
-      - PYTHONPATH=/home/appuser/app:/home/appuser/app/libs
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - DATABASE_URL=postgresql://user:password@postgres:5432/vizu_db
+      # --- CORREÇÃO (Onde o erro aconteceu) ---
+      <<: *common-env
+      PYTHONPATH: /home/appuser/app:/home/appuser/app/libs
     depends_on:
-      - otel-collector
-      - postgres
+      postgres:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
     profiles:
       - "clientes-finais"
       - "full"
 
-  # --- Analytics API (O SERVIÇO QUE FALTAVA) ---
   analytics_api:
     container_name: analytics_api
     platform: linux/amd64
-    # IMPORTANTE: Usamos 'image' em vez de 'build' para usar a imagem
-    # que acabámos de construir com o 'tar'.
-    image: vizu/analytics-api:latest
+    build:
+      context: .
+      dockerfile: ./services/analytics_api/Dockerfile
     ports:
-      - "8005:80" # A API expõe 80 (do Dockerfile), mapeamos para 8005 no seu Mac
+      - "8005:80"
     environment:
-      # A URL do banco que funciona DENTRO da rede do compose.
-      - DATABASE_URL=postgresql://user:password@postgres:5432/vizu_db
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      # --- CORREÇÃO ---
+      <<: *common-env
     depends_on:
-      - otel-collector
-      - postgres
+      postgres:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+
+  evaluation_suite:
+    build:
+      context: .
+      dockerfile: ./ferramentas/evaluation_suite/Dockerfile
+    ports:
+      - "8501:8501"
+    env_file:
+      - ./ferramentas/evaluation_suite/.env.example
+    environment:
+      # --- CORREÇÃO ---
+      # Convertido de lista para mapa para consistência
+      PYTHONPATH: /app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_shared_models/src
+    depends_on:
+      postgres:
+        condition: service_healthy
+      atendente_core:
+        condition: service_started
+
+  embedding_service:
+    container_name: vizu_embedding_service
+    platform: linux/amd64
+    build:
+      context: . # Raiz do monorepo
+      dockerfile: ./services/embedding_service/Dockerfile # Caminho para o Dockerfile (Passo 7)
+    ports:
+      # Expõe a porta que definimos para o serviço
+      - "11435:11435"
+    volumes:
+      # Volume para hot-reload do código do serviço
+      - ./services/embedding_service/src/embedding_service:/home/appuser/app/embedding_service
+      # Volume para hot-reload das libs (dependência)
+      - ./libs:/home/appuser/app/libs
+    environment:
+      # Usa a âncora de ambiente comum
+      <<: *common-env
+      # Podemos sobrescrever/definir variáveis de ambiente do config.py (Passo 4)
+      EMBEDDING_MODEL_DEVICE: "cpu" # Garante que use CPU (padrão seguro)
+    healthcheck:
+      # Bate no endpoint /health que criamos no main.py (Passo 6)
+      test: ["CMD", "curl", "-f", "http://localhost:11435/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  tool_pool_api:
+    container_name: vizu_tool_pool_api
+    platform: linux/amd64
+    build:
+      # O contexto deve ser a raiz do monorepo ('.')
+      context: .
+      # O caminho para o Dockerfile que você forneceu
+      dockerfile: ./services/tool_pool_api/Dockerfile
+    ports:
+      # Mapeia a porta 8006 (host) para 8000 (container, conforme Dockerfile)
+      - "8006:8000"
+    volumes:
+      # Volume para o código-fonte da API (para hot-reload)
+      - ./services/tool_pool_api/src:/app/services/tool_pool_api/src
+      # Volume para todas as libs (para hot-reload)
+      - ./libs:/app/libs
+    environment:
+      # Reutiliza as variáveis comuns de banco e observabilidade
+      <<: *common-env
+      # Define o PYTHONPATH para que o Python encontre o 'src' e as 'libs'
+      # Isso espelha a estrutura de pastas do Dockerfile
+    depends_on:
+      # Depende dos serviços que suas libs utilizam
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama_service:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
 
 # Bloco principal para definir volumes nomeados, que persistem dados.
 volumes:
   postgres_data:
-    # O driver padrão 'local' é usado se não especificado.
-  # --- Ferramenta de Gerenciamento de Banco de Dados ---
-  # Este serviço não é uma API, mas uma ferramenta CLI para operações de DB.
-  # Ele não fica rodando; nós o executamos sob demanda com 'docker-compose run'.
+  qdrant_data:
+  ollama_data:

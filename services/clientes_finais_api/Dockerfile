@@ -9,7 +9,7 @@ WORKDIR /app
 COPY ./libs ./libs
 COPY ./services/clientes_finais_api/pyproject.toml ./services/clientes_finais_api/poetry.lock* ./services/clientes_finais_api/
 WORKDIR /app/services/clientes_finais_api
-RUN poetry install --no-root --no-dev
+RUN poetry install --no-root
 
 
 # ---- 2. Final Stage ----

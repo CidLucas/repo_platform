@@ -12,8 +12,9 @@ COPY . .
 
 # Aponta para o diretório do nosso novo serviço
 WORKDIR /app/services/file_processing_worker
-RUN poetry install --no-root
-
+RUN --mount=type=cache,target=/root/.cache/pypoetry \
+    --mount=type=cache,target=/root/.cache/pip \
+    poetry install --no-root
 # --- ESTÁGIO 2: FINAL (PRODUÇÃO) ---
 FROM python:3.11-slim as final
 

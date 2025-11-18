@@ -1,0 +1,7 @@
+# .dockerignore na raiz do monorepo
+**/__pycache__
+**/.venv
+**/.git
+**/.pytest_cache
+**/.ipynb_checkpoints
+**/node_modules

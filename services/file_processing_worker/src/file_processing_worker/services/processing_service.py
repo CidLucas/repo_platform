@@ -9,13 +9,11 @@ from file_processing_worker.core.config import Settings
 from file_processing_worker.services.routing_service import RoutingService
 
 # --- INÍCIO DAS ADIÇÕES ---
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from vizu_qdrant_client.client import VizuQdrantClient
-from qdrant_client.http.models import Point
-# --- FIM DAS ADIÇÕES ---
-
+from qdrant_client.models import PointStruct
 logger = logging.getLogger(__name__)
 
 class ProcessingService:
@@ -153,7 +151,7 @@ class ProcessingService:
                 payload["text"] = chunk.page_content
 
                 points.append(
-                    Point(
+                    PointStruct(
                         id=point_id,
                         vector=vector,
                         payload=payload

@@ -25,8 +25,9 @@ COPY ./services/tool_pool_api/pyproject.toml ./services/tool_pool_api/poetry.loc
 WORKDIR /app/services/tool_pool_api
 
 # 4. INSTALE as dependências (sem a 'root', apenas dependências)
-RUN poetry install --no-root
-
+RUN --mount=type=cache,target=/root/.cache/pypoetry \
+    --mount=type=cache,target=/root/.cache/pip \
+    poetry install --no-root
 
 # Estágio 2: Final - A imagem de produção limpa
 FROM python:3.11-slim

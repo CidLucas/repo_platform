@@ -14,8 +14,9 @@ COPY . .
 # Aponta para o diretório do nosso novo serviço de embedding
 WORKDIR /app/services/embedding_service
 # Instala as dependências definidas no pyproject.toml (Passo 3)
-RUN poetry install --no-root
-
+RUN --mount=type=cache,target=/root/.cache/pypoetry \
+    --mount=type=cache,target=/root/.cache/pip \
+    poetry install --no-root
 # --- ESTÁGIO 2: FINAL (PRODUÇÃO) ---
 FROM python:3.11-slim as final
 

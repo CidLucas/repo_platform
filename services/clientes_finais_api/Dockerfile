@@ -3,9 +3,17 @@
 # ---- 1. Builder Stage ----
 # (Esta parte permanece exatamente a mesma)
 FROM python:3.11-slim as builder
-# ... (igual ao que já fizemos) ...
+
+ENV POETRY_NO_INTERACTION=1
+ENV POETRY_VIRTUALENVS_IN_PROJECT=true
+
+WORKDIR /app
+RUN pip install poetry
+
+COPY libs ./libs
+COPY services/clientes_finais_api/pyproject.toml services/clientes_finais_api/poetry.lock ./services/clientes_finais_api/
 WORKDIR /app/services/clientes_finais_api
-RUN poetry install --no-root --no-dev
+RUN poetry install --no-root
 
 
 # ---- 2. Final Stage ----

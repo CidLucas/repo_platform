@@ -1,63 +1,61 @@
-import { Box, Flex, Text, Heading, Select, HStack, useDisclosure } from '@chakra-ui/react';
+import { Box, Flex, Text, Heading, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon } from '@chakra-ui/react';
 import { MainLayout } from '../components/layouts/MainLayout';
 import { DashboardCard } from '../components/DashboardCard';
-import { ListCard } from '../components/ListCard'; // Import ListCard
-import React, { useState } from 'react'; // Import useState
-import { ProdutoDetailsModal } from '../components/ProdutoDetailsModal'; // Import ProdutoDetailsModal
+import { ListCard } from '../components/ListCard';
+import React, { useState, useEffect } from 'react'; // Added useEffect
+import { ProdutoDetailsModal } from '../components/ProdutoDetailsModal';
+import { getProdutos, Produto } from '../services/analyticsService'; // Import getProdutos and Produto interface
 
 function ProdutosPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [produtos, setProdutos] = useState<Produto[]>([]); // State for fetched produtos
+  const [loading, setLoading] = useState<boolean>(true); // Loading state
+  const [error, setError] = useState<string | null>(null); // Error state
+
+  useEffect(() => {
+    const fetchProdutosData = async () => {
+      try {
+        setLoading(true);
+        const data = await getProdutos();
+        setProdutos(data);
+      } catch (err: any) {
+        setError(err.message || 'Erro ao carregar produtos.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProdutosData();
+  }, []); // Empty dependency array means this runs once on mount
 
   const handleMiniCardClick = (item: any) => {
     setSelectedItem(item);
     onOpen();
   };
 
-  const sampleProdutos = [
-    {
-      id: "1",
-      title: "Produto A",
-      description: "Categoria: Eletrônicos",
-      status: "Disponível",
-      clientName: "Fornecedor X", // Using clientName for supplier name
-      precoUnitario: "R$ 150,00",
-      estoque: 100,
-      vendasMes: 50,
-      avaliacaoMedia: "4.5",
-      categoria: "Eletrônicos",
-      fornecedor: "Fornecedor X",
-      descricaoDetalhada: "Smartphone de última geração com câmera de alta resolução e bateria de longa duração."
-    },
-    {
-      id: "2",
-      title: "Produto B",
-      description: "Categoria: Vestuário",
-      status: "Esgotado",
-      clientName: "Fornecedor Y",
-      precoUnitario: "R$ 80,00",
-      estoque: 0,
-      vendasMes: 20,
-      avaliacaoMedia: "3.8",
-      categoria: "Vestuário",
-      fornecedor: "Fornecedor Y",
-      descricaoDetalhada: "Camiseta de algodão orgânico, confortável e durável."
-    },
-    {
-      id: "3",
-      title: "Produto C",
-      description: "Categoria: Alimentos",
-      status: "Disponível",
-      clientName: "Fornecedor Z",
-      precoUnitario: "R$ 10,00",
-      estoque: 500,
-      vendasMes: 200,
-      avaliacaoMedia: "4.9",
-      categoria: "Alimentos",
-      fornecedor: "Fornecedor Z",
-      descricaoDetalhada: "Café gourmet moído na hora, com grãos selecionados."
-    },
-  ];
+  // Conditional rendering for loading and error states
+  if (loading) {
+    return (
+      <MainLayout>
+        <Flex justify="center" align="center" height="100vh">
+          <Spinner size="xl" />
+        </Flex>
+      </MainLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <MainLayout>
+        <Flex justify="center" align="center" height="100vh">
+          <Alert status="error">
+            <AlertIcon />
+            {error}
+          </Alert>
+        </Flex>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -131,7 +129,7 @@ function ProdutosPage() {
           {/* Card Type 3: Últimos Produtos (ListCard) */}
           <ListCard
             title="Últimos Produtos"
-            items={sampleProdutos}
+            items={produtos} // Use fetched data
             onMiniCardClick={handleMiniCardClick}
             viewAllLink="/produtos/lista" // Link to the full list page
             cardBgColor="#FFFB97" // Pass the specific background color for products

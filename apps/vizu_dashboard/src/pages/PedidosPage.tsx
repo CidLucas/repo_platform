@@ -1,81 +1,61 @@
-import { Box, Flex, Text, Heading, Select, HStack, useDisclosure } from '@chakra-ui/react';
+import { Box, Flex, Text, Heading, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon } from '@chakra-ui/react';
 import { MainLayout } from '../components/layouts/MainLayout';
 import { DashboardCard } from '../components/DashboardCard';
 import { ListCard } from '../components/ListCard';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Added useEffect
 import { PedidoDetailsModal } from '../components/PedidoDetailsModal';
+import { getPedidos, Pedido } from '../services/analyticsService'; // Import getPedidos and Pedido interface
 
 function PedidosPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [pedidos, setPedidos] = useState<Pedido[]>([]); // State for fetched pedidos
+  const [loading, setLoading] = useState<boolean>(true); // Loading state
+  const [error, setError] = useState<string | null>(null); // Error state
+
+  useEffect(() => {
+    const fetchPedidosData = async () => {
+      try {
+        setLoading(true);
+        const data = await getPedidos();
+        setPedidos(data);
+      } catch (err: any) {
+        setError(err.message || 'Erro ao carregar pedidos.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPedidosData();
+  }, []); // Empty dependency array means this runs once on mount
 
   const handleMiniCardClick = (item: any) => {
     setSelectedItem(item);
     onOpen();
   };
 
-  const samplePedidos = [
-    {
-      id: "1",
-      title: "Pedido #001",
-      description: "Cliente: João Silva",
-      status: "Concluído",
-      clientName: "João Silva", // Added clientName
-      valorUnitario: "R$ 50,00",
-      enderecoEntrega: "Rua A, 123 - Cidade X",
-      cnpjFaturamento: "11.222.333/0001-44",
-      descricaoProdutos: "3x Garrafa de Prata, 1x Copo de Vidro",
-      modalContent: <Text>Detalhes do Pedido #001</Text>
-    },
-    {
-      id: "2",
-      title: "Pedido #002",
-      description: "Cliente: Maria Souza",
-      status: "Pendente",
-      clientName: "Maria Souza", // Added clientName
-      valorUnitario: "R$ 46,10",
-      enderecoEntrega: "Av. B, 456 - Cidade Y",
-      cnpjFaturamento: "55.666.777/0001-88",
-      descricaoProdutos: "2x Camiseta, 1x Calça Jeans",
-      modalContent: <Text>Detalhes do Pedido #002</Text>
-    },
-    {
-      id: "3",
-      title: "Pedido #003",
-      description: "Cliente: Pedro Santos",
-      status: "Concluído",
-      clientName: "Pedro Santos", // Added clientName
-      valorUnitario: "R$ 40,00",
-      enderecoEntrega: "Travessa C, 789 - Cidade Z",
-      cnpjFaturamento: "99.888.777/0001-22",
-      descricaoProdutos: "1x Livro de Receitas, 1x Caneta",
-      modalContent: <Text>Detalhes do Pedido #003</Text>
-    },
-    {
-      id: "4",
-      title: "Pedido #004",
-      description: "Cliente: Ana Costa",
-      status: "Em Andamento",
-      clientName: "Ana Costa", // Added clientName
-      valorUnitario: "R$ 50,00",
-      enderecoEntrega: "Rua D, 101 - Cidade W",
-      cnpjFaturamento: "12.345.678/0001-90",
-      descricaoProdutos: "5x Caderno, 5x Caneta",
-      modalContent: <Text>Detalhes do Pedido #004</Text>
-    },
-    {
-      id: "5",
-      title: "Pedido #005",
-      description: "Cliente: Carlos Lima",
-      status: "Pendente",
-      clientName: "Carlos Lima", // Added clientName
-      valorUnitario: "R$ 30,00",
-      enderecoEntrega: "Av. E, 202 - Cidade V",
-      cnpjFaturamento: "87.654.321/0001-09",
-      descricaoProdutos: "2x Pão, 1x Leite",
-      modalContent: <Text>Detalhes do Pedido #005</Text>
-    },
-  ];
+  // Conditional rendering for loading and error states
+  if (loading) {
+    return (
+      <MainLayout>
+        <Flex justify="center" align="center" height="100vh">
+          <Spinner size="xl" />
+        </Flex>
+      </MainLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <MainLayout>
+        <Flex justify="center" align="center" height="100vh">
+          <Alert status="error">
+            <AlertIcon />
+            {error}
+          </Alert>
+        </Flex>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -134,7 +114,7 @@ function PedidosPage() {
           {/* Card Type 2: List of Pedidos */}
           <ListCard
             title="Últimos Pedidos"
-            items={samplePedidos}
+            items={pedidos} // Use fetched data
             onMiniCardClick={handleMiniCardClick}
             viewAllLink="/pedidos/lista" // Link to the full list page
           />

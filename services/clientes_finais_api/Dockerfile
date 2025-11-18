@@ -3,7 +3,11 @@
 # ---- 1. Builder Stage ----
 # (Esta parte permanece exatamente a mesma)
 FROM python:3.11-slim as builder
+RUN pip install poetry
 # ... (igual ao que já fizemos) ...
+WORKDIR /app
+COPY ./libs ./libs
+COPY ./services/clientes_finais_api/pyproject.toml ./services/clientes_finais_api/poetry.lock* ./services/clientes_finais_api/
 WORKDIR /app/services/clientes_finais_api
 RUN poetry install --no-root --no-dev
 

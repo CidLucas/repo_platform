@@ -1,63 +1,61 @@
-import { Box, Flex, Text, Heading, Select, HStack, useDisclosure } from '@chakra-ui/react';
+import { Box, Flex, Text, Heading, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon } from '@chakra-ui/react';
 import { MainLayout } from '../components/layouts/MainLayout';
 import { DashboardCard } from '../components/DashboardCard';
-import { ListCard } from '../components/ListCard'; // Import ListCard
-import React, { useState } from 'react'; // Import useState
-import { FornecedorDetailsModal } from '../components/FornecedorDetailsModal'; // Import FornecedorDetailsModal
+import { ListCard } from '../components/ListCard';
+import React, { useState, useEffect } from 'react'; // Added useEffect
+import { FornecedorDetailsModal } from '../components/FornecedorDetailsModal';
+import { getFornecedores, Fornecedor } from '../services/analyticsService'; // Import getFornecedores and Fornecedor interface
 
 function FornecedoresPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]); // State for fetched fornecedores
+  const [loading, setLoading] = useState<boolean>(true); // Loading state
+  const [error, setError] = useState<string | null>(null); // Error state
+
+  useEffect(() => {
+    const fetchFornecedoresData = async () => {
+      try {
+        setLoading(true);
+        const data = await getFornecedores();
+        setFornecedores(data);
+      } catch (err: any) {
+        setError(err.message || 'Erro ao carregar fornecedores.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchFornecedoresData();
+  }, []); // Empty dependency array means this runs once on mount
 
   const handleMiniCardClick = (item: any) => {
     setSelectedItem(item);
     onOpen();
   };
 
-  const sampleFornecedores = [
-    {
-      id: "1",
-      title: "Fornecedor Alpha",
-      description: "Tipo: Matéria-prima",
-      status: "Ativo",
-      nome: "Fornecedor Alpha Ltda.",
-      totalFornecido: "R$ 500K",
-      pedidosAtivos: 15,
-      avaliacaoMedia: "4.7",
-      tempoResposta: "2h",
-      tipo: "Matéria-prima",
-      contatoPrincipal: "João Silva",
-      endereco: "Rua das Flores, 123 - SP"
-    },
-    {
-      id: "2",
-      title: "Fornecedor Beta",
-      description: "Tipo: Componentes",
-      status: "Ativo",
-      nome: "Beta Componentes S.A.",
-      totalFornecido: "R$ 300K",
-      pedidosAtivos: 8,
-      avaliacaoMedia: "4.2",
-      tempoResposta: "4h",
-      tipo: "Componentes Eletrônicos",
-      contatoPrincipal: "Maria Souza",
-      endereco: "Av. Central, 456 - RJ"
-    },
-    {
-      id: "3",
-      title: "Fornecedor Gama",
-      description: "Tipo: Serviços",
-      status: "Inativo",
-      nome: "Gama Serviços Ltda.",
-      totalFornecido: "R$ 100K",
-      pedidosAtivos: 0,
-      avaliacaoMedia: "3.5",
-      tempoResposta: "12h",
-      tipo: "Serviços de TI",
-      contatoPrincipal: "Pedro Santos",
-      endereco: "Praça da Sé, 789 - MG"
-    },
-  ];
+  // Conditional rendering for loading and error states
+  if (loading) {
+    return (
+      <MainLayout>
+        <Flex justify="center" align="center" height="100vh">
+          <Spinner size="xl" />
+        </Flex>
+      </MainLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <MainLayout>
+        <Flex justify="center" align="center" height="100vh">
+          <Alert status="error">
+            <AlertIcon />
+            {error}
+          </Alert>
+        </Flex>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -95,7 +93,7 @@ function FornecedoresPage() {
         
         {/* Grid of DashboardCards */}
         <Flex wrap="wrap" justify="center" gap="16px">
-          {/* Card Type 1: Title, Graph, Scorecard (Large) */}
+          {/* Card Type 1: Performance de Vendas */}
           <DashboardCard
             title="Performance de Vendas"
             size="large"
@@ -125,7 +123,7 @@ function FornecedoresPage() {
           {/* Card Type 3: Últimos Fornecedores (ListCard) */}
           <ListCard
             title="Últimos Fornecedores"
-            items={sampleFornecedores}
+            items={fornecedores} // Use fetched data
             onMiniCardClick={handleMiniCardClick}
             viewAllLink="/fornecedores/lista" // Link to the full list page
             cardBgColor="#B2E7FF" // Pass the specific background color for suppliers

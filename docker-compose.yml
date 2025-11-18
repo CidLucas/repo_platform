@@ -102,29 +102,6 @@ services:
       # Falhas de healthcheck durante este período não contam.
       start_period: 300s
 
-  atendente_core:
-    container_name: vizu_atendente_core
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/atendente_core/Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      # --- CORREÇÃO ---
-      <<: [ *common-env, *atendente-env ]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      ollama_service:
-        condition: service_healthy
-      otel-collector:
-        condition: service_started
-    volumes:
-      - ./services/atendente_core/src:/app/atendente_core
-      - ./libs:/app/libs
 
   file_upload_api:
     container_name: vizu_file_upload_api
@@ -155,46 +132,46 @@ services:
       timeout: 5s
       retries: 5
 
-  file_processing_worker:
-    container_name: vizu_file_processing_worker
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/file_processing_worker/Dockerfile #
-    ports:
-      # Mapeia para a porta 8002 do host (o container expõe 8000)
-      - "8002:8000"
-    volumes:
-      # Volume para hot-reload
-      - ./services/file_processing_worker/src/file_processing_worker:/home/appuser/app/file_processing_worker
-      - ./libs:/home/appuser/app/libs
-    environment:
-      <<: *common-env
-      # Variáveis específicas do config.py
-      # !! IMPORTANTE: Preencha com seus valores !!
-      GCP_PROJECT_ID: "seu-projeto-gcp"
-      PUBSUB_SUBSCRIPTION_ID: "sua-subscription-id-pubsub"
-      GCS_BUCKET_NAME: "seu-bucket-gcs"
-      QDRANT_COLLECTION_NAME: "vizu_knowledge_base" # Ou o nome que preferir
+# file_processing_worker:
+#   container_name: vizu_file_processing_worker
+#   platform: linux/amd64
+#   build:
+#     context: .
+#     dockerfile: ./services/file_processing_worker/Dockerfile #
+#   ports:
+#     # Mapeia para a porta 8002 do host (o container expõe 8000)
+#     - "8002:8000"
+#   volumes:
+#     # Volume para hot-reload
+#     - ./services/file_processing_worker/src/file_processing_worker:/home/appuser/app/file_processing_worker
+#     - ./libs:/home/appuser/app/libs
+#   environment:
+#     <<: *common-env
+#     # Variáveis específicas do config.py
+#     # !! IMPORTANTE: Preencha com seus valores !!
+#     GCP_PROJECT_ID: "seu-projeto-gcp"
+#     PUBSUB_SUBSCRIPTION_ID: "sua-subscription-id-pubsub"
+#     GCS_BUCKET_NAME: "seu-bucket-gcs"
+#     QDRANT_COLLECTION_NAME: "vizu_knowledge_base" # Ou o nome que preferir
 
-      # Aponta para os nomes dos serviços DENTRO do Docker
-      QDRANT_HOST: "qdrant_db"
-      QDRANT_PORT: "6334" # Porta HTTP do Qdrant
+#     # Aponta para os nomes dos serviços DENTRO do Docker
+#     QDRANT_HOST: "qdrant_db"
+#     QDRANT_PORT: "6334" # Porta HTTP do Qdrant
 
-      # Sobrescreve a URL do cliente de embedding (Passo 2)
-      EMBEDDING_SERVICE_URL: "http://embedding_service:11435"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      qdrant_db: # <-- Dependência crucial
-        condition: service_healthy
-      embedding_service: # <-- Dependência crucial
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"] #
-      interval: 10s
-      timeout: 5s
-      retries: 5
+#     # Sobrescreve a URL do cliente de embedding (Passo 2)
+#     EMBEDDING_SERVICE_URL: "http://embedding_service:11435"
+#   depends_on:
+#     postgres:
+#       condition: service_healthy
+#     qdrant_db: # <-- Dependência crucial
+#       condition: service_healthy
+#     embedding_service: # <-- Dependência crucial
+#       condition: service_healthy
+#   healthcheck:
+#     test: ["CMD", "curl", "-f", "http://localhost:8000/health"] #
+#     interval: 10s
+#     timeout: 5s
+#     retries: 5
 
   clients_api:
     container_name: clients_api
@@ -274,34 +251,33 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      atendente_core:
-        condition: service_started
 
-  embedding_service:
-    container_name: vizu_embedding_service
-    platform: linux/amd64
-    build:
-      context: . # Raiz do monorepo
-      dockerfile: ./services/embedding_service/Dockerfile # Caminho para o Dockerfile (Passo 7)
-    ports:
-      # Expõe a porta que definimos para o serviço
-      - "11435:11435"
-    volumes:
-      # Volume para hot-reload do código do serviço
-      - ./services/embedding_service/src/embedding_service:/home/appuser/app/embedding_service
-      # Volume para hot-reload das libs (dependência)
-      - ./libs:/home/appuser/app/libs
-    environment:
-      # Usa a âncora de ambiente comum
-      <<: *common-env
-      # Podemos sobrescrever/definir variáveis de ambiente do config.py (Passo 4)
-      EMBEDDING_MODEL_DEVICE: "cpu" # Garante que use CPU (padrão seguro)
-    healthcheck:
-      # Bate no endpoint /health que criamos no main.py (Passo 6)
-      test: ["CMD", "curl", "-f", "http://localhost:11435/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+
+# embedding_service:
+#   container_name: vizu_embedding_service
+#   platform: linux/amd64
+#   build:
+#     context: . # Raiz do monorepo
+#     dockerfile: ./services/embedding_service/Dockerfile # Caminho para o Dockerfile (Passo 7)
+#   ports:
+#     # Expõe a porta que definimos para o serviço
+#     - "11435:11435"
+#   volumes:
+#     # Volume para hot-reload do código do serviço
+#     - ./services/embedding_service/src/embedding_service:/home/appuser/app/embedding_service
+#     # Volume para hot-reload das libs (dependência)
+#     - ./libs:/home/appuser/app/libs
+#   environment:
+#     # Usa a âncora de ambiente comum
+#     <<: *common-env
+#     # Podemos sobrescrever/definir variáveis de ambiente do config.py (Passo 4)
+#     EMBEDDING_MODEL_DEVICE: "cpu" # Garante que use CPU (padrão seguro)
+#   healthcheck:
+#     # Bate no endpoint /health que criamos no main.py (Passo 6)
+#     test: ["CMD", "curl", "-f", "http://localhost:11435/health"]
+#     interval: 10s
+#     timeout: 5s
+#     retries: 5
 
   tool_pool_api:
     container_name: vizu_tool_pool_api

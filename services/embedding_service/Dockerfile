@@ -2,39 +2,38 @@
 
 # --- ESTÁGIO 1: BUILDER ---
 FROM python:3.11-slim as builder
+RUN pip install poetry
 
-
-ENV POETRY_NO_INTERACTION=1
-ENV POETRY_VIRTUALENVS_IN_PROJECT=true
+# New strategy for virtual environment
+ENV VIRTUAL_ENV=/opt/pysetup/.venv
+ENV PATH="/opt/pysetup/.venv/bin:$PATH"
+ENV POETRY_VIRTUALENVS_CREATE=false
 
 WORKDIR /app
-RUN pip install poetry
-COPY . .
+# Copy all libs to /app/libs
+COPY ./libs ./libs
 
-# Aponta para o diretório do nosso novo serviço de embedding
-WORKDIR /app/services/embedding_service
-# Instala as dependências definidas no pyproject.toml (Passo 3)
-RUN --mount=type=cache,target=/root/.cache/pypoetry \
-    --mount=type=cache,target=/root/.cache/pip \
-    poetry install --no-root
+WORKDIR /app/services/embedding_service # Change WORKDIR to the service directory
+COPY ./services/embedding_service/pyproject.toml ./services/embedding_service/poetry.lock* ./
+RUN python -m venv $VIRTUAL_ENV
+RUN poetry install --no-root --sync --no-interaction
+
+
 # --- ESTÁGIO 2: FINAL (PRODUÇÃO) ---
 FROM python:3.11-slim as final
+
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --create-home --shell /bin/bash appuser
 USER appuser
 WORKDIR /home/appuser/app
 
 ENV PYTHONPATH="/home/appuser/app:/home/appuser/app/libs"
-ENV PATH="/home/appuser/app/.venv/bin:$PATH"
 
-# Copia o .venv do embedding_service
-COPY --from=builder --chown=appuser:appuser /app/services/embedding_service/.venv ./.venv
-# Copia as libs (igual ao molde)
-COPY --from=builder --chown=appuser:appuser /app/libs ./libs
+COPY --from=builder /opt/pysetup/.venv /opt/pysetup/.venv
+ENV PATH="/opt/pysetup/.venv/bin:$PATH"
 
-# Copia o código-fonte do embedding_service, respeitando a sua estrutura
-# Origem: ./services/embedding_service/src/embedding_service
-# Destino: ./embedding_service
+COPY --from=builder /app/libs ./libs
 COPY --chown=appuser:appuser ./services/embedding_service/src/embedding_service ./embedding_service
 
 USER appuser
@@ -43,4 +42,4 @@ EXPOSE 11435
 
 # Aponta o CMD para o módulo 'embedding_service' (que copiamos acima)
 # e seu arquivo 'main', variável 'app', na porta 11435.
-CMD ["/home/appuser/app/.venv/bin/python", "-m", "uvicorn", "embedding_service.main:app", "--host", "0.0.0.0", "--port", "11435"]
+CMD ["/opt/pysetup/.venv/bin/python", "-m", "uvicorn", "embedding_service.main:app", "--host", "0.0.0.0", "--port", "11435"]

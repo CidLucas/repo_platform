@@ -2,7 +2,8 @@ import { Box, Text, Flex, Table, Thead, Tbody, Tr, Th, Td, Button, useDisclosure
 import { MainLayout } from '../components/layouts/MainLayout';
 import React, { useState, useEffect } from 'react';
 import { ProdutoDetailsModal } from '../components/ProdutoDetailsModal';
-import { getProdutos, Produto } from '../services/analyticsService'; // Import getProdutos and Produto interface
+import { getProdutos } from '../services/analyticsService';
+import type { Produto } from '../services/analyticsService';
 
 function ProdutosListPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();

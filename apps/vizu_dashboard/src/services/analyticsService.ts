@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8005/api'; // Assuming this is the base URL for your Analytics API
+const API_BASE_URL = 'http://localhost:8004/api'; // Assuming this is the base URL for your Analytics API
 
 // --- Type Definitions ---
 export interface Pedido {

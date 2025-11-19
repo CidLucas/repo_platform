@@ -2,7 +2,8 @@ import { Box, Text, Flex, Table, Thead, Tbody, Tr, Th, Td, Button, useDisclosure
 import { MainLayout } from '../components/layouts/MainLayout';
 import React, { useState, useEffect } from 'react';
 import { FornecedorDetailsModal } from '../components/FornecedorDetailsModal';
-import { getFornecedores, Fornecedor } from '../services/analyticsService'; // Import getFornecedores and Fornecedor interface
+import { getFornecedores } from '../services/analyticsService';
+import type { Fornecedor } from '../services/analyticsService';
 
 function FornecedoresListPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();

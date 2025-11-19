@@ -4,7 +4,8 @@ import { DashboardCard } from '../components/DashboardCard';
 import { ListCard } from '../components/ListCard';
 import React, { useState, useEffect } from 'react'; // Added useEffect
 import { FornecedorDetailsModal } from '../components/FornecedorDetailsModal';
-import { getFornecedores, Fornecedor } from '../services/analyticsService'; // Import getFornecedores and Fornecedor interface
+import { getFornecedores } from '../services/analyticsService';
+import type { Fornecedor } from '../services/analyticsService';
 
 function FornecedoresPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();

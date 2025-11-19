@@ -32,9 +32,9 @@ def health_check():
     logger.info("Health check solicitado.")
     return {"status": "ok", "service": "analytics-api", "client_id_configurado": settings.MOCK_CLIENT_ID}
 
-# Inclui todas as rotas (Home, Rankings, Detalhe) com prefixo /api/v1
-logger.info("Incluindo rotas da API com prefixo /api/v1")
-app.include_router(api_router, prefix="/api/v1")
+# Inclui todas as rotas (Home, Rankings, Detalhe) com prefixo /api
+logger.info("Incluindo rotas da API com prefixo /api")
+app.include_router(api_router, prefix="/api")
 
 # (Opcional, mas recomendado para desenvolvimento local com React)
 # Configurar CORS se o frontend estiver noutro domínio (ex: localhost:3000)
@@ -43,6 +43,8 @@ from fastapi.middleware.cors import CORSMiddleware
 origins = [
     "http://localhost:3000", # Assumindo que o React corre na porta 3000
     "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
     # Adicionar a URL do frontend em produção/staging
 ]
 

@@ -14,7 +14,7 @@ router = APIRouter()
 
 # --- Endpoint para Módulo FORNECEDORES ---
 @router.get(
-    "/fornecedores/overview",
+    "/fornecedores",
     response_model=FornecedoresOverviewResponse,
     summary="Visão Geral Fornecedores (Nível 2)",
     tags=["Nível 2 - Módulos"]
@@ -28,7 +28,7 @@ def get_fornecedores_overview_endpoint(
 
 # --- Endpoint para Módulo CLIENTES ---
 @router.get(
-    "/clientes/overview",
+    "/clientes",
     response_model=ClientesOverviewResponse,
     summary="Visão Geral Clientes (Nível 2)",
     tags=["Nível 2 - Módulos"]
@@ -42,7 +42,7 @@ def get_clientes_overview_endpoint(
 
 # --- Endpoint para Módulo PRODUTOS ---
 @router.get(
-    "/produtos/overview",
+    "/produtos",
     response_model=ProdutosOverviewResponse,
     summary="Visão Geral Produtos (Nível 2)",
     tags=["Nível 2 - Módulos"]
@@ -56,7 +56,7 @@ def get_produtos_overview_endpoint(
 
 # --- Endpoint para Módulo PEDIDOS ---
 @router.get(
-    "/pedidos/overview",
+    "/pedidos",
     response_model=PedidosOverviewResponse,
     summary="Visão Geral Pedidos (Nível 2)",
     tags=["Nível 2 - Módulos"]

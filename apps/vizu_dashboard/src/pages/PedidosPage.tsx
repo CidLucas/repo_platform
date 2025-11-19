@@ -4,7 +4,8 @@ import { DashboardCard } from '../components/DashboardCard';
 import { ListCard } from '../components/ListCard';
 import React, { useState, useEffect } from 'react'; // Added useEffect
 import { PedidoDetailsModal } from '../components/PedidoDetailsModal';
-import { getPedidos, Pedido } from '../services/analyticsService'; // Import getPedidos and Pedido interface
+import { getPedidos } from '../services/analyticsService';
+import type { Pedido } from '../services/analyticsService';
 
 function PedidosPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();

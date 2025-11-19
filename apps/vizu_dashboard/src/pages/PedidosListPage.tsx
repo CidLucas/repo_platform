@@ -2,7 +2,8 @@ import { Box, Text, Flex, Table, Thead, Tbody, Tr, Th, Td, Button, useDisclosure
 import { MainLayout } from '../components/layouts/MainLayout';
 import React, { useState, useEffect } from 'react';
 import { PedidoDetailsModal } from '../components/PedidoDetailsModal';
-import { getPedidos, Pedido } from '../services/analyticsService'; // Import getPedidos and Pedido interface
+import { getPedidos } from '../services/analyticsService';
+import type { Pedido } from '../services/analyticsService';
 
 function PedidosListPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();

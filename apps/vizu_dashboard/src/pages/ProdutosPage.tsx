@@ -4,7 +4,8 @@ import { DashboardCard } from '../components/DashboardCard';
 import { ListCard } from '../components/ListCard';
 import React, { useState, useEffect } from 'react'; // Added useEffect
 import { ProdutoDetailsModal } from '../components/ProdutoDetailsModal';
-import { getProdutos, Produto } from '../services/analyticsService'; // Import getProdutos and Produto interface
+import { getProdutos } from '../services/analyticsService';
+import type { Produto } from '../services/analyticsService';
 
 function ProdutosPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();

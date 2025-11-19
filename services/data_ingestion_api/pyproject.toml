@@ -25,8 +25,8 @@ db-dtypes = "^1.2.0"
 
 # --- DEPENDÊNCIAS INTERNAS DO MONOREPO (LINKS PARA LIBS/) ---
 # O Poetry resolve o caminho relativo para instalar em modo editável
-vizu-db-connector = {path = "../../libs/vizu_db_connector", develop = true}
-vizu-shared-models = {path = "../../libs/vizu_shared_models", develop = true}
+vizu-db-connector = {path = "/app/libs/vizu_db_connector", develop = true}
+vizu-shared-models = {path = "/app/libs/vizu_shared_models", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 # Essenciais para Testabilidade

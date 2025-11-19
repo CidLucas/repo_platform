@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "vizu-models"
+version = "0.1.0"
+description = "Single source of truth for Vizu data models (SQLModel)."
+authors = ["Gemini"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+sqlmodel = "^0.0.16"
+psycopg2-binary = "^2.9.9" # Necessário para o dialeto postgresql
+pydantic = {extras = ["email"], version = "^2.7.1"}
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

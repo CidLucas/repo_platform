@@ -1,6 +1,5 @@
 from sqlalchemy.orm import Session
-from vizu_db_connector.models.fonte_de_dados import FonteDeDados, TipoFonte
-from vizu_db_connector.models.cliente_vizu import ClienteVizu
+from vizu_models import FonteDeDados, TipoFonte, ClienteVizu
 from vizu_models.cliente_vizu import TipoCliente, TierCliente
 
 def test_create_cliente_vizu(db_session: Session):

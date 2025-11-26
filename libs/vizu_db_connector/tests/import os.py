@@ -7,15 +7,13 @@ from typing import Dict, Union, Any
 
 # IMPORTAÇÕES CHAVE PARA O ORM METADATA
 # Importa a Base que contém o Metadata
-from vizu_db_connector.models.base import Base # <--- CORREÇÃO: Importa a classe Base
+from vizu_models import Base  # <--- Usa Base do pacote vizu_models
 
 # Importa os Models que criam as tabelas (garante que todos os models sejam registrados na Base.metadata)
-import vizu_db_connector.models.cliente_vizu
-import vizu_db_connector.models.credencial_servico_externo
+import vizu_models  # garante que submódulos e models sejam carregados
 
-# Importa o modelo ORM do próprio DB Connector
-from vizu_db_connector.models.cliente_vizu import ClienteVizu
-from vizu_db_connector.models.credencial_servico_externo import CredencialServicoExterno
+# Importa o modelo ORM do próprio DB Connector (agora vindo do pacote compartilhado)
+from vizu_models import ClienteVizu, CredencialServicoExterno
 
 # Importa os modelos compartilhados para tipagem (Agnosticismo)
 from vizu_models.cliente_vizu import TipoCliente, TierCliente

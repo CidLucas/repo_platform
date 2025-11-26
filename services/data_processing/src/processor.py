@@ -6,7 +6,7 @@ import pandas as pd
 
 # Importar ferramentas do monorepo (usaremos mock por enquanto)
 # No futuro, vizu_db_connector, vizu_secret_manager_client
-from vizu_db_connector.models.credencial_servico_externo import CredencialServicoExterno
+from vizu_models import CredencialServicoExterno
 # Importamos o conector real do outro serviço
 from data_ingestion_api.connectors.bigquery_connector import BigQueryConnector 
 

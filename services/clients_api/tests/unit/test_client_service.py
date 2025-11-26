@@ -2,7 +2,7 @@
 from unittest.mock import MagicMock
 from clients_api.services.client_service import ClienteVizuService
 from vizu_models.cliente_vizu import ClienteVizuCreate
-from vizu_db_connector.models.cliente_vizu import ClienteVizu
+from vizu_models import ClienteVizu
 
 def test_create_cliente_vizu_service():
     """

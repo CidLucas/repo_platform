@@ -8,6 +8,7 @@ from .cliente_final import ClienteFinal, ClienteFinalCreate, ClienteFinalRead, C
 from .conversa import ConversaBase, MensagemBase, Remetente
 from .vizu_client_context import VizuClientContext
 from sqlmodel import SQLModel
+from .enums import TipoCliente, TierCliente, TipoFonte
 
 class Base(SQLModel):
     """
@@ -44,5 +45,9 @@ __all__ = [
     'ConversaBase',
     'MensagemBase',
     'Remetente',
-    'VizuClientContext'
+    'VizuClientContext',
+    'TipoCliente',
+    'TierCliente',
+    'TipoFonte'
+
 ]

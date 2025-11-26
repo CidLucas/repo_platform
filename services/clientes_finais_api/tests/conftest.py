@@ -13,7 +13,7 @@ from clientes_finais_api.main import create_app
 # 2. Importa as dependências que serão sobrescritas
 from clientes_finais_api.core.config import Settings, get_settings
 from vizu_db_connector.core import get_db
-from vizu_db_connector.models.base import Base
+from vizu_models import Base
 
 TEST_DATABASE_URL = "postgresql://user:password@localhost:5433/vizu_db_test"
 engine = create_engine(TEST_DATABASE_URL)

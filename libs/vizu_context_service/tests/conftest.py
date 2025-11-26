@@ -1,10 +1,10 @@
 import pytest
 import uuid
 from unittest.mock import MagicMock
-from vizu_shared_models.cliente_vizu import VizuClientContext
+from vizu_models.vizu_client_context import VizuClientContext
 
-from vizu_shared_models.configuracao import ConfiguracaoNegocioBase
-from vizu_shared_models.credencial_servico_externo import CredencialServicoExternoBase
+from vizu_models.configuracao import ConfiguracaoNegocioBase
+from vizu_models.credencial_servico_externo import CredencialServicoExternoBase
 # Criamos fixtures reutilizáveis para nossos dados de mock
 # (Este arquivo pode ser copiado para as outras libs de factory)
 

@@ -7,8 +7,8 @@ from langchain_core.runnables.base import Runnable
 from sqlalchemy import create_engine
 
 # Dependências de outras libs Vizu
-from vizu_shared_models.cliente_vizu import VizuClientContext
-from vizu_shared_models.credencial_servico_externo import CredencialServicoExternoCreate
+from vizu_models.vizu_client_context import VizuClientContext
+from vizu_models.credencial_servico_externo import CredencialServicoExternoCreate
 from vizu_llm_service.client import ModelTier, ModelTask # Importamos os enums
 
 logger = logging.getLogger(__name__)

@@ -8,7 +8,7 @@ asyncpg~=0.29.0  # Driver assíncrono para o PostgresConnector
 
 # Bibliotecas Internas da Vizu (Instaladas em modo editável - Essencial para Monorepo)
 -e ../../libs/vizu_db_connector/
--e ../../libs/vizu_shared_models/
+-e ../../libs/vizu_models/
 
 # Dependências de Teste (Instaladas no mesmo ambiente virtual)
 pytest~=8.2.2

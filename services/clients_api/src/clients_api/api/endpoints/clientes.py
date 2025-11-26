@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 # Modelos compartilhados que definem o contrato da API
-from vizu_shared_models.cliente_vizu import (
+from vizu_models import (
     ClienteVizuCreate,
     ClienteVizuRead,
     ClienteVizuUpdate,

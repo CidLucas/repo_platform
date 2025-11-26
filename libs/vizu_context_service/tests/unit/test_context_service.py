@@ -8,7 +8,7 @@ from vizu_context_service.context_service import ContextService
 from vizu_context_service.redis_service import RedisService
 
 # Modelos que usamos
-from vizu_shared_models.cliente_vizu import VizuClientContext
+from vizu_models.vizu_client_context import VizuClientContext
 
 
 def test_get_client_context_cache_hit(

@@ -27,7 +27,7 @@ RUN useradd --create-home --shell /bin/bash appuser
 USER appuser
 WORKDIR /home/appuser/app
 
-ENV PYTHONPATH="/home/appuser/app:/home/appuser/app/libs"
+ENV PYTHONPATH="/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src"
 
 COPY --from=builder /opt/pysetup/.venv /opt/pysetup/.venv
 ENV PATH="/opt/pysetup/.venv/bin:$PATH"

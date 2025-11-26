@@ -6,7 +6,7 @@ FROM python:3.11-slim as builder
 # Instala o Poetry
 RUN pip install poetry
 ENV POETRY_NO_INTERACTION=1
-ENV POETRY_VIRTUALENVS_IN_PROJECT=true # Cria .venv dentro do diretório do projeto
+ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 WORKDIR /app
 
 # 1. COPIE as 'libs' primeiro.
@@ -44,7 +44,7 @@ COPY ./services/analytics_api/src ./src
 
 # Copia o código fonte das libs que a API usa em tempo de execução
 COPY ./libs/vizu-db-connector/src ./libs/vizu_db_connector/src
-COPY ./libs/vizu-shared-models/src ./libs/vizu_shared_models/src
+COPY ./libs/vizu_models/src ./libs/vizu_models/src
 
 # 7. AJUSTE o PATH para incluir os binários do venv (como o uvicorn)
 ENV PATH="/app/.venv/bin:$PATH"
@@ -52,7 +52,7 @@ ENV PATH="/app/.venv/bin:$PATH"
 # 8. AJUSTE o PYTHONPATH para que o Python encontre os módulos
 # Este é um passo CRÍTICO no nosso monorepo.
 # Ele diz ao Python para procurar em /app/src (analytics_api) e nas libs.
-ENV PYTHONPATH="/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_shared_models/src"
+ENV PYTHONPATH="/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src"
 
 # 9. DEFINA o comando de execução.
 # Expõe a porta 80 (padrão para Cloud Run e outros)

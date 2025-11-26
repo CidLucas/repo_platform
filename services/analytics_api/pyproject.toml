@@ -12,7 +12,7 @@ pandas = "^2.2.2"  # Para os cálculos (Silver -> Gold)
 
 # --- Dependências das nossas Bibliotecas Internas ---
 vizu-db-connector = { path = "../../libs/vizu_db_connector", develop = true }
-vizu-shared-models = { path = "../../libs/vizu_shared_models", develop = true }
+vizu_models = { path = "../../libs/vizu_models", develop = true }
 
 [tool.pytest.ini_options]
 pythonpath = [

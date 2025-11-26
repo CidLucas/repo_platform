@@ -10,7 +10,7 @@ import uuid
 # Importa a fábrica de sessões do setup de DB
 from .database import SessionLocal
 # Importa o modelo ORM que será usado para salvar e buscar
-from .models.credencial_servico_externo import CredencialServicoExterno
+from vizu_models import CredencialServicoExterno
 
 class VizuDBConnector:
     """

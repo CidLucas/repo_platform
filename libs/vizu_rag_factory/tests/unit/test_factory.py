@@ -7,7 +7,7 @@ from langchain_core.runnables.base import Runnable
 from vizu_rag_factory.factory import create_rag_runnable
 
 # Modelos que usamos
-from vizu_shared_models.cliente_vizu import VizuClientContext
+from vizu_models.vizu_client_context import VizuClientContext
 
 
 

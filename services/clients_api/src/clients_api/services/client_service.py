@@ -1,8 +1,7 @@
 # services/clients_api/src/clients_api/services/client_service.py (VERSÃO FINAL)
 from sqlalchemy.orm import Session
 from vizu_db_connector.crud import BaseCRUD # <-- CORREÇÃO: Importa da biblioteca compartilhada
-from vizu_shared_models.cliente_vizu import ClienteVizuCreate, ClienteVizuUpdate
-from vizu_db_connector.models.cliente_vizu import ClienteVizu
+from vizu_models import ClienteVizuCreate, ClienteVizuUpdate, ClienteVizu
 from ..core.security import create_api_key
 
 class ClienteVizuService(BaseCRUD[ClienteVizu, ClienteVizuCreate, ClienteVizuUpdate]):

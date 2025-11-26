@@ -11,12 +11,10 @@ sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), ".."
 
 # 2. Importar a nossa Base declarativa e todos os modelos
 # Importar a Base dá ao Alembic acesso aos metadados (nossas tabelas)
-from vizu_db_connector.models.base import Base
+from vizu_models import Base
+
 # Importar os módulos dos modelos garante que eles sejam registrados na Base
-import vizu_db_connector.models.cliente_vizu
-import vizu_db_connector.models.configuracao
-import vizu_db_connector.models.cliente_final
-import vizu_db_connector.models.conversa
+from vizu_models import __all__
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

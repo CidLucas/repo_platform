@@ -12,7 +12,8 @@ sqlalchemy = "^2.0.31"
 psycopg2-binary = "^2.9.9"
 alembic = "^1.13.2"
 pydantic-settings = "^2.3.4"
-vizu-shared-models = {path = "../vizu_shared_models", develop = true}
+vizu_models = {path = "../../libs/vizu_models", develop = true}
+sqlmodel = "^0.0.27"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"

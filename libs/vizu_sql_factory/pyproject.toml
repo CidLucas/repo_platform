@@ -19,7 +19,7 @@ sqlalchemy = "^2.0.31"
 # Dependências locais
 vizu_llm_service = {path = "../../libs/vizu_llm_service", develop = true}
 vizu_context_service = {path = "../../libs/vizu_context_service", develop = true}
-vizu_shared_models = {path = "../../libs/vizu_shared_models", develop = true}
+vizu_models = {path = "../../libs/vizu_models", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.2"

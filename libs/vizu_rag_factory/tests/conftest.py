@@ -1,7 +1,7 @@
 import pytest
 import uuid
-from vizu_shared_models.cliente_vizu import VizuClientContext
-from vizu_shared_models.credencial_servico_externo import CredencialServicoExternoBase
+from vizu_models.vizu_client_context import VizuClientContext
+from vizu_models.credencial_servico_externo import CredencialServicoExternoBase
 
 @pytest.fixture
 def mock_vizu_client_context() -> VizuClientContext:

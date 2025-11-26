@@ -1,10 +1,10 @@
 # services/data_ingestion_api/connectors/abstract_connector.py
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Generator 
-import pandas as pd 
+from typing import Dict, Any, List, Generator
+import pandas as pd
 
-# O conector abstrato deve usar a CredencialBase do vizu_shared_models (ou do schemas.py da API)
+# O conector abstrato deve usar a CredencialBase do vizu_models (ou do schemas.py da API)
 # Vamos assumir que ele recebe um dicionário de credenciais que ele DEVE obter do Secret Manager.
 
 # --- CLASSE DE EXCEÇÃO (FUNDAMENTAL PARA MODULARIZAÇÃO/TESTABILIDADE) ---
@@ -18,11 +18,11 @@ class AbstractDataConnector(ABC):
     Garante o princípio de Agnósticismo e Testabilidade, definindo um contrato
     comum para todas as fontes de dados.
     """
-    
+
     def __init__(self, credentials: Dict[str, Any]):
         """Inicializa o conector com as credenciais (que vieram do Secret Manager)."""
         self.credentials = credentials
-        
+
     @abstractmethod
     async def validate_connection(self) -> bool:
         """
@@ -30,21 +30,21 @@ class AbstractDataConnector(ABC):
         CRÍTICO: Deve ser a primeira ação assíncrona após receber as credenciais.
         """
         raise NotImplementedError
-        
+
     @abstractmethod
     async def fetch_schema(self) -> List[Dict[str, Any]]:
         """
         Busca e retorna o schema (tabelas, colunas, tipos) da fonte de dados.
         """
         raise NotImplementedError
-        
+
     @abstractmethod
     async def extract_data(self, query: str, client_id: str) -> List[Dict[str, Any]]:
         """
         Executa a query e extrai a massa de dados (passo do pipeline de ETL).
         """
         raise NotImplementedError
-        
+
     @abstractmethod
     def get_connection_string(self) -> str:
         """

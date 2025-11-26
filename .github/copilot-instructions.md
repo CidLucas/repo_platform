@@ -16,7 +16,7 @@ These notes help an AI coding agent be productive quickly in this monorepo. They
 - Top-level: `docker-compose.yml` — canonical local dev composition and service names (postgres, redis, otel-collector, atendente_core, clients_api, clientes_finais_api, etc.).
 - Service README examples: `services/atendente_core/README.md` — explains env vars and run/test commands.
 - Dockerfile pattern: `services/atendente_core/Dockerfile` — multi-stage build, Poetry in builder, copies `.venv`, sets `PYTHONPATH`. Use this as the canonical Docker pattern for other services.
-- Shared libs: `libs/` — examples: `vizu_db_connector`, `vizu_qdrant_client`, `vizu_shared_models`. These are referenced by services via PYTHONPATH or Poetry path deps.
+- Shared libs: `libs/` — examples: `vizu_db_connector`, `vizu_qdrant_client`, `vizu_models`. These are referenced by services via PYTHONPATH or Poetry path deps.
 
 3) Common developer workflows & commands
 - Local dev with Docker Compose (recommended): `docker compose up --build` (uses `docker-compose.yml`). Service names from the compose file are important when wiring env vars.
@@ -45,7 +45,7 @@ These notes help an AI coding agent be productive quickly in this monorepo. They
 
 6) Code patterns & places to edit
 - FastAPI apps: service entrypoints live under `services/*/src` and follow a package structure. E.g., `services/atendente_core/src/atendente_core/main.py` (module import path used by Dockerfile/uvicorn).
-- Shared model types: `libs/vizu_shared_models/src` — prefer updating shared models here and bumping references where used.
+- Shared model types: `libs/vizu_models/src` — prefer updating shared models here and bumping references where used.
 - DB migrations / operations: `services/db_manager` and `libs/vizu_db_connector`.
 
 7) Testing and CI notes

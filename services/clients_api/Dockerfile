@@ -1,3 +1,5 @@
+# services/clients_api/Dockerfile (Versão Corrigida)
+
 # Estágio 1: Builder - Instala as dependências (padrão Vizu)
 FROM --platform=linux/amd64 python:3.11-slim as builder
 
@@ -14,7 +16,6 @@ COPY services/clients_api/pyproject.toml services/clients_api/poetry.lock ./serv
 
 # Instala as dependências
 WORKDIR /app/services/clients_api
-# ---- CORREÇÃO FINAL AQUI ----
 # Removemos a flag '--without dev' porque o pyproject.toml deste serviço não tem um grupo [dev]
 RUN poetry install --no-root
 
@@ -33,10 +34,12 @@ COPY --from=builder /app/libs ./libs
 # Copia o código-fonte da aplicação
 COPY services/clients_api/src ./src
 
-
 # Configura o PATH para encontrar os executáveis do .venv e o PYTHONPATH para os imports
 ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/src:/app/libs"
+
+# CORREÇÃO: Adiciona explicitamente o caminho para as pastas 'src' das libs
+# que precisam ser importadas (vizu_db_connector e vizu_models)
+ENV PYTHONPATH="/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src"
 
 EXPOSE 8000
 

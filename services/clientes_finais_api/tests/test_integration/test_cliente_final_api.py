@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 # Não precisamos mais importar a 'app' aqui!
 # from clientes_finais_api.main import app
 
-from vizu_db_connector.models.cliente_vizu import ClienteVizu
-from vizu_shared_models.cliente_vizu import TipoCliente, TierCliente
+from vizu_models import ClienteVizu
+from vizu_models.cliente_vizu import TipoCliente, TierCliente
 from clientes_finais_api.api.dependencies import get_cliente_vizu_id_from_token
 
 def test_create_cliente_final_api(api_client: TestClient, db_session: Session):

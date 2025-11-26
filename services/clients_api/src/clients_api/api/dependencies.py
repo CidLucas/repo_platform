@@ -1,7 +1,6 @@
 # services/clients_api/src/clients_api/api/dependencies.py (VERSÃO CORRIGIDA)
 from vizu_db_connector.database import SessionLocal
-from vizu_db_connector.models.cliente_vizu import ClienteVizu
-from vizu_db_connector.models.configuracao import ConfiguracaoNegocio# <-- CORREÇÃO AQUI
+from vizu_models import ClienteVizu, ConfiguracaoNegocio# <-- CORREÇÃO AQUI
 from ..services.client_service import ClienteVizuService
 from ..services.config_service import ConfiguracaoService
 

@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 from vizu_db_connector.database import get_db_session
 
 # Nossos Schemas (Contratos da API)
-from clientes_finais_api.schemas.cliente_final_schemas import (
+from vizu_models import (
     ClienteFinalCreate,
-    ClienteFinalPublic,
+    ClienteFinalRead,
 )
 # Nossa Camada de Serviço (Lógica de Negócio)
 from clientes_finais_api.services.cliente_final_service import ClienteFinalService
@@ -34,7 +34,7 @@ def get_cliente_final_service(db: Session = Depends(get_db_session)) -> ClienteF
 # --- Endpoints da API ---
 @api_router.post(
     "/",
-    response_model=ClienteFinalPublic,
+    response_model=ClienteFinalRead,
     status_code=status.HTTP_201_CREATED,
     summary="Cria um novo Cliente Final",
 )
@@ -55,7 +55,7 @@ def create_cliente_final(
 
 @api_router.get(
     "/",
-    response_model=List[ClienteFinalPublic],
+    response_model=List[ClienteFinalRead],
     summary="Lista os Clientes Finais do Cliente Vizu autenticado",
 )
 def list_clientes_finais(

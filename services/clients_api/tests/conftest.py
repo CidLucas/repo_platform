@@ -10,7 +10,7 @@ project_root = Path(__file__).resolve().parents[3]
 # 2. Adiciona o diretório 'src' de cada biblioteca compartilhada ao sys.path.
 #    Isso deve ser feito ANTES de qualquer importação da aplicação.
 libs_path = project_root / "libs"
-sys.path.insert(0, str(libs_path / "vizu_shared_models" / "src"))
+sys.path.insert(0, str(libs_path / "vizu_models" / "src"))
 sys.path.insert(0, str(libs_path / "vizu_db_connector" / "src"))
 # --- FIM DA CORREÇÃO DE PATH ---
 
@@ -24,7 +24,7 @@ from sqlalchemy_utils import create_database, database_exists, drop_database
 
 from clients_api.main import create_app
 from clients_api.api.dependencies import get_db_session
-from vizu_db_connector.models import Base # Esta importação agora funcionará
+from vizu_models import Base
 
 # --- Configuração do Banco de Dados de Teste ---
 TEST_DATABASE_URL = "postgresql://user:password@localhost:5433/vizu_clients_api_test"

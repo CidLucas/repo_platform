@@ -4,5 +4,19 @@
       "command": "https://gofastmcp.com/mcp",
       "args": []
     }
+  },
+  "supabase": {
+    "type": "http",
+    "url": "https://mcp.supabase.com/mcp"
+  },
+  "playwright": {
+    "command": "npx",
+    "args": [
+      "@playwright/mcp@latest"
+    ]
+  },
+  "github": {
+    "type": "http",
+    "url": "https://api.githubcopilot.com/mcp/"
   }
 }

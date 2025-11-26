@@ -11,7 +11,7 @@ pandas = "^2.0.0" # Dependência para data_transformers.py
 
 # Dependência da nossa outra biblioteca compartilhada (o Pydantic)
 # Isso garante que o poetry saiba onde encontrar os modelos de schema
-vizu-shared-models = {path = "../vizu_shared_models", develop = true}
+vizu_models = {path = "../vizu_models", develop = true}
 
 
 [tool.poetry.group.dev.dependencies]

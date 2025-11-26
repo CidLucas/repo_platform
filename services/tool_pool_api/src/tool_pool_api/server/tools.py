@@ -16,7 +16,7 @@ from tool_pool_api.server.dependencies import (
     load_context_from_token
 )
 # 2. Importa o modelo de contexto compartilhado
-from vizu_shared_models.cliente_vizu import VizuClientContext
+from vizu_models.vizu_client_context import VizuClientContext
 
 # 3. Importa as fábricas de ferramentas
 from vizu_rag_factory.factory import create_rag_runnable

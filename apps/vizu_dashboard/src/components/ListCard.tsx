@@ -10,7 +10,6 @@ interface ListCardProps {
     title: string;
     description: string;
     status?: string;
-    modalContent: React.ReactNode; // Content for the modal when mini-card is clicked
   }[];
   onMiniCardClick: (item: any) => void; // Function to open modal with item data
   viewAllLink: string; // Link to the full list page

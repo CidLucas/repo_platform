@@ -46,5 +46,5 @@ ENV PATH="/app/services/analytics_api/.venv/bin:$PATH"
 ENV PYTHONPATH="src:../../libs/vizu_db_connector/src:../../libs/vizu_models/src"
 
 # 9. DEFINA o comando de execução
-EXPOSE 80
-CMD ["uvicorn", "analytics_api.main:app", "--host", "0.0.0.0", "--port", "80"]
+EXPOSE 8000
+CMD ["uvicorn", "analytics_api.main:app", "--host", "0.0.0.0", "--port", "8000"]

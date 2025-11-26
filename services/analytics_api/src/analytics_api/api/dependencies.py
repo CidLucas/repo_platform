@@ -60,7 +60,11 @@ def get_metric_service(
     O MetricService carrega o DataFrame Prata do cliente em memória
     (via PostgresRepository) e fica pronto para os cálculos.
     """
-    logger.info(f"Inicializando MetricService para client_id: {client_id}")
+    # logger.error("MetricService temporariamente desativado para depuração.")
+    # raise HTTPException(
+    #     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    #     detail="MetricService temporariamente desativado para depuração."
+    # )
     try:
         # A instância do serviço é criada POR REQUISIÇÃO.
         # Isto garante que o self.df carregado pertence ao cliente correto

@@ -2,36 +2,44 @@ import { Box, Flex, Text, Heading, Select, HStack, useDisclosure, Spinner, Alert
 import { MainLayout } from '../components/layouts/MainLayout';
 import { DashboardCard } from '../components/DashboardCard';
 import { ListCard } from '../components/ListCard';
-import React, { useState, useEffect } from 'react'; // Added useEffect
+import React, { useState, useEffect } from 'react';
 import { FornecedorDetailsModal } from '../components/FornecedorDetailsModal';
-import { getFornecedores } from '../services/analyticsService';
-import type { Fornecedor } from '../services/analyticsService';
+import { getFornecedores, getFornecedor } from '../services/analyticsService';
+import type { FornecedoresOverviewResponse, FornecedorDetailResponse } from '../services/analyticsService';
 
 function FornecedoresPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]); // State for fetched fornecedores
-  const [loading, setLoading] = useState<boolean>(true); // Loading state
-  const [error, setError] = useState<string | null>(null); // Error state
+  const [selectedItem, setSelectedItem] = useState<FornecedorDetailResponse | null>(null); // This will hold the detailed data for the modal
+  const [overviewData, setOverviewData] = useState<FornecedoresOverviewResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchFornecedoresData = async () => {
       try {
         setLoading(true);
         const data = await getFornecedores();
-        setFornecedores(data);
+        setOverviewData(data);
       } catch (err: any) {
-        setError(err.message || 'Erro ao carregar fornecedores.');
+        setError(err.message || 'Erro ao carregar dados dos fornecedores.');
       } finally {
         setLoading(false);
       }
     };
     fetchFornecedoresData();
-  }, []); // Empty dependency array means this runs once on mount
+  }, []);
 
-  const handleMiniCardClick = (item: any) => {
-    setSelectedItem(item);
-    onOpen();
+  const handleMiniCardClick = async (clickedItem: { id: string }) => {
+    // When a mini-card is clicked, fetch the detailed data for that specific supplier
+    try {
+      setSelectedItem(null); // Clear previous selection while loading
+      const details = await getFornecedor(clickedItem.id); // 'id' is 'nome_fornecedor'
+      setSelectedItem(details);
+      onOpen();
+    } catch (err: any) {
+      console.error("Erro ao carregar detalhes do fornecedor:", err);
+      setError(err.message || 'Erro ao carregar detalhes do fornecedor.');
+    }
   };
 
   // Conditional rendering for loading and error states
@@ -45,39 +53,48 @@ function FornecedoresPage() {
     );
   }
 
-  if (error) {
+  if (error || !overviewData) {
     return (
       <MainLayout>
         <Flex justify="center" align="center" height="100vh">
           <Alert status="error">
             <AlertIcon />
-            {error}
+            {error || 'Não foi possível carregar os dados.'}
           </Alert>
         </Flex>
       </MainLayout>
     );
   }
 
+  // Map the data for the ListCard
+  const listCardItems = overviewData.ranking_por_receita.map(item => ({
+    id: item.nome, // Use 'nome' as a unique ID for the card
+    title: item.nome,
+    description: `Receita: R$ ${item.receita_total.toLocaleString('pt-BR')}`,
+    status: item.cluster_tier,
+  }));
+
   return (
     <MainLayout>
-            <Flex
-              direction="column"
-              flex="1" // Added flex="1"
-              px={{ base: '20px', md: '40px', lg: '80px' }}
-              pt={{ base: '20px', md: '40px', lg: '20px' }}
-              pb={{ base: '80px', md: '40px', lg: '20px' }}
-              bg="#92DAFF" // Page background color
-              color="gray.800" // Text color for visibility
-            >        <Flex justify="space-between" align="flex-start" mb="8px"> {/* Title only */}
+      <Flex
+        direction="column"
+        flex="1"
+        px={{ base: '20px', md: '40px', lg: '80px' }}
+        pt={{ base: '20px', md: '40px', lg: '20px' }}
+        pb={{ base: '80px', md: '40px', lg: '20px' }}
+        bg="#92DAFF"
+        color="gray.800"
+      >
+        <Flex justify="space-between" align="flex-start" mb="8px">
           <Text as="h1" textStyle="pageSubtitle">Fábio, você aumentou<br />sua base de fornecedores em <Text as="span" fontWeight="bold">+0.85%</Text></Text>
         </Flex>
         
-        <Flex justify="space-between" align="flex-end" mb="36px"> {/* Big number and selectors */}
-          <Box> {/* Wrapper for big number title and number */}
+        <Flex justify="space-between" align="flex-end" mb="36px">
+          <Box>
             <Text textStyle="homeCardStatLabel">TOTAL DE FORNECEDORES</Text>
-            <Text as="h2" textStyle="pageBigNumberSmall" mt="4px">800</Text>
+            <Text as="h2" textStyle="pageBigNumberSmall" mt="4px">{overviewData.scorecard_total_fornecedores}</Text>
           </Box>
-          <HStack spacing="4" position="relative"> {/* HStack for multiple Selects */}
+          <HStack spacing="4" position="relative">
             <Select placeholder="Período" width="150px" bg="white" color="gray.800">
               <option value="semana">Última semana</option>
               <option value="mes">Último mês</option>
@@ -92,22 +109,18 @@ function FornecedoresPage() {
           </HStack>
         </Flex>
         
-        {/* Grid of DashboardCards */}
         <Flex wrap="wrap" justify="center" gap="16px">
-          {/* Card Type 1: Performance de Vendas */}
           <DashboardCard
             title="Performance de Vendas"
             size="large"
-            bgColor="#B2E7FF" // Lighter blue
+            bgColor="#B2E7FF"
             graphData={{ values: [10, 20, 15, 25, 22] }}
             scorecardValue="R$ 1.5M"
             scorecardLabel="Total Vendido"
-            modalLeftBgColor="#B2E7FF" // Modal left background
-            modalRightBgColor="#92DAFF" // Modal right background
+            modalLeftBgColor="#B2E7FF"
+            modalRightBgColor="#92DAFF"
             modalContent={<Text>Detalhes do gráfico de vendas</Text>}
           />
-
-          {/* Card Type 2: Novos Fornecedores */}
           <DashboardCard
             title="Novos Fornecedores"
             size="small"
@@ -116,35 +129,29 @@ function FornecedoresPage() {
             mainText="Aumentamos nossa base em 15% no último mês."
             scorecardValue="120"
             scorecardLabel="Novos Cadastros"
-            modalLeftBgColor="#B2E7FF" // Modal left background
-            modalRightBgColor="#92DAFF" // Modal right background
+            modalLeftBgColor="#B2E7FF"
+            modalRightBgColor="#92DAFF"
             modalContent={<Text>Detalhes dos novos fornecedores</Text>}
           />
-
-          {/* Card Type 3: Últimos Fornecedores (ListCard) */}
           <ListCard
             title="Últimos Fornecedores"
-            items={fornecedores} // Use fetched data
+            items={listCardItems}
             onMiniCardClick={handleMiniCardClick}
-            viewAllLink="/fornecedores/lista" // Link to the full list page
-            cardBgColor="#B2E7FF" // Pass the specific background color for suppliers
+            viewAllLink="/fornecedores/lista"
+            cardBgColor="#B2E7FF"
           />
-
-          {/* Card Type 4: Distribuição Geográfica (Unchanged) */}
           <DashboardCard
             title="Distribuição Geográfica"
             size="large"
             bgColor="white"
             mapData={{ center: [-23.55052, -46.633308], zoom: 10, markers: [{ position: [-23.55052, -46.633308], popupText: 'São Paulo' }] }}
             mainText="Principais regiões de atuação dos fornecedores."
-            modalLeftBgColor="#B2E7FF" // Modal left background
-            modalRightBgColor="#92DAFF" // Modal right background
+            modalLeftBgColor="#B2E7FF"
+            modalRightBgColor="#92DAFF"
             modalContent={<Text>Detalhes do mapa de distribuição</Text>}
           />
         </Flex>
       </Flex>
-
-      {/* Reusable FornecedorDetailsModal */}
       <FornecedorDetailsModal isOpen={isOpen} onClose={onClose} fornecedor={selectedItem} />
     </MainLayout>
   );

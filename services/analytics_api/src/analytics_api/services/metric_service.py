@@ -23,7 +23,6 @@ class MetricService:
         
         if self.df.empty:
             logger.warning(f"Nenhum dado encontrado na camada Prata para o client_id: {self.client_id}")
-            return
 
         # --- Pré-processamento Crítico ---
         self.df['data_transacao'] = pd.to_datetime(self.df['data_transacao'], utc=True)
@@ -167,15 +166,19 @@ class MetricService:
         # NOVO (Q2): Gráfico de Cohort (Tiers)
         df_cohort = df_fornecedores_agg.groupby('cluster_tier').size().reset_index(name='contagem')
         df_cohort['percentual'] = (df_cohort['contagem'] / df_cohort['contagem'].sum()) * 100
+        # CORREÇÃO: Renomeia a coluna para corresponder ao schema ChartDataPoint
+        df_cohort.rename(columns={'cluster_tier': 'name'}, inplace=True)
 
         return {
             "scorecard_total_fornecedores": int(df_fornecedores_agg.shape[0]),
             "chart_fornecedores_no_tempo": [{"name": r['ano_mes'], "total": r['total_cumulativo']} for r in df_fornecedores_tempo.to_dict('records')],
             "chart_fornecedores_por_regiao": [{"name": r['emitter_estado'], "total": r['contagem']} for r in df_fornecedores_regiao.to_dict('records')],
-            "chart_cohort_fornecedores": df_cohort.to_dict('records'), # (Q2)
+            "chart_cohort_fornecedores": df_cohort.to_dict('records'),
             "ranking_por_receita": df_fornecedores_agg.sort_values('receita_total', ascending=False).head(10).to_dict('records'),
             "ranking_por_ticket_medio": df_fornecedores_agg.sort_values('ticket_medio', ascending=False).head(10).to_dict('records'),
-            # (Q1): Ranking de produtos agora inclui valor unitário
+            # CORREÇÃO: Adiciona os rankings que faltavam no schema
+            "ranking_por_qtd_media": df_fornecedores_agg.sort_values('qtd_media_por_pedido', ascending=False).head(10).to_dict('records'),
+            "ranking_por_frequencia": df_fornecedores_agg.sort_values('frequencia_pedidos_mes', ascending=False).head(10).to_dict('records'),
             "ranking_produtos_mais_vendidos": df_top_produtos[['nome', 'receita_total', 'valor_unitario_medio']].to_dict('records'),
         }
 
@@ -261,7 +264,7 @@ class MetricService:
             "dados_cadastrais": dados_cadastrais,
             "rankings_internos": {
                 "clientes_por_receita": df_agg_clientes.sort_values('receita_total', ascending=False).head(5).to_dict('records'),
-                "produtos_por_receita": df_agg_produtos.sort_values('receita_total', ascending=False).head(5)[['nome', 'receita_total', 'valor_unitario_medio']].to_dict('records'), # (Q1)
+                "produtos_por_receita": df_agg_produtos.sort_values('receita_total', ascending=False).head(5).to_dict('records'),
                 "regioes_por_receita": df_agg_regioes.sort_values('receita_total', ascending=False).head(5).to_dict('records'),
             }
         }

@@ -5,7 +5,7 @@ from analytics_api.core.config import settings
 import logging
 
 # Configuração básica de logging (melhorar com observability_bootstrap)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # LOG PARA VERIFICAR A URL DO BANCO
@@ -62,5 +62,5 @@ if __name__ == "__main__":
     import uvicorn
     logger.info("Iniciando servidor Uvicorn para desenvolvimento local...")
     # Usamos host="0.0.0.0" para permitir acesso de fora do container (se rodado em Docker)
-    # ou de outras máquinas na rede local. Usamos a porta 8001 como padrão.
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    # ou de outras máquinas na rede local. A porta padrão do container é 8000.
+    uvicorn.run(app, host="0.0.0.0", port=8000)

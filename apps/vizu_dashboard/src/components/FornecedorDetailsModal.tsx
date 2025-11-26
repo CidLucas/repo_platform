@@ -2,15 +2,26 @@ import { Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, Flex, T
 import React from 'react';
 import { ModalContentLayout } from './ModalContentLayout';
 import { MapComponent } from './MapComponent';
+import { FornecedorDetailResponse } from '../services/analyticsService'; // Import the new type
 
 interface FornecedorDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  fornecedor: any; // The selected supplier data
+  fornecedor: FornecedorDetailResponse | null; // The detailed supplier data
 }
 
 export const FornecedorDetailsModal: React.FC<FornecedorDetailsModalProps> = ({ isOpen, onClose, fornecedor }) => {
   if (!fornecedor) return null; // Don't render if no fornecedor is selected
+
+  const { dados_cadastrais, rankings_internos } = fornecedor;
+  const supplierName = dados_cadastrais.emitter_nome || "N/A";
+  const contact = dados_cadastrais.emitter_telefone || "N/A";
+  const address = `${dados_cadastrais.emitter_cidade || ''}${dados_cadastrais.emitter_estado ? `, ${dados_cadastrais.emitter_estado}` : ''}`.trim();
+  const cnpj = dados_cadastrais.emitter_cnpj || "N/A";
+
+  // Note: 'status', 'totalFornecido', 'pedidosAtivos', 'avaliacaoMedia', 'tempoResposta', 'tipo', 'id'
+  // are NOT directly available in FornecedorDetailResponse.
+  // We will only display what is available in dados_cadastrais for now.
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="full">
@@ -18,113 +29,92 @@ export const FornecedorDetailsModal: React.FC<FornecedorDetailsModalProps> = ({ 
       <ModalContent bg="transparent" boxShadow="none" overflow="hidden" height="100vh">
         <ModalBody p={0}>
           <ModalContentLayout
-            leftBgColor={!!fornecedor.mapData ? "transparent" : "#B2E7FF"} // Conditionally set leftBgColor
-            rightBgColor={!!fornecedor.mapData ? "#92DAFF" : "#92DAFF"} // Use prop
-            isMapModal={!!fornecedor.mapData} // Pass if it's a map modal
-            mapData={fornecedor.mapData} // Pass mapData
+            // Assuming mapData might come from somewhere else or is not used for this modal type
+            leftBgColor={"#B2E7FF"}
+            rightBgColor={"#92DAFF"}
+            isMapModal={false}
+            mapData={undefined}
             leftContent={
               <Flex direction="column" height="100%">
-                <Text textStyle="modalFinancialInfo" textTransform="uppercase" mb={0}>{fornecedor.nome || "N/A"}</Text> {/* Supplier Name */}
+                <Text textStyle="modalFinancialInfo" textTransform="uppercase" mb={0}>{supplierName}</Text> {/* Supplier Name */}
                 <Flex justify="space-between" align="center" mb={4}>
-                  <Text textStyle="modalTitle" fontSize="24px" fontWeight="semibold">Fornecedor #{fornecedor.id}</Text> {/* Adjusted font size and semibold */}
-                  <Box
-                    bg={fornecedor.status === "Ativo" ? "green.500" : fornecedor.status === "Inativo" ? "red.500" : "gray.500"} // Adapted status colors
-                    color="white"
-                    width="69px"
-                    height="20px"
-                    px="0"
-                    py="0"
-                    borderRadius="md"
-                    textTransform="uppercase"
-                    fontSize="10px" // Custom font size
-                    fontWeight="semibold"
-                    display="flex"
-                    justifyContent="center"
-                    alignItems="center"
-                  >
-                    {fornecedor.status || "N/A"}
-                  </Box>
+                  <Text textStyle="modalTitle" fontSize="24px" fontWeight="semibold">Fornecedor: {supplierName}</Text> {/* Display name as title */}
+                  {/* Status removed as it's not in FornecedorDetailResponse */}
                 </Flex>
                 <Flex flex="1" alignItems="center" justifyContent="center"> {/* Wrapper to center financial list */}
-                  {/* Financial Information List */}
+                  {/* Displaying relevant information from dados_cadastrais */}
                   <Flex direction="column" width="100%">
                     <Flex justify="space-between" align="center" py={3}>
-                      <Text textStyle="modalFinancialInfo" fontWeight="semibold">TOTAL FORNECIDO</Text>
-                      <Text textStyle="modalFinancialInfo">{fornecedor.totalFornecido || "N/A"}</Text>
+                      <Text textStyle="modalFinancialInfo" fontWeight="semibold">CNPJ</Text>
+                      <Text textStyle="modalFinancialInfo">{cnpj}</Text>
                     </Flex>
                     <Box borderBottom="1px solid black" width="100%" /> {/* Separator */}
 
                     <Flex justify="space-between" align="center" py={3}>
-                      <Text textStyle="modalFinancialInfo" fontWeight="semibold">PEDIDOS ATIVOS</Text>
-                      <Text textStyle="modalFinancialInfo">{fornecedor.pedidosAtivos || "N/A"}</Text>
+                      <Text textStyle="modalFinancialInfo" fontWeight="semibold">TELEFONE</Text>
+                      <Text textStyle="modalFinancialInfo">{contact}</Text>
+                    </Flex>
+                    <Box borderBottom="1px solid black" width="100%" /> {/* Separator */}
+                    
+                    <Flex justify="space-between" align="center" py={3}>
+                      <Text textStyle="modalFinancialInfo" fontWeight="semibold">ENDEREÇO</Text>
+                      <Text textStyle="modalFinancialInfo">{address || "N/A"}</Text>
                     </Flex>
                     <Box borderBottom="1px solid black" width="100%" /> {/* Separator */}
 
-                    <Flex justify="space-between" align="center" py={3}>
-                      <Text textStyle="modalFinancialInfo" fontWeight="semibold">AVALIAÇÃO MÉDIA</Text>
-                      <Text textStyle="modalFinancialInfo">{fornecedor.avaliacaoMedia || "N/A"}</Text>
-                    </Flex>
-                    <Box borderBottom="1px solid black" width="100%" /> {/* Separator */}
-
-                    <Flex justify="space-between" align="center" py={3}>
-                      <Text textStyle="modalFinancialInfo" fontWeight="semibold">TEMPO DE RESPOSTA</Text>
-                      <Text textStyle="modalFinancialInfo">{fornecedor.tempoResposta || "N/A"}</Text>
-                    </Flex>
+                    {/* Displaying internal rankings examples */}
+                    {rankings_internos?.clientes_por_receita && rankings_internos.clientes_por_receita.length > 0 && (
+                      <>
+                        <Flex justify="space-between" align="center" py={3}>
+                          <Text textStyle="modalFinancialInfo" fontWeight="semibold">TOP CLIENTE (Receita)</Text>
+                          <Text textStyle="modalFinancialInfo">{rankings_internos.clientes_por_receita[0].nome} (R$ {rankings_internos.clientes_por_receita[0].receita_total.toLocaleString('pt-BR')})</Text>
+                        </Flex>
+                        <Box borderBottom="1px solid black" width="100%" /> {/* Separator */}
+                      </>
+                    )}
                   </Flex>
                 </Flex>
               </Flex>
             }
             rightContent={
-              fornecedor.mapData ? (
-                <MapComponent {...fornecedor.mapData} height="100%" />
-              ) : (
-                <Flex direction="column" height="100%" p={8}>
-                  <Flex justify="space-between" align="center" mb={4}> {/* New Flex for right half header */}
-                    <Text textStyle="modalTitle" textTransform="uppercase" fontWeight="semibold">DETALHE DO FORNECEDOR</Text> {/* New title */}
-                    <ModalCloseButton position="static" onClick={onClose} /> {/* Close button here */}
-                  </Flex>
-                  <Flex direction="column" gap={4}> {/* Container for descriptive cards */}
-                    {/* Tipo de Fornecedor Card */}
-                    <Box
-                      width="100%" // Fill available width
-                      height="140px"
-                      borderRadius="24px"
-                      bg="#B2E7FF" // Lighter blue background
-                      p={4}
-                      boxShadow="md"
-                    >
-                      <Text textTransform="uppercase" fontSize="md">Tipo de Fornecedor</Text> {/* Uppercase, not bold */}
-                      <Text fontSize="sm" color="gray.600" noOfLines={2}>{fornecedor.tipo || "N/A"}</Text>
-                    </Box>
-
-                    {/* Contato Principal Card */}
-                    <Box
-                      width="100%" // Fill available width
-                      height="140px"
-                      borderRadius="24px"
-                      bg="#B2E7FF" // Lighter blue background
-                      p={4}
-                      boxShadow="md"
-                    >
-                      <Text textTransform="uppercase" fontSize="md">Contato Principal</Text> {/* Uppercase, not bold */}
-                      <Text fontSize="sm" color="gray.600" noOfLines={2}>{fornecedor.contatoPrincipal || "N/A"}</Text>
-                    </Box>
-
-                    {/* Endereço Card */}
-                    <Box
-                      width="100%" // Fill available width
-                      height="140px"
-                      borderRadius="24px"
-                      bg="#B2E7FF" // Lighter blue background
-                      p={4}
-                      boxShadow="md"
-                    >
-                      <Text textTransform="uppercase" fontSize="md">Endereço</Text> {/* Uppercase, not bold */}
-                      <Text fontSize="sm" color="gray.600" noOfLines={2}>{fornecedor.endereco || "N/A"}</Text>
-                    </Box>
-                  </Flex>
+              // Removed mapData conditional as it's not part of this specific modal logic now
+              <Flex direction="column" height="100%" p={8}>
+                <Flex justify="space-between" align="center" mb={4}>
+                  <Text textStyle="modalTitle" textTransform="uppercase" fontWeight="semibold">DETALHE DO FORNECEDOR</Text>
+                  <ModalCloseButton position="static" onClick={onClose} />
                 </Flex>
-              )
+                <Flex direction="column" gap={4}>
+                  {/* Example of displaying a product ranking if available */}
+                  {rankings_internos?.produtos_por_receita && rankings_internos.produtos_por_receita.length > 0 && (
+                    <Box
+                      width="100%"
+                      height="140px"
+                      borderRadius="24px"
+                      bg="#B2E7FF"
+                      p={4}
+                      boxShadow="md"
+                    >
+                      <Text textTransform="uppercase" fontSize="md">Produto Mais Vendido</Text>
+                      <Text fontSize="sm" color="gray.600" noOfLines={2}>
+                        {rankings_internos.produtos_por_receita[0].nome} (R$ {rankings_internos.produtos_por_receita[0].receita_total.toLocaleString('pt-BR')})
+                      </Text>
+                    </Box>
+                  )}
+
+                  <Box
+                    width="100%"
+                    height="140px"
+                    borderRadius="24px"
+                    bg="#B2E7FF"
+                    p={4}
+                    boxShadow="md"
+                  >
+                    <Text textTransform="uppercase" fontSize="md">Localização</Text>
+                    <Text fontSize="sm" color="gray.600" noOfLines={2}>{address || "N/A"}</Text>
+                  </Box>
+                  {/* Placeholder for other internal rankings or data if needed */}
+                </Flex>
+              </Flex>
             }
           />
         </ModalBody>

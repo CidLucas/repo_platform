@@ -17,7 +17,7 @@ from tool_pool_api.core.config import Settings, get_settings
 from vizu_context_service.context_service import ContextService
 from vizu_context_service.dependencies import \
     get_context_service as get_vizu_context_service
-from vizu_shared_models.cliente_vizu import VizuClientContext
+from vizu_models.vizu_client_context import VizuClientContext
 
 logger = logging.getLogger(__name__)
 

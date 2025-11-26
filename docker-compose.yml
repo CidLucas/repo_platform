@@ -4,10 +4,14 @@
 x-common-env:
   # O &common-env define o "apelido" da âncora
   common: &common-env
-    DATABASE_URL: postgresql://user:password@postgres:5432/vizu_db
+    DATABASE_URL: postgresql+psycopg2://user:password@postgres:5432/vizu_db
+    TEST_DATABASE_URL : postgresql+psycopg2://user:password@localhost:5432/vizu_db_test
+
     OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     # URL interna para comunicação entre containers
     EMBEDDING_SERVICE_URL: http://embedding_service:11435
+    # URL base interna para acessar a Clients API a partir de outros containers
+    BASE_URL: "http://clients_api:8000/api/v1"
   atendente: &atendente-env
     REDIS_URL: redis://redis:6379/0
     OLLAMA_BASE_URL: http://ollama_service:11434
@@ -26,59 +30,43 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: vizu_db
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U user -d vizu_db"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  db_manager:
-    container_name: vizu_db_manager
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/db_manager/Dockerfile
-    environment:
-      <<: *common-env
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      # --- CORREÇÃO: Caminhos Absolutos ---
-      # Monta os arquivos EXATAMENTE onde o Dockerfile os colocou (WORKDIR)
-      - ./services/db_manager/src/db_manager:/app/db_manager
-      - ./services/db_manager/alembic:/app/alembic
-      - ./services/db_manager/alembic.ini:/app/alembic.ini
-      - ./libs:/app/libs
 
-#   evaluation_suite:
-#     container_name: vizu_evaluation_suite
-#     platform: linux/amd64
-#     build:
-#       context: .
-#       # Ajuste este caminho se a pasta real no seu projeto for 'ferramentas/evaluation_suite'
-#       dockerfile: ./ferramentas/evaluation_suite/Dockerfile
-#     ports:
-#       - "8501:8501"
-#     volumes:
-#       # Mapeia o código fonte para /app/src (conforme definido no Dockerfile deste serviço)
-#       - ./evaluation_suite/src:/app/src
-#       # Mapeia as libs compartilhadas
-#       - ./libs:/app/libs
-#     environment:
-#       <<: *common-env
-#       # URL da API que será testada (apontando para o nome do container interno)
-#       ASSISTANT_API_URL: "http://atendente_core:8000"
-#       # PYTHONPATH crítico para encontrar as libs e o próprio src da tool
-#       PYTHONPATH: "/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_shared_models/src"
-#     depends_on:
-#       postgres:
-#         condition: service_healthy
-#       atendente_core: # Garante que a API alvo já iniciou antes de rodar os testes
-#         condition: service_started
+
+  evaluation_suite:
+     container_name: vizu_evaluation_suite
+     platform: linux/amd64
+     build:
+       context: .
+       # Ajuste este caminho se a pasta real no seu projeto for 'ferramentas/evaluation_suite'
+       dockerfile: ./ferramentas/evaluation_suite/Dockerfile
+     ports:
+       - "8501:8501"
+     volumes:
+       # Mapeia o código fonte para /app/src (conforme definido no Dockerfile deste serviço)
+       - ./evaluation_suite/src:/app/src
+       # Mapeia as libs compartilhadas
+       - ./libs:/app/libs
+     environment:
+       <<: *common-env
+       # URL da API que será testada (apontando para o nome do container interno)
+       ASSISTANT_API_URL: "http://atendente_core:8000"
+       # PYTHONPATH crítico para encontrar as libs e o próprio src da tool
+       PYTHONPATH: "/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src"
+     depends_on:
+       postgres:
+         condition: service_healthy
+       atendente_core: # Garante que a API alvo já iniciou antes de rodar os testes
+        condition: service_started
 
   clientes_finais_api:
     container_name: vizu_clientes_finais_api
@@ -98,7 +86,7 @@ services:
     environment:
       <<: *common-env
       # Garante que o PYTHONPATH inclua tanto a app quanto as libs, conforme definido no Dockerfile
-      PYTHONPATH: "/home/appuser/app"
+      PYTHONPATH: /home/appuser/app/clientes_finais_api:/home/appuser/app/libs/vizu_models/src
     depends_on:
       postgres:
         condition: service_healthy
@@ -214,69 +202,72 @@ services:
       timeout: 5s
       retries: 5
 
-# file_processing_worker:
-#   container_name: vizu_file_processing_worker
-#   platform: linux/amd64
-#   build:
-#     context: .
-#     dockerfile: ./services/file_processing_worker/Dockerfile #
-#   ports:
-#     # Mapeia para a porta 8002 do host (o container expõe 8000)
-#     - "8002:8000"
-#   volumes:
-#     # Volume para hot-reload
-#     - ./services/file_processing_worker/src/file_processing_worker:/home/appuser/app/file_processing_worker
-#     - ./libs:/home/appuser/app/libs
-#   environment:
-#     <<: *common-env
-#     # Variáveis específicas do config.py
-#     # !! IMPORTANTE: Preencha com seus valores !!
-#     GCP_PROJECT_ID: "seu-projeto-gcp"
-#     PUBSUB_SUBSCRIPTION_ID: "sua-subscription-id-pubsub"
-#     GCS_BUCKET_NAME: "seu-bucket-gcs"
-#     QDRANT_COLLECTION_NAME: "vizu_knowledge_base" # Ou o nome que preferir
+  file_processing_worker:
+   container_name: vizu_file_processing_worker
+   platform: linux/amd64
+   build:
+     context: .
+     dockerfile: ./services/file_processing_worker/Dockerfile #
+   ports:
+     # Mapeia para a porta 8002 do host (o container expõe 8000)
+     - "8002:8000"
+   volumes:
+     # Volume para hot-reload
+     - ./services/file_processing_worker/src/file_processing_worker:/home/appuser/app/file_processing_worker
+     - ./libs:/home/appuser/app/libs
+   environment:
+     <<: *common-env
+     # Variáveis específicas do config.py
+     # !! IMPORTANTE: Preencha com seus valores !!
+     GCP_PROJECT_ID: "seu-projeto-gcp"
+     PUBSUB_SUBSCRIPTION_ID: "sua-subscription-id-pubsub"
+     GCS_BUCKET_NAME: "seu-bucket-gcs"
+     QDRANT_COLLECTION_NAME: "vizu_knowledge_base" # Ou o nome que preferir
 
-#     # Aponta para os nomes dos serviços DENTRO do Docker
-#     QDRANT_HOST: "qdrant_db"
-#     QDRANT_PORT: "6334" # Porta HTTP do Qdrant
+     # Aponta para os nomes dos serviços DENTRO do Docker
+     QDRANT_HOST: "qdrant_db"
+     QDRANT_PORT: "6334" # Porta HTTP do Qdrant
 
-#     # Sobrescreve a URL do cliente de embedding (Passo 2)
-#     EMBEDDING_SERVICE_URL: "http://embedding_service:11435"
-#   depends_on:
-#     postgres:
-#       condition: service_healthy
-#     qdrant_db: # <-- Dependência crucial
-#       condition: service_healthy
-#     embedding_service: # <-- Dependência crucial
-#       condition: service_healthy
-#   healthcheck:
-#     test: ["CMD", "curl", "-f", "http://localhost:8000/health"] #
-#     interval: 10s
-#     timeout: 5s
-#     retries: 5
+     # Sobrescreve a URL do cliente de embedding (Passo 2)
+     EMBEDDING_SERVICE_URL: "http://embedding_service:11435"
+   depends_on:
+     postgres:
+       condition: service_healthy
+     qdrant_db: # <-- Dependência crucial
+       condition: service_healthy
+     embedding_service: # <-- Dependência crucial
+       condition: service_healthy
+   healthcheck:
+     test: ["CMD", "curl", "-f", "http://localhost:8000/health"] #
+     interval: 10s
+     timeout: 5s
+     retries: 5
 
-#   atendente_core:
-#     container_name: vizu_atendente_core
-#     platform: linux/amd64
-#     build:
-#       context: .
-#       # Garante que está apontando para a pasta correta
-#       dockerfile: ./services/atendente_core/Dockerfile
-#     environment:
-#       <<: [*common-env, *atendente-env]
-#       # Aponta para o src dentro da pasta do serviço
-#       PYTHONPATH: /app/services/atendente_core/src
-#     ports:
-#       - "8003:8000"
-#     volumes:
-#       # --- CORREÇÃO: Caminhos Absolutos ---
-#       - ./services/atendente_core/src:/app/services/atendente_core/src
-#       - ./libs:/app/libs
-#     depends_on:
-#       redis:
-#         condition: service_healthy
-#       ollama_service:
-#         condition: service_started
+  atendente_core:
+     container_name: vizu_atendente_core
+     platform: linux/amd64
+     build:
+       context: .
+       # Garante que está apontando para a pasta correta
+       dockerfile: ./services/atendente_core/Dockerfile
+     environment:
+       <<: [*common-env, *atendente-env]
+       # Aponta para o src dentro da pasta do serviço
+       PYTHONPATH: /app/services/atendente_core/src
+     ports:
+       - "8003:8000"
+     volumes:
+       # --- CORREÇÃO: Caminhos Absolutos ---
+       - ./services/atendente_core/src:/app/services/atendente_core/src
+       - ./libs:/app/libs
+     depends_on:
+       redis:
+         condition: service_healthy
+       ollama_service:
+         condition: service_started
+       tool_pool_api:
+          condition: service_started
+
 
   analytics_api:
     container_name: analytics_api
@@ -298,6 +289,18 @@ services:
         condition: service_healthy
       # Dependência implícita de dados gerados por outros serviços
 
+  migration_runner:
+    container_name: vizu_migration_runner
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./services/migration_runner/Dockerfile
+    environment:
+      <<: *common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   clients_api:
     container_name: clients_api
     platform: linux/amd64
@@ -313,38 +316,14 @@ services:
       <<: *common-env
       # --- CORREÇÃO DE IMPORTAÇÃO ---
       # Removido /app/libs para corrigir o erro ModuleNotFoundError
-      PYTHONPATH: /app/src
+      PYTHONPATH: /app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src
       CREDENTIALS_ENCRYPTION_KEY: "Y2hlY2stbXktc2VjcmV0LWtleS1leGFtcGxlLTEyMzQ="
     depends_on:
       postgres:
         condition: service_healthy
+      migration_runner:
+        condition: service_completed_successfully
 
-
-# embedding_service:
-#   container_name: vizu_embedding_service
-#   platform: linux/amd64
-#   build:
-#     context: . # Raiz do monorepo
-#     dockerfile: ./services/embedding_service/Dockerfile # Caminho para o Dockerfile (Passo 7)
-#   ports:
-#     # Expõe a porta que definimos para o serviço
-#     - "11435:11435"
-#   volumes:
-#     # Volume para hot-reload do código do serviço
-#     - ./services/embedding_service/src/embedding_service:/home/appuser/app/embedding_service
-#     # Volume para hot-reload das libs (dependência)
-#     - ./libs:/home/appuser/app/libs
-#   environment:
-#     # Usa a âncora de ambiente comum
-#     <<: *common-env
-#     # Podemos sobrescrever/definir variáveis de ambiente do config.py (Passo 4)
-#     EMBEDDING_MODEL_DEVICE: "cpu" # Garante que use CPU (padrão seguro)
-#   healthcheck:
-#     # Bate no endpoint /health que criamos no main.py (Passo 6)
-#     test: ["CMD", "curl", "-f", "http://localhost:11435/health"]
-#     interval: 10s
-#     timeout: 5s
-#     retries: 5
 
   tool_pool_api:
     container_name: vizu_tool_pool_api
@@ -372,6 +351,6 @@ services:
 
 # Definição de volumes persistentes
 volumes:
-  postgres_data:
   qdrant_data:
   ollama_storage:
+  postgres_data:

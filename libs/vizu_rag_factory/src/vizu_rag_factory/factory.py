@@ -8,7 +8,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 1
 # Dependências de outras libs Vizu
-from vizu_shared_models.cliente_vizu import VizuClientContext
+from vizu_models.vizu_client_context import VizuClientContext
 from vizu_qdrant_client.client import VizuQdrantClient # Nossa lib de cliente Qdrant
 from vizu_llm_service.client import get_embedding_model # <--- ADICIONADO
 

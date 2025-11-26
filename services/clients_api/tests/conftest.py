@@ -10,7 +10,7 @@ project_root = Path(__file__).resolve().parents[3]
 # 2. Adiciona o diretório 'src' de cada biblioteca compartilhada ao sys.path.
 #    Isso deve ser feito ANTES de qualquer importação da aplicação.
 libs_path = project_root / "libs"
-sys.path.insert(0, str(libs_path / "vizu_shared_models" / "src"))
+sys.path.insert(0, str(libs_path / "vizu_models" / "src"))
 sys.path.insert(0, str(libs_path / "vizu_db_connector" / "src"))
 # --- FIM DA CORREÇÃO DE PATH ---
 

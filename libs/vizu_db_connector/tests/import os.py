@@ -14,11 +14,11 @@ import vizu_db_connector.models.cliente_vizu
 import vizu_db_connector.models.credencial_servico_externo
 
 # Importa o modelo ORM do próprio DB Connector
-from vizu_db_connector.models.cliente_vizu import ClienteVizu 
+from vizu_db_connector.models.cliente_vizu import ClienteVizu
 from vizu_db_connector.models.credencial_servico_externo import CredencialServicoExterno
 
 # Importa os modelos compartilhados para tipagem (Agnosticismo)
-from vizu_shared_models.cliente_vizu import TipoCliente, TierCliente
+from vizu_models.cliente_vizu import TipoCliente, TierCliente
 
 # Usa uma variável de ambiente para o DB de teste, com um fallback
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://user:password@localhost:5432/vizu_db_test")
@@ -35,7 +35,7 @@ def create_vizu_client_in_db(
     """
     Helper centralizado para criar e persistir um registro ClienteVizu para testes.
     Promove a Modularização e Reutilização em todos os testes de integração.
-    
+
     Retorna: O objeto ClienteVizu persistido.
     """
     if client_id is None:
@@ -44,13 +44,13 @@ def create_vizu_client_in_db(
     db_cliente_vizu = ClienteVizu(
         id=client_id,
         nome_empresa=nome_empresa,
-        tipo_cliente=tipo_cliente, 
+        tipo_cliente=tipo_cliente,
         tier=tier,
     )
     db_session.add(db_cliente_vizu)
     db_session.commit()
     db_session.refresh(db_cliente_vizu)
-    
+
     return db_cliente_vizu
 
 def create_external_credential_ref(

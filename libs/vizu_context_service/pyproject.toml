@@ -13,7 +13,7 @@ python = "^3.11"
 redis = "^5.0.0"
 # Dependências locais
 vizu_db_connector = {path = "../../libs/vizu_db_connector", develop = true}
-vizu_shared_models = {path = "../../libs/vizu_shared_models", develop = true}
+vizu_models = {path = "../../libs/vizu_models", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

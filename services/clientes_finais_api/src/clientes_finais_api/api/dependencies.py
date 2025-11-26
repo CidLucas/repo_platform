@@ -1,5 +1,4 @@
 import uuid
-from fastapi import Header, HTTPException, status
 
 # TODO: Esta é uma dependência placeholder para simular a autenticação.
 async def get_cliente_vizu_id_from_token() -> uuid.UUID:

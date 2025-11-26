@@ -7,7 +7,7 @@ from langchain_core.runnables.base import Runnable
 from vizu_sql_factory.factory import create_sql_agent_runnable, _construir_db_url
 
 # Modelos que usamos
-from vizu_shared_models.cliente_vizu import VizuClientContext
+from vizu_models.vizu_client_context import VizuClientContext
 
 
 
@@ -30,7 +30,7 @@ def test_sql_factory_success(
     # Mockamos as chamadas externas que a factory faz
     mock_create_engine = mocker.patch("vizu_sql_factory.factory.create_engine")
     mock_create_agent = mocker.patch("vizu_sql_factory.factory.create_sql_agent")
-    
+
     # Mockamos SQLDatabase para evitar a necessidade de um engine real
     mock_sql_database = mocker.patch("vizu_sql_factory.factory.SQLDatabase")
     mock_sql_database.return_value.dialect.name = "postgresql" # Simula o dialeto

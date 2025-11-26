@@ -7,7 +7,7 @@ description = "Microsserviço de Conectores Enterprise para Ingestão de Dados d
 authors = ["Vizu Engineering Team"]
 license = "Proprietary"
 packages = [
-    {include = "data_ingestion_api", from = "src"} 
+    {include = "data_ingestion_api", from = "src"}
 ]
 
 [tool.poetry.dependencies]
@@ -20,13 +20,13 @@ psycopg2-binary = "^2.9.9"
 google-cloud-bigquery = "^3.21.0" # Para o Conector BigQuery (Enterprise)
 google-cloud-pubsub = "^2.21.0"
 google-auth = "^2.29.0"     # Para autenticação GCP
-pandas = "^2.2.0" 
+pandas = "^2.2.0"
 db-dtypes = "^1.2.0"
 
 # --- DEPENDÊNCIAS INTERNAS DO MONOREPO (LINKS PARA LIBS/) ---
 # O Poetry resolve o caminho relativo para instalar em modo editável
 vizu-db-connector = {path = "../../libs/vizu_db_connector", develop = true}
-vizu-shared-models = {path = "../../libs/vizu_shared_models", develop = true}
+vizu_models = {path = "../../libs/vizu_models", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 # Essenciais para Testabilidade
@@ -38,9 +38,9 @@ black = "^24.4.2"
 isort = "^5.12.0"
 
 [tool.pytest.ini_options]
-# O ponto ('.') adiciona a raiz (data_ingestion_api/). 
+# O ponto ('.') adiciona a raiz (data_ingestion_api/).
 # Adicionamos 'src' e 'connectors' para resolver qualquer importação direta.
-pythonpath = [".", "src", "connectors", "services"] 
+pythonpath = [".", "src", "connectors", "services"]
 testpaths = ["tests"]
 
 [build-system]

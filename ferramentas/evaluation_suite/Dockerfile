@@ -45,7 +45,7 @@ COPY ./libs ./libs
 # 8. CONFIGURE O PYTHONPATH.
 #    Essencial para que o Python encontre os módulos das nossas bibliotecas internas no monorepo.
 #    Aponta para o 'src' de cada lib que a ferramenta utiliza.
-ENV PYTHONPATH="/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_shared_models/src"
+ENV PYTHONPATH="/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src"
 
 # 9. DEFINA o comando de execução da aplicação.
 #    Conforme a especificação, a interface será uma aplicação Streamlit.

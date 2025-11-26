@@ -19,7 +19,7 @@ google-cloud-pubsub = "^2.21.0"
 
 # --- DEPENDÊNCIAS INTERNAS DO MONOREPO (LINKS PARA LIBS/) ---
 vizu-db-connector = {path = "../../libs/vizu_db_connector", develop = true}
-vizu-shared-models = {path = "../../libs/vizu_shared_models", develop = true}
+vizu_models = {path = "../../libs/vizu_models", develop = true}
 data-ingestion-api = {path = "../data_ingestion_api", develop = true}
 vizu-shared-utils = {path = "../../libs/vizu_shared_utils", develop = true}
 python-dotenv = "^1.1.1"

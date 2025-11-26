@@ -43,7 +43,7 @@ COPY --from=builder /app/libs /app/libs
 ENV PATH="/app/services/analytics_api/.venv/bin:$PATH"
 
 # 8. AJUSTE o PYTHONPATH (Relativo ao WORKDIR)
-ENV PYTHONPATH="src:../../libs/vizu_db_connector/src:../../libs/vizu_shared_models/src"
+ENV PYTHONPATH="src:../../libs/vizu_db_connector/src:../../libs/vizu_models/src"
 
 # 9. DEFINA o comando de execução
 EXPOSE 80

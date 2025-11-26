@@ -18,7 +18,7 @@ langchain-core = "^1.0.0"
 vizu_llm_service = {path = "../../libs/vizu_llm_service", develop = true}
 vizu_context_service = {path = "../../libs/vizu_context_service", develop = true}
 vizu_qdrant_client = {path = "../../libs/vizu_qdrant_client", develop = true}
-vizu_shared_models = {path = "../../libs/vizu_shared_models", develop = true}
+vizu_models = {path = "../../libs/vizu_models", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.2"

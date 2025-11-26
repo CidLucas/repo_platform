@@ -17,14 +17,14 @@ pydantic-settings = "^2.3.4"
 sentry-sdk = { extras = ["fastapi"], version = "^2.0.4" }
 fastmcp = "^2.11.0"
 anyio = "^4.1.1"
-
+sqlmodel = "^0.0.27"
 
 vizu_context_service = { path = "../../libs/vizu_context_service", develop = true }
 vizu_rag_factory = { path = "../../libs/vizu_rag_factory", develop = true }
 vizu_sql_factory = { path = "../../libs/vizu_sql_factory", develop = true }
 # vizu_generic_tools = { path = "../../libs/vizu_generic_tools", develop = true } # (Descomentar quando criarmos)
 vizu_db_connector = { path = "../../libs/vizu_db_connector", develop = true }
-vizu_shared_models = { path = "../../libs/vizu_shared_models", develop = true }
+vizu_models = { path = "../../libs/vizu_models", develop = true }
 pytest-anyio = "^0.0.0"
 
 [tool.poetry.group.dev.dependencies]
@@ -51,7 +51,7 @@ anyio_backend = "asyncio"
 
 pythonpath = [
     "src",
-    "../../libs/vizu_shared_models/src",
+    "../../libs/vizu_models/src",
     "../../libs/vizu_context_service/src",
     "../../libs/vizu_rag_factory/src",
     "../../libs/vizu_sql_factory/src",

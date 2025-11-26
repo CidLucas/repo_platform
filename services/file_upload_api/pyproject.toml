@@ -19,7 +19,7 @@ google-cloud-pubsub = "^2.19.0"
 
 # --- Dependências internas do monorepo Vizu ---
 vizu-observability-bootstrap = { path = "../../libs/vizu_observability_bootstrap" }
-vizu-shared-models = { path = "../../libs/vizu_shared_models" }
+vizu_models = { path = "../../libs/vizu_models" }
 
 
 [tool.poetry.group.dev.dependencies]

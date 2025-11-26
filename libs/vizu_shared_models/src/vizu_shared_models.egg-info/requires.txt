@@ -1,4 +1,0 @@
-pydantic[email]
-
-[test]
-pytest

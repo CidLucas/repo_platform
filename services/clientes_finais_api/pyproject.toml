@@ -16,7 +16,7 @@ python-multipart = "^0.0.9"
 # --- Dependências internas do monorepo Vizu ---
 vizu-observability-bootstrap = { path = "../../libs/vizu_observability_bootstrap" }
 vizu-db-connector = { path = "../../libs/vizu_db_connector" }
-vizu-shared-models = { path = "../../libs/vizu_shared_models" }
+vizu_models = { path = "../../libs/vizu_models", develop = true }
 
 
 [tool.poetry.group.dev.dependencies]

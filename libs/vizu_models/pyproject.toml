@@ -4,10 +4,11 @@ version = "0.1.0"
 description = "Single source of truth for Vizu data models (SQLModel)."
 authors = ["Gemini"]
 readme = "README.md"
+packages = [{include = "vizu_models", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-sqlmodel = "^0.0.16"
+sqlmodel = "^0.0.27"
 psycopg2-binary = "^2.9.9" # Necessário para o dialeto postgresql
 pydantic = {extras = ["email"], version = "^2.7.1"}
 

@@ -4,14 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 # Importa os modelos Pydantic e SQLAlchemy relevantes
-from vizu_shared_models.configuracao import ConfiguracaoNegocioCreate, ConfiguracaoNegocioUpdate, ConfiguracaoNegocioInDB
+from vizu_models import ConfiguracaoNegocioCreate, ConfiguracaoNegocioUpdate, ConfiguracaoNegocio
 from ...services.config_service import config_service
 from ..dependencies import get_db_session
 
 router = APIRouter()
 
 # --- Endpoint de Criação (POST) ---
-@router.post("", response_model=ConfiguracaoNegocioInDB, status_code=201)
+@router.post("", response_model=ConfiguracaoNegocio, status_code=201)
 def create_configuracao(
     *,
     db_session: Session = Depends(get_db_session),
@@ -32,7 +32,7 @@ def create_configuracao(
     return config_service.create(db=db_session, obj_in=config_in)
 
 # --- Endpoint de Leitura (GET) ---
-@router.get("/by-client/{cliente_id}", response_model=ConfiguracaoNegocioInDB)
+@router.get("/by-client/{cliente_id}", response_model=ConfiguracaoNegocio)
 def read_configuracao_by_cliente(
     *,
     db_session: Session = Depends(get_db_session),
@@ -47,7 +47,7 @@ def read_configuracao_by_cliente(
     return config
 
 # --- Endpoint de Atualização (PUT) ---
-@router.put("/{config_id}", response_model=ConfiguracaoNegocioInDB)
+@router.put("/{config_id}", response_model=ConfiguracaoNegocio)
 def update_configuracao(
     *,
     db_session: Session = Depends(get_db_session),

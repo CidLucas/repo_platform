@@ -4,8 +4,7 @@ from typing import List
 
 from sqlalchemy.orm import Session
 
-from vizu_db_connector.models.cliente_final import ClienteFinal
-from clientes_finais_api.schemas.cliente_final_schemas import ClienteFinalCreate
+from vizu_models import ClienteFinal, ClienteFinalCreate
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@ from typing import Dict, Any
 from pydantic import Field
 
 # Importa a base do nosso modelo compartilhado
-from vizu_shared_models.cliente_final import ClienteFinalBase
+from vizu_models import ClienteFinalBase
 
 # Omitimos o 'cliente_vizu_id' pois ele virá da autenticação (API Key),
 # não do corpo da requisição.

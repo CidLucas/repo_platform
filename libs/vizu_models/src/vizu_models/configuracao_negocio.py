@@ -1,20 +1,27 @@
 import uuid
 from typing import Any, Optional, TYPE_CHECKING, Dict
 
+# Importação explícita de JSON para colunas
 from sqlmodel import Field, Relationship, SQLModel
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column
+from sqlalchemy.dialects.postgresql import JSON # Importação mais específica
 
 if TYPE_CHECKING:
+    # Resolvendo forward reference (correto)
     from .cliente_vizu import ClienteVizu
 
 
 class ConfiguracaoNegocioBase(SQLModel):
-    prompt_base: Optional[str] = Field(None, description="O prompt principal que define a personalidade e as instruções do agente de IA.")
-    horario_funcionamento: Optional[Dict[str, Any]] = Field(
+    # CORREÇÃO AQUI: Deixamos o tipo como Any para evitar conflito de tipagem
+    # com o JSON do SQLAlchemy, já que a coluna SQL é definida explicitamente.
+    horario_funcionamento: Optional[Any] = Field(
         default=None,
-        sa_column=Column(JSON),
+        sa_column=Column(JSON), # Use o tipo JSON do SQLAlchemy
         description='Objeto JSON para armazenar os horários de operação.'
     )
+
+    prompt_base: Optional[str] = Field(None, description="O prompt principal que define a personalidade e as instruções do agente de IA.")
+
     ferramenta_rag_habilitada: bool = Field(default=False)
     ferramenta_sql_habilitada: bool = Field(default=False)
     ferramenta_agendamento_habilitada: bool = Field(default=False)
@@ -36,19 +43,10 @@ class ConfiguracaoNegocioRead(ConfiguracaoNegocioBase):
     id: int
     cliente_vizu_id: uuid.UUID
 
+
 class ConfiguracaoNegocioUpdate(SQLModel):
     prompt_base: Optional[str] = None
     horario_funcionamento: Optional[Dict[str, Any]] = None
     ferramenta_rag_habilitada: Optional[bool] = None
     ferramenta_sql_habilitada: Optional[bool] = None
     ferramenta_agendamento_habilitada: Optional[bool] = None
-
-
-class ConfiguracaoNegocioInDB(ConfiguracaoNegocio):
-    """
-    Schema for representing the full database object, for internal use.
-    """
-    pass
-
-
-

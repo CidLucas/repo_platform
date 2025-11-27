@@ -1,27 +1,28 @@
 [tool.poetry]
 name = "vizu-db-connector"
 version = "0.1.0"
-description = "Conector de banco de dados padronizado para o ecossistema Vizu."
-authors = ["Equipe Vizu <infra@vizu.ai>"]
-readme = "README.md"
+description = "Lib central de banco de dados e migrações do Vizu"
+authors = ["Seu Nome <seu@email.com>"]
 packages = [{include = "vizu_db_connector", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-sqlalchemy = "^2.0.31"
+sqlalchemy = "^2.0.23"
+alembic = "^1.13.0"
 psycopg2-binary = "^2.9.9"
-alembic = "^1.13.2"
-pydantic-settings = "^2.3.4"
-vizu_models = {path = "../../libs/vizu_models", develop = true}
+supabase = "^2.3.0"  # Necessário para o client Supabase
+pyjwt = "^2.8.0"     # Necessário para gerar tokens RLS
+python-dotenv = "^1.2.1"
 sqlmodel = "^0.0.27"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.2.2"
+pytest = "^7.0"
+
+# --- ADICIONE ESTA SEÇÃO ---
+[tool.poetry.scripts]
+vizu-db = "vizu_db_connector.manager:main"
+# ---------------------------
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.pytest.ini_options]
-pythonpath = ["src"]
-testpaths = ["tests"]

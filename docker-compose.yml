@@ -1,37 +1,35 @@
 
-# Bloco de extensões (YAML Anchors) para definir variáveis comuns
-x-common-env:
-  # O &common-env define o "apelido" da âncora
-  common: &common-env
-    TEST_DATABASE_URL : postgresql+psycopg2://user:password@localhost:5432/vizu_db
+# --- DEFINIÇÕES COMUNS ---
+x-common-env: &common-env
+  # Variáveis Padronizadas
+  DATABASE_URL: ${DATABASE_URL}
+  SUPABASE_URL: ${SUPABASE_URL}
+  SUPABASE_KEY: ${SUPABASE_KEY}
+  SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+  DB_MODE: ${DB_MODE:-postgres_local}
+  # Configs de serviços
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  EMBEDDING_SERVICE_URL: http://embedding_service:11435
+  BASE_URL: "http://clients_api:8000/api/v1"
 
-    # MUDANÇA: Substituído por referência a variáveis de ambiente (ENV)
-    DATABASE_URL: ${SUPABASE_DATABASE_URL}
-    SUPABASE_KEY: ${SUPABASE_KEY}
-    # FIM DA MUDANÇA
+x-atendente-env: &atendente-env
+  REDIS_URL: redis://redis:6379/0
+  OLLAMA_BASE_URL: http://ollama_service:11434
+  LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
+  TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
 
-    OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-    # URL interna para comunicação entre containers
-    EMBEDDING_SERVICE_URL: http://embedding_service:11435
-    # URL base interna para acessar a Clients API a partir de outros containers
-    BASE_URL: "http://clients_api:8000/api/v1"
-  atendente: &atendente-env
-    REDIS_URL: redis://redis:6379/0
-    OLLAMA_BASE_URL: http://ollama_service:11434
-
-    # MUDANÇA: Substituído por referência a variáveis de ambiente (ENV)
-    LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
-    TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
-    # FIM DA MUDANÇA
-
-# Bloco principal que contém a definição de todos os serviços (contêineres).
 services:
+  # =========================================
+  # INFRAESTRUTURA LOCAL (Perfil: local)
+  # Só sobem se você rodar com --profile local
+  # =========================================
+
   postgres:
     image: postgres:15-alpine
     platform: linux/amd64
+    profiles: ["local"] # <--- Só sobe no modo local
     container_name: vizu_postgres
     environment:
-      # Valores padrão para desenvolvimento local. Se esta instância for externa, mova também
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: vizu_db
@@ -39,12 +37,102 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U user -d vizu_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Serviço efêmero que roda as migrações no banco local e morre
+  migrator:
+    profiles: ["local"]
+    build:
+      context: .
+      # Usa um Dockerfile simples que tem Python + Poetry
+      dockerfile: ./services/migration_runner/Dockerfile
+    environment:
+      # Aponta para o container postgres local
+      DATABASE_URL: postgresql://user:password@postgres:5432/vizu_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Comando mágico: usa a CLI que acabamos de criar
+    command: ["poetry", "run", "vizu-db", "migrate"]
+    volumes:
+      - ./libs:/app/libs # Mapeia as libs para ter o código mais recente
+
+  # =========================================
+  # SERVIÇOS DA APLICAÇÃO (Perfil: padrão)
+  # Rodam tanto em local quanto em prod
+  # =========================================
+
+  atendente_core:
+    container_name: vizu_atendente_core
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./services/atendente_core/Dockerfile
+    environment:
+      <<: [*common-env, *atendente-env]
+      PYTHONPATH: /app/services/atendente_core/src
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./services/atendente_core/src:/app/services/atendente_core/src
+      - ./libs:/app/libs
+    depends_on:
+      redis:
+        condition: service_healthy
+      # Em PROD, o postgres não existe, então removemos a dependência explícita
+      # ou usamos required: false nas versões mais novas do Compose.
+      # Para simplificar, deixamos sem depends_on do banco, a app tenta reconectar.
+
+  clients_api:
+    container_name: clients_api
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./services/clients_api/Dockerfile
+    ports:
+      - "8005:8000"
+    volumes:
+      - ./services/clients_api/src:/app/src
+      - ./libs:/app/libs
+    environment:
+      <<: *common-env
+      PYTHONPATH: /app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src
+      CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY}
+    dns:
+      - 8.8.8.8
+
+  # ... (Mantenha os outros serviços como file_upload, analytics, etc da mesma forma)
+  # Apenas lembre de usar <<: *common-env para injetar o DATABASE_URL correto
+
+  # =========================================
+  # INFRAESTRUTURA DE APOIO (Sempre ativa)
+  # =========================================
+
+  redis:
+    container_name: vizu_redis_dev
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  ollama_service:
+    container_name: vizu_ollama_dev
+    build:
+      context: .
+      dockerfile: ./services/ollama_service/Dockerfile
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_storage:/root/.ollama
+
 
   evaluation_suite:
      container_name: vizu_evaluation_suite
@@ -95,26 +183,6 @@ services:
       postgres:
         condition: service_healthy
 
-  ollama_service:
-    container_name: vizu_ollama_dev
-    # Usa a imagem oficial como base (ou a sua customizada se preferir buildar sempre)
-    # Se quiser usar o Dockerfile customizado (recomendado para o Modelfile):
-    build:
-      context: .
-      dockerfile: ./services/ollama_service/Dockerfile
-    ports:
-      # --- CORREÇÃO DE PORTA ---
-      # Volta para a porta padrão para não conflitar com o embedding (11435)
-      - "11434:11434"
-    volumes:
-      - ollama_storage:/root/.ollama
-#    deploy:
-#      resources:
-#        reservations:
-#          devices:
-#            - driver: nvidia
-#              count: 1
-#              capabilities: [gpu]
 
   qdrant_db:
     container_name: vizu_qdrant_dev
@@ -132,16 +200,6 @@ services:
       retries: 5
       start_period: 20s
 
-  redis:
-    container_name: vizu_redis_dev
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.91.0
@@ -252,30 +310,6 @@ services:
      timeout: 5s
      retries: 5
 
-  atendente_core:
-     container_name: vizu_atendente_core
-     platform: linux/amd64
-     build:
-       context: .
-       # Garante que está apontando para a pasta correta
-       dockerfile: ./services/atendente_core/Dockerfile
-     environment:
-       <<: [*common-env, *atendente-env]
-       # Aponta para o src dentro da pasta do serviço
-       PYTHONPATH: /app/services/atendente_core/src
-     ports:
-       - "8003:8000"
-     volumes:
-       # --- CORREÇÃO: Caminhos Absolutos ---
-       - ./services/atendente_core/src:/app/services/atendente_core/src
-       - ./libs:/app/libs
-     depends_on:
-       redis:
-         condition: service_healthy
-       ollama_service:
-         condition: service_started
-       tool_pool_api:
-          condition: service_started
 
 
   analytics_api:
@@ -317,31 +351,6 @@ services:
       postgres:
         condition: service_healthy
 
-  clients_api:
-    container_name: clients_api
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/clients_api/Dockerfile
-    ports:
-      - "8005:8000"
-    volumes:
-      - ./services/clients_api/src:/app/src
-      - ./libs:/app/libs
-    environment:
-      <<: *common-env
-      # --- CORREÇÃO DE IMPORTAÇÃO ---
-      # Removido /app/libs para corrigir o erro ModuleNotFoundError
-      PYTHONPATH: /app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src
-      # MUDANÇA: Substituído por referência a variável de ambiente (ENV)
-      CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY}
-      # FIM DA MUDANÇA
-    dns:
-      - 8.8.8.8  # DNS Google
-      - 1.1.1.1
-    depends_on:
-      postgres:
-        condition: service_healthy
 
 
   tool_pool_api:

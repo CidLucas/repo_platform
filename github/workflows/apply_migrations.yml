@@ -1,0 +1,41 @@
+name: Apply Migrations
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+
+jobs:
+  apply-migrations:
+    name: Apply Alembic migrations (protected)
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install libs dependencies
+        run: |
+          cd libs/vizu_db_connector
+          poetry install --no-root
+
+      - name: Run alembic upgrade head
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          cd libs/vizu_db_connector
+          # Use poetry to ensure environment parity
+          poetry run alembic upgrade head --verbose
+
+    # Important: protect this workflow with branch protection / required reviewers
+    # and set `SUPABASE_DB_URL` in repository secrets. For production use prefer a
+    # manual dispatch with approvals.

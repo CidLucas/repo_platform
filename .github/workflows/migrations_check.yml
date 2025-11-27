@@ -1,16 +1,16 @@
-name: Migrations Check (PR)
+name: DB Migrations Check
 
 on:
   pull_request:
     paths:
+      - 'libs/vizu_models/**'
       - 'libs/vizu_db_connector/**'
 
 jobs:
-  check:
+  check-migrations:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -23,15 +23,12 @@ jobs:
       - name: Install dependencies
         run: |
           cd libs/vizu_db_connector
-          poetry install --no-root
+          poetry install
 
-      - name: Run alembic heads
+      - name: Verify Migration Generation
+        # Tenta gerar o SQL do Supabase como teste de sanidade
+        # Se falhar aqui, o desenvolvedor sabe que quebrou algo antes de mergear
         run: |
           cd libs/vizu_db_connector
-          # This step verifies alembic can import project modules and read revisions
-          poetry run alembic current || true
-
-      - name: Lint migration scripts
-        run: |
-          # Basic check: ensure there are no 'pass' upgrades in new revisions (manual validation recommended)
-          echo "Migration check completed"
+          export DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+          poetry run vizu-db export-supabase --name "ci_check"

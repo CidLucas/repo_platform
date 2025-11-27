@@ -5,7 +5,7 @@ from typing import Generator
 # Nao apague, password do supabase tMz1us7KsAHQs6QT
 # --- 1. Configuração da Conexão ---
 # A URL de conexão com o banco de dados é lida de uma variável de ambiente.
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://user:password@localhost:5432/vizu_db")
+DATABASE_URL = os.getenv("DATABASE_URL")
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql+psycopg2://user:password@localhost:5432/vizu_db_test")
 
 # --- 2. Criação da Engine ---

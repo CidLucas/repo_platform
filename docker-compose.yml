@@ -1,11 +1,14 @@
-# Define a versão do compose para garantir compatibilidade
 
 # Bloco de extensões (YAML Anchors) para definir variáveis comuns
 x-common-env:
   # O &common-env define o "apelido" da âncora
   common: &common-env
-    DATABASE_URL: postgresql+psycopg2://user:password@postgres:5432/vizu_db
-    TEST_DATABASE_URL : postgresql+psycopg2://user:password@localhost:5432/vizu_db_test
+    TEST_DATABASE_URL : postgresql+psycopg2://user:password@localhost:5432/vizu_db
+
+    # MUDANÇA: Substituído por referência a variáveis de ambiente (ENV)
+    DATABASE_URL: ${SUPABASE_DATABASE_URL}
+    SUPABASE_KEY: ${SUPABASE_KEY}
+    # FIM DA MUDANÇA
 
     OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     # URL interna para comunicação entre containers
@@ -15,8 +18,11 @@ x-common-env:
   atendente: &atendente-env
     REDIS_URL: redis://redis:6379/0
     OLLAMA_BASE_URL: http://ollama_service:11434
-    LANGCHAIN_API_KEY: sua_chave_langchain
-    TWILIO_AUTH_TOKEN: seu_token_twilio
+
+    # MUDANÇA: Substituído por referência a variáveis de ambiente (ENV)
+    LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
+    TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+    # FIM DA MUDANÇA
 
 # Bloco principal que contém a definição de todos os serviços (contêineres).
 services:
@@ -25,7 +31,7 @@ services:
     platform: linux/amd64
     container_name: vizu_postgres
     environment:
-      # Formato CHAVE: VALOR (mapa)
+      # Valores padrão para desenvolvimento local. Se esta instância for externa, mova também
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: vizu_db
@@ -39,8 +45,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-
 
   evaluation_suite:
      container_name: vizu_evaluation_suite
@@ -190,9 +194,11 @@ services:
       <<: *common-env
       # --- CORREÇÃO DE IMPORTAÇÃO ---
       PYTHONPATH: /app/src
-      GCP_PROJECT_ID: "seu-projeto-gcp"
-      GCS_BUCKET_NAME: "seu-bucket-gcs"
-      PUBSUB_TOPIC_ID: "seu-topico-pubsub"
+      # MUDANÇA: Substituído por referência a variáveis de ambiente (ENV)
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
+      PUBSUB_TOPIC_ID: ${PUBSUB_TOPIC_ID}
+      # FIM DA MUDANÇA
     depends_on:
       postgres:
         condition: service_healthy
@@ -218,10 +224,13 @@ services:
    environment:
      <<: *common-env
      # Variáveis específicas do config.py
-     # !! IMPORTANTE: Preencha com seus valores !!
-     GCP_PROJECT_ID: "seu-projeto-gcp"
-     PUBSUB_SUBSCRIPTION_ID: "sua-subscription-id-pubsub"
-     GCS_BUCKET_NAME: "seu-bucket-gcs"
+
+     # MUDANÇA: Substituído por referência a variáveis de ambiente (ENV)
+     GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+     PUBSUB_SUBSCRIPTION_ID: ${PUBSUB_SUBSCRIPTION_ID}
+     GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
+     # FIM DA MUDANÇA
+
      QDRANT_COLLECTION_NAME: "vizu_knowledge_base" # Ou o nome que preferir
 
      # Aponta para os nomes dos serviços DENTRO do Docker
@@ -289,17 +298,6 @@ services:
         condition: service_healthy
       # Dependência implícita de dados gerados por outros serviços
 
-  migration_runner:
-    container_name: vizu_migration_runner
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/migration_runner/Dockerfile
-    environment:
-      <<: *common-env
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   data_ingestion_api:
     container_name: vizu_data_ingestion_api
@@ -335,14 +333,15 @@ services:
       # --- CORREÇÃO DE IMPORTAÇÃO ---
       # Removido /app/libs para corrigir o erro ModuleNotFoundError
       PYTHONPATH: /app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src
-      CREDENTIALS_ENCRYPTION_KEY: "Y2hlY2stbXktc2VjcmV0LWtleS1leGFtcGxlLTEyMzQ="
-      PYTHONPATH: /app/src
-      CREDENTIALS_ENCRYPTION_KEY: "Y2hlY2stbXktsecrect-key-example-1234="
+      # MUDANÇA: Substituído por referência a variável de ambiente (ENV)
+      CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY}
+      # FIM DA MUDANÇA
+    dns:
+      - 8.8.8.8  # DNS Google
+      - 1.1.1.1
     depends_on:
       postgres:
         condition: service_healthy
-      migration_runner:
-        condition: service_completed_successfully
 
 
   tool_pool_api:

@@ -16,21 +16,6 @@ export interface Pedido {
   // Add other fields as per your API response for Pedidos
 }
 
-export interface Produto {
-  id: string;
-  titulo: string;
-  precoUnitario: string;
-  estoque: number;
-  categoria: string;
-  fornecedor: string;
-  status: string;
-  clientName: string; // Supplier name
-  vendasMes: string;
-  avaliacaoMedia: string;
-  descricaoDetalhada: string;
-  // Add other fields as per your API response for Produtos
-}
-
 // Corresponds to the Pydantic 'RankingItem'
 export interface RankingItem {
   nome: string;
@@ -64,7 +49,7 @@ export interface FornecedoresOverviewResponse {
   ranking_por_qtd_media: RankingItem[];
   ranking_por_ticket_medio: RankingItem[];
   ranking_por_frequencia: RankingItem[];
-  ranking_produtos_mais_vendidos: any[]; // Define more strictly if needed
+  ranking_produtos_mais_vendidos: { nome: string; receita_total: number; valor_unitario_medio: number; }[]; // Corrected type based on backend
 }
 
 // Corresponds to the Pydantic 'CadastralData'
@@ -87,6 +72,50 @@ export interface FornecedorDetailResponse {
   rankings_internos: {
     clientes_por_receita: RankingItem[];
     produtos_por_receita: RankingItem[];
+    regioes_por_receita: RankingItem[];
+  };
+}
+
+// Corresponds to the Pydantic 'ClientesOverviewResponse'
+export interface ClientesOverviewResponse {
+  scorecard_total_clientes: number;
+  scorecard_ticket_medio_geral: number;
+  scorecard_frequencia_media_geral: number;
+  chart_clientes_por_regiao: ChartDataPoint[];
+  chart_cohort_clientes: ChartDataPoint[];
+  ranking_por_receita: RankingItem[];
+  ranking_por_ticket_medio: RankingItem[];
+  ranking_por_qtd_pedidos: RankingItem[];
+  ranking_por_cluster_vizu: RankingItem[];
+}
+
+// Corresponds to the Pydantic 'ClienteDetailResponse'
+export interface ClienteDetailResponse {
+  dados_cadastrais: CadastralData;
+  scorecards: RankingItem | null; // Optional because it can be {}
+  rankings_internos: {
+    mix_de_produtos_por_receita: RankingItem[];
+    // ultimos_pedidos: any[]; // Removed from rankings_internos in backend
+  };
+}
+
+// Corresponds to the Pydantic 'ProdutosOverviewResponse'
+export interface ProdutosOverviewResponse {
+  scorecard_total_itens_unicos: number;
+  ranking_por_receita: { nome: string; receita_total: number; valor_unitario_medio: number; }[]; // Matching backend's simplified return
+  ranking_por_volume: { nome: string; quantidade_total: number; valor_unitario_medio: number; }[]; // Matching backend's simplified return
+  ranking_por_ticket_medio: { nome: string; ticket_medio: number; valor_unitario_medio: number; }[]; // Matching backend's simplified return
+}
+
+// Corresponds to the Pydantic 'ProdutoDetailResponse'
+export interface ProdutoDetailResponse {
+  nome_produto: string;
+  scorecards: RankingItem | null;
+  charts: {
+    segmentos_de_clientes: ChartDataPoint[];
+  };
+  rankings_internos: {
+    clientes_por_receita: RankingItem[];
     regioes_por_receita: RankingItem[];
   };
 }
@@ -132,17 +161,6 @@ export const getPedido = async (id: string): Promise<Pedido> => {
   return response.data;
 };
 
-// Produtos API calls
-export const getProdutos = async (): Promise<Produto[]> => {
-  const response = await axiosInstance.get<Produto[]>('/produtos');
-  return response.data;
-};
-
-export const getProduto = async (id: string): Promise<Produto> => {
-  const response = await axiosInstance.get<Produto>(`/produtos/${id}`);
-  return response.data;
-};
-
 // Fornecedores API calls (overview)
 export const getFornecedores = async (): Promise<FornecedoresOverviewResponse> => {
   const response = await axiosInstance.get<FornecedoresOverviewResponse>('/fornecedores');
@@ -152,5 +170,29 @@ export const getFornecedores = async (): Promise<FornecedoresOverviewResponse> =
 // Fornecedor API call (details)
 export const getFornecedor = async (nome_fornecedor: string): Promise<FornecedorDetailResponse> => {
   const response = await axiosInstance.get<FornecedorDetailResponse>(`/fornecedor/${nome_fornecedor}`);
+  return response.data;
+};
+
+// Clientes API calls (overview)
+export const getClientes = async (): Promise<ClientesOverviewResponse> => {
+  const response = await axiosInstance.get<ClientesOverviewResponse>('/clientes');
+  return response.data;
+};
+
+// Cliente API call (details)
+export const getCliente = async (nome_cliente: string): Promise<ClienteDetailResponse> => {
+  const response = await axiosInstance.get<ClienteDetailResponse>(`/cliente/${nome_cliente}`);
+  return response.data;
+};
+
+// Produtos API calls (overview)
+export const getProdutosOverview = async (): Promise<ProdutosOverviewResponse> => {
+  const response = await axiosInstance.get<ProdutosOverviewResponse>('/produtos');
+  return response.data;
+};
+
+// Produto API call (details)
+export const getProdutoDetails = async (nome_produto: string): Promise<ProdutoDetailResponse> => {
+  const response = await axiosInstance.get<ProdutoDetailResponse>(`/produto/${nome_produto}`);
   return response.data;
 };

@@ -40,9 +40,9 @@ function HomePage() {
                 color="#FFF856" // Updated Yellow
               />
             </Link>
-            <Link to="/pedidos">
+            <Link to="/clientes">
               <StatCard 
-                title="PEDIDOS" 
+                title="CLIENTES" 
                 percentage="+0.85%" 
                 total="35" 
                 totalLabel="TOTAL" 

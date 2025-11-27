@@ -196,11 +196,13 @@ class MetricService:
         # NOVO (Q2): Gráfico de Cohort (Tiers)
         df_cohort = df_clientes_agg.groupby('cluster_tier').size().reset_index(name='contagem')
         df_cohort['percentual'] = (df_cohort['contagem'] / df_cohort['contagem'].sum()) * 100
+        # CORREÇÃO: Renomeia a coluna para corresponder ao schema ChartDataPoint
+        df_cohort.rename(columns={'cluster_tier': 'name'}, inplace=True)
 
         return {
             "scorecard_total_clientes": int(df_clientes_agg.shape[0]),
-            "scorecard_ticket_medio_geral": float(df_clientes_agg['ticket_medio'].mean()),
-            "scorecard_frequencia_media_geral": float(df_clientes_agg['frequencia_pedidos_mes'].mean()),
+            "scorecard_ticket_medio_geral": float(df_clientes_agg['ticket_medio'].mean()) if not df_clientes_agg['ticket_medio'].empty else 0.0,
+            "scorecard_frequencia_media_geral": float(df_clientes_agg['frequencia_pedidos_mes'].mean()) if not df_clientes_agg['frequencia_pedidos_mes'].empty else 0.0,
             "chart_clientes_por_regiao": [{"name": r['receiver_estado'], "percentual": r['percentual']} for r in df_clientes_regiao.to_dict('records')],
             "chart_cohort_clientes": df_cohort.to_dict('records'), # (Q2)
             "ranking_por_receita": df_clientes_agg.sort_values('receita_total', ascending=False).head(10).to_dict('records'),
@@ -240,7 +242,7 @@ class MetricService:
             "scorecard_qtd_media_produtos_por_pedido": float(df_pedidos_agg['qtd_produtos'].mean()),
             "scorecard_taxa_recorrencia_clientes_perc": taxa_recorrencia,
             "scorecard_recencia_media_entre_pedidos_dias": float(recencia_media_dias),
-            "ranking_pedidos_por_regiao": self.df.groupby('emitter_cidade')['order_id'].nunique().nlargest(10).reset_index(name='contagem').to_dict('records'),
+            "ranking_pedidos_por_regiao": self.df.groupby('emitter_cidade')['order_id'].nunique().nlargest(10).reset_index(name='contagem').rename(columns={'emitter_cidade': 'name'}).to_dict('records'),
             "ultimos_pedidos": df_pedidos_agg.sort_values('data_transacao', ascending=False).head(20).to_dict('records')
         }
 
@@ -296,8 +298,8 @@ class MetricService:
             "dados_cadastrais": dados_cadastrais,
             "scorecards": scorecards[0] if scorecards else {}, # (Q3)
             "rankings_internos": {
-                "mix_de_produtos_por_receita": df_agg_produtos.sort_values('receita_total', ascending=False).head(5)[['nome', 'receita_total', 'valor_unitario_medio']].to_dict('records'), # (Q1)
-                "ultimos_pedidos": df_ultimos_pedidos.reset_index().to_dict('records')
+                "mix_de_produtos_por_receita": df_agg_produtos.sort_values('receita_total', ascending=False).head(5).to_dict('records'),
+                # "ultimos_pedidos": df_ultimos_pedidos.reset_index().to_dict('records') # Removed as it does not fit RankingItem schema
             }
         }
 
@@ -322,6 +324,8 @@ class MetricService:
         # 3. Agrupa por Tier
         df_cohort_produto = df_clientes_filtrados.groupby('cluster_tier').size().reset_index(name='contagem')
         df_cohort_produto['percentual'] = (df_cohort_produto['contagem'] / df_cohort_produto['contagem'].sum()) * 100
+        # CORREÇÃO: Renomeia a coluna para corresponder ao schema ChartDataPoint
+        df_cohort_produto.rename(columns={'cluster_tier': 'name'}, inplace=True)
 
         return {
             "nome_produto": nome_produto,

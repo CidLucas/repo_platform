@@ -1,16 +1,24 @@
 import { Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, Flex, Text, Box } from '@chakra-ui/react';
 import React from 'react';
 import { ModalContentLayout } from './ModalContentLayout';
-import { MapComponent } from './MapComponent';
+import { MapComponent } from './MapComponent'; // Assuming map component is generic
+import { ProdutoDetailResponse } from '../services/analyticsService'; // Import the new type
 
 interface ProdutoDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  produto: any; // The selected product data
+  produto: ProdutoDetailResponse | null; // The detailed product data
 }
 
 export const ProdutoDetailsModal: React.FC<ProdutoDetailsModalProps> = ({ isOpen, onClose, produto }) => {
   if (!produto) return null; // Don't render if no produto is selected
+
+  const { nome_produto, scorecards, charts, rankings_internos } = produto;
+
+  // Note: old fields like 'clientName', 'id', 'status', 'precoUnitario', 'estoque',
+  // 'vendasMes', 'avaliacaoMedia', 'categoria', 'fornecedor', 'descricaoDetalhada'
+  // are NOT directly available in ProdutoDetailResponse.
+  // We will display what is available.
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="full">
@@ -18,113 +26,85 @@ export const ProdutoDetailsModal: React.FC<ProdutoDetailsModalProps> = ({ isOpen
       <ModalContent bg="transparent" boxShadow="none" overflow="hidden" height="100vh">
         <ModalBody p={0}>
           <ModalContentLayout
-            leftBgColor={!!produto.mapData ? "transparent" : "#FFFB97"} // Conditionally set leftBgColor
-            rightBgColor={!!produto.mapData ? "#FFF856" : "#FFF856"} // Use prop
-            isMapModal={!!produto.mapData} // Pass if it's a map modal
-            mapData={produto.mapData} // Pass mapData
+            leftBgColor={"#FFFB97"}
+            rightBgColor={"#FFF856"}
+            isMapModal={false} // Product details modal is not a map modal
+            mapData={undefined}
             leftContent={
               <Flex direction="column" height="100%">
-                <Text textStyle="modalFinancialInfo" textTransform="uppercase" mb={0}>{produto.clientName || "N/A"}</Text> {/* Client Name - mb reduced */}
+                <Text textStyle="modalFinancialInfo" textTransform="uppercase" mb={0}>{nome_produto || "N/A"}</Text> {/* Product Name */}
                 <Flex justify="space-between" align="center" mb={4}>
-                  <Text textStyle="modalTitle" fontSize="24px" fontWeight="semibold">Produto #{produto.id}</Text> {/* Adjusted font size and semibold */}
-                  <Box
-                    bg={produto.status === "Disponível" ? "green.500" : produto.status === "Esgotado" ? "red.500" : "gray.500"} // Adapted status colors
-                    color="white"
-                    width="69px"
-                    height="20px"
-                    px="0"
-                    py="0"
-                    borderRadius="md"
-                    textTransform="uppercase"
-                    fontSize="10px" // Custom font size
-                    fontWeight="semibold"
-                    display="flex"
-                    justifyContent="center"
-                    alignItems="center"
-                  >
-                    {produto.status || "N/A"}
-                  </Box>
+                  <Text textStyle="modalTitle" fontSize="24px" fontWeight="semibold">Produto: {nome_produto || "N/A"}</Text> {/* Display name as title */}
                 </Flex>
                 <Flex flex="1" alignItems="center" justifyContent="center"> {/* Wrapper to center financial list */}
-                  {/* Financial Information List */}
-                  <Flex direction="column" width="100%">
-                    <Flex justify="space-between" align="center" py={3}>
-                      <Text textStyle="modalFinancialInfo" fontWeight="semibold">PREÇO UNITÁRIO</Text>
-                      <Text textStyle="modalFinancialInfo">{produto.precoUnitario || "N/A"}</Text>
-                    </Flex>
-                    <Box borderBottom="1px solid black" width="100%" /> {/* Separator */}
+                  {/* Displaying scorecard if available */}
+                  {scorecards && (
+                    <Flex direction="column" width="100%">
+                      <Flex justify="space-between" align="center" py={3}>
+                        <Text textStyle="modalFinancialInfo" fontWeight="semibold">RECEITA TOTAL</Text>
+                        <Text textStyle="modalFinancialInfo">{scorecards.receita_total.toLocaleString('pt-BR')}</Text>
+                      </Flex>
+                      <Box borderBottom="1px solid black" width="100%" />
 
-                    <Flex justify="space-between" align="center" py={3}>
-                      <Text textStyle="modalFinancialInfo" fontWeight="semibold">ESTOQUE</Text>
-                      <Text textStyle="modalFinancialInfo">{produto.estoque || "N/A"}</Text>
-                    </Flex>
-                    <Box borderBottom="1px solid black" width="100%" /> {/* Separator */}
+                      <Flex justify="space-between" align="center" py={3}>
+                        <Text textStyle="modalFinancialInfo" fontWeight="semibold">QTD. VENDIDA</Text>
+                        <Text textStyle="modalFinancialInfo">{scorecards.quantidade_total.toLocaleString('pt-BR')}</Text>
+                      </Flex>
+                      <Box borderBottom="1px solid black" width="100%" />
 
-                    <Flex justify="space-between" align="center" py={3}>
-                      <Text textStyle="modalFinancialInfo" fontWeight="semibold">VENDAS (MÊS)</Text>
-                      <Text textStyle="modalFinancialInfo">{produto.vendasMes || "N/A"}</Text>
+                      <Flex justify="space-between" align="center" py={3}>
+                        <Text textStyle="modalFinancialInfo" fontWeight="semibold">TICKET MÉDIO</Text>
+                        <Text textStyle="modalFinancialInfo">{scorecards.ticket_medio.toLocaleString('pt-BR')}</Text>
+                      </Flex>
+                      <Box borderBottom="1px solid black" width="100%" />
                     </Flex>
-                    <Box borderBottom="1px solid black" width="100%" /> {/* Separator */}
-
-                    <Flex justify="space-between" align="center" py={3}>
-                      <Text textStyle="modalFinancialInfo" fontWeight="semibold">AVALIAÇÃO MÉDIA</Text>
-                      <Text textStyle="modalFinancialInfo">{produto.avaliacaoMedia || "N/A"}</Text>
-                    </Flex>
-                  </Flex>
+                  )}
                 </Flex>
               </Flex>
             }
             rightContent={
-              produto.mapData ? (
-                <MapComponent {...produto.mapData} height="100%" />
-              ) : (
-                <Flex direction="column" height="100%" p={8}>
-                  <Flex justify="space-between" align="center" mb={4}> {/* New Flex for right half header */}
-                    <Text textStyle="modalTitle" textTransform="uppercase" fontWeight="semibold">DETALHE DO PRODUTO</Text> {/* New title */}
-                    <ModalCloseButton position="static" onClick={onClose} /> {/* Close button here */}
-                  </Flex>
-                  <Flex direction="column" gap={4}> {/* Container for descriptive cards */}
-                    {/* Categoria Card */}
-                    <Box
-                      width="100%" // Fill available width
-                      height="140px"
-                      borderRadius="24px"
-                      bg="#FFFB97" // Lighter yellow background
-                      p={4}
-                      boxShadow="md"
-                    >
-                      <Text textTransform="uppercase" fontSize="md">Categoria</Text> {/* Uppercase, not bold */}
-                      <Text fontSize="sm" color="gray.600" noOfLines={2}>{produto.categoria || "N/A"}</Text>
-                    </Box>
-
-                    {/* Fornecedor Card */}
-                    <Box
-                      width="100%" // Fill available width
-                      height="140px"
-                      borderRadius="24px"
-                      bg="#FFFB97" // Lighter yellow background
-                      p={4}
-                      boxShadow="md"
-                    >
-                      <Text textTransform="uppercase" fontSize="md">Fornecedor</Text> {/* Uppercase, not bold */}
-                      <Text fontSize="sm" color="gray.600" noOfLines={2}>{produto.fornecedor || "N/A"}</Text>
-                    </Box>
-
-                    {/* Descrição Detalhada Card */}
-                    <Box
-                      width="100%" // Fill available width
-                      height="140px"
-                      borderRadius="24px"
-                      bg="#FFFB97" // Lighter yellow background
-                      p={4}
-                      boxShadow="md"
-                    >
-                      <Text textTransform="uppercase" fontSize="md">Descrição Detalhada</Text> {/* Uppercase, not bold */}
-                      <Text fontSize="sm" color="gray.600" noOfLines={2}>{produto.descricaoDetalhada || "N/A"}</Text>
-                    </Box>
-                  </Flex>
+              <Flex direction="column" height="100%" p={8}>
+                <Flex justify="space-between" align="center" mb={4}>
+                  <Text textStyle="modalTitle" textTransform="uppercase" fontWeight="semibold">DETALHE DO PRODUTO</Text>
+                  <ModalCloseButton position="static" onClick={onClose} />
                 </Flex>
-              )
+                <Flex direction="column" gap={4}>
+                  {/* Chart for segmentos de clientes */}
+                  {charts?.segmentos_de_clientes && charts.segmentos_de_clientes.length > 0 && (
+                    <Box
+                      width="100%"
+                      height="140px"
+                      borderRadius="24px"
+                      bg="#FFFB97"
+                      p={4}
+                      boxShadow="md"
+                    >
+                      <Text textTransform="uppercase" fontSize="md">Segmentos de Clientes</Text>
+                      {/* You'd typically render a chart component here */}
+                      <Text fontSize="sm" color="gray.600" noOfLines={2}>
+                        {charts.segmentos_de_clientes.map(s => `${s.name}: ${s.percentual}%`).join(', ')}
+                      </Text>
+                    </Box>
+                  )}
+
+                  {/* Example of displaying internal rankings if available */}
+                  {rankings_internos?.clientes_por_receita && rankings_internos.clientes_por_receita.length > 0 && (
+                    <Box
+                      width="100%"
+                      height="140px"
+                      borderRadius="24px"
+                      bg="#FFFB97"
+                      p={4}
+                      boxShadow="md"
+                    >
+                      <Text textTransform="uppercase" fontSize="md">Clientes por Receita</Text>
+                      <Text fontSize="sm" color="gray.600" noOfLines={2}>
+                        {rankings_internos.clientes_por_receita[0].nome} (R$ {rankings_internos.clientes_por_receita[0].receita_total.toLocaleString('pt-BR')})
+                      </Text>
+                    </Box>
+                  )}
+                </Flex>
+              </Flex>
             }
           />
         </ModalBody>

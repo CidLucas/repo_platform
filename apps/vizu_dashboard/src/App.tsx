@@ -4,8 +4,8 @@ import ChartsPage from './pages/ChartsPage';
 import SettingsPage from './pages/SettingsPage';
 import FornecedoresPage from './pages/FornecedoresPage';
 import ProdutosPage from './pages/ProdutosPage';
-import PedidosPage from './pages/PedidosPage';
-import PedidosListPage from './pages/PedidosListPage';
+import ClientesPage from './pages/ClientesPage'; // New import
+import ClientesListPage from './pages/ClientesListPage'; // New import
 import ProdutosListPage from './pages/ProdutosListPage'; // New import
 import FornecedoresListPage from './pages/FornecedoresListPage'; // New import
 
@@ -19,9 +19,8 @@ function App() {
       <Route path="/fornecedores/lista" element={<FornecedoresListPage />} /> {/* New route */}
       <Route path="/produtos" element={<ProdutosPage />} />
       <Route path="/produtos/lista" element={<ProdutosListPage />} /> {/* New route */}
-      <Route path="/pedidos" element={<PedidosPage />} />
-      <Route path="/pedidos/lista" element={<PedidosListPage />} />
-    </Routes>
+                <Route path="/clientes" element={<ClientesPage />} />
+                <Route path="/clientes/lista" element={<ClientesListPage />} />    </Routes>
   );
 }
 

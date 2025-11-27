@@ -26,8 +26,8 @@ export const StatCard = ({
       borderRadius="22px"
       color="black"
       width={{ base: '100%', md: '300px', lg: '390px' }}
-      height={{ base: 'auto', md: '350px', lg: '524px' }}
-      minHeight={{ base: '250px' }}
+      height={{ base: 'auto', md: '300px', lg: '390px' }} // Adjusted for more square aspect
+      minHeight={{ base: '200px' }} // Adjusted for more flexibility
     >
       <Flex direction="column" height="100%">
         {/* Top Section (left-aligned by default) */}

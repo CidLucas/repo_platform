@@ -2,22 +2,22 @@ import { Box, Text, Flex, Table, Thead, Tbody, Tr, Th, Td, Button, useDisclosure
 import { MainLayout } from '../components/layouts/MainLayout';
 import React, { useState, useEffect } from 'react';
 import { ProdutoDetailsModal } from '../components/ProdutoDetailsModal';
-import { getProdutos } from '../services/analyticsService';
-import type { Produto } from '../services/analyticsService';
+import { getProdutosOverview, getProdutoDetails } from '../services/analyticsService';
+import type { ProdutosOverviewResponse, ProdutoDetailResponse } from '../services/analyticsService';
 
 function ProdutosListPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const [selectedProduto, setSelectedProduto] = useState<any>(null);
-  const [produtos, setProdutos] = useState<Produto[]>([]); // State for fetched produtos
-  const [loading, setLoading] = useState<boolean>(true); // Loading state
-  const [error, setError] = useState<string | null>(null); // Error state
+  const [selectedProduto, setSelectedProduto] = useState<ProdutoDetailResponse | null>(null);
+  const [overviewData, setOverviewData] = useState<ProdutosOverviewResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProdutosData = async () => {
       try {
         setLoading(true);
-        const data = await getProdutos();
-        setProdutos(data);
+        const data = await getProdutosOverview();
+        setOverviewData(data);
       } catch (err: any) {
         setError(err.message || 'Erro ao carregar produtos.');
       } finally {
@@ -25,12 +25,47 @@ function ProdutosListPage() {
       }
     };
     fetchProdutosData();
-  }, []); // Empty dependency array means this runs once on mount
+  }, []);
 
-  const handleProductRowClick = (produto: any) => {
-    setSelectedProduto(produto);
-    onOpen();
+  const handleProductRowClick = async (produtoItem: { nome: string }) => {
+    // When a product row is clicked, fetch the detailed data for that specific product
+    try {
+      setSelectedProduto(null); // Clear previous selection while loading
+      const details = await getProdutoDetails(produtoItem.nome); // 'nome' is the product identifier
+      setSelectedProduto(details);
+      onOpen();
+    } catch (err: any) {
+      console.error("Erro ao carregar detalhes do produto:", err);
+      setError(err.message || 'Erro ao carregar detalhes do produto.');
+    }
   };
+
+  // Conditional rendering for loading and error states
+  if (loading) {
+    return (
+      <MainLayout>
+        <Flex justify="center" align="center" height="100vh">
+          <Spinner size="xl" />
+        </Flex>
+      </MainLayout>
+    );
+  }
+
+  if (error || !overviewData) {
+    return (
+      <MainLayout>
+        <Flex justify="center" align="center" height="100vh">
+          <Alert status="error">
+            <AlertIcon />
+            {error || 'Não foi possível carregar os dados.'}
+          </Alert>
+        </Flex>
+      </MainLayout>
+    );
+  }
+
+  // Use ranking_por_receita for the table
+  const produtosList = overviewData.ranking_por_receita || []; // Ensure it's an array
 
   return (
     <MainLayout>
@@ -44,7 +79,7 @@ function ProdutosListPage() {
         color="gray.800" // Text color for visibility
       >
         <Flex justify="space-between" align="flex-end" mb="36px"> {/* Container for title and CTA */}
-          <Text as="h1" textStyle="pageTitle" mt="32px">Produtos</Text> {/* Increased mt for spacing */}
+          <Text as="h1" textStyle="pageTitle" mt="32px">Produtos por Receita</Text> {/* Adjusted title */}
           <Button variant="solid" bg="white" color="gray.800" _hover={{ bg: "gray.100" }}>
             Cadastrar Novo Produto
           </Button>
@@ -63,31 +98,25 @@ function ProdutosListPage() {
           <Table variant="unstyled"> {/* Removed size="md" */}
             <Thead>
               <Tr borderBottom="3px solid black"> {/* Thick black line below headers */}
-                <Th py={4}>ID</Th>
-                <Th py={4}>Título</Th>
-                <Th py={4}>Preço Unitário</Th>
-                <Th py={4}>Estoque</Th>
-                <Th py={4}>Status</Th>
-                <Th py={4}>Categoria</Th>
-                <Th py={4}>Fornecedor</Th>
+                <Th py={4}>Nome</Th>
+                <Th py={4}>Receita Total</Th>
+                <Th py={4}>Valor Unitário Médio</Th>
+                {/* Add other relevant columns from RankingItem if needed */}
               </Tr>
             </Thead>
             <Tbody>
-              {produtos.map((produto, index) => (
+              {produtosList.map((produtoItem, index) => (
                 <Tr
-                  key={produto.id}
-                  borderBottom={index < produtos.length - 1 ? "1px solid black" : "none"}
+                  key={produtoItem.nome} // Use nome as key
+                  borderBottom={index < produtosList.length - 1 ? "1px solid black" : "none"}
                   cursor="pointer" // Make row clickable
                   _hover={{ bg: "gray.50" }} // Hover effect
-                  onClick={() => handleProductRowClick(produto)}
+                  onClick={() => handleProductRowClick(produtoItem)}
                 >
-                  <Td py={5}>{produto.id}</Td> {/* Increased py */}
-                  <Td py={5}>{produto.titulo}</Td>
-                  <Td py={5}>{produto.precoUnitario}</Td>
-                  <Td py={5}>{produto.estoque}</Td>
-                  <Td py={5}>{produto.status}</Td>
-                  <Td py={5}>{produto.categoria}</Td>
-                  <Td py={5}>{produto.fornecedor}</Td>
+                  <Td py={5}>{produtoItem.nome}</Td> {/* Increased py */}
+                  <Td py={5}>{`R$ ${produtoItem.receita_total.toLocaleString('pt-BR')}`}</Td>
+                  <Td py={5}>{`R$ ${produtoItem.valor_unitario_medio.toLocaleString('pt-BR')}`}</Td>
+                  {/* Add other relevant columns from RankingItem if needed */}
                 </Tr>
               ))}
             </Tbody>

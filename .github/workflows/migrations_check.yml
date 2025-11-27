@@ -1,10 +1,10 @@
-name: DB Migrations Check
+name: DB Migrations Check (CI)
 
 on:
   pull_request:
     paths:
-      - 'libs/vizu_models/**'
       - 'libs/vizu_db_connector/**'
+      - 'libs/vizu_models/**'
 
 jobs:
   check-migrations:
@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
@@ -20,15 +20,16 @@ jobs:
       - name: Install Poetry
         run: pip install poetry
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
           cd libs/vizu_db_connector
           poetry install
 
       - name: Verify Migration Generation
-        # Tenta gerar o SQL do Supabase como teste de sanidade
-        # Se falhar aqui, o desenvolvedor sabe que quebrou algo antes de mergear
+        env:
+           # Define uma URL dummy apenas para o Alembic não reclamar na validação offline
+           DATABASE_URL: postgresql://user:pass@localhost:5432/check_db
         run: |
           cd libs/vizu_db_connector
-          export DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
-          poetry run vizu-db export-supabase --name "ci_check"
+          # Tenta gerar o SQL do Supabase. Se falhar, o PR é bloqueado.
+          poetry run vizu-db export-supabase --name "ci_validation_check"

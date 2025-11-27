@@ -1,0 +1,30 @@
+name: CI - Analytics API
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+    paths:
+      - "services/analytics_api/**"
+      - "libs/**"
+  pull_request:
+    paths:
+      - "services/analytics_api/**"
+      - "libs/**"
+
+jobs:
+  build-and-test:
+    name: Build and Test Service
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./services/analytics_api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: snok/install-poetry@v1
+        with:
+          version: 1.8.2
+      - run: poetry install --no-interaction --no-root
+      - run: poetry run pytest

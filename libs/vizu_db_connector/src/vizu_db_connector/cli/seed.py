@@ -107,16 +107,15 @@ def run_seed(db_url: str):
                 # Flush para gerar o ID do cliente e usarmos na config
                 session.flush()
 
-                # 3. Cria a Configuração de Negócio associada
+                # 3. Popula os campos de configuração diretamente no Cliente (merged model)
                 config_data = client_data.get("config", {})
-                nova_config = ConfiguracaoNegocio(
-                    cliente_id=novo_cliente.id,
-                    ferramenta_rag_habilitada=config_data.get("ferramenta_rag_habilitada", False),
-                    ferramenta_sql_habilitada=config_data.get("ferramenta_sql_habilitada", False),
-                    ferramenta_agendamento_habilitada=config_data.get("ferramenta_agendamento_habilitada", False),
-                    prompt_base="Você é um assistente útil." # Default
-                )
-                session.add(nova_config)
+                novo_cliente.prompt_base = config_data.get("prompt_base", "Você é um assistente útil.")
+                novo_cliente.horario_funcionamento = config_data.get("horario_funcionamento")
+                novo_cliente.ferramenta_rag_habilitada = config_data.get("ferramenta_rag_habilitada", False)
+                novo_cliente.ferramenta_sql_habilitada = config_data.get("ferramenta_sql_habilitada", False)
+                novo_cliente.ferramenta_agendamento_habilitada = config_data.get("ferramenta_agendamento_habilitada", False)
+                novo_cliente.collection_rag = config_data.get("collection_rag")
+                session.add(novo_cliente)
 
                 count_inserted += 1
                 logger.info(f"   ✅ Cliente '{nome}' preparado para inserção.")

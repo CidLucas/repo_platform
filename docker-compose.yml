@@ -72,8 +72,13 @@ services:
     build:
       context: .
       dockerfile: ./services/atendente_core/Dockerfile
+    # Ensure the container loads the repo .env and uses the compose postgres
+    # service as the DB host (avoid 'localhost' inside the container).
+    env_file:
+      - .env
     environment:
       <<: [*common-env, *atendente-env]
+      DATABASE_URL: "postgresql://user:password@postgres:5432/vizu_db"
       PYTHONPATH: /app/services/atendente_core/src
     ports:
       - "8003:8000"
@@ -114,7 +119,8 @@ services:
 
   redis:
     container_name: vizu_redis_dev
-    image: redis:7-alpine
+    # Use Redis Stack which includes RedisJSON (required by the checkpoint index)
+    image: redis/redis-stack:latest
     ports:
       - "6379:6379"
     healthcheck:

@@ -1,23 +1,13 @@
 # Vizu Observability Bootstrap
 
-Esta biblioteca centraliza e padroniza a configuração de observabilidade (Logs Estruturados e Tracing Distribuído) para todos os serviços FastAPI da Vizu.
+This library provides a centralized way to configure observability (logs and traces) in the Vizu services.
 
-## Propósito
+## Overview
 
-O objetivo é garantir que, com uma única chamada de função, um novo serviço possa:
+The Vizu Observability Bootstrap library simplifies the process of setting up OpenTelemetry for logging and tracing in the various FastAPI services. It provides a standardized configuration that can be easily applied to any service in the monorepo.
 
-1.  Emitir logs em formato JSON, com campos `trace_id` e `span_id` automaticamente correlacionados.
-2.  Enviar _traces_ de todas as suas requisições HTTP para o Google Cloud Trace.
+### Key Technologies
 
-Isso elimina a necessidade de configuração repetitiva e garante consistência em todo o nosso ecossistema de microserviços.
-
-## Instalação
-
-Dentro do `pyproject.toml` do seu serviço, adicione esta biblioteca como uma dependência de desenvolvimento local:
-
-```toml
-[tool.poetry.dependencies]
-# ... outras dependências
-
-vizu-observability-bootstrap = { path = "../../libs/vizu_observability_bootstrap", develop = true }
-```
+*   **Observability:** OpenTelemetry
+*   **Framework:** FastAPI
+*   **Package Manager:** Poetry

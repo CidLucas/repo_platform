@@ -4,6 +4,8 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlmodel import Field, Relationship, SQLModel, Column
 from sqlalchemy import String, Enum as pgEnum
 from sqlalchemy.dialects.postgresql import UUID as pgUUID
+from sqlalchemy.dialects import postgresql
+from sqlalchemy import Text, Boolean
 
 from .enums import TipoCliente, TierCliente
 
@@ -40,23 +42,65 @@ class ClienteVizu(ClienteVizuBase, table=True):
         sa_column=Column(String(255), unique=True, index=True)
     )
 
-    configuracao: Optional["ConfiguracaoNegocio"] = Relationship(
-        back_populates="cliente_vizu",
-        sa_relationship_kwargs={"uselist": False}
+    # --- Configuração embutida (migrada desde `configuracao_negocio`) ---
+    horario_funcionamento: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(postgresql.JSONB)
     )
+
+    prompt_base: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text)
+    )
+
+    ferramenta_rag_habilitada: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, server_default="false"),
+    )
+
+    ferramenta_sql_habilitada: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, server_default="false"),
+    )
+
+    ferramenta_agendamento_habilitada: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, server_default="false"),
+    )
+
+    collection_rag: Optional[str] = Field(default=None, sa_column=Column(String))
 
     clientes_finais: List["ClienteFinal"] = Relationship(back_populates="cliente_vizu")
     fontes_de_dados: List["FonteDeDados"] = Relationship(back_populates="cliente_vizu")
     credenciais: List["CredencialServicoExterno"] = Relationship(back_populates="cliente_vizu")
+    # Legacy/compat relationship to the old ConfiguracaoNegocio table.
+    # Kept as a Relationship so SQLAlchemy mappers remain consistent during
+    # the migration rollout. This will be unused once the legacy table is
+    # removed in a later migration.
+    from typing import Optional as _Optional
+    configuracao: _Optional["ConfiguracaoNegocio"] = Relationship(back_populates="cliente_vizu")
 
 
 class ClienteVizuCreate(ClienteVizuBase):
+    # Optional config fields for creation
+    horario_funcionamento: Optional[dict] = None
+    prompt_base: Optional[str] = None
+    ferramenta_rag_habilitada: Optional[bool] = False
+    ferramenta_sql_habilitada: Optional[bool] = False
+    ferramenta_agendamento_habilitada: Optional[bool] = False
+    collection_rag: Optional[str] = None
     pass
 
 
 class ClienteVizuRead(ClienteVizuBase):
     id: uuid.UUID
     api_key: str
+    horario_funcionamento: Optional[dict] = None
+    prompt_base: Optional[str] = None
+    ferramenta_rag_habilitada: bool = False
+    ferramenta_sql_habilitada: bool = False
+    ferramenta_agendamento_habilitada: bool = False
+    collection_rag: Optional[str] = None
 
 
 class ClienteVizuReadWithRelations(ClienteVizuRead):

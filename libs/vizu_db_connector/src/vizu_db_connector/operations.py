@@ -1,4 +1,4 @@
-# libs/vizu_db_connector/src/vizu_db_connector/operations.py (VERSÃO FINAL COM LÓGICA ORM)
+# libs/vizu_db_connector/src/vizu_db_connector/operations.py
 
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import NoResultFound
@@ -77,6 +77,56 @@ class VizuDBConnector:
             except ValueError:
                 # Erro se o ID não for um UUID válido
                 raise ValueError(f"O ID fornecido não é um UUID válido: {id_credencial}")
+
+    # --- Conversas / Mensagens ---
+    async def create_or_get_conversa(self, session_id: str | None, cliente_final_id: int | None = None) -> str:
+        """
+        Cria uma conversa (ou retorna a existente) mapeada pelo `session_id`.
+        Retorna o UUID da conversa (como string).
+        """
+        with self._get_db() as db:
+            from vizu_models import Conversa
+
+            if session_id:
+                existente = db.query(Conversa).filter(Conversa.session_id == session_id).first()
+                if existente:
+                    return str(existente.id)
+
+            nova = Conversa(session_id=session_id, cliente_final_id=cliente_final_id)
+            db.add(nova)
+            db.commit()
+            db.refresh(nova)
+            return str(nova.id)
+
+    async def add_mensagem(self, conversa_id: str, remetente: str, conteudo: str) -> int:
+        """
+        Adiciona uma mensagem a uma conversa. Retorna o ID numérico da mensagem.
+        remetente: 'user' ou 'ai' (lowercase)
+        """
+        with self._get_db() as db:
+            from vizu_models import Mensagem, Remetente
+            import uuid
+
+            try:
+                cid = uuid.UUID(conversa_id)
+            except Exception:
+                raise ValueError("conversa_id inválido")
+
+            # Map the string to the enum (ensure lowercase)
+            remetente_lower = remetente.lower()
+            if remetente_lower == "user":
+                remetente_enum = Remetente.USER
+            elif remetente_lower == "ai":
+                remetente_enum = Remetente.AI
+            else:
+                raise ValueError(f"remetente inválido: {remetente}")
+
+            # Pass the enum object itself; SQLModel/SQLAlchemy will use .value for DB
+            msg = Mensagem(conversa_id=cid, remetente=remetente_enum, conteudo=conteudo)
+            db.add(msg)
+            db.commit()
+            db.refresh(msg)
+            return int(msg.id)
 
     async def insert_dataframe(self, df: Any, table_name: str, **kwargs):
         """

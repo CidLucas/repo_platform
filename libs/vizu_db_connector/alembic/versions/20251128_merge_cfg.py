@@ -20,26 +20,62 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add new columns to cliente_vizu
-    op.add_column('cliente_vizu', sa.Column('horario_funcionamento', postgresql.JSONB(), nullable=True))
-    op.add_column('cliente_vizu', sa.Column('prompt_base', sa.Text(), nullable=True))
-    op.add_column('cliente_vizu', sa.Column('ferramenta_rag_habilitada', sa.Boolean(), nullable=False, server_default=sa.text('false')))
-    op.add_column('cliente_vizu', sa.Column('ferramenta_sql_habilitada', sa.Boolean(), nullable=False, server_default=sa.text('false')))
-    op.add_column('cliente_vizu', sa.Column('ferramenta_agendamento_habilitada', sa.Boolean(), nullable=False, server_default=sa.text('false')))
-    op.add_column('cliente_vizu', sa.Column('collection_rag', sa.Text(), nullable=True))
+        # Add new columns to cliente_vizu using IF NOT EXISTS to make migration idempotent
+        op.execute("""
+        ALTER TABLE IF EXISTS public.cliente_vizu
+            ADD COLUMN IF NOT EXISTS horario_funcionamento jsonb;
+        """)
+        op.execute("""
+        ALTER TABLE IF EXISTS public.cliente_vizu
+            ADD COLUMN IF NOT EXISTS prompt_base text;
+        """)
+        op.execute("""
+        ALTER TABLE IF EXISTS public.cliente_vizu
+            ADD COLUMN IF NOT EXISTS ferramenta_rag_habilitada boolean DEFAULT false NOT NULL;
+        """)
+        op.execute("""
+        ALTER TABLE IF EXISTS public.cliente_vizu
+            ADD COLUMN IF NOT EXISTS ferramenta_sql_habilitada boolean DEFAULT false NOT NULL;
+        """)
+        op.execute("""
+        ALTER TABLE IF EXISTS public.cliente_vizu
+            ADD COLUMN IF NOT EXISTS ferramenta_agendamento_habilitada boolean DEFAULT false NOT NULL;
+        """)
+        op.execute("""
+        ALTER TABLE IF EXISTS public.cliente_vizu
+            ADD COLUMN IF NOT EXISTS collection_rag text;
+        """)
 
-    # Copy existing data from configuracao_negocio (if present)
-    op.execute("""
-    UPDATE cliente_vizu
-    SET horario_funcionamento = cn.horario_funcionamento,
-        prompt_base = cn.prompt_base,
-        ferramenta_rag_habilitada = cn.ferramenta_rag_habilitada,
-        ferramenta_sql_habilitada = cn.ferramenta_sql_habilitada,
-        ferramenta_agendamento_habilitada = cn.ferramenta_agendamento_habilitada,
-        collection_rag = NULL
-    FROM configuracao_negocio cn
-    WHERE cn.cliente_vizu_id = cliente_vizu.id;
-    """)
+        # Copy existing data from configuracao_negocio (if the table exists)
+        # Use DO block to guard if the source table/column may be missing
+        op.execute("""
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'configuracao_negocio') THEN
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'configuracao_negocio' AND column_name = 'collection_rag') THEN
+                    UPDATE public.cliente_vizu cv
+                    SET horario_funcionamento = cn.horario_funcionamento,
+                        prompt_base = cn.prompt_base,
+                        ferramenta_rag_habilitada = COALESCE(cn.ferramenta_rag_habilitada, false),
+                        ferramenta_sql_habilitada = COALESCE(cn.ferramenta_sql_habilitada, false),
+                        ferramenta_agendamento_habilitada = COALESCE(cn.ferramenta_agendamento_habilitada, false),
+                        collection_rag = cn.collection_rag
+                    FROM public.configuracao_negocio cn
+                    WHERE cn.cliente_vizu_id = cv.id;
+                ELSE
+                    UPDATE public.cliente_vizu cv
+                    SET horario_funcionamento = cn.horario_funcionamento,
+                        prompt_base = cn.prompt_base,
+                        ferramenta_rag_habilitada = COALESCE(cn.ferramenta_rag_habilitada, false),
+                        ferramenta_sql_habilitada = COALESCE(cn.ferramenta_sql_habilitada, false),
+                        ferramenta_agendamento_habilitada = COALESCE(cn.ferramenta_agendamento_habilitada, false)
+                    FROM public.configuracao_negocio cn
+                    WHERE cn.cliente_vizu_id = cv.id;
+                END IF;
+            END IF;
+        END
+        $$;
+        """)
 
 
 def downgrade() -> None:

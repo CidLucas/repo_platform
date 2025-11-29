@@ -5,8 +5,9 @@ from .configuracao_negocio import ConfiguracaoNegocio, ConfiguracaoNegocioBase, 
 from .credencial_servico_externo import CredencialServicoExterno, CredencialServicoExternoBase, CredencialServicoExternoCreate, CredencialServicoExternoInDB
 from .fonte_de_dados import FonteDeDados
 from .cliente_final import ClienteFinal, ClienteFinalCreate, ClienteFinalRead, ClienteFinalUpdate
-from .conversa import ConversaBase, MensagemBase, Remetente
+from .conversa import Conversa, ConversaBase, ConversaCreate, ConversaInDB, Mensagem, MensagemBase, MensagemCreate, MensagemInDB, Remetente
 from .vizu_client_context import VizuClientContext
+from .safe_client_context import SafeClientContext, InternalClientContext
 from sqlmodel import SQLModel
 from .enums import TipoCliente, TierCliente, TipoFonte
 
@@ -42,10 +43,18 @@ __all__ = [
     'ClienteFinalRead',
     'ClienteFinalUpdate',
 
+    'Conversa',
     'ConversaBase',
+    'ConversaCreate',
+    'ConversaInDB',
+    'Mensagem',
     'MensagemBase',
+    'MensagemCreate',
+    'MensagemInDB',
     'Remetente',
     'VizuClientContext',
+    'SafeClientContext',
+    'InternalClientContext',
     'TipoCliente',
     'TierCliente',
     'TipoFonte'

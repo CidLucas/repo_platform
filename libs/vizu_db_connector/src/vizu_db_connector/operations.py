@@ -3,7 +3,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import NoResultFound
 from typing import Dict, Any, Generator, Tuple
-import pandas as pd
 from contextlib import contextmanager
 import uuid
 
@@ -79,7 +78,7 @@ class VizuDBConnector:
                 # Erro se o ID não for um UUID válido
                 raise ValueError(f"O ID fornecido não é um UUID válido: {id_credencial}")
 
-    async def insert_dataframe(self, df: pd.DataFrame, table_name: str, **kwargs):
+    async def insert_dataframe(self, df: Any, table_name: str, **kwargs):
         """
         Salva o DataFrame transformado (Carga - L do ELT) no PostgreSQL.
         Modularização/Agnosticismo: Recebe o nome da tabela como parâmetro, não hardcodeado.
@@ -89,6 +88,13 @@ class VizuDBConnector:
         db_session = self.SessionLocal()
         try:
             engine = db_session.get_bind() # Obtém o Engine vinculado à sessão
+            # Import pandas lazily to avoid requiring it at module import time
+            # for runtime environments that don't need DataFrame features.
+            try:
+                import pandas as pd
+            except Exception as e:
+                raise RuntimeError("pandas is required for insert_dataframe but is not installed") from e
+
             df.to_sql(
                 name=table_name,
                 con=engine,

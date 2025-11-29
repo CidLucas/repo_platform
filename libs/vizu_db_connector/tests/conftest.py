@@ -3,7 +3,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-from vizu_db_connector import models
+import vizu_models as models
 
 
 # Usa uma variável de ambiente para o DB de teste, com um fallback

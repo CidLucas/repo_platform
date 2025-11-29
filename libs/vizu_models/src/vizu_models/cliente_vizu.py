@@ -5,7 +5,7 @@ from sqlmodel import Field, Relationship, SQLModel, Column
 from sqlalchemy import String, Enum as pgEnum
 from sqlalchemy.dialects.postgresql import UUID as pgUUID
 from sqlalchemy.dialects import postgresql
-from sqlalchemy import Text, Boolean
+from sqlalchemy import Text, Boolean, JSON
 
 from .enums import TipoCliente, TierCliente
 
@@ -45,7 +45,7 @@ class ClienteVizu(ClienteVizuBase, table=True):
     # --- Configuração embutida (migrada desde `configuracao_negocio`) ---
     horario_funcionamento: Optional[dict] = Field(
         default=None,
-        sa_column=Column(postgresql.JSONB)
+        sa_column=Column(JSON)
     )
 
     prompt_base: Optional[str] = Field(

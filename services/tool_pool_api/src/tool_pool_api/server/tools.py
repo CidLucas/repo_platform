@@ -21,6 +21,7 @@ from vizu_models.vizu_client_context import VizuClientContext
 # 3. Importa as fábricas de ferramentas
 from vizu_rag_factory.factory import create_rag_runnable
 from vizu_sql_factory.factory import create_sql_agent
+from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
 
 logger = logging.getLogger(__name__)
 
@@ -200,12 +201,12 @@ def register_tools(mcp: FastMCP) -> None:
     mcp.tool(
         name="executar_rag_cliente",
         description="Executa uma consulta RAG usando o contexto do cliente. Opcionalmente recebe 'cliente_id' se chamado via proxy."
-    )(_executar_rag_cliente_logic)
+    )(mcp_inject_cliente_id(get_context_service)(_executar_rag_cliente_logic))
 
     mcp.tool(
         name="executar_sql_agent",
         description="Executa uma consulta no agente SQL usando o contexto do cliente. Opcionalmente recebe 'cliente_id' se chamado via proxy."
-    )(_executar_sql_agent_logic)
+    )(mcp_inject_cliente_id(get_context_service)(_executar_sql_agent_logic))
 
     mcp.tool(
         name="ferramenta_publica_de_teste",

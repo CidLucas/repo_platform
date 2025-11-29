@@ -25,6 +25,7 @@ vizu_sql_factory = { path = "../../libs/vizu_sql_factory", develop = true }
 # vizu_generic_tools = { path = "../../libs/vizu_generic_tools", develop = true } # (Descomentar quando criarmos)
 vizu_db_connector = { path = "../../libs/vizu_db_connector", develop = true }
 vizu_models = { path = "../../libs/vizu_models", develop = true }
+vizu_auth = { path = "../../libs/vizu_auth", develop = true }
 pytest-anyio = "^0.0.0"
 
 [tool.poetry.group.dev.dependencies]
@@ -39,6 +40,7 @@ httpx = "^0.28.1"
 trio = "^0.25.1"
 anyio = "^4.11.0"
 pytest-asyncio = "1.0.0"
+pandas = "^2.2.0"
 
 [build-system]
 requires = ["poetry-core"]

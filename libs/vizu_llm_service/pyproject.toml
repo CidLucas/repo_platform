@@ -1,21 +1,38 @@
 [tool.poetry]
 name = "vizu-llm-service"
-version = "0.1.0"
-description = "Cliente leve para serviços de LLM e Embeddings da Vizu"
+version = "0.2.0"
+description = "Cliente centralizado para LLMs locais e comerciais (Ollama, OpenAI, Anthropic, Google)"
 authors = ["Vizu DevOps <devops@vizu.ai>"]
 readme = "README.md"
 packages = [{include = "vizu_llm_service", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-# Mantemos langchain-community para o ChatOllama
-langchain-community = "^0.3.0"
-# Mantemos langchain-core para as interfaces base
-langchain-core = "^1.0.0"
-# Adicionamos requests para chamar a API de embedding
+# Core LangChain
+langchain-core = ">=0.3.0"
+langchain-community = ">=0.3.0"
+# Langfuse para observabilidade
+langfuse = ">=3.0.0"
+# HTTP client para embedding API
 requests = "^2.31.0"
-langfuse = "^3.0.0"
+# Settings
+pydantic-settings = "^2.0.0"
 
+# Providers opcionais - instale com: poetry install -E openai -E anthropic -E google
+langchain-openai = {version = ">=0.2.0", optional = true}
+langchain-anthropic = {version = ">=0.2.0", optional = true}
+langchain-google-genai = {version = ">=2.0.0", optional = true}
+
+[tool.poetry.extras]
+# Providers opcionais - instale conforme necessário
+openai = ["langchain-openai"]
+anthropic = ["langchain-anthropic"]
+google = ["langchain-google-genai"]
+all = ["langchain-openai", "langchain-anthropic", "langchain-google-genai"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-asyncio = "^0.21.0"
 
 [build-system]
 requires = ["poetry-core"]

@@ -30,6 +30,12 @@ class Conversa(ConversaBase, table=True):
     # Session id (string) para mapear sessões temporárias (ex: session_id usado pelo agente)
     session_id: Optional[str] = Field(default=None, index=True)
 
+    # Referência ao cliente Vizu (tenant) - obrigatório para RLS
+    cliente_vizu_id: Optional[uuid.UUID] = Field(
+        default=None,
+        sa_column=Column(pgUUID(as_uuid=True), ForeignKey("cliente_vizu.id", ondelete="CASCADE"), index=True)
+    )
+
     # Referência ao cliente final (opcional)
     cliente_final_id: Optional[int] = Field(default=None, foreign_key="cliente_final.id")
 
@@ -37,11 +43,13 @@ class Conversa(ConversaBase, table=True):
     mensagens: list["Mensagem"] = Relationship(back_populates="conversa")
 
 class ConversaCreate(ConversaBase):
+    cliente_vizu_id: Optional[uuid.UUID] = None
     cliente_final_id: Optional[int] = None
 
 
 class ConversaInDB(ConversaBase):
     id: uuid.UUID
+    cliente_vizu_id: Optional[uuid.UUID]
     cliente_final_id: Optional[int]
 
 class MensagemBase(SQLModel):

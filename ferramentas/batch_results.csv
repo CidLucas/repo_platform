@@ -1,0 +1,14 @@
+test_id,timestamp,cliente_nome,cliente_final_id,mensagem,categoria_teste,resposta,status_code,tempo_resposta_ms,ferramentas_usadas,usou_rag,usou_sql,usou_agendamento,erro,thread_id
+9093ca2d,2025-12-01T02:36:36.225448,Studio J,test_123,Quanto custa um corte masculino?,preco,"Olá!
+
+A ferramenta que você está procurando é o ""Custo de Corte Masculino"". Aqui estão algumas informações adicionais sobre essa ferramenta:
+
+**Descrição:** O Custo de Corte Masculino é uma ferramenta utilizada para calcular o custo de corte de materiais em projetos de construção ou manutenção.
+
+**Características:**
+
+* Calcula o custo de corte com base no peso e tamanho do material
+* Considers diferentes tipos de materiais (ex: madeira, metal, plástico)
+* Permite calcular o custo de corte para diferentes partes de um projeto
+
+Se você precisar de mais informações ou quiser usar a ferramenta, por favor forneça-me mais detalhes sobre seu projeto ou necessidade específica. Estou aqui para ajudá-lo!",200,43176,,False,False,False,,

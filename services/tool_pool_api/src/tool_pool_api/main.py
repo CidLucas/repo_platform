@@ -1,7 +1,21 @@
 import logging
+import sys
 import uvicorn # Importe o uvicorn
 from .server.mcp_server import create_mcp_server
 from .core.config import get_settings
+
+# Configurar logging para todos os módulos do tool_pool_api e vizu_*
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+
+# Aumentar o nível de log para módulos específicos
+logging.getLogger("tool_pool_api").setLevel(logging.DEBUG)
+logging.getLogger("vizu_rag_factory").setLevel(logging.DEBUG)
+logging.getLogger("vizu_qdrant_client").setLevel(logging.DEBUG)
+logging.getLogger("vizu_llm_service").setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 

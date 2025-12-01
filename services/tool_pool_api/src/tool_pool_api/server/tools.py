@@ -20,8 +20,11 @@ from vizu_models.vizu_client_context import VizuClientContext
 
 # 3. Importa as fábricas de ferramentas
 from vizu_rag_factory.factory import create_rag_runnable
-from vizu_sql_factory.factory import create_sql_agent
+from vizu_sql_factory.factory import create_sql_agent_runnable
 from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+
+# 4. Importa o serviço de LLM para obter modelos com observabilidade
+from vizu_llm_service import get_model, ModelTier
 
 logger = logging.getLogger(__name__)
 
@@ -86,8 +89,16 @@ async def _executar_rag_cliente_logic(
 
     # 4. Execução da Ferramenta
     try:
-        # Cria o runnable RAG com o contexto carregado
-        rag_runnable = create_rag_runnable(vizu_context, llm=None)
+        # Obtém o LLM com observabilidade (Langfuse) vinculado ao cliente
+        llm = get_model(
+            tier=ModelTier.DEFAULT,
+            task="rag",
+            user_id=str(real_client_id),
+            tags=["tool_pool", "rag"]
+        )
+
+        # Cria o runnable RAG com o contexto e LLM carregados
+        rag_runnable = create_rag_runnable(vizu_context, llm=llm)
 
         if not rag_runnable:
             logger.error(f"Fábrica retornou 'None' para rag_runnable do cliente {real_client_id}.")
@@ -158,7 +169,15 @@ async def _executar_sql_agent_logic(
 
     # 4. Execução da Ferramenta
     try:
-        sql_agent_runnable = create_sql_agent(vizu_context, llm=None)
+        # Obtém o LLM com observabilidade (Langfuse) vinculado ao cliente
+        llm = get_model(
+            tier=ModelTier.DEFAULT,
+            task="sql_agent",
+            user_id=str(real_client_id),
+            tags=["tool_pool", "sql_agent"]
+        )
+
+        sql_agent_runnable = create_sql_agent_runnable(vizu_context, llm=llm)
 
         if not sql_agent_runnable:
             logger.error(f"Fábrica retornou 'None' para sql_agent do cliente {real_client_id}.")
@@ -200,17 +219,17 @@ def register_tools(mcp: FastMCP) -> None:
 
     mcp.tool(
         name="executar_rag_cliente",
-        description="Executa uma consulta RAG usando o contexto do cliente. Opcionalmente recebe 'cliente_id' se chamado via proxy."
+        description="Busca informações na base de conhecimento do cliente (produtos, serviços, preços, FAQ, políticas). USE ESTA FERRAMENTA para responder perguntas sobre o negócio. Parâmetro: query (string com a pergunta do cliente)."
     )(mcp_inject_cliente_id(get_context_service)(_executar_rag_cliente_logic))
 
     mcp.tool(
         name="executar_sql_agent",
-        description="Executa uma consulta no agente SQL usando o contexto do cliente. Opcionalmente recebe 'cliente_id' se chamado via proxy."
+        description="Consulta dados estruturados do banco de dados (pedidos, estoque, histórico). Use para dados transacionais. Parâmetro: query (string com a consulta)."
     )(mcp_inject_cliente_id(get_context_service)(_executar_sql_agent_logic))
 
     mcp.tool(
         name="ferramenta_publica_de_teste",
-        description="Uma ferramenta simples que NÃO requer o contexto Vizu."
+        description="[USO INTERNO] Ferramenta de diagnóstico para testes. NÃO use para responder clientes."
     )(_ferramenta_publica_de_teste_logic)
 
     logger.info(

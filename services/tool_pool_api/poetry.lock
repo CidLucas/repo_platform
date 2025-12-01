@@ -1978,6 +1978,26 @@ tenacity = ">=8.1.0,<8.4.0 || >8.4.0,<10.0.0"
 typing-extensions = ">=4.7.0,<5.0.0"
 
 [[package]]
+name = "langchain-qdrant"
+version = "1.1.0"
+description = "An integration package connecting Qdrant and LangChain"
+optional = false
+python-versions = "<4.0.0,>=3.10.0"
+groups = ["main"]
+files = [
+    {file = "langchain_qdrant-1.1.0-py3-none-any.whl", hash = "sha256:546c5c9aa57f543dbcee07343f730c331e4ec2af2ec55b541010af08d872bf35"},
+    {file = "langchain_qdrant-1.1.0.tar.gz", hash = "sha256:433236845736f973543ac6b7137f9d7fa511b7539373fbc6565c581d3ba59373"},
+]
+
+[package.dependencies]
+langchain-core = ">=1.0.0,<2.0.0"
+pydantic = ">=2.7.4,<3.0.0"
+qdrant-client = ">=1.15.1,<2.0.0"
+
+[package.extras]
+fastembed = ["fastembed (>=0.3.3,<1.0.0) ; python_version < \"3.13\" and python_version >= \"3.9\""]
+
+[[package]]
 name = "langfuse"
 version = "3.10.1"
 description = "A client library for accessing langfuse"
@@ -2901,7 +2921,7 @@ version = "2.3.3"
 description = "Powerful data structures for data analysis, time series, and statistics"
 optional = false
 python-versions = ">=3.9"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "pandas-2.3.3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:376c6446ae31770764215a6c937f72d917f214b43560603cd60da6408f183b6c"},
     {file = "pandas-2.3.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:e19d192383eab2f4ceb30b412b22ea30690c9e618f78870357ae1d682912015a"},
@@ -3729,7 +3749,7 @@ version = "2.9.0.post0"
 description = "Extensions to the standard Python datetime module"
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "python-dateutil-2.9.0.post0.tar.gz", hash = "sha256:37dd54208da7e1cd875388217d5e00ebd4179249f90fb72437e91a35459a0ad3"},
     {file = "python_dateutil-2.9.0.post0-py2.py3-none-any.whl", hash = "sha256:a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427"},
@@ -3771,7 +3791,7 @@ version = "2025.2"
 description = "World timezone definitions, modern and historical"
 optional = false
 python-versions = "*"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "pytz-2025.2-py2.py3-none-any.whl", hash = "sha256:5ddf76296dd8c44c26eb8f4b6f35488f3ccbf6fbbd7adee0b7262d43f0ec2f00"},
     {file = "pytz-2025.2.tar.gz", hash = "sha256:360b9e3dbb49a209c21ad61809c7fb453643e048b38924c765813546746e81c3"},
@@ -4302,7 +4322,7 @@ version = "1.17.0"
 description = "Python 2 and 3 compatibility utilities"
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "six-1.17.0-py2.py3-none-any.whl", hash = "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274"},
     {file = "six-1.17.0.tar.gz", hash = "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81"},
@@ -4680,7 +4700,7 @@ version = "2025.2"
 description = "Provider of IANA time zone data"
 optional = false
 python-versions = ">=2"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "tzdata-2025.2-py2.py3-none-any.whl", hash = "sha256:1a403fada01ff9221ca8044d701868fa132215d84beb92242d9acd2147f667a8"},
     {file = "tzdata-2025.2.tar.gz", hash = "sha256:b60a638fcc0daffadf82fe0f57e53d06bdec2f36c4df66280ae79bce6bd6f2b9"},
@@ -4831,6 +4851,7 @@ develop = true
 redis = "^5.0.0"
 vizu_db_connector = {path = "../../libs/vizu_db_connector", develop = true}
 vizu_models = {path = "../../libs/vizu_models", develop = true}
+vizu_supabase_client = {path = "../../libs/vizu_supabase_client", develop = true}
 
 [package.source]
 type = "directory"
@@ -4848,6 +4869,7 @@ develop = true
 
 [package.dependencies]
 alembic = "^1.13.0"
+pandas = "^2.3.3"
 psycopg2-binary = "^2.9.9"
 pyjwt = "^2.8.0"
 python-dotenv = "^1.2.1"
@@ -4861,8 +4883,8 @@ url = "../../libs/vizu_db_connector"
 
 [[package]]
 name = "vizu-llm-service"
-version = "0.1.0"
-description = "Cliente leve para serviços de LLM e Embeddings da Vizu"
+version = "0.2.0"
+description = "Cliente centralizado para LLMs locais e comerciais (Ollama, OpenAI, Anthropic, Google)"
 optional = false
 python-versions = "^3.11"
 groups = ["main"]
@@ -4870,10 +4892,17 @@ files = []
 develop = true
 
 [package.dependencies]
-langchain-community = "^0.3.0"
-langchain-core = "^1.0.0"
-langfuse = "^3.0.0"
+langchain-community = ">=0.3.0"
+langchain-core = ">=0.3.0"
+langfuse = ">=3.0.0"
+pydantic-settings = "^2.0.0"
 requests = "^2.31.0"
+
+[package.extras]
+all = []
+anthropic = []
+google = []
+openai = []
 
 [package.source]
 type = "directory"
@@ -4909,6 +4938,8 @@ files = []
 develop = true
 
 [package.dependencies]
+langchain-core = ">=0.3.0"
+langchain-qdrant = ">=0.2.0"
 pydantic-settings = "^2.3.4"
 qdrant-client = "^1.9.2"
 
@@ -4927,7 +4958,7 @@ files = []
 develop = true
 
 [package.dependencies]
-langchain-core = "^1.0.0"
+langchain-core = ">=0.3.0"
 vizu_context_service = {path = "../../libs/vizu_context_service", develop = true}
 vizu_llm_service = {path = "../../libs/vizu_llm_service", develop = true}
 vizu_models = {path = "../../libs/vizu_models", develop = true}
@@ -4948,8 +4979,8 @@ files = []
 develop = true
 
 [package.dependencies]
-langchain-community = "^0.3.31"
-langchain-core = "^1.0.0"
+langchain-community = ">=0.3.0"
+langchain-core = ">=0.3.0"
 sqlalchemy = "^2.0.31"
 vizu_context_service = {path = "../../libs/vizu_context_service", develop = true}
 vizu_llm_service = {path = "../../libs/vizu_llm_service", develop = true}
@@ -4958,6 +4989,25 @@ vizu_models = {path = "../../libs/vizu_models", develop = true}
 [package.source]
 type = "directory"
 url = "../../libs/vizu_sql_factory"
+
+[[package]]
+name = "vizu-supabase-client"
+version = "0.1.0"
+description = "Supabase client wrapper for Vizu services"
+optional = false
+python-versions = "^3.11"
+groups = ["main"]
+files = []
+develop = true
+
+[package.dependencies]
+pydantic = "^2.0"
+python-dotenv = "^1.0.0"
+supabase = "^2.10.0"
+
+[package.source]
+type = "directory"
+url = "../../libs/vizu_supabase_client"
 
 [[package]]
 name = "watchfiles"
@@ -5681,4 +5731,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "b8cfc37915b9b0927ca26f15b68ca2d3de9b99111f933846003ceac0b6198c44"
+content-hash = "236511a6f23bff382140c43420bdbead899823cc83045405e242f16cb909d618"

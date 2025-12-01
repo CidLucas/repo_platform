@@ -11,8 +11,9 @@ python = "^3.11"
 
 # --- DEFINIÇÕES ATUALIZADAS E CORRIGIDAS ---
 # Esta lib usa o 'core' e o 'community' (para o SQLDatabase e create_sql_agent)
-langchain-core = "^1.0.0"
-langchain-community = "^0.3.31"
+# Usa >=0.3.0 para compatibilidade com outras libs do monorepo
+langchain-core = ">=0.3.0"
+langchain-community = ">=0.3.0"
 sqlalchemy = "^2.0.31"
 # (langchain e langchain-openai removidos)
 

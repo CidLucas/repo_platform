@@ -2,28 +2,85 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
+
 class LLMSettings(BaseSettings):
     """
     Configurações para o Vizu LLM Service.
+
+    Suporta múltiplos providers:
+    - Ollama (local)
+    - OpenAI (API)
+    - Anthropic (API)
+    - Google Gemini (API)
     """
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # URL do Ollama (LLM)
-    OLLAMA_BASE_URL: str = "http://ollama_service:11434"
+    # ========================================================================
+    # PROVIDER DEFAULT
+    # ========================================================================
+    # Provider padrão: ollama, openai, anthropic, google
+    LLM_PROVIDER: str = Field(default="ollama")
 
-    # --- ADICIONADO: URL do Serviço de Embedding ---
-    # Por padrão aponta para o nome do container no docker-compose
-    EMBEDDING_SERVICE_URL: str = "http://embedding_service:11435"
+    # ========================================================================
+    # OLLAMA (LOCAL)
+    # ========================================================================
+    OLLAMA_BASE_URL: str = Field(default="http://ollama_service:11434")
 
-    # Langfuse (Mantido)
-    LANGFUSE_HOST: str | None = Field(default=None)
+    # ========================================================================
+    # EMBEDDING SERVICE
+    # ========================================================================
+    EMBEDDING_SERVICE_URL: str = Field(default="http://embedding_service:11435")
+
+    # ========================================================================
+    # LANGFUSE (OBSERVABILITY)
+    # ========================================================================
+    LANGFUSE_HOST: str | None = Field(default="https://cloud.langfuse.com")
     LANGFUSE_PUBLIC_KEY: str | None = Field(default=None)
     LANGFUSE_SECRET_KEY: str | None = Field(default=None)
 
+    # ========================================================================
+    # OPENAI
+    # ========================================================================
+    OPENAI_API_KEY: str | None = Field(default=None)
+    OPENAI_BASE_URL: str | None = Field(default=None)  # Para proxies/Azure
+
+    # ========================================================================
+    # ANTHROPIC
+    # ========================================================================
+    ANTHROPIC_API_KEY: str | None = Field(default=None)
+
+    # ========================================================================
+    # GOOGLE GEMINI
+    # ========================================================================
+    GOOGLE_API_KEY: str | None = Field(default=None)
+
     @property
     def langfuse_enabled(self) -> bool:
-        return bool(self.LANGFUSE_HOST and self.LANGFUSE_PUBLIC_KEY and self.LANGFUSE_SECRET_KEY)
+        """Langfuse está habilitado se tiver public e secret key."""
+        return bool(self.LANGFUSE_PUBLIC_KEY and self.LANGFUSE_SECRET_KEY)
+
+    @property
+    def openai_enabled(self) -> bool:
+        """OpenAI está habilitado se tiver API key."""
+        return bool(self.OPENAI_API_KEY)
+
+    @property
+    def anthropic_enabled(self) -> bool:
+        """Anthropic está habilitado se tiver API key."""
+        return bool(self.ANTHROPIC_API_KEY)
+
+    @property
+    def google_enabled(self) -> bool:
+        """Google Gemini está habilitado se tiver API key."""
+        return bool(self.GOOGLE_API_KEY)
+
 
 @lru_cache
 def get_llm_settings() -> LLMSettings:
+    """Retorna as configurações de LLM (cached)."""
     return LLMSettings()
+
+
+def clear_settings_cache():
+    """Limpa o cache das configurações (útil para testes)."""
+    get_llm_settings.cache_clear()

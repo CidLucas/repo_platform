@@ -9,11 +9,12 @@ packages = [{include = "vizu_context_service", from = "src"}]
 [tool.poetry.dependencies]
 python = "^3.11"
 
-# Dependências de produção (serão preenchidas com base no código movido)
+# Dependências de produção
 redis = "^5.0.0"
 # Dependências locais
 vizu_db_connector = {path = "../../libs/vizu_db_connector", develop = true}
 vizu_models = {path = "../../libs/vizu_models", develop = true}
+vizu_supabase_client = {path = "../../libs/vizu_supabase_client", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

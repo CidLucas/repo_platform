@@ -10,6 +10,7 @@ x-common-env: &common-env
   # Configs de serviços
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
   EMBEDDING_SERVICE_URL: http://embedding_service:11435
+  QDRANT_URL: http://qdrant_db:6333
   BASE_URL: "http://clients_api:8000/api/v1"
 
 x-atendente-env: &atendente-env
@@ -17,6 +18,10 @@ x-atendente-env: &atendente-env
   OLLAMA_BASE_URL: http://ollama_service:11434
   LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
   TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+  # Langfuse Observability
+  LANGFUSE_HOST: ${LANGFUSE_HOST:-https://cloud.langfuse.com}
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
 
 services:
   # =========================================
@@ -230,6 +235,13 @@ services:
       - "11435:11435"
     volumes:
       - ollama_storage:/root/.ollama
+      # Cache de modelos HuggingFace para não re-baixar
+      - huggingface_cache:/root/.cache/huggingface
+    environment:
+      # Configuração do modelo de embedding (vem do .env da raiz)
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-intfloat/multilingual-e5-large}
+      EMBEDDING_VECTOR_SIZE: ${EMBEDDING_VECTOR_SIZE:-1024}
+      EMBEDDING_MODEL_DEVICE: ${EMBEDDING_MODEL_DEVICE:-cpu}
     healthcheck:
       # Esta checagem continua a mesma...
       test: ["CMD-SHELL", "curl -f http://localhost:11435/health || exit 1"]
@@ -388,3 +400,4 @@ volumes:
   qdrant_data:
   ollama_storage:
   postgres_data:
+  huggingface_cache:

@@ -1,132 +1,293 @@
-# Makefile for common local development tasks (docker-compose aware)
+# Makefile for Vizu Mono - Local Development
 # Usage: `make <target>`
 
 COMPOSE=docker compose
 DB_SERVICE=postgres
 DB_USER=user
 DB_NAME=vizu_db
-# Host mapping: when running services on host, use localhost:5433 (common mapping)
-HOST_DB_URL=postgresql://$(DB_USER):password@localhost:5433/$(DB_NAME)
+
+# ============================================================================
+# AUTO-LOAD .env FILE
+# ============================================================================
+# Carrega variáveis do .env automaticamente se existir
+ifneq (,$(wildcard ./.env))
+    include .env
+    export
+endif
+
+# Database URLs
+LOCAL_DB_URL=postgresql://$(DB_USER):password@localhost:5433/$(DB_NAME)
+
 COMPOSE_DB_URL=postgresql://$(DB_USER):password@postgres:5432/$(DB_NAME)
 
-# When running migrations locally from the repo root, set PYTHONPATH so
-# `vizu_models` and `vizu_db_connector` are importable without installing.
-MIGRATION_PYTHONPATH?=$(PWD)/libs/vizu_models/src:$(PWD)/libs/vizu_db_connector/src
+# Supabase - carregado do .env automaticamente via include acima
+# No .env deve ter: SUPABASE_DB_URL=postgresql://postgres.xxx:password@host:port/postgres
 
-# E2E script settings
-E2E_SCRIPT=ferramentas/e2e/run_jwt_smoke.sh
-# E2E API-key script (host curl integration)
-E2E_API_SCRIPT=services/atendente_core/tests/integration/e2e_auth_via_curl.sh
-E2E_API_KEY?=
-# Override with: make e2e-jwt SERVICE=atendente_core CLIENTE_VIZU_ID=<uuid>
+# E2E test settings
 SERVICE?=atendente_core
 CLIENTE_VIZU_ID?=9930a61c-953e-47ba-86a2-c7ff03afe367
 
-.PHONY: help compose-up compose-down build seed seed-check e2e-host shell-atendente add-dep-instructions
+.PHONY: help
 
 help:
-	@echo "Available targets:"
-	@echo "  compose-up            - Build and start docker compose (detached)"
-	@echo "  compose-down          - Stop compose and remove containers"
-	@echo "  build                 - Rebuild compose images (no cache)"
-	@echo "  seed                  - Run the DB seed inside the dedicated container (uses service 'db_manager')"
-	@echo "  seed-check            - Run a quick SQL check on the DB to confirm seeded rows"
-	@echo "  e2e-host              - Run the e2e curl script on the host (exports PYTHONPATH)"
-	@echo "  e2e-jwt               - Run the JWT e2e smoke script inside the atendente container"
-	@echo "  shell-atendente       - Open a shell inside the atendente_core service container"
-	@echo "  add-dep-instructions  - Print instructions to add Python deps (e.g., pyjwt) to a service and rebuild"
+	@echo "=== Vizu Ambiente de Desenvolvimento ==="
+	@echo ""
+	@echo "Docker Compose:"
+	@echo "  up                    - Build and start all services"
+	@echo "  down                  - Stop and remove containers"
+	@echo "  build                 - Rebuild images (no cache)"
+	@echo "  logs                  - Tail logs for all services"
+	@echo "  logs-service          - Tail logs for SERVICE=<name>"
+	@echo ""
+	@echo "Database & Migrations:"
+	@echo "  migrate               - Run migrations (local Docker)"
+	@echo "  migrate-head          - Apply all pending migrations (Supabase - from .env)"
+	@echo "  migrate-prod          - Same as migrate-head with confirmation"
+	@echo "  migrate-status        - Show current migration version"
+	@echo "  migrate-status-prod   - Show migration version (Supabase)"
+	@echo "  db-shell              - Open psql shell"
+	@echo ""
+	@echo "Seeding:"
+	@echo "  seed                  - Seed DB with test clients"
+	@echo "  seed-update           - Update existing clients config"
+	@echo "  seed-qdrant           - Seed Qdrant with RAG data"
+	@echo "  seed-all              - Run all seeds (DB + Qdrant)"
+	@echo "  seed-check            - Show seeded clients"
+	@echo ""
+	@echo "Batch Testing:"
+	@echo "  batch-sample          - Create sample CSV"
+	@echo "  batch-run             - Run batch test (uses local DB for API keys)"
+	@echo "  batch-run-prod        - Run batch test (uses Supabase for API keys)"
+	@echo ""
+	@echo "Testing:"
+	@echo "  test                  - Run pytest for atendente_core"
+	@echo "  e2e                   - Run E2E smoke test"
+	@echo ""
+	@echo "Development:"
+	@echo "  shell                 - Shell into atendente_core container"
+	@echo "  rebuild               - Rebuild and restart SERVICE=<name>"
+	@echo "  clean                 - Prune Docker cache"
+	@echo ""
+	@echo "Environment:"
+	@echo "  SUPABASE_DB_URL is $(if $(SUPABASE_DB_URL),SET ✅,NOT SET ❌ - add to .env)"
+	@echo ""
 
-compose-up:
+# ============================================================================
+# DOCKER COMPOSE
+# ============================================================================
+
+.PHONY: up down build logs logs-service
+
+up:
 	$(COMPOSE) up --build -d
 
-compose-down:
+down:
 	$(COMPOSE) down
 
 build:
 	$(COMPOSE) build --no-cache
 
+logs:
+	$(COMPOSE) logs -f --tail=100
+
+logs-service:
+	$(COMPOSE) logs -f --tail=100 $(SERVICE)
+
+# ============================================================================
+# DATABASE & MIGRATIONS
+# ============================================================================
+
+.PHONY: migrate migrate-head migrate-prod migrate-status migrate-status-prod db-shell
+
+# Local migrations (via Docker container)
+migrate:
+	@echo "🔄 Running migrations (local Docker)..."
+	@docker exec vizu_atendente_core python -c "\
+import sys; \
+sys.path.insert(0, '/app/libs/vizu_db_connector/src'); \
+sys.path.insert(0, '/app/libs/vizu_models/src'); \
+from alembic.config import Config; \
+from alembic import command; \
+import os; \
+cfg = Config('/app/libs/vizu_db_connector/alembic.ini'); \
+cfg.set_main_option('sqlalchemy.url', os.environ['DATABASE_URL']); \
+cfg.set_main_option('script_location', '/app/libs/vizu_db_connector/alembic'); \
+command.upgrade(cfg, 'head'); \
+print('✅ Migrations applied!')"
+
+# Supabase migrations - carrega do .env automaticamente
+migrate-head:
+	@if [ -z "$(SUPABASE_DB_URL)" ]; then \
+		echo "❌ SUPABASE_DB_URL not set"; \
+		echo ""; \
+		echo "Add to your .env file:"; \
+		echo "  SUPABASE_DB_URL=postgresql://postgres.xxxxx:password@host:port/postgres"; \
+		echo ""; \
+		echo "Or pass directly:"; \
+		echo "  make migrate-head SUPABASE_DB_URL='postgresql://...'"; \
+		exit 1; \
+	fi
+	@echo "🔄 Applying migrations to Supabase..."
+	@echo "   URL: $$(echo '$(SUPABASE_DB_URL)' | sed 's/:.*@/:***@/')"
+	@cd libs/vizu_db_connector && \
+		DATABASE_URL="$(SUPABASE_DB_URL)" \
+		PYTHONPATH="$(PWD)/libs/vizu_models/src:$(PWD)/libs/vizu_db_connector/src" \
+		alembic upgrade head && \
+		echo "✅ Migrations applied to Supabase!"
+
+# Same as migrate-head but with confirmation prompt
+migrate-prod:
+	@if [ -z "$(SUPABASE_DB_URL)" ]; then \
+		echo "❌ SUPABASE_DB_URL not set - add to .env or pass as argument"; \
+		exit 1; \
+	fi
+	@echo "⚠️  This will modify PRODUCTION database!"
+	@echo "   URL: $$(echo '$(SUPABASE_DB_URL)' | sed 's/:.*@/:***@/')"
+	@read -p "Continue? [y/N] " confirm && [ "$$confirm" = "y" ] || exit 1
+	@$(MAKE) migrate-head
+
+# Status local
+migrate-status:
+	@echo "📊 Migration status (local)..."
+	@docker exec vizu_atendente_core python -c "\
+from sqlalchemy import create_engine, text; \
+import os; \
+engine = create_engine(os.environ['DATABASE_URL']); \
+conn = engine.connect(); \
+result = conn.execute(text('SELECT version_num FROM alembic_version')); \
+row = result.fetchone(); \
+print('Version:', row[0] if row else 'No migrations'); \
+conn.close()"
+
+# Status Supabase
+migrate-status-prod:
+	@if [ -z "$(SUPABASE_DB_URL)" ]; then \
+		echo "❌ SUPABASE_DB_URL not set"; exit 1; \
+	fi
+	@echo "📊 Migration status (Supabase)..."
+	@docker run --rm --network host \
+		python:3.11-slim bash -c "\
+			pip install -q psycopg2-binary sqlalchemy 2>/dev/null && \
+			python -c \"\
+from sqlalchemy import create_engine, text; \
+engine = create_engine('$(SUPABASE_DB_URL)'); \
+conn = engine.connect(); \
+result = conn.execute(text('SELECT version_num FROM alembic_version')); \
+row = result.fetchone(); \
+print('Version:', row[0] if row else 'No migrations'); \
+conn.close()\""
+
+db-shell:
+	$(COMPOSE) exec -it $(DB_SERVICE) psql -U $(DB_USER) -d $(DB_NAME)
+
+# ============================================================================
+# SEEDING
+# ============================================================================
+
+.PHONY: seed seed-update seed-qdrant seed-all seed-check
+
 seed:
-	@echo "Running seeder inside docker compose (db_manager service)..."
-	$(COMPOSE) run --rm db_manager python -m vizu_db_connector.cli.seed
+	@echo "🌱 Seeding DB..."
+	@docker exec vizu_atendente_core python -c "\
+import sys; \
+sys.path.insert(0, '/app/libs/vizu_db_connector/src'); \
+sys.path.insert(0, '/app/libs/vizu_models/src'); \
+import os; \
+from vizu_db_connector.cli.seed import run_LOCAL_DATABASE; \
+run_LOCAL_DATABASE(os.environ['DATABASE_URL'])"
+
+seed-update:
+	@echo "🔄 Updating clients..."
+	@docker exec vizu_atendente_core python -c "\
+import sys; \
+sys.path.insert(0, '/app/libs/vizu_db_connector/src'); \
+sys.path.insert(0, '/app/libs/vizu_models/src'); \
+import os; \
+from vizu_db_connector.cli.update_clients import run_update; \
+run_update(os.environ['DATABASE_URL'])"
+
+seed-qdrant:
+	@echo "🌱 Seeding Qdrant..."
+	@docker exec -e QDRANT_URL=http://qdrant_db:6333 -e OPENAI_API_KEY=$(OPENAI_API_KEY) \
+		vizu_atendente_core python -c "\
+import sys; \
+sys.path.insert(0, '/app/libs/vizu_qdrant_client/src'); \
+from vizu_qdrant_client.cli.seed_qdrant import run_seed; \
+run_seed()"
+
+seed-all: seed seed-qdrant
+	@echo "✅ All seeds completed!"
 
 seed-check:
-	@echo "Counting cliente_vizu rows (executes psql in postgres container)..."
-	$(COMPOSE) exec -T $(DB_SERVICE) psql -U $(DB_USER) -d $(DB_NAME) -c "SELECT count(*) FROM cliente_vizu;"
+	@echo "📊 Checking clients..."
+	$(COMPOSE) exec -T $(DB_SERVICE) psql -U $(DB_USER) -d $(DB_NAME) -c "\
+		SELECT nome_empresa, tier, ferramenta_rag_habilitada, collection_rag \
+		FROM cliente_vizu ORDER BY nome_empresa;"
 
-# Run the e2e script on the host. It will set PYTHONPATH to include local libs and services.
-# Useful when you have local tooling installed. If you prefer to run inside compose, use 'compose-up' then exec.
-e2e-host:
-	@echo "Running e2e script on host with PYTHONPATH set for local libs..."
-	@export PYTHONPATH=./libs/*/src:./services/atendente_core/src && \
-	DATABASE_URL=${DATABASE_URL:-$(COMPOSE_DB_URL)} ./services/atendente_core/tests/integration/e2e_auth_via_curl.sh
+# ============================================================================
+# BATCH TESTING
+# ============================================================================
 
-.PHONY: e2e-jwt
-e2e-jwt:
-	@echo "Running JWT e2e smoke against service: $(SERVICE) (cliente_vizu_id=$(CLIENTE_VIZU_ID))"
-	@chmod +x $(E2E_SCRIPT) || true
-	@./$(E2E_SCRIPT) $(SERVICE) $(CLIENTE_VIZU_ID)
+.PHONY: batch-sample batch-run batch-run-prod
 
-.PHONY: e2e-api-key
-e2e-api-key:
-	@echo "Running API-key e2e smoke against service: $(SERVICE) (cliente_vizu_id=$(CLIENTE_VIZU_ID))"
-	@if [ -z "$(E2E_API_KEY)" ]; then \
-		echo "ERROR: E2E_API_KEY is not set. Provide E2E_API_KEY=<key> or set as env var."; exit 1; \
+batch-sample:
+	@echo "📝 Creating sample CSV..."
+	@cd ferramentas && python3 batch_requests.py --create-sample 2>/dev/null || \
+		docker exec vizu_atendente_core python /app/ferramentas/batch_requests.py --create-sample
+
+# Run batch via Docker container (has all dependencies)
+batch-run:
+	@echo "🧪 Running batch tests (local DB via Docker)..."
+	@docker exec -w /app/ferramentas vizu_atendente_core python batch_requests.py \
+		--csv mensagens_teste.csv \
+		--db-url "postgresql://user:password@postgres:5432/vizu_db" \
+		--verbose \
+		--output batch_results.csv
+	@echo "📊 Results saved to ferramentas/batch_results.csv"
+
+batch-run-prod:
+	@if [ -z "$(SUPABASE_DB_URL)" ]; then \
+		echo "❌ SUPABASE_DB_URL not set"; exit 1; \
 	fi
-	@echo "Using API key: ************${E2E_API_KEY:(-4)}"
-	@export PYTHONPATH=./libs/*/src:./services/atendente_core/src && \
-	E2E_API_KEY=$(E2E_API_KEY) CLIENTE_VIZU_ID=$(CLIENTE_VIZU_ID) ./$(E2E_API_SCRIPT)
+	@echo "🧪 Running batch tests (Supabase via Docker)..."
+	@docker exec -e SUPABASE_DB_URL="$(SUPABASE_DB_URL)" -w /app/ferramentas vizu_atendente_core python batch_requests.py \
+		--csv mensagens_teste.csv \
+		--supabase \
+		--verbose \
+		--output batch_results_prod.csv
 
-# Open an interactive shell in the atendente_core service container
-shell-atendente:
+# ============================================================================
+# TESTING
+# ============================================================================
+
+.PHONY: test e2e
+
+test:
+	@echo "🧪 Running tests..."
+	cd services/atendente_core && poetry run pytest tests/ -v --tb=short
+
+e2e:
+	@echo "🧪 Running E2E smoke..."
+	@chmod +x ferramentas/e2e/run_jwt_smoke.sh 2>/dev/null || true
+	@./ferramentas/e2e/run_jwt_smoke.sh $(SERVICE) $(CLIENTE_VIZU_ID)
+
+# ============================================================================
+# DEVELOPMENT
+# ============================================================================
+
+.PHONY: shell rebuild clean
+
+shell:
 	$(COMPOSE) run --rm atendente_core bash
 
-# Instructions for adding Python dependencies to a service and rebuilding images.
-# NOTE: runtime images typically do not include 'poetry' CLI, so "docker compose run service poetry add <pkg>" may fail.
-# Recommended: edit the service's pyproject.toml and rebuild the image.
-add-dep-instructions:
-	@echo "To add a Python dependency to a service (recommended):"
-	@echo "  1) Edit the service pyproject: e.g. services/atendente_core/pyproject.toml"
-	@echo "     add under [tool.poetry.dependencies]:\n       pyjwt = \"^2.8\""
-	@echo "  2) Rebuild the service image: '$(COMPOSE) build atendente_core'"
-	@echo "  3) Restart compose: '$(COMPOSE) up -d'"
-	@echo "Alternative (if you have poetry locally):"
-	@echo "  cd services/atendente_core && poetry add pyjwt && cd -"
-	@echo "Do NOT run 'docker compose run atendente_core poetry add ...' against the runtime container; many runtime images don't include poetry."
-.PHONY: migrate migrate-docker
-migrate:
-	@echo "Running DB migrations via libs/vizu_db_connector/run_migrations.py"
-	@DATABASE_URL=${DATABASE_URL:-$(COMPOSE_DB_URL)} python ./libs/vizu_db_connector/run_migrations.py --db "${DATABASE_URL}"
+rebuild:
+	@echo "🔄 Rebuilding $(SERVICE)..."
+	$(COMPOSE) build --no-cache $(SERVICE)
+	$(COMPOSE) up -d $(SERVICE)
+	@echo "✅ $(SERVICE) rebuilt!"
 
-# Run migrations inside an ephemeral docker python container (no local deps required).
-# Useful in CI or when you don't have the project's venv.
-migrate-docker:
-	@echo "Running DB migrations inside ephemeral python:3.11-slim container"
-	@docker run --rm \
-		-e DATABASE_URL=${DATABASE_URL:-$(COMPOSE_DB_URL)} \
-		-v $(PWD):/app -w /app/libs/vizu_db_connector python:3.11-slim bash -c "\
-		apt-get update -qq && apt-get install -y --no-install-recommends wget ca-certificates build-essential libpq-dev || true && \
-		python -m pip install --upgrade pip setuptools wheel && \
-		python -m pip install alembic sqlalchemy sqlmodel psycopg2-binary && \
-		python run_migrations.py --db \"$$DATABASE_URL\""
-
-.PHONY: migrate-local
-migrate-local:
-	@if [ -z "${DATABASE_URL}" ]; then \
-		echo "ERROR: DATABASE_URL is not set. Run: make migrate-local DATABASE_URL=postgresql://user:pw@host:5432/db"; exit 1; \
-	fi
-	@echo "Running DB migrations locally with PYTHONPATH=$(MIGRATION_PYTHONPATH)"
-	@PYTHONPATH=$(MIGRATION_PYTHONPATH):$$PYTHONPATH python ./libs/vizu_db_connector/run_migrations.py --db "${DATABASE_URL}"
-
-.PHONY: migrate-local-install
-migrate-local-install:
-	@echo "Installing local libs as editable packages into current Python environment (requires pip)"
-	@python -m pip install --upgrade pip setuptools wheel
-	@python -m pip install -e ./libs/vizu_models -e ./libs/vizu_db_connector || true
-.PHONY: migrate-apply
-migrate-apply:
-	@echo "Run migrations against a target DB (e.g. SUPABASE). This requires SUPABASE_DB_URL or DATABASE_URL to be set."
-	@if [ -z "${SUPABASE_DB_URL}${DATABASE_URL}" ]; then \
-		echo "ERROR: set SUPABASE_DB_URL or DATABASE_URL before running migrate-apply"; exit 1; \
-	fi
-	@DBURL=${SUPABASE_DB_URL:-${DATABASE_URL:-$(COMPOSE_DB_URL)}}; \
-		python ./libs/vizu_db_connector/run_migrations.py --db "$$DBURL"
+clean:
+	@echo "🧹 Cleaning Docker cache..."
+	docker builder prune -f
+	docker image prune -f
+	@echo "✅ Cleaned!"

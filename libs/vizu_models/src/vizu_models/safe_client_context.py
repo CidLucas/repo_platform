@@ -17,7 +17,7 @@ import uuid
 class SafeClientContext(BaseModel):
     """
     Contexto do cliente seguro para uso com LLM.
-    
+
     NÃO INCLUIR:
     - api_key
     - credenciais de serviços externos
@@ -25,14 +25,14 @@ class SafeClientContext(BaseModel):
     - qualquer dado que possa ser usado para impersonação
     """
     model_config = ConfigDict(frozen=True)  # Imutável para evitar modificações acidentais
-    
+
     # Dados públicos seguros
     nome_empresa: str
-    
+
     # Configurações de comportamento (não sensíveis)
     prompt_base: Optional[str] = None
     horario_funcionamento: Optional[dict] = None
-    
+
     # Flags de features (não sensíveis)
     ferramenta_rag_habilitada: bool = False
     ferramenta_sql_habilitada: bool = False
@@ -42,19 +42,19 @@ class SafeClientContext(BaseModel):
 class InternalClientContext(BaseModel):
     """
     Contexto interno do cliente com dados sensíveis.
-    
+
     Este modelo é usado APENAS para operações internas do servidor
     (autenticação, injeção de cliente_id em tools, etc.)
-    
+
     NUNCA deve ser exposto à LLM ou incluído em prompts.
     """
     # Identificadores internos
     id: uuid.UUID
     api_key: str
-    
+
     # Contexto seguro (pode ser extraído para a LLM)
     safe_context: SafeClientContext
-    
+
     @classmethod
     def from_vizu_client_context(cls, ctx) -> "InternalClientContext":
         """

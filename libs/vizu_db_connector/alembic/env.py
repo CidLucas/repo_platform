@@ -20,7 +20,9 @@ from vizu_models import __all__
 # access to the values within the .ini file in use.
 config = context.config
 
-from vizu_db_connector.database import DATABASE_URL
+# Use DATABASE_URL from environment - this takes priority over alembic.ini
+# This allows running migrations against different databases (local, staging, prod)
+DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
     config.set_main_option('sqlalchemy.url', DATABASE_URL)
 

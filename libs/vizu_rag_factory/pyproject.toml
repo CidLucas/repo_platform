@@ -11,7 +11,8 @@ python = "^3.11"
 
 # --- DEFINIÇÕES ATUALIZADAS E CORRIGIDAS ---
 # Esta lib usa os componentes 'core' do LangChain
-langchain-core = "^1.0.0"
+# Usa >=0.3.0 para compatibilidade com outras libs do monorepo
+langchain-core = ">=0.3.0"
 # (langchain e langchain-openai removidos)
 
 # Dependências locais

@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "vizu-supabase-client"
+version = "0.1.0"
+description = "Supabase client wrapper for Vizu services"
+authors = ["Vizu Team"]
+readme = "README.md"
+packages = [{include = "vizu_supabase_client", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+supabase = "^2.10.0"
+python-dotenv = "^1.0.0"
+pydantic = "^2.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4"
+pytest-asyncio = "^0.21"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

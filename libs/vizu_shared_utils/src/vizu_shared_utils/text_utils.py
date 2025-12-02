@@ -1,6 +1,5 @@
 # libs/vizu_shared_utils/text_utils.py
 import unicodedata
-import re
 
 def normalize_text(text: str) -> str:
     """

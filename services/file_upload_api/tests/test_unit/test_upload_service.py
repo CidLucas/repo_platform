@@ -3,7 +3,6 @@ import json
 import uuid
 from unittest.mock import MagicMock
 
-import pytest
 from fastapi import UploadFile
 from pytest_mock import MockerFixture
 

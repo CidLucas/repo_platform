@@ -1,8 +1,11 @@
 import logging
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastmcp import FastMCP
-from .tools import register_tools
+from .tools import register_tools, get_available_modules
+from .resources import register_resources
+from .prompts import register_prompts
 
 load_dotenv()
 
@@ -12,30 +15,61 @@ logger = logging.getLogger(__name__)
 def create_mcp_server():
     """
     Factory para criar e configurar a instância principal do FastMCP.
+
+    Registra:
+    - Tools: Ações executáveis (RAG, SQL, etc.)
+    - Resources: Dados read-only (knowledge base, config)
+    - Prompts: Templates de prompt versionados
+
+    Transporte: HTTP (Streamable HTTP) - mais moderno que SSE
     """
     logger.info("Criando instância do FastMCP...")
 
     # 1. Crie o objeto FastMCP isolado
     mcp = FastMCP("Vizu Tool Pool")
 
-    # 2. Registre as ferramentas nele
+    # 2. Registre os componentes MCP
     register_tools(mcp)
+    register_resources(mcp)
+    register_prompts(mcp)
 
-    # 3. Crie o app FastAPI principal
-    app = FastAPI(title="Tool Pool API")
+    # 3. Crie a aplicação MCP ASGI
+    # path='/' significa que o endpoint MCP será /mcp (sem duplicação)
+    mcp_asgi = mcp.http_app(path='/')
 
-    # 4. Monte o servidor MCP no FastAPI
-    # O mcp.mount() é para composição de MCPs. Para FastAPI, usamos app.mount().
-    # Precisamos extrair a aplicação ASGI do MCP.
+    # 4. Crie o app FastAPI com lifespan do MCP (OBRIGATÓRIO para HTTP transport)
+    @asynccontextmanager
+    async def combined_lifespan(app: FastAPI):
+        """Combina o lifespan do MCP com o do FastAPI."""
+        async with mcp_asgi.lifespan(app):
+            logger.info("MCP SessionManager inicializado.")
+            yield
+            logger.info("MCP SessionManager finalizado.")
+
+    app = FastAPI(title="Tool Pool API", lifespan=combined_lifespan)
+
+    # 5. Endpoints determinísticos (não passados para LLM)
+    @app.get("/health")
+    async def health_check():
+        """Health check para load balancers e k8s probes."""
+        return {"status": "healthy", "service": "tool_pool_api"}
+
+    @app.get("/info")
+    async def server_info():
+        """Informações do servidor para debugging/admin."""
+        modules = get_available_modules()
+        return {
+            "name": "Vizu Tool Pool API",
+            "version": "1.0.0",
+            "transport": "http",
+            "modules": list(modules.keys()),
+            "tools_count": sum(len(m["tools"]) for m in modules.values())
+        }
+
+    # 6. Monte o servidor MCP no FastAPI
     try:
-        # Cria a aplicação ASGI específica para SSE
-        mcp_asgi = mcp.sse_app()
-
-        # Monta no FastAPI na rota /mcp
-        # Isso fará com que o endpoint de conexão seja: /mcp/sse
         app.mount("/mcp", mcp_asgi)
-
-        logger.info("MCP (SSE) montado com sucesso em /mcp/sse")
+        logger.info("MCP (HTTP) montado com sucesso em /mcp")
 
     except Exception as e:
         logger.error(f"Erro fatal ao montar MCP no FastAPI: {e}")

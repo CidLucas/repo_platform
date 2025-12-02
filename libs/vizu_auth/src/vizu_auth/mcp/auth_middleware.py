@@ -12,7 +12,7 @@ unchanged and lets the tool handle auth/fallbacks.
 """
 
 from functools import wraps
-from typing import Callable, Awaitable, Optional
+from typing import Callable, Awaitable
 
 from fastmcp.server.dependencies import get_access_token
 from fastmcp.exceptions import ToolError

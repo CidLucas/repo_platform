@@ -11,6 +11,7 @@ python = "^3.11"
 # Core LangChain
 langchain-core = ">=0.3.0"
 langchain-community = ">=0.3.0"
+langchain-ollama = ">=0.2.0"  # Para Ollama local e Cloud
 # Langfuse para observabilidade
 langfuse = ">=3.0.0"
 # HTTP client para embedding API
@@ -33,6 +34,7 @@ all = ["langchain-openai", "langchain-anthropic", "langchain-google-genai"]
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
 pytest-asyncio = "^0.21.0"
+ruff = "^0.14.7"
 
 [build-system]
 requires = ["poetry-core"]

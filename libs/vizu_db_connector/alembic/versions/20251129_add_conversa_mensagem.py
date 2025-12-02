@@ -6,8 +6,6 @@ Create Date: 2025-11-29
 Add the conversa and mensagem tables for persisting chat sessions.
 """
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '20251129_add_conversa_mensagem'

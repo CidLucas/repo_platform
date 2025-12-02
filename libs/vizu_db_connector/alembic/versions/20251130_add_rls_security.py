@@ -10,8 +10,6 @@ This migration:
 3. Creates security policies ensuring clients only access their own data
 """
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '20251130_add_rls_security'

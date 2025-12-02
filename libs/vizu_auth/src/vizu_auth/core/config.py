@@ -3,7 +3,6 @@ Configuração de autenticação carregada de variáveis de ambiente.
 """
 
 from functools import lru_cache
-from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

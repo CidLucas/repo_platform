@@ -8,7 +8,8 @@ class LLMSettings(BaseSettings):
     Configurações para o Vizu LLM Service.
 
     Suporta múltiplos providers:
-    - Ollama (local)
+    - Ollama Local (ollama_service container)
+    - Ollama Cloud (api.ollama.com)
     - OpenAI (API)
     - Anthropic (API)
     - Google Gemini (API)
@@ -18,13 +19,21 @@ class LLMSettings(BaseSettings):
     # ========================================================================
     # PROVIDER DEFAULT
     # ========================================================================
-    # Provider padrão: ollama, openai, anthropic, google
-    LLM_PROVIDER: str = Field(default="ollama")
+    # Provider padrão: ollama, ollama_cloud, openai, anthropic, google
+    LLM_PROVIDER: str = Field(default="ollama_cloud")
 
     # ========================================================================
     # OLLAMA (LOCAL)
     # ========================================================================
     OLLAMA_BASE_URL: str = Field(default="http://ollama_service:11434")
+
+    # ========================================================================
+    # OLLAMA CLOUD (ollama.com/cloud - via HTTP client direto)
+    # Ref: https://docs.ollama.com/cloud
+    # ========================================================================
+    OLLAMA_CLOUD_API_KEY: str | None = Field(default=None)
+    OLLAMA_CLOUD_BASE_URL: str = Field(default="https://ollama.com")
+    OLLAMA_CLOUD_DEFAULT_MODEL: str = Field(default="llama3.2")
 
     # ========================================================================
     # EMBEDDING SERVICE
@@ -58,6 +67,11 @@ class LLMSettings(BaseSettings):
     def langfuse_enabled(self) -> bool:
         """Langfuse está habilitado se tiver public e secret key."""
         return bool(self.LANGFUSE_PUBLIC_KEY and self.LANGFUSE_SECRET_KEY)
+
+    @property
+    def ollama_cloud_enabled(self) -> bool:
+        """Ollama Cloud está habilitado se tiver API key."""
+        return bool(self.OLLAMA_CLOUD_API_KEY)
 
     @property
     def openai_enabled(self) -> bool:

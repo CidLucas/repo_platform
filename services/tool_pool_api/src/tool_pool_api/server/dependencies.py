@@ -2,12 +2,10 @@ import logging
 import os
 from functools import lru_cache
 from typing import Optional
-from contextlib import contextmanager
 
-from fastapi import Depends
 import redis
 from fastmcp.exceptions import ToolError
-from fastmcp.server.dependencies import AccessToken, get_access_token
+from fastmcp.server.dependencies import AccessToken
 from fastmcp.server.auth.providers.google import GoogleProvider
 
 from tool_pool_api.core.config import Settings, get_settings

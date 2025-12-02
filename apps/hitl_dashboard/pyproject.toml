@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "hitl-dashboard"
+version = "0.1.0"
+description = "Streamlit dashboard for Human-in-the-Loop review"
+authors = ["Vizu <dev@vizu.com.br>"]
+readme = "README.md"
+packages = [{include = "hitl_dashboard", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+streamlit = "^1.40.0"
+redis = "^5.0.0"
+langfuse = "^2.0.0"
+vizu-models = {path = "../../libs/vizu_models", develop = true}
+vizu-hitl-service = {path = "../../libs/vizu_hitl_service", develop = true}
+vizu-db-connector = {path = "../../libs/vizu_db_connector", develop = true}
+pandas = "^2.0.0"
+plotly = "^5.18.0"
+
+[tool.poetry.scripts]
+hitl = "hitl_dashboard.app:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

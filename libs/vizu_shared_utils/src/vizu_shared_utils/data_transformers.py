@@ -1,7 +1,6 @@
 # libs/vizu_shared_utils/data_transformers.py
 
 import pandas as pd
-from datetime import datetime
 from typing import Dict
 from vizu_models.ingestion.schema_config import ColumnFormat, ColumnConfig
 from vizu_models.ingestion.vizu_schema import VizuCanonicalColumn

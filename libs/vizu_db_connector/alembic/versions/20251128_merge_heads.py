@@ -7,7 +7,6 @@ Merge multiple parallel heads created during development into a single head
 so Alembic can produce a linear migration history. This is a no-op merge
 revision: it records that the branches have been reconciled.
 """
-from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '20251128_merge_heads'

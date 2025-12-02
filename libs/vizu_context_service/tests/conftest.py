@@ -1,6 +1,5 @@
 import pytest
 import uuid
-from unittest.mock import MagicMock
 from vizu_models.vizu_client_context import VizuClientContext
 
 from vizu_models.configuracao_negocio import ConfiguracaoNegocioBase

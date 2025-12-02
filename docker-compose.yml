@@ -18,8 +18,15 @@ x-atendente-env: &atendente-env
   OLLAMA_BASE_URL: http://ollama_service:11434
   LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
   TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
-  # Langfuse Observability
-  LANGFUSE_HOST: ${LANGFUSE_HOST:-https://cloud.langfuse.com}
+  # LLM Provider - ollama, ollama_cloud, openai, anthropic, google
+  LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+  # Ollama Cloud
+  OLLAMA_CLOUD_API_KEY: ${OLLAMA_CLOUD_API_KEY}
+  OLLAMA_CLOUD_BASE_URL: ${OLLAMA_CLOUD_BASE_URL:-https://ollama.com}
+  OLLAMA_CLOUD_DEFAULT_MODEL: ${OLLAMA_CLOUD_DEFAULT_MODEL:-gpt-oss:20b}
+  # Langfuse Observability - default to local Langfuse instance
+  # To use cloud: set LANGFUSE_HOST=https://us.cloud.langfuse.com in .env
+  LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3000}
   LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
   LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
 
@@ -85,11 +92,15 @@ services:
       <<: [*common-env, *atendente-env]
       DATABASE_URL: "postgresql://user:password@postgres:5432/vizu_db"
       PYTHONPATH: /app/services/atendente_core/src
+      # Local dev uses PostgreSQL directly, not Supabase SDK
+      USE_LOCAL_DB: "true"
     ports:
       - "8003:8000"
     volumes:
       - ./services/atendente_core/src:/app/services/atendente_core/src
       - ./libs:/app/libs
+      - ./seeds:/app/seeds
+      - ./scripts:/app/scripts
     depends_on:
       redis:
         condition: service_healthy
@@ -378,7 +389,7 @@ services:
       context: .
       dockerfile: ./services/tool_pool_api/Dockerfile
     ports:
-      - "8006:8000"
+      - "8006:9000"
     volumes:
       - ./services/tool_pool_api/src:/app/services/tool_pool_api/src
       - ./libs:/app/libs

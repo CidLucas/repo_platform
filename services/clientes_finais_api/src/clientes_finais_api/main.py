@@ -3,7 +3,7 @@ from fastapi import FastAPI
 
 # Importações de componentes da nossa aplicação
 from clientes_finais_api.api.router import api_router
-from clientes_finais_api.core.config import get_settings, Settings
+from clientes_finais_api.core.config import get_settings
 
 # Logger inicial
 logger = logging.getLogger(__name__)

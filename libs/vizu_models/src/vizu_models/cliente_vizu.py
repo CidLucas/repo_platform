@@ -4,7 +4,6 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlmodel import Field, Relationship, SQLModel, Column
 from sqlalchemy import String, Enum as pgEnum
 from sqlalchemy.dialects.postgresql import UUID as pgUUID
-from sqlalchemy.dialects import postgresql
 from sqlalchemy import Text, Boolean, JSON
 
 from .enums import TipoCliente, TierCliente

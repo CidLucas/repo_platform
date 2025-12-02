@@ -9,7 +9,6 @@ from uuid import UUID
 from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from vizu_auth.core.config import get_auth_settings
 from vizu_auth.core.exceptions import (
     AuthDisabledError,
     AuthError,
@@ -19,7 +18,7 @@ from vizu_auth.core.exceptions import (
     MissingCredentialsError,
     TokenExpiredError,
 )
-from vizu_auth.core.models import AuthMethod, AuthRequest, AuthResult
+from vizu_auth.core.models import AuthRequest, AuthResult
 from vizu_auth.strategies.api_key_strategy import ApiKeyStrategy
 from vizu_auth.strategies.authenticator import Authenticator
 from vizu_auth.strategies.jwt_strategy import JWTStrategy

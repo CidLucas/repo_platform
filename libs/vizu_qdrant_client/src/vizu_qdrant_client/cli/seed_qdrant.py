@@ -14,7 +14,6 @@ IMPORTANTE: Este script usa EXCLUSIVAMENTE o .env da RAIZ do monorepo.
 """
 import os
 import logging
-import hashlib
 from typing import List, Dict, Any
 from qdrant_client import QdrantClient, models
 

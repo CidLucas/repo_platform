@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 from google.cloud import storage
 from google.cloud.pubsub_v1 import PublisherClient

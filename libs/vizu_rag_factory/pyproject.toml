@@ -27,6 +27,7 @@ pytest-mock = "^3.14.0"
 pytest-cov = "^5.0.0"
 
 # Configuração de PYTHONPATH para testes
+ruff = "^0.14.7"
 [tool.pytest.ini_options]
 pythonpath = [
     "src",

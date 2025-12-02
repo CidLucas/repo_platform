@@ -5,8 +5,7 @@ from unittest.mock import MagicMock, AsyncMock, patch
 # --- CORREÇÃO AQUI ---
 # Importe as funções de LÓGICA, não as "tools"
 from src.tool_pool_api.server.tools import (
-    _executar_rag_cliente_logic,
-    _executar_sql_agent_logic
+    _executar_rag_cliente_logic
 )
 # ... (outros imports de mocks)
 

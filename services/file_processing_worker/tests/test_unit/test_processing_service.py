@@ -1,6 +1,5 @@
 import io
 import json
-import logging
 from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
@@ -12,7 +11,6 @@ from file_processing_worker.services.processing_service import ProcessingService
 from file_processing_worker.services.routing_service import RoutingService
 from file_processing_worker.parsers.base_parser import BaseParser
 from file_processing_worker.core.config import Settings
-from google.cloud import storage
 
 # --- Fixture Local (Específica para este teste) ---
 

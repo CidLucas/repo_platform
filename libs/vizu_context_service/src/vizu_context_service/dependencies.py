@@ -19,14 +19,16 @@ class ContextSettings(BaseSettings):
     REDIS_PORT: int = Field(default=6379, env="REDIS_PORT")
     REDIS_DB: int = Field(default=0, env="REDIS_DB")
 
-    # --- MUDANÇA AQUI ---
-    # Adicionamos 'frozen': True para permitir o cache (lru_cache)
+    # Database backend selection:
+    # True = PostgreSQL local (via SQLAlchemy/DATABASE_URL)
+    # False = Supabase SDK (via SUPABASE_URL)
+    USE_LOCAL_DB: bool = Field(default=False, env="USE_LOCAL_DB")
+
     model_config = {
         "env_file": ".env",
         "extra": "ignore",
         "frozen": True
     }
-    # --------------------
 
 @lru_cache
 def get_context_settings() -> ContextSettings:
@@ -56,4 +58,8 @@ def get_context_service(
     db: Session = Depends(get_db_session),
     cache: RedisService = Depends(get_redis_service)
 ) -> ContextService:
-    return ContextService(db_session=db, cache_service=cache)
+    settings = get_context_settings()
+    # USE_LOCAL_DB=True -> SQLAlchemy (PostgreSQL local)
+    # USE_LOCAL_DB=False -> Supabase SDK (cloud)
+    use_supabase = not settings.USE_LOCAL_DB
+    return ContextService(db_session=db, cache_service=cache, use_supabase=use_supabase)

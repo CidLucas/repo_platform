@@ -1,0 +1,25 @@
+{
+    "collection": "dra_beatriz_faq",
+    "documents": [
+        {
+            "doc_id": "historia_dra_beatriz",
+            "title": "História e Filosofia do Consultório",
+            "content": "NOSSA HISTÓRIA E FILOSOFIA\n\nCom mais de 25 anos de atuação na Tijuca, a Dra. Beatriz Almeida construiu um consultório pautado na ética, na segurança e na odontologia baseada em evidências. Diferente das 'clínicas de massa', aqui o atendimento é individualizado, focado na saúde bucal a longo prazo e na prevenção, fugindo de modismos estéticos que comprometem a estrutura dental.\n\nEndereço: Praça Saens Peña, Tijuca, Rio de Janeiro - RJ. (Edifício Comercial)."
+        },
+        {
+            "doc_id": "servicos_dra_beatriz",
+            "title": "Serviços Prestados",
+            "content": "SERVIÇOS PRESTADOS\n\nClínica Geral e Prevenção: Limpeza (profilaxia), aplicação de flúor, restaurações e check-up semestral.\n\nReabilitação Oral: Próteses fixas e removíveis, coroas e facetas de porcelana (com indicação funcional).\n\nImplantodontia: Implantes dentários para reposição de perdas, realizados com planejamento cirúrgico minucioso.\n\nEndodontia (Canal): Tratamento realizado com tecnologias rotatórias para maior conforto."
+        },
+        {
+            "doc_id": "politicas_dra_beatriz",
+            "title": "Políticas do Consultório",
+            "content": "INFORMAÇÕES AO PACIENTE E POLÍTICAS\n\nAgendamento: As consultas são marcadas com intervalo de tempo suficiente para um atendimento sem pressa e esterilização rigorosa da sala entre pacientes.\n\nReagendamento: Pedimos a gentileza de avisar com 24 horas de antecedência caso não possa comparecer, para que possamos oferecer o horário a um paciente em lista de espera ou com dor.\n\nPagamentos e Reembolsos: O atendimento é particular. Oferecemos suporte completo para reembolso (Livre Escolha), emitindo recibos, notas fiscais e laudos necessários para que o paciente solicite o ressarcimento junto ao seu plano de saúde de forma ágil.\n\nFormas de pagamento: PIX, transferência e cartões.\n\nEmergências: Buscamos sempre encaixar pacientes antigos com dor aguda no mesmo dia, dentro do horário comercial."
+        },
+        {
+            "doc_id": "cuidados_saude_bucal",
+            "title": "Cuidados com Saúde Bucal",
+            "content": "CUIDADOS DIÁRIOS COM SAÚDE BUCAL\n\nEscovação Correta:\n- Escove pelo menos 3x ao dia (manhã, após almoço, antes de dormir)\n- Use escova de cerdas macias\n- Movimentos circulares suaves\n- Tempo mínimo: 2 minutos\n- Troque a escova a cada 3 meses\n\nFio Dental:\n- Use TODOS os dias, preferencialmente à noite\n- Passe suavemente entre todos os dentes\n- Não 'serre' o fio - movimentos de vai-e-vem\n\nSinais de Alerta - Procure o dentista se notar:\n- Sangramento gengival frequente\n- Dor de dente persistente\n- Sensibilidade ao frio/calor\n- Mau hálito constante\n- Feridas que não cicatrizam\n\nPrevenção: Consulta de rotina a cada 6 meses."
+        }
+    ]
+}

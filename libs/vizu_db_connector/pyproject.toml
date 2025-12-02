@@ -21,6 +21,7 @@ pytest = "^7.0"
 pandas = "^2.2"
 
 # --- ADICIONE ESTA SEÇÃO ---
+ruff = "^0.14.7"
 [tool.poetry.scripts]
 vizu-db = "vizu_db_connector.manager:main"
 # ---------------------------

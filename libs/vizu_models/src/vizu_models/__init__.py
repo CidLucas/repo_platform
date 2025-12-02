@@ -11,6 +11,60 @@ from .safe_client_context import SafeClientContext, InternalClientContext
 from sqlmodel import SQLModel
 from .enums import TipoCliente, TierCliente, TipoFonte
 
+# MCP Resources & Prompts support
+from .prompt_template import PromptTemplate, PromptTemplateCreate, PromptTemplateRead, PromptTemplateUpdate
+from .knowledge_base_config import KnowledgeBaseConfig, KnowledgeBaseConfigCreate, KnowledgeBaseConfigRead, KnowledgeBaseConfigUpdate
+
+# Agent Types (shared across all agents/LangGraph flows)
+from .agent_types import (
+    # Elicitation
+    ElicitationType,
+    ElicitationOption,
+    ElicitationRequest,
+    ElicitationResponse,
+    # Tool Management
+    ToolInfo,
+    ToolExecutionResult,
+    # Model/LLM
+    ModelInfo,
+    # Chat/Message
+    AgentChatRequest,
+    AgentChatResponse,
+    # Client Context
+    ClientContextResponse,
+)
+
+# HITL (Human-in-the-Loop) support
+from .hitl import (
+    HitlCriteriaType,
+    HitlReviewStatus,
+    HitlFeedbackType,
+    HitlCriterion,
+    HitlConfig,
+    HitlReview,
+    HitlReviewCreate,
+    HitlReviewRead,
+    HitlReviewUpdate,
+    HitlQueueStats,
+    HitlDecision,
+)
+
+# Experiment Suite (Dataset Generation)
+from .experiment import (
+    ExperimentStatus,
+    CaseOutcome,
+    ClassificationResult,
+    TestCaseDefinition,
+    ClientVariant,
+    HitlRoutingConfig,
+    LangfuseConfig,
+    ExperimentManifest,
+    ExperimentRunSummary,
+    ExperimentProgress,
+    ExperimentRun,
+    ExperimentCase,
+)
+
 class Base(SQLModel):
     """
     Classe base que herda de SQLModel. Usada pelo Alembic como target_metadata.
@@ -57,6 +111,54 @@ __all__ = [
     'InternalClientContext',
     'TipoCliente',
     'TierCliente',
-    'TipoFonte'
+    'TipoFonte',
 
+    # MCP Resources & Prompts support
+    'PromptTemplate',
+    'PromptTemplateCreate',
+    'PromptTemplateRead',
+    'PromptTemplateUpdate',
+    'KnowledgeBaseConfig',
+    'KnowledgeBaseConfigCreate',
+    'KnowledgeBaseConfigRead',
+    'KnowledgeBaseConfigUpdate',
+
+    # Agent Types (shared across all agents)
+    'ElicitationType',
+    'ElicitationOption',
+    'ElicitationRequest',
+    'ElicitationResponse',
+    'ToolInfo',
+    'ToolExecutionResult',
+    'ModelInfo',
+    'AgentChatRequest',
+    'AgentChatResponse',
+    'ClientContextResponse',
+
+    # HITL (Human-in-the-Loop)
+    'HitlCriteriaType',
+    'HitlReviewStatus',
+    'HitlFeedbackType',
+    'HitlCriterion',
+    'HitlConfig',
+    'HitlReview',
+    'HitlReviewCreate',
+    'HitlReviewRead',
+    'HitlReviewUpdate',
+    'HitlQueueStats',
+    'HitlDecision',
+
+    # Experiment Suite
+    'ExperimentStatus',
+    'CaseOutcome',
+    'ClassificationResult',
+    'TestCaseDefinition',
+    'ClientVariant',
+    'HitlRoutingConfig',
+    'LangfuseConfig',
+    'ExperimentManifest',
+    'ExperimentRunSummary',
+    'ExperimentProgress',
+    'ExperimentRun',
+    'ExperimentCase',
 ]

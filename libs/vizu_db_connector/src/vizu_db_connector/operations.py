@@ -141,7 +141,7 @@ class VizuDBConnector:
             # Import pandas lazily to avoid requiring it at module import time
             # for runtime environments that don't need DataFrame features.
             try:
-                import pandas as pd
+                pass
             except Exception as e:
                 raise RuntimeError("pandas is required for insert_dataframe but is not installed") from e
 

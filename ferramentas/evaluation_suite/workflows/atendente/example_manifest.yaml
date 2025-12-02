@@ -1,0 +1,88 @@
+# Example Experiment Manifest
+# This file defines an experiment to test the atendente API with different clients
+
+name: "test-atendente-basic"
+version: "1.0.0"
+description: "Basic test of atendente response quality across clients"
+
+# API Configuration
+api_url: "http://localhost:8003"
+
+# Clients to test (from ClienteVizu database)
+clients:
+  - cliente_id: "550e8400-e29b-41d4-a716-446655440001"
+    name: "Tech Startup"
+    description: "Tech company with SQL agent enabled"
+    enabled_tools:
+      - buscar_informacoes
+      - executar_sql_agent
+
+  - cliente_id: "550e8400-e29b-41d4-a716-446655440002"
+    name: "E-commerce"
+    description: "E-commerce with RAG only"
+    enabled_tools:
+      - buscar_informacoes
+
+# Generic test cases (applied to all clients)
+cases:
+  - id: "greeting"
+    message: "Olá, tudo bem?"
+    tags: ["greeting", "basic"]
+    expected_contains:
+      - "olá"
+
+  - id: "info-request"
+    message: "Quais serviços vocês oferecem?"
+    expected_tool: "buscar_informacoes"
+    tags: ["rag", "services"]
+
+  - id: "complex-question"
+    message: "Qual foi o faturamento do último mês?"
+    expected_tool: "executar_sql_agent"
+    tags: ["sql", "analytics"]
+
+  - id: "out-of-scope"
+    message: "Como está o tempo hoje?"
+    expected_not_contains:
+      - "SQL"
+      - "buscar"
+    tags: ["boundary", "out-of-scope"]
+
+# Client-specific cases (override cliente_id from case)
+client_specific_cases:
+  "550e8400-e29b-41d4-a716-446655440001":
+    - id: "sql-specific"
+      message: "Quantos clientes novos tivemos essa semana?"
+      expected_tool: "executar_sql_agent"
+      tags: ["sql", "tech-startup"]
+
+# Execution configuration
+parallel_requests: 5
+timeout_seconds: 60
+retry_count: 2
+
+# HITL routing configuration
+hitl:
+  enabled: true
+  confidence_threshold: 0.7
+  sample_rate: 0.1
+  always_review_tools:
+    - executar_sql_agent
+  always_review_first_n: 3
+
+# Langfuse integration
+langfuse:
+  enabled: true
+  session_prefix: "exp-"
+  tags:
+    - experiment
+    - test-basic
+  create_dataset: true
+  dataset_name: "atendente-test-basic"
+
+# Metadata
+created_by: "developer"
+tags:
+  - test
+  - basic
+  - v1

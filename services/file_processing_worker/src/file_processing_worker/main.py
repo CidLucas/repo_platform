@@ -1,10 +1,10 @@
 import base64
 import logging
-from fastapi import FastAPI, Request, HTTPException, status, Depends
+from fastapi import FastAPI, HTTPException, status, Depends
 from pydantic import BaseModel, Field
 
 # Importações do nosso worker
-from file_processing_worker.core.config import get_settings, Settings
+from file_processing_worker.core.config import get_settings
 from file_processing_worker.core.worker import get_processing_service
 from file_processing_worker.services.processing_service import ProcessingService
 

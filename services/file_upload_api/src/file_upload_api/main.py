@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 # Importações de componentes da nossa aplicação
 # (O router ainda não existe, mas já deixamos o import)
 from file_upload_api.api.router import api_router
-from file_upload_api.core.config import get_settings, Settings
+from file_upload_api.core.config import get_settings
 
 # Logger inicial
 logger = logging.getLogger(__name__)

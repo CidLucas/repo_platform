@@ -1,6 +1,5 @@
 import uuid
 import logging
-from fastapi import HTTPException, status, Depends
 # from fastapi.security import APIKeyHeader # Exemplo de como seria a auth real
 
 logger = logging.getLogger(__name__)

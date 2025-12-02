@@ -1,6 +1,5 @@
 # services/clients_api/src/clients_api/core/security.py (VERSÃO FINAL E COMPLETA)
 
-import os
 import secrets  # <-- PASSO 1: Adicionamos a biblioteca 'secrets' do Python.
 import hashlib  # <-- PASSO 2: Adicionamos a biblioteca 'hashlib'.
 from typing import Tuple

@@ -1,5 +1,4 @@
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables.base import Runnable
 

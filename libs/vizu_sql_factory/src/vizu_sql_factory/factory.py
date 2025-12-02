@@ -1,11 +1,10 @@
 import logging
 from typing import Optional
-from functools import lru_cache
 from langchain_community.agent_toolkits import create_sql_agent
 from langchain_community.utilities.sql_database import SQLDatabase
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables.base import Runnable
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import QueuePool
 import os

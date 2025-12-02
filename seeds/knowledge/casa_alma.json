@@ -1,0 +1,25 @@
+{
+    "collection": "casa_alma_catalogo",
+    "documents": [
+        {
+            "doc_id": "historia_casa_alma",
+            "title": "História e Filosofia da Casa com Alma",
+            "content": "A Casa com Alma não é apenas uma loja de decoração, é a materialização do sonho de Clara Ribeiro. Após anos trabalhando como compradora em grandes redes de varejo e sentindo a frieza dos produtos produzidos em massa, Clara decidiu criar um refúgio em Ipanema, Rio de Janeiro, onde cada objeto conta uma história. Localizada na Rua Visconde de Pirajá, a loja é um convite para desacelerar. O negócio valoriza profundamente o design brasileiro e o trabalho manual, operando com a filosofia de que nossa casa deve ser o nosso santuário."
+        },
+        {
+            "doc_id": "produtos_casa_alma",
+            "title": "Produtos da Casa com Alma",
+            "content": "PRODUTOS SELECIONADOS A DEDO PELA CLARA\n\nCerâmicas Artesanais: Peças de oleiros locais, perfeitas para compor mesas afetivas. Cada peça é única e feita à mão.\n\nPerfumaria para Casa: Velas de cera vegetal e difusores com aromas naturais para criar atmosferas acolhedoras.\n\nCuradoria de Têxteis: Almofadas bordadas à mão e mantas de algodão orgânico. Todas as peças são feitas com materiais naturais e tingimento artesanal.\n\nPapelaria Fina: Seção especial para quem ama a escrita, com cadernos, agendas e cartões artesanais.\n\nO serviço da Casa com Alma é puramente consultivo: a equipe é treinada para ajudar o cliente a encontrar o presente perfeito ou a peça que falta para trazer aconchego a um ambiente, tanto na loja física quanto no atendimento via WhatsApp."
+        },
+        {
+            "doc_id": "politicas_casa_alma",
+            "title": "Políticas de Trocas e Entregas",
+            "content": "POLÍTICAS DA CASA COM ALMA\n\nTrocas: Aceitamos trocas de produtos em perfeito estado e com a etiqueta original no prazo de até 30 dias corridos após a compra.\n\nDefeitos: Em caso de defeito de fabricação (raro, dada a nossa conferência manual), a troca é imediata ou o valor é devolvido.\n\nEntregas:\n- Zona Sul do Rio: entrega via motoboy\n- Todo o Brasil: envio via transportadora\n- Compras online ou via WhatsApp\n\nIMPORTANTE: Por trabalharmos com peças artesanais únicas, o estoque da loja física e do site podem ter pequenas variações de disponibilidade. Sempre avisaremos o cliente imediatamente caso haja qualquer divergência.\n\nNosso compromisso é com a beleza, a verdade e a satisfação de quem leva um pedacinho da nossa alma para casa.\n\nPequenas variações nas peças artesanais são características do processo manual e NÃO configuram defeito."
+        },
+        {
+            "doc_id": "texteis_luminarias",
+            "title": "Têxteis e Luminárias Artesanais",
+            "content": "COLEÇÃO TÊXTEIS - Tecidos Naturais\nTodas as peças são feitas com algodão orgânico e tingimento natural.\n\nAlmofadas Decorativas:\n- Almofada Abraço 45x45cm: R$ 119 (cores: off-white, bege, terracota)\n- Almofada Nó 30x50cm: R$ 99 (cores: cru, mostarda, verde sálvia)\n\nMantas:\n- Manta Aconchego 130x170cm: R$ 289 (100% algodão com franjas artesanais)\n- Manta Tricô 100x150cm: R$ 349 (feita à mão em tricô grosso)\n\nCuidados: Lavar à mão com sabão neutro. Não usar alvejante. Secar à sombra.\n\nLUMINÁRIAS ARTESANAIS - Linha Fibra\n- Pendente Ninho 40cm: R$ 389 (rattan natural, luz difusa)\n- Pendente Sino 30cm: R$ 289 (palha trançada)\n- Abajur Mesa 45cm: R$ 249 (base cerâmica + cúpula palha)\n\nTodas com soquete E27. Lâmpada não inclusa (recomendamos LED 7W amarela)."
+        }
+    ]
+}

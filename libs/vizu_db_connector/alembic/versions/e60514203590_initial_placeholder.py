@@ -10,8 +10,6 @@ Revision ID: e60514203590
 Revises: 
 Create Date: 2025-11-26
 """
-from alembic import op
-import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'e60514203590'

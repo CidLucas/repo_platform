@@ -8,7 +8,6 @@ work when clients don't provide values. Also enable `pgcrypto` extension
 for `gen_random_uuid()` on Postgres-compatible hosts (Supabase supports it).
 """
 from alembic import op
-import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20251126_add_server_defaults'

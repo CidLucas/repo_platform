@@ -1,0 +1,106 @@
+# tool_pool_api/server/tool_modules/__init__.py
+"""
+Tool Modules Registry - Phase 4: Server Composition
+
+Este pacote organiza tools em módulos por domínio, permitindo:
+1. Melhor organização e manutenibilidade
+2. Lazy loading de dependências pesadas
+3. Facilidade para adicionar novos domínios
+4. Preparação para futura composição de servidores MCP
+
+Estrutura:
+- rag/       → Tools de RAG e knowledge base
+- sql/       → Tools de SQL Agent
+- scheduling/→ Tools de agendamento (futuro)
+- internal/  → Tools de diagnóstico interno
+
+Uso:
+    from tool_pool_api.server.tool_modules import register_all_tools
+    register_all_tools(mcp)
+"""
+
+import logging
+from typing import List, Callable
+from fastmcp import FastMCP
+
+logger = logging.getLogger(__name__)
+
+# Registry de módulos de tools
+# Cada módulo exporta uma função register_tools(mcp: FastMCP) -> List[str]
+# que retorna os nomes das tools registradas
+_MODULE_REGISTRY: List[Callable[[FastMCP], List[str]]] = []
+
+
+def register_module(register_fn: Callable[[FastMCP], List[str]]):
+    """
+    Decorator para registrar um módulo de tools.
+
+    Exemplo:
+        @register_module
+        def register_tools(mcp: FastMCP) -> List[str]:
+            mcp.tool(name="minha_tool")(minha_funcao)
+            return ["minha_tool"]
+    """
+    _MODULE_REGISTRY.append(register_fn)
+    return register_fn
+
+
+def register_all_tools(mcp: FastMCP) -> dict:
+    """
+    Registra todas as tools de todos os módulos.
+
+    Returns:
+        Dict com estatísticas: {"total": N, "modules": [...], "tools": [...]}
+    """
+    all_tools = []
+    modules_loaded = []
+
+    # Importa módulos para trigger os decorators
+    from . import rag_module
+    from . import sql_module
+    from . import common_module
+
+    for register_fn in _MODULE_REGISTRY:
+        try:
+            module_name = register_fn.__module__.split(".")[-1]
+            tool_names = register_fn(mcp)
+            all_tools.extend(tool_names)
+            modules_loaded.append(module_name)
+            logger.info(f"Módulo '{module_name}' carregado: {tool_names}")
+        except Exception as e:
+            logger.error(f"Erro ao carregar módulo: {e}")
+
+    logger.info(f"Total: {len(all_tools)} tools de {len(modules_loaded)} módulos")
+
+    return {
+        "total": len(all_tools),
+        "modules": modules_loaded,
+        "tools": all_tools
+    }
+
+
+# Metadata sobre os módulos disponíveis
+AVAILABLE_MODULES = {
+    "rag": {
+        "description": "RAG e Knowledge Base",
+        "tools": ["executar_rag_cliente"],
+        "requires_auth": True
+    },
+    "sql": {
+        "description": "SQL Agent para dados estruturados",
+        "tools": ["executar_sql_agent"],
+        "requires_auth": True
+    },
+    "common": {
+        "description": "Ferramentas públicas e utilitários",
+        "tools": ["ferramenta_publica_de_teste"],
+        "requires_auth": False
+    },
+    # Futuros módulos:
+    # "scheduling": {
+    #     "description": "Agendamento de compromissos",
+    #     "tools": ["agendar_servico", "consultar_agenda", "cancelar_agendamento"],
+    #     "requires_auth": True,
+    #     "requires_elicitation": True  # Usa confirmação
+    # },
+}

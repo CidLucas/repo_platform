@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from uuid import UUID
-from typing import Optional, Union
+from typing import Optional
 
 # Suporte a ambos os modos: SQLAlchemy (legado) e Supabase SDK (novo)
 try:

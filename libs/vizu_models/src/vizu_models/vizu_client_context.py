@@ -2,7 +2,6 @@ import uuid
 from typing import Any, Dict, List
 from vizu_models.credencial_servico_externo import CredencialServicoExternoBase
 from .cliente_vizu import ClienteVizuBase
-from sqlmodel import SQLModel
 
 
 

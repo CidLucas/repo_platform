@@ -1,0 +1,20 @@
+{
+    "collection": "oficina_mendes_conhecimento",
+    "documents": [
+        {
+            "doc_id": "historia_oficina",
+            "title": "História da Oficina Mendes",
+            "content": "A Oficina Mendes é um patrimônio do bairro de Nova Iguaçu, na Baixada Fluminense. A história começou com o pai de Ricardo, o saudoso 'Seu Mendes', que ensinou ao filho que a chave inglesa aperta o parafuso, mas o que segura o cliente é a honestidade. Hoje, Ricardo Mendes comanda a oficina mantendo o legado de duas gerações: serviço bem feito, sem inventar defeito onde não existe.\n\nSomos especialistas em mecânica geral para carros nacionais e importados, com um carinho especial por modelos mais antigos que exigem ouvido treinado, mas também atendemos a frota moderna com dignidade.\n\nLocalização: Próximo ao centro de Nova Iguaçu, fácil acesso."
+        },
+        {
+            "doc_id": "servicos_oficina",
+            "title": "Serviços da Oficina Mendes",
+            "content": "NOSSOS SERVIÇOS PRINCIPAIS\n\nRevisão Preventiva: Troca de óleo, filtros e correias. Fundamental para evitar problemas maiores.\n\nManutenção de Freios: Pastilhas, discos e fluidos. Segurança em primeiro lugar.\n\nReparos de Suspensão: Amortecedores, molas e buchas.\n\nAlinhamento Básico: Para seu carro rodar reto e os pneus durarem mais.\n\nDiagnósticos de Motor: Identificamos problemas através de experiência e equipamentos.\n\nHorário de Funcionamento:\n- Segunda a sexta: 08:00 às 18:00\n- Sábado: até 12:00\n- Domingo: NÃO trabalhamos"
+        },
+        {
+            "doc_id": "garantias_oficina",
+            "title": "Garantias e Regras da Oficina",
+            "content": "GARANTIAS E REGRAS - Na Oficina Mendes, a palavra vale ouro, mas as regras são claras para proteger a todos.\n\nGarantia: Todos os nossos serviços de mão de obra e as peças fornecidas por nós possuem garantia legal de 90 dias.\n\nAutorização: NÃO realizamos nenhum serviço extra sem a autorização expressa do cliente. Se o carro entrou para trocar óleo e vimos que o freio está ruim, nós avisamos, orçamos e só mexemos se o dono autorizar.\n\nPagamentos: Aceitamos cartões de crédito, débito e PIX.\n\nTaxa de Pátio: Carros que não forem retirados em até 5 dias úteis após o aviso de 'pronto' estarão sujeitos a uma taxa de diária de pátio. Nosso espaço físico é limitado e precisamos girar a oficina para atender outros vizinhos que precisam.\n\nConfiança é via de mão dupla, e aqui você pode deixar seu carro tranquilo."
+        }
+    ]
+}

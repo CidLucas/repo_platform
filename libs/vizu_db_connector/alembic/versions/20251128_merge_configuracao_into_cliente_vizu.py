@@ -9,8 +9,6 @@ not drop the legacy `configuracao_negocio` table. A follow-up migration should
 remove the legacy table after the application has been updated.
 """
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '20251128_merge_configuracao_into_cliente_vizu'

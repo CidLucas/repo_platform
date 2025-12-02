@@ -45,10 +45,11 @@ class ModelTask(str, Enum):
 
 class LLMProvider(str, Enum):
     """Provedor de LLM."""
-    OLLAMA = "ollama"     # Local
-    OPENAI = "openai"     # OpenAI API
-    ANTHROPIC = "anthropic"  # Anthropic API
-    GOOGLE = "google"     # Google Gemini API
+    OLLAMA = "ollama"           # Local (container)
+    OLLAMA_CLOUD = "ollama_cloud"  # Ollama Cloud API (api.ollama.com)
+    OPENAI = "openai"           # OpenAI API
+    ANTHROPIC = "anthropic"     # Anthropic API
+    GOOGLE = "google"           # Google Gemini API
 
 
 # ============================================================================
@@ -187,14 +188,58 @@ def _get_ollama_model(
     **kwargs
 ) -> BaseChatModel:
     """Cria cliente Ollama (local)."""
-    from langchain_community.chat_models import ChatOllama
+    from langchain_ollama import ChatOllama
 
-    logger.info(f"Conectando ao Ollama: {settings.OLLAMA_BASE_URL} modelo={model_name}")
+    logger.info(f"Conectando ao Ollama Local: {settings.OLLAMA_BASE_URL} modelo={model_name}")
 
     return ChatOllama(
         base_url=settings.OLLAMA_BASE_URL,
         model=model_name,
         callbacks=callbacks,
+        **kwargs
+    )
+
+
+def _get_ollama_cloud_model(
+    model_name: str,
+    settings: LLMSettings,
+    callbacks: List[BaseCallbackHandler],
+    **kwargs
+) -> BaseChatModel:
+    """
+    Cria cliente Ollama Cloud (ollama.com).
+
+    Usa a biblioteca nativa do Ollama (langchain-ollama) com host
+    apontando para https://ollama.com e autenticação via header.
+
+    Ref: https://docs.ollama.com/cloud
+
+    Requer OLLAMA_CLOUD_API_KEY configurada.
+    """
+    from langchain_ollama import ChatOllama
+
+    api_key = settings.OLLAMA_CLOUD_API_KEY
+    if not api_key:
+        raise ValueError(
+            "OLLAMA_CLOUD_API_KEY não configurada. "
+            "Obtenha sua API key em: https://ollama.com/settings/keys"
+        )
+
+    base_url = settings.OLLAMA_CLOUD_BASE_URL  # https://ollama.com
+
+    logger.info(f"Conectando ao Ollama Cloud: {base_url} modelo={model_name}")
+
+    # Ollama Cloud usa a mesma API do Ollama local, mas com autenticação
+    # Passamos o header de autorização via client_kwargs
+    return ChatOllama(
+        base_url=base_url,
+        model=model_name,
+        callbacks=callbacks,
+        client_kwargs={
+            "headers": {
+                "Authorization": f"Bearer {api_key}"
+            }
+        },
         **kwargs
     )
 
@@ -287,6 +332,11 @@ MODEL_MAPPINGS: Dict[LLMProvider, Dict[ModelTier, str]] = {
         ModelTier.FAST: "phi3:mini",
         ModelTier.POWERFUL: "llama3.1:70b",
     },
+    LLMProvider.OLLAMA_CLOUD: {
+        ModelTier.DEFAULT: "gpt-oss:20b",      # Rápido e eficiente
+        ModelTier.FAST: "gpt-oss:20b",         # Mais rápido
+        ModelTier.POWERFUL: "deepseek-v3.1:671b",  # Mais capaz
+    },
     LLMProvider.OPENAI: {
         ModelTier.DEFAULT: "gpt-4o-mini",
         ModelTier.FAST: "gpt-4o-mini",
@@ -367,6 +417,7 @@ def get_model(
     # Cria o modelo
     factory_map = {
         LLMProvider.OLLAMA: _get_ollama_model,
+        LLMProvider.OLLAMA_CLOUD: _get_ollama_cloud_model,
         LLMProvider.OPENAI: _get_openai_model,
         LLMProvider.ANTHROPIC: _get_anthropic_model,
         LLMProvider.GOOGLE: _get_google_model,

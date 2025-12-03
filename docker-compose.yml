@@ -398,6 +398,11 @@ services:
       # --- CORREÇÃO DE IMPORTAÇÃO ---
       # Ajustado para encontrar o código dentro da estrutura específica deste container
       PYTHONPATH: /app/services/tool_pool_api/src
+      # Google OAuth config
+      MCP_AUTH_GOOGLE_CLIENT_ID: ${MCP_AUTH_GOOGLE_CLIENT_ID:-}
+      MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV: ${MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV:-}
+      MCP_AUTH_BASE_URL: ${MCP_AUTH_BASE_URL:-http://localhost:8006}
+      CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

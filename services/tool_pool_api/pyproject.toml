@@ -18,6 +18,8 @@ sentry-sdk = { extras = ["fastapi"], version = "^2.0.4" }
 fastmcp = "^2.11.0"
 anyio = "^4.1.1"
 sqlmodel = "^0.0.27"
+python-dotenv = "^1.2.1"
+redis = "^5.0.0"
 
 vizu_context_service = { path = "../../libs/vizu_context_service", develop = true }
 vizu_rag_factory = { path = "../../libs/vizu_rag_factory", develop = true }
@@ -27,6 +29,7 @@ vizu_db_connector = { path = "../../libs/vizu_db_connector", develop = true }
 vizu_models = { path = "../../libs/vizu_models", develop = true }
 vizu_auth = { path = "../../libs/vizu_auth", develop = true }
 vizu_llm_service = { path = "../../libs/vizu_llm_service", develop = true }
+vizu_google_suite_client = { path = "../../libs/vizu_google_suite_client", develop = true }
 pytest-anyio = "^0.0.0"
 
 [tool.poetry.group.dev.dependencies]

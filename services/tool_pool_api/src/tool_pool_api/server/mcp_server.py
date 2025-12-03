@@ -77,5 +77,13 @@ def create_mcp_server():
 
     logger.info("App criado, montado no MCP e ferramentas registradas.")
 
+    # Register integration REST routes (OAuth flows, etc.)
+    try:
+        from tool_pool_api.api.integrations_router import router as integrations_router
+        app.include_router(integrations_router)
+        logger.info("Integrations router montado em /integrations")
+    except Exception as e:
+        logger.warning(f"Não foi possível montar router de integrações: {e}")
+
     # Retorna ambos (para o uvicorn rodar o 'app')
     return mcp, app

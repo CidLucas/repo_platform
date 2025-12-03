@@ -65,6 +65,14 @@ from .experiment import (
     ExperimentCase,
 )
 
+# Integration models
+from .integration import (
+    IntegrationConfig,
+    IntegrationTokens,
+    OAuthTokenResponse,
+    IntegrationProvider,
+)
+
 class Base(SQLModel):
     """
     Classe base que herda de SQLModel. Usada pelo Alembic como target_metadata.
@@ -161,4 +169,9 @@ __all__ = [
     'ExperimentProgress',
     'ExperimentRun',
     'ExperimentCase',
+    # Integrations
+    'IntegrationConfig',
+    'IntegrationTokens',
+    'OAuthTokenResponse',
+    'IntegrationProvider',
 ]

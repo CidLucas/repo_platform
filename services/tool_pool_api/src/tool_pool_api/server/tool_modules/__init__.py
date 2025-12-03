@@ -59,6 +59,11 @@ def register_all_tools(mcp: FastMCP) -> dict:
     from . import rag_module
     from . import sql_module
     from . import common_module
+    # Optional Google module (integration)
+    try:
+        from . import google_module  # noqa: F401
+    except Exception as e:
+        logger.warning(f"Google module not available at import time: {e}")
 
     for register_fn in _MODULE_REGISTRY:
         try:
@@ -95,6 +100,11 @@ AVAILABLE_MODULES = {
         "description": "Ferramentas públicas e utilitários",
         "tools": ["ferramenta_publica_de_teste"],
         "requires_auth": False
+    },
+    "google": {
+        "description": "Google Suite integrations (Sheets, Gmail, Calendar)",
+        "tools": ["write_to_sheet", "read_emails", "query_calendar"],
+        "requires_auth": True
     },
     # Futuros módulos:
     # "scheduling": {

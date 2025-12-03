@@ -390,6 +390,245 @@ class SupabaseCRUD:
             logger.error(f"Error calling function {function_name}: {e}")
             return None
 
+    # ========================================================================
+    # INTEGRATION CONFIG OPERATIONS
+    # ========================================================================
+
+    def save_integration_config(
+        self,
+        cliente_vizu_id: UUID,
+        provider: str,
+        config_type: str,
+        client_id_encrypted: str,
+        client_secret_encrypted: str,
+        redirect_uri: str,
+        scopes: list,
+    ) -> Optional[Dict[str, Any]]:
+        """Save or update integration config."""
+        try:
+            data = {
+                "cliente_vizu_id": str(cliente_vizu_id),
+                "provider": provider,
+                "config_type": config_type,
+                "client_id_encrypted": client_id_encrypted,
+                "client_secret_encrypted": client_secret_encrypted,
+                "redirect_uri": redirect_uri,
+                "scopes": scopes,
+            }
+            response = (
+                self.client
+                .table("integration_configs")
+                .upsert(data, on_conflict="cliente_vizu_id,provider,config_type")
+                .execute()
+            )
+            if response.data and len(response.data) > 0:
+                return response.data[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error saving integration config: {e}")
+            return None
+
+    def get_integration_config(
+        self,
+        cliente_vizu_id: UUID,
+        provider: str
+    ) -> Optional[Dict[str, Any]]:
+        """Get integration config."""
+        try:
+            response = (
+                self.client
+                .table("integration_configs")
+                .select("*")
+                .eq("cliente_vizu_id", str(cliente_vizu_id))
+                .eq("provider", provider)
+                .limit(1)
+                .execute()
+            )
+            if response.data and len(response.data) > 0:
+                return response.data[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting integration config: {e}")
+            return None
+
+    # ========================================================================
+    # INTEGRATION TOKENS OPERATIONS (Multi-account support)
+    # ========================================================================
+
+    def save_integration_tokens(
+        self,
+        cliente_vizu_id: UUID,
+        provider: str,
+        access_token_encrypted: str,
+        refresh_token_encrypted: Optional[str],
+        token_type: Optional[str],
+        expires_at: Optional[Any],
+        scopes: list,
+        metadata: Optional[dict] = None,
+        account_email: Optional[str] = None,
+        account_name: Optional[str] = None,
+        is_default: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """Save or update integration tokens for a specific account."""
+        try:
+            # Use placeholder for legacy single-account usage
+            if not account_email:
+                account_email = "default@unknown.com"
+                account_name = account_name or "Primary Account"
+                is_default = True
+
+            # If setting as default, clear other defaults first
+            if is_default:
+                self.client.table("integration_tokens").update(
+                    {"is_default": False}
+                ).eq("cliente_vizu_id", str(cliente_vizu_id)).eq(
+                    "provider", provider
+                ).eq("is_default", True).execute()
+
+            data = {
+                "cliente_vizu_id": str(cliente_vizu_id),
+                "provider": provider,
+                "access_token_encrypted": access_token_encrypted,
+                "refresh_token_encrypted": refresh_token_encrypted,
+                "token_type": token_type,
+                "expires_at": expires_at.isoformat() if hasattr(expires_at, 'isoformat') else expires_at,
+                "scopes": scopes,
+                "metadata": metadata,
+                "account_email": account_email,
+                "account_name": account_name,
+                "is_default": is_default,
+            }
+            response = (
+                self.client
+                .table("integration_tokens")
+                .upsert(data, on_conflict="cliente_vizu_id,provider,account_email")
+                .execute()
+            )
+            if response.data and len(response.data) > 0:
+                return response.data[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error saving integration tokens: {e}")
+            return None
+
+    def get_integration_tokens(
+        self,
+        cliente_vizu_id: UUID,
+        provider: str,
+        account_email: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Get integration tokens for a specific account or the default account."""
+        try:
+            if account_email:
+                response = (
+                    self.client
+                    .table("integration_tokens")
+                    .select("*")
+                    .eq("cliente_vizu_id", str(cliente_vizu_id))
+                    .eq("provider", provider)
+                    .eq("account_email", account_email)
+                    .limit(1)
+                    .execute()
+                )
+            else:
+                # Try default account first, then fall back to any account
+                response = (
+                    self.client
+                    .table("integration_tokens")
+                    .select("*")
+                    .eq("cliente_vizu_id", str(cliente_vizu_id))
+                    .eq("provider", provider)
+                    .order("is_default", desc=True)
+                    .order("created_at")
+                    .limit(1)
+                    .execute()
+                )
+            if response.data and len(response.data) > 0:
+                return response.data[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting integration tokens: {e}")
+            return None
+
+    def list_integration_accounts(
+        self,
+        cliente_vizu_id: UUID,
+        provider: str,
+    ) -> List[Dict[str, Any]]:
+        """List all connected accounts for a cliente/provider."""
+        try:
+            response = (
+                self.client
+                .table("integration_tokens")
+                .select("id,account_email,account_name,is_default,expires_at,scopes,created_at")
+                .eq("cliente_vizu_id", str(cliente_vizu_id))
+                .eq("provider", provider)
+                .order("is_default", desc=True)
+                .order("account_email")
+                .execute()
+            )
+            return response.data or []
+        except Exception as e:
+            logger.error(f"Error listing integration accounts: {e}")
+            return []
+
+    def set_default_account(
+        self,
+        cliente_vizu_id: UUID,
+        provider: str,
+        account_email: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Set a specific account as the default for a cliente/provider."""
+        try:
+            # Clear existing default
+            self.client.table("integration_tokens").update(
+                {"is_default": False}
+            ).eq("cliente_vizu_id", str(cliente_vizu_id)).eq(
+                "provider", provider
+            ).execute()
+
+            # Set new default
+            response = (
+                self.client
+                .table("integration_tokens")
+                .update({"is_default": True})
+                .eq("cliente_vizu_id", str(cliente_vizu_id))
+                .eq("provider", provider)
+                .eq("account_email", account_email)
+                .execute()
+            )
+            if response.data and len(response.data) > 0:
+                return response.data[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error setting default account: {e}")
+            return None
+
+    def revoke_integration(
+        self,
+        cliente_vizu_id: UUID,
+        provider: str,
+        account_email: Optional[str] = None,
+    ) -> bool:
+        """Revoke integration for a specific account or all accounts."""
+        try:
+            if account_email:
+                self.client.table("integration_tokens").delete().eq(
+                    "cliente_vizu_id", str(cliente_vizu_id)
+                ).eq("provider", provider).eq("account_email", account_email).execute()
+            else:
+                # Revoke all accounts for this provider
+                self.client.table("integration_tokens").delete().eq(
+                    "cliente_vizu_id", str(cliente_vizu_id)
+                ).eq("provider", provider).execute()
+                self.client.table("integration_configs").delete().eq(
+                    "cliente_vizu_id", str(cliente_vizu_id)
+                ).eq("provider", provider).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Error revoking integration: {e}")
+            return False
+
 
 # ============================================================================
 # CONVENIENCE FUNCTIONS (backwards compatibility with old crud.py)

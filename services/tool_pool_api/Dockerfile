@@ -18,6 +18,7 @@ COPY ./libs/vizu_db_connector ./libs/vizu_db_connector
 COPY ./libs/vizu_models ./libs/vizu_models
 COPY ./libs/vizu_auth ./libs/vizu_auth
 COPY ./libs/vizu_supabase_client ./libs/vizu_supabase_client
+COPY ./libs/vizu_google_suite_client ./libs/vizu_google_suite_client
 
 # 2. COPIE os arquivos de projeto para sua estrutura de pastas espelhada.
 COPY ./services/tool_pool_api/pyproject.toml ./services/tool_pool_api/poetry.lock* ./services/tool_pool_api/
@@ -53,6 +54,7 @@ COPY ./libs/vizu_llm_service/src ./libs/vizu_llm_service/src
 COPY ./libs/vizu_qdrant_client/src ./libs/vizu_qdrant_client/src
 COPY ./libs/vizu_auth/src ./libs/vizu_auth/src
 COPY ./libs/vizu_supabase_client/src ./libs/vizu_supabase_client/src
+COPY ./libs/vizu_google_suite_client/src ./libs/vizu_google_suite_client/src
 
 # 8. Define o WORKDIR final de volta para o serviço
 WORKDIR /app/services/tool_pool_api

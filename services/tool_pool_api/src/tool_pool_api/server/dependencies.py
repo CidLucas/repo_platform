@@ -57,7 +57,8 @@ def get_context_service() -> ContextService:
     redis_client = redis.Redis(connection_pool=pool)
     redis_service = RedisService(redis_client=redis_client)
 
-    return ContextService(db_session=db, cache_service=redis_service)
+    # Use SQLAlchemy mode for local PostgreSQL (not Supabase cloud)
+    return ContextService(db_session=db, cache_service=redis_service, use_supabase=False)
 
 
 # ============================================================================

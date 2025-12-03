@@ -136,14 +136,14 @@ def register_tools(mcp: FastMCP) -> List[str]:
     ) -> str:
         """
         Busca informações na base de conhecimento do cliente.
-        
+
         Args:
             query: Pergunta do usuário sobre o negócio
             cliente_id: ID do cliente (injetado internamente, não pela LLM)
         """
         return await _executar_rag_cliente_logic(
-            query=query, 
-            ctx=ctx, 
+            query=query,
+            ctx=ctx,
             cliente_id=cliente_id
         )
 

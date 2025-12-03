@@ -15,6 +15,11 @@ python = "^3.11"
 pyjwt = "^2.8.0"
 pydantic = "^2.6.0"
 pydantic-settings = "^2.6.0"
+cryptography = "^44.0.0"
+
+# Google OAuth
+google-auth-oauthlib = "^1.2.0"
+google-auth = "^2.36.0"
 
 # Optional FastAPI integration
 fastapi = {version = "^0.100.0", optional = true}

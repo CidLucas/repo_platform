@@ -2,24 +2,34 @@
     "collection": "dra_beatriz_faq",
     "documents": [
         {
-            "doc_id": "historia_dra_beatriz",
-            "title": "História e Filosofia do Consultório",
-            "content": "NOSSA HISTÓRIA E FILOSOFIA\n\nCom mais de 25 anos de atuação na Tijuca, a Dra. Beatriz Almeida construiu um consultório pautado na ética, na segurança e na odontologia baseada em evidências. Diferente das 'clínicas de massa', aqui o atendimento é individualizado, focado na saúde bucal a longo prazo e na prevenção, fugindo de modismos estéticos que comprometem a estrutura dental.\n\nEndereço: Praça Saens Peña, Tijuca, Rio de Janeiro - RJ. (Edifício Comercial)."
+            "doc_id": "descritivo_negocio",
+            "title": "Descritivo do Negócio",
+            "content": "O Consultório Dra. Beatriz Almeida é referência em odontologia humanizada na Tijuca. Com 25 anos de experiência, focamos em saúde bucal preventiva e reabilitação oral.\n\nEndereço: Praça Saens Peña, 45, Sala 808 - Tijuca, RJ.\nHorário: Segunda a Sexta, 08:00 às 18:00 (Almoço: 12:00-14:00)."
         },
         {
-            "doc_id": "servicos_dra_beatriz",
-            "title": "Serviços Prestados",
-            "content": "SERVIÇOS PRESTADOS\n\nClínica Geral e Prevenção: Limpeza (profilaxia), aplicação de flúor, restaurações e check-up semestral.\n\nReabilitação Oral: Próteses fixas e removíveis, coroas e facetas de porcelana (com indicação funcional).\n\nImplantodontia: Implantes dentários para reposição de perdas, realizados com planejamento cirúrgico minucioso.\n\nEndodontia (Canal): Tratamento realizado com tecnologias rotatórias para maior conforto."
+            "doc_id": "servicos_precos",
+            "title": "Serviços e Preços - Tabela Particular 2024",
+            "content": "SERVIÇOS E PREÇOS (TABELA PARTICULAR 2024)\n\n• Consulta Inicial / Avaliação: R$ 350,00 (Inclui anamnese e raio-x periapical)\n• Profilaxia (Limpeza Completa): R$ 250,00\n• Restauração em Resina: A partir de R$ 400,00\n• Clareamento Caseiro (Moldeira): R$ 900,00 - Mais confortável, feito em casa com supervisão\n• Clareamento a Laser (Consultório): R$ 1.500,00 - Resultado mais rápido, ideal para quem tem pressa, mas pode gerar mais sensibilidade\n• Tratamento de Canal (Endodontia): A partir de R$ 800,00 (Molar)"
         },
         {
-            "doc_id": "politicas_dra_beatriz",
-            "title": "Políticas do Consultório",
-            "content": "INFORMAÇÕES AO PACIENTE E POLÍTICAS\n\nAgendamento: As consultas são marcadas com intervalo de tempo suficiente para um atendimento sem pressa e esterilização rigorosa da sala entre pacientes.\n\nReagendamento: Pedimos a gentileza de avisar com 24 horas de antecedência caso não possa comparecer, para que possamos oferecer o horário a um paciente em lista de espera ou com dor.\n\nPagamentos e Reembolsos: O atendimento é particular. Oferecemos suporte completo para reembolso (Livre Escolha), emitindo recibos, notas fiscais e laudos necessários para que o paciente solicite o ressarcimento junto ao seu plano de saúde de forma ágil.\n\nFormas de pagamento: PIX, transferência e cartões.\n\nEmergências: Buscamos sempre encaixar pacientes antigos com dor aguda no mesmo dia, dentro do horário comercial."
+            "doc_id": "convenios_reembolsos",
+            "title": "Convênios e Reembolsos",
+            "content": "CONVÊNIOS E REEMBOLSOS\n\nNÃO aceitamos convênios diretamente para cobrir o tratamento. Todo atendimento é particular.\n\nSistema de Reembolso (Livre Escolha): Aceitamos pacientes com Bradesco Saúde, SulAmérica, Amil e One Health que possuam a modalidade de livre escolha.\n\nComo funciona: Você paga a consulta/procedimento, nós emitimos a Nota Fiscal e o relatório clínico detalhado no mesmo dia, e você solicita o reembolso integral ou parcial ao seu plano. Ajudamos com toda a documentação."
         },
         {
-            "doc_id": "cuidados_saude_bucal",
-            "title": "Cuidados com Saúde Bucal",
-            "content": "CUIDADOS DIÁRIOS COM SAÚDE BUCAL\n\nEscovação Correta:\n- Escove pelo menos 3x ao dia (manhã, após almoço, antes de dormir)\n- Use escova de cerdas macias\n- Movimentos circulares suaves\n- Tempo mínimo: 2 minutos\n- Troque a escova a cada 3 meses\n\nFio Dental:\n- Use TODOS os dias, preferencialmente à noite\n- Passe suavemente entre todos os dentes\n- Não 'serre' o fio - movimentos de vai-e-vem\n\nSinais de Alerta - Procure o dentista se notar:\n- Sangramento gengival frequente\n- Dor de dente persistente\n- Sensibilidade ao frio/calor\n- Mau hálito constante\n- Feridas que não cicatrizam\n\nPrevenção: Consulta de rotina a cada 6 meses."
+            "doc_id": "documentacao_fiscal",
+            "title": "Documentação Fiscal",
+            "content": "DOCUMENTAÇÃO FISCAL\n\nEmitimos Nota Fiscal para TODOS os procedimentos, essencial para declaração de Imposto de Renda e pedidos de reembolso. Basta solicitar na recepção ou via WhatsApp após o pagamento."
+        },
+        {
+            "doc_id": "politicas_agendamento",
+            "title": "Políticas de Agendamento",
+            "content": "POLÍTICAS DE AGENDAMENTO\n\n• Cancelamentos: Devem ser feitos com 24h de antecedência. Cancelamentos em cima da hora podem gerar taxa.\n• Atrasos: Tolerância de 15 minutos. Após este período, pode ser necessário reagendar.\n• Emergências: Tentamos encaixe no mesmo dia para casos de dor aguda. Ligue: (21) 99999-0000"
+        },
+        {
+            "doc_id": "clareamento_info",
+            "title": "Informações sobre Clareamento Dental",
+            "content": "CLAREAMENTO DENTAL - INFORMAÇÕES\n\nClareamento Caseiro (Moldeira) - R$ 900,00:\n• Feito em casa com supervisão profissional\n• Moldeiras personalizadas + gel clareador\n• Processo gradual (2-3 semanas)\n• Mais confortável, menos sensibilidade\n• Resultados duradouros\n\nClareamento a Laser (Consultório) - R$ 1.500,00:\n• Resultado mais rápido (1-2 sessões)\n• Ideal para quem tem pressa\n• Pode gerar mais sensibilidade temporária\n• Feito com proteção gengival\n\nAmbos os procedimentos são seguros e supervisionados. A escolha depende do perfil do paciente. Consulte a Dra. Beatriz para saber qual é o melhor para você."
         }
     ]
 }

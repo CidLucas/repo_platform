@@ -6,6 +6,7 @@ import logging
 # Configura um logger padrão para a biblioteca
 logger = logging.getLogger(__name__)
 
+
 class RedisService:
     """
     Classe de serviço agnóstica para interagir com o Redis.
@@ -13,6 +14,7 @@ class RedisService:
     Esta classe não tem conhecimento do FastAPI. Ela recebe uma
     instância de cliente Redis e a utiliza para operações de cache.
     """
+
     def __init__(self, redis_client: redis.Redis):
         """
         Inicializa o serviço com um cliente Redis conectado.
@@ -29,7 +31,7 @@ class RedisService:
         """
         try:
             # Assumindo que 'data' pode ser um modelo Pydantic, usamos .model_dump_json()
-            if hasattr(data, 'model_dump_json'):
+            if hasattr(data, "model_dump_json"):
                 json_data = data.model_dump_json()
             else:
                 json_data = json.dumps(data)

@@ -5,6 +5,7 @@ Usa os dados de SEED_CLIENTS do seed.py para atualizar registros existentes.
 Uso:
     python -m vizu_db_connector.cli.update_clients
 """
+
 import logging
 import os
 from typing import Dict, Any
@@ -34,10 +35,18 @@ def update_client(session: Session, client_data: Dict[str, Any]) -> bool:
     config = client_data.get("config", {})
 
     cliente.prompt_base = config.get("prompt_base", cliente.prompt_base)
-    cliente.horario_funcionamento = config.get("horario_funcionamento", cliente.horario_funcionamento)
-    cliente.ferramenta_rag_habilitada = config.get("ferramenta_rag_habilitada", cliente.ferramenta_rag_habilitada)
-    cliente.ferramenta_sql_habilitada = config.get("ferramenta_sql_habilitada", cliente.ferramenta_sql_habilitada)
-    cliente.ferramenta_agendamento_habilitada = config.get("ferramenta_agendamento_habilitada", cliente.ferramenta_agendamento_habilitada)
+    cliente.horario_funcionamento = config.get(
+        "horario_funcionamento", cliente.horario_funcionamento
+    )
+    cliente.ferramenta_rag_habilitada = config.get(
+        "ferramenta_rag_habilitada", cliente.ferramenta_rag_habilitada
+    )
+    cliente.ferramenta_sql_habilitada = config.get(
+        "ferramenta_sql_habilitada", cliente.ferramenta_sql_habilitada
+    )
+    cliente.ferramenta_agendamento_habilitada = config.get(
+        "ferramenta_agendamento_habilitada", cliente.ferramenta_agendamento_habilitada
+    )
     cliente.collection_rag = config.get("collection_rag", cliente.collection_rag)
 
     # Atualiza tier se especificado
@@ -57,9 +66,9 @@ def run_update(db_url: str = None):
             logger.error("❌ DATABASE_URL nao definida")
             return
 
-    logger.info("\n" + "="*60)
+    logger.info("\n" + "=" * 60)
     logger.info("🔄 ATUALIZANDO CLIENTES EXISTENTES")
-    logger.info("="*60)
+    logger.info("=" * 60)
     logger.info(f"   Banco: {db_url.split('@')[-1]}")
 
     engine = create_engine(db_url)
@@ -76,11 +85,11 @@ def run_update(db_url: str = None):
 
         try:
             session.commit()
-            logger.info("\n" + "="*60)
+            logger.info("\n" + "=" * 60)
             logger.info("🎉 Atualizacao concluida!")
             logger.info(f"   Atualizados: {updated}")
             logger.info(f"   Nao encontrados: {skipped}")
-            logger.info("="*60)
+            logger.info("=" * 60)
         except Exception as e:
             session.rollback()
             logger.error(f"❌ Erro ao salvar: {e}")

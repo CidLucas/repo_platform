@@ -13,7 +13,7 @@ from vizu_models.vizu_client_context import VizuClientContext
 def test_get_client_context_cache_hit(
     mocker: MagicMock,
     mock_cliente_id: UUID,
-    mock_vizu_client_context_dict: dict # O dict que vem do cache
+    mock_vizu_client_context_dict: dict,  # O dict que vem do cache
 ):
     """
     Testa o 'caminho feliz' (Cache Hit).
@@ -39,7 +39,7 @@ def test_get_client_context_cache_hit(
 
     # 3. Assert (Verificar)
     mock_redis.get_json.assert_called_once_with(cache_key)
-    mock_crud.get_cliente_vizu_by_id.assert_not_called() # DB NÃO foi chamado
+    mock_crud.get_cliente_vizu_by_id.assert_not_called()  # DB NÃO foi chamado
     assert isinstance(contexto, VizuClientContext)
     assert contexto.cliente_id == mock_cliente_id
 
@@ -47,7 +47,7 @@ def test_get_client_context_cache_hit(
 def test_get_client_context_cache_miss(
     mocker: MagicMock,
     mock_cliente_id: UUID,
-    mock_vizu_client_context: VizuClientContext # O modelo Pydantic
+    mock_vizu_client_context: VizuClientContext,  # O modelo Pydantic
 ):
     """
     Testa o 'Caminho Feliz' (Cache Miss).
@@ -80,8 +80,8 @@ def test_get_client_context_cache_miss(
     # Verifica se o serviço ARMAZENOU no cache
     mock_redis.set_json.assert_called_once_with(
         key=cache_key,
-        data=contexto, # Deve ter chamado com o objeto Pydantic
-        ttl_seconds=service.CACHE_TTL_SECONDS
+        data=contexto,  # Deve ter chamado com o objeto Pydantic
+        ttl_seconds=service.CACHE_TTL_SECONDS,
     )
     assert contexto.cliente_id == mock_cliente_id
 
@@ -108,5 +108,5 @@ def test_get_client_context_not_found(mocker: MagicMock, mock_cliente_id: UUID):
     # 3. Assert
     mock_redis.get_json.assert_called_once()
     mock_crud.get_cliente_vizu_by_id.assert_called_once()
-    mock_redis.set_json.assert_not_called() # Não deve cachear 'None'
+    mock_redis.set_json.assert_not_called()  # Não deve cachear 'None'
     assert contexto is None

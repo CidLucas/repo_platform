@@ -2,8 +2,9 @@
 from fastapi import FastAPI, Request
 from .api.router import api_router
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import IntegrityError # Importação crítica
+from sqlalchemy.exc import IntegrityError  # Importação crítica
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
 
 def create_app() -> FastAPI:
     """
@@ -25,24 +26,25 @@ def create_app() -> FastAPI:
         Captura erros de violação de restrição de integridade (Ex: chave duplicada)
         e retorna um erro 409 (Conflict).
         """
-    # Você pode inspecionar 'exc.orig' para obter a mensagem de erro específica do psycopg2
-    # ou usar uma mensagem genérica se for um erro interno de DB
+        # Você pode inspecionar 'exc.orig' para obter a mensagem de erro específica do psycopg2
+        # ou usar uma mensagem genérica se for um erro interno de DB
         return JSONResponse(
-        status_code=409, # 409 Conflict é um bom código para duplicação de recursos
-        content={
-            "detail": "O recurso já existe ou viola uma regra de unicidade de dados (ex: api_key duplicada)."
-        },
+            status_code=409,  # 409 Conflict é um bom código para duplicação de recursos
+            content={
+                "detail": "O recurso já existe ou viola uma regra de unicidade de dados (ex: api_key duplicada)."
+            },
         )
 
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    # Garante que até mesmo erros HTTPException retornem JSON
+        # Garante que até mesmo erros HTTPException retornem JSON
         return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail},
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
         )
 
     return app
+
 
 # A instância 'app' agora é criada apenas quando o arquivo é executado diretamente.
 # Os testes importarão a factory 'create_app' em vez disso.

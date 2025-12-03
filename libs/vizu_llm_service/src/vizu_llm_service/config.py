@@ -14,7 +14,10 @@ class LLMSettings(BaseSettings):
     - Anthropic (API)
     - Google Gemini (API)
     """
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
     # ========================================================================
     # PROVIDER DEFAULT

@@ -4,11 +4,10 @@ import io
 from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
+
 # As fixtures 'client' e 'mock_storage_client' vêm do conftest.py
 def test_pubsub_push_integration_success(
-    client: TestClient,
-    mock_storage_client: MagicMock,
-    mocker: MagicMock
+    client: TestClient, mock_storage_client: MagicMock, mocker: MagicMock
 ):
     """
     Testa a integração do endpoint POST / (Pub/Sub Push).
@@ -52,7 +51,7 @@ def test_pubsub_push_integration_success(
         "cliente_vizu_id": "client-abc",
         "gcs_path": "client-abc/job-integration-test.pdf",
         "original_filename": "teste.pdf",
-        "content_type": "application/pdf", # Importante para o RoutingService
+        "content_type": "application/pdf",  # Importante para o RoutingService
         "trace_id": "trace-integration",
     }
     message_bytes = json.dumps(message_payload).encode("utf-8")
@@ -66,8 +65,8 @@ def test_pubsub_push_integration_success(
         "message": {
             "data": message_data_base64,
             "message_id": "msg-id-123",
-            "attributes": {}
-        }
+            "attributes": {},
+        },
     }
 
     # --- 2. Act (Execução) ---
@@ -78,7 +77,7 @@ def test_pubsub_push_integration_success(
     # --- 3. Assert (Verificação) ---
 
     # 3.1. Verificar Resposta HTTP (ACK para o Pub/Sub)
-    assert response.status_code == 204 # HTTP 204 No Content
+    assert response.status_code == 204  # HTTP 204 No Content
 
     # 3.2. Verificar Mock do GCS (Download)
     # O ProcessingService foi chamado e tentou descarregar o ficheiro

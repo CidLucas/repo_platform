@@ -1,6 +1,7 @@
 import pytest
 import os
-os.environ['OTEL_SDK_DISABLED'] = 'true'
+
+os.environ["OTEL_SDK_DISABLED"] = "true"
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -49,13 +50,12 @@ def api_client(db_session: Session) -> TestClient:
     Cria um TestClient com configuração e banco de dados totalmente isolados.
     """
     # Define a variável de ambiente para DESABILITAR completamente o SDK da telemetria
-    os.environ['OTEL_SDK_DISABLED'] = 'true'
+    os.environ["OTEL_SDK_DISABLED"] = "true"
 
     # Funções que definem o comportamento das dependências durante os testes
     def get_test_settings() -> Settings:
         return Settings(
-            DATABASE_URL=TEST_DATABASE_URL,
-            OTEL_EXPORTER_OTLP_ENDPOINT=None
+            DATABASE_URL=TEST_DATABASE_URL, OTEL_EXPORTER_OTLP_ENDPOINT=None
         )
 
     def override_get_db():

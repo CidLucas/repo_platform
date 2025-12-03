@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 # Um ID estático para simular um cliente autenticado.
 DUMMY_CLIENTE_VIZU_ID = uuid.UUID("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
 
+
 def get_cliente_vizu_id_from_token() -> uuid.UUID:
     """
     Dependência de Autenticação (Stub/Placeholder).

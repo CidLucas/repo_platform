@@ -9,8 +9,12 @@ revision: it records that the branches have been reconciled.
 """
 
 # revision identifiers, used by Alembic.
-revision = '20251128_merge_heads'
-down_revision = ('b7c0618d7931', '20251128_merge_cfg', '20251128_merge_configuracao_into_cliente_vizu')
+revision = "20251128_merge_heads"
+down_revision = (
+    "b7c0618d7931",
+    "20251128_merge_cfg",
+    "20251128_merge_configuracao_into_cliente_vizu",
+)
 branch_labels = None
 depends_on = None
 

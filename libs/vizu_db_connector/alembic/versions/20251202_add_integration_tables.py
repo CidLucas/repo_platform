@@ -3,11 +3,12 @@ Revision ID: 20251202_add_integration_tables
 Revises: 20251201_add_mcp_tables
 Create Date: 2025-12-02
 """
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = '20251202_add_integration_tables'
-down_revision = '20251201_add_mcp_tables'
+revision = "20251202_add_integration_tables"
+down_revision = "20251201_add_mcp_tables"
 branch_labels = None
 depends_on = None
 

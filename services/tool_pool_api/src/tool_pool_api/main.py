@@ -1,6 +1,6 @@
 import logging
 import sys
-import uvicorn # Importe o uvicorn
+import uvicorn  # Importe o uvicorn
 from .server.mcp_server import create_mcp_server
 from .core.config import get_settings
 
@@ -8,7 +8,7 @@ from .core.config import get_settings
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 
 # Aumentar o nível de log para módulos específicos
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     # Isso ignora a configuração problemática do mcp.run()
     uvicorn.run(
         app,
-        host="0.0.0.0", # Necessário para Docker
+        host="0.0.0.0",  # Necessário para Docker
         port=9000,
-        ws="auto"       # A correção para o KeyError original
+        ws="auto",  # A correção para o KeyError original
     )

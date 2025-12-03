@@ -14,6 +14,7 @@ Usage:
 To generate SQL without applying (for Supabase or review):
   python run_migrations.py --db "$DATABASE_URL" --sql-file /tmp/migration.sql
 """
+
 from __future__ import annotations
 
 import os
@@ -54,12 +55,17 @@ def ensure_local_libs_on_path(repo_root: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--db", help="Database URL to use (overrides env DATABASE_URL)")
-    parser.add_argument("--sql-file", help="If provided, write generated SQL to this file instead of applying")
+    parser.add_argument(
+        "--sql-file",
+        help="If provided, write generated SQL to this file instead of applying",
+    )
     args = parser.parse_args()
 
     db_url = args.db or os.getenv("DATABASE_URL")
     if not db_url:
-        print("Error: set DATABASE_URL environment variable or pass --db", file=sys.stderr)
+        print(
+            "Error: set DATABASE_URL environment variable or pass --db", file=sys.stderr
+        )
         sys.exit(1)
 
     base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -69,7 +75,9 @@ def main() -> None:
 
     alembic_ini = locate_alembic_ini(base_dir)
     if not alembic_ini:
-        print("Error: could not find alembic.ini (looked near package)", file=sys.stderr)
+        print(
+            "Error: could not find alembic.ini (looked near package)", file=sys.stderr
+        )
         sys.exit(1)
 
     cfg = Config(alembic_ini)

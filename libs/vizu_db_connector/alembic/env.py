@@ -1,4 +1,3 @@
-
 import os
 import sys
 from logging.config import fileConfig
@@ -6,7 +5,9 @@ from sqlalchemy import engine_from_config, pool, String
 
 from alembic import context
 
-sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "src")))
+sys.path.insert(
+    0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "src"))
+)
 
 # 2. Importar a nossa Base declarativa e todos os modelos
 # Importar a Base dá ao Alembic acesso aos metadados (nossas tabelas)
@@ -22,7 +23,7 @@ config = context.config
 # This allows running migrations against different databases (local, staging, prod)
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
-    config.set_main_option('sqlalchemy.url', DATABASE_URL)
+    config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 
 # Interpret the config file for Python logging.

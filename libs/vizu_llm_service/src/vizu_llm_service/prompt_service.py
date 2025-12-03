@@ -26,8 +26,10 @@ logger = logging.getLogger(__name__)
 # MODELS
 # ============================================================================
 
+
 class PromptConfig(BaseModel):
     """Configuration returned with a prompt."""
+
     model: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
@@ -36,6 +38,7 @@ class PromptConfig(BaseModel):
 
 class FetchedPrompt(BaseModel):
     """A prompt fetched from Langfuse or cache."""
+
     name: str
     version: int
     content: str  # The prompt text (may have {{variables}})
@@ -67,6 +70,7 @@ class FetchedPrompt(BaseModel):
 # ============================================================================
 # LANGFUSE CLIENT WRAPPER
 # ============================================================================
+
 
 class LangfusePromptClient:
     """
@@ -143,7 +147,8 @@ class LangfusePromptClient:
                     temperature=prompt.config.get("temperature"),
                     max_tokens=prompt.config.get("max_tokens"),
                     extra={
-                        k: v for k, v in prompt.config.items()
+                        k: v
+                        for k, v in prompt.config.items()
                         if k not in ("model", "temperature", "max_tokens")
                     },
                 )
@@ -178,6 +183,7 @@ class LangfusePromptClient:
 # ============================================================================
 # LOCAL CACHE (DATABASE)
 # ============================================================================
+
 
 class PromptCacheDB:
     """
@@ -223,6 +229,7 @@ class PromptCacheDB:
 
             if cliente_vizu_id:
                 import uuid
+
                 stmt = stmt.where(
                     PromptTemplate.cliente_vizu_id == uuid.UUID(cliente_vizu_id)
                 )
@@ -239,7 +246,9 @@ class PromptCacheDB:
                     name=template.name,
                     version=template.version,
                     content=template.content,
-                    config=PromptConfig(extra=template.variables) if template.variables else None,
+                    config=PromptConfig(extra=template.variables)
+                    if template.variables
+                    else None,
                     labels=template.tags or [],
                     source="cache",
                     fetched_at=template.updated_at,
@@ -296,7 +305,9 @@ class PromptCacheDB:
                 existing.tags = prompt.labels
                 existing.updated_at = datetime.utcnow()
                 if prompt.config:
-                    existing.variables = prompt.config.model_dump() if prompt.config else None
+                    existing.variables = (
+                        prompt.config.model_dump() if prompt.config else None
+                    )
             else:
                 # Create new
                 template = PromptTemplate(
@@ -306,7 +317,9 @@ class PromptCacheDB:
                     tags=prompt.labels,
                     is_active=True,
                     variables=prompt.config.model_dump() if prompt.config else None,
-                    cliente_vizu_id=uuid.UUID(cliente_vizu_id) if cliente_vizu_id else None,
+                    cliente_vizu_id=uuid.UUID(cliente_vizu_id)
+                    if cliente_vizu_id
+                    else None,
                     created_by="langfuse_sync",
                 )
                 self.db.add(template)
@@ -323,6 +336,7 @@ class PromptCacheDB:
 # ============================================================================
 # PROMPT SERVICE (MAIN API)
 # ============================================================================
+
 
 class PromptService:
     """
@@ -373,6 +387,7 @@ class PromptService:
         if self._langfuse is None:
             try:
                 from .config import get_llm_settings
+
                 settings = get_llm_settings()
 
                 if settings.langfuse_enabled:

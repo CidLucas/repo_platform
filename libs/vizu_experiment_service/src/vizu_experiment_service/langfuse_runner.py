@@ -336,25 +336,23 @@ class LangfuseExperimentRunner:
 
             # Count assertions
             tool_passed = sum(
-                1 for r in item_results
+                1
+                for r in item_results
                 for e in r.evaluations
                 if e.name == "tool_assertion" and e.value == 1.0
             )
             tool_total = sum(
-                1 for r in item_results
-                for e in r.evaluations
-                if e.name == "tool_assertion"
+                1 for r in item_results for e in r.evaluations if e.name == "tool_assertion"
             )
 
             contains_passed = sum(
-                1 for r in item_results
+                1
+                for r in item_results
                 for e in r.evaluations
                 if e.name == "contains_assertion" and e.value == 1.0
             )
             contains_total = sum(
-                1 for r in item_results
-                for e in r.evaluations
-                if e.name == "contains_assertion"
+                1 for r in item_results for e in r.evaluations if e.name == "contains_assertion"
             )
 
             # Calculate rates
@@ -468,9 +466,15 @@ class LangfuseExperimentRunner:
                     case = ExperimentCase(
                         run_id=local_run.id,
                         case_id=item_result.id if hasattr(item_result, "id") else str(uuid.uuid4()),
-                        input_message=item_result.input.get("message", "") if hasattr(item_result, "input") else "",
-                        actual_response=item_result.output.get("response", "") if hasattr(item_result, "output") else "",
-                        tools_called=item_result.output.get("tools_called", []) if hasattr(item_result, "output") else [],
+                        input_message=item_result.input.get("message", "")
+                        if hasattr(item_result, "input")
+                        else "",
+                        actual_response=item_result.output.get("response", "")
+                        if hasattr(item_result, "output")
+                        else "",
+                        tools_called=item_result.output.get("tools_called", [])
+                        if hasattr(item_result, "output")
+                        else [],
                         confidence_score=confidence,
                         outcome=outcome,
                         tool_assertion_passed=tool_ok,

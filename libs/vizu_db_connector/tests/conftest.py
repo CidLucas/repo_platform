@@ -7,12 +7,16 @@ import vizu_models as models
 
 
 # Usa uma variável de ambiente para o DB de teste, com um fallback
-TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://user:password@localhost:5432/vizu_db_test")
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL", "postgresql://user:password@localhost:5432/vizu_db_test"
+)
+
 
 @pytest.fixture(scope="session")
 def engine():
     """Cria uma única engine para toda a sessão de testes."""
     return create_engine(TEST_DATABASE_URL)
+
 
 @pytest.fixture(scope="session", autouse=True)
 def create_tables(engine):
@@ -24,6 +28,7 @@ def create_tables(engine):
     models.Base.metadata.create_all(engine)
     yield
     models.Base.metadata.drop_all(engine)
+
 
 @pytest.fixture
 def db_session(engine, create_tables) -> Session:
@@ -44,4 +49,3 @@ def db_session(engine, create_tables) -> Session:
     session.close()
     transaction.rollback()
     connection.close()
-

@@ -14,6 +14,7 @@ from file_processing_worker.core.config import Settings
 
 # --- Fixture Local (Específica para este teste) ---
 
+
 @pytest.fixture
 def mock_routing_service(mocker: MockerFixture) -> MagicMock:
     """
@@ -31,11 +32,13 @@ def mock_routing_service(mocker: MockerFixture) -> MagicMock:
 
     return mock_router
 
+
 # --- O Teste Unitário ---
+
 
 def test_process_message_success(
     settings: Settings,
-    mock_storage_client: MagicMock,     # Fixture do conftest.py
+    mock_storage_client: MagicMock,  # Fixture do conftest.py
     mock_routing_service: MagicMock,  # Fixture local
     mocker: MockerFixture,
 ):
@@ -52,7 +55,7 @@ def test_process_message_success(
         settings=settings,
     )
 
-   # Configurar o mock do GCS (do conftest)
+    # Configurar o mock do GCS (do conftest)
     downloaded_content = b"conteudo fake do ficheiro"
 
     def mock_download_effect(file_stream: io.BytesIO):
@@ -89,7 +92,7 @@ def test_process_message_success(
     mock_storage_client.get_bucket().blob.assert_called_with(
         "client-456/job-123-teste.pdf"
     )
-    mock_blob.download_to_file.assert_called_once() # Verifica se o download ocorreu
+    mock_blob.download_to_file.assert_called_once()  # Verifica se o download ocorreu
 
     # 3.2. Verificação do Roteamento
     mock_routing_service.get_parser.assert_called_with("application/pdf")

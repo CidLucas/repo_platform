@@ -10,6 +10,7 @@ from cryptography.fernet import Fernet
 try:
     from vizu_supabase_client import get_supabase_client, SupabaseCRUD
     from vizu_supabase_client.client import set_rls_context as supabase_set_rls
+
     SUPABASE_AVAILABLE = True
 except ImportError:
     SUPABASE_AVAILABLE = False
@@ -18,6 +19,7 @@ try:
     from sqlalchemy.orm import Session
     from sqlalchemy import text
     from vizu_db_connector import crud as sqlalchemy_crud
+
     SQLALCHEMY_AVAILABLE = True
 except ImportError:
     SQLALCHEMY_AVAILABLE = False
@@ -46,7 +48,7 @@ class ContextService:
         self,
         cache_service: RedisService,
         db_session: Optional["Session"] = None,
-        use_supabase: bool = True
+        use_supabase: bool = True,
     ):
         """
         Initialize ContextService.
@@ -78,7 +80,9 @@ class ContextService:
         fernet_key = os.getenv("CREDENTIALS_ENCRYPTION_KEY")
         if fernet_key:
             try:
-                self._cipher = Fernet(fernet_key.encode() if isinstance(fernet_key, str) else fernet_key)
+                self._cipher = Fernet(
+                    fernet_key.encode() if isinstance(fernet_key, str) else fernet_key
+                )
             except Exception as e:
                 logger.error("Invalid CREDENTIALS_ENCRYPTION_KEY: %s", e)
                 self._cipher = None
@@ -106,14 +110,18 @@ class ContextService:
             # Legacy SQLAlchemy mode
             try:
                 self.db.execute(
-                    text("SELECT set_config('app.current_cliente_id', :cliente_id, false)"),
-                    {"cliente_id": str(cliente_id)}
+                    text(
+                        "SELECT set_config('app.current_cliente_id', :cliente_id, false)"
+                    ),
+                    {"cliente_id": str(cliente_id)},
                 )
                 logger.debug(f"RLS context set via SQLAlchemy for: {cliente_id}")
             except Exception as e:
                 logger.warning(f"Could not set RLS context (SQLAlchemy): {e}")
 
-    async def get_client_context_by_api_key(self, api_key: str) -> Optional[VizuClientContext]:
+    async def get_client_context_by_api_key(
+        self, api_key: str
+    ) -> Optional[VizuClientContext]:
         """
         Busca o contexto completo do cliente usando a API Key.
         1. Busca ID no DB (leve).
@@ -154,10 +162,14 @@ class ContextService:
             tier=data["tier"],
             prompt_base=data.get("prompt_base") or "Você é um assistente útil.",
             horario_funcionamento=data.get("horario_funcionamento") or {},
-            ferramenta_rag_habilitada=bool(data.get("ferramenta_rag_habilitada", False)),
-            ferramenta_sql_habilitada=bool(data.get("ferramenta_sql_habilitada", False)),
+            ferramenta_rag_habilitada=bool(
+                data.get("ferramenta_rag_habilitada", False)
+            ),
+            ferramenta_sql_habilitada=bool(
+                data.get("ferramenta_sql_habilitada", False)
+            ),
             collection_rag=data.get("collection_rag", "default_collection"),
-            credenciais=[]
+            credenciais=[],
         )
 
     def _build_context_from_orm(self, cliente_db) -> VizuClientContext:
@@ -168,15 +180,23 @@ class ContextService:
             nome_empresa=cliente_db.nome_empresa,
             tipo_cliente=cliente_db.tipo_cliente,
             tier=cliente_db.tier,
-            prompt_base=getattr(cliente_db, "prompt_base", None) or "Você é um assistente útil.",
-            horario_funcionamento=getattr(cliente_db, "horario_funcionamento", {}) or {},
-            ferramenta_rag_habilitada=bool(getattr(cliente_db, "ferramenta_rag_habilitada", False)),
-            ferramenta_sql_habilitada=bool(getattr(cliente_db, "ferramenta_sql_habilitada", False)),
+            prompt_base=getattr(cliente_db, "prompt_base", None)
+            or "Você é um assistente útil.",
+            horario_funcionamento=getattr(cliente_db, "horario_funcionamento", {})
+            or {},
+            ferramenta_rag_habilitada=bool(
+                getattr(cliente_db, "ferramenta_rag_habilitada", False)
+            ),
+            ferramenta_sql_habilitada=bool(
+                getattr(cliente_db, "ferramenta_sql_habilitada", False)
+            ),
             collection_rag=getattr(cliente_db, "collection_rag", "default_collection"),
-            credenciais=[]
+            credenciais=[],
         )
 
-    async def get_client_context_by_id(self, cliente_id: UUID) -> Optional[VizuClientContext]:
+    async def get_client_context_by_id(
+        self, cliente_id: UUID
+    ) -> Optional[VizuClientContext]:
         """
         Recupera o contexto completo (Cliente + Configurações), usando Cache Redis.
         Também configura o contexto RLS para garantir isolamento de dados.
@@ -193,7 +213,9 @@ class ContextService:
                 try:
                     return VizuClientContext.model_validate(cached_data)
                 except Exception as e:
-                    logger.warning(f"Cache corrompido para {cliente_id}, invalidando... Erro: {e}")
+                    logger.warning(
+                        f"Cache corrompido para {cliente_id}, invalidando... Erro: {e}"
+                    )
                     await self.clear_context_cache(cliente_id)
         except Exception as e:
             logger.warning(f"Falha ao ler cache Redis: {e}")
@@ -206,7 +228,9 @@ class ContextService:
                     self._supabase_crud.get_cliente_vizu_by_id, cliente_id
                 )
                 if not cliente_data:
-                    logger.warning(f"Cliente {cliente_id} não encontrado no banco (Supabase).")
+                    logger.warning(
+                        f"Cliente {cliente_id} não encontrado no banco (Supabase)."
+                    )
                     return None
                 client_context = self._build_context_from_dict(cliente_data)
             else:
@@ -215,7 +239,9 @@ class ContextService:
                     sqlalchemy_crud.get_cliente_vizu_by_id, self.db, cliente_id
                 )
                 if not cliente_db:
-                    logger.warning(f"Cliente {cliente_id} não encontrado no banco (SQLAlchemy).")
+                    logger.warning(
+                        f"Cliente {cliente_id} não encontrado no banco (SQLAlchemy)."
+                    )
                     return None
                 client_context = self._build_context_from_orm(cliente_db)
 
@@ -224,13 +250,15 @@ class ContextService:
                 self.cache.set_json,
                 key=cache_key,
                 data=client_context,
-                ttl_seconds=self.CACHE_TTL_SECONDS
+                ttl_seconds=self.CACHE_TTL_SECONDS,
             )
 
             return client_context
 
         except Exception as e:
-            logger.error(f"Erro crítico ao montar contexto para {cliente_id}: {e}", exc_info=True)
+            logger.error(
+                f"Erro crítico ao montar contexto para {cliente_id}: {e}", exc_info=True
+            )
             return None
 
     async def clear_context_cache(self, cliente_id: UUID) -> None:
@@ -300,10 +328,17 @@ class ContextService:
     async def get_integration_config(self, cliente_vizu_id: UUID, provider: str):
         """Retrieve integration config and decrypt public values when needed."""
         if self._use_supabase:
-            row = await asyncio.to_thread(self._supabase_crud.get_integration_config, cliente_vizu_id, provider)
+            row = await asyncio.to_thread(
+                self._supabase_crud.get_integration_config, cliente_vizu_id, provider
+            )
             return row
         else:
-            row = await asyncio.to_thread(sqlalchemy_crud.get_integration_config, self.db, cliente_vizu_id, provider)
+            row = await asyncio.to_thread(
+                sqlalchemy_crud.get_integration_config,
+                self.db,
+                cliente_vizu_id,
+                provider,
+            )
             return row
 
     async def save_integration_tokens(
@@ -336,7 +371,11 @@ class ContextService:
             is_default: Whether this should be the default account
         """
         enc_access = await asyncio.to_thread(self._encrypt, access_token)
-        enc_refresh = await asyncio.to_thread(self._encrypt, refresh_token) if refresh_token else None
+        enc_refresh = (
+            await asyncio.to_thread(self._encrypt, refresh_token)
+            if refresh_token
+            else None
+        )
 
         if self._use_supabase:
             return await asyncio.to_thread(
@@ -373,7 +412,9 @@ class ContextService:
     class _IntegrationTokenWrapper:
         """Simple wrapper around DB row to expose helper methods used by tools."""
 
-        def __init__(self, row, decrypt_fn, context_service=None, cliente_id=None, provider=None):
+        def __init__(
+            self, row, decrypt_fn, context_service=None, cliente_id=None, provider=None
+        ):
             # row may be a SQLAlchemy Row or dict-like
             self._row = row
             self._decrypt = decrypt_fn
@@ -432,6 +473,7 @@ class ContextService:
                 return False
 
             from datetime import timedelta
+
             now = datetime.now(timezone.utc)
             if exp_dt.tzinfo is None:
                 exp_dt = exp_dt.replace(tzinfo=timezone.utc)
@@ -477,19 +519,31 @@ class ContextService:
             # Get the OAuth config to get client_id/secret
             cfg_row = await self.get_integration_config(cliente_vizu_id, "google")
             if not cfg_row:
-                logger.error(f"[Token Refresh] No Google config found for cliente {cliente_vizu_id}")
+                logger.error(
+                    f"[Token Refresh] No Google config found for cliente {cliente_vizu_id}"
+                )
                 return None
 
             client_id = self._decrypt(
-                cfg_row.get("client_id_encrypted") if isinstance(cfg_row, dict)
+                cfg_row.get("client_id_encrypted")
+                if isinstance(cfg_row, dict)
                 else getattr(cfg_row, "client_id_encrypted")
             )
             client_secret = self._decrypt(
-                cfg_row.get("client_secret_encrypted") if isinstance(cfg_row, dict)
+                cfg_row.get("client_secret_encrypted")
+                if isinstance(cfg_row, dict)
                 else getattr(cfg_row, "client_secret_encrypted")
             )
-            redirect_uri = cfg_row.get("redirect_uri") if isinstance(cfg_row, dict) else getattr(cfg_row, "redirect_uri")
-            scopes = cfg_row.get("scopes") if isinstance(cfg_row, dict) else getattr(cfg_row, "scopes")
+            redirect_uri = (
+                cfg_row.get("redirect_uri")
+                if isinstance(cfg_row, dict)
+                else getattr(cfg_row, "redirect_uri")
+            )
+            scopes = (
+                cfg_row.get("scopes")
+                if isinstance(cfg_row, dict)
+                else getattr(cfg_row, "scopes")
+            )
 
             # Use OAuthManager to refresh
             from vizu_auth.oauth2.oauth_manager import OAuthManager
@@ -507,27 +561,39 @@ class ContextService:
             new_tokens = await manager.refresh(oauth_config, refresh_token)
 
             # Calculate new expiry
-            expires_at = datetime.now(timezone.utc) + timedelta(seconds=new_tokens.expires_in or 3600)
+            expires_at = datetime.now(timezone.utc) + timedelta(
+                seconds=new_tokens.expires_in or 3600
+            )
 
             # Save the new tokens
             await self.save_integration_tokens(
                 cliente_vizu_id=cliente_vizu_id,
                 provider="google",
                 access_token=new_tokens.access_token,
-                refresh_token=new_tokens.refresh_token or refresh_token,  # Keep old if not returned
+                refresh_token=new_tokens.refresh_token
+                or refresh_token,  # Keep old if not returned
                 token_type=new_tokens.token_type,
                 expires_at=expires_at,
                 scopes=new_tokens.scope.split() if new_tokens.scope else scopes,
                 account_email=account_email,
             )
 
-            logger.info(f"[Token Refresh] Successfully refreshed Google token for cliente {cliente_vizu_id}")
+            logger.info(
+                f"[Token Refresh] Successfully refreshed Google token for cliente {cliente_vizu_id}"
+            )
 
             # Return new wrapper
-            return await self.get_integration_tokens(cliente_vizu_id, "google", auto_refresh=False, account_email=account_email)
+            return await self.get_integration_tokens(
+                cliente_vizu_id,
+                "google",
+                auto_refresh=False,
+                account_email=account_email,
+            )
 
         except Exception as e:
-            logger.error(f"[Token Refresh] Failed to refresh Google token: {e}", exc_info=True)
+            logger.error(
+                f"[Token Refresh] Failed to refresh Google token: {e}", exc_info=True
+            )
             return None
 
     async def get_integration_tokens(
@@ -576,13 +642,19 @@ class ContextService:
         )
 
         # Auto-refresh if token is expired or expiring soon
-        if auto_refresh and provider == "google" and wrapper.is_expiring_soon(margin_seconds=300):
+        if (
+            auto_refresh
+            and provider == "google"
+            and wrapper.is_expiring_soon(margin_seconds=300)
+        ):
             tokens = wrapper.get_decrypted_tokens()
             refresh_token = tokens.get("refresh_token")
             current_account_email = tokens.get("account_email")
 
             if refresh_token:
-                logger.info(f"[Token Refresh] Token expiring soon for {cliente_vizu_id}, attempting refresh...")
+                logger.info(
+                    f"[Token Refresh] Token expiring soon for {cliente_vizu_id}, attempting refresh..."
+                )
                 refreshed_wrapper = await self._refresh_google_token(
                     cliente_vizu_id,
                     refresh_token,
@@ -591,9 +663,13 @@ class ContextService:
                 if refreshed_wrapper:
                     return refreshed_wrapper
                 else:
-                    logger.warning(f"[Token Refresh] Refresh failed, returning possibly expired token")
+                    logger.warning(
+                        f"[Token Refresh] Refresh failed, returning possibly expired token"
+                    )
             else:
-                logger.warning(f"[Token Refresh] No refresh token available for {cliente_vizu_id}")
+                logger.warning(
+                    f"[Token Refresh] No refresh token available for {cliente_vizu_id}"
+                )
 
         return wrapper
 
@@ -621,20 +697,22 @@ class ContextService:
             )
 
         result = []
-        for row in (rows or []):
+        for row in rows or []:
             if hasattr(row, "_mapping"):
                 row = dict(row._mapping)
             elif not isinstance(row, dict):
                 row = dict(row)
-            result.append({
-                "id": str(row.get("id")),
-                "account_email": row.get("account_email"),
-                "account_name": row.get("account_name"),
-                "is_default": row.get("is_default", False),
-                "expires_at": row.get("expires_at"),
-                "scopes": row.get("scopes"),
-                "created_at": row.get("created_at"),
-            })
+            result.append(
+                {
+                    "id": str(row.get("id")),
+                    "account_email": row.get("account_email"),
+                    "account_name": row.get("account_name"),
+                    "is_default": row.get("is_default", False),
+                    "expires_at": row.get("expires_at"),
+                    "scopes": row.get("scopes"),
+                    "created_at": row.get("created_at"),
+                }
+            )
         return result
 
     async def set_default_account(

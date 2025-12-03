@@ -15,6 +15,7 @@ from sqlalchemy import Column, JSON
 
 class IntegrationProvider(str):
     """Simple enum-like constants for providers"""
+
     GOOGLE = "google"
 
 
@@ -54,7 +55,9 @@ class IntegrationTokens(SQLModel, table=True):
     scopes: List[str] = Field(sa_column=Column(JSON))
     # 'metadata' is a reserved attribute on SQLAlchemy declarative classes.
     # Use `metadata_json` in the Python model but map it to the DB column name 'metadata'.
-    metadata_json: Optional[Dict[str, Any]] = Field(sa_column=Column("metadata", JSON), default=None)
+    metadata_json: Optional[Dict[str, Any]] = Field(
+        sa_column=Column("metadata", JSON), default=None
+    )
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -77,4 +80,4 @@ __all__ = [
     "OAuthTokenResponse",
     "IntegrationProvider",
 ]
-from sqlmodel import SQLModel, Field as SQLField, Column
+from sqlmodel import SQLModel, Column

@@ -14,12 +14,10 @@ from vizu_auth.adapters.context_service_adapter import (
     api_key_lookup_from_context_service,
     external_user_lookup_from_context_service,
 )
-from vizu_auth.fastapi import create_auth_dependency
 from vizu_auth.core.models import AuthResult, AuthRequest
 from vizu_auth.strategies.api_key_strategy import ApiKeyStrategy
 from vizu_auth.strategies.jwt_strategy import JWTStrategy
 from vizu_auth.strategies.authenticator import Authenticator
-from vizu_auth.core.exceptions import MissingCredentialsError
 
 from vizu_auth.oauth2.oauth_manager import OAuthManager
 from vizu_auth.oauth2.models import OAuthConfig
@@ -92,7 +90,9 @@ async def configure_google_integration(
     final_client_secret = payload.client_secret if payload else client_secret
 
     if not final_client_id or not final_client_secret:
-        raise HTTPException(status_code=400, detail="client_id and client_secret are required")
+        raise HTTPException(
+            status_code=400, detail="client_id and client_secret are required"
+        )
 
     # Persist encrypted config via ContextService
     await context.save_integration_config(
@@ -129,19 +129,47 @@ async def initiate_google_auth(
 
     # Decrypt client_id/secret using internal helper
     try:
-        client_id = context._decrypt(cfg_row.get("client_id_encrypted") if isinstance(cfg_row, dict) else getattr(cfg_row, "client_id_encrypted"))
-        client_secret = context._decrypt(cfg_row.get("client_secret_encrypted") if isinstance(cfg_row, dict) else getattr(cfg_row, "client_secret_encrypted"))
-        redirect_uri = cfg_row.get("redirect_uri") if isinstance(cfg_row, dict) else getattr(cfg_row, "redirect_uri")
-        scopes = cfg_row.get("scopes") if isinstance(cfg_row, dict) else getattr(cfg_row, "scopes")
+        client_id = context._decrypt(
+            cfg_row.get("client_id_encrypted")
+            if isinstance(cfg_row, dict)
+            else getattr(cfg_row, "client_id_encrypted")
+        )
+        client_secret = context._decrypt(
+            cfg_row.get("client_secret_encrypted")
+            if isinstance(cfg_row, dict)
+            else getattr(cfg_row, "client_secret_encrypted")
+        )
+        redirect_uri = (
+            cfg_row.get("redirect_uri")
+            if isinstance(cfg_row, dict)
+            else getattr(cfg_row, "redirect_uri")
+        )
+        scopes = (
+            cfg_row.get("scopes")
+            if isinstance(cfg_row, dict)
+            else getattr(cfg_row, "scopes")
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read integration config: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to read integration config: {e}"
+        )
 
-    oauth_config = OAuthConfig(client_id=client_id, client_secret=client_secret, redirect_uri=redirect_uri, scopes=scopes)
+    oauth_config = OAuthConfig(
+        client_id=client_id,
+        client_secret=client_secret,
+        redirect_uri=redirect_uri,
+        scopes=scopes,
+    )
 
     state = secrets.token_urlsafe(32)
 
     # Save state in redis (use low-level client for simple string)
-    await asyncio.to_thread(context.cache.client.setex, f"oauth_state:{state}", 300, str(auth.cliente_vizu_id))
+    await asyncio.to_thread(
+        context.cache.client.setex,
+        f"oauth_state:{state}",
+        300,
+        str(auth.cliente_vizu_id),
+    )
 
     manager = OAuthManager("google")
     auth_url = await manager.get_authorization_url(oauth_config, state=state)
@@ -156,11 +184,17 @@ async def google_auth_callback(
     context: ContextService = Depends(get_context_service),
 ):
     # Validate state
-    cliente_vizu_id_str = await asyncio.to_thread(context.cache.client.get, f"oauth_state:{state}")
+    cliente_vizu_id_str = await asyncio.to_thread(
+        context.cache.client.get, f"oauth_state:{state}"
+    )
     if not cliente_vizu_id_str:
         raise HTTPException(status_code=400, detail="Invalid or expired state")
 
-    cliente_vizu_id = UUID(cliente_vizu_id_str.decode() if isinstance(cliente_vizu_id_str, bytes) else cliente_vizu_id_str)
+    cliente_vizu_id = UUID(
+        cliente_vizu_id_str.decode()
+        if isinstance(cliente_vizu_id_str, bytes)
+        else cliente_vizu_id_str
+    )
 
     # Remove state
     await asyncio.to_thread(context.cache.client.delete, f"oauth_state:{state}")
@@ -171,14 +205,37 @@ async def google_auth_callback(
         raise HTTPException(status_code=400, detail="Google integration not configured")
 
     try:
-        client_id = context._decrypt(cfg_row.get("client_id_encrypted") if isinstance(cfg_row, dict) else getattr(cfg_row, "client_id_encrypted"))
-        client_secret = context._decrypt(cfg_row.get("client_secret_encrypted") if isinstance(cfg_row, dict) else getattr(cfg_row, "client_secret_encrypted"))
-        redirect_uri = cfg_row.get("redirect_uri") if isinstance(cfg_row, dict) else getattr(cfg_row, "redirect_uri")
-        scopes = cfg_row.get("scopes") if isinstance(cfg_row, dict) else getattr(cfg_row, "scopes")
+        client_id = context._decrypt(
+            cfg_row.get("client_id_encrypted")
+            if isinstance(cfg_row, dict)
+            else getattr(cfg_row, "client_id_encrypted")
+        )
+        client_secret = context._decrypt(
+            cfg_row.get("client_secret_encrypted")
+            if isinstance(cfg_row, dict)
+            else getattr(cfg_row, "client_secret_encrypted")
+        )
+        redirect_uri = (
+            cfg_row.get("redirect_uri")
+            if isinstance(cfg_row, dict)
+            else getattr(cfg_row, "redirect_uri")
+        )
+        scopes = (
+            cfg_row.get("scopes")
+            if isinstance(cfg_row, dict)
+            else getattr(cfg_row, "scopes")
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read integration config: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to read integration config: {e}"
+        )
 
-    oauth_config = OAuthConfig(client_id=client_id, client_secret=client_secret, redirect_uri=redirect_uri, scopes=scopes)
+    oauth_config = OAuthConfig(
+        client_id=client_id,
+        client_secret=client_secret,
+        redirect_uri=redirect_uri,
+        scopes=scopes,
+    )
 
     manager = OAuthManager("google")
     tokens = await manager.exchange_code(oauth_config, code)
@@ -192,24 +249,30 @@ async def google_auth_callback(
     account_name = None
     try:
         import httpx
+
         async with httpx.AsyncClient() as http_client:
             resp = await http_client.get(
                 "https://www.googleapis.com/oauth2/v2/userinfo",
-                headers={"Authorization": f"Bearer {tokens.access_token}"}
+                headers={"Authorization": f"Bearer {tokens.access_token}"},
             )
             if resp.status_code == 200:
                 user_info = resp.json()
                 account_email = user_info.get("email")
-                account_name = user_info.get("name") or user_info.get("email", "").split("@")[0]
+                account_name = (
+                    user_info.get("name") or user_info.get("email", "").split("@")[0]
+                )
     except Exception as e:
         # If we can't get user info, use a fallback
         import logging
+
         logging.warning(f"Failed to get Google user info: {e}")
         account_email = f"account_{secrets.token_hex(4)}@unknown.com"
         account_name = "Google Account"
 
     # Check if this is the first account (make it default)
-    existing_accounts = await context.list_integration_accounts(cliente_vizu_id, "google")
+    existing_accounts = await context.list_integration_accounts(
+        cliente_vizu_id, "google"
+    )
     is_default = len(existing_accounts) == 0
 
     # Persist tokens with account info
@@ -256,9 +319,7 @@ async def set_default_google_account(
 ):
     """Set a specific Google account as the default."""
     success = await context.set_default_account(
-        auth.cliente_vizu_id,
-        "google",
-        payload.account_email
+        auth.cliente_vizu_id, "google", payload.account_email
     )
     if not success:
         raise HTTPException(status_code=404, detail="Account not found")
@@ -282,7 +343,10 @@ async def revoke_google_auth(
     if target_email:
         # Revoke specific account
         tokens = await context.get_integration_tokens(
-            auth.cliente_vizu_id, "google", auto_refresh=False, account_email=target_email
+            auth.cliente_vizu_id,
+            "google",
+            auto_refresh=False,
+            account_email=target_email,
         )
         if tokens:
             try:
@@ -290,16 +354,26 @@ async def revoke_google_auth(
                 await manager.revoke(tokens.get_decrypted_tokens()["access_token"])
             except Exception:
                 pass  # Continue even if revoke fails
-        await context.revoke_integration(auth.cliente_vizu_id, "google", account_email=target_email)
-        return {"status": "revoked", "provider": "google", "account_email": target_email}
+        await context.revoke_integration(
+            auth.cliente_vizu_id, "google", account_email=target_email
+        )
+        return {
+            "status": "revoked",
+            "provider": "google",
+            "account_email": target_email,
+        }
     else:
         # Revoke all accounts
-        accounts = await context.list_integration_accounts(auth.cliente_vizu_id, "google")
+        accounts = await context.list_integration_accounts(
+            auth.cliente_vizu_id, "google"
+        )
         for account in accounts:
             try:
                 tokens = await context.get_integration_tokens(
-                    auth.cliente_vizu_id, "google", auto_refresh=False,
-                    account_email=account.get("account_email")
+                    auth.cliente_vizu_id,
+                    "google",
+                    auto_refresh=False,
+                    account_email=account.get("account_email"),
                 )
                 if tokens:
                     manager = OAuthManager("google")
@@ -312,7 +386,9 @@ async def revoke_google_auth(
 
 @router.get("/google/status")
 async def get_google_status(
-    account_email: Optional[str] = Query(None, description="Specific account to check status for"),
+    account_email: Optional[str] = Query(
+        None, description="Specific account to check status for"
+    ),
     auth: AuthResult = Depends(_get_auth_result),
     context: ContextService = Depends(get_context_service),
 ):
@@ -326,7 +402,10 @@ async def get_google_status(
     if account_email:
         # Status for specific account
         tokens = await context.get_integration_tokens(
-            auth.cliente_vizu_id, "google", auto_refresh=False, account_email=account_email
+            auth.cliente_vizu_id,
+            "google",
+            auto_refresh=False,
+            account_email=account_email,
         )
         return {
             "configured": config is not None,
@@ -337,16 +416,24 @@ async def get_google_status(
         }
     else:
         # Overall status with all accounts
-        accounts = await context.list_integration_accounts(auth.cliente_vizu_id, "google")
+        accounts = await context.list_integration_accounts(
+            auth.cliente_vizu_id, "google"
+        )
         default_tokens = await context.get_integration_tokens(
             auth.cliente_vizu_id, "google", auto_refresh=False
         )
 
         return {
             "configured": config is not None,
-            "connected": default_tokens is not None and default_tokens.is_valid() if default_tokens else False,
-            "scopes": config.get("scopes") if isinstance(config, dict) else (getattr(config, "scopes", None) if config else []),
+            "connected": default_tokens is not None and default_tokens.is_valid()
+            if default_tokens
+            else False,
+            "scopes": config.get("scopes")
+            if isinstance(config, dict)
+            else (getattr(config, "scopes", None) if config else []),
             "accounts": accounts,
-            "default_account": default_tokens._get("account_email") if default_tokens else None,
+            "default_account": default_tokens._get("account_email")
+            if default_tokens
+            else None,
             "expires_at": default_tokens._get("expires_at") if default_tokens else None,
         }

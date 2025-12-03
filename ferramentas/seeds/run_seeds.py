@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 # Adiciona paths para imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "libs" / "vizu_db_connector" / "src"))
-sys.path.insert(0, str(Path(__file__).parent.parent / "libs" / "vizu_models" / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "libs" / "vizu_db_connector" / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "libs" / "vizu_models" / "src"))
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ def seed_database(db_url: str):
     from sqlalchemy.exc import IntegrityError
     from vizu_models import ClienteVizu
     from vizu_models.enums import TipoCliente, TierCliente
-    from seeds.clients import SEED_CLIENTS
+    from .clients import SEED_CLIENTS
 
     logger.info("=" * 60)
     logger.info("🌱 SEED DATABASE - Populando clientes de teste")
@@ -138,7 +138,7 @@ def seed_qdrant():
 
     knowledge_files = list(KNOWLEDGE_DIR.glob("*.json"))
     if not knowledge_files:
-        logger.warning("   ⚠️  Nenhum arquivo .json encontrado em seeds/knowledge/")
+        logger.warning("   ⚠️  Nenhum arquivo .json encontrado em ferramentas/seeds/knowledge/")
         return
 
     for json_file in knowledge_files:

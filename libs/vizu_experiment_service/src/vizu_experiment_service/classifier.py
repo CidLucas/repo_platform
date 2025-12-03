@@ -52,9 +52,7 @@ class ResponseClassifier:
         """
         self.db = db_session
         self.hitl_service = hitl_service
-        self.confidence_threshold = (
-            confidence_threshold or settings.DEFAULT_CONFIDENCE_THRESHOLD
-        )
+        self.confidence_threshold = confidence_threshold or settings.DEFAULT_CONFIDENCE_THRESHOLD
         self.sample_rate = sample_rate or settings.DEFAULT_SAMPLE_RATE
 
     async def classify_case(
@@ -74,9 +72,7 @@ class ResponseClassifier:
         """
         # Use provided config or defaults
         confidence_threshold = (
-            hitl_config.confidence_threshold
-            if hitl_config
-            else self.confidence_threshold
+            hitl_config.confidence_threshold if hitl_config else self.confidence_threshold
         )
 
         confidence = case.confidence_score or 0.5
@@ -107,7 +103,7 @@ class ResponseClassifier:
 
         # Update case with classification
         case.classification = classification
-        await self.db.commit()
+        self.db.add(case)  # Mark for update, don't commit yet
 
         logger.debug(f"Case {case.id} classified as {classification.value}")
 
@@ -129,6 +125,9 @@ class ResponseClassifier:
             Dict with classification counts
         """
         from sqlmodel import select
+
+        # Store run_id before any async operations to avoid lazy loading issues
+        run_id = run.id
 
         # Get HITL config from manifest
         manifest_data = run.manifest_json or {}
@@ -185,7 +184,7 @@ class ResponseClassifier:
         await self.db.commit()
 
         logger.info(
-            f"Classified run {run.id}: "
+            f"Classified run {run_id}: "
             f"{counts['high_confidence']} high confidence, "
             f"{len(hitl_items)} sent to HITL"
         )
@@ -210,8 +209,10 @@ class ResponseClassifier:
 
         for case in cases:
             # Update case outcome to show it's pending review
-            case.outcome = CaseOutcome.NEEDS_REVIEW
-            case.hitl_routed_reason = f"Classification: {case.classification.value if case.classification else 'unknown'}"
+            case.outcome = CaseOutcome.NEEDS_REVIEW.value
+            case.hitl_routed_reason = (
+                f"Classification: {case.classification.value if case.classification else 'unknown'}"
+            )
 
             # Create HITL review item
             await self.hitl_service.add_to_queue(
@@ -279,10 +280,12 @@ class BatchClassifier:
         results = []
         for run in runs:
             counts = await self.classifier.classify_run(run)
-            results.append({
-                "run_id": str(run.id),
-                "manifest_name": run.manifest_name,
-                **counts,
-            })
+            results.append(
+                {
+                    "run_id": str(run.id),
+                    "manifest_name": run.manifest_name,
+                    **counts,
+                }
+            )
 
         return results

@@ -20,44 +20,50 @@ from sqlmodel import SQLModel, Field as SQLField, Column, JSON
 # ENUMS
 # ============================================================================
 
+
 class HitlCriteriaType(str, Enum):
     """Tipos de critérios para roteamento HITL."""
-    LOW_CONFIDENCE = "low_confidence"           # Confiança da LLM baixa
+
+    LOW_CONFIDENCE = "low_confidence"  # Confiança da LLM baixa
     ELICITATION_PENDING = "elicitation_pending"  # Elicitation em aberto
-    TOOL_CALL_FAILED = "tool_call_failed"       # Ferramenta falhou
-    KEYWORD_TRIGGER = "keyword_trigger"         # Palavras-chave detectadas
-    FIRST_N_MESSAGES = "first_n_messages"       # Primeiras N mensagens de cliente novo
-    RANDOM_SAMPLE = "random_sample"             # Amostragem aleatória
-    MANUAL_FLAG = "manual_flag"                 # Marcação manual
-    SENTIMENT_NEGATIVE = "sentiment_negative"   # Sentimento negativo detectado
-    LONG_RESPONSE_TIME = "long_response_time"   # Resposta demorou muito
+    TOOL_CALL_FAILED = "tool_call_failed"  # Ferramenta falhou
+    KEYWORD_TRIGGER = "keyword_trigger"  # Palavras-chave detectadas
+    FIRST_N_MESSAGES = "first_n_messages"  # Primeiras N mensagens de cliente novo
+    RANDOM_SAMPLE = "random_sample"  # Amostragem aleatória
+    MANUAL_FLAG = "manual_flag"  # Marcação manual
+    SENTIMENT_NEGATIVE = "sentiment_negative"  # Sentimento negativo detectado
+    LONG_RESPONSE_TIME = "long_response_time"  # Resposta demorou muito
 
 
 class HitlReviewStatus(str, Enum):
     """Status de uma review HITL."""
-    PENDING = "pending"           # Aguardando revisão
-    APPROVED = "approved"         # Resposta aprovada como está
-    CORRECTED = "corrected"       # Resposta corrigida pelo revisor
-    REJECTED = "rejected"         # Resposta rejeitada/inválida
-    ESCALATED = "escalated"       # Escalado para nível superior
-    EXPIRED = "expired"           # Expirou sem revisão
+
+    PENDING = "pending"  # Aguardando revisão
+    APPROVED = "approved"  # Resposta aprovada como está
+    CORRECTED = "corrected"  # Resposta corrigida pelo revisor
+    REJECTED = "rejected"  # Resposta rejeitada/inválida
+    ESCALATED = "escalated"  # Escalado para nível superior
+    EXPIRED = "expired"  # Expirou sem revisão
 
 
 class HitlFeedbackType(str, Enum):
     """Tipos de feedback do revisor."""
-    CORRECT = "correct"           # Resposta correta
+
+    CORRECT = "correct"  # Resposta correta
     PARTIALLY_CORRECT = "partially_correct"  # Parcialmente correta
-    INCORRECT = "incorrect"       # Resposta incorreta
-    HARMFUL = "harmful"           # Resposta potencialmente prejudicial
-    OFF_TOPIC = "off_topic"       # Fora do escopo
+    INCORRECT = "incorrect"  # Resposta incorreta
+    HARMFUL = "harmful"  # Resposta potencialmente prejudicial
+    OFF_TOPIC = "off_topic"  # Fora do escopo
 
 
 # ============================================================================
 # CONFIGURATION MODELS (Pydantic - not stored in DB directly)
 # ============================================================================
 
+
 class HitlCriterion(BaseModel):
     """Um critério individual de roteamento HITL."""
+
     type: HitlCriteriaType
     enabled: bool = True
     priority: int = 1  # Maior = mais prioritário
@@ -79,6 +85,7 @@ class HitlConfig(BaseModel):
 
     Pode ser armazenada como JSON em ConfiguracaoNegocio ou tabela dedicada.
     """
+
     enabled: bool = False
     criteria: List[HitlCriterion] = Field(default_factory=list)
 
@@ -108,7 +115,7 @@ class HitlConfig(BaseModel):
                     type=HitlCriteriaType.LOW_CONFIDENCE,
                     enabled=True,
                     priority=10,
-                    params={"threshold": 0.7}
+                    params={"threshold": 0.7},
                 ),
             ],
             auto_add_to_dataset=True,
@@ -119,8 +126,10 @@ class HitlConfig(BaseModel):
 # DATABASE MODELS (SQLModel)
 # ============================================================================
 
+
 class HitlReviewBase(SQLModel):
     """Campos base para HitlReview."""
+
     # Identificadores
     session_id: str = SQLField(index=True)
     cliente_vizu_id: UUID = SQLField(index=True)
@@ -133,7 +142,9 @@ class HitlReviewBase(SQLModel):
     # Metadata do roteamento
     criteria_triggered: str  # HitlCriteriaType value
     confidence_score: Optional[float] = None
-    criteria_details: Dict[str, Any] = SQLField(default_factory=dict, sa_column=Column(JSON))
+    criteria_details: Dict[str, Any] = SQLField(
+        default_factory=dict, sa_column=Column(JSON)
+    )
 
     # Metadata adicional (tools chamadas, trace_id, etc.)
     trace_id: Optional[str] = None
@@ -141,7 +152,9 @@ class HitlReviewBase(SQLModel):
     model_used: Optional[str] = None
 
     # Contexto (para reproduzir a situação)
-    conversation_context: List[Dict[str, Any]] = SQLField(default_factory=list, sa_column=Column(JSON))
+    conversation_context: List[Dict[str, Any]] = SQLField(
+        default_factory=list, sa_column=Column(JSON)
+    )
 
 
 class HitlReview(HitlReviewBase, table=True):
@@ -150,6 +163,7 @@ class HitlReview(HitlReviewBase, table=True):
 
     Table: hitl_review
     """
+
     __tablename__ = "hitl_review"
 
     id: UUID = SQLField(default_factory=uuid4, primary_key=True)
@@ -175,13 +189,16 @@ class HitlReview(HitlReviewBase, table=True):
 # API SCHEMAS (Pydantic)
 # ============================================================================
 
+
 class HitlReviewCreate(HitlReviewBase):
     """Schema para criar um novo HitlReview."""
+
     pass
 
 
 class HitlReviewRead(HitlReviewBase):
     """Schema para leitura de HitlReview."""
+
     id: UUID
     status: str
     created_at: datetime
@@ -196,6 +213,7 @@ class HitlReviewRead(HitlReviewBase):
 
 class HitlReviewUpdate(BaseModel):
     """Schema para atualizar um HitlReview (ação do revisor)."""
+
     status: HitlReviewStatus
     corrected_response: Optional[str] = None
     feedback_type: Optional[HitlFeedbackType] = None
@@ -205,6 +223,7 @@ class HitlReviewUpdate(BaseModel):
 
 class HitlQueueStats(BaseModel):
     """Estatísticas da fila HITL."""
+
     total_pending: int
     total_today: int
     by_criteria: Dict[str, int]
@@ -220,6 +239,7 @@ class HitlDecision(BaseModel):
     Retornado pelo HitlService.evaluate() para indicar se uma
     interação deve ir para revisão.
     """
+
     should_review: bool
     criteria_triggered: Optional[HitlCriteriaType] = None
     confidence_score: Optional[float] = None

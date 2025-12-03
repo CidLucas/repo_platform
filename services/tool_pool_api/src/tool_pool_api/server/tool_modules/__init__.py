@@ -59,6 +59,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
     from . import rag_module
     from . import sql_module
     from . import common_module
+
     # Optional Google module (integration)
     try:
         from . import google_module  # noqa: F401
@@ -77,11 +78,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
 
     logger.info(f"Total: {len(all_tools)} tools de {len(modules_loaded)} módulos")
 
-    return {
-        "total": len(all_tools),
-        "modules": modules_loaded,
-        "tools": all_tools
-    }
+    return {"total": len(all_tools), "modules": modules_loaded, "tools": all_tools}
 
 
 # Metadata sobre os módulos disponíveis
@@ -89,22 +86,22 @@ AVAILABLE_MODULES = {
     "rag": {
         "description": "RAG e Knowledge Base",
         "tools": ["executar_rag_cliente"],
-        "requires_auth": True
+        "requires_auth": True,
     },
     "sql": {
         "description": "SQL Agent para dados estruturados",
         "tools": ["executar_sql_agent"],
-        "requires_auth": True
+        "requires_auth": True,
     },
     "common": {
         "description": "Ferramentas públicas e utilitários",
         "tools": ["ferramenta_publica_de_teste"],
-        "requires_auth": False
+        "requires_auth": False,
     },
     "google": {
         "description": "Google Suite integrations (Sheets, Gmail, Calendar)",
         "tools": ["write_to_sheet", "read_emails", "query_calendar"],
-        "requires_auth": True
+        "requires_auth": True,
     },
     # Futuros módulos:
     # "scheduling": {

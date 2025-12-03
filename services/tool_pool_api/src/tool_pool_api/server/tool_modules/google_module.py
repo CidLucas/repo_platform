@@ -2,6 +2,7 @@
 
 Registers Google-related tools (Sheets, Gmail, Calendar) with the MCP registry.
 """
+
 import logging
 from typing import List, Optional
 from datetime import datetime
@@ -25,7 +26,10 @@ logger = logging.getLogger(__name__)
 # LÓGICA DE NEGÓCIO (Testável)
 # =============================================================================
 
-async def _get_google_tokens(cliente_id: str, account_email: Optional[str] = None) -> dict:
+
+async def _get_google_tokens(
+    cliente_id: str, account_email: Optional[str] = None
+) -> dict:
     """Helper to retrieve and validate Google tokens for a cliente.
 
     Args:
@@ -40,7 +44,9 @@ async def _get_google_tokens(cliente_id: str, account_email: Optional[str] = Non
     """
     ctx_service = get_context_service()
     cliente_uuid = UUID(cliente_id)
-    logger.info(f"[Google] Getting tokens for cliente: {cliente_uuid}, account: {account_email or 'default'}")
+    logger.info(
+        f"[Google] Getting tokens for cliente: {cliente_uuid}, account: {account_email or 'default'}"
+    )
 
     # auto_refresh=True will automatically refresh expired tokens
     token_wrapper = await ctx_service.get_integration_tokens(
@@ -52,12 +58,16 @@ async def _get_google_tokens(cliente_id: str, account_email: Optional[str] = Non
 
     if not token_wrapper:
         logger.error(f"[Google] No token_wrapper returned for cliente: {cliente_uuid}")
-        raise ValueError("Google integration not configured or expired. Please reconnect your Google account.")
+        raise ValueError(
+            "Google integration not configured or expired. Please reconnect your Google account."
+        )
 
     logger.info(f"[Google] token_wrapper found, is_valid={token_wrapper.is_valid()}")
     if not token_wrapper.is_valid():
         logger.error(f"[Google] Token is expired for cliente: {cliente_uuid}")
-        raise ValueError("Google integration not configured or expired. Please reconnect your Google account.")
+        raise ValueError(
+            "Google integration not configured or expired. Please reconnect your Google account."
+        )
 
     return token_wrapper.get_decrypted_tokens()
 
@@ -124,6 +134,7 @@ async def _list_google_accounts_logic(cliente_id: str) -> list:
 # REGISTRO DO MÓDULO
 # =============================================================================
 
+
 @register_module
 def register_tools(mcp: FastMCP) -> List[str]:
     """Register google suite tools."""
@@ -149,7 +160,9 @@ def register_tools(mcp: FastMCP) -> List[str]:
         """
         if not cliente_id:
             raise ValueError("cliente_id is required")
-        return await _write_to_sheet_logic(spreadsheet_id, range_name, values, cliente_id, account_email)
+        return await _write_to_sheet_logic(
+            spreadsheet_id, range_name, values, cliente_id, account_email
+        )
 
     # Tool 2: Read Gmail Emails
     async def read_emails_wrapper(
@@ -193,7 +206,9 @@ def register_tools(mcp: FastMCP) -> List[str]:
         """
         if not cliente_id:
             raise ValueError("cliente_id is required")
-        return await _query_calendar_logic(time_min, time_max, calendar_id, cliente_id, account_email)
+        return await _query_calendar_logic(
+            time_min, time_max, calendar_id, cliente_id, account_email
+        )
 
     # Tool 4: List Google Accounts
     async def list_google_accounts_wrapper(
@@ -221,7 +236,7 @@ def register_tools(mcp: FastMCP) -> List[str]:
             "Params: spreadsheet_id (ID from URL), range_name (A1 notation like 'Sheet1!A1'), "
             "values (list of rows, each row is a list of cell values), "
             "account_email (optional, specific Google account to use)."
-        )
+        ),
     )(write_to_sheet_wrapper)
 
     mcp.tool(
@@ -231,7 +246,7 @@ def register_tools(mcp: FastMCP) -> List[str]:
             "Params: query (Gmail search query like 'is:unread' or 'from:user@example.com'), "
             "max_results (optional, default 10), "
             "account_email (optional, specific Google account to use)."
-        )
+        ),
     )(read_emails_wrapper)
 
     mcp.tool(
@@ -241,7 +256,7 @@ def register_tools(mcp: FastMCP) -> List[str]:
             "Params: time_min (ISO 8601 start), time_max (ISO 8601 end), "
             "calendar_id (optional, default 'primary'), "
             "account_email (optional, specific Google account to use)."
-        )
+        ),
     )(query_calendar_wrapper)
 
     mcp.tool(
@@ -250,8 +265,10 @@ def register_tools(mcp: FastMCP) -> List[str]:
             "List all connected Google accounts. "
             "Returns account emails, names, and which one is the default. "
             "Use this to see available accounts before using other Google tools."
-        )
+        ),
     )(list_google_accounts_wrapper)
 
-    logger.info("[Google Module] Tools registered: write_to_sheet, read_emails, query_calendar, list_google_accounts")
+    logger.info(
+        "[Google Module] Tools registered: write_to_sheet, read_emails, query_calendar, list_google_accounts"
+    )
     return ["write_to_sheet", "read_emails", "query_calendar", "list_google_accounts"]

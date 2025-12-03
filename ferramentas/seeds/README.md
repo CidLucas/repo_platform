@@ -5,7 +5,7 @@ Esta pasta centraliza todos os dados de seed para desenvolvimento e testes.
 ## Estrutura
 
 ```
-seeds/
+ferramentas/seeds/
 ├── README.md           # Este arquivo
 ├── clients.py          # Definições de clientes de teste (personas)
 ├── knowledge/          # Dados de conhecimento RAG por cliente
@@ -13,6 +13,8 @@ seeds/
 │   ├── oficina_mendes.json
 │   ├── dra_beatriz.json
 │   ├── casa_alma.json
+│   ├── pixel_store.json
+│   ├── brasa_malte.json
 │   └── marcos_eletricista.json
 └── run_seeds.py        # Script unificado de execução
 ```
@@ -27,9 +29,9 @@ make seed-qdrant       # Apenas dados RAG no Qdrant
 make seed-check        # Verifica estado atual
 
 # Diretamente (desenvolvimento)
-python -m seeds.run_seeds --all
-python -m seeds.run_seeds --db-only
-python -m seeds.run_seeds --qdrant-only
+python -m ferramentas.seeds.run_seeds --all
+python -m ferramentas.seeds.run_seeds --db-only
+python -m ferramentas.seeds.run_seeds --qdrant-only
 ```
 
 ## Adicionando Novos Clientes

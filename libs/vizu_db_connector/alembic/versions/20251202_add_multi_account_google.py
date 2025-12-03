@@ -8,11 +8,12 @@ Revision ID: 20251202_add_multi_account_google
 Revises: 20251202_add_integration_tables
 Create Date: 2025-12-02
 """
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = '20251202_add_multi_account_google'
-down_revision = '20251202_add_integration_tables'
+revision = "20251202_add_multi_account_google"
+down_revision = "20251202_add_integration_tables"
 branch_labels = None
 depends_on = None
 

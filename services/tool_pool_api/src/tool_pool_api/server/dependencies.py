@@ -22,9 +22,11 @@ logger = logging.getLogger(__name__)
 # DEPENDÊNCIAS DE INFRAESTRUTURA (Singletons)
 # ============================================================================
 
+
 @lru_cache
 def get_app_settings() -> Settings:
     return get_settings()
+
 
 # Pool Redis compartilhado
 _redis_pool: Optional[redis.ConnectionPool] = None
@@ -58,16 +60,18 @@ def get_context_service() -> ContextService:
     redis_service = RedisService(redis_client=redis_client)
 
     # Use SQLAlchemy mode for local PostgreSQL (not Supabase cloud)
-    return ContextService(db_session=db, cache_service=redis_service, use_supabase=False)
+    return ContextService(
+        db_session=db, cache_service=redis_service, use_supabase=False
+    )
 
 
 # ============================================================================
 # HELPERS DE CONTEXTO
 # ============================================================================
 
+
 async def load_context_from_token(
-    ctx_service: ContextService,
-    access_token: Optional[AccessToken]
+    ctx_service: ContextService, access_token: Optional[AccessToken]
 ) -> VizuClientContext:
     """
     Função helper para carregar VizuClientContext com base no token de acesso.
@@ -93,7 +97,9 @@ async def load_context_from_token(
         logger.error(f"Token inválido. Claim 'sub' não encontrada. Email: {user_email}")
         raise ToolError("Token de autenticação inválido: 'subject' não encontrado.")
 
-    logger.debug(f"Carregando contexto para external_user_id: {external_user_id} (Email: {user_email})")
+    logger.debug(
+        f"Carregando contexto para external_user_id: {external_user_id} (Email: {user_email})"
+    )
 
     try:
         vizu_context = await ctx_service.get_context_by_external_user_id(
@@ -101,8 +107,12 @@ async def load_context_from_token(
         )
 
         if not vizu_context:
-            logger.error(f"Contexto Vizu não encontrado para external_user_id: {external_user_id}")
-            raise ToolError(f"Nenhum cliente Vizu associado a este usuário. (ID: {external_user_id})")
+            logger.error(
+                f"Contexto Vizu não encontrado para external_user_id: {external_user_id}"
+            )
+            raise ToolError(
+                f"Nenhum cliente Vizu associado a este usuário. (ID: {external_user_id})"
+            )
 
         return vizu_context
 
@@ -117,6 +127,7 @@ async def load_context_from_token(
 # AUTENTICAÇÃO OAUTH (Google)
 # ============================================================================
 
+
 def _get_google_secret(secret_id: str) -> Optional[str]:
     """
     Busca o Google Client Secret.
@@ -127,11 +138,15 @@ def _get_google_secret(secret_id: str) -> Optional[str]:
     # Fallback para desenvolvimento
     dev_secret = os.getenv("MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV")
     if dev_secret:
-        logger.debug("Usando Google Client Secret do .env (MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV)")
+        logger.debug(
+            "Usando Google Client Secret do .env (MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV)"
+        )
         return dev_secret
 
     if not secret_id:
-        logger.warning("Nenhum ID de secret nem segredo de dev fornecidos para Google Auth.")
+        logger.warning(
+            "Nenhum ID de secret nem segredo de dev fornecidos para Google Auth."
+        )
         return None
 
     # TODO: Implementar busca no Google Secret Manager
@@ -148,11 +163,9 @@ def get_auth_provider() -> Optional[GoogleProvider]:
 
     google_secret = _get_google_secret(settings.MCP_AUTH_GOOGLE_CLIENT_SECRET_ID)
 
-    if not all([
-        settings.MCP_AUTH_GOOGLE_CLIENT_ID,
-        google_secret,
-        settings.MCP_AUTH_BASE_URL
-    ]):
+    if not all(
+        [settings.MCP_AUTH_GOOGLE_CLIENT_ID, google_secret, settings.MCP_AUTH_BASE_URL]
+    ):
         logger.warning(
             "Autenticação Google desabilitada. Faltam configs: "
             "MCP_AUTH_GOOGLE_CLIENT_ID, MCP_AUTH_GOOGLE_CLIENT_SECRET, MCP_AUTH_BASE_URL"
@@ -174,7 +187,7 @@ def get_auth_provider() -> Optional[GoogleProvider]:
             client_id=settings.MCP_AUTH_GOOGLE_CLIENT_ID,
             client_secret=google_secret,
             base_url=settings.MCP_AUTH_BASE_URL,
-            required_scopes=scopes
+            required_scopes=scopes,
         )
         logger.info("GoogleProvider instanciado com sucesso.")
         return provider

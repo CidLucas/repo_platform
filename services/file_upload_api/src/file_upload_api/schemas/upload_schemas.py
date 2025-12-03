@@ -1,6 +1,7 @@
 import uuid
 from pydantic import BaseModel, Field
 
+
 class FileUploadResponse(BaseModel):
     """
     Schema da resposta retornada ao cliente após um upload bem-sucedido.
@@ -11,22 +12,18 @@ class FileUploadResponse(BaseModel):
 
     job_id: uuid.UUID = Field(
         ...,
-        description="O ID único para esta tarefa de processamento. Pode ser usado para rastrear o status (em implementações futuras)."
+        description="O ID único para esta tarefa de processamento. Pode ser usado para rastrear o status (em implementações futuras).",
     )
 
-    file_name: str = Field(
-        ...,
-        description="O nome original do arquivo enviado."
-    )
+    file_name: str = Field(..., description="O nome original do arquivo enviado.")
 
     content_type: str = Field(
-        ...,
-        description="O MIME type do arquivo detectado pelo servidor."
+        ..., description="O MIME type do arquivo detectado pelo servidor."
     )
 
     gcs_path: str = Field(
         ...,
-        description="O caminho no GCS onde o arquivo bruto foi armazenado temporariamente."
+        description="O caminho no GCS onde o arquivo bruto foi armazenado temporariamente.",
     )
 
     class Config:

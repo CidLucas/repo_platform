@@ -35,7 +35,7 @@ def create_mcp_server():
 
     # 3. Crie a aplicação MCP ASGI
     # path='/' significa que o endpoint MCP será /mcp (sem duplicação)
-    mcp_asgi = mcp.http_app(path='/')
+    mcp_asgi = mcp.http_app(path="/")
 
     # 4. Crie o app FastAPI com lifespan do MCP (OBRIGATÓRIO para HTTP transport)
     @asynccontextmanager
@@ -63,7 +63,7 @@ def create_mcp_server():
             "version": "1.0.0",
             "transport": "http",
             "modules": list(modules.keys()),
-            "tools_count": sum(len(m["tools"]) for m in modules.values())
+            "tools_count": sum(len(m["tools"]) for m in modules.values()),
         }
 
     # 6. Monte o servidor MCP no FastAPI
@@ -80,6 +80,7 @@ def create_mcp_server():
     # Register integration REST routes (OAuth flows, etc.)
     try:
         from tool_pool_api.api.integrations_router import router as integrations_router
+
         app.include_router(integrations_router)
         logger.info("Integrations router montado em /integrations")
     except Exception as e:

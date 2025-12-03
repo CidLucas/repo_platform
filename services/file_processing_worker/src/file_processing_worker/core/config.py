@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pydantic_settings import BaseSettings
 
+
 class Settings(BaseSettings):
     """
     Gerencia as configurações do worker, carregadas de variáveis de ambiente.
@@ -35,11 +36,11 @@ class Settings(BaseSettings):
     # Nome da coleção principal no Qdrant
     # QDRANT_COLLECTION_NAME: str = "vizu-documentos"
 
-
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
         extra = "ignore"
+
 
 @lru_cache
 def get_settings() -> Settings:

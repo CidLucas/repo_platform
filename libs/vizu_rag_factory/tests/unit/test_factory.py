@@ -9,11 +9,8 @@ from vizu_rag_factory.factory import create_rag_runnable
 from vizu_models.vizu_client_context import VizuClientContext
 
 
-
-
 def test_rag_factory_success(
-    mocker: MagicMock,
-    mock_vizu_client_context: VizuClientContext
+    mocker: MagicMock, mock_vizu_client_context: VizuClientContext
 ):
     """
     Testa o 'caminho feliz': cliente tem permissão, factory deve
@@ -37,7 +34,7 @@ def test_rag_factory_success(
     runnable = create_rag_runnable(mock_vizu_client_context, mock_llm)
 
     # 3. Assert
-    assert isinstance(runnable, Runnable) # O LCEL constrói um Runnable real
+    assert isinstance(runnable, Runnable)  # O LCEL constrói um Runnable real
 
     # Verifica se as dependências foram chamadas
     mock_get_embed.assert_called_once()
@@ -48,13 +45,12 @@ def test_rag_factory_success(
     mock_qdrant_instance.get_langchain_retriever.assert_called_once_with(
         collection_name=expected_collection,
         embeddings=mock_get_embed.return_value,
-        search_k=4
+        search_k=4,
     )
 
 
 def test_rag_factory_disabled(
-    mocker: MagicMock,
-    mock_vizu_client_context: VizuClientContext
+    mocker: MagicMock, mock_vizu_client_context: VizuClientContext
 ):
     """Testa se a factory retorna None se a ferramenta está desabilitada."""
     # 1. Arrange
@@ -69,4 +65,4 @@ def test_rag_factory_disabled(
 
     # 3. Assert
     assert runnable is None
-    mock_get_embed.assert_not_called() # Não deve nem tentar buscar embeddings
+    mock_get_embed.assert_not_called()  # Não deve nem tentar buscar embeddings

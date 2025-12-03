@@ -1,6 +1,7 @@
 # services/clients_api/tests/integration/test_clients_api.py
 from fastapi.testclient import TestClient
 
+
 def test_create_and_read_cliente(test_client: TestClient):
     """
     Testa o fluxo completo: criar um cliente e depois lê-lo da lista.
@@ -11,14 +12,16 @@ def test_create_and_read_cliente(test_client: TestClient):
         json={
             "nome_empresa": "Teste de Integração Inc.",
             "tipo_cliente": "externo",
-            "tier": "enterprise"
+            "tier": "enterprise",
         },
     )
     assert response_create.status_code == 201
     created_data = response_create.json()
     assert created_data["nome_empresa"] == "Teste de Integração Inc."
     assert "id" in created_data
-    assert "api_key" not in created_data # Verifica se a API key NÃO é exposta na resposta
+    assert (
+        "api_key" not in created_data
+    )  # Verifica se a API key NÃO é exposta na resposta
 
     # 2. Leitura da Lista (GET)
     response_read = test_client.get("/api/v1/clientes")
@@ -31,6 +34,7 @@ def test_create_and_read_cliente(test_client: TestClient):
 
     # Verifica se a API key NÃO é exposta no endpoint de listagem
     assert "api_key" not in read_data[0]
+
 
 def test_health_check(test_client: TestClient):
     """Testa o endpoint de health check."""

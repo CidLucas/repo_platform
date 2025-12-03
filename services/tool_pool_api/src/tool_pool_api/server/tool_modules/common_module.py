@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 # LÓGICA DE NEGÓCIO (Testável)
 # =============================================================================
 
+
 def _ferramenta_publica_de_teste_logic() -> str:
     """
     Ferramenta de teste para verificar conectividade MCP.
@@ -42,6 +43,7 @@ def _ferramenta_publica_de_teste_logic() -> str:
 # REGISTRO DO MÓDULO
 # =============================================================================
 
+
 @register_module
 def register_tools(mcp: FastMCP) -> List[str]:
     """Registra as tools do módulo Common."""
@@ -51,7 +53,7 @@ def register_tools(mcp: FastMCP) -> List[str]:
         description=(
             "[USO INTERNO] Ferramenta de diagnóstico para testes de conectividade. "
             "NÃO use para responder clientes."
-        )
+        ),
     )
     def ferramenta_publica_de_teste() -> str:
         return _ferramenta_publica_de_teste_logic()

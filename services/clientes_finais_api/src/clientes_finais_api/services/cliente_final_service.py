@@ -13,6 +13,7 @@ class ClienteFinalService:
     """
     Serviço para encapsular a lógica de negócio de Clientes Finais.
     """
+
     def __init__(self, db_session: Session):
         self.db = db_session
 
@@ -30,7 +31,7 @@ class ClienteFinalService:
 
         self.db.add(db_cliente)
         self.db.flush()  # Envia para o DB, mas não commita. Pega o ID gerado.
-        self.db.refresh(db_cliente) # Atualiza o objeto com os dados do DB (como o ID).
+        self.db.refresh(db_cliente)  # Atualiza o objeto com os dados do DB (como o ID).
 
         logger.info(f"Cliente final criado com sucesso com ID: {db_cliente.id}")
         return db_cliente
@@ -40,4 +41,8 @@ class ClienteFinalService:
         Retorna todos os clientes finais de um Cliente Vizu específico.
         """
         logger.info(f"Buscando clientes finais para o Cliente Vizu: {cliente_vizu_id}")
-        return self.db.query(ClienteFinal).filter(ClienteFinal.cliente_vizu_id == cliente_vizu_id).all()
+        return (
+            self.db.query(ClienteFinal)
+            .filter(ClienteFinal.cliente_vizu_id == cliente_vizu_id)
+            .all()
+        )

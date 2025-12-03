@@ -14,4 +14,3 @@ from . import operations  # noqa: F401
 import vizu_models as models  # noqa: F401
 
 __all__ = ["crud", "database", "manager", "operations", "models"]
-

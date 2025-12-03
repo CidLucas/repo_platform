@@ -7,6 +7,7 @@ from file_processing_worker.parsers.base_parser import BaseParser
 
 logger = logging.getLogger(__name__)
 
+
 class PDFParser(BaseParser):
     """
     Implementação concreta do BaseParser para extrair texto de ficheiros PDF.
@@ -41,19 +42,27 @@ class PDFParser(BaseParser):
                         extracted_pages.append(text)
                 except Exception as e:
                     # Loga erro na extração de uma página específica, mas continua
-                    logger.warning(f"Erro ao extrair texto da página {i} do PDF. Erro: {e}")
+                    logger.warning(
+                        f"Erro ao extrair texto da página {i} do PDF. Erro: {e}"
+                    )
 
             if not extracted_pages:
                 logger.warning("PDF processado, mas nenhum texto foi extraído.")
                 return ""
 
-            logger.info(f"Parsing de PDF concluído. {len(extracted_pages)} páginas extraídas.")
+            logger.info(
+                f"Parsing de PDF concluído. {len(extracted_pages)} páginas extraídas."
+            )
             # Junta o texto de todas as páginas com uma quebra de linha
             return "\n".join(extracted_pages)
 
         except PdfReadError as e:
-            logger.error(f"Falha ao ler o ficheiro PDF. Pode estar corrompido ou encriptado. Erro: {e}")
+            logger.error(
+                f"Falha ao ler o ficheiro PDF. Pode estar corrompido ou encriptado. Erro: {e}"
+            )
             return ""
         except Exception as e:
-            logger.error(f"Erro inesperado durante o parsing do PDF: {e}", exc_info=True)
+            logger.error(
+                f"Erro inesperado durante o parsing do PDF: {e}", exc_info=True
+            )
             return ""

@@ -13,6 +13,7 @@ from vizu_models import (
     ClienteFinalCreate,
     ClienteFinalRead,
 )
+
 # Nossa Camada de Serviço (Lógica de Negócio)
 from clientes_finais_api.services.cliente_final_service import ClienteFinalService
 
@@ -25,8 +26,11 @@ api_router = APIRouter(
     tags=["Clientes Finais"],
 )
 
+
 # --- Dependências Específicas do Roteador ---
-def get_cliente_final_service(db: Session = Depends(get_db_session)) -> ClienteFinalService:
+def get_cliente_final_service(
+    db: Session = Depends(get_db_session),
+) -> ClienteFinalService:
     """Função de fábrica para injetar a camada de serviço com a sessão do banco."""
     return ClienteFinalService(db_session=db)
 
@@ -66,6 +70,8 @@ def list_clientes_finais(
     Retorna uma lista de clientes finais **pertencentes ao Cliente Vizu**
     identificado pelo token de autenticação.
     """
-    logger.info(f"Recebida requisição de {cliente_vizu_id} para listar seus clientes finais.")
+    logger.info(
+        f"Recebida requisição de {cliente_vizu_id} para listar seus clientes finais."
+    )
     # A listagem agora é filtrada por cliente_vizu_id para garantir a segurança dos dados.
     return service.list_clientes_finais(cliente_vizu_id=cliente_vizu_id)

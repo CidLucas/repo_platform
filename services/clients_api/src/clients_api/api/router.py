@@ -9,4 +9,6 @@ api_router = APIRouter()
 
 # Inclui os routers específicos, adicionando prefixos e tags para organização
 api_router.include_router(clientes.router, prefix="/clientes", tags=["Clientes"])
-api_router.include_router(configuracoes.router, prefix="/configuracoes", tags=["Configurações"])
+api_router.include_router(
+    configuracoes.router, prefix="/configuracoes", tags=["Configurações"]
+)

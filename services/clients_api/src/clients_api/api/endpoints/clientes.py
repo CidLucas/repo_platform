@@ -18,14 +18,19 @@ from ...services.client_service import ClienteVizuService
 # --- Router para os Endpoints de Clientes ---
 router = APIRouter()
 
-@router.post("/", response_model=ClienteVizuRead, status_code=201,
-             summary="Cria um novo Cliente Vizu",
-             description="Cria um novo cliente e retorna seus dados públicos, omitindo a api_key.")
+
+@router.post(
+    "/",
+    response_model=ClienteVizuRead,
+    status_code=201,
+    summary="Cria um novo Cliente Vizu",
+    description="Cria um novo cliente e retorna seus dados públicos, omitindo a api_key.",
+)
 def create_cliente(
     *,
     cliente_in: ClienteVizuCreate,
     db: Session = Depends(get_db_session),
-    client_service: ClienteVizuService = Depends(get_client_service)
+    client_service: ClienteVizuService = Depends(get_client_service),
 ):
     """
     Cria um novo cliente a partir dos dados fornecidos.
@@ -35,29 +40,37 @@ def create_cliente(
     # A lógica de negócio fica encapsulada no serviço
     return client_service.create_cliente_vizu(db_session=db, cliente_in=cliente_in)
 
-@router.get("/", response_model=List[ClienteVizuRead],
-            summary="Lista todos os Clientes Vizu",
-            description="Retorna uma lista de clientes com dados públicos.")
+
+@router.get(
+    "/",
+    response_model=List[ClienteVizuRead],
+    summary="Lista todos os Clientes Vizu",
+    description="Retorna uma lista de clientes com dados públicos.",
+)
 def read_clientes(
     *,
     db: Session = Depends(get_db_session),
     client_service: ClienteVizuService = Depends(get_client_service),
     skip: int = 0,
-    limit: int = 100
+    limit: int = 100,
 ):
     """
     Retorna uma lista paginada de clientes.
     """
     return client_service.get_multi(db=db, skip=skip, limit=limit)
 
-@router.get("/{cliente_id}", response_model=ClienteVizuRead,
-            summary="Busca um Cliente Vizu por ID",
-            description="Retorna os dados públicos de um cliente específico.")
+
+@router.get(
+    "/{cliente_id}",
+    response_model=ClienteVizuRead,
+    summary="Busca um Cliente Vizu por ID",
+    description="Retorna os dados públicos de um cliente específico.",
+)
 def read_cliente_by_id(
     *,
     cliente_id: uuid.UUID,
     db: Session = Depends(get_db_session),
-    client_service: ClienteVizuService = Depends(get_client_service)
+    client_service: ClienteVizuService = Depends(get_client_service),
 ):
     """
     Busca um cliente pelo seu ID.
@@ -69,15 +82,19 @@ def read_cliente_by_id(
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
     return cliente_db
 
-@router.put("/{cliente_id}", response_model=ClienteVizuRead,
-            summary="Atualiza um Cliente Vizu",
-            description="Atualiza os dados de um cliente e retorna a versão atualizada e pública.")
+
+@router.put(
+    "/{cliente_id}",
+    response_model=ClienteVizuRead,
+    summary="Atualiza um Cliente Vizu",
+    description="Atualiza os dados de um cliente e retorna a versão atualizada e pública.",
+)
 def update_cliente(
     *,
     cliente_id: uuid.UUID,
     cliente_in: ClienteVizuUpdate,
     db: Session = Depends(get_db_session),
-    client_service: ClienteVizuService = Depends(get_client_service)
+    client_service: ClienteVizuService = Depends(get_client_service),
 ):
     """
     Atualiza um cliente existente.
@@ -90,14 +107,18 @@ def update_cliente(
 
     return client_service.update(db=db, db_obj=cliente_db, obj_in=cliente_in)
 
-@router.delete("/{cliente_id}", status_code=204,
-               summary="Deleta um Cliente Vizu",
-               description="Remove um cliente do banco de dados.")
+
+@router.delete(
+    "/{cliente_id}",
+    status_code=204,
+    summary="Deleta um Cliente Vizu",
+    description="Remove um cliente do banco de dados.",
+)
 def delete_cliente(
     *,
     cliente_id: uuid.UUID,
     db: Session = Depends(get_db_session),
-    client_service: ClienteVizuService = Depends(get_client_service)
+    client_service: ClienteVizuService = Depends(get_client_service),
 ):
     """
     Deleta um cliente pelo seu ID.

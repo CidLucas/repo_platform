@@ -17,16 +17,19 @@ from vizu_models import ClienteVizu, CredencialServicoExterno
 from vizu_models.cliente_vizu import TipoCliente, TierCliente
 
 # Usa uma variável de ambiente para o DB de teste, com um fallback
-TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "postgresql://user:password@localhost:5432/vizu_db_test")
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL", "postgresql://user:password@localhost:5432/vizu_db_test"
+)
 
 # --- FUNÇÕES DE AJUDA PARA TESTES (TESTABILITY) ---
+
 
 def create_vizu_client_in_db(
     db_session: Session,
     nome_empresa: str = "Cliente de Teste Vizu",
     tipo_cliente: TipoCliente = TipoCliente.EXTERNO,
     tier: TierCliente = TierCliente.SME,
-    client_id: Union[uuid.UUID, None] = None
+    client_id: Union[uuid.UUID, None] = None,
 ) -> ClienteVizu:
     """
     Helper centralizado para criar e persistir um registro ClienteVizu para testes.
@@ -49,11 +52,12 @@ def create_vizu_client_in_db(
 
     return db_cliente_vizu
 
+
 def create_external_credential_ref(
     db_session: Session,
     client_id: uuid.UUID,
     secret_manager_id: str = "gcp-secret-mock-123",
-    nome_servico: str = "BIGQUERY"
+    nome_servico: str = "BIGQUERY",
 ) -> CredencialServicoExterno:
     """
     Helper centralizado para criar uma referência de credencial.
@@ -61,24 +65,28 @@ def create_external_credential_ref(
     db_cred = CredencialServicoExterno(
         cliente_vizu_id=client_id,
         nome_servico=nome_servico,
-        credenciais_cifradas=secret_manager_id
+        credenciais_cifradas=secret_manager_id,
     )
     db_session.add(db_cred)
     db_session.commit()
     db_session.refresh(db_cred)
     return db_cred
 
+
 # --- FIXTURES REUTILIZÁVEIS ---
+
 
 @pytest.fixture
 def vizu_client_fixture(db_session: Session) -> ClienteVizu:
     """Fixture para fornecer um ClienteVizu recém-criado, reusável em qualquer teste."""
     return create_vizu_client_in_db(db_session=db_session)
 
+
 @pytest.fixture(scope="session")
 def engine():
     """Cria uma única engine para toda a sessão de testes."""
     return create_engine(TEST_DATABASE_URL)
+
 
 @pytest.fixture(scope="session", autouse=True)
 def create_tables(engine):
@@ -90,6 +98,7 @@ def create_tables(engine):
     models.Base.metadata.create_all(engine)
     yield
     models.Base.metadata.drop_all(engine)
+
 
 @pytest.fixture
 def db_session(engine, create_tables) -> Session:
@@ -110,4 +119,3 @@ def db_session(engine, create_tables) -> Session:
     session.close()
     transaction.rollback()
     connection.close()
-

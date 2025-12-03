@@ -1,6 +1,7 @@
 import io
 from abc import ABC, abstractmethod
 
+
 class BaseParser(ABC):
     """
     Interface (Classe Base Abstrata) para todos os parsers de arquivo.

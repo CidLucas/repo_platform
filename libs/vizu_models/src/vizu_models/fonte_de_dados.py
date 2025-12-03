@@ -6,8 +6,9 @@ from .enums import TipoFonte
 if TYPE_CHECKING:
     from .cliente_vizu import ClienteVizu
 
+
 class FonteDeDados(SQLModel, table=True):
-    __tablename__ = "fonte_de_dados" # Supondo o nome da tabela
+    __tablename__ = "fonte_de_dados"  # Supondo o nome da tabela
 
     id: Optional[int] = Field(default=None, primary_key=True)
     tipo_fonte: TipoFonte

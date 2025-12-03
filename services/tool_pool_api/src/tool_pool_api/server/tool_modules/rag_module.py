@@ -15,11 +15,10 @@ from fastmcp.server.dependencies import AccessToken, get_access_token
 
 from tool_pool_api.server.dependencies import (
     get_context_service,
-    load_context_from_token
+    load_context_from_token,
 )
 from vizu_models.vizu_client_context import VizuClientContext
 from vizu_rag_factory.factory import create_rag_runnable
-from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
 from vizu_llm_service import get_model, ModelTier
 
 from . import register_module
@@ -30,6 +29,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # LÓGICA DE NEGÓCIO (Testável)
 # =============================================================================
+
 
 async def _executar_rag_cliente_logic(
     query: str,
@@ -100,7 +100,7 @@ async def _executar_rag_cliente_logic(
             tier=ModelTier.DEFAULT,
             task="rag",
             user_id=str(real_client_id),
-            tags=["tool_pool", "rag_module"]
+            tags=["tool_pool", "rag_module"],
         )
 
         rag_runnable = create_rag_runnable(vizu_context, llm=llm)
@@ -123,6 +123,7 @@ async def _executar_rag_cliente_logic(
 # REGISTRO DO MÓDULO
 # =============================================================================
 
+
 @register_module
 def register_tools(mcp: FastMCP) -> List[str]:
     """Registra as tools do módulo RAG."""
@@ -142,9 +143,7 @@ def register_tools(mcp: FastMCP) -> List[str]:
             cliente_id: ID do cliente (injetado internamente, não pela LLM)
         """
         return await _executar_rag_cliente_logic(
-            query=query,
-            ctx=ctx,
-            cliente_id=cliente_id
+            query=query, ctx=ctx, cliente_id=cliente_id
         )
 
     # Registra com description que menciona apenas 'query'
@@ -156,7 +155,7 @@ def register_tools(mcp: FastMCP) -> List[str]:
             "(produtos, serviços, preços, FAQ, políticas). "
             "USE ESTA FERRAMENTA para responder perguntas sobre o negócio. "
             "Parâmetro: query (string com a pergunta do usuário)."
-        )
+        ),
     )(_rag_tool_wrapper)
 
     logger.info("[RAG Module] Ferramentas registradas.")

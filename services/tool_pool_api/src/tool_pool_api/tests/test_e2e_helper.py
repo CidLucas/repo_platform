@@ -102,7 +102,13 @@ async def main():
 
     print("Token is_valid():", wrapper.is_valid())
     dec = wrapper.get_decrypted_tokens()
-    print("Decrypted tokens:", {k: (v if k not in ["access_token", "refresh_token"] else str(v)[:20]) for k, v in dec.items()})
+    print(
+        "Decrypted tokens:",
+        {
+            k: (v if k not in ["access_token", "refresh_token"] else str(v)[:20])
+            for k, v in dec.items()
+        },
+    )
 
 
 if __name__ == "__main__":

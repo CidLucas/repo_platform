@@ -9,6 +9,7 @@ credenciais) deve estar aqui.
 IMPORTANTE: Qualquer dado neste modelo pode potencialmente ser
 incluído em prompts ou respostas da LLM.
 """
+
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
 import uuid
@@ -24,7 +25,10 @@ class SafeClientContext(BaseModel):
     - IDs internos (UUIDs)
     - qualquer dado que possa ser usado para impersonação
     """
-    model_config = ConfigDict(frozen=True)  # Imutável para evitar modificações acidentais
+
+    model_config = ConfigDict(
+        frozen=True
+    )  # Imutável para evitar modificações acidentais
 
     # Dados públicos seguros
     nome_empresa: str
@@ -48,6 +52,7 @@ class InternalClientContext(BaseModel):
 
     NUNCA deve ser exposto à LLM ou incluído em prompts.
     """
+
     # Identificadores internos
     id: uuid.UUID
     api_key: str

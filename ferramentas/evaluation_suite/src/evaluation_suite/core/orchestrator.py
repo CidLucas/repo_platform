@@ -13,10 +13,12 @@ from sqlalchemy import and_
 # NÃO importamos mais nada de crud.py ou operations.py
 from ..clients.api_client import APIClient
 
-# Importamos os modelos SQLAlchemy que vamos criar/atualizar
-from vizu_db_connector.models import (
-    EvaluationRun,
-    TestResult,
+# Importamos os modelos SQLModel de vizu_models
+from vizu_models import (
+    ExperimentRun,
+    ExperimentCase,
+    ExperimentStatus,
+    CaseOutcome,
     Conversa,
     ClienteVizu
 )
@@ -55,7 +57,7 @@ class EvaluationOrchestrator:
     def _collect_results_from_db(self, run_id: uuid.UUID, test_cases: List[Dict], start_time: datetime):
         """
         Busca no banco de dados as conversas geradas durante a execução
-        e as salva como TestResult.
+        e as salva como ExperimentCase.
         """
         logger.info(f"Coletando resultados do banco de dados para o Run ID: {run_id}...")
 
@@ -77,21 +79,22 @@ class EvaluationOrchestrator:
                     found_response = conv.resposta
                     break
 
-            # CORREÇÃO: Criamos o objeto SQLAlchemy
-            db_result = TestResult(
+            # Criamos o objeto ExperimentCase
+            db_result = ExperimentCase(
                 run_id=run_id,
-                clientevizu_id=case['clientevizu_id'],
+                cliente_id=case['clientevizu_id'],
                 input_message=case['message'],
-                actual_output=found_response,
+                actual_response=found_response,
+                outcome=CaseOutcome.SUCCESS.value if found_response != "RESPOSTA NÃO ENCONTRADA NO DB" else CaseOutcome.ERROR.value,
             )
             novos_resultados.append(db_result)
 
-        # CORREÇÃO: Adicionamos todos os novos resultados à sessão de uma vez
+        # Adicionamos todos os novos resultados à sessão de uma vez
         if novos_resultados:
             self.db.add_all(novos_resultados)
             self.db.commit() # Commit dos resultados dos testes
 
-        logger.success("Resultados da avaliação foram persistidos com sucesso na tabela test_results.")
+        logger.success("Resultados da avaliação foram persistidos com sucesso na tabela experiment_case.")
 
 
     async def run_evaluation(self, dataset_path: str, assistant_version: str):
@@ -101,22 +104,22 @@ class EvaluationOrchestrator:
         start_time = datetime.utcnow()
         run_id = uuid.uuid4()
 
-        evaluation_run = None # Inicializa a variável
+        experiment_run = None # Inicializa a variável
         try:
-            # CORREÇÃO: Criamos o objeto SQLAlchemy diretamente
-            evaluation_run = EvaluationRun(
-                run_id=run_id,
-                timestamp_start=start_time,
-                dataset_name=dataset_path.split('/')[-1],
-                assistant_version=assistant_version,
-                status="RUNNING",
+            # Criamos o objeto ExperimentRun
+            experiment_run = ExperimentRun(
+                id=run_id,
+                manifest_name=dataset_path.split('/')[-1],
+                manifest_json={"dataset_path": dataset_path, "assistant_version": assistant_version},
+                status=ExperimentStatus.RUNNING.value,
+                created_by=assistant_version,
             )
             # Adicionamos à sessão e fazemos o commit
-            self.db.add(evaluation_run)
+            self.db.add(experiment_run)
             self.db.commit()
-            self.db.refresh(evaluation_run) # Atualiza o objeto com dados do DB (ex: defaults)
+            self.db.refresh(experiment_run) # Atualiza o objeto com dados do DB (ex: defaults)
 
-            logger.info(f"EvaluationRun criado com ID: {run_id}")
+            logger.info(f"ExperimentRun criado com ID: {run_id}")
 
             test_cases = self._load_dataset_from_csv(dataset_path)
 
@@ -132,31 +135,29 @@ class EvaluationOrchestrator:
 
             self._collect_results_from_db(run_id, test_cases, start_time)
 
-            # CORREÇÃO: Atualizamos o objeto SQLAlchemy diretamente
-            evaluation_run.status = "COMPLETED"
-            evaluation_run.timestamp_end = datetime.utcnow()
-            self.db.add(evaluation_run)
+            # Atualizamos o objeto ExperimentRun
+            experiment_run.status = ExperimentStatus.COMPLETED.value
+            experiment_run.completed_at = datetime.utcnow()
+            self.db.add(experiment_run)
             self.db.commit()
 
             logger.success(f"Avaliação (Run ID: {run_id}) concluída com sucesso.")
 
         except FileNotFoundError:
             logger.error(f"Execução falhou porque o dataset não foi encontrado: {dataset_path}.")
-            if evaluation_run:
-                # CORREÇÃO: Atualizamos o objeto SQLAlchemy diretamente
-                evaluation_run.status = "FAILED"
-                evaluation_run.timestamp_end = datetime.utcnow()
-                self.db.add(evaluation_run)
+            if experiment_run:
+                experiment_run.status = ExperimentStatus.FAILED.value
+                experiment_run.completed_at = datetime.utcnow()
+                self.db.add(experiment_run)
                 self.db.commit()
             raise
 
         except Exception as e:
             logger.error(f"Erro crítico durante a execução (Run ID: {run_id}): {e}")
-            if evaluation_run:
-                # CORREÇÃO: Atualizamos o objeto SQLAlchemy diretamente
-                evaluation_run.status = "FAILED"
-                evaluation_run.timestamp_end = datetime.utcnow()
-                self.db.add(evaluation_run)
+            if experiment_run:
+                experiment_run.status = ExperimentStatus.FAILED.value
+                experiment_run.completed_at = datetime.utcnow()
+                self.db.add(experiment_run)
                 self.db.commit()
 
         return str(run_id)

@@ -12,6 +12,7 @@ from file_upload_api.schemas.upload_schemas import FileUploadResponse
 
 logger = logging.getLogger(__name__)
 
+
 class UploadService:
     """
     Encapsula a lógica de negócio para o processo de upload.
@@ -66,7 +67,9 @@ class UploadService:
         4. Publica a mensagem de evento no Pub/Sub.
         5. Retorna o schema de resposta.
         """
-        logger.info(f"Iniciando processamento de upload para cliente_vizu_id: {cliente_vizu_id}")
+        logger.info(
+            f"Iniciando processamento de upload para cliente_vizu_id: {cliente_vizu_id}"
+        )
 
         # 1. Gerar IDs
         job_id = uuid.uuid4()
@@ -99,7 +102,7 @@ class UploadService:
             "gcs_path": gcs_path,
             "original_filename": file.filename,
             "content_type": file.content_type,
-            "trace_id": trace_id, # Propagação do trace!
+            "trace_id": trace_id,  # Propagação do trace!
         }
 
         try:

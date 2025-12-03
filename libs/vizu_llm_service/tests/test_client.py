@@ -7,14 +7,14 @@ from vizu_llm_service.client import (
     VizuEmbeddingAPIClient,
     get_embedding_model,
     get_model,
-    ModelTier
+    ModelTier,
 )
 from vizu_llm_service.config import get_llm_settings
 
 # --- Testes do Cliente de Embedding (VizuEmbeddingAPIClient) ---
 
-class TestVizuEmbeddingAPIClient:
 
+class TestVizuEmbeddingAPIClient:
     @pytest.fixture
     def client(self):
         return VizuEmbeddingAPIClient(base_url="http://test-service:11435")
@@ -26,7 +26,9 @@ class TestVizuEmbeddingAPIClient:
         mock_response = MagicMock()
         mock_response.status_code = 200
         # Simula a resposta da API: lista de vetores
-        mock_response.json.return_value = {"embeddings": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]}
+        mock_response.json.return_value = {
+            "embeddings": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+        }
         mock_post.return_value = mock_response
 
         texts = ["texto 1", "texto 2"]
@@ -38,9 +40,7 @@ class TestVizuEmbeddingAPIClient:
 
         # Verifica se a chamada HTTP foi feita corretamente
         mock_post.assert_called_once_with(
-            "http://test-service:11435/embed",
-            json={"texts": texts},
-            timeout=30
+            "http://test-service:11435/embed", json={"texts": texts}, timeout=30
         )
 
     @patch("vizu_llm_service.client.requests.post")
@@ -60,7 +60,7 @@ class TestVizuEmbeddingAPIClient:
 
         # Verifica se enviou como lista na API
         mock_post.assert_called_once()
-        assert mock_post.call_args[1]['json']['texts'] == ["minha query"]
+        assert mock_post.call_args[1]["json"]["texts"] == ["minha query"]
 
     @patch("vizu_llm_service.client.requests.post")
     def test_api_failure(self, mock_post, client):
@@ -75,7 +75,9 @@ class TestVizuEmbeddingAPIClient:
 
         assert "Erro 500" in str(excinfo.value)
 
+
 # --- Testes das Factories (get_model / get_embedding_model) ---
+
 
 def test_get_embedding_model_factory():
     """Verifica se a factory retorna nosso cliente customizado com a URL certa."""
@@ -88,6 +90,7 @@ def test_get_embedding_model_factory():
     assert isinstance(model, VizuEmbeddingAPIClient)
     assert model.api_url == "http://config-url:1234/embed"
 
+
 def test_get_model_factory():
     """Verifica se a factory retorna o ChatOllama configurado corretamente."""
     settings = get_llm_settings()
@@ -98,7 +101,8 @@ def test_get_model_factory():
 
     assert isinstance(llm, ChatOllama)
     assert llm.base_url == "http://ollama-test:11434"
-    assert llm.model == "llama3.2:latest" # Conforme definimos no client.py revisado
+    assert llm.model == "llama3.2:latest"  # Conforme definimos no client.py revisado
+
 
 def test_get_model_tier_mapping():
     """Verifica se a troca de Tier altera o modelo."""

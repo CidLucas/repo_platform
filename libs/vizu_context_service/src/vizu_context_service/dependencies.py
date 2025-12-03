@@ -10,6 +10,7 @@ from .redis_service import RedisService
 from .context_service import ContextService
 from vizu_db_connector.database import get_db_session
 
+
 class ContextSettings(BaseSettings):
     # Suporte direto à URL do Redis (Padrão Docker)
     REDIS_URL: Optional[str] = Field(None, env="REDIS_URL")
@@ -24,18 +25,18 @@ class ContextSettings(BaseSettings):
     # False = Supabase SDK (via SUPABASE_URL)
     USE_LOCAL_DB: bool = Field(default=False, env="USE_LOCAL_DB")
 
-    model_config = {
-        "env_file": ".env",
-        "extra": "ignore",
-        "frozen": True
-    }
+    model_config = {"env_file": ".env", "extra": "ignore", "frozen": True}
+
 
 @lru_cache
 def get_context_settings() -> ContextSettings:
     return ContextSettings()
 
+
 @lru_cache
-def get_redis_pool(settings: ContextSettings = Depends(get_context_settings)) -> redis.ConnectionPool:
+def get_redis_pool(
+    settings: ContextSettings = Depends(get_context_settings),
+) -> redis.ConnectionPool:
     # Prioriza URL se existir (Docker)
     if settings.REDIS_URL:
         return redis.ConnectionPool.from_url(settings.REDIS_URL, decode_responses=True)
@@ -44,19 +45,24 @@ def get_redis_pool(settings: ContextSettings = Depends(get_context_settings)) ->
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
         db=settings.REDIS_DB,
-        decode_responses=True
+        decode_responses=True,
     )
 
-def get_redis_client(pool: redis.ConnectionPool = Depends(get_redis_pool)) -> redis.Redis:
+
+def get_redis_client(
+    pool: redis.ConnectionPool = Depends(get_redis_pool),
+) -> redis.Redis:
     return redis.Redis(connection_pool=pool)
+
 
 def get_redis_service(client: redis.Redis = Depends(get_redis_client)) -> RedisService:
     # Passa o CLIENTE, não a URL!
     return RedisService(redis_client=client)
 
+
 def get_context_service(
     db: Session = Depends(get_db_session),
-    cache: RedisService = Depends(get_redis_service)
+    cache: RedisService = Depends(get_redis_service),
 ) -> ContextService:
     settings = get_context_settings()
     # USE_LOCAL_DB=True -> SQLAlchemy (PostgreSQL local)

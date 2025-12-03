@@ -40,15 +40,18 @@ def save_integration_config(
         """
     )
 
-    result = db.execute(stmt, {
-        "cliente_vizu_id": str(cliente_vizu_id),
-        "provider": provider,
-        "config_type": config_type,
-        "client_id_encrypted": client_id_encrypted,
-        "client_secret_encrypted": client_secret_encrypted,
-        "redirect_uri": redirect_uri,
-        "scopes": json.dumps(scopes),
-    })
+    result = db.execute(
+        stmt,
+        {
+            "cliente_vizu_id": str(cliente_vizu_id),
+            "provider": provider,
+            "config_type": config_type,
+            "client_id_encrypted": client_id_encrypted,
+            "client_secret_encrypted": client_secret_encrypted,
+            "redirect_uri": redirect_uri,
+            "scopes": json.dumps(scopes),
+        },
+    )
     db.commit()
     return result.fetchone()
 
@@ -57,7 +60,9 @@ def get_integration_config(db: Session, cliente_vizu_id: uuid.UUID, provider: st
     stmt = text(
         "SELECT * FROM integration_configs WHERE cliente_vizu_id = :cliente_vizu_id AND provider = :provider LIMIT 1"
     )
-    res = db.execute(stmt, {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider}).fetchone()
+    res = db.execute(
+        stmt, {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider}
+    ).fetchone()
     return res
 
 
@@ -93,7 +98,10 @@ def save_integration_tokens(
             SET is_default = false
             WHERE cliente_vizu_id = :cliente_vizu_id AND provider = :provider AND is_default = true
         """)
-        db.execute(clear_default_stmt, {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider})
+        db.execute(
+            clear_default_stmt,
+            {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider},
+        )
 
     stmt = text(
         """
@@ -125,19 +133,22 @@ def save_integration_tokens(
         """
     )
 
-    result = db.execute(stmt, {
-        "cliente_vizu_id": str(cliente_vizu_id),
-        "provider": provider,
-        "access_token_encrypted": access_token_encrypted,
-        "refresh_token_encrypted": refresh_token_encrypted,
-        "token_type": token_type,
-        "expires_at": expires_at.isoformat() if expires_at else None,
-        "scopes": json.dumps(scopes),
-        "metadata": json.dumps(metadata) if metadata is not None else None,
-        "account_email": account_email,
-        "account_name": account_name,
-        "is_default": is_default,
-    })
+    result = db.execute(
+        stmt,
+        {
+            "cliente_vizu_id": str(cliente_vizu_id),
+            "provider": provider,
+            "access_token_encrypted": access_token_encrypted,
+            "refresh_token_encrypted": refresh_token_encrypted,
+            "token_type": token_type,
+            "expires_at": expires_at.isoformat() if expires_at else None,
+            "scopes": json.dumps(scopes),
+            "metadata": json.dumps(metadata) if metadata is not None else None,
+            "account_email": account_email,
+            "account_name": account_name,
+            "is_default": is_default,
+        },
+    )
     db.commit()
     return result.fetchone()
 
@@ -161,11 +172,14 @@ def get_integration_tokens(
                AND account_email = :account_email
                LIMIT 1"""
         )
-        res = db.execute(stmt, {
-            "cliente_vizu_id": str(cliente_vizu_id),
-            "provider": provider,
-            "account_email": account_email,
-        }).fetchone()
+        res = db.execute(
+            stmt,
+            {
+                "cliente_vizu_id": str(cliente_vizu_id),
+                "provider": provider,
+                "account_email": account_email,
+            },
+        ).fetchone()
     else:
         # Try default account first, then fall back to any account
         stmt = text(
@@ -175,10 +189,13 @@ def get_integration_tokens(
                ORDER BY is_default DESC, created_at ASC
                LIMIT 1"""
         )
-        res = db.execute(stmt, {
-            "cliente_vizu_id": str(cliente_vizu_id),
-            "provider": provider,
-        }).fetchone()
+        res = db.execute(
+            stmt,
+            {
+                "cliente_vizu_id": str(cliente_vizu_id),
+                "provider": provider,
+            },
+        ).fetchone()
     return res
 
 
@@ -195,10 +212,13 @@ def list_integration_accounts(
            AND provider = :provider
            ORDER BY is_default DESC, account_email ASC"""
     )
-    res = db.execute(stmt, {
-        "cliente_vizu_id": str(cliente_vizu_id),
-        "provider": provider,
-    }).fetchall()
+    res = db.execute(
+        stmt,
+        {
+            "cliente_vizu_id": str(cliente_vizu_id),
+            "provider": provider,
+        },
+    ).fetchall()
     return res
 
 
@@ -215,7 +235,9 @@ def set_default_account(
         SET is_default = false
         WHERE cliente_vizu_id = :cliente_vizu_id AND provider = :provider
     """)
-    db.execute(clear_stmt, {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider})
+    db.execute(
+        clear_stmt, {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider}
+    )
 
     # Set new default
     set_stmt = text("""
@@ -226,11 +248,14 @@ def set_default_account(
         AND account_email = :account_email
         RETURNING *
     """)
-    result = db.execute(set_stmt, {
-        "cliente_vizu_id": str(cliente_vizu_id),
-        "provider": provider,
-        "account_email": account_email,
-    }).fetchone()
+    result = db.execute(
+        set_stmt,
+        {
+            "cliente_vizu_id": str(cliente_vizu_id),
+            "provider": provider,
+            "account_email": account_email,
+        },
+    ).fetchone()
     db.commit()
     return result
 
@@ -253,32 +278,48 @@ def revoke_integration(
             AND provider = :provider
             AND account_email = :account_email
         """)
-        db.execute(stmt1, {
-            "cliente_vizu_id": str(cliente_vizu_id),
-            "provider": provider,
-            "account_email": account_email,
-        })
+        db.execute(
+            stmt1,
+            {
+                "cliente_vizu_id": str(cliente_vizu_id),
+                "provider": provider,
+                "account_email": account_email,
+            },
+        )
     else:
         # Revoke all accounts for this provider
-        stmt1 = text("DELETE FROM integration_tokens WHERE cliente_vizu_id = :cliente_vizu_id AND provider = :provider")
-        stmt2 = text("DELETE FROM integration_configs WHERE cliente_vizu_id = :cliente_vizu_id AND provider = :provider")
-        db.execute(stmt1, {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider})
-        db.execute(stmt2, {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider})
+        stmt1 = text(
+            "DELETE FROM integration_tokens WHERE cliente_vizu_id = :cliente_vizu_id AND provider = :provider"
+        )
+        stmt2 = text(
+            "DELETE FROM integration_configs WHERE cliente_vizu_id = :cliente_vizu_id AND provider = :provider"
+        )
+        db.execute(
+            stmt1, {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider}
+        )
+        db.execute(
+            stmt2, {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider}
+        )
     db.commit()
     return True
+
 
 def get_cliente_vizu_by_api_key(db: Session, api_key: str):
     """Busca cliente pela API Key (Usada na autenticação inicial)"""
     statement = select(ClienteVizu).where(ClienteVizu.api_key == api_key)
     return db.execute(statement).scalars().first()
 
+
 def get_cliente_vizu_by_id(db: Session, cliente_id: uuid.UUID):
     """Busca cliente pelo ID trazendo a configuração junto (Eager Load)."""
     statement = select(ClienteVizu).where(ClienteVizu.id == cliente_id)
     return db.execute(statement).scalars().first()
 
+
 def get_configuracao_negocio(db: Session, cliente_id: uuid.UUID):
     """Busca as configurações de negócio de um cliente"""
     # Transitional helper: query legacy configuracao_negocio by cliente_vizu_id
-    statement = select(ConfiguracaoNegocio).where(ConfiguracaoNegocio.cliente_vizu_id == cliente_id)
+    statement = select(ConfiguracaoNegocio).where(
+        ConfiguracaoNegocio.cliente_vizu_id == cliente_id
+    )
     return db.execute(statement).scalars().first()

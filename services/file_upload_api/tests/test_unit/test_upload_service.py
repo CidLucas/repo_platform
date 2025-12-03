@@ -11,6 +11,7 @@ from file_upload_api.services.upload_service import UploadService
 from file_upload_api.schemas.upload_schemas import FileUploadResponse
 from file_upload_api.core.config import Settings
 
+
 # Padrão Vizu: Testar a lógica de serviço isoladamente
 def test_process_upload_success(
     settings: Settings,
@@ -43,7 +44,9 @@ def test_process_upload_success(
 
     # Mockar funções que geram valores aleatórios (Padrão: Teste Determinístico)
     test_job_id = uuid.UUID("12345678-1234-5678-1234-567812345678")
-    mocker.patch("file_upload_api.services.upload_service.uuid.uuid4", return_value=test_job_id)
+    mocker.patch(
+        "file_upload_api.services.upload_service.uuid.uuid4", return_value=test_job_id
+    )
 
     test_trace_id = "mock-trace-id-abc"
     mocker.patch(
@@ -85,12 +88,12 @@ def test_process_upload_success(
         "gcs_path": expected_gcs_path,
         "original_filename": "teste.txt",
         "content_type": "text/plain",
-        "trace_id": test_trace_id, # Padrão Vizu: Observabilidade
+        "trace_id": test_trace_id,  # Padrão Vizu: Observabilidade
     }
     expected_data = json.dumps(expected_payload).encode("utf-8")
 
     # A chamada de publicação deve ter o tópico e o payload corretos
     mock_publisher_client.publish.assert_called_with(
         "projects/test-project/topics/test-topic",
-        expected_data # <-- Alterado de 'data=expected_data' para posicional
+        expected_data,  # <-- Alterado de 'data=expected_data' para posicional
     )

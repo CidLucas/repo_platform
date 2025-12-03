@@ -7,12 +7,12 @@ in a deterministic way. Review and replace with a full schema migration if
 you prefer an explicit DDL history.
 
 Revision ID: e60514203590
-Revises: 
+Revises:
 Create Date: 2025-11-26
 """
 
 # revision identifiers, used by Alembic.
-revision = 'e60514203590'
+revision = "e60514203590"
 down_revision = None
 branch_labels = None
 depends_on = None

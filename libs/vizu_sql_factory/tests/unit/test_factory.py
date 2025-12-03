@@ -9,11 +9,8 @@ from vizu_sql_factory.factory import create_sql_agent_runnable, _construir_db_ur
 from vizu_models.vizu_client_context import VizuClientContext
 
 
-
-
 def test_sql_factory_success(
-    mocker: MagicMock,
-    mock_vizu_client_context: VizuClientContext
+    mocker: MagicMock, mock_vizu_client_context: VizuClientContext
 ):
     """
     Testa o 'caminho feliz': cliente tem permissão, factory deve
@@ -32,8 +29,11 @@ def test_sql_factory_success(
 
     # Mockamos SQLDatabase para evitar a necessidade de um engine real
     mock_sql_database = mocker.patch("vizu_sql_factory.factory.SQLDatabase")
-    mock_sql_database.return_value.dialect.name = "postgresql" # Simula o dialeto
-    mock_sql_database.return_value.get_table_names.return_value = ["mock_table_1", "mock_table_2"]
+    mock_sql_database.return_value.dialect.name = "postgresql"  # Simula o dialeto
+    mock_sql_database.return_value.get_table_names.return_value = [
+        "mock_table_1",
+        "mock_table_2",
+    ]
 
     # O agente mockado que esperamos receber de volta
     mock_runnable = mocker.MagicMock(spec=Runnable)
@@ -43,20 +43,21 @@ def test_sql_factory_success(
     runnable = create_sql_agent_runnable(mock_vizu_client_context, mock_llm)
 
     # 3. Assert
-    assert runnable is mock_runnable # Retornou o agente
+    assert runnable is mock_runnable  # Retornou o agente
 
     # Verifica se a engine foi criada com a URL correta
-    expected_url = _construir_db_url(mock_vizu_client_context.credenciais[0].credenciais)
+    expected_url = _construir_db_url(
+        mock_vizu_client_context.credenciais[0].credenciais
+    )
     mock_create_engine.assert_called_once()
-    assert mock_create_engine.call_args[0][0] == expected_url # Verifica a URL
+    assert mock_create_engine.call_args[0][0] == expected_url  # Verifica a URL
 
     # Verifica se o agente foi criado
     mock_create_agent.assert_called_once()
 
 
 def test_sql_factory_disabled(
-    mocker: MagicMock,
-    mock_vizu_client_context: VizuClientContext
+    mocker: MagicMock, mock_vizu_client_context: VizuClientContext
 ):
     """Testa se a factory retorna None se a ferramenta está desabilitada."""
     # 1. Arrange
@@ -71,12 +72,11 @@ def test_sql_factory_disabled(
 
     # 3. Assert
     assert runnable is None
-    mock_create_agent.assert_not_called() # Não deve nem tentar criar o agente
+    mock_create_agent.assert_not_called()  # Não deve nem tentar criar o agente
 
 
 def test_sql_factory_no_creds(
-    mocker: MagicMock,
-    mock_vizu_client_context: VizuClientContext
+    mocker: MagicMock, mock_vizu_client_context: VizuClientContext
 ):
     """Testa se a factory retorna None se a ferramenta está habilitada, mas sem credenciais."""
     # 1. Arrange

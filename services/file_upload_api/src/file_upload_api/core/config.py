@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pydantic_settings import BaseSettings
 
+
 class Settings(BaseSettings):
     """
     Gerencia as configurações da aplicação, carregadas de variáveis de ambiente.
@@ -26,12 +27,12 @@ class Settings(BaseSettings):
     # O ID do Tópico Pub/Sub para onde as mensagens de job serão publicadas.
     PUBSUB_TOPIC_ID: str
 
-
     class Config:
         # Permite carregar variáveis de um arquivo .env (ótimo para dev local)
         env_file = ".env"
         env_file_encoding = "utf-8"
         extra = "ignore"  # Ignora variáveis de ambiente extras
+
 
 @lru_cache
 def get_settings() -> Settings:

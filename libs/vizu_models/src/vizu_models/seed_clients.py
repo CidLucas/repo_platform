@@ -1,15 +1,15 @@
+# vizu_models/seed_clients.py
 """
-Definições de clientes de teste (personas).
+Definições centralizadas de clientes de teste (personas).
 
 Este arquivo centraliza TODAS as personas/clientes usados em desenvolvimento.
 Os dados são usados tanto para seed do banco (cliente_vizu) quanto para
 referenciar as collections RAG correspondentes.
 
-Para adicionar um novo cliente:
-1. Adicione a entrada em SEED_CLIENTS
-2. Crie o arquivo de conhecimento em seeds/knowledge/<collection>.json
-3. Execute: make seed
+IMPORTANTE: Este arquivo deve ser o ÚNICO local onde SEED_CLIENTS é definido.
+Todos os outros módulos devem importar daqui.
 """
+
 from typing import List, Dict, Any
 
 # =============================================================================
@@ -54,15 +54,14 @@ Horário: Segunda a sexta 08:00-18:00, Sábado até 12:00. Domingo fechado.""",
                 "quinta": "08:00-18:00",
                 "sexta": "08:00-18:00",
                 "sabado": "08:00-12:00",
-                "domingo": "Fechado"
+                "domingo": "Fechado",
             },
             "ferramenta_agendamento_habilitada": True,
             "ferramenta_rag_habilitada": True,
             "ferramenta_sql_habilitada": False,
-            "collection_rag": "oficina_mendes_conhecimento"
-        }
+            "collection_rag": "oficina_mendes_conhecimento",
+        },
     },
-
     # -------------------------------------------------------------------------
     # PERSONA 2: Juliana - Salão de Beleza
     # Caso de uso: Gestão de agenda complexa, RAG para cuidados capilares
@@ -94,15 +93,14 @@ Para dúvidas sobre procedimentos e cuidados capilares, consulte a base de conhe
                 "quinta": "09:00-20:00",
                 "sexta": "09:00-20:00",
                 "sabado": "09:00-20:00",
-                "domingo": "Fechado"
+                "domingo": "Fechado",
             },
             "ferramenta_agendamento_habilitada": True,
             "ferramenta_rag_habilitada": True,
             "ferramenta_sql_habilitada": False,
-            "collection_rag": "studio_j_conhecimento"
-        }
+            "collection_rag": "studio_j_conhecimento",
+        },
     },
-
     # -------------------------------------------------------------------------
     # PERSONA 3: Clara - Loja de Decoração
     # Caso de uso: E-commerce + loja física, RAG para catálogo, SQL para pedidos
@@ -134,15 +132,14 @@ Para informações de produtos, consulte o catálogo. Para status de pedidos, co
                 "quinta": "10:00-19:00",
                 "sexta": "10:00-19:00",
                 "sabado": "10:00-14:00",
-                "domingo": "Fechado"
+                "domingo": "Fechado",
             },
             "ferramenta_agendamento_habilitada": False,
             "ferramenta_rag_habilitada": True,
             "ferramenta_sql_habilitada": True,
-            "collection_rag": "casa_alma_catalogo"
-        }
+            "collection_rag": "casa_alma_catalogo",
+        },
     },
-
     # -------------------------------------------------------------------------
     # PERSONA 4: Beatriz - Consultório Odontológico
     # Caso de uso: Saúde, agenda de consultas, FAQ clínico via RAG, SQL para insumos
@@ -174,15 +171,14 @@ IMPORTANTE:
                 "sexta": "08:00-18:00",
                 "sabado": "Fechado",
                 "domingo": "Fechado",
-                "observacao": "Intervalo: 12:00-14:00. Emergências: (21) 99999-0000"
+                "observacao": "Intervalo: 12:00-14:00. Emergências: (21) 99999-0000",
             },
             "ferramenta_agendamento_habilitada": True,
             "ferramenta_rag_habilitada": True,
             "ferramenta_sql_habilitada": True,
-            "collection_rag": "dra_beatriz_faq"
-        }
+            "collection_rag": "dra_beatriz_faq",
+        },
     },
-
     # -------------------------------------------------------------------------
     # PERSONA 5: Marcos - Eletricista Autônomo
     # Caso de uso: Profissional autônomo, formalização de comunicação
@@ -219,15 +215,14 @@ Chave PIX: marcos.eletricista@email.com""",
                 "quinta": "07:00-19:00",
                 "sexta": "07:00-19:00",
                 "sabado": "08:00-16:00",
-                "domingo": "Somente emergências"
+                "domingo": "Somente emergências",
             },
             "ferramenta_agendamento_habilitada": True,
             "ferramenta_rag_habilitada": True,
             "ferramenta_sql_habilitada": False,
-            "collection_rag": "marcos_eletricista_conhecimento"
-        }
+            "collection_rag": "marcos_eletricista_conhecimento",
+        },
     },
-
     # -------------------------------------------------------------------------
     # PERSONA 6: Pixel Store - Loja de Eletrônicos
     # Caso de uso: Vendas consultivas, estoque via SQL, RAG para specs/políticas
@@ -258,15 +253,14 @@ IMPORTANTE:
                 "quinta": "10:00-22:00",
                 "sexta": "10:00-22:00",
                 "sabado": "10:00-22:00",
-                "domingo": "14:00-20:00"
+                "domingo": "14:00-20:00",
             },
             "ferramenta_agendamento_habilitada": False,
             "ferramenta_rag_habilitada": True,
             "ferramenta_sql_habilitada": True,
-            "collection_rag": "pixel_store_catalogo"
-        }
+            "collection_rag": "pixel_store_catalogo",
+        },
     },
-
     # -------------------------------------------------------------------------
     # PERSONA 7: Brasa & Malte - Hamburgueria Artesanal
     # Caso de uso: Pedidos delivery, reservas de mesa, cardápio via RAG
@@ -297,13 +291,13 @@ IMPORTANTE:
                 "quinta": "18:00-23:30",
                 "sexta": "18:00-23:30",
                 "sabado": "18:00-23:30",
-                "domingo": "18:00-23:30"
+                "domingo": "18:00-23:30",
             },
             "ferramenta_agendamento_habilitada": True,
             "ferramenta_rag_habilitada": True,
             "ferramenta_sql_habilitada": False,
-            "collection_rag": "brasa_malte_cardapio"
-        }
+            "collection_rag": "brasa_malte_cardapio",
+        },
     },
 ]
 

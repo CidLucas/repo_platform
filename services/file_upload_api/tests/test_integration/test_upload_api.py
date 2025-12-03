@@ -5,13 +5,14 @@ from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
+
 # O 'client' vem do conftest.py
 # O 'mocker' é um fixture do pytest-mock
 def test_upload_file_success(
     client: TestClient,
     mocker: MagicMock,
     mock_storage_client: MagicMock,
-    mock_publisher_client: MagicMock
+    mock_publisher_client: MagicMock,
 ):
     """
     Testa a integração do endpoint POST /v1/upload.
@@ -27,14 +28,14 @@ def test_upload_file_success(
 
     # Criamos o 'files' no formato multipart/form-data
     # (nome_do_campo, (nome_arquivo, conteudo, content_type))
-    mock_file = {
-        "file": (file_name, io.BytesIO(file_content), content_type)
-    }
+    mock_file = {"file": (file_name, io.BytesIO(file_content), content_type)}
 
     # Mockar UUID e Trace ID para garantir uma resposta determinística
     # (mesmo que o service.py já tenha mocks, é bom garantir no teste de integração)
     test_job_id = uuid.UUID("abcdef12-1234-5678-1234-567812345678")
-    mocker.patch("file_upload_api.services.upload_service.uuid.uuid4", return_value=test_job_id)
+    mocker.patch(
+        "file_upload_api.services.upload_service.uuid.uuid4", return_value=test_job_id
+    )
     mocker.patch(
         "file_upload_api.services.upload_service.UploadService._get_current_trace_id",
         return_value="integration-test-trace-id",
@@ -64,7 +65,9 @@ def test_upload_file_success(
     # 3.2. Verificar Mocks (Confirma que o serviço foi chamado corretamente)
 
     # Verificar GCS (através do mock injetado no 'client')
-    mock_storage_client.get_bucket("test-bucket").blob(expected_gcs_path).upload_from_file.assert_called_once()
+    mock_storage_client.get_bucket("test-bucket").blob(
+        expected_gcs_path
+    ).upload_from_file.assert_called_once()
 
     # Verificar Pub/Sub (através do mock injetado no 'client')
     expected_payload = {
@@ -79,5 +82,5 @@ def test_upload_file_success(
 
     mock_publisher_client.publish.assert_called_with(
         "projects/test-project/topics/test-topic",
-        expected_data # <-- Alterado de 'data=expected_data' para posicional
+        expected_data,  # <-- Alterado de 'data=expected_data' para posicional
     )

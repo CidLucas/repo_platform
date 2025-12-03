@@ -74,7 +74,7 @@ async def run_experiment(
             logger.info("Experiment Run Completed (Legacy)")
             logger.info(f"{'='*50}")
             logger.info(f"Run ID: {run.id}")
-            logger.info(f"Status: {run.status.value}")
+            logger.info(f"Status: {run.status}")
             logger.info(f"Total cases: {run.total_cases}")
             logger.info(f"Success: {run.success_cases}")
             logger.info(f"Failures: {run.failure_cases}")
@@ -234,11 +234,13 @@ def main():
     args = parser.parse_args()
 
     if args.command == "run":
-        asyncio.run(run_experiment(
-            args.manifest,
-            args.created_by,
-            use_legacy=args.legacy,
-        ))
+        asyncio.run(
+            run_experiment(
+                args.manifest,
+                args.created_by,
+                use_legacy=args.legacy,
+            )
+        )
 
     elif args.command == "sync":
         asyncio.run(sync_manifest(args.manifest))

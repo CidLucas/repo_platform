@@ -13,6 +13,7 @@ Os prompts podem vir de:
 
 Referência: https://fastmcp.mintlify.app/servers/prompts
 """
+
 import logging
 from typing import Optional, Dict, Any
 from uuid import UUID
@@ -123,6 +124,7 @@ Peça gentilmente ao cliente para especificar qual das opções ele deseja.
 # HELPERS
 # =============================================================================
 
+
 async def _get_client_context(cliente_id: str) -> VizuClientContext:
     """Obtém o contexto do cliente pelo ID."""
     ctx_service = get_context_service()
@@ -140,10 +142,10 @@ def _format_horarios(horarios: dict | None) -> str:
     """Formata horários de funcionamento para exibição."""
     if not horarios:
         return "Horário não configurado."
-    
+
     linhas = []
     dias_ordem = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
-    
+
     for dia in dias_ordem:
         if dia in horarios:
             info = horarios[dia]
@@ -156,12 +158,12 @@ def _format_horarios(horarios: dict | None) -> str:
                     linhas.append(f"- {dia.capitalize()}: Fechado")
             elif isinstance(info, str):
                 linhas.append(f"- {dia.capitalize()}: {info}")
-    
+
     # Adiciona dias não listados como "Fechado"
     for dia, info in horarios.items():
         if dia.lower() not in dias_ordem:
             linhas.append(f"- {dia.capitalize()}: {info}")
-    
+
     return "\n".join(linhas) if linhas else "Horário não configurado."
 
 
@@ -169,14 +171,13 @@ def _format_horarios(horarios: dict | None) -> str:
 # DATABASE PROMPT HELPERS
 # =============================================================================
 
+
 def _get_prompt_from_db(
-    name: str,
-    version: Optional[int] = None,
-    cliente_id: Optional[str] = None
+    name: str, version: Optional[int] = None, cliente_id: Optional[str] = None
 ) -> Optional[PromptTemplate]:
     """
     Busca um prompt template do banco de dados.
-    
+
     Prioridade:
     1. Prompt específico do cliente (se cliente_id fornecido)
     2. Prompt global (cliente_vizu_id = NULL)
@@ -186,57 +187,54 @@ def _get_prompt_from_db(
         if cliente_id:
             try:
                 uuid_obj = UUID(cliente_id)
-                
+
                 query = select(PromptTemplate).where(
                     PromptTemplate.name == name,
                     PromptTemplate.cliente_vizu_id == uuid_obj,
-                    PromptTemplate.is_active == True
+                    PromptTemplate.is_active == True,
                 )
-                
+
                 if version:
                     query = query.where(PromptTemplate.version == version)
                 else:
                     query = query.order_by(PromptTemplate.version.desc())
-                
+
                 result = db.exec(query).first()
                 if result:
                     return result
-                    
+
             except ValueError:
                 logger.warning(f"cliente_id inválido: {cliente_id}")
-        
+
         # Fallback: busca prompt global
         query = select(PromptTemplate).where(
             PromptTemplate.name == name,
             PromptTemplate.cliente_vizu_id == None,
-            PromptTemplate.is_active == True
+            PromptTemplate.is_active == True,
         )
-        
+
         if version:
             query = query.where(PromptTemplate.version == version)
         else:
             query = query.order_by(PromptTemplate.version.desc())
-        
+
         return db.exec(query).first()
 
 
-def _render_prompt_template(
-    template: PromptTemplate,
-    variables: Dict[str, Any]
-) -> str:
+def _render_prompt_template(template: PromptTemplate, variables: Dict[str, Any]) -> str:
     """
     Renderiza um template de prompt substituindo variáveis.
-    
+
     Suporta sintaxe {{variable}} e {variable}.
     """
     content = template.content
-    
+
     # Substitui {{variable}} (Mustache-style)
     for key, value in variables.items():
         content = content.replace(f"{{{{{key}}}}}", str(value))
         # Também substitui {variable} (Python-style)
         content = content.replace(f"{{{key}}}", str(value))
-    
+
     return content
 
 
@@ -244,66 +242,70 @@ def _render_prompt_template(
 # REGISTRO DOS PROMPTS
 # =============================================================================
 
+
 def register_prompts(mcp: FastMCP) -> None:
     """
     Registra todos os prompts no servidor MCP.
-    
+
     Prompts são templates que podem ser solicitados pelo cliente MCP
     e usados para configurar o comportamento do agente.
     """
-    
+
     # --- System Prompts ---
-    
+
     @mcp.prompt("atendente/system/v1")
     def atendente_system_v1(nome_empresa: str = "Vizu") -> list[Message]:
         """
         System prompt básico do atendente (v1).
-        
+
         Args:
             nome_empresa: Nome da empresa para personalização
-            
+
         Returns:
             Lista de mensagens para o prompt
         """
         content = ATENDENTE_SYSTEM_PROMPT_V1.format(nome_empresa=nome_empresa)
         return [Message(role="system", content=content)]
-    
+
     @mcp.prompt("atendente/system/v2")
     async def atendente_system_v2(
         cliente_id: str,
     ) -> list[Message]:
         """
         System prompt completo do atendente (v2) com contexto do cliente.
-        
+
         Inclui:
         - Nome da empresa
         - Prompt personalizado (se configurado)
         - Horários de funcionamento
-        
+
         Args:
             cliente_id: ID do cliente Vizu
-            
+
         Returns:
             Lista de mensagens para o prompt
         """
         context = await _get_client_context(cliente_id)
-        
+
         # Monta o prompt personalizado ou usa default
-        prompt_personalizado = context.prompt_base or "Assistente virtual focado em atendimento ao cliente."
-        
+        prompt_personalizado = (
+            context.prompt_base
+            or "Assistente virtual focado em atendimento ao cliente."
+        )
+
         # Formata horários
         horario_formatado = _format_horarios(context.horario_funcionamento)
-        
+
         content = ATENDENTE_SYSTEM_PROMPT_V2.format(
             nome_empresa=context.nome_empresa,
             prompt_personalizado=prompt_personalizado,
             horario_formatado=horario_formatado,
         )
-        
+
         return [Message(role="system", content=content)]
-    
+
     # --- Action Prompts ---
-    
+
     @mcp.prompt("atendente/confirmacao-agendamento")
     def confirmacao_agendamento(
         data: str,
@@ -312,15 +314,15 @@ def register_prompts(mcp: FastMCP) -> None:
     ) -> list[Message]:
         """
         Prompt para confirmação de agendamento.
-        
+
         Use este prompt quando precisar confirmar os dados
         de um agendamento com o cliente.
-        
+
         Args:
             data: Data do agendamento (ex: "15/01/2025")
             horario: Horário (ex: "14:30")
             servico: Nome do serviço
-            
+
         Returns:
             Lista de mensagens para o prompt
         """
@@ -330,7 +332,7 @@ def register_prompts(mcp: FastMCP) -> None:
             servico=servico,
         )
         return [Message(role="system", content=content)]
-    
+
     @mcp.prompt("atendente/esclarecimento")
     def esclarecimento(
         pergunta: str,
@@ -338,14 +340,14 @@ def register_prompts(mcp: FastMCP) -> None:
     ) -> list[Message]:
         """
         Prompt para solicitar esclarecimento ao cliente.
-        
+
         Use quando a pergunta do cliente for ambígua e precisar
         de mais contexto.
-        
+
         Args:
             pergunta: Pergunta original do cliente
             opcoes: Opções possíveis formatadas (uma por linha)
-            
+
         Returns:
             Lista de mensagens para o prompt
         """
@@ -354,9 +356,9 @@ def register_prompts(mcp: FastMCP) -> None:
             opcoes=opcoes,
         )
         return [Message(role="system", content=content)]
-    
+
     # --- RAG Prompts ---
-    
+
     @mcp.prompt("rag/query")
     def rag_query_prompt(
         context: str,
@@ -364,11 +366,11 @@ def register_prompts(mcp: FastMCP) -> None:
     ) -> list[Message]:
         """
         Prompt para responder baseado em contexto RAG.
-        
+
         Args:
             context: Documentos recuperados da base de conhecimento
             question: Pergunta do usuário
-            
+
         Returns:
             Lista de mensagens para o prompt
         """
@@ -386,9 +388,9 @@ PERGUNTA:
 
 RESPOSTA:"""
         return [Message(role="user", content=content)]
-    
+
     # --- Dynamic Prompt (from Database) ---
-    
+
     @mcp.prompt("db/render")
     def render_db_prompt(
         name: str,
@@ -398,45 +400,47 @@ RESPOSTA:"""
     ) -> list[Message]:
         """
         Renderiza um prompt do banco de dados com variáveis.
-        
+
         Este prompt busca templates da tabela prompt_template e
         renderiza com as variáveis fornecidas.
-        
+
         Args:
             name: Nome do prompt (ex: 'atendente/system')
             variables: JSON string com variáveis (ex: '{"nome_empresa": "Barbearia X"}')
             version: Versão específica (opcional, usa mais recente se omitido)
             cliente_id: ID do cliente para override específico (opcional)
-            
+
         Returns:
             Lista de mensagens com o prompt renderizado
         """
         import json
-        
+
         # Parse version
         version_int = int(version) if version else None
-        
+
         # Parse variables
         try:
             vars_dict = json.loads(variables) if variables else {}
         except json.JSONDecodeError:
             logger.warning(f"Variáveis inválidas: {variables}")
             vars_dict = {}
-        
+
         # Busca template do banco
         template = _get_prompt_from_db(name, version=version_int, cliente_id=cliente_id)
-        
+
         if not template:
-            return [Message(
-                role="system",
-                content=f"⚠️ Prompt '{name}' não encontrado no banco de dados."
-            )]
-        
+            return [
+                Message(
+                    role="system",
+                    content=f"⚠️ Prompt '{name}' não encontrado no banco de dados.",
+                )
+            ]
+
         # Renderiza
         content = _render_prompt_template(template, vars_dict)
-        
+
         return [Message(role="system", content=content)]
-    
+
     logger.info(
         "MCP Prompts registrados: "
         "atendente/system/v1, atendente/system/v2, "

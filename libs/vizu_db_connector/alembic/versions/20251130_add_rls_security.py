@@ -9,11 +9,12 @@ This migration:
 2. Enables RLS on all tenant-specific tables
 3. Creates security policies ensuring clients only access their own data
 """
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = '20251130_add_rls_security'
-down_revision = '20251129_add_conversa_mensagem'
+revision = "20251130_add_rls_security"
+down_revision = "20251129_add_conversa_mensagem"
 branch_labels = None
 depends_on = None
 
@@ -189,7 +190,9 @@ def downgrade() -> None:
     op.execute("DROP POLICY IF EXISTS mensagem_isolation ON mensagem;")
     op.execute("DROP POLICY IF EXISTS cliente_final_isolation ON cliente_final;")
     op.execute("DROP POLICY IF EXISTS fonte_de_dados_isolation ON fonte_de_dados;")
-    op.execute("DROP POLICY IF EXISTS credencial_servico_externo_isolation ON credencial_servico_externo;")
+    op.execute(
+        "DROP POLICY IF EXISTS credencial_servico_externo_isolation ON credencial_servico_externo;"
+    )
 
     # Disable RLS
     op.execute("ALTER TABLE cliente_vizu DISABLE ROW LEVEL SECURITY;")

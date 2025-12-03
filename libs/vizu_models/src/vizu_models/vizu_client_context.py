@@ -4,12 +4,12 @@ from vizu_models.credencial_servico_externo import CredencialServicoExternoBase
 from .cliente_vizu import ClienteVizuBase
 
 
-
 class VizuClientContext(ClienteVizuBase):
     """
     Modelo Pydantic que agrega todas as informações de contexto necessárias
     para a operação do agente.
     """
+
     # Informações de Identificação do Cliente
     id: uuid.UUID
     api_key: str

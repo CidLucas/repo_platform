@@ -8,45 +8,46 @@ This is a safe first-step migration: it adds columns and copies data but does
 not drop the legacy `configuracao_negocio` table. A follow-up migration should
 remove the legacy table after the application has been updated.
 """
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = '20251128_merge_configuracao_into_cliente_vizu'
-down_revision = '20251126_add_server_defaults'
+revision = "20251128_merge_configuracao_into_cliente_vizu"
+down_revision = "20251126_add_server_defaults"
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
-        # Add new columns to cliente_vizu using IF NOT EXISTS to make migration idempotent
-        op.execute("""
+    # Add new columns to cliente_vizu using IF NOT EXISTS to make migration idempotent
+    op.execute("""
         ALTER TABLE IF EXISTS public.cliente_vizu
             ADD COLUMN IF NOT EXISTS horario_funcionamento jsonb;
         """)
-        op.execute("""
+    op.execute("""
         ALTER TABLE IF EXISTS public.cliente_vizu
             ADD COLUMN IF NOT EXISTS prompt_base text;
         """)
-        op.execute("""
+    op.execute("""
         ALTER TABLE IF EXISTS public.cliente_vizu
             ADD COLUMN IF NOT EXISTS ferramenta_rag_habilitada boolean DEFAULT false NOT NULL;
         """)
-        op.execute("""
+    op.execute("""
         ALTER TABLE IF EXISTS public.cliente_vizu
             ADD COLUMN IF NOT EXISTS ferramenta_sql_habilitada boolean DEFAULT false NOT NULL;
         """)
-        op.execute("""
+    op.execute("""
         ALTER TABLE IF EXISTS public.cliente_vizu
             ADD COLUMN IF NOT EXISTS ferramenta_agendamento_habilitada boolean DEFAULT false NOT NULL;
         """)
-        op.execute("""
+    op.execute("""
         ALTER TABLE IF EXISTS public.cliente_vizu
             ADD COLUMN IF NOT EXISTS collection_rag text;
         """)
 
-        # Copy existing data from configuracao_negocio (if the table exists)
-        # Use DO block to guard if the source table/column may be missing
-        op.execute("""
+    # Copy existing data from configuracao_negocio (if the table exists)
+    # Use DO block to guard if the source table/column may be missing
+    op.execute("""
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'configuracao_negocio') THEN
@@ -78,9 +79,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # Remove added columns
-    op.drop_column('cliente_vizu', 'collection_rag')
-    op.drop_column('cliente_vizu', 'ferramenta_agendamento_habilitada')
-    op.drop_column('cliente_vizu', 'ferramenta_sql_habilitada')
-    op.drop_column('cliente_vizu', 'ferramenta_rag_habilitada')
-    op.drop_column('cliente_vizu', 'prompt_base')
-    op.drop_column('cliente_vizu', 'horario_funcionamento')
+    op.drop_column("cliente_vizu", "collection_rag")
+    op.drop_column("cliente_vizu", "ferramenta_agendamento_habilitada")
+    op.drop_column("cliente_vizu", "ferramenta_sql_habilitada")
+    op.drop_column("cliente_vizu", "ferramenta_rag_habilitada")
+    op.drop_column("cliente_vizu", "prompt_base")
+    op.drop_column("cliente_vizu", "horario_funcionamento")

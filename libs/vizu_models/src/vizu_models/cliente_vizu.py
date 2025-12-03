@@ -17,14 +17,17 @@ if TYPE_CHECKING:
     from .configuracao_negocio import ConfiguracaoNegocio, ConfiguracaoNegocioRead
 
 
-
 class ClienteVizuBase(SQLModel):
     nome_empresa: str = Field(max_length=255)
     tipo_cliente: TipoCliente = Field(
-        sa_column=Column(pgEnum(TipoCliente, name="tipo_cliente_enum")) # CORRIGIDO: Removido create_type=False
+        sa_column=Column(
+            pgEnum(TipoCliente, name="tipo_cliente_enum")
+        )  # CORRIGIDO: Removido create_type=False
     )
     tier: TierCliente = Field(
-        sa_column=Column(pgEnum(TierCliente, name="tier_cliente_enum")) # CORRIGIDO: Removido create_type=False
+        sa_column=Column(
+            pgEnum(TierCliente, name="tier_cliente_enum")
+        )  # CORRIGIDO: Removido create_type=False
     )
 
 
@@ -33,24 +36,18 @@ class ClienteVizu(ClienteVizuBase, table=True):
 
     id: Optional[uuid.UUID] = Field(
         default_factory=uuid.uuid4,
-        sa_column=Column(pgUUID(as_uuid=True), primary_key=True)
+        sa_column=Column(pgUUID(as_uuid=True), primary_key=True),
     )
 
     api_key: str = Field(
         default_factory=lambda: str(uuid.uuid4()),
-        sa_column=Column(String(255), unique=True, index=True)
+        sa_column=Column(String(255), unique=True, index=True),
     )
 
     # --- Configuração embutida (migrada desde `configuracao_negocio`) ---
-    horario_funcionamento: Optional[dict] = Field(
-        default=None,
-        sa_column=Column(JSON)
-    )
+    horario_funcionamento: Optional[dict] = Field(default=None, sa_column=Column(JSON))
 
-    prompt_base: Optional[str] = Field(
-        default=None,
-        sa_column=Column(Text)
-    )
+    prompt_base: Optional[str] = Field(default=None, sa_column=Column(Text))
 
     ferramenta_rag_habilitada: bool = Field(
         default=False,
@@ -71,13 +68,18 @@ class ClienteVizu(ClienteVizuBase, table=True):
 
     clientes_finais: List["ClienteFinal"] = Relationship(back_populates="cliente_vizu")
     fontes_de_dados: List["FonteDeDados"] = Relationship(back_populates="cliente_vizu")
-    credenciais: List["CredencialServicoExterno"] = Relationship(back_populates="cliente_vizu")
+    credenciais: List["CredencialServicoExterno"] = Relationship(
+        back_populates="cliente_vizu"
+    )
     # Legacy/compat relationship to the old ConfiguracaoNegocio table.
     # Kept as a Relationship so SQLAlchemy mappers remain consistent during
     # the migration rollout. This will be unused once the legacy table is
     # removed in a later migration.
     from typing import Optional as _Optional
-    configuracao: _Optional["ConfiguracaoNegocio"] = Relationship(back_populates="cliente_vizu")
+
+    configuracao: _Optional["ConfiguracaoNegocio"] = Relationship(
+        back_populates="cliente_vizu"
+    )
 
 
 class ClienteVizuCreate(ClienteVizuBase):
@@ -108,6 +110,7 @@ class ClienteVizuReadWithRelations(ClienteVizuRead):
 
 class ClienteVizuUpdate(SQLModel):
     """Schema for updating a client, all fields are optional."""
+
     nome_empresa: Optional[str] = None
     tipo_cliente: Optional[TipoCliente] = None
     tier: Optional[TierCliente] = None

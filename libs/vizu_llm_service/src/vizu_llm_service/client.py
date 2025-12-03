@@ -28,15 +28,18 @@ logger = logging.getLogger(__name__)
 # ENUMS
 # ============================================================================
 
+
 class ModelTier(str, Enum):
     """Tier de modelo - controla qualidade vs custo/velocidade."""
-    DEFAULT = "default"   # Modelo padrão balanceado
-    FAST = "fast"         # Modelo rápido/barato
-    POWERFUL = "powerful" # Modelo mais capaz/caro
+
+    DEFAULT = "default"  # Modelo padrão balanceado
+    FAST = "fast"  # Modelo rápido/barato
+    POWERFUL = "powerful"  # Modelo mais capaz/caro
 
 
 class ModelTask(str, Enum):
     """Tipo de tarefa - pode influenciar na escolha do modelo."""
+
     GENERAL_AGENT = "general_agent"
     CLASSIFICATION = "classification"
     EMBEDDING = "embedding"
@@ -45,23 +48,25 @@ class ModelTask(str, Enum):
 
 class LLMProvider(str, Enum):
     """Provedor de LLM."""
-    OLLAMA = "ollama"           # Local (container)
+
+    OLLAMA = "ollama"  # Local (container)
     OLLAMA_CLOUD = "ollama_cloud"  # Ollama Cloud API (api.ollama.com)
-    OPENAI = "openai"           # OpenAI API
-    ANTHROPIC = "anthropic"     # Anthropic API
-    GOOGLE = "google"           # Google Gemini API
+    OPENAI = "openai"  # OpenAI API
+    ANTHROPIC = "anthropic"  # Anthropic API
+    GOOGLE = "google"  # Google Gemini API
 
 
 # ============================================================================
 # LANGFUSE CALLBACK (SDK v3)
 # ============================================================================
 
+
 def get_langfuse_callback(
     settings: Optional[LLMSettings] = None,
     user_id: Optional[str] = None,
     session_id: Optional[str] = None,
     tags: Optional[List[str]] = None,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> Optional[BaseCallbackHandler]:
     """
     Cria o CallbackHandler do Langfuse para tracing.
@@ -141,6 +146,7 @@ def get_base_callbacks(
 # EMBEDDING CLIENT (API)
 # ============================================================================
 
+
 class VizuEmbeddingAPIClient(Embeddings):
     """
     Cliente de embedding via API HTTP.
@@ -156,11 +162,12 @@ class VizuEmbeddingAPIClient(Embeddings):
 
     def _call_api(self, texts: List[str], mode: str = "document") -> List[List[float]]:
         import requests
+
         try:
             response = requests.post(
                 self.api_url,
                 json={"texts": texts, "mode": mode},
-                timeout=60  # Timeout maior para modelos grandes
+                timeout=60,  # Timeout maior para modelos grandes
             )
             response.raise_for_status()
             return response.json()["embeddings"]
@@ -181,22 +188,25 @@ class VizuEmbeddingAPIClient(Embeddings):
 # LLM FACTORIES
 # ============================================================================
 
+
 def _get_ollama_model(
     model_name: str,
     settings: LLMSettings,
     callbacks: List[BaseCallbackHandler],
-    **kwargs
+    **kwargs,
 ) -> BaseChatModel:
     """Cria cliente Ollama (local)."""
     from langchain_ollama import ChatOllama
 
-    logger.info(f"Conectando ao Ollama Local: {settings.OLLAMA_BASE_URL} modelo={model_name}")
+    logger.info(
+        f"Conectando ao Ollama Local: {settings.OLLAMA_BASE_URL} modelo={model_name}"
+    )
 
     return ChatOllama(
         base_url=settings.OLLAMA_BASE_URL,
         model=model_name,
         callbacks=callbacks,
-        **kwargs
+        **kwargs,
     )
 
 
@@ -204,7 +214,7 @@ def _get_ollama_cloud_model(
     model_name: str,
     settings: LLMSettings,
     callbacks: List[BaseCallbackHandler],
-    **kwargs
+    **kwargs,
 ) -> BaseChatModel:
     """
     Cria cliente Ollama Cloud (ollama.com).
@@ -235,12 +245,8 @@ def _get_ollama_cloud_model(
         base_url=base_url,
         model=model_name,
         callbacks=callbacks,
-        client_kwargs={
-            "headers": {
-                "Authorization": f"Bearer {api_key}"
-            }
-        },
-        **kwargs
+        client_kwargs={"headers": {"Authorization": f"Bearer {api_key}"}},
+        **kwargs,
     )
 
 
@@ -248,13 +254,15 @@ def _get_openai_model(
     model_name: str,
     settings: LLMSettings,
     callbacks: List[BaseCallbackHandler],
-    **kwargs
+    **kwargs,
 ) -> BaseChatModel:
     """Cria cliente OpenAI (API)."""
     try:
         from langchain_openai import ChatOpenAI
     except ImportError:
-        raise ImportError("langchain-openai não instalado. Rode: pip install langchain-openai")
+        raise ImportError(
+            "langchain-openai não instalado. Rode: pip install langchain-openai"
+        )
 
     api_key = settings.OPENAI_API_KEY
     if not api_key:
@@ -262,25 +270,22 @@ def _get_openai_model(
 
     logger.info(f"Conectando ao OpenAI: modelo={model_name}")
 
-    return ChatOpenAI(
-        model=model_name,
-        api_key=api_key,
-        callbacks=callbacks,
-        **kwargs
-    )
+    return ChatOpenAI(model=model_name, api_key=api_key, callbacks=callbacks, **kwargs)
 
 
 def _get_anthropic_model(
     model_name: str,
     settings: LLMSettings,
     callbacks: List[BaseCallbackHandler],
-    **kwargs
+    **kwargs,
 ) -> BaseChatModel:
     """Cria cliente Anthropic (API)."""
     try:
         from langchain_anthropic import ChatAnthropic
     except ImportError:
-        raise ImportError("langchain-anthropic não instalado. Rode: pip install langchain-anthropic")
+        raise ImportError(
+            "langchain-anthropic não instalado. Rode: pip install langchain-anthropic"
+        )
 
     api_key = settings.ANTHROPIC_API_KEY
     if not api_key:
@@ -289,10 +294,7 @@ def _get_anthropic_model(
     logger.info(f"Conectando ao Anthropic: modelo={model_name}")
 
     return ChatAnthropic(
-        model=model_name,
-        api_key=api_key,
-        callbacks=callbacks,
-        **kwargs
+        model=model_name, api_key=api_key, callbacks=callbacks, **kwargs
     )
 
 
@@ -300,13 +302,15 @@ def _get_google_model(
     model_name: str,
     settings: LLMSettings,
     callbacks: List[BaseCallbackHandler],
-    **kwargs
+    **kwargs,
 ) -> BaseChatModel:
     """Cria cliente Google Gemini (API)."""
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
     except ImportError:
-        raise ImportError("langchain-google-genai não instalado. Rode: pip install langchain-google-genai")
+        raise ImportError(
+            "langchain-google-genai não instalado. Rode: pip install langchain-google-genai"
+        )
 
     api_key = settings.GOOGLE_API_KEY
     if not api_key:
@@ -315,10 +319,7 @@ def _get_google_model(
     logger.info(f"Conectando ao Google Gemini: modelo={model_name}")
 
     return ChatGoogleGenerativeAI(
-        model=model_name,
-        google_api_key=api_key,
-        callbacks=callbacks,
-        **kwargs
+        model=model_name, google_api_key=api_key, callbacks=callbacks, **kwargs
     )
 
 
@@ -333,8 +334,8 @@ MODEL_MAPPINGS: Dict[LLMProvider, Dict[ModelTier, str]] = {
         ModelTier.POWERFUL: "llama3.1:70b",
     },
     LLMProvider.OLLAMA_CLOUD: {
-        ModelTier.DEFAULT: "gpt-oss:20b",      # Rápido e eficiente
-        ModelTier.FAST: "gpt-oss:20b",         # Mais rápido
+        ModelTier.DEFAULT: "gpt-oss:20b",  # Rápido e eficiente
+        ModelTier.FAST: "gpt-oss:20b",  # Mais rápido
         ModelTier.POWERFUL: "deepseek-v3.1:671b",  # Mais capaz
     },
     LLMProvider.OPENAI: {
@@ -359,6 +360,7 @@ MODEL_MAPPINGS: Dict[LLMProvider, Dict[ModelTier, str]] = {
 # MAIN API
 # ============================================================================
 
+
 def get_model(
     tier: ModelTier = ModelTier.DEFAULT,
     task: ModelTask = ModelTask.GENERAL_AGENT,
@@ -367,7 +369,7 @@ def get_model(
     user_id: Optional[str] = None,
     session_id: Optional[str] = None,
     tags: Optional[List[str]] = None,
-    **kwargs
+    **kwargs,
 ) -> BaseChatModel:
     """
     Retorna um cliente de LLM configurado.
@@ -433,7 +435,9 @@ def get_model(
 def get_embedding_model() -> Embeddings:
     """Retorna o cliente de embeddings (via API)."""
     settings = get_llm_settings()
-    logger.info(f"Inicializando VizuEmbeddingAPIClient: {settings.EMBEDDING_SERVICE_URL}")
+    logger.info(
+        f"Inicializando VizuEmbeddingAPIClient: {settings.EMBEDDING_SERVICE_URL}"
+    )
     return VizuEmbeddingAPIClient(base_url=settings.EMBEDDING_SERVICE_URL)
 
 
@@ -441,10 +445,12 @@ def get_embedding_model() -> Embeddings:
 # LANGFUSE UTILITIES
 # ============================================================================
 
+
 def flush_langfuse():
     """Força o flush dos eventos do Langfuse."""
     try:
         from langfuse import get_client
+
         get_client().flush()
         logger.info("Langfuse flush executado")
     except Exception as e:
@@ -455,6 +461,7 @@ def shutdown_langfuse():
     """Encerra o cliente Langfuse."""
     try:
         from langfuse import get_client
+
         get_client().shutdown()
         logger.info("Langfuse shutdown executado")
     except Exception as e:

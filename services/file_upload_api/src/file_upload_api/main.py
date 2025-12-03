@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 # --- Padrão Vizu: Application Factory ---
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -38,22 +39,29 @@ def create_app() -> FastAPI:
         title=settings.SERVICE_NAME,
         description="API síncrona para upload e enfileiramento de arquivos na Vizu.",
         version="0.1.0",
-        lifespan=lifespan  # Adiciona o gerenciador de ciclo de vida
+        lifespan=lifespan,  # Adiciona o gerenciador de ciclo de vida
     )
 
     # --- Padrão Vizu: Observabilidade Mandatória ---
     # 1. Configura a telemetria (OpenTelemetry) se o endpoint estiver definido.
     # Isso é um pilar da nossa arquitetura[cite: 13, 133].
     if settings.OTEL_EXPORTER_OTLP_ENDPOINT:
-        logger.info(f"Configurando telemetria para o serviço '{settings.SERVICE_NAME}'...")
+        logger.info(
+            f"Configurando telemetria para o serviço '{settings.SERVICE_NAME}'..."
+        )
         try:
             # Importa a 'lib' compartilhada de observabilidade
             from vizu_observability_bootstrap import setup_telemetry
+
             setup_telemetry(app, service_name=settings.SERVICE_NAME)
         except ImportError:
-            logger.warning("Falha ao importar 'vizu_observability_bootstrap'. Telemetria não configurada.")
+            logger.warning(
+                "Falha ao importar 'vizu_observability_bootstrap'. Telemetria não configurada."
+            )
     else:
-        logger.info("Telemetria não configurada (OTEL_EXPORTER_OTLP_ENDPOINT não definido).")
+        logger.info(
+            "Telemetria não configurada (OTEL_EXPORTER_OTLP_ENDPOINT não definido)."
+        )
 
     # 2. Inclui os roteadores da API
     # (Este arquivo será o próximo passo)
@@ -67,6 +75,7 @@ def create_app() -> FastAPI:
 
     logger.info(f"Serviço '{settings.SERVICE_NAME}' configurado e pronto.")
     return app
+
 
 # --- Instância Global ---
 # Cria a instância da aplicação para ser usada pelo Uvicorn em produção.

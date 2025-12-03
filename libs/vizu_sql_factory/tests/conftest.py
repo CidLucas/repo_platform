@@ -3,6 +3,7 @@ import uuid
 from vizu_models.vizu_client_context import VizuClientContext
 from vizu_models.credencial_servico_externo import CredencialServicoExternoCreate
 
+
 @pytest.fixture
 def mock_vizu_client_context() -> VizuClientContext:
     """Retorna uma instância de modelo Pydantic VizuClientContext."""
@@ -25,8 +26,8 @@ def mock_vizu_client_context() -> VizuClientContext:
                     "db_password": "pass_mock",
                     "db_host": "host.mock.com",
                     "db_port": 5432,
-                    "db_name": "db_mock"
-                }
+                    "db_name": "db_mock",
+                },
             )
-        ]
+        ],
     )

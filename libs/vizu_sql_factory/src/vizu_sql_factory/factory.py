@@ -73,11 +73,11 @@ def get_shared_engine() -> Engine:
         _shared_engine = create_engine(
             db_url,
             poolclass=QueuePool,
-            pool_size=10,          # Conexões mantidas no pool
-            max_overflow=20,       # Conexões extras em pico
-            pool_recycle=300,      # Recicla conexões a cada 5 min
-            pool_pre_ping=True,    # Verifica conexão antes de usar
-            echo=False             # Desabilita log de queries (usar logging próprio)
+            pool_size=10,  # Conexões mantidas no pool
+            max_overflow=20,  # Conexões extras em pico
+            pool_recycle=300,  # Recicla conexões a cada 5 min
+            pool_pre_ping=True,  # Verifica conexão antes de usar
+            echo=False,  # Desabilita log de queries (usar logging próprio)
         )
 
         logger.info("Engine SQL compartilhada criada com sucesso.")
@@ -98,6 +98,7 @@ def close_shared_engine() -> None:
 # RLS CONTEXT WRAPPER
 # ============================================================================
 
+
 class RLSContextDatabase(SQLDatabase):
     """
     Wrapper do SQLDatabase que seta o contexto RLS antes de cada operação.
@@ -113,7 +114,7 @@ class RLSContextDatabase(SQLDatabase):
         try:
             connection.execute(
                 text("SELECT set_config('app.current_cliente_id', :cliente_id, true)"),
-                {"cliente_id": self._cliente_id}
+                {"cliente_id": self._cliente_id},
             )
             logger.debug(f"RLS context set for cliente_id: {self._cliente_id}")
         except Exception as e:
@@ -136,11 +137,12 @@ class RLSContextDatabase(SQLDatabase):
 # FACTORY PRINCIPAL
 # ============================================================================
 
+
 def create_sql_agent_runnable(
     contexto: VizuClientContext,
     llm: BaseChatModel,
     llm_fast: Optional[BaseChatModel] = None,
-    tabelas_incluidas: Optional[list[str]] = None
+    tabelas_incluidas: Optional[list[str]] = None,
 ) -> Optional[Runnable]:
     """
     Factory para criar um Agente SQL com isolamento via RLS.
@@ -163,13 +165,17 @@ def create_sql_agent_runnable(
 
     # --- 0. Validação do LLM (obrigatório) ---
     if llm is None:
-        logger.error(f"LLM não fornecido para create_sql_agent_runnable do cliente {contexto.id}. "
-                     "Utilize get_model() do vizu_llm_service para obter um LLM.")
+        logger.error(
+            f"LLM não fornecido para create_sql_agent_runnable do cliente {contexto.id}. "
+            "Utilize get_model() do vizu_llm_service para obter um LLM."
+        )
         raise ValueError("llm é obrigatório para create_sql_agent_runnable")
 
     # --- 1. Validação de Permissão ---
     if not contexto.ferramenta_sql_habilitada:
-        logger.warning(f"Tentativa de criar agente SQL para cliente {contexto.id} - SQL desabilitado.")
+        logger.warning(
+            f"Tentativa de criar agente SQL para cliente {contexto.id} - SQL desabilitado."
+        )
         return None
 
     # --- 2. Obter Engine Compartilhada ---
@@ -181,9 +187,7 @@ def create_sql_agent_runnable(
     # --- 3. Criar SQLDatabase com RLS ---
     # Usa nosso wrapper que seta o contexto RLS antes de cada query
     db = RLSContextDatabase(
-        engine=engine,
-        cliente_id=cliente_id,
-        include_tables=tabelas_incluidas
+        engine=engine, cliente_id=cliente_id, include_tables=tabelas_incluidas
     )
 
     # Usa o LLM rápido para introspecção, se fornecido
@@ -198,7 +202,7 @@ def create_sql_agent_runnable(
         agent_type="openai-tools",
         verbose=True,
         handle_parsing_errors=True,
-        llm_for_table_verification=llm_para_introspeccao
+        llm_for_table_verification=llm_para_introspeccao,
     )
 
     logger.info(f"Agente SQL criado com sucesso para {contexto.id}.")

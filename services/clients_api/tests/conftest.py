@@ -33,15 +33,17 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 # --- Fixtures do Pytest (sem alterações) ---
 
+
 @pytest.fixture(scope="session", autouse=True)
 def db_session_scope():
-    os.environ['OTEL_SDK_DISABLED'] = 'true'
+    os.environ["OTEL_SDK_DISABLED"] = "true"
     if database_exists(engine.url):
         drop_database(engine.url)
     create_database(engine.url)
     Base.metadata.create_all(bind=engine)
     yield
     drop_database(engine.url)
+
 
 @pytest.fixture(scope="function")
 def db_session() -> Session:
@@ -52,6 +54,7 @@ def db_session() -> Session:
     session.close()
     transaction.rollback()
     connection.close()
+
 
 @pytest.fixture(scope="function")
 def test_client(db_session: Session) -> TestClient:

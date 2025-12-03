@@ -6,6 +6,7 @@ from file_processing_worker.parsers.base_parser import BaseParser
 
 logger = logging.getLogger(__name__)
 
+
 class CSVParser(BaseParser):
     """
     Implementação concreta do BaseParser para extrair texto de ficheiros CSV.
@@ -34,7 +35,7 @@ class CSVParser(BaseParser):
             # Tenta ler o CSV. O pandas é bom a inferir tipos,
             # mas podemos precisar de mais deteção de encoding/separador no futuro.
             # 'sep=None' ativa a deteção automática de separador do pandas.
-            df = pd.read_csv(file_stream, sep=None, engine='python')
+            df = pd.read_csv(file_stream, sep=None, engine="python")
 
             if df.empty:
                 logger.warning("CSV processado, mas está vazio.")
@@ -52,5 +53,7 @@ class CSVParser(BaseParser):
             return ""
         except Exception as e:
             # 'Exception' genérico, pois o pandas pode lançar vários erros
-            logger.error(f"Erro inesperado durante o parsing do CSV: {e}", exc_info=True)
+            logger.error(
+                f"Erro inesperado durante o parsing do CSV: {e}", exc_info=True
+            )
             return ""

@@ -99,7 +99,7 @@ class HitlService:
         sorted_criteria = sorted(
             [c for c in config.criteria if c.enabled],
             key=lambda x: x.priority,
-            reverse=True
+            reverse=True,
         )
 
         for criterion in sorted_criteria:
@@ -184,14 +184,17 @@ class HitlService:
         elif ctype == HitlCriteriaType.SENTIMENT_NEGATIVE:
             # Simples: detecta palavras negativas
             # Em produção, usar um modelo de sentiment
-            negative_patterns = params.get("patterns", [
-                r"frustrad[oa]",
-                r"irritad[oa]",
-                r"não funciona",
-                r"péssim[oa]",
-                r"horrível",
-                r"vergonha",
-            ])
+            negative_patterns = params.get(
+                "patterns",
+                [
+                    r"frustrad[oa]",
+                    r"irritad[oa]",
+                    r"não funciona",
+                    r"péssim[oa]",
+                    r"horrível",
+                    r"vergonha",
+                ],
+            )
             text = user_message.lower()
             for pattern in negative_patterns:
                 if re.search(pattern, text):
@@ -202,7 +205,7 @@ class HitlService:
             if response_time_seconds and response_time_seconds > threshold_seconds:
                 return True, {
                     "threshold": threshold_seconds,
-                    "actual": response_time_seconds
+                    "actual": response_time_seconds,
                 }
 
         return False, {}
@@ -242,7 +245,9 @@ class HitlService:
             cliente_final_id=cliente_final_id,
             user_message=user_message,
             agent_response=agent_response,
-            criteria_triggered=decision.criteria_triggered.value if decision.criteria_triggered else "manual",
+            criteria_triggered=decision.criteria_triggered.value
+            if decision.criteria_triggered
+            else "manual",
             confidence_score=decision.confidence_score,
             criteria_details=decision.details,
             trace_id=trace_id,

@@ -55,6 +55,8 @@ class ExperimentRunner:
         self.atendente_url = atendente_url or settings.ATENDENTE_API_URL
         self.concurrent_limit = concurrent_limit
         self.semaphore = asyncio.Semaphore(concurrent_limit)
+        # Get API key synchronously at init time to avoid async issues during parallel execution
+        self.api_key = self._get_api_key_sync()
 
     async def run_from_manifest_file(
         self,
@@ -121,11 +123,36 @@ class ExperimentRunner:
                 return_exceptions=True,
             )
 
+            # Commit all cases at once to avoid async session conflicts
+            valid_cases = [r for r in results if isinstance(r, ExperimentCase)]
+            for case in valid_cases:
+                self.db.add(case)
+            await self.db.commit()
+            for case in valid_cases:
+                await self.db.refresh(case)
+
             # Count outcomes
-            success = sum(1 for r in results if isinstance(r, ExperimentCase) and r.outcome == CaseOutcome.SUCCESS)
-            failure = sum(1 for r in results if isinstance(r, ExperimentCase) and r.outcome == CaseOutcome.FAILURE)
-            error = sum(1 for r in results if isinstance(r, Exception) or (isinstance(r, ExperimentCase) and r.outcome == CaseOutcome.ERROR))
-            hitl_routed = sum(1 for r in results if isinstance(r, ExperimentCase) and r.outcome == CaseOutcome.NEEDS_REVIEW)
+            success = sum(
+                1
+                for r in results
+                if isinstance(r, ExperimentCase) and r.outcome == CaseOutcome.SUCCESS.value
+            )
+            failure = sum(
+                1
+                for r in results
+                if isinstance(r, ExperimentCase) and r.outcome == CaseOutcome.FAILURE.value
+            )
+            error = sum(
+                1
+                for r in results
+                if isinstance(r, Exception)
+                or (isinstance(r, ExperimentCase) and r.outcome == CaseOutcome.ERROR.value)
+            )
+            hitl_routed = sum(
+                1
+                for r in results
+                if isinstance(r, ExperimentCase) and r.outcome == CaseOutcome.NEEDS_REVIEW.value
+            )
 
             # Update run stats
             run.status = ExperimentStatus.COMPLETED
@@ -199,6 +226,9 @@ class ExperimentRunner:
             start_time = datetime.utcnow()
             trace_id = str(uuid.uuid4())
 
+            # Get API key for authentication
+            api_key = self.api_key
+
             # Create case record
             experiment_case = ExperimentCase(
                 run_id=run.id,
@@ -216,10 +246,10 @@ class ExperimentRunner:
                         f"{api_url}/chat",
                         json={
                             "message": case.message,
-                            "client_id": client.cliente_id,
-                            "conversation_id": str(uuid.uuid4()),
+                            "session_id": str(uuid.uuid4()),
                         },
                         headers={
+                            "X-API-KEY": api_key,
                             "X-Experiment-Run-Id": str(run.id),
                             "X-Trace-Id": trace_id,
                         },
@@ -232,9 +262,7 @@ class ExperimentRunner:
                     experiment_case.actual_response = data.get("response", "")
                     experiment_case.tools_called = data.get("tools_called", [])
                     experiment_case.actual_tool_called = (
-                        experiment_case.tools_called[0]
-                        if experiment_case.tools_called
-                        else None
+                        experiment_case.tools_called[0] if experiment_case.tools_called else None
                     )
                     experiment_case.model_used = data.get("model")
                     experiment_case.langfuse_trace_id = data.get("trace_id") or trace_id
@@ -264,15 +292,16 @@ class ExperimentRunner:
 
             except Exception as e:
                 logger.error(f"Case {case.id} failed: {e}")
-                experiment_case.outcome = CaseOutcome.ERROR
+                experiment_case.outcome = CaseOutcome.ERROR.value
                 experiment_case.error_message = str(e)
                 experiment_case.request_duration_ms = int(
                     (datetime.utcnow() - start_time).total_seconds() * 1000
                 )
 
             self.db.add(experiment_case)
-            await self.db.commit()
-            await self.db.refresh(experiment_case)
+            # Don't commit here - will be committed in batch after all cases complete
+            # await self.db.commit()
+            # await self.db.refresh(experiment_case)
 
             return experiment_case
 
@@ -318,44 +347,44 @@ class ExperimentRunner:
         case: ExperimentCase,
         hitl_config,
         case_index: int,
-    ) -> tuple[CaseOutcome, ClassificationResult]:
+    ) -> tuple[str, str]:
         """
         Classify case outcome and determine if HITL review needed.
 
         Returns:
-            (CaseOutcome, ClassificationResult) tuple
+            (outcome, classification) tuple as strings
         """
         # Check for assertion failures
         if case.tool_assertion_passed is False or case.contains_assertion_passed is False:
-            return CaseOutcome.FAILURE, ClassificationResult.LOW_CONFIDENCE
+            return CaseOutcome.FAILURE.value, ClassificationResult.LOW_CONFIDENCE.value
 
         # All assertions passed (or no assertions)
-        assertions_passed = (
-            case.tool_assertion_passed in (True, None) and
-            case.contains_assertion_passed in (True, None)
-        )
+        assertions_passed = case.tool_assertion_passed in (
+            True,
+            None,
+        ) and case.contains_assertion_passed in (True, None)
 
         # Determine classification
         confidence = case.confidence_score or 0.5
 
         if confidence >= hitl_config.confidence_threshold:
-            classification = ClassificationResult.HIGH_CONFIDENCE
+            classification = ClassificationResult.HIGH_CONFIDENCE.value
         elif confidence >= hitl_config.confidence_threshold * 0.7:
-            classification = ClassificationResult.MEDIUM_CONFIDENCE
+            classification = ClassificationResult.MEDIUM_CONFIDENCE.value
         else:
-            classification = ClassificationResult.LOW_CONFIDENCE
+            classification = ClassificationResult.LOW_CONFIDENCE.value
 
         # Check HITL routing rules
         should_route_hitl = False
 
         # Rule 1: Low confidence
-        if classification == ClassificationResult.LOW_CONFIDENCE:
+        if classification == ClassificationResult.LOW_CONFIDENCE.value:
             should_route_hitl = True
 
         # Rule 2: Always review certain tools
         if case.actual_tool_called and case.actual_tool_called in hitl_config.always_review_tools:
             should_route_hitl = True
-            classification = ClassificationResult.TOOL_USED
+            classification = ClassificationResult.TOOL_USED.value
 
         # Rule 3: First N cases per client
         if case_index < hitl_config.always_review_first_n:
@@ -363,10 +392,33 @@ class ExperimentRunner:
 
         # Rule 4: Random sample
         import random
+
         if random.random() < hitl_config.sample_rate:
             should_route_hitl = True
 
         if should_route_hitl:
-            return CaseOutcome.NEEDS_REVIEW, classification
+            return CaseOutcome.NEEDS_REVIEW.value, classification
 
-        return (CaseOutcome.SUCCESS if assertions_passed else CaseOutcome.FAILURE), classification
+        return (CaseOutcome.SUCCESS.value if assertions_passed else CaseOutcome.FAILURE.value), classification
+
+    def _get_api_key_sync(self) -> str:
+        """
+        Get API key for authentication synchronously.
+
+        Returns:
+            API key string
+        """
+        from sqlalchemy import create_engine, select
+        from vizu_models import ClienteVizu
+
+        # Create a synchronous engine for this one-time query
+        sync_engine = create_engine(settings.DATABASE_URL)
+        with sync_engine.connect() as conn:
+            stmt = select(ClienteVizu.api_key).limit(1)
+            result = conn.execute(stmt)
+            api_key = result.scalar()
+
+            if not api_key:
+                raise ValueError("No client API key found in database. Run seeds first.")
+
+            return api_key

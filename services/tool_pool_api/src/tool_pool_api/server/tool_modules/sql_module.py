@@ -15,7 +15,7 @@ from fastmcp.server.dependencies import AccessToken, get_access_token
 
 from tool_pool_api.server.dependencies import (
     get_context_service,
-    load_context_from_token
+    load_context_from_token,
 )
 from vizu_models.vizu_client_context import VizuClientContext
 from vizu_sql_factory.factory import create_sql_agent_runnable
@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # LÓGICA DE NEGÓCIO (Testável)
 # =============================================================================
+
 
 async def _executar_sql_agent_logic(
     query: str,
@@ -97,7 +98,7 @@ async def _executar_sql_agent_logic(
             tier=ModelTier.DEFAULT,
             task="sql_agent",
             user_id=str(real_client_id),
-            tags=["tool_pool", "sql_module"]
+            tags=["tool_pool", "sql_module"],
         )
 
         sql_agent_runnable = create_sql_agent_runnable(vizu_context, llm=llm)
@@ -123,6 +124,7 @@ async def _executar_sql_agent_logic(
 # REGISTRO DO MÓDULO
 # =============================================================================
 
+
 @register_module
 def register_tools(mcp: FastMCP) -> List[str]:
     """Registra as tools do módulo SQL."""
@@ -134,7 +136,7 @@ def register_tools(mcp: FastMCP) -> List[str]:
             "(pedidos, estoque, histórico). "
             "Use para dados transacionais. "
             "Parâmetro: query (string com a consulta)."
-        )
+        ),
     )(mcp_inject_cliente_id(get_context_service)(_executar_sql_agent_logic))
 
     logger.info("[SQL Module] Ferramentas registradas.")

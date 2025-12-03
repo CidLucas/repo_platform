@@ -11,6 +11,7 @@ Usage (zsh):
 You can also pass an explicit DB URL:
   python tools/run_migrations.py --db "postgresql://..."
 """
+
 from __future__ import annotations
 
 import os
@@ -27,7 +28,9 @@ def main() -> None:
 
     db_url = args.db or os.getenv("DATABASE_URL")
     if not db_url:
-        print("Error: set DATABASE_URL environment variable or pass --db", file=sys.stderr)
+        print(
+            "Error: set DATABASE_URL environment variable or pass --db", file=sys.stderr
+        )
         sys.exit(1)
 
     # Build path to the alembic.ini inside the vizu_db_connector package

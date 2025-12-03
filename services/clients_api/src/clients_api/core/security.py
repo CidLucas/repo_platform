@@ -19,12 +19,14 @@ except Exception as e:
         "Certifique-se de que é uma chave Fernet válida e está no .env"
     ) from e
 
+
 def encrypt_credential(value: str) -> str:
     """Criptografa um valor usando a chave Fernet global."""
     if not value:
         return value
     encrypted_value = cipher_suite.encrypt(value.encode())
     return encrypted_value.decode()
+
 
 def decrypt_credential(encrypted_value: str) -> str:
     """Descriptografa um valor usando a chave Fernet global."""
@@ -33,10 +35,12 @@ def decrypt_credential(encrypted_value: str) -> str:
     decrypted_value = cipher_suite.decrypt(encrypted_value.encode())
     return decrypted_value.decode()
 
+
 # ---------------------------------------------------------------------------
 # SEÇÃO 2: GERAÇÃO E HASHING DE API KEYS (Nova Lógica)
 # Esta é a funcionalidade que estava faltando.
 # ---------------------------------------------------------------------------
+
 
 def get_password_hash(password: str) -> str:
     """
@@ -45,6 +49,7 @@ def get_password_hash(password: str) -> str:
     SHA-256 dela. É uma via de mão única, para armazenamento seguro.
     """
     return hashlib.sha256(password.encode()).hexdigest()
+
 
 def create_api_key() -> Tuple[str, str]:
     """

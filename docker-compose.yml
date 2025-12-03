@@ -167,7 +167,7 @@ services:
        - "8501:8501"
      volumes:
        # Mapeia o código fonte para /app/src (conforme definido no Dockerfile deste serviço)
-       - ./evaluation_suite/src:/app/src
+       - ./ferramentas/evaluation_suite/src:/app/src
        # Mapeia as libs compartilhadas
        - ./libs:/app/libs
      environment:

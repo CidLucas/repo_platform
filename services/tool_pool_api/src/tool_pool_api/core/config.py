@@ -26,11 +26,9 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""
     OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
     MCP_AUTH_GOOGLE_CLIENT_ID: str = ""
-    MCP_AUTH_GOOGLE_CLIENT_SECRET_ID: str = "" # ID do segredo no Secret Manager
+    MCP_AUTH_GOOGLE_CLIENT_SECRET_ID: str = ""  # ID do segredo no Secret Manager
     MCP_AUTH_BASE_URL: str = "http://localhost:8000"
     MCP_AUTH_REQUIRED_SCOPES: str = "email,profile"
-
-
 
 
 @lru_cache

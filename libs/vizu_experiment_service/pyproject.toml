@@ -21,6 +21,7 @@ vizu-models = {path = "../vizu_models", develop = true}
 # vizu-hitl-service = {path = "../vizu_hitl_service", develop = true}  # TODO: create if needed
 vizu-db-connector = {path = "../vizu_db_connector", develop = true}
 langfuse = "^2.0"
+greenlet = "^3.2.4"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"

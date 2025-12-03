@@ -16,6 +16,11 @@ vizu-mono/
 │   ├── vizu_rag_factory/   # Factory de ferramentas RAG
 │   ├── vizu_db_connector/  # Conexão e migrations PostgreSQL
 │   └── ...
+├── ferramentas/        # Ferramentas de desenvolvimento e testes
+│   ├── seeds/              # Dados de desenvolvimento (clientes, RAG)
+│   ├── debug.py            # Scripts de debug
+│   ├── test_personas_batch.py  # Testes de personas
+│   └── ...
 ├── docker-compose.yml  # Orquestração local
 └── Makefile            # Comandos de desenvolvimento
 ```

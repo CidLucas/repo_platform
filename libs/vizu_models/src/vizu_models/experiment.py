@@ -30,6 +30,7 @@ from sqlmodel import SQLModel, Field as SQLField, Relationship, Column, JSON
 
 class ExperimentStatus(str, Enum):
     """Status of an experiment run."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -39,22 +40,24 @@ class ExperimentStatus(str, Enum):
 
 class CaseOutcome(str, Enum):
     """Outcome classification of a test case."""
-    SUCCESS = "success"           # Response matched expectations
-    FAILURE = "failure"           # Response did not match expectations
-    ERROR = "error"               # Execution error (API failed, timeout, etc.)
-    NEEDS_REVIEW = "needs_review" # Routed to HITL for human review
-    REVIEWED = "reviewed"         # HITL review completed
-    SKIPPED = "skipped"           # Case was skipped
+
+    SUCCESS = "success"  # Response matched expectations
+    FAILURE = "failure"  # Response did not match expectations
+    ERROR = "error"  # Execution error (API failed, timeout, etc.)
+    NEEDS_REVIEW = "needs_review"  # Routed to HITL for human review
+    REVIEWED = "reviewed"  # HITL review completed
+    SKIPPED = "skipped"  # Case was skipped
 
 
 class ClassificationResult(str, Enum):
     """Auto-classification of response quality."""
-    HIGH_CONFIDENCE = "high_confidence"     # Good response, save directly
-    MEDIUM_CONFIDENCE = "medium_confidence" # Uncertain, route to HITL
-    LOW_CONFIDENCE = "low_confidence"       # Poor response, route to HITL
-    TOOL_USED = "tool_used"                 # Tool was called (may need review)
-    ELICITATION = "elicitation"             # Elicitation was triggered
-    ERROR = "error"                         # Error occurred
+
+    HIGH_CONFIDENCE = "high_confidence"  # Good response, save directly
+    MEDIUM_CONFIDENCE = "medium_confidence"  # Uncertain, route to HITL
+    LOW_CONFIDENCE = "low_confidence"  # Poor response, route to HITL
+    TOOL_USED = "tool_used"  # Tool was called (may need review)
+    ELICITATION = "elicitation"  # Elicitation was triggered
+    ERROR = "error"  # Error occurred
 
 
 # ============================================================================
@@ -64,43 +67,63 @@ class ClassificationResult(str, Enum):
 
 class TestCaseDefinition(BaseModel):
     """Definition of a single test case in the manifest."""
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     message: str = Field(..., description="Input message to send")
-    cliente_id: Optional[str] = Field(None, description="Specific client ID (overrides manifest default)")
+    cliente_id: Optional[str] = Field(
+        None, description="Specific client ID (overrides manifest default)"
+    )
     expected_tool: Optional[str] = Field(None, description="Expected tool to be called")
-    expected_contains: Optional[List[str]] = Field(None, description="Substrings expected in response")
-    expected_not_contains: Optional[List[str]] = Field(None, description="Substrings NOT expected")
-    tags: Optional[List[str]] = Field(default_factory=list, description="Tags for filtering")
+    expected_contains: Optional[List[str]] = Field(
+        None, description="Substrings expected in response"
+    )
+    expected_not_contains: Optional[List[str]] = Field(
+        None, description="Substrings NOT expected"
+    )
+    tags: Optional[List[str]] = Field(
+        default_factory=list, description="Tags for filtering"
+    )
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 class ClientVariant(BaseModel):
     """A client configuration variant for the experiment."""
+
     cliente_id: str = Field(..., description="UUID of the ClienteVizu")
     name: str = Field(..., description="Human-readable name for this variant")
     description: Optional[str] = None
-    enabled_tools: Optional[List[str]] = Field(None, description="Tools to test (None = all enabled)")
+    enabled_tools: Optional[List[str]] = Field(
+        None, description="Tools to test (None = all enabled)"
+    )
 
 
 class HitlRoutingConfig(BaseModel):
     """Configuration for HITL routing during experiment."""
+
     enabled: bool = Field(True, description="Enable HITL routing")
-    confidence_threshold: float = Field(0.7, description="Below this confidence -> HITL")
+    confidence_threshold: float = Field(
+        0.7, description="Below this confidence -> HITL"
+    )
     sample_rate: float = Field(0.1, description="Random sample rate for HITL")
     always_review_tools: List[str] = Field(
         default_factory=lambda: ["executar_sql_agent"],
-        description="Always review when these tools are called"
+        description="Always review when these tools are called",
     )
-    always_review_first_n: int = Field(3, description="Always review first N cases per client")
+    always_review_first_n: int = Field(
+        3, description="Always review first N cases per client"
+    )
 
 
 class LangfuseConfig(BaseModel):
     """Configuration for Langfuse integration."""
+
     enabled: bool = Field(True)
     session_prefix: str = Field("exp-", description="Prefix for session IDs")
     tags: List[str] = Field(default_factory=lambda: ["experiment"])
     create_dataset: bool = Field(True, description="Create dataset from results")
-    dataset_name: Optional[str] = Field(None, description="Dataset name (auto-generated if None)")
+    dataset_name: Optional[str] = Field(
+        None, description="Dataset name (auto-generated if None)"
+    )
 
 
 class ExperimentManifest(BaseModel):
@@ -110,6 +133,7 @@ class ExperimentManifest(BaseModel):
     This is the input document that defines what experiment to run.
     Can be stored as YAML/JSON and versioned.
     """
+
     name: str = Field(..., description="Experiment name")
     version: str = Field("1.0.0", description="Manifest version")
     description: Optional[str] = None
@@ -118,15 +142,16 @@ class ExperimentManifest(BaseModel):
     api_url: str = Field("http://localhost:8003", description="Atendente API URL")
 
     # Client variants to test
-    clients: List[ClientVariant] = Field(..., description="Client configurations to test")
+    clients: List[ClientVariant] = Field(
+        ..., description="Client configurations to test"
+    )
 
     # Test cases
     cases: List[TestCaseDefinition] = Field(..., description="Test cases to run")
 
     # Optional: Cases per client (different questions per client)
     client_specific_cases: Optional[Dict[str, List[TestCaseDefinition]]] = Field(
-        None,
-        description="Client-specific test cases (keyed by cliente_id)"
+        None, description="Client-specific test cases (keyed by cliente_id)"
     )
 
     # Execution config
@@ -157,6 +182,7 @@ class ExperimentRun(SQLModel, table=True):
 
     Links to the manifest used and tracks overall status.
     """
+
     __tablename__ = "experiment_run"
 
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
@@ -167,7 +193,7 @@ class ExperimentRun(SQLModel, table=True):
     manifest_json: Dict[str, Any] = SQLField(sa_column=Column(JSON))
 
     # Execution info
-    status: ExperimentStatus = SQLField(default=ExperimentStatus.PENDING)
+    status: str = SQLField(default=ExperimentStatus.PENDING.value)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
@@ -201,6 +227,7 @@ class ExperimentCase(SQLModel, table=True):
 
     Links to HITL review if routed for human review.
     """
+
     __tablename__ = "experiment_case"
 
     id: uuid.UUID = SQLField(default_factory=uuid.uuid4, primary_key=True)
@@ -226,8 +253,8 @@ class ExperimentCase(SQLModel, table=True):
     model_used: Optional[str] = None
 
     # Classification
-    outcome: CaseOutcome = SQLField(default=CaseOutcome.NEEDS_REVIEW)
-    classification: Optional[ClassificationResult] = None
+    outcome: str = SQLField(default=CaseOutcome.NEEDS_REVIEW.value)
+    classification: Optional[str] = None
     confidence_score: Optional[float] = None
 
     # Assertions
@@ -236,8 +263,7 @@ class ExperimentCase(SQLModel, table=True):
 
     # HITL link
     hitl_review_id: Optional[uuid.UUID] = SQLField(
-        foreign_key="hitl_review.id",
-        nullable=True
+        foreign_key="hitl_review.id", nullable=True
     )
     hitl_routed_reason: Optional[str] = None
 
@@ -263,6 +289,7 @@ class ExperimentCase(SQLModel, table=True):
 
 class ExperimentRunSummary(BaseModel):
     """Summary of an experiment run for display."""
+
     id: str
     name: str
     version: str
@@ -277,6 +304,7 @@ class ExperimentRunSummary(BaseModel):
 
 class ExperimentProgress(BaseModel):
     """Real-time progress of a running experiment."""
+
     run_id: str
     status: ExperimentStatus
     total: int

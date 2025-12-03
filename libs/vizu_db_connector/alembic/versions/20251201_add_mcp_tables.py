@@ -7,11 +7,12 @@ Add tables for MCP Resources and Prompts support:
 - prompt_template: Versioned prompts (global and per-client)
 - knowledge_base_config: Knowledge base configurations per client
 """
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision = '20251201_add_mcp_tables'
-down_revision = '20251130_add_rls_security'
+revision = "20251201_add_mcp_tables"
+down_revision = "20251130_add_rls_security"
 branch_labels = None
 depends_on = None
 
@@ -50,7 +51,7 @@ def upgrade() -> None:
         CONSTRAINT uq_prompt_name_version_client UNIQUE (name, version, cliente_vizu_id)
     );
     """)
-    
+
     # Indexes for prompt_template
     op.execute("""
     CREATE INDEX IF NOT EXISTS ix_prompt_template_name ON prompt_template(name);
@@ -101,7 +102,7 @@ def upgrade() -> None:
         updated_at TIMESTAMP NOT NULL DEFAULT now()
     );
     """)
-    
+
     # Indexes for knowledge_base_config
     op.execute("""
     CREATE INDEX IF NOT EXISTS ix_kb_config_cliente ON knowledge_base_config(cliente_vizu_id);

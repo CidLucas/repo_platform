@@ -20,10 +20,12 @@ logger = logging.getLogger(__name__)
 
 # --- Funções de Fábrica (Injeção de Dependência) ---
 
+
 @lru_cache
 def get_gcp_storage_client() -> storage.Client:
     logger.info("Inicializando cliente GCS...")
     return storage.Client()
+
 
 @lru_cache
 def get_routing_service() -> RoutingService:
@@ -31,9 +33,13 @@ def get_routing_service() -> RoutingService:
     logger.info("Inicializando RoutingService...")
     # parsers = { ... }
     # return RoutingService(parsers=parsers)
-    return RoutingService() # <-- Simplificado, assumindo que routing_service lida com isso
+    return (
+        RoutingService()
+    )  # <-- Simplificado, assumindo que routing_service lida com isso
+
 
 # --- INÍCIO DAS NOVAS FÁBRICAS ---
+
 
 @lru_cache
 def get_vizu_embedding_model() -> Embeddings:
@@ -44,17 +50,18 @@ def get_vizu_embedding_model() -> Embeddings:
     logger.info("Inicializando cliente de Embedding (VizuEmbeddingAPIClient)...")
     return get_embedding_model()
 
+
 @lru_cache
-def get_vizu_qdrant_client(settings: Settings = Depends(get_settings)) -> VizuQdrantClient:
+def get_vizu_qdrant_client(
+    settings: Settings = Depends(get_settings),
+) -> VizuQdrantClient:
     """
     Cria uma instância singleton do nosso cliente Qdrant.
     Usa as settings do worker para saber onde se conectar.
     """
     logger.info(f"Inicializando cliente Qdrant (Host: {settings.QDRANT_HOST})...")
-    return VizuQdrantClient(
-        host=settings.QDRANT_HOST,
-        port=settings.QDRANT_PORT
-    )
+    return VizuQdrantClient(host=settings.QDRANT_HOST, port=settings.QDRANT_PORT)
+
 
 # --- FIM DAS NOVAS FÁBRICAS ---
 
@@ -66,7 +73,7 @@ def get_processing_service(
     settings: Settings = Depends(get_settings),
     # --- INÍCIO DAS ADIÇÕES ---
     embedding_model: Embeddings = Depends(get_vizu_embedding_model),
-    qdrant_client: VizuQdrantClient = Depends(get_vizu_qdrant_client)
+    qdrant_client: VizuQdrantClient = Depends(get_vizu_qdrant_client),
     # --- FIM DAS ADIÇÕES ---
 ) -> ProcessingService:
     """
@@ -80,6 +87,6 @@ def get_processing_service(
         settings=settings,
         # --- INÍCIO DAS ADIÇÕES ---
         embedding_model=embedding_model,
-        qdrant_client=qdrant_client
+        qdrant_client=qdrant_client,
         # --- FIM DAS ADIÇÕES ---
     )

@@ -1,6 +1,5 @@
-import asyncio
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 from fastapi import FastAPI
@@ -29,7 +28,16 @@ class FakeContext:
         self.saved_config = None
         self.saved_tokens = None
 
-    async def save_integration_config(self, cliente_vizu_id, provider, config_type, client_id, client_secret, redirect_uri, scopes):
+    async def save_integration_config(
+        self,
+        cliente_vizu_id,
+        provider,
+        config_type,
+        client_id,
+        client_secret,
+        redirect_uri,
+        scopes,
+    ):
         self.saved_config = {
             "cliente_vizu_id": cliente_vizu_id,
             "provider": provider,
@@ -44,7 +52,17 @@ class FakeContext:
     async def get_integration_config(self, cliente_vizu_id, provider):
         return self.saved_config
 
-    async def save_integration_tokens(self, cliente_vizu_id, provider, access_token, refresh_token, token_type, expires_at, scopes, metadata):
+    async def save_integration_tokens(
+        self,
+        cliente_vizu_id,
+        provider,
+        access_token,
+        refresh_token,
+        token_type,
+        expires_at,
+        scopes,
+        metadata,
+    ):
         self.saved_tokens = {
             "access_token_encrypted": f"enc:{access_token}",
             "refresh_token_encrypted": f"enc:{refresh_token}",
@@ -55,7 +73,9 @@ class FakeContext:
         }
         return self.saved_tokens
 
-    async def get_integration_tokens(self, cliente_vizu_id, provider, auto_refresh=True):
+    async def get_integration_tokens(
+        self, cliente_vizu_id, provider, auto_refresh=True
+    ):
         if not self.saved_tokens:
             return None
 
@@ -71,8 +91,12 @@ class FakeContext:
 
             def get_decrypted_tokens(self):
                 return {
-                    "access_token": self._row.get("access_token_encrypted").replace("enc:", ""),
-                    "refresh_token": self._row.get("refresh_token_encrypted").replace("enc:", ""),
+                    "access_token": self._row.get("access_token_encrypted").replace(
+                        "enc:", ""
+                    ),
+                    "refresh_token": self._row.get("refresh_token_encrypted").replace(
+                        "enc:", ""
+                    ),
                     "token_type": self._row.get("token_type"),
                     "expires_at": self._row.get("expires_at"),
                     "scopes": self._row.get("scopes"),
@@ -110,20 +134,39 @@ def app(monkeypatch):
         return f"https://auth.example/?state={state}"
 
     async def fake_exchange_code(self, config, code):
-        return type("T", (), {"access_token": "access_mock", "refresh_token": "refresh_mock", "expires_in": 3600, "token_type": "Bearer", "scope": "s1 s2"})()
+        return type(
+            "T",
+            (),
+            {
+                "access_token": "access_mock",
+                "refresh_token": "refresh_mock",
+                "expires_in": 3600,
+                "token_type": "Bearer",
+                "scope": "s1 s2",
+            },
+        )()
 
-    monkeypatch.setattr(OAuthManager, "get_authorization_url", fake_get_authorization_url)
+    monkeypatch.setattr(
+        OAuthManager, "get_authorization_url", fake_get_authorization_url
+    )
     monkeypatch.setattr(OAuthManager, "exchange_code", fake_exchange_code)
 
     # Provide minimal settings used by the router
     from types import SimpleNamespace
-    monkeypatch.setattr(integrations_router, "get_settings", lambda: SimpleNamespace(BASE_URL="http://test", FRONTEND_URL="http://frontend"))
+
+    monkeypatch.setattr(
+        integrations_router,
+        "get_settings",
+        lambda: SimpleNamespace(BASE_URL="http://test", FRONTEND_URL="http://frontend"),
+    )
 
     app = FastAPI()
     app.include_router(integrations_router.router)
 
     # Override context and auth dependencies on the app so Depends() picks them up
-    from tool_pool_api.server.dependencies import get_context_service as _get_context_service
+    from tool_pool_api.server.dependencies import (
+        get_context_service as _get_context_service,
+    )
 
     async def _fake_auth_result(request=None, ctx_service=None, x_api_key=None):
         return FakeAuthResult(cliente_vizu_id=uuid.uuid4())
@@ -140,7 +183,10 @@ def client(app):
 
 def test_configure_and_status(client):
     # Configure integration via JSON body (preferred)
-    resp = client.post("/integrations/google/config", json={"client_id": "cid", "client_secret": "csecret"})
+    resp = client.post(
+        "/integrations/google/config",
+        json={"client_id": "cid", "client_secret": "csecret"},
+    )
     assert resp.status_code == 200
     body = resp.json()
     assert body["status"] == "configured"
@@ -148,7 +194,10 @@ def test_configure_and_status(client):
 
 def test_initiate_and_callback_flow(client):
     # Ensure integration is configured first (use JSON body)
-    client.post("/integrations/google/config", json={"client_id": "cid", "client_secret": "csecret"})
+    client.post(
+        "/integrations/google/config",
+        json={"client_id": "cid", "client_secret": "csecret"},
+    )
 
     # Initiate auth
     resp = client.post("/integrations/google/auth/initiate")
@@ -166,6 +215,8 @@ def test_initiate_and_callback_flow(client):
 
 def test_query_param_compatibility(client):
     # Legacy clients may still POST as query params; ensure we still accept that
-    resp = client.post("/integrations/google/config?client_id=qcid&client_secret=qcsecret")
+    resp = client.post(
+        "/integrations/google/config?client_id=qcid&client_secret=qcsecret"
+    )
     assert resp.status_code == 200
     assert resp.json().get("status") == "configured"

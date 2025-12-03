@@ -7,6 +7,7 @@ from file_processing_worker.parsers.csv_parser import CSVParser
 
 logger = logging.getLogger(__name__)
 
+
 class RoutingService:
     """
     Serviço responsável por selecionar o 'parser' apropriado
@@ -44,11 +45,15 @@ class RoutingService:
         parser_class = self._parser_map.get(content_type)
 
         if parser_class:
-            logger.info(f"Parser encontrado para o content_type '{content_type}': {parser_class.__name__}")
-            return parser_class() # Retorna uma *nova instância* do parser
+            logger.info(
+                f"Parser encontrado para o content_type '{content_type}': {parser_class.__name__}"
+            )
+            return parser_class()  # Retorna uma *nova instância* do parser
 
         # (Lógica futura: poderíamos tentar correspondência parcial,
         # ex: 'text/plain' poderia ser mapeado para um 'TextParser')
 
-        logger.warning(f"Nenhum parser encontrado para o content_type: '{content_type}'")
+        logger.warning(
+            f"Nenhum parser encontrado para o content_type: '{content_type}'"
+        )
         return None

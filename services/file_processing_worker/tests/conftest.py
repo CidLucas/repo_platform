@@ -11,13 +11,14 @@ from file_processing_worker.core.worker import get_gcp_storage_client
 
 # --- Fixture 1: Configurações de Teste ---
 
+
 @pytest.fixture
 def settings(monkeypatch):
     """
     Fornece uma instância de Settings com valores de teste controlados.
     Desativa a telemetria (OTEL) para não poluir os testes.
     """
-    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "") # Desativa OTEL
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")  # Desativa OTEL
     monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
     monkeypatch.setenv("GCS_BUCKET_NAME", "test-bucket")
     monkeypatch.setenv("PUBSUB_SUBSCRIPTION_ID", "test-sub")
@@ -25,7 +26,9 @@ def settings(monkeypatch):
     get_settings.cache_clear()
     return get_settings()
 
+
 # --- Fixture 2: Mock do GCS (Testes Unitários e de Integração) ---
+
 
 @pytest.fixture
 def mock_storage_client(mocker: MagicMock) -> MagicMock:
@@ -52,7 +55,9 @@ def mock_storage_client(mocker: MagicMock) -> MagicMock:
 
     return mock_client
 
+
 # --- Fixture 3: Cliente HTTP (Testes de Integração) ---
+
 
 @pytest.fixture
 def client(

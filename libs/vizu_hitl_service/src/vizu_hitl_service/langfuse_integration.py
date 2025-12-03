@@ -248,7 +248,9 @@ class LangfuseDatasetManager:
                 trace_id=trace_id,
                 name="hitl_corrected",
                 value=1.0 if corrected else 0.0,
-                comment="Response was corrected by human" if corrected else "Original response approved",
+                comment="Response was corrected by human"
+                if corrected
+                else "Original response approved",
             )
 
             # Score: hitl_feedback_type
@@ -364,10 +366,12 @@ class LangfuseDatasetManager:
                     stats["skipped"] += 1
 
             except Exception as e:
-                stats["errors"].append({
-                    "review_id": str(review.id),
-                    "error": str(e),
-                })
+                stats["errors"].append(
+                    {
+                        "review_id": str(review.id),
+                        "error": str(e),
+                    }
+                )
 
         # Final flush
         client = self._get_client()

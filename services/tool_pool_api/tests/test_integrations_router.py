@@ -1,6 +1,5 @@
-import asyncio
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 from fastapi import FastAPI
@@ -29,7 +28,16 @@ class FakeContext:
         self.saved_config = None
         self.saved_tokens = None
 
-    async def save_integration_config(self, cliente_vizu_id, provider, config_type, client_id, client_secret, redirect_uri, scopes):
+    async def save_integration_config(
+        self,
+        cliente_vizu_id,
+        provider,
+        config_type,
+        client_id,
+        client_secret,
+        redirect_uri,
+        scopes,
+    ):
         self.saved_config = {
             "cliente_vizu_id": cliente_vizu_id,
             "provider": provider,
@@ -44,7 +52,17 @@ class FakeContext:
     async def get_integration_config(self, cliente_vizu_id, provider):
         return self.saved_config
 
-    async def save_integration_tokens(self, cliente_vizu_id, provider, access_token, refresh_token, token_type, expires_at, scopes, metadata):
+    async def save_integration_tokens(
+        self,
+        cliente_vizu_id,
+        provider,
+        access_token,
+        refresh_token,
+        token_type,
+        expires_at,
+        scopes,
+        metadata,
+    ):
         self.saved_tokens = {
             "access_token_encrypted": f"enc:{access_token}",
             "refresh_token_encrypted": f"enc:{refresh_token}",
@@ -55,7 +73,9 @@ class FakeContext:
         }
         return self.saved_tokens
 
-    async def get_integration_tokens(self, cliente_vizu_id, provider, auto_refresh=True):
+    async def get_integration_tokens(
+        self, cliente_vizu_id, provider, auto_refresh=True
+    ):
         if not self.saved_tokens:
             return None
 
@@ -71,8 +91,12 @@ class FakeContext:
 
             def get_decrypted_tokens(self):
                 return {
-                    "access_token": self._row.get("access_token_encrypted").replace("enc:", ""),
-                    "refresh_token": self._row.get("refresh_token_encrypted").replace("enc:", ""),
+                    "access_token": self._row.get("access_token_encrypted").replace(
+                        "enc:", ""
+                    ),
+                    "refresh_token": self._row.get("refresh_token_encrypted").replace(
+                        "enc:", ""
+                    ),
                     "token_type": self._row.get("token_type"),
                     "expires_at": self._row.get("expires_at"),
                     "scopes": self._row.get("scopes"),
@@ -117,7 +141,11 @@ def client(app, monkeypatch):
 
     # Patch the dependency used in the router
     monkeypatch.setattr(integrations_router, "get_context_service", lambda: fake_ctx)
-    monkeypatch.setattr(integrations_router, "_get_auth_result", lambda *a, **k: FakeAuthResult(cliente_vizu_id=uuid.uuid4()))
+    monkeypatch.setattr(
+        integrations_router,
+        "_get_auth_result",
+        lambda *a, **k: FakeAuthResult(cliente_vizu_id=uuid.uuid4()),
+    )
 
     # Patch OAuthManager methods to avoid external calls
     from vizu_auth.oauth2.oauth_manager import OAuthManager
@@ -126,9 +154,21 @@ def client(app, monkeypatch):
         return f"https://auth.example/?state={state}"
 
     async def fake_exchange_code(self, config, code):
-        return type("T", (), {"access_token": "access_mock", "refresh_token": "refresh_mock", "expires_in": 3600, "token_type": "Bearer", "scope": "s1 s2"})()
+        return type(
+            "T",
+            (),
+            {
+                "access_token": "access_mock",
+                "refresh_token": "refresh_mock",
+                "expires_in": 3600,
+                "token_type": "Bearer",
+                "scope": "s1 s2",
+            },
+        )()
 
-    monkeypatch.setattr(OAuthManager, "get_authorization_url", fake_get_authorization_url)
+    monkeypatch.setattr(
+        OAuthManager, "get_authorization_url", fake_get_authorization_url
+    )
     monkeypatch.setattr(OAuthManager, "exchange_code", fake_exchange_code)
 
     return TestClient(app)
@@ -136,7 +176,10 @@ def client(app, monkeypatch):
 
 def test_configure_and_status(client):
     # Configure integration
-    resp = client.post("/integrations/google/config", json={"client_id": "cid", "client_secret": "csecret"})
+    resp = client.post(
+        "/integrations/google/config",
+        json={"client_id": "cid", "client_secret": "csecret"},
+    )
     assert resp.status_code == 200
     body = resp.json()
     assert body["status"] == "configured"

@@ -3,6 +3,7 @@ import uuid
 from vizu_models.vizu_client_context import VizuClientContext
 from vizu_models.credencial_servico_externo import CredencialServicoExternoBase
 
+
 @pytest.fixture
 def mock_vizu_client_context() -> VizuClientContext:
     """Retorna uma instância de modelo Pydantic VizuClientContext."""
@@ -14,9 +15,5 @@ def mock_vizu_client_context() -> VizuClientContext:
         horario_funcionamento={},
         ferramenta_rag_habilitada=True,
         ferramenta_sql_habilitada=True,
-        credenciais=[
-            CredencialServicoExternoBase(
-                nome_servico="sql_service_mock"
-            )
-        ]
+        credenciais=[CredencialServicoExternoBase(nome_servico="sql_service_mock")],
     )

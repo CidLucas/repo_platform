@@ -14,14 +14,15 @@ from file_upload_api.api.router import (
 
 # --- Fixture 1: Configurações de Teste (Padrão Vizu: Agnóstico) ---
 
-@pytest.fixture # Removido o 'scope="session"'
-def settings(monkeypatch): # Corrigido para 'monkeypatch'
+
+@pytest.fixture  # Removido o 'scope="session"'
+def settings(monkeypatch):  # Corrigido para 'monkeypatch'
     """
     Fornece uma instância de Settings com valores de teste controlados.
     Desativa a telemetria (OTEL) para não poluir os testes.
     """
     # Garante que as variáveis de ambiente de teste sejam usadas
-    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "") # Desativa OTEL
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")  # Desativa OTEL
     monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
     monkeypatch.setenv("GCS_BUCKET_NAME", "test-bucket")
     monkeypatch.setenv("PUBSUB_TOPIC_ID", "test-topic")
@@ -30,7 +31,9 @@ def settings(monkeypatch): # Corrigido para 'monkeypatch'
     get_settings.cache_clear()
     return get_settings()
 
+
 # --- Fixtures 2 & 3: Mocks para Testes Unitários (Padrão Vizu: Testabilidade) ---
+
 
 @pytest.fixture
 def mock_storage_client(mocker: MagicMock) -> MagicMock:
@@ -52,6 +55,7 @@ def mock_storage_client(mocker: MagicMock) -> MagicMock:
 
     return mock_client
 
+
 @pytest.fixture
 def mock_publisher_client(mocker: MagicMock) -> MagicMock:
     """
@@ -65,16 +69,18 @@ def mock_publisher_client(mocker: MagicMock) -> MagicMock:
 
     # Configura o mock do 'publish' para retornar um "Future" mockado
     mock_future = mocker.MagicMock()
-    mock_future.result.return_value = "mock-message-id-123" # Simula o ID da msg
+    mock_future.result.return_value = "mock-message-id-123"  # Simula o ID da msg
     mock_client.publish.return_value = mock_future
 
     return mock_client
 
+
 # --- Fixture 4: Cliente HTTP para Testes de Integração ---
+
 
 @pytest.fixture
 def client(
-    settings: Settings, # Usa a fixture de settings
+    settings: Settings,  # Usa a fixture de settings
     mock_storage_client: MagicMock,
     mock_publisher_client: MagicMock,
 ):
@@ -95,7 +101,7 @@ def client(
 
     # 3. Cria o cliente de teste HTTP
     with TestClient(app) as test_client:
-        yield test_client # O teste executa aqui
+        yield test_client  # O teste executa aqui
 
     # 4. Limpa os overrides após o teste
     app.dependency_overrides.clear()

@@ -63,6 +63,13 @@ help:
 	@echo "   make chat            Quick chat test via curl"
 	@echo "   make batch-run       Run batch test (10 messages, generates Langfuse traces)"
 	@echo ""
+	@echo "🧪 EXPERIMENTS & EVALUATION"
+	@echo "   make experiment-run     Run experiment (MANIFEST=path/to/manifest.yaml)"
+	@echo "   make experiment-classify Classify experiment results (RUN_ID=uuid)"
+	@echo "   make experiment-export  Export experiment data (RUN_ID=uuid)"
+	@echo "   make experiment-sync    Sync manifest to Langfuse (MANIFEST=path/to/manifest.yaml)"
+	@echo "   make experiment-ui      Launch evaluation suite Streamlit UI"
+	@echo ""
 	@echo "🔧 DEVELOPMENT"
 	@echo "   make shell           Shell into SERVICE=<name> container"
 	@echo "   make fmt             Format code (ruff) - services + libs"
@@ -181,23 +188,23 @@ seed: seed-db seed-qdrant
 
 seed-db:
 	@echo "🌱 Seeding database..."
-	@docker exec -e PYTHONPATH=/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src:/app \
-		vizu_atendente_core python -m seeds.run_seeds --db
+	@docker exec -e PYTHONPATH=/app:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src:/app \
+		vizu_atendente_core python -m ferramentas.seeds.run_seeds --db
 
 seed-qdrant:
 	@echo "🌱 Seeding Qdrant..."
 	@docker exec \
-		-e PYTHONPATH=/app/libs/vizu_qdrant_client/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src:/app \
+		-e PYTHONPATH=/app:/app/libs/vizu_qdrant_client/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
 		-e QDRANT_URL=http://qdrant_db:6333 \
 		-e EMBEDDING_SERVICE_URL=http://embedding_service:11435 \
-		vizu_atendente_core python -m seeds.run_seeds --qdrant
+		vizu_atendente_core python -m ferramentas.seeds.run_seeds --qdrant
 
 seed-check:
 	@echo "📊 Checking seed state..."
 	@docker exec \
-		-e PYTHONPATH=/app/libs/vizu_qdrant_client/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src:/app \
+		-e PYTHONPATH=/app:/app/libs/vizu_qdrant_client/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
 		-e QDRANT_URL=http://qdrant_db:6333 \
-		vizu_atendente_core python -m seeds.run_seeds --check
+		vizu_atendente_core python -m ferramentas.seeds.run_seeds --check
 
 # =============================================================================
 # TESTING
@@ -238,6 +245,57 @@ chat:
 		-H "Content-Type: application/json" \
 		-H "X-API-KEY: $$API_KEY" \
 		-d '{"message": "Olá, quais são os serviços disponíveis?", "session_id": "test-'$$(date +%s)'"}' | python3 -m json.tool 2>/dev/null || echo "❌ Request failed"
+
+# =============================================================================
+# EXPERIMENTS & EVALUATION
+# =============================================================================
+
+.PHONY: experiment-run experiment-classify experiment-export experiment-sync experiment-ui
+
+experiment-run:
+	@echo "🧪 Running experiment..."
+	@if [ -z "$(MANIFEST)" ]; then \
+		echo "❌ Please specify MANIFEST=path/to/manifest.yaml"; \
+		echo "   Example: make experiment-run MANIFEST=ferramentas/evaluation_suite/workflows/atendente/example_manifest.yaml"; \
+		exit 1; \
+	fi && \
+	docker exec -e PYTHONPATH=/app:/app/libs/vizu_experiment_service/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src \
+		vizu_atendente_core python -m vizu_experiment_service.cli run "$(MANIFEST)" --legacy --created-by "$$(whoami)"
+
+experiment-classify:
+	@echo "📊 Classifying experiment results..."
+	@if [ -z "$(RUN_ID)" ]; then \
+		echo "❌ Please specify RUN_ID=experiment-run-id"; \
+		echo "   Example: make experiment-classify RUN_ID=12345678-1234-1234-1234-123456789012"; \
+		exit 1; \
+	fi && \
+	docker exec -e PYTHONPATH=/app:/app/libs/vizu_experiment_service/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src \
+		vizu_atendente_core python -m vizu_experiment_service.cli classify "$(RUN_ID)"
+
+experiment-export:
+	@echo "📤 Exporting experiment data..."
+	@if [ -z "$(RUN_ID)" ]; then \
+		echo "❌ Please specify RUN_ID=experiment-run-id"; \
+		echo "   Example: make experiment-export RUN_ID=12345678-1234-1234-1234-123456789012"; \
+		exit 1; \
+	fi && \
+	docker exec -e PYTHONPATH=/app:/app/libs/vizu_experiment_service/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src \
+		vizu_atendente_core python -m vizu_experiment_service.cli export "$(RUN_ID)" --format jsonl
+
+experiment-sync:
+	@echo "🔄 Syncing manifest to Langfuse..."
+	@if [ -z "$(MANIFEST)" ]; then \
+		echo "❌ Please specify MANIFEST=path/to/manifest.yaml"; \
+		echo "   Example: make experiment-sync MANIFEST=ferramentas/evaluation_suite/workflows/atendente/example_manifest.yaml"; \
+		exit 1; \
+	fi && \
+	docker exec -e PYTHONPATH=/app:/app/libs/vizu_experiment_service/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src \
+		vizu_atendente_core python -m vizu_experiment_service.cli sync "$(MANIFEST)"
+
+experiment-ui:
+	@echo "🎨 Launching evaluation suite UI..."
+	@echo "📱 Opening Streamlit app at http://localhost:8501"
+	@docker compose up -d evaluation_suite
 
 # =============================================================================
 # DEVELOPMENT

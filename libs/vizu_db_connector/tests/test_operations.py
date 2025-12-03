@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from vizu_models import FonteDeDados, TipoFonte, ClienteVizu
 from vizu_models.cliente_vizu import TipoCliente, TierCliente
 
+
 def test_create_cliente_vizu(db_session: Session):
     """
     Testa a criação de uma nova entrada na tabela ClienteVizu.
@@ -13,7 +14,7 @@ def test_create_cliente_vizu(db_session: Session):
     novo_cliente = ClienteVizu(
         nome_empresa="Cliente Teste SA",
         tipo_cliente=TipoCliente.EXTERNO,
-        tier=TierCliente.ENTERPRISE
+        tier=TierCliente.ENTERPRISE,
     )
 
     # 2. Adiciona à sessão e commita (dentro da transação do teste)
@@ -22,7 +23,9 @@ def test_create_cliente_vizu(db_session: Session):
     db_session.refresh(novo_cliente)
 
     # 3. Busca o cliente no banco de dados para verificar
-    cliente_do_banco = db_session.query(ClienteVizu).filter_by(nome_empresa="Cliente Teste SA").one()
+    cliente_do_banco = (
+        db_session.query(ClienteVizu).filter_by(nome_empresa="Cliente Teste SA").one()
+    )
 
     # 4. Asserts: Verifica se os dados foram salvos corretamente
     assert cliente_do_banco is not None
@@ -33,13 +36,14 @@ def test_create_cliente_vizu(db_session: Session):
 
     def test_create_fonte_de_dados_for_cliente(db_session: Session):
         """
-    Testa a criação de uma FonteDeDados e seu relacionamento com ClienteVizu.
-    """
+        Testa a criação de uma FonteDeDados e seu relacionamento com ClienteVizu.
+        """
+
     # 1. Setup: Criar um cliente "pai" primeiro
     cliente_pai = ClienteVizu(
         nome_empresa="Empresa Fonte de Dados",
         tipo_cliente=TipoCliente.EXTERNO,
-        tier=TierCliente.SME
+        tier=TierCliente.SME,
     )
     db_session.add(cliente_pai)
     db_session.commit()
@@ -49,7 +53,7 @@ def test_create_cliente_vizu(db_session: Session):
     nova_fonte = FonteDeDados(
         cliente_vizu_id=cliente_pai.id,
         tipo_fonte=TipoFonte.URL,
-        caminho="https://vizu.ai/docs"
+        caminho="https://vizu.ai/docs",
     )
     db_session.add(nova_fonte)
     db_session.commit()

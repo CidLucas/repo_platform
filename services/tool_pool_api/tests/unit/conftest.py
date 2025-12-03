@@ -4,6 +4,7 @@ import pytest
 import uuid
 from unittest.mock import MagicMock
 
+
 @pytest.fixture
 def mock_mcp_context():
     """
@@ -13,6 +14,7 @@ def mock_mcp_context():
     então um mock padrão é suficiente.
     """
     return MagicMock()
+
 
 @pytest.fixture
 def mock_vizu_context():

@@ -32,6 +32,7 @@ PERGUNTA:
 RESPOSTA:
 """
 
+
 def _format_docs(docs):
     """Helper para formatar os documentos recuperados em uma string."""
     logger.debug(f"Formatando {len(docs) if docs else 0} documentos recuperados")
@@ -40,6 +41,7 @@ def _format_docs(docs):
     formatted = "\n\n---\n\n".join([d.page_content for d in docs])
     logger.debug(f"Contexto formatado (primeiros 500 chars): {formatted[:500]}...")
     return formatted
+
 
 def create_rag_runnable(
     contexto: VizuClientContext,
@@ -61,8 +63,10 @@ def create_rag_runnable(
 
     # Validação do LLM (obrigatório)
     if llm is None:
-        logger.error(f"LLM não fornecido para create_rag_runnable do cliente {contexto.id}. "
-                     "Utilize get_model() do vizu_llm_service para obter um LLM.")
+        logger.error(
+            f"LLM não fornecido para create_rag_runnable do cliente {contexto.id}. "
+            "Utilize get_model() do vizu_llm_service para obter um LLM."
+        )
         raise ValueError("llm é obrigatório para create_rag_runnable")
 
     if not contexto.ferramenta_rag_habilitada:
@@ -72,7 +76,9 @@ def create_rag_runnable(
     # Usa o collection_rag definido no contexto do cliente para garantir isolamento
     # Se não estiver definido, usa um fallback baseado no ID do cliente
     collection_name = contexto.collection_rag or str(contexto.id)
-    logger.info(f"Criando RAG runnable para cliente {contexto.id} com coleção: {collection_name}...")
+    logger.info(
+        f"Criando RAG runnable para cliente {contexto.id} com coleção: {collection_name}..."
+    )
 
     try:
         # --- 2. Configuração do Retriever ---
@@ -85,13 +91,13 @@ def create_rag_runnable(
 
         # Verifica se a coleção existe
         if not qdrant_client.collection_exists(collection_name):
-            logger.warning(f"Coleção '{collection_name}' não existe no Qdrant para cliente {contexto.id}")
+            logger.warning(
+                f"Coleção '{collection_name}' não existe no Qdrant para cliente {contexto.id}"
+            )
             # Ainda assim tenta criar o retriever (pode ser que seja criada depois)
 
         retriever = qdrant_client.get_langchain_retriever(
-            collection_name=collection_name,
-            embeddings=embedding_model,
-            search_k=4
+            collection_name=collection_name, embeddings=embedding_model, search_k=4
         )
 
         # --- 3. Criação da Cadeia (Runnable) ---
@@ -117,9 +123,7 @@ def create_rag_runnable(
 
         rag_chain = (
             # Adiciona o contexto recuperado mantendo a question original
-            RunnablePassthrough.assign(
-                context=RunnableLambda(retrieve_and_format)
-            )
+            RunnablePassthrough.assign(context=RunnableLambda(retrieve_and_format))
             | prompt
             | llm
             | StrOutputParser()

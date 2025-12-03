@@ -5,4 +5,5 @@ __all__ = [
     "ContextService",
     "get_context_service",
     "get_db_session",
-    "get_redis_service"]
+    "get_redis_service",
+]

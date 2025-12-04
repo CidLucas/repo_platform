@@ -106,6 +106,51 @@ async def run_experiment(
             return result
 
 
+async def run_workflow_experiment(
+    manifest_path: str,
+    created_by: str = None,
+):
+    """Run a workflow experiment from a YAML manifest file."""
+    from sqlmodel.ext.asyncio.session import AsyncSession
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from .config import settings
+    from .workflow_runner import WorkflowManifest, WorkflowExperimentRunner
+
+    # Load manifest first to validate
+    manifest = WorkflowManifest.from_yaml(manifest_path)
+    logger.info(f"Loaded workflow manifest: {manifest.name} v{manifest.version}")
+    logger.info(f"  Workflow: {manifest.workflow_path}")
+    logger.info(f"  Dataset: {manifest.conversation_csv}")
+
+    # Create async DB session
+    engine = create_async_engine(
+        settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
+        echo=False,
+    )
+
+    async with AsyncSession(engine) as session:
+        runner = WorkflowExperimentRunner(
+            db_session=session,
+            concurrent_limit=3,
+        )
+
+        run = await runner.run_from_manifest(manifest, created_by=created_by)
+
+        logger.info(f"\n{'='*50}")
+        logger.info("Workflow Experiment Completed")
+        logger.info(f"{'='*50}")
+        logger.info(f"Run ID: {run.id}")
+        logger.info(f"Status: {run.status}")
+        logger.info(f"Total cases: {run.total_cases}")
+        logger.info(f"Success: {run.success_cases}")
+        logger.info(f"Failures: {run.failure_cases}")
+        logger.info(f"Errors: {run.error_cases}")
+        logger.info(f"HITL routed: {run.hitl_routed_cases}")
+
+        return run
+
+
 async def sync_manifest(manifest_path: str):
     """Sync manifest to Langfuse Dataset without running experiment."""
     from .manifest import ManifestLoader
@@ -212,6 +257,11 @@ def main():
         help="Use legacy runner (httpx) instead of Langfuse SDK",
     )
 
+    # Workflow command (NEW)
+    workflow_parser = subparsers.add_parser("workflow", help="Run a LangGraph workflow experiment")
+    workflow_parser.add_argument("manifest", help="Path to workflow manifest YAML file")
+    workflow_parser.add_argument("--created-by", help="User running the experiment")
+
     # Sync command (new)
     sync_parser = subparsers.add_parser("sync", help="Sync manifest to Langfuse Dataset")
     sync_parser.add_argument("manifest", help="Path to manifest YAML file")
@@ -239,6 +289,14 @@ def main():
                 args.manifest,
                 args.created_by,
                 use_legacy=args.legacy,
+            )
+        )
+
+    elif args.command == "workflow":
+        asyncio.run(
+            run_workflow_experiment(
+                args.manifest,
+                args.created_by,
             )
         )
 

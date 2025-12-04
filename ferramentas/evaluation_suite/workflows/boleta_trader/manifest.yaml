@@ -1,0 +1,33 @@
+# Boleta Trader Workflow Experiment Manifest
+# Run with: make experiment-workflow MANIFEST=ferramentas/evaluation_suite/workflows/boleta_trader/manifest.yaml
+
+name: boleta_trader_extraction
+description: >
+  Evaluates the boleta trader workflow on WhatsApp trading conversations.
+  Tests the workflow's ability to detect trade triggers and extract
+  quote (cotação) and volume values from anonymized conversation data.
+
+# Workflow configuration
+workflow_path: ferramentas.evaluation_suite.workflows.boleta_trader.workflow
+workflow_function: get_workflow
+
+# Data configuration
+data_file: ferramentas/evaluation_suite/workflows/boleta_trader/data/amostra_teste_anonimizada.csv
+message_column: message
+conversation_group_column: test_id
+sender_column: nome_fantasia
+
+# Evaluator configuration (optional)
+evaluator_path: ferramentas.evaluation_suite.workflows.boleta_trader.evaluator
+evaluator_function: summarize_for_manual_review
+
+# LLM Configuration (Ollama)
+ollama_base_url: http://localhost:11434
+ollama_model: llama3.2
+
+# Experiment metadata
+tags:
+  - boleta
+  - trading
+  - whatsapp
+  - extraction

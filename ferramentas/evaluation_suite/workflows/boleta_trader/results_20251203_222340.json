@@ -1,0 +1,65 @@
+{
+  "manifest_name": "boleta_trader_extraction",
+  "manifest_version": "1.0.0",
+  "run_id": "ea954692-b273-4cc3-8d4d-6c2854a5da64",
+  "started_at": "2025-12-03T22:11:41.454116",
+  "completed_at": "2025-12-03T22:23:40.149306",
+  "total_cases": 3,
+  "success_cases": 3,
+  "failure_cases": 0,
+  "error_cases": 0,
+  "results": [
+    {
+      "test_id": "trigger_4_1004",
+      "trigger_message": "fecha",
+      "sender": "interlocutor_4",
+      "success": true,
+      "outcome": "success",
+      "duration_ms": 184635,
+      "boleta_formatada": "\u2705 **CONFIRMATION TICKET** \u2705\n*(Triggered by: Ana)*\n**Quote:** R$ 5.4930\n**Volume:** $130,000.00",
+      "dados_extraidos": null,
+      "dados_validacao": null,
+      "evaluation": {
+        "boleta_gerada": true,
+        "detalhes": "Triggered by: Ana, Quote: 5.4930, Volume: 130,000.00"
+      },
+      "error": null,
+      "langfuse_trace_id": null
+    },
+    {
+      "test_id": "trigger_17_1079",
+      "trigger_message": "fecha",
+      "sender": "interlocutor_4",
+      "success": true,
+      "outcome": "success",
+      "duration_ms": 411512,
+      "boleta_formatada": "\u2705 **CONFIRMATION TICKET** \u2705\n*(Triggered by: Ana)*\n**Quote:** R$ 5.4930\n**Volume:** $130,000.00",
+      "dados_extraidos": null,
+      "dados_validacao": null,
+      "evaluation": {
+        "boleta_gerada": true,
+        "detalhes": "Triggered by: Ana, Quote: 5.4930, Volume: 130,000.00"
+      },
+      "error": null,
+      "langfuse_trace_id": null
+    },
+    {
+      "test_id": "trigger_23_1085",
+      "trigger_message": "fecha",
+      "sender": "interlocutor_4",
+      "success": true,
+      "outcome": "success",
+      "duration_ms": 115874,
+      "boleta_formatada": "\u2705 **CONFIRMATION TICKET** \u2705\n*(Triggered by: Ana)*\n**Quote:** R$ 5.4930\n**Volume:** $100,000.00",
+      "dados_extraidos": null,
+      "dados_validacao": null,
+      "evaluation": {
+        "boleta_gerada": true,
+        "detalhes": "Triggered by: Ana, Quote: 5.4930, Volume: 100,000.00"
+      },
+      "error": null,
+      "langfuse_trace_id": null
+    }
+  ],
+  "db_run_id": null
+}

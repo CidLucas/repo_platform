@@ -65,6 +65,7 @@ help:
 	@echo ""
 	@echo "🧪 EXPERIMENTS & EVALUATION"
 	@echo "   make experiment-run     Run experiment (MANIFEST=path/to/manifest.yaml)"
+	@echo "   make experiment-workflow Run LangGraph workflow experiment (MANIFEST=path/to/manifest.yaml)"
 	@echo "   make experiment-classify Classify experiment results (RUN_ID=uuid)"
 	@echo "   make experiment-export  Export experiment data (RUN_ID=uuid)"
 	@echo "   make experiment-sync    Sync manifest to Langfuse (MANIFEST=path/to/manifest.yaml)"
@@ -250,7 +251,7 @@ chat:
 # EXPERIMENTS & EVALUATION
 # =============================================================================
 
-.PHONY: experiment-run experiment-classify experiment-export experiment-sync experiment-ui
+.PHONY: experiment-run experiment-classify experiment-export experiment-sync experiment-ui experiment-workflow
 
 experiment-run:
 	@echo "🧪 Running experiment..."
@@ -261,6 +262,89 @@ experiment-run:
 	fi && \
 	docker exec -e PYTHONPATH=/app:/app/libs/vizu_experiment_service/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src \
 		vizu_atendente_core python -m vizu_experiment_service.cli run "$(MANIFEST)" --legacy --created-by "$$(whoami)"
+
+experiment-workflow:
+	@echo "🔄 Running LangGraph workflow experiment..."
+	@if [ -z "$(MANIFEST)" ]; then \
+		echo "❌ Please specify MANIFEST=path/to/manifest.yaml"; \
+		echo "   Example: make experiment-workflow MANIFEST=ferramentas/evaluation_suite/workflows/boleta_trader/manifest.yaml"; \
+		exit 1; \
+	fi && \
+	docker exec -e PYTHONPATH=/app:/app/libs/vizu_experiment_service/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src:/app/ferramentas/evaluation_suite/workflows \
+		-w /app \
+		vizu_atendente_core python -m vizu_experiment_service.cli workflow "$(MANIFEST)" --created-by "$$(whoami)"
+
+# Run workflow experiment with JSON output (default - always saves results file)
+experiment-workflow-local:
+	@echo "🔬 Running workflow experiment..."
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+		-w /app \
+		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		ferramentas/evaluation_suite/workflows/boleta_trader/manifest.yaml
+
+# Run workflow experiment with database storage
+experiment-workflow-db:
+	@echo "🔬 Running workflow experiment with DB storage..."
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+		-w /app \
+		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		ferramentas/evaluation_suite/workflows/boleta_trader/manifest.yaml --db
+
+# Run workflow experiment with Langfuse tracing
+experiment-workflow-langfuse:
+	@echo "🔬 Running workflow experiment with Langfuse tracing..."
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+		-w /app \
+		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		ferramentas/evaluation_suite/workflows/boleta_trader/manifest.yaml --langfuse
+
+# Run workflow experiment with both DB and Langfuse
+experiment-workflow-full:
+	@echo "🔬 Running workflow experiment with DB + Langfuse..."
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+		-w /app \
+		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		ferramentas/evaluation_suite/workflows/boleta_trader/manifest.yaml --db --langfuse
+
+# ============================================================================
+# V2 Workflow Experiments (vizu_llm_service - multi-provider support)
+# ============================================================================
+
+# Run workflow v2 with local Ollama (default)
+experiment-workflow-v2:
+	@echo "🔬 Running workflow v2 (vizu_llm_service)..."
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_llm_service/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+		-w /app \
+		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		ferramentas/evaluation_suite/workflows/boleta_trader/manifest_v2.yaml
+
+# Run workflow v2 with Ollama Cloud
+experiment-workflow-v2-cloud:
+	@echo "🔬 Running workflow v2 with Ollama Cloud..."
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_llm_service/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+		-e LLM_PROVIDER=ollama_cloud \
+		-w /app \
+		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		ferramentas/evaluation_suite/workflows/boleta_trader/manifest_v2.yaml
+
+# Run workflow v2 with MCP tools enabled
+experiment-workflow-v2-mcp:
+	@echo "🔬 Running workflow v2 with MCP tools..."
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_llm_service/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+		-e ENABLE_MCP_TOOLS=true \
+		-w /app \
+		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		ferramentas/evaluation_suite/workflows/boleta_trader/manifest_v2.yaml
+
+# Run workflow v2 with full options (Langfuse + DB + custom provider)
+# Usage: make experiment-workflow-v2-full LLM_PROVIDER=openai
+experiment-workflow-v2-full:
+	@echo "🔬 Running workflow v2 with full options..."
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_llm_service/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+		-e LLM_PROVIDER=$(or $(LLM_PROVIDER),ollama) \
+		-w /app \
+		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		ferramentas/evaluation_suite/workflows/boleta_trader/manifest_v2.yaml --db --langfuse
 
 experiment-classify:
 	@echo "📊 Classifying experiment results..."

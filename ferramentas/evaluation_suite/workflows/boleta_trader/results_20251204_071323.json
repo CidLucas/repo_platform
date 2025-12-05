@@ -1,0 +1,51 @@
+{
+  "manifest_name": "boleta_trader_extraction_v2",
+  "manifest_version": "2.0.0",
+  "run_id": "b216c7dd-ec90-4a25-81a0-b97bb2cf8ffb",
+  "started_at": "2025-12-04T07:13:00.631806",
+  "completed_at": "2025-12-04T07:13:23.620407",
+  "total_cases": 3,
+  "success_cases": 3,
+  "failure_cases": 0,
+  "error_cases": 0,
+  "results": [
+    {
+      "test_id": "trigger_4_1004",
+      "query": "fecha",
+      "sender": "interlocutor_4",
+      "success": true,
+      "outcome": "success",
+      "duration_ms": 4826,
+      "description": null,
+      "extracted": null,
+      "boleta_formatada": "\u2705 **CONFIRMATION TICKET** \u2705\n*(Triggered by: Ana)*\n**Quote:** R$ 5.4930\n**Volume:** $130,000.00",
+      "error": null
+    },
+    {
+      "test_id": "trigger_17_1079",
+      "query": "fecha",
+      "sender": "interlocutor_4",
+      "success": true,
+      "outcome": "success",
+      "duration_ms": 8044,
+      "description": null,
+      "extracted": null,
+      "boleta_formatada": "\u2705 **CONFIRMATION TICKET** \u2705\n*(Triggered by: Ana)*\n**Quote:** R$ 5.4820\n**Volume:** $100,000.00",
+      "error": null
+    },
+    {
+      "test_id": "trigger_23_1085",
+      "query": "fecha",
+      "sender": "interlocutor_4",
+      "success": true,
+      "outcome": "success",
+      "duration_ms": 10051,
+      "description": null,
+      "extracted": null,
+      "boleta_formatada": "\u2705 **CONFIRMATION TICKET** \u2705\n*(Triggered by: Ana)*\n**Quote:** R$ 5.4810\n**Volume:** $100,000.00",
+      "error": null
+    }
+  ],
+  "db_run_id": null,
+  "csv_path": "ferramentas/evaluation_suite/workflows/boleta_trader/results_20251204_071323.csv"
+}

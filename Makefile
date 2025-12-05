@@ -66,10 +66,15 @@ help:
 	@echo "🧪 EXPERIMENTS & EVALUATION"
 	@echo "   make experiment-run     Run experiment (MANIFEST=path/to/manifest.yaml)"
 	@echo "   make experiment-workflow Run LangGraph workflow experiment (MANIFEST=path/to/manifest.yaml)"
+	@echo "   make experiment-workflow-v2-export  Run with CSV export"
 	@echo "   make experiment-classify Classify experiment results (RUN_ID=uuid)"
 	@echo "   make experiment-export  Export experiment data (RUN_ID=uuid)"
 	@echo "   make experiment-sync    Sync manifest to Langfuse (MANIFEST=path/to/manifest.yaml)"
 	@echo "   make experiment-ui      Launch evaluation suite Streamlit UI"
+	@echo ""
+	@echo "📊 DATA LOADERS"
+	@echo "   make data-load-whatsapp Load WhatsApp chat (INPUT=file.txt OUTPUT=out.csv)"
+	@echo "   make data-anonymize     Anonymize CSV with Presidio (INPUT=raw.csv OUTPUT=clean.csv)"
 	@echo ""
 	@echo "🔧 DEVELOPMENT"
 	@echo "   make shell           Shell into SERVICE=<name> container"
@@ -346,6 +351,15 @@ experiment-workflow-v2-full:
 		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
 		ferramentas/evaluation_suite/workflows/boleta_trader/manifest_v2.yaml --db --langfuse
 
+# Export results to CSV with query and node outputs
+experiment-workflow-v2-export:
+	@echo "🔬 Running workflow v2 with CSV export..."
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_llm_service/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+		-e LLM_PROVIDER=$(or $(LLM_PROVIDER),ollama_cloud) \
+		-w /app \
+		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		ferramentas/evaluation_suite/workflows/boleta_trader/manifest_v2.yaml --export-csv
+
 experiment-classify:
 	@echo "📊 Classifying experiment results..."
 	@if [ -z "$(RUN_ID)" ]; then \
@@ -380,6 +394,42 @@ experiment-ui:
 	@echo "🎨 Launching evaluation suite UI..."
 	@echo "📱 Opening Streamlit app at http://localhost:8501"
 	@docker compose up -d evaluation_suite
+
+# =============================================================================
+# DATA LOADERS
+# =============================================================================
+
+.PHONY: data-load-whatsapp data-anonymize
+
+# Load WhatsApp chat export to CSV (with anonymization)
+# Usage: make data-load-whatsapp INPUT=path/to/chat.txt OUTPUT=path/to/output.csv
+data-load-whatsapp:
+	@echo "📱 Loading WhatsApp chat export..."
+	@if [ -z "$(INPUT)" ]; then \
+		echo "❌ Please specify INPUT=path/to/chat.txt"; \
+		echo "   Example: make data-load-whatsapp INPUT=ferramentas/evaluation_suite/workflows/boleta_trader/data/raw/chat.txt"; \
+		exit 1; \
+	fi && \
+	docker exec -e PYTHONPATH=/app:/app/ferramentas/evaluation_suite/src \
+		-w /app \
+		vizu_atendente_core python -m evaluation_suite.data_loaders.whatsapp_loader \
+		"$(INPUT)" -o "$(or $(OUTPUT),ferramentas/evaluation_suite/workflows/boleta_trader/data/processed/whatsapp_anonymized.csv)" \
+		--add-test-id
+
+# Anonymize existing CSV (for CSVs not from WhatsApp)
+# Usage: make data-anonymize INPUT=path/to/raw.csv OUTPUT=path/to/anonymized.csv
+data-anonymize:
+	@echo "🔒 Anonymizing CSV..."
+	@if [ -z "$(INPUT)" ]; then \
+		echo "❌ Please specify INPUT=path/to/raw.csv"; \
+		echo "   Example: make data-anonymize INPUT=ferramentas/evaluation_suite/workflows/boleta_trader/data/raw/data.csv"; \
+		exit 1; \
+	fi && \
+	docker exec -e PYTHONPATH=/app:/app/ferramentas/evaluation_suite/src \
+		-w /app \
+		vizu_atendente_core python -m evaluation_suite.data_loaders.pii_anonymizer \
+		"$(INPUT)" -o "$(or $(OUTPUT),ferramentas/evaluation_suite/workflows/boleta_trader/data/processed/anonymized.csv)" \
+		--add-test-id
 
 # =============================================================================
 # DEVELOPMENT

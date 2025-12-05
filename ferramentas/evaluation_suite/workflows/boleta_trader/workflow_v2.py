@@ -404,6 +404,8 @@ def check_negotiation_node(state: TradingState) -> dict:
     chain = prompt | llm | parser
 
     try:
+        # Sleep to avoid rate limiting on LLM API
+        time.sleep(3)
         validacao_obj = chain.invoke({
             "contexto": contexto,
             "format_instructions": parser.get_format_instructions()
@@ -472,6 +474,8 @@ def extract_boleta_node(state: TradingState) -> dict:
     try:
         justificativa = state.get('dados_validacao', {}).get('justificativa', 'No justification provided.')
 
+        # Sleep to avoid rate limiting on LLM API
+        time.sleep(3)
         dados_obj = chain.invoke({
             "contexto": state['contexto_relevante'],
             "justificativa_validacao": justificativa,

@@ -1,0 +1,81 @@
+{
+  "manifest_name": "boleta_trader_whatsapp_test",
+  "manifest_version": "1.0.0",
+  "run_id": "7f0a52c1-b8bc-4def-ad78-5da5fd73f61e",
+  "started_at": "2025-12-04T07:23:44.826200",
+  "completed_at": "2025-12-04T07:24:24.476547",
+  "total_cases": 5,
+  "success_cases": 2,
+  "failure_cases": 3,
+  "error_cases": 0,
+  "results": [
+    {
+      "test_id": "trigger_64_1064",
+      "query": "Ana: Bom dia pessoal, est\u00e3o cotando hoje?\nRose: Bom dia\nRose: estamos sim, qual seria o volume ?\nAna: Pode passar uma ref?\nRose: 5.6130\nRose: 6140\nAna: Opa, j\u00e1 retorno.\nRose: off\nAna: Obrigado.\nRose: ta ok\nRose: Por nada\nRose: qualquer coisa estou \u00e0 disposi\u00e7\u00e3o\nAna: Qual o pix de voc\u00eas?\nRose: <PIX>\nAna: Qual \u00e9 o limite de trava e a trava pode ser paga at\u00e9 que horas?",
+      "sender": "interlocutor_4",
+      "success": false,
+      "outcome": "failure",
+      "duration_ms": 2639,
+      "description": "The conversation ends with a question about payment deadlines and no explicit agreement on a price or volume. No confirmation such as 'ok', 'fecha', or a closed deal is present, so the trade was not completed.",
+      "extracted": null,
+      "boleta_formatada": null,
+      "error": null
+    },
+    {
+      "test_id": "trigger_69_1069",
+      "query": "Rose: 6140\nAna: Opa, j\u00e1 retorno.\nRose: off\nAna: Obrigado.\nRose: ta ok\nRose: Por nada\nRose: qualquer coisa estou \u00e0 disposi\u00e7\u00e3o\nAna: Qual o pix de voc\u00eas?\nRose: <PIX>\nAna: Qual \u00e9 o limite de trava e a trava pode ser paga at\u00e9 que horas?\nPedro: O ideal seria pagar at\u00e9 16:30 mas quanto antes, melhor\nAna: Claro.\nPedro: N\u00e3o temos um limite pr\u00e9 definido\nPedro: Vai depender muito de como est\u00e1 o mercado tamb\u00e9m\nAna: Trava de 100k tranquilo?",
+      "sender": "interlocutor_4",
+      "success": false,
+      "outcome": "failure",
+      "duration_ms": 2942,
+      "description": "The conversation ends with Ana asking if a 100k lock is possible, but no price, volume, or confirmation (e.g., 'ok', 'fecha') was agreed upon. Therefore the trade was not completed.",
+      "extracted": null,
+      "boleta_formatada": null,
+      "error": null
+    },
+    {
+      "test_id": "trigger_99_1099",
+      "query": "Ana: Conseguem me cotar 200k usdt?\nRose: Bom dia <PHONE>\nRose: Consigo sim\nAna: Quanto?\nRose: 5870\nAna: 5.5870?\nRose: isso\nRose: vamos ?\nAna: 1s\nAna: Tem como cotar de novo? Deu uma caida\nRose: tem sim\nRose: 5856\nRose: <PHONE>\nAna: ok\nRose: fecha ?",
+      "sender": "interlocutor_7",
+      "success": false,
+      "outcome": "failure",
+      "duration_ms": 11624,
+      "description": "The conversation ends with Rose asking to close the trade ('fecha ?'), but Ana does not provide a confirmation or final agreement. The only response from Ana is an acknowledgment of the new quote ('ok'), which does not constitute a completed transaction. Therefore the trade was not concluded.",
+      "extracted": null,
+      "boleta_formatada": null,
+      "error": null
+    },
+    {
+      "test_id": "trigger_101_1101",
+      "query": "Rose: Consigo sim\nAna: Quanto?\nRose: 5870\nAna: 5.5870?\nRose: isso\nRose: vamos ?\nAna: 1s\nAna: Tem como cotar de novo? Deu uma caida\nRose: tem sim\nRose: 5856\nRose: <PHONE>\nAna: ok\nRose: fecha ?\nAna: 1s\nAna: fecha",
+      "sender": "interlocutor_4",
+      "success": true,
+      "outcome": "success",
+      "duration_ms": 12981,
+      "description": "Rose and Ana finalized a trade for 5,870 USD at a quote of 5.5856 (the shorthand 5856). After Rose offered the new price 5856, Ana accepted with \"ok\" and then confirmed the closure with \"fecha\", indicating the transaction was completed.",
+      "extracted": {
+        "valor_cotacao": 5.5856,
+        "valor_total": 5870.0
+      },
+      "boleta_formatada": "\u2705 **CONFIRMATION TICKET** \u2705\n*(Triggered by: Ana)*\n**Quote:** R$ 5.5856\n**Volume:** $5,870.00",
+      "error": null
+    },
+    {
+      "test_id": "trigger_103_1103",
+      "query": "Rose: 5870\nAna: 5.5870?\nRose: isso\nRose: vamos ?\nAna: 1s\nAna: Tem como cotar de novo? Deu uma caida\nRose: tem sim\nRose: 5856\nRose: <PHONE>\nAna: ok\nRose: fecha ?\nAna: 1s\nAna: fecha\nAna: Qual o pix de voc\u00eas?\nRose: fechado",
+      "sender": "interlocutor_7",
+      "success": true,
+      "outcome": "success",
+      "duration_ms": 9259,
+      "description": "A trade was finalized between Rose and Ana for 1.000 USD at a quoted rate of 5.5856 BRL/USD. The conversation ends with Rose confirming \"fechado\" after Ana said \"fecha\", indicating the deal was closed.",
+      "extracted": {
+        "valor_cotacao": 5.5856,
+        "valor_total": 1000.0
+      },
+      "boleta_formatada": "\u2705 **CONFIRMATION TICKET** \u2705\n*(Triggered by: Rose)*\n**Quote:** R$ 5.5856\n**Volume:** $1,000.00",
+      "error": null
+    }
+  ],
+  "db_run_id": null,
+  "csv_path": "ferramentas/evaluation_suite/workflows/boleta_trader/results_20251204_072424.csv"
+}

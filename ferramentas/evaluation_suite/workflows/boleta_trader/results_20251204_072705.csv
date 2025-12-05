@@ -1,0 +1,39 @@
+test_id,query,description,extracted,boleta_formatada,success,duration_ms,error
+trigger_4_1004,"Ana: 130k
+Ana: cotação pfvr?
+Rose: 4930
+Ana: fecha",A deal was closed between Ana and Rose for 130k USD at a quote of 4930 (which implies 5.4930).,"{""valor_cotacao"": 5.493, ""valor_total"": 130000.0}","✅ **CONFIRMATION TICKET** ✅
+*(Triggered by: Ana)*
+**Quote:** R$ 5.4930
+**Volume:** $130,000.00",True,5816,
+trigger_17_1079,"Ana: fecha
+Rose: BRL 714,090.00 // USDT 130.000
+Ana: Bom dia, mesa on?
+Pedro: bom dia
+Pedro: mesa on
+Ana: .
+Ana: 100k
+Ana: cotação
+Rose: 1s
+Rose: 4820
+Ana: ok
+Ana: fecha","Ana and Rose completed a trade of 100,000 USD at a quote of 5.4820 BRL/USD (Rose quoted 4820).","{""valor_cotacao"": 5.482, ""valor_total"": 100000.0}","✅ **CONFIRMATION TICKET** ✅
+*(Triggered by: Ana)*
+**Quote:** R$ 5.4820
+**Volume:** $100,000.00",True,9034,
+trigger_23_1085,"Pedro: mesa on
+Ana: .
+Ana: 100k
+Ana: cotação
+Rose: 1s
+Rose: 4820
+Ana: ok
+Ana: fecha
+Rose: BRL 548,200.00 // USDT 100.000
+Ana: 100k novamente
+Ana: rapidão
+Rose: 4810
+Ana: fecha","Ana and Rose completed a trade of 100,000 USD at a quote of 5.4810 (shorthand 4810). The last message in the conversation is ""Ana: fecha"", confirming the closure of this transaction.","{""valor_cotacao"": 5.481, ""valor_total"": 100000.0}","✅ **CONFIRMATION TICKET** ✅
+*(Triggered by: Ana)*
+**Quote:** R$ 5.4810
+**Volume:** $100,000.00",True,9975,

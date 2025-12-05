@@ -6,6 +6,9 @@ Usage:
     # Standalone (JSON output only):
     python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment manifest.yaml
 
+    # With CSV export:
+    python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment manifest.yaml --export-csv
+
     # With database storage (requires DATABASE_URL):
     python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment manifest.yaml --db
 
@@ -13,10 +16,10 @@ Usage:
     python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment manifest.yaml --langfuse
 """
 
+import csv
 import sys
 import os
 import json
-import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -43,24 +46,22 @@ class CaseOutcome(str, Enum):
     SUCCESS = "success"
     FAILURE = "failure"
     ERROR = "error"
-    NEEDS_REVIEW = "needs_review"
 
 
 @dataclass
 class ExperimentResult:
-    """Result for a single test case."""
+    """Result for a single test case with all node outputs."""
     test_id: str
-    trigger_message: str
+    query: str  # Full conversation passed to check_negotiation node
     sender: str
     success: bool
     outcome: CaseOutcome
     duration_ms: int
-    boleta_formatada: Optional[str] = None
-    dados_extraidos: Optional[Dict] = None
-    dados_validacao: Optional[Dict] = None
-    evaluation: Optional[Dict] = None
+    # Node outputs
+    description: Optional[str] = None  # check_negotiation output (justificativa)
+    extracted: Optional[Dict] = None  # extractor output (dados_extraidos)
+    boleta_formatada: Optional[str] = None  # formatter output (final boleta)
     error: Optional[str] = None
-    langfuse_trace_id: Optional[str] = None
 
 
 @dataclass
@@ -77,6 +78,7 @@ class ExperimentSummary:
     error_cases: int = 0
     results: List[Dict] = field(default_factory=list)
     db_run_id: Optional[str] = None
+    csv_path: Optional[str] = None
 
     def to_dict(self) -> Dict:
         return asdict(self)
@@ -187,6 +189,7 @@ def execute_workflow_case(
     evaluator: Optional[Callable],
     manifest: Dict[str, Any],
     langfuse_handler: Any = None,
+    limit: Optional[int] = None,
 ) -> ExperimentResult:
     """Execute workflow for a single test case."""
     start_time = datetime.utcnow()
@@ -194,9 +197,11 @@ def execute_workflow_case(
     msg_col = manifest.get("message_column", "message")
     sender_col = manifest.get("sender_column", "nome_fantasia")
 
+    query = case["trigger_message"].get(msg_col, "")
+
     result = ExperimentResult(
         test_id=case["test_id"],
-        trigger_message=case["trigger_message"].get(msg_col, ""),
+        query=query,
         sender=case["sender"],
         success=False,
         outcome=CaseOutcome.ERROR,
@@ -226,17 +231,45 @@ def execute_workflow_case(
             "boleta_formatada": None,
         }
 
-        # Execute workflow
+        # Execute workflow and capture intermediate states
+        # (The formatter node resets some fields, so we use stream to capture them)
         config = {"configurable": {"thread_id": case["test_id"]}}
         if langfuse_handler:
             config["callbacks"] = [langfuse_handler]
 
-        final_state = workflow.invoke(initial_state, config)
+        # Track intermediate outputs before they get reset
+        captured_contexto = None
+        captured_validacao = None
+        captured_extraidos = None
+        final_state = None
 
-        # Extract results
-        result.boleta_formatada = final_state.get("boleta_formatada")
-        result.dados_extraidos = final_state.get("dados_extraidos")
-        result.dados_validacao = final_state.get("dados_validacao")
+        # Use stream to capture state at each node
+        for state_update in workflow.stream(initial_state, config):
+            # State updates come as {node_name: partial_state}
+            for node_name, partial_state in state_update.items():
+                # Capture contexto_relevante from gatekeeper before it gets cleared
+                if partial_state.get("contexto_relevante"):
+                    captured_contexto = partial_state["contexto_relevante"]
+                # Capture dados_validacao from validator before it gets cleared
+                if partial_state.get("dados_validacao"):
+                    captured_validacao = partial_state["dados_validacao"]
+                # Capture dados_extraidos from extractor before it gets cleared
+                if partial_state.get("dados_extraidos"):
+                    captured_extraidos = partial_state["dados_extraidos"]
+                # Keep track of final state
+                final_state = partial_state
+
+        # Use captured values (these are from intermediate nodes before reset)
+        result.query = captured_contexto or result.query
+
+        if captured_validacao:
+            result.description = captured_validacao.get("justificativa")
+
+        result.extracted = captured_extraidos
+
+        # boleta_formatada comes from final state (formatter doesn't reset this)
+        if final_state:
+            result.boleta_formatada = final_state.get("boleta_formatada")
 
         # Use evaluator if provided
         if evaluator:
@@ -244,8 +277,14 @@ def execute_workflow_case(
                 def __init__(self, outputs):
                     self.outputs = outputs
 
-            eval_result = evaluator(MockRun(final_state))
-            result.evaluation = eval_result
+            # Create state with all captured values for evaluator
+            eval_state = {
+                "contexto_relevante": captured_contexto,
+                "dados_validacao": captured_validacao,
+                "dados_extraidos": captured_extraidos,
+                "boleta_formatada": final_state.get("boleta_formatada") if final_state else None,
+            }
+            eval_result = evaluator(MockRun(eval_state))
             result.success = eval_result.get("boleta_gerada", False)
             result.outcome = CaseOutcome.SUCCESS if result.success else CaseOutcome.FAILURE
         else:
@@ -297,12 +336,11 @@ def save_to_database(summary: ExperimentSummary, manifest: Dict[str, Any]) -> Op
                     "success": DBCaseOutcome.SUCCESS,
                     "failure": DBCaseOutcome.FAILURE,
                     "error": DBCaseOutcome.ERROR,
-                    "needs_review": DBCaseOutcome.NEEDS_REVIEW,
                 }
                 case = ExperimentCase(
                     run_id=run.id,
                     case_id=result_dict["test_id"],
-                    input_message=result_dict["trigger_message"],
+                    input_message=result_dict["query"],
                     actual_response=result_dict.get("boleta_formatada"),
                     raw_response=result_dict,
                     outcome=outcome_map.get(result_dict["outcome"], DBCaseOutcome.ERROR).value,
@@ -324,6 +362,51 @@ def save_to_database(summary: ExperimentSummary, manifest: Dict[str, Any]) -> Op
     except Exception as e:
         logger.error(f"Failed to save to database: {e}")
         return None
+
+
+# --- CSV Export ---
+
+def export_to_csv(results: List[ExperimentResult], output_path: str) -> str:
+    """
+    Export experiment results to CSV with query and node outputs.
+
+    Columns:
+    - test_id: Case identifier
+    - query: Full conversation passed to check_negotiation node
+    - description: Output of check_negotiation node (justificativa)
+    - extracted: Output of extractor node (JSON)
+    - boleta_formatada: Output of formatter node (final boleta)
+    - success: Whether the workflow succeeded
+    - duration_ms: Execution time
+    - error: Error message if any
+    """
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=[
+            "test_id",
+            "query",
+            "description",
+            "extracted",
+            "boleta_formatada",
+            "success",
+            "duration_ms",
+            "error",
+        ])
+        writer.writeheader()
+
+        for result in results:
+            writer.writerow({
+                "test_id": result.test_id,
+                "query": result.query or "",
+                "description": result.description or "",
+                "extracted": json.dumps(result.extracted, ensure_ascii=False) if result.extracted else "",
+                "boleta_formatada": result.boleta_formatada or "",
+                "success": result.success,
+                "duration_ms": result.duration_ms,
+                "error": result.error or "",
+            })
+
+    logger.info(f"Exported {len(results)} results to CSV: {output_path}")
+    return output_path
 
 
 # --- Langfuse Integration (Optional) ---
@@ -362,6 +445,8 @@ def run_experiment(
     manifest_path: str,
     use_db: bool = False,
     use_langfuse: bool = False,
+    export_csv: bool = False,
+    limit: Optional[int] = None,
 ) -> ExperimentSummary:
     """Run a workflow experiment from a manifest file."""
     import uuid
@@ -410,6 +495,11 @@ def run_experiment(
     )
     logger.info(f"Found {len(test_cases)} trigger sequences to test")
 
+    # Apply limit if specified
+    if limit and limit > 0:
+        test_cases = test_cases[:limit]
+        logger.info(f"Limited to {len(test_cases)} test cases")
+
     summary.total_cases = len(test_cases)
 
     # Run each test case
@@ -436,6 +526,14 @@ def run_experiment(
         db_run_id = save_to_database(summary, manifest)
         summary.db_run_id = db_run_id
 
+    # Export to CSV if requested
+    if export_csv:
+        manifest_dir = Path(manifest_path).parent
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        csv_output_path = manifest_dir / f"results_{timestamp}.csv"
+        export_to_csv(results, str(csv_output_path))
+        summary.csv_path = str(csv_output_path)
+
     # Print summary
     logger.info(f"\n{'='*50}")
     logger.info("Experiment Results")
@@ -447,6 +545,8 @@ def run_experiment(
     logger.info(f"Errors: {summary.error_cases}")
     if summary.db_run_id:
         logger.info(f"Database Run ID: {summary.db_run_id}")
+    if summary.csv_path:
+        logger.info(f"CSV Export: {summary.csv_path}")
 
     return summary
 
@@ -460,6 +560,8 @@ def main():
     parser.add_argument("--output", "-o", help="Output JSON file for results")
     parser.add_argument("--db", action="store_true", help="Save results to database")
     parser.add_argument("--langfuse", action="store_true", help="Enable Langfuse tracing")
+    parser.add_argument("--export-csv", action="store_true", help="Export results to CSV")
+    parser.add_argument("--limit", type=int, help="Limit number of test cases to run")
 
     args = parser.parse_args()
 
@@ -468,6 +570,8 @@ def main():
         args.manifest,
         use_db=args.db,
         use_langfuse=args.langfuse,
+        export_csv=args.export_csv,
+        limit=args.limit,
     )
 
     # Determine output path

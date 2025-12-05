@@ -1,0 +1,82 @@
+test_id,query,description,extracted,boleta_formatada,success,duration_ms,error
+trigger_64_1064,"Ana: Bom dia pessoal, estão cotando hoje?
+Rose: Bom dia
+Rose: estamos sim, qual seria o volume ?
+Ana: Pode passar uma ref?
+Rose: 5.6130
+Rose: 6140
+Ana: Opa, já retorno.
+Rose: off
+Ana: Obrigado.
+Rose: ta ok
+Rose: Por nada
+Rose: qualquer coisa estou à disposição
+Ana: Qual o pix de vocês?
+Rose: <PIX>
+Ana: Qual é o limite de trava e a trava pode ser paga até que horas?","The conversation ends with a question about payment deadlines and no explicit agreement on a price or volume. No confirmation such as 'ok', 'fecha', or a closed deal is present, so the trade was not completed.",,,False,2639,
+trigger_69_1069,"Rose: 6140
+Ana: Opa, já retorno.
+Rose: off
+Ana: Obrigado.
+Rose: ta ok
+Rose: Por nada
+Rose: qualquer coisa estou à disposição
+Ana: Qual o pix de vocês?
+Rose: <PIX>
+Ana: Qual é o limite de trava e a trava pode ser paga até que horas?
+Pedro: O ideal seria pagar até 16:30 mas quanto antes, melhor
+Ana: Claro.
+Pedro: Não temos um limite pré definido
+Pedro: Vai depender muito de como está o mercado também
+Ana: Trava de 100k tranquilo?","The conversation ends with Ana asking if a 100k lock is possible, but no price, volume, or confirmation (e.g., 'ok', 'fecha') was agreed upon. Therefore the trade was not completed.",,,False,2942,
+trigger_99_1099,"Ana: Conseguem me cotar 200k usdt?
+Rose: Bom dia <PHONE>
+Rose: Consigo sim
+Ana: Quanto?
+Rose: 5870
+Ana: 5.5870?
+Rose: isso
+Rose: vamos ?
+Ana: 1s
+Ana: Tem como cotar de novo? Deu uma caida
+Rose: tem sim
+Rose: 5856
+Rose: <PHONE>
+Ana: ok
+Rose: fecha ?","The conversation ends with Rose asking to close the trade ('fecha ?'), but Ana does not provide a confirmation or final agreement. The only response from Ana is an acknowledgment of the new quote ('ok'), which does not constitute a completed transaction. Therefore the trade was not concluded.",,,False,11624,
+trigger_101_1101,"Rose: Consigo sim
+Ana: Quanto?
+Rose: 5870
+Ana: 5.5870?
+Rose: isso
+Rose: vamos ?
+Ana: 1s
+Ana: Tem como cotar de novo? Deu uma caida
+Rose: tem sim
+Rose: 5856
+Rose: <PHONE>
+Ana: ok
+Rose: fecha ?
+Ana: 1s
+Ana: fecha","Rose and Ana finalized a trade for 5,870 USD at a quote of 5.5856 (the shorthand 5856). After Rose offered the new price 5856, Ana accepted with ""ok"" and then confirmed the closure with ""fecha"", indicating the transaction was completed.","{""valor_cotacao"": 5.5856, ""valor_total"": 5870.0}","✅ **CONFIRMATION TICKET** ✅
+*(Triggered by: Ana)*
+**Quote:** R$ 5.5856
+**Volume:** $5,870.00",True,12981,
+trigger_103_1103,"Rose: 5870
+Ana: 5.5870?
+Rose: isso
+Rose: vamos ?
+Ana: 1s
+Ana: Tem como cotar de novo? Deu uma caida
+Rose: tem sim
+Rose: 5856
+Rose: <PHONE>
+Ana: ok
+Rose: fecha ?
+Ana: 1s
+Ana: fecha
+Ana: Qual o pix de vocês?
+Rose: fechado","A trade was finalized between Rose and Ana for 1.000 USD at a quoted rate of 5.5856 BRL/USD. The conversation ends with Rose confirming ""fechado"" after Ana said ""fecha"", indicating the deal was closed.","{""valor_cotacao"": 5.5856, ""valor_total"": 1000.0}","✅ **CONFIRMATION TICKET** ✅
+*(Triggered by: Rose)*
+**Quote:** R$ 5.5856
+**Volume:** $1,000.00",True,9259,

@@ -13,8 +13,8 @@ Usage:
     # V2 (recommended - vizu_llm_service)
     make experiment-workflow-v2
 
-    # V2 with Ollama Cloud
-    LLM_PROVIDER=ollama_cloud make experiment-workflow-v2
+    # With CSV export
+    make experiment-workflow-v2-export
 """
 
 from .workflow import get_workflow

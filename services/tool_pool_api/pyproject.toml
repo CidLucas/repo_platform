@@ -10,60 +10,36 @@ packages = [{ include = "tool_pool_api", from = "src" }]
 python = "^3.11"
 
 # --- Core MCP/FastAPI ---
-# Adicionamos a dependência principal do MCP
 fastapi = "^0.115.13"
 uvicorn = { extras = ["standard"], version = "^0.34.3" }
 pydantic-settings = "^2.3.4"
-sentry-sdk = { extras = ["fastapi"], version = "^2.0.4" }
 fastmcp = "^2.11.0"
 anyio = "^4.1.1"
-sqlmodel = "^0.0.27"
-python-dotenv = "^1.2.1"
 redis = "^5.0.0"
 
-vizu_context_service = { path = "../../libs/vizu_context_service", develop = true }
-vizu_rag_factory = { path = "../../libs/vizu_rag_factory", develop = true }
-vizu_sql_factory = { path = "../../libs/vizu_sql_factory", develop = true }
-# vizu_generic_tools = { path = "../../libs/vizu_generic_tools", develop = true } # (Descomentar quando criarmos)
-vizu_db_connector = { path = "../../libs/vizu_db_connector", develop = true }
-vizu_models = { path = "../../libs/vizu_models", develop = true }
-vizu_auth = { path = "../../libs/vizu_auth", develop = true }
-vizu_llm_service = { path = "../../libs/vizu_llm_service", develop = true }
-vizu_google_suite_client = { path = "../../libs/vizu_google_suite_client", develop = true }
-pytest-anyio = "^0.0.0"
+# --- Internal libs (only direct dependencies) ---
+vizu-models = { path = "../../libs/vizu_models", develop = true }
+vizu-db-connector = { path = "../../libs/vizu_db_connector", develop = true }
+vizu-context-service = { path = "../../libs/vizu_context_service", develop = true }
+vizu-auth = { path = "../../libs/vizu_auth", develop = true }
+vizu-llm-service = { path = "../../libs/vizu_llm_service", develop = true }
+vizu-rag-factory = { path = "../../libs/vizu_rag_factory", develop = true }
+vizu-sql-factory = { path = "../../libs/vizu_sql_factory", develop = true }
+vizu-tool-registry = { path = "../../libs/vizu_tool_registry", develop = true }
+vizu-prompt-management = { path = "../../libs/vizu_prompt_management", develop = true }
+vizu-google-suite-client = { path = "../../libs/vizu_google_suite_client", develop = true }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"
-pytest-cov = "^5.0.0"
-black = "^24.4.2"
-ruff = "^0.5.0"
-faker = "^26.0.0"
-freezegun = "^1.5.1"
+pytest-asyncio = "^0.23.0"
 pytest-mock = "^3.14.0"
 httpx = "^0.28.1"
-trio = "^0.25.1"
-anyio = "^4.11.0"
-pytest-asyncio = "1.0.0"
-pandas = "^2.2.0"
+ruff = "^0.5.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-# --- Configuração de Teste ---
-
 [tool.pytest.ini_options]
-anyio_backend = "asyncio"
-
-pythonpath = [
-    "src",
-    "../../libs/vizu_models/src",
-    "../../libs/vizu_context_service/src",
-    "../../libs/vizu_rag_factory/src",
-    "../../libs/vizu_sql_factory/src",
-    "../../libs/vizu_llm_service/src"]
-# --- Configuração do Ruff (Linter/Formatter) ---
-[tool.ruff]
-line-length = 88
-select = ["E", "F", "W", "I", "UP", "C4", "B"]
-ignore = ["E501"]
+asyncio_mode = "auto"
+pythonpath = ["src"]

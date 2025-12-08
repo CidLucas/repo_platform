@@ -61,6 +61,12 @@ help:
 	@echo "   make test-s          Run tests for SERVICE=<name>"
 	@echo "   make test-all        Run tests for all services"
 	@echo "   make chat            Quick chat test via curl"
+	@echo "   make test-vendas     Test vendas_agent endpoint"
+	@echo "   make test-support    Test support_agent endpoint"
+	@echo "   make test-agents     Test all agent endpoints"
+	@echo "   make smoke-test      Comprehensive E2E smoke test"
+	@echo "   make test-personas   Persona RAG tests (verbose)"
+	@echo "   make test-personas-quick  Persona RAG tests (summary)"
 	@echo "   make batch-run       Run batch test (10 messages, generates Langfuse traces)"
 	@echo ""
 	@echo "🧪 EXPERIMENTS & EVALUATION"
@@ -216,7 +222,7 @@ seed-check:
 # TESTING
 # =============================================================================
 
-.PHONY: test test-s test-all chat batch-run
+.PHONY: test test-s test-all chat batch-run test-vendas test-support test-agents smoke-test
 
 test:
 	@echo "🧪 Running tests for atendente_core..."
@@ -228,11 +234,76 @@ test-s:
 
 test-all:
 	@echo "🧪 Running all tests..."
-	@for svc in atendente_core clients_api clientes_finais_api tool_pool_api; do \
+	@for svc in atendente_core clients_api clientes_finais_api tool_pool_api vendas_agent support_agent; do \
 		echo "Testing $$svc..."; \
 		cd services/$$svc && poetry run pytest tests/ -v --tb=short 2>/dev/null || true; \
 		cd ../..; \
 	done
+
+test-vendas:
+	@echo "💰 Testing vendas_agent..."
+	@API_KEY=$$(docker exec vizu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
+	curl -s -X POST "http://localhost:8009/chat" \
+		-H "Content-Type: application/json" \
+		-H "X-API-KEY: $$API_KEY" \
+		-d '{"message": "Quero comprar um produto", "session_id": "test-vendas-'$$(date +%s)'"}' | python3 -m json.tool 2>/dev/null || echo "❌ Request failed"
+
+test-support:
+	@echo "🛠️ Testing support_agent..."
+	@API_KEY=$$(docker exec vizu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
+	curl -s -X POST "http://localhost:8010/chat" \
+		-H "Content-Type: application/json" \
+		-H "X-API-KEY: $$API_KEY" \
+		-d '{"message": "Tenho um problema técnico", "session_id": "test-support-'$$(date +%s)'"}' | python3 -m json.tool 2>/dev/null || echo "❌ Request failed"
+
+test-agents:
+	@echo "🤖 Testing all agents..."
+	@make chat
+	@echo ""
+	@make test-vendas
+	@echo ""
+	@make test-support
+
+smoke-test:
+	@echo "🔥 Running comprehensive smoke test..."
+	@echo ""
+	@echo "1️⃣ Checking services status..."
+	@$(COMPOSE) ps --format "table {{.Name}}\t{{.Status}}" | grep -E "(atendente|vendas|support|tool_pool)"
+	@echo ""
+	@echo "2️⃣ Testing tool_pool_api MCP..."
+	@curl -s http://localhost:8006/health 2>/dev/null && echo "✅ tool_pool_api healthy" || echo "❌ tool_pool_api unhealthy"
+	@echo ""
+	@echo "3️⃣ Testing atendente_core with RAG tool..."
+	@API_KEY=$$(docker exec vizu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
+	echo "Testing RAG query..." && \
+	curl -s -X POST "http://localhost:8003/chat" \
+		-H "Content-Type: application/json" \
+		-H "X-API-KEY: $$API_KEY" \
+		-d '{"message": "Busque informações sobre os produtos disponíveis", "session_id": "smoke-rag-'$$(date +%s)'"}' | python3 -m json.tool 2>/dev/null | head -20 || echo "❌ RAG test failed"
+	@echo ""
+	@echo "4️⃣ Testing vendas_agent..."
+	@API_KEY=$$(docker exec vizu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
+	curl -s -X POST "http://localhost:8009/chat" \
+		-H "Content-Type: application/json" \
+		-H "X-API-KEY: $$API_KEY" \
+		-d '{"message": "Qual o preço do produto X?", "session_id": "smoke-vendas-'$$(date +%s)'"}' 2>/dev/null | head -c 500 && echo "..." || echo "❌ vendas_agent test failed"
+	@echo ""
+	@echo "5️⃣ Testing support_agent..."
+	@API_KEY=$$(docker exec vizu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
+	curl -s -X POST "http://localhost:8010/chat" \
+		-H "Content-Type: application/json" \
+		-H "X-API-KEY: $$API_KEY" \
+		-d '{"message": "Meu sistema não está funcionando", "session_id": "smoke-support-'$$(date +%s)'"}' 2>/dev/null | head -c 500 && echo "..." || echo "❌ support_agent test failed"
+	@echo ""
+	@echo "✅ Smoke test complete!"
+
+test-personas:
+	@echo "🧪 Running persona-based RAG tests..."
+	@cd ferramentas && poetry run python persona_rag_tests.py -v
+
+test-personas-quick:
+	@echo "🧪 Running persona-based RAG tests (summary only)..."
+	@cd ferramentas && poetry run python persona_rag_tests.py
 
 batch-run:
 	@echo "🚀 Running batch test (generates Langfuse traces)..."
@@ -430,6 +501,28 @@ data-anonymize:
 		vizu_atendente_core python -m evaluation_suite.data_loaders.pii_anonymizer \
 		"$(INPUT)" -o "$(or $(OUTPUT),ferramentas/evaluation_suite/workflows/boleta_trader/data/processed/anonymized.csv)" \
 		--add-test-id
+
+# Create a small anonymized WhatsApp sample (first 25%) and anonymize it with Presidio
+# Usage: make data-whats-amostra INPUT=path/to/processed/whatsapp.csv SAMPLE_OUT=path/to/sample.csv OUTPUT=path/to/anonymized.csv
+.PHONY: data-whats-amostra
+data-whats-amostra:
+	@echo "📱 Creating first-quarter WhatsApp sample and anonymizing with Presidio..."
+	@if [ -z "$(INPUT)" ]; then \
+		echo "❌ Please specify INPUT=path/to/processed/whatsapp_test.csv"; \
+		echo "   Example: make data-whats-amostra INPUT=ferramentas/evaluation_suite/workflows/boleta_trader/data/processed/whatsapp_test.csv"; \
+		exit 1; \
+	fi && \
+	SAMPLE="$(or $(SAMPLE_OUT),ferramentas/evaluation_suite/workflows/boleta_trader/data/raw/whats_amostra.csv)"; \
+	OUT="$(or $(OUTPUT),ferramentas/evaluation_suite/workflows/boleta_trader/data/processed/whats_amostra_anonymized.csv)"; \
+	# Slice the first 25% of INPUT to SAMPLE
+	docker exec -e PYTHONPATH=/app:/app/ferramentas/evaluation_suite/src \
+		-w /app \
+		vizu_atendente_core python -c "import pandas as pd; df = pd.read_csv('$(INPUT)'); q = max(1, len(df)//4); df.iloc[:q].to_csv('$$SAMPLE', index=False); print('Saved sample to', '$$SAMPLE')" || exit 1; \
+	# Run Presidio anonymizer on the sample
+	docker exec -e PYTHONPATH=/app:/app/ferramentas/evaluation_suite/src \
+		-w /app \
+		vizu_atendente_core python -m evaluation_suite.data_loaders.pii_anonymizer "$$SAMPLE" -o "$$OUT" --add-test-id || exit 1; \
+	@echo "✅ Anonymized sample saved to $$OUT"
 
 # =============================================================================
 # DEVELOPMENT

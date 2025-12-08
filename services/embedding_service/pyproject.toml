@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "embedding-service"
 version = "0.1.0"
-description = "Microserviço da Vizu para servir modelos de embedding HuggingFace"
+description = "Microserviço da Vizu para servir modelos de embedding HuggingFace (CPU-only)"
 authors = ["Vizu"]
 readme = "README.md"
 
@@ -10,8 +10,18 @@ python = "^3.11"
 fastapi = "^0.111.0"
 uvicorn = {extras = ["standard"], version = "^0.29.0"}
 pydantic-settings = "^2.2.1"
-langchain-huggingface = "^0.0.3"
-sentence-transformers = "^3.0.1" # Dependência necessária para o HuggingFaceEmbeddings
+python-multipart = "^0.0.18"  # For file uploads
+# HuggingFace embedding libraries
+# NOTE: torch is installed via pip in Dockerfile from CPU-only index
+#       to avoid 6.6GB of nvidia/cuda/triton dependencies
+transformers = "^4.44.0"
+sentence-transformers = {version = "^3.0.1", markers = "platform_system == 'never'"}
+# Direct sentence-transformers deps without torch
+huggingface-hub = ">=0.33.0"
+scipy = "^1.16.0"
+tqdm = ">=4.0.0"
+# Internal lib for file parsing and chunking
+vizu-parsers = {path = "../../libs/vizu_parsers", develop = true}
 
 [build-system]
 requires = ["poetry-core"]

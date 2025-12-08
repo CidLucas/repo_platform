@@ -2,21 +2,23 @@
 name = "vizu-models"
 version = "0.1.0"
 description = "Single source of truth for Vizu data models (SQLModel)."
-authors = ["Gemini"]
+authors = ["Vizu Team"]
 readme = "README.md"
 packages = [{include = "vizu_models", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
 sqlmodel = "^0.0.27"
-psycopg2-binary = "^2.9.9" # Necessário para o dialeto postgresql
 pydantic = {extras = ["email"], version = "^2.7.1"}
+# psycopg2 needed at runtime for DB connections, optional for type-only usage
+psycopg2-binary = {version = "^2.9.9", optional = true}
+
+[tool.poetry.extras]
+postgres = ["psycopg2-binary"]
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.4.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-[dependency-groups]
-dev = [
-    "ruff (>=0.14.7,<0.15.0)"
-]

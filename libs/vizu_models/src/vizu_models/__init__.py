@@ -42,7 +42,7 @@ from .vizu_client_context import VizuClientContext
 from .safe_client_context import SafeClientContext, InternalClientContext
 from .seed_clients import SEED_CLIENTS, get_client_by_name, get_all_rag_collections
 from sqlmodel import SQLModel
-from .enums import TipoCliente, TierCliente, TipoFonte
+from .enums import TipoCliente, TierCliente, TipoFonte, ToolCategory
 
 # MCP Resources & Prompts support
 from .prompt_template import (
@@ -164,6 +164,7 @@ __all__ = [
     "TipoCliente",
     "TierCliente",
     "TipoFonte",
+    "ToolCategory",
     # MCP Resources & Prompts support
     "PromptTemplate",
     "PromptTemplateCreate",

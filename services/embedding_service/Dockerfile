@@ -1,45 +1,64 @@
-# Padrão Vizu: Baseado no Dockerfile do file_processing_worker
+# Padrão Vizu: Optimized Dockerfile for embedding_service
+# Uses CPU-only PyTorch to reduce image size from 11.8GB to ~1.5GB
 
 # --- ESTÁGIO 1: BUILDER ---
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
+
+# Install poetry
 RUN pip install poetry
 
-# New strategy for virtual environment
+# Setup virtual environment
 ENV VIRTUAL_ENV=/opt/pysetup/.venv
 ENV PATH="/opt/pysetup/.venv/bin:$PATH"
 ENV POETRY_VIRTUALENVS_CREATE=false
 
-WORKDIR /app
-# Copy all libs to /app/libs
-COPY ./libs ./libs
+WORKDIR /app/services/embedding_service
 
-WORKDIR /app/services/embedding_service # Change WORKDIR to the service directory
+# Copy lib dependencies first (for caching)
+COPY ./libs/vizu_parsers /app/libs/vizu_parsers
+
+# Copy only pyproject.toml and poetry.lock for dependency installation
 COPY ./services/embedding_service/pyproject.toml ./services/embedding_service/poetry.lock* ./
-RUN python -m venv $VIRTUAL_ENV
-RUN poetry install --no-root --sync --no-interaction
+
+# Create venv and install:
+# 1. CPU-only PyTorch first (avoids 6.6GB of GPU deps)
+# 2. sentence-transformers from PyPI (uses already installed torch)
+# 3. Other dependencies via poetry
+RUN python -m venv $VIRTUAL_ENV && \
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir sentence-transformers && \
+    poetry install --no-root --no-interaction
 
 
 # --- ESTÁGIO 2: FINAL (PRODUÇÃO) ---
-FROM python:3.11-slim as final
+FROM python:3.11-slim AS final
 
+# Install curl for healthcheck
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-RUN useradd --create-home --shell /bin/bash appuser
+# Create non-root user and the cache directory with proper ownership
+RUN useradd --create-home --shell /bin/bash appuser && \
+    mkdir -p /home/appuser/.cache/huggingface && \
+    chown -R appuser:appuser /home/appuser/.cache
+
 USER appuser
 WORKDIR /home/appuser/app
 
-ENV PYTHONPATH="/home/appuser/app:/home/appuser/app/libs"
+# PYTHONPATH includes libs for vizu_parsers import
+ENV PYTHONPATH="/home/appuser/app:/home/appuser/app/libs/vizu_parsers/src"
 
+# Copy virtual environment from builder
 COPY --from=builder /opt/pysetup/.venv /opt/pysetup/.venv
 ENV PATH="/opt/pysetup/.venv/bin:$PATH"
 
-COPY --from=builder /app/libs ./libs
+# Copy vizu_parsers lib
+COPY --chown=appuser:appuser ./libs/vizu_parsers/src/vizu_parsers ./libs/vizu_parsers/src/vizu_parsers
+
+# Copy only the service source code
 COPY --chown=appuser:appuser ./services/embedding_service/src/embedding_service ./embedding_service
 
-USER appuser
-# Expõe a porta que definimos para este serviço
+# Expose port
 EXPOSE 11435
 
-# Aponta o CMD para o módulo 'embedding_service' (que copiamos acima)
-# e seu arquivo 'main', variável 'app', na porta 11435.
+# Run the service
 CMD ["/opt/pysetup/.venv/bin/python", "-m", "uvicorn", "embedding_service.main:app", "--host", "0.0.0.0", "--port", "11435"]

@@ -1,12 +1,16 @@
 # services/embedding_service/src/main.py
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, validator
-from typing import List, Union, Any
+from typing import List, Union, Any, Optional
 import json
+import io
 from .service import get_model_singleton
 from .config import get_embedding_settings
+
+# Import chunking utilities
+from vizu_parsers import parse_and_chunk, chunk_text, ChunkingStrategy
 
 # ---- Schemas (Contratos) da API ----
 
@@ -25,6 +29,41 @@ class EmbedRequest(BaseModel):
 class EmbedResponse(BaseModel):
     """O que a API retorna"""
     embeddings: List[List[float]]
+
+
+class ChunkRequest(BaseModel):
+    """Request body for text chunking"""
+    text: str
+    chunk_size: int = 512
+    chunk_overlap: int = 50
+    strategy: str = "semantic"  # semantic, by_sentence, by_paragraph, by_char
+    min_chunk_size: int = 100
+    metadata: Optional[dict] = None
+
+
+class ChunkResponse(BaseModel):
+    """Response for text chunking"""
+    chunks: List[dict]
+    total_chunks: int
+    original_length: int
+
+
+class ProcessRequest(BaseModel):
+    """Request body for combined parse+chunk+embed"""
+    text: Optional[str] = None
+    chunk_size: int = 512
+    chunk_overlap: int = 50
+    strategy: str = "semantic"
+    embed: bool = True  # Whether to also generate embeddings
+    mode: str = "document"  # Embedding mode
+
+
+class ProcessResponse(BaseModel):
+    """Response for combined processing"""
+    chunks: List[dict]
+    embeddings: Optional[List[List[float]]] = None
+    total_chunks: int
+    original_length: int
 
 # ---- Inicialização da Aplicação ----
 
@@ -140,4 +179,180 @@ async def create_embeddings(request: Request):
         raise HTTPException(
             status_code=500,
             detail=f"Erro interno ao processar os embeddings: {str(e)}"
+        )
+
+
+# ---- Chunking Endpoints ----
+
+def _get_strategy(strategy_str: str) -> ChunkingStrategy:
+    """Convert string to ChunkingStrategy enum."""
+    strategy_map = {
+        "semantic": ChunkingStrategy.SEMANTIC,
+        "by_sentence": ChunkingStrategy.BY_SENTENCE,
+        "by_paragraph": ChunkingStrategy.BY_PARAGRAPH,
+        "by_char": ChunkingStrategy.BY_CHAR,
+    }
+    return strategy_map.get(strategy_str, ChunkingStrategy.SEMANTIC)
+
+
+@app.post("/chunk",
+          response_model=ChunkResponse,
+          summary="Divide texto em chunks para RAG")
+async def chunk_text_endpoint(request: ChunkRequest):
+    """
+    Divide um texto em chunks usando a estratégia especificada.
+    Útil para preparar documentos para indexação no Qdrant.
+    """
+    try:
+        strategy = _get_strategy(request.strategy)
+        
+        chunks = chunk_text(
+            text=request.text,
+            chunk_size=request.chunk_size,
+            chunk_overlap=request.chunk_overlap,
+            strategy=strategy,
+            min_chunk_size=request.min_chunk_size,
+            metadata=request.metadata,
+        )
+        
+        chunk_dicts = [c.to_dict() for c in chunks]
+        
+        print(f"DEBUG /chunk: Criados {len(chunk_dicts)} chunks de {len(request.text)} chars")
+        
+        return ChunkResponse(
+            chunks=chunk_dicts,
+            total_chunks=len(chunk_dicts),
+            original_length=len(request.text),
+        )
+        
+    except Exception as e:
+        print(f"ERRO: Falha ao fazer chunking: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao processar chunks: {str(e)}"
+        )
+
+
+@app.post("/process",
+          response_model=ProcessResponse,
+          summary="Processa texto: chunk + embed em uma única chamada")
+async def process_text_endpoint(request: ProcessRequest):
+    """
+    Processa texto em um único passo: divide em chunks e opcionalmente gera embeddings.
+    Ideal para pipelines de ingestão RAG.
+    """
+    if not request.text:
+        raise HTTPException(status_code=422, detail="text é obrigatório")
+    
+    try:
+        strategy = _get_strategy(request.strategy)
+        
+        # 1. Divide em chunks
+        chunks = chunk_text(
+            text=request.text,
+            chunk_size=request.chunk_size,
+            chunk_overlap=request.chunk_overlap,
+            strategy=strategy,
+        )
+        
+        chunk_dicts = [c.to_dict() for c in chunks]
+        
+        # 2. Opcionalmente gera embeddings
+        embeddings = None
+        if request.embed and chunks:
+            model = get_model_singleton()
+            chunk_texts = [c.text for c in chunks]
+            
+            if request.mode == "query":
+                embeddings = model.embed_queries(chunk_texts)
+            else:
+                embeddings = model.embed_documents(chunk_texts)
+            
+            print(f"DEBUG /process: Gerados {len(embeddings)} embeddings para {len(chunks)} chunks")
+        
+        return ProcessResponse(
+            chunks=chunk_dicts,
+            embeddings=embeddings,
+            total_chunks=len(chunk_dicts),
+            original_length=len(request.text),
+        )
+        
+    except Exception as e:
+        print(f"ERRO: Falha ao processar texto: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao processar texto: {str(e)}"
+        )
+
+
+@app.post("/process-file",
+          response_model=ProcessResponse,
+          summary="Processa arquivo: parse + chunk + embed")
+async def process_file_endpoint(
+    file: UploadFile = File(...),
+    chunk_size: int = Form(512),
+    chunk_overlap: int = Form(50),
+    strategy: str = Form("semantic"),
+    embed: bool = Form(True),
+    mode: str = Form("document"),
+):
+    """
+    Faz upload de um arquivo (PDF, CSV, TXT), extrai texto, divide em chunks
+    e opcionalmente gera embeddings. Pipeline completo de ingestão RAG.
+    
+    Formatos suportados: .pdf, .csv, .txt
+    """
+    try:
+        # Lê o conteúdo do arquivo
+        content = await file.read()
+        file_stream = io.BytesIO(content)
+        
+        strategy_enum = _get_strategy(strategy)
+        
+        # Parse e chunk usando vizu_parsers
+        chunks = parse_and_chunk(
+            file_stream=file_stream,
+            filename=file.filename,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            strategy=strategy_enum,
+            metadata={"source_file": file.filename},
+        )
+        
+        if not chunks:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Não foi possível extrair texto do arquivo: {file.filename}"
+            )
+        
+        chunk_dicts = [c.to_dict() for c in chunks]
+        original_length = sum(c.length for c in chunks)
+        
+        # Opcionalmente gera embeddings
+        embeddings = None
+        if embed and chunks:
+            model = get_model_singleton()
+            chunk_texts = [c.text for c in chunks]
+            
+            if mode == "query":
+                embeddings = model.embed_queries(chunk_texts)
+            else:
+                embeddings = model.embed_documents(chunk_texts)
+            
+            print(f"DEBUG /process-file: {file.filename} -> {len(chunks)} chunks, {len(embeddings)} embeddings")
+        
+        return ProcessResponse(
+            chunks=chunk_dicts,
+            embeddings=embeddings,
+            total_chunks=len(chunk_dicts),
+            original_length=original_length,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"ERRO: Falha ao processar arquivo {file.filename}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao processar arquivo: {str(e)}"
         )

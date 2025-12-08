@@ -246,13 +246,15 @@ services:
     ports:
       - "11435:11435"
     volumes:
-      - ollama_storage:/root/.ollama
-      # Cache de modelos HuggingFace para não re-baixar
-      - huggingface_cache:/root/.cache/huggingface
+      # Mount host's HuggingFace cache to avoid re-downloading models
+      # This bind mount shares your local ~/.cache/huggingface with the container
+      - ${HOME}/.cache/huggingface:/home/appuser/.cache/huggingface
     environment:
-      # Configuração do modelo de embedding (vem do .env da raiz)
-      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-intfloat/multilingual-e5-large}
-      EMBEDDING_VECTOR_SIZE: ${EMBEDDING_VECTOR_SIZE:-1024}
+      # Use smaller model that's likely cached locally, or set in .env
+      # Options: sentence-transformers/all-MiniLM-L6-v2 (384 dims, fast)
+      #          intfloat/multilingual-e5-large (1024 dims, better for PT-BR)
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-sentence-transformers/all-MiniLM-L6-v2}
+      EMBEDDING_VECTOR_SIZE: ${EMBEDDING_VECTOR_SIZE:-384}
       EMBEDDING_MODEL_DEVICE: ${EMBEDDING_MODEL_DEVICE:-cpu}
     healthcheck:
       # Esta checagem continua a mesma...
@@ -404,12 +406,69 @@ services:
       MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV: ${MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV:-}
       MCP_AUTH_BASE_URL: ${MCP_AUTH_BASE_URL:-http://localhost:8006}
       CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY:-}
+      # Docker MCP integration
+      DOCKER_MCP_ENABLED: ${DOCKER_MCP_ENABLED:-false}
+      MCP_INTEGRATIONS: ${MCP_INTEGRATIONS:-}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       ollama_service:
+        condition: service_started
+
+  # =========================================
+  # NEW AGENTS (Phase 4)
+  # =========================================
+
+  vendas_agent:
+    container_name: vizu_vendas_agent
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./services/vendas_agent/Dockerfile
+    env_file:
+      - .env
+    environment:
+      <<: [*common-env, *atendente-env]
+      DATABASE_URL: "postgresql://user:password@postgres:5432/vizu_db"
+      PYTHONPATH: /app/src
+      MCP_SERVER_URL: http://tool_pool_api:9000/mcp/
+      USE_LOCAL_DB: "true"
+    ports:
+      - "8009:8000"
+    volumes:
+      - ./services/vendas_agent/src:/app/src
+      - ./libs:/app/libs
+    depends_on:
+      redis:
+        condition: service_healthy
+      tool_pool_api:
+        condition: service_started
+
+  support_agent:
+    container_name: vizu_support_agent
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./services/support_agent/Dockerfile
+    env_file:
+      - .env
+    environment:
+      <<: [*common-env, *atendente-env]
+      DATABASE_URL: "postgresql://user:password@postgres:5432/vizu_db"
+      PYTHONPATH: /app/src
+      MCP_SERVER_URL: http://tool_pool_api:9000/mcp/
+      USE_LOCAL_DB: "true"
+    ports:
+      - "8010:8000"
+    volumes:
+      - ./services/support_agent/src:/app/src
+      - ./libs:/app/libs
+    depends_on:
+      redis:
+        condition: service_healthy
+      tool_pool_api:
         condition: service_started
 
 # Definição de volumes persistentes

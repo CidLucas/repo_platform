@@ -4,11 +4,14 @@ Serviço de Embedding.
 
 Carrega e serve modelos de embedding HuggingFace.
 Suporta modelos E5 que requerem prefixo "query: " ou "passage: ".
+
+NOTE: Using sentence-transformers directly instead of langchain-huggingface
+to avoid pulling in unnecessary dependencies.
 """
 
 from functools import lru_cache
 from typing import List
-from langchain_huggingface import HuggingFaceEmbeddings
+from sentence_transformers import SentenceTransformer
 from .config import get_embedding_settings, EmbeddingSettings
 
 
@@ -23,8 +26,8 @@ class E5EmbeddingWrapper:
     Este wrapper aplica automaticamente o prefixo correto.
     """
 
-    def __init__(self, base_model: HuggingFaceEmbeddings, model_name: str):
-        self.base_model = base_model
+    def __init__(self, model: SentenceTransformer, model_name: str):
+        self.model = model
         self.model_name = model_name
         self.is_e5_model = "e5" in model_name.lower()
 
@@ -37,17 +40,20 @@ class E5EmbeddingWrapper:
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Embeds documentos (para armazenamento no Qdrant)."""
         prefixed = self._add_prefix(texts, "passage: ")
-        return self.base_model.embed_documents(prefixed)
+        embeddings = self.model.encode(prefixed, convert_to_numpy=True)
+        return embeddings.tolist()
 
     def embed_query(self, text: str) -> List[float]:
         """Embeds uma query (para busca no Qdrant)."""
         prefixed = self._add_prefix([text], "query: ")[0]
-        return self.base_model.embed_query(prefixed)
+        embedding = self.model.encode(prefixed, convert_to_numpy=True)
+        return embedding.tolist()
 
     def embed_queries(self, texts: List[str]) -> List[List[float]]:
         """Embeds múltiplas queries (para buscas em lote)."""
         prefixed = self._add_prefix(texts, "query: ")
-        return self.base_model.embed_documents(prefixed)
+        embeddings = self.model.encode(prefixed, convert_to_numpy=True)
+        return embeddings.tolist()
 
 
 @lru_cache
@@ -66,24 +72,21 @@ def get_model_singleton() -> E5EmbeddingWrapper:
     print(f"INFO: Dimensão esperada: {settings.EMBEDDING_VECTOR_SIZE}")
 
     try:
-        # Define os argumentos para o modelo
-        model_kwargs = {'device': settings.EMBEDDING_MODEL_DEVICE}
-
-        # Instancia o modelo. O download será feito automaticamente
-        # pelo HuggingFace se o modelo não estiver em cache.
-        base_model = HuggingFaceEmbeddings(
-            model_name=settings.EMBEDDING_MODEL_NAME,
-            model_kwargs=model_kwargs
+        # Instancia o modelo usando sentence-transformers diretamente
+        # O download será feito automaticamente pelo HuggingFace se o modelo não estiver em cache.
+        model = SentenceTransformer(
+            settings.EMBEDDING_MODEL_NAME,
+            device=settings.EMBEDDING_MODEL_DEVICE
         )
 
         # Wrappa com suporte a E5
-        model = E5EmbeddingWrapper(base_model, settings.EMBEDDING_MODEL_NAME)
+        wrapper = E5EmbeddingWrapper(model, settings.EMBEDDING_MODEL_NAME)
 
         print("INFO: Modelo de embedding carregado com sucesso.")
-        if model.is_e5_model:
+        if wrapper.is_e5_model:
             print("INFO: Modelo E5 detectado - prefixos 'query:' e 'passage:' serão aplicados automaticamente.")
 
-        return model
+        return wrapper
 
     except Exception as e:
         # Se o modelo falhar ao carregar, o serviço não pode funcionar.

@@ -123,16 +123,26 @@ class ToolInfo(BaseModel):
     Informação sobre uma ferramenta disponível para o agente.
 
     Usado para listar tools disponíveis e seu status (habilitado/desabilitado).
+
+    PHASE 1: Dynamic Tool Allocation
+    - tier_required: Tier mínimo para acessar a ferramenta
+    - docker_mcp_integration: Nome do servidor Docker MCP se aplicável
     """
 
     name: str = Field(..., description="Nome técnico da ferramenta")
     description: Optional[str] = Field(None, description="Descrição da ferramenta")
     enabled: bool = Field(True, description="Se está habilitada para este cliente")
     category: Optional[str] = Field(
-        None, description="Categoria (rag, sql, scheduling, etc.)"
+        None, description="Categoria (rag, sql, scheduling, docker_mcp)"
     )
     requires_confirmation: bool = Field(
         False, description="Se requer confirmação do usuário antes de executar"
+    )
+    tier_required: str = Field(
+        "BASIC", description="Tier mínimo requerido (BASIC, SME, ENTERPRISE)"
+    )
+    docker_mcp_integration: Optional[str] = Field(
+        None, description="Nome do servidor Docker MCP se aplicável (github, slack, etc.)"
     )
 
 
@@ -225,21 +235,38 @@ class ClientContextResponse(BaseModel):
     Contexto do cliente autenticado retornado por endpoints /context.
 
     Contém apenas dados seguros - nunca IDs internos, API keys, etc.
+
+    PHASE 1: Dynamic Tool Allocation
+    - enabled_tools: Lista de nomes de ferramentas habilitadas
+    - tier: Tier do cliente determina acesso baseline a ferramentas
+    - docker_mcp_enabled: Se integrações Docker MCP estão disponíveis
     """
 
     nome_empresa: str = Field(..., description="Nome da empresa")
-    ferramenta_rag_habilitada: bool = Field(..., description="Se RAG está habilitado")
+    tier: str = Field("BASIC", description="Tier do cliente (BASIC, SME, ENTERPRISE)")
+
+    # PHASE 1: New dynamic tool list (replaces 3 boolean flags)
+    enabled_tools: List[str] = Field(
+        default_factory=list,
+        description="Lista de nomes de ferramentas habilitadas (ex: ['executar_rag_cliente', 'executar_sql_agent'])"
+    )
+
+    # Legacy boolean flags (deprecated, kept for backward compatibility)
+    ferramenta_rag_habilitada: bool = Field(..., description="DEPRECATED: Use enabled_tools instead")
     ferramenta_sql_habilitada: bool = Field(
-        ..., description="Se SQL Agent está habilitado"
+        ..., description="DEPRECATED: Use enabled_tools instead"
     )
     collection_rag: Optional[str] = Field(None, description="Nome da collection RAG")
+
     available_tools: List[ToolInfo] = Field(
-        ..., description="Ferramentas e seus status"
+        ..., description="Ferramentas e seus status com metadata"
     )
     horario_funcionamento: Optional[Dict[str, Any]] = Field(
         None, description="Horário de funcionamento configurado"
     )
     has_custom_prompt: bool = Field(False, description="Se tem prompt customizado")
-    tier: Optional[str] = Field(
-        None, description="Tier do cliente (starter, pro, enterprise)"
+
+    # PHASE 1: Docker MCP integration flag
+    docker_mcp_enabled: bool = Field(
+        False, description="Se integrações Docker MCP estão disponíveis"
     )

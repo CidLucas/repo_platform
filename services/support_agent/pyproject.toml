@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "support-agent"
+version = "0.1.0"
+description = "Technical support agent using AgentBuilder framework."
+authors = ["Lucas Cid <lucas@vizubr.com>"]
+packages = [{include = "support_agent", from = "src"}]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.14"
+fastapi = "^0.111.0"
+uvicorn = {extras = ["standard"], version = "^0.29.0"}
+pydantic-settings = "^2.2.1"
+
+# Internal libs - only direct dependencies
+vizu-models = { path = "../../libs/vizu_models", develop = true }
+vizu-context-service = { path = "../../libs/vizu_context_service", develop = true }
+vizu-auth = { path = "../../libs/vizu_auth", develop = true }
+vizu-tool-registry = { path = "../../libs/vizu_tool_registry", develop = true }
+vizu-agent-framework = { path = "../../libs/vizu_agent_framework", develop = true }
+vizu-llm-service = { path = "../../libs/vizu_llm_service", develop = true }
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+pytest-asyncio = "^0.23.0"
+ruff = "^0.4.4"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"

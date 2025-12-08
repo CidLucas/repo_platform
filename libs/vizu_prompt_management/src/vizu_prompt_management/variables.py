@@ -1,0 +1,300 @@
+"""
+Variable extraction and preparation for prompt templates.
+"""
+
+import logging
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PromptVariables:
+    """Container for prompt template variables."""
+
+    # Core variables
+    nome_empresa: Optional[str] = None
+    prompt_personalizado: Optional[str] = None
+    horario_formatado: Optional[str] = None
+
+    # Tool-related
+    tools_description: Optional[str] = None
+    enabled_tools: List[str] = field(default_factory=list)
+
+    # Agent personality (for multi-agent)
+    agent_personality: Optional[str] = None
+    agent_name: Optional[str] = None
+
+    # Context
+    cliente_id: Optional[str] = None
+    tier: Optional[str] = None
+
+    # Custom variables
+    custom: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for template rendering."""
+        result = {
+            "nome_empresa": self.nome_empresa or "Vizu",
+            "prompt_personalizado": self.prompt_personalizado or "",
+            "horario_formatado": self.horario_formatado or "",
+            "tools_description": self.tools_description or "",
+            "enabled_tools": self.enabled_tools,
+            "agent_personality": self.agent_personality or "",
+            "agent_name": self.agent_name or "Assistente",
+            "cliente_id": self.cliente_id or "",
+            "tier": self.tier or "",
+        }
+
+        # Add custom variables
+        result.update(self.custom)
+
+        return result
+
+    def set(self, key: str, value: Any) -> "PromptVariables":
+        """Set a custom variable (fluent interface)."""
+        self.custom[key] = value
+        return self
+
+
+class VariableExtractor:
+    """
+    Extract variables from various sources for prompt rendering.
+
+    Supports extraction from:
+    - VizuClientContext
+    - SafeClientContext
+    - Raw dictionaries
+    """
+
+    @staticmethod
+    def from_client_context(context: Any) -> PromptVariables:
+        """
+        Extract variables from a VizuClientContext.
+
+        Args:
+            context: VizuClientContext or similar object
+
+        Returns:
+            PromptVariables with extracted data
+        """
+        variables = PromptVariables()
+
+        # Core info
+        if hasattr(context, "nome_empresa"):
+            variables.nome_empresa = context.nome_empresa
+        elif hasattr(context, "nome_cliente"):
+            variables.nome_empresa = context.nome_cliente
+
+        if hasattr(context, "prompt_base"):
+            variables.prompt_personalizado = context.prompt_base
+
+        # Horários
+        if hasattr(context, "horario_funcionamento"):
+            variables.horario_formatado = VariableExtractor._format_horarios(
+                context.horario_funcionamento
+            )
+
+        # Tools
+        if hasattr(context, "get_enabled_tools_list"):
+            variables.enabled_tools = context.get_enabled_tools_list()
+
+        # Tier
+        if hasattr(context, "tier"):
+            tier = context.tier
+            variables.tier = tier.value if hasattr(tier, "value") else str(tier)
+
+        # Client ID
+        if hasattr(context, "id"):
+            variables.cliente_id = str(context.id)
+
+        return variables
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> PromptVariables:
+        """
+        Extract variables from a dictionary.
+
+        Args:
+            data: Dictionary with variable data
+
+        Returns:
+            PromptVariables
+        """
+        variables = PromptVariables()
+
+        # Map known keys
+        key_mapping = {
+            "nome_empresa": "nome_empresa",
+            "nome_cliente": "nome_empresa",
+            "prompt_base": "prompt_personalizado",
+            "prompt_personalizado": "prompt_personalizado",
+            "horario_funcionamento": None,  # Needs special handling
+            "horario_formatado": "horario_formatado",
+            "tools_description": "tools_description",
+            "enabled_tools": "enabled_tools",
+            "agent_personality": "agent_personality",
+            "agent_name": "agent_name",
+            "cliente_id": "cliente_id",
+            "tier": "tier",
+        }
+
+        for src_key, dest_key in key_mapping.items():
+            if src_key in data and dest_key:
+                setattr(variables, dest_key, data[src_key])
+
+        # Special handling for horario_funcionamento
+        if "horario_funcionamento" in data and not variables.horario_formatado:
+            variables.horario_formatado = VariableExtractor._format_horarios(
+                data["horario_funcionamento"]
+            )
+
+        # Copy remaining keys to custom
+        known_keys = set(key_mapping.keys())
+        for key, value in data.items():
+            if key not in known_keys:
+                variables.custom[key] = value
+
+        return variables
+
+    @staticmethod
+    def _format_horarios(horarios: Optional[Dict]) -> str:
+        """Format business hours for display."""
+        if not horarios:
+            return "Horário não configurado."
+
+        linhas = []
+        dias_ordem = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
+
+        for dia in dias_ordem:
+            if dia in horarios:
+                info = horarios[dia]
+                if isinstance(info, dict):
+                    abertura = info.get("abertura", "")
+                    fechamento = info.get("fechamento", "")
+                    if abertura and fechamento:
+                        linhas.append(f"- {dia.capitalize()}: {abertura} às {fechamento}")
+                    else:
+                        linhas.append(f"- {dia.capitalize()}: Fechado")
+                elif isinstance(info, str):
+                    linhas.append(f"- {dia.capitalize()}: {info}")
+
+        # Add days not in standard order
+        for dia, info in horarios.items():
+            if dia.lower() not in dias_ordem:
+                linhas.append(f"- {dia.capitalize()}: {info}")
+
+        return "\n".join(linhas) if linhas else "Horário não configurado."
+
+    @staticmethod
+    def build_tools_description(
+        tools: List[str],
+        tool_registry: Optional[Any] = None,
+    ) -> str:
+        """
+        Build a description of available tools.
+
+        Args:
+            tools: List of tool names
+            tool_registry: Optional ToolRegistry for metadata
+
+        Returns:
+            Formatted tool descriptions
+        """
+        if not tools:
+            return "Nenhuma ferramenta disponível."
+
+        lines = ["As seguintes ferramentas estão disponíveis para você:"]
+
+        for i, tool_name in enumerate(tools, 1):
+            description = f"Ferramenta {tool_name}"
+
+            # Try to get description from registry
+            if tool_registry:
+                try:
+                    meta = tool_registry.get_tool(tool_name)
+                    if meta and meta.description:
+                        description = meta.description
+                except Exception:
+                    pass
+
+            lines.append(f"{i}. **{tool_name}** - {description}")
+
+        return "\n".join(lines)
+
+
+class ContextVariableBuilder:
+    """
+    Builder for constructing PromptVariables with fluent interface.
+    """
+
+    def __init__(self):
+        self._variables = PromptVariables()
+
+    def with_empresa(self, nome: str) -> "ContextVariableBuilder":
+        """Set company name."""
+        self._variables.nome_empresa = nome
+        return self
+
+    def with_prompt_base(self, prompt: str) -> "ContextVariableBuilder":
+        """Set personalized prompt."""
+        self._variables.prompt_personalizado = prompt
+        return self
+
+    def with_horarios(self, horarios: Dict) -> "ContextVariableBuilder":
+        """Set business hours."""
+        self._variables.horario_formatado = VariableExtractor._format_horarios(horarios)
+        return self
+
+    def with_tools(
+        self,
+        tools: List[str],
+        registry: Optional[Any] = None,
+    ) -> "ContextVariableBuilder":
+        """Set available tools."""
+        self._variables.enabled_tools = tools
+        self._variables.tools_description = VariableExtractor.build_tools_description(
+            tools, registry
+        )
+        return self
+
+    def with_agent(
+        self,
+        name: str,
+        personality: Optional[str] = None,
+    ) -> "ContextVariableBuilder":
+        """Set agent info."""
+        self._variables.agent_name = name
+        if personality:
+            self._variables.agent_personality = personality
+        return self
+
+    def with_tier(self, tier: str) -> "ContextVariableBuilder":
+        """Set client tier."""
+        self._variables.tier = tier
+        return self
+
+    def with_cliente_id(self, cliente_id: str) -> "ContextVariableBuilder":
+        """Set client ID."""
+        self._variables.cliente_id = cliente_id
+        return self
+
+    def with_custom(self, key: str, value: Any) -> "ContextVariableBuilder":
+        """Add custom variable."""
+        self._variables.custom[key] = value
+        return self
+
+    def from_context(self, context: Any) -> "ContextVariableBuilder":
+        """Initialize from client context."""
+        self._variables = VariableExtractor.from_client_context(context)
+        return self
+
+    def build(self) -> PromptVariables:
+        """Build and return the PromptVariables."""
+        return self._variables
+
+    def build_dict(self) -> Dict[str, Any]:
+        """Build and return as dictionary."""
+        return self._variables.to_dict()

@@ -5,6 +5,8 @@ Resources são diferentes de Tools:
 - Tools: executam ações (RAG search, SQL query)
 - Resources: expõem dados estáticos/semi-estáticos (knowledge base, config, prompts)
 
+Phase 3: Refactored to use vizu_tool_registry for dynamic tool filtering.
+
 Referência: https://fastmcp.mintlify.app/servers/resources
 """
 
@@ -25,6 +27,10 @@ from tool_pool_api.server.dependencies import (
 from vizu_db_connector.database import SessionLocal
 from vizu_models import PromptTemplate, KnowledgeBaseConfig
 from vizu_models.vizu_client_context import VizuClientContext
+
+# Phase 3: Use vizu_tool_registry for dynamic tool filtering
+from vizu_tool_registry import ToolRegistry
+
 from vizu_qdrant_client import get_qdrant_client
 from vizu_llm_service.client import get_embedding_model
 
@@ -198,6 +204,50 @@ async def _search_knowledge(
 
 
 # =============================================================================
+# HELPER: Get enabled tools from context (supports legacy and new fields)
+# =============================================================================
+
+
+def _get_enabled_tools_for_context(context: VizuClientContext) -> List[str]:
+    """
+    Get enabled tools from client context.
+
+    Supports both:
+    - New `enabled_tools` list field (preferred)
+    - Legacy boolean flags (ferramenta_rag_habilitada, etc.)
+
+    Args:
+        context: VizuClientContext from the client
+
+    Returns:
+        List of enabled tool names
+    """
+    # Try new field first
+    if hasattr(context, "enabled_tools") and context.enabled_tools:
+        return context.enabled_tools
+
+    # Fallback to legacy boolean flags
+    return ToolRegistry.get_tool_names_for_legacy_flags(
+        rag_enabled=getattr(context, "ferramenta_rag_habilitada", False),
+        sql_enabled=getattr(context, "ferramenta_sql_habilitada", False),
+        scheduling_enabled=getattr(context, "ferramenta_agendamento_habilitada", False),
+    )
+
+
+def _get_tier_for_context(context: VizuClientContext) -> str:
+    """
+    Get tier from client context.
+
+    Returns:
+        Tier string ("BASIC", "SME", "ENTERPRISE")
+    """
+    if hasattr(context, "tier") and context.tier:
+        return context.tier
+    # Default for legacy clients
+    return "BASIC"
+
+
+# =============================================================================
 # RESOURCES: Client Configuration
 # =============================================================================
 
@@ -206,13 +256,27 @@ async def _get_client_config(cliente_id: Optional[str] = None) -> str:
     """
     Retorna a configuração do cliente em formato legível.
 
+    Phase 3: Uses vizu_tool_registry for dynamic tool information.
+
     Inclui:
     - Nome da empresa
     - Horários de funcionamento
-    - Ferramentas habilitadas
+    - Ferramentas habilitadas (via ToolRegistry)
+    - Tier do cliente
     - Prompt base (se configurado)
     """
     context = await _resolve_client_context(cliente_id)
+
+    # Get enabled tools and tier
+    enabled_tools = _get_enabled_tools_for_context(context)
+    tier = _get_tier_for_context(context)
+
+    # Get available tools from registry (validates against tier)
+    available_tools = ToolRegistry.get_available_tools(
+        enabled_tools=enabled_tools,
+        tier=tier,
+        include_google=True,
+    )
 
     # Formata horários
     horarios = context.horario_funcionamento or {}
@@ -228,31 +292,43 @@ async def _get_client_config(cliente_id: Optional[str] = None) -> str:
     else:
         horarios_str = "Não configurado"
 
-    # Lista de ferramentas
+    # Lista de ferramentas (from registry)
     tools_status = []
-    if context.ferramenta_rag_habilitada:
-        tools_status.append("✅ RAG (Base de Conhecimento)")
-    else:
-        tools_status.append("❌ RAG (Base de Conhecimento)")
+    for tool in available_tools:
+        confirmation = " (requer confirmação)" if tool.requires_confirmation else ""
+        tools_status.append(f"✅ {tool.name} - {tool.description}{confirmation}")
 
-    if context.ferramenta_sql_habilitada:
-        tools_status.append("✅ SQL Agent (Dados Estruturados)")
-    else:
-        tools_status.append("❌ SQL Agent (Dados Estruturados)")
+    # Show disabled tools
+    all_tool_names = set(ToolRegistry.get_all_tools().keys())
+    enabled_names = set(t.name for t in available_tools)
+    disabled_tools = all_tool_names - enabled_names
 
     # Monta resposta
     result = f"# Configuração - {context.nome_empresa}\n\n"
     result += f"## Identificação\n"
     result += f"- **ID:** `{context.id}`\n"
-    result += f"- **Nome:** {context.nome_empresa}\n\n"
+    result += f"- **Nome:** {context.nome_empresa}\n"
+    result += f"- **Tier:** {tier}\n\n"
 
     result += f"## Horário de Funcionamento\n"
     result += f"{horarios_str}\n\n"
 
-    result += f"## Ferramentas Habilitadas\n"
-    for tool in tools_status:
-        result += f"{tool}\n"
+    result += f"## Ferramentas Habilitadas ({len(available_tools)})\n"
+    if tools_status:
+        for tool in tools_status:
+            result += f"{tool}\n"
+    else:
+        result += "Nenhuma ferramenta habilitada.\n"
     result += "\n"
+
+    # Show some disabled tools (if any)
+    if disabled_tools and len(disabled_tools) <= 10:
+        result += f"## Ferramentas Não Habilitadas\n"
+        for name in sorted(list(disabled_tools)[:5]):
+            tool_meta = ToolRegistry.get_tool(name)
+            if tool_meta:
+                result += f"❌ {name} (requer tier {tool_meta.tier_required.value})\n"
+        result += "\n"
 
     if context.collection_rag:
         result += f"## Base de Conhecimento\n"
@@ -466,6 +542,103 @@ def register_resources(mcp: FastMCP) -> None:
         """Prompt personalizado do cliente (legado, do campo prompt_base)."""
         return await _get_client_prompt(cliente_id)
 
+    # --- Tools Registry Resources (Phase 3) ---
+
+    @mcp.resource("tools://registry")
+    def tools_registry() -> str:
+        """
+        List all registered tools in the system.
+
+        Returns tool metadata including:
+        - Name and description
+        - Category
+        - Tier required
+        - Whether confirmation is required
+        """
+        all_tools = ToolRegistry.get_all_tools()
+
+        result = f"# Tool Registry ({len(all_tools)} tools)\n\n"
+
+        # Group by category
+        by_category = {}
+        for tool in all_tools.values():
+            cat = tool.category.value
+            if cat not in by_category:
+                by_category[cat] = []
+            by_category[cat].append(tool)
+
+        for category, tools in sorted(by_category.items()):
+            result += f"## {category}\n\n"
+            for tool in tools:
+                confirmation = " ⚠️" if tool.requires_confirmation else ""
+                result += f"- **{tool.name}**{confirmation}\n"
+                result += f"  - {tool.description}\n"
+                result += f"  - Tier: {tool.tier_required.value}\n"
+            result += "\n"
+
+        return result
+
+    @mcp.resource("tools://{cliente_id}/available")
+    async def tools_available_for_client(cliente_id: str) -> str:
+        """
+        List tools available for a specific client.
+
+        Takes into account the client's tier and enabled_tools configuration.
+        """
+        context = await _resolve_client_context(cliente_id)
+
+        enabled_tools = _get_enabled_tools_for_context(context)
+        tier = _get_tier_for_context(context)
+
+        available = ToolRegistry.get_available_tools(
+            enabled_tools=enabled_tools,
+            tier=tier,
+            include_google=True,
+        )
+
+        result = f"# Available Tools - {context.nome_empresa}\n\n"
+        result += f"**Tier:** {tier}\n"
+        result += f"**Enabled tools:** {', '.join(enabled_tools) or 'None'}\n\n"
+
+        if not available:
+            result += "❌ No tools available for this client.\n"
+            return result
+
+        result += f"## Tools ({len(available)})\n\n"
+        for tool in available:
+            confirmation = " (requires confirmation)" if tool.requires_confirmation else ""
+            result += f"### {tool.name}{confirmation}\n"
+            result += f"{tool.description}\n\n"
+            result += f"- **Category:** {tool.category.value}\n"
+            result += f"- **Tags:** {', '.join(tool.tags)}\n\n"
+
+        return result
+
+    @mcp.resource("tools://tier/{tier}")
+    def tools_for_tier(tier: str) -> str:
+        """
+        List all tools accessible at a given tier.
+
+        Args:
+            tier: BASIC, SME, or ENTERPRISE
+        """
+        tier_upper = tier.upper()
+        if tier_upper not in ["BASIC", "SME", "ENTERPRISE", "FREE"]:
+            return f"# Error\n\nInvalid tier: `{tier}`. Use BASIC, SME, or ENTERPRISE."
+
+        tools = ToolRegistry.get_tools_for_tier(tier_upper)
+
+        result = f"# Tools for {tier_upper} Tier ({len(tools)})\n\n"
+
+        if not tools:
+            result += "No tools available at this tier.\n"
+            return result
+
+        for tool in tools:
+            result += f"- **{tool.name}** - {tool.description}\n"
+
+        return result
+
     # --- Prompt Template Resources (from Database) ---
 
     @mcp.resource("prompts://list")
@@ -564,4 +737,7 @@ def register_resources(mcp: FastMCP) -> None:
 
         return result
 
-    logger.info("MCP Resources registrados: " "knowledge://*, config://*, prompts://*")
+    logger.info(
+        "MCP Resources registrados: "
+        "knowledge://*, config://*, prompts://*, tools://*"
+    )

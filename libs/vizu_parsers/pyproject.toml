@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "vizu-parsers"
+version = "0.1.0"
+description = "Vizu library for parsing files (PDF, CSV, TXT) and chunking text for RAG"
+authors = ["Vizu"]
+readme = "README.md"
+packages = [{include = "vizu_parsers", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+# PDF parsing
+pypdf = "^4.0.0"
+# CSV parsing
+pandas = "^2.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "vizu-tool-registry"
+version = "0.1.0"
+description = "Centralized tool discovery and dynamic allocation for Vizu multi-agent architecture"
+authors = ["Lucas Cid <lucas@vizubr.com>"]
+readme = "README.md"
+packages = [{ include = "vizu_tool_registry", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pydantic = "^2.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-asyncio = "^0.23.0"
+ruff = "^0.4.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "W", "I", "UP", "C4", "B"]
+ignore = ["E501"]

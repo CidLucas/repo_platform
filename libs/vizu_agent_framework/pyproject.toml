@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "vizu-agent-framework"
+version = "0.1.0"
+description = "Reusable LangGraph agent framework for Vizu multi-agent architecture"
+authors = ["Vizu Team"]
+readme = "README.md"
+packages = [{include = "vizu_agent_framework", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+langgraph = "^0.2"
+langchain-core = "^0.3"
+pydantic = "^2.0"
+redis = "^5.0"
+httpx = "^0.27"
+anyio = "^4.0"
+mcp = "^1.0"
+langchain-mcp-adapters = "^0.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-asyncio = "^0.24"
+pytest-cov = "^4.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

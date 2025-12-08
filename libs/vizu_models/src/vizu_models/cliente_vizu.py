@@ -49,19 +49,32 @@ class ClienteVizu(ClienteVizuBase, table=True):
 
     prompt_base: Optional[str] = Field(default=None, sa_column=Column(Text))
 
+    # PHASE 1: Dynamic Tool Allocation - NEW enabled_tools list
+    # This replaces the 3 boolean flags below
+    enabled_tools: List[str] = Field(
+        default_factory=list,
+        sa_column=Column(JSON, nullable=False, server_default="[]"),
+        description="List of enabled tool names (e.g., ['executar_rag_cliente', 'executar_sql_agent'])"
+    )
+
+    # LEGACY: Boolean flags (deprecated, kept for backward compatibility)
+    # Will be removed in v1.1 after migration is complete
     ferramenta_rag_habilitada: bool = Field(
         default=False,
         sa_column=Column(Boolean, server_default="false"),
+        description="DEPRECATED: Use enabled_tools instead"
     )
 
     ferramenta_sql_habilitada: bool = Field(
         default=False,
         sa_column=Column(Boolean, server_default="false"),
+        description="DEPRECATED: Use enabled_tools instead"
     )
 
     ferramenta_agendamento_habilitada: bool = Field(
         default=False,
         sa_column=Column(Boolean, server_default="false"),
+        description="DEPRECATED: Use enabled_tools instead"
     )
 
     collection_rag: Optional[str] = Field(default=None, sa_column=Column(String))
@@ -81,16 +94,39 @@ class ClienteVizu(ClienteVizuBase, table=True):
         back_populates="cliente_vizu"
     )
 
+    def get_enabled_tools_list(self) -> List[str]:
+        """
+        Returns enabled tools list, computing from legacy booleans if needed.
+
+        This helper ensures backward compatibility during migration:
+        - If enabled_tools is populated, use it
+        - Otherwise, compute from legacy boolean flags
+        """
+        if self.enabled_tools:
+            return self.enabled_tools
+
+        # Fallback: compute from legacy booleans
+        tools = []
+        if self.ferramenta_rag_habilitada:
+            tools.append("executar_rag_cliente")
+        if self.ferramenta_sql_habilitada:
+            tools.append("executar_sql_agent")
+        if self.ferramenta_agendamento_habilitada:
+            tools.append("agendar_consulta")
+        return tools
+
 
 class ClienteVizuCreate(ClienteVizuBase):
     # Optional config fields for creation
     horario_funcionamento: Optional[dict] = None
     prompt_base: Optional[str] = None
+    # PHASE 1: New enabled_tools list
+    enabled_tools: List[str] = []
+    # Legacy boolean flags (deprecated)
     ferramenta_rag_habilitada: Optional[bool] = False
     ferramenta_sql_habilitada: Optional[bool] = False
     ferramenta_agendamento_habilitada: Optional[bool] = False
     collection_rag: Optional[str] = None
-    pass
 
 
 class ClienteVizuRead(ClienteVizuBase):
@@ -98,6 +134,9 @@ class ClienteVizuRead(ClienteVizuBase):
     api_key: str
     horario_funcionamento: Optional[dict] = None
     prompt_base: Optional[str] = None
+    # PHASE 1: New enabled_tools list
+    enabled_tools: List[str] = []
+    # Legacy boolean flags (deprecated, kept for backward compatibility)
     ferramenta_rag_habilitada: bool = False
     ferramenta_sql_habilitada: bool = False
     ferramenta_agendamento_habilitada: bool = False

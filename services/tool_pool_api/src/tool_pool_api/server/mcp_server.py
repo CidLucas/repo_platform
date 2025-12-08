@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -10,6 +11,33 @@ from .prompts import register_prompts
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+# Docker MCP integration - lazy import to avoid startup errors
+_docker_mcp_adapter = None
+
+
+async def _initialize_docker_mcp(mcp: FastMCP):
+    """Initialize Docker MCP integration if enabled."""
+    global _docker_mcp_adapter
+    try:
+        from .docker_mcp_adapter import get_docker_mcp_adapter
+
+        adapter = get_docker_mcp_adapter()
+        await adapter.initialize()
+
+        # Discover and register Docker MCP tools
+        registered = await adapter.discover_and_register(mcp)
+        _docker_mcp_adapter = adapter
+
+        if registered:
+            logger.info(f"Docker MCP: Registered {len(registered)} tools")
+        else:
+            logger.debug("Docker MCP: No tools registered (disabled or no containers)")
+
+    except ImportError as e:
+        logger.debug(f"Docker MCP adapter not available: {e}")
+    except Exception as e:
+        logger.warning(f"Docker MCP initialization failed: {e}")
 
 
 def create_mcp_server():
@@ -43,6 +71,10 @@ def create_mcp_server():
         """Combina o lifespan do MCP com o do FastAPI."""
         async with mcp_asgi.lifespan(app):
             logger.info("MCP SessionManager inicializado.")
+
+            # Initialize Docker MCP integration (non-blocking)
+            asyncio.create_task(_initialize_docker_mcp(mcp))
+
             yield
             logger.info("MCP SessionManager finalizado.")
 
@@ -58,12 +90,19 @@ def create_mcp_server():
     async def server_info():
         """Informações do servidor para debugging/admin."""
         modules = get_available_modules()
+
+        # Include Docker MCP status if available
+        docker_mcp_status = None
+        if _docker_mcp_adapter:
+            docker_mcp_status = _docker_mcp_adapter.get_status()
+
         return {
             "name": "Vizu Tool Pool API",
             "version": "1.0.0",
             "transport": "http",
             "modules": list(modules.keys()),
             "tools_count": sum(len(m["tools"]) for m in modules.values()),
+            "docker_mcp": docker_mcp_status,
         }
 
     # 6. Monte o servidor MCP no FastAPI

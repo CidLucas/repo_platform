@@ -1,0 +1,27 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "vizu_elicitation_service"
+version = "0.1.0"
+description = "Human-in-the-loop elicitation service for Vizu agents"
+authors = ["Vizu Team"]
+readme = "README.md"
+packages = [{include = "vizu_elicitation_service", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pydantic = "^2.6.0"
+redis = "^5.0.0"
+vizu_models = {path = "../vizu_models", develop = true}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-asyncio = "^0.23"
+fakeredis = "^2.20.0"
+ruff = "^0.4.0"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

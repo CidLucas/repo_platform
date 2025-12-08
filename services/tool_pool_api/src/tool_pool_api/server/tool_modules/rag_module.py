@@ -3,6 +3,8 @@
 Módulo RAG - Ferramentas de Retrieval-Augmented Generation
 
 Este módulo contém tools para busca em bases de conhecimento dos clientes.
+
+Phase 3: Updated to use vizu_tool_registry for tool validation.
 """
 
 import logging
@@ -21,9 +23,59 @@ from vizu_models.vizu_client_context import VizuClientContext
 from vizu_rag_factory.factory import create_rag_runnable
 from vizu_llm_service import get_model, ModelTier
 
+# Phase 3: Use ToolRegistry for validation
+from vizu_tool_registry import ToolRegistry
+
 from . import register_module
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# HELPERS
+# =============================================================================
+
+
+def _is_tool_enabled_for_client(
+    tool_name: str, context: VizuClientContext
+) -> bool:
+    """
+    Check if a tool is enabled for a client.
+
+    Supports both:
+    - New `enabled_tools` list field
+    - Legacy boolean flags
+
+    Args:
+        tool_name: Name of the tool (e.g., "executar_rag_cliente")
+        context: VizuClientContext
+
+    Returns:
+        True if tool is enabled
+    """
+    # Try new field first
+    if hasattr(context, "enabled_tools") and context.enabled_tools:
+        return tool_name in context.enabled_tools
+
+    # Get tier
+    tier = getattr(context, "tier", "BASIC") or "BASIC"
+
+    # Fallback: convert legacy flags and check
+    enabled_tools = ToolRegistry.get_tool_names_for_legacy_flags(
+        rag_enabled=getattr(context, "ferramenta_rag_habilitada", False),
+        sql_enabled=getattr(context, "ferramenta_sql_habilitada", False),
+        scheduling_enabled=getattr(context, "ferramenta_agendamento_habilitada", False),
+    )
+
+    # Check if tool is in enabled list and accessible by tier
+    if tool_name not in enabled_tools:
+        return False
+
+    tool_meta = ToolRegistry.get_tool(tool_name)
+    if tool_meta and not tool_meta.is_accessible_by_tier(tier):
+        return False
+
+    return True
 
 
 # =============================================================================
@@ -86,11 +138,11 @@ async def _executar_rag_cliente_logic(
         logger.exception(f"[RAG] Erro inesperado ao carregar contexto: {e}")
         raise ToolError("Erro interno ao carregar contexto do cliente.")
 
-    # 3. Validações de Negócio
+    # 3. Validations - Using ToolRegistry (Phase 3)
     real_client_id = vizu_context.id
     logger.info(f"[RAG] Executando para cliente {real_client_id}...")
 
-    if not vizu_context.ferramenta_rag_habilitada:
+    if not _is_tool_enabled_for_client("executar_rag_cliente", vizu_context):
         logger.warning(f"[RAG] Ferramenta desabilitada para {real_client_id}.")
         raise ToolError("Ferramenta RAG não está habilitada para este cliente.")
 

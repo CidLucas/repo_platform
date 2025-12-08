@@ -1776,6 +1776,24 @@ test = ["async-timeout ; python_version < \"3.11\"", "pytest", "pytest-asyncio (
 trio = ["trio"]
 
 [[package]]
+name = "jinja2"
+version = "3.1.6"
+description = "A very fast and expressive template engine."
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67"},
+    {file = "jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d"},
+]
+
+[package.dependencies]
+MarkupSafe = ">=2.0"
+
+[package.extras]
+i18n = ["Babel (>=2.7)"]
+
+[[package]]
 name = "jiter"
 version = "0.12.0"
 description = "Fast iterable JSON parser."
@@ -5216,6 +5234,29 @@ type = "directory"
 url = "../../libs/vizu_models"
 
 [[package]]
+name = "vizu-prompt-management"
+version = "0.1.0"
+description = "Centralized prompt management for Vizu services - versioning, templates, and MCP integration"
+optional = false
+python-versions = "^3.11"
+groups = ["main"]
+files = []
+develop = true
+
+[package.dependencies]
+jinja2 = "^3.1.0"
+pydantic = "^2.6.0"
+vizu_db_connector = {path = "../vizu_db_connector", develop = true}
+vizu_models = {path = "../vizu_models", develop = true}
+
+[package.extras]
+mcp = ["fastmcp (>=2.11.0,<3.0.0)"]
+
+[package.source]
+type = "directory"
+url = "../../libs/vizu_prompt_management"
+
+[[package]]
 name = "vizu-qdrant-client"
 version = "0.1.0"
 description = "Cliente padronizado para Qdrant no ecossistema Vizu."
@@ -5296,6 +5337,24 @@ supabase = "^2.10.0"
 [package.source]
 type = "directory"
 url = "../../libs/vizu_supabase_client"
+
+[[package]]
+name = "vizu-tool-registry"
+version = "0.1.0"
+description = "Centralized tool discovery and dynamic allocation for Vizu multi-agent architecture"
+optional = false
+python-versions = "^3.11"
+groups = ["main"]
+files = []
+develop = true
+
+[package.dependencies]
+pydantic = "^2.0.0"
+vizu-models = {path = "../vizu_models", develop = true}
+
+[package.source]
+type = "directory"
+url = "../../libs/vizu_tool_registry"
 
 [[package]]
 name = "watchfiles"
@@ -6019,4 +6078,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "4380b1a27a57fa4b129376abddd267f187e11a9447c70657c863be50fd46be4a"
+content-hash = "080cc417737c86216f23478226a1cae2ee0bbba49e7bbe94172895cbfd730ab0"

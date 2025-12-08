@@ -205,7 +205,7 @@ async def chunk_text_endpoint(request: ChunkRequest):
     """
     try:
         strategy = _get_strategy(request.strategy)
-        
+
         chunks = chunk_text(
             text=request.text,
             chunk_size=request.chunk_size,
@@ -214,17 +214,17 @@ async def chunk_text_endpoint(request: ChunkRequest):
             min_chunk_size=request.min_chunk_size,
             metadata=request.metadata,
         )
-        
+
         chunk_dicts = [c.to_dict() for c in chunks]
-        
+
         print(f"DEBUG /chunk: Criados {len(chunk_dicts)} chunks de {len(request.text)} chars")
-        
+
         return ChunkResponse(
             chunks=chunk_dicts,
             total_chunks=len(chunk_dicts),
             original_length=len(request.text),
         )
-        
+
     except Exception as e:
         print(f"ERRO: Falha ao fazer chunking: {e}")
         raise HTTPException(
@@ -243,10 +243,10 @@ async def process_text_endpoint(request: ProcessRequest):
     """
     if not request.text:
         raise HTTPException(status_code=422, detail="text é obrigatório")
-    
+
     try:
         strategy = _get_strategy(request.strategy)
-        
+
         # 1. Divide em chunks
         chunks = chunk_text(
             text=request.text,
@@ -254,29 +254,29 @@ async def process_text_endpoint(request: ProcessRequest):
             chunk_overlap=request.chunk_overlap,
             strategy=strategy,
         )
-        
+
         chunk_dicts = [c.to_dict() for c in chunks]
-        
+
         # 2. Opcionalmente gera embeddings
         embeddings = None
         if request.embed and chunks:
             model = get_model_singleton()
             chunk_texts = [c.text for c in chunks]
-            
+
             if request.mode == "query":
                 embeddings = model.embed_queries(chunk_texts)
             else:
                 embeddings = model.embed_documents(chunk_texts)
-            
+
             print(f"DEBUG /process: Gerados {len(embeddings)} embeddings para {len(chunks)} chunks")
-        
+
         return ProcessResponse(
             chunks=chunk_dicts,
             embeddings=embeddings,
             total_chunks=len(chunk_dicts),
             original_length=len(request.text),
         )
-        
+
     except Exception as e:
         print(f"ERRO: Falha ao processar texto: {e}")
         raise HTTPException(
@@ -299,16 +299,16 @@ async def process_file_endpoint(
     """
     Faz upload de um arquivo (PDF, CSV, TXT), extrai texto, divide em chunks
     e opcionalmente gera embeddings. Pipeline completo de ingestão RAG.
-    
+
     Formatos suportados: .pdf, .csv, .txt
     """
     try:
         # Lê o conteúdo do arquivo
         content = await file.read()
         file_stream = io.BytesIO(content)
-        
+
         strategy_enum = _get_strategy(strategy)
-        
+
         # Parse e chunk usando vizu_parsers
         chunks = parse_and_chunk(
             file_stream=file_stream,
@@ -318,36 +318,36 @@ async def process_file_endpoint(
             strategy=strategy_enum,
             metadata={"source_file": file.filename},
         )
-        
+
         if not chunks:
             raise HTTPException(
                 status_code=422,
                 detail=f"Não foi possível extrair texto do arquivo: {file.filename}"
             )
-        
+
         chunk_dicts = [c.to_dict() for c in chunks]
         original_length = sum(c.length for c in chunks)
-        
+
         # Opcionalmente gera embeddings
         embeddings = None
         if embed and chunks:
             model = get_model_singleton()
             chunk_texts = [c.text for c in chunks]
-            
+
             if mode == "query":
                 embeddings = model.embed_queries(chunk_texts)
             else:
                 embeddings = model.embed_documents(chunk_texts)
-            
+
             print(f"DEBUG /process-file: {file.filename} -> {len(chunks)} chunks, {len(embeddings)} embeddings")
-        
+
         return ProcessResponse(
             chunks=chunk_dicts,
             embeddings=embeddings,
             total_chunks=len(chunk_dicts),
             original_length=original_length,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:

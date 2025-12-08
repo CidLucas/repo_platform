@@ -90,7 +90,7 @@ def get_chunked_embeddings(text: str, chunk_size: int = 512, chunk_overlap: int 
             data = response.json()
             chunks = data.get("chunks", [])
             embeddings = data.get("embeddings", [])
-            
+
             # Combina chunks com embeddings
             result = []
             for i, chunk in enumerate(chunks):
@@ -180,13 +180,13 @@ def seed_collection_with_chunks(
 
         # Texto combinado para embedding
         full_text = f"{title}\n\n{content}"
-        
+
         if use_chunking and len(full_text) > chunk_size:
             # Usa chunking para documentos grandes
             logger.info(f"   Chunking: {title} ({len(full_text)} chars)...")
             try:
                 chunk_results = get_chunked_embeddings(full_text, chunk_size, chunk_overlap)
-                
+
                 for i, chunk_data in enumerate(chunk_results):
                     if chunk_data.get("embedding"):
                         point = models.PointStruct(
@@ -204,9 +204,9 @@ def seed_collection_with_chunks(
                         )
                         points.append(point)
                         point_id += 1
-                
+
                 logger.info(f"   -> {len(chunk_results)} chunks criados")
-                
+
             except Exception as e:
                 logger.error(f"   Erro ao chunkar {title}: {e}")
                 # Fallback: usa documento inteiro
@@ -229,7 +229,7 @@ def seed_collection_with_chunks(
             # Documento pequeno - usa inteiro
             logger.info(f"   Embedding: {title} ({len(full_text)} chars)...")
             embedding = get_embedding(full_text)
-            
+
             point = models.PointStruct(
                 id=point_id,
                 vector=embedding,
@@ -265,7 +265,7 @@ def run_seed(
 ):
     """Funcao principal de seed do Qdrant."""
     knowledge_dir = knowledge_dir or DEFAULT_KNOWLEDGE_DIR
-    
+
     logger.info("\n" + "="*60)
     logger.info("🌱 SEED QDRANT FROM FILES")
     logger.info("="*60)
@@ -285,7 +285,7 @@ def run_seed(
     if not json_files:
         logger.error(f"   ❌ Nenhum arquivo .json encontrado em {knowledge_dir}")
         return
-    
+
     logger.info(f"   Encontrados {len(json_files)} arquivos JSON")
 
     # Conecta ao Qdrant
@@ -301,22 +301,22 @@ def run_seed(
     # Processa cada arquivo
     for json_file in json_files:
         logger.info(f"\n📄 Processando: {json_file.name}")
-        
+
         data = load_knowledge_file(json_file)
         if not data:
             continue
-        
+
         collection_name = data.get("collection")
         documents = data.get("documents", [])
-        
+
         if not collection_name:
             logger.warning(f"   ⚠️ Arquivo sem 'collection': {json_file.name}")
             continue
-        
+
         if not documents:
             logger.warning(f"   ⚠️ Arquivo sem 'documents': {json_file.name}")
             continue
-        
+
         try:
             seed_collection_with_chunks(
                 client=client,
@@ -374,9 +374,9 @@ def main():
         action="store_true",
         help="Disable chunking (embed full documents)"
     )
-    
+
     args = parser.parse_args()
-    
+
     run_seed(
         knowledge_dir=args.dir,
         chunk_size=args.chunk_size,

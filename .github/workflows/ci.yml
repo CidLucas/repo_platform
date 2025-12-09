@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  env-check:
+    name: Env Example Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Run env example validator
+        run: python3 scripts/validate_env_example.py
+
+  dependency-check:
+    name: Validate pyproject files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python -
+          export PATH="$HOME/.local/bin:$PATH"
+      - name: Run poetry checks
+        run: |
+          chmod +x scripts/check_pyproject.sh
+          ./scripts/check_pyproject.sh
+
+  tests:
+    name: Run Tests & Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install test tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov
+      - name: Run tests
+        env:
+          COVERAGE_MIN: 70
+        run: |
+          chmod +x scripts/run_tests_all.sh
+          ./scripts/run_tests_all.sh
+
+  docker-build:
+    name: Build Docker images and size-check
+    runs-on: ubuntu-latest
+    needs: [tests]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and check images
+        run: |
+          chmod +x scripts/docker_build_and_check.sh
+          # Example: check core services; adjust list per repo needs
+          ./scripts/docker_build_and_check.sh services/tool_pool_api 300000000
+          ./scripts/docker_build_and_check.sh services/atendente_core 300000000
+
+  e2e-staging:
+    name: E2E Staging (conditional)
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    if: github.ref == 'refs/heads/main' && secrets.STAGING_ENDPOINT
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Run e2e smoke tests
+        env:
+          STAGING_ENDPOINT: ${{ secrets.STAGING_ENDPOINT }}
+        run: |
+          echo "Running E2E smoke tests against $STAGING_ENDPOINT"
+          # Placeholder: user should implement scripts/e2e_run.sh to execute real tests
+          if [ -f scripts/e2e_run.sh ]; then
+            chmod +x scripts/e2e_run.sh
+            ./scripts/e2e_run.sh "$STAGING_ENDPOINT"
+          else
+            echo "No e2e script found; skipping e2e"
+
+  publish-image:
+    name: Publish image (manual)
+    runs-on: ubuntu-latest
+    needs: [docker-build]
+    if: github.ref == 'refs/heads/main'
+    permissions: write-all
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to registry
+        if: secrets.CI_REGISTRY && secrets.CI_REGISTRY_USERNAME && secrets.CI_REGISTRY_PASSWORD
+        run: |
+          echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u "$CI_REGISTRY_USERNAME" --password-stdin
+        env:
+          CI_REGISTRY: ${{ secrets.CI_REGISTRY }}
+          CI_REGISTRY_USERNAME: ${{ secrets.CI_REGISTRY_USERNAME }}
+          CI_REGISTRY_PASSWORD: ${{ secrets.CI_REGISTRY_PASSWORD }}
+      - name: Tag & push images (example)
+        if: secrets.CI_REGISTRY
+        run: |
+          # Tag images with commit SHA and push to protected registry
+          COMMIT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
+          docker tag ci-check-tool_pool_api:latest ${{ secrets.CI_REGISTRY }}/tool_pool_api:${COMMIT_SHA}
+          docker push ${{ secrets.CI_REGISTRY }}/tool_pool_api:${COMMIT_SHA}

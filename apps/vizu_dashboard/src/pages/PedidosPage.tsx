@@ -117,7 +117,7 @@ function PedidosPage() {
             title="Últimos Pedidos"
             items={pedidos} // Use fetched data
             onMiniCardClick={handleMiniCardClick}
-            viewAllLink="/pedidos/lista" // Link to the full list page
+            viewAllLink="/dashboard/pedidos/lista" // Link to the full list page
           />
 
           {/* Card Type 3: Histórico de Pedidos */}

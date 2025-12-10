@@ -17,7 +17,7 @@ export const FloatingMenu = () => {
       boxShadow="lg"
       zIndex="1001" // Added zIndex
     >
-      <NavLink to="/" end>
+      <NavLink to="/dashboard" end>
         {({ isActive }) => (
           <IconButton
             aria-label="Home"
@@ -27,7 +27,7 @@ export const FloatingMenu = () => {
           />
         )}
       </NavLink>
-      <NavLink to="/charts">
+      <NavLink to="/dashboard/charts">
         {({ isActive }) => (
           <IconButton
             aria-label="Charts"
@@ -37,7 +37,7 @@ export const FloatingMenu = () => {
           />
         )}
       </NavLink>
-      <NavLink to="/settings">
+      <NavLink to="/dashboard/settings">
         {({ isActive }) => (
           <IconButton
             aria-label="Settings"

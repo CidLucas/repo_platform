@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { ChakraProvider, extendTheme } from '@chakra-ui/react'
-import { BrowserRouter } from 'react-router-dom'; // Add this import
+import { BrowserRouter } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import { ChatProvider } from './contexts/ChatContext';
 
 // Create a theme instance.
 const theme = extendTheme({
@@ -126,7 +128,11 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <ChakraProvider theme={theme}>
-        <App />
+        <AuthProvider>
+          <ChatProvider>
+            <App />
+          </ChatProvider>
+        </AuthProvider>
       </ChakraProvider>
     </BrowserRouter>
   </StrictMode>,

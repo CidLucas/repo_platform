@@ -1,0 +1,457 @@
+[
+  {
+    "id": "page",
+    "classes": [
+      "clearfix"
+    ],
+    "tag": "div",
+    "text": "ANNA MARIA MAIOLINOLinha do TempoExposições & ObrasTextos CríticosSine Dietextos ARTE annaContato[Timeline][Exhibitions & Works][Critical Texts][Sem D",
+    "style": {
+      "width": 320
+    }
+  },
+  {
+    "id": "pu162",
+    "classes": [
+      "clearfix",
+      "grpelem",
+      "shared_content"
+    ],
+    "tag": "div",
+    "text": "ANNA MARIA MAIOLINO",
+    "style": {
+      "height": 0,
+      "width": 1
+    }
+  },
+  {
+    "id": "pu82027",
+    "classes": [
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "div",
+    "text": "Linha do TempoExposições & ObrasTextos CríticosSine Dietextos ARTE annaContato[Timeline][Exhibitions & Works][Critical Texts][Sem Data][texts ART anna",
+    "style": {
+      "width": 1
+    }
+  },
+  {
+    "id": "u82027",
+    "classes": [
+      "clearfix",
+      "colelem"
+    ],
+    "tag": "div",
+    "text": "Linha do TempoExposições & ObrasTextos CríticosSine Dietextos ARTE annaContato",
+    "style": {
+      "width": 704
+    }
+  },
+  {
+    "id": "u68954-4",
+    "classes": [
+      "nonblock",
+      "nontext",
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "a",
+    "text": "Linha do Tempo",
+    "style": {
+      "color": "#000000",
+      "font-size": 16,
+      "line-height": 19,
+      "font-family": "Times, Times New Roman, Georgia, serif",
+      "width": 106
+    }
+  },
+  {
+    "id": "u68960-4",
+    "classes": [
+      "nonblock",
+      "nontext",
+      "transition",
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "a",
+    "text": "Exposições & Obras",
+    "style": {
+      "color": "#000000",
+      "font-size": 16,
+      "line-height": 19,
+      "font-family": "Times, Times New Roman, Georgia, serif",
+      "width": 132,
+      "left": 134
+    }
+  },
+  {
+    "id": "u68972-4",
+    "classes": [
+      "nonblock",
+      "nontext",
+      "transition",
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "a",
+    "text": "Textos Críticos",
+    "style": {
+      "color": "#000000",
+      "font-size": 16,
+      "line-height": 19,
+      "font-family": "Times, Times New Roman, Georgia, serif",
+      "width": 101,
+      "left": 293
+    }
+  },
+  {
+    "id": "u68984-4",
+    "classes": [
+      "nonblock",
+      "nontext",
+      "transition",
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "a",
+    "text": "Sine Die",
+    "style": {
+      "color": "#000000",
+      "font-size": 16,
+      "line-height": 19,
+      "font-family": "Times, Times New Roman, Georgia, serif",
+      "width": 57,
+      "left": 422
+    }
+  },
+  {
+    "id": "u68996-4",
+    "classes": [
+      "nonblock",
+      "nontext",
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "a",
+    "text": "textos ARTE anna",
+    "style": {
+      "color": "#000000",
+      "font-size": 16,
+      "line-height": 19,
+      "font-family": "Times, Times New Roman, Georgia, serif",
+      "width": 119,
+      "left": 506
+    }
+  },
+  {
+    "id": "u69008-4",
+    "classes": [
+      "nonblock",
+      "nontext",
+      "transition",
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "a",
+    "text": "Contato",
+    "style": {
+      "color": "#000000",
+      "font-size": 16,
+      "line-height": 19,
+      "font-family": "Times, Times New Roman, Georgia, serif",
+      "width": 51,
+      "left": 653
+    }
+  },
+  {
+    "id": "u82023",
+    "classes": [
+      "clearfix",
+      "colelem"
+    ],
+    "tag": "div",
+    "text": "[Timeline][Exhibitions & Works][Critical Texts][Sem Data][texts ART anna][Contact]",
+    "style": {
+      "width": 714
+    }
+  },
+  {
+    "id": "u76552-4",
+    "classes": [
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "div",
+    "text": "[Timeline]",
+    "style": {
+      "width": 106
+    }
+  },
+  {
+    "id": "u76553-4",
+    "classes": [
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "div",
+    "text": "[Exhibitions & Works]",
+    "style": {
+      "width": 150,
+      "left": 124
+    }
+  },
+  {
+    "id": "u76556-4",
+    "classes": [
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "div",
+    "text": "[Critical Texts]",
+    "style": {
+      "width": 101,
+      "left": 293
+    }
+  },
+  {
+    "id": "u76557-4",
+    "classes": [
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "div",
+    "text": "[Sem Data]",
+    "style": {
+      "width": 75,
+      "left": 412
+    }
+  },
+  {
+    "id": "u76554-4",
+    "classes": [
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "div",
+    "text": "[texts ART anna]",
+    "style": {
+      "width": 119,
+      "left": 506
+    }
+  },
+  {
+    "id": "u76555-4",
+    "classes": [
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "div",
+    "text": "[Contact]",
+    "style": {
+      "color": "#999999",
+      "font-size": 14,
+      "font-family": "Times, Times New Roman, Georgia, serif",
+      "width": 73,
+      "left": 641
+    }
+  },
+  {
+    "id": "u18714_align_to_page",
+    "classes": [
+      "clearfix"
+    ],
+    "tag": "div",
+    "text": "2020 © copyright anna maria maiolino. all rights reserved // desenvolvido por yuri de francco",
+    "style": {
+      "width": 320,
+      "left": -215
+    }
+  },
+  {
+    "id": "ppamphletu71930",
+    "classes": [
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "div",
+    "text": "+ Linha do TempoTimeline+ Exposições & ObrasExhibitions & Works+ Textos CríticosCritical Texts+ Sine DieSem Data+ textos ARTE annatexts ART anna+ Cont",
+    "style": {
+      "width": 1
+    }
+  },
+  {
+    "id": "u73894-6",
+    "classes": [
+      "nonblock",
+      "nontext",
+      "AccordionPanelTab",
+      "transition",
+      "clearfix",
+      "colelem"
+    ],
+    "tag": "a",
+    "text": "+ Linha do TempoTimeline",
+    "style": {
+      "color": "#333333",
+      "font-size": 14,
+      "line-height": 14,
+      "font-family": "roboto, sans-serif",
+      "width": 256
+    }
+  },
+  {
+    "id": "u74039-6",
+    "classes": [
+      "nonblock",
+      "nontext",
+      "AccordionPanelTab",
+      "transition",
+      "clearfix",
+      "colelem"
+    ],
+    "tag": "a",
+    "text": "+ Exposições & ObrasExhibitions & Works",
+    "style": {
+      "color": "#333333",
+      "font-size": 14,
+      "line-height": 14,
+      "font-family": "roboto, sans-serif",
+      "width": 256
+    }
+  },
+  {
+    "id": "u74065-6",
+    "classes": [
+      "nonblock",
+      "nontext",
+      "AccordionPanelTab",
+      "transition",
+      "clearfix",
+      "colelem"
+    ],
+    "tag": "a",
+    "text": "+ Textos CríticosCritical Texts",
+    "style": {
+      "color": "#333333",
+      "font-size": 14,
+      "line-height": 14,
+      "font-family": "roboto, sans-serif",
+      "width": 256
+    }
+  },
+  {
+    "id": "u74092-7",
+    "classes": [
+      "nonblock",
+      "nontext",
+      "AccordionPanelTab",
+      "transition",
+      "clearfix",
+      "colelem"
+    ],
+    "tag": "a",
+    "text": "+ Sine DieSem Data",
+    "style": {
+      "color": "#333333",
+      "font-size": 14,
+      "line-height": 14,
+      "font-family": "roboto, sans-serif",
+      "width": 256
+    }
+  },
+  {
+    "id": "u74120-6",
+    "classes": [
+      "nonblock",
+      "nontext",
+      "AccordionPanelTab",
+      "transition",
+      "clearfix",
+      "colelem"
+    ],
+    "tag": "a",
+    "text": "+ textos ARTE annatexts ART anna",
+    "style": {
+      "color": "#333333",
+      "font-size": 14,
+      "line-height": 14,
+      "font-family": "roboto, sans-serif",
+      "width": 256
+    }
+  },
+  {
+    "id": "u74147-6",
+    "classes": [
+      "nonblock",
+      "nontext",
+      "AccordionPanelTab",
+      "transition",
+      "clearfix",
+      "colelem"
+    ],
+    "tag": "a",
+    "text": "+ ContatoContact",
+    "style": {
+      "color": "#333333",
+      "font-size": 14,
+      "line-height": 14,
+      "font-family": "roboto, sans-serif",
+      "width": 256
+    }
+  },
+  {
+    "id": "u74264-4",
+    "classes": [
+      "nonblock",
+      "nontext",
+      "AccordionPanelTab",
+      "AccordionPanelTabOpen",
+      "transition",
+      "clearfix",
+      "colelem"
+    ],
+    "tag": "a",
+    "text": "+ Home",
+    "style": {
+      "color": "#333333",
+      "font-size": 14,
+      "line-height": 14,
+      "font-family": "roboto, sans-serif",
+      "width": 256
+    }
+  },
+  {
+    "id": "u72142",
+    "classes": [
+      "ThumbGroup",
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "div",
+    "text": "+ menu",
+    "style": {
+      "width": 89,
+      "height": 43,
+      "left": 502
+    }
+  },
+  {
+    "id": "u82689-6",
+    "classes": [
+      "clearfix",
+      "grpelem"
+    ],
+    "tag": "div",
+    "text": "2020 © copyright anna maria maiolino. all rights reserved.// desenvolvido por yuri de francco",
+    "style": {
+      "color": "#444444",
+      "font-size": 12,
+      "line-height": 18,
+      "font-family": "Times, Times New Roman, Georgia, serif",
+      "width": 290,
+      "left": 230
+    }
+  }
+]

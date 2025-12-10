@@ -137,7 +137,7 @@ function FornecedoresPage() {
             title="Últimos Fornecedores"
             items={listCardItems}
             onMiniCardClick={handleMiniCardClick}
-            viewAllLink="/fornecedores/lista"
+            viewAllLink="/dashboard/fornecedores/lista"
             cardBgColor="#B2E7FF"
           />
           <DashboardCard

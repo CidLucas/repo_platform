@@ -1,0 +1,52 @@
+[
+  {
+    "id": "u76553-4",
+    "tag": "div",
+    "text": "[Exhibitions & Works]",
+    "left": 124,
+    "top": 0,
+    "width": 150,
+    "height": null,
+    "font-size": null
+  },
+  {
+    "id": "u76556-4",
+    "tag": "div",
+    "text": "[Critical Texts]",
+    "left": 293,
+    "top": 0,
+    "width": 101,
+    "height": null,
+    "font-size": null
+  },
+  {
+    "id": "u76557-4",
+    "tag": "div",
+    "text": "[Sem Data]",
+    "left": 412,
+    "top": 0,
+    "width": 75,
+    "height": null,
+    "font-size": null
+  },
+  {
+    "id": "u72142",
+    "tag": "div",
+    "text": "+ menu",
+    "left": 502,
+    "top": 0,
+    "width": 89,
+    "height": 43,
+    "font-size": null
+  },
+  {
+    "id": "u76554-4",
+    "tag": "div",
+    "text": "[texts ART anna]",
+    "left": 506,
+    "top": 0,
+    "width": 119,
+    "height": null,
+    "font-size": null
+  }
+]

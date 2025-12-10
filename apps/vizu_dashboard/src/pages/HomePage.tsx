@@ -18,7 +18,7 @@ function HomePage() {
         <Text as="h2" textStyle="pageBigNumber" mb="36px">$132.000</Text>
         <Box mt="36px">
           <Flex wrap="wrap" justify="center" gap="16px">
-            <Link to="/fornecedores">
+            <Link to="/dashboard/fornecedores">
               <StatCard 
                 title="FORNECEDORES" 
                 percentage="+0.85%" 
@@ -29,7 +29,7 @@ function HomePage() {
                 color="#92DAFF" // Updated Blue
               />
             </Link>
-            <Link to="/produtos">
+            <Link to="/dashboard/produtos">
               <StatCard 
                 title="PRODUTOS" 
                 percentage="+0.85%" 
@@ -40,7 +40,7 @@ function HomePage() {
                 color="#FFF856" // Updated Yellow
               />
             </Link>
-            <Link to="/clientes">
+            <Link to="/dashboard/clientes">
               <StatCard 
                 title="CLIENTES" 
                 percentage="+0.85%" 

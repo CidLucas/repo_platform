@@ -139,7 +139,7 @@ function ProdutosPage() {
             title="Produtos com Maior Receita"
             items={listCardItems}
             onMiniCardClick={handleMiniCardClick}
-            viewAllLink="/produtos/lista" // Link to the full list page
+            viewAllLink="/dashboard/produtos/lista" // Link to the full list page
             cardBgColor="#FFFB97" // Pass the specific background color
           />
 

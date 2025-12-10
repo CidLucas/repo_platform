@@ -140,7 +140,7 @@ function ClientesPage() {
             title="Clientes com Maior Receita"
             items={listCardItems}
             onMiniCardClick={handleMiniCardClick}
-            viewAllLink="/clientes/lista" // Link to the full list page
+            viewAllLink="/dashboard/clientes/lista" // Link to the full list page
             cardBgColor="#FFD1DC" // Lighter pink
           />
 

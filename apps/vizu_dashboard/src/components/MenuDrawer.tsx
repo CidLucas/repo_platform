@@ -158,5 +158,3 @@ export const MenuDrawer = ({ isOpen, onClose }: MenuDrawerProps) => {
     </Drawer>
   );
 };
-
-export default MenuDrawer;

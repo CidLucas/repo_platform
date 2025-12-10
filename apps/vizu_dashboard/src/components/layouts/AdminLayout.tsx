@@ -1,7 +1,7 @@
 // filepath: /Users/tarsobarreto/Documents/vizu-mono/apps/vizu_dashboard/src/components/layouts/AdminLayout.tsx
 import { Box, Flex } from '@chakra-ui/react';
 import { Header } from '../Header';
-import { AdminSidebar } from '../admin/AdminSidebar';
+import AdminSidebar from '../admin/AdminSidebar';
 import { ChatPanel } from '../ChatPanel';
 import { useChat } from '../../contexts/ChatContext';
 import React from 'react';

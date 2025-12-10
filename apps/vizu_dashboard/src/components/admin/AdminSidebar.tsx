@@ -95,5 +95,4 @@ export const AdminSidebar = () => {
   );
 };
 
-export { AdminSidebar };
 export default AdminSidebar;

@@ -15,6 +15,7 @@ python = "^3.11"
 fastapi = "^0.111.0"
 uvicorn = {extras = ["standard"], version = "^0.30.1"}
 pydantic = "^2.7.4"
+supabase = "^2.4.0"  # Cliente Python para Supabase
 # Dependências de Conectividade Cloud/DB
 psycopg2-binary = "^2.9.9"
 google-cloud-bigquery = "^3.21.0" # Para o Conector BigQuery (Enterprise)

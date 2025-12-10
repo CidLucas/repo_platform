@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 from data_ingestion_api.api.routes import router as credential_router
+from data_ingestion_api.api.schema_routes import router as schema_router
 import logging.config
 
 # Padrão Vizu: Configuração de Logs
@@ -41,6 +42,7 @@ app = FastAPI(
 
 # Registro dos Routers (Implementando Modularização)
 app.include_router(credential_router)
+app.include_router(schema_router, prefix="/schema", tags=["Schema Mapping"])
 
 # Endpoint básico de saúde (Health Check)
 @app.get("/", tags=["Health"])

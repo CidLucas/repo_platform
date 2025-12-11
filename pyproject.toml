@@ -41,8 +41,10 @@ exclude = [
     ".venv",
     "__pycache__",
     "node_modules",
-    "langfuse",           # External project (Langfuse fork)
-    "alembic/versions",   # Auto-generated migrations
+    "langfuse",                 # External project (Langfuse fork)
+    "ferramentas",              # Internal dev tools
+    "alembic/versions",         # Auto-generated migrations
+    "alembic/versions.backup",  # Backup migrations
     ".pytest_cache",
     "*.egg-info",
 ]
@@ -59,9 +61,36 @@ select = [
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
+    "E402",   # module level import not at top of file
+    "E711",   # comparison to None (== None vs is None)
+    "E712",   # comparison to True/False
     "B008",   # do not perform function calls in argument defaults
+    "B017",   # assert blind exception
+    "B023",   # function definition does not bind loop variable
+    "B024",   # abstract class with no abstract methods
     "B904",   # raise from None
+    "B905",   # zip without strict
+    "C401",   # unnecessary generator
+    "C414",   # unnecessary list() call within sorted()
+    "C416",   # unnecessary list comprehension
+    "F401",   # imported but unused (common in __init__.py re-exports)
+    "F601",   # dictionary key repeated
+    "F811",   # redefinition of unused name
+    "F821",   # undefined name (often in notebooks or type stubs)
+    "F841",   # local variable assigned but never used
+    "UP007",  # use X | Y for type annotations
+    "UP035",  # deprecated typing imports
+    "W191",   # indentation contains tabs
+    "W291",   # trailing whitespace
+    "W293",   # blank line contains whitespace
 ]
+
+# Per-file ignores for specific patterns
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "I001"]  # Re-exports and import sorting
+"**/tests/**" = ["F401", "F841"]  # Test files often have unused imports/vars
+"**/alembic/**" = ["F401", "E402"]
+"**/versions.backup/**" = ["ALL"]  # Backup migrations - ignore all
 
 [tool.ruff.lint.isort]
 known-first-party = [

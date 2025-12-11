@@ -23,10 +23,8 @@ jobs:
         run: pip install ruff
       - name: Run ruff check
         run: |
-          # Exclude external dirs from lint
-          ruff check --output-format=github \
-            --exclude="langfuse/*" \
-            .
+          # Uses config from root pyproject.toml (excludes langfuse, ferramentas)
+          ruff check --output-format=github .
 
   dependency-check:
     name: Poetry Lock Check

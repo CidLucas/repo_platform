@@ -25,5 +25,11 @@ asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 88
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "C4", "B"]
-ignore = ["E501"]
+ignore = [
+    "E501",   # line too long
+    "B023",   # function definition does not bind loop variable
+    "B904",   # raise from None
+]

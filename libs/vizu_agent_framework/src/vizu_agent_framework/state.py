@@ -2,19 +2,19 @@
 Agent state definition using TypedDict for LangGraph compatibility.
 """
 
-from typing import List, Dict, Any, Optional, Annotated
-from typing_extensions import TypedDict
 from operator import add
+from typing import Annotated, Any
 
 from langchain_core.messages import BaseMessage
+from typing_extensions import TypedDict
 
 
-def add_messages(left: List[BaseMessage], right: List[BaseMessage]) -> List[BaseMessage]:
+def add_messages(left: list[BaseMessage], right: list[BaseMessage]) -> list[BaseMessage]:
     """Reducer for messages: appends new messages to existing list."""
     return left + right
 
 
-def merge_dict(left: Dict[str, Any], right: Dict[str, Any]) -> Dict[str, Any]:
+def merge_dict(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
     """Reducer for dicts: merges right into left."""
     return {**left, **right}
 
@@ -42,31 +42,31 @@ class AgentState(TypedDict, total=False):
     # Messages (with reducer for accumulation)
     # =========================================================================
 
-    messages: Annotated[List[BaseMessage], add_messages]
+    messages: Annotated[list[BaseMessage], add_messages]
 
     # =========================================================================
     # Tool Configuration
     # =========================================================================
 
-    enabled_tools: List[str]  # List of enabled tool names
-    available_tools_metadata: List[Dict[str, Any]]  # Full tool metadata
+    enabled_tools: list[str]  # List of enabled tool names
+    available_tools_metadata: list[dict[str, Any]]  # Full tool metadata
 
     # =========================================================================
     # Elicitation State
     # =========================================================================
 
-    pending_elicitation: Optional[Dict[str, Any]]  # Current pending elicitation
-    elicitation_response: Optional[Any]  # User's response to elicitation
-    elicitation_history: List[Dict[str, Any]]  # Past elicitations
+    pending_elicitation: dict[str, Any] | None  # Current pending elicitation
+    elicitation_response: Any | None  # User's response to elicitation
+    elicitation_history: list[dict[str, Any]]  # Past elicitations
 
     # =========================================================================
     # Tool Execution State
     # =========================================================================
 
-    tool_to_execute: Optional[str]  # Next tool to execute
-    tool_args: Optional[Dict[str, Any]]  # Arguments for next tool
-    tool_results: Annotated[List[Dict[str, Any]], add]  # Accumulated tool results
-    last_tool_result: Optional[Dict[str, Any]]  # Most recent result
+    tool_to_execute: str | None  # Next tool to execute
+    tool_args: dict[str, Any] | None  # Arguments for next tool
+    tool_results: Annotated[list[dict[str, Any]], add]  # Accumulated tool results
+    last_tool_result: dict[str, Any] | None  # Most recent result
 
     # =========================================================================
     # Conversation Control
@@ -75,7 +75,7 @@ class AgentState(TypedDict, total=False):
     turn_count: int  # Current turn number
     max_turns: int  # Maximum allowed turns
     ended: bool  # Whether conversation has ended
-    end_reason: Optional[str]  # Reason for ending
+    end_reason: str | None  # Reason for ending
 
     # =========================================================================
     # Agent Context
@@ -89,7 +89,7 @@ class AgentState(TypedDict, total=False):
     # Client Context (from vizu_context_service)
     # =========================================================================
 
-    client_context: Dict[str, Any]  # Full client context
+    client_context: dict[str, Any]  # Full client context
     nome_empresa: str  # Company name
     tier: str  # Client tier
 
@@ -97,28 +97,28 @@ class AgentState(TypedDict, total=False):
     # Error Handling
     # =========================================================================
 
-    error: Optional[str]  # Current error message
-    errors: Annotated[List[str], add]  # Accumulated errors
+    error: str | None  # Current error message
+    errors: Annotated[list[str], add]  # Accumulated errors
 
     # =========================================================================
     # Metadata
     # =========================================================================
 
-    metadata: Annotated[Dict[str, Any], merge_dict]  # Additional metadata
+    metadata: Annotated[dict[str, Any], merge_dict]  # Additional metadata
 
 
 def create_initial_state(
     session_id: str,
     cliente_id: str,
-    messages: Optional[List[BaseMessage]] = None,
-    enabled_tools: Optional[List[str]] = None,
+    messages: list[BaseMessage] | None = None,
+    enabled_tools: list[str] | None = None,
     system_prompt: str = "",
     agent_name: str = "agent",
     agent_role: str = "Assistant",
     max_turns: int = 20,
     channel: str = "api",
-    client_context: Optional[Dict[str, Any]] = None,
-    metadata: Optional[Dict[str, Any]] = None,
+    client_context: dict[str, Any] | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> AgentState:
     """
     Create initial agent state with required fields populated.
@@ -185,7 +185,7 @@ class MinimalState(TypedDict, total=False):
     Minimal state for simple agents that don't need full state.
     """
 
-    messages: Annotated[List[BaseMessage], add_messages]
+    messages: Annotated[list[BaseMessage], add_messages]
     session_id: str
     ended: bool
 
@@ -196,10 +196,10 @@ class ToolExecutionState(TypedDict, total=False):
     """
 
     tool_to_execute: str
-    tool_args: Dict[str, Any]
+    tool_args: dict[str, Any]
     cliente_id: str
-    enabled_tools: List[str]
-    last_tool_result: Optional[Dict[str, Any]]
+    enabled_tools: list[str]
+    last_tool_result: dict[str, Any] | None
 
 
 class ElicitationState(TypedDict, total=False):
@@ -207,6 +207,6 @@ class ElicitationState(TypedDict, total=False):
     State subset for elicitation handling.
     """
 
-    pending_elicitation: Optional[Dict[str, Any]]
-    elicitation_response: Optional[Any]
-    elicitation_history: List[Dict[str, Any]]
+    pending_elicitation: dict[str, Any] | None
+    elicitation_response: Any | None
+    elicitation_history: list[dict[str, Any]]

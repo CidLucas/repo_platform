@@ -3,7 +3,7 @@ Agent configuration dataclass.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import Any
 
 
 @dataclass
@@ -29,15 +29,15 @@ class AgentConfig:
     name: str
     role: str
     elicitation_strategy: str = "support_triage"
-    enabled_tools: List[str] = field(default_factory=list)
+    enabled_tools: list[str] = field(default_factory=list)
     max_turns: int = 20
     use_langfuse: bool = True
     model: str = "openai:gpt-4o-mini"
-    system_prompt: Optional[str] = None
+    system_prompt: str | None = None
     redis_url: str = "redis://localhost:6379"
     mcp_url: str = "http://localhost:8000/mcp/v1"
     timeout_seconds: float = 30.0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -49,7 +49,7 @@ class AgentConfig:
             raise ValueError("max_turns must be at least 1")
 
     @property
-    def langfuse_session_tags(self) -> Dict[str, str]:
+    def langfuse_session_tags(self) -> dict[str, str]:
         """Get tags for Langfuse session."""
         return {
             "agent_name": self.name,
@@ -58,7 +58,7 @@ class AgentConfig:
             **{k: str(v) for k, v in self.metadata.items()},
         }
 
-    def with_tools(self, tools: List[str]) -> "AgentConfig":
+    def with_tools(self, tools: list[str]) -> "AgentConfig":
         """Return new config with updated tools."""
         return AgentConfig(
             name=self.name,

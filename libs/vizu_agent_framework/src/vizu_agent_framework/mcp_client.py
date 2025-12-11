@@ -5,17 +5,16 @@ Provides a shared MCP connection manager using StreamableHTTP transport,
 compatible with tool_pool_api's FastMCP server.
 """
 
-import logging
 import asyncio
-import traceback
+import logging
 from contextlib import AsyncExitStack
-from typing import Any, List, Optional
+from typing import Any
 
-from anyio import ClosedResourceError, BrokenResourceError
+from anyio import BrokenResourceError, ClosedResourceError
+from langchain_core.tools import BaseTool
+from langchain_mcp_adapters.tools import load_mcp_tools
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
-from langchain_mcp_adapters.tools import load_mcp_tools
-from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +39,9 @@ class MCPConnectionManager:
             url: MCP server URL (e.g., "http://tool_pool_api:9000/mcp/")
         """
         self.url = url
-        self.tools: List[BaseTool] = []
-        self._exit_stack: Optional[AsyncExitStack] = None
-        self._session: Optional[ClientSession] = None
+        self.tools: list[BaseTool] = []
+        self._exit_stack: AsyncExitStack | None = None
+        self._session: ClientSession | None = None
         self._lock = asyncio.Lock()
         self._connected = False
 
@@ -163,7 +162,7 @@ class MCPConnectionManager:
                 else:
                     raise
 
-    def get_tool_by_name(self, name: str) -> Optional[BaseTool]:
+    def get_tool_by_name(self, name: str) -> BaseTool | None:
         """Get a tool by name."""
         for tool in self.tools:
             if tool.name == name:
@@ -177,7 +176,7 @@ class MCPConnectionManager:
 
 # Singleton instance for shared use
 # Note: Each agent should create its own instance if needed for isolation
-_default_mcp_manager: Optional[MCPConnectionManager] = None
+_default_mcp_manager: MCPConnectionManager | None = None
 
 
 def get_mcp_manager(url: str = "http://tool_pool_api:9000/mcp/") -> MCPConnectionManager:

@@ -3,10 +3,9 @@ Reusable graph nodes for agent workflows.
 """
 
 import logging
-from typing import Any, Callable, Dict, Optional, List
+from collections.abc import Callable
 from functools import wraps
-
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from typing import Any
 
 from vizu_agent_framework.state import AgentState
 
@@ -20,7 +19,7 @@ class NodeRegistry:
     Allows agents to register custom nodes that can be used in AgentBuilder.
     """
 
-    _registry: Dict[str, Callable] = {}
+    _registry: dict[str, Callable] = {}
 
     @classmethod
     def register(cls, name: str):
@@ -38,12 +37,12 @@ class NodeRegistry:
         return decorator
 
     @classmethod
-    def get(cls, name: str) -> Optional[Callable]:
+    def get(cls, name: str) -> Callable | None:
         """Get registered node handler by name."""
         return cls._registry.get(name)
 
     @classmethod
-    def list_nodes(cls) -> List[str]:
+    def list_nodes(cls) -> list[str]:
         """List all registered node names."""
         return list(cls._registry.keys())
 
@@ -53,7 +52,7 @@ class NodeRegistry:
 # =============================================================================
 
 
-async def init_node(state: AgentState) -> Dict[str, Any]:
+async def init_node(state: AgentState) -> dict[str, Any]:
     """
     Initialize agent state at the start of conversation.
 
@@ -81,7 +80,7 @@ async def init_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
-async def elicit_node(state: AgentState) -> Dict[str, Any]:
+async def elicit_node(state: AgentState) -> dict[str, Any]:
     """
     Handle elicitation flows.
 
@@ -119,7 +118,7 @@ async def elicit_node(state: AgentState) -> Dict[str, Any]:
     return {}
 
 
-async def execute_tool_node(state: AgentState) -> Dict[str, Any]:
+async def execute_tool_node(state: AgentState) -> dict[str, Any]:
     """
     Execute a tool call via MCP.
 
@@ -157,7 +156,7 @@ async def execute_tool_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
-async def respond_node(state: AgentState) -> Dict[str, Any]:
+async def respond_node(state: AgentState) -> dict[str, Any]:
     """
     Generate LLM response.
 
@@ -169,25 +168,18 @@ async def respond_node(state: AgentState) -> Dict[str, Any]:
     logger.debug(f"Respond node: session={state.get('session_id')}")
 
     messages = state.get("messages", [])
-    system_prompt = state.get("system_prompt", "")
     last_tool_result = state.get("last_tool_result")
-
-    # If we have a tool result, format it for the LLM
-    if last_tool_result:
-        tool_context = f"\n\nTool Result:\n{last_tool_result}"
-    else:
-        tool_context = ""
 
     # Note: Actual LLM call happens via LLM client
     # This is a placeholder that will be replaced by AgentBuilder
-    logger.debug(f"Generating response with {len(messages)} messages")
+    logger.debug(f"Generating response with {len(messages)} messages, tool_result={last_tool_result is not None}")
 
     return {
         "last_tool_result": None,  # Clear after processing
     }
 
 
-async def end_node(state: AgentState) -> Dict[str, Any]:
+async def end_node(state: AgentState) -> dict[str, Any]:
     """
     End the conversation.
 
@@ -209,7 +201,7 @@ async def end_node(state: AgentState) -> Dict[str, Any]:
 # =============================================================================
 
 
-async def error_recovery_node(state: AgentState) -> Dict[str, Any]:
+async def error_recovery_node(state: AgentState) -> dict[str, Any]:
     """
     Handle errors and attempt recovery.
     """
@@ -231,7 +223,7 @@ async def error_recovery_node(state: AgentState) -> Dict[str, Any]:
     return {"error": None, "errors": errors}
 
 
-async def context_enrichment_node(state: AgentState) -> Dict[str, Any]:
+async def context_enrichment_node(state: AgentState) -> dict[str, Any]:
     """
     Enrich state with additional context from client configuration.
     """
@@ -250,7 +242,7 @@ async def context_enrichment_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
-async def rate_limit_node(state: AgentState) -> Dict[str, Any]:
+async def rate_limit_node(state: AgentState) -> dict[str, Any]:
     """
     Check and enforce rate limits.
     """
@@ -277,7 +269,7 @@ def with_logging(node_name: str):
     """
     def decorator(func: Callable):
         @wraps(func)
-        async def wrapper(state: AgentState) -> Dict[str, Any]:
+        async def wrapper(state: AgentState) -> dict[str, Any]:
             session_id = state.get("session_id", "unknown")
             logger.info(f"[{node_name}] Starting: session={session_id}")
             try:
@@ -297,7 +289,7 @@ def with_tracing(trace_name: str):
     """
     def decorator(func: Callable):
         @wraps(func)
-        async def wrapper(state: AgentState) -> Dict[str, Any]:
+        async def wrapper(state: AgentState) -> dict[str, Any]:
             # Import here to avoid circular dependency
             try:
                 from langfuse import Langfuse

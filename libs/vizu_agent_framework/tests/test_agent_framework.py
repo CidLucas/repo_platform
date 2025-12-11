@@ -2,30 +2,26 @@
 Tests for vizu_agent_framework components.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from unittest.mock import AsyncMock, MagicMock
 
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+import pytest
+from langchain_core.messages import HumanMessage
 
 from vizu_agent_framework import (
+    AgentBuilder,
     AgentConfig,
     AgentState,
-    AgentBuilder,
-    create_initial_state,
     NodeRegistry,
-    init_node,
+    RedisCheckpointer,
+    create_initial_state,
     elicit_node,
-    execute_tool_node,
-    respond_node,
     end_node,
+    execute_tool_node,
+    init_node,
     route_from_elicit,
     route_from_tool,
     should_continue,
-    MCPToolExecutor,
-    RedisCheckpointer,
 )
-
 
 # ============================================================================
 # Fixtures
@@ -509,9 +505,10 @@ class TestRedisCheckpointer:
     @pytest.mark.asyncio
     async def test_put_and_get(self, mock_redis):
         """Test saving and retrieving checkpoint."""
-        from langgraph.checkpoint.base import Checkpoint, CheckpointMetadata
-        from langchain_core.runnables import RunnableConfig
         import json
+
+        from langchain_core.runnables import RunnableConfig
+        from langgraph.checkpoint.base import Checkpoint, CheckpointMetadata
 
         checkpointer = RedisCheckpointer(mock_redis)
 

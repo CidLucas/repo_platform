@@ -4,16 +4,16 @@ Redis checkpointer for LangGraph state persistence.
 
 import json
 import logging
-from typing import Any, Dict, Optional, Iterator
-from contextlib import asynccontextmanager
+from collections.abc import Iterator
+from typing import Any
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import (
     BaseCheckpointSaver,
     Checkpoint,
     CheckpointMetadata,
     CheckpointTuple,
 )
-from langchain_core.runnables import RunnableConfig
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class RedisCheckpointer(BaseCheckpointSaver):
             "pending_sends": checkpoint.get("pending_sends", []),
         })
 
-    def _serialize_channel_values(self, values: Dict[str, Any]) -> Dict[str, Any]:
+    def _serialize_channel_values(self, values: dict[str, Any]) -> dict[str, Any]:
         """Serialize channel values (handle messages and other non-JSON types)."""
         from langchain_core.messages import BaseMessage
 
@@ -102,8 +102,9 @@ class RedisCheckpointer(BaseCheckpointSaver):
 
     def _serialize_value(self, value: Any) -> Any:
         """Serialize a single value."""
-        from langchain_core.messages import BaseMessage
         from uuid import UUID
+
+        from langchain_core.messages import BaseMessage
 
         if isinstance(value, BaseMessage):
             return {
@@ -122,7 +123,7 @@ class RedisCheckpointer(BaseCheckpointSaver):
             # Try to serialize objects with __dict__
             try:
                 return {"__type__": "object", "class": type(value).__name__, "data": str(value)}
-            except:
+            except Exception:
                 return str(value)
         else:
             return value
@@ -140,9 +141,9 @@ class RedisCheckpointer(BaseCheckpointSaver):
             pending_sends=parsed.get("pending_sends", []),
         )
 
-    def _deserialize_channel_values(self, values: Dict[str, Any]) -> Dict[str, Any]:
+    def _deserialize_channel_values(self, values: dict[str, Any]) -> dict[str, Any]:
         """Deserialize channel values (restore messages)."""
-        from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
         MESSAGE_TYPES = {
             "HumanMessage": HumanMessage,
@@ -165,7 +166,7 @@ class RedisCheckpointer(BaseCheckpointSaver):
                 deserialized[key] = value
         return deserialized
 
-    def get_tuple(self, config: RunnableConfig) -> Optional[CheckpointTuple]:
+    def get_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
         """Get checkpoint tuple for config (sync)."""
         thread_id = config["configurable"]["thread_id"]
         checkpoint_ns = config["configurable"].get("checkpoint_ns", "")
@@ -197,7 +198,7 @@ class RedisCheckpointer(BaseCheckpointSaver):
             logger.error(f"Failed to get checkpoint: {e}")
             return None
 
-    async def aget_tuple(self, config: RunnableConfig) -> Optional[CheckpointTuple]:
+    async def aget_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
         """Get checkpoint tuple for config (async)."""
         thread_id = config["configurable"]["thread_id"]
         checkpoint_ns = config["configurable"].get("checkpoint_ns", "")
@@ -231,11 +232,11 @@ class RedisCheckpointer(BaseCheckpointSaver):
 
     def list(
         self,
-        config: Optional[RunnableConfig] = None,
+        config: RunnableConfig | None = None,
         *,
-        filter: Optional[Dict[str, Any]] = None,
-        before: Optional[RunnableConfig] = None,
-        limit: Optional[int] = None,
+        filter: dict[str, Any] | None = None,
+        before: RunnableConfig | None = None,
+        limit: int | None = None,
     ) -> Iterator[CheckpointTuple]:
         """List checkpoints (sync)."""
         # Basic implementation - list all keys matching prefix
@@ -279,11 +280,11 @@ class RedisCheckpointer(BaseCheckpointSaver):
 
     async def alist(
         self,
-        config: Optional[RunnableConfig] = None,
+        config: RunnableConfig | None = None,
         *,
-        filter: Optional[Dict[str, Any]] = None,
-        before: Optional[RunnableConfig] = None,
-        limit: Optional[int] = None,
+        filter: dict[str, Any] | None = None,
+        before: RunnableConfig | None = None,
+        limit: int | None = None,
     ):
         """List checkpoints (async)."""
         # Async implementation would use async scan
@@ -296,7 +297,7 @@ class RedisCheckpointer(BaseCheckpointSaver):
         config: RunnableConfig,
         checkpoint: Checkpoint,
         metadata: CheckpointMetadata,
-        new_versions: Optional[Dict[str, Any]] = None,
+        new_versions: dict[str, Any] | None = None,
     ) -> RunnableConfig:
         """Put checkpoint (sync)."""
         thread_id = config["configurable"]["thread_id"]
@@ -317,7 +318,7 @@ class RedisCheckpointer(BaseCheckpointSaver):
         config: RunnableConfig,
         checkpoint: Checkpoint,
         metadata: CheckpointMetadata,
-        new_versions: Optional[Dict[str, Any]] = None,
+        new_versions: dict[str, Any] | None = None,
     ) -> RunnableConfig:
         """Put checkpoint (async)."""
         thread_id = config["configurable"]["thread_id"]

@@ -3,31 +3,26 @@ Agent builder factory for creating LangGraph agents.
 """
 
 import logging
-from typing import Any, Callable, Dict, List, Optional, Union
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import END, START, StateGraph
 from langgraph.graph.graph import CompiledGraph
 
+from vizu_agent_framework.checkpointer import RedisCheckpointer
 from vizu_agent_framework.config import AgentConfig
-from vizu_agent_framework.state import AgentState, create_initial_state
+from vizu_agent_framework.mcp_executor import MCPToolExecutor
 from vizu_agent_framework.nodes import (
     NodeRegistry,
-    init_node,
-    elicit_node,
-    execute_tool_node,
-    respond_node,
-    end_node,
 )
 from vizu_agent_framework.routing import (
     route_from_elicit,
-    route_from_tool,
-    should_continue,
     route_from_init,
     route_from_respond,
+    route_from_tool,
 )
-from vizu_agent_framework.mcp_executor import MCPToolExecutor
-from vizu_agent_framework.checkpointer import RedisCheckpointer
+from vizu_agent_framework.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +34,8 @@ class EdgeDefinition:
     from_node: str
     to_node: str
     is_conditional: bool = False
-    router: Optional[Callable] = None
-    routes: Dict[str, str] = field(default_factory=dict)
+    router: Callable | None = None
+    routes: dict[str, str] = field(default_factory=dict)
 
 
 class AgentBuilder:
@@ -66,8 +61,8 @@ class AgentBuilder:
     def __init__(
         self,
         config: AgentConfig,
-        mcp_executor: Optional[MCPToolExecutor] = None,
-        checkpointer: Optional[RedisCheckpointer] = None,
+        mcp_executor: MCPToolExecutor | None = None,
+        checkpointer: RedisCheckpointer | None = None,
     ):
         """
         Initialize builder.
@@ -83,18 +78,18 @@ class AgentBuilder:
 
         # Graph construction state
         self._graph = StateGraph(AgentState)
-        self._nodes: Dict[str, Callable] = {}
-        self._edges: List[EdgeDefinition] = []
-        self._custom_nodes: Dict[str, Callable] = {}
+        self._nodes: dict[str, Callable] = {}
+        self._edges: list[EdgeDefinition] = []
+        self._custom_nodes: dict[str, Callable] = {}
 
         # LLM client (set via with_llm)
         self._llm_client = None
 
         # Langfuse configuration
         self._langfuse_enabled = config.use_langfuse
-        self._langfuse_session_id: Optional[str] = None
-        self._langfuse_user_id: Optional[str] = None
-        self._langfuse_metadata: Dict[str, Any] = {}
+        self._langfuse_session_id: str | None = None
+        self._langfuse_user_id: str | None = None
+        self._langfuse_metadata: dict[str, Any] = {}
 
     # =========================================================================
     # Configuration Methods (Fluent API)
@@ -141,9 +136,9 @@ class AgentBuilder:
 
     def with_langfuse(
         self,
-        session_id: Optional[str] = None,
-        user_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> "AgentBuilder":
         """
         Configure Langfuse observability.
@@ -169,7 +164,7 @@ class AgentBuilder:
     def add_node(
         self,
         name: str,
-        handler: Union[str, Callable],
+        handler: str | Callable,
     ) -> "AgentBuilder":
         """
         Add a node to the graph.
@@ -213,7 +208,7 @@ class AgentBuilder:
         self,
         from_node: str,
         router: Callable,
-        routes: Dict[str, str],
+        routes: dict[str, str],
     ) -> "AgentBuilder":
         """
         Add a conditional edge with routing logic.
@@ -348,7 +343,7 @@ class AgentBuilder:
 
         return compiled
 
-    def _wrap_nodes(self) -> Dict[str, Callable]:
+    def _wrap_nodes(self) -> dict[str, Callable]:
         """
         Wrap nodes with MCP executor and LLM client injection.
         """
@@ -373,7 +368,7 @@ class AgentBuilder:
             timeout=self.config.timeout_seconds,
         )
 
-        async def tool_executor_node(state: AgentState) -> Dict[str, Any]:
+        async def tool_executor_node(state: AgentState) -> dict[str, Any]:
             tool_name = state.get("tool_to_execute")
             tool_args = state.get("tool_args", {})
 
@@ -414,7 +409,7 @@ class AgentBuilder:
         """
         llm_client = self._llm_client
 
-        async def respond_node(state: AgentState) -> Dict[str, Any]:
+        async def respond_node(state: AgentState) -> dict[str, Any]:
             from langchain_core.messages import AIMessage
 
             messages = state.get("messages", [])
@@ -483,8 +478,8 @@ class AgentBuilder:
 
 def create_agent(
     config: AgentConfig,
-    redis_client: Optional[Any] = None,
-    llm_client: Optional[Any] = None,
+    redis_client: Any | None = None,
+    llm_client: Any | None = None,
 ) -> CompiledGraph:
     """
     Convenience function to create an agent with default settings.

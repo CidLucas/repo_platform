@@ -5,10 +5,10 @@ This module is kept for backward compatibility with AgentBuilder.
 New code should use mcp_client.MCPConnectionManager directly.
 """
 
-import logging
 import asyncio
-from typing import Any, Dict, List, Optional
+import logging
 from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,15 +20,15 @@ class ToolResult:
     tool_name: str
     success: bool
     result: Any = None
-    error: Optional[str] = None
+    error: str | None = None
     execution_time_ms: float = 0.0
-    metadata: Dict[str, Any] = None
+    metadata: dict[str, Any] = None
 
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "tool_name": self.tool_name,
@@ -79,8 +79,8 @@ class MCPToolExecutor:
     async def execute(
         self,
         tool_name: str,
-        tool_args: Dict[str, Any],
-        context: Dict[str, Any],
+        tool_args: dict[str, Any],
+        context: dict[str, Any],
     ) -> ToolResult:
         """Execute a tool via MCP."""
         import time

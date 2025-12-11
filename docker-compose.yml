@@ -158,10 +158,9 @@ services:
        # PYTHONPATH crítico para encontrar as libs e o próprio src da tool
        PYTHONPATH: "/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src"
      depends_on:
-       postgres:
-         condition: service_healthy
-       atendente_core: # Garante que a API alvo já iniciou antes de rodar os testes
+       atendente_core:
         condition: service_started
+     # Note: For local development with postgres, use --profile local
 
   qdrant_db:
     container_name: vizu_qdrant_dev

@@ -49,7 +49,7 @@ jobs:
           echo "✅ All pyproject.toml files are valid"
 
   # =========================================================================
-  # Stage 2: Build Docker images (core services only)
+  # Stage 2: Build Docker images (all deployable services)
   # =========================================================================
   docker-build:
     name: Build ${{ matrix.service }}
@@ -59,9 +59,15 @@ jobs:
       fail-fast: false
       matrix:
         service:
+          # Agents pool
           - atendente_core
           - tool_pool_api
-          # - embedding_service  # Temporarily disabled
+          - vendas_agent
+          - support_agent
+          # Workers pool
+          - data_ingestion_worker
+          - file_processing_worker
+          - file_upload_api
     steps:
       - uses: actions/checkout@v4
 
@@ -81,7 +87,7 @@ jobs:
           SIZE=$(docker image inspect vizu-${{ matrix.service }}:test --format='{{.Size}}')
           SIZE_MB=$((SIZE / 1024 / 1024))
           echo "Image size: ${SIZE_MB}MB"
-          
+
           # Fail if image is larger than 500MB
           if [ $SIZE_MB -gt 500 ]; then
             echo "❌ Image too large: ${SIZE_MB}MB > 500MB"
@@ -103,9 +109,15 @@ jobs:
     strategy:
       matrix:
         service:
+          # Agents pool
           - atendente_core
           - tool_pool_api
-          # - embedding_service  # Temporarily disabled
+          - vendas_agent
+          - support_agent
+          # Workers pool
+          - data_ingestion_worker
+          - file_processing_worker
+          - file_upload_api
     steps:
       - uses: actions/checkout@v4
 
@@ -124,16 +136,16 @@ jobs:
           COMMIT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
           REGISTRY="ghcr.io/${{ github.repository_owner }}"
           IMAGE="$REGISTRY/vizu-${{ matrix.service }}"
-          
+
           docker build \
             -f services/${{ matrix.service }}/Dockerfile \
             -t $IMAGE:$COMMIT_SHA \
             -t $IMAGE:latest \
             .
-          
+
           docker push $IMAGE:$COMMIT_SHA
           docker push $IMAGE:latest
-          
+
           echo "## 🐳 Published: ${{ matrix.service }}" >> $GITHUB_STEP_SUMMARY
           echo "- \`$IMAGE:$COMMIT_SHA\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`$IMAGE:latest\`" >> $GITHUB_STEP_SUMMARY

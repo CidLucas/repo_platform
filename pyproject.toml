@@ -1,0 +1,105 @@
+# pyproject.toml
+# Root-level development tools for vizu-mono monorepo
+#
+# This is NOT a Python package - it only defines dev tools and linter configs
+# used across the entire monorepo. Each service/lib has its own pyproject.toml.
+#
+# Usage:
+#   pip install -e ".[dev]"   # Install dev tools
+#   ruff check .              # Lint all Python
+#   ruff format .             # Format all Python
+
+[project]
+name = "vizu-mono-devtools"
+version = "0.0.0"
+description = "Development tools for vizu-mono monorepo"
+requires-python = ">=3.11"
+readme = "README.md"
+
+# Dev dependencies - tools needed for local development and CI
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.4.0",
+    "pre-commit>=3.0.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.27.0",
+]
+
+# Cloud CLI tools are installed separately:
+# - gcloud: https://cloud.google.com/sdk/docs/install
+# - docker: brew install docker or Docker Desktop
+# - supabase: brew install supabase/tap/supabase
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+# Exclude common non-Python directories
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "node_modules",
+    "langfuse",           # External project (Langfuse fork)
+    "alembic/versions",   # Auto-generated migrations
+    ".pytest_cache",
+    "*.egg-info",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+    "B904",   # raise from None
+]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "vizu_agent_framework",
+    "vizu_auth",
+    "vizu_context_service",
+    "vizu_db_connector",
+    "vizu_elicitation_service",
+    "vizu_experiment_service",
+    "vizu_google_suite_client",
+    "vizu_hitl_service",
+    "vizu_llm_service",
+    "vizu_mcp_commons",
+    "vizu_models",
+    "vizu_observability_bootstrap",
+    "vizu_parsers",
+    "vizu_prompt_management",
+    "vizu_qdrant_client",
+    "vizu_rag_factory",
+    "vizu_shared_utils",
+    "vizu_sql_factory",
+    "vizu_supabase_client",
+    "vizu_tool_registry",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "services", "libs"]
+python_files = ["test_*.py", "*_test.py"]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+# Note: This file is intentionally minimal.
+# Each service/lib manages its own dependencies via its pyproject.toml + Poetry.

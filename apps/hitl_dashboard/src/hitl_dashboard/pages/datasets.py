@@ -6,11 +6,8 @@ Permite visualizar e gerenciar datasets criados a partir de revisões HITL.
 """
 
 import streamlit as st
-from typing import Optional, List
-import pandas as pd
 
 from vizu_hitl_service import HitlQueue, LangfuseDatasetManager
-from vizu_models import HitlReviewStatus
 
 import os
 
@@ -64,7 +61,7 @@ def render_export_section(manager: LangfuseDatasetManager):
     """Section to export approved reviews to a dataset."""
     st.subheader("Exportar Reviews Aprovadas")
 
-    queue = HitlQueue.from_url(get_settings().REDIS_URL)
+    _queue = HitlQueue.from_url(get_settings().REDIS_URL)  # noqa: F841
 
     # Get reviewed items (not just pending)
     # Note: This would need a method to get completed reviews
@@ -79,7 +76,7 @@ def render_export_section(manager: LangfuseDatasetManager):
         )
 
     with col2:
-        include_corrected = st.checkbox(
+        _include_corrected = st.checkbox(  # noqa: F841
             "Incluir correções",
             value=True,
             help="Usar respostas corrigidas quando disponíveis"

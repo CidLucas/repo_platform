@@ -7,8 +7,8 @@ Run with: streamlit run src/hitl_dashboard/app.py
 
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta
-from typing import Optional, List
+from datetime import datetime
+from typing import List
 from uuid import UUID
 
 from vizu_hitl_service import HitlQueue
@@ -267,7 +267,7 @@ def handle_approve(review: HitlReviewRead):
         reviewer_id=get_reviewer_id(),
         feedback_type=HitlFeedbackType.CORRECT.value,
     )
-    st.success(f"✅ Aprovado!")
+    st.success("✅ Aprovado!")
     st.cache_data.clear()
     st.rerun()
 
@@ -280,7 +280,7 @@ def handle_reject(review: HitlReviewRead):
         status=HitlReviewStatus.REJECTED,
         reviewer_id=get_reviewer_id(),
     )
-    st.warning(f"❌ Rejeitado!")
+    st.warning("❌ Rejeitado!")
     st.cache_data.clear()
     st.rerun()
 
@@ -293,7 +293,7 @@ def handle_escalate(review: HitlReviewRead):
         status=HitlReviewStatus.ESCALATED,
         reviewer_id=get_reviewer_id(),
     )
-    st.info(f"⬆️ Escalado!")
+    st.info("⬆️ Escalado!")
     st.cache_data.clear()
     st.rerun()
 
@@ -316,7 +316,7 @@ def handle_correct(
         feedback_notes=notes if notes else None,
         feedback_tags=tags,
     )
-    st.success(f"✏️ Correção salva!")
+    st.success("✏️ Correção salva!")
 
 
 # ============================================================================

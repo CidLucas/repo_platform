@@ -21,15 +21,14 @@ Saida:
 """
 import argparse
 import csv
-import json
 import os
 import sys
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+
 import requests
 
 try:
@@ -78,7 +77,7 @@ class TestResult:
     tempo_resposta_ms: int = 0
 
     # Analise
-    ferramentas_usadas: List[str] = field(default_factory=list)
+    ferramentas_usadas: list[str] = field(default_factory=list)
     usou_rag: bool = False
     usou_sql: bool = False
     usou_agendamento: bool = False
@@ -86,7 +85,7 @@ class TestResult:
 
     # Metadados
     thread_id: str = ""
-    raw_response: Dict = field(default_factory=dict)
+    raw_response: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -104,15 +103,15 @@ class BatchStats:
     requests_com_agendamento: int = 0
 
     # Por categoria
-    por_categoria: Dict[str, Dict] = field(default_factory=dict)
+    por_categoria: dict[str, dict] = field(default_factory=dict)
 
 
-def load_api_keys_from_db(db_url: str) -> Dict[str, str]:
+def load_api_keys_from_db(db_url: str) -> dict[str, str]:
     """Carrega mapeamento cliente_nome -> api_key do banco de dados."""
     if not HAS_SQLALCHEMY:
         raise ImportError("sqlalchemy nao encontrado. Instale com: pip install sqlalchemy psycopg2-binary")
 
-    print(f"🔑 Carregando API keys do banco de dados...")
+    print("🔑 Carregando API keys do banco de dados...")
     engine = create_engine(db_url)
 
     with engine.connect() as conn:
@@ -130,7 +129,7 @@ class BatchRequester:
     def __init__(
         self,
         api_url: str = DEFAULT_API_URL,
-        api_keys: Dict[str, str] = None,
+        api_keys: dict[str, str] | None = None,
         jwt_token: str = None,
         timeout: int = DEFAULT_TIMEOUT,
         verbose: bool = False,
@@ -142,10 +141,10 @@ class BatchRequester:
         self.timeout = timeout
         self.verbose = verbose
         self.sleep_between = sleep_between
-        self.results: List[TestResult] = []
+        self.results: list[TestResult] = []
         self.stats = BatchStats()
 
-    def _get_headers(self, cliente_nome: str) -> Dict[str, str]:
+    def _get_headers(self, cliente_nome: str) -> dict[str, str]:
         """Gera headers para a request, usando a API key do cliente."""
         headers = {"Content-Type": "application/json"}
 
@@ -164,7 +163,7 @@ class BatchRequester:
             prefix = {"info": "ℹ️", "success": "✅", "error": "❌", "warn": "⚠️"}.get(level, "")
             print(f"{prefix} {msg}")
 
-    def _parse_response(self, response_data: Dict) -> tuple:
+    def _parse_response(self, response_data: dict) -> tuple:
         """Extrai informacoes da resposta do atendente."""
         resposta = ""
         ferramentas = []
@@ -280,7 +279,7 @@ class BatchRequester:
         self.results.append(result)
         return result
 
-    def run_from_csv(self, csv_path: str) -> List[TestResult]:
+    def run_from_csv(self, csv_path: str) -> list[TestResult]:
         """Executa batch a partir de arquivo CSV."""
         csv_path = Path(csv_path)
         if not csv_path.exists():
@@ -295,7 +294,7 @@ class BatchRequester:
         print(f"{'='*60}\n")
 
         # Le CSV
-        with open(csv_path, "r", encoding="utf-8") as f:
+        with open(csv_path, encoding="utf-8") as f:
             reader = csv.DictReader(f)
             rows = list(reader)
 
@@ -474,7 +473,7 @@ Variaveis de ambiente:
 
     parser.add_argument("--csv", type=str, help="Caminho do CSV com mensagens de teste")
     parser.add_argument("--output", "-o", type=str, default="batch_results.csv", help="Arquivo de saida (default: batch_results.csv)")
-    parser.add_argument("--api-url", type=str, default=None, help=f"URL da API (auto-detecta Docker vs host)")
+    parser.add_argument("--api-url", type=str, default=None, help="URL da API (auto-detecta Docker vs host)")
     parser.add_argument("--db-url", type=str, help="URL do banco de dados para buscar API keys")
     parser.add_argument("--supabase", action="store_true", help="Usar Supabase (requer SUPABASE_DB_URL env)")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=f"Timeout em segundos (default: {DEFAULT_TIMEOUT})")

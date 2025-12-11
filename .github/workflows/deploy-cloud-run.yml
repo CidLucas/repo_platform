@@ -38,9 +38,9 @@ jobs:
       - id: services
         run: |
           if [ "${{ github.event.inputs.service }}" == "all" ] || [ -z "${{ github.event.inputs.service }}" ]; then
-            echo "list=agents-pool workers-pool embedding-service" >> $GITHUB_OUTPUT
+            echo 'list=["agents-pool", "workers-pool", "embedding-service"]' >> $GITHUB_OUTPUT
           else
-            echo "list=${{ github.event.inputs.service }}" >> $GITHUB_OUTPUT
+            echo 'list=["${{ github.event.inputs.service }}"]' >> $GITHUB_OUTPUT
           fi
 
       - id: timestamp
@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: ${{ fromJson(format('[{0}]', needs.setup.outputs.services)) }}
+        service: ${{ fromJson(needs.setup.outputs.services) }}
       fail-fast: false
     steps:
       - name: Checkout code

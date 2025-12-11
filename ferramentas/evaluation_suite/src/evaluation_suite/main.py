@@ -1,11 +1,13 @@
-import streamlit as st
-import pandas as pd
 import asyncio
+
+import pandas as pd
+import streamlit as st
+
+from evaluation_suite.clients.api_client import APIClient
 
 # Importa nossos componentes reais
 from evaluation_suite.core.config import settings
 from evaluation_suite.core.orchestrator import EvaluationOrchestrator
-from evaluation_suite.clients.api_client import APIClient
 from vizu_db_connector.database import SessionLocal
 
 # Configuração da página

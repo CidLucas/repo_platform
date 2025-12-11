@@ -11,19 +11,19 @@ Graph Flow:
   gatekeeper -> validator -> extractor -> formatter -> END
 """
 
-import time
-import re
+import difflib
 import os
-from typing import TypedDict, Optional, Literal, List, Annotated, Dict
-from langgraph.graph import StateGraph, END
+import re
+import time
+from typing import Annotated, Literal, TypedDict
+
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_ollama import ChatOllama
+from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
-from langchain_core.messages import BaseMessage, AIMessage, HumanMessage
-import difflib
-
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import PydanticOutputParser
-from langchain_ollama import ChatOllama
 
 # --- 1. Schema Definitions ---
 
@@ -49,16 +49,16 @@ class ValidacaoNegociacao(BaseModel):
 
 class TradingState(TypedDict):
     """State schema for the trading workflow."""
-    messages: Annotated[List[BaseMessage], add_messages]
+    messages: Annotated[list[BaseMessage], add_messages]
     negociacao_em_aberto: bool
-    participante_1_id: Optional[str]
-    participante_2_id: Optional[str]
-    horario_abertura: Optional[float]
-    contexto_relevante: Optional[str]
+    participante_1_id: str | None
+    participante_2_id: str | None
+    horario_abertura: float | None
+    contexto_relevante: str | None
     negociacao_concluida: bool
-    dados_validacao: Optional[Dict]
-    dados_extraidos: Optional[Dict]
-    boleta_formatada: Optional[str]
+    dados_validacao: dict | None
+    dados_extraidos: dict | None
+    boleta_formatada: str | None
 
 
 # --- 2. Configuration ---

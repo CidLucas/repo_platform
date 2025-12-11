@@ -15,12 +15,10 @@ Usage:
     df = load_whatsapp_chat("chat.txt")
 """
 
-import re
 import logging
+import re
+
 import pandas as pd
-from pathlib import Path
-from typing import List, Dict, Tuple, Optional
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +34,7 @@ WHATSAPP_PATTERN_ALT = re.compile(
 )
 
 
-def parse_whatsapp_line(line: str) -> Optional[Dict]:
+def parse_whatsapp_line(line: str) -> dict | None:
     """Parse a single WhatsApp message line."""
     line = line.strip()
     if not line:
@@ -78,7 +76,7 @@ def load_whatsapp_chat(file_path: str) -> pd.DataFrame:
     messages = []
     current_msg = None
 
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         for line in f:
             parsed = parse_whatsapp_line(line)
 
@@ -100,7 +98,7 @@ def load_whatsapp_chat(file_path: str) -> pd.DataFrame:
     return df
 
 
-def anonymize_senders(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, str]]:
+def anonymize_senders(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, str]]:
     """
     Anonymize sender names with consistent mapping.
 
@@ -196,7 +194,7 @@ def main():
     # Anonymize content
     if not args.no_anonymize_content:
         df = anonymize_content(df)
-        print(f"🔒 PII removed from message content")
+        print("🔒 PII removed from message content")
 
     # Add test_id
     if args.add_test_id:

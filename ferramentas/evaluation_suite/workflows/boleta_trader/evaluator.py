@@ -6,11 +6,11 @@ This module provides helper functions to evaluate and summarize the workflow
 results for manual review or automated scoring.
 """
 
-from typing import Dict, Any
 import re
+from typing import Any
 
 
-def summarize_for_manual_review(run) -> Dict[str, Any]:
+def summarize_for_manual_review(run) -> dict[str, Any]:
     """
     Extract and organize data from the final state for easy human review.
 
@@ -120,9 +120,9 @@ def summarize_for_manual_review(run) -> Dict[str, Any]:
 
 
 def evaluate_extraction_accuracy(
-    extracted: Dict[str, Any],
-    expected: Dict[str, Any]
-) -> Dict[str, Any]:
+    extracted: dict[str, Any],
+    expected: dict[str, Any]
+) -> dict[str, Any]:
     """
     Compare extracted values against expected ground truth.
 

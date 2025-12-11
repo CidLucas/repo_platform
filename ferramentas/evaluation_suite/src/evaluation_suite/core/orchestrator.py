@@ -1,27 +1,24 @@
-import uuid
-import time
 import asyncio
-import pandas as pd
-from typing import List, Dict
+import uuid
 from datetime import datetime
 
+import pandas as pd
 from loguru import logger
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+
+# Importamos os modelos SQLModel de vizu_models
+from vizu_models import (
+    CaseOutcome,
+    Conversa,
+    ExperimentCase,
+    ExperimentRun,
+    ExperimentStatus,
+)
 
 # Nossas bibliotecas e modelos reais
 # NÃO importamos mais nada de crud.py ou operations.py
 from ..clients.api_client import APIClient
 
-# Importamos os modelos SQLModel de vizu_models
-from vizu_models import (
-    ExperimentRun,
-    ExperimentCase,
-    ExperimentStatus,
-    CaseOutcome,
-    Conversa,
-    ClienteVizu
-)
 
 class EvaluationOrchestrator:
 
@@ -30,7 +27,7 @@ class EvaluationOrchestrator:
         self.assistant_client = assistant_client
         logger.info("EvaluationOrchestrator (async) inicializado.")
 
-    def _load_dataset_from_csv(self, dataset_path: str) -> List[Dict]:
+    def _load_dataset_from_csv(self, dataset_path: str) -> list[dict]:
         try:
             logger.info(f"Carregando dataset do arquivo: {dataset_path}")
             df = pd.read_csv(dataset_path)
@@ -54,7 +51,7 @@ class EvaluationOrchestrator:
             logger.error(f"Falha ao carregar ou processar o dataset CSV: {e}")
             raise
 
-    def _collect_results_from_db(self, run_id: uuid.UUID, test_cases: List[Dict], start_time: datetime):
+    def _collect_results_from_db(self, run_id: uuid.UUID, test_cases: list[dict], start_time: datetime):
         """
         Busca no banco de dados as conversas geradas durante a execução
         e as salva como ExperimentCase.

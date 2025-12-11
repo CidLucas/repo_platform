@@ -4,11 +4,12 @@ Script para extrair conteúdo completo do site annamariamaiolino.com
 Salva estrutura, textos, imagens e URLs para uso no Figma/redesign
 """
 
+import json
+import time
+from urllib.parse import urljoin
+
 import requests
 from bs4 import BeautifulSoup
-import json
-from urllib.parse import urljoin, urlparse
-import time
 
 # URLs das páginas
 PAGES = {
@@ -25,21 +26,21 @@ PAGES = {
 def extract_page_content(url: str, page_name: str) -> dict:
     """Extrai conteúdo de uma página"""
     print(f"📄 Extraindo: {page_name} ({url})")
-    
+
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
         }
         response = requests.get(url, headers=headers, timeout=10)
         response.encoding = 'utf-8'
-        
+
         soup = BeautifulSoup(response.content, 'html.parser')
-        
+
         # Extrai meta informações
         title = soup.find('title').text if soup.find('title') else page_name
         meta_desc = soup.find('meta', attrs={'name': 'description'})
         description = meta_desc.get('content', '') if meta_desc else ''
-        
+
         # Extrai todos os textos (parágrafos, headings)
         texts = []
         for tag in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'div']):
@@ -49,7 +50,7 @@ def extract_page_content(url: str, page_name: str) -> dict:
                     'tag': tag.name,
                     'text': text
                 })
-        
+
         # Extrai imagens
         images = []
         for img in soup.find_all('img'):
@@ -62,7 +63,7 @@ def extract_page_content(url: str, page_name: str) -> dict:
                     'alt': alt,
                     'original_src': src
                 })
-        
+
         # Extrai links
         links = []
         for link in soup.find_all('a'):
@@ -73,7 +74,7 @@ def extract_page_content(url: str, page_name: str) -> dict:
                     'href': href,
                     'text': text
                 })
-        
+
         # Extrai estrutura (divs com classes/ids importantes)
         sections = []
         for div in soup.find_all(['section', 'article', 'div'], class_=True):
@@ -84,7 +85,7 @@ def extract_page_content(url: str, page_name: str) -> dict:
                     'class': class_name,
                     'content_preview': section_text
                 })
-        
+
         return {
             'page': page_name,
             'url': url,
@@ -99,7 +100,7 @@ def extract_page_content(url: str, page_name: str) -> dict:
             'links': links,
             'sections': sections[:20]  # Top 20 seções
         }
-    
+
     except Exception as e:
         print(f"❌ Erro ao extrair {page_name}: {e}")
         return {
@@ -111,22 +112,22 @@ def extract_page_content(url: str, page_name: str) -> dict:
 def main():
     """Extrai todas as páginas"""
     print("🚀 Iniciando extração do site anna maria maiolino...\n")
-    
+
     all_content = {}
-    
+
     for page_name, url in PAGES.items():
         content = extract_page_content(url, page_name)
         all_content[page_name] = content
         time.sleep(1)  # Respeita o servidor
-    
+
     # Salva em JSON
     output_file = '/Users/tarsobarreto/Documents/vizu-mono/ferramentas/anna_site_content.json'
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(all_content, f, ensure_ascii=False, indent=2)
-    
-    print(f"\n✅ Extração concluída!")
+
+    print("\n✅ Extração concluída!")
     print(f"📁 Conteúdo salvo em: {output_file}")
-    
+
     # Mostra resumo
     print("\n📊 RESUMO:")
     for page_name, content in all_content.items():

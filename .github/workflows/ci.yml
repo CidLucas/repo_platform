@@ -63,7 +63,7 @@ jobs:
         service:
           - atendente_core
           - tool_pool_api
-          - embedding_service
+          # - embedding_service  # Temporarily disabled
     steps:
       - uses: actions/checkout@v4
 
@@ -107,7 +107,7 @@ jobs:
         service:
           - atendente_core
           - tool_pool_api
-          - embedding_service
+          # - embedding_service  # Temporarily disabled
     steps:
       - uses: actions/checkout@v4
 

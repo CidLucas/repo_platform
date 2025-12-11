@@ -14,16 +14,15 @@ Pipelines:
        - Consistent sender mapping (João → interlocutor_1)
 """
 
-from .whatsapp_loader import (
-    load_whatsapp_chat,
-    anonymize_senders,
-    anonymize_content,
-    add_test_id,
-)
-
 from .pii_anonymizer import (
     anonymize_dataframe,
     anonymize_text,
+)
+from .whatsapp_loader import (
+    add_test_id,
+    anonymize_content,
+    anonymize_senders,
+    load_whatsapp_chat,
 )
 
 __all__ = [

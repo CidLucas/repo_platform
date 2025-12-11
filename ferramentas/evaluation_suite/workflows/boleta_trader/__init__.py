@@ -17,9 +17,9 @@ Usage:
     make experiment-workflow-v2-export
 """
 
+from .evaluator import evaluate_extraction_accuracy, summarize_for_manual_review
 from .workflow import get_workflow
 from .workflow_v2 import get_workflow as get_workflow_v2
-from .evaluator import summarize_for_manual_review, evaluate_extraction_accuracy
 
 __all__ = [
     "get_workflow",

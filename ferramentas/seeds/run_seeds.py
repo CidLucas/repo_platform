@@ -7,14 +7,13 @@ Uso:
     python -m seeds.run_seeds --qdrant     # Apenas Qdrant (RAG)
     python -m seeds.run_seeds --check      # Verifica estado atual
 """
+import argparse
+import json
+import logging
 import os
 import sys
-import json
-import argparse
-import logging
 import uuid
 from pathlib import Path
-from typing import List, Dict, Any
 
 # Adiciona paths para imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "libs" / "vizu_db_connector" / "src"))
@@ -30,10 +29,12 @@ KNOWLEDGE_DIR = SEEDS_DIR / "knowledge"
 
 def seed_database(db_url: str):
     """Popula o banco de dados com clientes de teste."""
-    from sqlmodel import Session, create_engine, select
     from sqlalchemy.exc import IntegrityError
+    from sqlmodel import Session, create_engine, select
+
     from vizu_models import ClienteVizu
-    from vizu_models.enums import TipoCliente, TierCliente
+    from vizu_models.enums import TierCliente, TipoCliente
+
     from .clients import SEED_CLIENTS
 
     logger.info("=" * 60)
@@ -143,7 +144,7 @@ def seed_qdrant():
 
     for json_file in knowledge_files:
         try:
-            with open(json_file, "r", encoding="utf-8") as f:
+            with open(json_file, encoding="utf-8") as f:
                 data = json.load(f)
 
             collection_name = data.get("collection")
@@ -159,7 +160,7 @@ def seed_qdrant():
             try:
                 existing = client.get_collection(collection_name)
                 if existing.config.params.vectors.size != vector_size:
-                    logger.info(f"   Recriando (dimensão diferente)...")
+                    logger.info("   Recriando (dimensão diferente)...")
                     client.delete_collection(collection_name)
                     raise Exception("Recriar")
             except Exception:
@@ -232,6 +233,7 @@ def check_status():
     if db_url:
         try:
             from sqlmodel import Session, create_engine, select
+
             from vizu_models import ClienteVizu
 
             engine = create_engine(db_url)

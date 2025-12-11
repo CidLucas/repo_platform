@@ -6,13 +6,13 @@ Usage:
     python scripts/test_google_tools.py query_calendar
     python scripts/test_google_tools.py create_sheet
 """
-import sys
 import asyncio
 import json
+import os
+import sys
 from datetime import datetime, timedelta
 
 import httpx
-import os
 
 # Use environment variables for sensitive values. Keep defaults non-sensitive placeholders.
 MCP_URL = os.getenv("MCP_URL", "http://localhost:8006/mcp")

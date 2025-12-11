@@ -1,7 +1,8 @@
-import pytest
-import httpx
-from unittest.mock import AsyncMock
 import json
+
+import httpx
+import pytest
+
 # O componente que estamos testando
 from evaluation_suite.clients.api_client import APIClient
 

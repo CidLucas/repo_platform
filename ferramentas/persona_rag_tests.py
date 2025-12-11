@@ -16,16 +16,14 @@ Or via Make:
     make test-personas
 """
 
-import httpx
-import json
-import asyncio
 import argparse
-import sys
+import asyncio
 import subprocess
-from typing import Optional
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 
+import httpx
 
 # ============================================================================
 # FETCH API KEYS FROM DATABASE
@@ -252,7 +250,7 @@ class TestResult:
     keywords_found: list[str] = field(default_factory=list)
     keywords_missing: list[str] = field(default_factory=list)
     tools_called: list[str] = field(default_factory=list)
-    error: Optional[str] = None
+    error: str | None = None
 
 
 async def run_persona_test(
@@ -347,7 +345,7 @@ async def run_persona_test(
 
 async def run_all_tests(
     verbose: bool = False,
-    persona_filter: Optional[str] = None,
+    persona_filter: str | None = None,
 ) -> list[TestResult]:
     """Run all persona RAG tests."""
 

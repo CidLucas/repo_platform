@@ -1,12 +1,12 @@
-import pytest
-import pandas as pd
-import asyncio
 import uuid  # <-- ADICIONE O IMPORT DE UUID
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pandas as pd
+import pytest
+from evaluation_suite.clients.api_client import APIClient
+
 # O componente que estamos testando
 from evaluation_suite.core.orchestrator import EvaluationOrchestrator
-from evaluation_suite.clients.api_client import APIClient
 
 # --- Fixtures e Mocks ---
 

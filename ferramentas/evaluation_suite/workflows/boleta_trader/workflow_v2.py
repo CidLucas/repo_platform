@@ -15,27 +15,27 @@ Environment Variables:
   MCP_SERVER_URL: (optional) URL for tool_pool_api MCP server
 """
 
-import time
-import re
-import os
+import difflib
 import logging
-import asyncio
-from typing import TypedDict, Optional, Literal, List, Annotated, Dict, Any
-from langgraph.graph import StateGraph, END
+import os
+import re
+import time
+from typing import Annotated, Any, Literal, TypedDict
+
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
-from langchain_core.messages import BaseMessage, AIMessage, HumanMessage
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import PydanticOutputParser
-import difflib
 
 # Import vizu_llm_service for unified LLM access
 try:
     from vizu_llm_service import (
-        get_model,
-        get_langfuse_callback,
-        ModelTier,
         LLMProvider,
+        ModelTier,
+        get_langfuse_callback,
+        get_model,
     )
     VIZU_LLM_AVAILABLE = True
 except ImportError:
@@ -69,16 +69,16 @@ class ValidacaoNegociacao(BaseModel):
 
 class TradingState(TypedDict):
     """State schema for the trading workflow."""
-    messages: Annotated[List[BaseMessage], add_messages]
+    messages: Annotated[list[BaseMessage], add_messages]
     negociacao_em_aberto: bool
-    participante_1_id: Optional[str]
-    participante_2_id: Optional[str]
-    horario_abertura: Optional[float]
-    contexto_relevante: Optional[str]
+    participante_1_id: str | None
+    participante_2_id: str | None
+    horario_abertura: float | None
+    contexto_relevante: str | None
     negociacao_concluida: bool
-    dados_validacao: Optional[Dict]
-    dados_extraidos: Optional[Dict]
-    boleta_formatada: Optional[str]
+    dados_validacao: dict | None
+    dados_extraidos: dict | None
+    boleta_formatada: str | None
 
 
 # --- 2. Configuration ---
@@ -121,8 +121,8 @@ def clean_message_content(content: str) -> str:
 
 def get_llm(
     temperature: float = 0.3,
-    session_id: Optional[str] = None,
-    tags: Optional[List[str]] = None,
+    session_id: str | None = None,
+    tags: list[str] | None = None,
 ) -> Any:
     """
     Get an LLM instance using vizu_llm_service.
@@ -188,7 +188,7 @@ class MCPToolManager:
     - Other registered tools
     """
 
-    def __init__(self, url: Optional[str] = None):
+    def __init__(self, url: str | None = None):
         self.url = url or os.getenv("MCP_SERVER_URL", "http://tool_pool_api:9000/mcp/")
         self._session = None
         self._tools = []
@@ -197,10 +197,11 @@ class MCPToolManager:
     async def connect(self) -> bool:
         """Connect to MCP server and load tools."""
         try:
+            from contextlib import AsyncExitStack
+
+            from langchain_mcp_adapters.tools import load_mcp_tools
             from mcp import ClientSession
             from mcp.client.streamable_http import streamablehttp_client
-            from langchain_mcp_adapters.tools import load_mcp_tools
-            from contextlib import AsyncExitStack
 
             self._exit_stack = AsyncExitStack()
 
@@ -240,7 +241,7 @@ class MCPToolManager:
         self._connected = False
 
     @property
-    def tools(self) -> List[Any]:
+    def tools(self) -> list[Any]:
         """Get available MCP tools."""
         return self._tools
 
@@ -249,7 +250,7 @@ class MCPToolManager:
         """Check if connected to MCP."""
         return self._connected
 
-    async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> Any:
         """Call an MCP tool by name."""
         if not self._connected or not self._session:
             raise RuntimeError("Not connected to MCP server")
@@ -259,10 +260,10 @@ class MCPToolManager:
 
 
 # Global MCP manager (optional, initialized on demand)
-_mcp_manager: Optional[MCPToolManager] = None
+_mcp_manager: MCPToolManager | None = None
 
 
-async def get_mcp_manager() -> Optional[MCPToolManager]:
+async def get_mcp_manager() -> MCPToolManager | None:
     """Get or create the MCP manager (lazy initialization)."""
     global _mcp_manager
 
@@ -582,7 +583,7 @@ def get_workflow(checkpointer=None):
     provider = os.getenv("LLM_PROVIDER", "ollama")
     mcp_enabled = os.getenv("ENABLE_MCP_TOOLS", "false").lower() == "true"
 
-    logger.info(f"Building boleta_trader workflow v2")
+    logger.info("Building boleta_trader workflow v2")
     logger.info(f"  LLM Provider: {provider}")
     logger.info(f"  MCP Tools: {'enabled' if mcp_enabled else 'disabled'}")
 
@@ -622,7 +623,7 @@ def get_workflow(checkpointer=None):
 async def run_with_mcp_tools(
     workflow,
     initial_state: dict,
-    config: Optional[dict] = None,
+    config: dict | None = None,
 ) -> dict:
     """
     Run workflow with MCP tools available.

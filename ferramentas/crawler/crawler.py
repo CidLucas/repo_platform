@@ -1,9 +1,11 @@
 import asyncio
 import os
-from crawl4ai import AsyncWebCrawler, CrawlerRunConfig, LXMLWebScrapingStrategy, CacheMode
-from crawl4ai.deep_crawling import BFSDeepCrawlStrategy
+
+from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig, LXMLWebScrapingStrategy
 from crawl4ai.content_filter_strategy import PruningContentFilter
+from crawl4ai.deep_crawling import BFSDeepCrawlStrategy
 from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
+
 
 async def main():
     """
@@ -91,8 +93,9 @@ async def main():
             f.write("".join(all_results_markdown))
         print(f"Arquivo '{output_filename}' salvo com sucesso!")
         print(f"Caminho completo: {os.path.abspath(output_filename)}")
-    except IOError as e:
+    except OSError as e:
         print(f"Erro ao salvar o arquivo: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

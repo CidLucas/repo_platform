@@ -17,20 +17,21 @@ Usage:
 """
 
 import csv
-import sys
-import os
+import difflib
 import json
 import logging
+import os
+import sys
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Callable
-from dataclasses import dataclass, field, asdict
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
-import yaml
 import pandas as pd
+import yaml
 from langchain_core.messages import HumanMessage
-import difflib
 
 # Configure logging
 logging.basicConfig(
@@ -58,10 +59,10 @@ class ExperimentResult:
     outcome: CaseOutcome
     duration_ms: int
     # Node outputs
-    description: Optional[str] = None  # check_negotiation output (justificativa)
-    extracted: Optional[Dict] = None  # extractor output (dados_extraidos)
-    boleta_formatada: Optional[str] = None  # formatter output (final boleta)
-    error: Optional[str] = None
+    description: str | None = None  # check_negotiation output (justificativa)
+    extracted: dict | None = None  # extractor output (dados_extraidos)
+    boleta_formatada: str | None = None  # formatter output (final boleta)
+    error: str | None = None
 
 
 @dataclass
@@ -71,24 +72,24 @@ class ExperimentSummary:
     manifest_version: str
     run_id: str
     started_at: str
-    completed_at: Optional[str] = None
+    completed_at: str | None = None
     total_cases: int = 0
     success_cases: int = 0
     failure_cases: int = 0
     error_cases: int = 0
-    results: List[Dict] = field(default_factory=list)
-    db_run_id: Optional[str] = None
-    csv_path: Optional[str] = None
+    results: list[dict] = field(default_factory=list)
+    db_run_id: str | None = None
+    csv_path: str | None = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return asdict(self)
 
 
 # --- Manifest Loading ---
 
-def load_manifest(manifest_path: str) -> Dict[str, Any]:
+def load_manifest(manifest_path: str) -> dict[str, Any]:
     """Load manifest from YAML file."""
-    with open(manifest_path, "r", encoding="utf-8") as f:
+    with open(manifest_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -121,14 +122,14 @@ def load_module(module_path: str) -> Any:
             return importlib.import_module(module_path)
 
 
-def load_workflow(manifest: Dict[str, Any]) -> Any:
+def load_workflow(manifest: dict[str, Any]) -> Any:
     """Load the LangGraph workflow from the manifest."""
     module = load_module(manifest["workflow_path"])
     fn_name = manifest.get("workflow_function", "get_workflow")
     return getattr(module, fn_name)()
 
 
-def load_evaluator(manifest: Dict[str, Any]) -> Optional[Callable]:
+def load_evaluator(manifest: dict[str, Any]) -> Callable | None:
     """Load the evaluator function from the manifest."""
     evaluator_path = manifest.get("evaluator_path")
     if not evaluator_path:
@@ -140,20 +141,20 @@ def load_evaluator(manifest: Dict[str, Any]) -> Optional[Callable]:
 
 # --- Data Loading ---
 
-def load_conversations(csv_path: str) -> List[Dict[str, Any]]:
+def load_conversations(csv_path: str) -> list[dict[str, Any]]:
     """Load conversation data from CSV."""
     df = pd.read_csv(csv_path)
     return df.to_dict("records")
 
 
 def find_trigger_sequences(
-    messages: List[Dict[str, Any]],
-    trigger_keywords: List[str],
+    messages: list[dict[str, Any]],
+    trigger_keywords: list[str],
     message_column: str = "message",
     sender_column: str = "nome_fantasia",
     group_column: str = "test_id",
     context_window: int = 15,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Find messages that contain trigger keywords and extract context."""
     test_cases = []
 
@@ -185,11 +186,11 @@ def find_trigger_sequences(
 
 def execute_workflow_case(
     workflow: Any,
-    case: Dict[str, Any],
-    evaluator: Optional[Callable],
-    manifest: Dict[str, Any],
+    case: dict[str, Any],
+    evaluator: Callable | None,
+    manifest: dict[str, Any],
     langfuse_handler: Any = None,
-    limit: Optional[int] = None,
+    limit: int | None = None,
 ) -> ExperimentResult:
     """Execute workflow for a single test case."""
     start_time = datetime.utcnow()
@@ -304,11 +305,12 @@ def execute_workflow_case(
 
 # --- Database Integration (Optional) ---
 
-def save_to_database(summary: ExperimentSummary, manifest: Dict[str, Any]) -> Optional[str]:
+def save_to_database(summary: ExperimentSummary, manifest: dict[str, Any]) -> str | None:
     """Save experiment results to database using vizu_db_connector."""
     try:
         from vizu_db_connector.database import SessionLocal
-        from vizu_models import ExperimentRun, ExperimentCase, ExperimentStatus, CaseOutcome as DBCaseOutcome
+        from vizu_models import CaseOutcome as DBCaseOutcome
+        from vizu_models import ExperimentCase, ExperimentRun, ExperimentStatus
 
         db = SessionLocal()
         try:
@@ -366,7 +368,7 @@ def save_to_database(summary: ExperimentSummary, manifest: Dict[str, Any]) -> Op
 
 # --- CSV Export ---
 
-def export_to_csv(results: List[ExperimentResult], output_path: str) -> str:
+def export_to_csv(results: list[ExperimentResult], output_path: str) -> str:
     """
     Export experiment results to CSV with query and node outputs.
 
@@ -411,7 +413,7 @@ def export_to_csv(results: List[ExperimentResult], output_path: str) -> str:
 
 # --- Langfuse Integration (Optional) ---
 
-def get_langfuse_handler(manifest: Dict[str, Any], run_id: str):
+def get_langfuse_handler(manifest: dict[str, Any], run_id: str):
     """Get Langfuse callback handler if configured."""
     try:
         from langfuse.callback import CallbackHandler
@@ -446,7 +448,7 @@ def run_experiment(
     use_db: bool = False,
     use_langfuse: bool = False,
     export_csv: bool = False,
-    limit: Optional[int] = None,
+    limit: int | None = None,
 ) -> ExperimentSummary:
     """Run a workflow experiment from a manifest file."""
     import uuid

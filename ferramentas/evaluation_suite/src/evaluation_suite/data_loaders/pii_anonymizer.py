@@ -22,10 +22,9 @@ Usage:
     df_clean = anonymize_dataframe(df)
 """
 
-import re
 import logging
+
 import pandas as pd
-from typing import Dict, List, Tuple, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +39,7 @@ def _get_analyzer():
     global _analyzer
 
     if _analyzer is None:
-        from presidio_analyzer import AnalyzerEngine, PatternRecognizer, Pattern
+        from presidio_analyzer import AnalyzerEngine
         from presidio_analyzer.nlp_engine import NlpEngineProvider
 
         logger.info("Initializing Presidio Analyzer with Portuguese NLP...")
@@ -87,7 +86,7 @@ def _get_anonymizer():
 
 def _add_brazilian_recognizers(analyzer):
     """Add custom recognizers for Brazilian PII patterns."""
-    from presidio_analyzer import PatternRecognizer, Pattern
+    from presidio_analyzer import Pattern, PatternRecognizer
 
     # CPF: 123.456.789-00 or 12345678900
     cpf_pattern = Pattern(
@@ -159,7 +158,7 @@ def _add_brazilian_recognizers(analyzer):
 def anonymize_text(
     text: str,
     language: str = "pt",
-    entities_to_detect: Optional[List[str]] = None,
+    entities_to_detect: list[str] | None = None,
 ) -> str:
     """
     Anonymize PII in text using Presidio.
@@ -223,7 +222,7 @@ def anonymize_text(
 def anonymize_senders(
     df: pd.DataFrame,
     sender_column: str = "sender",
-) -> Tuple[pd.DataFrame, Dict[str, str]]:
+) -> tuple[pd.DataFrame, dict[str, str]]:
     """
     Anonymize sender names with consistent mapping.
 
@@ -332,7 +331,6 @@ def add_test_id(df: pd.DataFrame, start_id: int = 1000) -> pd.DataFrame:
 def main():
     """CLI entry point."""
     import argparse
-    import sys
 
     parser = argparse.ArgumentParser(
         description="Anonymize PII in chat CSV using Presidio"

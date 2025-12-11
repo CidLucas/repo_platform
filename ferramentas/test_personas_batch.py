@@ -3,11 +3,12 @@
 Test Personas batch runner.
 Sends test messages from CSV to each persona's API to validate RAG responses.
 """
-import requests
 import csv
-import time
 import os
+import time
 from datetime import datetime
+
+import requests
 
 # Configuration - detect if running in container or host
 IS_CONTAINER = os.path.exists("/.dockerenv") or os.environ.get("PYTHONPATH", "").startswith("/app")
@@ -51,7 +52,7 @@ def main():
 
     # Read CSV
     messages = []
-    with open(CSV_FILE, 'r', encoding='utf-8') as f:
+    with open(CSV_FILE, encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
             messages.append(row)
@@ -111,12 +112,12 @@ def main():
             time.sleep(1)
 
     print("\n" + "=" * 70)
-    print(f"📊 RESULTS SUMMARY")
+    print("📊 RESULTS SUMMARY")
     print("=" * 70)
     print(f"✅ Successful: {successful}")
     print(f"❌ Failed: {failed}")
     print(f"📈 Success Rate: {successful/(successful+failed)*100:.1f}%")
-    print(f"🔍 Check traces at Langfuse")
+    print("🔍 Check traces at Langfuse")
     print("=" * 70)
 
 

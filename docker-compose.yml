@@ -137,30 +137,30 @@ services:
       - ollama_storage:/root/.ollama
 
 
-  evaluation_suite:
-     container_name: vizu_evaluation_suite
-     platform: linux/amd64
-     build:
-       context: .
-       # Ajuste este caminho se a pasta real no seu projeto for 'ferramentas/evaluation_suite'
-       dockerfile: ./ferramentas/evaluation_suite/Dockerfile
-     ports:
-       - "8501:8501"
-     volumes:
-       # Mapeia o código fonte para /app/src (conforme definido no Dockerfile deste serviço)
-       - ./ferramentas/evaluation_suite/src:/app/src
-       # Mapeia as libs compartilhadas
-       - ./libs:/app/libs
-     environment:
-       <<: *common-env
-       # URL da API que será testada (apontando para o nome do container interno)
-       ASSISTANT_API_URL: "http://atendente_core:8000"
-       # PYTHONPATH crítico para encontrar as libs e o próprio src da tool
-       PYTHONPATH: "/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src"
-     depends_on:
-       atendente_core:
-        condition: service_started
-     # Note: For local development with postgres, use --profile local
+  # evaluation_suite:
+  #    container_name: vizu_evaluation_suite
+  #    platform: linux/amd64
+  #    build:
+  #      context: .
+  #      # Ajuste este caminho se a pasta real no seu projeto for 'ferramentas/evaluation_suite'
+  #      dockerfile: ./ferramentas/evaluation_suite/Dockerfile
+  #    ports:
+  #      - "8501:8501"
+  #    volumes:
+  #      # Mapeia o código fonte para /app/src (conforme definido no Dockerfile deste serviço)
+  #      - ./ferramentas/evaluation_suite/src:/app/src
+  #      # Mapeia as libs compartilhadas
+  #      - ./libs:/app/libs
+  #    environment:
+  #      <<: *common-env
+  #      # URL da API que será testada (apontando para o nome do container interno)
+  #      ASSISTANT_API_URL: "http://atendente_core:8000"
+  #      # PYTHONPATH crítico para encontrar as libs e o próprio src da tool
+  #      PYTHONPATH: "/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src"
+  #    depends_on:
+  #      atendente_core:
+  #       condition: service_started
+  #    # Note: For local development with postgres, use --profile local
 
   qdrant_db:
     container_name: vizu_qdrant_dev
@@ -192,36 +192,36 @@ services:
       - "8889:8889" # Prometheus exporter metrics
       - "13133:13133" # health_check extension
 
-  embedding_service:
-    container_name: vizu_embedding_service
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/embedding_service/Dockerfile
-    ports:
-      - "11435:11435"
-    volumes:
-      # Mount host's HuggingFace cache to avoid re-downloading models
-      # This bind mount shares your local ~/.cache/huggingface with the container
-      - ${HOME}/.cache/huggingface:/home/appuser/.cache/huggingface
-    environment:
-      # Use smaller model that's likely cached locally, or set in .env
-      # Options: sentence-transformers/all-MiniLM-L6-v2 (384 dims, fast)
-      #          intfloat/multilingual-e5-large (1024 dims, better for PT-BR)
-      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-sentence-transformers/all-MiniLM-L6-v2}
-      EMBEDDING_VECTOR_SIZE: ${EMBEDDING_VECTOR_SIZE:-384}
-      EMBEDDING_MODEL_DEVICE: ${EMBEDDING_MODEL_DEVICE:-cpu}
-    healthcheck:
-      # Esta checagem continua a mesma...
-      test: ["CMD-SHELL", "curl -f http://localhost:11435/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      # Aumentamos as tentativas para 5
-      retries: 5
-      # --- ESTA É A MUDANÇA MAIS IMPORTANTE ---
-      # Dá 5 minutos (300s) de carência para o container iniciar.
-      # Falhas de healthcheck durante este período não contam.
-      start_period: 300s
+  # embedding_service:
+  #   container_name: vizu_embedding_service
+  #   platform: linux/amd64
+  #   build:
+  #     context: .
+  #     dockerfile: ./services/embedding_service/Dockerfile
+  #   ports:
+  #     - "11435:11435"
+  #   volumes:
+  #     # Mount host's HuggingFace cache to avoid re-downloading models
+  #     # This bind mount shares your local ~/.cache/huggingface with the container
+  #     - ${HOME}/.cache/huggingface:/home/appuser/.cache/huggingface
+  #   environment:
+  #     # Use smaller model that's likely cached locally, or set in .env
+  #     # Options: sentence-transformers/all-MiniLM-L6-v2 (384 dims, fast)
+  #     #          intfloat/multilingual-e5-large (1024 dims, better for PT-BR)
+  #     EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-sentence-transformers/all-MiniLM-L6-v2}
+  #     EMBEDDING_VECTOR_SIZE: ${EMBEDDING_VECTOR_SIZE:-384}
+  #     EMBEDDING_MODEL_DEVICE: ${EMBEDDING_MODEL_DEVICE:-cpu}
+  #   healthcheck:
+  #     # Esta checagem continua a mesma...
+  #     test: ["CMD-SHELL", "curl -f http://localhost:11435/health || exit 1"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     # Aumentamos as tentativas para 5
+  #     retries: 5
+  #     # --- ESTA É A MUDANÇA MAIS IMPORTANTE ---
+  #     # Dá 5 minutos (300s) de carência para o container iniciar.
+  #     # Falhas de healthcheck durante este período não contam.
+  #     start_period: 300s
 
 
   file_upload_api:

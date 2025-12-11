@@ -5,22 +5,20 @@ Streamlit HITL Dashboard - Human-in-the-Loop Review Interface.
 Run with: streamlit run src/hitl_dashboard/app.py
 """
 
-import streamlit as st
-import pandas as pd
+import os
 from datetime import datetime
-from typing import List
 from uuid import UUID
+
+import pandas as pd
+import streamlit as st
 
 from vizu_hitl_service import HitlQueue
 from vizu_models import (
+    HitlCriteriaType,
+    HitlFeedbackType,
     HitlReviewRead,
     HitlReviewStatus,
-    HitlFeedbackType,
-    HitlCriteriaType,
 )
-
-# Config - use absolute import or inline
-import os
 
 
 class Settings:
@@ -57,7 +55,7 @@ def get_queue() -> HitlQueue:
     return HitlQueue.from_url(settings.REDIS_URL)
 
 
-def get_clients_with_pending() -> List[str]:
+def get_clients_with_pending() -> list[str]:
     """Get list of client IDs with pending reviews."""
     queue = get_queue()
     stats = queue.get_stats()
@@ -303,7 +301,7 @@ def handle_correct(
     corrected_response: str,
     feedback_type: str,
     notes: str,
-    tags: List[str],
+    tags: list[str],
 ):
     """Handle correction action."""
     queue = get_queue()

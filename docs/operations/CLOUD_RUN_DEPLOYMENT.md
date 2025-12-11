@@ -2,9 +2,16 @@
 
 ## Overview
 
-VIZU is deployed to Google Cloud Run using a **3-group architecture**:
+VIZU is deployed to Google Cloud Run using a **3-group architecture**. The CI/CD pipeline builds images, publishes to GHCR, and deploys to Cloud Run automatically on push to `main`.
 
 ```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    CI/CD Pipeline                                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│  1. Lint (ruff) → 2. Dependency Check → 3. Docker Build                │
+│  4. Publish to GHCR → 5. Deploy to Cloud Run                           │
+└─────────────────────────────────────────────────────────────────────────┘
+
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                    Google Cloud Run Services                            │
 ├─────────────────────────────────────────────────────────────────────────┤
@@ -25,6 +32,14 @@ VIZU is deployed to Google Cloud Run using a **3-group architecture**:
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+## GitHub Actions Workflows
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `ci.yml` | Push/PR to main | Lint, build Docker images, publish to GHCR |
+| `deploy-cloud-run.yml` | Push to main (services/libs changes) | Build & deploy to Cloud Run |
+| `secret-scan.yml` | Push/PR | Detect leaked secrets |
 
 ## Prerequisites
 
@@ -112,23 +127,26 @@ echo -n "your-langfuse-secret" | \
 
 Add these secrets in GitHub repo settings (Settings → Secrets → Actions):
 
-| Secret | Description |
-|--------|-------------|
-| `GCP_PROJECT_ID` | Your GCP project ID |
-| `GCP_SA_KEY` | Base64-encoded service account key |
-| `GCP_SA_EMAIL` | Service account email |
+| Secret | Description | Required |
+|--------|-------------|----------|
+| `GCP_PROJECT_ID` | Your GCP project ID | ✅ |
+| `GCP_SA_KEY` | Service account key JSON (NOT base64) | ✅ |
+| `GCP_SA_EMAIL` | Service account email | ✅ |
+| `GITHUB_TOKEN` | Auto-provided by GitHub for GHCR | Auto |
 
-```bash
-# Get base64-encoded key
-cat ~/vizu-deployer-key.json | base64
-```
+> **Note**: The `GCP_SA_KEY` should be the raw JSON key file content, not base64-encoded.
 
 ## Step 5: Deploy
 
-### Automatic Deployment
-Push to `main` branch to trigger GitHub Actions workflow.
+### Automatic Deployment (Recommended)
+Push to `main` branch triggers the full CI/CD pipeline:
+1. **ci.yml**: Lint → Build → Publish to GHCR
+2. **deploy-cloud-run.yml**: Build → Push to Artifact Registry → Deploy to Cloud Run
 
-### Manual Deployment
+### Manual Deployment via GitHub Actions
+Go to Actions → "Deploy to Cloud Run" → Run workflow → Select service group.
+
+### Manual Deployment via CLI
 ```bash
 # Deploy all services
 ./scripts/deploy-cloud-run.sh all

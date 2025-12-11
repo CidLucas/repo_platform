@@ -5,11 +5,11 @@ Langfuse Dataset Management Page.
 Permite visualizar e gerenciar datasets criados a partir de revisões HITL.
 """
 
+import os
+
 import streamlit as st
 
 from vizu_hitl_service import HitlQueue, LangfuseDatasetManager
-
-import os
 
 
 class Settings:

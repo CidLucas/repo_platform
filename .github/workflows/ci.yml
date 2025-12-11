@@ -26,7 +26,7 @@ jobs:
           # Exclude external dirs from lint
           ruff check --output-format=github \
             --exclude="langfuse/*" \
-            . || true  # Don't fail yet, just report
+            .
 
   dependency-check:
     name: Poetry Lock Check

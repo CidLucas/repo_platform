@@ -4,10 +4,10 @@ Script to create a test cliente-vizu and configure it for text-to-SQL testing.
 This script directly manipulates the database to set up test data.
 """
 
-import psycopg2
-import uuid
 import json
-from psycopg2.extras import execute_values
+import uuid
+
+import psycopg2
 
 # Database connection
 conn = psycopg2.connect(
@@ -110,7 +110,7 @@ def main():
             print("❌ Failed to create cliente-vizu")
             return
 
-        print(f"✅ Cliente created:")
+        print("\u2705 Cliente created:")
         print(f"   Cliente ID: {cliente['cliente_id']}")
         print(f"   API Key: {cliente['api_key']}")
         print(f"   Name: {cliente['nome_empresa']}")
@@ -118,11 +118,11 @@ def main():
 
         # Try to create fonte_de_dados
         try:
-            print("🔧 Creating data source...")
+            print("\ud83d\udd27 Creating data source...")
             fonte = create_fonte_de_dados()
 
             if fonte:
-                print(f"✅ Data source created:")
+                print("\u2705 Data source created:")
                 print(f"   Fonte ID: {fonte['fonte_id']}")
                 print(f"   Cliente ID: {fonte['cliente_id']}")
         except Exception as e:
@@ -137,10 +137,10 @@ def main():
         print(f"  X-API-KEY: {cliente['api_key']}")
         print()
         print("Example curl request:")
-        print(f"  curl -X POST http://localhost:8003/chat \\")
-        print(f"    -H 'Content-Type: application/json' \\")
+        print("  curl -X POST http://localhost:8003/chat \\")
+        print("    -H 'Content-Type: application/json' \\")
         print(f"    -H 'X-API-KEY: {cliente['api_key']}' \\")
-        print(f"    -d '{{\"message\": \"How many laptop products do we have?\"}}' ")
+        print('    -d \'{"message": "How many laptop products do we have?"}\' ')
         print()
 
     except Exception as e:

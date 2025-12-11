@@ -5,8 +5,11 @@ WORKDIR /app
 
 # Instala Poetry e dependências (Monorepo-aware)
 RUN pip install poetry
-COPY services/data_ingestion_api/pyproject.toml services/data_ingestion_api/poetry.lock /app/services/data_ingestion_api/
-COPY services/data_ingestion_worker/pyproject.toml services/data_ingestion_worker/poetry.lock /app/services/data_ingestion_worker/
+
+COPY services/data_ingestion_api/pyproject.toml services/data_ingestion_api/poetry.lock \
+    /app/services/data_ingestion_api/
+COPY services/data_ingestion_worker/pyproject.toml services/data_ingestion_worker/poetry.lock \
+    /app/services/data_ingestion_worker/
 
 # Instala as dependências (incluindo o link para o serviço vizinho)
 WORKDIR /app/services/data_ingestion_worker
@@ -23,14 +26,10 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/pytho
 COPY services/data_ingestion_worker/src /app/src/
 COPY services/data_ingestion_api/src /app/services/data_ingestion_api/src/
 
-
-# ENTRYPOINT: Cloud Functions esperam um ENTRYPOINT que chame a função.
-# No deploy do Cloud Function, você apontará o Source code para services/data_ingestion_worker/
-# e o Entry Point para 'worker_function.pubsub_ingestion_worker'
-# O Cloud Functions (GCP) cuidará da execução, mas o Dockerfile deve ser limpo.
-
 # Define o PATH para que o Python encontre os pacotes do monorepo
 ENV PYTHONPATH=/app/src:/app/services/data_ingestion_api/src
 
-# O código final do ponto de entrada está em:
-# data_ingestion_worker.core.worker_function:pubsub_ingestion_worker
+# Note: This service is designed for Cloud Functions (PubSub trigger)
+# Entry Point: 'worker_function.pubsub_ingestion_worker'
+# For Cloud Run, you can use a wrapper or adapt as needed
+CMD ["python", "-m", "data_ingestion_worker.core.worker_function"]

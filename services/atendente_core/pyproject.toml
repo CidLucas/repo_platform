@@ -1,0 +1,56 @@
+[tool.poetry]
+name = "atendente-core"
+version = "0.1.0"
+description = "API responsável por orquestrar a lógica conversacional em tempo real (Core)."
+authors = ["Lucas Cid <lucas@vizubr.com>"]
+packages = [{include = "atendente_core", from = "src"}]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.14"
+fastapi = "^0.111.0"
+uvicorn = {extras = ["standard"], version = "^0.29.0"}
+pydantic-settings = "^2.2.1"
+
+# === DEPENDÊNCIAS LANGCHAIN ===
+# Core dependencies (langgraph pulls these transitively)
+langgraph = "^0.2"
+langgraph-checkpoint-redis = "^0.1.3"
+
+# MCP transport - direct dependency for mcp_client.py
+mcp = ">=1.9.0"
+langchain-mcp-adapters = "^0.1.13"
+
+# Observabilidade via Langfuse
+langfuse = "^3.0.0"
+
+# Service-specific dependencies
+twilio = "^9.0.0"
+redis = "^5.0.4"
+
+# --- Dependências internas do monorepo Vizu (apenas as usadas diretamente) ---
+vizu-auth = { path = "../../libs/vizu_auth", develop = true }
+vizu-observability-bootstrap = { path = "../../libs/vizu_observability_bootstrap" }
+vizu-db-connector = { path = "../../libs/vizu_db_connector" }
+vizu-models = { path = "../../libs/vizu_models", develop = true }
+vizu-context-service = {path = "../../libs/vizu_context_service", develop = true}
+vizu-llm-service = {path = "../../libs/vizu_llm_service", develop = true}
+vizu-hitl-service = {path = "../../libs/vizu_hitl_service", develop = true}
+vizu-tool-registry = {path = "../../libs/vizu_tool_registry", develop = true}
+vizu-prompt-management = {path = "../../libs/vizu_prompt_management", develop = true}
+vizu-elicitation-service = {path = "../../libs/vizu_elicitation_service", develop = true}
+vizu-agent-framework = {path = "../../libs/vizu_agent_framework", develop = true}
+vizu-sql-factory = {path = "../../libs/vizu_sql_factory", develop = true}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+pytest-asyncio = "^0.23.0"
+ruff = "^0.4.4"
+fakeredis = "^2.32.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"

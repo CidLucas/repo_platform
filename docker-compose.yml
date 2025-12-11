@@ -335,9 +335,7 @@ services:
     environment:
       <<: *common-env
       PYTHONPATH: /app/src:/app/libs
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # Note: postgres dependency is optional - use --profile local for local DB
 
 
 

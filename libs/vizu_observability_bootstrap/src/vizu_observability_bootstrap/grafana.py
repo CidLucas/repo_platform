@@ -15,11 +15,11 @@ Usage:
     # Set up structured logging for Grafana Loki
     setup_grafana_logging(service_name="atendente_core")
 """
+import json
 import logging
 import os
-import json
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class GrafanaLokiFormatter(logging.Formatter):
         self.environment = environment
 
     def format(self, record: logging.LogRecord) -> str:
-        log_record: Dict[str, Any] = {
+        log_record: dict[str, Any] = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "level": record.levelname.lower(),
             "message": record.getMessage(),
@@ -97,7 +97,7 @@ class GrafanaLokiFormatter(logging.Formatter):
 
 def setup_grafana_logging(
     service_name: str,
-    environment: Optional[str] = None,
+    environment: str | None = None,
     log_level: str = "INFO",
 ) -> None:
     """
@@ -146,7 +146,7 @@ def create_grafana_logger(name: str) -> logging.Logger:
 def record_metric(
     metric_name: str,
     value: float,
-    labels: Optional[Dict[str, str]] = None,
+    labels: dict[str, str] | None = None,
     metric_type: str = "gauge",
 ) -> None:
     """
@@ -160,9 +160,9 @@ def record_metric(
     """
     try:
         from opentelemetry import metrics
-        
+
         meter = metrics.get_meter("vizu.custom")
-        
+
         if metric_type == "counter":
             counter = meter.create_counter(metric_name)
             counter.add(value, labels or {})
@@ -173,7 +173,7 @@ def record_metric(
             # OpenTelemetry gauges need a callback, so we use UpDownCounter for simple gauges
             gauge = meter.create_up_down_counter(metric_name)
             gauge.add(value, labels or {})
-            
+
     except Exception as e:
         logger.debug(f"Failed to record metric {metric_name}: {e}")
 
@@ -187,7 +187,7 @@ def health_check() -> dict:
     """
     endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "")
     headers = os.environ.get("OTEL_EXPORTER_OTLP_HEADERS", "")
-    
+
     status = {
         "grafana_enabled": is_grafana_enabled(),
         "otlp_endpoint": endpoint,

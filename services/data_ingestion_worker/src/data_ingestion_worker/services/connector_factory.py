@@ -7,18 +7,18 @@ Este módulo implementa o princípio de Agnosticismo:
 """
 
 import logging
-from typing import Dict, Any, Union
-from google.cloud import bigquery
-
-# Conectores existentes
-from data_ingestion_api.connectors.bigquery_connector import BigQueryConnector
+from typing import Any
 
 # Conectores de E-commerce
 from data_ingestion_api.connectors import (
+    LojaIntegradaConnector,
     ShopifyConnector,
     VTEXConnector,
-    LojaIntegradaConnector,
 )
+
+# Conectores existentes
+from data_ingestion_api.connectors.bigquery_connector import BigQueryConnector
+from google.cloud import bigquery
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class ConnectorFactory:
     1. Buscar credenciais do Secret Manager
     2. Instanciar o conector apropriado
     """
-    
+
     # Mapeamento de tipos de serviço para classes de conector
     _CONNECTOR_MAP = {
         "BIGQUERY": "bigquery",
@@ -41,13 +41,13 @@ class ConnectorFactory:
         "POSTGRESQL": "postgresql",
         "MYSQL": "mysql",
     }
-    
+
     @classmethod
     async def create_connector(
-        cls, 
-        tipo_servico: str, 
-        credentials: Dict[str, Any]
-    ) -> Union[BigQueryConnector, ShopifyConnector, VTEXConnector, LojaIntegradaConnector]:
+        cls,
+        tipo_servico: str,
+        credentials: dict[str, Any]
+    ) -> BigQueryConnector | ShopifyConnector | VTEXConnector | LojaIntegradaConnector:
         """
         Cria um conector baseado no tipo de serviço.
         
@@ -59,24 +59,24 @@ class ConnectorFactory:
             Uma instância do conector apropriado
         """
         tipo = tipo_servico.upper()
-        
+
         if tipo == "BIGQUERY":
             # BigQuery precisa de um client especial
             google_client = bigquery.Client()
             return BigQueryConnector(client=google_client)
-            
+
         elif tipo == "SHOPIFY":
             return ShopifyConnector(credentials)
-            
+
         elif tipo == "VTEX":
             return VTEXConnector(credentials)
-            
+
         elif tipo == "LOJA_INTEGRADA":
             return LojaIntegradaConnector(credentials)
-            
+
         else:
             raise ValueError(f"Tipo de serviço não suportado: {tipo_servico}")
-    
+
     @classmethod
     def get_supported_resources(cls, tipo_servico: str) -> list:
         """

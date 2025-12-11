@@ -5,13 +5,11 @@ This module provides role-based schema introspection, caching, and filtering
 to return only allowed views, columns, and relationships per tenant/role.
 """
 
-import hashlib
 import json
 import logging
-import time
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Set, Any, Tuple
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from typing import Any
 
 from vizu_sql_factory.allowlist import (
     AllowlistConfig,
@@ -29,9 +27,9 @@ class ColumnMetadata:
     data_type: str
     nullable: bool = True
     is_primary_key: bool = False
-    foreign_key_target: Optional[str] = None  # "view.column" format
+    foreign_key_target: str | None = None  # "view.column" format
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return asdict(self)
 
@@ -40,11 +38,11 @@ class ColumnMetadata:
 class ViewMetadata:
     """Metadata for a single database view."""
     name: str
-    columns: List[ColumnMetadata]
-    description: Optional[str] = None
-    row_count_estimate: Optional[int] = None
+    columns: list[ColumnMetadata]
+    description: str | None = None
+    row_count_estimate: int | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "name": self.name,
@@ -59,13 +57,13 @@ class SchemaSnapshot:
     """Complete schema snapshot for a tenant/role combination."""
     tenant_id: str
     role: str
-    views: Dict[str, ViewMetadata] = field(default_factory=dict)
-    join_paths: List[Dict[str, Any]] = field(default_factory=list)
+    views: dict[str, ViewMetadata] = field(default_factory=dict)
+    join_paths: list[dict[str, Any]] = field(default_factory=list)
     generated_at: datetime = field(default_factory=datetime.utcnow)
-    constraints: Dict[str, Any] = field(default_factory=dict)  # max_rows, timeout, etc.
-    metadata: Dict[str, Any] = field(default_factory=dict)  # cache info, etc.
+    constraints: dict[str, Any] = field(default_factory=dict)  # max_rows, timeout, etc.
+    metadata: dict[str, Any] = field(default_factory=dict)  # cache info, etc.
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "tenant_id": self.tenant_id,
@@ -82,7 +80,7 @@ class SchemaSnapshot:
         return json.dumps(self.to_dict(), indent=2, default=str)
 
     @property
-    def view_names(self) -> List[str]:
+    def view_names(self) -> list[str]:
         """Get list of view names in snapshot."""
         return list(self.views.keys())
 
@@ -123,7 +121,7 @@ class SchemaSnapshotGenerator:
     def __init__(
         self,
         supabase_client=None,
-        allowlist_config: Optional[AllowlistConfig] = None,
+        allowlist_config: AllowlistConfig | None = None,
         cache_ttl_seconds: int = 3600,
     ):
         """
@@ -137,7 +135,7 @@ class SchemaSnapshotGenerator:
         self.supabase_client = supabase_client
         self.allowlist_config = allowlist_config or get_allowlist_config()
         self.cache_ttl_seconds = cache_ttl_seconds
-        self._cache: Dict[str, CacheEntry] = {}
+        self._cache: dict[str, CacheEntry] = {}
         logger.info(f"SchemaSnapshotGenerator initialized (TTL={cache_ttl_seconds}s)")
 
     def _cache_key(self, tenant_id: str, role: str) -> str:
@@ -149,7 +147,7 @@ class SchemaSnapshotGenerator:
         tenant_id: str,
         role: str,
         force_refresh: bool = False,
-    ) -> Optional[SchemaSnapshot]:
+    ) -> SchemaSnapshot | None:
         """
         Generate or retrieve cached schema snapshot for tenant/role.
 
@@ -243,7 +241,7 @@ class SchemaSnapshotGenerator:
 
         return snapshot
 
-    def _introspect_views(self) -> Dict[str, ViewMetadata]:
+    def _introspect_views(self) -> dict[str, ViewMetadata]:
         """
         Introspect database for all available views.
 
@@ -254,7 +252,7 @@ class SchemaSnapshotGenerator:
             Dict mapping view name to ViewMetadata.
         """
         # Mock data based on Phase 0.1 audit and planned views
-        views: Dict[str, ViewMetadata] = {
+        views: dict[str, ViewMetadata] = {
             "customers_view": ViewMetadata(
                 name="customers_view",
                 columns=[
@@ -332,9 +330,9 @@ class SchemaSnapshotGenerator:
 
     def _filter_views(
         self,
-        all_views: Dict[str, ViewMetadata],
+        all_views: dict[str, ViewMetadata],
         role_config: RoleConfig,
-    ) -> Dict[str, ViewMetadata]:
+    ) -> dict[str, ViewMetadata]:
         """
         Filter views and columns based on role allowlist.
 
@@ -378,8 +376,8 @@ class SchemaSnapshotGenerator:
     def _build_join_paths(
         self,
         role_config: RoleConfig,
-        filtered_views: Dict[str, ViewMetadata],
-    ) -> List[Dict[str, Any]]:
+        filtered_views: dict[str, ViewMetadata],
+    ) -> list[dict[str, Any]]:
         """
         Build list of allowed join paths between views.
 
@@ -412,7 +410,7 @@ class SchemaSnapshotGenerator:
 
         return join_paths
 
-    def cache_info(self) -> Dict[str, Any]:
+    def cache_info(self) -> dict[str, Any]:
         """Get cache statistics."""
         return {
             "entries": len(self._cache),
@@ -427,7 +425,7 @@ class SchemaSnapshotGenerator:
             ],
         }
 
-    def clear_cache(self, tenant_id: Optional[str] = None) -> int:
+    def clear_cache(self, tenant_id: str | None = None) -> int:
         """
         Clear cache entries.
 
@@ -473,7 +471,7 @@ class SchemaSnapshotFormatter:
 
         lines.append(f"## Schema for {snapshot.tenant_id} ({snapshot.role} role)\n")
         lines.append(f"Generated: {snapshot.generated_at.isoformat()}\n")
-        lines.append(f"Constraints:")
+        lines.append("Constraints:")
         lines.append(f"- Max rows per query: {snapshot.constraints.get('max_rows', 'N/A')}")
         lines.append(
             f"- Max execution time: {snapshot.constraints.get('max_execution_time_seconds', 'N/A')}s"

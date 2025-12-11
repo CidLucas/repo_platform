@@ -3,17 +3,16 @@ Exceptions for elicitation service.
 """
 
 import uuid
-from typing import Any, Dict, List, Optional
-
-from vizu_models import ElicitationType, ElicitationOption
+from typing import Any
 
 from vizu_elicitation_service.models import PendingElicitation
+from vizu_models import ElicitationOption, ElicitationType
 
 
 class ElicitationError(Exception):
     """Base exception for elicitation errors."""
 
-    def __init__(self, message: str, code: Optional[str] = None):
+    def __init__(self, message: str, code: str | None = None):
         super().__init__(message)
         self.message = message
         self.code = code or "ELICITATION_ERROR"
@@ -22,7 +21,7 @@ class ElicitationError(Exception):
 class ElicitationValidationError(ElicitationError):
     """Response validation failed."""
 
-    def __init__(self, message: str, expected: Optional[str] = None):
+    def __init__(self, message: str, expected: str | None = None):
         super().__init__(message, "VALIDATION_ERROR")
         self.expected = expected
 
@@ -63,9 +62,9 @@ class ElicitationRequired(Exception):
         type: ElicitationType,
         message: str,
         tool_name: str,
-        tool_args: Dict[str, Any],
-        options: Optional[List[ElicitationOption]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        tool_args: dict[str, Any],
+        options: list[ElicitationOption] | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         self.elicitation_id = str(uuid.uuid4())
         self.type = type
@@ -92,7 +91,7 @@ class ElicitationRequired(Exception):
             created_at=datetime.utcnow().isoformat(),
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "elicitation_id": self.elicitation_id,

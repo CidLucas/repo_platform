@@ -1,6 +1,7 @@
 import uuid
-from typing import Optional, TYPE_CHECKING
-from sqlmodel import SQLModel, Field, Relationship
+from typing import TYPE_CHECKING
+
+from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     # Importação para type checking apenas, evita import circular em tempo de execução
@@ -19,7 +20,7 @@ class CredencialServicoExternoBase(SQLModel):
 class CredencialServicoExterno(CredencialServicoExternoBase, table=True):
     __tablename__ = "credencial_servico_externo"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
 
     # Relacionamentos e Chaves Estrangeiras
     cliente_vizu_id: uuid.UUID = Field(foreign_key="cliente_vizu.id")

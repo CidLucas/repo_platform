@@ -35,14 +35,14 @@ async def agendar_servico(data: str, horario: str, ctx: Context):
 ```
 """
 
-import uuid
 import logging
-from typing import Optional, List, Dict, Any
-
-from .state import PendingElicitation
+import uuid
+from typing import Any
 
 # Importa tipos compartilhados de vizu_models
-from vizu_models import ElicitationType, ElicitationOption
+from vizu_models import ElicitationOption, ElicitationType
+
+from .state import PendingElicitation
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +60,9 @@ class ElicitationRequired(Exception):
         type: ElicitationType,
         message: str,
         tool_name: str,
-        tool_args: Dict[str, Any],
-        options: Optional[List[ElicitationOption]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        tool_args: dict[str, Any],
+        options: list[ElicitationOption] | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         self.elicitation_id = str(uuid.uuid4())
         self.type = type
@@ -90,8 +90,8 @@ class ElicitationRequired(Exception):
 def create_confirmation_elicitation(
     message: str,
     tool_name: str,
-    tool_args: Dict[str, Any],
-    metadata: Optional[Dict[str, Any]] = None,
+    tool_args: dict[str, Any],
+    metadata: dict[str, Any] | None = None,
 ) -> ElicitationRequired:
     """
     Helper para criar elicitation de confirmação (Sim/Não).
@@ -120,10 +120,10 @@ def create_confirmation_elicitation(
 
 def create_selection_elicitation(
     message: str,
-    options: List[ElicitationOption],
+    options: list[ElicitationOption],
     tool_name: str,
-    tool_args: Dict[str, Any],
-    metadata: Optional[Dict[str, Any]] = None,
+    tool_args: dict[str, Any],
+    metadata: dict[str, Any] | None = None,
 ) -> ElicitationRequired:
     """
     Helper para criar elicitation de seleção.
@@ -151,8 +151,8 @@ def create_selection_elicitation(
 def create_text_input_elicitation(
     message: str,
     tool_name: str,
-    tool_args: Dict[str, Any],
-    metadata: Optional[Dict[str, Any]] = None,
+    tool_args: dict[str, Any],
+    metadata: dict[str, Any] | None = None,
 ) -> ElicitationRequired:
     """
     Helper para criar elicitation de entrada de texto.
@@ -207,7 +207,7 @@ def format_elicitation_for_llm(pending: PendingElicitation) -> str:
 
 def validate_elicitation_response(
     pending: PendingElicitation, response: Any
-) -> tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Valida a resposta do usuário para uma elicitation.
 

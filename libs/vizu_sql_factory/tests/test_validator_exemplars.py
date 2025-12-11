@@ -5,9 +5,10 @@ Tests validator against a corpus of real SQL queries and expected outcomes.
 Measures false positive/negative rates.
 """
 
-import pytest
 import logging
-from typing import List, Dict, Any
+from typing import Any
+
+import pytest
 
 from vizu_sql_factory import SqlValidator
 
@@ -128,7 +129,7 @@ class TestSqlValidatorExemplars:
         self.validator = SqlValidator()
 
     @pytest.mark.parametrize("exemplar", EXEMPLARS)
-    def test_exemplar(self, exemplar: Dict[str, Any]):
+    def test_exemplar(self, exemplar: dict[str, Any]):
         """Test single exemplar."""
         sql = exemplar["sql"]
         should_pass = exemplar["should_pass"]

@@ -1,11 +1,11 @@
 # src/atendente_api/services/twilio_service.py
 
-from twilio.rest import Client
-from typing import Optional
+
 from fastapi import Depends
+from twilio.rest import Client
 
 # Importa a dependência de configurações, seguindo nosso padrão
-from ..core.config import get_settings, Settings
+from ..core.config import Settings, get_settings
 
 
 class TwilioService:
@@ -18,7 +18,7 @@ class TwilioService:
         self.client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
         print("INFO: Cliente TwilioService inicializado.")
 
-    def create_conversation(self, group_name: str) -> Optional[str]:
+    def create_conversation(self, group_name: str) -> str | None:
         try:
             conversation = self.client.conversations.v1.conversations.create(
                 friendly_name=group_name
@@ -33,7 +33,7 @@ class TwilioService:
 
     def add_participant_to_conversation(
         self, conversation_sid: str, participant_number: str
-    ) -> Optional[str]:
+    ) -> str | None:
         try:
             # O friendly_name pode ser adicionado se necessário, mas não é um parâmetro direto do `create`
             participant = self.client.conversations.v1.conversations(
@@ -51,7 +51,7 @@ class TwilioService:
 
     def send_system_message(
         self, conversation_sid: str, message_body: str
-    ) -> Optional[str]:
+    ) -> str | None:
         try:
             message = self.client.conversations.v1.conversations(
                 conversation_sid

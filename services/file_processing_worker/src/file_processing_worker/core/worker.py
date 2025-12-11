@@ -1,19 +1,21 @@
 import logging
 from functools import lru_cache
-from google.cloud import storage
+
 from fastapi import Depends
+from google.cloud import storage
+from langchain_core.embeddings import Embeddings
 
 from file_processing_worker.core.config import Settings, get_settings
 from file_processing_worker.services.processing_service import ProcessingService
 from file_processing_worker.services.routing_service import RoutingService
+
 # (Os parsers podem ser movidos para o routing_service se não forem usados aqui)
 # from file_processing_worker.parsers import PdfParser, CsvParser
-
 # --- INÍCIO DAS ADIÇÕES ---
 # (Estes imports já estavam no seu arquivo, o que é ótimo)
 from vizu_llm_service.client import get_embedding_model
 from vizu_qdrant_client.client import VizuQdrantClient
-from langchain_core.embeddings import Embeddings
+
 # --- FIM DAS ADIÇÕES ---
 
 logger = logging.getLogger(__name__)

@@ -1,7 +1,8 @@
-import json
 import base64
 import io
+import json
 from unittest.mock import MagicMock
+
 from fastapi.testclient import TestClient
 
 

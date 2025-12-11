@@ -1,4 +1,5 @@
 import uuid
+
 from qdrant_client import models
 
 from vizu_qdrant_client.client import VizuQdrantClient

@@ -3,8 +3,8 @@ Pytest fixtures for vizu_auth tests.
 """
 
 import os
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Any
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 import jwt
@@ -43,8 +43,8 @@ def sample_external_user_id() -> str:
 
 
 @pytest.fixture
-def valid_jwt_payload(sample_external_user_id: str, sample_cliente_vizu_id) -> Dict[str, Any]:
-    now = datetime.now(timezone.utc)
+def valid_jwt_payload(sample_external_user_id: str, sample_cliente_vizu_id) -> dict[str, Any]:
+    now = datetime.now(UTC)
     return {
         "sub": sample_external_user_id,
         "email": "test@example.com",
@@ -57,13 +57,13 @@ def valid_jwt_payload(sample_external_user_id: str, sample_cliente_vizu_id) -> D
 
 
 @pytest.fixture
-def valid_jwt_token(jwt_secret: str, valid_jwt_payload: Dict[str, Any]) -> str:
+def valid_jwt_token(jwt_secret: str, valid_jwt_payload: dict[str, Any]) -> str:
     return jwt.encode(valid_jwt_payload, jwt_secret, algorithm="HS256")
 
 
 @pytest.fixture
 def jwt_without_cliente_id(jwt_secret: str, sample_external_user_id: str) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": sample_external_user_id,
         "email": "test@example.com",
@@ -76,7 +76,7 @@ def jwt_without_cliente_id(jwt_secret: str, sample_external_user_id: str) -> str
 
 @pytest.fixture
 def expired_jwt_token(jwt_secret: str, sample_external_user_id: str) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": sample_external_user_id,
         "aud": "authenticated",
@@ -87,7 +87,7 @@ def expired_jwt_token(jwt_secret: str, sample_external_user_id: str) -> str:
 
 
 @pytest.fixture
-def invalid_signature_token(valid_jwt_payload: Dict[str, Any]) -> str:
+def invalid_signature_token(valid_jwt_payload: dict[str, Any]) -> str:
     return jwt.encode(valid_jwt_payload, "wrong-secret-32-chars-long-xxxxx", algorithm="HS256")
 
 

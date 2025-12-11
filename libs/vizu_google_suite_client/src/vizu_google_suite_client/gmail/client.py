@@ -1,8 +1,7 @@
 """Gmail Client implementation"""
-from typing import List, Optional
 import base64
-from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 from ..base import BaseGoogleClient
 from .models import EmailMessage, SendResult
@@ -20,7 +19,7 @@ class GoogleGmailClient(BaseGoogleClient):
         creds = self._get_credentials()
         return build("gmail", "v1", credentials=creds, cache_discovery=False)
 
-    async def search_messages(self, query: str, max_results: int = 10, label_ids: Optional[List[str]] = None) -> List[EmailMessage]:
+    async def search_messages(self, query: str, max_results: int = 10, label_ids: list[str] | None = None) -> list[EmailMessage]:
         """Search Gmail messages matching query."""
         service = self._build_service()
         user_id = "me"
@@ -86,12 +85,12 @@ class GoogleGmailClient(BaseGoogleClient):
 
     async def send_message(
         self,
-        to: List[str],
+        to: list[str],
         subject: str,
         body_text: str,
-        body_html: Optional[str] = None,
-        cc: Optional[List[str]] = None,
-        bcc: Optional[List[str]] = None,
+        body_html: str | None = None,
+        cc: list[str] | None = None,
+        bcc: list[str] | None = None,
     ) -> SendResult:
         """Send an email message."""
         service = self._build_service()

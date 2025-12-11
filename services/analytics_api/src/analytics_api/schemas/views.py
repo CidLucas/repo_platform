@@ -11,9 +11,9 @@ O metric_service (Silver -> Gold) consome estes formatos
 para calcular KPIs, rankings e scorecards.
 """
 
-from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+
+from pydantic import BaseModel, Field
 
 # ---
 # VIEWS DE DIMENSÃO (Quem, O Quê, Onde)
@@ -25,10 +25,10 @@ class RegiaoView(BaseModel):
     Representa uma localização geográfica (ex: Região de Venda, Região do Cliente).
     """
     id_regiao: str = Field(description="ID único da região (ex: hash, nome normalizado, CEP)")
-    cidade: Optional[str] = None
-    estado: Optional[str] = None
-    pais: Optional[str] = None
-    
+    cidade: str | None = None
+    estado: str | None = None
+    pais: str | None = None
+
     class Config:
         orm_mode = True # Permite fácil conversão de ORMs
         frozen = True   # Dimensões são imutáveis por definição
@@ -44,8 +44,8 @@ class ClienteView(BaseModel):
     id_cliente: str = Field(description="ID único do cliente (ex: CNPJ, email, ID interno)")
     nome_cliente: str
     id_regiao: str = Field(description="Chave estrangeira para RegiaoView")
-    data_cadastro: Optional[datetime] = None
-    
+    data_cadastro: datetime | None = None
+
     class Config:
         orm_mode = True
         frozen = True
@@ -61,7 +61,7 @@ class VendedorView(BaseModel):
     id_vendedor: str = Field(description="ID único do vendedor (ex: CNPJ, ID interno da cooperativa)")
     nome_vendedor: str
     id_regiao: str = Field(description="Chave estrangeira para RegiaoView")
-    
+
     class Config:
         orm_mode = True
         frozen = True
@@ -76,9 +76,9 @@ class ProdutoView(BaseModel):
     """
     id_produto: str = Field(description="ID único do produto (ex: SKU)")
     nome_produto: str
-    categoria: Optional[str] = None
-    subcategoria: Optional[str] = None
-    
+    categoria: str | None = None
+    subcategoria: str | None = None
+
     class Config:
         orm_mode = True
         frozen = True
@@ -96,17 +96,17 @@ class TransacaoView(BaseModel):
     """
     id_transacao: str = Field(description="ID único do evento (ex: ID do pedido, ID da nota fiscal)")
     data_transacao: datetime
-    
+
     # Chaves das Dimensões
     id_cliente: str = Field(description="Chave para ClienteView (quem comprou)")
     id_vendedor: str = Field(description="Chave para VendedorView (quem vendeu)")
     id_produto: str = Field(description="Chave para ProdutoView (o que foi vendido)")
-    
+
     # Métricas (Nível Prata)
     valor_total: float = Field(description="Métrica 'receita' desta transação")
     quantidade: int = Field(description="Métrica 'quantidade' nesta transação")
-    preco_unitario: Optional[float] = None
-    
+    preco_unitario: float | None = None
+
     class Config:
         orm_mode = True
 
@@ -122,6 +122,6 @@ class EstoqueView(BaseModel):
     id_local_estoque: str = Field(description="Onde o estoque está (ex: id_vendedor)")
     quantidade_disponivel: int
     data_snapshot: datetime
-    
+
     class Config:
         orm_mode = True

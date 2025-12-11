@@ -9,8 +9,8 @@ Sanitizes SQL query results before returning to LLM/client:
 """
 
 import logging
-from typing import Dict, List, Any, Optional, Pattern
 import re
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class ResultSanitizer:
     CREDIT_CARD_PATTERN = re.compile(r'\b(?:\d[ -]*?){13,19}\b')
     SSN_PATTERN = re.compile(r'\b(?:(?:(?:00[0-9]|0[1-6][0-9]|0[7][0-2])|[1-6][0-9]{2}|7(?:[0-6][0-9]|7[0-2]))[-]?(?:0[1-9]|1[0-2])[-]?(?:0[1-9]|[12][0-9]|3[01]))\b')
 
-    def __init__(self, sensitive_columns: Optional[List[str]] = None):
+    def __init__(self, sensitive_columns: list[str] | None = None):
         """
         Initialize sanitizer.
 
@@ -48,12 +48,12 @@ class ResultSanitizer:
 
     def sanitize(
         self,
-        rows: List[Dict[str, Any]],
-        columns: List[Dict[str, str]],
-        allowed_columns: Optional[Dict[str, List[str]]] = None,
+        rows: list[dict[str, Any]],
+        columns: list[dict[str, str]],
+        allowed_columns: dict[str, list[str]] | None = None,
         mask_pii: bool = True,
         redact_nulls: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Sanitize result rows.
 
@@ -179,10 +179,10 @@ class ResultSanitizer:
 
     def filter_large_results(
         self,
-        rows: List[Dict[str, Any]],
+        rows: list[dict[str, Any]],
         max_rows: int = 1000,
         max_cell_size: int = 1000
-    ) -> tuple[List[Dict[str, Any]], List[str]]:
+    ) -> tuple[list[dict[str, Any]], list[str]]:
         """
         Filter large result sets and cell values.
 
@@ -223,7 +223,7 @@ class ResultSanitizer:
         return filtered_rows, caveats
 
     @staticmethod
-    def build_summary(rows: List[Dict[str, Any]], columns: List[Dict[str, str]]) -> str:
+    def build_summary(rows: list[dict[str, Any]], columns: list[dict[str, str]]) -> str:
         """
         Build a human-readable summary of results for LLM.
 

@@ -8,9 +8,10 @@ This migration creates all core tables from vizu_models.
 It replaces the empty initial migration to provide a complete schema foundation.
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "20251208_create_initial_schema"
@@ -23,7 +24,7 @@ def upgrade() -> None:
     # Create ENUM types first (create_type=True tells SQLAlchemy to CREATE TYPE if it doesn't exist)
     tipo_cliente_enum = sa.Enum('INTERNAL', 'B2B', 'B2C', 'PARTNER', name='tipo_cliente_enum')
     tier_cliente_enum = sa.Enum('BASIC', 'SME', 'ENTERPRISE', 'CUSTOM', name='tier_cliente_enum')
-    
+
     # Bind them to the migration context so they're created
     tipo_cliente_enum.create(op.get_bind(), checkfirst=True)
     tier_cliente_enum.create(op.get_bind(), checkfirst=True)
@@ -134,6 +135,6 @@ def downgrade() -> None:
     op.drop_table('credencial_servico_externo', if_exists=True)
     op.drop_table('fonte_de_dados', if_exists=True)
     op.drop_table('cliente_vizu', if_exists=True)
-    
+
     op.execute('DROP TYPE tier_cliente_enum;')
     op.execute('DROP TYPE tipo_cliente_enum;')

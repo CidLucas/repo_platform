@@ -7,6 +7,7 @@ Set TEST_DATABASE_URL to override.
 """
 
 import os
+
 import pytest
 
 # Set environment variables before any imports that might use them
@@ -22,13 +23,14 @@ os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
 
 # Now we can safely import the app and other dependencies
 import fakeredis
+from atendente_core.api.router import validate_twilio_request
+from atendente_core.main import app
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from fastapi.testclient import TestClient
-from atendente_core.main import app
-from atendente_core.api.router import validate_twilio_request
-from vizu_context_service.redis_service import RedisService
+
 from vizu_context_service.dependencies import get_redis_service
+from vizu_context_service.redis_service import RedisService
 from vizu_db_connector.database import get_db_session
 
 

@@ -1,27 +1,26 @@
 """Pipeline utilities for parsing and chunking files."""
 
-import logging
-from pathlib import Path
-from typing import List, Optional, Union, BinaryIO
 import io
+import logging
+from typing import BinaryIO
 
-from vizu_parsers.parsers.router import get_parser_for_file
-from vizu_parsers.chunker.text_chunker import TextChunker, ChunkingStrategy
 from vizu_parsers.chunker.models import Chunk
+from vizu_parsers.chunker.text_chunker import ChunkingStrategy, TextChunker
+from vizu_parsers.parsers.router import get_parser_for_file
 
 logger = logging.getLogger(__name__)
 
 
 def parse_and_chunk(
-    file_path: Optional[str] = None,
-    file_stream: Optional[Union[io.BytesIO, BinaryIO]] = None,
-    filename: Optional[str] = None,
+    file_path: str | None = None,
+    file_stream: io.BytesIO | BinaryIO | None = None,
+    filename: str | None = None,
     chunk_size: int = 512,
     chunk_overlap: int = 50,
     strategy: ChunkingStrategy = ChunkingStrategy.SEMANTIC,
     min_chunk_size: int = 100,
-    metadata: Optional[dict] = None,
-) -> List[Chunk]:
+    metadata: dict | None = None,
+) -> list[Chunk]:
     """
     Parse a file and chunk its content in one step.
 
@@ -96,8 +95,8 @@ def chunk_text(
     chunk_overlap: int = 50,
     strategy: ChunkingStrategy = ChunkingStrategy.SEMANTIC,
     min_chunk_size: int = 100,
-    metadata: Optional[dict] = None,
-) -> List[Chunk]:
+    metadata: dict | None = None,
+) -> list[Chunk]:
     """
     Chunk raw text without parsing.
 

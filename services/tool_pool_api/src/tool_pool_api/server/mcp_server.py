@@ -1,12 +1,14 @@
-import logging
 import asyncio
+import logging
 from contextlib import asynccontextmanager
+
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastmcp import FastMCP
-from .tools import register_tools, get_available_modules
-from .resources import register_resources
+
 from .prompts import register_prompts
+from .resources import register_resources
+from .tools import get_available_modules, register_tools
 
 load_dotenv()
 

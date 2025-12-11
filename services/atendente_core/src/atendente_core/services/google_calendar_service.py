@@ -1,6 +1,7 @@
+from typing import Any
+
 from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build, Resource
-from typing import Dict, Any
+from googleapiclient.discovery import Resource, build
 
 from ..config import Settings
 
@@ -26,7 +27,7 @@ class GoogleCalendarService:
 
     def book_event(
         self, summary: str, start_time: str, end_time: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Cria um evento no calendário."""
         event = {
             "summary": summary,
@@ -42,7 +43,7 @@ class GoogleCalendarService:
             "link": created_event.get("htmlLink"),
         }
 
-    def cancel_event(self, event_id: str) -> Dict[str, Any]:
+    def cancel_event(self, event_id: str) -> dict[str, Any]:
         """Cancela um evento pelo seu ID."""
         self.service.events().delete(calendarId="primary", eventId=event_id).execute()
         return {"status": "cancelled"}

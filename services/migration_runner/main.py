@@ -1,6 +1,8 @@
 # services/migration_runner/main.py
-from alembic.config import main as alembic_main
 import os
+
+from alembic.config import main as alembic_main
+
 
 def run_migrations():
     """Executa as migrações do Alembic de forma programática."""

@@ -1,11 +1,14 @@
-import pandas as pd
-import logging
 import asyncio
-from typing import Dict, Any, List, Generator, AsyncGenerator
+import logging
+from collections.abc import AsyncGenerator, Generator
+from typing import Any
+
+import pandas as pd
+
 # [VIZU-REFACTOR] CORRIGIDO: Importa a exceção correta
-from google.api_core.exceptions import GoogleAPICallError 
+from google.api_core.exceptions import GoogleAPICallError
 from google.cloud import bigquery
-from google.oauth2 import service_account
+
 # Importamos o conector abstrato para garantir a interface Vizu
 from data_ingestion_api.connectors.abstract_connector import AbstractDataConnector, ExecutionError
 
@@ -17,7 +20,7 @@ class BigQueryConnector(AbstractDataConnector):
     """
     Implementação concreta para o BigQuery, cumprindo o contrato do conector abstrato.
     """
-    
+
     def __init__(self, client: bigquery.Client):
         self._client = client
         logger.info("BigQuery client inicializado com sucesso.")
@@ -35,10 +38,10 @@ class BigQueryConnector(AbstractDataConnector):
 
     # --- MÉTODO ABSTRATO (extract_data) ---
     async def extract_data(
-        self, 
-        query: str, 
+        self,
+        query: str,
         chunk_size: int = 10000, # <-- 1. Aceita o 'chunk_size'
-        client_id: str = ""      
+        client_id: str = ""
     ) -> AsyncGenerator[pd.DataFrame, None]:
         """
         [VIZU-REFACTOR] Implementação assíncrona.
@@ -46,16 +49,16 @@ class BigQueryConnector(AbstractDataConnector):
         em uma thread separada para não bloquear o event loop.
         """
         logger.info(f"BigQueryConnector (Async): Executando query, chunk_size={chunk_size}...")
-        
+
         try:
             # 2. Executa a função síncrona de I/O em um executor de thread
             # Passamos o 'chunk_size' (embora o 'pages' o ignore)
             sinc_generator = await asyncio.to_thread(
-                self._execute_query_to_dataframe_iterator, 
+                self._execute_query_to_dataframe_iterator,
                 query,
                 chunk_size # Passa o argumento adiante
             )
-            
+
             # 3. Itera sobre o gerador síncrono e entrega (yield) os chunks
             # para o loop 'async for' do IngestionService.
             for chunk in sinc_generator:
@@ -64,15 +67,15 @@ class BigQueryConnector(AbstractDataConnector):
                     continue
                 logger.info(f"BigQueryConnector (Async): Yielding chunk de {len(chunk)} linhas.")
                 yield chunk
-        
-        except GoogleAPICallError as e: 
+
+        except GoogleAPICallError as e:
             logger.error(f"Erro na execução da query BigQuery: {e}")
             raise ExecutionError(f"Erro na extração BigQuery: {e}")
         except Exception as e:
             logger.error(f"Erro inesperado no BigQueryConnector: {e}")
             raise ExecutionError(f"Erro inesperado durante a extração: {e}")
 
-    async def fetch_schema(self) -> List[Dict[str, Any]]:
+    async def fetch_schema(self) -> list[dict[str, Any]]:
         return [{"table": "exemplo_tabela", "columns": ["id", "nome"]}]
 
     def get_connection_string(self) -> str:
@@ -80,11 +83,11 @@ class BigQueryConnector(AbstractDataConnector):
         return f"bigquery://gcp-project/{project_id}"
 
     # --- MÉTODOS DE TRABALHO INTERNO (SÍNCRONOS) ---
-    
+
     # [VIZU-REFACTOR] Esta é a sua lógica de paginação, agora chamada pela 'extract_data'
     def _execute_query_to_dataframe_iterator(
-        self, 
-        sql_query: str, 
+        self,
+        sql_query: str,
         chunk_size: int # Aceita o argumento (mesmo que não o use)
     ) -> Generator[pd.DataFrame, None, None]:
         """
@@ -94,22 +97,22 @@ class BigQueryConnector(AbstractDataConnector):
         try:
             # (chunk_size é ignorado aqui, pois 'results.pages' gerencia o paging)
             logger.info(f"BigQueryConnector (Sync Thread): Iniciando extração (chunk_size={chunk_size}): {sql_query[:50]}...")
-    
+
             query_job = self._client.query(sql_query)
-            
+
             # .result() é SÍNCRONO (bloqueante) - por isso está em uma thread
             results = query_job.result()
-            
+
             column_names = [field.name for field in results.schema]
-            
+
             # Itera sobre as PÁGINAS (chunks de resultados)
             for page in results.pages:
-                data = [row.values() for row in page] 
+                data = [row.values() for row in page]
                 dataframe_chunk = pd.DataFrame(data, columns=column_names)
                 yield dataframe_chunk
-            
+
             logger.info("BigQueryConnector (Sync Thread): Extração finalizada.")
-            
+
         except Exception as e:
             logger.error(f"Erro ao executar extração em chunks (Sync Thread): {e}")
             raise ExecutionError(f"Erro na extração BigQuery: {e}")

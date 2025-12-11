@@ -2,15 +2,16 @@
 Tests for PostgREST query executor.
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
+import pytest
+
+from vizu_supabase_client.auth_context import AuthContext
 from vizu_supabase_client.postgrest_executor import (
-    QueryResult,
     PostgRESTQueryExecutor,
+    QueryResult,
     get_postgrest_executor,
 )
-from vizu_supabase_client.auth_context import AuthContext
 
 
 class TestQueryResult:

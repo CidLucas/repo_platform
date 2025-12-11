@@ -5,12 +5,12 @@ Generates snapshots of the current schema (views, columns, constraints)
 for version control and diff analysis. Can be run in CI to detect schema changes.
 """
 
+import hashlib
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, Optional, List
-import hashlib
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,8 @@ class SchemaSnapshot:
 
     def __init__(
         self,
-        views: Dict[str, Dict[str, Any]],
-        timestamp: Optional[str] = None,
+        views: dict[str, dict[str, Any]],
+        timestamp: str | None = None,
         version: str = "1.0"
     ):
         """
@@ -42,7 +42,7 @@ class SchemaSnapshot:
         views_json = json.dumps(self.views, sort_keys=True)
         return hashlib.sha256(views_json.encode()).hexdigest()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "version": self.version,
@@ -56,7 +56,7 @@ class SchemaSnapshot:
         return json.dumps(self.to_dict(), indent=2)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SchemaSnapshot":
+    def from_dict(cls, data: dict[str, Any]) -> "SchemaSnapshot":
         """Create from dictionary."""
         return cls(
             views=data.get("views", {}),
@@ -88,19 +88,19 @@ class SchemaDiff:
         self.removed_views = self._find_removed_views()
         self.modified_views = self._find_modified_views()
 
-    def _find_added_views(self) -> List[str]:
+    def _find_added_views(self) -> list[str]:
         """Find views added in new snapshot."""
         old_views = set(self.old_snapshot.views.keys())
         new_views = set(self.new_snapshot.views.keys())
         return sorted(list(new_views - old_views))
 
-    def _find_removed_views(self) -> List[str]:
+    def _find_removed_views(self) -> list[str]:
         """Find views removed in new snapshot."""
         old_views = set(self.old_snapshot.views.keys())
         new_views = set(self.new_snapshot.views.keys())
         return sorted(list(old_views - new_views))
 
-    def _find_modified_views(self) -> Dict[str, Dict[str, Any]]:
+    def _find_modified_views(self) -> dict[str, dict[str, Any]]:
         """Find views that have been modified."""
         modified = {}
         old_views = set(self.old_snapshot.views.keys())
@@ -124,7 +124,7 @@ class SchemaDiff:
 
         return modified
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "old_timestamp": self.old_snapshot.timestamp,
@@ -191,7 +191,7 @@ class SchemaSnapshotGenerator:
     """Generates schema snapshots from database."""
 
     @staticmethod
-    def generate_snapshot_from_dict(schema_dict: Dict[str, Any]) -> SchemaSnapshot:
+    def generate_snapshot_from_dict(schema_dict: dict[str, Any]) -> SchemaSnapshot:
         """
         Generate snapshot from schema dict.
 
@@ -229,7 +229,7 @@ class SchemaSnapshotGenerator:
         Returns:
             SchemaSnapshot instance
         """
-        with open(filepath, "r") as f:
+        with open(filepath) as f:
             json_str = f.read()
         snapshot = SchemaSnapshot.from_json(json_str)
         logger.info(f"Schema snapshot loaded from {filepath}")
@@ -252,7 +252,7 @@ class SchemaSnapshotGenerator:
         return SchemaDiff(old_snapshot, new_snapshot)
 
     @staticmethod
-    def get_latest_snapshot(snapshots_dir: Path) -> Optional[Path]:
+    def get_latest_snapshot(snapshots_dir: Path) -> Path | None:
         """
         Find the most recent snapshot file.
 

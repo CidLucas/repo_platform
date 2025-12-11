@@ -1,6 +1,7 @@
 import base64
 import logging
-from fastapi import FastAPI, HTTPException, status, Depends
+
+from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 
 # Importações do nosso worker

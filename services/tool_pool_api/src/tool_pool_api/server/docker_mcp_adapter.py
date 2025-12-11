@@ -14,9 +14,9 @@ Supported Docker MCP integrations:
 
 import logging
 import os
-from typing import Dict, List, Any, Optional
+from typing import Any
 
-from vizu_tool_registry import ToolRegistry, DockerMCPBridge
+from vizu_tool_registry import DockerMCPBridge, ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +34,11 @@ class DockerMCPAdapter:
     def __init__(self):
         """Initialize the Docker MCP Adapter."""
         self.bridge = DockerMCPBridge()
-        self.registered_integrations: Dict[str, bool] = {}
+        self.registered_integrations: dict[str, bool] = {}
         self.enabled = os.getenv("DOCKER_MCP_ENABLED", "false").lower() == "true"
         self.integrations_config = self._parse_integrations_env()
 
-    def _parse_integrations_env(self) -> List[str]:
+    def _parse_integrations_env(self) -> list[str]:
         """Parse MCP_INTEGRATIONS env var to get list of enabled integrations."""
         integrations_str = os.getenv("MCP_INTEGRATIONS", "")
         if not integrations_str:
@@ -57,7 +57,7 @@ class DockerMCPAdapter:
             f"Configured integrations: {self.integrations_config}"
         )
 
-    async def discover_and_register(self, mcp_server: Any) -> Dict[str, bool]:
+    async def discover_and_register(self, mcp_server: Any) -> dict[str, bool]:
         """
         Discover Docker MCP servers and register their tools.
 
@@ -119,7 +119,7 @@ class DockerMCPAdapter:
         async def docker_mcp_wrapper(
             cliente_id: str = "",
             **kwargs
-        ) -> Dict[str, Any]:
+        ) -> dict[str, Any]:
             """
             Wrapper that calls the Docker MCP container.
 
@@ -155,7 +155,7 @@ class DockerMCPAdapter:
         else:
             logger.warning(f"Could not register {tool_name} - mcp_server has no tool() method")
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get the current status of Docker MCP integrations."""
         return {
             "enabled": self.enabled,
@@ -164,7 +164,7 @@ class DockerMCPAdapter:
             "bridge_status": self.bridge.get_integration_status(),
         }
 
-    def get_available_tools(self) -> List[str]:
+    def get_available_tools(self) -> list[str]:
         """Get list of successfully registered Docker MCP tools."""
         return [
             name for name, success in self.registered_integrations.items()
@@ -173,7 +173,7 @@ class DockerMCPAdapter:
 
 
 # Singleton instance for use across the application
-_docker_mcp_adapter: Optional[DockerMCPAdapter] = None
+_docker_mcp_adapter: DockerMCPAdapter | None = None
 
 
 def get_docker_mcp_adapter() -> DockerMCPAdapter:
@@ -184,7 +184,7 @@ def get_docker_mcp_adapter() -> DockerMCPAdapter:
     return _docker_mcp_adapter
 
 
-async def initialize_docker_mcp(mcp_server: Any) -> Dict[str, bool]:
+async def initialize_docker_mcp(mcp_server: Any) -> dict[str, bool]:
     """
     Initialize Docker MCP integration and register tools.
 

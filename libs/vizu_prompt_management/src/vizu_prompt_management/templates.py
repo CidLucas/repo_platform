@@ -6,7 +6,6 @@ They can be overridden per-client in the database.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Optional, List
 from enum import Enum
 
 
@@ -28,8 +27,8 @@ class PromptTemplateConfig:
     content: str
     category: PromptCategory
     description: str = ""
-    required_variables: List[str] = field(default_factory=list)
-    optional_variables: Dict[str, str] = field(default_factory=dict)
+    required_variables: list[str] = field(default_factory=list)
+    optional_variables: dict[str, str] = field(default_factory=dict)
     version: int = 1
 
 
@@ -403,7 +402,7 @@ Return only the SQL query.""",
 # =============================================================================
 
 # All built-in templates in a registry for easy access
-BUILTIN_TEMPLATES: Dict[str, PromptTemplateConfig] = {
+BUILTIN_TEMPLATES: dict[str, PromptTemplateConfig] = {
     # System prompts
     ATENDENTE_SYSTEM_V1.name: ATENDENTE_SYSTEM_V1,
     ATENDENTE_SYSTEM_V2.name: ATENDENTE_SYSTEM_V2,
@@ -426,12 +425,12 @@ BUILTIN_TEMPLATES: Dict[str, PromptTemplateConfig] = {
 }
 
 
-def get_builtin_template(name: str) -> Optional[PromptTemplateConfig]:
+def get_builtin_template(name: str) -> PromptTemplateConfig | None:
     """Get a built-in template by name."""
     return BUILTIN_TEMPLATES.get(name)
 
 
-def list_builtin_templates(category: Optional[PromptCategory] = None) -> List[PromptTemplateConfig]:
+def list_builtin_templates(category: PromptCategory | None = None) -> list[PromptTemplateConfig]:
     """List all built-in templates, optionally filtered by category."""
     templates = list(BUILTIN_TEMPLATES.values())
     if category:

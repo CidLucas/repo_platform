@@ -2,7 +2,7 @@
 
 import io
 from abc import ABC, abstractmethod
-from typing import Union, BinaryIO
+from typing import BinaryIO
 
 
 class BaseParser(ABC):
@@ -14,7 +14,7 @@ class BaseParser(ABC):
     """
 
     @abstractmethod
-    def parse(self, file_stream: Union[io.BytesIO, BinaryIO]) -> str:
+    def parse(self, file_stream: io.BytesIO | BinaryIO) -> str:
         """
         Extract textual content from a file stream.
 

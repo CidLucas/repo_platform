@@ -4,16 +4,16 @@ Unit tests for SQL validator.
 
 import pytest
 
-from vizu_sql_factory.validator import (
-    SqlValidator,
-    ValidationResult,
-    ValidationError,
-    ValidationErrorType,
-)
 from vizu_sql_factory.allowlist import (
     AllowlistConfig,
     RoleConfig,
     TenantConfig,
+)
+from vizu_sql_factory.validator import (
+    SqlValidator,
+    ValidationError,
+    ValidationErrorType,
+    ValidationResult,
 )
 
 

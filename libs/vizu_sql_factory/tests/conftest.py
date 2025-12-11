@@ -1,7 +1,9 @@
-import pytest
 import uuid
-from vizu_models.vizu_client_context import VizuClientContext
+
+import pytest
+
 from vizu_models.credencial_servico_externo import CredencialServicoExternoCreate
+from vizu_models.vizu_client_context import VizuClientContext
 
 
 @pytest.fixture

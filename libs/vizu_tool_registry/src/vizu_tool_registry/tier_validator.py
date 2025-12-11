@@ -11,7 +11,7 @@ This module provides the TierValidator class which handles:
 """
 
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 from .tool_metadata import TierLevel
 
@@ -31,7 +31,7 @@ class TierValidator:
     # =========================================================================
     # TIER DEFINITIONS
     # =========================================================================
-    TIER_DEFINITIONS: Dict[str, Dict[str, Any]] = {
+    TIER_DEFINITIONS: dict[str, dict[str, Any]] = {
         "FREE": {
             "included_tools": [],
             "max_queries_per_day": 10,
@@ -99,12 +99,12 @@ class TierValidator:
     # =========================================================================
 
     @classmethod
-    def get_tier_definition(cls, tier: str) -> Optional[Dict[str, Any]]:
+    def get_tier_definition(cls, tier: str) -> dict[str, Any] | None:
         """Get the definition for a tier."""
         return cls.TIER_DEFINITIONS.get(tier)
 
     @classmethod
-    def get_default_tools_for_tier(cls, tier: str) -> List[str]:
+    def get_default_tools_for_tier(cls, tier: str) -> list[str]:
         """
         Get the default tools included in a tier.
 
@@ -139,8 +139,8 @@ class TierValidator:
 
     @classmethod
     def upgrade_tier_tools(
-        cls, enabled_tools: List[str], new_tier: str
-    ) -> List[str]:
+        cls, enabled_tools: list[str], new_tier: str
+    ) -> list[str]:
         """
         Upgrade tool list when client tier is upgraded.
 
@@ -168,10 +168,10 @@ class TierValidator:
     @classmethod
     def downgrade_tier_tools(
         cls,
-        enabled_tools: List[str],
+        enabled_tools: list[str],
         new_tier: str,
         remove_inaccessible: bool = True,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Handle tool list when client tier is downgraded.
 
@@ -206,7 +206,7 @@ class TierValidator:
         return accessible
 
     @classmethod
-    def get_tier_limits(cls, tier: str) -> Dict[str, Any]:
+    def get_tier_limits(cls, tier: str) -> dict[str, Any]:
         """
         Get rate limits for a tier.
 
@@ -223,7 +223,7 @@ class TierValidator:
         }
 
     @classmethod
-    def get_tier_features(cls, tier: str) -> List[str]:
+    def get_tier_features(cls, tier: str) -> list[str]:
         """
         Get features enabled for a tier.
 
@@ -274,7 +274,7 @@ class TierValidator:
         return cls.compare_tiers(tier, required_tier) >= 0
 
     @classmethod
-    def get_tier_diff(cls, from_tier: str, to_tier: str) -> Dict[str, Any]:
+    def get_tier_diff(cls, from_tier: str, to_tier: str) -> dict[str, Any]:
         """
         Get the difference between two tiers (for upgrade/downgrade UI).
 

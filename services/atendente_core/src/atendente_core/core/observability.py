@@ -9,13 +9,15 @@ to avoid code duplication.
 """
 
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Any
 
 from vizu_llm_service import (
-    get_langfuse_callback as _get_langfuse_callback,
     flush_langfuse,
-    shutdown_langfuse,
     get_llm_settings,
+    shutdown_langfuse,
+)
+from vizu_llm_service import (
+    get_langfuse_callback as _get_langfuse_callback,
 )
 
 logger = logging.getLogger(__name__)
@@ -27,7 +29,7 @@ def is_langfuse_enabled() -> bool:
     return settings.langfuse_enabled
 
 
-def get_langfuse_callback() -> Optional[Any]:
+def get_langfuse_callback() -> Any | None:
     """
     Get a Langfuse CallbackHandler for LangChain/LangGraph.
 
@@ -37,11 +39,11 @@ def get_langfuse_callback() -> Optional[Any]:
 
 
 def get_langfuse_config(
-    session_id: Optional[str] = None,
-    user_id: Optional[str] = None,
-    cliente_id: Optional[str] = None,
-    tags: Optional[List[str]] = None,
-) -> Dict[str, Any]:
+    session_id: str | None = None,
+    user_id: str | None = None,
+    cliente_id: str | None = None,
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
     """
     Get a LangChain/LangGraph config dict with Langfuse callback.
 
@@ -59,7 +61,7 @@ def get_langfuse_config(
     Returns:
         Config dict ready to pass to graph.invoke() or graph.ainvoke()
     """
-    config: Dict[str, Any] = {
+    config: dict[str, Any] = {
         "configurable": {
             "thread_id": session_id or "default",
         }

@@ -9,15 +9,14 @@ Phase 1.4: Validates LLM output against exemplar test cases
 - Performance metrics (latency, token usage)
 """
 
-import logging
 import json
+import logging
 import re
-import asyncio
-from pathlib import Path
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-from enum import Enum
 import time
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,17 +35,17 @@ class ExemplarTestResult:
     exemplar_id: str
     status: ExemplarStatus
     question: str
-    expected_pattern: Optional[str]
-    generated_sql: Optional[str]
+    expected_pattern: str | None
+    generated_sql: str | None
     is_semantic_match: bool = False
     is_syntax_valid: bool = False
     hallucination_detected: bool = False
-    error_message: Optional[str] = None
+    error_message: str | None = None
     latency_ms: float = 0.0
-    token_usage: Optional[Dict[str, int]] = None
+    token_usage: dict[str, int] | None = None
     timestamp: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "exemplar_id": self.exemplar_id,
@@ -74,7 +73,7 @@ class ExemplarTestSummary:
     hallucination_count: int = 0
     average_latency_ms: float = 0.0
     average_tokens: int = 0
-    results: List[ExemplarTestResult] = field(default_factory=list)
+    results: list[ExemplarTestResult] = field(default_factory=list)
 
     @property
     def pass_rate(self) -> float:
@@ -90,7 +89,7 @@ class ExemplarTestSummary:
             return 0.0
         return (self.hallucination_count / self.total_tests) * 100.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "total_tests": self.total_tests,
@@ -144,7 +143,7 @@ class ExemplarValidator:
         r"(?i)(exec|execute|script|javascript)",  # Code injection
     }
 
-    def __init__(self, exemplars_path: Optional[Path] = None):
+    def __init__(self, exemplars_path: Path | None = None):
         """
         Initialize validator.
 
@@ -155,7 +154,7 @@ class ExemplarValidator:
             exemplars_path = Path(__file__).parent.parent.parent / "tests" / "fixtures" / "exemplars.json"
 
         self.exemplars_path = exemplars_path
-        self.exemplars: List[Dict[str, Any]] = []
+        self.exemplars: list[dict[str, Any]] = []
         self._load_exemplars()
 
     def _load_exemplars(self) -> None:
@@ -166,7 +165,7 @@ class ExemplarValidator:
             return
 
         try:
-            with open(self.exemplars_path, "r") as f:
+            with open(self.exemplars_path) as f:
                 self.exemplars = json.load(f)
             logger.info(f"Loaded {len(self.exemplars)} exemplars from {self.exemplars_path}")
         except Exception as e:
@@ -266,10 +265,10 @@ class ExemplarValidator:
 
     async def validate_exemplar(
         self,
-        exemplar: Dict[str, Any],
+        exemplar: dict[str, Any],
         generated_sql: str,
         latency_ms: float = 0.0,
-        token_usage: Optional[Dict[str, int]] = None,
+        token_usage: dict[str, int] | None = None,
     ) -> ExemplarTestResult:
         """
         Validate a single exemplar against generated SQL.
@@ -377,7 +376,7 @@ class ExemplarValidator:
     async def validate_all(
         self,
         llm_call_fn,
-        exemplars_filter: Optional[Dict[str, str]] = None,
+        exemplars_filter: dict[str, str] | None = None,
     ) -> ExemplarTestSummary:
         """
         Validate all exemplars against LLM.
@@ -522,10 +521,10 @@ class ExemplarValidator:
 
 
 # Singleton instance
-_validator: Optional[ExemplarValidator] = None
+_validator: ExemplarValidator | None = None
 
 
-def get_validator(exemplars_path: Optional[Path] = None) -> ExemplarValidator:
+def get_validator(exemplars_path: Path | None = None) -> ExemplarValidator:
     """Get validator singleton instance."""
     global _validator
 

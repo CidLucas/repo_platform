@@ -9,7 +9,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Any
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +26,12 @@ class JoinPath:
 @dataclass
 class RoleConfig:
     """Configuration for a specific role within a tenant."""
-    views: List[str]  # Allowed views
-    columns: Dict[str, List[str]]  # Allowed columns per view; "*" means all
-    aggregates: List[str]  # Allowed aggregate functions (COUNT, SUM, AVG, etc.)
+    views: list[str]  # Allowed views
+    columns: dict[str, list[str]]  # Allowed columns per view; "*" means all
+    aggregates: list[str]  # Allowed aggregate functions (COUNT, SUM, AVG, etc.)
     max_rows: int = 10000  # Maximum rows returned per query
     max_execution_time_seconds: int = 30  # Query timeout
-    join_paths: List[JoinPath] = field(default_factory=list)  # Allowed joins
+    join_paths: list[JoinPath] = field(default_factory=list)  # Allowed joins
 
     def __post_init__(self):
         """Convert dict join_paths to JoinPath objects if needed."""
@@ -45,7 +45,7 @@ class RoleConfig:
         """Check if a view is allowed for this role."""
         return view_name in self.views
 
-    def get_allowed_columns(self, view_name: str) -> Set[str]:
+    def get_allowed_columns(self, view_name: str) -> set[str]:
         """Get allowed columns for a specific view."""
         if view_name not in self.columns:
             return set()
@@ -71,9 +71,9 @@ class RoleConfig:
 class TenantConfig:
     """Configuration for a specific tenant."""
     name: str
-    roles: Dict[str, RoleConfig]
+    roles: dict[str, RoleConfig]
 
-    def get_role_config(self, role: str) -> Optional[RoleConfig]:
+    def get_role_config(self, role: str) -> RoleConfig | None:
         """Get role configuration for this tenant."""
         return self.roles.get(role)
 
@@ -81,7 +81,7 @@ class TenantConfig:
         """Check if a role is defined for this tenant."""
         return role in self.roles
 
-    def get_available_roles(self) -> List[str]:
+    def get_available_roles(self) -> list[str]:
         """Get list of available roles for this tenant."""
         return list(self.roles.keys())
 
@@ -92,16 +92,16 @@ class AllowlistConfig:
     version: str = "1.0.0"
     description: str = ""
     default_max_rows: int = 10000
-    tenants: Dict[str, TenantConfig] = field(default_factory=dict)
+    tenants: dict[str, TenantConfig] = field(default_factory=dict)
 
-    def get_tenant_config(self, tenant_id: str) -> Optional[TenantConfig]:
+    def get_tenant_config(self, tenant_id: str) -> TenantConfig | None:
         """Get configuration for a specific tenant, with fallback to 'default'."""
         if tenant_id in self.tenants:
             return self.tenants[tenant_id]
         # Fallback to 'default' template if tenant not explicitly configured
         return self.tenants.get("default")
 
-    def get_role_config(self, tenant_id: str, role: str) -> Optional[RoleConfig]:
+    def get_role_config(self, tenant_id: str, role: str) -> RoleConfig | None:
         """Get role configuration for tenant and role combination."""
         tenant_config = self.get_tenant_config(tenant_id)
         if tenant_config is None:
@@ -123,7 +123,7 @@ class AllowlistConfig:
 class AllowlistLoader:
     """Loads and manages allowlist configuration from JSON file."""
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: str | None = None):
         """
         Initialize loader with optional custom config path.
 
@@ -137,7 +137,7 @@ class AllowlistLoader:
             self.config_path = Path(config_path)
 
         logger.info(f"AllowlistLoader initialized with config: {self.config_path}")
-        self._cache: Optional[AllowlistConfig] = None
+        self._cache: AllowlistConfig | None = None
 
     def load(self, force_reload: bool = False) -> AllowlistConfig:
         """
@@ -161,7 +161,7 @@ class AllowlistLoader:
 
         logger.info(f"Loading allowlist configuration from {self.config_path}")
         try:
-            with open(self.config_path, "r") as f:
+            with open(self.config_path) as f:
                 data = json.load(f)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse allowlist JSON: {e}")
@@ -172,7 +172,7 @@ class AllowlistLoader:
         return self._cache
 
     @staticmethod
-    def _parse_config(data: Dict[str, Any]) -> AllowlistConfig:
+    def _parse_config(data: dict[str, Any]) -> AllowlistConfig:
         """
         Parse raw JSON data into AllowlistConfig structure.
 
@@ -225,7 +225,7 @@ class AllowlistLoader:
 
 
 # Singleton instance for module-level access
-_default_loader: Optional[AllowlistLoader] = None
+_default_loader: AllowlistLoader | None = None
 
 
 def get_default_loader() -> AllowlistLoader:

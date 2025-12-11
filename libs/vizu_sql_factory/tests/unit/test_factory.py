@@ -1,12 +1,13 @@
 from unittest.mock import MagicMock
+
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables.base import Runnable
 
-# Código que estamos testando
-from vizu_sql_factory.factory import create_sql_agent_runnable, _construir_db_url
-
 # Modelos que usamos
 from vizu_models.vizu_client_context import VizuClientContext
+
+# Código que estamos testando
+from vizu_sql_factory.factory import _construir_db_url, create_sql_agent_runnable
 
 
 def test_sql_factory_success(

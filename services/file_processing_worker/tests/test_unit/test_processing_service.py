@@ -1,16 +1,17 @@
 import io
 import json
 from unittest.mock import MagicMock
+
 import pytest
-from pytest_mock import MockerFixture
+from file_processing_worker.core.config import Settings
+from file_processing_worker.parsers.base_parser import BaseParser
 
 # O que estamos a testar (System Under Test - SUT)
 from file_processing_worker.services.processing_service import ProcessingService
 
 # As dependências que vamos mockar
 from file_processing_worker.services.routing_service import RoutingService
-from file_processing_worker.parsers.base_parser import BaseParser
-from file_processing_worker.core.config import Settings
+from pytest_mock import MockerFixture
 
 # --- Fixture Local (Específica para este teste) ---
 

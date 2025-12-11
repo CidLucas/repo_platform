@@ -7,10 +7,9 @@ and proper cleanup.
 
 import logging
 import os
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from functools import lru_cache
-from typing import AsyncGenerator, Optional, Callable
 
 import redis
 
@@ -21,7 +20,7 @@ logger = logging.getLogger(__name__)
 # SINGLETON POOLS
 # =============================================================================
 
-_redis_pool: Optional[redis.ConnectionPool] = None
+_redis_pool: redis.ConnectionPool | None = None
 
 
 def _get_redis_pool() -> redis.ConnectionPool:
@@ -152,9 +151,9 @@ class DependencyContainer:
         ctx_service = container.get_context_service()
     """
 
-    _context_service_factory: Optional[Callable] = None
-    _redis_factory: Optional[Callable] = None
-    _db_factory: Optional[Callable] = None
+    _context_service_factory: Callable | None = None
+    _redis_factory: Callable | None = None
+    _db_factory: Callable | None = None
     _custom_factories: dict = field(default_factory=dict)
 
     def set_context_service_factory(self, factory: Callable) -> None:
@@ -200,7 +199,7 @@ class DependencyContainer:
 
 
 # Default global container
-_default_container: Optional[DependencyContainer] = None
+_default_container: DependencyContainer | None = None
 
 
 def get_default_container() -> DependencyContainer:

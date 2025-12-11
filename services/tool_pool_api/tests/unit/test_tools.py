@@ -1,10 +1,12 @@
 # tests/unit/test_tools.py
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 
 # --- CORREÇÃO AQUI ---
 # Importe as funções de LÓGICA, não as "tools"
 from src.tool_pool_api.server.tools import _executar_rag_cliente_logic
+
 # ... (outros imports de mocks)
 
 

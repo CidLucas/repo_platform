@@ -3,7 +3,6 @@
 import logging
 import re
 from enum import Enum
-from typing import List, Optional
 
 from vizu_parsers.chunker.models import Chunk
 
@@ -56,7 +55,7 @@ class TextChunker:
         if chunk_overlap >= chunk_size:
             raise ValueError("chunk_overlap must be less than chunk_size")
 
-    def chunk(self, text: str, metadata: Optional[dict] = None) -> List[Chunk]:
+    def chunk(self, text: str, metadata: dict | None = None) -> list[Chunk]:
         """
         Split text into chunks.
 
@@ -90,7 +89,7 @@ class TextChunker:
         text = text.replace('\r\n', '\n').replace('\r', '\n')
         return text.strip()
 
-    def _chunk_by_char(self, text: str, metadata: Optional[dict] = None) -> List[Chunk]:
+    def _chunk_by_char(self, text: str, metadata: dict | None = None) -> list[Chunk]:
         """Simple character-based chunking."""
         chunks = []
         start = 0
@@ -115,7 +114,7 @@ class TextChunker:
 
         return chunks
 
-    def _chunk_by_sentence(self, text: str, metadata: Optional[dict] = None) -> List[Chunk]:
+    def _chunk_by_sentence(self, text: str, metadata: dict | None = None) -> list[Chunk]:
         """Chunk text respecting sentence boundaries."""
         # Split into sentences
         sentences = self.SENTENCE_ENDINGS.split(text)
@@ -123,7 +122,7 @@ class TextChunker:
 
         return self._combine_segments(sentences, text, metadata)
 
-    def _chunk_by_paragraph(self, text: str, metadata: Optional[dict] = None) -> List[Chunk]:
+    def _chunk_by_paragraph(self, text: str, metadata: dict | None = None) -> list[Chunk]:
         """Chunk text respecting paragraph boundaries."""
         # Split into paragraphs
         paragraphs = self.PARAGRAPH_SEP.split(text)
@@ -131,7 +130,7 @@ class TextChunker:
 
         return self._combine_segments(paragraphs, text, metadata)
 
-    def _chunk_semantic(self, text: str, metadata: Optional[dict] = None) -> List[Chunk]:
+    def _chunk_semantic(self, text: str, metadata: dict | None = None) -> list[Chunk]:
         """
         Semantic chunking - tries to keep related content together.
 
@@ -159,10 +158,10 @@ class TextChunker:
 
     def _combine_segments(
         self,
-        segments: List[str],
+        segments: list[str],
         original_text: str,
-        metadata: Optional[dict] = None
-    ) -> List[Chunk]:
+        metadata: dict | None = None
+    ) -> list[Chunk]:
         """
         Combine segments into chunks of target size.
 
@@ -235,7 +234,7 @@ class TextChunker:
         # Simple approximation - just use character count
         return min(start_from + len(substring), len(original))
 
-    def _merge_small_chunks(self, chunks: List[Chunk]) -> List[Chunk]:
+    def _merge_small_chunks(self, chunks: list[Chunk]) -> list[Chunk]:
         """Merge chunks that are smaller than min_chunk_size."""
         if not chunks or len(chunks) <= 1:
             return chunks

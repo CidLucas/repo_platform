@@ -14,11 +14,11 @@ Usage:
 """
 
 import logging
-from typing import Optional, Union
+from typing import Optional
 
 try:
     import sqlglot
-    from sqlglot import parse_one, exp
+    from sqlglot import exp, parse_one
     from sqlglot.errors import ParseError as SqlglotParseError
     SQLGLOT_AVAILABLE = True
 except ImportError:
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 class ParseError(Exception):
     """Custom exception for parse failures."""
 
-    def __init__(self, message: str, original_sql: str, parse_error: Optional[Exception] = None):
+    def __init__(self, message: str, original_sql: str, parse_error: Exception | None = None):
         self.message = message
         self.original_sql = original_sql
         self.parse_error = parse_error
@@ -92,7 +92,7 @@ class SqlParser:
             logger.error(f"Unexpected error parsing SQL: {e}")
             return None
 
-    def is_select(self, ast: Optional[exp.Expression]) -> bool:
+    def is_select(self, ast: exp.Expression | None) -> bool:
         """
         Check if AST is a SELECT statement.
 
@@ -106,7 +106,7 @@ class SqlParser:
             return False
         return isinstance(ast, exp.Select)
 
-    def extract_tables(self, ast: Optional[exp.Expression]) -> list[str]:
+    def extract_tables(self, ast: exp.Expression | None) -> list[str]:
         """
         Extract all table/view names from AST.
 
@@ -130,7 +130,7 @@ class SqlParser:
             logger.error(f"Error extracting tables: {e}")
             return []
 
-    def extract_columns(self, ast: Optional[exp.Expression]) -> list[str]:
+    def extract_columns(self, ast: exp.Expression | None) -> list[str]:
         """
         Extract all column names from SELECT clause.
 
@@ -165,7 +165,7 @@ class SqlParser:
             logger.error(f"Error extracting columns: {e}")
             return []
 
-    def extract_where_predicates(self, ast: Optional[exp.Expression]) -> list[str]:
+    def extract_where_predicates(self, ast: exp.Expression | None) -> list[str]:
         """
         Extract WHERE clause predicates as strings.
 
@@ -203,7 +203,7 @@ class SqlParser:
             logger.error(f"Error extracting WHERE predicates: {e}")
             return []
 
-    def has_limit(self, ast: Optional[exp.Expression]) -> bool:
+    def has_limit(self, ast: exp.Expression | None) -> bool:
         """
         Check if query has LIMIT clause.
 
@@ -225,7 +225,7 @@ class SqlParser:
             logger.error(f"Error checking LIMIT: {e}")
             return False
 
-    def get_limit_value(self, ast: Optional[exp.Expression]) -> Optional[int]:
+    def get_limit_value(self, ast: exp.Expression | None) -> int | None:
         """
         Extract LIMIT value from query.
 
@@ -255,7 +255,7 @@ class SqlParser:
             logger.error(f"Error getting LIMIT value: {e}")
             return None
 
-    def extract_joins(self, ast: Optional[exp.Expression]) -> list[dict]:
+    def extract_joins(self, ast: exp.Expression | None) -> list[dict]:
         """
         Extract JOIN clauses.
 
@@ -285,7 +285,7 @@ class SqlParser:
             logger.error(f"Error extracting joins: {e}")
             return []
 
-    def extract_aggregates(self, ast: Optional[exp.Expression]) -> list[str]:
+    def extract_aggregates(self, ast: exp.Expression | None) -> list[str]:
         """
         Extract aggregate functions (COUNT, SUM, AVG, MIN, MAX, etc.).
 

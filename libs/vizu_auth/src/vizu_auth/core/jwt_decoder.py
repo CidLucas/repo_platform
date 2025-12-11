@@ -3,7 +3,6 @@ Decodificador e validador de tokens JWT para vizu_auth.
 """
 
 import logging
-from typing import Optional
 from uuid import UUID
 
 import jwt
@@ -93,7 +92,7 @@ def decode_jwt(
         raise InvalidTokenError(f"Invalid token: {e}")
 
 
-def extract_cliente_vizu_id_from_jwt(token: str) -> Optional[UUID]:
+def extract_cliente_vizu_id_from_jwt(token: str) -> UUID | None:
     try:
         claims = decode_jwt(token)
         return claims.cliente_vizu_id

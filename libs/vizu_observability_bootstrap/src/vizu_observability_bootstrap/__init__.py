@@ -1,8 +1,9 @@
 import logging
 import os
-from fastapi import FastAPI
 
+from fastapi import FastAPI
 from opentelemetry import trace
+
 # 1. IMPORTAÇÃO ATUALIZADA para o OTLP Exporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -10,25 +11,24 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-from .logger import setup_structured_logging
+# Export Grafana/observability integration
+from .grafana import (
+    GrafanaLokiFormatter,
+    create_grafana_logger,
+    is_grafana_enabled,
+    record_metric,
+    setup_grafana_logging,
+)
 
 # Export health check utilities
 from .health import (
-    create_health_router,
     check_database_url,
-    check_redis_url,
-    check_qdrant_url,
     check_http_endpoint,
+    check_qdrant_url,
+    check_redis_url,
+    create_health_router,
 )
-
-# Export Grafana/observability integration
-from .grafana import (
-    setup_grafana_logging,
-    create_grafana_logger,
-    record_metric,
-    is_grafana_enabled,
-    GrafanaLokiFormatter,
-)
+from .logger import setup_structured_logging
 
 __all__ = [
     "setup_telemetry",

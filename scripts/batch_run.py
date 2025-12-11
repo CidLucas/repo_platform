@@ -3,12 +3,12 @@
 Batch run script to generate multiple traces in Langfuse.
 Sends various messages to the chat endpoint to create diverse traces.
 """
-import requests
-import json
-import time
 import os
-import psycopg2
+import time
 from datetime import datetime
+
+import psycopg2
+import requests
 
 # Configuration - detect if running in container or host
 IS_CONTAINER = os.path.exists("/.dockerenv") or os.environ.get("PYTHONPATH", "").startswith("/app")
@@ -122,7 +122,7 @@ def main():
 
     print("\n" + "=" * 50)
     print(f"📊 Results: {successful} successful, {failed} failed")
-    print(f"🔍 Check traces at: http://localhost:3000")
+    print("🔍 Check traces at: http://localhost:3000")
     print("=" * 50)
 
 

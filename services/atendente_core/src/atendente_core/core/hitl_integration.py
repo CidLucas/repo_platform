@@ -9,13 +9,13 @@ quando necessário.
 
 import logging
 import os
-from typing import Optional, List, Dict, Any
+from typing import Any
 from uuid import UUID
 
 from vizu_models import (
     HitlConfig,
-    HitlCriterion,
     HitlCriteriaType,
+    HitlCriterion,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ class HitlIntegration:
         """Lazy load do serviço HITL."""
         if self._service is None and self._enabled:
             try:
-                from vizu_hitl_service import HitlService, HitlQueue
+                from vizu_hitl_service import HitlQueue, HitlService
 
                 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
                 self._queue = HitlQueue.from_url(redis_url)
@@ -109,14 +109,14 @@ class HitlIntegration:
         agent_response: str,
         cliente_vizu_id: UUID,
         session_id: str,
-        trace_id: Optional[str] = None,
-        tools_called: Optional[List[str]] = None,
-        tool_errors: Optional[List[str]] = None,
-        confidence_score: Optional[float] = None,
+        trace_id: str | None = None,
+        tools_called: list[str] | None = None,
+        tool_errors: list[str] | None = None,
+        confidence_score: float | None = None,
         elicitation_pending: bool = False,
-        response_time_seconds: Optional[float] = None,
-        model_used: Optional[str] = None,
-        conversation_context: Optional[List[Dict[str, Any]]] = None,
+        response_time_seconds: float | None = None,
+        model_used: str | None = None,
+        conversation_context: list[dict[str, Any]] | None = None,
     ):
         """
         Avalia uma interação e submete para HITL se necessário.
@@ -166,7 +166,7 @@ class HitlIntegration:
             # Erros de HITL não devem afetar o fluxo principal
             logger.warning(f"HITL evaluation failed (non-blocking): {e}")
 
-    def get_stats(self, cliente_vizu_id: Optional[UUID] = None):
+    def get_stats(self, cliente_vizu_id: UUID | None = None):
         """Retorna estatísticas da fila HITL."""
         if not self._enabled or not self._queue:
             return None

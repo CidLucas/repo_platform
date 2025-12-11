@@ -9,20 +9,20 @@ Hierarquia:
 - Este arquivo: Extensões específicas do atendente
 """
 
+
 from pydantic import BaseModel, Field
-from typing import List
 
 # Importa tipos compartilhados de vizu_models
 from vizu_models import (
-    ElicitationType,
-    ElicitationOption,
-    ElicitationRequest,
-    ElicitationResponse,
-    ToolInfo,
-    ModelInfo,
     AgentChatRequest,
     AgentChatResponse,
     ClientContextResponse,
+    ElicitationOption,
+    ElicitationRequest,
+    ElicitationResponse,
+    ElicitationType,
+    ModelInfo,
+    ToolInfo,
 )
 
 # Re-exporta para compatibilidade com imports existentes
@@ -78,6 +78,6 @@ class ModelsResponse(BaseModel):
     Específico para o atendente pois inclui informações do provider atual.
     """
 
-    models: List[ModelInfo] = Field(..., description="Lista de modelos disponíveis")
+    models: list[ModelInfo] = Field(..., description="Lista de modelos disponíveis")
     current_provider: str = Field(..., description="Provider atualmente configurado")
     default_model: str = Field(..., description="Modelo padrão em uso")

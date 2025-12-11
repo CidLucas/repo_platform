@@ -4,6 +4,7 @@ Vendas Agent - Main FastAPI application.
 
 import logging
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from vendas_agent.api.router import router as api_router

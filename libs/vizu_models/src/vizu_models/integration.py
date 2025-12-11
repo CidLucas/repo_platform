@@ -1,16 +1,10 @@
-from uuid import UUID, uuid4
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Any
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel
-from sqlmodel import SQLModel, Field
-from uuid import UUID, uuid4
-from datetime import datetime
-from typing import Optional, List, Dict, Any
-
-from pydantic import BaseModel
-from sqlmodel import SQLModel, Field
-from sqlalchemy import Column, JSON
+from sqlalchemy import JSON, Column
+from sqlmodel import Field, SQLModel
 
 
 class IntegrationProvider(str):
@@ -34,7 +28,7 @@ class IntegrationConfig(SQLModel, table=True):
 
     # Public configuration
     redirect_uri: str
-    scopes: List[str] = Field(sa_column=Column(JSON))
+    scopes: list[str] = Field(sa_column=Column(JSON))
 
     # Metadata
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -49,13 +43,13 @@ class IntegrationTokens(SQLModel, table=True):
     provider: str = Field(index=True)
 
     access_token_encrypted: str
-    refresh_token_encrypted: Optional[str] = None
-    token_type: Optional[str] = None
-    expires_at: Optional[datetime] = None
-    scopes: List[str] = Field(sa_column=Column(JSON))
+    refresh_token_encrypted: str | None = None
+    token_type: str | None = None
+    expires_at: datetime | None = None
+    scopes: list[str] = Field(sa_column=Column(JSON))
     # 'metadata' is a reserved attribute on SQLAlchemy declarative classes.
     # Use `metadata_json` in the Python model but map it to the DB column name 'metadata'.
-    metadata_json: Optional[Dict[str, Any]] = Field(
+    metadata_json: dict[str, Any] | None = Field(
         sa_column=Column("metadata", JSON), default=None
     )
 
@@ -68,10 +62,10 @@ class IntegrationTokens(SQLModel, table=True):
 
 class OAuthTokenResponse(BaseModel):
     access_token: str
-    refresh_token: Optional[str]
-    expires_in: Optional[int]
-    token_type: Optional[str]
-    scope: Optional[str]
+    refresh_token: str | None
+    expires_in: int | None
+    token_type: str | None
+    scope: str | None
 
 
 __all__ = [
@@ -80,4 +74,4 @@ __all__ = [
     "OAuthTokenResponse",
     "IntegrationProvider",
 ]
-from sqlmodel import SQLModel, Column
+from sqlmodel import Column, SQLModel

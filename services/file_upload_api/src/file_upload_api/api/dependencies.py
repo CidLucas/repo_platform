@@ -1,5 +1,6 @@
-import uuid
 import logging
+import uuid
+
 # from fastapi.security import APIKeyHeader # Exemplo de como seria a auth real
 
 logger = logging.getLogger(__name__)

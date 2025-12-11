@@ -5,14 +5,13 @@ Utiliza a API REST da Loja Integrada para extração de dados.
 Documentação da API: https://lojaintegrada.docs.apiary.io/
 """
 
-from typing import Dict, Any, List, Optional
-from datetime import datetime
 import logging
+from datetime import datetime
+from typing import Any
 
 from data_ingestion_api.connectors.ecommerce_base_connector import (
-    EcommerceBaseConnector,
     AuthenticationError,
-    EcommerceConnectorError
+    EcommerceBaseConnector,
 )
 
 logger = logging.getLogger(__name__)
@@ -26,10 +25,10 @@ class LojaIntegradaConnector(EcommerceBaseConnector):
     - api_key: Chave da API (disponível no painel da loja)
     - application_key: Chave da aplicação (para apps parceiros) - opcional
     """
-    
+
     API_BASE_URL = "https://api.lojaintegrada.com.br/api/v1"
-    
-    def __init__(self, credentials: Dict[str, Any]):
+
+    def __init__(self, credentials: dict[str, Any]):
         """
         Inicializa o conector Loja Integrada.
         
@@ -37,28 +36,28 @@ class LojaIntegradaConnector(EcommerceBaseConnector):
             credentials: Dicionário com as credenciais da Loja Integrada
         """
         super().__init__(credentials)
-        
+
         self.api_key = credentials.get("api_key")
         self.application_key = credentials.get("application_key")
-        
+
         if not self.api_key:
             raise AuthenticationError("api_key é obrigatório")
-        
+
         self.base_url = self.API_BASE_URL
-        
+
         # Headers de autenticação Loja Integrada
         self.headers = {
             "Authorization": f"chave_api {self.api_key}",
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
-        
+
         # Adiciona Application Key se fornecida (para apps parceiros)
         if self.application_key:
             self.headers["chave_aplicacao"] = self.application_key
-        
+
         logger.info("LojaIntegradaConnector inicializado")
-    
+
     async def validate_connection(self) -> bool:
         """
         Valida a conexão com a API da Loja Integrada.
@@ -71,31 +70,31 @@ class LojaIntegradaConnector(EcommerceBaseConnector):
         except Exception as e:
             logger.error(f"Falha na validação de conexão Loja Integrada: {e}")
             return False
-    
+
     async def get_products(
         self,
         limit: int = 100,
-        page: Optional[int] = None,
-        updated_since: Optional[datetime] = None
-    ) -> List[Dict[str, Any]]:
+        page: int | None = None,
+        updated_since: datetime | None = None
+    ) -> list[dict[str, Any]]:
         """
         Busca produtos da Loja Integrada.
         
         A API usa paginação baseada em offset.
         """
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "limit": min(limit, 50),  # Loja Integrada max = 50
             "offset": ((page or 1) - 1) * limit
         }
-        
+
         if updated_since:
             params["modificado_apos"] = updated_since.strftime("%Y-%m-%d")
-        
+
         response = await self._make_request("GET", "/produto", params=params)
-        
+
         # A resposta contém um campo "objects" com a lista de produtos
         products = response.get("objects", [])
-        
+
         # Busca detalhes completos de cada produto
         detailed_products = []
         for product_summary in products:
@@ -110,16 +109,16 @@ class LojaIntegradaConnector(EcommerceBaseConnector):
                 except Exception as e:
                     logger.warning(f"Erro ao buscar detalhes do produto {product_id}: {e}")
                     detailed_products.append(product_summary)
-        
+
         return detailed_products
-    
+
     async def get_orders(
         self,
         limit: int = 100,
-        page: Optional[int] = None,
-        status: Optional[str] = None,
-        created_since: Optional[datetime] = None
-    ) -> List[Dict[str, Any]]:
+        page: int | None = None,
+        status: str | None = None,
+        created_since: datetime | None = None
+    ) -> list[dict[str, Any]]:
         """
         Busca pedidos da Loja Integrada.
         
@@ -130,20 +129,20 @@ class LojaIntegradaConnector(EcommerceBaseConnector):
         - pedido_em_andamento
         - pedido_entregue
         """
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "limit": min(limit, 50),
             "offset": ((page or 1) - 1) * limit
         }
-        
+
         if status:
             params["situacao__codigo"] = status
-        
+
         if created_since:
             params["data_criacao__gte"] = created_since.strftime("%Y-%m-%d")
-        
+
         response = await self._make_request("GET", "/pedido", params=params)
         orders = response.get("objects", [])
-        
+
         # Busca detalhes completos de cada pedido
         detailed_orders = []
         for order_summary in orders:
@@ -158,29 +157,29 @@ class LojaIntegradaConnector(EcommerceBaseConnector):
                 except Exception as e:
                     logger.warning(f"Erro ao buscar detalhes do pedido {order_number}: {e}")
                     detailed_orders.append(order_summary)
-        
+
         return detailed_orders
-    
+
     async def get_customers(
         self,
         limit: int = 100,
-        page: Optional[int] = None,
-        updated_since: Optional[datetime] = None
-    ) -> List[Dict[str, Any]]:
+        page: int | None = None,
+        updated_since: datetime | None = None
+    ) -> list[dict[str, Any]]:
         """
         Busca clientes da Loja Integrada.
         """
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "limit": min(limit, 50),
             "offset": ((page or 1) - 1) * limit
         }
-        
+
         if updated_since:
             params["modificado_apos"] = updated_since.strftime("%Y-%m-%d")
-        
+
         response = await self._make_request("GET", "/cliente", params=params)
         customers = response.get("objects", [])
-        
+
         # Busca detalhes completos de cada cliente
         detailed_customers = []
         for customer_summary in customers:
@@ -195,14 +194,14 @@ class LojaIntegradaConnector(EcommerceBaseConnector):
                 except Exception as e:
                     logger.warning(f"Erro ao buscar detalhes do cliente {customer_id}: {e}")
                     detailed_customers.append(customer_summary)
-        
+
         return detailed_customers
-    
+
     async def get_inventory(
         self,
         limit: int = 100,
-        page: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        page: int | None = None
+    ) -> list[dict[str, Any]]:
         """
         Busca dados de estoque da Loja Integrada.
         
@@ -210,21 +209,21 @@ class LojaIntegradaConnector(EcommerceBaseConnector):
         """
         # Busca produtos com suas variações
         products = await self.get_products(limit=limit, page=page)
-        
+
         inventory_data = []
         for product in products:
             product_id = product.get("id")
             product_name = product.get("nome")
-            
+
             # Busca variações do produto
             try:
                 variations_response = await self._make_request(
                     "GET",
-                    f"/produto_variacao",
+                    "/produto_variacao",
                     params={"produto": product_id, "limit": 50}
                 )
                 variations = variations_response.get("objects", [])
-                
+
                 for variation in variations:
                     inventory_data.append({
                         "product_id": product_id,
@@ -238,7 +237,7 @@ class LojaIntegradaConnector(EcommerceBaseConnector):
                         "price": variation.get("preco_cheio"),
                         "promotional_price": variation.get("preco_promocional")
                     })
-                    
+
             except Exception as e:
                 logger.warning(f"Erro ao buscar variações do produto {product_id}: {e}")
                 # Se não tem variações, usa estoque do produto principal
@@ -254,70 +253,70 @@ class LojaIntegradaConnector(EcommerceBaseConnector):
                     "price": product.get("preco_cheio"),
                     "promotional_price": product.get("preco_promocional")
                 })
-        
+
         return inventory_data
-    
+
     async def get_categories(
         self,
         limit: int = 100,
-        page: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        page: int | None = None
+    ) -> list[dict[str, Any]]:
         """
         Busca categorias da Loja Integrada.
         """
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "limit": min(limit, 50),
             "offset": ((page or 1) - 1) * limit
         }
-        
+
         response = await self._make_request("GET", "/categoria", params=params)
         return response.get("objects", [])
-    
+
     async def get_brands(
         self,
         limit: int = 100,
-        page: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        page: int | None = None
+    ) -> list[dict[str, Any]]:
         """
         Busca marcas cadastradas na Loja Integrada.
         """
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "limit": min(limit, 50),
             "offset": ((page or 1) - 1) * limit
         }
-        
+
         response = await self._make_request("GET", "/marca", params=params)
         return response.get("objects", [])
-    
-    async def get_shipping_methods(self) -> List[Dict[str, Any]]:
+
+    async def get_shipping_methods(self) -> list[dict[str, Any]]:
         """
         Busca métodos de envio configurados na loja.
         """
         response = await self._make_request("GET", "/forma_envio")
         return response.get("objects", [])
-    
-    async def get_payment_methods(self) -> List[Dict[str, Any]]:
+
+    async def get_payment_methods(self) -> list[dict[str, Any]]:
         """
         Busca métodos de pagamento configurados na loja.
         """
         response = await self._make_request("GET", "/forma_pagamento")
         return response.get("objects", [])
-    
-    async def get_order_statuses(self) -> List[Dict[str, Any]]:
+
+    async def get_order_statuses(self) -> list[dict[str, Any]]:
         """
         Busca todos os status de pedido disponíveis.
         """
         response = await self._make_request("GET", "/situacao")
         return response.get("objects", [])
-    
-    async def get_product_images(self, product_id: int) -> List[Dict[str, Any]]:
+
+    async def get_product_images(self, product_id: int) -> list[dict[str, Any]]:
         """
         Busca imagens de um produto específico.
         """
         params = {"produto": product_id}
         response = await self._make_request("GET", "/produto_imagem", params=params)
         return response.get("objects", [])
-    
+
     def get_connection_string(self) -> str:
         """Retorna string de conexão segura."""
         return f"lojaintegrada://{self.API_BASE_URL}"

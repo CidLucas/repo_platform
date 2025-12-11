@@ -1,14 +1,15 @@
 import asyncio
 import logging
-from uuid import UUID
-from typing import Optional
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Optional
+from uuid import UUID
+
 from cryptography.fernet import Fernet
 
 # Suporte a ambos os modos: SQLAlchemy (legado) e Supabase SDK (novo)
 try:
-    from vizu_supabase_client import get_supabase_client, SupabaseCRUD
+    from vizu_supabase_client import SupabaseCRUD, get_supabase_client
     from vizu_supabase_client.client import set_rls_context as supabase_set_rls
 
     SUPABASE_AVAILABLE = True
@@ -16,8 +17,9 @@ except ImportError:
     SUPABASE_AVAILABLE = False
 
 try:
-    from sqlalchemy.orm import Session
     from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
     from vizu_db_connector import crud as sqlalchemy_crud
 
     SQLALCHEMY_AVAILABLE = True
@@ -25,6 +27,7 @@ except ImportError:
     SQLALCHEMY_AVAILABLE = False
 
 from vizu_models.vizu_client_context import VizuClientContext
+
 from .redis_service import RedisService
 
 logger = logging.getLogger(__name__)
@@ -121,7 +124,7 @@ class ContextService:
 
     async def get_client_context_by_api_key(
         self, api_key: str
-    ) -> Optional[VizuClientContext]:
+    ) -> VizuClientContext | None:
         """
         Busca o contexto completo do cliente usando a API Key.
         1. Busca ID no DB (leve).
@@ -196,7 +199,7 @@ class ContextService:
 
     async def get_client_context_by_id(
         self, cliente_id: UUID
-    ) -> Optional[VizuClientContext]:
+    ) -> VizuClientContext | None:
         """
         Recupera o contexto completo (Cliente + Configurações), usando Cache Redis.
         Também configura o contexto RLS para garantir isolamento de dados.
@@ -346,13 +349,13 @@ class ContextService:
         cliente_vizu_id: UUID,
         provider: str,
         access_token: str,
-        refresh_token: Optional[str],
-        token_type: Optional[str],
-        expires_at: Optional[datetime],
+        refresh_token: str | None,
+        token_type: str | None,
+        expires_at: datetime | None,
         scopes: list,
-        metadata: Optional[dict] = None,
-        account_email: Optional[str] = None,
-        account_name: Optional[str] = None,
+        metadata: dict | None = None,
+        account_email: str | None = None,
+        account_name: str | None = None,
         is_default: bool = False,
     ):
         """Encrypt tokens and persist them.
@@ -452,9 +455,9 @@ class ContextService:
             else:
                 return True
             # compare in UTC
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             if exp_dt.tzinfo is None:
-                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                exp_dt = exp_dt.replace(tzinfo=UTC)
             return exp_dt > now
 
         def is_expiring_soon(self, margin_seconds: int = 300) -> bool:
@@ -474,9 +477,9 @@ class ContextService:
 
             from datetime import timedelta
 
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             if exp_dt.tzinfo is None:
-                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                exp_dt = exp_dt.replace(tzinfo=UTC)
             return exp_dt <= now + timedelta(seconds=margin_seconds)
 
         def get_decrypted_tokens(self) -> dict:
@@ -509,7 +512,7 @@ class ContextService:
         self,
         cliente_vizu_id: UUID,
         refresh_token: str,
-        account_email: Optional[str] = None,
+        account_email: str | None = None,
     ) -> Optional["ContextService._IntegrationTokenWrapper"]:
         """Refresh a Google access token using the refresh token.
 
@@ -527,28 +530,29 @@ class ContextService:
             client_id = self._decrypt(
                 cfg_row.get("client_id_encrypted")
                 if isinstance(cfg_row, dict)
-                else getattr(cfg_row, "client_id_encrypted")
+                else cfg_row.client_id_encrypted
             )
             client_secret = self._decrypt(
                 cfg_row.get("client_secret_encrypted")
                 if isinstance(cfg_row, dict)
-                else getattr(cfg_row, "client_secret_encrypted")
+                else cfg_row.client_secret_encrypted
             )
             redirect_uri = (
                 cfg_row.get("redirect_uri")
                 if isinstance(cfg_row, dict)
-                else getattr(cfg_row, "redirect_uri")
+                else cfg_row.redirect_uri
             )
             scopes = (
                 cfg_row.get("scopes")
                 if isinstance(cfg_row, dict)
-                else getattr(cfg_row, "scopes")
+                else cfg_row.scopes
             )
 
             # Use OAuthManager to refresh
-            from vizu_auth.oauth2.oauth_manager import OAuthManager
-            from vizu_auth.oauth2.models import OAuthConfig
             from datetime import timedelta
+
+            from vizu_auth.oauth2.models import OAuthConfig
+            from vizu_auth.oauth2.oauth_manager import OAuthManager
 
             oauth_config = OAuthConfig(
                 client_id=client_id,
@@ -561,7 +565,7 @@ class ContextService:
             new_tokens = await manager.refresh(oauth_config, refresh_token)
 
             # Calculate new expiry
-            expires_at = datetime.now(timezone.utc) + timedelta(
+            expires_at = datetime.now(UTC) + timedelta(
                 seconds=new_tokens.expires_in or 3600
             )
 
@@ -601,7 +605,7 @@ class ContextService:
         cliente_vizu_id: UUID,
         provider: str,
         auto_refresh: bool = True,
-        account_email: Optional[str] = None,
+        account_email: str | None = None,
     ):
         """Retrieve tokens wrapper that exposes is_valid and get_decrypted_tokens.
 
@@ -664,7 +668,7 @@ class ContextService:
                     return refreshed_wrapper
                 else:
                     logger.warning(
-                        f"[Token Refresh] Refresh failed, returning possibly expired token"
+                        "[Token Refresh] Refresh failed, returning possibly expired token"
                     )
             else:
                 logger.warning(
@@ -743,7 +747,7 @@ class ContextService:
         self,
         cliente_vizu_id: UUID,
         provider: str,
-        account_email: Optional[str] = None,
+        account_email: str | None = None,
     ) -> bool:
         """Revoke integration for a specific account or all accounts.
 

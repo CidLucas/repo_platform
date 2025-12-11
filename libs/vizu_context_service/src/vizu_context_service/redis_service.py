@@ -1,7 +1,8 @@
-import redis
 import json
-from typing import Any, Optional
 import logging
+from typing import Any
+
+import redis
 
 # Configura um logger padrão para a biblioteca
 logger = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ class RedisService:
         except TypeError as e:
             logger.error(f"Erro de serialização JSON ao SETAR cache para {key}: {e}")
 
-    def get_json(self, key: str) -> Optional[dict]:
+    def get_json(self, key: str) -> dict | None:
         """
         Recupera um valor JSON do cache e o desserializa para um dicionário.
         """

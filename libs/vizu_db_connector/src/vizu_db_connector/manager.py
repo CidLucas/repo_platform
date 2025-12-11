@@ -1,12 +1,14 @@
-import os
-import sys
 import argparse
+import os
 import subprocess
-from pathlib import Path
-from alembic.config import Config
-from alembic import command
+import sys
 from datetime import datetime
+from pathlib import Path
+
+from alembic.config import Config
 from dotenv import load_dotenv
+
+from alembic import command
 
 # Definindo caminhos
 CURRENT_DIR = Path(__file__).parent

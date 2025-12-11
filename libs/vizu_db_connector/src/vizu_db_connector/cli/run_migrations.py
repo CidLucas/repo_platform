@@ -14,10 +14,12 @@ You can also pass an explicit DB URL:
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
-import argparse
+
 from alembic.config import Config
+
 from alembic import command
 
 

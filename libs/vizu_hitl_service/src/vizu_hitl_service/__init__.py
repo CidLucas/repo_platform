@@ -8,8 +8,8 @@ Fornece:
 - LangfuseDatasetManager: Integração com Langfuse datasets
 """
 
-from .service import HitlService
-from .queue import HitlQueue
 from .langfuse_integration import LangfuseDatasetManager
+from .queue import HitlQueue
+from .service import HitlService
 
 __all__ = ["HitlService", "HitlQueue", "LangfuseDatasetManager"]

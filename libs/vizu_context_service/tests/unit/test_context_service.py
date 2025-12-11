@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 from uuid import UUID
+
 from sqlalchemy.orm import Session
 
 # Código que estamos testando

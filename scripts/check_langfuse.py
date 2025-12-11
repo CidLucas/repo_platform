@@ -6,6 +6,7 @@ Usado pelo Makefile: make langfuse-check
 import os
 import sys
 
+
 def check_langfuse():
     host = os.getenv('LANGFUSE_HOST', 'NOT SET')
     public_key = os.getenv('LANGFUSE_PUBLIC_KEY', '')

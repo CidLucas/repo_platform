@@ -4,14 +4,12 @@ Support Agent service - Business logic layer.
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID
-
-from vizu_context_service.context_service import ContextService
-from vizu_models import VizuClientContext
 
 from support_agent.core.agent import SupportAgent
 from support_agent.core.config import get_settings
+from vizu_context_service.context_service import ContextService
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +19,8 @@ class SupportResult:
     """Result of a support agent interaction."""
     response: str
     model_used: str
-    pending_elicitation: Optional[Dict[str, Any]] = None
-    issue_category: Optional[str] = None
+    pending_elicitation: dict[str, Any] | None = None
+    issue_category: str | None = None
     severity: str = "medium"
     escalation_needed: bool = False
 
@@ -76,8 +74,8 @@ class SupportService:
         cliente_vizu_id: UUID,
         session_id: str,
         message_text: str,
-        elicitation_response: Optional[Dict[str, Any]] = None,
-        ticket_context: Optional[Dict[str, Any]] = None,
+        elicitation_response: dict[str, Any] | None = None,
+        ticket_context: dict[str, Any] | None = None,
     ) -> SupportResult:
         """
         Process a support message.
@@ -127,7 +125,7 @@ class SupportService:
             escalation_needed=self._check_escalation_needed(result),
         )
 
-    def _check_escalation_needed(self, result: Dict[str, Any]) -> bool:
+    def _check_escalation_needed(self, result: dict[str, Any]) -> bool:
         """Check if the issue needs escalation to human agent."""
         severity = result.get("severity", "medium")
         tool_calls = result.get("tool_calls", [])
@@ -147,8 +145,8 @@ class SupportService:
         cliente_vizu_id: UUID,
         session_id: str,
         priority: str = "medium",
-        description: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        description: str | None = None,
+    ) -> dict[str, Any]:
         """
         Create a support ticket from the conversation.
 

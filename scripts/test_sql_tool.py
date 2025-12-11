@@ -8,12 +8,10 @@ Usage:
     python scripts/test_sql_tool.py --test-suite
 """
 
-import json
-import sys
 import argparse
+import json
 import logging
-from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any
 from uuid import uuid4
 
 # Setup logging
@@ -31,7 +29,7 @@ class SQLToolTester:
         """Initialize the tester."""
         self.test_cases = self._load_test_cases()
 
-    def _load_test_cases(self) -> Dict[str, Dict[str, Any]]:
+    def _load_test_cases(self) -> dict[str, dict[str, Any]]:
         """Load predefined test cases."""
         return {
             "simple_count": {
@@ -82,8 +80,8 @@ class SQLToolTester:
         question: str,
         tenant_id: str,
         role: str,
-        optional_constraints: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        optional_constraints: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Run a single test invocation.
 
@@ -127,11 +125,11 @@ class SQLToolTester:
 
     def validate_result(
         self,
-        result: Dict[str, Any],
+        result: dict[str, Any],
         expected_success: bool,
-        expected_error_code: Optional[str] = None,
-        expected_columns: Optional[list] = None,
-    ) -> Dict[str, Any]:
+        expected_error_code: str | None = None,
+        expected_columns: list | None = None,
+    ) -> dict[str, Any]:
         """
         Validate a result against expectations.
 
@@ -185,7 +183,7 @@ class SQLToolTester:
 
         return {"passed": True, "reason": "All checks passed"}
 
-    def run_test_suite(self) -> Dict[str, Any]:
+    def run_test_suite(self) -> dict[str, Any]:
         """
         Run the full test suite.
 
@@ -333,7 +331,7 @@ def main():
         if args.json:
             print(json.dumps(results, indent=2))
         else:
-            print(f"\n=== Test Suite Results ===")
+            print("\n=== Test Suite Results ===")
             print(f"Total: {results['total']}")
             print(f"Passed: {results['passed']}")
             print(f"Failed: {results['failed']}")

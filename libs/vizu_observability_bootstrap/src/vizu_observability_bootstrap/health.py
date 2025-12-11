@@ -21,8 +21,9 @@ import asyncio
 import logging
 import os
 import time
+from collections.abc import Callable, Coroutine
 from datetime import datetime
-from typing import Any, Callable, Coroutine, Dict, Optional
+from typing import Any
 
 from fastapi import APIRouter, Response
 from pydantic import BaseModel
@@ -38,13 +39,13 @@ class HealthStatus(BaseModel):
     environment: str
     timestamp: str
     uptime_seconds: float
-    checks: Dict[str, Dict[str, Any]]
+    checks: dict[str, dict[str, Any]]
 
 
 class ReadinessStatus(BaseModel):
     """Readiness check response model."""
     ready: bool
-    checks: Dict[str, bool]
+    checks: dict[str, bool]
 
 
 # Track service start time for uptime calculation
@@ -53,8 +54,8 @@ _start_time: float = time.time()
 
 def create_health_router(
     service_name: str,
-    version: Optional[str] = None,
-    checks: Optional[Dict[str, Callable[[], Coroutine[Any, Any, bool]]]] = None,
+    version: str | None = None,
+    checks: dict[str, Callable[[], Coroutine[Any, Any, bool]]] | None = None,
     timeout_seconds: float = 5.0,
 ) -> APIRouter:
     """
@@ -82,7 +83,7 @@ def create_health_router(
         Returns detailed status of the service and all configured checks.
         Used by monitoring systems (Datadog, Prometheus, etc.)
         """
-        check_results: Dict[str, Dict[str, Any]] = {}
+        check_results: dict[str, dict[str, Any]] = {}
         overall_status = "healthy"
 
         for check_name, check_func in _checks.items():
@@ -99,7 +100,7 @@ def create_health_router(
                 }
                 if not result:
                     overall_status = "degraded"
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 check_results[check_name] = {
                     "status": "timeout",
                     "duration_ms": timeout_seconds * 1000,
@@ -132,7 +133,7 @@ def create_health_router(
         Returns 503 if any critical check fails.
         Used by load balancers and orchestrators.
         """
-        check_results: Dict[str, bool] = {}
+        check_results: dict[str, bool] = {}
         all_ready = True
 
         for check_name, check_func in _checks.items():
@@ -186,7 +187,7 @@ def create_health_router(
 # Common health check functions
 # =============================================================================
 
-async def check_database_url(database_url: Optional[str] = None) -> bool:
+async def check_database_url(database_url: str | None = None) -> bool:
     """
     Check database connectivity.
 
@@ -220,7 +221,7 @@ async def check_database_url(database_url: Optional[str] = None) -> bool:
         return False
 
 
-async def check_redis_url(redis_url: Optional[str] = None) -> bool:
+async def check_redis_url(redis_url: str | None = None) -> bool:
     """
     Check Redis connectivity.
 
@@ -251,7 +252,7 @@ async def check_redis_url(redis_url: Optional[str] = None) -> bool:
         return False
 
 
-async def check_qdrant_url(qdrant_url: Optional[str] = None) -> bool:
+async def check_qdrant_url(qdrant_url: str | None = None) -> bool:
     """
     Check Qdrant vector DB connectivity.
     """

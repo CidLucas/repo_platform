@@ -4,22 +4,21 @@ Tests for TextToSqlPromptBuilder
 Phase 1: Tests for prompt assembly with Phase 0 components (schema snapshot, allowlist)
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch
 from pathlib import Path
+
+import pytest
 
 from vizu_prompt_management.prompt_builder import (
     TextToSqlPromptBuilder,
     TextToSqlPromptContext,
     get_prompt_builder,
 )
+from vizu_sql_factory.allowlist import RoleConfig
 from vizu_sql_factory.schema_snapshot import (
     ColumnMetadata,
-    ViewMetadata,
     SchemaSnapshot,
+    ViewMetadata,
 )
-from vizu_sql_factory.allowlist import RoleConfig
-
 
 # =============================================================================
 # FIXTURES

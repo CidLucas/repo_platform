@@ -6,9 +6,9 @@ Create Date: 2025-12-08
 
 Alters the alembic_version.version_num column to VARCHAR(255) to accommodate longer revision IDs.
 """
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "20251208_fix_alembic_version"

@@ -1,10 +1,11 @@
-import uuid
-from sqlalchemy.orm import Session
-from sqlalchemy import select
-from vizu_models import ClienteVizu, ConfiguracaoNegocio
-from sqlalchemy import text
 import json
+import uuid
 from datetime import datetime
+
+from sqlalchemy import select, text
+from sqlalchemy.orm import Session
+
+from vizu_models import ClienteVizu, ConfiguracaoNegocio
 
 
 def save_integration_config(

@@ -5,10 +5,11 @@ Cada cliente representa uma persona de negocio com configuracoes especificas.
 
 import logging
 import uuid
-from sqlmodel import Session, create_engine, select
-from sqlalchemy.exc import IntegrityError
 
-from vizu_models import ClienteVizu, SEED_CLIENTS
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, create_engine, select
+
+from vizu_models import SEED_CLIENTS, ClienteVizu
 
 # Configuracao de log
 logging.basicConfig(level=logging.INFO)
@@ -88,7 +89,7 @@ def run_LOCAL_DATABASE(db_url: str):
         try:
             session.commit()
             logger.info("=" * 40)
-            logger.info(f"🎉 Seed concluído!")
+            logger.info("🎉 Seed concluído!")
             logger.info(f"   Novos registros: {count_inserted}")
             logger.info(f"   Existentes (pulados): {count_skipped}")
             logger.info("=" * 40)

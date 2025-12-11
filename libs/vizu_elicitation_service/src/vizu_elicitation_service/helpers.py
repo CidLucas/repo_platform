@@ -2,19 +2,18 @@
 Helper functions for common elicitation patterns.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from vizu_models import ElicitationType, ElicitationOption
-
-from vizu_elicitation_service.models import PendingElicitation
 from vizu_elicitation_service.exceptions import ElicitationRequired
+from vizu_elicitation_service.models import PendingElicitation
+from vizu_models import ElicitationOption, ElicitationType
 
 
 def create_confirmation_elicitation(
     message: str,
     tool_name: str,
-    tool_args: Dict[str, Any],
-    metadata: Optional[Dict[str, Any]] = None,
+    tool_args: dict[str, Any],
+    metadata: dict[str, Any] | None = None,
 ) -> ElicitationRequired:
     """
     Create a confirmation elicitation (Yes/No).
@@ -43,10 +42,10 @@ def create_confirmation_elicitation(
 
 def create_selection_elicitation(
     message: str,
-    options: List[ElicitationOption],
+    options: list[ElicitationOption],
     tool_name: str,
-    tool_args: Dict[str, Any],
-    metadata: Optional[Dict[str, Any]] = None,
+    tool_args: dict[str, Any],
+    metadata: dict[str, Any] | None = None,
 ) -> ElicitationRequired:
     """
     Create a selection elicitation (multiple choice).
@@ -74,8 +73,8 @@ def create_selection_elicitation(
 def create_text_input_elicitation(
     message: str,
     tool_name: str,
-    tool_args: Dict[str, Any],
-    metadata: Optional[Dict[str, Any]] = None,
+    tool_args: dict[str, Any],
+    metadata: dict[str, Any] | None = None,
 ) -> ElicitationRequired:
     """
     Create a text input elicitation.
@@ -101,8 +100,8 @@ def create_text_input_elicitation(
 def create_datetime_elicitation(
     message: str,
     tool_name: str,
-    tool_args: Dict[str, Any],
-    metadata: Optional[Dict[str, Any]] = None,
+    tool_args: dict[str, Any],
+    metadata: dict[str, Any] | None = None,
 ) -> ElicitationRequired:
     """
     Create a datetime input elicitation.
@@ -188,7 +187,7 @@ def normalize_confirmation_response(response: Any) -> bool:
 def validate_elicitation_response(
     pending: PendingElicitation,
     response: Any,
-) -> tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Validate a response against a pending elicitation.
 
@@ -238,9 +237,9 @@ def validate_elicitation_response(
 
 
 def build_options_from_list(
-    items: List[str],
-    add_descriptions: Optional[Dict[str, str]] = None,
-) -> List[ElicitationOption]:
+    items: list[str],
+    add_descriptions: dict[str, str] | None = None,
+) -> list[ElicitationOption]:
     """
     Build ElicitationOption list from simple string list.
 

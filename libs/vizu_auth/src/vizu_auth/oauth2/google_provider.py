@@ -1,5 +1,5 @@
-from typing import Any, Dict
 import asyncio
+from typing import Any
 
 from .base import OAuth2Provider
 from .models import OAuthConfig, TokenResponse
@@ -12,7 +12,7 @@ class GoogleOAuth2Provider(OAuth2Provider):
     we keep the async API for compatibility with the rest of the codebase.
     """
 
-    def _make_client_config(self, config: OAuthConfig) -> Dict[str, Any]:
+    def _make_client_config(self, config: OAuthConfig) -> dict[str, Any]:
         return {
             "web": {
                 "client_id": config.client_id,
@@ -38,8 +38,9 @@ class GoogleOAuth2Provider(OAuth2Provider):
 
     async def exchange_code_for_tokens(self, config: OAuthConfig, code: str, **kwargs: Any) -> TokenResponse:
         try:
-            from google_auth_oauthlib.flow import Flow  # type: ignore
             import os
+
+            from google_auth_oauthlib.flow import Flow  # type: ignore
         except Exception:
             raise ImportError("google-auth-oauthlib is required to exchange code for tokens")
 
@@ -64,8 +65,8 @@ class GoogleOAuth2Provider(OAuth2Provider):
 
     async def refresh_access_token(self, config: OAuthConfig, refresh_token: str) -> TokenResponse:
         try:
-            from google.oauth2.credentials import Credentials  # type: ignore
             from google.auth.transport.requests import Request  # type: ignore
+            from google.oauth2.credentials import Credentials  # type: ignore
         except Exception:
             raise ImportError("google-auth is required to refresh access tokens")
 

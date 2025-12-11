@@ -1,12 +1,12 @@
 import logging
-from typing import Optional
+import os
+
 from langchain_community.utilities.sql_database import SQLDatabase
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables.base import Runnable
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import QueuePool
-import os
 
 # Dependências de outras libs Vizu
 from vizu_models.vizu_client_context import VizuClientContext
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # - DOCKER: DATABASE_URL postgresql://user:password@postgres:5432/vizu_db
 # - SUPABASE: Requer conexão direta (pode ter issues de DNS)
 
-_shared_engine: Optional[Engine] = None
+_shared_engine: Engine | None = None
 
 
 def _get_database_url() -> str:
@@ -125,8 +125,8 @@ class RLSContextDatabase(SQLDatabase):
         fetch: str = "all",
         include_columns: bool = False,
         *,
-        parameters: Optional[dict] = None,
-        execution_options: Optional[dict] = None,
+        parameters: dict | None = None,
+        execution_options: dict | None = None,
     ) -> str:
         """Executa query com contexto RLS.
 
@@ -183,7 +183,7 @@ class RLSContextDatabase(SQLDatabase):
 
             return str(results)
 
-    def get_table_info(self, table_names: Optional[list[str]] = None) -> str:
+    def get_table_info(self, table_names: list[str] | None = None) -> str:
         """Obtém info das tabelas com contexto RLS."""
         # Para metadados, não precisa de RLS (é schema, não dados)
         return super().get_table_info(table_names)
@@ -202,9 +202,9 @@ class RLSContextDatabase(SQLDatabase):
 def create_sql_agent_runnable(
     contexto: VizuClientContext,
     llm: BaseChatModel,
-    llm_fast: Optional[BaseChatModel] = None,
-    tabelas_incluidas: Optional[list[str]] = None,
-) -> Optional[Runnable]:
+    llm_fast: BaseChatModel | None = None,
+    tabelas_incluidas: list[str] | None = None,
+) -> Runnable | None:
     """
     Factory para criar um Agente SQL com isolamento via RLS.
 

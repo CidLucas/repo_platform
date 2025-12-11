@@ -1,27 +1,25 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Header, Body
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from uuid import UUID
+import asyncio
 import secrets
 from datetime import datetime, timedelta
-import asyncio
-from pydantic import BaseModel
-from typing import Optional, List
+from uuid import UUID
 
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
+from tool_pool_api.core.config import get_settings
 from tool_pool_api.server.dependencies import get_context_service
-from vizu_context_service.context_service import ContextService
 
 from vizu_auth.adapters.context_service_adapter import (
     api_key_lookup_from_context_service,
     external_user_lookup_from_context_service,
 )
-from vizu_auth.core.models import AuthResult, AuthRequest
-from vizu_auth.strategies.api_key_strategy import ApiKeyStrategy
-from vizu_auth.strategies.jwt_strategy import JWTStrategy
-from vizu_auth.strategies.authenticator import Authenticator
-
-from vizu_auth.oauth2.oauth_manager import OAuthManager
+from vizu_auth.core.models import AuthRequest, AuthResult
 from vizu_auth.oauth2.models import OAuthConfig
-from tool_pool_api.core.config import get_settings
+from vizu_auth.oauth2.oauth_manager import OAuthManager
+from vizu_auth.strategies.api_key_strategy import ApiKeyStrategy
+from vizu_auth.strategies.authenticator import Authenticator
+from vizu_auth.strategies.jwt_strategy import JWTStrategy
+from vizu_context_service.context_service import ContextService
 
 router = APIRouter(prefix="/integrations", tags=["Integrations"])
 
@@ -38,17 +36,17 @@ class SetDefaultAccountRequest(BaseModel):
 
 
 class RevokeAccountRequest(BaseModel):
-    account_email: Optional[str] = None  # If None, revokes all accounts
+    account_email: str | None = None  # If None, revokes all accounts
 
 
 class GoogleAccountInfo(BaseModel):
     id: str
     account_email: str
-    account_name: Optional[str]
+    account_name: str | None
     is_default: bool
-    expires_at: Optional[datetime] = None
-    scopes: Optional[List[str]] = None
-    created_at: Optional[datetime] = None
+    expires_at: datetime | None = None
+    scopes: list[str] | None = None
+    created_at: datetime | None = None
 
 
 async def _get_auth_result(
@@ -132,22 +130,22 @@ async def initiate_google_auth(
         client_id = context._decrypt(
             cfg_row.get("client_id_encrypted")
             if isinstance(cfg_row, dict)
-            else getattr(cfg_row, "client_id_encrypted")
+            else cfg_row.client_id_encrypted
         )
         client_secret = context._decrypt(
             cfg_row.get("client_secret_encrypted")
             if isinstance(cfg_row, dict)
-            else getattr(cfg_row, "client_secret_encrypted")
+            else cfg_row.client_secret_encrypted
         )
         redirect_uri = (
             cfg_row.get("redirect_uri")
             if isinstance(cfg_row, dict)
-            else getattr(cfg_row, "redirect_uri")
+            else cfg_row.redirect_uri
         )
         scopes = (
             cfg_row.get("scopes")
             if isinstance(cfg_row, dict)
-            else getattr(cfg_row, "scopes")
+            else cfg_row.scopes
         )
     except Exception as e:
         raise HTTPException(
@@ -208,22 +206,22 @@ async def google_auth_callback(
         client_id = context._decrypt(
             cfg_row.get("client_id_encrypted")
             if isinstance(cfg_row, dict)
-            else getattr(cfg_row, "client_id_encrypted")
+            else cfg_row.client_id_encrypted
         )
         client_secret = context._decrypt(
             cfg_row.get("client_secret_encrypted")
             if isinstance(cfg_row, dict)
-            else getattr(cfg_row, "client_secret_encrypted")
+            else cfg_row.client_secret_encrypted
         )
         redirect_uri = (
             cfg_row.get("redirect_uri")
             if isinstance(cfg_row, dict)
-            else getattr(cfg_row, "redirect_uri")
+            else cfg_row.redirect_uri
         )
         scopes = (
             cfg_row.get("scopes")
             if isinstance(cfg_row, dict)
-            else getattr(cfg_row, "scopes")
+            else cfg_row.scopes
         )
     except Exception as e:
         raise HTTPException(
@@ -301,7 +299,7 @@ async def google_auth_callback(
     }
 
 
-@router.get("/google/accounts", response_model=List[GoogleAccountInfo])
+@router.get("/google/accounts", response_model=list[GoogleAccountInfo])
 async def list_google_accounts(
     auth: AuthResult = Depends(_get_auth_result),
     context: ContextService = Depends(get_context_service),
@@ -329,7 +327,7 @@ async def set_default_google_account(
 @router.delete("/google/auth/revoke")
 async def revoke_google_auth(
     payload: RevokeAccountRequest = Body(None),
-    account_email: Optional[str] = Query(None),
+    account_email: str | None = Query(None),
     auth: AuthResult = Depends(_get_auth_result),
     context: ContextService = Depends(get_context_service),
 ):
@@ -386,7 +384,7 @@ async def revoke_google_auth(
 
 @router.get("/google/status")
 async def get_google_status(
-    account_email: Optional[str] = Query(
+    account_email: str | None = Query(
         None, description="Specific account to check status for"
     ),
     auth: AuthResult = Depends(_get_auth_result),

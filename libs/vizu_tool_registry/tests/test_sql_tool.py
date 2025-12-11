@@ -2,12 +2,11 @@
 Tests for SQL tool registration and execution.
 """
 
-import pytest
 from vizu_tool_registry.tools.sql_tool import (
     QueryDatabaseTextToSQL,
+    SQLToolError,
     SQLToolInput,
     SQLToolOutput,
-    SQLToolError,
     sql_tool,
 )
 

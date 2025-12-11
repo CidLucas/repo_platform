@@ -10,14 +10,14 @@ IMPORTANTE: Este arquivo deve ser o ÚNICO local onde SEED_CLIENTS é definido.
 Todos os outros módulos devem importar daqui.
 """
 
-from typing import List, Dict, Any
+from typing import Any
 
 # =============================================================================
 # PERSONAS DE TESTE
 # Cada persona representa um caso de uso real do sistema Vizu
 # =============================================================================
 
-SEED_CLIENTS: List[Dict[str, Any]] = [
+SEED_CLIENTS: list[dict[str, Any]] = [
     # -------------------------------------------------------------------------
     # PERSONA 1: Ricardo - Oficina Mecânica
     # Caso de uso: Atendimento tradicional B2C, foco em agendamento e status
@@ -302,7 +302,7 @@ IMPORTANTE:
 ]
 
 
-def get_client_by_name(nome: str) -> Dict[str, Any] | None:
+def get_client_by_name(nome: str) -> dict[str, Any] | None:
     """Retorna cliente pelo nome da empresa."""
     for client in SEED_CLIENTS:
         if client["nome_empresa"] == nome:
@@ -310,7 +310,7 @@ def get_client_by_name(nome: str) -> Dict[str, Any] | None:
     return None
 
 
-def get_all_rag_collections() -> List[str]:
+def get_all_rag_collections() -> list[str]:
     """Retorna lista de todas as collections RAG definidas."""
     return [
         c["config"]["collection_rag"]

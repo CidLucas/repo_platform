@@ -6,29 +6,30 @@ Phase 3: Refactored to use vizu_agent_framework for graph construction.
 
 import logging
 import time
-from typing import Optional, Dict, Any
+from typing import Any
 from uuid import UUID
 
-from langchain_core.messages import HumanMessage, AIMessage
-from vizu_context_service.context_service import ContextService
-from vizu_models.vizu_client_context import VizuClientContext
-from vizu_models.safe_client_context import InternalClientContext
+from langchain_core.messages import AIMessage, HumanMessage
 
-# Phase 3: Use the new agent framework
-from vizu_agent_framework import AgentBuilder, ATENDENTE_CONFIG
-from vizu_agent_framework.state import AgentState
+from atendente_core.core.config import get_settings
+
+# Legacy imports for compatibility during transition
+from atendente_core.core.graph import create_agent_graph
+
+# PHASE 6: HITL Integration
+from atendente_core.core.hitl_integration import HitlIntegration
+from atendente_core.core.observability import get_langfuse_config
 
 # Local state types
 from atendente_core.core.state import PendingElicitation
 
-# Legacy imports for compatibility during transition
-from atendente_core.core.graph import create_agent_graph
-from atendente_core.core.config import get_settings
-from atendente_core.core.observability import get_langfuse_config
+# Phase 3: Use the new agent framework
+from vizu_agent_framework import ATENDENTE_CONFIG, AgentBuilder
+from vizu_agent_framework.state import AgentState
+from vizu_context_service.context_service import ContextService
 from vizu_db_connector.operations import VizuDBConnector
-
-# PHASE 6: HITL Integration
-from atendente_core.core.hitl_integration import HitlIntegration
+from vizu_models.safe_client_context import InternalClientContext
+from vizu_models.vizu_client_context import VizuClientContext
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +40,8 @@ class ProcessMessageResult:
     def __init__(
         self,
         response: str,
-        model_used: Optional[str] = None,
-        pending_elicitation: Optional[PendingElicitation] = None,
+        model_used: str | None = None,
+        pending_elicitation: PendingElicitation | None = None,
     ):
         self.response = response
         self.model_used = model_used
@@ -86,12 +87,12 @@ class AtendenteService:
 
     async def process_message(
         self,
-        api_key: Optional[str],
+        api_key: str | None,
         session_id: str,
         message_text: str,
-        cliente_vizu_id: Optional[str] = None,
-        model_override: Optional[str] = None,
-        elicitation_response: Optional[Dict[str, Any]] = None,
+        cliente_vizu_id: str | None = None,
+        model_override: str | None = None,
+        elicitation_response: dict[str, Any] | None = None,
     ) -> ProcessMessageResult:
         """
         Recebe a mensagem crua, hidrata com o contexto do cliente e executa o agente.
@@ -110,7 +111,7 @@ class AtendenteService:
         # 1. Identificação: Quem é este cliente?
         # Preferimos `cliente_vizu_id` se fornecido (autenticação via JWT),
         # caso contrário usamos a API Key (compatibilidade).
-        client_context: Optional[VizuClientContext]
+        client_context: VizuClientContext | None
         if cliente_vizu_id:
             try:
                 uuid_obj = UUID(str(cliente_vizu_id))

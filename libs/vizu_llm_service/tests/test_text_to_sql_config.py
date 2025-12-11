@@ -4,20 +4,15 @@ Tests for Text-to-SQL LLM Configuration
 Phase 1.3: Tests for LLM parameters and call wrapper
 """
 
+
 import pytest
-import asyncio
-from unittest.mock import Mock, patch, AsyncMock
-import time
 
 from vizu_llm_service.text_to_sql_config import (
+    TextToSqlLLMCall,
     TextToSqlLLMConfig,
     TextToSqlLLMResponse,
-    TextToSqlLLMCall,
-    LLMProvider,
-    LLMModel,
     get_llm_call,
 )
-
 
 # =============================================================================
 # FIXTURES

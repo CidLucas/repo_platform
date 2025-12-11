@@ -1,26 +1,28 @@
 import logging
 import uuid
+
 from fastapi import (
     APIRouter,
     Depends,
-    UploadFile,
     File,
     HTTPException,
-    status,
     Request,  # <-- Usado para acessar o app.state
+    UploadFile,
+    status,
 )
 
 # Clientes GCP para injeção
 from google.cloud import storage
 from google.cloud.pubsub_v1 import PublisherClient
 
+from file_upload_api.api.dependencies import (
+    get_cliente_vizu_id_from_token,
+)  # (Dependência de autenticação)
+
 # Componentes locais da nossa aplicação
 from file_upload_api.core.config import Settings, get_settings
 from file_upload_api.schemas.upload_schemas import FileUploadResponse
 from file_upload_api.services.upload_service import UploadService
-from file_upload_api.api.dependencies import (
-    get_cliente_vizu_id_from_token,
-)  # (Dependência de autenticação)
 
 # --- Inicialização ---
 logger = logging.getLogger(__name__)

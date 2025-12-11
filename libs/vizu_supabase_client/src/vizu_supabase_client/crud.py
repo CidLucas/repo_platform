@@ -4,7 +4,7 @@ CRUD operations for Supabase tables.
 Replaces SQLAlchemy-based CRUD with Supabase SDK operations.
 """
 import logging
-from typing import Optional, List, Dict, Any
+from typing import Any
 from uuid import UUID
 
 from supabase import Client
@@ -21,7 +21,7 @@ class SupabaseCRUD:
     Replaces vizu_db_connector.crud functions with Supabase REST API calls.
     """
 
-    def __init__(self, client: Optional[Client] = None):
+    def __init__(self, client: Client | None = None):
         """
         Initialize CRUD with optional client injection (for testing).
 
@@ -41,7 +41,7 @@ class SupabaseCRUD:
     # CLIENTE_VIZU OPERATIONS
     # ========================================================================
 
-    def get_cliente_vizu_by_api_key(self, api_key: str) -> Optional[Dict[str, Any]]:
+    def get_cliente_vizu_by_api_key(self, api_key: str) -> dict[str, Any] | None:
         """
         Fetch cliente by API Key (used in authentication).
 
@@ -69,7 +69,7 @@ class SupabaseCRUD:
             logger.error(f"Error fetching cliente by API key: {e}")
             return None
 
-    def get_cliente_vizu_by_id(self, cliente_id: UUID) -> Optional[Dict[str, Any]]:
+    def get_cliente_vizu_by_id(self, cliente_id: UUID) -> dict[str, Any] | None:
         """
         Fetch cliente by ID.
 
@@ -101,7 +101,7 @@ class SupabaseCRUD:
         self,
         limit: int = 100,
         offset: int = 0
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         List all clientes with pagination.
 
@@ -126,7 +126,7 @@ class SupabaseCRUD:
             logger.error(f"Error listing clientes: {e}")
             return []
 
-    def create_cliente_vizu(self, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def create_cliente_vizu(self, data: dict[str, Any]) -> dict[str, Any] | None:
         """
         Create a new cliente.
 
@@ -155,8 +155,8 @@ class SupabaseCRUD:
     def update_cliente_vizu(
         self,
         cliente_id: UUID,
-        data: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        data: dict[str, Any]
+    ) -> dict[str, Any] | None:
         """
         Update a cliente.
 
@@ -211,7 +211,7 @@ class SupabaseCRUD:
         cliente_vizu_id: UUID,
         limit: int = 100,
         offset: int = 0
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get clientes finais for a cliente_vizu.
 
@@ -246,7 +246,7 @@ class SupabaseCRUD:
         self,
         cliente_vizu_id: UUID,
         telefone: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Get cliente final by phone number.
 
@@ -285,10 +285,10 @@ class SupabaseCRUD:
     def get_mensagens(
         self,
         cliente_vizu_id: UUID,
-        cliente_final_id: Optional[UUID] = None,
+        cliente_final_id: UUID | None = None,
         limit: int = 50,
         offset: int = 0
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get mensagens with optional filtering by cliente_final.
 
@@ -329,8 +329,8 @@ class SupabaseCRUD:
     def create_mensagem(
         self,
         cliente_vizu_id: UUID,
-        data: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        data: dict[str, Any]
+    ) -> dict[str, Any] | None:
         """
         Create a new mensagem.
 
@@ -370,7 +370,7 @@ class SupabaseCRUD:
     def call_function(
         self,
         function_name: str,
-        params: Optional[Dict[str, Any]] = None
+        params: dict[str, Any] | None = None
     ) -> Any:
         """
         Call a PostgreSQL function via RPC.
@@ -403,7 +403,7 @@ class SupabaseCRUD:
         client_secret_encrypted: str,
         redirect_uri: str,
         scopes: list,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Save or update integration config."""
         try:
             data = {
@@ -432,7 +432,7 @@ class SupabaseCRUD:
         self,
         cliente_vizu_id: UUID,
         provider: str
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Get integration config."""
         try:
             response = (
@@ -460,15 +460,15 @@ class SupabaseCRUD:
         cliente_vizu_id: UUID,
         provider: str,
         access_token_encrypted: str,
-        refresh_token_encrypted: Optional[str],
-        token_type: Optional[str],
-        expires_at: Optional[Any],
+        refresh_token_encrypted: str | None,
+        token_type: str | None,
+        expires_at: Any | None,
         scopes: list,
-        metadata: Optional[dict] = None,
-        account_email: Optional[str] = None,
-        account_name: Optional[str] = None,
+        metadata: dict | None = None,
+        account_email: str | None = None,
+        account_name: str | None = None,
         is_default: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Save or update integration tokens for a specific account."""
         try:
             # Use placeholder for legacy single-account usage
@@ -515,8 +515,8 @@ class SupabaseCRUD:
         self,
         cliente_vizu_id: UUID,
         provider: str,
-        account_email: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        account_email: str | None = None,
+    ) -> dict[str, Any] | None:
         """Get integration tokens for a specific account or the default account."""
         try:
             if account_email:
@@ -554,7 +554,7 @@ class SupabaseCRUD:
         self,
         cliente_vizu_id: UUID,
         provider: str,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """List all connected accounts for a cliente/provider."""
         try:
             response = (
@@ -577,7 +577,7 @@ class SupabaseCRUD:
         cliente_vizu_id: UUID,
         provider: str,
         account_email: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Set a specific account as the default for a cliente/provider."""
         try:
             # Clear existing default
@@ -608,7 +608,7 @@ class SupabaseCRUD:
         self,
         cliente_vizu_id: UUID,
         provider: str,
-        account_email: Optional[str] = None,
+        account_email: str | None = None,
     ) -> bool:
         """Revoke integration for a specific account or all accounts."""
         try:
@@ -634,7 +634,7 @@ class SupabaseCRUD:
 # CONVENIENCE FUNCTIONS (backwards compatibility with old crud.py)
 # ============================================================================
 
-_crud_instance: Optional[SupabaseCRUD] = None
+_crud_instance: SupabaseCRUD | None = None
 
 
 def get_crud() -> SupabaseCRUD:
@@ -645,11 +645,11 @@ def get_crud() -> SupabaseCRUD:
     return _crud_instance
 
 
-def get_cliente_vizu_by_api_key(api_key: str) -> Optional[Dict[str, Any]]:
+def get_cliente_vizu_by_api_key(api_key: str) -> dict[str, Any] | None:
     """Convenience function matching old crud.py signature."""
     return get_crud().get_cliente_vizu_by_api_key(api_key)
 
 
-def get_cliente_vizu_by_id(cliente_id: UUID) -> Optional[Dict[str, Any]]:
+def get_cliente_vizu_by_id(cliente_id: UUID) -> dict[str, Any] | None:
     """Convenience function matching old crud.py signature."""
     return get_crud().get_cliente_vizu_by_id(cliente_id)

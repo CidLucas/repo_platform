@@ -5,7 +5,6 @@ Provides structured error handling with error codes for MCP operations.
 These exceptions can be caught by FastMCP and converted to proper MCP error responses.
 """
 
-from typing import Optional
 
 
 class MCPError(Exception):
@@ -14,7 +13,7 @@ class MCPError(Exception):
     code: str = "MCP_ERROR"
     status_code: int = 500
 
-    def __init__(self, message: str, code: Optional[str] = None, details: Optional[dict] = None):
+    def __init__(self, message: str, code: str | None = None, details: dict | None = None):
         super().__init__(message)
         self.message = message
         if code:
@@ -57,7 +56,7 @@ class MCPToolError(MCPError):
     code = "TOOL_ERROR"
     status_code = 500
 
-    def __init__(self, message: str, tool_name: Optional[str] = None, **kwargs):
+    def __init__(self, message: str, tool_name: str | None = None, **kwargs):
         super().__init__(message, **kwargs)
         self.tool_name = tool_name
         if tool_name:
@@ -80,7 +79,7 @@ class MCPValidationError(MCPError):
     code = "VALIDATION_ERROR"
     status_code = 400
 
-    def __init__(self, message: str = "Dados inválidos", field: Optional[str] = None, **kwargs):
+    def __init__(self, message: str = "Dados inválidos", field: str | None = None, **kwargs):
         super().__init__(message, **kwargs)
         if field:
             self.details["field"] = field
@@ -92,7 +91,7 @@ class MCPTimeoutError(MCPError):
     code = "TIMEOUT_ERROR"
     status_code = 504
 
-    def __init__(self, message: str = "Operação expirou", timeout_seconds: Optional[float] = None, **kwargs):
+    def __init__(self, message: str = "Operação expirou", timeout_seconds: float | None = None, **kwargs):
         super().__init__(message, **kwargs)
         if timeout_seconds:
             self.details["timeout_seconds"] = timeout_seconds
@@ -106,8 +105,8 @@ class MCPTierAccessError(MCPAuthorizationError):
     def __init__(
         self,
         message: str = "Tier insuficiente para esta ferramenta",
-        required_tier: Optional[str] = None,
-        current_tier: Optional[str] = None,
+        required_tier: str | None = None,
+        current_tier: str | None = None,
         **kwargs
     ):
         super().__init__(message, **kwargs)
@@ -123,7 +122,7 @@ class MCPToolNotFoundError(MCPError):
     code = "TOOL_NOT_FOUND"
     status_code = 404
 
-    def __init__(self, message: str = "Ferramenta não encontrada", tool_name: Optional[str] = None, **kwargs):
+    def __init__(self, message: str = "Ferramenta não encontrada", tool_name: str | None = None, **kwargs):
         super().__init__(message, **kwargs)
         if tool_name:
             self.details["tool_name"] = tool_name
@@ -134,7 +133,7 @@ class MCPToolDisabledError(MCPAuthorizationError):
 
     code = "TOOL_DISABLED"
 
-    def __init__(self, message: str = "Ferramenta desabilitada para este cliente", tool_name: Optional[str] = None, **kwargs):
+    def __init__(self, message: str = "Ferramenta desabilitada para este cliente", tool_name: str | None = None, **kwargs):
         super().__init__(message, **kwargs)
         if tool_name:
             self.details["tool_name"] = tool_name

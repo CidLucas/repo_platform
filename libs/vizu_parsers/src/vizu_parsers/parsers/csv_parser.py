@@ -2,7 +2,7 @@
 
 import io
 import logging
-from typing import Union, BinaryIO
+from typing import BinaryIO
 
 import pandas as pd
 
@@ -16,7 +16,7 @@ class CSVParser(BaseParser):
     Parser for extracting text from CSV files using pandas.
     """
 
-    def parse(self, file_stream: Union[io.BytesIO, BinaryIO]) -> str:
+    def parse(self, file_stream: io.BytesIO | BinaryIO) -> str:
         """
         Read a CSV file stream and extract its textual content.
 

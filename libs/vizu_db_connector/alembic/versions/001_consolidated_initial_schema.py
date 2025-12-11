@@ -10,9 +10,10 @@ clean migration. It replaces all historical branches and development migrations.
 All tables are created together to ensure proper foreign key relationships.
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "001_consolidated_initial_schema"

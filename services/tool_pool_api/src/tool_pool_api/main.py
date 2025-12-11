@@ -1,8 +1,10 @@
 import logging
 import sys
+
 import uvicorn  # Importe o uvicorn
-from .server.mcp_server import create_mcp_server
+
 from .core.config import get_settings
+from .server.mcp_server import create_mcp_server
 
 # Configurar logging para todos os módulos do tool_pool_api e vizu_*
 logging.basicConfig(

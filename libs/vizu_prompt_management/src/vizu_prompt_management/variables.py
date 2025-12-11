@@ -4,8 +4,7 @@ Variable extraction and preparation for prompt templates.
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-from uuid import UUID
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -15,26 +14,26 @@ class PromptVariables:
     """Container for prompt template variables."""
 
     # Core variables
-    nome_empresa: Optional[str] = None
-    prompt_personalizado: Optional[str] = None
-    horario_formatado: Optional[str] = None
+    nome_empresa: str | None = None
+    prompt_personalizado: str | None = None
+    horario_formatado: str | None = None
 
     # Tool-related
-    tools_description: Optional[str] = None
-    enabled_tools: List[str] = field(default_factory=list)
+    tools_description: str | None = None
+    enabled_tools: list[str] = field(default_factory=list)
 
     # Agent personality (for multi-agent)
-    agent_personality: Optional[str] = None
-    agent_name: Optional[str] = None
+    agent_personality: str | None = None
+    agent_name: str | None = None
 
     # Context
-    cliente_id: Optional[str] = None
-    tier: Optional[str] = None
+    cliente_id: str | None = None
+    tier: str | None = None
 
     # Custom variables
-    custom: Dict[str, Any] = field(default_factory=dict)
+    custom: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for template rendering."""
         result = {
             "nome_empresa": self.nome_empresa or "Vizu",
@@ -113,7 +112,7 @@ class VariableExtractor:
         return variables
 
     @staticmethod
-    def from_dict(data: Dict[str, Any]) -> PromptVariables:
+    def from_dict(data: dict[str, Any]) -> PromptVariables:
         """
         Extract variables from a dictionary.
 
@@ -160,7 +159,7 @@ class VariableExtractor:
         return variables
 
     @staticmethod
-    def _format_horarios(horarios: Optional[Dict]) -> str:
+    def _format_horarios(horarios: dict | None) -> str:
         """Format business hours for display."""
         if not horarios:
             return "Horário não configurado."
@@ -190,8 +189,8 @@ class VariableExtractor:
 
     @staticmethod
     def build_tools_description(
-        tools: List[str],
-        tool_registry: Optional[Any] = None,
+        tools: list[str],
+        tool_registry: Any | None = None,
     ) -> str:
         """
         Build a description of available tools.
@@ -243,15 +242,15 @@ class ContextVariableBuilder:
         self._variables.prompt_personalizado = prompt
         return self
 
-    def with_horarios(self, horarios: Dict) -> "ContextVariableBuilder":
+    def with_horarios(self, horarios: dict) -> "ContextVariableBuilder":
         """Set business hours."""
         self._variables.horario_formatado = VariableExtractor._format_horarios(horarios)
         return self
 
     def with_tools(
         self,
-        tools: List[str],
-        registry: Optional[Any] = None,
+        tools: list[str],
+        registry: Any | None = None,
     ) -> "ContextVariableBuilder":
         """Set available tools."""
         self._variables.enabled_tools = tools
@@ -263,7 +262,7 @@ class ContextVariableBuilder:
     def with_agent(
         self,
         name: str,
-        personality: Optional[str] = None,
+        personality: str | None = None,
     ) -> "ContextVariableBuilder":
         """Set agent info."""
         self._variables.agent_name = name
@@ -295,6 +294,6 @@ class ContextVariableBuilder:
         """Build and return the PromptVariables."""
         return self._variables
 
-    def build_dict(self) -> Dict[str, Any]:
+    def build_dict(self) -> dict[str, Any]:
         """Build and return as dictionary."""
         return self._variables.to_dict()

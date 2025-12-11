@@ -3,7 +3,7 @@ Estratégia de autenticação via API-Key.
 """
 
 import logging
-from typing import Callable, Optional, Awaitable
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 from vizu_auth.core.exceptions import InvalidApiKeyError
@@ -13,7 +13,7 @@ from vizu_auth.strategies.base import AuthStrategy
 logger = logging.getLogger(__name__)
 
 # Type alias
-ApiKeyLookupFn = Callable[[str], Awaitable[Optional[UUID]]]
+ApiKeyLookupFn = Callable[[str], Awaitable[UUID | None]]
 
 
 class ApiKeyStrategy(AuthStrategy):
@@ -25,7 +25,7 @@ class ApiKeyStrategy(AuthStrategy):
     def can_handle(self, request: AuthRequest) -> bool:
         return bool(request.api_key)
 
-    async def authenticate(self, request: AuthRequest) -> Optional[AuthResult]:
+    async def authenticate(self, request: AuthRequest) -> AuthResult | None:
         if not request.api_key:
             return None
 

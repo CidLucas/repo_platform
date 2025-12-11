@@ -3,26 +3,25 @@ Support Agent API routes.
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException
 
-from vizu_context_service.dependencies import get_context_service
-from vizu_context_service.context_service import ContextService
-from vizu_auth.core.models import AuthResult
-from vizu_models.safe_client_context import InternalClientContext
+from fastapi import APIRouter, Depends, HTTPException
 
 from support_agent.api.auth import get_auth_result
 from support_agent.api.schemas import (
+    CreateTicketRequest,
+    CreateTicketResponse,
+    ElicitationOption,
+    ElicitationRequest,
+    ElicitationType,
     SupportChatRequest,
     SupportChatResponse,
     SupportContextResponse,
-    CreateTicketRequest,
-    CreateTicketResponse,
     ToolInfo,
-    ElicitationRequest,
-    ElicitationOption,
-    ElicitationType,
 )
 from support_agent.core.service import SupportService
+from vizu_auth.core.models import AuthResult
+from vizu_context_service.context_service import ContextService
+from vizu_context_service.dependencies import get_context_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -201,6 +200,7 @@ async def get_client_context(
     Shows which tools are enabled and support-specific features.
     """
     from uuid import UUID
+
     from vizu_tool_registry import ToolRegistry
 
     try:

@@ -12,12 +12,13 @@ Requer:
 
 IMPORTANTE: Este script usa EXCLUSIVAMENTE o .env da RAIZ do monorepo.
 """
-import os
+import argparse
 import json
 import logging
-import argparse
+import os
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 from qdrant_client import QdrantClient, models
 
 # Configuracao de log
@@ -40,7 +41,7 @@ VECTOR_SIZE = int(os.getenv("EMBEDDING_VECTOR_SIZE", "1024"))
 DEFAULT_KNOWLEDGE_DIR = Path(__file__).parent.parent.parent.parent.parent.parent / "ferramentas" / "seeds" / "knowledge"
 
 
-def get_embedding(text: str) -> List[float]:
+def get_embedding(text: str) -> list[float]:
     """
     Gera embedding usando o serviço de embedding local (HuggingFace).
     Usa o endpoint /embed do embedding_service que aplica os prefixos E5 automaticamente.
@@ -66,7 +67,7 @@ def get_embedding(text: str) -> List[float]:
         raise
 
 
-def get_chunked_embeddings(text: str, chunk_size: int = 512, chunk_overlap: int = 50) -> List[Dict[str, Any]]:
+def get_chunked_embeddings(text: str, chunk_size: int = 512, chunk_overlap: int = 50) -> list[dict[str, Any]]:
     """
     Usa o endpoint /process do embedding_service para chunkar e embedar em uma única chamada.
     Retorna lista de dicts com chunk info + embedding.
@@ -141,10 +142,10 @@ def create_collection_if_not_exists(client: QdrantClient, collection_name: str, 
         return False
 
 
-def load_knowledge_file(file_path: Path) -> Optional[Dict[str, Any]]:
+def load_knowledge_file(file_path: Path) -> dict[str, Any] | None:
     """Carrega um arquivo JSON de conhecimento."""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding='utf-8') as f:
             return json.load(f)
     except Exception as e:
         logger.error(f"   Erro ao carregar {file_path}: {e}")
@@ -154,7 +155,7 @@ def load_knowledge_file(file_path: Path) -> Optional[Dict[str, Any]]:
 def seed_collection_with_chunks(
     client: QdrantClient,
     collection_name: str,
-    documents: List[Dict[str, Any]],
+    documents: list[dict[str, Any]],
     chunk_size: int = 512,
     chunk_overlap: int = 50,
     use_chunking: bool = True,
@@ -210,7 +211,7 @@ def seed_collection_with_chunks(
             except Exception as e:
                 logger.error(f"   Erro ao chunkar {title}: {e}")
                 # Fallback: usa documento inteiro
-                logger.info(f"   Fallback: usando documento inteiro")
+                logger.info("   Fallback: usando documento inteiro")
                 embedding = get_embedding(full_text)
                 point = models.PointStruct(
                     id=point_id,
@@ -258,7 +259,7 @@ def seed_collection_with_chunks(
 
 
 def run_seed(
-    knowledge_dir: Optional[Path] = None,
+    knowledge_dir: Path | None = None,
     chunk_size: int = 512,
     chunk_overlap: int = 50,
     use_chunking: bool = True,
@@ -337,7 +338,7 @@ def run_seed(
 
     # Lista collections criadas
     collections = client.get_collections()
-    logger.info(f"\n   Collections disponiveis:")
+    logger.info("\n   Collections disponiveis:")
     for col in collections.collections:
         try:
             info = client.get_collection(col.name)

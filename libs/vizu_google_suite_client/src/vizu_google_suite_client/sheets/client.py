@@ -1,7 +1,8 @@
 """Google Sheets Client implementation"""
-from typing import List, Any
-from .models import SheetWriteResult, SheetReadResult
+from typing import Any
+
 from ..base import BaseGoogleClient
+from .models import SheetReadResult, SheetWriteResult
 
 
 class GoogleSheetsClient(BaseGoogleClient):
@@ -30,7 +31,7 @@ class GoogleSheetsClient(BaseGoogleClient):
         self,
         spreadsheet_id: str,
         range_name: str,
-        values: List[List[Any]],
+        values: list[list[Any]],
         value_input_option: str = "USER_ENTERED",
     ) -> SheetWriteResult:
         """Append values to a spreadsheet."""

@@ -12,12 +12,10 @@ Referência: https://fastmcp.mintlify.app/servers/resources
 
 import logging
 from uuid import UUID
-from typing import Optional, List
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ResourceError
-from fastmcp.server.dependencies import get_access_token, AccessToken
-
+from fastmcp.server.dependencies import AccessToken, get_access_token
 from sqlmodel import select
 
 from tool_pool_api.server.dependencies import (
@@ -25,14 +23,13 @@ from tool_pool_api.server.dependencies import (
     load_context_from_token,
 )
 from vizu_db_connector.database import SessionLocal
-from vizu_models import PromptTemplate, KnowledgeBaseConfig
+from vizu_llm_service.client import get_embedding_model
+from vizu_models import KnowledgeBaseConfig, PromptTemplate
 from vizu_models.vizu_client_context import VizuClientContext
+from vizu_qdrant_client import get_qdrant_client
 
 # Phase 3: Use vizu_tool_registry for dynamic tool filtering
 from vizu_tool_registry import ToolRegistry
-
-from vizu_qdrant_client import get_qdrant_client
-from vizu_llm_service.client import get_embedding_model
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 
 async def _resolve_client_context(
-    cliente_id: Optional[str] = None,
+    cliente_id: str | None = None,
 ) -> VizuClientContext:
     """
     Resolve o contexto do cliente via ID explícito ou token JWT.
@@ -78,7 +75,7 @@ async def _resolve_client_context(
 # =============================================================================
 
 
-async def _get_knowledge_summary(cliente_id: Optional[str] = None) -> str:
+async def _get_knowledge_summary(cliente_id: str | None = None) -> str:
     """
     Retorna um resumo da base de conhecimento do cliente.
 
@@ -139,7 +136,7 @@ async def _get_knowledge_summary(cliente_id: Optional[str] = None) -> str:
 
 
 async def _search_knowledge(
-    query: str, cliente_id: Optional[str] = None, limit: int = 5
+    query: str, cliente_id: str | None = None, limit: int = 5
 ) -> str:
     """
     Busca documentos na base de conhecimento (read-only, sem LLM).
@@ -208,7 +205,7 @@ async def _search_knowledge(
 # =============================================================================
 
 
-def _get_enabled_tools_for_context(context: VizuClientContext) -> List[str]:
+def _get_enabled_tools_for_context(context: VizuClientContext) -> list[str]:
     """
     Get enabled tools from client context.
 
@@ -252,7 +249,7 @@ def _get_tier_for_context(context: VizuClientContext) -> str:
 # =============================================================================
 
 
-async def _get_client_config(cliente_id: Optional[str] = None) -> str:
+async def _get_client_config(cliente_id: str | None = None) -> str:
     """
     Retorna a configuração do cliente em formato legível.
 
@@ -305,12 +302,12 @@ async def _get_client_config(cliente_id: Optional[str] = None) -> str:
 
     # Monta resposta
     result = f"# Configuração - {context.nome_empresa}\n\n"
-    result += f"## Identificação\n"
+    result += "## Identificação\n"
     result += f"- **ID:** `{context.id}`\n"
     result += f"- **Nome:** {context.nome_empresa}\n"
     result += f"- **Tier:** {tier}\n\n"
 
-    result += f"## Horário de Funcionamento\n"
+    result += "## Horário de Funcionamento\n"
     result += f"{horarios_str}\n\n"
 
     result += f"## Ferramentas Habilitadas ({len(available_tools)})\n"
@@ -323,7 +320,7 @@ async def _get_client_config(cliente_id: Optional[str] = None) -> str:
 
     # Show some disabled tools (if any)
     if disabled_tools and len(disabled_tools) <= 10:
-        result += f"## Ferramentas Não Habilitadas\n"
+        result += "## Ferramentas Não Habilitadas\n"
         for name in sorted(list(disabled_tools)[:5]):
             tool_meta = ToolRegistry.get_tool(name)
             if tool_meta:
@@ -331,13 +328,13 @@ async def _get_client_config(cliente_id: Optional[str] = None) -> str:
         result += "\n"
 
     if context.collection_rag:
-        result += f"## Base de Conhecimento\n"
+        result += "## Base de Conhecimento\n"
         result += f"- **Coleção RAG:** `{context.collection_rag}`\n\n"
 
     return result
 
 
-async def _get_client_prompt(cliente_id: Optional[str] = None) -> str:
+async def _get_client_prompt(cliente_id: str | None = None) -> str:
     """
     Retorna o prompt base configurado para o cliente.
 
@@ -362,8 +359,8 @@ async def _get_client_prompt(cliente_id: Optional[str] = None) -> str:
 
 
 def _get_prompt_template(
-    name: str, version: Optional[int] = None, cliente_id: Optional[str] = None
-) -> Optional[PromptTemplate]:
+    name: str, version: int | None = None, cliente_id: str | None = None
+) -> PromptTemplate | None:
     """
     Busca um prompt template do banco de dados.
 
@@ -419,7 +416,7 @@ def _get_prompt_template(
         return db.exec(query).first()
 
 
-def _list_prompt_templates(cliente_id: Optional[str] = None) -> List[PromptTemplate]:
+def _list_prompt_templates(cliente_id: str | None = None) -> list[PromptTemplate]:
     """
     Lista todos os prompts disponíveis (globais + específicos do cliente).
     """
@@ -450,7 +447,7 @@ def _list_prompt_templates(cliente_id: Optional[str] = None) -> List[PromptTempl
 # =============================================================================
 
 
-def _get_knowledge_base_configs(cliente_id: str) -> List[KnowledgeBaseConfig]:
+def _get_knowledge_base_configs(cliente_id: str) -> list[KnowledgeBaseConfig]:
     """
     Lista as configurações de knowledge bases de um cliente.
     """

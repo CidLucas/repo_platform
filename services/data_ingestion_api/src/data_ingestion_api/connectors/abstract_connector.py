@@ -1,8 +1,7 @@
 # services/data_ingestion_api/connectors/abstract_connector.py
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Generator
-import pandas as pd
+from typing import Any
 
 # O conector abstrato deve usar a CredencialBase do vizu_models (ou do schemas.py da API)
 # Vamos assumir que ele recebe um dicionário de credenciais que ele DEVE obter do Secret Manager.
@@ -19,7 +18,7 @@ class AbstractDataConnector(ABC):
     comum para todas as fontes de dados.
     """
 
-    def __init__(self, credentials: Dict[str, Any]):
+    def __init__(self, credentials: dict[str, Any]):
         """Inicializa o conector com as credenciais (que vieram do Secret Manager)."""
         self.credentials = credentials
 
@@ -32,14 +31,14 @@ class AbstractDataConnector(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def fetch_schema(self) -> List[Dict[str, Any]]:
+    async def fetch_schema(self) -> list[dict[str, Any]]:
         """
         Busca e retorna o schema (tabelas, colunas, tipos) da fonte de dados.
         """
         raise NotImplementedError
 
     @abstractmethod
-    async def extract_data(self, query: str, client_id: str) -> List[Dict[str, Any]]:
+    async def extract_data(self, query: str, client_id: str) -> list[dict[str, Any]]:
         """
         Executa a query e extrai a massa de dados (passo do pipeline de ETL).
         """

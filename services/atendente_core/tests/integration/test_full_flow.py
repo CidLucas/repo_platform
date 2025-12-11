@@ -1,13 +1,13 @@
 # tests/integration/test_full_flow.py
 
 import uuid
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy.orm import Session
 
 # Importa apenas os modelos
-from vizu_models import ClienteVizu, TipoCliente, TierCliente
+from vizu_models import ClienteVizu, TierCliente, TipoCliente
 
 
 @pytest.mark.integration

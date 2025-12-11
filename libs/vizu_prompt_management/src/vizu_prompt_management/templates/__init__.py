@@ -24,9 +24,9 @@ class PromptTemplateConfig:
     version: str = "1.0"
     description: str = ""
     template_text: str = ""
-    required_variables: List[str] = field(default_factory=list)
-    optional_variables: List[str] = field(default_factory=list)
-    metadata: Dict[str, str] = field(default_factory=dict)
+    required_variables: list[str] = field(default_factory=list)
+    optional_variables: list[str] = field(default_factory=list)
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 # Built-in templates
@@ -87,7 +87,7 @@ Return ONLY valid PostgreSQL SQL. No explanations, no markdown, no caveats.
 )
 
 # Dictionary mapping template names to template configs
-BUILTIN_TEMPLATES: Dict[str, PromptTemplateConfig] = {
+BUILTIN_TEMPLATES: dict[str, PromptTemplateConfig] = {
     "text_to_sql_v1": TEXT_TO_SQL_TEMPLATE,
 }
 

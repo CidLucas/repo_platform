@@ -1,8 +1,9 @@
 # Em: services/tool_pool_api/tests/unit/conftest.py
 
-import pytest
 import uuid
 from unittest.mock import MagicMock
+
+import pytest
 
 
 @pytest.fixture

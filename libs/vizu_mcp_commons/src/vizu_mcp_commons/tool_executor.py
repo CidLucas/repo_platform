@@ -10,18 +10,16 @@ Provides a unified interface for executing MCP tools with:
 
 import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Dict, Callable
-from uuid import UUID
-
-from vizu_models.vizu_client_context import VizuClientContext
+from typing import Any
 
 from vizu_mcp_commons.exceptions import (
-    MCPToolError,
-    MCPToolNotFoundError,
-    MCPToolDisabledError,
     MCPTierAccessError,
+    MCPToolDisabledError,
+    MCPToolNotFoundError,
 )
+from vizu_models.vizu_client_context import VizuClientContext
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +29,8 @@ class ToolCall:
     """Represents a tool call to be executed."""
 
     name: str
-    args: Dict[str, Any] = field(default_factory=dict)
-    call_id: Optional[str] = None
+    args: dict[str, Any] = field(default_factory=dict)
+    call_id: str | None = None
 
 
 @dataclass
@@ -43,9 +41,9 @@ class ToolResult:
     name: str
     success: bool
     result: Any = None
-    error: Optional[str] = None
-    error_code: Optional[str] = None
-    duration_ms: Optional[float] = None
+    error: str | None = None
+    error_code: str | None = None
+    duration_ms: float | None = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
@@ -75,8 +73,8 @@ class ToolExecutor:
     def __init__(
         self,
         context_service_factory: Callable,
-        tool_registry: Optional[Any] = None,
-        tool_callables: Optional[Dict[str, Callable]] = None,
+        tool_registry: Any | None = None,
+        tool_callables: dict[str, Callable] | None = None,
     ):
         """
         Initialize ToolExecutor.
@@ -97,9 +95,9 @@ class ToolExecutor:
     async def execute_tool(
         self,
         tool_name: str,
-        args: Dict[str, Any],
+        args: dict[str, Any],
         cliente_context: VizuClientContext,
-        call_id: Optional[str] = None,
+        call_id: str | None = None,
         validate_access: bool = True,
     ) -> ToolResult:
         """
@@ -197,11 +195,11 @@ class ToolExecutor:
 
     async def execute_parallel(
         self,
-        tool_calls: List[ToolCall],
+        tool_calls: list[ToolCall],
         cliente_context: VizuClientContext,
         max_concurrent: int = 5,
         validate_access: bool = True,
-    ) -> List[ToolResult]:
+    ) -> list[ToolResult]:
         """
         Execute multiple tools in parallel.
 
@@ -293,7 +291,7 @@ class ToolCallBuilder:
     """Builder for creating ToolCall lists from LLM responses."""
 
     @staticmethod
-    def from_openai_tool_calls(tool_calls: list) -> List[ToolCall]:
+    def from_openai_tool_calls(tool_calls: list) -> list[ToolCall]:
         """
         Convert OpenAI-style tool calls to ToolCall objects.
 
@@ -324,7 +322,7 @@ class ToolCallBuilder:
         return result
 
     @staticmethod
-    def from_langchain_tool_calls(tool_calls: list) -> List[ToolCall]:
+    def from_langchain_tool_calls(tool_calls: list) -> list[ToolCall]:
         """
         Convert LangChain-style tool calls to ToolCall objects.
 

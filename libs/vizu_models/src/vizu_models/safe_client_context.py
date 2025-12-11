@@ -14,9 +14,9 @@ PHASE 1: Dynamic Tool Allocation
 - tier: Tier do cliente determina acesso baseline
 """
 
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
 import uuid
+
+from pydantic import BaseModel, ConfigDict
 
 
 class SafeClientContext(BaseModel):
@@ -39,16 +39,16 @@ class SafeClientContext(BaseModel):
 
     # PHASE 1: Dynamic Tool Allocation
     tier: str = "BASIC"  # Tier do cliente (BASIC, SME, ENTERPRISE)
-    enabled_tools: List[str] = []  # Lista de ferramentas habilitadas
+    enabled_tools: list[str] = []  # Lista de ferramentas habilitadas
 
     # Configurações de comportamento (não sensíveis)
-    prompt_base: Optional[str] = None
-    horario_funcionamento: Optional[dict] = None
+    prompt_base: str | None = None
+    horario_funcionamento: dict | None = None
 
     # Legacy flags de features (deprecated, kept for backward compatibility)
     ferramenta_rag_habilitada: bool = False
     ferramenta_sql_habilitada: bool = False
-    collection_rag: Optional[str] = None
+    collection_rag: str | None = None
 
 
 class InternalClientContext(BaseModel):

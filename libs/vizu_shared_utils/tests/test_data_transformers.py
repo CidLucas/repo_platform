@@ -1,10 +1,12 @@
 # tests/unit/test_data_transformers.py
-import pytest
-import pandas as pd
 from datetime import datetime
-from vizu_shared_utils.data_transformers import transform_data
+
+import pandas as pd
+
 from vizu_models.ingestion.schema_config import ColumnConfig, ColumnFormat
 from vizu_models.ingestion.vizu_schema import VizuCanonicalColumn
+from vizu_shared_utils.data_transformers import transform_data
+
 
 def test_transform_unix_timestamp_seconds_to_datetime():
     # SETUP: Dados Brutos do Cliente

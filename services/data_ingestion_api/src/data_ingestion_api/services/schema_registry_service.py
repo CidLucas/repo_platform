@@ -6,10 +6,10 @@ fontes de dados externas e o schema canônico Vizu.
 """
 
 import logging
-from typing import Dict, Any, List, Optional
-from datetime import datetime
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
+from typing import Any
 
 from data_ingestion_api.services.supabase_client import supabase_client
 
@@ -27,19 +27,19 @@ class MappingStatus(str, Enum):
 @dataclass
 class SchemaMapping:
     """Representa um mapeamento de schema salvo."""
-    id: Optional[str] = None
+    id: str | None = None
     credential_id: str = ""
     resource_type: str = ""
-    source_columns: List[str] = field(default_factory=list)
-    mapping: Dict[str, str] = field(default_factory=dict)  # {source: canonical}
-    unmapped_columns: List[str] = field(default_factory=list)
-    confidence_scores: Dict[str, float] = field(default_factory=dict)
+    source_columns: list[str] = field(default_factory=list)
+    mapping: dict[str, str] = field(default_factory=dict)  # {source: canonical}
+    unmapped_columns: list[str] = field(default_factory=list)
+    confidence_scores: dict[str, float] = field(default_factory=dict)
     status: MappingStatus = MappingStatus.PENDING
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
+    metadata: dict[str, Any] = field(default_factory=dict)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    def to_dict(self) -> dict[str, Any]:
         """Converte para dicionário para salvar no banco."""
         return {
             "credential_id": self.credential_id,
@@ -51,9 +51,9 @@ class SchemaMapping:
             "status": self.status.value if isinstance(self.status, MappingStatus) else self.status,
             "metadata": self.metadata,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SchemaMapping":
+    def from_dict(cls, data: dict[str, Any]) -> "SchemaMapping":
         """Cria instância a partir de dicionário do banco."""
         return cls(
             id=data.get("id"),
@@ -81,22 +81,22 @@ class SchemaRegistryService:
     - Atualizar status
     - Deletar mapeamento
     """
-    
+
     TABLE_NAME = "data_source_mappings"
-    
+
     def __init__(self):
         self.client = supabase_client
-    
+
     async def save_mapping(
         self,
         credential_id: str,
         resource_type: str,
-        source_columns: List[str],
-        mapping: Dict[str, str],
-        unmapped_columns: List[str] = None,
-        confidence_scores: Dict[str, float] = None,
+        source_columns: list[str],
+        mapping: dict[str, str],
+        unmapped_columns: list[str] = None,
+        confidence_scores: dict[str, float] = None,
         status: MappingStatus = None,
-        metadata: Dict[str, Any] = None
+        metadata: dict[str, Any] = None
     ) -> SchemaMapping:
         """
         Salva ou atualiza um mapeamento de schema.
@@ -125,7 +125,7 @@ class SchemaRegistryService:
                 status = MappingStatus.NEEDS_REVIEW
             else:
                 status = MappingStatus.READY
-        
+
         data = {
             "credential_id": credential_id,
             "resource_type": resource_type,
@@ -136,27 +136,27 @@ class SchemaRegistryService:
             "status": status.value if isinstance(status, MappingStatus) else status,
             "metadata": metadata or {},
         }
-        
+
         try:
             result = await self.client.upsert(
                 self.TABLE_NAME,
                 data,
                 on_conflict="credential_id,resource_type"
             )
-            
+
             logger.info(f"Mapeamento salvo: credential={credential_id}, resource={resource_type}, status={status}")
-            
+
             return SchemaMapping.from_dict(result)
-            
+
         except Exception as e:
             logger.error(f"Erro ao salvar mapeamento: {e}")
             raise
-    
+
     async def get_mapping(
         self,
         credential_id: str,
         resource_type: str
-    ) -> Optional[SchemaMapping]:
+    ) -> SchemaMapping | None:
         """
         Busca um mapeamento específico.
         
@@ -175,19 +175,19 @@ class SchemaRegistryService:
                     "resource_type": resource_type
                 }
             )
-            
+
             if result:
                 return SchemaMapping.from_dict(result)
             return None
-            
+
         except Exception as e:
             logger.error(f"Erro ao buscar mapeamento: {e}")
             return None
-    
+
     async def get_mappings_by_credential(
         self,
         credential_id: str
-    ) -> List[SchemaMapping]:
+    ) -> list[SchemaMapping]:
         """
         Busca todos os mapeamentos de uma credencial.
         
@@ -202,17 +202,17 @@ class SchemaRegistryService:
                 self.TABLE_NAME,
                 filters={"credential_id": credential_id}
             )
-            
+
             return [SchemaMapping.from_dict(r) for r in results]
-            
+
         except Exception as e:
             logger.error(f"Erro ao buscar mapeamentos: {e}")
             return []
-    
+
     async def get_mappings_by_status(
         self,
         status: MappingStatus
-    ) -> List[SchemaMapping]:
+    ) -> list[SchemaMapping]:
         """
         Busca mapeamentos por status.
         
@@ -228,13 +228,13 @@ class SchemaRegistryService:
                 self.TABLE_NAME,
                 filters={"status": status_value}
             )
-            
+
             return [SchemaMapping.from_dict(r) for r in results]
-            
+
         except Exception as e:
             logger.error(f"Erro ao buscar mapeamentos por status: {e}")
             return []
-    
+
     async def update_status(
         self,
         credential_id: str,
@@ -262,23 +262,23 @@ class SchemaRegistryService:
                     "resource_type": resource_type
                 }
             )
-            
+
             if results:
                 logger.info(f"Status atualizado: {credential_id}/{resource_type} -> {status}")
                 return True
             return False
-            
+
         except Exception as e:
             logger.error(f"Erro ao atualizar status: {e}")
             return False
-    
+
     async def update_mapping(
         self,
         credential_id: str,
         resource_type: str,
-        mapping: Dict[str, str],
-        unmapped_columns: List[str] = None
-    ) -> Optional[SchemaMapping]:
+        mapping: dict[str, str],
+        unmapped_columns: list[str] = None
+    ) -> SchemaMapping | None:
         """
         Atualiza o mapeamento de colunas (após revisão manual).
         
@@ -296,10 +296,10 @@ class SchemaRegistryService:
                 "mapping": mapping,
                 "status": MappingStatus.READY.value,
             }
-            
+
             if unmapped_columns is not None:
                 data["unmapped_columns"] = unmapped_columns
-            
+
             results = await self.client.update(
                 self.TABLE_NAME,
                 data=data,
@@ -308,16 +308,16 @@ class SchemaRegistryService:
                     "resource_type": resource_type
                 }
             )
-            
+
             if results:
                 logger.info(f"Mapeamento atualizado: {credential_id}/{resource_type}")
                 return SchemaMapping.from_dict(results[0])
             return None
-            
+
         except Exception as e:
             logger.error(f"Erro ao atualizar mapeamento: {e}")
             return None
-    
+
     async def delete_mapping(
         self,
         credential_id: str,
@@ -341,16 +341,16 @@ class SchemaRegistryService:
                     "resource_type": resource_type
                 }
             )
-            
+
             if results:
                 logger.info(f"Mapeamento deletado: {credential_id}/{resource_type}")
                 return True
             return False
-            
+
         except Exception as e:
             logger.error(f"Erro ao deletar mapeamento: {e}")
             return False
-    
+
     async def delete_all_by_credential(self, credential_id: str) -> int:
         """
         Deleta todos os mapeamentos de uma credencial.
@@ -366,11 +366,11 @@ class SchemaRegistryService:
                 self.TABLE_NAME,
                 filters={"credential_id": credential_id}
             )
-            
+
             count = len(results) if results else 0
             logger.info(f"Mapeamentos deletados para {credential_id}: {count}")
             return count
-            
+
         except Exception as e:
             logger.error(f"Erro ao deletar mapeamentos: {e}")
             return 0

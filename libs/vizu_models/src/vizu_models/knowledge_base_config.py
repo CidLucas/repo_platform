@@ -9,11 +9,12 @@ Integração com MCP: @mcp.resource("knowledge://...") busca desta tabela.
 
 import uuid
 from datetime import datetime
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from sqlmodel import Field, Relationship, SQLModel, Column
-from sqlalchemy import String, Text, Boolean, Integer, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID as pgUUID, JSONB
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as pgUUID
+from sqlmodel import Column, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .cliente_vizu import ClienteVizu
@@ -27,7 +28,7 @@ class KnowledgeBaseConfigBase(SQLModel):
         description="Nome identificador da base de conhecimento (ex: 'servicos', 'faq', 'produtos')",
     )
 
-    description: Optional[str] = Field(
+    description: str | None = Field(
         default=None,
         sa_column=Column(Text),
         description="Descrição do conteúdo da base",
@@ -62,13 +63,13 @@ class KnowledgeBaseConfigBase(SQLModel):
         description="Se esta base está ativa para busca",
     )
 
-    metadata_schema: Optional[dict] = Field(
+    metadata_schema: dict | None = Field(
         default=None,
         sa_column=Column(JSONB),
         description="Schema esperado dos metadados dos documentos",
     )
 
-    search_config: Optional[dict] = Field(
+    search_config: dict | None = Field(
         default=None,
         sa_column=Column(JSONB),
         description="Configurações de busca (top_k, score_threshold, etc.)",
@@ -84,7 +85,7 @@ class KnowledgeBaseConfig(KnowledgeBaseConfigBase, table=True):
 
     __tablename__ = "knowledge_base_config"
 
-    id: Optional[uuid.UUID] = Field(
+    id: uuid.UUID | None = Field(
         default_factory=uuid.uuid4,
         sa_column=Column(pgUUID(as_uuid=True), primary_key=True),
     )
@@ -114,7 +115,7 @@ class KnowledgeBaseConfig(KnowledgeBaseConfigBase, table=True):
         description="Número de documentos na base",
     )
 
-    last_sync_at: Optional[datetime] = Field(
+    last_sync_at: datetime | None = Field(
         default=None,
         sa_column=Column(DateTime),
         description="Última sincronização com Qdrant",
@@ -138,15 +139,15 @@ class KnowledgeBaseConfigRead(KnowledgeBaseConfigBase):
     created_at: datetime
     updated_at: datetime
     document_count: int
-    last_sync_at: Optional[datetime] = None
+    last_sync_at: datetime | None = None
 
 
 class KnowledgeBaseConfigUpdate(SQLModel):
     """Schema para atualizar uma base de conhecimento."""
 
-    name: Optional[str] = None
-    description: Optional[str] = None
-    is_active: Optional[bool] = None
-    search_config: Optional[dict] = None
-    chunk_size: Optional[int] = None
-    chunk_overlap: Optional[int] = None
+    name: str | None = None
+    description: str | None = None
+    is_active: bool | None = None
+    search_config: dict | None = None
+    chunk_size: int | None = None
+    chunk_overlap: int | None = None

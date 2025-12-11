@@ -1,17 +1,16 @@
 import logging
-from typing import Optional
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.runnables.base import Runnable
-from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough
+from langchain_core.runnables.base import Runnable
+
+from vizu_llm_service.client import get_embedding_model
 
 # Dependências de outras libs Vizu
 from vizu_models.vizu_client_context import VizuClientContext
 from vizu_qdrant_client import get_qdrant_client  # Usa o singleton
-from vizu_llm_service.client import get_embedding_model
-
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +45,7 @@ def _format_docs(docs):
 def create_rag_runnable(
     contexto: VizuClientContext,
     llm: BaseChatModel,
-) -> Optional[Runnable]:
+) -> Runnable | None:
     """
     Factory agnóstica para criar um Runnable de RAG.
 

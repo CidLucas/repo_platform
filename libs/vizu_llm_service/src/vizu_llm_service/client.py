@@ -12,14 +12,14 @@ Com integração Langfuse para observabilidade.
 """
 
 import logging
-from typing import List, Optional, Dict, Any
 from enum import Enum
+from typing import Any
 
-from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.embeddings import Embeddings
+from langchain_core.language_models.chat_models import BaseChatModel
 
-from .config import get_llm_settings, LLMSettings
+from .config import LLMSettings, get_llm_settings
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +62,12 @@ class LLMProvider(str, Enum):
 
 
 def get_langfuse_callback(
-    settings: Optional[LLMSettings] = None,
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-    tags: Optional[List[str]] = None,
-    metadata: Optional[Dict[str, Any]] = None,
-) -> Optional[BaseCallbackHandler]:
+    settings: LLMSettings | None = None,
+    user_id: str | None = None,
+    session_id: str | None = None,
+    tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> BaseCallbackHandler | None:
     """
     Cria o CallbackHandler do Langfuse para tracing.
 
@@ -98,6 +98,7 @@ def get_langfuse_callback(
     try:
         # Langfuse SDK v3 - import correto
         from langfuse.langchain import CallbackHandler
+
         from langfuse import Langfuse
 
         # Inicializa o cliente Langfuse (singleton)
@@ -122,11 +123,11 @@ def get_langfuse_callback(
 
 
 def get_base_callbacks(
-    settings: Optional[LLMSettings] = None,
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-    tags: Optional[List[str]] = None,
-) -> List[BaseCallbackHandler]:
+    settings: LLMSettings | None = None,
+    user_id: str | None = None,
+    session_id: str | None = None,
+    tags: list[str] | None = None,
+) -> list[BaseCallbackHandler]:
     """Retorna lista de callbacks padrão (Langfuse, etc)."""
     callbacks = []
 
@@ -160,7 +161,7 @@ class VizuEmbeddingAPIClient(Embeddings):
     def __init__(self, base_url: str):
         self.api_url = f"{base_url.rstrip('/')}/embed"
 
-    def _call_api(self, texts: List[str], mode: str = "document") -> List[List[float]]:
+    def _call_api(self, texts: list[str], mode: str = "document") -> list[list[float]]:
         import requests
 
         try:
@@ -175,11 +176,11 @@ class VizuEmbeddingAPIClient(Embeddings):
             logger.error(f"Erro ao conectar ao Embedding Service ({self.api_url}): {e}")
             raise
 
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """Gera embeddings para documentos (usa prefixo 'passage:' para E5)."""
         return self._call_api(texts, mode="document")
 
-    def embed_query(self, text: str) -> List[float]:
+    def embed_query(self, text: str) -> list[float]:
         """Gera embedding para query (usa prefixo 'query:' para E5)."""
         return self._call_api([text], mode="query")[0]
 
@@ -192,7 +193,7 @@ class VizuEmbeddingAPIClient(Embeddings):
 def _get_ollama_model(
     model_name: str,
     settings: LLMSettings,
-    callbacks: List[BaseCallbackHandler],
+    callbacks: list[BaseCallbackHandler],
     **kwargs,
 ) -> BaseChatModel:
     """Cria cliente Ollama (local)."""
@@ -213,7 +214,7 @@ def _get_ollama_model(
 def _get_ollama_cloud_model(
     model_name: str,
     settings: LLMSettings,
-    callbacks: List[BaseCallbackHandler],
+    callbacks: list[BaseCallbackHandler],
     **kwargs,
 ) -> BaseChatModel:
     """
@@ -253,7 +254,7 @@ def _get_ollama_cloud_model(
 def _get_openai_model(
     model_name: str,
     settings: LLMSettings,
-    callbacks: List[BaseCallbackHandler],
+    callbacks: list[BaseCallbackHandler],
     **kwargs,
 ) -> BaseChatModel:
     """Cria cliente OpenAI (API)."""
@@ -276,7 +277,7 @@ def _get_openai_model(
 def _get_anthropic_model(
     model_name: str,
     settings: LLMSettings,
-    callbacks: List[BaseCallbackHandler],
+    callbacks: list[BaseCallbackHandler],
     **kwargs,
 ) -> BaseChatModel:
     """Cria cliente Anthropic (API)."""
@@ -301,7 +302,7 @@ def _get_anthropic_model(
 def _get_google_model(
     model_name: str,
     settings: LLMSettings,
-    callbacks: List[BaseCallbackHandler],
+    callbacks: list[BaseCallbackHandler],
     **kwargs,
 ) -> BaseChatModel:
     """Cria cliente Google Gemini (API)."""
@@ -327,7 +328,7 @@ def _get_google_model(
 # MODEL MAPPINGS
 # ============================================================================
 
-MODEL_MAPPINGS: Dict[LLMProvider, Dict[ModelTier, str]] = {
+MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
     LLMProvider.OLLAMA: {
         ModelTier.DEFAULT: "llama3.2:latest",
         ModelTier.FAST: "phi3:mini",
@@ -364,11 +365,11 @@ MODEL_MAPPINGS: Dict[LLMProvider, Dict[ModelTier, str]] = {
 def get_model(
     tier: ModelTier = ModelTier.DEFAULT,
     task: ModelTask = ModelTask.GENERAL_AGENT,
-    provider: Optional[LLMProvider] = None,
-    model_name: Optional[str] = None,
-    user_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-    tags: Optional[List[str]] = None,
+    provider: LLMProvider | None = None,
+    model_name: str | None = None,
+    user_id: str | None = None,
+    session_id: str | None = None,
+    tags: list[str] | None = None,
     **kwargs,
 ) -> BaseChatModel:
     """

@@ -1,12 +1,14 @@
 # src/analytics_api/api/dependencies.py
-from fastapi import Depends, HTTPException, status
-# IMPORT CORRIGIDO: Importa a função geradora de sessão da biblioteca
-from vizu_db_connector.database import get_db_session as get_vizu_db_session
-from sqlalchemy.orm import Session # Importa o tipo Session
+import logging
+
+from analytics_api.core.config import settings
 from analytics_api.data_access.postgres_repository import PostgresRepository
 from analytics_api.services.metric_service import MetricService
-from analytics_api.core.config import settings
-import logging
+from fastapi import Depends, HTTPException, status
+from sqlalchemy.orm import Session  # Importa o tipo Session
+
+# IMPORT CORRIGIDO: Importa a função geradora de sessão da biblioteca
+from vizu_db_connector.database import get_db_session as get_vizu_db_session
 
 logger = logging.getLogger(__name__)
 

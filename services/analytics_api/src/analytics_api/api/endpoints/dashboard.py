@@ -1,9 +1,10 @@
 # src/analytics_api/api/endpoints/dashboard.py
-from fastapi import APIRouter, Depends
-from analytics_api.services.metric_service import MetricService
 from analytics_api.api.dependencies import get_metric_service
+
 # IMPORTAÇÃO ATUALIZADA: Agora usa o schema específico da Home
 from analytics_api.schemas.metrics import HomeMetricsResponse
+from analytics_api.services.metric_service import MetricService
+from fastapi import APIRouter, Depends
 
 router = APIRouter()
 

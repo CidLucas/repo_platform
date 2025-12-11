@@ -14,7 +14,6 @@ Implements core validation checks for SQL queries:
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional, List
 
 from .parser import SqlParser
 
@@ -27,8 +26,8 @@ class ValidationError:
 
     code: str  # e.g., "disallowed_view", "missing_limit"
     message: str
-    field: Optional[str] = None
-    suggestion: Optional[str] = None
+    field: str | None = None
+    suggestion: str | None = None
 
 
 @dataclass
@@ -37,11 +36,11 @@ class ValidationResult:
 
     is_valid: bool
     original_sql: str
-    normalized_sql: Optional[str] = None
-    errors: List[ValidationError] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
-    checks_passed: List[str] = field(default_factory=list)
-    execution_plan: Optional[str] = None
+    normalized_sql: str | None = None
+    errors: list[ValidationError] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    checks_passed: list[str] = field(default_factory=list)
+    execution_plan: str | None = None
 
     def add_error(self, error: ValidationError):
         """Add an error to the result."""
@@ -79,12 +78,12 @@ class SqlValidator:
         self,
         sql: str,
         tenant_id: str,
-        allowed_views: List[str],
-        allowed_columns: dict[str, List[str]],
+        allowed_views: list[str],
+        allowed_columns: dict[str, list[str]],
         max_rows: int = 100,
-        mandatory_filters: Optional[List[str]] = None,
-        allowed_aggregates: Optional[List[str]] = None,
-        allowed_joins: Optional[dict] = None,
+        mandatory_filters: list[str] | None = None,
+        allowed_aggregates: list[str] | None = None,
+        allowed_joins: dict | None = None,
         allow_rewrites: bool = True,
     ) -> ValidationResult:
         """
@@ -223,7 +222,7 @@ class SqlValidator:
 
         return True
 
-    def _check_allowed_views(self, ast, allowed_views: List[str], result: ValidationResult) -> bool:
+    def _check_allowed_views(self, ast, allowed_views: list[str], result: ValidationResult) -> bool:
         """Check all tables are in allowed views."""
         tables = self.parser.extract_tables(ast)
 
@@ -263,9 +262,8 @@ class SqlValidator:
 
         return True
 
-    def _check_column_allowlist(self, ast, allowed_columns: dict[str, List[str]], result: ValidationResult) -> bool:
+    def _check_column_allowlist(self, ast, allowed_columns: dict[str, list[str]], result: ValidationResult) -> bool:
         """Check all selected columns are allowed."""
-        from sqlglot import exp
 
         tables = self.parser.extract_tables(ast)
         columns = self.parser.extract_columns(ast)
@@ -298,7 +296,7 @@ class SqlValidator:
 
         return True
 
-    def _check_mandatory_filters(self, ast, tenant_id: str, mandatory_filters: List[str], result: ValidationResult) -> bool:
+    def _check_mandatory_filters(self, ast, tenant_id: str, mandatory_filters: list[str], result: ValidationResult) -> bool:
         """Check query includes mandatory filters (e.g., client_id = '...')"""
         predicates = self.parser.extract_where_predicates(ast)
 
@@ -346,7 +344,7 @@ class SqlValidator:
 
         return True
 
-    def _check_safe_aggregates(self, ast, allowed_aggregates: List[str], result: ValidationResult) -> bool:
+    def _check_safe_aggregates(self, ast, allowed_aggregates: list[str], result: ValidationResult) -> bool:
         """Check only allowed aggregate functions."""
         aggregates = self.parser.extract_aggregates(ast)
 
@@ -397,7 +395,7 @@ class SqlValidator:
         plan += f"  LIMIT: {limit}\n"
 
         if result.warnings:
-            plan += f"\n  Rewrites needed:\n"
+            plan += "\n  Rewrites needed:\n"
             for warning in result.warnings:
                 plan += f"    - {warning}\n"
 

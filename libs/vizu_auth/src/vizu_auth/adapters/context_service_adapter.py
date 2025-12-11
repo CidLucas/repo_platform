@@ -39,7 +39,8 @@ de registrar a dependency no router). Ajuste conforme a arquitetura do
 seu serviço.
 """
 
-from typing import Optional, Callable, Awaitable, TYPE_CHECKING
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 if TYPE_CHECKING:
@@ -47,7 +48,7 @@ if TYPE_CHECKING:
     from vizu_context_service.context_service import ContextService
 
 
-def api_key_lookup_from_context_service(ctx_service: "ContextService") -> Callable[[str], Awaitable[Optional[UUID]]]:
+def api_key_lookup_from_context_service(ctx_service: "ContextService") -> Callable[[str], Awaitable[UUID | None]]:
     """
     Retorna uma função async que mapeia `api_key -> cliente_vizu_id` usando
     uma instância de `ContextService`.
@@ -57,7 +58,7 @@ def api_key_lookup_from_context_service(ctx_service: "ContextService") -> Callab
         cliente_id = await lookup(api_key)
     """
 
-    async def _lookup(api_key: str) -> Optional[UUID]:
+    async def _lookup(api_key: str) -> UUID | None:
         if not api_key:
             return None
         ctx = await ctx_service.get_client_context_by_api_key(api_key)
@@ -66,7 +67,7 @@ def api_key_lookup_from_context_service(ctx_service: "ContextService") -> Callab
     return _lookup
 
 
-def external_user_lookup_from_context_service(ctx_service: "ContextService") -> Callable[[str], Awaitable[Optional[UUID]]]:
+def external_user_lookup_from_context_service(ctx_service: "ContextService") -> Callable[[str], Awaitable[UUID | None]]:
     """
     Retorna uma função async que tenta mapear `external_user_id (sub)` para
     `cliente_vizu_id` usando `ContextService`.
@@ -79,7 +80,7 @@ def external_user_lookup_from_context_service(ctx_service: "ContextService") -> 
 
     # Se a implementação do ContextService tiver suporte, usaremos.
     if hasattr(ctx_service, "get_context_by_external_user_id"):
-        async def _lookup(external_user_id: str) -> Optional[UUID]:
+        async def _lookup(external_user_id: str) -> UUID | None:
             if not external_user_id:
                 return None
             ctx = await ctx_service.get_context_by_external_user_id(external_user_id=external_user_id)
@@ -88,7 +89,7 @@ def external_user_lookup_from_context_service(ctx_service: "ContextService") -> 
         return _lookup
 
     # Fallback: não há suporte para lookup por external_user_id
-    async def _noop(_: str) -> Optional[UUID]:
+    async def _noop(_: str) -> UUID | None:
         return None
 
     return _noop

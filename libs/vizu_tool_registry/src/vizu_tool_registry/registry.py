@@ -10,9 +10,8 @@ tool access based on client configuration.
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple
 
-from .tool_metadata import ToolMetadata, ToolCategory, TierLevel
+from .tool_metadata import TierLevel, ToolCategory, ToolMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +42,7 @@ class ToolRegistry:
     # =========================================================================
     # BUILTIN TOOLS - Always available in FastMCP
     # =========================================================================
-    BUILTIN_TOOLS: Dict[str, ToolMetadata] = {
+    BUILTIN_TOOLS: dict[str, ToolMetadata] = {
         "executar_rag_cliente": ToolMetadata(
             name="executar_rag_cliente",
             category=ToolCategory.RAG,
@@ -84,7 +83,7 @@ class ToolRegistry:
     # =========================================================================
     # GOOGLE INTEGRATION TOOLS
     # =========================================================================
-    GOOGLE_TOOLS: Dict[str, ToolMetadata] = {
+    GOOGLE_TOOLS: dict[str, ToolMetadata] = {
         "google_calendar_list_events": ToolMetadata(
             name="google_calendar_list_events",
             category=ToolCategory.GOOGLE,
@@ -114,7 +113,7 @@ class ToolRegistry:
     # =========================================================================
     # DOCKER MCP TOOLS - Optional, loaded from Docker MCP toolkit
     # =========================================================================
-    DOCKER_MCP_TOOLS: Dict[str, ToolMetadata] = {
+    DOCKER_MCP_TOOLS: dict[str, ToolMetadata] = {
         "github_read": ToolMetadata(
             name="github_read",
             category=ToolCategory.DOCKER_MCP,
@@ -203,7 +202,7 @@ class ToolRegistry:
     # =========================================================================
 
     @classmethod
-    def get_all_tools(cls) -> Dict[str, ToolMetadata]:
+    def get_all_tools(cls) -> dict[str, ToolMetadata]:
         """Get all registered tools (builtin + Google + Docker MCP)."""
         all_tools = {}
         all_tools.update(cls.BUILTIN_TOOLS)
@@ -212,7 +211,7 @@ class ToolRegistry:
         return all_tools
 
     @classmethod
-    def get_tool(cls, tool_name: str) -> Optional[ToolMetadata]:
+    def get_tool(cls, tool_name: str) -> ToolMetadata | None:
         """
         Get tool metadata by name.
 
@@ -231,11 +230,11 @@ class ToolRegistry:
     @classmethod
     def get_available_tools(
         cls,
-        enabled_tools: List[str],
+        enabled_tools: list[str],
         tier: str,
         include_docker_mcp: bool = False,
         include_google: bool = True,
-    ) -> List[ToolMetadata]:
+    ) -> list[ToolMetadata]:
         """
         Get tools available for a client based on enabled list and tier.
 
@@ -280,8 +279,8 @@ class ToolRegistry:
 
     @classmethod
     def validate_client_tools(
-        cls, enabled_tools: List[str], tier: str
-    ) -> Tuple[bool, List[str]]:
+        cls, enabled_tools: list[str], tier: str
+    ) -> tuple[bool, list[str]]:
         """
         Validate that client's enabled_tools are compatible with tier.
 
@@ -314,7 +313,7 @@ class ToolRegistry:
         return is_valid, errors
 
     @classmethod
-    def get_tools_for_tier(cls, tier: str) -> List[ToolMetadata]:
+    def get_tools_for_tier(cls, tier: str) -> list[ToolMetadata]:
         """
         Get all tools accessible at a given tier.
 
@@ -335,7 +334,7 @@ class ToolRegistry:
         return accessible
 
     @classmethod
-    def get_tools_by_category(cls, category: ToolCategory) -> List[ToolMetadata]:
+    def get_tools_by_category(cls, category: ToolCategory) -> list[ToolMetadata]:
         """
         Get all tools in a specific category.
 
@@ -352,7 +351,7 @@ class ToolRegistry:
         ]
 
     @classmethod
-    def get_confirmation_required_tools(cls) -> List[ToolMetadata]:
+    def get_confirmation_required_tools(cls) -> list[ToolMetadata]:
         """Get all tools that require user confirmation."""
         return [
             tool
@@ -380,7 +379,7 @@ class ToolRegistry:
         rag_enabled: bool,
         sql_enabled: bool,
         scheduling_enabled: bool,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Convert legacy boolean flags to enabled_tools list.
 
@@ -404,7 +403,7 @@ class ToolRegistry:
         return tools
 
     @classmethod
-    def register_docker_mcp_tools(cls, docker_tools: Dict[str, ToolMetadata]) -> int:
+    def register_docker_mcp_tools(cls, docker_tools: dict[str, ToolMetadata]) -> int:
         """
         Register Docker MCP tools discovered at runtime.
 
@@ -430,14 +429,14 @@ class ToolRegistry:
         return count
 
     @classmethod
-    def get_docker_mcp_integrations(cls) -> Dict[str, List[str]]:
+    def get_docker_mcp_integrations(cls) -> dict[str, list[str]]:
         """
         Get all Docker MCP integrations and their tools.
 
         Returns:
             Dict mapping integration_name -> list of tool names
         """
-        integrations: Dict[str, List[str]] = {}
+        integrations: dict[str, list[str]] = {}
         for tool in cls.DOCKER_MCP_TOOLS.values():
             if tool.docker_mcp_integration:
                 if tool.docker_mcp_integration not in integrations:

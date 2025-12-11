@@ -1,9 +1,8 @@
-import asyncio
 from uuid import UUID, uuid4
 
 import pytest
 
-from vizu_auth.core.exceptions import ClientNotFoundError, InvalidApiKeyError
+from vizu_auth.core.exceptions import InvalidApiKeyError
 from vizu_auth.core.models import AuthRequest
 from vizu_auth.strategies.api_key_strategy import ApiKeyStrategy
 from vizu_auth.strategies.authenticator import Authenticator

@@ -1,9 +1,11 @@
-import pytest
 import uuid
-from vizu_models.vizu_client_context import VizuClientContext
+
+import pytest
 
 from vizu_models.configuracao_negocio import ConfiguracaoNegocioBase
 from vizu_models.credencial_servico_externo import CredencialServicoExternoBase
+from vizu_models.vizu_client_context import VizuClientContext
+
 # Criamos fixtures reutilizáveis para nossos dados de mock
 # (Este arquivo pode ser copiado para as outras libs de factory)
 

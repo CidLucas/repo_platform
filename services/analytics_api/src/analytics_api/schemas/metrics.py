@@ -1,7 +1,8 @@
 # src/analytics_api/schemas/metrics.py
-from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 # ---
 # SCHEMAS GENÉRICOS (Reutilizados)
@@ -10,7 +11,7 @@ from datetime import datetime
 class ChartDataPoint(BaseModel):
     """Um ponto de dados genérico para um gráfico (ex: Recharts)."""
     name: str  # Eixo X (ex: '2025-01', 'SP', 'Tier 1')
-    
+
     # Permite qualquer outra métrica como Eixo Y
     class Config:
         extra = 'allow' # Permite 'receita', 'contagem', 'percentual', etc.
@@ -19,7 +20,7 @@ class ChartData(BaseModel):
     """Define a estrutura do JSON para um gráfico."""
     id: str  # ex: "receita-por-mes"
     title: str
-    data: List[ChartDataPoint]
+    data: list[ChartDataPoint]
 
 class RankingItem(BaseModel):
     """
@@ -46,18 +47,18 @@ class RankingItem(BaseModel):
 class CadastralData(BaseModel):
     """Dados cadastrais (Dimensão) da camada Prata."""
     # Podem ser de Cliente ou Fornecedor
-    emitter_nome: Optional[str] = None
-    emitter_cnpj: Optional[str] = None
-    emitter_telefone: Optional[str] = None
-    emitter_estado: Optional[str] = None
-    emitter_cidade: Optional[str] = None
-    
-    receiver_nome: Optional[str] = None
-    receiver_cnpj: Optional[str] = None
-    receiver_telefone: Optional[str] = None
-    receiver_estado: Optional[str] = None
-    receiver_cidade: Optional[str] = None
-    
+    emitter_nome: str | None = None
+    emitter_cnpj: str | None = None
+    emitter_telefone: str | None = None
+    emitter_estado: str | None = None
+    emitter_cidade: str | None = None
+
+    receiver_nome: str | None = None
+    receiver_cnpj: str | None = None
+    receiver_telefone: str | None = None
+    receiver_estado: str | None = None
+    receiver_cidade: str | None = None
+
     class Config:
         extra = 'ignore' # Ignora campos extras se houver
 
@@ -77,7 +78,7 @@ class HomeScorecards(BaseModel):
 class HomeMetricsResponse(BaseModel):
     """Resposta completa para a Home (Nível 1)."""
     scorecards: HomeScorecards
-    charts: List[ChartData]
+    charts: list[ChartData]
 
 # ---
 # NÍVEL 2: MÓDULOS (OVERVIEW)
@@ -85,31 +86,31 @@ class HomeMetricsResponse(BaseModel):
 
 class FornecedoresOverviewResponse(BaseModel):
     scorecard_total_fornecedores: int
-    chart_fornecedores_no_tempo: List[ChartDataPoint]
-    chart_fornecedores_por_regiao: List[ChartDataPoint]
-    chart_cohort_fornecedores: List[ChartDataPoint]
-    ranking_por_receita: List[RankingItem]
-    ranking_por_qtd_media: List[RankingItem]
-    ranking_por_ticket_medio: List[RankingItem]
-    ranking_por_frequencia: List[RankingItem]
-    ranking_produtos_mais_vendidos: List[Dict[str, Any]] # (nome, receita_total, valor_unitario_medio)
+    chart_fornecedores_no_tempo: list[ChartDataPoint]
+    chart_fornecedores_por_regiao: list[ChartDataPoint]
+    chart_cohort_fornecedores: list[ChartDataPoint]
+    ranking_por_receita: list[RankingItem]
+    ranking_por_qtd_media: list[RankingItem]
+    ranking_por_ticket_medio: list[RankingItem]
+    ranking_por_frequencia: list[RankingItem]
+    ranking_produtos_mais_vendidos: list[dict[str, Any]] # (nome, receita_total, valor_unitario_medio)
 
 class ClientesOverviewResponse(BaseModel):
     scorecard_total_clientes: int
     scorecard_ticket_medio_geral: float
     scorecard_frequencia_media_geral: float
-    chart_clientes_por_regiao: List[ChartDataPoint]
-    chart_cohort_clientes: List[ChartDataPoint]
-    ranking_por_receita: List[RankingItem]
-    ranking_por_ticket_medio: List[RankingItem]
-    ranking_por_qtd_pedidos: List[RankingItem]
-    ranking_por_cluster_vizu: List[RankingItem]
+    chart_clientes_por_regiao: list[ChartDataPoint]
+    chart_cohort_clientes: list[ChartDataPoint]
+    ranking_por_receita: list[RankingItem]
+    ranking_por_ticket_medio: list[RankingItem]
+    ranking_por_qtd_pedidos: list[RankingItem]
+    ranking_por_cluster_vizu: list[RankingItem]
 
 class ProdutosOverviewResponse(BaseModel):
     scorecard_total_itens_unicos: int
-    ranking_por_receita: List[Dict[str, Any]] # (nome, receita_total, valor_unitario_medio)
-    ranking_por_volume: List[Dict[str, Any]] # (nome, quantidade_total, valor_unitario_medio)
-    ranking_por_ticket_medio: List[Dict[str, Any]] # (nome, ticket_medio, valor_unitario_medio)
+    ranking_por_receita: list[dict[str, Any]] # (nome, receita_total, valor_unitario_medio)
+    ranking_por_volume: list[dict[str, Any]] # (nome, quantidade_total, valor_unitario_medio)
+    ranking_por_ticket_medio: list[dict[str, Any]] # (nome, ticket_medio, valor_unitario_medio)
 
 class PedidoItem(BaseModel):
     order_id: str
@@ -123,8 +124,8 @@ class PedidosOverviewResponse(BaseModel):
     scorecard_qtd_media_produtos_por_pedido: float
     scorecard_taxa_recorrencia_clientes_perc: float
     scorecard_recencia_media_entre_pedidos_dias: float
-    ranking_pedidos_por_regiao: List[ChartDataPoint]
-    ultimos_pedidos: List[PedidoItem]
+    ranking_pedidos_por_regiao: list[ChartDataPoint]
+    ultimos_pedidos: list[PedidoItem]
 
 # ---
 # NÍVEL 3: DETALHE
@@ -132,28 +133,28 @@ class PedidosOverviewResponse(BaseModel):
 
 class FornecedorDetailResponse(BaseModel):
     dados_cadastrais: CadastralData
-    rankings_internos: Dict[str, List[RankingItem]]
+    rankings_internos: dict[str, list[RankingItem]]
 
 class ClienteDetailResponse(BaseModel):
     dados_cadastrais: CadastralData
-    scorecards: Optional[RankingItem] # O scorecard de um cliente é um RankingItem dele mesmo
-    rankings_internos: Dict[str, List[RankingItem]]
+    scorecards: RankingItem | None # O scorecard de um cliente é um RankingItem dele mesmo
+    rankings_internos: dict[str, list[RankingItem]]
 
 class ProdutoDetailResponse(BaseModel):
     nome_produto: str
-    scorecards: Optional[RankingItem]
-    charts: Dict[str, List[ChartDataPoint]]
-    rankings_internos: Dict[str, List[RankingItem]]
+    scorecards: RankingItem | None
+    charts: dict[str, list[ChartDataPoint]]
+    rankings_internos: dict[str, list[RankingItem]]
 
 class PedidoItemDetalhe(BaseModel):
     raw_product_description: str
     quantidade: float
     valor_unitario: float
     valor_total_emitter: float
-    
+
 class PedidoDetailResponse(BaseModel):
     order_id: str
     status_pedido: str
     total_pedido: float
     dados_cliente: CadastralData
-    itens_pedido: List[PedidoItemDetalhe]
+    itens_pedido: list[PedidoItemDetalhe]

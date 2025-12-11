@@ -4,20 +4,19 @@ Vendas Agent service - Business logic layer.
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 from uuid import UUID
-
-from vizu_context_service.context_service import ContextService
-from vizu_models import VizuClientContext
-from vizu_agent_framework import MCPConnectionManager
 
 from vendas_agent.core.agent import VendasAgent
 from vendas_agent.core.config import get_settings
+from vizu_agent_framework import MCPConnectionManager
+from vizu_context_service.context_service import ContextService
+from vizu_models import VizuClientContext
 
 logger = logging.getLogger(__name__)
 
 # Shared MCP connection manager for this service
-_mcp_manager: Optional[MCPConnectionManager] = None
+_mcp_manager: MCPConnectionManager | None = None
 
 
 async def get_mcp_manager() -> MCPConnectionManager:
@@ -38,10 +37,10 @@ class VendasResult:
     """Result of a sales agent interaction."""
     response: str
     model_used: str
-    pending_elicitation: Optional[Dict[str, Any]] = None
-    suggested_products: Optional[list] = None
+    pending_elicitation: dict[str, Any] | None = None
+    suggested_products: list | None = None
     discount_available: bool = False
-    tools_called: Optional[list] = None
+    tools_called: list | None = None
 
 
 class VendasService:
@@ -81,7 +80,7 @@ class VendasService:
         cliente_vizu_id: UUID,
         session_id: str,
         message_text: str,
-        elicitation_response: Optional[Dict[str, Any]] = None,
+        elicitation_response: dict[str, Any] | None = None,
     ) -> VendasResult:
         """
         Process a sales message.
@@ -130,7 +129,7 @@ class VendasService:
             tools_called=result.get("tool_calls"),
         )
 
-    def _extract_suggested_products(self, result: Dict[str, Any]) -> Optional[list]:
+    def _extract_suggested_products(self, result: dict[str, Any]) -> list | None:
         """Extract suggested products from tool results."""
         tool_calls = result.get("tool_calls", [])
         for tool_call in tool_calls:

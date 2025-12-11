@@ -1,7 +1,8 @@
 """Tests for vizu_supabase_client."""
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 
 # Set test environment before imports
 os.environ["SUPABASE_URL"] = "https://test.supabase.co"

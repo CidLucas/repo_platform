@@ -9,20 +9,17 @@ This replaces the old TextToSqlPromptBuilder with a thin wrapper
 that uses existing template management and variable extraction.
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID
+
+import pytest
 
 from vizu_llm_service.text_to_sql import (
     TextToSqlPrompt,
     get_text_to_sql_prompt,
 )
-from vizu_prompt_management.loader import PromptLoader
-from vizu_prompt_management.variables import (
-    VariableExtractor,
-    ContextVariableBuilder,
-)
 from vizu_models.context import VizuClientContext
+from vizu_prompt_management.loader import PromptLoader
 
 
 @pytest.fixture

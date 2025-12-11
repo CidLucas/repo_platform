@@ -1,12 +1,13 @@
 from unittest.mock import MagicMock
+
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables.base import Runnable
 
-# Código que estamos testando
-from vizu_rag_factory.factory import create_rag_runnable
-
 # Modelos que usamos
 from vizu_models.vizu_client_context import VizuClientContext
+
+# Código que estamos testando
+from vizu_rag_factory.factory import create_rag_runnable
 
 
 def test_rag_factory_success(

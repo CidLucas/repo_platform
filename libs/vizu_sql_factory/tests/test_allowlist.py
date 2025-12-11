@@ -3,16 +3,16 @@ Unit tests for allowlist configuration and role filtering.
 """
 
 import json
-import pytest
 from pathlib import Path
-from unittest.mock import patch, mock_open
+
+import pytest
 
 from vizu_sql_factory.allowlist import (
+    AllowlistConfig,
+    AllowlistLoader,
     JoinPath,
     RoleConfig,
     TenantConfig,
-    AllowlistConfig,
-    AllowlistLoader,
     get_allowlist_config,
 )
 

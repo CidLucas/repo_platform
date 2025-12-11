@@ -1,7 +1,7 @@
-import logging
 import asyncio
-import os
+import logging
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 # Imports corrigidos para a nova estrutura
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
         await asyncio.sleep(2)
         await asyncio.wait_for(mcp_manager.connect(), timeout=15)
         logger.info(f"✅ MCP conectado com sucesso! Tools: {[t.name for t in mcp_manager.tools]}")
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("⚠️  Timeout ao conectar ao MCP - continuando sem ferramentas")
     except Exception as e:
         logger.warning(f"⚠️  Falha ao conectar ao MCP durante startup: {e}", exc_info=True)
@@ -76,7 +76,7 @@ app = FastAPI(
 # Configura Telemetria (se disponível)
 if settings.OTEL_EXPORTER_OTLP_ENDPOINT:
     try:
-        from vizu_observability_bootstrap import setup_telemetry, create_health_router
+        from vizu_observability_bootstrap import create_health_router, setup_telemetry
 
         setup_telemetry(app, service_name=settings.SERVICE_NAME)
         logger.info("🔭 Telemetria OpenTelemetry configurada.")

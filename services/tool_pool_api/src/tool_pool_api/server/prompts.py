@@ -15,14 +15,14 @@ Referência: https://fastmcp.mintlify.app/servers/prompts
 """
 
 import logging
-from typing import Optional
 
 from fastmcp import FastMCP
+
+from tool_pool_api.server.dependencies import get_context_service
 
 # Use centralized prompt management library
 from vizu_prompt_management import PromptLoader
 from vizu_prompt_management.mcp_builder import MCPPromptBuilder
-from tool_pool_api.server.dependencies import get_context_service
 
 logger = logging.getLogger(__name__)
 
@@ -159,8 +159,8 @@ Os dados estão corretos? (Sim/Não)
     def db_render_prompt(
         name: str = "",
         variables: str = "{}",
-        version: Optional[str] = None,
-        cliente_id: Optional[str] = None,
+        version: str | None = None,
+        cliente_id: str | None = None,
     ) -> list:
         """Renderiza um prompt do banco de dados com variáveis."""
         # This is a fallback - full implementation uses vizu_prompt_management

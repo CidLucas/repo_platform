@@ -1,13 +1,14 @@
-import pytest
 import io
 from unittest.mock import MagicMock
+
+import pytest
 from fastapi.testclient import TestClient
-from google.cloud import storage
+from file_processing_worker.core.config import Settings, get_settings
+from file_processing_worker.core.worker import get_gcp_storage_client
 
 # Importações da nossa aplicação
 from file_processing_worker.main import create_app
-from file_processing_worker.core.config import Settings, get_settings
-from file_processing_worker.core.worker import get_gcp_storage_client
+from google.cloud import storage
 
 # --- Fixture 1: Configurações de Teste ---
 

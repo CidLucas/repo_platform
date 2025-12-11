@@ -1,5 +1,31 @@
 # vizu_models/__init__.py (Versão Corrigida para Exportação)
 
+from sqlmodel import SQLModel
+
+# Agent Types (shared across all agents/LangGraph flows)
+from .agent_types import (
+    # Chat/Message
+    AgentChatRequest,
+    AgentChatResponse,
+    # Client Context
+    ClientContextResponse,
+    ElicitationOption,
+    ElicitationRequest,
+    ElicitationResponse,
+    # Elicitation
+    ElicitationType,
+    # Model/LLM
+    ModelInfo,
+    ToolExecutionResult,
+    # Tool Management
+    ToolInfo,
+)
+from .cliente_final import (
+    ClienteFinal,
+    ClienteFinalCreate,
+    ClienteFinalRead,
+    ClienteFinalUpdate,
+)
 from .cliente_vizu import (
     ClienteVizu,
     ClienteVizuCreate,
@@ -14,19 +40,6 @@ from .configuracao_negocio import (
     ConfiguracaoNegocioRead,
     ConfiguracaoNegocioUpdate,
 )
-from .credencial_servico_externo import (
-    CredencialServicoExterno,
-    CredencialServicoExternoBase,
-    CredencialServicoExternoCreate,
-    CredencialServicoExternoInDB,
-)
-from .fonte_de_dados import FonteDeDados
-from .cliente_final import (
-    ClienteFinal,
-    ClienteFinalCreate,
-    ClienteFinalRead,
-    ClienteFinalUpdate,
-)
 from .conversa import (
     Conversa,
     ConversaBase,
@@ -38,11 +51,59 @@ from .conversa import (
     MensagemInDB,
     Remetente,
 )
-from .vizu_client_context import VizuClientContext
-from .safe_client_context import SafeClientContext, InternalClientContext
-from .seed_clients import SEED_CLIENTS, get_client_by_name, get_all_rag_collections
-from sqlmodel import SQLModel
-from .enums import TipoCliente, TierCliente, TipoFonte, ToolCategory
+from .credencial_servico_externo import (
+    CredencialServicoExterno,
+    CredencialServicoExternoBase,
+    CredencialServicoExternoCreate,
+    CredencialServicoExternoInDB,
+)
+from .enums import TierCliente, TipoCliente, TipoFonte, ToolCategory
+
+# Experiment Suite (Dataset Generation)
+from .experiment import (
+    CaseOutcome,
+    ClassificationResult,
+    ClientVariant,
+    ExperimentCase,
+    ExperimentManifest,
+    ExperimentProgress,
+    ExperimentRun,
+    ExperimentRunSummary,
+    ExperimentStatus,
+    HitlRoutingConfig,
+    LangfuseConfig,
+    TestCaseDefinition,
+)
+from .fonte_de_dados import FonteDeDados
+
+# HITL (Human-in-the-Loop) support
+from .hitl import (
+    HitlConfig,
+    HitlCriteriaType,
+    HitlCriterion,
+    HitlDecision,
+    HitlFeedbackType,
+    HitlQueueStats,
+    HitlReview,
+    HitlReviewCreate,
+    HitlReviewRead,
+    HitlReviewStatus,
+    HitlReviewUpdate,
+)
+
+# Integration models
+from .integration import (
+    IntegrationConfig,
+    IntegrationProvider,
+    IntegrationTokens,
+    OAuthTokenResponse,
+)
+from .knowledge_base_config import (
+    KnowledgeBaseConfig,
+    KnowledgeBaseConfigCreate,
+    KnowledgeBaseConfigRead,
+    KnowledgeBaseConfigUpdate,
+)
 
 # MCP Resources & Prompts support
 from .prompt_template import (
@@ -51,76 +112,15 @@ from .prompt_template import (
     PromptTemplateRead,
     PromptTemplateUpdate,
 )
-from .knowledge_base_config import (
-    KnowledgeBaseConfig,
-    KnowledgeBaseConfigCreate,
-    KnowledgeBaseConfigRead,
-    KnowledgeBaseConfigUpdate,
-)
+from .safe_client_context import InternalClientContext, SafeClientContext
+from .seed_clients import SEED_CLIENTS, get_all_rag_collections, get_client_by_name
 from .sql_schema_config import (
     SqlTableConfig,
     SqlTableConfigCreate,
     SqlTableConfigRead,
     SqlTableConfigUpdate,
 )
-
-# Agent Types (shared across all agents/LangGraph flows)
-from .agent_types import (
-    # Elicitation
-    ElicitationType,
-    ElicitationOption,
-    ElicitationRequest,
-    ElicitationResponse,
-    # Tool Management
-    ToolInfo,
-    ToolExecutionResult,
-    # Model/LLM
-    ModelInfo,
-    # Chat/Message
-    AgentChatRequest,
-    AgentChatResponse,
-    # Client Context
-    ClientContextResponse,
-)
-
-# HITL (Human-in-the-Loop) support
-from .hitl import (
-    HitlCriteriaType,
-    HitlReviewStatus,
-    HitlFeedbackType,
-    HitlCriterion,
-    HitlConfig,
-    HitlReview,
-    HitlReviewCreate,
-    HitlReviewRead,
-    HitlReviewUpdate,
-    HitlQueueStats,
-    HitlDecision,
-)
-
-# Experiment Suite (Dataset Generation)
-from .experiment import (
-    ExperimentStatus,
-    CaseOutcome,
-    ClassificationResult,
-    TestCaseDefinition,
-    ClientVariant,
-    HitlRoutingConfig,
-    LangfuseConfig,
-    ExperimentManifest,
-    ExperimentRunSummary,
-    ExperimentProgress,
-    ExperimentRun,
-    ExperimentCase,
-)
-
-# Integration models
-from .integration import (
-    IntegrationConfig,
-    IntegrationTokens,
-    OAuthTokenResponse,
-    IntegrationProvider,
-)
+from .vizu_client_context import VizuClientContext
 
 
 class Base(SQLModel):

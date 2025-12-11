@@ -3,24 +3,23 @@ Vendas Agent API routes.
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException
 
-from vizu_context_service.dependencies import get_context_service
-from vizu_context_service.context_service import ContextService
-from vizu_auth.core.models import AuthResult
-from vizu_models.safe_client_context import InternalClientContext
+from fastapi import APIRouter, Depends, HTTPException
 
 from vendas_agent.api.auth import get_auth_result
 from vendas_agent.api.schemas import (
+    ElicitationOption,
+    ElicitationRequest,
+    ElicitationType,
+    ToolInfo,
     VendasChatRequest,
     VendasChatResponse,
     VendasContextResponse,
-    ToolInfo,
-    ElicitationRequest,
-    ElicitationOption,
-    ElicitationType,
 )
 from vendas_agent.core.service import VendasService
+from vizu_auth.core.models import AuthResult
+from vizu_context_service.context_service import ContextService
+from vizu_context_service.dependencies import get_context_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -153,6 +152,7 @@ async def get_client_context(
     Shows which tools are enabled and sales-specific features.
     """
     from uuid import UUID
+
     from vizu_tool_registry import ToolRegistry
 
     try:

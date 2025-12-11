@@ -8,31 +8,28 @@ authentication, dependency injection, middleware, and tool execution.
 __version__ = "0.1.0"
 
 # Core exports
+from vizu_mcp_commons.auth import (
+    TokenClaims,
+    TokenValidator,
+)
+from vizu_mcp_commons.dependencies import (
+    DependencyContainer,
+    get_context_service,
+    get_db_session,
+    get_redis_client,
+)
 from vizu_mcp_commons.exceptions import (
-    MCPError,
     MCPAuthError,
     MCPAuthorizationError,
-    MCPToolError,
     MCPContextError,
-    MCPValidationError,
+    MCPError,
     MCPTimeoutError,
+    MCPToolError,
+    MCPValidationError,
 )
-
-from vizu_mcp_commons.auth import (
-    TokenValidator,
-    TokenClaims,
-)
-
-from vizu_mcp_commons.dependencies import (
-    get_context_service,
-    get_redis_client,
-    get_db_session,
-    DependencyContainer,
-)
-
 from vizu_mcp_commons.tool_executor import (
-    ToolExecutor,
     ToolCall,
+    ToolExecutor,
     ToolResult,
 )
 

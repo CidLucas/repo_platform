@@ -15,9 +15,8 @@ This migration replaces 3 boolean tool flags with a single dynamic list:
 - ferramenta_agendamento_habilitada -> 'agendar_consulta' in enabled_tools
 """
 
+
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "20251205_add_enabled_tools"

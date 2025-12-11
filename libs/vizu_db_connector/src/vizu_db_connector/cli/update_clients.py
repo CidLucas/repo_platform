@@ -8,10 +8,12 @@ Uso:
 
 import logging
 import os
-from typing import Dict, Any
+from typing import Any
+
 from sqlmodel import Session, create_engine, select
 
 from vizu_models import ClienteVizu
+
 from .seed import SEED_CLIENTS
 
 # Configuracao de log
@@ -19,7 +21,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 
-def update_client(session: Session, client_data: Dict[str, Any]) -> bool:
+def update_client(session: Session, client_data: dict[str, Any]) -> bool:
     """Atualiza um cliente existente com novos dados."""
     nome = client_data["nome_empresa"]
 

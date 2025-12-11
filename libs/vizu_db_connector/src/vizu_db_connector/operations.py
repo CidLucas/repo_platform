@@ -1,16 +1,18 @@
 # libs/vizu_db_connector/src/vizu_db_connector/operations.py
 
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import NoResultFound
-from typing import Dict, Any, Generator, Tuple
-from contextlib import contextmanager
 import uuid
+from collections.abc import Generator
+from contextlib import contextmanager
+from typing import Any
 
-# Importa a fábrica de sessões do setup de DB
-from .database import SessionLocal
+from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import Session
 
 # Importa o modelo ORM que será usado para salvar e buscar
 from vizu_models import CredencialServicoExterno
+
+# Importa a fábrica de sessões do setup de DB
+from .database import SessionLocal
 
 
 class VizuDBConnector:
@@ -33,7 +35,7 @@ class VizuDBConnector:
             db.close()
 
     # --- MÉTODOS REQUERIDOS PELA DATA_INGESTION_API (Transacional) ---
-    async def save_credential_reference(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    async def save_credential_reference(self, data: dict[str, Any]) -> dict[str, Any]:
         """
         Salva a referência da credencial (Secret ID) no DB (PostgreSQL).
         Transacional: Garante commit ou rollback da operação.
@@ -59,7 +61,7 @@ class VizuDBConnector:
     # --- MÉTODOS REQUERIDOS PELO DATA_PROCESSING WORKER ---
     async def get_secret_manager_id_and_type(
         self, id_credencial: str
-    ) -> Tuple[str, str]:
+    ) -> tuple[str, str]:
         """
         Busca o Secret ID (referência) e o tipo de serviço (ex: GOOGLE_ADS) para o Worker.
         """
@@ -106,8 +108,9 @@ class VizuDBConnector:
             cliente_vizu_id: ID do cliente Vizu (obrigatório para RLS)
         """
         with self._get_db() as db:
-            from vizu_models import Conversa
             import uuid
+
+            from vizu_models import Conversa
 
             if session_id:
                 existente = (
@@ -142,8 +145,9 @@ class VizuDBConnector:
         remetente: 'user' ou 'ai' (lowercase)
         """
         with self._get_db() as db:
-            from vizu_models import Mensagem, Remetente
             import uuid
+
+            from vizu_models import Mensagem, Remetente
 
             try:
                 cid = uuid.UUID(conversa_id)

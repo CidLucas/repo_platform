@@ -4,9 +4,9 @@ Google Suite clients (Sheets, Gmail, Calendar) for Vizu.
 """
 
 from .base import BaseGoogleClient
-from .sheets.client import GoogleSheetsClient
-from .gmail.client import GoogleGmailClient
 from .calendar.client import GoogleCalendarClient
+from .gmail.client import GoogleGmailClient
+from .sheets.client import GoogleSheetsClient
 
 __all__ = [
     "BaseGoogleClient",

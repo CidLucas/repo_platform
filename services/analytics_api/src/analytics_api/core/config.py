@@ -1,6 +1,7 @@
 # src/analytics_api/core/config.py
-from pydantic_settings import BaseSettings, SettingsConfigDict
 import logging
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 

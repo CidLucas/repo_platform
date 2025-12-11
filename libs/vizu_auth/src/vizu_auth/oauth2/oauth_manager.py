@@ -1,7 +1,6 @@
-from typing import Optional
 
-from .models import OAuthConfig, TokenResponse
 from .google_provider import GoogleOAuth2Provider
+from .models import OAuthConfig, TokenResponse
 
 
 class OAuthManager:

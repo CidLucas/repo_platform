@@ -1,22 +1,21 @@
 # services/embedding_service/src/main.py
 
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, validator
-from typing import List, Union, Any, Optional
-import json
 import io
-from .service import get_model_singleton
-from .config import get_embedding_settings
+
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from pydantic import BaseModel, validator
 
 # Import chunking utilities
-from vizu_parsers import parse_and_chunk, chunk_text, ChunkingStrategy
+from vizu_parsers import ChunkingStrategy, chunk_text, parse_and_chunk
+
+from .config import get_embedding_settings
+from .service import get_model_singleton
 
 # ---- Schemas (Contratos) da API ----
 
 class EmbedRequest(BaseModel):
     """O que a API espera receber no body de um POST"""
-    texts: List[str]
+    texts: list[str]
     mode: str = "document"  # "document" ou "query" - controla o prefixo E5
 
     @validator('texts', pre=True)
@@ -28,7 +27,7 @@ class EmbedRequest(BaseModel):
 
 class EmbedResponse(BaseModel):
     """O que a API retorna"""
-    embeddings: List[List[float]]
+    embeddings: list[list[float]]
 
 
 class ChunkRequest(BaseModel):
@@ -38,19 +37,19 @@ class ChunkRequest(BaseModel):
     chunk_overlap: int = 50
     strategy: str = "semantic"  # semantic, by_sentence, by_paragraph, by_char
     min_chunk_size: int = 100
-    metadata: Optional[dict] = None
+    metadata: dict | None = None
 
 
 class ChunkResponse(BaseModel):
     """Response for text chunking"""
-    chunks: List[dict]
+    chunks: list[dict]
     total_chunks: int
     original_length: int
 
 
 class ProcessRequest(BaseModel):
     """Request body for combined parse+chunk+embed"""
-    text: Optional[str] = None
+    text: str | None = None
     chunk_size: int = 512
     chunk_overlap: int = 50
     strategy: str = "semantic"
@@ -60,8 +59,8 @@ class ProcessRequest(BaseModel):
 
 class ProcessResponse(BaseModel):
     """Response for combined processing"""
-    chunks: List[dict]
-    embeddings: Optional[List[List[float]]] = None
+    chunks: list[dict]
+    embeddings: list[list[float]] | None = None
     total_chunks: int
     original_length: int
 

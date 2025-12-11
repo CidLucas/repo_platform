@@ -11,10 +11,10 @@ This module provides the DockerMCPBridge class which handles:
 """
 
 import logging
-from typing import Dict, Optional, List, Any
+from typing import Any
 
-from .tool_metadata import ToolMetadata, ToolCategory, TierLevel
 from .exceptions import DockerMCPConnectionError
+from .tool_metadata import TierLevel, ToolCategory, ToolMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class DockerMCPBridge:
     """
 
     # Supported Docker MCP integrations with their default configurations
-    SUPPORTED_INTEGRATIONS: Dict[str, Dict[str, Any]] = {
+    SUPPORTED_INTEGRATIONS: dict[str, dict[str, Any]] = {
         "github": {
             "image": "docker.io/modelcontextprotocol/mcp-github:latest",
             "port": 3000,
@@ -106,7 +106,7 @@ class DockerMCPBridge:
             docker_host: Docker daemon host (default: localhost)
         """
         self.docker_host = docker_host
-        self.connected_integrations: Dict[str, bool] = {}
+        self.connected_integrations: dict[str, bool] = {}
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -120,7 +120,7 @@ class DockerMCPBridge:
             logger.warning(f"Docker MCP Bridge initialization failed: {e}")
             self._initialized = False
 
-    async def discover_docker_mcp_servers(self) -> Dict[str, ToolMetadata]:
+    async def discover_docker_mcp_servers(self) -> dict[str, ToolMetadata]:
         """
         Discover available Docker MCP servers and map to tools.
 
@@ -133,7 +133,7 @@ class DockerMCPBridge:
         if not self._initialized:
             await self.initialize()
 
-        docker_mcp_tools: Dict[str, ToolMetadata] = {}
+        docker_mcp_tools: dict[str, ToolMetadata] = {}
 
         for integration, config in self.SUPPORTED_INTEGRATIONS.items():
             try:
@@ -187,7 +187,7 @@ class DockerMCPBridge:
         self,
         integration: str,
         tool_name: str,
-        arguments: Dict[str, Any],
+        arguments: dict[str, Any],
     ) -> Any:
         """
         Call a tool on a Docker MCP server.
@@ -243,7 +243,7 @@ class DockerMCPBridge:
             raise DockerMCPConnectionError(integration, str(e))
 
     def _build_connection_url(
-        self, integration: str, config: Dict[str, Any]
+        self, integration: str, config: dict[str, Any]
     ) -> str:
         """Build connection URL for Docker MCP integration."""
         port = config.get("port", 3000)
@@ -262,11 +262,11 @@ class DockerMCPBridge:
         """
         return f"docker://mcp-{integration}:latest"
 
-    def get_integration_status(self) -> Dict[str, bool]:
+    def get_integration_status(self) -> dict[str, bool]:
         """Get connection status for all integrations."""
         return self.connected_integrations.copy()
 
-    def get_available_integrations(self) -> List[str]:
+    def get_available_integrations(self) -> list[str]:
         """Get list of connected integrations."""
         return [
             name

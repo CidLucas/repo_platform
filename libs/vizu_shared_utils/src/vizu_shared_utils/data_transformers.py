@@ -1,12 +1,14 @@
 # libs/vizu_shared_utils/data_transformers.py
 
-import pandas as pd
-from typing import Dict
-from vizu_models.ingestion.schema_config import ColumnFormat, ColumnConfig
-from vizu_models.ingestion.vizu_schema import VizuCanonicalColumn
-from vizu_shared_utils.text_utils import normalize_text # Importa a função modular
 
-def transform_data(df: pd.DataFrame, mappings: Dict[VizuCanonicalColumn, ColumnConfig]) -> pd.DataFrame:
+import pandas as pd
+
+from vizu_models.ingestion.schema_config import ColumnConfig, ColumnFormat
+from vizu_models.ingestion.vizu_schema import VizuCanonicalColumn
+from vizu_shared_utils.text_utils import normalize_text  # Importa a função modular
+
+
+def transform_data(df: pd.DataFrame, mappings: dict[VizuCanonicalColumn, ColumnConfig]) -> pd.DataFrame:
     """
     Normaliza os dados brutos de um cliente para o Schema Canônico Vizu.
     """

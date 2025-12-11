@@ -5,10 +5,11 @@ Provides integration with FastMCP for exposing prompts as MCP resources.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Callable
+from collections.abc import Callable
+from typing import Any
 
-from vizu_prompt_management.loader import PromptLoader, LoadedPrompt
-from vizu_prompt_management.templates import BUILTIN_TEMPLATES, PromptCategory
+from vizu_prompt_management.loader import PromptLoader
+from vizu_prompt_management.templates import BUILTIN_TEMPLATES
 from vizu_prompt_management.variables import VariableExtractor
 
 logger = logging.getLogger(__name__)
@@ -24,8 +25,8 @@ class MCPPromptBuilder:
     def __init__(
         self,
         mcp: Any,
-        loader: Optional[PromptLoader] = None,
-        context_service_factory: Optional[Callable] = None,
+        loader: PromptLoader | None = None,
+        context_service_factory: Callable | None = None,
     ):
         """
         Initialize MCPPromptBuilder.
@@ -39,7 +40,7 @@ class MCPPromptBuilder:
         self.loader = loader or PromptLoader()
         self.context_service_factory = context_service_factory
 
-    def register_standard_prompts(self) -> List[str]:
+    def register_standard_prompts(self) -> list[str]:
         """
         Register all standard built-in prompts with MCP.
 
@@ -58,8 +59,8 @@ class MCPPromptBuilder:
     def register_prompt(
         self,
         name: str,
-        description: Optional[str] = None,
-        required_args: Optional[List[str]] = None,
+        description: str | None = None,
+        required_args: list[str] | None = None,
     ) -> None:
         """
         Register a single prompt with MCP.
@@ -107,8 +108,8 @@ class MCPPromptBuilder:
     def _register_dynamic_prompt(
         self,
         name: str,
-        description: Optional[str],
-        required_args: Optional[List[str]],
+        description: str | None,
+        required_args: list[str] | None,
     ) -> None:
         """Register a dynamic prompt from database."""
         try:
@@ -196,6 +197,7 @@ class MCPPromptBuilder:
         """
         try:
             import json
+
             from fastmcp.prompts import Message
 
             loader = self.loader
@@ -203,8 +205,8 @@ class MCPPromptBuilder:
             def db_render_prompt(
                 name: str,
                 variables: str = "{}",
-                version: Optional[str] = None,
-                cliente_id: Optional[str] = None,
+                version: str | None = None,
+                cliente_id: str | None = None,
             ) -> list:
                 """
                 Render a prompt from the database with variables.
@@ -256,10 +258,10 @@ class MCPPromptBuilder:
 
 def register_prompts_with_mcp(
     mcp: Any,
-    db_session: Optional[Any] = None,
-    context_service_factory: Optional[Callable] = None,
-    prompts_to_register: Optional[List[str]] = None,
-) -> List[str]:
+    db_session: Any | None = None,
+    context_service_factory: Callable | None = None,
+    prompts_to_register: list[str] | None = None,
+) -> list[str]:
     """
     Convenience function to register prompts with an MCP server.
 

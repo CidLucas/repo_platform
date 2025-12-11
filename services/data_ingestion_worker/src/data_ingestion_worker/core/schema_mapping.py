@@ -27,7 +27,7 @@ _CLIENT_MAPPINGS = {
         # IDs e Transação
         "id_operatorinvoice": "order_id",
         "createdat_product": "data_transacao",        # Mantido do mapeamento original
-        
+
         # Valores/Métricas
         "quantitytraded_product": "quantidade",
         "unitpricekg_product": "valor_unitario",
@@ -38,16 +38,16 @@ _CLIENT_MAPPINGS = {
         "emitterlegalname": "emitter_nome",
         "emittercity": "emitter_cidade",
         "emitterstateuf": "emitter_estado_uf",
-        
+
         # Receptor (Cliente)
         "receiverlegalname": "receiver_nome",
         "receivercity": "receiver_cidade",
-        
+
         # Produto (Campos Brutos para Normalização)
         "description_product": "raw_product_description", # Será normalizado pelo analytics_api
         "material": "raw_product_category",       # Será normalizado pelo analytics_api
         "ncm": "raw_ncm",                         # Será normalizado pelo analytics_api
-        
+
         # Fiscal (Campo Bruto para Normalização)
         "cfop": "raw_cfop",                       # Será normalizado pelo analytics_api
 
@@ -55,9 +55,9 @@ _CLIENT_MAPPINGS = {
         "emitterlegalname": "emitter_nome",
         "emitterlegaldoc": "emitter_cnpj",
         "emitterphone": "emitter_telefone",
-        "emitterstateuf": "emitter_estado", 
-        "emittercity": "emitter_cidade", 
-        
+        "emitterstateuf": "emitter_estado",
+        "emittercity": "emitter_cidade",
+
         # Dados Cadastrais do Receptor (Cliente)
         "receiverlegalname": "receiver_nome",
         "receiverlegaldoc": "receiver_cnpj",
@@ -82,7 +82,7 @@ def get_schema_mapping(client_id: str) -> dict[str, str]:
         logger.error(f"Mapeamento de schema não encontrado para o client_id: {client_id}")
         # É crucial falhar aqui para evitar ingestão de dados incorretos
         raise ValueError(f"Mapeamento de schema não encontrado para {client_id}")
-    
+
     logger.info(f"Mapeamento de schema carregado para {client_id}")
     return mapping
 

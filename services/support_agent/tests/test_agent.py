@@ -2,10 +2,10 @@
 Tests for SupportAgent.
 """
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import pytest
 from support_agent.core.agent import SupportAgent
 
 

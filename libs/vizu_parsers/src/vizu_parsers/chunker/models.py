@@ -1,7 +1,7 @@
 """Data models for text chunking."""
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import Any
 
 
 @dataclass
@@ -20,14 +20,14 @@ class Chunk:
     index: int
     start_char: int
     end_char: int
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def length(self) -> int:
         """Return the length of the chunk text."""
         return len(self.text)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert chunk to a dictionary."""
         return {
             "text": self.text,

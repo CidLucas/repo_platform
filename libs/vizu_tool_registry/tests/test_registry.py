@@ -7,14 +7,11 @@ These tests verify:
 - ToolMetadata tier comparison
 """
 
-import pytest
 from vizu_tool_registry import (
-    ToolRegistry,
     TierValidator,
-    ToolMetadata,
     ToolCategory,
-    ToolNotFoundError,
-    TierAccessDeniedError,
+    ToolMetadata,
+    ToolRegistry,
 )
 from vizu_tool_registry.tool_metadata import TierLevel
 

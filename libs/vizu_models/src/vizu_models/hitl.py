@@ -10,11 +10,12 @@ Este módulo define:
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Any
 from uuid import UUID, uuid4
-from pydantic import BaseModel, Field
-from sqlmodel import SQLModel, Field as SQLField, Column, JSON
 
+from pydantic import BaseModel, Field
+from sqlmodel import JSON, Column, SQLModel
+from sqlmodel import Field as SQLField
 
 # ============================================================================
 # ENUMS
@@ -67,7 +68,7 @@ class HitlCriterion(BaseModel):
     type: HitlCriteriaType
     enabled: bool = True
     priority: int = 1  # Maior = mais prioritário
-    params: Dict[str, Any] = Field(default_factory=dict)
+    params: dict[str, Any] = Field(default_factory=dict)
 
     class Config:
         use_enum_values = True
@@ -87,7 +88,7 @@ class HitlConfig(BaseModel):
     """
 
     enabled: bool = False
-    criteria: List[HitlCriterion] = Field(default_factory=list)
+    criteria: list[HitlCriterion] = Field(default_factory=list)
 
     # Queue settings
     queue_ttl_hours: int = 24  # Tempo máximo na fila antes de expirar
@@ -95,12 +96,12 @@ class HitlConfig(BaseModel):
 
     # Notification settings
     notify_on_pending: bool = False
-    notify_email: Optional[str] = None
-    notify_webhook_url: Optional[str] = None
+    notify_email: str | None = None
+    notify_webhook_url: str | None = None
 
     # Dataset settings (Langfuse integration)
     auto_add_to_dataset: bool = True
-    dataset_name: Optional[str] = None  # Nome do dataset no Langfuse
+    dataset_name: str | None = None  # Nome do dataset no Langfuse
 
     class Config:
         use_enum_values = True
@@ -133,7 +134,7 @@ class HitlReviewBase(SQLModel):
     # Identificadores
     session_id: str = SQLField(index=True)
     cliente_vizu_id: UUID = SQLField(index=True)
-    cliente_final_id: Optional[int] = SQLField(default=None, index=True)
+    cliente_final_id: int | None = SQLField(default=None, index=True)
 
     # Conteúdo da interação
     user_message: str
@@ -141,18 +142,18 @@ class HitlReviewBase(SQLModel):
 
     # Metadata do roteamento
     criteria_triggered: str  # HitlCriteriaType value
-    confidence_score: Optional[float] = None
-    criteria_details: Dict[str, Any] = SQLField(
+    confidence_score: float | None = None
+    criteria_details: dict[str, Any] = SQLField(
         default_factory=dict, sa_column=Column(JSON)
     )
 
     # Metadata adicional (tools chamadas, trace_id, etc.)
-    trace_id: Optional[str] = None
-    tools_called: List[str] = SQLField(default_factory=list, sa_column=Column(JSON))
-    model_used: Optional[str] = None
+    trace_id: str | None = None
+    tools_called: list[str] = SQLField(default_factory=list, sa_column=Column(JSON))
+    model_used: str | None = None
 
     # Contexto (para reproduzir a situação)
-    conversation_context: List[Dict[str, Any]] = SQLField(
+    conversation_context: list[dict[str, Any]] = SQLField(
         default_factory=list, sa_column=Column(JSON)
     )
 
@@ -171,18 +172,18 @@ class HitlReview(HitlReviewBase, table=True):
     # Status e timestamps
     status: str = SQLField(default=HitlReviewStatus.PENDING.value, index=True)
     created_at: datetime = SQLField(default_factory=datetime.utcnow)
-    reviewed_at: Optional[datetime] = None
-    expires_at: Optional[datetime] = None
+    reviewed_at: datetime | None = None
+    expires_at: datetime | None = None
 
     # Review data (preenchido pelo revisor)
-    reviewer_id: Optional[str] = None  # Email ou ID do revisor
-    corrected_response: Optional[str] = None
-    feedback_type: Optional[str] = None  # HitlFeedbackType value
-    feedback_notes: Optional[str] = None
-    feedback_tags: List[str] = SQLField(default_factory=list, sa_column=Column(JSON))
+    reviewer_id: str | None = None  # Email ou ID do revisor
+    corrected_response: str | None = None
+    feedback_type: str | None = None  # HitlFeedbackType value
+    feedback_notes: str | None = None
+    feedback_tags: list[str] = SQLField(default_factory=list, sa_column=Column(JSON))
 
     # Langfuse integration
-    langfuse_dataset_item_id: Optional[str] = None
+    langfuse_dataset_item_id: str | None = None
 
 
 # ============================================================================
@@ -202,23 +203,23 @@ class HitlReviewRead(HitlReviewBase):
     id: UUID
     status: str
     created_at: datetime
-    reviewed_at: Optional[datetime]
-    expires_at: Optional[datetime]
-    reviewer_id: Optional[str]
-    corrected_response: Optional[str]
-    feedback_type: Optional[str]
-    feedback_notes: Optional[str]
-    feedback_tags: List[str]
+    reviewed_at: datetime | None
+    expires_at: datetime | None
+    reviewer_id: str | None
+    corrected_response: str | None
+    feedback_type: str | None
+    feedback_notes: str | None
+    feedback_tags: list[str]
 
 
 class HitlReviewUpdate(BaseModel):
     """Schema para atualizar um HitlReview (ação do revisor)."""
 
     status: HitlReviewStatus
-    corrected_response: Optional[str] = None
-    feedback_type: Optional[HitlFeedbackType] = None
-    feedback_notes: Optional[str] = None
-    feedback_tags: List[str] = Field(default_factory=list)
+    corrected_response: str | None = None
+    feedback_type: HitlFeedbackType | None = None
+    feedback_notes: str | None = None
+    feedback_tags: list[str] = Field(default_factory=list)
 
 
 class HitlQueueStats(BaseModel):
@@ -226,10 +227,10 @@ class HitlQueueStats(BaseModel):
 
     total_pending: int
     total_today: int
-    by_criteria: Dict[str, int]
-    by_client: Dict[str, int]
-    avg_review_time_minutes: Optional[float]
-    oldest_pending_hours: Optional[float]
+    by_criteria: dict[str, int]
+    by_client: dict[str, int]
+    avg_review_time_minutes: float | None
+    oldest_pending_hours: float | None
 
 
 class HitlDecision(BaseModel):
@@ -241,6 +242,6 @@ class HitlDecision(BaseModel):
     """
 
     should_review: bool
-    criteria_triggered: Optional[HitlCriteriaType] = None
-    confidence_score: Optional[float] = None
-    details: Dict[str, Any] = Field(default_factory=dict)
+    criteria_triggered: HitlCriteriaType | None = None
+    confidence_score: float | None = None
+    details: dict[str, Any] = Field(default_factory=dict)

@@ -1,6 +1,7 @@
 import logging
-from fastapi import FastAPI
 from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
 
 # Importações de componentes da nossa aplicação
 # (O router ainda não existe, mas já deixamos o import)

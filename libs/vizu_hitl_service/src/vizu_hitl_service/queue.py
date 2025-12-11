@@ -8,16 +8,16 @@ Gerencia a fila de interações pendentes de revisão humana.
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import List, Optional
 from uuid import UUID
+
 import redis
 
 from vizu_models import (
+    HitlQueueStats,
     HitlReview,
     HitlReviewCreate,
     HitlReviewRead,
     HitlReviewStatus,
-    HitlQueueStats,
 )
 
 logger = logging.getLogger(__name__)
@@ -120,8 +120,8 @@ class HitlQueue:
         return full_review
 
     def dequeue(
-        self, cliente_vizu_id: Optional[UUID] = None
-    ) -> Optional[HitlReviewRead]:
+        self, cliente_vizu_id: UUID | None = None
+    ) -> HitlReviewRead | None:
         """
         Remove e retorna a próxima revisão da fila.
 
@@ -158,10 +158,10 @@ class HitlQueue:
 
     def get_pending(
         self,
-        cliente_vizu_id: Optional[UUID] = None,
+        cliente_vizu_id: UUID | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> List[HitlReviewRead]:
+    ) -> list[HitlReviewRead]:
         """
         Lista revisões pendentes.
 
@@ -193,7 +193,7 @@ class HitlQueue:
 
         return reviews
 
-    def get_review(self, review_id: UUID) -> Optional[HitlReviewRead]:
+    def get_review(self, review_id: UUID) -> HitlReviewRead | None:
         """Busca uma revisão específica."""
         return self._get_review_data(str(review_id))
 
@@ -202,11 +202,11 @@ class HitlQueue:
         review_id: UUID,
         status: HitlReviewStatus,
         reviewer_id: str,
-        corrected_response: Optional[str] = None,
-        feedback_type: Optional[str] = None,
-        feedback_notes: Optional[str] = None,
-        feedback_tags: Optional[List[str]] = None,
-    ) -> Optional[HitlReviewRead]:
+        corrected_response: str | None = None,
+        feedback_type: str | None = None,
+        feedback_notes: str | None = None,
+        feedback_tags: list[str] | None = None,
+    ) -> HitlReviewRead | None:
         """
         Atualiza uma revisão com o feedback do revisor.
 
@@ -258,7 +258,7 @@ class HitlQueue:
         )
         return self._get_review_data(str(review_id))
 
-    def get_stats(self, cliente_vizu_id: Optional[UUID] = None) -> HitlQueueStats:
+    def get_stats(self, cliente_vizu_id: UUID | None = None) -> HitlQueueStats:
         """Retorna estatísticas da fila."""
         if cliente_vizu_id:
             pending_key = f"{self.PENDING_KEY_PREFIX}{cliente_vizu_id}"
@@ -320,7 +320,7 @@ class HitlQueue:
     # PRIVATE METHODS
     # ========================================================================
 
-    def _get_review_data(self, review_id: str) -> Optional[HitlReviewRead]:
+    def _get_review_data(self, review_id: str) -> HitlReviewRead | None:
         """Busca dados completos de uma revisão."""
         review_key = f"{self.REVIEW_KEY_PREFIX}{review_id}"
         data = self.redis.hgetall(review_key)

@@ -1,16 +1,17 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 from fastapi.testclient import TestClient
-from google.cloud import storage
-from google.cloud.pubsub_v1 import PublisherClient
+from file_upload_api.api.router import (
+    get_gcp_publisher_client,
+    get_gcp_storage_client,
+)
+from file_upload_api.core.config import Settings, get_settings
 
 # Importações da nossa aplicação
 from file_upload_api.main import create_app
-from file_upload_api.core.config import Settings, get_settings
-from file_upload_api.api.router import (
-    get_gcp_storage_client,
-    get_gcp_publisher_client,
-)
+from google.cloud import storage
+from google.cloud.pubsub_v1 import PublisherClient
 
 # --- Fixture 1: Configurações de Teste (Padrão Vizu: Agnóstico) ---
 

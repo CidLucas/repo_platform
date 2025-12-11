@@ -5,10 +5,10 @@ Redis-backed storage for pending elicitations.
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Any
+from typing import Any
 
-from vizu_elicitation_service.models import PendingElicitation
 from vizu_elicitation_service.exceptions import ElicitationNotFoundError
+from vizu_elicitation_service.models import PendingElicitation
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class PendingElicitationStore:
         self,
         session_id: str,
         elicitation: PendingElicitation,
-        ttl_seconds: Optional[int] = None,
+        ttl_seconds: int | None = None,
     ) -> None:
         """
         Save a pending elicitation.
@@ -67,7 +67,7 @@ class PendingElicitationStore:
         data = json.dumps(elicitation_data)
 
         # Use async if available, fallback to sync
-        if hasattr(self.redis, "set") and callable(getattr(self.redis, "set")):
+        if hasattr(self.redis, "set") and callable(self.redis.set):
             try:
                 await self.redis.set(key, data, ex=ttl)
             except TypeError:
@@ -76,7 +76,7 @@ class PendingElicitationStore:
 
         logger.debug(f"Saved elicitation {elicitation.get('elicitation_id')} for session {session_id}")
 
-    async def get(self, session_id: str) -> Optional[PendingElicitation]:
+    async def get(self, session_id: str) -> PendingElicitation | None:
         """
         Get pending elicitation for session.
 
@@ -201,7 +201,7 @@ class PendingElicitationStore:
 
         return True
 
-    async def get_ttl(self, session_id: str) -> Optional[int]:
+    async def get_ttl(self, session_id: str) -> int | None:
         """
         Get remaining TTL for pending elicitation.
 

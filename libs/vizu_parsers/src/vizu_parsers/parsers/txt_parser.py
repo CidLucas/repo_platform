@@ -2,7 +2,7 @@
 
 import io
 import logging
-from typing import Union, BinaryIO
+from typing import BinaryIO
 
 from vizu_parsers.parsers.base_parser import BaseParser
 
@@ -23,7 +23,7 @@ class TXTParser(BaseParser):
         """
         self.encoding = encoding
 
-    def parse(self, file_stream: Union[io.BytesIO, BinaryIO]) -> str:
+    def parse(self, file_stream: io.BytesIO | BinaryIO) -> str:
         """
         Read a text file stream and return its content.
 

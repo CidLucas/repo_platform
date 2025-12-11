@@ -1,6 +1,5 @@
-import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 

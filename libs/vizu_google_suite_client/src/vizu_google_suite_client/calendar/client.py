@@ -1,6 +1,6 @@
 """Google Calendar Client implementation"""
 from datetime import datetime
-from typing import List, Optional
+
 from ..base import BaseGoogleClient
 from .models import CalendarEvent
 
@@ -23,7 +23,7 @@ class GoogleCalendarClient(BaseGoogleClient):
         time_min: datetime,
         time_max: datetime,
         max_results: int = 100,
-    ) -> List[CalendarEvent]:
+    ) -> list[CalendarEvent]:
         """List calendar events within a time range."""
         service = self._build_service()
 
@@ -64,9 +64,9 @@ class GoogleCalendarClient(BaseGoogleClient):
         summary: str,
         start: datetime,
         end: datetime,
-        description: Optional[str] = None,
-        attendees: Optional[List[str]] = None,
-        location: Optional[str] = None,
+        description: str | None = None,
+        attendees: list[str] | None = None,
+        location: str | None = None,
     ) -> CalendarEvent:
         """Create a new calendar event."""
         service = self._build_service()

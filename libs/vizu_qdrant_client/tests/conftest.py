@@ -1,9 +1,10 @@
-import pytest
 import uuid
-from qdrant_client import QdrantClient
+
+import pytest
 
 # Importamos nosso cliente
 from vizu_qdrant_client.client import VizuQdrantClient
+
 
 # Define um nome de coleção único para cada execução de teste, evitando conflitos
 # O uso de `scope="session"` significa que esta fixture será executada uma vez por sessão de teste.

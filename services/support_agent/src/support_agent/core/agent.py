@@ -5,14 +5,13 @@ This is the CORE of the agent - only ~70 lines thanks to the shared framework!
 """
 
 import logging
-from typing import Any, Dict, Optional
-from uuid import UUID
+from typing import Any
 
 from langgraph.graph.graph import CompiledGraph
 
-from vizu_agent_framework import AgentBuilder, AgentConfig, SUPPORT_CONFIG
-from vizu_tool_registry import ToolRegistry
+from vizu_agent_framework import AgentBuilder, AgentConfig
 from vizu_models import VizuClientContext
+from vizu_tool_registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +31,9 @@ class SupportAgent:
     def __init__(
         self,
         cliente_context: VizuClientContext,
-        redis_client: Optional[Any] = None,
-        llm_client: Optional[Any] = None,
-        mcp_url: Optional[str] = None,
+        redis_client: Any | None = None,
+        llm_client: Any | None = None,
+        mcp_url: str | None = None,
     ):
         """
         Initialize the support agent.
@@ -100,9 +99,9 @@ class SupportAgent:
         self,
         message: str,
         session_id: str,
-        elicitation_response: Optional[Dict[str, Any]] = None,
-        ticket_context: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        elicitation_response: dict[str, Any] | None = None,
+        ticket_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Process a user message.
 
@@ -147,11 +146,11 @@ class SupportAgent:
             "severity": self._extract_severity(result),
         }
 
-    def _extract_issue_category(self, result: Dict[str, Any]) -> Optional[str]:
+    def _extract_issue_category(self, result: dict[str, Any]) -> str | None:
         """Extract issue category from classification results."""
         # Could be set by classification elicitation or tool
         return result.get("issue_category")
 
-    def _extract_severity(self, result: Dict[str, Any]) -> Optional[str]:
+    def _extract_severity(self, result: dict[str, Any]) -> str | None:
         """Extract issue severity from classification."""
         return result.get("severity", "medium")

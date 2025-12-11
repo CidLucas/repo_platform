@@ -1,7 +1,8 @@
 import os
 import sys
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool, String
+
+from sqlalchemy import String, engine_from_config, pool
 
 from alembic import context
 

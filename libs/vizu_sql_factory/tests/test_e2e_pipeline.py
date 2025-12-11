@@ -10,15 +10,14 @@ Tests individual components and their interactions:
 These are component tests (not full pipeline with DB/LLM).
 """
 
+
 import pytest
-from uuid import uuid4
 
 from vizu_sql_factory import (
-    TextToSqlExecutor,
     ExecutionConfig,
     ResultSanitizer,
-    SqlValidator,
     SqlParser,
+    SqlValidator,
 )
 
 

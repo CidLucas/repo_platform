@@ -10,7 +10,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional, Dict, Any, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +35,8 @@ class ValidationError:
     type: ValidationErrorType
     message: str
     severity: str = "error"  # "error" or "warning"
-    suggestion: Optional[str] = None
-    position: Optional[int] = None  # Character position in SQL
+    suggestion: str | None = None
+    position: int | None = None  # Character position in SQL
 
     def __str__(self) -> str:
         return f"[{self.type.value}] {self.message}"
@@ -47,12 +47,12 @@ class ValidationResult:
     """Result of SQL validation."""
     is_valid: bool
     original_sql: str
-    normalized_sql: Optional[str] = None  # Rewritten SQL if applicable
-    errors: List[ValidationError] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
-    checks_passed: List[str] = field(default_factory=list)
-    execution_plan: Optional[str] = None  # For observability
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    normalized_sql: str | None = None  # Rewritten SQL if applicable
+    errors: list[ValidationError] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    checks_passed: list[str] = field(default_factory=list)
+    execution_plan: str | None = None  # For observability
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def has_errors(self) -> bool:
         """Check if validation has blocking errors."""
@@ -70,7 +70,7 @@ class ValidationResult:
             return "No errors"
         return "; ".join(str(e) for e in self.errors)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary."""
         return {
             "is_valid": self.is_valid,
@@ -117,7 +117,7 @@ class SqlValidator:
         self.max_query_length = max_query_length
         logger.info(f"SqlValidator initialized (max_length={max_query_length})")
 
-    def parse(self, sql: str) -> Tuple[bool, Optional[str]]:
+    def parse(self, sql: str) -> tuple[bool, str | None]:
         """
         Basic SQL parsing to detect syntax errors.
 
@@ -351,7 +351,7 @@ class SqlValidator:
     # Validation Check Methods (Stubs for Phase 0, Implementation in Phase 2)
     # ========================================================================
 
-    def _check_no_ddl_dml(self, sql: str) -> Tuple[bool, Optional[str]]:
+    def _check_no_ddl_dml(self, sql: str) -> tuple[bool, str | None]:
         """Check that query doesn't contain DDL/DML."""
         # Keywords that indicate DDL/DML
         ddl_dml_keywords = [
@@ -372,7 +372,7 @@ class SqlValidator:
         sql: str,
         tenant_id: str,
         role: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Check that only allowed views are referenced."""
         # Stub: extract view names from FROM/JOIN clauses
         # For Phase 0, we accept all views; real validation in Phase 2
@@ -405,7 +405,7 @@ class SqlValidator:
         self,
         sql: str,
         tenant_id: str,
-    ) -> Tuple[bool, List[str]]:
+    ) -> tuple[bool, list[str]]:
         """Check for mandatory tenant_id filter in WHERE clause."""
         # Stub: look for 'client_id = <tenant_id>' or similar
         # For Phase 0, we assume tenant filtering is in views
@@ -429,7 +429,7 @@ class SqlValidator:
             # Real validation would check view definition in Phase 2
             return True, []
 
-    def _check_limit_present(self, sql: str) -> Tuple[bool, Optional[int]]:
+    def _check_limit_present(self, sql: str) -> tuple[bool, int | None]:
         """Check that query has a LIMIT clause."""
         match = re.search(r"\bLIMIT\s+(\d+)", sql, re.IGNORECASE)
         if match:
@@ -441,7 +441,7 @@ class SqlValidator:
         sql: str,
         tenant_id: str,
         role: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Check that only allowed aggregate functions are used."""
         allowed_aggs = []
         if self.allowlist_config:
@@ -470,7 +470,7 @@ class SqlValidator:
     # Rewrite Methods (Stubs for Phase 0, Implementation in Phase 2)
     # ========================================================================
 
-    def _rewrite_select_star(self, sql: str, allowed_columns: List[str]) -> str:
+    def _rewrite_select_star(self, sql: str, allowed_columns: list[str]) -> str:
         """Rewrite SELECT * to explicit column list."""
         # Stub: replace SELECT * with explicit columns
         return sql  # Phase 0: no-op

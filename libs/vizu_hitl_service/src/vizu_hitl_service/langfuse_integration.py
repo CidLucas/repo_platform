@@ -13,7 +13,7 @@ This is the bridge between local HITL and Langfuse platform.
 import logging
 import os
 from datetime import datetime
-from typing import Optional, Dict, List, Any
+from typing import Any
 
 from vizu_models import HitlReviewRead, HitlReviewStatus
 
@@ -33,9 +33,9 @@ class LangfuseDatasetManager:
 
     def __init__(
         self,
-        public_key: Optional[str] = None,
-        secret_key: Optional[str] = None,
-        host: Optional[str] = None,
+        public_key: str | None = None,
+        secret_key: str | None = None,
+        host: str | None = None,
     ):
         self._client = None
         self._public_key = public_key or os.getenv("LANGFUSE_PUBLIC_KEY")
@@ -75,8 +75,8 @@ class LangfuseDatasetManager:
     def get_or_create_dataset(
         self,
         name: str,
-        description: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        description: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ):
         """Busca ou cria um dataset no Langfuse."""
         client = self._get_client()
@@ -100,9 +100,9 @@ class LangfuseDatasetManager:
     def add_review_to_dataset(
         self,
         review: HitlReviewRead,
-        dataset_name: Optional[str] = None,
+        dataset_name: str | None = None,
         also_score_trace: bool = True,
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Adiciona uma revisão aprovada/corrigida ao dataset.
 
@@ -293,9 +293,9 @@ class LangfuseDatasetManager:
 
     def batch_add_reviews(
         self,
-        reviews: List[HitlReviewRead],
+        reviews: list[HitlReviewRead],
         dataset_name: str,
-    ) -> Dict[str, int]:
+    ) -> dict[str, int]:
         """
         Adiciona múltiplas revisões ao dataset.
 
@@ -326,9 +326,9 @@ class LangfuseDatasetManager:
 
     def sync_pending_to_langfuse(
         self,
-        reviews: List[HitlReviewRead],
+        reviews: list[HitlReviewRead],
         dataset_name: str = "hitl-training",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Sync all approved/corrected reviews to Langfuse.
 
@@ -389,8 +389,8 @@ class LangfuseDatasetManager:
         self,
         source_dataset: str = "hitl-training",
         target_dataset: str = "hitl-evaluation",
-        sample_size: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        sample_size: int | None = None,
+    ) -> dict[str, Any]:
         """
         Create an evaluation dataset from training data.
 

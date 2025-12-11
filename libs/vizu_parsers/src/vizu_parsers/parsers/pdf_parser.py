@@ -2,7 +2,7 @@
 
 import io
 import logging
-from typing import Union, BinaryIO
+from typing import BinaryIO
 
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
@@ -17,7 +17,7 @@ class PDFParser(BaseParser):
     Parser for extracting text from PDF files using pypdf.
     """
 
-    def parse(self, file_stream: Union[io.BytesIO, BinaryIO]) -> str:
+    def parse(self, file_stream: io.BytesIO | BinaryIO) -> str:
         """
         Read a PDF file stream and extract its textual content.
 

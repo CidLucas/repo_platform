@@ -4,14 +4,14 @@ Supabase Client - Singleton pattern for Supabase SDK connection.
 Uses HTTP REST API (PostgREST), NOT direct PostgreSQL connection.
 This solves DNS resolution issues with Supabase pooler.
 """
-import os
 import logging
-from typing import Optional
-from functools import lru_cache
+import os
 from dataclasses import dataclass
+from functools import lru_cache
 
-from supabase import create_client, Client
 from supabase.lib.client_options import SyncClientOptions
+
+from supabase import Client, create_client
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class SupabaseConfig:
     """Configuration for Supabase client."""
     url: str
     service_key: str  # service_role key for server-side operations
-    anon_key: Optional[str] = None  # anon key for client-side / RLS-enforced operations
+    anon_key: str | None = None  # anon key for client-side / RLS-enforced operations
 
     @classmethod
     def from_env(cls) -> "SupabaseConfig":
@@ -52,7 +52,7 @@ class SupabaseConfig:
 # SINGLETON CLIENT
 # ============================================================================
 
-_supabase_client: Optional[Client] = None
+_supabase_client: Client | None = None
 _async_supabase_client = None  # Will be AsyncClient when created
 
 

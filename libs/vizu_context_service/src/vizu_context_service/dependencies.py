@@ -1,19 +1,20 @@
 from functools import lru_cache
-from typing import Optional
+
 import redis
-from pydantic_settings import BaseSettings
-from pydantic import Field
 from fastapi import Depends
+from pydantic import Field
+from pydantic_settings import BaseSettings
 from sqlalchemy.orm import Session
 
-from .redis_service import RedisService
-from .context_service import ContextService
 from vizu_db_connector.database import get_db_session
+
+from .context_service import ContextService
+from .redis_service import RedisService
 
 
 class ContextSettings(BaseSettings):
     # Suporte direto à URL do Redis (Padrão Docker)
-    REDIS_URL: Optional[str] = Field(None, env="REDIS_URL")
+    REDIS_URL: str | None = Field(None, env="REDIS_URL")
 
     # Fallback
     REDIS_HOST: str = Field(default="localhost", env="REDIS_HOST")

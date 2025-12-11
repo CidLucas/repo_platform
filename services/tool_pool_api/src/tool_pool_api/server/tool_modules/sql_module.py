@@ -29,7 +29,6 @@ ARCHITECTURE NOTE:
 """
 
 import logging
-from typing import List, Optional
 from uuid import UUID
 
 from fastmcp import Context, FastMCP
@@ -40,9 +39,9 @@ from tool_pool_api.server.dependencies import (
     get_context_service,
     load_context_from_token,
 )
-from vizu_models.vizu_client_context import VizuClientContext
 from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
-from vizu_llm_service import get_model, ModelTier
+from vizu_llm_service import ModelTier, get_model
+from vizu_models.vizu_client_context import VizuClientContext
 
 # Phase 3: Use ToolRegistry for validation
 from vizu_tool_registry import ToolRegistry
@@ -60,7 +59,7 @@ logger = logging.getLogger(__name__)
 async def _get_enriched_schema_context(
     cliente_id: UUID,
     engine,
-    include_tables: Optional[List[str]] = None,
+    include_tables: list[str] | None = None,
 ) -> str:
     """
     Build enriched schema context for the LLM.
@@ -80,6 +79,7 @@ async def _get_enriched_schema_context(
     """
     from langchain_community.utilities.sql_database import SQLDatabase
     from sqlmodel import select
+
     from vizu_db_connector.database import SessionLocal
 
     # Try to get client-specific table configs
@@ -262,9 +262,10 @@ async def _executar_sql_agent_logic(
     # Instead of using LangChain SQL Agent (which requires ReAct/function-calling),
     # we use a single LLM call to generate SQL and execute it directly.
     try:
-        from vizu_sql_factory.factory import get_shared_engine
         from langchain_core.messages import HumanMessage, SystemMessage
         from sqlalchemy import text as sa_text
+
+        from vizu_sql_factory.factory import get_shared_engine
 
         llm = get_model(
             tier=ModelTier.DEFAULT,
@@ -372,12 +373,11 @@ SQL QUERY:"""
 
 
 @register_module
-def register_tools(mcp: FastMCP) -> List[str]:
+def register_tools(mcp: FastMCP) -> list[str]:
     """Registra as tools do módulo SQL."""
     from vizu_tool_registry.tools.sql_tool import (
         QueryDatabaseTextToSQL,
         SQLToolInput,
-        SQLToolOutput,
     )
 
     # Legacy tool: executar_sql_agent

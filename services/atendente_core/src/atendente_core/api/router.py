@@ -1,43 +1,42 @@
 import logging
-from fastapi import APIRouter, Depends, Header, HTTPException, Form, Response
+
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, Response
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from twilio.twiml.messaging_response import MessagingResponse
 
-# --- 1. INTEGRAÇÃO COM LIB COMPARTILHADA (O Segredo da Limpeza) ---
-# Em vez de criar conexões Redis/DB aqui, importamos a dependência pronta.
-# Isso garante que todos os microserviços usem a mesma lógica de conexão.
-from vizu_context_service.dependencies import get_context_service, get_redis_service
-from vizu_context_service.context_service import ContextService
-from vizu_context_service.redis_service import RedisService
-
-# DB helpers
-from vizu_db_connector.database import get_db_session
-from vizu_models import ClienteVizu
-from sqlalchemy import select
-
 # Auth wrapper
 from atendente_core.api.auth import get_auth_result
-from vizu_auth.core.models import AuthResult
 
 # --- 2. IMPORTS LOCAIS ---
 from atendente_core.api.schemas import (
     ChatRequest,
     ChatResponse,
-    ModelsResponse,
     ClientContextResponse,
-    ToolInfo,
+    ElicitationOption,
     # Re-exported from vizu_models
     ElicitationRequest,
-    ElicitationOption,
     ElicitationType,
+    ModelsResponse,
+    ToolInfo,
 )
-
-# Importa ModelInfo diretamente de vizu_models (para /models endpoint)
-from vizu_models import ModelInfo
-
+from atendente_core.core.nodes import filter_tools_for_client
 from atendente_core.core.service import AtendenteService
 from atendente_core.services.mcp_client import mcp_manager
-from atendente_core.core.nodes import filter_tools_for_client
+from vizu_auth.core.models import AuthResult
+from vizu_context_service.context_service import ContextService
+
+# --- 1. INTEGRAÇÃO COM LIB COMPARTILHADA (O Segredo da Limpeza) ---
+# Em vez de criar conexões Redis/DB aqui, importamos a dependência pronta.
+# Isso garante que todos os microserviços usem a mesma lógica de conexão.
+from vizu_context_service.dependencies import get_context_service, get_redis_service
+from vizu_context_service.redis_service import RedisService
+
+# DB helpers
+from vizu_db_connector.database import get_db_session
+
+# Importa ModelInfo diretamente de vizu_models (para /models endpoint)
+from vizu_models import ClienteVizu, ModelInfo
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -263,10 +262,10 @@ async def list_models():
     Use o nome do modelo no campo `model` do /chat ou no header X-LLM-Model.
     """
     from vizu_llm_service import (
-        get_llm_settings,
         MODEL_MAPPINGS,
         LLMProvider,
         ModelTier,
+        get_llm_settings,
     )
 
     settings = get_llm_settings()
@@ -336,6 +335,7 @@ async def get_client_context(
     - Testes: validar configuração do cliente
     """
     from uuid import UUID
+
     from vizu_models.safe_client_context import InternalClientContext
 
     # Obtém o contexto completo do cliente

@@ -17,16 +17,17 @@ To generate SQL without applying (for Supabase or review):
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
-import argparse
 from contextlib import redirect_stdout
-from typing import Optional
+
 from alembic.config import Config
+
 from alembic import command
 
 
-def locate_alembic_ini(start_path: str) -> Optional[str]:
+def locate_alembic_ini(start_path: str) -> str | None:
     """Locate `alembic.ini` relative to this file or parent directories."""
     candidates = [
         os.path.join(start_path, "alembic.ini"),

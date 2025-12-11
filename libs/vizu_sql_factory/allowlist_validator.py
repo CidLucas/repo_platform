@@ -12,9 +12,9 @@ Can be run in CI to validate schema changes.
 
 import json
 import logging
-from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -25,14 +25,14 @@ class ValidationError:
     error_type: str  # "missing_view", "missing_column", "orphaned_entry", "invalid_config"
     severity: str   # "error", "warning"
     message: str
-    path: Optional[str] = None  # Path in allowlist config
-    schema_reference: Optional[str] = None  # What it references
+    path: str | None = None  # Path in allowlist config
+    schema_reference: str | None = None  # What it references
 
 
 class AllowlistValidator:
     """Validates allowlist configuration against actual schema."""
 
-    def __init__(self, schema_info: Dict[str, Any]):
+    def __init__(self, schema_info: dict[str, Any]):
         """
         Initialize validator.
 
@@ -55,7 +55,7 @@ class AllowlistValidator:
             for view, info in schema_info.get("views", {}).items()
         }
 
-    def validate_allowlist(self, allowlist: Dict[str, Any]) -> Tuple[bool, List[ValidationError]]:
+    def validate_allowlist(self, allowlist: dict[str, Any]) -> tuple[bool, list[ValidationError]]:
         """
         Validate an entire allowlist configuration.
 
@@ -106,7 +106,7 @@ class AllowlistValidator:
         has_errors = any(e.severity == "error" for e in errors)
         return not has_errors, errors
 
-    def _validate_views(self, role_name: str, views: Any) -> List[ValidationError]:
+    def _validate_views(self, role_name: str, views: Any) -> list[ValidationError]:
         """Validate views list for a role."""
         errors = []
 
@@ -142,9 +142,9 @@ class AllowlistValidator:
     def _validate_columns(
         self,
         role_name: str,
-        allowed_views: List[str],
-        columns_config: Dict[str, List[str]]
-    ) -> List[ValidationError]:
+        allowed_views: list[str],
+        columns_config: dict[str, list[str]]
+    ) -> list[ValidationError]:
         """Validate columns config for a role."""
         errors = []
 
@@ -211,7 +211,7 @@ class AllowlistValidator:
 
         return errors
 
-    def validate_allowlist_file(self, filepath: Path) -> Tuple[bool, List[ValidationError]]:
+    def validate_allowlist_file(self, filepath: Path) -> tuple[bool, list[ValidationError]]:
         """
         Load and validate allowlist from JSON file.
 
@@ -222,7 +222,7 @@ class AllowlistValidator:
             Tuple of (is_valid, list of errors)
         """
         try:
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 allowlist = json.load(f)
         except json.JSONDecodeError as e:
             return False, [ValidationError(
@@ -239,7 +239,7 @@ class AllowlistValidator:
 
         return self.validate_allowlist(allowlist)
 
-    def get_schema_diff(self, old_schema: Dict[str, Any]) -> Dict[str, Any]:
+    def get_schema_diff(self, old_schema: dict[str, Any]) -> dict[str, Any]:
         """
         Compare current schema with previous schema.
 
@@ -258,7 +258,7 @@ class AllowlistValidator:
             "modified_views": self._find_modified_views(old_schema),
         }
 
-    def _find_modified_views(self, old_schema: Dict[str, Any]) -> Dict[str, Dict[str, List[str]]]:
+    def _find_modified_views(self, old_schema: dict[str, Any]) -> dict[str, dict[str, list[str]]]:
         """Find views with added/removed columns."""
         modifications = {}
 
@@ -282,9 +282,9 @@ class AllowlistValidator:
 
     def recommend_allowlist_updates(
         self,
-        current_allowlist: Dict[str, Any],
-        schema_diff: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        current_allowlist: dict[str, Any],
+        schema_diff: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Recommend updates to allowlist based on schema changes.
 
@@ -326,9 +326,9 @@ class AllowlistValidator:
 
     def _find_affected_roles(
         self,
-        allowlist: Dict[str, Any],
-        removed_views: List[str]
-    ) -> Dict[str, List[str]]:
+        allowlist: dict[str, Any],
+        removed_views: list[str]
+    ) -> dict[str, list[str]]:
         """Find which roles are affected by removed views."""
         affected = {}
 
@@ -345,7 +345,7 @@ class AllowlistValidator:
 def validate_allowlist_json(
     allowlist_path: Path,
     schema_path: Path
-) -> Tuple[bool, List[ValidationError]]:
+) -> tuple[bool, list[ValidationError]]:
     """
     Convenience function to validate allowlist against schema files.
 
@@ -357,7 +357,7 @@ def validate_allowlist_json(
         Tuple of (is_valid, list of errors)
     """
     try:
-        with open(schema_path, "r") as f:
+        with open(schema_path) as f:
             schema_info = json.load(f)
     except Exception as e:
         return False, [ValidationError(

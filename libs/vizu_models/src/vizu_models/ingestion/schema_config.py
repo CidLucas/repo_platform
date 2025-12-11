@@ -1,8 +1,9 @@
 # libs/vizu_models/src/vizu_models/ingestion/schema_config.py
 
-from sqlmodel import SQLModel, Field
-from typing import Dict, List
 from enum import Enum
+
+from sqlmodel import Field, SQLModel
+
 from .vizu_schema import VizuCanonicalColumn
 
 
@@ -41,14 +42,14 @@ class ClientSchemaMapping(SQLModel):
     source_table_name: str = Field(
         ..., description="Nome exato da tabela de origem no BigQuery."
     )
-    column_mappings: Dict[VizuCanonicalColumn, ColumnConfig] = Field(
+    column_mappings: dict[VizuCanonicalColumn, ColumnConfig] = Field(
         ..., description="Mapeamento de configurações para o schema canônico Vizu."
     )
     chunk_key_column_name: str = Field(
         ...,
         description="O nome REAL da coluna do cliente que deve ser usada para ordenação/chunking (Ex: 'data_de_faturamento').",
     )
-    select_columns: List[str] = Field(
+    select_columns: list[str] = Field(
         ...,
         description="Lista de nomes de colunas (NO CLIENTE) que o Worker deve incluir na cláusula SELECT.",
         min_items=1,

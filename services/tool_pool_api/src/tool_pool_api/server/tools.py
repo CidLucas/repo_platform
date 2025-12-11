@@ -21,10 +21,11 @@ Benefícios:
 """
 
 import logging
+
 from fastmcp import FastMCP
 
 # Importa o registry de módulos
-from tool_pool_api.server.tool_modules import register_all_tools, AVAILABLE_MODULES
+from tool_pool_api.server.tool_modules import AVAILABLE_MODULES, register_all_tools
 
 logger = logging.getLogger(__name__)
 

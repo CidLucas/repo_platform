@@ -1,7 +1,8 @@
 import uuid
-from typing import Optional, TYPE_CHECKING, Dict, Any
-from sqlmodel import SQLModel, Field, Relationship, Column
+from typing import TYPE_CHECKING, Any
+
 from sqlalchemy.types import JSON
+from sqlmodel import Column, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .cliente_vizu import ClienteVizu
@@ -13,8 +14,8 @@ class ClienteFinalBase(SQLModel):
         description="O identificador principal do cliente final. Ex: número de telefone.",
         index=True,
     )
-    nome: Optional[str] = Field(None, max_length=255)
-    metadados: Optional[Dict[str, Any]] = Field(
+    nome: str | None = Field(None, max_length=255)
+    metadados: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSON),
         description="Campo flexível para dados não estruturados.",
@@ -24,7 +25,7 @@ class ClienteFinalBase(SQLModel):
 class ClienteFinal(ClienteFinalBase, table=True):
     __tablename__ = "cliente_final"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
 
     cliente_vizu_id: uuid.UUID = Field(foreign_key="cliente_vizu.id")
     cliente_vizu: "ClienteVizu" = Relationship(back_populates="clientes_finais")
@@ -40,5 +41,5 @@ class ClienteFinalRead(ClienteFinalBase):
 
 
 class ClienteFinalUpdate(SQLModel):
-    nome: Optional[str] = None
-    metadados: Optional[dict[str, Any]] = None
+    nome: str | None = None
+    metadados: dict[str, Any] | None = None

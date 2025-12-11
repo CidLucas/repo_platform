@@ -2,27 +2,23 @@
 Tests for vizu_mcp_commons library.
 """
 
-import pytest
-from datetime import datetime, timezone, timedelta
-from unittest.mock import Mock, AsyncMock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import Mock
 from uuid import uuid4
 
 import jwt
+import pytest
 
+from vizu_mcp_commons.auth import TokenClaims, TokenValidator
 from vizu_mcp_commons.exceptions import (
-    MCPError,
     MCPAuthError,
     MCPAuthorizationError,
-    MCPToolError,
     MCPContextError,
-    MCPValidationError,
+    MCPError,
     MCPTierAccessError,
-    MCPToolNotFoundError,
-    MCPToolDisabledError,
+    MCPToolError,
 )
-
-from vizu_mcp_commons.auth import TokenValidator, TokenClaims, MCPTokenExtractor
-from vizu_mcp_commons.tool_executor import ToolExecutor, ToolCall, ToolResult, ToolCallBuilder
+from vizu_mcp_commons.tool_executor import ToolCall, ToolCallBuilder, ToolExecutor, ToolResult
 
 
 class TestExceptions:
@@ -105,7 +101,7 @@ class TestTokenValidator:
         payload = {
             "sub": "user-123",
             "email": "test@example.com",
-            "exp": (datetime.now(timezone.utc) + timedelta(hours=1)).timestamp(),
+            "exp": (datetime.now(UTC) + timedelta(hours=1)).timestamp(),
         }
         token = jwt.encode(payload, self.secret, algorithm="HS256")
 
@@ -125,7 +121,7 @@ class TestTokenValidator:
         """Test validating an expired token."""
         payload = {
             "sub": "user-123",
-            "exp": (datetime.now(timezone.utc) - timedelta(hours=1)).timestamp(),
+            "exp": (datetime.now(UTC) - timedelta(hours=1)).timestamp(),
         }
         token = jwt.encode(payload, self.secret, algorithm="HS256")
 
@@ -192,7 +188,7 @@ class TestTokenClaims:
         """Test is_expired when not expired."""
         claims = TokenClaims(
             sub="user-123",
-            exp=datetime.now(timezone.utc) + timedelta(hours=1),
+            exp=datetime.now(UTC) + timedelta(hours=1),
         )
         assert claims.is_expired is False
 
@@ -200,7 +196,7 @@ class TestTokenClaims:
         """Test is_expired when expired."""
         claims = TokenClaims(
             sub="user-123",
-            exp=datetime.now(timezone.utc) - timedelta(hours=1),
+            exp=datetime.now(UTC) - timedelta(hours=1),
         )
         assert claims.is_expired is True
 

@@ -11,9 +11,9 @@ Usage:
 
 Exit code: 0 = OK, 1 = missing vars
 """
+import json
 import os
 import sys
-import json
 from argparse import ArgumentParser
 
 ROOT = os.path.dirname(os.path.dirname(__file__))
@@ -21,7 +21,7 @@ REQUIRED_PATH = os.path.join(ROOT, "scripts", "required_envs.json")
 
 
 def load_required():
-    with open(REQUIRED_PATH, "r", encoding="utf-8") as f:
+    with open(REQUIRED_PATH, encoding="utf-8") as f:
         return json.load(f)
 
 

@@ -3,7 +3,7 @@ FastAPI dependencies for vizu_auth.
 """
 
 import logging
-from typing import Callable, Optional, Awaitable
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 from fastapi import Depends, Header, HTTPException, Request, status
@@ -28,15 +28,15 @@ logger = logging.getLogger(__name__)
 bearer_scheme = HTTPBearer(auto_error=False)
 
 # Type aliases
-ApiKeyLookupFn = Callable[[str], Awaitable[Optional[UUID]]]
-ExternalUserLookupFn = Callable[[str], Awaitable[Optional[UUID]]]
+ApiKeyLookupFn = Callable[[str], Awaitable[UUID | None]]
+ExternalUserLookupFn = Callable[[str], Awaitable[UUID | None]]
 
 
 class AuthDependencyFactory:
     def __init__(
         self,
         api_key_lookup_fn: ApiKeyLookupFn,
-        external_user_lookup_fn: Optional[ExternalUserLookupFn] = None,
+        external_user_lookup_fn: ExternalUserLookupFn | None = None,
         *,
         allow_auth_disabled: bool = False,
     ):
@@ -55,8 +55,8 @@ class AuthDependencyFactory:
     async def get_auth_result(
         self,
         request: Request,
-        credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
-        x_api_key: Optional[str] = Header(None, alias="X-API-KEY"),
+        credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+        x_api_key: str | None = Header(None, alias="X-API-KEY"),
     ) -> AuthResult:
         auth_request = AuthRequest(
             jwt_token=credentials.credentials if credentials else None,
@@ -98,9 +98,9 @@ class AuthDependencyFactory:
     async def get_optional_auth_result(
         self,
         request: Request,
-        credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
-        x_api_key: Optional[str] = Header(None, alias="X-API-KEY"),
-    ) -> Optional[AuthResult]:
+        credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+        x_api_key: str | None = Header(None, alias="X-API-KEY"),
+    ) -> AuthResult | None:
         auth_request = AuthRequest(
             jwt_token=credentials.credentials if credentials else None,
             api_key=x_api_key,
@@ -112,7 +112,7 @@ class AuthDependencyFactory:
             return None
 
 
-def create_auth_dependency(api_key_lookup_fn: ApiKeyLookupFn, external_user_lookup_fn: Optional[ExternalUserLookupFn] = None, *, allow_auth_disabled: bool = False) -> AuthDependencyFactory:
+def create_auth_dependency(api_key_lookup_fn: ApiKeyLookupFn, external_user_lookup_fn: ExternalUserLookupFn | None = None, *, allow_auth_disabled: bool = False) -> AuthDependencyFactory:
     return AuthDependencyFactory(
         api_key_lookup_fn=api_key_lookup_fn,
         external_user_lookup_fn=external_user_lookup_fn,

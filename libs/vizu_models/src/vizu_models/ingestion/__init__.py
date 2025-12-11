@@ -1,6 +1,6 @@
 # libs/vizu_models/src/vizu_models/ingestion/__init__.py
 
-from .schema_config import ColumnFormat, ColumnConfig, ClientSchemaMapping
+from .schema_config import ClientSchemaMapping, ColumnConfig, ColumnFormat
 from .vizu_schema import VizuCanonicalColumn
 
 __all__ = [

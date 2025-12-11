@@ -11,11 +11,11 @@ access token is present or no mapping exists, it leaves the kwargs
 unchanged and lets the tool handle auth/fallbacks.
 """
 
+from collections.abc import Awaitable, Callable
 from functools import wraps
-from typing import Callable, Awaitable
 
-from fastmcp.server.dependencies import get_access_token
 from fastmcp.exceptions import ToolError
+from fastmcp.server.dependencies import get_access_token
 
 from vizu_auth.adapters.context_service_adapter import external_user_lookup_from_context_service
 

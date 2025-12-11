@@ -1,5 +1,9 @@
+from analytics_api.api.endpoints import (  # Garanta que todos estão importados
+    dashboard,
+    deep_dive,
+    rankings,
+)
 from fastapi import APIRouter
-from analytics_api.api.endpoints import dashboard, rankings, deep_dive # Garanta que todos estão importados
 
 api_router = APIRouter()
 

@@ -1,14 +1,15 @@
 # services/analytics_api/src/analytics_api/api/endpoints/rankings.py
-from fastapi import APIRouter, Depends, HTTPException
-from analytics_api.services.metric_service import MetricService
 from analytics_api.api.dependencies import get_metric_service
+
 # IMPORTAÇÕES ATUALIZADAS: Schemas específicos para cada módulo
 from analytics_api.schemas.metrics import (
-    FornecedoresOverviewResponse,
     ClientesOverviewResponse,
+    FornecedoresOverviewResponse,
+    PedidosOverviewResponse,
     ProdutosOverviewResponse,
-    PedidosOverviewResponse
 )
+from analytics_api.services.metric_service import MetricService
+from fastapi import APIRouter, Depends
 
 router = APIRouter()
 

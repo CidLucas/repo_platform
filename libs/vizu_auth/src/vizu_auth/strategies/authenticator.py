@@ -3,7 +3,6 @@ Orquestrador de autenticação - tenta estratégias em ordem.
 """
 
 import logging
-from typing import List, Optional
 
 from vizu_auth.core.config import get_auth_settings
 from vizu_auth.core.exceptions import AuthDisabledError, AuthError, MissingCredentialsError
@@ -14,11 +13,11 @@ logger = logging.getLogger(__name__)
 
 
 class Authenticator:
-    def __init__(self, strategies: List[AuthStrategy], *, allow_auth_disabled: bool = False):
+    def __init__(self, strategies: list[AuthStrategy], *, allow_auth_disabled: bool = False):
         self._strategies = strategies
         self._allow_auth_disabled = allow_auth_disabled
 
-    async def authenticate(self, request: AuthRequest, *, require_auth: bool = True) -> Optional[AuthResult]:
+    async def authenticate(self, request: AuthRequest, *, require_auth: bool = True) -> AuthResult | None:
         settings = get_auth_settings()
 
         if not settings.auth_enabled:
@@ -41,7 +40,7 @@ class Authenticator:
                 raise MissingCredentialsError()
             return None
 
-        last_error: Optional[AuthError] = None
+        last_error: AuthError | None = None
         for strategy in self._strategies:
             if not strategy.can_handle(request):
                 continue

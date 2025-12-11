@@ -1,8 +1,9 @@
 import uuid
-from typing import Any, Dict, List
+from typing import Any
+
 from vizu_models.credencial_servico_externo import CredencialServicoExternoBase
+
 from .cliente_vizu import ClienteVizuBase
-from .enums import TierCliente
 
 
 class VizuClientContext(ClienteVizuBase):
@@ -21,11 +22,11 @@ class VizuClientContext(ClienteVizuBase):
     nome_empresa: str
 
     # PHASE 1: Dynamic Tool Allocation - New enabled_tools list
-    enabled_tools: List[str] = []
+    enabled_tools: list[str] = []
 
     # Configurações de Negócio para o Agente
     prompt_base: str | None
-    horario_funcionamento: Dict[str, Any] | None
+    horario_funcionamento: dict[str, Any] | None
 
     # Legacy boolean flags (deprecated, kept for backward compatibility)
     ferramenta_rag_habilitada: bool = False
@@ -34,9 +35,9 @@ class VizuClientContext(ClienteVizuBase):
 
     # Lista de credenciais já decifradas
     # Usamos o modelo Pydantic 'CredencialServicoExternoBase' para a tipagem
-    credenciais: List[CredencialServicoExternoBase] = []
+    credenciais: list[CredencialServicoExternoBase] = []
 
-    def get_enabled_tools_list(self) -> List[str]:
+    def get_enabled_tools_list(self) -> list[str]:
         """
         Returns enabled tools list, computing from legacy booleans if needed.
 

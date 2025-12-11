@@ -1,6 +1,6 @@
+from data_ingestion_api.services.pubsub_publisher import PubSubPublisher, pubsub_publisher
+from data_ingestion_worker.schemas.ingestion_job import IngestionJob  # Importando o contrato
 from fastapi import APIRouter, Depends, HTTPException, status
-from data_ingestion_api.services.pubsub_publisher import pubsub_publisher, PubSubPublisher
-from data_ingestion_worker.schemas.ingestion_job import IngestionJob # Importando o contrato
 
 router = APIRouter()
 
@@ -19,7 +19,7 @@ async def start_data_ingestion(
         # Gerar um Job ID, se o payload não o tiver (crucial para Observabilidade)
         if not job_payload.job_id:
             job_payload.job_id = str(uuid.uuid4())
-            
+
         # 1. Publica a mensagem no Pub/Sub
         message_id = publisher.publish_ingestion_job(job_payload)
 

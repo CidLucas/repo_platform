@@ -2,16 +2,14 @@
 Support Agent API schemas.
 """
 
-from typing import Optional, List, Any, Dict
-from pydantic import BaseModel, Field
-from uuid import UUID
 from enum import Enum
+from typing import Any
+
+from pydantic import BaseModel, Field
 
 # Re-export from vizu_models for consistency
 from vizu_models import (
     ElicitationRequest,
-    ElicitationOption,
-    ElicitationType,
 )
 
 
@@ -35,10 +33,10 @@ class SupportChatRequest(BaseModel):
     session_id: str = Field(..., description="Session identifier for conversation continuity")
 
     # Support-specific fields
-    existing_ticket_id: Optional[str] = Field(None, description="Existing ticket ID if continuing")
+    existing_ticket_id: str | None = Field(None, description="Existing ticket ID if continuing")
 
     # Elicitation handling
-    elicitation_response: Optional[ElicitationResponse] = Field(
+    elicitation_response: ElicitationResponse | None = Field(
         None,
         description="Response to a pending elicitation"
     )
@@ -51,7 +49,7 @@ class SupportChatResponse(BaseModel):
     model_used: str = Field(..., description="LLM model used for generation")
 
     # Support-specific fields
-    issue_category: Optional[str] = Field(
+    issue_category: str | None = Field(
         None,
         description="Classified issue category (e.g., 'billing', 'technical', 'account')"
     )
@@ -65,7 +63,7 @@ class SupportChatResponse(BaseModel):
     )
 
     # Elicitation pending
-    elicitation_pending: Optional[ElicitationRequest] = Field(
+    elicitation_pending: ElicitationRequest | None = Field(
         None,
         description="Pending elicitation requiring user response"
     )
@@ -78,7 +76,7 @@ class CreateTicketRequest(BaseModel):
         TicketPriority.MEDIUM,
         description="Ticket priority"
     )
-    description: Optional[str] = Field(None, description="Optional ticket description")
+    description: str | None = Field(None, description="Optional ticket description")
 
 
 class CreateTicketResponse(BaseModel):
@@ -92,7 +90,7 @@ class CreateTicketResponse(BaseModel):
 class ToolInfo(BaseModel):
     """Information about an available tool."""
     name: str = Field(..., description="Tool name")
-    description: Optional[str] = Field(None, description="Tool description")
+    description: str | None = Field(None, description="Tool description")
     enabled: bool = Field(True, description="Whether enabled for this client")
 
 
@@ -100,7 +98,7 @@ class SupportContextResponse(BaseModel):
     """Client context for support agent."""
     nome_empresa: str = Field(..., description="Company name")
     tier: str = Field("BASIC", description="Client tier")
-    available_tools: List[ToolInfo] = Field(
+    available_tools: list[ToolInfo] = Field(
         default_factory=list,
         description="List of available tools"
     )

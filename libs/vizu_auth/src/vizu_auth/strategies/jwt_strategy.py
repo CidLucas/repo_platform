@@ -3,7 +3,7 @@ Estratégia de autenticação via JWT (Supabase).
 """
 
 import logging
-from typing import Callable, Optional, Awaitable
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 from vizu_auth.core.exceptions import ClientNotFoundError
@@ -14,17 +14,17 @@ from vizu_auth.strategies.base import AuthStrategy
 logger = logging.getLogger(__name__)
 
 # Type alias
-ClienteLookupFn = Callable[[str], Awaitable[Optional[UUID]]]
+ClienteLookupFn = Callable[[str], Awaitable[UUID | None]]
 
 
 class JWTStrategy(AuthStrategy):
-    def __init__(self, cliente_lookup_fn: Optional[ClienteLookupFn] = None):
+    def __init__(self, cliente_lookup_fn: ClienteLookupFn | None = None):
         self._cliente_lookup_fn = cliente_lookup_fn
 
     def can_handle(self, request: AuthRequest) -> bool:
         return bool(request.jwt_token)
 
-    async def authenticate(self, request: AuthRequest) -> Optional[AuthResult]:
+    async def authenticate(self, request: AuthRequest) -> AuthResult | None:
         if not request.jwt_token:
             return None
 

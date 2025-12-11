@@ -1,20 +1,18 @@
 import os
 import uuid
+
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
-from typing import Union
+from sqlalchemy.orm import Session, sessionmaker
 
 # IMPORTAÇÕES CHAVE PARA O ORM METADATA
 # Importa a Base que contém o Metadata
-
 # Importa os Models que criam as tabelas (garante que todos os models sejam registrados na Base.metadata)
-
 # Importa o modelo ORM do próprio DB Connector (agora vindo do pacote compartilhado)
 from vizu_models import ClienteVizu, CredencialServicoExterno
 
 # Importa os modelos compartilhados para tipagem (Agnosticismo)
-from vizu_models.cliente_vizu import TipoCliente, TierCliente
+from vizu_models.cliente_vizu import TierCliente, TipoCliente
 
 # Usa uma variável de ambiente para o DB de teste, com um fallback
 TEST_DATABASE_URL = os.getenv(
@@ -29,7 +27,7 @@ def create_vizu_client_in_db(
     nome_empresa: str = "Cliente de Teste Vizu",
     tipo_cliente: TipoCliente = TipoCliente.EXTERNO,
     tier: TierCliente = TierCliente.SME,
-    client_id: Union[uuid.UUID, None] = None,
+    client_id: uuid.UUID | None = None,
 ) -> ClienteVizu:
     """
     Helper centralizado para criar e persistir um registro ClienteVizu para testes.

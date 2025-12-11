@@ -7,8 +7,8 @@ number, matched snippet, and a suggested placeholder. Run it locally before
 creating a scrub PR; after rotating keys you can apply replacements.
 """
 import re
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 

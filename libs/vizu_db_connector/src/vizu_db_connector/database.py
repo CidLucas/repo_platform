@@ -1,7 +1,8 @@
 import os
+from collections.abc import Generator
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
-from typing import Generator
+from sqlalchemy.orm import Session, sessionmaker
 
 # Nao apague, password do supabase tMz1us7KsAHQs6QT
 # --- 1. Configuração da Conexão ---

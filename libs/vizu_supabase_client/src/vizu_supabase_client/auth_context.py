@@ -5,11 +5,11 @@ This module handles JWT token parsing and claim extraction for
 tenant isolation and role-based access control.
 """
 
-import logging
 import json
+import logging
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
 from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,12 +20,12 @@ class AuthContext:
     user_id: str
     tenant_id: str
     role: str
-    email: Optional[str] = None
-    scopes: Optional[list] = None
-    issued_at: Optional[int] = None
-    expires_at: Optional[int] = None
+    email: str | None = None
+    scopes: list | None = None
+    issued_at: int | None = None
+    expires_at: int | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "user_id": self.user_id,
@@ -62,7 +62,7 @@ class JWTContextExtractor:
         "exp_claim": "exp",  # Expiration
     }
 
-    def __init__(self, claim_mapping: Optional[Dict[str, str]] = None):
+    def __init__(self, claim_mapping: dict[str, str] | None = None):
         """
         Initialize extractor with optional custom claim mapping.
 
@@ -75,7 +75,7 @@ class JWTContextExtractor:
             self.claims.update(claim_mapping)
         logger.info(f"JWTContextExtractor initialized with claims: {self.claims}")
 
-    def extract(self, jwt_payload: Dict[str, Any]) -> AuthContext:
+    def extract(self, jwt_payload: dict[str, Any]) -> AuthContext:
         """
         Extract AuthContext from JWT payload (decoded).
 
@@ -194,11 +194,11 @@ class JWTContextExtractor:
 
 
 # Singleton instance
-_jwt_extractor: Optional[JWTContextExtractor] = None
+_jwt_extractor: JWTContextExtractor | None = None
 
 
 def get_jwt_extractor(
-    claim_mapping: Optional[Dict[str, str]] = None,
+    claim_mapping: dict[str, str] | None = None,
 ) -> JWTContextExtractor:
     """
     Get or create the default JWT extractor.

@@ -4,19 +4,17 @@ Registers Google-related tools (Sheets, Gmail, Calendar) with the MCP registry.
 """
 
 import logging
-from typing import List, Optional
 from datetime import datetime
 from uuid import UUID
 
-from fastmcp import FastMCP, Context
+from fastmcp import Context, FastMCP
 
-from tool_pool_api.server.tool_modules import register_module
 from tool_pool_api.server.dependencies import get_context_service
-
+from tool_pool_api.server.tool_modules import register_module
 from vizu_google_suite_client import (
-    GoogleSheetsClient,
-    GoogleGmailClient,
     GoogleCalendarClient,
+    GoogleGmailClient,
+    GoogleSheetsClient,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 async def _get_google_tokens(
-    cliente_id: str, account_email: Optional[str] = None
+    cliente_id: str, account_email: str | None = None
 ) -> dict:
     """Helper to retrieve and validate Google tokens for a cliente.
 
@@ -77,7 +75,7 @@ async def _write_to_sheet_logic(
     range_name: str,
     values: list,
     cliente_id: str,
-    account_email: Optional[str] = None,
+    account_email: str | None = None,
 ) -> dict:
     """Write data to a Google Sheet."""
     tokens = await _get_google_tokens(cliente_id, account_email)
@@ -94,7 +92,7 @@ async def _read_emails_logic(
     query: str,
     max_results: int,
     cliente_id: str,
-    account_email: Optional[str] = None,
+    account_email: str | None = None,
 ) -> list:
     """Search and read Gmail messages."""
     tokens = await _get_google_tokens(cliente_id, account_email)
@@ -108,7 +106,7 @@ async def _query_calendar_logic(
     time_max: str,
     calendar_id: str,
     cliente_id: str,
-    account_email: Optional[str] = None,
+    account_email: str | None = None,
 ) -> list:
     """Query Google Calendar events."""
     tokens = await _get_google_tokens(cliente_id, account_email)
@@ -136,7 +134,7 @@ async def _list_google_accounts_logic(cliente_id: str) -> list:
 
 
 @register_module
-def register_tools(mcp: FastMCP) -> List[str]:
+def register_tools(mcp: FastMCP) -> list[str]:
     """Register google suite tools."""
 
     # Tool 1: Write to Google Sheets

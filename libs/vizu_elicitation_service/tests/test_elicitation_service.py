@@ -2,33 +2,29 @@
 Tests for vizu_elicitation_service components.
 """
 
-import pytest
 import json
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
+import pytest
+
 from vizu_elicitation_service import (
-    PendingElicitation,
-    ElicitationResult,
-    ElicitationRequired,
-    ElicitationError,
-    ElicitationValidationError,
-    ElicitationNotFoundError,
-    PendingElicitationStore,
-    ElicitationResponseHandler,
     ElicitationManager,
+    ElicitationNotFoundError,
+    ElicitationRequired,
+    ElicitationResponseHandler,
+    PendingElicitation,
+    PendingElicitationStore,
+    build_options_from_list,
     create_confirmation_elicitation,
+    create_datetime_elicitation,
     create_selection_elicitation,
     create_text_input_elicitation,
-    create_datetime_elicitation,
     format_elicitation_for_llm,
     normalize_confirmation_response,
     validate_elicitation_response,
-    build_options_from_list,
 )
-
-from vizu_models import ElicitationType, ElicitationOption
-
+from vizu_models import ElicitationOption, ElicitationType
 
 # ============================================================================
 # Test Data Fixtures

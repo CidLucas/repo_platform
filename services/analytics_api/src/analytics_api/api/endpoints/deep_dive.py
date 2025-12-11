@@ -1,14 +1,15 @@
 # services/analytics_api/src/analytics_api/api/endpoints/deep_dive.py
-from fastapi import APIRouter, Depends, HTTPException, Path
-from analytics_api.services.metric_service import MetricService
 from analytics_api.api.dependencies import get_metric_service
+
 # IMPORTAÇÕES ATUALIZADAS: Schemas específicos para cada detalhe
 from analytics_api.schemas.metrics import (
-    FornecedorDetailResponse,
     ClienteDetailResponse,
+    FornecedorDetailResponse,
+    PedidoDetailResponse,
     ProdutoDetailResponse,
-    PedidoDetailResponse
 )
+from analytics_api.services.metric_service import MetricService
+from fastapi import APIRouter, Depends, HTTPException, Path
 
 router = APIRouter()
 

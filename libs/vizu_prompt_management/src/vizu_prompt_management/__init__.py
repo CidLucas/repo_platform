@@ -11,10 +11,10 @@ This library provides:
 
 __version__ = "0.1.0"
 
-from vizu_prompt_management.loader import PromptLoader, LoadedPrompt
+# Templates are exposed as module
+from vizu_prompt_management import templates
+from vizu_prompt_management.loader import LoadedPrompt, PromptLoader
 from vizu_prompt_management.manager import PromptManager, PromptVersion
-from vizu_prompt_management.variables import VariableExtractor, PromptVariables, ContextVariableBuilder
-from vizu_prompt_management.renderer import TemplateRenderer
 
 # Phase 1: Text-to-SQL prompt building
 from vizu_prompt_management.prompt_builder import (
@@ -22,9 +22,12 @@ from vizu_prompt_management.prompt_builder import (
     TextToSqlPromptContext,
     get_prompt_builder,
 )
-
-# Templates are exposed as module
-from vizu_prompt_management import templates
+from vizu_prompt_management.renderer import TemplateRenderer
+from vizu_prompt_management.variables import (
+    ContextVariableBuilder,
+    PromptVariables,
+    VariableExtractor,
+)
 
 __all__ = [
     "__version__",

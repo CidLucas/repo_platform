@@ -7,21 +7,20 @@ Provides decorators and middleware for:
 - Tier-based authorization
 """
 
-import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from functools import wraps
-from typing import Callable, Awaitable, Optional, Any
+from typing import Any
 from uuid import UUID
-
-from vizu_models.vizu_client_context import VizuClientContext
 
 from vizu_mcp_commons.auth import MCPTokenExtractor
 from vizu_mcp_commons.exceptions import (
     MCPAuthError,
     MCPContextError,
-    MCPToolDisabledError,
     MCPTierAccessError,
+    MCPToolDisabledError,
 )
+from vizu_models.vizu_client_context import VizuClientContext
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 def inject_cliente_context(
     get_context_service_fn: Callable[[], Any],
     require_auth: bool = True,
-    validate_tool: Optional[str] = None,
+    validate_tool: str | None = None,
 ) -> Callable[[Callable[..., Awaitable]], Callable[..., Awaitable]]:
     """
     Decorator factory that injects VizuClientContext into tool functions.
@@ -60,7 +59,7 @@ def inject_cliente_context(
 
             # Try to get cliente_id from kwargs (tunnel mode)
             cliente_id = kwargs.get("cliente_id")
-            cliente_context: Optional[VizuClientContext] = None
+            cliente_context: VizuClientContext | None = None
 
             if cliente_id:
                 # Tunnel mode: cliente_id explicitly provided
@@ -225,7 +224,7 @@ class MCPAuthMiddleware:
         self,
         app,
         get_context_service_fn: Callable,
-        exclude_paths: Optional[list] = None,
+        exclude_paths: list | None = None,
     ):
         self.app = app
         self.get_context_service_fn = get_context_service_fn

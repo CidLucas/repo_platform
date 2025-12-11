@@ -1,5 +1,6 @@
 import requests
 
+
 def test_ollama_health_check():
     """
     Testa se o servidor Ollama responde ao health check na porta 11434.

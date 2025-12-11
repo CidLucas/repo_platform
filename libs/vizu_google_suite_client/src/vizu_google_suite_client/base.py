@@ -1,12 +1,12 @@
-from abc import ABC
-from datetime import datetime, timedelta
-from typing import Optional, Callable, Awaitable
 import asyncio
+from abc import ABC
+from collections.abc import Awaitable, Callable
+from datetime import datetime, timedelta
 
 try:
     # Import Google auth libraries lazily to avoid hard dependency at import time
-    from google.oauth2.credentials import Credentials as GoogleCredentials  # type: ignore
     from google.auth.transport.requests import Request  # type: ignore
+    from google.oauth2.credentials import Credentials as GoogleCredentials  # type: ignore
 except Exception:
     GoogleCredentials = None  # type: ignore
     Request = None  # type: ignore
@@ -22,9 +22,9 @@ class BaseGoogleClient(ABC):
     def __init__(
         self,
         access_token: str,
-        refresh_token: Optional[str] = None,
-        expires_at: Optional[datetime] = None,
-        token_refresh_callback: Optional[Callable[[str, Optional[str]], Awaitable[None]]] = None,
+        refresh_token: str | None = None,
+        expires_at: datetime | None = None,
+        token_refresh_callback: Callable[[str, str | None], Awaitable[None]] | None = None,
     ) -> None:
         self.access_token = access_token
         self.refresh_token = refresh_token

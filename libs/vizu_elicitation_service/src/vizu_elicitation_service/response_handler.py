@@ -3,12 +3,10 @@ Process and validate elicitation responses.
 """
 
 import logging
-from typing import Any, Tuple, Optional
+from typing import Any
 
+from vizu_elicitation_service.models import ElicitationResult, PendingElicitation
 from vizu_models import ElicitationType
-
-from vizu_elicitation_service.models import PendingElicitation, ElicitationResult
-from vizu_elicitation_service.exceptions import ElicitationValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +25,7 @@ class ElicitationResponseHandler:
         self,
         elicitation: PendingElicitation,
         response: Any,
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """
         Validate a response against the elicitation.
 
@@ -55,7 +53,7 @@ class ElicitationResponseHandler:
         # Accept by default for unknown types
         return True, None
 
-    def _validate_confirmation(self, response: Any) -> Tuple[bool, Optional[str]]:
+    def _validate_confirmation(self, response: Any) -> tuple[bool, str | None]:
         """Validate confirmation response."""
         if isinstance(response, bool):
             return True, None
@@ -76,7 +74,7 @@ class ElicitationResponseHandler:
         self,
         elicitation: PendingElicitation,
         response: Any,
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """Validate selection response."""
         options = elicitation.get("options", [])
         if not options:
@@ -95,7 +93,7 @@ class ElicitationResponseHandler:
         options_str = ", ".join(sorted(valid_values))
         return False, f"Escolha deve ser uma das opções: {options_str}"
 
-    def _validate_text_input(self, response: Any) -> Tuple[bool, Optional[str]]:
+    def _validate_text_input(self, response: Any) -> tuple[bool, str | None]:
         """Validate text input response."""
         if response is None:
             return False, "Entrada de texto não pode estar vazia"
@@ -105,7 +103,7 @@ class ElicitationResponseHandler:
 
         return False, "Entrada de texto não pode estar vazia"
 
-    def _validate_datetime(self, response: Any) -> Tuple[bool, Optional[str]]:
+    def _validate_datetime(self, response: Any) -> tuple[bool, str | None]:
         """Validate datetime response."""
         if response is None:
             return False, "Data/hora não informada"

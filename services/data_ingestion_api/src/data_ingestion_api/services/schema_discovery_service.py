@@ -6,8 +6,8 @@ Este serviço extrai a estrutura de colunas/campos de diferentes conectores
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Type
 from dataclasses import dataclass, field
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -16,12 +16,12 @@ logger = logging.getLogger(__name__)
 class DiscoveredSchema:
     """Schema descoberto de uma fonte de dados."""
     resource_type: str
-    columns: List[str]
-    sample_data: Optional[Dict[str, Any]] = None
-    column_types: Dict[str, str] = field(default_factory=dict)  # {coluna: tipo}
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    
-    def to_dict(self) -> Dict[str, Any]:
+    columns: list[str]
+    sample_data: dict[str, Any] | None = None
+    column_types: dict[str, str] = field(default_factory=dict)  # {coluna: tipo}
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
         return {
             "resource_type": self.resource_type,
             "columns": self.columns,
@@ -41,17 +41,17 @@ class SchemaDiscoveryService:
     - BigQuery (tabelas e views)
     - Arquivos CSV/Excel
     """
-    
+
     # Recursos padrão para cada tipo de conector
     DEFAULT_RESOURCES = {
         "ecommerce": ["products", "orders", "customers", "inventory"],
         "bigquery": [],  # Descoberto dinamicamente
         "csv": [],  # Baseado no arquivo
     }
-    
+
     def __init__(self):
         pass
-    
+
     async def discover_schema(
         self,
         connector: Any,
@@ -70,10 +70,10 @@ class SchemaDiscoveryService:
             DiscoveredSchema com colunas e dados de amostra
         """
         logger.info(f"Descobrindo schema para recurso: {resource_type}")
-        
+
         # Determina o método de extração baseado no tipo de recurso
         sample_data = await self._extract_sample(connector, resource_type, sample_size)
-        
+
         if not sample_data:
             logger.warning(f"Nenhum dado encontrado para {resource_type}")
             return DiscoveredSchema(
@@ -82,14 +82,14 @@ class SchemaDiscoveryService:
                 sample_data=None,
                 metadata={"error": "No data found"}
             )
-        
+
         # Extrai colunas do primeiro registro
         first_record = sample_data[0] if isinstance(sample_data, list) else sample_data
         columns = self._extract_columns(first_record)
         column_types = self._infer_column_types(first_record)
-        
+
         logger.info(f"Schema descoberto: {len(columns)} colunas para {resource_type}")
-        
+
         return DiscoveredSchema(
             resource_type=resource_type,
             columns=columns,
@@ -101,13 +101,13 @@ class SchemaDiscoveryService:
                 "total_columns": len(columns)
             }
         )
-    
+
     async def _extract_sample(
         self,
         connector: Any,
         resource_type: str,
         sample_size: int
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Extrai dados de amostra usando o conector apropriado.
         
@@ -119,19 +119,19 @@ class SchemaDiscoveryService:
             # Métodos padrão de e-commerce
             method_map = {
                 "products": "get_products",
-                "orders": "get_orders", 
+                "orders": "get_orders",
                 "customers": "get_customers",
                 "inventory": "get_inventory",
                 "collections": "get_collections",
                 "categories": "get_categories",
             }
-            
+
             method_name = method_map.get(resource_type)
-            
+
             if method_name and hasattr(connector, method_name):
                 method = getattr(connector, method_name)
                 return await method(limit=sample_size)
-            
+
             # Fallback para métodos genéricos
             if hasattr(connector, 'extract_data'):
                 # Conector genérico com extract_data
@@ -143,7 +143,7 @@ class SchemaDiscoveryService:
                     if hasattr(chunk, 'to_dict'):
                         return chunk.to_dict('records')[:sample_size]
                     return list(chunk)[:sample_size]
-            
+
             if hasattr(connector, 'fetch_data'):
                 # BigQuery connector
                 query = f"SELECT * FROM `{resource_type}` LIMIT {sample_size}"
@@ -151,15 +151,15 @@ class SchemaDiscoveryService:
                 if hasattr(result, 'to_dict'):
                     return result.to_dict('records')
                 return result
-            
+
             logger.warning(f"Método de extração não encontrado para {resource_type}")
             return []
-            
+
         except Exception as e:
             logger.error(f"Erro ao extrair amostra de {resource_type}: {e}")
             return []
-    
-    def _extract_columns(self, record: Dict[str, Any], prefix: str = "") -> List[str]:
+
+    def _extract_columns(self, record: dict[str, Any], prefix: str = "") -> list[str]:
         """
         Extrai nomes de colunas de um registro.
         Suporta estruturas aninhadas com notação de ponto.
@@ -172,10 +172,10 @@ class SchemaDiscoveryService:
             Lista de nomes de colunas
         """
         columns = []
-        
+
         for key, value in record.items():
             full_key = f"{prefix}.{key}" if prefix else key
-            
+
             if isinstance(value, dict):
                 # Recursão para objetos aninhados
                 nested_columns = self._extract_columns(value, full_key)
@@ -187,10 +187,10 @@ class SchemaDiscoveryService:
                 columns.extend(nested_columns)
             else:
                 columns.append(full_key)
-        
+
         return columns
-    
-    def _infer_column_types(self, record: Dict[str, Any], prefix: str = "") -> Dict[str, str]:
+
+    def _infer_column_types(self, record: dict[str, Any], prefix: str = "") -> dict[str, str]:
         """
         Infere tipos de dados das colunas baseado em valores de amostra.
         
@@ -202,10 +202,10 @@ class SchemaDiscoveryService:
             Dict mapeando coluna -> tipo inferido
         """
         types = {}
-        
+
         for key, value in record.items():
             full_key = f"{prefix}.{key}" if prefix else key
-            
+
             if value is None:
                 types[full_key] = "null"
             elif isinstance(value, bool):
@@ -235,9 +235,9 @@ class SchemaDiscoveryService:
                 types.update(nested_types)
             else:
                 types[full_key] = "unknown"
-        
+
         return types
-    
+
     def _looks_like_datetime(self, value: str) -> bool:
         """Verifica se string parece ser datetime."""
         import re
@@ -248,21 +248,21 @@ class SchemaDiscoveryService:
             r'^\d{4}-\d{2}-\d{2}T',  # ISO datetime
         ]
         return any(re.match(p, value) for p in patterns)
-    
+
     def _looks_like_email(self, value: str) -> bool:
         """Verifica se string parece ser email."""
         import re
         return bool(re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', value))
-    
+
     def _looks_like_url(self, value: str) -> bool:
         """Verifica se string parece ser URL."""
         return value.startswith(('http://', 'https://', 'www.'))
-    
+
     async def discover_all_resources(
         self,
         connector: Any,
         connector_type: str = "ecommerce"
-    ) -> Dict[str, DiscoveredSchema]:
+    ) -> dict[str, DiscoveredSchema]:
         """
         Descobre schemas de todos os recursos padrão de um conector.
         
@@ -274,10 +274,10 @@ class SchemaDiscoveryService:
             Dict mapeando resource_type -> DiscoveredSchema
         """
         resources = self.DEFAULT_RESOURCES.get(connector_type, [])
-        
+
         if connector_type == "ecommerce" and hasattr(connector, 'SUPPORTED_RESOURCES'):
             resources = connector.SUPPORTED_RESOURCES
-        
+
         results = {}
         for resource in resources:
             try:
@@ -290,10 +290,10 @@ class SchemaDiscoveryService:
                     columns=[],
                     metadata={"error": str(e)}
                 )
-        
+
         return results
-    
-    def flatten_columns(self, columns: List[str]) -> List[str]:
+
+    def flatten_columns(self, columns: list[str]) -> list[str]:
         """
         Achata lista de colunas removendo notação de objetos aninhados.
         Útil para criar mapeamento mais simples.

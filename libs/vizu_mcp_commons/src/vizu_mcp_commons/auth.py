@@ -6,8 +6,7 @@ Provides standardized token handling across all Vizu MCP services.
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Optional, List
+from datetime import UTC, datetime
 from uuid import UUID
 
 import jwt
@@ -22,12 +21,12 @@ class TokenClaims:
     """Validated JWT token claims."""
 
     sub: str  # Subject (external user ID)
-    email: Optional[str] = None
-    name: Optional[str] = None
-    cliente_id: Optional[UUID] = None  # Resolved Vizu client ID
-    scopes: List[str] = field(default_factory=list)
-    exp: Optional[datetime] = None
-    iat: Optional[datetime] = None
+    email: str | None = None
+    name: str | None = None
+    cliente_id: UUID | None = None  # Resolved Vizu client ID
+    scopes: list[str] = field(default_factory=list)
+    exp: datetime | None = None
+    iat: datetime | None = None
     raw_claims: dict = field(default_factory=dict)
 
     @property
@@ -35,7 +34,7 @@ class TokenClaims:
         """Check if token is expired."""
         if not self.exp:
             return False
-        return datetime.now(timezone.utc) > self.exp
+        return datetime.now(UTC) > self.exp
 
     @property
     def external_user_id(self) -> str:
@@ -53,11 +52,11 @@ class TokenValidator:
 
     def __init__(
         self,
-        jwt_secret: Optional[str] = None,
-        algorithms: Optional[List[str]] = None,
+        jwt_secret: str | None = None,
+        algorithms: list[str] | None = None,
         verify_exp: bool = True,
-        issuer: Optional[str] = None,
-        audience: Optional[str] = None,
+        issuer: str | None = None,
+        audience: str | None = None,
     ):
         """
         Initialize token validator.
@@ -134,11 +133,11 @@ class TokenValidator:
         # Parse exp/iat as datetime
         exp = None
         if "exp" in payload:
-            exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+            exp = datetime.fromtimestamp(payload["exp"], tz=UTC)
 
         iat = None
         if "iat" in payload:
-            iat = datetime.fromtimestamp(payload["iat"], tz=timezone.utc)
+            iat = datetime.fromtimestamp(payload["iat"], tz=UTC)
 
         # Parse scopes (can be space-separated string or list)
         scopes = payload.get("scope", payload.get("scopes", []))
@@ -198,7 +197,7 @@ class MCPTokenExtractor:
     """
 
     @staticmethod
-    def extract_from_fastmcp_context() -> Optional[str]:
+    def extract_from_fastmcp_context() -> str | None:
         """
         Extract token from FastMCP context variable.
 
@@ -216,7 +215,7 @@ class MCPTokenExtractor:
         return None
 
     @staticmethod
-    def extract_claims_from_fastmcp_context() -> Optional[dict]:
+    def extract_claims_from_fastmcp_context() -> dict | None:
         """
         Extract claims dict from FastMCP AccessToken.
 
@@ -233,7 +232,7 @@ class MCPTokenExtractor:
         return None
 
     @staticmethod
-    def extract_external_user_id() -> Optional[str]:
+    def extract_external_user_id() -> str | None:
         """
         Extract external user ID from FastMCP context.
 
@@ -246,7 +245,7 @@ class MCPTokenExtractor:
         return None
 
     @staticmethod
-    def extract_email() -> Optional[str]:
+    def extract_email() -> str | None:
         """
         Extract user email from FastMCP context.
 

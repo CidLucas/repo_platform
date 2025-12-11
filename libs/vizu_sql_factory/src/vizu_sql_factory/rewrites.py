@@ -8,10 +8,9 @@ Implements SQL query normalization and safety rewrites:
 """
 
 import logging
-from typing import Optional, List
 
 try:
-    from sqlglot import parse_one, exp
+    from sqlglot import exp, parse_one
     SQLGLOT_AVAILABLE = True
 except ImportError:
     SQLGLOT_AVAILABLE = False
@@ -46,7 +45,7 @@ class SqlRewriter:
     def rewrite_expand_select_star(
         self,
         sql: str,
-        allowed_columns: dict[str, List[str]]
+        allowed_columns: dict[str, list[str]]
     ) -> str:
         """
         Expand SELECT * or SELECT table.* to explicit columns.
@@ -220,7 +219,7 @@ class SqlRewriter:
         sql: str,
         tenant_id: str,
         max_rows: int,
-        allowed_columns: dict[str, List[str]],
+        allowed_columns: dict[str, list[str]],
         tenant_column: str = "client_id"
     ) -> str:
         """

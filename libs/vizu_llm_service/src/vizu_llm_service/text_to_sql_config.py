@@ -25,12 +25,12 @@ Example workflow:
   4. Invoke: response = await llm_call.invoke(prompt)
 """
 
-import logging
 import asyncio
-from dataclasses import dataclass, asdict
-from typing import Optional, List, Dict, Any
-from enum import Enum
+import logging
 import time
+from dataclasses import asdict, dataclass
+from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -75,10 +75,10 @@ class TextToSqlLLMConfig:
 
     # Token management
     max_tokens: int = 500  # Max response length (SQL typically <200 tokens)
-    max_input_tokens: Optional[int] = None  # Max input length (provider-dependent)
+    max_input_tokens: int | None = None  # Max input length (provider-dependent)
 
     # Safety and stopping
-    stop_tokens: List[str] = None  # Stop on these strings
+    stop_tokens: list[str] = None  # Stop on these strings
     safety_instructions_enabled: bool = True  # Include safety guardrails in system prompt
 
     # Retry policy
@@ -97,8 +97,8 @@ class TextToSqlLLMConfig:
     include_usage_stats: bool = True  # Track token usage
 
     # API credentials and endpoints
-    api_key: Optional[str] = None  # Will be loaded from environment
-    api_base: Optional[str] = None  # Custom API endpoint
+    api_key: str | None = None  # Will be loaded from environment
+    api_base: str | None = None  # Custom API endpoint
 
     def __post_init__(self):
         """Validate configuration and set defaults."""
@@ -124,7 +124,7 @@ class TextToSqlLLMConfig:
         if self.timeout_seconds < 5:
             logger.warning(f"timeout_seconds={self.timeout_seconds} < 5s (may timeout quickly)")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return asdict(self)
 
@@ -153,16 +153,16 @@ class TextToSqlLLMConfig:
 class TextToSqlLLMResponse:
     """Response from LLM call."""
     success: bool  # Whether call succeeded
-    sql: Optional[str] = None  # Generated SQL (null if failed)
-    raw_response: Optional[str] = None  # Full LLM response before parsing
-    error: Optional[str] = None  # Error message if failed
-    error_code: Optional[str] = None  # Error code for categorization
-    usage: Optional[Dict[str, int]] = None  # Token usage {prompt_tokens, completion_tokens, total_tokens}
+    sql: str | None = None  # Generated SQL (null if failed)
+    raw_response: str | None = None  # Full LLM response before parsing
+    error: str | None = None  # Error message if failed
+    error_code: str | None = None  # Error code for categorization
+    usage: dict[str, int] | None = None  # Token usage {prompt_tokens, completion_tokens, total_tokens}
     latency_ms: float = 0.0  # Total time taken
     retry_count: int = 0  # Number of retries used
-    stop_reason: Optional[str] = None  # Why LLM stopped (stop_sequence, max_tokens, etc.)
+    stop_reason: str | None = None  # Why LLM stopped (stop_sequence, max_tokens, etc.)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return asdict(self)
 
@@ -184,7 +184,7 @@ class TextToSqlLLMCall:
     Phase 2: Real implementation with OpenAI/Anthropic SDKs
     """
 
-    def __init__(self, config: Optional[TextToSqlLLMConfig] = None):
+    def __init__(self, config: TextToSqlLLMConfig | None = None):
         """
         Initialize LLM call wrapper.
 
@@ -232,7 +232,7 @@ class TextToSqlLLMCall:
     async def invoke(
         self,
         prompt: str,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
     ) -> TextToSqlLLMResponse:
         """
         Invoke LLM with exponential backoff retry.
@@ -364,7 +364,7 @@ class TextToSqlLLMCall:
     async def invoke_sync(
         self,
         prompt: str,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
     ) -> TextToSqlLLMResponse:
         """
         Synchronous wrapper for invoke().
@@ -382,10 +382,10 @@ class TextToSqlLLMCall:
 
 
 # Singleton instance (created on demand)
-_llm_call: Optional[TextToSqlLLMCall] = None
+_llm_call: TextToSqlLLMCall | None = None
 
 
-def get_llm_call(config: Optional[TextToSqlLLMConfig] = None) -> TextToSqlLLMCall:
+def get_llm_call(config: TextToSqlLLMConfig | None = None) -> TextToSqlLLMCall:
     """
     Get LLM call singleton instance.
 

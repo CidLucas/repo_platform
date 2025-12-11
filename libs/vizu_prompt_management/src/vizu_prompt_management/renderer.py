@@ -4,9 +4,9 @@ Jinja2-based template rendering with safety features.
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
-from jinja2 import Environment, BaseLoader, select_autoescape, TemplateSyntaxError
+from jinja2 import BaseLoader, Environment, TemplateSyntaxError, select_autoescape
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class TemplateRenderer:
     def render(
         self,
         template: str,
-        variables: Dict[str, Any],
+        variables: dict[str, Any],
         strict: bool = False,
     ) -> str:
         """
@@ -91,7 +91,7 @@ class TemplateRenderer:
     def _simple_render(
         self,
         template: str,
-        variables: Dict[str, Any],
+        variables: dict[str, Any],
         strict: bool,
     ) -> str:
         """Simple {variable} substitution fallback."""
@@ -110,7 +110,7 @@ class TemplateRenderer:
 
         return result
 
-    def extract_variables(self, template: str) -> Set[str]:
+    def extract_variables(self, template: str) -> set[str]:
         """
         Extract variable names from a template.
 
@@ -140,7 +140,7 @@ class TemplateRenderer:
 
         return variables
 
-    def validate_template(self, template: str) -> List[str]:
+    def validate_template(self, template: str) -> list[str]:
         """
         Validate template syntax.
 
@@ -191,7 +191,7 @@ class SafeRenderer(TemplateRenderer):
     def render(
         self,
         template: str,
-        variables: Dict[str, Any],
+        variables: dict[str, Any],
         strict: bool = False,
     ) -> str:
         """Render with safety checks."""
@@ -214,10 +214,10 @@ class SafeRenderer(TemplateRenderer):
 
     def _flatten_variables(
         self,
-        variables: Dict[str, Any],
+        variables: dict[str, Any],
         prefix: str = "",
         depth: int = 0,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Flatten nested variables up to max depth."""
         if depth > self.max_variable_depth:
             return {}

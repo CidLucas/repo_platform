@@ -1,20 +1,19 @@
 import logging
 import os
 from functools import lru_cache
-from typing import Optional
 
 import redis
 from fastmcp.exceptions import ToolError
-from fastmcp.server.dependencies import AccessToken
 from fastmcp.server.auth.providers.google import GoogleProvider
+from fastmcp.server.dependencies import AccessToken
 
 from tool_pool_api.core.config import Settings, get_settings
 
 # Importações Vizu
 from vizu_context_service.context_service import ContextService
 from vizu_context_service.redis_service import RedisService
-from vizu_models.vizu_client_context import VizuClientContext
 from vizu_db_connector.database import SessionLocal
+from vizu_models.vizu_client_context import VizuClientContext
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ def get_app_settings() -> Settings:
 
 
 # Pool Redis compartilhado
-_redis_pool: Optional[redis.ConnectionPool] = None
+_redis_pool: redis.ConnectionPool | None = None
 
 
 def _get_redis_pool() -> redis.ConnectionPool:
@@ -71,7 +70,7 @@ def get_context_service() -> ContextService:
 
 
 async def load_context_from_token(
-    ctx_service: ContextService, access_token: Optional[AccessToken]
+    ctx_service: ContextService, access_token: AccessToken | None
 ) -> VizuClientContext:
     """
     Função helper para carregar VizuClientContext com base no token de acesso.
@@ -128,7 +127,7 @@ async def load_context_from_token(
 # ============================================================================
 
 
-def _get_google_secret(secret_id: str) -> Optional[str]:
+def _get_google_secret(secret_id: str) -> str | None:
     """
     Busca o Google Client Secret.
 
@@ -155,7 +154,7 @@ def _get_google_secret(secret_id: str) -> Optional[str]:
 
 
 @lru_cache
-def get_auth_provider() -> Optional[GoogleProvider]:
+def get_auth_provider() -> GoogleProvider | None:
     """
     Instancia e retorna o GoogleProvider se configurado.
     """

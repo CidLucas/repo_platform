@@ -17,18 +17,18 @@ Reuses:
 import logging
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Any
 from uuid import uuid4
 
+from vizu_sql_factory.checks import SqlValidator, ValidationResult
+from vizu_sql_factory.observability import SqlValidationObserver, ValidationTimer
+from vizu_sql_factory.parser import SqlParser
+from vizu_sql_factory.rewrites import SqlRewriter
 from vizu_supabase_client import (
+    AuthContext,
     PostgRESTQueryExecutor,
     get_postgrest_executor,
-    AuthContext,
 )
-from vizu_sql_factory.parser import SqlParser
-from vizu_sql_factory.checks import SqlValidator, ValidationResult
-from vizu_sql_factory.rewrites import SqlRewriter
-from vizu_sql_factory.observability import SqlValidationObserver, ValidationTimer
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +38,11 @@ class ExecutionConfig:
     """Configuration for SQL execution."""
 
     tenant_id: str
-    allowed_views: List[str]
-    allowed_columns: Dict[str, List[str]]
+    allowed_views: list[str]
+    allowed_columns: dict[str, list[str]]
     max_rows: int = 100
-    mandatory_filters: Optional[List[str]] = None
-    allowed_aggregates: Optional[List[str]] = None
+    mandatory_filters: list[str] | None = None
+    allowed_aggregates: list[str] | None = None
     allow_rewrites: bool = True
     tenant_column: str = "client_id"
 
@@ -53,15 +53,15 @@ class ExecutionResult:
 
     success: bool
     original_sql: str
-    normalized_sql: Optional[str]
-    rows: List[Dict[str, Any]]
-    columns: List[Dict[str, str]]  # [{name, type}]
+    normalized_sql: str | None
+    rows: list[dict[str, Any]]
+    columns: list[dict[str, str]]  # [{name, type}]
     row_count: int
-    validation_result: Optional[ValidationResult] = None
+    validation_result: ValidationResult | None = None
     execution_time_ms: float = 0.0
-    error: Optional[Dict[str, Any]] = None
+    error: dict[str, Any] | None = None
     telemetry_id: str = ""
-    caveats: List[str] = None
+    caveats: list[str] = None
 
     def __post_init__(self):
         """Initialize defaults."""
@@ -82,8 +82,8 @@ class TextToSqlExecutor:
 
     def __init__(
         self,
-        postgrest_executor: Optional[PostgRESTQueryExecutor] = None,
-        observer: Optional[SqlValidationObserver] = None
+        postgrest_executor: PostgRESTQueryExecutor | None = None,
+        observer: SqlValidationObserver | None = None
     ):
         """
         Initialize executor.
@@ -104,8 +104,8 @@ class TextToSqlExecutor:
         self,
         sql: str,
         config: ExecutionConfig,
-        user_jwt: Optional[str] = None,
-        auth_context: Optional[AuthContext] = None,
+        user_jwt: str | None = None,
+        auth_context: AuthContext | None = None,
     ) -> ExecutionResult:
         """
         Execute SQL query with full validation and safety pipeline.
@@ -235,7 +235,7 @@ class TextToSqlExecutor:
                 caveats=[
                     f"Query validated against {len(validation_result.get('checks_passed', []))} security checks",
                     f"Result limited to {limit} rows (config: {config.max_rows})",
-                    f"Row-Level Security enforced via RLS policies"
+                    "Row-Level Security enforced via RLS policies"
                 ]
             )
 
@@ -268,7 +268,7 @@ class TextToSqlExecutor:
                 caveats=[f"Execution failed: {str(e)}"]
             )
 
-    def _extract_filters_from_sql(self, sql: str) -> Dict[str, Any]:
+    def _extract_filters_from_sql(self, sql: str) -> dict[str, Any]:
         """
         Extract WHERE clause conditions as filters.
 
@@ -300,7 +300,7 @@ class TextToSqlExecutor:
     def _build_error_result(
         self,
         sql: str,
-        validation_result: Dict[str, Any],
+        validation_result: dict[str, Any],
         telemetry_id: str,
         start_time: float,
         error_code: str,

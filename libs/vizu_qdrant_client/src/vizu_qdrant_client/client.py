@@ -1,10 +1,11 @@
-import os
 import logging
-from typing import List, Optional
-from qdrant_client import QdrantClient, models
-from langchain_qdrant import QdrantVectorStore
+import os
+from typing import Optional
+
 from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStoreRetriever
+from langchain_qdrant import QdrantVectorStore
+from qdrant_client import QdrantClient, models
 
 logger = logging.getLogger(__name__)
 
@@ -62,14 +63,14 @@ class VizuQdrantClient:
             )
             logger.info(f"Coleção '{collection_name}' criada com sucesso.")
 
-    def upsert_vectors(self, collection_name: str, points: List[models.PointStruct]):
+    def upsert_vectors(self, collection_name: str, points: list[models.PointStruct]):
         self.client.upsert(
             collection_name=collection_name,
             points=points,
             wait=True
         )
 
-    def search(self, collection_name: str, query_vector: List[float], limit: int = 5) -> List[models.ScoredPoint]:
+    def search(self, collection_name: str, query_vector: list[float], limit: int = 5) -> list[models.ScoredPoint]:
         """
         Realiza uma busca por similaridade em uma coleção.
         """
@@ -132,7 +133,7 @@ class VizuQdrantClient:
         except Exception:
             return False
 
-    def get_collection_info(self, collection_name: str) -> Optional[dict]:
+    def get_collection_info(self, collection_name: str) -> dict | None:
         """Retorna informações sobre uma coleção."""
         try:
             info = self.client.get_collection(collection_name=collection_name)

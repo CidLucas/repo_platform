@@ -8,7 +8,6 @@ Phase 3: Updated to use vizu_tool_registry for tool validation.
 """
 
 import logging
-from typing import List
 from uuid import UUID
 
 from fastmcp import Context, FastMCP
@@ -19,9 +18,9 @@ from tool_pool_api.server.dependencies import (
     get_context_service,
     load_context_from_token,
 )
+from vizu_llm_service import ModelTier, get_model
 from vizu_models.vizu_client_context import VizuClientContext
 from vizu_rag_factory.factory import create_rag_runnable
-from vizu_llm_service import get_model, ModelTier
 
 # Phase 3: Use ToolRegistry for validation
 from vizu_tool_registry import ToolRegistry
@@ -177,7 +176,7 @@ async def _executar_rag_cliente_logic(
 
 
 @register_module
-def register_tools(mcp: FastMCP) -> List[str]:
+def register_tools(mcp: FastMCP) -> list[str]:
     """Registra as tools do módulo RAG."""
 
     # Wrapper que aceita cliente_id injetado pelo atendente_core

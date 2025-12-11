@@ -13,13 +13,12 @@ Phase 2: Adds real schema introspection and RLS examples
 """
 
 import logging
-import re
-from pathlib import Path
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
+from vizu_sql_factory.allowlist import RoleConfig
 from vizu_sql_factory.schema_snapshot import SchemaSnapshot, SchemaSnapshotFormatter
-from vizu_sql_factory.allowlist import AllowlistConfig, RoleConfig
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +31,7 @@ class TextToSqlPromptContext:
     role: str  # User role (viewer, analyst, admin)
     schema_snapshot: SchemaSnapshot  # Schema with role-based filtering
     role_config: RoleConfig  # Allowlist config for this role
-    optional_constraints: Optional[Dict[str, Any]] = None  # e.g., date_range, max_rows
+    optional_constraints: dict[str, Any] | None = None  # e.g., date_range, max_rows
 
     def validate(self) -> bool:
         """Validate context has all required fields."""
@@ -74,7 +73,7 @@ class TextToSqlPromptBuilder:
         "TENANT_ID": "<TENANT_ID>",
     }
 
-    def __init__(self, template_path: Optional[Path] = None):
+    def __init__(self, template_path: Path | None = None):
         """
         Initialize prompt builder.
 
@@ -82,7 +81,7 @@ class TextToSqlPromptBuilder:
             template_path: Path to text_to_sql.md template. Defaults to bundled template.
         """
         self.template_path = template_path or self.DEFAULT_TEMPLATE_PATH
-        self._template_cache: Optional[str] = None
+        self._template_cache: str | None = None
 
     def _load_template(self) -> str:
         """Load prompt template from file."""
@@ -94,7 +93,7 @@ class TextToSqlPromptBuilder:
             raise FileNotFoundError(f"Prompt template not found: {self.template_path}")
 
         try:
-            with open(self.template_path, "r") as f:
+            with open(self.template_path) as f:
                 self._template_cache = f.read()
             logger.info(f"Loaded prompt template from {self.template_path}")
             return self._template_cache
@@ -157,7 +156,7 @@ class TextToSqlPromptBuilder:
 
     def _format_date_range_constraints(self,
                                       role_config: RoleConfig,
-                                      optional_constraints: Optional[Dict[str, Any]]) -> str:
+                                      optional_constraints: dict[str, Any] | None) -> str:
         """Format date range constraints."""
         constraints = []
 
@@ -213,7 +212,7 @@ class TextToSqlPromptBuilder:
         """
         # Validate context
         if not context.validate():
-            raise ValueError(f"Invalid context: missing required fields")
+            raise ValueError("Invalid context: missing required fields")
 
         logger.info(
             f"[prompt_builder] Building prompt: "
@@ -245,7 +244,7 @@ class TextToSqlPromptBuilder:
         role: str,
         schema_snapshot: SchemaSnapshot,
         role_config: RoleConfig,
-        optional_constraints: Optional[Dict[str, Any]] = None,
+        optional_constraints: dict[str, Any] | None = None,
     ) -> str:
         """
         Build prompt from individual parts.
@@ -275,10 +274,10 @@ class TextToSqlPromptBuilder:
 
 
 # Singleton instance
-_prompt_builder: Optional[TextToSqlPromptBuilder] = None
+_prompt_builder: TextToSqlPromptBuilder | None = None
 
 
-def get_prompt_builder(template_path: Optional[Path] = None) -> TextToSqlPromptBuilder:
+def get_prompt_builder(template_path: Path | None = None) -> TextToSqlPromptBuilder:
     """
     Get prompt builder singleton instance.
 

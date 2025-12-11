@@ -2,10 +2,11 @@
 Tests for JWT authentication and context extraction.
 """
 
-import pytest
-import json
 import base64
+import json
 from datetime import datetime
+
+import pytest
 
 from vizu_supabase_client.auth_context import (
     AuthContext,
@@ -88,7 +89,7 @@ class TestAuthContext:
 
     def test_auth_context_is_expired_future(self):
         """Test is_expired returns False for future expiry."""
-        future_timestamp = int((datetime.utcnow().timestamp())) + 3600  # 1 hour
+        future_timestamp = int(datetime.utcnow().timestamp()) + 3600  # 1 hour
         ctx = AuthContext(
             user_id="user123",
             tenant_id="tenant456",

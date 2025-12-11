@@ -10,21 +10,21 @@ This test validates the full workflow from natural language question
 to LLM response, ensuring all components integrate properly.
 """
 
-import pytest
-import asyncio
+from unittest.mock import AsyncMock, Mock
 from uuid import UUID
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+
+import pytest
 
 from vizu_llm_service import (
-    TextToSqlPrompt,
-    TextToSqlLLMConfig,
     TextToSqlLLMCall,
-    get_text_to_sql_prompt,
+    TextToSqlLLMConfig,
+    TextToSqlPrompt,
     get_llm_call,
+    get_text_to_sql_prompt,
 )
 from vizu_llm_service.text_to_sql_config import TextToSqlLLMResponse
-from vizu_prompt_management.loader import PromptLoader
 from vizu_models.context import VizuClientContext
+from vizu_prompt_management.loader import PromptLoader
 
 
 @pytest.fixture

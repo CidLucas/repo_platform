@@ -16,9 +16,9 @@ Categorias:
 """
 
 from enum import Enum
-from typing import Optional, List, Any, Dict
-from pydantic import BaseModel, Field
+from typing import Any
 
+from pydantic import BaseModel, Field
 
 # ============================================================================
 # ELICITATION TYPES (Human-in-the-Loop)
@@ -57,11 +57,11 @@ class ElicitationOption(BaseModel):
 
     value: str = Field(..., description="Valor interno usado pelo sistema")
     label: str = Field(..., description="Texto exibido ao usuário")
-    description: Optional[str] = Field(None, description="Descrição adicional")
-    icon: Optional[str] = Field(None, description="Ícone opcional (emoji ou nome)")
+    description: str | None = Field(None, description="Descrição adicional")
+    icon: str | None = Field(None, description="Ícone opcional (emoji ou nome)")
     disabled: bool = Field(False, description="Se a opção está desabilitada")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "value": self.value,
             "label": self.label,
@@ -82,13 +82,13 @@ class ElicitationRequest(BaseModel):
     elicitation_id: str = Field(..., description="ID único desta elicitation")
     type: ElicitationType = Field(..., description="Tipo de input necessário")
     message: str = Field(..., description="Mensagem/pergunta para o usuário")
-    options: Optional[List[ElicitationOption]] = Field(
+    options: list[ElicitationOption] | None = Field(
         None, description="Opções disponíveis (para tipo SELECTION)"
     )
-    metadata: Optional[Dict[str, Any]] = Field(
+    metadata: dict[str, Any] | None = Field(
         None, description="Contexto adicional (tool name, params originais, etc.)"
     )
-    timeout_seconds: Optional[int] = Field(
+    timeout_seconds: int | None = Field(
         None, description="Tempo limite para resposta (None = sem limite)"
     )
     required: bool = Field(
@@ -130,9 +130,9 @@ class ToolInfo(BaseModel):
     """
 
     name: str = Field(..., description="Nome técnico da ferramenta")
-    description: Optional[str] = Field(None, description="Descrição da ferramenta")
+    description: str | None = Field(None, description="Descrição da ferramenta")
     enabled: bool = Field(True, description="Se está habilitada para este cliente")
-    category: Optional[str] = Field(
+    category: str | None = Field(
         None, description="Categoria (rag, sql, scheduling, docker_mcp)"
     )
     requires_confirmation: bool = Field(
@@ -141,7 +141,7 @@ class ToolInfo(BaseModel):
     tier_required: str = Field(
         "BASIC", description="Tier mínimo requerido (BASIC, SME, ENTERPRISE)"
     )
-    docker_mcp_integration: Optional[str] = Field(
+    docker_mcp_integration: str | None = Field(
         None, description="Nome do servidor Docker MCP se aplicável (github, slack, etc.)"
     )
 
@@ -154,13 +154,13 @@ class ToolExecutionResult(BaseModel):
     """
 
     success: bool = Field(..., description="Se a execução foi bem-sucedida")
-    result: Optional[Any] = Field(None, description="Resultado da execução")
-    error: Optional[str] = Field(None, description="Mensagem de erro se falhou")
+    result: Any | None = Field(None, description="Resultado da execução")
+    error: str | None = Field(None, description="Mensagem de erro se falhou")
     tool_name: str = Field(..., description="Nome da ferramenta executada")
-    execution_time_ms: Optional[int] = Field(
+    execution_time_ms: int | None = Field(
         None, description="Tempo de execução em ms"
     )
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Metadados adicionais")
+    metadata: dict[str, Any] | None = Field(None, description="Metadados adicionais")
 
 
 # ============================================================================
@@ -176,8 +176,8 @@ class ModelInfo(BaseModel):
     name: str = Field(..., description="Nome do modelo (ex: gpt-oss:20b)")
     provider: str = Field(..., description="Provider (ollama, ollama_cloud, openai)")
     tier: str = Field(..., description="Tier (fast, default, powerful)")
-    description: Optional[str] = Field(None, description="Descrição do modelo")
-    max_tokens: Optional[int] = Field(None, description="Máximo de tokens suportados")
+    description: str | None = Field(None, description="Descrição do modelo")
+    max_tokens: int | None = Field(None, description="Máximo de tokens suportados")
     supports_tools: bool = Field(True, description="Se suporta function calling")
 
 
@@ -195,13 +195,13 @@ class AgentChatRequest(BaseModel):
 
     message: str = Field(..., description="Mensagem do usuário")
     session_id: str = Field(..., description="ID único da sessão")
-    model: Optional[str] = Field(
+    model: str | None = Field(
         None, description="Modelo LLM a usar (sobrescreve padrão)"
     )
-    elicitation_response: Optional[ElicitationResponse] = Field(
+    elicitation_response: ElicitationResponse | None = Field(
         None, description="Resposta a uma elicitation pendente"
     )
-    metadata: Optional[Dict[str, Any]] = Field(
+    metadata: dict[str, Any] | None = Field(
         None, description="Metadados extras (canal, device, etc.)"
     )
 
@@ -213,14 +213,14 @@ class AgentChatResponse(BaseModel):
 
     response: str = Field(..., description="Resposta do agente")
     session_id: str = Field(..., description="ID da sessão")
-    model_used: Optional[str] = Field(None, description="Modelo LLM utilizado")
-    elicitation_pending: Optional[ElicitationRequest] = Field(
+    model_used: str | None = Field(None, description="Modelo LLM utilizado")
+    elicitation_pending: ElicitationRequest | None = Field(
         None, description="Se presente, agente precisa de input do usuário"
     )
-    tools_called: Optional[List[str]] = Field(
+    tools_called: list[str] | None = Field(
         None, description="Lista de tools chamadas nesta interação"
     )
-    trace_id: Optional[str] = Field(
+    trace_id: str | None = Field(
         None, description="ID do trace para observabilidade (Langfuse)"
     )
 
@@ -246,7 +246,7 @@ class ClientContextResponse(BaseModel):
     tier: str = Field("BASIC", description="Tier do cliente (BASIC, SME, ENTERPRISE)")
 
     # PHASE 1: New dynamic tool list (replaces 3 boolean flags)
-    enabled_tools: List[str] = Field(
+    enabled_tools: list[str] = Field(
         default_factory=list,
         description="Lista de nomes de ferramentas habilitadas (ex: ['executar_rag_cliente', 'executar_sql_agent'])"
     )
@@ -256,12 +256,12 @@ class ClientContextResponse(BaseModel):
     ferramenta_sql_habilitada: bool = Field(
         ..., description="DEPRECATED: Use enabled_tools instead"
     )
-    collection_rag: Optional[str] = Field(None, description="Nome da collection RAG")
+    collection_rag: str | None = Field(None, description="Nome da collection RAG")
 
-    available_tools: List[ToolInfo] = Field(
+    available_tools: list[ToolInfo] = Field(
         ..., description="Ferramentas e seus status com metadata"
     )
-    horario_funcionamento: Optional[Dict[str, Any]] = Field(
+    horario_funcionamento: dict[str, Any] | None = Field(
         None, description="Horário de funcionamento configurado"
     )
     has_custom_prompt: bool = Field(False, description="Se tem prompt customizado")

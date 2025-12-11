@@ -10,11 +10,12 @@ Integração com MCP: @mcp.resource("sql://...") busca desta tabela.
 
 import uuid
 from datetime import datetime
-from typing import Optional, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from sqlmodel import Field, Relationship, SQLModel, Column
-from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID as pgUUID, JSONB
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as pgUUID
+from sqlmodel import Column, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .cliente_vizu import ClienteVizu
@@ -33,7 +34,7 @@ class SqlTableConfig(SQLModel, table=True):
 
     __tablename__ = "sql_table_config"
 
-    id: Optional[uuid.UUID] = Field(
+    id: uuid.UUID | None = Field(
         default_factory=uuid.uuid4,
         sa_column=Column(pgUUID(as_uuid=True), primary_key=True),
     )
@@ -60,31 +61,31 @@ class SqlTableConfig(SQLModel, table=True):
     )
 
     # Semantic metadata for LLM
-    display_name: Optional[str] = Field(
+    display_name: str | None = Field(
         default=None,
         sa_column=Column(String(100)),
         description="Nome amigável para exibição (ex: 'Products Catalog')",
     )
 
-    description: Optional[str] = Field(
+    description: str | None = Field(
         default=None,
         sa_column=Column(Text),
         description="Descrição do conteúdo da tabela para o LLM",
     )
 
-    column_descriptions: Optional[dict] = Field(
+    column_descriptions: dict | None = Field(
         default=None,
         sa_column=Column(JSONB),
         description="Dict de {column_name: description} para cada coluna",
     )
 
-    enum_values: Optional[dict] = Field(
+    enum_values: dict | None = Field(
         default=None,
         sa_column=Column(JSONB),
         description="Dict de {column_name: [valid_values]} para colunas categóricas",
     )
 
-    example_queries: Optional[List[dict]] = Field(
+    example_queries: list[dict] | None = Field(
         default=None,
         sa_column=Column(JSONB),
         description="Lista de {question: sql} exemplos para few-shot learning",
@@ -124,11 +125,11 @@ class SqlTableConfigCreate(SQLModel):
     cliente_vizu_id: uuid.UUID
     table_name: str
     schema_name: str = "public"
-    display_name: Optional[str] = None
-    description: Optional[str] = None
-    column_descriptions: Optional[dict] = None
-    enum_values: Optional[dict] = None
-    example_queries: Optional[List[dict]] = None
+    display_name: str | None = None
+    description: str | None = None
+    column_descriptions: dict | None = None
+    enum_values: dict | None = None
+    example_queries: list[dict] | None = None
     is_primary: bool = False
 
 
@@ -139,11 +140,11 @@ class SqlTableConfigRead(SQLModel):
     cliente_vizu_id: uuid.UUID
     table_name: str
     schema_name: str
-    display_name: Optional[str] = None
-    description: Optional[str] = None
-    column_descriptions: Optional[dict] = None
-    enum_values: Optional[dict] = None
-    example_queries: Optional[List[dict]] = None
+    display_name: str | None = None
+    description: str | None = None
+    column_descriptions: dict | None = None
+    enum_values: dict | None = None
+    example_queries: list[dict] | None = None
     is_active: bool
     is_primary: bool
     created_at: datetime
@@ -153,10 +154,10 @@ class SqlTableConfigRead(SQLModel):
 class SqlTableConfigUpdate(SQLModel):
     """Schema para atualizar uma configuração de tabela."""
 
-    display_name: Optional[str] = None
-    description: Optional[str] = None
-    column_descriptions: Optional[dict] = None
-    enum_values: Optional[dict] = None
-    example_queries: Optional[List[dict]] = None
-    is_active: Optional[bool] = None
-    is_primary: Optional[bool] = None
+    display_name: str | None = None
+    description: str | None = None
+    column_descriptions: dict | None = None
+    enum_values: dict | None = None
+    example_queries: list[dict] | None = None
+    is_active: bool | None = None
+    is_primary: bool | None = None

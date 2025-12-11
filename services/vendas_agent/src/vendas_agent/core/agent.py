@@ -7,21 +7,18 @@ This agent uses the same MCP approach as atendente_core:
 3. Executes tools when LLM requests them
 """
 
-import logging
 import asyncio
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
-from uuid import UUID
+import logging
+from typing import TYPE_CHECKING, Any
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 
 from vizu_agent_framework import MCPConnectionManager
 
 # Lazy imports for faster startup
 if TYPE_CHECKING:
-    from vizu_tool_registry import ToolRegistry
     from vizu_models import VizuClientContext
-    from vizu_llm_service import get_model, ModelTier
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +34,7 @@ class VendasAgent:
         self,
         cliente_context: "VizuClientContext",
         mcp_manager: MCPConnectionManager,
-        llm_client: Optional[Any] = None,
+        llm_client: Any | None = None,
     ):
         """
         Initialize the sales agent.
@@ -52,7 +49,7 @@ class VendasAgent:
 
         # Lazy import for LLM
         if llm_client is None:
-            from vizu_llm_service import get_model, ModelTier
+            from vizu_llm_service import ModelTier, get_model
             self.llm_client = get_model(tier=ModelTier.DEFAULT)
         else:
             self.llm_client = llm_client
@@ -67,7 +64,7 @@ class VendasAgent:
             f"with enabled_tools={self.enabled_tools}"
         )
 
-    def _get_enabled_tools_list(self) -> List[str]:
+    def _get_enabled_tools_list(self) -> list[str]:
         """Get enabled tools from client context."""
         # Lazy import
         from vizu_tool_registry import ToolRegistry
@@ -85,14 +82,14 @@ class VendasAgent:
             scheduling_enabled=getattr(self.cliente_context, 'ferramenta_agendamento_habilitada', False),
         )
 
-    def _filter_tools_for_client(self, all_tools: List[BaseTool]) -> List[BaseTool]:
+    def _filter_tools_for_client(self, all_tools: list[BaseTool]) -> list[BaseTool]:
         """Filter MCP tools based on client permissions."""
         # Lazy import
         from vizu_tool_registry import ToolRegistry
 
         if not self.enabled_tools:
             # No tools enabled - return empty
-            logger.warning(f"No tools enabled for client")
+            logger.warning("No tools enabled for client")
             return []
 
         # Get available tools from registry (validates against tier)
@@ -117,7 +114,7 @@ class VendasAgent:
         )
         return filtered
 
-    def _build_system_prompt(self, available_tools: List[BaseTool]) -> str:
+    def _build_system_prompt(self, available_tools: list[BaseTool]) -> str:
         """Build system prompt for sales agent."""
         nome_empresa = getattr(self.cliente_context, 'nome_empresa', 'Vizu')
         prompt_base = getattr(self.cliente_context, 'prompt_base', '')
@@ -164,9 +161,9 @@ class VendasAgent:
 
     async def _execute_tools(
         self,
-        tool_calls: List[Dict[str, Any]],
-        tool_map: Dict[str, BaseTool],
-    ) -> List[ToolMessage]:
+        tool_calls: list[dict[str, Any]],
+        tool_map: dict[str, BaseTool],
+    ) -> list[ToolMessage]:
         """Execute tool calls and return results."""
         results = []
 
@@ -230,8 +227,8 @@ class VendasAgent:
         self,
         message: str,
         session_id: str,
-        elicitation_response: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        elicitation_response: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """
         Process a user message.
 

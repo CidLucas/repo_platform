@@ -1,16 +1,18 @@
-from langgraph.graph import StateGraph, END
+import asyncio
+
 from langgraph.checkpoint.redis import RedisSaver
+from langgraph.graph import END, StateGraph
+
+from .config import get_settings
+from .nodes import (
+    await_elicitation_node,
+    execute_tools_node,
+    should_continue,
+    supervisor_node,
+)
 
 # Importação relativa para garantir acesso aos módulos irmãos
 from .state import AgentState
-from .nodes import (
-    supervisor_node,
-    execute_tools_node,
-    should_continue,
-    await_elicitation_node,
-)
-from .config import get_settings
-import asyncio
 
 
 class _CheckpointerAdapter:

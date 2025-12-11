@@ -1,11 +1,10 @@
 # data_ingestion_api/tests/integration/test_bigquery_connection.py
 
-import pytest
-import os
 import json
-import pandas as pd
-from data_ingestion_api.connectors.bigquery_connector import BigQueryConnector 
-from data_ingestion_api.connectors.abstract_connector import ExecutionError
+import os
+
+import pytest
+from data_ingestion_api.connectors.bigquery_connector import BigQueryConnector
 
 # CRÍTICO VIZU: Este teste só deve rodar se as credenciais reais estiverem disponíveis
 pytestmark = pytest.mark.skipif(
@@ -23,7 +22,7 @@ def real_bigquery_connector():
     creds_json_string = os.getenv("BIGQUERY_INTEGRATION_TEST_CREDS_JSON")
     if not creds_json_string:
         pytest.skip("BIGQUERY_INTEGRATION_TEST_CREDS_JSON não configurado.")
-    
+
     try:
         credentials_info = json.loads(creds_json_string)
     except json.JSONDecodeError:
@@ -53,7 +52,7 @@ async def test_real_bigquery_simple_query(real_bigquery_connector):
 
     # 1. O método agora retorna um gerador (iterable). Removemos o 'await' e consumimos o primeiro chunk.
     df_generator = real_bigquery_connector.extract_data(query)
-    
+
     # 2. CORREÇÃO: Usar 'await' para obter o PRÓXIMO item do gerador assíncrono.
     #    Em Python 3.10+, poderia ser 'await anext(df_generator)'.
     #    Usaremos o método mágico __anext__() para máxima compatibilidade e clareza.

@@ -1,10 +1,11 @@
 import uuid
-from typing import Any, Optional, TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Any
+
+from sqlalchemy import Column
+from sqlalchemy.dialects.postgresql import JSON  # Importação mais específica
 
 # Importação explícita de JSON para colunas
 from sqlmodel import Field, Relationship, SQLModel
-from sqlalchemy import Column
-from sqlalchemy.dialects.postgresql import JSON  # Importação mais específica
 
 if TYPE_CHECKING:
     # Resolvendo forward reference (correto)
@@ -14,19 +15,19 @@ if TYPE_CHECKING:
 class ConfiguracaoNegocioBase(SQLModel):
     # CORREÇÃO AQUI: Deixamos o tipo como Any para evitar conflito de tipagem
     # com o JSON do SQLAlchemy, já que a coluna SQL é definida explicitamente.
-    horario_funcionamento: Optional[Any] = Field(
+    horario_funcionamento: Any | None = Field(
         default=None,
         sa_column=Column(JSON),  # Use o tipo JSON do SQLAlchemy
         description="Objeto JSON para armazenar os horários de operação.",
     )
 
-    prompt_base: Optional[str] = Field(
+    prompt_base: str | None = Field(
         None,
         description="O prompt principal que define a personalidade e as instruções do agente de IA.",
     )
 
     ferramenta_rag_habilitada: bool = Field(default=False)
-    collection_rag: Optional[str] = Field(
+    collection_rag: str | None = Field(
         None, description="O nome da collection que o RAG usa no QDRANT."
     )
     ferramenta_sql_habilitada: bool = Field(default=False)
@@ -36,7 +37,7 @@ class ConfiguracaoNegocioBase(SQLModel):
 class ConfiguracaoNegocio(ConfiguracaoNegocioBase, table=True):
     __tablename__ = "configuracao_negocio"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     cliente_vizu_id: uuid.UUID = Field(
         foreign_key="cliente_vizu.id", unique=True, index=True
     )
@@ -53,9 +54,9 @@ class ConfiguracaoNegocioRead(ConfiguracaoNegocioBase):
 
 
 class ConfiguracaoNegocioUpdate(SQLModel):
-    prompt_base: Optional[str] = None
-    horario_funcionamento: Optional[Dict[str, Any]] = None
-    ferramenta_rag_habilitada: Optional[bool] = None
-    collection_rag: Optional[str] = None
-    ferramenta_sql_habilitada: Optional[bool] = None
-    ferramenta_agendamento_habilitada: Optional[bool] = None
+    prompt_base: str | None = None
+    horario_funcionamento: dict[str, Any] | None = None
+    ferramenta_rag_habilitada: bool | None = None
+    collection_rag: str | None = None
+    ferramenta_sql_habilitada: bool | None = None
+    ferramenta_agendamento_habilitada: bool | None = None

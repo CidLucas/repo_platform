@@ -5,9 +5,8 @@ Validate that `.env.example` contains the required env var keys listed in
 
 Intended to run in CI on PRs to ensure the example file matches required keys.
 """
-import os
-import sys
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -16,7 +15,7 @@ ENV_EXAMPLE = ROOT / ".env.example"
 
 
 def load_required():
-    with open(REQUIRED, "r", encoding="utf-8") as f:
+    with open(REQUIRED, encoding="utf-8") as f:
         return json.load(f)
 
 

@@ -1,9 +1,10 @@
 # data_ingestion_api/src/main.py
 
-from fastapi import FastAPI
+import logging.config
+
 from data_ingestion_api.api.routes import router as credential_router
 from data_ingestion_api.api.schema_routes import router as schema_router
-import logging.config
+from fastapi import FastAPI
 
 # Padrão Vizu: Configuração de Logs
 LOGGING_CONFIG = {

@@ -4,12 +4,12 @@ SQL Validation Observability
 Structured logging and metrics for SQL validation decisions.
 """
 
-import logging
 import json
+import logging
 import time
-from dataclasses import dataclass, asdict
-from typing import Optional, Any, Dict
+from dataclasses import asdict, dataclass
 from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,18 +20,18 @@ class ValidationLogEntry:
 
     timestamp: str
     tenant_id: str
-    user_id: Optional[str]
-    role: Optional[str]
+    user_id: str | None
+    role: str | None
     question_hash: str
     original_sql: str
-    normalized_sql: Optional[str]
+    normalized_sql: str | None
     validation_result: str  # "PASS" or "FAIL"
     checks_passed: int
     checks_failed: int
-    check_details: Dict[str, Any]
+    check_details: dict[str, Any]
     execution_time_ms: float
-    error_summary: Optional[str]
-    suggestions: Optional[str]
+    error_summary: str | None
+    suggestions: str | None
 
     def to_json(self) -> str:
         """Serialize to JSON."""
@@ -67,10 +67,10 @@ class SqlValidationObserver:
         self,
         tenant_id: str,
         original_sql: str,
-        validation_result: Dict[str, Any],
+        validation_result: dict[str, Any],
         question_hash: str,
-        user_id: Optional[str] = None,
-        role: Optional[str] = None,
+        user_id: str | None = None,
+        role: str | None = None,
         execution_time_ms: float = 0.0
     ) -> ValidationLogEntry:
         """
@@ -150,7 +150,7 @@ class SqlValidationObserver:
                     self.metrics["checks"][check_code] = {"passed": 0, "failed": 0}
                 self.metrics["checks"][check_code]["failed"] += 1
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get aggregated metrics."""
         total = self.metrics["total_validations"]
         passed = self.metrics["validations_passed"]

@@ -1,7 +1,8 @@
 # services/data_ingestion_api/schemas.py
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Dict, Any, Optional
 
 # ----------------------------------------------------------------------
 # Schemas de Credenciais (Input - O que o cliente/vendedor envia)
@@ -37,11 +38,11 @@ class BigQueryCredentialCreate(CredencialBase):
     """
     # Detalhes da conexão
     project_id: str = Field(..., description="ID do Projeto GCP que contém o BigQuery.")
-    dataset_id: Optional[str] = Field(None, description="ID do Dataset padrão para consultas.")
-    
+    dataset_id: str | None = Field(None, description="ID do Dataset padrão para consultas.")
+
     # O payload sensível que será enviado ao Secret Manager.
     # Usamos Dict[str, Any] para o JSON da Service Account Key
-    service_account_json: Dict[str, Any] = Field(..., description="Conteúdo JSON da chave da conta de serviço (Service Account Key).")
+    service_account_json: dict[str, Any] = Field(..., description="Conteúdo JSON da chave da conta de serviço (Service Account Key).")
 
 # ----------------------------------------------------------------------
 # Schemas de Resposta (Output - O que a API retorna)
@@ -58,4 +59,4 @@ class CredencialResponse(BaseModel):
     tipo_servico: str
     status: str = Field("PENDENTE_VALIDACAO", description="Status atual da conexão (Pendente, Validada, Erro).")
 
-    model_config = ConfigDict(from_attributes=True) 
+    model_config = ConfigDict(from_attributes=True)

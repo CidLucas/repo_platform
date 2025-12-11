@@ -10,7 +10,7 @@ about a tool including its tier requirements, category, and Docker MCP integrati
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Dict, Any
+from typing import Any
 
 
 class ToolCategory(str, Enum):
@@ -79,9 +79,9 @@ class ToolMetadata:
     description: str
     tier_required: TierLevel = TierLevel.BASIC
     requires_confirmation: bool = False
-    docker_mcp_integration: Optional[str] = None
+    docker_mcp_integration: str | None = None
     enabled: bool = True
-    parameters: Optional[Dict[str, Any]] = None
+    parameters: dict[str, Any] | None = None
     tags: list = field(default_factory=list)
 
     def is_accessible_by_tier(self, client_tier: str) -> bool:
@@ -102,7 +102,7 @@ class ToolMetadata:
         """Check if this is a Docker MCP integration tool."""
         return self.docker_mcp_integration is not None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "name": self.name,
@@ -117,7 +117,7 @@ class ToolMetadata:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ToolMetadata":
+    def from_dict(cls, data: dict[str, Any]) -> "ToolMetadata":
         """Create from dictionary."""
         return cls(
             name=data["name"],

@@ -20,7 +20,9 @@ Uso:
 """
 
 import logging
-from typing import List, Callable
+from collections.abc import Callable
+from typing import List
+
 from fastmcp import FastMCP
 
 logger = logging.getLogger(__name__)
@@ -28,10 +30,10 @@ logger = logging.getLogger(__name__)
 # Registry de módulos de tools
 # Cada módulo exporta uma função register_tools(mcp: FastMCP) -> List[str]
 # que retorna os nomes das tools registradas
-_MODULE_REGISTRY: List[Callable[[FastMCP], List[str]]] = []
+_MODULE_REGISTRY: list[Callable[[FastMCP], list[str]]] = []
 
 
-def register_module(register_fn: Callable[[FastMCP], List[str]]):
+def register_module(register_fn: Callable[[FastMCP], list[str]]):
     """
     Decorator para registrar um módulo de tools.
 
@@ -56,9 +58,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
     modules_loaded = []
 
     # Importa módulos para trigger os decorators
-    from . import rag_module
-    from . import sql_module
-    from . import common_module
+    from . import common_module, rag_module, sql_module
 
     # Optional Google module (integration)
     try:

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Get first client API key from database."""
-import sys
 import os
+import sys
 
 sys.path.insert(0, '/app/libs/vizu_db_connector/src')
 sys.path.insert(0, '/app/libs/vizu_models/src')
 
 from sqlmodel import Session, create_engine, select
+
 from vizu_models import ClienteVizu
 
 engine = create_engine(os.environ['DATABASE_URL'])

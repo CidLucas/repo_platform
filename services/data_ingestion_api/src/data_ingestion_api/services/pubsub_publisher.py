@@ -1,7 +1,5 @@
-import json
-import uuid
+from data_ingestion_worker.schemas.ingestion_job import IngestionJob  # Reutiliza o schema do Worker
 from google.cloud import pubsub_v1
-from data_ingestion_worker.schemas.ingestion_job import IngestionJob # Reutiliza o schema do Worker
 
 # Define o tópico do Pub/Sub que o Worker irá consumir (Padrão Vizu)
 INGESTION_TOPIC = "vizu-data-ingestion-jobs"
@@ -17,7 +15,7 @@ class PubSubPublisher:
         self.publisher = pubsub_v1.PublisherClient()
         self.topic_path = self.publisher.topic_path(
             # O ID do projeto deve vir de uma variável de ambiente (Agnosticismo)
-            "seu-projeto-gcp-vizu", 
+            "seu-projeto-gcp-vizu",
             INGESTION_TOPIC
         )
 
@@ -31,9 +29,9 @@ class PubSubPublisher:
 
         # 2. Publica a mensagem
         future = self.publisher.publish(self.topic_path, data_bytes)
-        
+
         # Bloqueia a API até que a mensagem seja confirmada (Garantia de entrega)
-        return future.result() 
+        return future.result()
 
 # Instância Singleton para Injeção de Dependência
 pubsub_publisher = PubSubPublisher()

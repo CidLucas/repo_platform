@@ -6,14 +6,12 @@ to enforce Row-Level Security (RLS) policies.
 """
 
 import logging
-import asyncio
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Any, Optional, Tuple
-from datetime import timedelta
+from typing import Any
 
-from vizu_supabase_client.client import get_supabase_client
 from vizu_supabase_client.auth_context import AuthContext, JWTContextExtractor
+from vizu_supabase_client.client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +19,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class QueryResult:
     """Result from a PostgREST query."""
-    rows: List[Dict[str, Any]]
-    column_names: List[str]
-    column_types: Dict[str, str]  # column name -> type
-    total_rows: Optional[int] = None  # Total count if requested
+    rows: list[dict[str, Any]]
+    column_names: list[str]
+    column_types: dict[str, str]  # column name -> type
+    total_rows: int | None = None  # Total count if requested
     execution_time_ms: float = 0.0
-    telemetry_id: Optional[str] = None  # For tracing
+    telemetry_id: str | None = None  # For tracing
 
     def __len__(self) -> int:
         """Return number of rows returned."""
@@ -52,7 +50,7 @@ class PostgRESTQueryExecutor:
 
     def __init__(
         self,
-        jwt_extractor: Optional[JWTContextExtractor] = None,
+        jwt_extractor: JWTContextExtractor | None = None,
         default_timeout_seconds: int = 30,
         max_retries: int = 3,
         max_rows_per_request: int = 100,
@@ -78,11 +76,11 @@ class PostgRESTQueryExecutor:
     def query(
         self,
         view_name: str,
-        filters: Optional[Dict[str, Any]] = None,
-        columns: Optional[List[str]] = None,
-        limit: Optional[int] = None,
+        filters: dict[str, Any] | None = None,
+        columns: list[str] | None = None,
+        limit: int | None = None,
         offset: int = 0,
-        user_jwt: Optional[str] = None,
+        user_jwt: str | None = None,
         count: bool = False,
     ) -> QueryResult:
         """
@@ -157,7 +155,7 @@ class PostgRESTQueryExecutor:
             # Parse response
             rows = response.data or []
             column_names = list(rows[0].keys()) if rows else (columns or [])
-            column_types = {col: "unknown" for col in column_names}
+            column_types = dict.fromkeys(column_names, "unknown")
 
             execution_time_ms = (time.time() - start_time) * 1000
 
@@ -190,8 +188,9 @@ class PostgRESTQueryExecutor:
         Returns:
             Supabase client with JWT authentication.
         """
-        from supabase import create_client
         from supabase.lib.client_options import SyncClientOptions
+
+        from supabase import create_client
 
         config_url = get_supabase_client().url
 
@@ -243,11 +242,11 @@ class PostgRESTQueryExecutor:
         self,
         view_name: str,
         auth_context: AuthContext,
-        filters: Optional[Dict[str, Any]] = None,
-        columns: Optional[List[str]] = None,
-        limit: Optional[int] = None,
+        filters: dict[str, Any] | None = None,
+        columns: list[str] | None = None,
+        limit: int | None = None,
         offset: int = 0,
-        user_jwt: Optional[str] = None,
+        user_jwt: str | None = None,
     ) -> QueryResult:
         """
         Execute query with auth context (tenant/role).
@@ -291,7 +290,7 @@ class PostgRESTQueryExecutor:
 
 
 # Singleton instance
-_postgrest_executor: Optional[PostgRESTQueryExecutor] = None
+_postgrest_executor: PostgRESTQueryExecutor | None = None
 
 
 def get_postgrest_executor() -> PostgRESTQueryExecutor:

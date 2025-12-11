@@ -3,23 +3,18 @@ Central manager for elicitation flows.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
-from uuid import uuid4
+from typing import Any
 
-from vizu_models import ElicitationType, ElicitationOption
-
-from vizu_elicitation_service.models import (
-    PendingElicitation,
-    ElicitationResult,
-    ElicitationContext,
-)
-from vizu_elicitation_service.store import PendingElicitationStore
-from vizu_elicitation_service.response_handler import ElicitationResponseHandler
 from vizu_elicitation_service.exceptions import (
     ElicitationRequired,
-    ElicitationError,
-    ElicitationNotFoundError,
 )
+from vizu_elicitation_service.models import (
+    ElicitationResult,
+    PendingElicitation,
+)
+from vizu_elicitation_service.response_handler import ElicitationResponseHandler
+from vizu_elicitation_service.store import PendingElicitationStore
+from vizu_models import ElicitationOption, ElicitationType
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +34,8 @@ class ElicitationManager:
         self,
         redis_client: Any,
         ttl_seconds: int = 3600,
-        store: Optional[PendingElicitationStore] = None,
-        handler: Optional[ElicitationResponseHandler] = None,
+        store: PendingElicitationStore | None = None,
+        handler: ElicitationResponseHandler | None = None,
     ):
         """
         Initialize manager.
@@ -64,8 +59,8 @@ class ElicitationManager:
         self,
         message: str,
         tool_name: str,
-        tool_args: Dict[str, Any],
-        metadata: Optional[Dict[str, Any]] = None,
+        tool_args: dict[str, Any],
+        metadata: dict[str, Any] | None = None,
     ) -> ElicitationRequired:
         """
         Create a confirmation elicitation (Yes/No).
@@ -94,10 +89,10 @@ class ElicitationManager:
     def create_selection(
         self,
         message: str,
-        options: List[ElicitationOption],
+        options: list[ElicitationOption],
         tool_name: str,
-        tool_args: Dict[str, Any],
-        metadata: Optional[Dict[str, Any]] = None,
+        tool_args: dict[str, Any],
+        metadata: dict[str, Any] | None = None,
     ) -> ElicitationRequired:
         """
         Create a selection elicitation (multiple choice).
@@ -125,8 +120,8 @@ class ElicitationManager:
         self,
         message: str,
         tool_name: str,
-        tool_args: Dict[str, Any],
-        metadata: Optional[Dict[str, Any]] = None,
+        tool_args: dict[str, Any],
+        metadata: dict[str, Any] | None = None,
     ) -> ElicitationRequired:
         """
         Create a text input elicitation.
@@ -152,8 +147,8 @@ class ElicitationManager:
         self,
         message: str,
         tool_name: str,
-        tool_args: Dict[str, Any],
-        metadata: Optional[Dict[str, Any]] = None,
+        tool_args: dict[str, Any],
+        metadata: dict[str, Any] | None = None,
     ) -> ElicitationRequired:
         """
         Create a datetime input elicitation.
@@ -183,7 +178,7 @@ class ElicitationManager:
         self,
         session_id: str,
         elicitation: ElicitationRequired,
-        ttl_seconds: Optional[int] = None,
+        ttl_seconds: int | None = None,
     ) -> str:
         """
         Store a pending elicitation.
@@ -203,7 +198,7 @@ class ElicitationManager:
     async def retrieve_pending(
         self,
         session_id: str,
-    ) -> Optional[PendingElicitation]:
+    ) -> PendingElicitation | None:
         """
         Retrieve pending elicitation for session.
 
@@ -263,7 +258,7 @@ class ElicitationManager:
         self,
         session_id: str,
         response: Any,
-    ) -> tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """
         Validate a response without processing.
 
@@ -316,7 +311,7 @@ class ElicitationManager:
     def build_tool_args_with_response(
         self,
         result: ElicitationResult,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Build tool arguments including the elicitation response.
 

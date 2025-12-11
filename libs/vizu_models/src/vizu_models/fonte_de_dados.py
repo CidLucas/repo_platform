@@ -1,6 +1,8 @@
 import uuid
-from typing import Optional, TYPE_CHECKING
-from sqlmodel import SQLModel, Field, Relationship
+from typing import TYPE_CHECKING
+
+from sqlmodel import Field, Relationship, SQLModel
+
 from .enums import TipoFonte
 
 if TYPE_CHECKING:
@@ -10,7 +12,7 @@ if TYPE_CHECKING:
 class FonteDeDados(SQLModel, table=True):
     __tablename__ = "fonte_de_dados"  # Supondo o nome da tabela
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     tipo_fonte: TipoFonte
     caminho: str
     # Adicione outros campos conforme necessário

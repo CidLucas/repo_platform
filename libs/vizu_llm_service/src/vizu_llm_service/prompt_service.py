@@ -15,7 +15,7 @@ This ensures:
 
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, List
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -30,10 +30,10 @@ logger = logging.getLogger(__name__)
 class PromptConfig(BaseModel):
     """Configuration returned with a prompt."""
 
-    model: Optional[str] = None
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    extra: Optional[Dict[str, Any]] = None
+    model: str | None = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    extra: dict[str, Any] | None = None
 
 
 class FetchedPrompt(BaseModel):
@@ -42,8 +42,8 @@ class FetchedPrompt(BaseModel):
     name: str
     version: int
     content: str  # The prompt text (may have {{variables}})
-    config: Optional[PromptConfig] = None
-    labels: List[str] = []
+    config: PromptConfig | None = None
+    labels: list[str] = []
     source: str = "langfuse"  # "langfuse" or "cache"
     fetched_at: datetime = datetime.utcnow()
 
@@ -58,7 +58,7 @@ class FetchedPrompt(BaseModel):
             result = result.replace(f"{{{{{key}}}}}", str(value))
         return result
 
-    def to_messages(self, **variables) -> List[Dict[str, str]]:
+    def to_messages(self, **variables) -> list[dict[str, str]]:
         """
         Compile and return as chat messages.
 
@@ -81,9 +81,9 @@ class LangfusePromptClient:
 
     def __init__(
         self,
-        public_key: Optional[str] = None,
-        secret_key: Optional[str] = None,
-        host: Optional[str] = None,
+        public_key: str | None = None,
+        secret_key: str | None = None,
+        host: str | None = None,
     ):
         self._client = None
         self._public_key = public_key
@@ -115,9 +115,9 @@ class LangfusePromptClient:
     def get_prompt(
         self,
         name: str,
-        version: Optional[int] = None,
-        label: Optional[str] = None,
-    ) -> Optional[FetchedPrompt]:
+        version: int | None = None,
+        label: str | None = None,
+    ) -> FetchedPrompt | None:
         """
         Fetch a prompt from Langfuse.
 
@@ -205,8 +205,8 @@ class PromptCacheDB:
     async def get(
         self,
         name: str,
-        cliente_vizu_id: Optional[str] = None,
-    ) -> Optional[FetchedPrompt]:
+        cliente_vizu_id: str | None = None,
+    ) -> FetchedPrompt | None:
         """
         Get cached prompt from local database.
 
@@ -219,6 +219,7 @@ class PromptCacheDB:
         """
         try:
             from sqlmodel import select
+
             from vizu_models import PromptTemplate
 
             # Build query - get latest active version
@@ -263,7 +264,7 @@ class PromptCacheDB:
     async def upsert(
         self,
         prompt: FetchedPrompt,
-        cliente_vizu_id: Optional[str] = None,
+        cliente_vizu_id: str | None = None,
     ) -> bool:
         """
         Insert or update a prompt in the cache.
@@ -279,9 +280,11 @@ class PromptCacheDB:
             True if successful
         """
         try:
-            from sqlmodel import select
-            from vizu_models import PromptTemplate
             import uuid
+
+            from sqlmodel import select
+
+            from vizu_models import PromptTemplate
 
             # Check if prompt with this name and version exists
             stmt = select(PromptTemplate).where(
@@ -362,7 +365,7 @@ class PromptService:
     def __init__(
         self,
         db_session=None,
-        langfuse_client: Optional[LangfusePromptClient] = None,
+        langfuse_client: LangfusePromptClient | None = None,
         cache_to_db: bool = True,
     ):
         """
@@ -379,10 +382,10 @@ class PromptService:
         self._db_cache = PromptCacheDB(db_session) if db_session else None
 
         # In-memory cache: {cache_key: (FetchedPrompt, expires_at)}
-        self._memory_cache: Dict[str, tuple[FetchedPrompt, datetime]] = {}
+        self._memory_cache: dict[str, tuple[FetchedPrompt, datetime]] = {}
 
     @property
-    def langfuse(self) -> Optional[LangfusePromptClient]:
+    def langfuse(self) -> LangfusePromptClient | None:
         """Lazy initialization of Langfuse client."""
         if self._langfuse is None:
             try:
@@ -406,9 +409,9 @@ class PromptService:
     def _cache_key(
         self,
         name: str,
-        version: Optional[int] = None,
-        label: Optional[str] = None,
-        cliente_vizu_id: Optional[str] = None,
+        version: int | None = None,
+        label: str | None = None,
+        cliente_vizu_id: str | None = None,
     ) -> str:
         """Generate cache key for a prompt."""
         parts = [name]
@@ -423,11 +426,11 @@ class PromptService:
     async def get_prompt(
         self,
         name: str,
-        version: Optional[int] = None,
+        version: int | None = None,
         label: str = "production",
-        cliente_vizu_id: Optional[str] = None,
+        cliente_vizu_id: str | None = None,
         use_cache: bool = True,
-    ) -> Optional[FetchedPrompt]:
+    ) -> FetchedPrompt | None:
         """
         Get a prompt with Langfuse-first, local fallback strategy.
 
@@ -533,8 +536,8 @@ class PromptService:
 
     async def sync_production_prompts(
         self,
-        prompt_names: List[str],
-    ) -> Dict[str, bool]:
+        prompt_names: list[str],
+    ) -> dict[str, bool]:
         """
         Sync all production prompts from Langfuse to local cache.
 
@@ -576,7 +579,7 @@ class PromptService:
 # CONVENIENCE FUNCTIONS
 # ============================================================================
 
-_prompt_service: Optional[PromptService] = None
+_prompt_service: PromptService | None = None
 
 
 def get_prompt_service(db_session=None) -> PromptService:
@@ -601,7 +604,7 @@ async def get_prompt(
     name: str,
     db_session=None,
     **kwargs,
-) -> Optional[FetchedPrompt]:
+) -> FetchedPrompt | None:
     """
     Convenience function to get a prompt.
 

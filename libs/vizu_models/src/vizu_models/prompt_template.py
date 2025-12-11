@@ -10,19 +10,20 @@ Integração com MCP: @mcp.prompt() pode buscar templates desta tabela.
 
 import uuid
 from datetime import datetime
-from typing import Optional, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from sqlmodel import Field, Relationship, SQLModel, Column
 from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
     String,
     Text,
-    Boolean,
-    Integer,
-    DateTime,
     UniqueConstraint,
-    ForeignKey,
 )
-from sqlalchemy.dialects.postgresql import UUID as pgUUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as pgUUID
+from sqlmodel import Column, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .cliente_vizu import ClienteVizu
@@ -47,13 +48,13 @@ class PromptTemplateBase(SQLModel):
         description="Conteúdo do prompt com placeholders {{variable}}",
     )
 
-    description: Optional[str] = Field(
+    description: str | None = Field(
         default=None,
         sa_column=Column(Text),
         description="Descrição do propósito do prompt",
     )
 
-    variables: Optional[dict] = Field(
+    variables: dict | None = Field(
         default=None,
         sa_column=Column(JSONB),
         description="Schema das variáveis esperadas (JSON Schema)",
@@ -65,7 +66,7 @@ class PromptTemplateBase(SQLModel):
         description="Se este prompt está ativo para uso",
     )
 
-    tags: Optional[List[str]] = Field(
+    tags: list[str] | None = Field(
         default=None,
         sa_column=Column(JSONB),
         description="Tags para categorização (ex: ['system', 'v2', 'experimental'])",
@@ -90,12 +91,12 @@ class PromptTemplate(PromptTemplateBase, table=True):
         ),
     )
 
-    id: Optional[uuid.UUID] = Field(
+    id: uuid.UUID | None = Field(
         default_factory=uuid.uuid4,
         sa_column=Column(pgUUID(as_uuid=True), primary_key=True),
     )
 
-    cliente_vizu_id: Optional[uuid.UUID] = Field(
+    cliente_vizu_id: uuid.UUID | None = Field(
         default=None,
         sa_column=Column(
             pgUUID(as_uuid=True),
@@ -115,7 +116,7 @@ class PromptTemplate(PromptTemplateBase, table=True):
         sa_column=Column(DateTime, nullable=False, onupdate=datetime.utcnow),
     )
 
-    created_by: Optional[str] = Field(
+    created_by: str | None = Field(
         default=None,
         sa_column=Column(String(100)),
         description="Quem criou o prompt (para auditoria)",
@@ -128,24 +129,24 @@ class PromptTemplate(PromptTemplateBase, table=True):
 class PromptTemplateCreate(PromptTemplateBase):
     """Schema para criar um novo prompt."""
 
-    cliente_vizu_id: Optional[uuid.UUID] = None
+    cliente_vizu_id: uuid.UUID | None = None
 
 
 class PromptTemplateRead(PromptTemplateBase):
     """Schema para leitura de prompt."""
 
     id: uuid.UUID
-    cliente_vizu_id: Optional[uuid.UUID] = None
+    cliente_vizu_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
-    created_by: Optional[str] = None
+    created_by: str | None = None
 
 
 class PromptTemplateUpdate(SQLModel):
     """Schema para atualizar um prompt (cria nova versão)."""
 
-    content: Optional[str] = None
-    description: Optional[str] = None
-    variables: Optional[dict] = None
-    is_active: Optional[bool] = None
-    tags: Optional[List[str]] = None
+    content: str | None = None
+    description: str | None = None
+    variables: dict | None = None
+    is_active: bool | None = None
+    tags: list[str] | None = None

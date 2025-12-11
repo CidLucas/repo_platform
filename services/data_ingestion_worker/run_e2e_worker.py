@@ -19,21 +19,22 @@ Este script unifica dois modos de teste controlados pela variável de ambiente E
    - USO: E2E_MODE=STUB poetry run python run_e2e_worker.py
 """
 
-import os
 import asyncio
 import base64
 import json
 import logging
+import os
+
+from data_ingestion_api.connectors.bigquery_connector import BigQueryConnector
 from dotenv import load_dotenv
 from google.cloud import bigquery
+
+# --- Imports para o Modo FULL (Entrypoint Real) ---
+from data_ingestion_worker.core.worker_function import pubsub_ingestion_worker
 
 # --- Imports para o Modo STUB (Injeção de Dependência) ---
 from data_ingestion_worker.services.ingestion_service import IngestionService
 from data_ingestion_worker.services.stubs.db_writer_stub import DBWriterServiceStub
-from data_ingestion_api.connectors.bigquery_connector import BigQueryConnector
-
-# --- Imports para o Modo FULL (Entrypoint Real) ---
-from data_ingestion_worker.core.worker_function import pubsub_ingestion_worker
 
 # Configura o logging para vermos os INFOs de ambos os modos
 logging.basicConfig(level=logging.INFO)
@@ -70,7 +71,7 @@ async def main_integration_test():
     Valida o fluxo BQ -> Transform -> Service, sem tocar no DB.
     """
     print(f"--- INICIANDO TESTE DE INTEGRAÇÃO (MODO STUB): {JOB_ID} ---")
-    
+
    # 1a. Instancia o cliente BigQuery real
     # (Ele usará automaticamente o GOOGLE_APPLICATION_CREDENTIALS do .env)
     logging.info("Inicializando cliente Google BigQuery...")
@@ -79,7 +80,7 @@ async def main_integration_test():
 
     # 1b. Inicializar conector real
     bq_connector = BigQueryConnector(client=google_bq_client)
-    
+
     # 2. Injetar o STUB
     db_writer_stub = DBWriterServiceStub()
 
@@ -89,13 +90,13 @@ async def main_integration_test():
         connector=bq_connector,
         writer=db_writer_stub
     )
-    
+
     # 4. Executar o serviço diretamente
     await ingestion_service.run_job(
         job_id=job_payload["job_id"],
         client_id=job_payload["client_id"]
     )
-    
+
     print(f"\n✅ SUCESSO (Integração): Job {JOB_ID} concluído com STUB.")
 
 
@@ -106,16 +107,16 @@ def main_e2e_full_test():
     Valida o fluxo completo: PubSub -> BQ -> Transform -> DB Real.
     """
     print(f"--- INICIANDO TESTE E2E COMPLETO (MODO FULL): {JOB_ID} ---")
-    
+
     try:
         # Executa a função do Worker diretamente, simulando o ambiente Cloud Function
         # Esta função é síncrona, mas orquestra chamadas assíncronas internas.
         pubsub_ingestion_worker(pubsub_event, context=None)
-        
+
         print("\n✅ SUCESSO (E2E Full): Verifique seu banco de dados PostgreSQL.")
-        
+
     except Exception as e:
-        print(f"\n❌ FALHA NO FLUXO E2E: O Worker lançou uma exceção.")
+        print("\n❌ FALHA NO FLUXO E2E: O Worker lançou uma exceção.")
         print(f"Detalhes do Erro: {e}")
         # Re-lança a exceção para que o script falhe (importante para CI/CD)
         raise
@@ -125,7 +126,7 @@ if __name__ == "__main__":
     # Decide qual teste rodar com base na variável de ambiente
     # O Padrão é "FULL" para manter o comportamento original do seu script
     test_mode = os.getenv("E2E_MODE", "FULL").upper()
-    
+
     if test_mode in ("STUB", "INTEGRATION"):
         # --- MODO INTEGRAÇÃO ---
         # Precisa do asyncio.run() pois chamamos o IngestionService (async) diretamente

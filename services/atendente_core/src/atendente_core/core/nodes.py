@@ -1,17 +1,18 @@
-import logging
 import asyncio
-from typing import Literal, Optional, List
-from langchain_core.messages import AIMessage, ToolMessage, SystemMessage
-from langchain_core.tools import BaseTool
+import logging
+from typing import Literal
 from uuid import UUID
 
 # Stream error handling for MCP reconnection
-from anyio import ClosedResourceError, BrokenResourceError
+from anyio import BrokenResourceError, ClosedResourceError
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
+from langchain_core.tools import BaseTool
+
+from atendente_core.core.config import get_settings
+from atendente_core.core.state import AgentState
 
 # Importamos o gerenciador de conexão MCP
 from atendente_core.services.mcp_client import mcp_manager
-from atendente_core.core.state import AgentState
-from atendente_core.core.config import get_settings
 
 # Phase 3: Use vizu_elicitation_service instead of local module
 try:
@@ -31,7 +32,7 @@ except ImportError:
     HAS_ELICITATION_SERVICE = False
 
 # Importa o cliente LLM centralizado
-from vizu_llm_service import get_model, ModelTier
+from vizu_llm_service import ModelTier, get_model
 
 # Importa o contexto seguro para tipagem
 from vizu_models.safe_client_context import SafeClientContext
@@ -48,9 +49,10 @@ except ImportError:
     HAS_PROMPT_MANAGEMENT = False
 
 # PHASE 5: Prompt Management - importa models para busca de prompts
-from vizu_models import PromptTemplate
-from vizu_db_connector.database import SessionLocal
 from sqlmodel import select
+
+from vizu_db_connector.database import SessionLocal
+from vizu_models import PromptTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +63,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_prompt_from_db(
-    name: str, cliente_id: Optional[UUID] = None, version: Optional[int] = None
-) -> Optional[str]:
+    name: str, cliente_id: UUID | None = None, version: int | None = None
+) -> str | None:
     """
     Busca um prompt template do banco de dados.
 
@@ -132,7 +134,7 @@ def get_prompt_from_db(
 # ============================================================================
 
 
-def _get_enabled_tools_from_context(safe_context: Optional[SafeClientContext]) -> List[str]:
+def _get_enabled_tools_from_context(safe_context: SafeClientContext | None) -> list[str]:
     """
     Get enabled tools from client context.
 
@@ -161,7 +163,7 @@ def _get_enabled_tools_from_context(safe_context: Optional[SafeClientContext]) -
     )
 
 
-def _get_tier_from_context(safe_context: Optional[SafeClientContext]) -> str:
+def _get_tier_from_context(safe_context: SafeClientContext | None) -> str:
     """Get tier from client context."""
     if safe_context and hasattr(safe_context, "tier") and safe_context.tier:
         return safe_context.tier
@@ -169,8 +171,8 @@ def _get_tier_from_context(safe_context: Optional[SafeClientContext]) -> str:
 
 
 def filter_tools_for_client(
-    all_tools: List[BaseTool], safe_context: Optional[SafeClientContext]
-) -> List[BaseTool]:
+    all_tools: list[BaseTool], safe_context: SafeClientContext | None
+) -> list[BaseTool]:
     """
     Filtra as ferramentas disponíveis baseado nas permissões do cliente.
 
@@ -218,9 +220,9 @@ def filter_tools_for_client(
 
 
 def build_dynamic_system_prompt(
-    safe_context: Optional[SafeClientContext],
-    available_tools: List[BaseTool],
-    cliente_id: Optional[UUID] = None,
+    safe_context: SafeClientContext | None,
+    available_tools: list[BaseTool],
+    cliente_id: UUID | None = None,
 ) -> str:
     """
     Constrói o system prompt dinamicamente baseado no contexto e tools disponíveis.
@@ -292,8 +294,8 @@ def build_dynamic_system_prompt(
 
 
 def _build_hardcoded_prompt(
-    safe_context: Optional[SafeClientContext],
-    available_tools: List[BaseTool],
+    safe_context: SafeClientContext | None,
+    available_tools: list[BaseTool],
 ) -> str:
     """Build a hardcoded fallback prompt."""
     nome_empresa = safe_context.nome_empresa if safe_context else "Vizu"
@@ -360,7 +362,7 @@ def _build_hardcoded_prompt(
     return "\n".join(prompt_parts)
 
 
-def get_llm(model_override: Optional[str] = None):
+def get_llm(model_override: str | None = None):
     """
     Configura o cliente LLM usando o vizu_llm_service.
 

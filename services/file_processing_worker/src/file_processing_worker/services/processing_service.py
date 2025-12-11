@@ -2,18 +2,18 @@ import io
 import json
 import logging
 import uuid  # 👈 ADICIONADO
-from google.cloud import storage
-from typing import List  # 👈 ADICIONADO
 
-from file_processing_worker.core.config import Settings
-from file_processing_worker.services.routing_service import RoutingService
+from google.cloud import storage
+from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 
 # --- INÍCIO DAS ADIÇÕES ---
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.documents import Document
-from langchain_core.embeddings import Embeddings
-from vizu_qdrant_client.client import VizuQdrantClient
 from qdrant_client.models import PointStruct
+
+from file_processing_worker.core.config import Settings
+from file_processing_worker.services.routing_service import RoutingService
+from vizu_qdrant_client.client import VizuQdrantClient
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +137,7 @@ class ProcessingService:
             }
 
             # 2. Dividir o texto em Chunks (Documentos LangChain)
-            chunks: List[Document] = self.text_splitter.create_documents(
+            chunks: list[Document] = self.text_splitter.create_documents(
                 [extracted_text], metadatas=[base_metadata]
             )
             logger.info(f"Job [{job_id}]: Texto dividido em {len(chunks)} chunks.")

@@ -4,10 +4,11 @@ Seed script to load test data directly to PostgreSQL using SQLAlchemy.
 Uses the same pattern as the DBWriterService from data_ingestion_worker.
 """
 
-import pandas as pd
-import sys
-from sqlalchemy import create_engine
 import logging
+import sys
+
+import pandas as pd
+from sqlalchemy import create_engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ def seed_computer_products():
             "SELECT SUM(price_usd * stock_quantity) as total_value FROM computer_products",
             engine
         )
-        print(f"\n📊 Inventory Statistics:")
+        print("\n📊 Inventory Statistics:")
         print(f"   Total Products: {count}")
         print(f"   Total Inventory Value: ${total_value['total_value'].iloc[0]:,.2f}")
 

@@ -2,23 +2,24 @@
 Unit and integration tests for schema snapshot generator.
 """
 
-import pytest
 import json
 from datetime import datetime, timedelta
 
-from vizu_sql_factory.schema_snapshot import (
-    ColumnMetadata,
-    ViewMetadata,
-    SchemaSnapshot,
-    CacheEntry,
-    SchemaSnapshotGenerator,
-    SchemaSnapshotFormatter,
-)
+import pytest
+
 from vizu_sql_factory.allowlist import (
     AllowlistConfig,
+    JoinPath,
     RoleConfig,
     TenantConfig,
-    JoinPath,
+)
+from vizu_sql_factory.schema_snapshot import (
+    CacheEntry,
+    ColumnMetadata,
+    SchemaSnapshot,
+    SchemaSnapshotFormatter,
+    SchemaSnapshotGenerator,
+    ViewMetadata,
 )
 
 

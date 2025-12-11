@@ -12,9 +12,10 @@ Requer:
 
 IMPORTANTE: Este script usa EXCLUSIVAMENTE o .env da RAIZ do monorepo.
 """
-import os
 import logging
-from typing import List, Dict, Any
+import os
+from typing import Any
+
 from qdrant_client import QdrantClient, models
 
 # Configuracao de log
@@ -39,7 +40,7 @@ VECTOR_SIZE = int(os.getenv("EMBEDDING_VECTOR_SIZE", "1024"))
 # Cada entrada corresponde a uma collection_rag definida no seed.py
 # =============================================================================
 
-RAG_DATA: Dict[str, List[Dict[str, Any]]] = {
+RAG_DATA: dict[str, list[dict[str, Any]]] = {
     # -------------------------------------------------------------------------
     # Studio J - Base de conhecimento (Juliana - Salao de Beleza)
     # Estruturado para consulta rapida de regras e servicos
@@ -379,7 +380,7 @@ Garantia:
 }
 
 
-def get_embedding(text: str) -> List[float]:
+def get_embedding(text: str) -> list[float]:
     """
     Gera embedding usando o serviço de embedding local (HuggingFace).
     Usa o endpoint /embed do embedding_service que aplica os prefixos E5 automaticamente.
@@ -448,7 +449,7 @@ def create_collection_if_not_exists(client: QdrantClient, collection_name: str, 
         return False
 
 
-def seed_collection(client: QdrantClient, collection_name: str, documents: List[Dict[str, Any]]):
+def seed_collection(client: QdrantClient, collection_name: str, documents: list[dict[str, Any]]):
     """Popula uma collection com documentos."""
     logger.info(f"\n{'='*60}")
     logger.info(f"📚 Populando collection: {collection_name}")
@@ -528,7 +529,7 @@ def run_seed():
 
     # Lista collections criadas
     collections = client.get_collections()
-    logger.info(f"\n   Collections disponiveis:")
+    logger.info("\n   Collections disponiveis:")
     for col in collections.collections:
         info = client.get_collection(col.name)
         logger.info(f"   - {col.name}: {info.points_count} pontos, {info.config.params.vectors.size} dims")

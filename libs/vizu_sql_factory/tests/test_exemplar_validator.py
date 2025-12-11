@@ -10,18 +10,16 @@ Tests the validation harness for:
 - Report generation
 """
 
-import pytest
 import json
-import asyncio
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from dataclasses import asdict
+
+import pytest
 
 from vizu_sql_factory.exemplar_validator import (
-    ExemplarValidator,
     ExemplarStatus,
     ExemplarTestResult,
     ExemplarTestSummary,
+    ExemplarValidator,
     get_validator,
 )
 

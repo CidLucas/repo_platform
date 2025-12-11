@@ -10,9 +10,10 @@ to avoid pulling in unnecessary dependencies.
 """
 
 from functools import lru_cache
-from typing import List
+
 from sentence_transformers import SentenceTransformer
-from .config import get_embedding_settings, EmbeddingSettings
+
+from .config import get_embedding_settings
 
 
 class E5EmbeddingWrapper:
@@ -31,25 +32,25 @@ class E5EmbeddingWrapper:
         self.model_name = model_name
         self.is_e5_model = "e5" in model_name.lower()
 
-    def _add_prefix(self, texts: List[str], prefix: str) -> List[str]:
+    def _add_prefix(self, texts: list[str], prefix: str) -> list[str]:
         """Adiciona prefixo se for modelo E5."""
         if self.is_e5_model:
             return [f"{prefix}{text}" for text in texts]
         return texts
 
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """Embeds documentos (para armazenamento no Qdrant)."""
         prefixed = self._add_prefix(texts, "passage: ")
         embeddings = self.model.encode(prefixed, convert_to_numpy=True)
         return embeddings.tolist()
 
-    def embed_query(self, text: str) -> List[float]:
+    def embed_query(self, text: str) -> list[float]:
         """Embeds uma query (para busca no Qdrant)."""
         prefixed = self._add_prefix([text], "query: ")[0]
         embedding = self.model.encode(prefixed, convert_to_numpy=True)
         return embedding.tolist()
 
-    def embed_queries(self, texts: List[str]) -> List[List[float]]:
+    def embed_queries(self, texts: list[str]) -> list[list[float]]:
         """Embeds múltiplas queries (para buscas em lote)."""
         prefixed = self._add_prefix(texts, "query: ")
         embeddings = self.model.encode(prefixed, convert_to_numpy=True)

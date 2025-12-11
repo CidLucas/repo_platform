@@ -2,11 +2,10 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from vizu_parsers.parsers.base_parser import BaseParser
-from vizu_parsers.parsers.pdf_parser import PDFParser
 from vizu_parsers.parsers.csv_parser import CSVParser
+from vizu_parsers.parsers.pdf_parser import PDFParser
 from vizu_parsers.parsers.txt_parser import TXTParser
 
 logger = logging.getLogger(__name__)
@@ -58,7 +57,7 @@ class ParserRouter:
     }
 
     @classmethod
-    def get_parser(cls, filename: str) -> Optional[BaseParser]:
+    def get_parser(cls, filename: str) -> BaseParser | None:
         """
         Get the appropriate parser for a given filename.
 
@@ -103,7 +102,7 @@ class ParserRouter:
         return list(cls.PARSER_MAP.keys())
 
 
-def get_parser_for_file(filename: str) -> Optional[BaseParser]:
+def get_parser_for_file(filename: str) -> BaseParser | None:
     """
     Convenience function to get a parser for a file.
 

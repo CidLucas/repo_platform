@@ -11,10 +11,10 @@ collects imported top-level module names and compares them to the
 This is heuristic and will have false positives/negatives (namespace packages,
 standard library vs third-party mapping). Use as a guide, not an absolute.
 """
-from pathlib import Path
 import ast
-import tomllib
 import sys
+import tomllib
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -88,7 +88,7 @@ def analyze_project(dirpath: Path):
         'compileall', 'py_compile', 'zipimport', 'venv', 'platform',
         'errno', 'ctypes', 'posixpath', 'ntpath', 'genericpath', 'atexit',
         # Test-related (often in dev deps, not main)
-        'pytest', 'unittest', 'pytest_mock', 'fakeredis',
+        'pytest', 'pytest_mock', 'fakeredis',
         # Internal/self imports (project's own modules)
     }
 

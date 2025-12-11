@@ -1,8 +1,10 @@
 # src/analytics_api/main.py
+import logging
+
 from fastapi import FastAPI
+
 from analytics_api.api.router import api_router
 from analytics_api.core.config import settings
-import logging
 
 # Configuração básica de logging (melhorar com observability_bootstrap)
 logging.basicConfig(level=logging.DEBUG)

@@ -1,10 +1,11 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Optional
-from sqlmodel import Field, SQLModel, Column, Relationship
-from sqlalchemy import Text, ForeignKey, Enum as SAEnum
+
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy import ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID as pgUUID
+from sqlmodel import Column, Field, Relationship, SQLModel
 
 
 class Remetente(str, Enum):
@@ -15,7 +16,7 @@ class Remetente(str, Enum):
 class ConversaBase(SQLModel):
     # Timestamp de início com timezone
     timestamp_inicio: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
+        default_factory=lambda: datetime.now(UTC)
     )
 
 
@@ -24,16 +25,16 @@ class Conversa(ConversaBase, table=True):
 
     __tablename__ = "conversa"
 
-    id: Optional[uuid.UUID] = Field(
+    id: uuid.UUID | None = Field(
         default_factory=uuid.uuid4,
         sa_column=Column(pgUUID(as_uuid=True), primary_key=True),
     )
 
     # Session id (string) para mapear sessões temporárias (ex: session_id usado pelo agente)
-    session_id: Optional[str] = Field(default=None, index=True)
+    session_id: str | None = Field(default=None, index=True)
 
     # Referência ao cliente Vizu (tenant) - obrigatório para RLS
-    cliente_vizu_id: Optional[uuid.UUID] = Field(
+    cliente_vizu_id: uuid.UUID | None = Field(
         default=None,
         sa_column=Column(
             pgUUID(as_uuid=True),
@@ -43,7 +44,7 @@ class Conversa(ConversaBase, table=True):
     )
 
     # Referência ao cliente final (opcional)
-    cliente_final_id: Optional[int] = Field(
+    cliente_final_id: int | None = Field(
         default=None, foreign_key="cliente_final.id"
     )
 
@@ -52,14 +53,14 @@ class Conversa(ConversaBase, table=True):
 
 
 class ConversaCreate(ConversaBase):
-    cliente_vizu_id: Optional[uuid.UUID] = None
-    cliente_final_id: Optional[int] = None
+    cliente_vizu_id: uuid.UUID | None = None
+    cliente_final_id: int | None = None
 
 
 class ConversaInDB(ConversaBase):
     id: uuid.UUID
-    cliente_vizu_id: Optional[uuid.UUID]
-    cliente_final_id: Optional[int]
+    cliente_vizu_id: uuid.UUID | None
+    cliente_final_id: int | None
 
 
 class MensagemBase(SQLModel):
@@ -77,7 +78,7 @@ class MensagemBase(SQLModel):
     # Use TEXT in DB to avoid length limits on messages
     conteudo: str = Field(sa_column=Column(Text))
     timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc), index=True
+        default_factory=lambda: datetime.now(UTC), index=True
     )
 
 
@@ -86,13 +87,13 @@ class Mensagem(MensagemBase, table=True):
 
     __tablename__ = "mensagem"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     conversa_id: uuid.UUID = Field(
         sa_column=Column(pgUUID(as_uuid=True), ForeignKey("conversa.id"))
     )
 
     # Relationship back to conversation
-    conversa: Optional[Conversa] = Relationship(back_populates="mensagens")
+    conversa: Conversa | None = Relationship(back_populates="mensagens")
 
 
 class MensagemCreate(MensagemBase):

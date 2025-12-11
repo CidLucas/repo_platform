@@ -5,16 +5,14 @@ Load prompts from database with fallback to built-in templates.
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
+from vizu_prompt_management.renderer import TemplateRenderer
 from vizu_prompt_management.templates import (
     BUILTIN_TEMPLATES,
-    PromptTemplateConfig,
     PromptCategory,
 )
-from vizu_prompt_management.renderer import TemplateRenderer
-from vizu_prompt_management.variables import PromptVariables
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +25,15 @@ class LoadedPrompt:
     content: str
     version: int = 1
     source: str = "builtin"  # "builtin", "database", "file"
-    category: Optional[PromptCategory] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    loaded_at: Optional[datetime] = None
+    category: PromptCategory | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    loaded_at: datetime | None = None
 
-    def as_system_message(self) -> Dict[str, str]:
+    def as_system_message(self) -> dict[str, str]:
         """Return as OpenAI-style system message."""
         return {"role": "system", "content": self.content}
 
-    def as_user_message(self) -> Dict[str, str]:
+    def as_user_message(self) -> dict[str, str]:
         """Return as OpenAI-style user message."""
         return {"role": "user", "content": self.content}
 
@@ -52,9 +50,9 @@ class PromptLoader:
 
     def __init__(
         self,
-        db_session: Optional[Any] = None,
+        db_session: Any | None = None,
         cache_ttl_seconds: int = 300,
-        renderer: Optional[TemplateRenderer] = None,
+        renderer: TemplateRenderer | None = None,
     ):
         """
         Initialize PromptLoader.
@@ -67,14 +65,14 @@ class PromptLoader:
         self.db_session = db_session
         self.cache_ttl_seconds = cache_ttl_seconds
         self.renderer = renderer or TemplateRenderer()
-        self._cache: Dict[str, tuple] = {}  # (prompt, timestamp)
+        self._cache: dict[str, tuple] = {}  # (prompt, timestamp)
 
     async def load(
         self,
         name: str,
-        variables: Optional[Dict[str, Any]] = None,
-        cliente_id: Optional[UUID] = None,
-        version: Optional[int] = None,
+        variables: dict[str, Any] | None = None,
+        cliente_id: UUID | None = None,
+        version: int | None = None,
         use_cache: bool = True,
     ) -> LoadedPrompt:
         """
@@ -151,15 +149,16 @@ class PromptLoader:
     async def _load_from_database(
         self,
         name: str,
-        cliente_id: Optional[UUID],
-        version: Optional[int],
-    ) -> Optional[LoadedPrompt]:
+        cliente_id: UUID | None,
+        version: int | None,
+    ) -> LoadedPrompt | None:
         """Load prompt from database."""
         if not self.db_session:
             return None
 
         try:
             from sqlmodel import select
+
             from vizu_models import PromptTemplate
 
             # Try client-specific first
@@ -216,7 +215,7 @@ class PromptLoader:
     def load_builtin(
         self,
         name: str,
-        variables: Optional[Dict[str, Any]] = None,
+        variables: dict[str, Any] | None = None,
     ) -> LoadedPrompt:
         """
         Load a built-in prompt directly (no database lookup).
@@ -248,9 +247,9 @@ class PromptLoader:
 
     def list_available(
         self,
-        category: Optional[PromptCategory] = None,
+        category: PromptCategory | None = None,
         include_db: bool = True,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         List available prompt names.
 
@@ -272,6 +271,7 @@ class PromptLoader:
         if include_db and self.db_session:
             try:
                 from sqlmodel import select
+
                 from vizu_models import PromptTemplate
 
                 query = select(PromptTemplate.name).where(
@@ -286,7 +286,7 @@ class PromptLoader:
 
         return sorted(names)
 
-    def clear_cache(self, name: Optional[str] = None) -> None:
+    def clear_cache(self, name: str | None = None) -> None:
         """Clear prompt cache."""
         if name:
             keys_to_remove = [k for k in self._cache if k.startswith(name)]

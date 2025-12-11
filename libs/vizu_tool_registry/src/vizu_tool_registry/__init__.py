@@ -24,16 +24,16 @@ Usage:
     )
 """
 
-from .tool_metadata import ToolMetadata, ToolCategory
-from .registry import ToolRegistry
-from .tier_validator import TierValidator
 from .docker_mcp_bridge import DockerMCPBridge
 from .exceptions import (
-    ToolRegistryError,
-    ToolNotFoundError,
-    TierAccessDeniedError,
     DockerMCPConnectionError,
+    TierAccessDeniedError,
+    ToolNotFoundError,
+    ToolRegistryError,
 )
+from .registry import ToolRegistry
+from .tier_validator import TierValidator
+from .tool_metadata import ToolCategory, ToolMetadata
 
 __all__ = [
     # Core classes

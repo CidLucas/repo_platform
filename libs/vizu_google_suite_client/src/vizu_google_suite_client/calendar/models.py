@@ -1,18 +1,18 @@
+
 from pydantic import BaseModel
-from typing import Optional, List
 
 
 class CalendarEvent(BaseModel):
     """Google Calendar event model."""
     id: str
     summary: str = ""
-    description: Optional[str] = None
+    description: str | None = None
     start: str  # ISO datetime string
     end: str  # ISO datetime string
-    location: Optional[str] = None
-    attendees: Optional[List[str]] = None  # List of email addresses
+    location: str | None = None
+    attendees: list[str] | None = None  # List of email addresses
     status: str = ""
-    html_link: Optional[str] = None
+    html_link: str | None = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""

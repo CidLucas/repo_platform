@@ -5,7 +5,7 @@ Prompt version management and comparison.
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import UUID
 
 logger = logging.getLogger(__name__)
@@ -19,9 +19,9 @@ class PromptVersion:
     version: int
     content: str
     is_active: bool = True
-    created_at: Optional[datetime] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    cliente_vizu_id: Optional[UUID] = None
+    created_at: datetime | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    cliente_vizu_id: UUID | None = None
 
     @property
     def full_name(self) -> str:
@@ -40,7 +40,7 @@ class PromptManager:
     - A/B testing hooks
     """
 
-    def __init__(self, db_session: Optional[Any] = None):
+    def __init__(self, db_session: Any | None = None):
         """
         Initialize PromptManager.
 
@@ -52,9 +52,9 @@ class PromptManager:
     async def list_versions(
         self,
         name: str,
-        cliente_id: Optional[UUID] = None,
+        cliente_id: UUID | None = None,
         include_inactive: bool = False,
-    ) -> List[PromptVersion]:
+    ) -> list[PromptVersion]:
         """
         List all versions of a prompt.
 
@@ -71,6 +71,7 @@ class PromptManager:
 
         try:
             from sqlmodel import select
+
             from vizu_models import PromptTemplate
 
             query = select(PromptTemplate).where(PromptTemplate.name == name)
@@ -104,8 +105,8 @@ class PromptManager:
     async def get_active_version(
         self,
         name: str,
-        cliente_id: Optional[UUID] = None,
-    ) -> Optional[PromptVersion]:
+        cliente_id: UUID | None = None,
+    ) -> PromptVersion | None:
         """
         Get the active version of a prompt.
 
@@ -123,8 +124,8 @@ class PromptManager:
         self,
         name: str,
         content: str,
-        cliente_id: Optional[UUID] = None,
-        metadata: Optional[Dict] = None,
+        cliente_id: UUID | None = None,
+        metadata: dict | None = None,
         activate: bool = True,
     ) -> PromptVersion:
         """
@@ -186,7 +187,7 @@ class PromptManager:
         self,
         name: str,
         version: int,
-        cliente_id: Optional[UUID] = None,
+        cliente_id: UUID | None = None,
     ) -> bool:
         """
         Activate a specific version (deactivates others).
@@ -218,8 +219,8 @@ class PromptManager:
     async def rollback(
         self,
         name: str,
-        cliente_id: Optional[UUID] = None,
-    ) -> Optional[PromptVersion]:
+        cliente_id: UUID | None = None,
+    ) -> PromptVersion | None:
         """
         Rollback to the previous version.
 
@@ -250,7 +251,7 @@ class PromptManager:
         self,
         name: str,
         version: int,
-        cliente_id: Optional[UUID],
+        cliente_id: UUID | None,
         active: bool,
     ) -> bool:
         """Set active status for a version."""
@@ -259,6 +260,7 @@ class PromptManager:
 
         try:
             from sqlmodel import select
+
             from vizu_models import PromptTemplate
 
             query = select(PromptTemplate).where(
@@ -288,8 +290,8 @@ class PromptManager:
         name: str,
         version_a: int,
         version_b: int,
-        cliente_id: Optional[UUID] = None,
-    ) -> Dict[str, Any]:
+        cliente_id: UUID | None = None,
+    ) -> dict[str, Any]:
         """
         Compare two versions of a prompt.
 

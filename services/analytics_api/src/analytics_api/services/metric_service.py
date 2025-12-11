@@ -1,8 +1,8 @@
 # src/analytics_api/services/metric_service.py
-import pandas as pd
-import numpy as np
 import logging
-from datetime import datetime
+
+import numpy as np
+import pandas as pd
 from analytics_api.data_access.postgres_repository import PostgresRepository
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ class MetricService:
         self.client_id = client_id
         self.today = pd.Timestamp.now(tz='UTC')
         self.df = self.repository.get_silver_dataframe(client_id)
-        
+
         if self.df.empty:
             logger.warning(f"Nenhum dado encontrado na camada Prata para o client_id: {self.client_id}")
 
@@ -28,7 +28,7 @@ class MetricService:
         self.df['data_transacao'] = pd.to_datetime(self.df['data_transacao'], utc=True)
         self.df['valor_total_emitter'] = pd.to_numeric(self.df['valor_total_emitter'])
         self.df['quantidade'] = pd.to_numeric(self.df['quantidade'])
-        
+
         # ATUALIZADO (Q1): Converte valor_unitario para numérico
         self.df['valor_unitario'] = pd.to_numeric(self.df['valor_unitario'])
 
@@ -46,7 +46,7 @@ class MetricService:
     # ---
     # HELPER AGREGADOR (ATUALIZADO PARA Q1 e Q2)
     # ---
-    
+
     def _get_aggregated_metrics_by_dimension(self, df: pd.DataFrame, dimension_col: str) -> pd.DataFrame:
         """
         O CÉREBRO agnóstico de Nível 2 e 3. (Atualizado v2)
@@ -54,7 +54,7 @@ class MetricService:
         if df.empty or dimension_col not in df.columns:
             cols = ['nome', 'receita_total', 'quantidade_total', 'num_pedidos_unicos',
                     'primeira_venda', 'ultima_venda', 'ticket_medio', 'qtd_media_por_pedido',
-                    'frequencia_pedidos_mes', 'recencia_dias', 
+                    'frequencia_pedidos_mes', 'recencia_dias',
                     'valor_unitario_medio', # (Q1)
                     'cluster_score', 'cluster_tier'] # (Q2)
             return pd.DataFrame(columns=cols)
@@ -67,18 +67,18 @@ class MetricService:
             'primeira_venda': ('data_transacao', 'min'),
             'ultima_venda': ('data_transacao', 'max'),
             # ATUALIZADO (Q1): Adiciona o valor unitário médio
-            'valor_unitario_medio': ('valor_unitario', 'mean') 
+            'valor_unitario_medio': ('valor_unitario', 'mean')
         }
         agg_df = df.groupby(dimension_col).agg(**agg_ops).reset_index()
 
         # 2. Métricas Derivadas
         agg_df['ticket_medio'] = agg_df['receita_total'] / agg_df['num_pedidos_unicos']
         agg_df['qtd_media_por_pedido'] = agg_df['quantidade_total'] / agg_df['num_pedidos_unicos']
-        
+
         dias_ativo = (agg_df['ultima_venda'] - agg_df['primeira_venda']).dt.days
         meses_ativo = (dias_ativo / 30.44).clip(lower=1)
         agg_df['frequencia_pedidos_mes'] = agg_df['num_pedidos_unicos'] / meses_ativo
-        
+
         agg_df['recencia_dias'] = (self.today - agg_df['ultima_venda']).dt.days
 
         # 3. Cluster Vizu (Score Simples)
@@ -86,7 +86,7 @@ class MetricService:
         agg_df['score_f'] = (agg_df['frequencia_pedidos_mes'] / agg_df['frequencia_pedidos_mes'].max()) * 100
         agg_df['score_m'] = (agg_df['receita_total'] / agg_df['receita_total'].max()) * 100
         agg_df['cluster_score'] = (agg_df['score_r'] * 0.2) + (agg_df['score_f'] * 0.4) + (agg_df['score_m'] * 0.4)
-        
+
         # ATUALIZADO (Q2): Criar Tiers (Segmentos)
         # Usamos qcut (quantil) para dividir em 4 grupos (A, B, C, D)
         if agg_df['cluster_score'].nunique() > 1:
@@ -115,7 +115,7 @@ class MetricService:
     def get_home_metrics(self) -> dict:
         # ... (código da v1) ...
         logger.info(f"[MetricService] Calculando métricas Nível 1 para {self.client_id}")
-        
+
         if self.df.empty:
             return {"scorecards": {}, "charts": []}
 
@@ -151,16 +151,16 @@ class MetricService:
 
     def get_fornecedores_overview(self) -> dict:
         logger.info(f"[MetricService] Calculando métricas Nível 2 (Fornecedores) para {self.client_id}")
-        
+
         # 1. Usa o Helper pré-calculado
         df_fornecedores_agg = self.df_fornecedores_agg
 
         # 2. Métricas Adicionais...
         df_fornecedores_tempo = self.df.sort_values('data_transacao').drop_duplicates('emitter_nome')
         df_fornecedores_tempo = df_fornecedores_tempo.groupby('ano_mes').size().cumsum().reset_index(name='total_cumulativo')
-        
+
         df_top_produtos = self.df_produtos_agg.sort_values('receita_total', ascending=False).head(10)
-        
+
         df_fornecedores_regiao = self.df.groupby('emitter_estado')['emitter_nome'].nunique().reset_index(name='contagem')
 
         # NOVO (Q2): Gráfico de Cohort (Tiers)
@@ -184,10 +184,10 @@ class MetricService:
 
     def get_clientes_overview(self) -> dict:
         logger.info(f"[MetricService] Calculando métricas Nível 2 (Clientes) para {self.client_id}")
-        
+
         # 1. Usa o Helper pré-calculado
         df_clientes_agg = self.df_clientes_agg
-        
+
         # 2. Métricas Adicionais...
         df_clientes_regiao = self.df.groupby('receiver_estado')['receiver_nome'].nunique().reset_index(name='contagem')
         total_clientes_regiao = df_clientes_regiao['contagem'].sum()
@@ -213,7 +213,7 @@ class MetricService:
 
     def get_produtos_overview(self) -> dict:
         logger.info(f"[MetricService] Calculando métricas Nível 2 (Produtos) para {self.client_id}")
-        
+
         # 1. Usa o Helper pré-calculado
         df_produtos_agg = self.df_produtos_agg
 
@@ -274,19 +274,19 @@ class MetricService:
 
     def get_cliente_details(self, nome_cliente: str) -> dict:
         logger.info(f"[MetricService] Calculando métricas Nível 3 para Cliente: {nome_cliente}")
-        
+
         df_filtrado = self.df[self.df['receiver_nome'] == nome_cliente].copy()
         if df_filtrado.empty:
             raise ValueError(f"Cliente não encontrado: {nome_cliente}")
-            
+
         dados_cadastrais = df_filtrado.iloc[0][
             ['receiver_nome', 'receiver_cnpj', 'receiver_telefone', 'receiver_estado', 'receiver_cidade']
         ].to_dict()
-        
+
         # ATUALIZADO (Q3): Pega o scorecard completo (freq, ticket, tier)
         # Filtramos o DataFrame pré-calculado
         scorecards = self.df_clientes_agg[self.df_clientes_agg['nome'] == nome_cliente].to_dict('records')
-        
+
         df_agg_produtos = self._get_aggregated_metrics_by_dimension(df_filtrado, 'raw_product_description')
 
         df_ultimos_pedidos = df_filtrado.groupby('order_id').agg(
@@ -305,14 +305,14 @@ class MetricService:
 
     def get_produto_details(self, nome_produto: str) -> dict:
         logger.info(f"[MetricService] Calculando métricas Nível 3 para Produto: {nome_produto}")
-        
+
         df_filtrado = self.df[self.df['raw_product_description'] == nome_produto].copy()
         if df_filtrado.empty:
             raise ValueError(f"Produto não encontrado: {nome_produto}")
 
         # ATUALIZADO (Q4): Pega o scorecard completo (freq, ticket)
         scorecards = self.df_produtos_agg[self.df_produtos_agg['nome'] == nome_produto].to_dict('records')
-        
+
         df_agg_clientes = self._get_aggregated_metrics_by_dimension(df_filtrado, 'receiver_nome')
         df_agg_regioes = self._get_aggregated_metrics_by_dimension(df_filtrado, 'receiver_cidade')
 
@@ -338,7 +338,7 @@ class MetricService:
                 "regioes_por_receita": df_agg_regioes.sort_values('receita_total', ascending=False).head(5).to_dict('records'),
             }
         }
-        
+
     def get_pedido_details(self, order_id: str) -> dict:
         # ... (sem mudanças significativas, código da v1) ...
         logger.info(f"[MetricService] Calculando métricas Nível 3 para Pedido: {order_id}")

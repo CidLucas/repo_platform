@@ -1,9 +1,8 @@
 import logging
-from typing import Dict, Type
 
 from file_processing_worker.parsers.base_parser import BaseParser
-from file_processing_worker.parsers.pdf_parser import PDFParser
 from file_processing_worker.parsers.csv_parser import CSVParser
+from file_processing_worker.parsers.pdf_parser import PDFParser
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +20,7 @@ class RoutingService:
         """
         # Padrão Vizu: Modularização via Roteamento de Implementação
         # Mapeia o MIME type (ou parte dele) à classe do parser.
-        self._parser_map: Dict[str, Type[BaseParser]] = {
+        self._parser_map: dict[str, type[BaseParser]] = {
             "application/pdf": PDFParser,
             "text/csv": CSVParser,
             # (Podemos adicionar mais MIME types de CSV se necessário)

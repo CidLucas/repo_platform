@@ -1,13 +1,15 @@
 # libs/vizu_llm_service/tests/unit/test_client.py
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 from langchain_community.chat_models import ChatOllama
+
 from vizu_llm_service.client import (
+    ModelTier,
     VizuEmbeddingAPIClient,
     get_embedding_model,
     get_model,
-    ModelTier,
 )
 from vizu_llm_service.config import get_llm_settings
 

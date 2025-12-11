@@ -1,10 +1,10 @@
 import os
+
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import Session, sessionmaker
 
 import vizu_models as models
-
 
 # Usa uma variável de ambiente para o DB de teste, com um fallback
 TEST_DATABASE_URL = os.getenv(

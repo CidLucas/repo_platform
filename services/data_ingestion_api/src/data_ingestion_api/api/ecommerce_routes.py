@@ -7,28 +7,28 @@ Suporta:
 - Loja Integrada
 """
 
-from fastapi import APIRouter, HTTPException, status, Depends
-from typing import Union
 import logging
+from typing import Union
 
+from data_ingestion_api.connectors import (
+    AuthenticationError,
+    EcommerceConnectorError,
+    LojaIntegradaConnector,
+    RateLimitError,
+    ShopifyConnector,
+    VTEXConnector,
+)
 from data_ingestion_api.schemas.schemas import (
-    ShopifyCredentialCreate,
-    VTEXCredentialCreate,
-    LojaIntegradaCredentialCreate,
+    ConnectionTestResponse,
     CredencialResponse,
     ExtractionRequest,
     ExtractionResponse,
-    ConnectionTestResponse,
-)
-from data_ingestion_api.connectors import (
-    ShopifyConnector,
-    VTEXConnector,
-    LojaIntegradaConnector,
-    EcommerceConnectorError,
-    AuthenticationError,
-    RateLimitError,
+    LojaIntegradaCredentialCreate,
+    ShopifyCredentialCreate,
+    VTEXCredentialCreate,
 )
 from data_ingestion_api.services.credential_service import credential_service
+from fastapi import APIRouter, HTTPException, status
 
 logger = logging.getLogger(__name__)
 
@@ -108,13 +108,13 @@ async def test_ecommerce_connection(
     """
     try:
         connector_class = _get_connector_class(payload.tipo_servico)
-        
+
         # Converte o payload para dicionário de credenciais
         credentials = payload.model_dump(exclude={"cliente_vizu_id", "nome_conexao", "tipo_servico"})
-        
+
         async with connector_class(credentials) as connector:
             is_valid = await connector.validate_connection()
-            
+
             if is_valid:
                 return ConnectionTestResponse(
                     success=True,
@@ -129,7 +129,7 @@ async def test_ecommerce_connection(
                     platform=payload.tipo_servico,
                     connection_string=None
                 )
-                
+
     except AuthenticationError as e:
         logger.warning(f"Erro de autenticação: {e}")
         return ConnectionTestResponse(
@@ -172,13 +172,13 @@ async def extract_ecommerce_data(
     try:
         # TODO: Buscar credenciais do banco/secret manager pelo credential_id
         # credentials = await credential_service.get_credentials(request.credential_id)
-        
+
         # Por enquanto, retorna erro indicando que precisa implementar
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Extração via credential_id ainda não implementada. Use extract-direct."
         )
-        
+
     except Exception as e:
         logger.error(f"Erro na extração: {e}")
         raise HTTPException(
@@ -214,7 +214,7 @@ async def extract_direct(
     try:
         connector_class = _get_connector_class(platform)
         creds = credentials.model_dump(exclude={"cliente_vizu_id", "nome_conexao", "tipo_servico"})
-        
+
         async with connector_class(creds) as connector:
             # Valida a conexão primeiro
             if not await connector.validate_connection():
@@ -222,11 +222,11 @@ async def extract_direct(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Falha na autenticação. Verifique as credenciais."
                 )
-            
+
             # Extrai os dados baseado no recurso
             resource_lower = resource.lower()
             data = []
-            
+
             if resource_lower == "products":
                 data = await connector.get_products(limit=limit, page=page)
             elif resource_lower == "orders":
@@ -240,7 +240,7 @@ async def extract_direct(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Recurso '{resource}' não suportado. Use: products, orders, customers, inventory"
                 )
-            
+
             return ExtractionResponse(
                 success=True,
                 resource=resource_lower,
@@ -249,7 +249,7 @@ async def extract_direct(
                 has_more=len(data) >= limit,
                 data=data
             )
-            
+
     except AuthenticationError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -373,14 +373,14 @@ async def list_platform_resources(platform: str):
             {"name": "brands", "description": "Marcas", "supports_pagination": True},
         ],
     }
-    
+
     platform_lower = platform.lower()
     if platform_lower not in resources_map:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Plataforma '{platform}' não encontrada. Use: shopify, vtex, loja_integrada"
         )
-    
+
     return {
         "platform": platform_lower,
         "resources": resources_map[platform_lower]

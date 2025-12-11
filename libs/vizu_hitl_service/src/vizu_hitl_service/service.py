@@ -6,17 +6,18 @@ HITL Service - Avalia critérios e decide roteamento para revisão humana.
 import logging
 import random
 import re
-from typing import Optional, List, Dict, Any
+from typing import Any
 from uuid import UUID
 
 from vizu_models import (
     HitlConfig,
-    HitlCriterion,
     HitlCriteriaType,
+    HitlCriterion,
     HitlDecision,
-    HitlReviewCreate,
     HitlReview,
+    HitlReviewCreate,
 )
+
 from .queue import HitlQueue
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ class HitlService:
     3. Enfileirar interações para revisão
     """
 
-    def __init__(self, queue: HitlQueue, config: Optional[HitlConfig] = None):
+    def __init__(self, queue: HitlQueue, config: HitlConfig | None = None):
         """
         Args:
             queue: Instância do HitlQueue para gerenciar fila
@@ -42,9 +43,9 @@ class HitlService:
         self.default_config = config or HitlConfig.default_config()
 
         # Cache de configs por cliente
-        self._client_configs: Dict[UUID, HitlConfig] = {}
+        self._client_configs: dict[UUID, HitlConfig] = {}
 
-    def get_config(self, cliente_vizu_id: Optional[UUID] = None) -> HitlConfig:
+    def get_config(self, cliente_vizu_id: UUID | None = None) -> HitlConfig:
         """Retorna configuração para um cliente (ou default)."""
         if cliente_vizu_id and cliente_vizu_id in self._client_configs:
             return self._client_configs[cliente_vizu_id]
@@ -64,13 +65,13 @@ class HitlService:
         user_message: str,
         agent_response: str,
         cliente_vizu_id: UUID,
-        confidence_score: Optional[float] = None,
-        tools_called: Optional[List[str]] = None,
-        tool_errors: Optional[List[str]] = None,
+        confidence_score: float | None = None,
+        tools_called: list[str] | None = None,
+        tool_errors: list[str] | None = None,
         elicitation_pending: bool = False,
         message_count: int = 0,
-        response_time_seconds: Optional[float] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        response_time_seconds: float | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> HitlDecision:
         """
         Avalia se uma interação deve ir para revisão humana.
@@ -134,14 +135,14 @@ class HitlService:
         criterion: HitlCriterion,
         user_message: str,
         agent_response: str,
-        confidence_score: Optional[float],
-        tools_called: List[str],
-        tool_errors: List[str],
+        confidence_score: float | None,
+        tools_called: list[str],
+        tool_errors: list[str],
         elicitation_pending: bool,
         message_count: int,
-        response_time_seconds: Optional[float],
-        metadata: Dict[str, Any],
-    ) -> tuple[bool, Dict[str, Any]]:
+        response_time_seconds: float | None,
+        metadata: dict[str, Any],
+    ) -> tuple[bool, dict[str, Any]]:
         """Avalia um critério específico."""
 
         ctype = criterion.type
@@ -221,11 +222,11 @@ class HitlService:
         agent_response: str,
         cliente_vizu_id: UUID,
         session_id: str,
-        cliente_final_id: Optional[UUID] = None,
-        trace_id: Optional[str] = None,
-        tools_called: Optional[List[str]] = None,
-        model_used: Optional[str] = None,
-        conversation_context: Optional[List[Dict[str, Any]]] = None,
+        cliente_final_id: UUID | None = None,
+        trace_id: str | None = None,
+        tools_called: list[str] | None = None,
+        model_used: str | None = None,
+        conversation_context: list[dict[str, Any]] | None = None,
     ) -> HitlReview:
         """
         Submete uma interação para revisão humana.
@@ -266,7 +267,7 @@ class HitlService:
             ttl_hours=config.queue_ttl_hours,
         )
 
-    def _get_priority_for_criteria(self, criteria: Optional[HitlCriteriaType]) -> int:
+    def _get_priority_for_criteria(self, criteria: HitlCriteriaType | None) -> int:
         """Retorna prioridade baseado no critério."""
         if criteria is None:
             return 1

@@ -7,6 +7,7 @@ Este é o único arquivo de configuração de credenciais do projeto.
 """
 
 from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -42,7 +43,7 @@ def get_embedding_settings() -> EmbeddingSettings:
     O @lru_cache garante que as variáveis de ambiente sejam lidas apenas uma vez.
     """
     settings = EmbeddingSettings()
-    print(f"INFO: Embedding Service Config:")
+    print("INFO: Embedding Service Config:")
     print(f"  - Modelo: {settings.EMBEDDING_MODEL_NAME}")
     print(f"  - Dimensão: {settings.EMBEDDING_VECTOR_SIZE}")
     print(f"  - Device: {settings.EMBEDDING_MODEL_DEVICE}")

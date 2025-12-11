@@ -6,9 +6,9 @@ Sets up test data and queries the vendas_agent.
 
 import asyncio
 import json
-import requests
-import time
 from pathlib import Path
+
+import requests
 
 # Configuration
 ATENDENTE_CORE_URL = "http://localhost:8003"
@@ -37,7 +37,7 @@ async def test_text_to_sql():
         "Show products that are out of stock or have less than 10 units",
     ]
 
-    print(f"\n📝 Test Questions to ask the agent:\n")
+    print("\n📝 Test Questions to ask the agent:\n")
     for i, q in enumerate(test_questions, 1):
         print(f"{i}. {q}")
 
@@ -66,7 +66,7 @@ async def test_text_to_sql():
         return
 
     # Try to start a chat session
-    print(f"\n💬 Starting chat session...")
+    print("\n💬 Starting chat session...")
 
     try:
         headers = {
@@ -83,11 +83,11 @@ async def test_text_to_sql():
         )
 
         if response.status_code == 200:
-            print(f"✅ Health check passed")
-            print(f"\nExample of asking the agent (real implementation would require full MCP setup):")
+            print("✅ Health check passed")
+            print("\nExample of asking the agent (real implementation would require full MCP setup):")
             print(f"POST {ATENDENTE_CORE_URL}/chat")
             print(f"Headers: {json.dumps(headers, indent=2)}")
-            print(f"\nExample payload:")
+            print("\nExample payload:")
             example_payload = {
                 "question": "How many laptop products do we have?",
                 "session_id": "test-session-001",

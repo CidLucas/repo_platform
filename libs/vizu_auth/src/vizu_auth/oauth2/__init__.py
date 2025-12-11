@@ -9,9 +9,9 @@ can still import the package (they'll get informative ImportError when
 trying to use provider methods that require google libs).
 """
 
-from .models import OAuthConfig, TokenResponse
 from .base import OAuth2Provider
 from .google_provider import GoogleOAuth2Provider
+from .models import OAuthConfig, TokenResponse
 from .oauth_manager import OAuthManager
 
 __all__ = [

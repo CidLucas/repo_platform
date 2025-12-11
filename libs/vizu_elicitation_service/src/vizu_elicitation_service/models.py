@@ -3,8 +3,8 @@ Data models for elicitation.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from typing_extensions import TypedDict
 
 
@@ -19,12 +19,12 @@ class PendingElicitation(TypedDict, total=False):
     elicitation_id: str  # Unique ID for correlation
     type: str  # confirmation, selection, text_input, date_time
     message: str  # Message to display to user
-    options: Optional[List[Dict[str, Any]]]  # Options for selection type
+    options: list[dict[str, Any]] | None  # Options for selection type
     tool_name: str  # Name of tool that requested
-    tool_args: Dict[str, Any]  # Original tool arguments
-    metadata: Optional[Dict[str, Any]]  # Additional data
-    created_at: Optional[str]  # ISO timestamp
-    expires_at: Optional[str]  # ISO timestamp for expiration
+    tool_args: dict[str, Any]  # Original tool arguments
+    metadata: dict[str, Any] | None  # Additional data
+    created_at: str | None  # ISO timestamp
+    expires_at: str | None  # ISO timestamp for expiration
 
 
 @dataclass
@@ -34,17 +34,17 @@ class ElicitationResult:
     elicitation_id: str
     success: bool
     response: Any = None
-    error: Optional[str] = None
-    tool_name: Optional[str] = None
-    tool_args: Optional[Dict[str, Any]] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+    tool_name: str | None = None
+    tool_args: dict[str, Any] | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def should_retry_tool(self) -> bool:
         """Whether the tool should be retried with the response."""
         return self.success
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "elicitation_id": self.elicitation_id,
@@ -62,11 +62,11 @@ class ElicitationContext:
     """Context for elicitation execution."""
 
     session_id: str
-    cliente_id: Optional[str] = None
-    thread_id: Optional[str] = None
-    user_id: Optional[str] = None
-    channel: Optional[str] = None  # whatsapp, web, api
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    cliente_id: str | None = None
+    thread_id: str | None = None
+    user_id: str | None = None
+    channel: str | None = None  # whatsapp, web, api
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -75,10 +75,10 @@ class ElicitationOption:
 
     value: str
     label: str
-    description: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    description: str | None = None
+    metadata: dict[str, Any] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         result = {
             "value": self.value,
@@ -91,7 +91,7 @@ class ElicitationOption:
         return result
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ElicitationOption":
+    def from_dict(cls, data: dict[str, Any]) -> "ElicitationOption":
         """Create from dictionary."""
         return cls(
             value=data["value"],

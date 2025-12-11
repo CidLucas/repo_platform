@@ -2,27 +2,24 @@
 Tests for vizu_prompt_management library.
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock
-from uuid import uuid4
 
+import pytest
+
+from vizu_prompt_management.loader import LoadedPrompt, PromptLoader, PromptNotFoundError
+from vizu_prompt_management.manager import PromptVersion
+from vizu_prompt_management.renderer import SafeRenderer, TemplateRenderer
 from vizu_prompt_management.templates import (
-    BUILTIN_TEMPLATES,
     ATENDENTE_SYSTEM_V1,
-    ATENDENTE_SYSTEM_V2,
-    RAG_QUERY_PROMPT,
+    BUILTIN_TEMPLATES,
     PromptCategory,
     get_builtin_template,
     list_builtin_templates,
 )
-from vizu_prompt_management.renderer import TemplateRenderer, SafeRenderer
 from vizu_prompt_management.variables import (
+    ContextVariableBuilder,
     PromptVariables,
     VariableExtractor,
-    ContextVariableBuilder,
 )
-from vizu_prompt_management.loader import PromptLoader, LoadedPrompt, PromptNotFoundError
-from vizu_prompt_management.manager import PromptManager, PromptVersion
 
 
 class TestTemplates:

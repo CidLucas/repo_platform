@@ -4,12 +4,12 @@ import uuid
 from unittest.mock import MagicMock
 
 from fastapi import UploadFile
-from pytest_mock import MockerFixture
+from file_upload_api.core.config import Settings
+from file_upload_api.schemas.upload_schemas import FileUploadResponse
 
 # Componentes que estamos a testar
 from file_upload_api.services.upload_service import UploadService
-from file_upload_api.schemas.upload_schemas import FileUploadResponse
-from file_upload_api.core.config import Settings
+from pytest_mock import MockerFixture
 
 
 # Padrão Vizu: Testar a lógica de serviço isoladamente

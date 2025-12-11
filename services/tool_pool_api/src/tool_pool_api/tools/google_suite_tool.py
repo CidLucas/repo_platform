@@ -1,13 +1,15 @@
+from datetime import datetime
+from typing import Any
+from uuid import UUID
+
 from mcp.server import Server
+
 from vizu_context_service import ContextService
 from vizu_google_suite_client import (
-    GoogleSheetsClient,
-    GoogleGmailClient,
     GoogleCalendarClient,
+    GoogleGmailClient,
+    GoogleSheetsClient,
 )
-from typing import List, Any
-from uuid import UUID
-from datetime import datetime
 
 # Create a local Server instance so the decorator used in the snippet is available
 mcp = Server("google-suite")
@@ -32,7 +34,7 @@ class GoogleSuiteTool:
         self,
         spreadsheet_id: str,
         range_name: str,
-        values: List[List[Any]],
+        values: list[list[Any]],
         cliente_vizu_id: UUID,  # Injetado pelo auth middleware
     ) -> dict:
         """Escreve dados em uma planilha Google Sheets"""
@@ -44,7 +46,7 @@ class GoogleSuiteTool:
     @mcp.tool()
     async def read_emails(
         self, query: str, max_results: int = 10, cliente_vizu_id: UUID | None = None
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Busca e lê emails do Gmail"""
         if cliente_vizu_id is None:
             raise ValueError("cliente_vizu_id is required")
@@ -60,7 +62,7 @@ class GoogleSuiteTool:
         time_max: datetime,
         calendar_id: str = "primary",
         cliente_vizu_id: UUID | None = None,
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Consulta eventos do Google Calendar"""
         if cliente_vizu_id is None:
             raise ValueError("cliente_vizu_id is required")

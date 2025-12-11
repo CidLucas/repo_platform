@@ -6,8 +6,9 @@ based on client context.
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any
 from uuid import UUID
 
 logger = logging.getLogger(__name__)
@@ -21,10 +22,10 @@ class ResourceMetadata:
     uri: str
     description: str = ""
     mime_type: str = "text/plain"
-    tier_required: Optional[str] = None
+    tier_required: str | None = None
     client_specific: bool = False
-    version: Optional[str] = None
-    tags: List[str] = field(default_factory=list)
+    version: str | None = None
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -33,7 +34,7 @@ class LoadedResource:
 
     metadata: ResourceMetadata
     content: Any
-    loaded_at: Optional[float] = None
+    loaded_at: float | None = None
 
 
 class ResourceLoader:
@@ -49,7 +50,7 @@ class ResourceLoader:
 
     def __init__(
         self,
-        context_service_factory: Optional[Callable] = None,
+        context_service_factory: Callable | None = None,
         cache_ttl_seconds: int = 300,
     ):
         """
@@ -61,8 +62,8 @@ class ResourceLoader:
         """
         self.context_service_factory = context_service_factory
         self.cache_ttl_seconds = cache_ttl_seconds
-        self._cache: Dict[str, LoadedResource] = {}
-        self._resource_registry: Dict[str, ResourceMetadata] = {}
+        self._cache: dict[str, LoadedResource] = {}
+        self._resource_registry: dict[str, ResourceMetadata] = {}
 
     def register_resource(self, metadata: ResourceMetadata) -> None:
         """Register a resource for discovery."""
@@ -70,10 +71,10 @@ class ResourceLoader:
 
     def list_resources(
         self,
-        cliente_id: Optional[UUID] = None,
-        tier: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-    ) -> List[ResourceMetadata]:
+        cliente_id: UUID | None = None,
+        tier: str | None = None,
+        tags: list[str] | None = None,
+    ) -> list[ResourceMetadata]:
         """
         List available resources with optional filtering.
 
@@ -116,9 +117,9 @@ class ResourceLoader:
     async def load_resource(
         self,
         uri: str,
-        cliente_id: Optional[UUID] = None,
+        cliente_id: UUID | None = None,
         use_cache: bool = True,
-    ) -> Optional[LoadedResource]:
+    ) -> LoadedResource | None:
         """
         Load a resource by URI.
 
@@ -164,8 +165,8 @@ class ResourceLoader:
     async def _load_content(
         self,
         uri: str,
-        cliente_id: Optional[UUID],
-    ) -> Optional[Any]:
+        cliente_id: UUID | None,
+    ) -> Any | None:
         """Load resource content based on URI scheme."""
         if uri.startswith("db://prompts/"):
             return await self._load_prompt_from_db(uri, cliente_id)
@@ -180,8 +181,8 @@ class ResourceLoader:
     async def _load_prompt_from_db(
         self,
         uri: str,
-        cliente_id: Optional[UUID],
-    ) -> Optional[str]:
+        cliente_id: UUID | None,
+    ) -> str | None:
         """Load prompt template from database."""
         # Extract prompt name from URI: db://prompts/system_prompt
         prompt_name = uri.replace("db://prompts/", "")
@@ -199,10 +200,11 @@ class ResourceLoader:
             logger.error(f"Error loading prompt from DB: {e}")
             return None
 
-    async def _load_from_file(self, uri: str) -> Optional[str]:
+    async def _load_from_file(self, uri: str) -> str | None:
         """Load resource from file system."""
-        import aiofiles
         import os
+
+        import aiofiles
 
         path = uri.replace("file://", "")
 
@@ -211,7 +213,7 @@ class ResourceLoader:
             return None
 
         try:
-            async with aiofiles.open(path, "r") as f:
+            async with aiofiles.open(path) as f:
                 return await f.read()
         except Exception as e:
             logger.error(f"Error reading file {path}: {e}")
@@ -220,8 +222,8 @@ class ResourceLoader:
     async def _load_config(
         self,
         uri: str,
-        cliente_id: Optional[UUID],
-    ) -> Optional[Dict]:
+        cliente_id: UUID | None,
+    ) -> dict | None:
         """Load configuration resource."""
         config_name = uri.replace("config://", "")
 
@@ -245,7 +247,7 @@ class ResourceLoader:
             logger.error(f"Error loading config: {e}")
             return None
 
-    def clear_cache(self, uri: Optional[str] = None) -> None:
+    def clear_cache(self, uri: str | None = None) -> None:
         """Clear resource cache."""
         if uri:
             keys_to_remove = [k for k in self._cache if k.startswith(uri)]
@@ -263,7 +265,7 @@ class MCPResourceBuilder:
     """
 
     @staticmethod
-    def to_mcp_resource(loaded: LoadedResource) -> Dict[str, Any]:
+    def to_mcp_resource(loaded: LoadedResource) -> dict[str, Any]:
         """
         Convert LoadedResource to MCP resource dict.
 
@@ -284,7 +286,7 @@ class MCPResourceBuilder:
     def register_with_mcp(
         mcp: Any,
         loader: ResourceLoader,
-        resources: List[ResourceMetadata],
+        resources: list[ResourceMetadata],
     ) -> None:
         """
         Register resources with FastMCP server.

@@ -5,15 +5,13 @@ import uuid
 from datetime import datetime, timedelta
 
 from cryptography.fernet import Fernet
-
 from redis import Redis
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from vizu_context_service.redis_service import RedisService
-from vizu_context_service.context_service import ContextService
-
 from vizu_auth.oauth2.models import TokenResponse
+from vizu_context_service.context_service import ContextService
+from vizu_context_service.redis_service import RedisService
 
 
 async def main():

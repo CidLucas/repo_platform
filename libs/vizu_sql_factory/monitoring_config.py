@@ -10,7 +10,7 @@ Defines:
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, List, Any, Optional
+from typing import Any
 
 
 class AlertSeverity(Enum):
@@ -51,7 +51,7 @@ class AlertRule:
 
 
 # Define alert rules
-ALERT_RULES: List[AlertRule] = [
+ALERT_RULES: list[AlertRule] = [
     AlertRule(
         condition=AlertCondition.QUERY_SUCCESS_RATE_LOW,
         severity=AlertSeverity.CRITICAL,
@@ -142,11 +142,11 @@ class MonitoringMetric:
     description: str
     unit: str
     aggregation: str  # "sum", "avg", "max", "p50", "p95", "p99"
-    dimension: Optional[str] = None  # "view", "role", "tenant", None for global
+    dimension: str | None = None  # "view", "role", "tenant", None for global
 
 
 # Define key metrics
-KEY_METRICS: List[MonitoringMetric] = [
+KEY_METRICS: list[MonitoringMetric] = [
     # Query execution metrics
     MonitoringMetric("query_count", "Number of queries executed", "count", "sum"),
     MonitoringMetric("query_success_count", "Number of successful queries", "count", "sum"),
@@ -290,7 +290,7 @@ AUDIT_LOG_CONFIG = {
 }
 
 
-def get_alert_rule(condition: AlertCondition) -> Optional[AlertRule]:
+def get_alert_rule(condition: AlertCondition) -> AlertRule | None:
     """Get alert rule for a condition."""
     for rule in ALERT_RULES:
         if rule.condition == condition:
@@ -298,11 +298,11 @@ def get_alert_rule(condition: AlertCondition) -> Optional[AlertRule]:
     return None
 
 
-def get_critical_alerts() -> List[AlertRule]:
+def get_critical_alerts() -> list[AlertRule]:
     """Get all critical alerts."""
     return [r for r in ALERT_RULES if r.severity == AlertSeverity.CRITICAL]
 
 
-def get_monitoring_metrics_by_dimension(dimension: Optional[str]) -> List[MonitoringMetric]:
+def get_monitoring_metrics_by_dimension(dimension: str | None) -> list[MonitoringMetric]:
     """Get metrics for a specific dimension."""
     return [m for m in KEY_METRICS if m.dimension == dimension]

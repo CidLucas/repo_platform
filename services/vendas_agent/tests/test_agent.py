@@ -2,10 +2,10 @@
 Tests for VendasAgent.
 """
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import pytest
 from vendas_agent.core.agent import VendasAgent
 
 

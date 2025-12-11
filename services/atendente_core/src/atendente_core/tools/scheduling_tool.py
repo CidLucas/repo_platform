@@ -1,9 +1,11 @@
-from typing import Dict, Any
-from .schemas import SchedulingTool
+from typing import Any
+
 from virtual_assistant.services.google_calendar_service import GoogleCalendarService
 
+from .schemas import SchedulingTool
 
-def execute_scheduling_action(validated_input: SchedulingTool) -> Dict[str, Any]:
+
+def execute_scheduling_action(validated_input: SchedulingTool) -> dict[str, Any]:
     """
     Subgraph que executa ações na Google Calendar API através do serviço.
     """

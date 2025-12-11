@@ -13,7 +13,6 @@ Apenas ferramentas úteis para a LLM ficam aqui.
 """
 
 import logging
-from typing import List
 
 from fastmcp import FastMCP
 
@@ -45,7 +44,7 @@ def _ferramenta_publica_de_teste_logic() -> str:
 
 
 @register_module
-def register_tools(mcp: FastMCP) -> List[str]:
+def register_tools(mcp: FastMCP) -> list[str]:
     """Registra as tools do módulo Common."""
 
     @mcp.tool(

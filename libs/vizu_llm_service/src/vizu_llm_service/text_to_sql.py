@@ -14,12 +14,10 @@ Phase 1 Lesson Learned:
 """
 
 import logging
-from typing import Optional
 from uuid import UUID
 
-from vizu_db_connector.database import get_db_session
 from vizu_models import VizuClientContext
-from vizu_prompt_management import PromptLoader, ContextVariableBuilder
+from vizu_prompt_management import ContextVariableBuilder, PromptLoader
 from vizu_prompt_management.variables import VariableExtractor
 
 logger = logging.getLogger(__name__)
@@ -37,7 +35,7 @@ class TextToSqlPrompt:
     - Client-specific overrides
     """
 
-    def __init__(self, prompt_loader: Optional[PromptLoader] = None):
+    def __init__(self, prompt_loader: PromptLoader | None = None):
         """
         Initialize with optional prompt loader.
 
@@ -51,8 +49,8 @@ class TextToSqlPrompt:
         question: str,
         tenant_id: str,
         role: str,
-        schema_snapshot: Optional[dict] = None,
-        role_config: Optional[dict] = None,
+        schema_snapshot: dict | None = None,
+        role_config: dict | None = None,
     ) -> str:
         """
         Build a complete text-to-sql prompt.
@@ -142,8 +140,8 @@ class TextToSqlPrompt:
         self,
         question: str,
         context: VizuClientContext,
-        schema_snapshot: Optional[dict] = None,
-        role_config: Optional[dict] = None,
+        schema_snapshot: dict | None = None,
+        role_config: dict | None = None,
     ) -> str:
         """
         Build prompt from client context object.
@@ -173,11 +171,11 @@ class TextToSqlPrompt:
 
 
 # Singleton instance
-_text_to_sql_prompt: Optional[TextToSqlPrompt] = None
+_text_to_sql_prompt: TextToSqlPrompt | None = None
 
 
 def get_text_to_sql_prompt(
-    prompt_loader: Optional[PromptLoader] = None,
+    prompt_loader: PromptLoader | None = None,
 ) -> TextToSqlPrompt:
     """
     Get singleton instance of TextToSqlPrompt.

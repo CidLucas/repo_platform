@@ -9,13 +9,15 @@ Tests cover:
 - Query validation
 """
 
-import pytest
 import json
 from uuid import uuid4
+
+import pytest
+
 from vizu_tool_registry.tools.sql_tool import (
     QueryDatabaseTextToSQL,
-    SQLToolInput,
     SQLToolError,
+    SQLToolInput,
 )
 
 

@@ -1,11 +1,12 @@
-from typing import Optional
+
 from sqlmodel import SQLModel
-from .cliente_vizu import TipoCliente, TierCliente
+
+from .cliente_vizu import TierCliente, TipoCliente
 
 
 class ClienteVizuUpdate(SQLModel):
     """Schema for updating a client, all fields are optional."""
 
-    nome_empresa: Optional[str] = None
-    tipo_cliente: Optional[TipoCliente] = None
-    tier: Optional[TierCliente] = None
+    nome_empresa: str | None = None
+    tipo_cliente: TipoCliente | None = None
+    tier: TierCliente | None = None

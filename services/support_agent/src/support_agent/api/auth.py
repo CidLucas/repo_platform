@@ -5,19 +5,17 @@ Uses vizu_auth for JWT and API key validation.
 """
 
 import logging
-from typing import Optional
 
 from fastapi import Depends, Header, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
-from vizu_context_service.dependencies import get_context_service
-from vizu_context_service.context_service import ContextService
 
 from vizu_auth.adapters.context_service_adapter import (
     api_key_lookup_from_context_service,
     external_user_lookup_from_context_service,
 )
 from vizu_auth.fastapi import create_auth_dependency
+from vizu_context_service.context_service import ContextService
+from vizu_context_service.dependencies import get_context_service
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +24,8 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 async def get_auth_result(
     request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
-    x_api_key: Optional[str] = Header(None, alias="X-API-KEY"),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    x_api_key: str | None = Header(None, alias="X-API-KEY"),
     ctx_service: ContextService = Depends(get_context_service),
 ):
     """

@@ -9,12 +9,11 @@ Tracks and analyzes query performance metrics:
 """
 
 import logging
-import time
-from dataclasses import dataclass, asdict
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
-from enum import Enum
 from collections import defaultdict
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +38,7 @@ class QueryMetrics:
     user_role: str
     tenant_id: str
     success: bool
-    error_code: Optional[str] = None
+    error_code: str | None = None
 
     def get_performance_level(self) -> PerformanceLevel:
         """Categorize query performance."""
@@ -52,7 +51,7 @@ class QueryMetrics:
         else:
             return PerformanceLevel.VERY_SLOW
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return asdict(self)
 
@@ -73,7 +72,7 @@ class ViewMetrics:
     max_result_count: int
     last_query_timestamp: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return asdict(self)
 
@@ -89,7 +88,7 @@ class PerformanceMonitor:
             retention_days: How long to retain metrics
         """
         self.retention_days = retention_days
-        self.metrics: List[QueryMetrics] = []
+        self.metrics: list[QueryMetrics] = []
         self.start_time = datetime.utcnow()
 
     def record_query(self, metrics: QueryMetrics):
@@ -105,7 +104,7 @@ class PerformanceMonitor:
         self,
         threshold_ms: float = 1000,
         limit: int = 10
-    ) -> List[QueryMetrics]:
+    ) -> list[QueryMetrics]:
         """
         Get queries exceeding threshold.
 
@@ -120,7 +119,7 @@ class PerformanceMonitor:
         slow.sort(key=lambda m: m.execution_time_ms, reverse=True)
         return slow[:limit]
 
-    def get_view_metrics(self, view_name: str) -> Optional[ViewMetrics]:
+    def get_view_metrics(self, view_name: str) -> ViewMetrics | None:
         """
         Get aggregated metrics for a view.
 
@@ -156,7 +155,7 @@ class PerformanceMonitor:
             last_query_timestamp=max((m.timestamp for m in view_metrics), default=""),
         )
 
-    def get_all_views_metrics(self) -> Dict[str, ViewMetrics]:
+    def get_all_views_metrics(self) -> dict[str, ViewMetrics]:
         """Get aggregated metrics for all views."""
         views = set(m.view_name for m in self.metrics)
         return {
@@ -165,7 +164,7 @@ class PerformanceMonitor:
             if (metrics := self.get_view_metrics(view)) is not None
         }
 
-    def get_performance_summary(self) -> Dict[str, Any]:
+    def get_performance_summary(self) -> dict[str, Any]:
         """Get overall performance summary."""
         if not self.metrics:
             return {
@@ -196,7 +195,7 @@ class PerformanceMonitor:
             "performance_distribution": dict(performance_counts),
         }
 
-    def get_failure_analysis(self) -> Dict[str, Any]:
+    def get_failure_analysis(self) -> dict[str, Any]:
         """Analyze query failures."""
         failed_metrics = [m for m in self.metrics if not m.success]
 
@@ -221,7 +220,7 @@ class PerformanceMonitor:
             },
         }
 
-    def recommend_indices(self, view_name: str) -> List[str]:
+    def recommend_indices(self, view_name: str) -> list[str]:
         """
         Recommend indices based on slow queries on a view.
 
@@ -247,7 +246,7 @@ class PerformanceMonitor:
         return recommendations
 
     @staticmethod
-    def _percentile(values: List[float], percentile: int) -> float:
+    def _percentile(values: list[float], percentile: int) -> float:
         """Calculate percentile of values."""
         if not values:
             return 0
@@ -288,7 +287,7 @@ def record_query_metrics(
     user_role: str,
     tenant_id: str,
     success: bool,
-    error_code: Optional[str] = None,
+    error_code: str | None = None,
 ):
     """Record query metrics."""
     metrics = QueryMetrics(

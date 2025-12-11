@@ -10,11 +10,11 @@ Phase 1: Real implementation with prompt builder + LLM + validator + executor
 """
 
 import logging
-from dataclasses import dataclass, asdict
-from typing import Dict, List, Optional, Any
-from enum import Enum
-from uuid import uuid4
+from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
+from typing import Any
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +55,8 @@ class SQLToolInput:
     question: str  # Natural language question
     tenant_id: str  # Tenant identifier (from JWT context)
     role: str  # User role (from JWT context)
-    optional_constraints: Optional[Dict[str, Any]] = None  # e.g., {"date_range": "last_30_days", "max_rows": 100}
-    user_jwt: Optional[str] = None  # User JWT token for RLS enforcement
+    optional_constraints: dict[str, Any] | None = None  # e.g., {"date_range": "last_30_days", "max_rows": 100}
+    user_jwt: str | None = None  # User JWT token for RLS enforcement
 
     def validate(self) -> bool:
         """Validate input parameters."""
@@ -67,13 +67,13 @@ class SQLToolInput:
 class SQLToolOutput:
     """Output from the SQL tool."""
     success: bool  # Whether query succeeded
-    sql: Optional[str] = None  # Generated/validated SQL or null if failed
-    rows: List[Dict[str, Any]] = None  # Query results or empty list
-    columns: List[Dict[str, Any]] = None  # Column metadata: [{"name": "...", "type": "..."}]
-    caveats: List[str] = None  # Execution notes (e.g., "Result limited to 100 rows")
-    error: Optional[Dict[str, Any]] = None  # Structured error if failed
-    telemetry_id: Optional[str] = None  # UUID for tracing
-    execution_time_ms: Optional[float] = None  # Query execution time
+    sql: str | None = None  # Generated/validated SQL or null if failed
+    rows: list[dict[str, Any]] = None  # Query results or empty list
+    columns: list[dict[str, Any]] = None  # Column metadata: [{"name": "...", "type": "..."}]
+    caveats: list[str] = None  # Execution notes (e.g., "Result limited to 100 rows")
+    error: dict[str, Any] | None = None  # Structured error if failed
+    telemetry_id: str | None = None  # UUID for tracing
+    execution_time_ms: float | None = None  # Query execution time
 
     def __post_init__(self):
         """Initialize defaults."""
@@ -84,7 +84,7 @@ class SQLToolOutput:
         if self.caveats is None:
             self.caveats = []
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             "success": self.success,
@@ -224,7 +224,7 @@ class QueryDatabaseTextToSQL:
         logger.info(f"Initialized tool: {self.NAME}")
         self._error_messages = self._build_error_messages()
 
-    def _build_error_messages(self) -> Dict[str, Dict[str, str]]:
+    def _build_error_messages(self) -> dict[str, dict[str, str]]:
         """
         Build error messages and suggestions for all error codes.
 
@@ -302,7 +302,7 @@ class QueryDatabaseTextToSQL:
 
 
     @classmethod
-    def get_tool_definition(cls) -> Dict[str, Any]:
+    def get_tool_definition(cls) -> dict[str, Any]:
         """
         Get the tool definition for MCP registration.
 
@@ -334,13 +334,13 @@ class QueryDatabaseTextToSQL:
         Returns:
             SQLToolOutput with results or error.
         """
+        from vizu_llm_service import ModelTier, get_model
         from vizu_sql_factory import (
-            TextToSqlPrompt,
-            TextToSqlExecutor,
             ExecutionConfig,
             ResultSanitizer,
+            TextToSqlExecutor,
+            TextToSqlPrompt,
         )
-        from vizu_llm_service import get_model, ModelTier
 
         telemetry_id = str(uuid4())
         start_time = datetime.now()
@@ -505,7 +505,7 @@ class QueryDatabaseTextToSQL:
                 execution_time_ms=execution_time_ms,
             )
 
-    def _get_role_config(self, role: str) -> Dict[str, Any]:
+    def _get_role_config(self, role: str) -> dict[str, Any]:
         """Get allowed views/columns by role."""
         # TODO: Load from allowlist config or environment
         # For now, return default permissive config
@@ -541,9 +541,9 @@ class QueryDatabaseTextToSQL:
         telemetry_id: str,
         start_time: datetime,
         error_code: SQLToolError,
-        message: Optional[str] = None,
-        suggestion: Optional[str] = None,
-        available_views: Optional[List[str]] = None,
+        message: str | None = None,
+        suggestion: str | None = None,
+        available_views: list[str] | None = None,
     ) -> SQLToolOutput:
         """
         Build error result with standardized error messages and suggestions.
@@ -594,7 +594,7 @@ class QueryDatabaseTextToSQL:
         question: str,
         tenant_id: str,
         success: bool = True,
-        rows: List[Dict] = None,
+        rows: list[dict] = None,
     ) -> SQLToolOutput:
         """
         Create a mock output for testing.

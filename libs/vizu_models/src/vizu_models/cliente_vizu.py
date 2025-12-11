@@ -1,17 +1,16 @@
 import uuid
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from sqlmodel import Field, Relationship, SQLModel, Column
-from sqlalchemy import String, Enum as pgEnum
+from sqlalchemy import JSON, Boolean, String, Text
+from sqlalchemy import Enum as pgEnum
 from sqlalchemy.dialects.postgresql import UUID as pgUUID
-from sqlalchemy import Text, Boolean, JSON
-
-from .enums import TipoCliente, TierCliente
+from sqlmodel import Column, Field, Relationship, SQLModel
 
 # Importações de modelos locais com forward references resolvidas
 from .cliente_final import ClienteFinal
-from .fonte_de_dados import FonteDeDados
 from .credencial_servico_externo import CredencialServicoExterno
+from .enums import TierCliente, TipoCliente
+from .fonte_de_dados import FonteDeDados
 
 if TYPE_CHECKING:
     from .configuracao_negocio import ConfiguracaoNegocio, ConfiguracaoNegocioRead
@@ -34,7 +33,7 @@ class ClienteVizuBase(SQLModel):
 class ClienteVizu(ClienteVizuBase, table=True):
     __tablename__ = "cliente_vizu"
 
-    id: Optional[uuid.UUID] = Field(
+    id: uuid.UUID | None = Field(
         default_factory=uuid.uuid4,
         sa_column=Column(pgUUID(as_uuid=True), primary_key=True),
     )
@@ -45,13 +44,13 @@ class ClienteVizu(ClienteVizuBase, table=True):
     )
 
     # --- Configuração embutida (migrada desde `configuracao_negocio`) ---
-    horario_funcionamento: Optional[dict] = Field(default=None, sa_column=Column(JSON))
+    horario_funcionamento: dict | None = Field(default=None, sa_column=Column(JSON))
 
-    prompt_base: Optional[str] = Field(default=None, sa_column=Column(Text))
+    prompt_base: str | None = Field(default=None, sa_column=Column(Text))
 
     # PHASE 1: Dynamic Tool Allocation - NEW enabled_tools list
     # This replaces the 3 boolean flags below
-    enabled_tools: List[str] = Field(
+    enabled_tools: list[str] = Field(
         default_factory=list,
         sa_column=Column(JSON, nullable=False, server_default="[]"),
         description="List of enabled tool names (e.g., ['executar_rag_cliente', 'executar_sql_agent'])"
@@ -77,11 +76,11 @@ class ClienteVizu(ClienteVizuBase, table=True):
         description="DEPRECATED: Use enabled_tools instead"
     )
 
-    collection_rag: Optional[str] = Field(default=None, sa_column=Column(String))
+    collection_rag: str | None = Field(default=None, sa_column=Column(String))
 
-    clientes_finais: List["ClienteFinal"] = Relationship(back_populates="cliente_vizu")
-    fontes_de_dados: List["FonteDeDados"] = Relationship(back_populates="cliente_vizu")
-    credenciais: List["CredencialServicoExterno"] = Relationship(
+    clientes_finais: list["ClienteFinal"] = Relationship(back_populates="cliente_vizu")
+    fontes_de_dados: list["FonteDeDados"] = Relationship(back_populates="cliente_vizu")
+    credenciais: list["CredencialServicoExterno"] = Relationship(
         back_populates="cliente_vizu"
     )
     # Legacy/compat relationship to the old ConfiguracaoNegocio table.
@@ -94,7 +93,7 @@ class ClienteVizu(ClienteVizuBase, table=True):
         back_populates="cliente_vizu"
     )
 
-    def get_enabled_tools_list(self) -> List[str]:
+    def get_enabled_tools_list(self) -> list[str]:
         """
         Returns enabled tools list, computing from legacy booleans if needed.
 
@@ -118,29 +117,29 @@ class ClienteVizu(ClienteVizuBase, table=True):
 
 class ClienteVizuCreate(ClienteVizuBase):
     # Optional config fields for creation
-    horario_funcionamento: Optional[dict] = None
-    prompt_base: Optional[str] = None
+    horario_funcionamento: dict | None = None
+    prompt_base: str | None = None
     # PHASE 1: New enabled_tools list
-    enabled_tools: List[str] = []
+    enabled_tools: list[str] = []
     # Legacy boolean flags (deprecated)
-    ferramenta_rag_habilitada: Optional[bool] = False
-    ferramenta_sql_habilitada: Optional[bool] = False
-    ferramenta_agendamento_habilitada: Optional[bool] = False
-    collection_rag: Optional[str] = None
+    ferramenta_rag_habilitada: bool | None = False
+    ferramenta_sql_habilitada: bool | None = False
+    ferramenta_agendamento_habilitada: bool | None = False
+    collection_rag: str | None = None
 
 
 class ClienteVizuRead(ClienteVizuBase):
     id: uuid.UUID
     api_key: str
-    horario_funcionamento: Optional[dict] = None
-    prompt_base: Optional[str] = None
+    horario_funcionamento: dict | None = None
+    prompt_base: str | None = None
     # PHASE 1: New enabled_tools list
-    enabled_tools: List[str] = []
+    enabled_tools: list[str] = []
     # Legacy boolean flags (deprecated, kept for backward compatibility)
     ferramenta_rag_habilitada: bool = False
     ferramenta_sql_habilitada: bool = False
     ferramenta_agendamento_habilitada: bool = False
-    collection_rag: Optional[str] = None
+    collection_rag: str | None = None
 
 
 class ClienteVizuReadWithRelations(ClienteVizuRead):
@@ -150,6 +149,6 @@ class ClienteVizuReadWithRelations(ClienteVizuRead):
 class ClienteVizuUpdate(SQLModel):
     """Schema for updating a client, all fields are optional."""
 
-    nome_empresa: Optional[str] = None
-    tipo_cliente: Optional[TipoCliente] = None
-    tier: Optional[TierCliente] = None
+    nome_empresa: str | None = None
+    tipo_cliente: TipoCliente | None = None
+    tier: TierCliente | None = None

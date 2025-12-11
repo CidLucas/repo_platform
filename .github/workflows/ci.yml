@@ -68,6 +68,10 @@ jobs:
           - data_ingestion_worker
           - file_processing_worker
           - file_upload_api
+        include:
+          # Frontend dashboard (built from apps/)
+          - service: vizu_dashboard
+            dockerfile_path: apps/vizu_dashboard/Dockerfile
     steps:
       - uses: actions/checkout@v4
 
@@ -77,8 +81,9 @@ jobs:
       - name: Build image
         run: |
           echo "Building ${{ matrix.service }}..."
+          DOCKERFILE_PATH="${{ matrix.dockerfile_path || format('services/{0}/Dockerfile', matrix.service) }}"
           docker build \
-            -f services/${{ matrix.service }}/Dockerfile \
+            -f "${DOCKERFILE_PATH}" \
             -t vizu-${{ matrix.service }}:test \
             .
 
@@ -118,6 +123,10 @@ jobs:
           - data_ingestion_worker
           - file_processing_worker
           - file_upload_api
+        include:
+          # Frontend dashboard (built from apps/)
+          - service: vizu_dashboard
+            dockerfile_path: apps/vizu_dashboard/Dockerfile
     steps:
       - uses: actions/checkout@v4
 
@@ -136,9 +145,10 @@ jobs:
           COMMIT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
           REGISTRY="ghcr.io/${{ github.repository_owner }}"
           IMAGE="$REGISTRY/vizu-${{ matrix.service }}"
+          DOCKERFILE_PATH="${{ matrix.dockerfile_path || format('services/{0}/Dockerfile', matrix.service) }}"
 
           docker build \
-            -f services/${{ matrix.service }}/Dockerfile \
+            -f "${DOCKERFILE_PATH}" \
             -t $IMAGE:$COMMIT_SHA \
             -t $IMAGE:latest \
             .
@@ -148,5 +158,6 @@ jobs:
 
           echo "## 🐳 Published: ${{ matrix.service }}" >> $GITHUB_STEP_SUMMARY
           echo "- \`$IMAGE:$COMMIT_SHA\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`$IMAGE:latest\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`$IMAGE:latest\`" >> $GITHUB_STEP_SUMMARY
 

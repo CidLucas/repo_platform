@@ -2,23 +2,23 @@
 """Experiment runner - orchestrates test execution against atendente API."""
 
 import asyncio
-import uuid
 import logging
+import uuid
 from datetime import datetime
 from typing import Optional
 
 import httpx
-
 from vizu_models import (
-    ExperimentRun,
-    ExperimentCase,
-    ExperimentStatus,
     CaseOutcome,
     ClassificationResult,
-    ExperimentManifest,
-    TestCaseDefinition,
     ClientVariant,
+    ExperimentCase,
+    ExperimentManifest,
+    ExperimentRun,
+    ExperimentStatus,
+    TestCaseDefinition,
 )
+
 from .config import settings
 from .manifest import ManifestLoader
 
@@ -40,7 +40,7 @@ class ExperimentRunner:
     def __init__(
         self,
         db_session,
-        atendente_url: Optional[str] = None,
+        atendente_url: str | None = None,
         concurrent_limit: int = 5,
     ):
         """
@@ -61,7 +61,7 @@ class ExperimentRunner:
     async def run_from_manifest_file(
         self,
         manifest_path: str,
-        created_by: Optional[str] = None,
+        created_by: str | None = None,
     ) -> ExperimentRun:
         """
         Execute an experiment from a YAML manifest file.
@@ -79,7 +79,7 @@ class ExperimentRunner:
     async def run_from_manifest(
         self,
         manifest: ExperimentManifest,
-        created_by: Optional[str] = None,
+        created_by: str | None = None,
     ) -> ExperimentRun:
         """
         Execute an experiment from a manifest config.
@@ -307,9 +307,9 @@ class ExperimentRunner:
 
     def _check_tool_assertion(
         self,
-        expected_tool: Optional[str],
+        expected_tool: str | None,
         actual_tools: list[str],
-    ) -> Optional[bool]:
+    ) -> bool | None:
         """Check if expected tool was called."""
         if not expected_tool:
             return None  # No assertion
@@ -318,10 +318,10 @@ class ExperimentRunner:
 
     def _check_contains_assertion(
         self,
-        expected_contains: Optional[list[str]],
-        expected_not_contains: Optional[list[str]],
+        expected_contains: list[str] | None,
+        expected_not_contains: list[str] | None,
         response: str,
-    ) -> Optional[bool]:
+    ) -> bool | None:
         """Check if response contains/doesn't contain expected strings."""
         if not expected_contains and not expected_not_contains:
             return None  # No assertion

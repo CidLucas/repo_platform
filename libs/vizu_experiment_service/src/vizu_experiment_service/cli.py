@@ -19,8 +19,8 @@ Usage:
     python -m vizu_experiment_service.cli export <run_id> --format jsonl
 """
 
-import asyncio
 import argparse
+import asyncio
 import logging
 import sys
 from pathlib import Path
@@ -38,8 +38,8 @@ async def run_experiment(
     use_legacy: bool = False,
 ):
     """Run an experiment from a manifest file."""
-    from sqlmodel.ext.asyncio.session import AsyncSession
     from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
     from .config import settings
     from .manifest import ManifestLoader
@@ -111,11 +111,11 @@ async def run_workflow_experiment(
     created_by: str = None,
 ):
     """Run a workflow experiment from a YAML manifest file."""
-    from sqlmodel.ext.asyncio.session import AsyncSession
     from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
     from .config import settings
-    from .workflow_runner import WorkflowManifest, WorkflowExperimentRunner
+    from .workflow_runner import WorkflowExperimentRunner, WorkflowManifest
 
     # Load manifest first to validate
     manifest = WorkflowManifest.from_yaml(manifest_path)
@@ -153,8 +153,8 @@ async def run_workflow_experiment(
 
 async def sync_manifest(manifest_path: str):
     """Sync manifest to Langfuse Dataset without running experiment."""
-    from .manifest import ManifestLoader
     from .langfuse_runner import LangfuseExperimentRunner
+    from .manifest import ManifestLoader
 
     manifest = ManifestLoader.load_from_file(manifest_path)
     logger.info(f"Loaded manifest: {manifest.name} v{manifest.version}")
@@ -176,13 +176,14 @@ async def sync_manifest(manifest_path: str):
 async def classify_run(run_id: str, route_to_hitl: bool = True):
     """Classify all cases in a run and optionally route to HITL."""
     from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import create_async_engine
     from sqlmodel import select
     from sqlmodel.ext.asyncio.session import AsyncSession
-    from sqlalchemy.ext.asyncio import create_async_engine
-
     from vizu_models import ExperimentRun
-    from .config import settings
+
     from .classifier import ResponseClassifier
+    from .config import settings
 
     engine = create_async_engine(
         settings.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://"),
@@ -214,8 +215,9 @@ async def classify_run(run_id: str, route_to_hitl: bool = True):
 async def export_run(run_id: str, output_format: str = "jsonl", output_path: str = None):
     """Export cases from a run to a file."""
     from uuid import UUID
-    from sqlmodel.ext.asyncio.session import AsyncSession
+
     from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlmodel.ext.asyncio.session import AsyncSession
 
     from .config import settings
     from .dataset_generator import TrainingDatasetGenerator

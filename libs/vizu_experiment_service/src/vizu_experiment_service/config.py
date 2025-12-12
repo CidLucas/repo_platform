@@ -2,6 +2,7 @@
 """Configuration for the experiment service."""
 
 from functools import lru_cache
+
 from pydantic_settings import BaseSettings
 
 
@@ -37,7 +38,7 @@ class ExperimentSettings(BaseSettings):
         extra = "ignore"
 
 
-@lru_cache()
+@lru_cache
 def get_experiment_settings() -> ExperimentSettings:
     """Get cached experiment settings."""
     return ExperimentSettings()

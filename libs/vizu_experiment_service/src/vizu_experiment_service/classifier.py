@@ -6,13 +6,14 @@ import random
 from typing import Optional
 
 from vizu_models import (
-    ExperimentCase,
-    ExperimentRun,
     CaseOutcome,
     ClassificationResult,
+    ExperimentCase,
+    ExperimentRun,
     ExperimentStatus,
     HitlRoutingConfig,
 )
+
 from .config import settings
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ class ResponseClassifier:
     async def classify_case(
         self,
         case: ExperimentCase,
-        hitl_config: Optional[HitlRoutingConfig] = None,
+        hitl_config: HitlRoutingConfig | None = None,
     ) -> ClassificationResult:
         """
         Classify a single experiment case.

@@ -1,10 +1,10 @@
 # vizu_experiment_service/manifest.py
 """Manifest loading and validation."""
 
-import yaml
 from pathlib import Path
 from typing import Union
 
+import yaml
 from vizu_models import ExperimentManifest
 
 
@@ -12,7 +12,7 @@ class ManifestLoader:
     """Loads and validates experiment manifests from YAML files."""
 
     @staticmethod
-    def load_from_file(path: Union[str, Path]) -> ExperimentManifest:
+    def load_from_file(path: str | Path) -> ExperimentManifest:
         """
         Load an experiment manifest from a YAML file.
 
@@ -30,7 +30,7 @@ class ManifestLoader:
         if not path.exists():
             raise FileNotFoundError(f"Manifest file not found: {path}")
 
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         return ExperimentManifest(**data)
@@ -63,7 +63,7 @@ class ManifestLoader:
         return ExperimentManifest(**data)
 
     @staticmethod
-    def save_to_file(manifest: ExperimentManifest, path: Union[str, Path]) -> None:
+    def save_to_file(manifest: ExperimentManifest, path: str | Path) -> None:
         """
         Save a manifest to a YAML file.
 

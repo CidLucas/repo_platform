@@ -3,18 +3,18 @@
 
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Any, Dict, List, Callable
+from typing import Any, Dict, List, Optional
 
 from langchain_core.messages import HumanMessage
-
 from vizu_models import (
-    ExperimentRun,
-    ExperimentCase,
-    ExperimentStatus,
     CaseOutcome,
     ClassificationResult,
+    ExperimentCase,
+    ExperimentRun,
+    ExperimentStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,15 +37,15 @@ class WorkflowManifest:
         sender_column: str = "nome_fantasia",
         version: str = "1.0.0",
         workflow_function: str = "get_workflow",
-        evaluator_path: Optional[str] = None,
+        evaluator_path: str | None = None,
         evaluator_function: str = "summarize_for_manual_review",
         conversation_csv: str = None,  # Legacy alias for data_file
-        trigger_keywords: List[str] = None,
+        trigger_keywords: list[str] = None,
         description: str = "",
         timeout_seconds: int = 120,
         ollama_base_url: str = "http://localhost:11434",
         ollama_model: str = "llama3.2",
-        tags: List[str] = None,
+        tags: list[str] = None,
     ):
         self.name = name
         self.version = version
@@ -70,11 +70,11 @@ class WorkflowManifest:
     def from_yaml(cls, yaml_path: str) -> "WorkflowManifest":
         """Load manifest from YAML file."""
         import yaml
-        with open(yaml_path, "r", encoding="utf-8") as f:
+        with open(yaml_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return cls(**data)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for storage."""
         return {
             "name": self.name,
@@ -151,8 +151,8 @@ class WorkflowExperimentRunner:
                 return importlib.import_module(module_path)
             except ImportError as e:
                 # Try adding current directory to sys.path and retry
-                import sys
                 import os
+                import sys
 
                 # Add common project roots to path
                 for root_candidate in [os.getcwd(), ".", ".."]:
@@ -171,7 +171,7 @@ class WorkflowExperimentRunner:
         workflow_fn = getattr(module, manifest.workflow_function)
         return workflow_fn()
 
-    def _load_evaluator(self, manifest: WorkflowManifest) -> Optional[Callable]:
+    def _load_evaluator(self, manifest: WorkflowManifest) -> Callable | None:
         """Load the evaluator function from the manifest."""
         if not manifest.evaluator_path:
             return None
@@ -179,7 +179,7 @@ class WorkflowExperimentRunner:
         module = self._load_module_from_path(manifest.evaluator_path)
         return getattr(module, manifest.evaluator_function)
 
-    def _load_conversations(self, csv_path: str) -> List[Dict[str, Any]]:
+    def _load_conversations(self, csv_path: str) -> list[dict[str, Any]]:
         """Load conversation data from CSV."""
         import pandas as pd
         df = pd.read_csv(csv_path)
@@ -187,11 +187,11 @@ class WorkflowExperimentRunner:
 
     def _find_trigger_sequences(
         self,
-        messages: List[Dict[str, Any]],
-        trigger_keywords: List[str],
+        messages: list[dict[str, Any]],
+        trigger_keywords: list[str],
         manifest: WorkflowManifest,
         context_window: int = 15,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Find messages that contain trigger keywords and extract context.
 
@@ -232,7 +232,7 @@ class WorkflowExperimentRunner:
     async def run_from_manifest_file(
         self,
         manifest_path: str,
-        created_by: Optional[str] = None,
+        created_by: str | None = None,
     ) -> ExperimentRun:
         """
         Execute a workflow experiment from a YAML manifest file.
@@ -243,7 +243,7 @@ class WorkflowExperimentRunner:
     async def run_from_manifest(
         self,
         manifest: WorkflowManifest,
-        created_by: Optional[str] = None,
+        created_by: str | None = None,
     ) -> ExperimentRun:
         """
         Execute a workflow experiment from a manifest config.
@@ -354,8 +354,8 @@ class WorkflowExperimentRunner:
         self,
         run: ExperimentRun,
         workflow: Any,
-        evaluator: Optional[Callable],
-        case: Dict[str, Any],
+        evaluator: Callable | None,
+        case: dict[str, Any],
         manifest: WorkflowManifest,
     ) -> ExperimentCase:
         """
@@ -458,7 +458,7 @@ class WorkflowExperimentRunner:
                     (datetime.utcnow() - start_time).total_seconds() * 1000
                 )
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.error(f"Case {case['test_id']} timed out after {manifest.timeout_seconds}s")
                 experiment_case.outcome = CaseOutcome.ERROR.value
                 experiment_case.error_message = f"Timeout after {manifest.timeout_seconds}s"

@@ -32,17 +32,17 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 import httpx
-
 from vizu_models import (
-    ExperimentRun,
-    ExperimentCase,
-    ExperimentStatus,
     CaseOutcome,
+    ExperimentCase,
     ExperimentManifest,
+    ExperimentRun,
+    ExperimentStatus,
 )
+
 from .config import settings
 from .manifest import ManifestLoader
 
@@ -63,7 +63,7 @@ class LangfuseExperimentRunner:
     def __init__(
         self,
         db_session=None,
-        atendente_url: Optional[str] = None,
+        atendente_url: str | None = None,
         langfuse_client=None,
     ):
         """
@@ -189,9 +189,9 @@ class LangfuseExperimentRunner:
     async def run_from_manifest_file(
         self,
         manifest_path: str,
-        run_name: Optional[str] = None,
-        created_by: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        run_name: str | None = None,
+        created_by: str | None = None,
+    ) -> dict[str, Any]:
         """
         Execute an experiment from a YAML manifest file.
 
@@ -209,9 +209,9 @@ class LangfuseExperimentRunner:
     async def run_from_manifest(
         self,
         manifest: ExperimentManifest,
-        run_name: Optional[str] = None,
-        created_by: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        run_name: str | None = None,
+        created_by: str | None = None,
+    ) -> dict[str, Any]:
         """
         Execute an experiment from a manifest using Langfuse SDK.
 

@@ -6,9 +6,9 @@ from typing import Optional
 from uuid import UUID
 
 from vizu_models import (
-    ExperimentCase,
     CaseOutcome,
     ClassificationResult,
+    ExperimentCase,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,8 +43,8 @@ class TrainingDatasetGenerator:
     async def create_langfuse_dataset(
         self,
         name: str,
-        description: Optional[str] = None,
-        run_id: Optional[UUID] = None,
+        description: str | None = None,
+        run_id: UUID | None = None,
     ) -> str:
         """
         Create a new Langfuse dataset.
@@ -218,8 +218,9 @@ class TrainingDatasetGenerator:
         Returns:
             JSONL string
         """
-        from sqlmodel import select
         import json
+
+        from sqlmodel import select
 
         # Build query
         conditions = [ExperimentCase.run_id == run_id]
@@ -268,7 +269,7 @@ class TrainingDatasetGenerator:
         Returns:
             Dict with case counts by outcome/classification
         """
-        from sqlmodel import select, func
+        from sqlmodel import func, select
 
         # Total eligible (SUCCESS or REVIEWED)
         eligible_stmt = select(func.count()).where(

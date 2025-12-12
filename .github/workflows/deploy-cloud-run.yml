@@ -406,7 +406,7 @@ jobs:
             --max-instances 50 --min-instances 1 \
             --ingress all \
             --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest,OLLAMA_BASE_URL=OLLAMA_BASE_URL:latest,LANGFUSE_HOST=LANGFUSE_HOST:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest" || FAILED=$((FAILED + 1))
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,OLLAMA_BASE_URL=OLLAMA_BASE_URL:latest,LANGFUSE_HOST=LANGFUSE_HOST:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest,OTEL_EXPORTER_OTLP_ENDPOINT=OTEL_EXPORTER_OTLP_ENDPOINT:latest" || FAILED=$((FAILED + 1))
 
           # tool-pool-api (internal)
           deploy_service "tool-pool-api" \
@@ -416,7 +416,7 @@ jobs:
             --max-instances 20 --min-instances 1 \
             --port 9000 --ingress internal \
             --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest" || FAILED=$((FAILED + 1))
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest,OTEL_EXPORTER_OTLP_ENDPOINT=OTEL_EXPORTER_OTLP_ENDPOINT:latest" || FAILED=$((FAILED + 1))
 
           # vendas-agent (internal)
           deploy_service "vendas-agent" \
@@ -426,7 +426,7 @@ jobs:
             --max-instances 20 --min-instances 0 \
             --ingress internal \
             --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest,OLLAMA_BASE_URL=OLLAMA_BASE_URL:latest" || FAILED=$((FAILED + 1))
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,OLLAMA_BASE_URL=OLLAMA_BASE_URL:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest" || FAILED=$((FAILED + 1))
 
           # support-agent (internal)
           deploy_service "support-agent" \
@@ -436,7 +436,7 @@ jobs:
             --max-instances 20 --min-instances 0 \
             --ingress internal \
             --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest,OLLAMA_BASE_URL=OLLAMA_BASE_URL:latest" || FAILED=$((FAILED + 1))
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,OLLAMA_BASE_URL=OLLAMA_BASE_URL:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest" || FAILED=$((FAILED + 1))
 
           echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -488,7 +488,7 @@ jobs:
             --max-instances 100 --min-instances 0 \
             --ingress internal \
             --set-env-vars "ENVIRONMENT=production" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest" || FAILED=$((FAILED + 1))
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest" || FAILED=$((FAILED + 1))
 
           # file-processing-worker (internal)
           deploy_service "file-processing-worker" \
@@ -498,7 +498,7 @@ jobs:
             --max-instances 50 --min-instances 0 \
             --ingress internal \
             --set-env-vars "ENVIRONMENT=production" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest" || FAILED=$((FAILED + 1))
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest" || FAILED=$((FAILED + 1))
 
           # file-upload-api (public)
           deploy_service "file-upload-api" \
@@ -508,7 +508,7 @@ jobs:
             --max-instances 50 --min-instances 0 \
             --ingress all \
             --set-env-vars "ENVIRONMENT=production" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest" || FAILED=$((FAILED + 1))
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest" || FAILED=$((FAILED + 1))
 
           echo "" >> $GITHUB_STEP_SUMMARY
 

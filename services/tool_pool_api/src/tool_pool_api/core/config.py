@@ -19,8 +19,8 @@ class Settings(BaseSettings):
 
     # --- Conexões de Infraestrutura ---
     # Necessárias para o ContextService (via dependencies.py)
-    DATABASE_URL: str
-    REDIS_URL: str
+    DATABASE_URL: str | None = None
+    REDIS_URL: str | None = None
 
     # --- Observabilidade ---
     SENTRY_DSN: str = ""

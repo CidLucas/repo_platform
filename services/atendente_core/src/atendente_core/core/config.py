@@ -16,13 +16,13 @@ class Settings(BaseSettings):
 
     # Endpoints de serviços dependentes
     OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://localhost:4317"
-    DATABASE_URL: str
-    REDIS_URL: str
-    OLLAMA_BASE_URL: str
+    DATABASE_URL: str | None = None
+    REDIS_URL: str | None = None
+    OLLAMA_BASE_URL: str | None = None
 
     # Credenciais e chaves de API
     LANGCHAIN_API_KEY: str | None = None  # Opcional, para LangSmith
-    TWILIO_AUTH_TOKEN: str
+    TWILIO_AUTH_TOKEN: str | None = None
 
     # Phase 3: Feature flag for new agent framework
     USE_NEW_FRAMEWORK: bool = False

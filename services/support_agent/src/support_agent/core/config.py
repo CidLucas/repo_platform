@@ -20,8 +20,8 @@ class Settings(BaseSettings):
 
     # Dependent service endpoints
     OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
-    DATABASE_URL: str
-    REDIS_URL: str
+    DATABASE_URL: str | None = None
+    REDIS_URL: str | None = None
     MCP_SERVER_URL: str = "http://tool_pool_api:9000/mcp/"
 
     # Langfuse configuration (optional)

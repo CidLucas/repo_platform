@@ -278,7 +278,8 @@ jobs:
             --concurrency 10 --timeout 3600 \
             --max-instances 50 --min-instances 1 \
             --ingress all \
-            --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" || FAILED=$((FAILED + 1))
+            --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" \
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest,OLLAMA_BASE_URL=OLLAMA_BASE_URL:latest,LANGFUSE_HOST=LANGFUSE_HOST:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest" || FAILED=$((FAILED + 1))
 
           # tool-pool-api (internal)
           deploy_service "tool-pool-api" \
@@ -287,7 +288,8 @@ jobs:
             --concurrency 5 --timeout 3600 \
             --max-instances 20 --min-instances 1 \
             --port 9000 --ingress internal \
-            --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" || FAILED=$((FAILED + 1))
+            --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" \
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest" || FAILED=$((FAILED + 1))
 
           # vendas-agent (internal)
           deploy_service "vendas-agent" \
@@ -296,7 +298,8 @@ jobs:
             --concurrency 10 --timeout 3600 \
             --max-instances 20 --min-instances 0 \
             --ingress internal \
-            --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" || FAILED=$((FAILED + 1))
+            --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" \
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest,OLLAMA_BASE_URL=OLLAMA_BASE_URL:latest" || FAILED=$((FAILED + 1))
 
           # support-agent (internal)
           deploy_service "support-agent" \
@@ -305,7 +308,8 @@ jobs:
             --concurrency 10 --timeout 3600 \
             --max-instances 20 --min-instances 0 \
             --ingress internal \
-            --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" || FAILED=$((FAILED + 1))
+            --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" \
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest,OLLAMA_BASE_URL=OLLAMA_BASE_URL:latest" || FAILED=$((FAILED + 1))
 
           echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -356,7 +360,8 @@ jobs:
             --concurrency 50 --timeout 600 \
             --max-instances 100 --min-instances 0 \
             --ingress internal \
-            --set-env-vars "ENVIRONMENT=production" || FAILED=$((FAILED + 1))
+            --set-env-vars "ENVIRONMENT=production" \
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest" || FAILED=$((FAILED + 1))
 
           # file-processing-worker (internal)
           deploy_service "file-processing-worker" \
@@ -365,7 +370,8 @@ jobs:
             --concurrency 20 --timeout 1800 \
             --max-instances 50 --min-instances 0 \
             --ingress internal \
-            --set-env-vars "ENVIRONMENT=production" || FAILED=$((FAILED + 1))
+            --set-env-vars "ENVIRONMENT=production" \
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest" || FAILED=$((FAILED + 1))
 
           # file-upload-api (public)
           deploy_service "file-upload-api" \
@@ -374,7 +380,8 @@ jobs:
             --concurrency 50 --timeout 300 \
             --max-instances 50 --min-instances 0 \
             --ingress all \
-            --set-env-vars "ENVIRONMENT=production" || FAILED=$((FAILED + 1))
+            --set-env-vars "ENVIRONMENT=production" \
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest" || FAILED=$((FAILED + 1))
 
           echo "" >> $GITHUB_STEP_SUMMARY
 

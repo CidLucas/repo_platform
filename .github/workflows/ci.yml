@@ -68,6 +68,8 @@ jobs:
           - data_ingestion_worker
           - file_processing_worker
           - file_upload_api
+          - data_ingestion_api
+          - analytics_api
         include:
           # Frontend dashboard (built from apps/)
           - service: vizu_dashboard
@@ -123,6 +125,8 @@ jobs:
           - data_ingestion_worker
           - file_processing_worker
           - file_upload_api
+          - data_ingestion_api
+          - analytics_api
         include:
           # Frontend dashboard (built from apps/)
           - service: vizu_dashboard

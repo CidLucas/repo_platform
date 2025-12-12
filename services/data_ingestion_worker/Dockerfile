@@ -3,7 +3,12 @@ FROM python:3.11-slim as builder
 
 WORKDIR /app
 
-# Instala Poetry
+# Instala Poetry e build dependencies (necessário para compilar packages com C extensions)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install poetry
 
 # Copia todos os arquivos de manifesto das libs (necessário para path dependencies)

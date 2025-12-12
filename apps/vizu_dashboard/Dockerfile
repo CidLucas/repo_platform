@@ -5,13 +5,13 @@ FROM node:20-alpine as builder
 WORKDIR /app
 
 # 1. COPIA os arquivos de manifesto de dependências
-COPY package.json package-lock.json ./
+COPY apps/vizu_dashboard/package.json apps/vizu_dashboard/package-lock.json ./
 
 # 2. INSTALA as dependências do projeto
 RUN npm install
 
 # 3. COPIA todo o código-fonte da aplicação
-COPY . .
+COPY apps/vizu_dashboard ./
 
 # 4. EXECUTA o build de produção
 # Isso irá gerar a pasta /dist com os arquivos otimizados
@@ -31,7 +31,7 @@ RUN rm /etc/nginx/conf.d/default.conf
 
 # 3. COPIA o arquivo de configuração customizado para o Nginx
 # Este arquivo será criado a seguir e é essencial para o roteamento do React
-COPY nginx.conf /etc/nginx/conf.d
+COPY apps/vizu_dashboard/nginx.conf /etc/nginx/conf.d/nginx.conf
 
 # 4. EXPÕE a porta 80, que o Nginx usa por padrão
 EXPOSE 80

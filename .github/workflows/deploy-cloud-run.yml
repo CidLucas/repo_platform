@@ -157,7 +157,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           TAG="${{ steps.image.outputs.tag }}"
-          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu"
+          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
 
           build_and_push() {
             local name=$1
@@ -203,7 +203,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           TAG="${{ steps.image.outputs.tag }}"
-          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu"
+          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
 
           build_and_push() {
             local name=$1
@@ -247,7 +247,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           TAG="${{ steps.image.outputs.tag }}"
-          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu"
+          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
 
           deploy_service() {
             local name=$1
@@ -325,7 +325,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           TAG="${{ steps.image.outputs.tag }}"
-          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu"
+          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
 
           deploy_service() {
             local name=$1

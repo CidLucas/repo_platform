@@ -41,7 +41,7 @@ COPY services/data_ingestion_api/src /app/services/data_ingestion_api/src
 
 # Instala as dependências (incluindo path dependencies)
 WORKDIR /app/services/data_ingestion_worker
-RUN poetry install --only main --no-root
+RUN poetry install --only main
 
 
 # Stage 2: Produção - Imagem final Serverless

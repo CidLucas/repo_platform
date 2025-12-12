@@ -25,7 +25,7 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   REGION: southamerica-east1
-  REGISTRY: us-east1-docker.pkg.dev
+  REGISTRY: southamerica-east1-docker.pkg.dev
   GCP_SA_EMAIL: ${{ secrets.GCP_SA_EMAIL }}
 
 jobs:
@@ -427,7 +427,7 @@ jobs:
           GITHUB_REGISTRY="ghcr.io/${{ github.repository_owner }}"
 
           echo "Processing vizu_dashboard..."
-          GITHUB_IMAGE="${GITHUB_REGISTRY}/vizu-vizu_dashboard:latest"
+          GITHUB_IMAGE="${GITHUB_REGISTRY}/vizu-dashboard:latest"
           GCP_IMAGE="${GCP_REGISTRY}/vizu-dashboard:${TAG}"
           GCP_LATEST="${GCP_REGISTRY}/vizu-dashboard:latest"
 
@@ -441,8 +441,22 @@ jobs:
               exit 1
             fi
           else
-            echo "- ❌ **vizu_dashboard**: Pull failed" >> $GITHUB_STEP_SUMMARY
-            exit 1
+            echo "- ❌ **vizu_dashboard**: Pull failed (trying alternate name)" >> $GITHUB_STEP_SUMMARY
+            # Try alternate naming convention
+            GITHUB_IMAGE="${GITHUB_REGISTRY}/vizu-vizu_dashboard:latest"
+            if docker pull "${GITHUB_IMAGE}"; then
+              docker tag "${GITHUB_IMAGE}" "${GCP_IMAGE}"
+              docker tag "${GITHUB_IMAGE}" "${GCP_LATEST}"
+              if docker push "${GCP_IMAGE}" && docker push "${GCP_LATEST}"; then
+                echo "- ✅ **vizu_dashboard**: \`${GCP_IMAGE}\`" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "- ❌ **vizu_dashboard**: Push failed" >> $GITHUB_STEP_SUMMARY
+                exit 1
+              fi
+            else
+              echo "- ❌ **vizu_dashboard**: Pull failed with both names" >> $GITHUB_STEP_SUMMARY
+              exit 1
+            fi
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -489,7 +503,8 @@ jobs:
             --concurrency 100 --timeout 60 \
             --max-instances 10 --min-instances 1 \
             --ingress all \
-            --port 3000 \
+            --port 80 \
+            --no-gen2 \
             --set-env-vars "ENVIRONMENT=production" || FAILED=$((FAILED + 1))
 
           echo "" >> $GITHUB_STEP_SUMMARY

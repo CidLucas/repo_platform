@@ -150,7 +150,10 @@ resource "google_compute_instance" "agents_pool" {
     network            = google_compute_network.vizu_vpc.name
     subnetwork         = google_compute_subnetwork.agents_subnet.name
     network_ip         = "10.0.1.10"
-    nat_ip             = google_compute_address.agents_ip.address
+
+    access_config {
+      nat_ip = google_compute_address.agents_ip.address
+    }
   }
 
   service_account {
@@ -180,7 +183,10 @@ resource "google_compute_instance" "workers_pool" {
     network            = google_compute_network.vizu_vpc.name
     subnetwork         = google_compute_subnetwork.workers_subnet.name
     network_ip         = "10.0.2.10"
-    nat_ip             = google_compute_address.workers_ip.address
+
+    access_config {
+      nat_ip = google_compute_address.workers_ip.address
+    }
   }
 
   service_account {
@@ -210,7 +216,10 @@ resource "google_compute_instance" "dashboard" {
     network            = google_compute_network.vizu_vpc.name
     subnetwork         = google_compute_subnetwork.dashboard_subnet.name
     network_ip         = "10.0.3.10"
-    nat_ip             = google_compute_address.dashboard_ip.address
+
+    access_config {
+      nat_ip = google_compute_address.dashboard_ip.address
+    }
   }
 
   service_account {
@@ -240,7 +249,10 @@ resource "google_compute_instance" "redis" {
     network            = google_compute_network.vizu_vpc.name
     subnetwork         = google_compute_subnetwork.redis_subnet.name
     network_ip         = "10.0.4.10"
-    nat_ip             = google_compute_address.redis_ip.address
+
+    access_config {
+      nat_ip = google_compute_address.redis_ip.address
+    }
   }
 
   service_account {

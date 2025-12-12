@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     # URL do Banco de Dados PostgreSQL (lida do ambiente/Docker Compose)
     DATABASE_URL: str = "postgresql+psycopg2://user:password@localhost:5433/vizu_db"
 
+    # URL do Redis para cache
+    REDIS_URL: str = "redis://localhost:6379/0"
+    
+    # TTL padrão do cache em segundos (5 minutos)
+    CACHE_TTL_SECONDS: int = 300
+
     # ID do Cliente Mockado para desenvolvimento local (lido do .env se existir)
     # Em produção, o client_id virá do token JWT.
     MOCK_CLIENT_ID: str = "e2e-test-client"

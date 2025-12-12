@@ -116,7 +116,7 @@ export const DashboardCard = ({
           </Flex>
 
           {/* Conditional rendering of content */}
-          {graphData && <GraphComponent data={graphData.values.map((val: number, index: number) => ({ name: `Item ${index + 1}`, value: val }))} dataKey="value" lineColor={textColor} flex="1" />}
+          {graphData && <GraphComponent data={graphData.values.map((val: number, index: number) => ({ name: `Item ${index + 1}`, value: val }))} dataKey="value" lineColor={textColor} />}
           {mainText && <Text fontSize="md" mb={2}>{mainText}</Text>}
 
           {(scorecardValue || scorecardLabel) && (

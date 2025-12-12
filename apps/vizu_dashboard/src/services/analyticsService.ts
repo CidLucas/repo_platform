@@ -13,6 +13,11 @@ export interface Pedido {
   enderecoEntrega: string;
   cnpjFaturamento: string;
   descricaoProdutos: string;
+  // Campos adicionais usados na listagem
+  valorTotal?: string;
+  descricao?: string;
+  frete?: string;
+  quantidadeItens?: number;
   // Add other fields as per your API response for Pedidos
 }
 

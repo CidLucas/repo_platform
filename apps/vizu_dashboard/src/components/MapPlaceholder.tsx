@@ -4,7 +4,6 @@ import React from 'react';
 interface MapPlaceholderProps {
   height?: string;
   data?: any;
-  height?: string;
 }
 
 export const MapPlaceholder = ({ height = "150px" }: MapPlaceholderProps) => {

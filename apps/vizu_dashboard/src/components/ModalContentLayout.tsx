@@ -41,10 +41,14 @@ export const ModalContentLayout: React.FC<ModalContentLayoutProps> = ({
               left="0"
               right="0"
               bottom="0"
-              style={{ backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', backgroundColor: 'rgba(255, 255, 255, 0.1)' }}
+              style={{ 
+                backdropFilter: 'blur(10px)', 
+                WebkitBackdropFilter: 'blur(10px)', 
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                border: '1px solid transparent',
+                borderImage: 'linear-gradient(156.52deg, rgba(255, 255, 255, 0.4) 2.12%, rgba(255, 255, 255, 0.0001) 39%, rgba(255, 255, 255, 0.0001) 54.33%, rgba(255, 255, 255, 0.1) 93.02%) 1'
+              }}
               zIndex="1"
-              border="1px solid transparent"
-              borderImage="linear-gradient(156.52deg, rgba(255, 255, 255, 0.4) 2.12%, rgba(255, 255, 255, 0.0001) 39%, rgba(255, 255, 255, 0.0001) 54.33%, rgba(255, 255, 255, 0.1) 93.02%) 1"
             />
             <Flex direction="column" p={8} height="100%" position="relative" zIndex="2">
               {leftContent}

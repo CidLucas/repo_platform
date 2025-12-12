@@ -1,4 +1,3 @@
-
 # --- DEFINIÇÕES COMUNS ---
 x-common-env: &common-env
   # Variáveis Padronizadas
@@ -312,13 +311,15 @@ services:
       - ./libs:/app/libs
     environment:
       <<: *common-env
-      # --- CORREÇÃO DE IMPORTAÇÃO ---
       PYTHONPATH: /app/src
     depends_on:
       postgres:
         condition: service_healthy
-      # Dependência implícita de dados gerados por outros serviços
-
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   data_ingestion_api:
     container_name: vizu_data_ingestion_api
@@ -369,6 +370,24 @@ services:
         condition: service_healthy
       ollama_service:
         condition: service_started
+
+  # =========================================
+  # FRONTEND DASHBOARD (SPA React + Nginx)
+  # =========================================
+  vizu_dashboard:
+    container_name: vizu_dashboard
+    platform: linux/amd64
+    build:
+      context: ./apps/vizu_dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      # Estas variáveis podem ser usadas em tempo de build (se necessário)
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8003}
+    depends_on:
+      - atendente_core
+    restart: unless-stopped
 
   # =========================================
   # NEW AGENTS (Phase 4)

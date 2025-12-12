@@ -9,6 +9,8 @@ python = "~3.11"
 fastapi = "^0.111.1"
 uvicorn = "^0.30.1"
 pandas = "^2.2.2"  # Para os cálculos (Silver -> Gold)
+redis = "^5.0.0"   # Cache Redis para indicadores
+pydantic-settings = "^2.0.0"  # Settings management
 
 # --- Dependências das nossas Bibliotecas Internas ---
 vizu-db-connector = { path = "../../libs/vizu_db_connector", develop = true }

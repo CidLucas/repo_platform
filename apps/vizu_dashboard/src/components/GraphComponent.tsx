@@ -15,7 +15,7 @@ export const GraphComponent: React.FC<GraphComponentProps> = ({
 }) => {
   return (
     <Box width="100%" height="100%">
-      <LineChart data={data} width="100%" height={250} margin={{ top: 5, right: 40, left: 40, bottom: 5 }} padding={{ top: 150 }}> {/* Removed ResponsiveContainer, added padding */}
+      <LineChart data={data} width={400} height={250} margin={{ top: 5, right: 40, left: 40, bottom: 5 }}> {/* Removed ResponsiveContainer, added padding */}
         {/* Removed CartesianGrid */}
         <XAxis
           dataKey="name"

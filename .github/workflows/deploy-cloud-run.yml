@@ -44,9 +44,9 @@ jobs:
         run: |
           echo "## 🔍 Preflight Checks" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           ERRORS=0
-          
+
           # Check GCP_PROJECT_ID
           if [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
             echo "❌ **GCP_PROJECT_ID** secret is not set" >> $GITHUB_STEP_SUMMARY
@@ -55,7 +55,7 @@ jobs:
             echo "✅ GCP_PROJECT_ID is configured" >> $GITHUB_STEP_SUMMARY
             echo "project_id=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_OUTPUT
           fi
-          
+
           # Check GCP_SA_KEY
           if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
             echo "❌ **GCP_SA_KEY** secret is not set" >> $GITHUB_STEP_SUMMARY
@@ -63,16 +63,16 @@ jobs:
           else
             echo "✅ GCP_SA_KEY is configured" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           # Check GCP_SA_EMAIL
           if [ -z "${{ secrets.GCP_SA_EMAIL }}" ]; then
             echo "⚠️ GCP_SA_EMAIL secret is not set (optional)" >> $GITHUB_STEP_SUMMARY
           else
             echo "✅ GCP_SA_EMAIL is configured" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ $ERRORS -gt 0 ]; then
             echo "### ❌ Preflight failed with $ERRORS error(s)" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -80,7 +80,7 @@ jobs:
             echo "**Settings → Secrets and variables → Actions**" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
-          
+
           echo "### ✅ All preflight checks passed" >> $GITHUB_STEP_SUMMARY
 
       - name: Set services to deploy
@@ -142,7 +142,7 @@ jobs:
           TIMESTAMP=${{ needs.preflight.outputs.timestamp }}
           IMAGE_TAG="${TIMESTAMP}-${COMMIT_SHA}"
           echo "tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-          
+
           echo "### 🏷️ Image Tag: \`${IMAGE_TAG}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
@@ -155,15 +155,15 @@ jobs:
         run: |
           echo "### 🔨 Building agents-pool services" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           TAG="${{ steps.image.outputs.tag }}"
           REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu"
-          
+
           build_and_push() {
             local name=$1
             local dockerfile=$2
             local image="${REGISTRY}/${name}:${TAG}"
-            
+
             echo "Building ${name}..."
             if docker build -t "${image}" -f "${dockerfile}" .; then
               echo "Pushing ${name}..."
@@ -175,21 +175,21 @@ jobs:
             echo "- ❌ **${name}**: Build/push failed" >> $GITHUB_STEP_SUMMARY
             return 1
           }
-          
+
           FAILED=0
-          
+
           build_and_push "atendente-core" "services/atendente_core/Dockerfile" || FAILED=$((FAILED + 1))
           build_and_push "tool-pool-api" "services/tool_pool_api/Dockerfile" || FAILED=$((FAILED + 1))
           build_and_push "vendas-agent" "services/vendas_agent/Dockerfile" || FAILED=$((FAILED + 1))
           build_and_push "support-agent" "services/support_agent/Dockerfile" || FAILED=$((FAILED + 1))
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ $FAILED -gt 0 ]; then
             echo "❌ $FAILED service(s) failed to build" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
-          
+
           echo "✅ All agents-pool services built successfully" >> $GITHUB_STEP_SUMMARY
 
       # =================================================================
@@ -201,15 +201,15 @@ jobs:
         run: |
           echo "### 🔨 Building workers-pool services" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           TAG="${{ steps.image.outputs.tag }}"
           REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu"
-          
+
           build_and_push() {
             local name=$1
             local dockerfile=$2
             local image="${REGISTRY}/${name}:${TAG}"
-            
+
             echo "Building ${name}..."
             if docker build -t "${image}" -f "${dockerfile}" .; then
               echo "Pushing ${name}..."
@@ -221,20 +221,20 @@ jobs:
             echo "- ❌ **${name}**: Build/push failed" >> $GITHUB_STEP_SUMMARY
             return 1
           }
-          
+
           FAILED=0
-          
+
           build_and_push "data-ingestion-worker" "services/data_ingestion_worker/Dockerfile" || FAILED=$((FAILED + 1))
           build_and_push "file-processing-worker" "services/file_processing_worker/Dockerfile" || FAILED=$((FAILED + 1))
           build_and_push "file-upload-api" "services/file_upload_api/Dockerfile" || FAILED=$((FAILED + 1))
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ $FAILED -gt 0 ]; then
             echo "❌ $FAILED service(s) failed to build" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
-          
+
           echo "✅ All workers-pool services built successfully" >> $GITHUB_STEP_SUMMARY
 
       # =================================================================
@@ -245,15 +245,15 @@ jobs:
         run: |
           echo "### 🚢 Deploying agents-pool to Cloud Run" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           TAG="${{ steps.image.outputs.tag }}"
           REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu"
-          
+
           deploy_service() {
             local name=$1
             local image="${REGISTRY}/${name}:${TAG}"
             shift
-            
+
             echo "Deploying ${name}..."
             if gcloud run deploy "${name}" \
               --image "${image}" \
@@ -268,9 +268,9 @@ jobs:
             echo "- ❌ **${name}**: Deploy failed" >> $GITHUB_STEP_SUMMARY
             return 1
           }
-          
+
           FAILED=0
-          
+
           # atendente-core (main entry point - public)
           deploy_service "atendente-core" \
             --allow-unauthenticated \
@@ -279,7 +279,7 @@ jobs:
             --max-instances 50 --min-instances 1 \
             --ingress all \
             --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" || FAILED=$((FAILED + 1))
-          
+
           # tool-pool-api (internal)
           deploy_service "tool-pool-api" \
             --no-allow-unauthenticated \
@@ -288,7 +288,7 @@ jobs:
             --max-instances 20 --min-instances 1 \
             --port 9000 --ingress internal \
             --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" || FAILED=$((FAILED + 1))
-          
+
           # vendas-agent (internal)
           deploy_service "vendas-agent" \
             --no-allow-unauthenticated \
@@ -297,7 +297,7 @@ jobs:
             --max-instances 20 --min-instances 0 \
             --ingress internal \
             --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" || FAILED=$((FAILED + 1))
-          
+
           # support-agent (internal)
           deploy_service "support-agent" \
             --no-allow-unauthenticated \
@@ -306,9 +306,9 @@ jobs:
             --max-instances 20 --min-instances 0 \
             --ingress internal \
             --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" || FAILED=$((FAILED + 1))
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ $FAILED -gt 0 ]; then
             echo "⚠️ $FAILED service(s) failed to deploy" >> $GITHUB_STEP_SUMMARY
           else
@@ -323,15 +323,15 @@ jobs:
         run: |
           echo "### 🚢 Deploying workers-pool to Cloud Run" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           TAG="${{ steps.image.outputs.tag }}"
           REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu"
-          
+
           deploy_service() {
             local name=$1
             local image="${REGISTRY}/${name}:${TAG}"
             shift
-            
+
             echo "Deploying ${name}..."
             if gcloud run deploy "${name}" \
               --image "${image}" \
@@ -346,9 +346,9 @@ jobs:
             echo "- ❌ **${name}**: Deploy failed" >> $GITHUB_STEP_SUMMARY
             return 1
           }
-          
+
           FAILED=0
-          
+
           # data-ingestion-worker (internal)
           deploy_service "data-ingestion-worker" \
             --no-allow-unauthenticated \
@@ -357,7 +357,7 @@ jobs:
             --max-instances 100 --min-instances 0 \
             --ingress internal \
             --set-env-vars "ENVIRONMENT=production" || FAILED=$((FAILED + 1))
-          
+
           # file-processing-worker (internal)
           deploy_service "file-processing-worker" \
             --no-allow-unauthenticated \
@@ -366,7 +366,7 @@ jobs:
             --max-instances 50 --min-instances 0 \
             --ingress internal \
             --set-env-vars "ENVIRONMENT=production" || FAILED=$((FAILED + 1))
-          
+
           # file-upload-api (public)
           deploy_service "file-upload-api" \
             --allow-unauthenticated \
@@ -375,9 +375,9 @@ jobs:
             --max-instances 50 --min-instances 0 \
             --ingress all \
             --set-env-vars "ENVIRONMENT=production" || FAILED=$((FAILED + 1))
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ $FAILED -gt 0 ]; then
             echo "⚠️ $FAILED service(s) failed to deploy" >> $GITHUB_STEP_SUMMARY
           else
@@ -422,18 +422,18 @@ jobs:
         run: |
           echo "## 🏥 Health Checks" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           check_health() {
             local name=$1
             local url
-            
+
             url=$(gcloud run services describe "${name}" --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null)
-            
+
             if [ -z "$url" ]; then
               echo "- ⚠️ **${name}**: Service not found" >> $GITHUB_STEP_SUMMARY
               return 1
             fi
-            
+
             if curl -sf "${url}/health" > /dev/null 2>&1; then
               echo "- ✅ **${name}**: Healthy" >> $GITHUB_STEP_SUMMARY
               return 0
@@ -442,11 +442,11 @@ jobs:
               return 1
             fi
           }
-          
+
           # Check public services
           check_health "atendente-core" || true
           check_health "file-upload-api" || true
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📋 All Services" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

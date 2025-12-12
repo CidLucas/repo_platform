@@ -2,7 +2,7 @@
 FROM node:20-alpine as builder
 
 # Define o diretório de trabalho
-WORKDIR /app
+WORKDIR /app/build
 
 # 1. COPIA os arquivos de manifesto de dependências
 COPY apps/vizu_dashboard/package.json apps/vizu_dashboard/package-lock.json ./
@@ -11,7 +11,7 @@ COPY apps/vizu_dashboard/package.json apps/vizu_dashboard/package-lock.json ./
 RUN npm install
 
 # 3. COPIA todo o código-fonte da aplicação
-COPY apps/vizu_dashboard ./
+COPY apps/vizu_dashboard/ ./
 
 # 4. EXECUTA o build de produção
 # Isso irá gerar a pasta /dist com os arquivos otimizados
@@ -24,7 +24,7 @@ FROM nginx:stable-alpine
 
 # 1. COPIA os arquivos estáticos gerados no estágio de build
 # O Nginx por padrão serve arquivos de /usr/share/nginx/html
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/build/dist /usr/share/nginx/html
 
 # 2. REMOVE a configuração padrão do Nginx
 RUN rm /etc/nginx/conf.d/default.conf

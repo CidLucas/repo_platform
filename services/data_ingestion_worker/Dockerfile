@@ -7,9 +7,16 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install poetry
+RUN pip install --upgrade pip poetry
+
+# Configure Poetry to not use virtualenvs (since we're in a container)
+ENV POETRY_VIRTUALENVS_IN_PROJECT=false \
+    POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_CACHE_DIR=/tmp/poetry_cache
 
 # Copia todos os arquivos de manifesto das libs (necessário para path dependencies)
 COPY libs/vizu_db_connector/pyproject.toml libs/vizu_db_connector/poetry.lock* \

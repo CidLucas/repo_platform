@@ -32,7 +32,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 from vizu_models import (

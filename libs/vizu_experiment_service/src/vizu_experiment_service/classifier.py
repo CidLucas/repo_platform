@@ -3,7 +3,6 @@
 
 import logging
 import random
-from typing import Optional
 
 from vizu_models import (
     CaseOutcome,

@@ -2,7 +2,6 @@
 """Training dataset generator - creates datasets from reviewed experiment cases."""
 
 import logging
-from typing import Optional
 from uuid import UUID
 
 from vizu_models import (

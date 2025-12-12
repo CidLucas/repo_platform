@@ -5,7 +5,6 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime
-from typing import Optional
 
 import httpx
 from vizu_models import (

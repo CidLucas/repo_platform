@@ -6,7 +6,7 @@ import logging
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from langchain_core.messages import HumanMessage
 from vizu_models import (

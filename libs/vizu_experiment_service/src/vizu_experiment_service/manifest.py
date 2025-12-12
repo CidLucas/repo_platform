@@ -2,7 +2,6 @@
 """Manifest loading and validation."""
 
 from pathlib import Path
-from typing import Union
 
 import yaml
 from vizu_models import ExperimentManifest

@@ -1,0 +1,4 @@
+gcp_project_id = "vizudev"
+gcp_region     = "southamerica-east1"
+environment    = "production"
+docker_registry = "us-east1-docker.pkg.dev/vizudev/vizu-mono"

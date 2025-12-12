@@ -4,11 +4,11 @@ Endpoints de Indicadores - Métricas agregadas com cache.
 Fornece indicadores de alto nível para dashboards.
 Inclui comparativos percentuais vs 7, 30, 90 dias.
 """
-from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
-from typing import Optional, Literal
 from dataclasses import asdict
+from fastapi import APIRouter, Depends, Query
 import logging
+from pydantic import BaseModel, Field
+from typing import Literal
 
 from analytics_api.api.dependencies import get_indicator_service
 from analytics_api.services.indicator_service import IndicatorService, PeriodType
@@ -21,16 +21,16 @@ router = APIRouter(prefix="/indicators", tags=["Indicators"])
 
 class ComparisonData(BaseModel):
     """Dados de comparação percentual vs períodos anteriores."""
-    vs_7_days: Optional[float] = Field(None, description="% variação vs média dos últimos 7 dias")
-    vs_30_days: Optional[float] = Field(None, description="% variação vs média dos últimos 30 dias")
-    vs_90_days: Optional[float] = Field(None, description="% variação vs média dos últimos 90 dias")
-    trend: Optional[str] = Field(None, description="Tendência: up, down, stable")
+    vs_7_days: float | None = Field(None, description="% variação vs média dos últimos 7 dias")
+    vs_30_days: float | None = Field(None, description="% variação vs média dos últimos 30 dias")
+    vs_90_days: float | None = Field(None, description="% variação vs média dos últimos 90 dias")
+    trend: str | None = Field(None, description="Tendência: up, down, stable")
 
 
 class IndicatorsRequest(BaseModel):
     """Request body para buscar indicadores."""
     period: PeriodType = "today"
-    metrics: Optional[list[str]] = None  # ["orders", "products", "customers"]
+    metrics: list[str] | None = None  # ["orders", "products", "customers"]
     include_comparisons: bool = Field(True, description="Incluir comparativos vs 7, 30, 90 dias")
 
 
@@ -39,10 +39,10 @@ class OrderMetricsResponse(BaseModel):
     total: int
     revenue: float
     avg_order_value: float
-    growth_rate: Optional[float]
+    growth_rate: float | None
     by_status: dict
     period: str
-    comparisons: Optional[ComparisonData] = None
+    comparisons: ComparisonData | None = None
 
 
 class ProductMetricsResponse(BaseModel):
@@ -53,7 +53,7 @@ class ProductMetricsResponse(BaseModel):
     low_stock_alerts: int
     avg_price: float
     period: str
-    comparisons: Optional[ComparisonData] = None
+    comparisons: ComparisonData | None = None
 
 
 class CustomerMetricsResponse(BaseModel):
@@ -63,17 +63,17 @@ class CustomerMetricsResponse(BaseModel):
     returning_customers: int
     avg_lifetime_value: float
     period: str
-    comparisons: Optional[ComparisonData] = None
+    comparisons: ComparisonData | None = None
 
 
 class IndicatorsResponse(BaseModel):
     """Resposta consolidada de indicadores."""
-    orders: Optional[OrderMetricsResponse] = None
-    products: Optional[ProductMetricsResponse] = None
-    customers: Optional[CustomerMetricsResponse] = None
+    orders: OrderMetricsResponse | None = None
+    products: ProductMetricsResponse | None = None
+    customers: CustomerMetricsResponse | None = None
     cached: bool
     generated_at: str
-    ttl: Optional[int] = None
+    ttl: int | None = None
 
 
 @router.post("", response_model=IndicatorsResponse)
@@ -278,14 +278,14 @@ async def _calculate_comparisons(
         return ComparisonData()
 
 
-def _calc_percentage(current: float, previous: float) -> Optional[float]:
+def _calc_percentage(current: float, previous: float) -> float | None:
     """Calcula variação percentual."""
     if previous == 0:
         return None if current == 0 else 100.0
     return round(((current - previous) / previous) * 100, 2)
 
 
-def _determine_trend(vs_7: Optional[float], vs_30: Optional[float], vs_90: Optional[float]) -> str:
+def _determine_trend(vs_7: float | None, vs_30: float | None, vs_90: float | None) -> str:
     """Determina tendência geral baseado nos comparativos."""
     values = [v for v in [vs_7, vs_30, vs_90] if v is not None]
     if not values:

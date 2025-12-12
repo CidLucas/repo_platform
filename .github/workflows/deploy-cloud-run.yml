@@ -132,6 +132,102 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Sync GitHub Secrets to GCP Secret Manager
+        id: sync-secrets
+        run: |
+          echo "### 🔐 Syncing GitHub Secrets to GCP Secret Manager" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          PROJECT_ID="${{ env.PROJECT_ID }}"
+          CREATED=0
+          UPDATED=0
+          MISSING=0
+          
+          # Function to create or update a secret
+          sync_secret() {
+            local SECRET_NAME=$1
+            local SECRET_VALUE=$2
+            
+            if [ -z "$SECRET_VALUE" ]; then
+              echo "⚠️ Missing: $SECRET_NAME (not configured in GitHub)" >> $GITHUB_STEP_SUMMARY
+              MISSING=$((MISSING + 1))
+              return
+            fi
+            
+            if gcloud secrets describe "$SECRET_NAME" --project="$PROJECT_ID" &>/dev/null; then
+              echo -n "$SECRET_VALUE" | gcloud secrets versions add "$SECRET_NAME" \
+                --data-file=- --project="$PROJECT_ID" &>/dev/null
+              echo "✓ Updated: $SECRET_NAME" >> $GITHUB_STEP_SUMMARY
+              UPDATED=$((UPDATED + 1))
+            else
+              echo -n "$SECRET_VALUE" | gcloud secrets create "$SECRET_NAME" \
+                --replication-policy="automatic" \
+                --data-file=- --project="$PROJECT_ID" &>/dev/null
+              echo "✓ Created: $SECRET_NAME" >> $GITHUB_STEP_SUMMARY
+              CREATED=$((CREATED + 1))
+            fi
+          }
+          
+          # Sync all secrets
+          sync_secret "DATABASE_URL" "${{ secrets.DATABASE_URL }}"
+          sync_secret "SUPABASE_URL" "${{ secrets.SUPABASE_URL }}"
+          sync_secret "SUPABASE_SERVICE_KEY" "${{ secrets.SUPABASE_SERVICE_KEY }}"
+          sync_secret "SUPABASE_ANON_KEY" "${{ secrets.SUPABASE_ANON_KEY }}"
+          sync_secret "LLM_PROVIDER" "${{ secrets.LLM_PROVIDER }}"
+          sync_secret "OPENAI_API_KEY" "${{ secrets.OPENAI_API_KEY }}"
+          sync_secret "ANTHROPIC_API_KEY" "${{ secrets.ANTHROPIC_API_KEY }}"
+          sync_secret "GOOGLE_API_KEY" "${{ secrets.GOOGLE_API_KEY }}"
+          sync_secret "REDIS_URL" "${{ secrets.REDIS_URL }}"
+          sync_secret "LANGFUSE_HOST" "${{ secrets.LANGFUSE_HOST }}"
+          sync_secret "LANGFUSE_PUBLIC_KEY" "${{ secrets.LANGFUSE_PUBLIC_KEY }}"
+          sync_secret "LANGFUSE_SECRET_KEY" "${{ secrets.LANGFUSE_SECRET_KEY }}"
+          sync_secret "MCP_SERVER_URL" "${{ secrets.MCP_SERVER_URL }}"
+          sync_secret "OLLAMA_BASE_URL" "${{ secrets.OLLAMA_BASE_URL }}"
+          sync_secret "EMBEDDING_SERVICE_URL" "${{ secrets.EMBEDDING_SERVICE_URL }}"
+          sync_secret "TWILIO_AUTH_TOKEN" "${{ secrets.TWILIO_AUTH_TOKEN }}"
+          sync_secret "LANGCHAIN_API_KEY" "${{ secrets.LANGCHAIN_API_KEY }}"
+          sync_secret "OTEL_EXPORTER_OTLP_ENDPOINT" "${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}"
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Summary:" >> $GITHUB_STEP_SUMMARY
+          echo "- Created: $CREATED" >> $GITHUB_STEP_SUMMARY
+          echo "- Updated: $UPDATED" >> $GITHUB_STEP_SUMMARY
+          echo "- Missing: $MISSING" >> $GITHUB_STEP_SUMMARY
+          
+          if [ $MISSING -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **$MISSING secret(s) not configured in GitHub.** Services may fail to start." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Configure missing secrets in: **Settings → Secrets and variables → Actions**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Grant Cloud Run Service Account Access to Secrets
+        run: |
+          PROJECT_ID="${{ env.PROJECT_ID }}"
+          SERVICE_ACCOUNT="${{ env.GCP_SA_EMAIL }}"
+          
+          if [ -z "$SERVICE_ACCOUNT" ]; then
+            SERVICE_ACCOUNT="vizu-deployment@${PROJECT_ID}.iam.gserviceaccount.com"
+          fi
+          
+          echo "Granting secret access to: $SERVICE_ACCOUNT"
+          
+          # Grant access for each secret
+          for SECRET in DATABASE_URL SUPABASE_URL SUPABASE_SERVICE_KEY SUPABASE_ANON_KEY \
+                        OPENAI_API_KEY ANTHROPIC_API_KEY GOOGLE_API_KEY \
+                        REDIS_URL LANGFUSE_HOST LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY \
+                        MCP_SERVER_URL OLLAMA_BASE_URL EMBEDDING_SERVICE_URL \
+                        TWILIO_AUTH_TOKEN LANGCHAIN_API_KEY OTEL_EXPORTER_OTLP_ENDPOINT; do
+            if gcloud secrets describe "$SECRET" --project="$PROJECT_ID" &>/dev/null; then
+              gcloud secrets add-iam-policy-binding "$SECRET" \
+                --member="serviceAccount:$SERVICE_ACCOUNT" \
+                --role="roles/secretmanager.secretAccessor" \
+                --project="$PROJECT_ID" &>/dev/null || true
+            fi
+          done
+          
+          echo "✓ Service account permissions configured"
+
       - name: Configure Docker for Artifact Registry
         run: |
           gcloud auth configure-docker ${{ env.REGISTRY }}

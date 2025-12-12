@@ -8,11 +8,11 @@ WORKDIR /app
 COPY apps/vizu_dashboard/package.json apps/vizu_dashboard/package-lock.json ./
 
 # 2. INSTALA as dependências do projeto
+RUN npm install
 
 # 3. COPIA todo o código-fonte da aplicação
 COPY apps/vizu_dashboard/ ./
 
-RUN npm install
 
 # 4. EXECUTA o build de produção
 # Isso irá gerar a pasta /dist com os arquivos otimizados
@@ -23,6 +23,8 @@ RUN npm run build
 # Estágio 2: Final - Apenas o Runtime com Nginx
 FROM nginx:stable-alpine
 
+
+RUN rm -rf /usr/share/nginx/html/*
 # 1. COPIA os arquivos estáticos gerados no estágio de build
 # O Nginx por padrão serve arquivos de /usr/share/nginx/html
 COPY --from=builder /app/dist /usr/share/nginx/html

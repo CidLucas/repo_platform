@@ -41,7 +41,7 @@ COPY services/data_ingestion_api/src /app/services/data_ingestion_api/src
 
 # Instala as dependências (incluindo path dependencies)
 WORKDIR /app/services/data_ingestion_worker
-RUN poetry lock && poetry install --no-root
+RUN poetry lock && poetry install
 
 # Stage 2: Produção - Imagem final Serverless
 FROM python:3.11-slim as production

@@ -142,100 +142,119 @@ jobs:
           TIMESTAMP=${{ needs.preflight.outputs.timestamp }}
           IMAGE_TAG="${TIMESTAMP}-${COMMIT_SHA}"
           echo "tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
 
           echo "### 🏷️ Image Tag: \`${IMAGE_TAG}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
+      - name: Log in to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
       # =================================================================
-      # Build & Push: agents-pool
+      # Pull from GitHub & Push to GCP: agents-pool
       # =================================================================
-      - name: "Build: agents-pool"
+      - name: "Pull & Push: agents-pool"
         if: matrix.service == 'agents-pool'
         id: build-agents
         run: |
-          echo "### 🔨 Building agents-pool services" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔨 Pulling from GitHub & Pushing to GCP: agents-pool" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
+          COMMIT_SHA="${{ steps.image.outputs.sha }}"
           TAG="${{ steps.image.outputs.tag }}"
-          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
+          GCP_REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
+          GITHUB_REGISTRY="ghcr.io/${{ github.repository_owner }}"
 
-          build_and_push() {
+          pull_and_push() {
             local name=$1
-            local dockerfile=$2
-            local image="${REGISTRY}/${name}:${TAG}"
+            local gcp_name=$2
+            
+            echo "Processing ${name}..."
+            GITHUB_IMAGE="${GITHUB_REGISTRY}/vizu-${name}:latest"
+            GCP_IMAGE="${GCP_REGISTRY}/${gcp_name}:${TAG}"
+            GCP_LATEST="${GCP_REGISTRY}/${gcp_name}:latest"
 
-            echo "Building ${name}..."
-            if docker build -t "${image}" -f "${dockerfile}" .; then
-              echo "Pushing ${name}..."
-              if docker push "${image}"; then
-                echo "- ✅ **${name}**: \`${image}\`" >> $GITHUB_STEP_SUMMARY
+            if docker pull "${GITHUB_IMAGE}"; then
+              docker tag "${GITHUB_IMAGE}" "${GCP_IMAGE}"
+              docker tag "${GITHUB_IMAGE}" "${GCP_LATEST}"
+              if docker push "${GCP_IMAGE}" && docker push "${GCP_LATEST}"; then
+                echo "- ✅ **${name}**: \`${GCP_IMAGE}\`" >> $GITHUB_STEP_SUMMARY
                 return 0
               fi
             fi
-            echo "- ❌ **${name}**: Build/push failed" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ **${name}**: Pull/push failed" >> $GITHUB_STEP_SUMMARY
             return 1
           }
 
           FAILED=0
 
-          build_and_push "atendente-core" "services/atendente_core/Dockerfile" || FAILED=$((FAILED + 1))
-          build_and_push "tool-pool-api" "services/tool_pool_api/Dockerfile" || FAILED=$((FAILED + 1))
-          build_and_push "vendas-agent" "services/vendas_agent/Dockerfile" || FAILED=$((FAILED + 1))
-          build_and_push "support-agent" "services/support_agent/Dockerfile" || FAILED=$((FAILED + 1))
+          pull_and_push "atendente_core" "atendente-core" || FAILED=$((FAILED + 1))
+          pull_and_push "tool_pool_api" "tool-pool-api" || FAILED=$((FAILED + 1))
+          pull_and_push "vendas_agent" "vendas-agent" || FAILED=$((FAILED + 1))
+          pull_and_push "support_agent" "support-agent" || FAILED=$((FAILED + 1))
 
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ $FAILED -gt 0 ]; then
-            echo "❌ $FAILED service(s) failed to build" >> $GITHUB_STEP_SUMMARY
+            echo "❌ $FAILED service(s) failed" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
-          echo "✅ All agents-pool services built successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All agents-pool services ready in GCP" >> $GITHUB_STEP_SUMMARY
 
       # =================================================================
-      # Build & Push: workers-pool
+      # Pull from GitHub & Push to GCP: workers-pool
       # =================================================================
-      - name: "Build: workers-pool"
+      - name: "Pull & Push: workers-pool"
         if: matrix.service == 'workers-pool'
         id: build-workers
         run: |
-          echo "### 🔨 Building workers-pool services" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔨 Pulling from GitHub & Pushing to GCP: workers-pool" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
+          COMMIT_SHA="${{ steps.image.outputs.sha }}"
           TAG="${{ steps.image.outputs.tag }}"
-          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
+          GCP_REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
+          GITHUB_REGISTRY="ghcr.io/${{ github.repository_owner }}"
 
-          build_and_push() {
+          pull_and_push() {
             local name=$1
-            local dockerfile=$2
-            local image="${REGISTRY}/${name}:${TAG}"
+            local gcp_name=$2
+            
+            echo "Processing ${name}..."
+            GITHUB_IMAGE="${GITHUB_REGISTRY}/vizu-${name}:latest"
+            GCP_IMAGE="${GCP_REGISTRY}/${gcp_name}:${TAG}"
+            GCP_LATEST="${GCP_REGISTRY}/${gcp_name}:latest"
 
-            echo "Building ${name}..."
-            if docker build -t "${image}" -f "${dockerfile}" .; then
-              echo "Pushing ${name}..."
-              if docker push "${image}"; then
-                echo "- ✅ **${name}**: \`${image}\`" >> $GITHUB_STEP_SUMMARY
+            if docker pull "${GITHUB_IMAGE}"; then
+              docker tag "${GITHUB_IMAGE}" "${GCP_IMAGE}"
+              docker tag "${GITHUB_IMAGE}" "${GCP_LATEST}"
+              if docker push "${GCP_IMAGE}" && docker push "${GCP_LATEST}"; then
+                echo "- ✅ **${name}**: \`${GCP_IMAGE}\`" >> $GITHUB_STEP_SUMMARY
                 return 0
               fi
             fi
-            echo "- ❌ **${name}**: Build/push failed" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ **${name}**: Pull/push failed" >> $GITHUB_STEP_SUMMARY
             return 1
           }
 
           FAILED=0
 
-          build_and_push "data-ingestion-worker" "services/data_ingestion_worker/Dockerfile" || FAILED=$((FAILED + 1))
-          build_and_push "file-processing-worker" "services/file_processing_worker/Dockerfile" || FAILED=$((FAILED + 1))
-          build_and_push "file-upload-api" "services/file_upload_api/Dockerfile" || FAILED=$((FAILED + 1))
+          pull_and_push "data_ingestion_worker" "data-ingestion-worker" || FAILED=$((FAILED + 1))
+          pull_and_push "file_processing_worker" "file-processing-worker" || FAILED=$((FAILED + 1))
+          pull_and_push "file_upload_api" "file-upload-api" || FAILED=$((FAILED + 1))
+          pull_and_push "data_ingestion_api" "data-ingestion-api" || FAILED=$((FAILED + 1))
+          pull_and_push "analytics_api" "analytics-api" || FAILED=$((FAILED + 1))
 
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ $FAILED -gt 0 ]; then
-            echo "❌ $FAILED service(s) failed to build" >> $GITHUB_STEP_SUMMARY
+            echo "❌ $FAILED service(s) failed" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
-          echo "✅ All workers-pool services built successfully" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All workers-pool services ready in GCP" >> $GITHUB_STEP_SUMMARY
 
       # =================================================================
       # Deploy: agents-pool

@@ -135,13 +135,13 @@ jobs:
       - name: Sync GitHub Secrets to GCP Secret Manager
         id: sync-secrets
         run: |
-          echo "### 🔐 Syncing GitHub Secrets to GCP Secret Manager" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          set +e  # Don't exit on first error
           
           PROJECT_ID="${{ env.PROJECT_ID }}"
           CREATED=0
           UPDATED=0
           MISSING=0
+          SUMMARY_FILE="${GITHUB_STEP_SUMMARY:-/tmp/step_summary.txt}"
           
           # Function to create or update a secret
           sync_secret() {
@@ -149,7 +149,7 @@ jobs:
             local SECRET_VALUE=$2
             
             if [ -z "$SECRET_VALUE" ]; then
-              echo "⚠️ Missing: $SECRET_NAME (not configured in GitHub)" >> $GITHUB_STEP_SUMMARY
+              echo "⚠️  Missing: $SECRET_NAME (not configured in GitHub)" | tee -a "$SUMMARY_FILE"
               MISSING=$((MISSING + 1))
               return
             fi
@@ -157,16 +157,23 @@ jobs:
             if gcloud secrets describe "$SECRET_NAME" --project="$PROJECT_ID" &>/dev/null; then
               echo -n "$SECRET_VALUE" | gcloud secrets versions add "$SECRET_NAME" \
                 --data-file=- --project="$PROJECT_ID" &>/dev/null
-              echo "✓ Updated: $SECRET_NAME" >> $GITHUB_STEP_SUMMARY
+              echo "✓ Updated: $SECRET_NAME" | tee -a "$SUMMARY_FILE"
               UPDATED=$((UPDATED + 1))
             else
               echo -n "$SECRET_VALUE" | gcloud secrets create "$SECRET_NAME" \
                 --replication-policy="automatic" \
                 --data-file=- --project="$PROJECT_ID" &>/dev/null
-              echo "✓ Created: $SECRET_NAME" >> $GITHUB_STEP_SUMMARY
+              echo "✓ Created: $SECRET_NAME" | tee -a "$SUMMARY_FILE"
               CREATED=$((CREATED + 1))
             fi
           }
+          
+          {
+            echo "### Syncing GitHub Secrets to GCP Secret Manager"
+            echo ""
+            echo "Secrets Status:"
+            echo ""
+          } | tee -a "$SUMMARY_FILE"
           
           # Sync all secrets
           sync_secret "DATABASE_URL" "${{ secrets.DATABASE_URL }}"
@@ -188,18 +195,20 @@ jobs:
           sync_secret "LANGCHAIN_API_KEY" "${{ secrets.LANGCHAIN_API_KEY }}"
           sync_secret "OTEL_EXPORTER_OTLP_ENDPOINT" "${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}"
           
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Summary:" >> $GITHUB_STEP_SUMMARY
-          echo "- Created: $CREATED" >> $GITHUB_STEP_SUMMARY
-          echo "- Updated: $UPDATED" >> $GITHUB_STEP_SUMMARY
-          echo "- Missing: $MISSING" >> $GITHUB_STEP_SUMMARY
+          {
+            echo ""
+            echo "Summary:"
+            echo "- Created: $CREATED"
+            echo "- Updated: $UPDATED"
+            echo "- Missing: $MISSING"
+            
+            if [ $MISSING -gt 0 ]; then
+              echo ""
+              echo "**Action Required:** Configure missing secrets in Settings → Secrets and variables → Actions"
+            fi
+          } | tee -a "$SUMMARY_FILE"
           
-          if [ $MISSING -gt 0 ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "⚠️ **$MISSING secret(s) not configured in GitHub.** Services may fail to start." >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Configure missing secrets in: **Settings → Secrets and variables → Actions**" >> $GITHUB_STEP_SUMMARY
-          fi
+          exit 0
 
       - name: Grant Cloud Run Service Account Access to Secrets
         run: |

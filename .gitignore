@@ -32,3 +32,25 @@ __pycache__/
 *.pyd
 */**/__pycache__/
 */**/*.pyc
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.*
+terraform.tfvars
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Build and deployment scripts (local only)
+build-and-push-images.sh
+build-single-image.sh
+tag-and-push-images.sh
+pull-github-push-gcp.sh

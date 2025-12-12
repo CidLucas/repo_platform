@@ -1,11 +1,12 @@
 # src/analytics_api/data_access/postgres_repository.py
-import pandas as pd
+import logging
 from datetime import datetime
 from typing import Any
-from sqlalchemy.orm import Session  # Importa o tipo Session
-from sqlalchemy import text
+
+import pandas as pd
 from analytics_api.core.analytics_mapping import get_silver_table_name
-import logging
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +38,9 @@ class PostgresRepository:
             raise
 
     def get_order_metrics_by_date_range(
-        self, 
-        client_id: str, 
-        start_date: datetime, 
+        self,
+        client_id: str,
+        start_date: datetime,
         end_date: datetime
     ) -> dict[str, Any]:
         """
@@ -49,26 +50,26 @@ class PostgresRepository:
         """
         table_name = get_silver_table_name(client_id)
         query = text(f"""
-            SELECT 
+            SELECT
                 COUNT(DISTINCT order_id) as total,
                 COALESCE(SUM(valor_total_emitter), 0) as revenue,
                 COALESCE(AVG(valor_total_emitter), 0) as avg_order_value
             FROM {table_name}
-            WHERE data_transacao >= :start_date 
+            WHERE data_transacao >= :start_date
               AND data_transacao < :end_date
         """)
         status_query = text(f"""
-            SELECT 
+            SELECT
                 COALESCE(status, 'unknown') as status,
                 COUNT(DISTINCT order_id) as count
             FROM {table_name}
-            WHERE data_transacao >= :start_date 
+            WHERE data_transacao >= :start_date
               AND data_transacao < :end_date
             GROUP BY status
         """)
         try:
             result = self.db_session.execute(
-                query, 
+                query,
                 {"start_date": start_date, "end_date": end_date}
             ).fetchone()
             status_result = self.db_session.execute(
@@ -95,21 +96,21 @@ class PostgresRepository:
         """Calcula métricas de produtos para um range de datas."""
         table_name = get_silver_table_name(client_id)
         query = text(f"""
-            SELECT 
+            SELECT
                 COALESCE(SUM(quantidade), 0) as total_sold,
                 COUNT(DISTINCT raw_product_description) as unique_products,
                 COALESCE(AVG(valor_unitario), 0) as avg_price
             FROM {table_name}
-            WHERE data_transacao >= :start_date 
+            WHERE data_transacao >= :start_date
               AND data_transacao < :end_date
         """)
         top_sellers_query = text(f"""
-            SELECT 
+            SELECT
                 raw_product_description as name,
                 SUM(quantidade) as quantity,
                 SUM(valor_total_emitter) as revenue
             FROM {table_name}
-            WHERE data_transacao >= :start_date 
+            WHERE data_transacao >= :start_date
               AND data_transacao < :end_date
             GROUP BY raw_product_description
             ORDER BY revenue DESC
@@ -148,25 +149,25 @@ class PostgresRepository:
         table_name = get_silver_table_name(client_id)
         query = text(f"""
             WITH customer_stats AS (
-                SELECT 
+                SELECT
                     receiver_nome,
                     MIN(data_transacao) as first_order,
                     SUM(valor_total_emitter) as lifetime_value
                 FROM {table_name}
                 GROUP BY receiver_nome
             )
-            SELECT 
+            SELECT
                 COUNT(DISTINCT cs.receiver_nome) as total_active,
-                COUNT(DISTINCT CASE 
-                    WHEN cs.first_order >= :start_date THEN cs.receiver_nome 
+                COUNT(DISTINCT CASE
+                    WHEN cs.first_order >= :start_date THEN cs.receiver_nome
                 END) as new_customers,
-                COUNT(DISTINCT CASE 
-                    WHEN cs.first_order < :start_date THEN cs.receiver_nome 
+                COUNT(DISTINCT CASE
+                    WHEN cs.first_order < :start_date THEN cs.receiver_nome
                 END) as returning_customers,
                 COALESCE(AVG(cs.lifetime_value), 0) as avg_lifetime_value
             FROM customer_stats cs
             INNER JOIN {table_name} t ON cs.receiver_nome = t.receiver_nome
-            WHERE t.data_transacao >= :start_date 
+            WHERE t.data_transacao >= :start_date
               AND t.data_transacao < :end_date
         """)
         try:

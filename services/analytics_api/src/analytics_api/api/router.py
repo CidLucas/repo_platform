@@ -1,8 +1,8 @@
 from analytics_api.api.endpoints import (
     dashboard,
     deep_dive,
-    rankings,
     indicators,
+    rankings,
 )
 from fastapi import APIRouter
 

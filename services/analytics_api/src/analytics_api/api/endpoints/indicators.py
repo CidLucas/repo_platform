@@ -4,11 +4,12 @@ Endpoints de Indicadores - Métricas agregadas com cache.
 Fornece indicadores de alto nível para dashboards.
 Inclui comparativos percentuais vs 7, 30, 90 dias.
 """
-from dataclasses import asdict
-from fastapi import APIRouter, Depends, Query
 import logging
-from pydantic import BaseModel, Field
+from dataclasses import asdict
 from typing import Literal
+
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel, Field
 
 from analytics_api.api.dependencies import get_indicator_service
 from analytics_api.services.indicator_service import IndicatorService, PeriodType
@@ -83,10 +84,10 @@ async def get_indicators(
 ):
     """
     Retorna indicadores agregados para o período especificado.
-    
+
     Usa cache Redis para otimizar queries pesadas.
     Inclui comparativos percentuais vs 7, 30, 90 dias quando solicitado.
-    
+
     **Períodos suportados:**
     - `today`: Dia atual
     - `yesterday`: Dia anterior
@@ -94,12 +95,12 @@ async def get_indicators(
     - `month`: Últimos 30 dias
     - `quarter`: Últimos 90 dias
     - `year`: Últimos 365 dias
-    
+
     **Métricas disponíveis:**
     - `orders`: Total de pedidos, receita, ticket médio, growth rate
     - `products`: Produtos vendidos, top sellers, alertas de estoque
     - `customers`: Clientes ativos, novos, recorrentes, LTV
-    
+
     **Comparativos:**
     - vs_7_days: % variação vs média dos últimos 7 dias
     - vs_30_days: % variação vs média dos últimos 30 dias
@@ -110,7 +111,7 @@ async def get_indicators(
         period=request.period,
         metrics=request.metrics
     )
-    
+
     # Processa orders com comparativos
     orders_response = None
     if result.orders:
@@ -121,7 +122,7 @@ async def get_indicators(
             **asdict(result.orders),
             comparisons=comparisons
         )
-    
+
     # Processa products com comparativos
     products_response = None
     if result.products:
@@ -132,7 +133,7 @@ async def get_indicators(
             **asdict(result.products),
             comparisons=comparisons
         )
-    
+
     # Processa customers com comparativos
     customers_response = None
     if result.customers:
@@ -143,7 +144,7 @@ async def get_indicators(
             **asdict(result.customers),
             comparisons=comparisons
         )
-    
+
     return IndicatorsResponse(
         orders=orders_response,
         products=products_response,
@@ -162,11 +163,11 @@ async def get_order_indicators(
 ):
     """Retorna apenas indicadores de pedidos."""
     metrics = await service.get_order_metrics(period)
-    
+
     comparisons = None
     if include_comparisons:
         comparisons = await _calculate_comparisons(service, "orders")
-    
+
     return OrderMetricsResponse(
         **asdict(metrics),
         comparisons=comparisons
@@ -181,11 +182,11 @@ async def get_product_indicators(
 ):
     """Retorna apenas indicadores de produtos."""
     metrics = await service.get_product_metrics(period)
-    
+
     comparisons = None
     if include_comparisons:
         comparisons = await _calculate_comparisons(service, "products")
-    
+
     return ProductMetricsResponse(
         **asdict(metrics),
         comparisons=comparisons
@@ -200,11 +201,11 @@ async def get_customer_indicators(
 ):
     """Retorna apenas indicadores de clientes."""
     metrics = await service.get_customer_metrics(period)
-    
+
     comparisons = None
     if include_comparisons:
         comparisons = await _calculate_comparisons(service, "customers")
-    
+
     return CustomerMetricsResponse(
         **asdict(metrics),
         comparisons=comparisons
@@ -219,7 +220,7 @@ async def _calculate_comparisons(
 ) -> ComparisonData:
     """
     Calcula comparativos percentuais vs 7, 30, 90 dias.
-    
+
     Para cada métrica, compara o valor de hoje com a média diária
     dos últimos 7, 30 e 90 dias.
     """
@@ -229,50 +230,50 @@ async def _calculate_comparisons(
             week = await service.get_order_metrics("week")
             month = await service.get_order_metrics("month")
             quarter = await service.get_order_metrics("quarter")
-            
+
             today_value = today.total
             week_avg = week.total / 7 if week.total else 0
             month_avg = month.total / 30 if month.total else 0
             quarter_avg = quarter.total / 90 if quarter.total else 0
-            
+
         elif metric_type == "products":
             today = await service.get_product_metrics("today")
             week = await service.get_product_metrics("week")
             month = await service.get_product_metrics("month")
             quarter = await service.get_product_metrics("quarter")
-            
+
             today_value = today.total_sold
             week_avg = week.total_sold / 7 if week.total_sold else 0
             month_avg = month.total_sold / 30 if month.total_sold else 0
             quarter_avg = quarter.total_sold / 90 if quarter.total_sold else 0
-            
+
         elif metric_type == "customers":
             today = await service.get_customer_metrics("today")
             week = await service.get_customer_metrics("week")
             month = await service.get_customer_metrics("month")
             quarter = await service.get_customer_metrics("quarter")
-            
+
             today_value = today.new_customers
             week_avg = week.new_customers / 7 if week.new_customers else 0
             month_avg = month.new_customers / 30 if month.new_customers else 0
             quarter_avg = quarter.new_customers / 90 if quarter.new_customers else 0
         else:
             return ComparisonData()
-        
+
         vs_7 = _calc_percentage(today_value, week_avg)
         vs_30 = _calc_percentage(today_value, month_avg)
         vs_90 = _calc_percentage(today_value, quarter_avg)
-        
+
         # Determina tendência baseado na média dos comparativos
         trend = _determine_trend(vs_7, vs_30, vs_90)
-        
+
         return ComparisonData(
             vs_7_days=vs_7,
             vs_30_days=vs_30,
             vs_90_days=vs_90,
             trend=trend
         )
-        
+
     except Exception as e:
         logger.warning(f"Erro ao calcular comparativos para {metric_type}: {e}")
         return ComparisonData()
@@ -290,7 +291,7 @@ def _determine_trend(vs_7: float | None, vs_30: float | None, vs_90: float | Non
     values = [v for v in [vs_7, vs_30, vs_90] if v is not None]
     if not values:
         return "stable"
-    
+
     avg = sum(values) / len(values)
     if avg > 5:
         return "up"

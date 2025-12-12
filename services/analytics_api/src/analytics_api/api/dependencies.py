@@ -1,11 +1,12 @@
 import logging
+
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from analytics_api.core.config import settings
 from analytics_api.data_access.postgres_repository import PostgresRepository
-from analytics_api.services.metric_service import MetricService
 from analytics_api.services.indicator_service import IndicatorService
+from analytics_api.services.metric_service import MetricService
 from vizu_db_connector.database import get_db_session as get_vizu_db_session
 
 logger = logging.getLogger(__name__)

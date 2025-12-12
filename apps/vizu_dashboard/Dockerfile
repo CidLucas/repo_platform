@@ -8,10 +8,11 @@ WORKDIR /app
 COPY apps/vizu_dashboard/package.json apps/vizu_dashboard/package-lock.json ./
 
 # 2. INSTALA as dependências do projeto
-RUN npm install
 
 # 3. COPIA todo o código-fonte da aplicação
 COPY apps/vizu_dashboard/ ./
+
+RUN npm install
 
 # 4. EXECUTA o build de produção
 # Isso irá gerar a pasta /dist com os arquivos otimizados

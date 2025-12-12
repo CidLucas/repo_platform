@@ -7,18 +7,18 @@ Endpoints para:
 - CRUD de mapeamentos confirmados
 """
 
-from fastapi import APIRouter, HTTPException, status, Query
-from pydantic import BaseModel, Field
-from typing import Dict, Any, List, Optional
 import logging
+from typing import Any, Dict, List, Optional
 
-from data_ingestion_api.services.schema_discovery_service import schema_discovery, DiscoveredSchema
-from data_ingestion_api.services.schema_matcher_service import schema_matcher, SchemaMatchResult
+from data_ingestion_api.services.schema_discovery_service import DiscoveredSchema, schema_discovery
+from data_ingestion_api.services.schema_matcher_service import SchemaMatchResult, schema_matcher
 from data_ingestion_api.services.schema_registry_service import (
-    schema_registry, 
-    SchemaMapping, 
-    MappingStatus
+    MappingStatus,
+    SchemaMapping,
+    schema_registry,
 )
+from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -49,15 +49,15 @@ class DiscoverSchemaRequest(BaseModel):
 class DiscoverSchemaResponse(BaseModel):
     """Response da descoberta de schema."""
     resource_type: str
-    columns: List[str]
+    columns: list[str]
     column_count: int
-    sample_data: Optional[Dict[str, Any]] = None
-    column_types: Dict[str, str] = {}
+    sample_data: dict[str, Any] | None = None
+    column_types: dict[str, str] = {}
     
 
 class AutoMatchRequest(BaseModel):
     """Request para matching automático."""
-    source_columns: List[str] = Field(..., description="Colunas da fonte de dados")
+    source_columns: list[str] = Field(..., description="Colunas da fonte de dados")
     schema_type: str = Field(..., description="Tipo do schema canônico (products, orders, etc.)")
     high_threshold: float = Field(default=0.75, description="Threshold para match automático")
     medium_threshold: float = Field(default=0.50, description="Threshold para revisão")
@@ -75,23 +75,23 @@ class AutoMatchRequest(BaseModel):
 
 class AutoMatchResponse(BaseModel):
     """Response do matching automático."""
-    matched: Dict[str, str]  # {source_column: canonical_column}
-    unmatched: List[str]
-    needs_review: List[str]
-    confidence_scores: Dict[str, float]
-    details: List[Dict[str, Any]]
+    matched: dict[str, str]  # {source_column: canonical_column}
+    unmatched: list[str]
+    needs_review: list[str]
+    confidence_scores: dict[str, float]
+    details: list[dict[str, Any]]
 
 
 class SaveMappingRequest(BaseModel):
     """Request para salvar mapeamento."""
     credential_id: str = Field(..., description="ID da credencial")
     resource_type: str = Field(..., description="Tipo do recurso")
-    source_columns: List[str] = Field(..., description="Colunas originais da fonte")
-    mapping: Dict[str, str] = Field(..., description="Mapeamento confirmado {origem: destino}")
-    unmapped_columns: List[str] = Field(default=[], description="Colunas não mapeadas")
-    confidence_scores: Dict[str, float] = Field(default={}, description="Scores de confiança")
-    status: Optional[str] = Field(default=None, description="Status do mapeamento")
-    metadata: Dict[str, Any] = Field(default={}, description="Metadados adicionais")
+    source_columns: list[str] = Field(..., description="Colunas originais da fonte")
+    mapping: dict[str, str] = Field(..., description="Mapeamento confirmado {origem: destino}")
+    unmapped_columns: list[str] = Field(default=[], description="Colunas não mapeadas")
+    confidence_scores: dict[str, float] = Field(default={}, description="Scores de confiança")
+    status: str | None = Field(default=None, description="Status do mapeamento")
+    metadata: dict[str, Any] = Field(default={}, description="Metadados adicionais")
     
     class Config:
         json_schema_extra = {
@@ -116,28 +116,28 @@ class SaveMappingRequest(BaseModel):
 
 class MappingResponse(BaseModel):
     """Response de mapeamento."""
-    id: Optional[str]
+    id: str | None
     credential_id: str
     resource_type: str
-    source_columns: List[str]
-    mapping: Dict[str, str]
-    unmapped_columns: List[str]
-    confidence_scores: Dict[str, float]
+    source_columns: list[str]
+    mapping: dict[str, str]
+    unmapped_columns: list[str]
+    confidence_scores: dict[str, float]
     status: str
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 class UpdateMappingRequest(BaseModel):
     """Request para atualizar mapeamento."""
-    mapping: Dict[str, str] = Field(..., description="Novo mapeamento confirmado")
-    unmapped_columns: List[str] = Field(default=[], description="Colunas não mapeadas")
+    mapping: dict[str, str] = Field(..., description="Novo mapeamento confirmado")
+    unmapped_columns: list[str] = Field(default=[], description="Colunas não mapeadas")
 
 
 class CanonicalSchemaResponse(BaseModel):
     """Response do schema canônico."""
     schema_type: str
-    columns: List[str]
+    columns: list[str]
     column_count: int
 
 
@@ -312,12 +312,12 @@ async def get_mapping(credential_id: str, resource_type: str):
 
 @router.get(
     "/mappings",
-    response_model=List[MappingResponse],
+    response_model=list[MappingResponse],
     summary="Lista mapeamentos"
 )
 async def list_mappings(
-    credential_id: Optional[str] = Query(None, description="Filtrar por credential_id"),
-    status: Optional[str] = Query(None, description="Filtrar por status")
+    credential_id: str | None = Query(None, description="Filtrar por credential_id"),
+    status: str | None = Query(None, description="Filtrar por status")
 ):
     """
     Lista mapeamentos de schema.
@@ -464,7 +464,7 @@ async def delete_all_mappings(credential_id: str):
     count = await schema_registry.delete_all_by_credential(credential_id)
     
     return {
-        "message": f"Mapeamentos deletados",
+        "message": "Mapeamentos deletados",
         "count": count
     }
 
@@ -475,7 +475,7 @@ class FullMappingFlowRequest(BaseModel):
     """Request para fluxo completo de mapeamento."""
     credential_id: str
     resource_type: str
-    source_columns: List[str]
+    source_columns: list[str]
     auto_save: bool = Field(default=True, description="Salvar automaticamente se todos tiverem alta confiança")
 
 
@@ -483,7 +483,7 @@ class FullMappingFlowResponse(BaseModel):
     """Response do fluxo completo."""
     status: str  # "auto_saved", "needs_review", "error"
     mapping_result: AutoMatchResponse
-    saved_mapping: Optional[MappingResponse] = None
+    saved_mapping: MappingResponse | None = None
     message: str
 
 

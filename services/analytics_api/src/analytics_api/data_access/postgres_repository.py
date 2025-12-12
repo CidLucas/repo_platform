@@ -184,3 +184,27 @@ class PostgresRepository:
         except Exception as e:
             logger.error(f"Erro ao buscar métricas de clientes: {e}")
             return {"total_active": 0, "new_customers": 0, "returning_customers": 0, "avg_lifetime_value": 0.0}
+
+    def get_or_create_cliente_vizu_id(self, external_user_id: str) -> str:
+        """
+        Busca ou cria um cliente_vizu_id associado ao external_user_id (Supabase user id).
+        Retorna o cliente_vizu_id (UUID em string).
+        """
+        # Exemplo: tabela clientes (id UUID, external_user_id TEXT UNIQUE)
+        result = self.db_session.execute(
+            text("""
+                SELECT id FROM clientes WHERE external_user_id = :external_user_id
+            """),
+            {"external_user_id": external_user_id}
+        ).fetchone()
+        if result:
+            return str(result.id)
+        # Cria novo cliente
+        new_id = self.db_session.execute(
+            text("""
+                INSERT INTO clientes (external_user_id) VALUES (:external_user_id) RETURNING id
+            """),
+            {"external_user_id": external_user_id}
+        ).fetchone().id
+        self.db_session.commit()
+        return str(new_id)

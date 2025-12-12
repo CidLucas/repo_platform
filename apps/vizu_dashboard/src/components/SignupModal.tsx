@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import {
   Modal,
   ModalOverlay,
@@ -16,6 +16,8 @@ import {
   Select,
   CloseButton,
 } from "@chakra-ui/react";
+import { AuthContext } from "../contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 interface SignupModalProps {
   isOpen: boolean;
@@ -190,6 +192,8 @@ const InfoRow: React.FC<{ label: string; value: string }> = ({ label, value }) =
 
 const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose }) => {
   const [step, setStep] = useState(1);
+  const navigate = useNavigate();
+  const auth = useContext(AuthContext);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -232,10 +236,62 @@ const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose }) => {
     onClose();
   };
 
-  const handleSubmit = () => {
-    // Aqui você pode integrar com sua API
-    console.log("Form submitted:", formData);
-    handleNext();
+  // Adiciona estado para erros e loading
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Função para cadastro com Supabase
+  const handleSubmit = async () => {
+    setLoading(true);
+    setError(null);
+    if (!auth) {
+      setError("Erro de autenticação. Tente novamente mais tarde.");
+      setLoading(false);
+      return;
+    }
+    if (!formData.usuario || !formData.senha) {
+      setError("Usuário e senha são obrigatórios.");
+      setLoading(false);
+      return;
+    }
+    // Usa o campo usuario como email (ajuste conforme seu modelo)
+    const { error } = await auth.signUp(
+      formData.usuario,
+      formData.senha,
+      {
+        nome: formData.nome,
+        cnpj: formData.cnpj,
+        cidade: formData.cidade,
+        telefone: formData.telefone,
+        atividade: formData.atividade,
+      }
+    );
+    setLoading(false);
+    if (error) {
+      setError(error.message);
+    } else {
+      handleNext();
+      // Redireciona para dashboard após sucesso
+      navigate("/dashboard");
+    }
+  };
+
+  // Função para login social Google
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError(null);
+    if (!auth) {
+      setError("Erro de autenticação. Tente novamente mais tarde.");
+      setLoading(false);
+      return;
+    }
+    const { error } = await auth.signInWithGoogle();
+    setLoading(false);
+    if (error) {
+      setError(error.message);
+    } else {
+      // O Supabase já faz o redirect automático para /dashboard
+    }
   };
 
   // Atividades de exemplo
@@ -402,6 +458,25 @@ const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose }) => {
                     onChange={(v) => updateField("confirmarSenha", v)}
                     type="password"
                   />
+
+                  <Button
+                    bg="#4285F4"
+                    color="white"
+                    borderRadius="full"
+                    px={10}
+                    py={6}
+                    fontSize="18px"
+                    fontWeight={600}
+                    leftIcon={<Image src="/google-icon.svg" alt="Google" boxSize="24px" />}
+                    onClick={handleGoogleLogin}
+                    isLoading={loading}
+                    _hover={{ bg: "#357ae8" }}
+                  >
+                    Entrar com Google
+                  </Button>
+                  {error && (
+                    <Text color="red.500" fontSize="sm">{error}</Text>
+                  )}
 
                   <HStack w="100%" justify="space-between" pt={6}>
                     <Button

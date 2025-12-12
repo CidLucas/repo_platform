@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # Em produção, o client_id virá do token JWT.
     MOCK_CLIENT_ID: str = "e2e-test-client"
 
+    # Google OAuth config (adicione essas variáveis ao .env)
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = ""
+
     # Configuração do Pydantic V2 para ler do .env
     model_config = SettingsConfigDict(
         env_file=".env",              # Nome do ficheiro .env

@@ -1,8 +1,9 @@
 from analytics_api.api.endpoints import (
     dashboard,
     deep_dive,
-    indicators,
     rankings,
+    indicators,
+    auth,
 )
 from fastapi import APIRouter
 
@@ -13,3 +14,4 @@ api_router.include_router(dashboard.router, prefix="/dashboard") # /api/v1/dashb
 api_router.include_router(rankings.router, prefix="")  # /api/v1/analytics/clientes/overview
 api_router.include_router(deep_dive.router, prefix="")   # /api/v1/analytics/cliente/{nome}
 api_router.include_router(indicators.router, prefix="")  # /api/indicators
+api_router.include_router(auth.router, prefix="")  # /api/auth/google/login etc

@@ -1,5 +1,5 @@
 # Estágio 1: Builder - Instala as dependências
-FROM --platform=linux/amd64 python:3.11-slim AS builder
+FROM --platform=linux/amd64 python:3.11-slim as builder
 
 ENV POETRY_NO_INTERACTION=1
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true

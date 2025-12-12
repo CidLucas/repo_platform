@@ -2,7 +2,7 @@
 # Uses CPU-only PyTorch to reduce image size from 11.8GB to ~1.5GB
 
 # --- ESTÁGIO 1: BUILDER ---
-FROM python:3.11-slim AS builder
+FROM python:3.11-slim as builder
 
 # Install poetry
 RUN pip install poetry
@@ -31,7 +31,7 @@ RUN python -m venv $VIRTUAL_ENV && \
 
 
 # --- ESTÁGIO 2: FINAL (PRODUÇÃO) ---
-FROM python:3.11-slim AS final
+FROM python:3.11-slim as final
 
 # Install curl for healthcheck
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*

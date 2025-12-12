@@ -175,25 +175,27 @@ jobs:
             echo ""
           } | tee -a "$SUMMARY_FILE"
           
-          # Sync all secrets
+          # Sync standardized secrets (see ENVIRONMENT_VARIABLES_AUDIT.md for details)
+          # Critical infrastructure secrets
           sync_secret "DATABASE_URL" "${{ secrets.DATABASE_URL }}"
+          sync_secret "REDIS_URL" "${{ secrets.REDIS_URL }}"
+          sync_secret "GCP_PROJECT_ID" "${{ secrets.GCP_PROJECT_ID }}"
+          sync_secret "GCP_SA_EMAIL" "${{ secrets.GCP_SA_EMAIL }}"
+          sync_secret "GCP_SA_KEY" "${{ secrets.GCP_SA_KEY }}"
+          
+          # Supabase integration
           sync_secret "SUPABASE_URL" "${{ secrets.SUPABASE_URL }}"
           sync_secret "SUPABASE_SERVICE_KEY" "${{ secrets.SUPABASE_SERVICE_KEY }}"
-          sync_secret "SUPABASE_ANON_KEY" "${{ secrets.SUPABASE_ANON_KEY }}"
-          sync_secret "LLM_PROVIDER" "${{ secrets.LLM_PROVIDER }}"
-          sync_secret "OPENAI_API_KEY" "${{ secrets.OPENAI_API_KEY }}"
-          sync_secret "ANTHROPIC_API_KEY" "${{ secrets.ANTHROPIC_API_KEY }}"
-          sync_secret "GOOGLE_API_KEY" "${{ secrets.GOOGLE_API_KEY }}"
-          sync_secret "REDIS_URL" "${{ secrets.REDIS_URL }}"
-          sync_secret "LANGFUSE_HOST" "${{ secrets.LANGFUSE_HOST }}"
+          
+          # MCP and encryption
+          sync_secret "MCP_AUTH_GOOGLE_CLIENT_ID" "${{ secrets.MCP_AUTH_GOOGLE_CLIENT_ID }}"
+          sync_secret "CREDENTIALS_ENCRYPTION_KEY" "${{ secrets.CREDENTIALS_ENCRYPTION_KEY }}"
+          
+          # Optional observability and features
           sync_secret "LANGFUSE_PUBLIC_KEY" "${{ secrets.LANGFUSE_PUBLIC_KEY }}"
           sync_secret "LANGFUSE_SECRET_KEY" "${{ secrets.LANGFUSE_SECRET_KEY }}"
-          sync_secret "MCP_SERVER_URL" "${{ secrets.MCP_SERVER_URL }}"
           sync_secret "OLLAMA_BASE_URL" "${{ secrets.OLLAMA_BASE_URL }}"
-          sync_secret "EMBEDDING_SERVICE_URL" "${{ secrets.EMBEDDING_SERVICE_URL }}"
-          sync_secret "TWILIO_AUTH_TOKEN" "${{ secrets.TWILIO_AUTH_TOKEN }}"
-          sync_secret "LANGCHAIN_API_KEY" "${{ secrets.LANGCHAIN_API_KEY }}"
-          sync_secret "OTEL_EXPORTER_OTLP_ENDPOINT" "${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}"
+          sync_secret "GRAFANA_API_KEY" "${{ secrets.GRAFANA_API_KEY }}"
           
           {
             echo ""
@@ -221,12 +223,12 @@ jobs:
           
           echo "Granting secret access to: $SERVICE_ACCOUNT"
           
-          # Grant access for each secret
-          for SECRET in DATABASE_URL SUPABASE_URL SUPABASE_SERVICE_KEY SUPABASE_ANON_KEY \
-                        OPENAI_API_KEY ANTHROPIC_API_KEY GOOGLE_API_KEY \
-                        REDIS_URL LANGFUSE_HOST LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY \
-                        MCP_SERVER_URL OLLAMA_BASE_URL EMBEDDING_SERVICE_URL \
-                        TWILIO_AUTH_TOKEN LANGCHAIN_API_KEY OTEL_EXPORTER_OTLP_ENDPOINT; do
+          # Grant access for standardized secrets only (see ENVIRONMENT_VARIABLES_AUDIT.md)
+          for SECRET in DATABASE_URL REDIS_URL GCP_PROJECT_ID GCP_SA_EMAIL GCP_SA_KEY \
+                        SUPABASE_URL SUPABASE_SERVICE_KEY \
+                        MCP_AUTH_GOOGLE_CLIENT_ID CREDENTIALS_ENCRYPTION_KEY \
+                        LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY \
+                        OLLAMA_BASE_URL GRAFANA_API_KEY; do
             if gcloud secrets describe "$SECRET" --project="$PROJECT_ID" &>/dev/null; then
               gcloud secrets add-iam-policy-binding "$SECRET" \
                 --member="serviceAccount:$SERVICE_ACCOUNT" \

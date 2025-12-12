@@ -31,7 +31,7 @@ exec -l $SHELL
 gcloud auth activate-service-account --key-file=/etc/google/key.json
 
 # Configure Docker to pull from Artifact Registry
-gcloud auth configure-docker us-east1-docker.pkg.dev
+gcloud auth configure-docker southamerica-east1-docker.pkg.dev
 
 # Create docker-compose directory
 mkdir -p /opt/vizu/dashboard
@@ -43,7 +43,7 @@ version: '3.8'
 
 services:
   vizu_dashboard:
-    image: us-east1-docker.pkg.dev/vizudev/vizu-mono/vizu-dashboard:latest
+    image: southamerica-east1-docker.pkg.dev/vizudev/vizu-mono/vizu-dashboard:latest
     ports:
       - "80:3000"
       - "443:3000"

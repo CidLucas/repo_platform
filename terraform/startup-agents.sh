@@ -24,14 +24,13 @@ systemctl enable docker
 usermod -aG docker ubuntu
 
 # Install gcloud CLI
-curl https://sdk.cloud.google.com | bash
-exec -l $SHELL
+curl https://sdk.cloud.google.com | bash -s -- --install-dir=/opt/google-cloud-sdk --usage-reporting=false --path-update=true
 
-# Authenticate with service account
-gcloud auth activate-service-account --key-file=/etc/google/key.json
+# Authenticate with service account (will use attached service account by default)
+export PATH=/opt/google-cloud-sdk/bin:$PATH
 
-# Configure Docker to pull from Artifact Registry
-gcloud auth configure-docker us-east1-docker.pkg.dev
+# Configure Docker to pull from Artifact Registry (use southamerica-east1)
+gcloud auth configure-docker southamerica-east1-docker.pkg.dev
 
 # Create docker-compose directory
 mkdir -p /opt/vizu/agents-pool
@@ -43,7 +42,7 @@ version: '3.8'
 
 services:
   atendente_core:
-    image: us-east1-docker.pkg.dev/vizudev/vizu-mono/atendente_core:latest
+    image: southamerica-east1-docker.pkg.dev/vizudev/vizu-mono/atendente_core:latest
     ports:
       - "8003:8000"
     environment:
@@ -62,7 +61,7 @@ services:
       retries: 3
 
   tool_pool_api:
-    image: us-east1-docker.pkg.dev/vizudev/vizu-mono/tool_pool_api:latest
+    image: southamerica-east1-docker.pkg.dev/vizudev/vizu-mono/tool_pool_api:latest
     ports:
       - "9000:9000"
     environment:
@@ -78,7 +77,7 @@ services:
       retries: 3
 
   vendas_agent:
-    image: us-east1-docker.pkg.dev/vizudev/vizu-mono/vendas_agent:latest
+    image: southamerica-east1-docker.pkg.dev/vizudev/vizu-mono/vendas_agent:latest
     ports:
       - "8009:8000"
     environment:
@@ -95,7 +94,7 @@ services:
       retries: 3
 
   support_agent:
-    image: us-east1-docker.pkg.dev/vizudev/vizu-mono/support_agent:latest
+    image: southamerica-east1-docker.pkg.dev/vizudev/vizu-mono/support_agent:latest
     ports:
       - "8010:8000"
     environment:

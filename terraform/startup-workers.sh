@@ -31,7 +31,7 @@ exec -l $SHELL
 gcloud auth activate-service-account --key-file=/etc/google/key.json
 
 # Configure Docker to pull from Artifact Registry
-gcloud auth configure-docker us-east1-docker.pkg.dev
+gcloud auth configure-docker southamerica-east1-docker.pkg.dev
 
 # Create docker-compose directory
 mkdir -p /opt/vizu/workers-pool
@@ -43,7 +43,7 @@ version: '3.8'
 
 services:
   data_ingestion_worker:
-    image: us-east1-docker.pkg.dev/vizudev/vizu-mono/data_ingestion_worker:latest
+    image: southamerica-east1-docker.pkg.dev/vizudev/vizu-mono/data_ingestion_worker:latest
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: redis://vizu-redis:6379
@@ -52,7 +52,7 @@ services:
     restart: unless-stopped
 
   file_processing_worker:
-    image: us-east1-docker.pkg.dev/vizudev/vizu-mono/file_processing_worker:latest
+    image: southamerica-east1-docker.pkg.dev/vizudev/vizu-mono/file_processing_worker:latest
     environment:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: redis://vizu-redis:6379
@@ -61,7 +61,7 @@ services:
     restart: unless-stopped
 
   data_ingestion_api:
-    image: us-east1-docker.pkg.dev/vizudev/vizu-mono/data_ingestion_api:latest
+    image: southamerica-east1-docker.pkg.dev/vizudev/vizu-mono/data_ingestion_api:latest
     ports:
       - "8008:8000"
     environment:
@@ -77,7 +77,7 @@ services:
       retries: 3
 
   file_upload_api:
-    image: us-east1-docker.pkg.dev/vizudev/vizu-mono/file_upload_api:latest
+    image: southamerica-east1-docker.pkg.dev/vizudev/vizu-mono/file_upload_api:latest
     ports:
       - "8001:8000"
     environment:
@@ -93,7 +93,7 @@ services:
       retries: 3
 
   analytics_api:
-    image: us-east1-docker.pkg.dev/vizudev/vizu-mono/analytics_api:latest
+    image: southamerica-east1-docker.pkg.dev/vizudev/vizu-mono/analytics_api:latest
     ports:
       - "8004:8000"
     environment:

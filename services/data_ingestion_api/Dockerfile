@@ -1,38 +1,46 @@
-# Estágio 1: Build da Imagem Base
+# Stage 1: Builder - Instala dependências
 FROM python:3.11-slim as builder
 
-# Instala o Poetry
-WORKDIR /app
-RUN pip install poetry
-ENV POETRY_VIRTUALENVS_PATH=/app/services/data_ingestion_api/.venv
+ENV POETRY_NO_INTERACTION=1
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 
-# Copia os arquivos necessários para o contexto do build
-COPY libs /app/libs
-COPY services/data_ingestion_api /app/services/data_ingestion_api
+WORKDIR /app
+RUN pip install poetry==1.8.0
 
-# Muda o WORKDIR para a pasta do serviço antes de instalar as dependências
+# Copia as libs (path dependencies)
+COPY libs/vizu_db_connector libs/vizu_db_connector
+COPY libs/vizu_models libs/vizu_models
+
+# Copia o serviço
+COPY services/data_ingestion_api services/data_ingestion_api
+
+# Instala as dependências no .venv local do projeto
 WORKDIR /app/services/data_ingestion_api
-RUN poetry lock # Generate poetry.lock
-RUN poetry install --no-root --only main
+RUN poetry lock && poetry install --no-root --only main
 
-# Estágio 2: Imagem Final de Produção (Slim)
+# Stage 2: Runtime - Imagem final otimizada
 FROM python:3.11-slim as production
 
-# Define variáveis de ambiente Vizu
-ENV PYTHONUNBUFFERED 1
-ENV VIZU_SERVICE_NAME=data-ingestion-api
-ENV VIZU_ENVIRONMENT=production
+ENV PYTHONUNBUFFERED=1 \
+    VIZU_SERVICE_NAME=data-ingestion-api \
+    VIZU_ENVIRONMENT=production
 
-# Copia os pacotes instalados e o código-fonte
 WORKDIR /app
-ENV PATH="/app/services/data_ingestion_api/.venv/bin:$PATH"
-COPY --from=builder /app/services/data_ingestion_api/.venv /app/services/data_ingestion_api/.venv
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY services/data_ingestion_api/src/ /app/src/
 
-# O ponto crítico: O comando deve apontar para o novo pacote raiz
-# Estrutura: [pacote_raiz].[subpasta_core].[módulo]:[instância_fastapi]
-CMD ["uvicorn", "data_ingestion_api.core.main:app", "--host", "0.0.0.0", "--port", "8000"]
-# Opcional: Expõe a porta
+# Copia apenas o .venv (contém todas as dependências)
+COPY --from=builder /app/services/data_ingestion_api/.venv ./services/data_ingestion_api/.venv
+
+# Copia apenas o src/ das libs (sem pyproject.toml, poetry.lock, tests, etc)
+COPY --from=builder /app/libs/vizu_db_connector/src ./libs/vizu_db_connector/src
+COPY --from=builder /app/libs/vizu_models/src ./libs/vizu_models/src
+
+# Copia o código-fonte do serviço
+COPY --from=builder /app/services/data_ingestion_api/src ./src
+
+# Configura PATH e PYTHONPATH
+ENV PATH="/app/services/data_ingestion_api/.venv/bin:$PATH" \
+    PYTHONPATH="/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src"
+
 EXPOSE 8000
+
+CMD ["uvicorn", "data_ingestion_api.core.main:app", "--host", "0.0.0.0", "--port", "8000"]

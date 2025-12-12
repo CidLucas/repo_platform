@@ -43,7 +43,7 @@ The workflow pushes Docker images to Google Artifact Registry in `us-east1` regi
 ### Create the repository:
 
 ```bash
-gcloud artifacts repositories create vizu \
+gcloud artifacts repositories create vizu-mono \
   --repository-format=docker \
   --location=us-east1 \
   --description="Vizu monorepo Docker images" \
@@ -57,8 +57,8 @@ gcloud artifacts repositories list --location=us-east1
 
 You should see output like:
 ```
-REPOSITORY  FORMAT  LOCATION  DESCRIPTION
-vizu        DOCKER  us-east1  Vizu monorepo Docker images
+REPOSITORY   FORMAT  LOCATION  DESCRIPTION
+vizu-mono    DOCKER  us-east1  Vizu monorepo Docker images
 ```
 
 ## Step 2: Grant IAM Permissions to Service Account
@@ -240,7 +240,7 @@ curl https://atendente-core-xyz.run.app/health
 ### View images in Artifact Registry:
 
 ```bash
-gcloud artifacts docker images list us-east1-docker.pkg.dev/$(gcloud config get-value project)/vizu/
+gcloud artifacts docker images list us-east1-docker.pkg.dev/$(gcloud config get-value project)/vizu-mono/
 ```
 
 ## Troubleshooting

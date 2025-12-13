@@ -337,6 +337,10 @@ async def get_client_context(
     from uuid import UUID
 
     from vizu_models.safe_client_context import InternalClientContext
+    from atendente_core.services.mcp_client import ensure_mcp_connected
+
+    # Ensure MCP is connected before accessing tools
+    await ensure_mcp_connected()
 
     # Obtém o contexto completo do cliente
     try:

@@ -41,21 +41,9 @@ async def lifespan(app: FastAPI):
     # --- STARTUP ---
     logger.info("🚀 Iniciando Vizu Atendente Core...")
 
-    # Conecta ao MCP (Tool Pool)
-    # Non-blocking connection - service starts even if MCP is unavailable
-    # MCP will be retried on first API request
-    try:
-        logger.info("Iniciando conexão ao MCP (em background)...")
-        # Try to connect with a short timeout, but don't block service startup
-        try:
-            await asyncio.wait_for(mcp_manager.connect(), timeout=5)
-            logger.info(f"✅ MCP conectado com sucesso! Tools: {[t.name for t in mcp_manager.tools]}")
-        except TimeoutError:
-            logger.warning("⚠️  Timeout ao conectar ao MCP - começando sem ferramentas (reconectará automaticamente)")
-        except Exception as e:
-            logger.warning(f"⚠️  Falha ao conectar ao MCP: {e} - começando sem ferramentas")
-    except Exception as e:
-        logger.error(f"Erro durante startup: {e}", exc_info=True)
+    # Skip MCP connection during startup to allow fast container startup
+    # MCP will be connected lazily on first API request if needed
+    logger.info("Iniciando em modo sem-ferramentas (lazy MCP connection)")
 
     yield
 

@@ -132,6 +132,14 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Enable required Google Cloud APIs
+        run: |
+          echo "Enabling required APIs..."
+          gcloud services enable vpcaccess.googleapis.com \
+            --project=${{ env.PROJECT_ID }} \
+            --quiet || true
+          echo "✓ APIs enabled"
+
       - name: Sync GitHub Secrets to GCP Secret Manager
         id: sync-secrets
         run: |

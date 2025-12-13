@@ -405,7 +405,7 @@ jobs:
             --concurrency 10 --timeout 3600 \
             --max-instances 50 --min-instances 1 \
             --ingress all \
-            --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" \
+            --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,MCP_SERVER_URL=https://tool-pool-api-858493958314.southamerica-east1.run.app/mcp/" \
             --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,OLLAMA_BASE_URL=OLLAMA_BASE_URL:latest,LANGFUSE_HOST=LANGFUSE_HOST:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest,OTEL_EXPORTER_OTLP_ENDPOINT=OTEL_EXPORTER_OTLP_ENDPOINT:latest" || FAILED=$((FAILED + 1))
 
           # tool-pool-api (internal)

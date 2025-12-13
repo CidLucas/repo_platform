@@ -42,7 +42,7 @@ async def ensure_mcp_connected():
         logger.info(f"✅ MCP connected! Tools: {[t.name for t in mcp_manager.tools]}")
         _mcp_connected = True
         return True
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("⚠️  Timeout connecting to MCP - continuing without tools")
         return False
     except Exception as e:

@@ -5,16 +5,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from twilio.twiml.messaging_response import MessagingResponse
 
-# Auth wrapper
 from atendente_core.api.auth import get_auth_result
-
-# --- 2. IMPORTS LOCAIS ---
 from atendente_core.api.schemas import (
     ChatRequest,
     ChatResponse,
     ClientContextResponse,
     ElicitationOption,
-    # Re-exported from vizu_models
     ElicitationRequest,
     ElicitationType,
     ModelsResponse,
@@ -336,8 +332,8 @@ async def get_client_context(
     """
     from uuid import UUID
 
-    from vizu_models.safe_client_context import InternalClientContext
     from atendente_core.services.mcp_client import ensure_mcp_connected
+    from vizu_models.safe_client_context import InternalClientContext
 
     # Ensure MCP is connected before accessing tools
     await ensure_mcp_connected()

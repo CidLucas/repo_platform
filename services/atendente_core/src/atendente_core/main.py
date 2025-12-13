@@ -50,7 +50,7 @@ async def lifespan(app: FastAPI):
         try:
             await asyncio.wait_for(mcp_manager.connect(), timeout=5)
             logger.info(f"✅ MCP conectado com sucesso! Tools: {[t.name for t in mcp_manager.tools]}")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("⚠️  Timeout ao conectar ao MCP - começando sem ferramentas (reconectará automaticamente)")
         except Exception as e:
             logger.warning(f"⚠️  Falha ao conectar ao MCP: {e} - começando sem ferramentas")

@@ -49,6 +49,21 @@ resource "google_compute_subnetwork" "redis_subnet" {
   network       = google_compute_network.vizu_vpc.id
 }
 
+# VPC Connector for Cloud Run internal networking
+# Allows Cloud Run services to communicate with each other and VPC resources
+resource "google_vpc_access_connector" "cloudrun_connector" {
+  name          = "cloudrun-connector"
+  ip_cidr_range = "10.8.0.0/28"
+  network       = google_compute_network.vizu_vpc.name
+  region        = var.gcp_region
+
+  # Use the shared connector mode (cheaper, suitable for internal service communication)
+  min_throughput = 200  # Mbps
+  max_throughput = 300  # Mbps
+
+  depends_on = [google_compute_network.vizu_vpc]
+}
+
 # Firewall Rules
 resource "google_compute_firewall" "allow_internal" {
   name    = "allow-internal"
@@ -289,4 +304,14 @@ output "redis_ip" {
 output "redis_internal_ip" {
   value       = google_compute_instance.redis.network_interface[0].network_ip
   description = "Internal IP of Redis VM for internal VPC access"
+}
+
+output "vpc_connector_name" {
+  value       = google_vpc_access_connector.cloudrun_connector.name
+  description = "Name of the VPC Connector for Cloud Run services"
+}
+
+output "vpc_connector_id" {
+  value       = google_vpc_access_connector.cloudrun_connector.id
+  description = "Full resource name of the VPC Connector"
 }

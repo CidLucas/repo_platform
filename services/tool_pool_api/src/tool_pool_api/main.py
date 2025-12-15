@@ -33,10 +33,10 @@ _initialization_in_progress = False
 async def _ensure_mcp_initialized():
     """Lazy initialization of MCP server - synchronizes multiple concurrent requests."""
     global _mcp, _mcp_asgi, _mcp_initialized, _initialization_in_progress
-    
+
     if _mcp_initialized:
         return _mcp, _mcp_asgi
-    
+
     # If another request is already initializing, wait for it
     if _initialization_in_progress:
         # Simple polling - in production would use asyncio.Event
@@ -47,7 +47,7 @@ async def _ensure_mcp_initialized():
                 return _mcp, _mcp_asgi
             await asyncio.sleep(0.1)
         raise TimeoutError("MCP initialization timeout")
-    
+
     _initialization_in_progress = True
     try:
         logger.info("🚀 Initializing MCP server (lazy)...")
@@ -92,10 +92,10 @@ async def server_info():
     """Server info endpoint - initializes MCP on first call."""
     try:
         _mcp, _ = await _ensure_mcp_initialized()
-        
+
         from .server.tools import get_available_modules
         modules = get_available_modules()
-        
+
         return {
             "name": "Vizu Tool Pool API",
             "version": "1.0.0",
@@ -121,13 +121,13 @@ async def lazy_mcp_middleware(request, call_next):
     # Health check doesn't need MCP
     if request.url.path == "/health":
         return await call_next(request)
-    
+
     # For /mcp requests and others, ensure MCP is initialized
     if not _mcp_initialized and request.url.path.startswith("/mcp"):
         try:
             logger.info(f"🔄 First request to {request.url.path} - initializing MCP...")
             _mcp, _mcp_asgi = await _ensure_mcp_initialized()
-            
+
             # Mount the MCP ASGI app at /mcp
             if "/mcp" not in [route.path for route in app.routes]:
                 app.mount("/mcp", _mcp_asgi)
@@ -138,7 +138,7 @@ async def lazy_mcp_middleware(request, call_next):
                 {"error": "MCP server initialization failed", "details": str(e)},
                 status_code=503,
             )
-    
+
     return await call_next(request)
 
 

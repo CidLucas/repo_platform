@@ -30,12 +30,12 @@ _mcp_connected = False
 async def ensure_mcp_connected():
     """Ensure MCP is connected, with lazy initialization on first use."""
     global _mcp_connection_attempted, _mcp_connected
-    
+
     if _mcp_connection_attempted:
         return _mcp_connected
-    
+
     _mcp_connection_attempted = True
-    
+
     try:
         logger.info(f"Lazily connecting to MCP at {MCP_URL}...")
         await asyncio.wait_for(mcp_manager.connect(), timeout=10)

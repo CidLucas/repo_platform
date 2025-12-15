@@ -157,7 +157,7 @@ Busca documentos na base de conhecimento (retorna documentos brutos, sem LLM).
 #### `config://client`
 Configuração do cliente autenticado via JWT.
 
-**Retorno:** Markdown com nome, horários, ferramentas habilitadas.
+**Retorno:** Markdown com nome, horários, ferramentas habilitada
 
 ---
 

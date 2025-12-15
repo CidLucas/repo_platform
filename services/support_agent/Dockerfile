@@ -51,4 +51,5 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 EXPOSE 8000
 
-CMD ["/app/.venv/bin/python", "-m", "uvicorn", "support_agent.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use Cloud Run PORT and run uvicorn from the copied venv to preserve shebangs.
+CMD ["/bin/sh", "-c", "/app/.venv/bin/python -m uvicorn support_agent.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

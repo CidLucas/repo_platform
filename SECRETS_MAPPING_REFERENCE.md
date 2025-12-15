@@ -11,7 +11,7 @@ Quick lookup table showing which secrets each service actually needs.
 Required:
   - DATABASE_URL        (PostgreSQL for context/history)
   - REDIS_URL          (State checkpointing)
-  
+
 Optional:
   - OLLAMA_BASE_URL    (For local model inference)
   - LANGCHAIN_API_KEY  (LangSmith observability)
@@ -26,7 +26,7 @@ Required:
   - REDIS_URL                   (Caching, session)
   - MCP_AUTH_GOOGLE_CLIENT_ID   (OAuth for tool integration)
   - CREDENTIALS_ENCRYPTION_KEY  (Encrypts user OAuth tokens)
-  
+
 Optional:
   - MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV (Development only)
   - OTEL_EXPORTER_OTLP_ENDPOINT (Observability)
@@ -38,7 +38,7 @@ Optional:
 Required:
   - DATABASE_URL  (PostgreSQL)
   - REDIS_URL     (State, checkpointing)
-  
+
 Optional:
   - MCP_SERVER_URL        (Internal discovery: http://tool_pool_api:9000/mcp/)
   - LANGFUSE_PUBLIC_KEY   (LLM observability)
@@ -52,7 +52,7 @@ Optional:
 Required:
   - DATABASE_URL  (PostgreSQL)
   - REDIS_URL     (State, checkpointing)
-  
+
 Optional:
   - MCP_SERVER_URL        (Internal discovery: http://tool_pool_api:9000/mcp/)
   - LANGFUSE_PUBLIC_KEY   (LLM observability)
@@ -68,7 +68,7 @@ Optional:
 Required:
   - DATABASE_URL  (PostgreSQL for metrics aggregation)
   - REDIS_URL     (Cache: 5-min TTL for dashboard queries)
-  
+
 Optional:
   - GOOGLE_CLIENT_ID      (OAuth for analytics dashboard)
   - GOOGLE_CLIENT_SECRET  (OAuth)
@@ -82,7 +82,7 @@ Required:
   - GCP_PROJECT_ID    (Google Cloud project)
   - GCS_BUCKET_NAME   (Hardcoded or config)
   - PUBSUB_TOPIC_ID   (Hardcoded or config)
-  
+
 Optional:
   - OTEL_EXPORTER_OTLP_ENDPOINT (Observability)
 ```
@@ -103,7 +103,7 @@ Required:
   - GCP_PROJECT_ID           (Google Cloud project)
   - GCS_BUCKET_NAME          (Hardcoded or config)
   - PUBSUB_SUBSCRIPTION_ID   (Hardcoded or config)
-  
+
 Auto-discovered:
   - QDRANT_HOST    (From service discovery: qdrant_client)
   - QDRANT_PORT    (From service discovery)

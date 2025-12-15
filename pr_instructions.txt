@@ -1,0 +1,6 @@
+gh CLI not found. Creating PR via GitHub REST API requires a token.
+If you want me to create the PR automatically, install gh (https://cli.github.com/) or provide a GitHub token.
+Otherwise, run the following command locally to create the PR:
+
+printf '
+' | gh pr create --base main --head opt/tool-pool-image-size --title opt:

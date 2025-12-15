@@ -9,7 +9,7 @@ Implementa:
 import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from typing import Literal
+from typing import Literal, Optional
 
 from analytics_api.data_access.postgres_repository import PostgresRepository
 from analytics_api.services.cache_service import CacheService, cache_service
@@ -55,12 +55,12 @@ class CustomerMetrics:
 @dataclass
 class IndicatorsResponse:
     """Resposta consolidada de indicadores."""
-    orders: Optional[OrderMetrics]
-    products: Optional[ProductMetrics]
-    customers: Optional[CustomerMetrics]
+    orders: OrderMetrics | None
+    products: ProductMetrics | None
+    customers: CustomerMetrics | None
     cached: bool
     generated_at: str
-    ttl: Optional[int]
+    ttl: int | None
 
 
 class IndicatorService:
@@ -199,7 +199,7 @@ class IndicatorService:
     async def get_indicators(
         self,
         period: PeriodType = "today",
-        metrics: Optional[list[str]] = None
+        metrics: list[str] | None = None
     ) -> IndicatorsResponse:
         """
         Retorna indicadores consolidados.

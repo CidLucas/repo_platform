@@ -45,4 +45,6 @@ COPY --from=builder --chown=appuser:appuser /app/services/file_processing_worker
 USER appuser
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "file_processing_worker.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use the PORT provided by Cloud Run and the venv-installed uvicorn.
+# Running via sh -c allows shell expansion of ${PORT:-8000}.
+CMD ["sh", "-c", "/home/appuser/app/.venv/bin/uvicorn file_processing_worker.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

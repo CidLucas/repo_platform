@@ -25,26 +25,26 @@ declare -A SECRETS=(
   [SUPABASE_URL]="Supabase project URL"
   [SUPABASE_SERVICE_KEY]="Supabase service role key"
   [SUPABASE_ANON_KEY]="Supabase anonymous key (optional)"
-  
+
   # LLM Providers
   [LLM_PROVIDER]="LLM provider: ollama, openai, anthropic, or google"
   [OPENAI_API_KEY]="OpenAI API key (if using OpenAI)"
   [ANTHROPIC_API_KEY]="Anthropic API key (if using Claude)"
   [GOOGLE_API_KEY]="Google API key (if using Gemini)"
-  
+
   # Redis
   [REDIS_URL]="Redis connection string"
-  
+
   # Observability
   [LANGFUSE_HOST]="Langfuse host URL"
   [LANGFUSE_PUBLIC_KEY]="Langfuse public key"
   [LANGFUSE_SECRET_KEY]="Langfuse secret key"
-  
+
   # Service Communication
   [MCP_SERVER_URL]="Tool Pool API MCP server URL"
   [OLLAMA_BASE_URL]="Ollama service base URL"
   [EMBEDDING_SERVICE_URL]="Embedding service URL"
-  
+
   # Other
   [TWILIO_AUTH_TOKEN]="Twilio authentication token (if needed)"
   [LANGCHAIN_API_KEY]="LangChain API key (if using LangSmith)"
@@ -72,12 +72,12 @@ echo ""
 create_or_update_secret() {
   local SECRET_NAME=$1
   local SECRET_VALUE=$2
-  
+
   if [ -z "$SECRET_VALUE" ]; then
     echo -e "${RED}✗ $SECRET_NAME${NC} - Value is empty, skipping"
     return 1
   fi
-  
+
   if gcloud secrets describe "$SECRET_NAME" --project="$PROJECT_ID" &>/dev/null; then
     # Update existing secret
     echo -n "$SECRET_VALUE" | gcloud secrets versions add "$SECRET_NAME" \
@@ -98,7 +98,7 @@ create_or_update_secret() {
 grant_access() {
   local SECRET_NAME=$1
   local SERVICE_ACCOUNT=$2
-  
+
   gcloud secrets add-iam-policy-binding "$SECRET_NAME" \
     --member="serviceAccount:$SERVICE_ACCOUNT" \
     --role="roles/secretmanager.secretAccessor" \

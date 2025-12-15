@@ -57,6 +57,7 @@ COPY services/tool_pool_api/src ./src
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_supabase_client/src:/app/libs/vizu_context_service/src:/app/libs/vizu_auth/src:/app/libs/vizu_llm_service/src:/app/libs/vizu_qdrant_client/src:/app/libs/vizu_rag_factory/src:/app/libs/vizu_sql_factory/src:/app/libs/vizu_tool_registry/src:/app/libs/vizu_prompt_management/src:/app/libs/vizu_google_suite_client/src"
 
-EXPOSE 9000
+EXPOSE 8000
 
-CMD ["/app/.venv/bin/python", "-m", "tool_pool_api.main"]
+# Use the PORT env var provided by Cloud Run (defaults to 8000)
+CMD ["/bin/sh", "-c", "/app/.venv/bin/uvicorn tool_pool_api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -10,7 +10,7 @@ The deployment workflow now implements **GCP Secret Manager** approach for secur
 
 ---
 
-## 📋 Secrets by Category
+## 📋 Secrets by Cate
 
 ### ✅ REQUIRED (Critical - Services Won't Start Without These)
 
@@ -50,7 +50,7 @@ The deployment workflow now implements **GCP Secret Manager** approach for secur
 
 ### At least ONE of these for LLM:
 - **OPENAI_API_KEY** OR
-- **ANTHROPIC_API_KEY** OR  
+- **ANTHROPIC_API_KEY** OR
 - **GOOGLE_API_KEY** OR
 - **OLLAMA_BASE_URL** (for local LLM)
 

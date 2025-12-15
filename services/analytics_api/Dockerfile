@@ -47,4 +47,9 @@ ENV PYTHONPATH="src:../../libs/vizu_db_connector/src:../../libs/vizu_models/src"
 
 # 9. DEFINA o comando de execução
 EXPOSE 8000
-CMD ["uvicorn", "analytics_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# Copy an entrypoint that builds PYTHONPATH at runtime and runs uvicorn
+COPY services/analytics_api/entrypoint.sh /usr/local/bin/entrypoint-analytics
+RUN chmod +x /usr/local/bin/entrypoint-analytics
+
+CMD ["/usr/local/bin/entrypoint-analytics"]

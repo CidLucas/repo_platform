@@ -43,4 +43,5 @@ ENV PATH="/app/services/data_ingestion_api/.venv/bin:$PATH" \
 
 EXPOSE 8000
 
-CMD ["uvicorn", "data_ingestion_api.core.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use the PORT env var provided by Cloud Run (defaults to 8000)
+CMD ["/bin/sh", "-c", "uvicorn data_ingestion_api.core.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

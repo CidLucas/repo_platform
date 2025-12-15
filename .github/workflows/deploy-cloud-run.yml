@@ -145,24 +145,24 @@ jobs:
         id: sync-secrets
         run: |
           set +e  # Don't exit on first error
-          
+
           PROJECT_ID="${{ env.PROJECT_ID }}"
           CREATED=0
           UPDATED=0
           MISSING=0
           SUMMARY_FILE="${GITHUB_STEP_SUMMARY:-/tmp/step_summary.txt}"
-          
+
           # Function to create or update a secret
           sync_secret() {
             local SECRET_NAME=$1
             local SECRET_VALUE=$2
-            
+
             if [ -z "$SECRET_VALUE" ]; then
               echo "⚠️  Missing: $SECRET_NAME (not configured in GitHub)" | tee -a "$SUMMARY_FILE"
               MISSING=$((MISSING + 1))
               return
             fi
-            
+
             if gcloud secrets describe "$SECRET_NAME" --project="$PROJECT_ID" &>/dev/null; then
               echo -n "$SECRET_VALUE" | gcloud secrets versions add "$SECRET_NAME" \
                 --data-file=- --project="$PROJECT_ID" &>/dev/null
@@ -176,14 +176,14 @@ jobs:
               CREATED=$((CREATED + 1))
             fi
           }
-          
+
           {
             echo "### Syncing GitHub Secrets to GCP Secret Manager"
             echo ""
             echo "Secrets Status:"
             echo ""
           } | tee -a "$SUMMARY_FILE"
-          
+
           # Sync standardized secrets (see ENVIRONMENT_VARIABLES_AUDIT.md for details)
           # Critical infrastructure secrets
           sync_secret "DATABASE_URL" "${{ secrets.DATABASE_URL }}"
@@ -191,47 +191,47 @@ jobs:
           sync_secret "GCP_PROJECT_ID" "${{ secrets.GCP_PROJECT_ID }}"
           sync_secret "GCP_SA_EMAIL" "${{ secrets.GCP_SA_EMAIL }}"
           sync_secret "GCP_SA_KEY" "${{ secrets.GCP_SA_KEY }}"
-          
+
           # Supabase integration
           sync_secret "SUPABASE_URL" "${{ secrets.SUPABASE_URL }}"
           sync_secret "SUPABASE_SERVICE_KEY" "${{ secrets.SUPABASE_SERVICE_KEY }}"
-          
+
           # MCP and encryption
           sync_secret "MCP_AUTH_GOOGLE_CLIENT_ID" "${{ secrets.MCP_AUTH_GOOGLE_CLIENT_ID }}"
           sync_secret "CREDENTIALS_ENCRYPTION_KEY" "${{ secrets.CREDENTIALS_ENCRYPTION_KEY }}"
-          
+
           # Optional observability and features
           sync_secret "LANGFUSE_PUBLIC_KEY" "${{ secrets.LANGFUSE_PUBLIC_KEY }}"
           sync_secret "LANGFUSE_SECRET_KEY" "${{ secrets.LANGFUSE_SECRET_KEY }}"
           sync_secret "OLLAMA_BASE_URL" "${{ secrets.OLLAMA_BASE_URL }}"
           sync_secret "GRAFANA_API_KEY" "${{ secrets.GRAFANA_API_KEY }}"
-          
+
           {
             echo ""
             echo "Summary:"
             echo "- Created: $CREATED"
             echo "- Updated: $UPDATED"
             echo "- Missing: $MISSING"
-            
+
             if [ $MISSING -gt 0 ]; then
               echo ""
               echo "**Action Required:** Configure missing secrets in Settings → Secrets and variables → Actions"
             fi
           } | tee -a "$SUMMARY_FILE"
-          
+
           exit 0
 
       - name: Grant Cloud Run Service Account Access to Secrets
         run: |
           PROJECT_ID="${{ env.PROJECT_ID }}"
           SERVICE_ACCOUNT="${{ env.GCP_SA_EMAIL }}"
-          
+
           if [ -z "$SERVICE_ACCOUNT" ]; then
             SERVICE_ACCOUNT="vizu-deployment@${PROJECT_ID}.iam.gserviceaccount.com"
           fi
-          
+
           echo "Granting secret access to: $SERVICE_ACCOUNT"
-          
+
           # Grant access for standardized secrets only (see ENVIRONMENT_VARIABLES_AUDIT.md)
           for SECRET in DATABASE_URL REDIS_URL GCP_PROJECT_ID GCP_SA_EMAIL GCP_SA_KEY \
                         SUPABASE_URL SUPABASE_SERVICE_KEY \
@@ -245,7 +245,7 @@ jobs:
                 --project="$PROJECT_ID" &>/dev/null || true
             fi
           done
-          
+
           echo "✓ Service account permissions configured"
 
       - name: Configure Docker for Artifact Registry
@@ -286,7 +286,7 @@ jobs:
           pull_and_push() {
             local name=$1
             local gcp_name=$2
-            
+
             echo "Processing ${name}..."
             GITHUB_IMAGE="${GITHUB_REGISTRY}/vizu-${name}:latest"
             GCP_IMAGE="${GCP_REGISTRY}/${gcp_name}:${TAG}"
@@ -338,7 +338,7 @@ jobs:
           pull_and_push() {
             local name=$1
             local gcp_name=$2
-            
+
             echo "Processing ${name}..."
             GITHUB_IMAGE="${GITHUB_REGISTRY}/vizu-${name}:latest"
             GCP_IMAGE="${GCP_REGISTRY}/${gcp_name}:${TAG}"

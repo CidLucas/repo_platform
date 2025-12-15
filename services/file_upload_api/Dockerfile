@@ -49,5 +49,5 @@ USER appuser
 
 EXPOSE 8000
 
-# Padrão Vizu: Comando de execução
-CMD ["/home/appuser/app/.venv/bin/python", "-m", "uvicorn", "file_upload_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use the PORT provided by Cloud Run and run with the venv-installed binaries.
+CMD ["sh", "-c", "/home/appuser/app/.venv/bin/python -m uvicorn file_upload_api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -150,7 +150,6 @@ jobs:
         run: |
           DOCKERFILE_PATH="${{ matrix.dockerfile_path || format('services/{0}/Dockerfile', matrix.service) }}"
           COMMIT_SHORT=$(echo $COMMIT_SHA | cut -c1-7)
-
           echo "Building multi-arch image: $IMAGE"
           # Build and push manifest for amd64 and arm64. Cloud Run requires amd64; including arm64 helps local devs.
           docker buildx build \

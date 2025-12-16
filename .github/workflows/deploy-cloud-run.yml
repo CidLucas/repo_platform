@@ -532,6 +532,20 @@ jobs:
           fi
 
       # =================================================================
+      # Build: dashboard
+      # =================================================================
+      - name: Build dashboard (Vite)
+        if: matrix.service == 'dashboard'
+        run: |
+          export VITE_SUPABASE_URL="${{ secrets.VITE_SUPABASE_URL }}"
+          export VITE_SUPABASE_ANON_KEY="${{ secrets.VITE_SUPABASE_ANON_KEY }}"
+          export VITE_API_URL="${{ secrets.VITE_API_URL }}"
+          export VITE_ATENDENTE_CORE_URL="${{ secrets.VITE_ATENDENTE_CORE_URL }}"
+          npm install
+          npm run build
+        working-directory: apps/vizu_dashboard
+
+      # =================================================================
       # Pull & Push: dashboard
       # =================================================================
       - name: "Pull & Push: dashboard"

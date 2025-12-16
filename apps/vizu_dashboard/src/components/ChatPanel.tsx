@@ -10,8 +10,9 @@ import {
   Slide,
   Portal,
 } from '@chakra-ui/react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useContext } from 'react';
 import { ArrowForwardIcon, AttachmentIcon, AddIcon, ChatIcon, CloseIcon } from '@chakra-ui/icons';
+import { AuthContext } from '../contexts/AuthContext';
 
 interface Message {
   id: string;
@@ -43,6 +44,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const auth = useContext(AuthContext);
 
   // TODO: Get user name from auth context
   const userName = 'Fábio';
@@ -75,17 +77,47 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
     setInputValue('');
     setIsLoading(true);
 
-    // TODO: Integrate with backend chat API
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: 'Esta é uma resposta simulada. A integração com o backend será implementada em breve.',
-        sender: 'assistant',
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+    // Integração com o backend atendente_core
+    try {
+      const token = auth?.session?.access_token;
+      const response = await fetch(
+        `${import.meta.env.VITE_ATENDENTE_CORE_URL || '/api/atendente_core'}/chat`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            message: userMessage.content,
+            session_id: 'default', // TODO: gerar/gerenciar session_id real
+          }),
+        }
+      );
+      if (!response.ok) throw new Error('Erro ao se comunicar com o atendente');
+      const data = await response.json();
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString() + '-assistant',
+          content: data.response || 'Sem resposta do atendente.',
+          sender: 'assistant',
+          timestamp: new Date(),
+        },
+      ]);
+    } catch (err: any) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString() + '-error',
+          content: 'Erro ao se comunicar com o atendente. Tente novamente.',
+          sender: 'assistant',
+          timestamp: new Date(),
+        },
+      ]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

@@ -157,6 +157,36 @@ class ContextService:
 
     def _build_context_from_dict(self, data: dict) -> VizuClientContext:
         """Build VizuClientContext from Supabase response dict."""
+        def _normalize_enabled_tools(raw):
+            if not raw:
+                return []
+            if isinstance(raw, str):
+                # JSON string? Try to parse conservatively
+                try:
+                    import json
+
+                    parsed = json.loads(raw)
+                except Exception:
+                    return []
+            else:
+                parsed = raw
+
+            if not isinstance(parsed, (list, tuple)):
+                return []
+
+            seen = set()
+            deduped = []
+            for v in parsed:
+                if v is None:
+                    continue
+                if v in seen:
+                    continue
+                seen.add(v)
+                deduped.append(v)
+            return deduped
+
+        enabled_tools = _normalize_enabled_tools(data.get("enabled_tools"))
+
         return VizuClientContext(
             id=UUID(data["id"]) if isinstance(data["id"], str) else data["id"],
             api_key=data["api_key"],
@@ -165,18 +195,25 @@ class ContextService:
             tier=data["tier"],
             prompt_base=data.get("prompt_base") or "Você é um assistente útil.",
             horario_funcionamento=data.get("horario_funcionamento") or {},
-            ferramenta_rag_habilitada=bool(
-                data.get("ferramenta_rag_habilitada", False)
-            ),
-            ferramenta_sql_habilitada=bool(
-                data.get("ferramenta_sql_habilitada", False)
-            ),
+            enabled_tools=enabled_tools,
             collection_rag=data.get("collection_rag", "default_collection"),
             credenciais=[],
         )
 
     def _build_context_from_orm(self, cliente_db) -> VizuClientContext:
         """Build VizuClientContext from SQLAlchemy ORM object."""
+        raw = getattr(cliente_db, "enabled_tools", None) or []
+        # Normalize/dedupe preserving order
+        seen = set()
+        deduped = []
+        for v in raw or []:
+            if v is None:
+                continue
+            if v in seen:
+                continue
+            seen.add(v)
+            deduped.append(v)
+
         return VizuClientContext(
             id=cliente_db.id,
             api_key=cliente_db.api_key,
@@ -187,12 +224,7 @@ class ContextService:
             or "Você é um assistente útil.",
             horario_funcionamento=getattr(cliente_db, "horario_funcionamento", {})
             or {},
-            ferramenta_rag_habilitada=bool(
-                getattr(cliente_db, "ferramenta_rag_habilitada", False)
-            ),
-            ferramenta_sql_habilitada=bool(
-                getattr(cliente_db, "ferramenta_sql_habilitada", False)
-            ),
+            enabled_tools=deduped,
             collection_rag=getattr(cliente_db, "collection_rag", "default_collection"),
             credenciais=[],
         )

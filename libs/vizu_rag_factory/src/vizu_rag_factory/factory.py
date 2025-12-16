@@ -68,8 +68,8 @@ def create_rag_runnable(
         )
         raise ValueError("llm é obrigatório para create_rag_runnable")
 
-    if not contexto.ferramenta_rag_habilitada:
-        # ... (logging)
+    enabled = getattr(contexto, "enabled_tools", []) or []
+    if "executar_rag_cliente" not in enabled:
         return None
 
     # Usa o collection_rag definido no contexto do cliente para garantir isolamento

@@ -52,24 +52,12 @@ def _is_tool_enabled_for_client(
     Returns:
         True if tool is enabled
     """
-    # Try new field first
-    if hasattr(context, "enabled_tools") and context.enabled_tools:
-        return tool_name in context.enabled_tools
-
-    # Get tier
-    tier = getattr(context, "tier", "BASIC") or "BASIC"
-
-    # Fallback: convert legacy flags and check
-    enabled_tools = ToolRegistry.get_tool_names_for_legacy_flags(
-        rag_enabled=getattr(context, "ferramenta_rag_habilitada", False),
-        sql_enabled=getattr(context, "ferramenta_sql_habilitada", False),
-        scheduling_enabled=getattr(context, "ferramenta_agendamento_habilitada", False),
-    )
-
-    # Check if tool is in enabled list and accessible by tier
-    if tool_name not in enabled_tools:
+    # Only consult the authoritative `enabled_tools` list and enforce tier.
+    enabled = getattr(context, "enabled_tools", None) or []
+    if tool_name not in enabled:
         return False
 
+    tier = getattr(context, "tier", "BASIC") or "BASIC"
     tool_meta = ToolRegistry.get_tool(tool_name)
     if tool_meta and not tool_meta.is_accessible_by_tier(tier):
         return False

@@ -151,16 +151,9 @@ def _get_enabled_tools_from_context(safe_context: SafeClientContext | None) -> l
     if not safe_context:
         return []
 
-    # Try new field first (if it exists on SafeClientContext)
-    if hasattr(safe_context, "enabled_tools") and safe_context.enabled_tools:
-        return safe_context.enabled_tools
-
-    # Fallback: convert legacy boolean flags
-    return ToolRegistry.get_tool_names_for_legacy_flags(
-        rag_enabled=getattr(safe_context, "ferramenta_rag_habilitada", False),
-        sql_enabled=getattr(safe_context, "ferramenta_sql_habilitada", False),
-        scheduling_enabled=getattr(safe_context, "ferramenta_agendamento_habilitada", False),
-    )
+    # Only use the authoritative `enabled_tools` list. Legacy booleans are
+    # removed by migration.
+    return getattr(safe_context, "enabled_tools", []) or []
 
 
 def _get_tier_from_context(safe_context: SafeClientContext | None) -> str:

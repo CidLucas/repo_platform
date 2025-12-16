@@ -20,6 +20,11 @@ from .postgrest_executor import (
     QueryResult,
     get_postgrest_executor,
 )
+from .storage import (
+    SupabaseStorage,
+    UploadResult,
+    get_storage,
+)
 
 __all__ = [
     # Client
@@ -37,4 +42,8 @@ __all__ = [
     "QueryResult",
     "PostgRESTQueryExecutor",
     "get_postgrest_executor",
+    # Storage
+    "SupabaseStorage",
+    "UploadResult",
+    "get_storage",
 ]

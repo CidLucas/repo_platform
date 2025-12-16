@@ -9,7 +9,9 @@ from pydantic import BaseModel, Field
 
 # Re-export from vizu_models for consistency
 from vizu_models import (
+    ElicitationOption,
     ElicitationRequest,
+    ElicitationType,
 )
 
 

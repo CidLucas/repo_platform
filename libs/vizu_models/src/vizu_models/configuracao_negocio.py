@@ -26,12 +26,6 @@ class ConfiguracaoNegocioBase(SQLModel):
         description="O prompt principal que define a personalidade e as instruções do agente de IA.",
     )
 
-    ferramenta_rag_habilitada: bool = Field(default=False)
-    collection_rag: str | None = Field(
-        None, description="O nome da collection que o RAG usa no QDRANT."
-    )
-    ferramenta_sql_habilitada: bool = Field(default=False)
-    ferramenta_agendamento_habilitada: bool = Field(default=False)
 
 
 class ConfiguracaoNegocio(ConfiguracaoNegocioBase, table=True):

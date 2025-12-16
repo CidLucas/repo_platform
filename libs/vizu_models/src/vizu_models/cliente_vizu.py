@@ -56,25 +56,7 @@ class ClienteVizu(ClienteVizuBase, table=True):
         description="List of enabled tool names (e.g., ['executar_rag_cliente', 'executar_sql_agent'])"
     )
 
-    # LEGACY: Boolean flags (deprecated, kept for backward compatibility)
-    # Will be removed in v1.1 after migration is complete
-    ferramenta_rag_habilitada: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, server_default="false"),
-        description="DEPRECATED: Use enabled_tools instead"
-    )
 
-    ferramenta_sql_habilitada: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, server_default="false"),
-        description="DEPRECATED: Use enabled_tools instead"
-    )
-
-    ferramenta_agendamento_habilitada: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, server_default="false"),
-        description="DEPRECATED: Use enabled_tools instead"
-    )
 
     collection_rag: str | None = Field(default=None, sa_column=Column(String))
 

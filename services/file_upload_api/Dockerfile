@@ -1,53 +1,43 @@
-# Padrão Vizu: Baseado no Dockerfile da clientes_finais_api
-
-# --- ESTÁGIO 1: BUILDER ---
-FROM python:3.11-slim as builder
-
+# Stage 1: Builder
+FROM python:3.11-slim AS builder
 
 ENV POETRY_NO_INTERACTION=1
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 
-
-# Define o WORKDIR raiz do monorepo
 WORKDIR /app
+RUN pip install poetry==1.8.0
 
-# Instala o Poetry
-RUN pip install poetry
+# Copy only required libs
+COPY libs/vizu_observability_bootstrap libs/vizu_observability_bootstrap
+COPY libs/vizu_models libs/vizu_models
+COPY libs/vizu_supabase_client libs/vizu_supabase_client
 
-# Copia TUDO (contexto do monorepo)
-# Isso é necessário para o Poetry resolver as dependências 'path' das libs
-COPY . .
+# Copy service
+COPY services/file_upload_api services/file_upload_api
 
-# Define o WORKDIR específico do serviço para instalar as dependências
 WORKDIR /app/services/file_upload_api
-
-# Instala apenas as dependências de PRODUÇÃO.
 RUN poetry install --no-root
 
-# --- ESTÁGIO 2: FINAL (PRODUÇÃO) ---
-FROM python:3.11-slim as final
+# Stage 2: Runtime
+FROM python:3.11-slim AS final
 
-# Padrão Vizu: Não rodar como root
-RUN useradd --create-home --shell /bin/bash appuser
-USER appuser
-WORKDIR /home/appuser/app
+WORKDIR /app/services/file_upload_api
 
-# Padrão Vizu: Ajuste do PYTHONPATH
-ENV PYTHONPATH="/home/appuser/app:/home/appuser/app/libs"
-ENV PATH="/home/appuser/app/.venv/bin:$PATH"
+# PATH and PYTHONPATH - absolute paths
+ENV PATH="/app/services/file_upload_api/.venv/bin:$PATH" \
+    PYTHONPATH="/app/services/file_upload_api/src:/app/libs/vizu_observability_bootstrap/src:/app/libs/vizu_models/src:/app/libs/vizu_supabase_client/src"
 
-# Copia o ambiente virtual com as dependências instaladas do 'builder'
-COPY --from=builder --chown=appuser:appuser /app/services/file_upload_api/.venv ./.venv
+# Copy .venv to same path as builder (shebangs)
+COPY --from=builder /app/services/file_upload_api/.venv ./.venv
 
-# Padrão Vizu: Copia TODAS as libs compartilhadas do 'builder'
-COPY --from=builder --chown=appuser:appuser /app/libs ./libs
+# Copy lib src directories
+COPY --from=builder /app/libs/vizu_observability_bootstrap/src /app/libs/vizu_observability_bootstrap/src
+COPY --from=builder /app/libs/vizu_models/src /app/libs/vizu_models/src
+COPY --from=builder /app/libs/vizu_supabase_client/src /app/libs/vizu_supabase_client/src
 
-# Padrão Vizu: Copia o código-fonte do serviço
-COPY --chown=appuser:appuser ./services/file_upload_api/src/file_upload_api ./file_upload_api
-
-USER appuser
+# Copy service source
+COPY --from=builder /app/services/file_upload_api/src ./src
 
 EXPOSE 8000
 
-# Use the PORT provided by Cloud Run and run with the venv-installed binaries.
-CMD ["sh", "-c", "/home/appuser/app/.venv/bin/python -m uvicorn file_upload_api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["/bin/sh", "-c", "/app/services/file_upload_api/.venv/bin/uvicorn file_upload_api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

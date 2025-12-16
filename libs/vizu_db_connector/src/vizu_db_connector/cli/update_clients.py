@@ -40,15 +40,45 @@ def update_client(session: Session, client_data: dict[str, Any]) -> bool:
     cliente.horario_funcionamento = config.get(
         "horario_funcionamento", cliente.horario_funcionamento
     )
-    cliente.ferramenta_rag_habilitada = config.get(
-        "ferramenta_rag_habilitada", cliente.ferramenta_rag_habilitada
-    )
-    cliente.ferramenta_sql_habilitada = config.get(
-        "ferramenta_sql_habilitada", cliente.ferramenta_sql_habilitada
-    )
-    cliente.ferramenta_agendamento_habilitada = config.get(
-        "ferramenta_agendamento_habilitada", cliente.ferramenta_agendamento_habilitada
-    )
+
+    # Update enabled_tools: prefer explicit `enabled_tools` in config if provided,
+    # otherwise derive from legacy booleans if present in config (for seeds).
+    if "enabled_tools" in config:
+        cliente.enabled_tools = config.get("enabled_tools") or []
+    else:
+        enabled = list(cliente.enabled_tools or [])
+
+        if "ferramenta_rag_habilitada" in config:
+            if config.get("ferramenta_rag_habilitada"):
+                enabled = enabled + ["executar_rag_cliente"]
+            else:
+                enabled = [t for t in enabled if t != "executar_rag_cliente"]
+
+        if "ferramenta_sql_habilitada" in config:
+            if config.get("ferramenta_sql_habilitada"):
+                enabled = enabled + ["executar_sql_agent"]
+            else:
+                enabled = [t for t in enabled if t != "executar_sql_agent"]
+
+        if "ferramenta_agendamento_habilitada" in config:
+            if config.get("ferramenta_agendamento_habilitada"):
+                enabled = enabled + ["agendar_consulta"]
+            else:
+                enabled = [t for t in enabled if t != "agendar_consulta"]
+
+        # Deduplicate preserving order
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for t in enabled:
+            if t is None:
+                continue
+            if t in seen:
+                continue
+            seen.add(t)
+            deduped.append(t)
+
+        cliente.enabled_tools = deduped
+
     cliente.collection_rag = config.get("collection_rag", cliente.collection_rag)
 
     # Atualiza tier se especificado

@@ -9,7 +9,6 @@ from fastapi import FastAPI
 
 from vendas_agent.api.router import router as api_router
 from vendas_agent.core.config import get_settings
-from vendas_agent.core.service import get_mcp_manager
 
 # Configure logging
 logging.basicConfig(
@@ -26,12 +25,9 @@ async def lifespan(app: FastAPI):
     # --- STARTUP ---
     logger.info("🚀 Starting Vizu Vendas Agent...")
 
-    # Initialize MCP connection
-    try:
-        mcp_manager = await get_mcp_manager()
-        logger.info(f"✅ MCP connected with {len(mcp_manager.tools)} tools")
-    except Exception as e:
-        logger.error(f"⚠️ Failed to connect to MCP: {e}")
+    # MCP connection is now lazy - will connect on first use
+    # This prevents startup failures when MCP server is not immediately available
+    logger.info("ℹ️ MCP connection will be established on first request")
 
     yield
 

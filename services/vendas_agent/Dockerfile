@@ -29,27 +29,32 @@ RUN poetry lock && poetry install --no-root
 # Stage 2: Final - Imagem mínima de produção
 FROM python:3.11-slim
 
-WORKDIR /app
+# WORKDIR must match builder path so shebangs in .venv work correctly
+WORKDIR /app/services/vendas_agent
 
-# Copia .venv (contém todas as dependências)
+# Copy .venv to SAME path as builder (shebangs reference this absolute path)
 COPY --from=builder /app/services/vendas_agent/.venv ./.venv
 
-# Copia APENAS src/ das libs que são realmente dependências diretas
-COPY --from=builder /app/libs/vizu_models/src ./libs/vizu_models/src
-COPY --from=builder /app/libs/vizu_context_service/src ./libs/vizu_context_service/src
-COPY --from=builder /app/libs/vizu_auth/src ./libs/vizu_auth/src
-COPY --from=builder /app/libs/vizu_tool_registry/src ./libs/vizu_tool_registry/src
-COPY --from=builder /app/libs/vizu_agent_framework/src ./libs/vizu_agent_framework/src
-COPY --from=builder /app/libs/vizu_llm_service/src ./libs/vizu_llm_service/src
+# Copy lib src directories to /app/libs (matching PYTHONPATH)
+COPY --from=builder /app/libs/vizu_models/src /app/libs/vizu_models/src
+COPY --from=builder /app/libs/vizu_db_connector/src /app/libs/vizu_db_connector/src
+COPY --from=builder /app/libs/vizu_supabase_client/src /app/libs/vizu_supabase_client/src
+COPY --from=builder /app/libs/vizu_context_service/src /app/libs/vizu_context_service/src
+COPY --from=builder /app/libs/vizu_auth/src /app/libs/vizu_auth/src
+COPY --from=builder /app/libs/vizu_tool_registry/src /app/libs/vizu_tool_registry/src
+COPY --from=builder /app/libs/vizu_elicitation_service/src /app/libs/vizu_elicitation_service/src
+COPY --from=builder /app/libs/vizu_observability_bootstrap/src /app/libs/vizu_observability_bootstrap/src
+COPY --from=builder /app/libs/vizu_agent_framework/src /app/libs/vizu_agent_framework/src
+COPY --from=builder /app/libs/vizu_llm_service/src /app/libs/vizu_llm_service/src
 
-# Copia código fonte do serviço
+# Copy service source code
 COPY --from=builder /app/services/vendas_agent/src ./src
 
-# PYTHONPATH para imports
-ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONPATH="/app/src:/app/libs/vizu_models/src:/app/libs/vizu_context_service/src:/app/libs/vizu_auth/src:/app/libs/vizu_tool_registry/src:/app/libs/vizu_agent_framework/src:/app/libs/vizu_llm_service/src"
+# PATH and PYTHONPATH - use absolute paths for reliability (include ALL libs)
+ENV PATH="/app/services/vendas_agent/.venv/bin:$PATH" \
+    PYTHONPATH="/app/services/vendas_agent/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_supabase_client/src:/app/libs/vizu_context_service/src:/app/libs/vizu_auth/src:/app/libs/vizu_tool_registry/src:/app/libs/vizu_elicitation_service/src:/app/libs/vizu_observability_bootstrap/src:/app/libs/vizu_agent_framework/src:/app/libs/vizu_llm_service/src"
 
 EXPOSE 8000
 
-# Use Cloud Run PORT and run uvicorn from the copied venv to preserve shebangs.
-CMD ["/bin/sh", "-c", "/app/.venv/bin/python -m uvicorn vendas_agent.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Use Cloud Run PORT and run uvicorn from the copied venv.
+CMD ["/bin/sh", "-c", "/app/services/vendas_agent/.venv/bin/uvicorn vendas_agent.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

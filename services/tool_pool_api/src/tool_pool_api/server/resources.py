@@ -87,7 +87,9 @@ async def _get_knowledge_summary(cliente_id: str | None = None) -> str:
     context = await _resolve_client_context(cliente_id)
 
     if not context.ferramenta_rag_habilitada:
-        return f"# Base de Conhecimento - {context.nome_empresa}\n\n⚠️ RAG não habilitado para este cliente."
+        enabled = _get_enabled_tools_for_context(context)
+        if "executar_rag_cliente" not in enabled:
+            return f"# Base de Conhecimento - {context.nome_empresa}\n\n⚠️ RAG não habilitado para este cliente."
 
     collection_name = context.collection_rag or str(context.id)
 
@@ -154,7 +156,8 @@ async def _search_knowledge(
     """
     context = await _resolve_client_context(cliente_id)
 
-    if not context.ferramenta_rag_habilitada:
+    enabled = _get_enabled_tools_for_context(context)
+    if "executar_rag_cliente" not in enabled:
         raise ResourceError("RAG não habilitado para este cliente.")
 
     collection_name = context.collection_rag or str(context.id)
@@ -219,16 +222,9 @@ def _get_enabled_tools_for_context(context: VizuClientContext) -> list[str]:
     Returns:
         List of enabled tool names
     """
-    # Try new field first
-    if hasattr(context, "enabled_tools") and context.enabled_tools:
-        return context.enabled_tools
-
-    # Fallback to legacy boolean flags
-    return ToolRegistry.get_tool_names_for_legacy_flags(
-        rag_enabled=getattr(context, "ferramenta_rag_habilitada", False),
-        sql_enabled=getattr(context, "ferramenta_sql_habilitada", False),
-        scheduling_enabled=getattr(context, "ferramenta_agendamento_habilitada", False),
-    )
+    # Only use the authoritative `enabled_tools` list; legacy booleans were
+    # removed by migration.
+    return getattr(context, "enabled_tools", []) or []
 
 
 def _get_tier_for_context(context: VizuClientContext) -> str:

@@ -28,9 +28,7 @@ class VizuClientContext(ClienteVizuBase):
     prompt_base: str | None
     horario_funcionamento: dict[str, Any] | None
 
-    # Legacy boolean flags (deprecated, kept for backward compatibility)
-    ferramenta_rag_habilitada: bool = False
-    ferramenta_sql_habilitada: bool = False
+    # Configurações de Negócio atuais
     collection_rag: str | None
 
     # Lista de credenciais já decifradas
@@ -38,20 +36,9 @@ class VizuClientContext(ClienteVizuBase):
     credenciais: list[CredencialServicoExternoBase] = []
 
     def get_enabled_tools_list(self) -> list[str]:
-        """
-        Returns enabled tools list, computing from legacy booleans if needed.
+        """Return the enabled tools list (authoritative field).
 
-        This helper ensures backward compatibility during migration:
-        - If enabled_tools is populated, use it
-        - Otherwise, compute from legacy boolean flags
+        This model no longer relies on legacy boolean flags; callers
+        should use `enabled_tools` directly or call this helper.
         """
-        if self.enabled_tools:
-            return self.enabled_tools
-
-        # Fallback: compute from legacy booleans
-        tools = []
-        if self.ferramenta_rag_habilitada:
-            tools.append("executar_rag_cliente")
-        if self.ferramenta_sql_habilitada:
-            tools.append("executar_sql_agent")
-        return tools
+        return list(self.enabled_tools or [])

@@ -46,20 +46,40 @@ from .prompt_service import (
     get_prompt,
     get_prompt_service,
 )
-from .text_to_sql import (
-    TextToSqlPrompt,
-    get_text_to_sql_prompt,
-)
-from .text_to_sql_config import (
-    LLMModel,
-    TextToSqlLLMCall,
-    TextToSqlLLMConfig,
-    TextToSqlLLMResponse,
-    get_llm_call,
-)
-from .text_to_sql_config import (
-    LLMProvider as ConfigLLMProvider,
-)
+
+# text_to_sql imports are lazy to avoid pulling in vizu_sql_factory/vizu_prompt_management
+# for services that don't need them (e.g., file_processing_worker)
+def __getattr__(name):
+    """Lazy import for text_to_sql related symbols."""
+    _text_to_sql_symbols = {
+        "TextToSqlPrompt",
+        "get_text_to_sql_prompt",
+    }
+    _text_to_sql_config_symbols = {
+        "LLMModel",
+        "TextToSqlLLMCall",
+        "TextToSqlLLMConfig",
+        "TextToSqlLLMResponse",
+        "get_llm_call",
+        "ConfigLLMProvider",
+    }
+
+    if name in _text_to_sql_symbols:
+        from .text_to_sql import TextToSqlPrompt, get_text_to_sql_prompt
+        return locals()[name]
+
+    if name in _text_to_sql_config_symbols:
+        from .text_to_sql_config import (
+            LLMModel,
+            TextToSqlLLMCall,
+            TextToSqlLLMConfig,
+            TextToSqlLLMResponse,
+            get_llm_call,
+            LLMProvider as ConfigLLMProvider,
+        )
+        return locals()[name]
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 __all__ = [
     # Main API

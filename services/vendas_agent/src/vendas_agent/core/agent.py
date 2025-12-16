@@ -68,19 +68,11 @@ class VendasAgent:
         """Get enabled tools from client context."""
         # Lazy import
         from vizu_tool_registry import ToolRegistry
-
+        # Only rely on the authoritative `enabled_tools` list.
         if hasattr(self.cliente_context, 'get_enabled_tools_list'):
             return self.cliente_context.get_enabled_tools_list()
 
-        if hasattr(self.cliente_context, 'enabled_tools') and self.cliente_context.enabled_tools:
-            return self.cliente_context.enabled_tools
-
-        # Fallback to legacy boolean flags
-        return ToolRegistry.get_tool_names_for_legacy_flags(
-            rag_enabled=getattr(self.cliente_context, 'ferramenta_rag_habilitada', False),
-            sql_enabled=getattr(self.cliente_context, 'ferramenta_sql_habilitada', False),
-            scheduling_enabled=getattr(self.cliente_context, 'ferramenta_agendamento_habilitada', False),
-        )
+        return getattr(self.cliente_context, 'enabled_tools', []) or []
 
     def _filter_tools_for_client(self, all_tools: list[BaseTool]) -> list[BaseTool]:
         """Filter MCP tools based on client permissions."""

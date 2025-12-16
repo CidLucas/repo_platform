@@ -50,5 +50,4 @@ ENV PATH="/app/services/data_ingestion_worker/.venv/bin:$PATH" \
 
 # Note: This service is designed for Cloud Functions (PubSub trigger)
 # Entry Point: 'worker_function.pubsub_ingestion_worker'
-# For Cloud Run, you can use a wrapper or adapt as needed
 CMD ["python", "-m", "data_ingestion_worker.core.worker_function"]

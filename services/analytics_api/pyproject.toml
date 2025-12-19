@@ -15,6 +15,7 @@ pydantic-settings = "^2.0.0"  # Settings management
 # --- Dependências das nossas Bibliotecas Internas ---
 vizu-db-connector = { path = "../../libs/vizu_db_connector", develop = true }
 vizu_models = { path = "../../libs/vizu_models", develop = true }
+vizu_auth = { path = "../../libs/vizu_auth", develop = true }
 
 [tool.pytest.ini_options]
 pythonpath = [
@@ -25,3 +26,7 @@ pythonpath = [
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+[dependency-groups]
+dev = [
+    "ruff (>=0.14.9,<0.15.0)"
+]

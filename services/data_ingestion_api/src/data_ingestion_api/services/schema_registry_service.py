@@ -11,7 +11,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from data_ingestion_api.services.supabase_client import supabase_client
+import data_ingestion_api.services.supabase_client as supabase_client
 
 logger = logging.getLogger(__name__)
 

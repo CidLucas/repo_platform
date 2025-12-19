@@ -28,6 +28,7 @@ db-dtypes = "^1.2.0"
 # O Poetry resolve o caminho relativo para instalar em modo editável
 vizu-db-connector = {path = "../../libs/vizu_db_connector", develop = true}
 vizu_models = {path = "../../libs/vizu_models", develop = true}
+vizu_supabase_client = {path = "../../libs/vizu_supabase_client", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 # Essenciais para Testabilidade

@@ -21,6 +21,8 @@ RUN poetry install --no-root
 # Stage 2: Runtime
 FROM python:3.11-slim AS final
 
+RUN pip install poetry==1.8.0
+
 WORKDIR /app/services/analytics_api
 
 # PATH and PYTHONPATH - absolute paths
@@ -29,6 +31,10 @@ ENV PATH="/app/services/analytics_api/.venv/bin:$PATH" \
 
 # Copy .venv to same path as builder (shebangs)
 COPY --from=builder /app/services/analytics_api/.venv ./.venv
+
+# Copy poetry config
+COPY --from=builder /app/services/analytics_api/pyproject.toml ./
+COPY --from=builder /app/services/analytics_api/poetry.lock ./
 
 # Copy lib src directories
 COPY --from=builder /app/libs/vizu_db_connector/src /app/libs/vizu_db_connector/src
@@ -40,4 +46,4 @@ COPY --from=builder /app/services/analytics_api/src ./src
 
 EXPOSE 8000
 
-CMD ["/bin/sh", "-c", "/app/services/analytics_api/.venv/bin/uvicorn analytics_api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD poetry run uvicorn src.analytics_api.main:app --host 0.0.0.0 --port ${PORT:-8000}

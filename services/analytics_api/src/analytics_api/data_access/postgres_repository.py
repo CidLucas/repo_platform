@@ -208,3 +208,39 @@ class PostgresRepository:
         ).fetchone().id
         self.db_session.commit()
         return str(new_id)
+
+    def get_gold_orders_metrics(self) -> dict:
+        """
+        Busca métricas agregadas da view ouro de pedidos (analytics_gold_orders).
+        Retorna um dicionário com os dados da view.
+        """
+        query = "SELECT * FROM analytics_gold_orders"
+        result = self.db_session.execute(query).fetchone()
+        return dict(result) if result else {}
+
+    def get_gold_products_metrics(self) -> list[dict]:
+        """
+        Busca métricas agregadas da view ouro de produtos (analytics_gold_products).
+        Retorna uma lista de dicionários, um por produto.
+        """
+        query = "SELECT * FROM analytics_gold_products"
+        result = self.db_session.execute(query).fetchall()
+        return [dict(row) for row in result] if result else []
+
+    def get_gold_customers_metrics(self) -> list[dict]:
+        """
+        Busca métricas agregadas da view ouro de clientes (analytics_gold_customers).
+        Retorna uma lista de dicionários, um por cliente.
+        """
+        query = "SELECT * FROM analytics_gold_customers"
+        result = self.db_session.execute(query).fetchall()
+        return [dict(row) for row in result] if result else []
+
+    def get_gold_suppliers_metrics(self) -> list[dict]:
+        """
+        Busca métricas agregadas da view ouro de fornecedores (analytics_gold_suppliers).
+        Retorna uma lista de dicionários, um por fornecedor.
+        """
+        query = "SELECT * FROM analytics_gold_suppliers"
+        result = self.db_session.execute(query).fetchall()
+        return [dict(row) for row in result] if result else []

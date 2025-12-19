@@ -1,6 +1,14 @@
 from data_ingestion_api.services.pubsub_publisher import PubSubPublisher, pubsub_publisher
 from data_ingestion_worker.schemas.ingestion_job import IngestionJob  # Importando o contrato
 from fastapi import APIRouter, Depends, HTTPException, status
+from libs.vizu_auth.src.vizu_auth.fastapi.dependencies import create_auth_dependency
+import uuid
+
+# Factory de autenticação (apenas JWT, sem API Key)
+def fake_api_key_lookup(api_key: str):
+    return None
+
+auth_factory = create_auth_dependency(api_key_lookup_fn=fake_api_key_lookup)
 
 router = APIRouter()
 
@@ -9,7 +17,8 @@ router = APIRouter()
 @router.post("/ingestion/start", status_code=status.HTTP_202_ACCEPTED)
 async def start_data_ingestion(
     job_payload: IngestionJob, # A API recebe o mesmo objeto que será enviado ao Worker
-    publisher: PubSubPublisher = Depends(lambda: pubsub_publisher)
+    publisher: PubSubPublisher = Depends(lambda: pubsub_publisher),
+    auth=Depends(auth_factory.get_auth_result),
 ):
     """
     Inicia um trabalho de ingestão de dados publicando uma mensagem no Pub/Sub.

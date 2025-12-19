@@ -4,6 +4,9 @@ import logging
 from typing import Any
 
 from src.schemas import BigQueryCredentialCreate, CredencialResponse, SQLCredentialCreate
+from google.cloud import secretmanager
+import json
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -21,21 +24,57 @@ class VizuDBConnector:
             "status": "PENDENTE_VALIDACAO"
         }
 
-# TODO: Substituir por import real do nosso módulo de Secrets
 class SecretManager:
-    """Mock para simular a integração com o Google Secret Manager."""
-    async def store_secret(self, client_id: str, credentials: dict[str, Any]) -> str:
-        # Lógica real faria a chamada ao GCP/AWS/Azure
-        # Retorna o ID do segredo
-        import hashlib
-        secret_hash = hashlib.sha256(str(credentials).encode()).hexdigest()
-        return f"vizu-secret-id-{client_id}-{secret_hash[:8]}"
+    """Integração real com o Google Secret Manager."""
+    def __init__(self, project_id: str | None = None):
+        self.project_id = project_id or os.environ.get("GCP_PROJECT_ID")
+        self.client = secretmanager.SecretManagerServiceClient()
 
-    # NOVO MÉTODO: Essencial para o Rollback
+    async def store_secret(self, client_id: str, credentials: dict[str, Any]) -> str:
+        """
+        Cria um segredo (ou usa existente) e adiciona uma nova versão com as credenciais.
+        Retorna o secret_id:version.
+        """
+        secret_id = f"bq-cred-{client_id}"
+        parent = f"projects/{self.project_id}"
+        # Cria o segredo se não existir
+        try:
+            self.client.create_secret(
+                request={
+                    "parent": parent,
+                    "secret_id": secret_id,
+                    "secret": {"replication": {"automatic": {}}},
+                }
+            )
+        except Exception:
+            pass  # Já existe
+        # Adiciona uma nova versão
+        payload = json.dumps(credentials).encode("UTF-8")
+        response = self.client.add_secret_version(
+            request={
+                "parent": f"{parent}/secrets/{secret_id}",
+                "payload": {"data": payload},
+            }
+        )
+        return f"{secret_id}:{response.name.split('/')[-1]}"
+
+    async def access_secret(self, secret_id: str, version: str = "latest") -> dict:
+        """
+        Recupera o segredo do Secret Manager.
+        """
+        name = f"projects/{self.project_id}/secrets/{secret_id}/versions/{version}"
+        response = self.client.access_secret_version(request={"name": name})
+        payload = response.payload.data.decode("UTF-8")
+        return json.loads(payload)
+
     async def delete_secret(self, secret_id: str) -> bool:
-        """Simula a deleção de um segredo durante o Rollback."""
+        """
+        Deleta o segredo do Secret Manager.
+        """
+        name = f"projects/{self.project_id}/secrets/{secret_id}"
+        self.client.delete_secret(request={"name": name})
         logger.info(f"Rollback: Deletando segredo {secret_id} do Secret Manager.")
-        return True # Retorno booleano para indicar sucesso
+        return True
 
 # Instanciação dos mocks como dependências do serviço
 db_connector = VizuDBConnector()

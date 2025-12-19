@@ -42,6 +42,91 @@ def get_home_dashboard(service: MetricService = Depends(get_metric_service)):
 
 
 @router.get(
+    "/home_gold",
+    response_model=HomeMetricsResponse,
+    summary="Métricas Agregadas (Nível 1) - View Ouro",
+    tags=["Nível 1 - Home", "Ouro"],
+)
+def get_home_dashboard_gold(repo: PostgresRepository = Depends(get_postgres_repository)):
+    """
+    Retorna os scorecards agregados e gráficos para a página principal (Home) do cliente,
+    consultando a view ouro (analytics_gold_orders).
+    """
+    metrics_data = repo.get_gold_orders_metrics()
+    return metrics_data
+
+
+@router.get(
+    "/produtos/gold",
+    summary="Métricas agregadas de produtos - View Ouro",
+    tags=["Produtos", "Ouro"],
+)
+def get_products_gold(repo: PostgresRepository = Depends(get_postgres_repository)):
+    """
+    Retorna métricas agregadas de produtos a partir da view ouro (analytics_gold_products).
+    """
+    return repo.get_gold_products_metrics()
+
+
+@router.get(
+    "/clientes/gold",
+    summary="Métricas agregadas de clientes - View Ouro",
+    tags=["Clientes", "Ouro"],
+)
+def get_customers_gold(repo: PostgresRepository = Depends(get_postgres_repository)):
+    """
+    Retorna métricas agregadas de clientes a partir da view ouro (analytics_gold_customers).
+    """
+    return repo.get_gold_customers_metrics()
+
+
+@router.get(
+    "/fornecedores/gold",
+    summary="Métricas agregadas de fornecedores - View Ouro",
+    tags=["Fornecedores", "Ouro"],
+)
+def get_suppliers_gold(repo: PostgresRepository = Depends(get_postgres_repository)):
+    """
+    Retorna métricas agregadas de fornecedores a partir da view ouro (analytics_gold_suppliers).
+    """
+    return repo.get_gold_suppliers_metrics()
+
+
+@router.get(
+    "/fornecedores",
+    summary="Métricas agregadas de fornecedores",
+    tags=["Fornecedores"],
+)
+def get_suppliers(repo: PostgresRepository = Depends(get_postgres_repository)):
+    """
+    Retorna métricas agregadas de fornecedores a partir da view ouro (analytics_gold_suppliers).
+    """
+    return repo.get_gold_suppliers_metrics()
+
+@router.get(
+    "/produtos",
+    summary="Métricas agregadas de produtos",
+    tags=["Produtos"],
+)
+def get_products(repo: PostgresRepository = Depends(get_postgres_repository)):
+    """
+    Retorna métricas agregadas de produtos a partir da view ouro (analytics_gold_products).
+    """
+    return repo.get_gold_products_metrics()
+
+@router.get(
+    "/clientes",
+    summary="Métricas agregadas de clientes",
+    tags=["Clientes"],
+)
+def get_customers(repo: PostgresRepository = Depends(get_postgres_repository)):
+    """
+    Retorna métricas agregadas de clientes a partir da view ouro (analytics_gold_customers).
+    """
+    return repo.get_gold_customers_metrics()
+
+
+@router.get(
     "/me",
     response_model=MeResponse,
     summary="Retorna o cliente_vizu_id do usuário autenticado",

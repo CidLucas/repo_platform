@@ -537,6 +537,7 @@ jobs:
       - name: Build dashboard (Vite)
         if: matrix.service == 'dashboard'
         run: |
+          export 
           export VITE_SUPABASE_URL="${{ secrets.VITE_SUPABASE_URL }}"
           export VITE_SUPABASE_ANON_KEY="${{ secrets.VITE_SUPABASE_ANON_KEY }}"
           export VITE_API_URL="${{ secrets.VITE_API_URL }}"

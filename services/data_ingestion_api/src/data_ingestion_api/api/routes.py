@@ -8,7 +8,15 @@ from data_ingestion_api.schemas.schemas import (
     SQLCredentialCreate,
 )
 from data_ingestion_api.services.credential_service import credential_service
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
+from libs.vizu_auth.src.vizu_auth.fastapi.dependencies import create_auth_dependency
+
+# Factory de autenticação (apenas JWT, sem API Key)
+def fake_api_key_lookup(api_key: str):
+    # Retorne None para desabilitar API Key
+    return None
+
+auth_factory = create_auth_dependency(api_key_lookup_fn=fake_api_key_lookup)
 
 # Cria um router para agrupar endpoints de credenciais.
 router = APIRouter(
@@ -29,7 +37,8 @@ CredentialPayload = Union[BigQueryCredentialCreate, SQLCredentialCreate]
     summary="Cria uma referência de credencial e armazena o segredo."
 )
 async def create_new_credential(
-    payload: CredentialPayload # FastAPI usa Pydantic para validar o JSON de entrada
+    payload: CredentialPayload,  # FastAPI usa Pydantic para validar o JSON de entrada
+    auth=Depends(auth_factory.get_auth_result),
 ):
     """
     Recebe as credenciais de um serviço externo (BigQuery, SQL) e inicia o fluxo de segurança:

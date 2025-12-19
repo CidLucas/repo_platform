@@ -86,10 +86,9 @@ async def _get_knowledge_summary(cliente_id: str | None = None) -> str:
     """
     context = await _resolve_client_context(cliente_id)
 
-    if not context.ferramenta_rag_habilitada:
-        enabled = _get_enabled_tools_for_context(context)
-        if "executar_rag_cliente" not in enabled:
-            return f"# Base de Conhecimento - {context.nome_empresa}\n\n⚠️ RAG não habilitado para este cliente."
+    enabled_tools = _get_enabled_tools_for_context(context)
+    if "executar_rag_cliente" not in enabled_tools:
+        return f"# Base de Conhecimento - {context.nome_empresa}\n\n⚠️ RAG não habilitado para este cliente."
 
     collection_name = context.collection_rag or str(context.id)
 

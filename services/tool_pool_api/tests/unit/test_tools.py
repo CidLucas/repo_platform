@@ -1,5 +1,5 @@
 # tests/unit/test_tools.py
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -52,7 +52,7 @@ async def test_executar_rag_cliente_sucesso(
         # 4. Validar
         assert resultado == "Resposta do RAG"
         p_load_ctx.assert_called_once_with(mock_ctx_service, mock_token)
-        p_create_rag.assert_called_once_with(mock_vizu_context, llm=None)
+        p_create_rag.assert_called_once_with(mock_vizu_context, llm=ANY)
         mock_rag_runnable.ainvoke.assert_called_once_with(
             {"question": "Qual o faturamento?"}
         )

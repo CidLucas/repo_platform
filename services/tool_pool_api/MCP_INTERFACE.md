@@ -108,6 +108,41 @@ Consulta dados estruturados do banco de dados do cliente.
 |------|------|-------------|-----------|
 | `nome` | string | ✅ | Nome para teste |
 
+### Monitoramento Web semântico
+
+Estas tools conversam com o serviço `tools` (crawl4ai + embeddings) para monitorar páginas de produtos, palavras-chave e menções de marca.
+
+#### `monitor_feature`
+
+Detecta novas/alteradas páginas de destaque (produtos, flagship) em um domínio.
+
+**Parâmetros:**
+| Nome | Tipo | Obrigatório | Descrição |
+|------|------|-------------|-----------|
+| `domain` | string | ✅ | Domínio a ser monitorado (ex: `zerezes.com.br`) |
+| `query` | string | ✅ | Descrição do que deve ser monitorado (ex: "produtos em destaque") |
+
+#### `monitor_keywords`
+
+Busca por palavras-chave ou tópicos específicos em todo o site, retornando resultados semânticos (BM25 + embeddings).
+
+**Parâmetros:**
+| Nome | Tipo | Obrigatório | Descrição |
+|------|------|-------------|-----------|
+| `domain` | string | ✅ | Domínio alvo |
+| `keywords` | list[string] | ✅ | Lista de palavras-chave/tópicos a monitorar |
+
+#### `monitor_company`
+
+Rastreia menções da marca/empresa em domínios personalizados (ou no domínio padrão do consumidor).
+
+**Parâmetros:**
+| Nome | Tipo | Obrigatório | Descrição |
+|------|------|-------------|-----------|
+| `company` | string | ✅ | Nome da empresa/marca |
+| `domains` | list[string] | ❌ | Domínios extras para vasculhar (ex: `zeiss.com`). Se vazio, usa o domínio padrão do monitor.
+
+
 ---
 
 ## Resources

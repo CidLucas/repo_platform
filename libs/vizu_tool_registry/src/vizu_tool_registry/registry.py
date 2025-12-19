@@ -78,6 +78,37 @@ class ToolRegistry:
             requires_confirmation=False,
             tags=["test", "diagnostic", "public"],
         ),
+        "monitor_feature": ToolMetadata(
+            name="monitor_feature",
+            category=ToolCategory.PUBLIC,
+            description=(
+                "Detecta novas páginas de produtos em destaque dentro do domínio informado "
+                "usando o serviço de monitoramento web (crawl4ai + embeddings)."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["monitoring", "web", "feature-pages"],
+        ),
+        "monitor_keywords": ToolMetadata(
+            name="monitor_keywords",
+            category=ToolCategory.PUBLIC,
+            description=(
+                "Busca conteúdos atuais em um domínio que mencionam palavras-chave, tópicos ou reviews."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["monitoring", "web", "keywords"],
+        ),
+        "monitor_company": ToolMetadata(
+            name="monitor_company",
+            category=ToolCategory.PUBLIC,
+            description=(
+                "Rastreia menções da marca/empresa em diversos domínios usando buscas semânticas web."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["monitoring", "web", "brand"],
+        ),
     }
 
     # =========================================================================

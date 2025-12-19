@@ -16,6 +16,7 @@ pydantic-settings = "^2.3.4"
 fastmcp = "^2.11.0"
 anyio = "^4.1.1"
 redis = "^5.0.0"
+httpx = "^0.28.1"
 
 # --- Internal libs (only direct dependencies) ---
 vizu-models = { path = "../../libs/vizu_models", develop = true }
@@ -33,7 +34,6 @@ vizu-google-suite-client = { path = "../../libs/vizu_google_suite_client", devel
 pytest = "^8.2.2"
 pytest-asyncio = "^0.23.0"
 pytest-mock = "^3.14.0"
-httpx = "^0.28.1"
 ruff = "^0.5.0"
 
 [build-system]

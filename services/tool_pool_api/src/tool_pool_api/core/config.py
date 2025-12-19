@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     MCP_AUTH_BASE_URL: str = "http://localhost:8000"
     MCP_AUTH_REQUIRED_SCOPES: str = "email,profile"
 
+    # --- Internal tools service ---
+    TOOLS_SERVICE_BASE_URL: str = "http://tools:8000"
+
 
 @lru_cache
 def get_settings() -> Settings:

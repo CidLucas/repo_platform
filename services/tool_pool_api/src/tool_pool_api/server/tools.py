@@ -21,8 +21,10 @@ Benefícios:
 """
 
 import logging
+import sys
 
 from fastmcp import FastMCP
+from fastmcp.server.dependencies import get_access_token
 
 # Importa o registry de módulos
 from tool_pool_api.server.tool_modules import AVAILABLE_MODULES, register_all_tools
@@ -62,6 +64,11 @@ def get_available_modules() -> dict:
     return AVAILABLE_MODULES
 
 
+# Namespace package normalization for tests importing via the `src.` prefix.
+sys.modules.setdefault(
+    "src.tool_pool_api.server.tools", sys.modules[__name__]
+)
+
 # =============================================================================
 # BACKWARD COMPATIBILITY
 # =============================================================================
@@ -74,3 +81,12 @@ def get_available_modules() -> dict:
 #   from tool_pool_api.server.tool_modules.rag_module import _executar_rag_cliente_logic
 #   from tool_pool_api.server.tool_modules.sql_module import _executar_sql_agent_logic
 #   from tool_pool_api.server.tool_modules.common_module import _ferramenta_publica_de_teste_logic
+
+from tool_pool_api.server.dependencies import (
+    get_context_service,
+    load_context_from_token,
+)
+from tool_pool_api.server.tool_modules.common_module import _ferramenta_publica_de_teste_logic  # noqa: F401
+from tool_pool_api.server.tool_modules.rag_module import _executar_rag_cliente_logic  # noqa: F401
+from tool_pool_api.server.tool_modules.sql_module import _executar_sql_agent_logic  # noqa: F401
+from vizu_rag_factory.factory import create_rag_runnable

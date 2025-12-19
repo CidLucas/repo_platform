@@ -58,7 +58,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
     modules_loaded = []
 
     # Importa módulos para trigger os decorators
-    from . import common_module, rag_module, sql_module
+    from . import common_module, rag_module, sql_module, web_monitor_module
 
     # Optional Google module (integration)
     try:
@@ -96,6 +96,11 @@ AVAILABLE_MODULES = {
     "common": {
         "description": "Ferramentas públicas e utilitários",
         "tools": ["ferramenta_publica_de_teste"],
+        "requires_auth": False,
+    },
+    "monitoring": {
+        "description": "Monitoramento web com crawl4ai e expansão semântica",
+        "tools": ["monitor_feature", "monitor_keywords", "monitor_company"],
         "requires_auth": False,
     },
     "google": {

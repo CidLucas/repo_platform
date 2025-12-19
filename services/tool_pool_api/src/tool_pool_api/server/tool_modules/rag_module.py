@@ -10,17 +10,15 @@ Phase 3: Updated to use vizu_tool_registry for tool validation.
 import logging
 from uuid import UUID
 
+from importlib import import_module
+from types import ModuleType
+
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
-from fastmcp.server.dependencies import AccessToken, get_access_token
+from fastmcp.server.dependencies import AccessToken
 
-from tool_pool_api.server.dependencies import (
-    get_context_service,
-    load_context_from_token,
-)
 from vizu_llm_service import ModelTier, get_model
 from vizu_models.vizu_client_context import VizuClientContext
-from vizu_rag_factory.factory import create_rag_runnable
 
 # Phase 3: Use ToolRegistry for validation
 from vizu_tool_registry import ToolRegistry
@@ -53,11 +51,28 @@ def _is_tool_enabled_for_client(
         True if tool is enabled
     """
     # Only consult the authoritative `enabled_tools` list and enforce tier.
-    enabled = getattr(context, "enabled_tools", None) or []
-    if tool_name not in enabled:
+    enabled = getattr(context, "enabled_tools", None)
+    if enabled is not None and not isinstance(enabled, (list, tuple, set)):
+        enabled = None
+    legacy_tools = ToolRegistry.get_tool_names_for_legacy_flags(
+        rag_enabled=getattr(context, "ferramenta_rag_habilitada", False),
+        sql_enabled=getattr(context, "ferramenta_sql_habilitada", False),
+        scheduling_enabled=getattr(context, "ferramenta_agendamento_habilitada", False),
+    )
+
+    if enabled is not None and tool_name not in enabled:
         return False
 
-    tier = getattr(context, "tier", "BASIC") or "BASIC"
+    if enabled is None and tool_name not in legacy_tools:
+        return False
+
+    raw_tier = getattr(context, "tier", None)
+    if isinstance(raw_tier, str) and raw_tier:
+        tier = raw_tier
+    elif hasattr(raw_tier, "value") and isinstance(raw_tier.value, str) and raw_tier.value:
+        tier = raw_tier.value
+    else:
+        tier = "BASIC"
     tool_meta = ToolRegistry.get_tool(tool_name)
     if tool_meta and not tool_meta.is_accessible_by_tier(tier):
         return False
@@ -90,8 +105,22 @@ async def _executar_rag_cliente_logic(
         ToolError: Se cliente não autorizado ou RAG desabilitado
     """
     # 1. Obter dependências
+
+    def _resolve_server_tools_module() -> ModuleType:
+        """Resolve o módulo de compatibilidade de tools, considerando aliases de importação."""
+
+        for module_name in ("src.tool_pool_api.server.tools", "tool_pool_api.server.tools"):
+            try:
+                return import_module(module_name)
+            except ModuleNotFoundError:
+                continue
+
+        raise ImportError("Não foi possível importar tool_pool_api.server.tools")
+
+    server_tools = _resolve_server_tools_module()
+
     try:
-        ctx_service = get_context_service()
+        ctx_service = server_tools.get_context_service()
     except Exception as e:
         logger.exception(f"Erro ao obter serviço de contexto: {e}")
         raise ToolError("Erro interno no serviço de ferramentas.")
@@ -115,8 +144,10 @@ async def _executar_rag_cliente_logic(
 
         else:
             # Caminho B: Autenticação via Token
-            access_token: AccessToken | None = get_access_token()
-            vizu_context = await load_context_from_token(ctx_service, access_token)
+            access_token: AccessToken | None = server_tools.get_access_token()
+            vizu_context = await server_tools.load_context_from_token(
+                ctx_service, access_token
+            )
 
     except ToolError as e:
         logger.warning(f"[RAG] Falha na autorização: {e}")
@@ -142,7 +173,7 @@ async def _executar_rag_cliente_logic(
             tags=["tool_pool", "rag_module"],
         )
 
-        rag_runnable = create_rag_runnable(vizu_context, llm=llm)
+        rag_runnable = server_tools.create_rag_runnable(vizu_context, llm=llm)
 
         if not rag_runnable:
             logger.error(f"[RAG] Fábrica retornou None para {real_client_id}.")

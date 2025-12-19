@@ -32,9 +32,12 @@ def mock_vizu_context():
     mock_ctx.nome_empresa = "Cliente de Teste LTDA"
 
     # --- Atributos de Permissão (CRUCIAL para os testes) ---
-    # Seu teste falharia no 'if' se estes não fossem True.
-    mock_ctx.ferramenta_rag_habilitada = True
-    mock_ctx.ferramenta_sql_habilitada = True
+    # Substituímos as flags por uma lista autoritativa de tools.
+    mock_ctx.enabled_tools = [
+        "executar_rag_cliente",
+        "executar_sql_agent",
+    ]
+    mock_ctx.tier = "BASIC"
 
     # --- Atributos de Configuração ---
     mock_ctx.collection_rag = "colecao_de_teste_rag"

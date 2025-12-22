@@ -66,4 +66,5 @@ class TipoFonte(str, Enum):
     """
 
     URL = "URL"
+    UPLOAD = "UPLOAD"
     # Adicione outros tipos conforme necessário

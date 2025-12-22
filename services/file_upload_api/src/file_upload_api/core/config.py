@@ -18,25 +18,11 @@ class Settings(BaseSettings):
     # É opcional para permitir a execução em testes sem um coletor.
     OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
 
-    # --- Storage Backend ---
-    # Use "supabase" (default) or "gcs" for legacy GCP storage
-    STORAGE_BACKEND: str = "supabase"
-
-    # --- Supabase Configuration (for supabase backend) ---
+    # --- Supabase Configuration ---
     # These are loaded from environment by vizu_supabase_client
     SUPABASE_URL: str | None = None
     SUPABASE_KEY: str | None = None
     SUPABASE_BUCKET: str = "file-uploads"
-
-    # --- GCP Configuration (optional, for legacy gcs backend) ---
-    # O 'Project ID' do GCP onde os recursos (Bucket, Topic) estão.
-    GCP_PROJECT_ID: str | None = None
-
-    # O nome do GCS Bucket para onde os arquivos serão enviados.
-    GCS_BUCKET_NAME: str | None = None
-
-    # O ID do Tópico Pub/Sub para onde as mensagens de job serão publicadas.
-    PUBSUB_TOPIC_ID: str | None = None
 
     class Config:
         # Permite carregar variáveis de um arquivo .env (ótimo para dev local)

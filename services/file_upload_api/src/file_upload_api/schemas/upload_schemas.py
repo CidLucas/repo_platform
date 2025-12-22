@@ -22,9 +22,14 @@ class FileUploadResponse(BaseModel):
         ..., description="O MIME type do arquivo detectado pelo servidor."
     )
 
-    gcs_path: str = Field(
+    storage_path: str = Field(
         ...,
-        description="O caminho no GCS onde o arquivo bruto foi armazenado temporariamente.",
+        description="O caminho no Supabase Storage onde o arquivo foi armazenado.",
+    )
+
+    fonte_de_dados_id: int = Field(
+        ...,
+        description="ID do registro na tabela fonte_de_dados que representa este arquivo.",
     )
 
     class Config:

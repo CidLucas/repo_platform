@@ -10,7 +10,7 @@ Suporta:
 import logging
 from typing import Union
 
-from data_ingestion_api.connectors import (
+from vizu_data_connectors import (
     AuthenticationError,
     EcommerceConnectorError,
     LojaIntegradaConnector,

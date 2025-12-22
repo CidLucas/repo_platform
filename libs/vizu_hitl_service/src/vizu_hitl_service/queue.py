@@ -98,9 +98,9 @@ class HitlQueue:
         review_data = full_review.model_dump(mode="json")
         # Convert UUIDs e datetimes para string
         for key, value in review_data.items():
-            if isinstance(value, (UUID, datetime)):
+            if isinstance(value, UUID | datetime):
                 review_data[key] = str(value)
-            elif isinstance(value, (dict, list)):
+            elif isinstance(value, dict | list):
                 review_data[key] = json.dumps(value)
 
         pipe.hset(review_key, mapping=review_data)

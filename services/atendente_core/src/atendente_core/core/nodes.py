@@ -15,21 +15,11 @@ from atendente_core.core.state import AgentState
 from atendente_core.services.mcp_client import mcp_manager
 
 # Phase 3: Use vizu_elicitation_service instead of local module
-try:
-    from vizu_elicitation_service import (
-        ElicitationRequired,
-        format_elicitation_for_llm,
-        validate_elicitation_response,
-    )
-    HAS_ELICITATION_SERVICE = True
-except ImportError:
-    # Fallback to local module if vizu_elicitation_service not available
-    from atendente_core.core.elicitation import (
-        ElicitationRequired,
-        format_elicitation_for_llm,
-        validate_elicitation_response,
-    )
-    HAS_ELICITATION_SERVICE = False
+from vizu_elicitation_service import (
+    ElicitationRequired,
+    format_elicitation_for_llm,
+    validate_elicitation_response,
+)
 
 # Importa o cliente LLM centralizado
 from vizu_llm_service import ModelTier, get_model

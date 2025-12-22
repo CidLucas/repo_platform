@@ -1,73 +1,27 @@
-# src/atendente_api/services/twilio_service.py
+"""
+Twilio service wrapper using vizu_twilio_client library.
 
+This module provides a FastAPI-compatible dependency for Twilio operations,
+using the shared vizu_twilio_client library.
+"""
 
 from fastapi import Depends
-from twilio.rest import Client
-
-# Importa a dependência de configurações, seguindo nosso padrão
-from ..core.config import Settings, get_settings
+from vizu_twilio_client import TwilioClient, TwilioSettings
 
 
-class TwilioService:
+def get_twilio_client(
+    settings: TwilioSettings = Depends(TwilioSettings),
+) -> TwilioClient:
     """
-    Serviço encapsulado para interações proativas com a API REST do Twilio.
+    FastAPI dependency that provides a TwilioClient instance.
+
+    The TwilioSettings will automatically load from environment variables:
+    - TWILIO_ACCOUNT_SID
+    - TWILIO_AUTH_TOKEN
+    - TWILIO_MESSAGING_SERVICE_SID (optional)
+    - TWILIO_DEFAULT_FROM_NUMBER (optional)
+
+    Returns:
+        Configured TwilioClient instance
     """
-
-    def __init__(self, settings: Settings):
-        # As credenciais são recebidas de forma segura, sem import global
-        self.client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-        print("INFO: Cliente TwilioService inicializado.")
-
-    def create_conversation(self, group_name: str) -> str | None:
-        try:
-            conversation = self.client.conversations.v1.conversations.create(
-                friendly_name=group_name
-            )
-            print(
-                f"Conversa '{group_name}' criada com sucesso. SID: {conversation.sid}"
-            )
-            return conversation.sid
-        except Exception as e:
-            print(f"ERRO ao criar conversa via Twilio: {e}")
-            return None
-
-    def add_participant_to_conversation(
-        self, conversation_sid: str, participant_number: str
-    ) -> str | None:
-        try:
-            # O friendly_name pode ser adicionado se necessário, mas não é um parâmetro direto do `create`
-            participant = self.client.conversations.v1.conversations(
-                conversation_sid
-            ).participants.create(
-                messaging_binding_address=f"whatsapp:{participant_number}"
-            )
-            print(
-                f"Participante {participant_number} adicionado à conversa {conversation_sid}."
-            )
-            return participant.sid
-        except Exception as e:
-            print(f"ERRO ao adicionar participante {participant_number}: {e}")
-            return None
-
-    def send_system_message(
-        self, conversation_sid: str, message_body: str
-    ) -> str | None:
-        try:
-            message = self.client.conversations.v1.conversations(
-                conversation_sid
-            ).messages.create(author="system", body=message_body)
-            print(
-                f"Mensagem de sistema enviada para {conversation_sid}: '{message_body}'"
-            )
-            return message.sid
-        except Exception as e:
-            print(f"ERRO ao enviar mensagem de sistema: {e}")
-            return None
-
-
-# --- Função de Dependência para FastAPI ---
-def get_twilio_service(settings: Settings = Depends(get_settings)) -> TwilioService:
-    """
-    Dependência do FastAPI que fornece uma instância do TwilioService.
-    """
-    return TwilioService(settings)
+    return TwilioClient(settings)

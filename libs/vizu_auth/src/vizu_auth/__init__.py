@@ -21,6 +21,7 @@ try:
         InvalidTokenError,
         JWTClaims,
         MissingCredentialsError,
+        SecretManager,
         TokenExpiredError,
         clear_auth_settings_cache,
         decode_jwt,

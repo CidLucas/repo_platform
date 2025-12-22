@@ -4685,6 +4685,25 @@ type = "directory"
 url = "../../libs/vizu_tool_registry"
 
 [[package]]
+name = "vizu-twilio-client"
+version = "0.1.0"
+description = "Twilio client library for conversation management, messaging, and phone number operations"
+optional = false
+python-versions = "^3.11"
+groups = ["main"]
+files = []
+develop = true
+
+[package.dependencies]
+pydantic = "^2.0.0"
+pydantic-settings = "^2.0.0"
+twilio = "^9.0.0"
+
+[package.source]
+type = "directory"
+url = "../../libs/vizu_twilio_client"
+
+[[package]]
 name = "watchfiles"
 version = "1.1.1"
 description = "Simple, modern and high performance file watching and code reload in python."
@@ -5256,4 +5275,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "9d3e614e77dff5351ca79086b24236018aa05c08f711db9136fc3aa758eb23d9"
+content-hash = "794d2ed8ab89637448d7419e0e6f23ae177bac8cf2099673639e2a273b89e542"

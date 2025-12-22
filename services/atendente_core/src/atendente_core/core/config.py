@@ -22,7 +22,6 @@ class Settings(BaseSettings):
 
     # Credenciais e chaves de API
     LANGCHAIN_API_KEY: str | None = None  # Opcional, para LangSmith
-    TWILIO_AUTH_TOKEN: str | None = None
 
     # Phase 3: Feature flag for new agent framework
     USE_NEW_FRAMEWORK: bool = False

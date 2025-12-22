@@ -1,5 +1,7 @@
-from fastapi import FastAPI, Query
 from typing import List, Optional
+
+from fastapi import FastAPI, Query
+
 from tools.monitoring_service import WebMonitorService, get_monitor_instance
 
 app = FastAPI(title="Vizu Tools Service")
@@ -13,14 +15,14 @@ async def monitor_feature(domain: str, query: str):
 
 
 @app.get("/monitor-keywords")
-async def monitor_keywords(domain: str, keywords: List[str] = Query(...)):
+async def monitor_keywords(domain: str, keywords: list[str] = Query(...)):
     monitor = await get_monitor_instance(domain)
     result = await monitor.monitor_keywords(keywords)
     return {"results": result}
 
 
 @app.get("/monitor-company")
-async def monitor_company(company: str, domains: Optional[List[str]] = Query(None)):
+async def monitor_company(company: str, domains: Optional[list[str]] = Query(None)):
     use_domain = domains[0] if domains and len(domains) > 0 else "zerezes.com.br"
     monitor = await get_monitor_instance(use_domain)
     result = await monitor.monitor_company_web(company, extra_domains=domains or [])

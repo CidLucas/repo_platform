@@ -1,7 +1,7 @@
 import logging
 
-# Reutilização Vizu: Importando o conector do microserviço API
-from data_ingestion_api.connectors.bigquery_connector import BigQueryConnector
+# Reutilização Vizu: Importando o conector da lib compartilhada
+from vizu_data_connectors.bigquery import BigQueryConnector
 
 # Import do nosso módulo de mapeamento "simples e na mão"
 from data_ingestion_worker.core import schema_mapping

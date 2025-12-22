@@ -8,10 +8,9 @@ Phase 3: Updated to use vizu_tool_registry for tool validation.
 """
 
 import logging
-from uuid import UUID
-
 from importlib import import_module
 from types import ModuleType
+from uuid import UUID
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
@@ -52,7 +51,7 @@ def _is_tool_enabled_for_client(
     """
     # Only consult the authoritative `enabled_tools` list and enforce tier.
     enabled = getattr(context, "enabled_tools", None)
-    if enabled is not None and not isinstance(enabled, (list, tuple, set)):
+    if enabled is not None and not isinstance(enabled, list | tuple | set):
         enabled = None
     legacy_tools = ToolRegistry.get_tool_names_for_legacy_flags(
         rag_enabled=getattr(context, "ferramenta_rag_habilitada", False),

@@ -28,6 +28,7 @@ from vizu_auth.core.models import (
     AuthResult,
     JWTClaims,
 )
+from vizu_auth.core.secret_manager import SecretManager
 
 __all__ = [
     "AuthSettings",
@@ -48,4 +49,5 @@ __all__ = [
     "AuthRequest",
     "AuthResult",
     "JWTClaims",
+    "SecretManager",
 ]

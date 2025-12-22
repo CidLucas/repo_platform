@@ -1,48 +1,21 @@
 # services/data_ingestion_api/services/credential_service.py
 
 import logging
+import uuid
 from typing import Any
+
+from vizu_auth import SecretManager
 
 from data_ingestion_api.schemas.schemas import (
     BigQueryCredentialCreate,
     CredencialResponse,
     SQLCredentialCreate,
 )
+from data_ingestion_api.services import supabase_client
 
 logger = logging.getLogger(__name__)
 
-# TODO: Substituir por import real do libs/vizu_db_connector
-class VizuDBConnector:
-    """Mock do nosso vizu_db_connector para simular a persistência."""
-    async def save_credential_reference(self, data: dict[str, Any]) -> dict[str, Any]:
-        # Simula salvar no banco
-        import uuid
-        return {
-            "id_credencial": str(uuid.uuid4()),
-            "secret_manager_id": data['secret_manager_id'],
-            "nome_conexao": data['nome_conexao'],
-            "tipo_servico": data['tipo_servico'],
-            "status": "PENDENTE_VALIDACAO"
-        }
-
-# TODO: Substituir por import real do nosso módulo de Secrets
-class SecretManager:
-    """Mock para simular a integração com o Google Secret Manager."""
-    async def store_secret(self, client_id: str, credentials: dict[str, Any]) -> str:
-        # Lógica real faria a chamada ao GCP/AWS/Azure
-        # Retorna o ID do segredo
-        import hashlib
-        secret_hash = hashlib.sha256(str(credentials).encode()).hexdigest()
-        return f"vizu-secret-id-{client_id}-{secret_hash[:8]}"
-
-    # NOVO MÉTODO: Essencial para o Rollback
-    async def delete_secret(self, secret_id: str) -> bool:
-        """Simula a deleção de um segredo durante o Rollback."""
-        logger.info(f"Rollback: Deletando segredo {secret_id} do Secret Manager.")
-        return True # Retorno booleano para indicar sucesso
-
-# Instanciação dos mocks como dependências do serviço
-db_connector = VizuDBConnector()
+# Instanciação do Secret Manager
 secret_manager = SecretManager()
 
 class CredentialService:
@@ -69,21 +42,28 @@ class CredentialService:
             logger.info(f"Armazenando segredo para cliente {client_id} no Secret Manager.")
             secret_id = await secret_manager.store_secret(client_id, sensitive_payload)
 
-            # 2. Persistir a REFERÊNCIA (Secret ID) no vizu_db_connector
+            # 2. Persistir a REFERÊNCIA (Secret ID) no Supabase
             db_payload = {
                 "cliente_vizu_id": client_id,
-                "nome_conexao": credenciais.nome_conexao,
-                "tipo_servico": credenciais.tipo_servico,
-                "secret_manager_id": secret_id
+                "nome_servico": credenciais.nome_conexao,
+                "credenciais_cifradas": secret_id,  # Store the Secret Manager ID
             }
 
-            db_result = await db_connector.save_credential_reference(db_payload)
+            db_result = await supabase_client.insert("credencial_servico_externo", db_payload)
 
             # 3. Finalizar e Retornar
-            # Padrão Vizu: Assumimos que o await resolveu o AsyncMock para o dict (Corrigido pelo Mock no Teste)
-            logger.info(f"Referência de credencial {db_result['id_credencial']} salva com Secret ID {secret_id}.")
+            # Map Supabase response to expected format
+            response_data = {
+                "id_credencial": str(db_result.get("id", uuid.uuid4())),
+                "secret_manager_id": secret_id,
+                "nome_conexao": credenciais.nome_conexao,
+                "tipo_servico": credenciais.tipo_servico,
+                "status": "PENDENTE_VALIDACAO"
+            }
 
-            return CredencialResponse(**db_result)
+            logger.info(f"Referência de credencial {response_data['id_credencial']} salva com Secret ID {secret_id}.")
+
+            return CredencialResponse(**response_data)
 
         except Exception as e:
             # Fluxo de Rollback: Se o Secret Manager teve sucesso, mas a persistência ou o retorno falharam

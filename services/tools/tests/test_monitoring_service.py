@@ -1,8 +1,8 @@
 import asyncio
-import os
 import json
-import pytest
+import os
 
+import pytest
 from tools.monitoring_service import WebMonitorService
 
 
@@ -26,7 +26,7 @@ async def test_monitor_feature_with_mocked_search(tmp_path, monkeypatch):
     # state file created
     state_file = os.path.join(state_dir, f"{domain.replace('/', '_')}_known.json")
     assert os.path.exists(state_file)
-    with open(state_file, "r") as f:
+    with open(state_file) as f:
         data = json.load(f)
     assert "https://example.com/products/1" in data
 

@@ -24,7 +24,6 @@ langchain-mcp-adapters = "^0.1.13"
 langfuse = "^3.0.0"
 
 # Service-specific dependencies
-twilio = "^9.0.0"
 redis = "^5.0.4"
 
 # --- Dependências internas do monorepo Vizu (apenas as usadas diretamente) ---
@@ -40,6 +39,7 @@ vizu-prompt-management = {path = "../../libs/vizu_prompt_management", develop = 
 vizu-elicitation-service = {path = "../../libs/vizu_elicitation_service", develop = true}
 vizu-agent-framework = {path = "../../libs/vizu_agent_framework", develop = true}
 vizu-sql-factory = {path = "../../libs/vizu_sql_factory", develop = true}
+vizu-twilio-client = {path = "../../libs/vizu_twilio_client", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.0"

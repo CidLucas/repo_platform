@@ -171,7 +171,7 @@ class ContextService:
             else:
                 parsed = raw
 
-            if not isinstance(parsed, (list, tuple)):
+            if not isinstance(parsed, list | tuple):
                 return []
 
             seen = set()

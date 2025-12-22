@@ -7,13 +7,15 @@ Utiliza mocks para simular as respostas das APIs externas.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from data_ingestion_api.connectors.ecommerce_base_connector import (
+from vizu_data_connectors.base.ecommerce_base_connector import (
     AuthenticationError,
     RateLimitError,
 )
-from data_ingestion_api.connectors.loja_integrada_connector import LojaIntegradaConnector
-from data_ingestion_api.connectors.shopify_connector import ShopifyConnector
-from data_ingestion_api.connectors.vtex_connector import VTEXConnector
+from vizu_data_connectors.ecommerce import (
+    LojaIntegradaConnector,
+    ShopifyConnector,
+    VTEXConnector,
+)
 
 # =============================================================================
 # Fixtures

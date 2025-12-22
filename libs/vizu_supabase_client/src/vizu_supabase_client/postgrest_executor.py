@@ -131,7 +131,7 @@ class PostgRESTQueryExecutor:
             # Apply filters
             if filters:
                 for column, value in filters.items():
-                    if isinstance(value, (list, tuple)):
+                    if isinstance(value, list | tuple):
                         # IN filter
                         query = query.filter(column, "in", f"({','.join(str(v) for v in value)})")
                     else:
@@ -188,9 +188,8 @@ class PostgRESTQueryExecutor:
         Returns:
             Supabase client with JWT authentication.
         """
-        from supabase.lib.client_options import SyncClientOptions
-
         from supabase import create_client
+        from supabase.lib.client_options import SyncClientOptions
 
         config_url = get_supabase_client().url
 

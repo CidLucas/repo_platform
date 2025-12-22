@@ -523,6 +523,26 @@ jobs:
             --set-env-vars "ENVIRONMENT=production" \
             --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest" || FAILED=$((FAILED + 1))
 
+          # data-ingestion-api (public - enterprise data connectors)
+          deploy_service "data-ingestion-api" \
+            --allow-unauthenticated \
+            --memory 1Gi --cpu 2 \
+            --concurrency 50 --timeout 300 \
+            --max-instances 50 --min-instances 0 \
+            --ingress all \
+            --set-env-vars "ENVIRONMENT=production" \
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest" || FAILED=$((FAILED + 1))
+
+          # analytics-api (internal - metrics and dashboards)
+          deploy_service "analytics-api" \
+            --no-allow-unauthenticated \
+            --memory 1Gi --cpu 2 \
+            --concurrency 50 --timeout 300 \
+            --max-instances 50 --min-instances 0 \
+            --ingress internal \
+            --set-env-vars "ENVIRONMENT=production" \
+            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest" || FAILED=$((FAILED + 1))
+
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ $FAILED -gt 0 ]; then
@@ -537,7 +557,7 @@ jobs:
       - name: Build dashboard (Vite)
         if: matrix.service == 'dashboard'
         run: |
-          export 
+          export
           export VITE_SUPABASE_URL="${{ secrets.VITE_SUPABASE_URL }}"
           export VITE_SUPABASE_ANON_KEY="${{ secrets.VITE_SUPABASE_ANON_KEY }}"
           export VITE_API_URL="${{ secrets.VITE_API_URL }}"

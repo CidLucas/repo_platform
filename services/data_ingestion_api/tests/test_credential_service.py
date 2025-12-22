@@ -44,17 +44,16 @@ def mock_credential_service(mocker):
     )
     mock_store_secret.return_value = "vizu-prod-secret-id-gcp-12345"
 
-    # 2. Mock do Vizu DB Connector (Simula a persistência do Secret ID)
+    # 2. Mock do Supabase Client (Simula a persistência do Secret ID)
     mock_save_ref = mocker.patch(
-        'data_ingestion_api.services.credential_service.db_connector.save_credential_reference',
+        'data_ingestion_api.services.supabase_client.insert',
         new_callable=AsyncMock
     )
     mock_save_ref.return_value = {
-        "id_credencial": "db-uuid-001",
-        "secret_manager_id": "vizu-prod-secret-id-gcp-12345",
-        "nome_conexao": "BigQuery Teste",
-        "tipo_servico": "BIGQUERY",
-        "status": "PENDENTE_VALIDACAO"
+        "id": "db-uuid-001",
+        "cliente_vizu_id": "vizu-cliente-a",
+        "nome_servico": "BigQuery Teste",
+        "credenciais_cifradas": "vizu-prod-secret-id-gcp-12345"
     }
 
     # 3. Mock do Rollback (delete_secret) - NOVO
@@ -92,12 +91,14 @@ async def test_create_bigquery_credential_success(mock_credential_service, bigqu
     assert response.secret_manager_id == "vizu-prod-secret-id-gcp-12345"
     assert response.status == "PENDENTE_VALIDACAO"
 
-    # C) CRÍTICO (VIZU CORE): Garante que a Service Account Key NUNCA foi enviada ao vizu_db_connector
+    # C) CRÍTICO (VIZU CORE): Garante que a Service Account Key NUNCA foi enviada ao Supabase
     db_call_args, db_call_kwargs = mock_save_ref.call_args
-    db_payload = db_call_args[0]
+    table_name = db_call_args[0]
+    db_payload = db_call_args[1]
 
+    assert table_name == "credencial_servico_externo"
     assert "service_account_json" not in db_payload # Confirma que o dado sensível não está aqui
-    assert db_payload["secret_manager_id"] == "vizu-prod-secret-id-gcp-12345" # Apenas o ID está aqui
+    assert db_payload["credenciais_cifradas"] == "vizu-prod-secret-id-gcp-12345" # Apenas o Secret ID está aqui
 
     # NOVO ASSERÇÃO: Garante que o Rollback NÃO foi chamado no sucesso
     mock_delete_secret.assert_not_called()

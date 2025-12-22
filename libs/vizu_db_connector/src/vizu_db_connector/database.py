@@ -13,13 +13,31 @@ TEST_DATABASE_URL = os.getenv(
     "postgresql+psycopg2://user:password@localhost:5432/vizu_db_test",
 )
 
-# --- 2. Criação da Engine ---
-# A 'engine' é o ponto central de comunicação com o banco de dados.
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+# --- 2. Lazy Engine Initialization ---
+# The engine and SessionLocal are created lazily to avoid errors when DATABASE_URL is not set
+_engine = None
+_SessionLocal = None
 
-# --- 3. Criação da Fábrica de Sessões ---
-# O 'SessionLocal' é uma "fábrica" que cria uma nova instância de Sessão.
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_engine():
+    """Get or create the database engine."""
+    global _engine
+    if _engine is None:
+        if not DATABASE_URL:
+            raise ValueError(
+                "DATABASE_URL environment variable is not set. "
+                "Cannot create database engine."
+            )
+        _engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    return _engine
+
+
+def SessionLocal():
+    """Get a new database session."""
+    global _SessionLocal
+    if _SessionLocal is None:
+        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
+    return _SessionLocal()
 
 
 # --- 4. Função de Dependência para FastAPI ---

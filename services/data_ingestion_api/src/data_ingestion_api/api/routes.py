@@ -8,8 +8,9 @@ from data_ingestion_api.schemas.schemas import (
     SQLCredentialCreate,
 )
 from data_ingestion_api.services.credential_service import credential_service
-from fastapi import APIRouter, HTTPException, status, Depends
-from libs.vizu_auth.src.vizu_auth.fastapi.dependencies import create_auth_dependency
+from fastapi import APIRouter, Depends, HTTPException, status
+from vizu_auth.fastapi.dependencies import create_auth_dependency
+
 
 # Factory de autenticação (apenas JWT, sem API Key)
 def fake_api_key_lookup(api_key: str):
@@ -44,7 +45,7 @@ async def create_new_credential(
     Recebe as credenciais de um serviço externo (BigQuery, SQL) e inicia o fluxo de segurança:
     1. Armazena a chave sensível no Secret Manager.
     2. Persiste o ID de referência no banco de dados Vizu.
-    
+
     Retorna a CredencialResponse com o ID de rastreamento.
     """
     try:

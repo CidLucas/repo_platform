@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, Form, Header, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from twilio.twiml.messaging_response import MessagingResponse
+from vizu_twilio_client.webhook import create_twiml_response
 
 from atendente_core.api.auth import get_auth_result
 from atendente_core.api.schemas import (
@@ -233,15 +233,15 @@ async def twilio_webhook(
         response_text = "Olá! O webhook foi recebido, mas a identificação do cliente via WhatsApp ainda está sendo configurada."
 
         # Resposta em XML TwiML (exigido pelo Twilio)
-        twiml = MessagingResponse()
-        twiml.message(response_text)
+        twiml_response = create_twiml_response(response_text)
 
-        return Response(content=str(twiml), media_type="application/xml")
+        return Response(content=twiml_response, media_type="application/xml")
 
     except Exception as e:
         logger.error(f"Erro no webhook Twilio: {e}", exc_info=True)
         # Mesmo em erro, o Twilio espera XML válido para não retentar infinitamente
-        return Response(content=str(MessagingResponse()), media_type="application/xml")
+        empty_twiml = create_twiml_response()
+        return Response(content=empty_twiml, media_type="application/xml")
 
 
 # ============================================================================

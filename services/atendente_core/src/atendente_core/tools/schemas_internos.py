@@ -1,4 +1,11 @@
-from typing import Any, Literal
+"""
+Internal schemas for tool execution.
+
+These schemas are used by atendente_core for specific tool integrations
+that require custom fields beyond what's provided by MCP tools.
+"""
+
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -20,28 +27,4 @@ class RAGQuery(BaseModel):
 
     query: str = Field(
         description="A pergunta do usuário sobre políticas, horários, etc."
-    )
-
-
-class SchedulingTool(BaseModel):
-    """
-    Use esta ferramenta para criar, verificar ou cancelar agendamentos.
-    Sempre extraia as informações relevantes da conversa do usuário.
-    """
-
-    intent: Literal["book", "check_availability", "cancel"] = Field(
-        description="A intenção do usuário: criar um agendamento (book), verificar horários (check_availability) ou cancelar (cancel)."
-    )
-    service: str | None = Field(
-        None,
-        description="O serviço que o cliente deseja agendar, ex: 'corte de cabelo'.",
-    )
-    date: str | None = Field(
-        None, description="A data para o agendamento no formato AAAA-MM-DD."
-    )
-    time: str | None = Field(
-        None, description="A hora para o agendamento no formato HH:MM."
-    )
-    cancellation_id: str | None = Field(
-        None, description="O ID do agendamento a ser cancelado."
     )

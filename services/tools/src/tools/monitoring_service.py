@@ -13,7 +13,7 @@ except ImportError:  # pragma: no cover - optional dependency
     Language = None  # type: ignore[assignment]
     Doc = None  # type: ignore[assignment]
 
-_MONITORS: Dict[str, "WebMonitorService"] = {}
+_MONITORS: dict[str, "WebMonitorService"] = {}
 
 
 def _ensure_dir(path: str):
@@ -24,11 +24,11 @@ def _ensure_dir(path: str):
 class FeatureDefinition:
     name: str
     description: str
-    keywords: List[str]
-    price_terms: List[str]
+    keywords: list[str]
+    price_terms: list[str]
 
 
-FEATURE_DEFINITIONS: List[FeatureDefinition] = [
+FEATURE_DEFINITIONS: list[FeatureDefinition] = [
     FeatureDefinition(
         name="product",
         description="Product discovery queries and feature highlights",
@@ -70,7 +70,7 @@ class QueryExpander:
 
     def __init__(self):
         self._nlp: Optional[Language] = None
-        self._feature_docs: Dict[str, "Doc"] = {}
+        self._feature_docs: dict[str, Doc] = {}
 
     def _load_spacy_model(self) -> Optional[Language]:
         if self._nlp is not None:
@@ -121,7 +121,7 @@ class QueryExpander:
 
         return None
 
-    def expand_query(self, phrase: str, include_price_tags: bool = False, seed_url: Optional[str] = None) -> List[str]:
+    def expand_query(self, phrase: str, include_price_tags: bool = False, seed_url: Optional[str] = None) -> list[str]:
         category = self.infer_category(phrase)
         if not category:
             return [phrase]
@@ -145,7 +145,7 @@ class MonitorTaskConfig:
     topk: int = 20
     threshold: float = 0.3
     source: str = "cc+sitemap"
-    extra_keywords: List[str] = field(default_factory=list)
+    extra_keywords: list[str] = field(default_factory=list)
 
 
 class WebMonitorService:
@@ -156,15 +156,15 @@ class WebMonitorService:
         self.state_file = os.path.join(state_dir, f"{self.domain.replace('/', '_')}_known.json")
         self._state_lock = asyncio.Lock()
         self.state = self._load_state()
-        self.last_results: List[Dict] = []
-        self._task_configs: Dict[str, MonitorTaskConfig] = {}
+        self.last_results: list[dict] = []
+        self._task_configs: dict[str, MonitorTaskConfig] = {}
         self.register_task(MonitorTaskConfig(name="feature", pattern="*/products/*"))
         self.register_task(MonitorTaskConfig(name="price_tags", pattern="*/products/*price*", include_price_tags=True))
 
     def _load_state(self):
         if os.path.exists(self.state_file):
             try:
-                with open(self.state_file, "r") as f:
+                with open(self.state_file) as f:
                     return set(json.load(f))
             except Exception:
                 return set()
@@ -175,7 +175,7 @@ class WebMonitorService:
             with open(self.state_file, "w") as f:
                 json.dump(sorted(list(self.state)), f)
 
-    async def _bm25_search(self, query_terms: List[str], pattern: str = "*/*", topk: int = 20, threshold: float = 0.3, source: str = "cc+sitemap") -> List[Dict]:
+    async def _bm25_search(self, query_terms: list[str], pattern: str = "*/*", topk: int = 20, threshold: float = 0.3, source: str = "cc+sitemap") -> list[dict]:
         """Attempt to use crawl4ai.AsyncUrlSeeder if available, otherwise return empty list.
 
         The function returns a list of dicts similar to crawl4ai responses:
@@ -206,7 +206,7 @@ class WebMonitorService:
             # crawl4ai not available or failed — return empty list
             return []
 
-    def _show_new_hits(self) -> Dict[str, List[str]]:
+    def _show_new_hits(self) -> dict[str, list[str]]:
         hit_urls = set(hit.get("url") for hit in self.last_results)
         new_hits = hit_urls - self.state
         summary = {
@@ -215,7 +215,7 @@ class WebMonitorService:
         }
         return summary
 
-    async def _process_results_and_persist(self, results: List[Dict]) -> Dict:
+    async def _process_results_and_persist(self, results: list[dict]) -> dict:
         self.last_results = results
         hits = set(r.get("url") for r in results if r.get("url"))
         new_summary = {"total_found": len(results)}
@@ -228,7 +228,7 @@ class WebMonitorService:
             new_summary.update({"new_count": 0, "new_urls": []})
         return new_summary
 
-    async def bm25_monitor(self, query_terms: List[str], pattern: str = "*/*", topk: int = 20, threshold: float = 0.3, source: str = "cc+sitemap") -> Dict:
+    async def bm25_monitor(self, query_terms: list[str], pattern: str = "*/*", topk: int = 20, threshold: float = 0.3, source: str = "cc+sitemap") -> dict:
         results = await self._bm25_search(query_terms, pattern=pattern, topk=topk, threshold=threshold, source=source)
         summary = await self._process_results_and_persist(results)
         return {"summary": summary, "results": results}
@@ -242,8 +242,8 @@ class WebMonitorService:
         task_name: str,
         user_query: str,
         seed_url: Optional[str] = None,
-        keywords_override: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
+        keywords_override: Optional[list[str]] = None,
+    ) -> dict[str, Any]:
         """Run a pre-configured task, using the expander + BM25 search parameters."""
         config = self._task_configs.get(task_name)
         if not config:
@@ -269,16 +269,16 @@ class WebMonitorService:
             source=config.source,
         )
 
-    async def monitor_feature(self, user_query: str, seed_url: Optional[str] = None) -> Dict[str, Any]:
+    async def monitor_feature(self, user_query: str, seed_url: Optional[str] = None) -> dict[str, Any]:
         return await self.monitor_task("feature", user_query, seed_url=seed_url)
 
-    async def monitor_price_tags(self, user_query: str, seed_url: Optional[str] = None) -> Dict[str, Any]:
+    async def monitor_price_tags(self, user_query: str, seed_url: Optional[str] = None) -> dict[str, Any]:
         return await self.monitor_task("price_tags", user_query, seed_url=seed_url)
 
-    async def monitor_keywords(self, keywords_or_phrases: List[str]) -> Dict:
+    async def monitor_keywords(self, keywords_or_phrases: list[str]) -> dict:
         return await self.bm25_monitor(keywords_or_phrases)
 
-    async def monitor_company_web(self, company_name: str, extra_domains: Optional[List[str]] = None) -> Dict:
+    async def monitor_company_web(self, company_name: str, extra_domains: Optional[list[str]] = None) -> dict:
         domains = extra_domains or [self.domain]
         combined = []
         try:

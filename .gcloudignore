@@ -1,0 +1,120 @@
+# .gcloudignore - Exclude files from Cloud Build uploads
+# This significantly speeds up builds by reducing upload size
+
+# Git
+.git/
+.gitignore
+
+# Python virtual environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node modules (for frontend apps)
+node_modules/
+.npm/
+.pnpm-store/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed for build)
+docs/
+*.md
+!README.md
+
+# Test files (not needed for production)
+tests/
+**/tests/
+test_*.py
+*_test.py
+conftest.py
+
+# Local development files
+.env
+.env.*
+!.env.example
+*.local
+docker-compose*.yml
+!docker-compose.yml
+
+# Large directories not needed for data_ingestion_api
+langfuse/
+ferramentas/
+terraform/
+apps/
+artifacts/
+geminicli/
+supabase/
+test_data/
+seeds/
+alembic/
+
+# Services not being built (comment out the one you're building)
+services/atendente_core/
+services/tool_pool_api/
+services/vendas_agent/
+services/support_agent/
+services/data_ingestion_worker/
+services/file_processing_worker/
+services/file_upload_api/
+services/analytics_api/
+services/embedding_service/
+services/migration_runner/
+services/ollama_service/
+# services/data_ingestion_api/  # <-- Building this one
+
+ # Exclude non-runtime files from libs
+ libs/*/README.md
+ libs/*/tests/
+ libs/*/.ruff_cache/
+ libs/*/.pytest_cache/
+ libs/*/dist/
+ libs/*/alembic/
+ libs/*/cli/
+ libs/*/migrations/
+ libs/*/docs/
+ libs/*/examples/
+ libs/*/integration/
+ libs/*/pyproject.toml
+ libs/*/poetry.lock
+ libs/*/build/
+ libs/*/setup.py
+ libs/*/Makefile
+ libs/*/scripts/
+
+ # Exclude non-runtime files from service
+ services/data_ingestion_api/README.md
+ services/data_ingestion_api/tests/
+ services/data_ingestion_api/.ruff_cache/
+ services/data_ingestion_api/.pytest_cache/
+ services/data_ingestion_api/dist/
+ services/data_ingestion_api/alembic/
+ services/data_ingestion_api/integration/
+ services/data_ingestion_api/poetry.lock
+ services/data_ingestion_api/pyproject.toml
+ services/data_ingestion_api/build/
+ services/data_ingestion_api/setup.py
+ services/data_ingestion_api/Makefile
+ services/data_ingestion_api/scripts/

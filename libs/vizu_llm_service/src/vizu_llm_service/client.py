@@ -97,9 +97,8 @@ def get_langfuse_callback(
 
     try:
         # Langfuse SDK v3 - import correto
-        from langfuse.langchain import CallbackHandler
-
         from langfuse import Langfuse
+        from langfuse.langchain import CallbackHandler
 
         # Inicializa o cliente Langfuse (singleton)
         Langfuse(

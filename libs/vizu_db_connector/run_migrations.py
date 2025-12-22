@@ -22,9 +22,8 @@ import os
 import sys
 from contextlib import redirect_stdout
 
-from alembic.config import Config
-
 from alembic import command
+from alembic.config import Config
 
 
 def locate_alembic_ini(start_path: str) -> str | None:

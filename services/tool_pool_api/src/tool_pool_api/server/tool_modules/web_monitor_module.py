@@ -39,10 +39,10 @@ async def _call_tools_service(path: str, params: list[tuple[str, str]]) -> dict:
     except httpx.HTTPStatusError as exc:
         detail = exc.response.text or exc.response.reason_phrase
         logger.warning("Monitoring service returned %s: %s", exc.response.status_code, detail)
-        raise ToolError("Monitoring service error: %s" % detail) from exc
+        raise ToolError(f"Monitoring service error: {detail}") from exc
     except httpx.RequestError as exc:
         logger.exception("Monitoring service unreachable: %s", exc)
-        raise ToolError("Monitoring service unreachable: %s" % exc) from exc
+        raise ToolError(f"Monitoring service unreachable: {exc}") from exc
 
 
 @register_module

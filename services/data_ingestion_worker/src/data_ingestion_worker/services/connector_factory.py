@@ -9,15 +9,13 @@ Este módulo implementa o princípio de Agnosticismo:
 import logging
 from typing import Any
 
-# Conectores de E-commerce
-from data_ingestion_api.connectors import (
+# Conectores da lib compartilhada
+from vizu_data_connectors import (
     LojaIntegradaConnector,
     ShopifyConnector,
     VTEXConnector,
 )
-
-# Conectores existentes
-from data_ingestion_api.connectors.bigquery_connector import BigQueryConnector
+from vizu_data_connectors.bigquery import BigQueryConnector
 from google.cloud import bigquery
 
 logger = logging.getLogger(__name__)

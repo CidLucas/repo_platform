@@ -23,6 +23,7 @@ COPY libs/vizu_agent_framework ./libs/vizu_agent_framework
 COPY libs/vizu_llm_service ./libs/vizu_llm_service
 COPY libs/vizu_hitl_service ./libs/vizu_hitl_service
 COPY libs/vizu_sql_factory ./libs/vizu_sql_factory
+COPY libs/vizu_twilio_client ./libs/vizu_twilio_client
 
 # Copia pyproject e instala dependências
 COPY services/atendente_core/pyproject.toml services/atendente_core/poetry.lock* ./services/atendente_core/
@@ -53,7 +54,7 @@ COPY libs/vizu_agent_framework/src ./libs/vizu_agent_framework/src
 COPY libs/vizu_llm_service/src ./libs/vizu_llm_service/src
 COPY libs/vizu_hitl_service/src ./libs/vizu_hitl_service/src
 COPY libs/vizu_sql_factory/src ./libs/vizu_sql_factory/src
-
+COPY libs/vizu_twilio_client/src ./libs/vizu_twilio_client/src
 # Copia ferramentas de desenvolvimento (seeds, etc) - needed for batch runs
 COPY ferramentas ./ferramentas
 COPY scripts ./scripts
@@ -63,7 +64,7 @@ COPY services/atendente_core/src ./src
 
 # PYTHONPATH para imports
 ENV PATH="/app/services/atendente_core/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_supabase_client/src:/app/libs/vizu_context_service/src:/app/libs/vizu_auth/src:/app/libs/vizu_tool_registry/src:/app/libs/vizu_prompt_management/src:/app/libs/vizu_elicitation_service/src:/app/libs/vizu_observability_bootstrap/src:/app/libs/vizu_agent_framework/src:/app/libs/vizu_llm_service/src:/app/libs/vizu_hitl_service/src:/app/libs/vizu_sql_factory/src"
+ENV PYTHONPATH="/app/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_supabase_client/src:/app/libs/vizu_context_service/src:/app/libs/vizu_auth/src:/app/libs/vizu_tool_registry/src:/app/libs/vizu_prompt_management/src:/app/libs/vizu_elicitation_service/src:/app/libs/vizu_observability_bootstrap/src:/app/libs/vizu_agent_framework/src:/app/libs/vizu_llm_service/src:/app/libs/vizu_hitl_service/src:/app/libs/vizu_sql_factory/src:/app/libs/vizu_twilio_client/src"
 
 EXPOSE 8000
 

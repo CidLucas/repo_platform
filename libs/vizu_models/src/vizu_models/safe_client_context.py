@@ -44,11 +44,7 @@ class SafeClientContext(BaseModel):
     # Configurações de comportamento (não sensíveis)
     prompt_base: str | None = None
     horario_funcionamento: dict | None = None
-
-    # Legacy flags de features (deprecated, kept for backward compatibility)
-    ferramenta_rag_habilitada: bool = False
-    ferramenta_sql_habilitada: bool = False
-    collection_rag: str | None = None
+    collection_rag: str | None = None  # RAG collection name if tool is enabled
 
 
 class InternalClientContext(BaseModel):
@@ -74,20 +70,16 @@ class InternalClientContext(BaseModel):
         Cria um InternalClientContext a partir de um VizuClientContext.
         Separa claramente os dados sensíveis dos seguros.
 
-        PHASE 1: Includes enabled_tools and tier in safe context
+        PHASE 1: Uses enabled_tools list as the single source of truth.
+        No more boolean flags for individual tools - all tools are managed
+        through the enabled_tools list.
         """
-        # Get enabled tools - use new method if available, fallback to legacy
+        # Get enabled tools - this is the authoritative field
         enabled_tools = []
         if hasattr(ctx, 'get_enabled_tools_list'):
             enabled_tools = ctx.get_enabled_tools_list()
         elif hasattr(ctx, 'enabled_tools') and ctx.enabled_tools:
-            enabled_tools = ctx.enabled_tools
-        else:
-            # Legacy fallback
-            if ctx.ferramenta_rag_habilitada:
-                enabled_tools.append("executar_rag_cliente")
-            if ctx.ferramenta_sql_habilitada:
-                enabled_tools.append("executar_sql_agent")
+            enabled_tools = ctx.enabled_tools if isinstance(ctx.enabled_tools, list) else []
 
         # Get tier value
         tier_value = "BASIC"
@@ -98,11 +90,9 @@ class InternalClientContext(BaseModel):
             nome_empresa=ctx.nome_empresa,
             tier=tier_value,
             enabled_tools=enabled_tools,
-            prompt_base=ctx.prompt_base,
-            horario_funcionamento=ctx.horario_funcionamento,
-            ferramenta_rag_habilitada=ctx.ferramenta_rag_habilitada,
-            ferramenta_sql_habilitada=ctx.ferramenta_sql_habilitada,
-            collection_rag=ctx.collection_rag,
+            prompt_base=getattr(ctx, 'prompt_base', None),
+            horario_funcionamento=getattr(ctx, 'horario_funcionamento', None),
+            collection_rag=getattr(ctx, 'collection_rag', None),
         )
         return cls(
             id=ctx.id,

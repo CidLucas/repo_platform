@@ -219,29 +219,50 @@ async def twilio_webhook(
     # O Twilio envia os dados como FORM DATA (application/x-www-form-urlencoded)
     From: str = Form(...),
     Body: str = Form(...),
-    # Em produção, precisaremos de uma estratégia para mapear o número 'To'
-    # para uma API Key ou Cliente ID. Por enquanto, deixamos preparado.
+    To: str | None = Form(None),  # Número de destino (opcional, para multi-tenant)
     service: AtendenteService = Depends(get_atendente_service),
+    db: Session = Depends(get_db_session),
 ):
+    """
+    Webhook Twilio para WhatsApp.
+
+    Mapeia o número de telefone do cliente final (From) para um cliente_vizu
+    através da tabela cliente_final, permitindo autenticação sem API key.
+    """
     try:
-        logger.info(f"Recebido Webhook Twilio de {From}: {Body}")
+        logger.info(f"Recebido Webhook Twilio de {From} para {To}: {Body}")
 
-        # TODO: Recuperar API KEY do cliente baseada no número de destino (To)
-        # api_key = await service.get_api_key_from_phone(...)
+        # Normaliza o número de telefone (remove espaços, caracteres especiais)
+        phone_number = From.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
 
-        # Mock temporário para resposta (pois não temos a API Key no header do Twilio)
-        response_text = "Olá! O webhook foi recebido, mas a identificação do cliente via WhatsApp ainda está sendo configurada."
+        # Busca o cliente_vizu através do número de telefone
+        from vizu_models import ClienteFinal
+        statement = select(ClienteFinal).where(ClienteFinal.id_externo == phone_number)
+        cliente_final = db.execute(statement).scalars().first()
+
+        if not cliente_final:
+            logger.warning(f"Cliente final não encontrado para o número: {phone_number}")
+            response_text = "Olá! Não conseguimos identificar seu número. Por favor, entre em contato com o suporte."
+            twiml_response = create_twiml_response(response_text)
+            return Response(content=twiml_response, media_type="application/xml")
+
+        # Processa a mensagem usando o cliente_vizu_id
+        result = await service.process_message(
+            api_key=None,
+            session_id=f"whatsapp:{phone_number}",  # Session ID baseada no número
+            message_text=Body,
+            cliente_vizu_id=str(cliente_final.cliente_vizu_id),
+        )
 
         # Resposta em XML TwiML (exigido pelo Twilio)
-        twiml_response = create_twiml_response(response_text)
-
+        twiml_response = create_twiml_response(result.response)
         return Response(content=twiml_response, media_type="application/xml")
 
     except Exception as e:
         logger.error(f"Erro no webhook Twilio: {e}", exc_info=True)
         # Mesmo em erro, o Twilio espera XML válido para não retentar infinitamente
-        empty_twiml = create_twiml_response()
-        return Response(content=empty_twiml, media_type="application/xml")
+        error_twiml = create_twiml_response("Desculpe, ocorreu um erro ao processar sua mensagem.")
+        return Response(content=error_twiml, media_type="application/xml")
 
 
 # ============================================================================
@@ -369,8 +390,8 @@ async def get_client_context(
 
     return ClientContextResponse(
         nome_empresa=safe_ctx.nome_empresa,
-        ferramenta_rag_habilitada=safe_ctx.ferramenta_rag_habilitada,
-        ferramenta_sql_habilitada=safe_ctx.ferramenta_sql_habilitada,
+        tier=safe_ctx.tier,
+        enabled_tools=safe_ctx.enabled_tools,
         collection_rag=safe_ctx.collection_rag,
         available_tools=available_tools,
         horario_funcionamento=safe_ctx.horario_funcionamento,

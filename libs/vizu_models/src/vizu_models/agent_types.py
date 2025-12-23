@@ -237,7 +237,7 @@ class ClientContextResponse(BaseModel):
     Contém apenas dados seguros - nunca IDs internos, API keys, etc.
 
     PHASE 1: Dynamic Tool Allocation
-    - enabled_tools: Lista de nomes de ferramentas habilitadas
+    - enabled_tools: Lista de nomes de ferramentas habilitadas (source of truth)
     - tier: Tier do cliente determina acesso baseline a ferramentas
     - docker_mcp_enabled: Se integrações Docker MCP estão disponíveis
     """
@@ -245,21 +245,16 @@ class ClientContextResponse(BaseModel):
     nome_empresa: str = Field(..., description="Nome da empresa")
     tier: str = Field("BASIC", description="Tier do cliente (BASIC, SME, ENTERPRISE)")
 
-    # PHASE 1: New dynamic tool list (replaces 3 boolean flags)
+    # PHASE 1: Dynamic tool list - single source of truth
     enabled_tools: list[str] = Field(
         default_factory=list,
         description="Lista de nomes de ferramentas habilitadas (ex: ['executar_rag_cliente', 'executar_sql_agent'])"
     )
 
-    # Legacy boolean flags (deprecated, kept for backward compatibility)
-    ferramenta_rag_habilitada: bool = Field(..., description="DEPRECATED: Use enabled_tools instead")
-    ferramenta_sql_habilitada: bool = Field(
-        ..., description="DEPRECATED: Use enabled_tools instead"
-    )
-    collection_rag: str | None = Field(None, description="Nome da collection RAG")
+    collection_rag: str | None = Field(None, description="Nome da collection RAG (se RAG tool habilitada)")
 
     available_tools: list[ToolInfo] = Field(
-        ..., description="Ferramentas e seus status com metadata"
+        default_factory=list, description="Ferramentas disponíveis e seus status"
     )
     horario_funcionamento: dict[str, Any] | None = Field(
         None, description="Horário de funcionamento configurado"

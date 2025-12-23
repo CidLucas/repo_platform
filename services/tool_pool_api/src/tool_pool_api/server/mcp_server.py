@@ -107,17 +107,7 @@ def create_mcp_server():
             "docker_mcp": docker_mcp_status,
         }
 
-    # 6. Monte o servidor MCP no FastAPI
-    try:
-        app.mount("/mcp", mcp_asgi)
-        logger.info("MCP (HTTP) montado com sucesso em /mcp")
-
-    except Exception as e:
-        logger.error(f"Erro fatal ao montar MCP no FastAPI: {e}")
-        raise e
-
-    logger.info("App criado, montado no MCP e ferramentas registradas.")
-
+    #  6. Create a FastAPI app that includes MCP and integration routes
     # Register integration REST routes (OAuth flows, etc.)
     try:
         from tool_pool_api.api.integrations_router import router as integrations_router
@@ -127,5 +117,8 @@ def create_mcp_server():
     except Exception as e:
         logger.warning(f"Não foi possível montar router de integrações: {e}")
 
-    # Retorna ambos (para o uvicorn rodar o 'app')
-    return mcp, app
+    logger.info("MCP server created successfully (not mounted yet - will be mounted by main.py)")
+
+    # Return both mcp instance and the mcp_asgi app (NOT the FastAPI app)
+    # main.py will mount mcp_asgi at /mcp on its own app
+    return mcp, mcp_asgi

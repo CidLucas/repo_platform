@@ -78,37 +78,40 @@ services:
   # Rodam tanto em local quanto em prod
   # =========================================
 
-  
-#  atendente_core:
-#    container_name: vizu_atendente_core
-#    platform: linux/amd64
-#    build:
-#      context: .
-#      dockerfile: ./services/atendente_core/Dockerfile
-#    # Ensure the container loads the repo .env and uses the compose postgres
-#    # service as the DB host (avoid 'localhost' inside the container).
-#    env_file:
-#      - .env
-#    environment:
-#      <<: [*common-env, *atendente-env]
-#      DATABASE_URL: "postgresql://user:password@postgres:5432/vizu_db"
-#      PYTHONPATH: /app/services/atendente_core/src
-#      # Local dev uses PostgreSQL directly, not Supabase SDK
-#      USE_LOCAL_DB: "true"
-#    ports:
-#      - "8003:8000"
-#    volumes:
-#      - ./services/atendente_core/src:/app/services/atendente_core/src
-#      - ./libs:/app/libs
-#      - ./seeds:/app/seeds
-#      - ./scripts:/app/scripts
-#      - ./ferramentas:/app/ferramentas
-#    depends_on:
-#      redis:
-#        condition: service_healthy
+  atendente_core:
+    container_name: vizu_atendente_core
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./services/atendente_core/Dockerfile
+    # Ensure the container loads the repo .env and uses the compose postgres
+    # service as the DB host (avoid 'localhost' inside the container).
+    env_file:
+      - .env
+    environment:
+      <<: [*common-env, *atendente-env]
+      DATABASE_URL: "postgresql://user:password@postgres:5432/vizu_db"
+      PYTHONPATH: /app/services/atendente_core/src
+      # Local dev uses PostgreSQL directly, not Supabase SDK
+      USE_LOCAL_DB: "true"
+      # MCP Tool Pool integration
+      MCP_SERVER_URL: http://tool_pool_api:8000/mcp/
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./services/atendente_core/src:/app/services/atendente_core/src
+      - ./libs:/app/libs
+      - ./seeds:/app/seeds
+      - ./scripts:/app/scripts
+      - ./ferramentas:/app/ferramentas
+    depends_on:
+      redis:
+        condition: service_healthy
+      tool_pool_api:
+        condition: service_started
       # Em PROD, o postgres não existe, então removemos a dependência explícita
       # ou usamos required: false nas versões mais novas do Compose.
-      # Para simplificar, deixamos sem depends_on do banco, a app tenta reconectar.####
+      # Para simplificar, deixamos sem depends_on do banco, a app tenta reconectar.
 
   # =========================================
   # INFRAESTRUTURA DE APOIO (Sempre ativa)
@@ -347,7 +350,7 @@ services:
       context: .
       dockerfile: ./services/tool_pool_api/Dockerfile
     ports:
-      - "8006:9000"
+      - "8006:8000"
     volumes:
       - ./services/tool_pool_api/src:/app/services/tool_pool_api/src
       - ./libs:/app/libs
@@ -406,7 +409,7 @@ services:
       <<: [*common-env, *atendente-env]
       DATABASE_URL: "postgresql://user:password@postgres:5432/vizu_db"
       PYTHONPATH: /app/src
-      MCP_SERVER_URL: http://tool_pool_api:9000/mcp/
+      MCP_SERVER_URL: http://tool_pool_api:8000/mcp/
       USE_LOCAL_DB: "true"
     ports:
       - "8009:8000"
@@ -431,7 +434,7 @@ services:
       <<: [*common-env, *atendente-env]
       DATABASE_URL: "postgresql://user:password@postgres:5432/vizu_db"
       PYTHONPATH: /app/src
-      MCP_SERVER_URL: http://tool_pool_api:9000/mcp/
+      MCP_SERVER_URL: http://tool_pool_api:8000/mcp/
       USE_LOCAL_DB: "true"
     ports:
       - "8010:8000"

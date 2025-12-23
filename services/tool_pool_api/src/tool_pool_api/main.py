@@ -66,10 +66,29 @@ async def _ensure_mcp_initialized():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan - MCP is initialized on first request, not at startup."""
-    logger.info("🚀 Tool Pool API starting (MCP will be lazy-loaded on first request)...")
-    yield
-    logger.info("🛑 Tool Pool API shutting down...")
+    """Application lifespan - MCP is initialized at startup."""
+    logger.info("🚀 Tool Pool API starting - initializing MCP...")
+
+    # Initialize MCP at startup
+    global _mcp, _mcp_asgi, _mcp_initialized
+    try:
+        from .server.mcp_server import create_mcp_server
+        _mcp, _mcp_asgi = create_mcp_server()
+
+        # Mount MCP at /mcp
+        app.mount("/mcp", _mcp_asgi)
+        logger.info("✅ MCP mounted at /mcp")
+
+        # Run the MCP app's lifespan
+        async with _mcp_asgi.lifespan(app):
+            _mcp_initialized = True
+            logger.info("✅ MCP SessionManager initialized")
+            yield
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize MCP: {e}")
+        raise
+    finally:
+        logger.info("🛑 Tool Pool API shutting down...")
 
 
 # Create minimal FastAPI app that will initialize MCP lazily
@@ -111,42 +130,15 @@ async def server_info():
         )
 
 
-# Middleware to lazily initialize MCP and mount it
-@app.middleware("http")
-async def lazy_mcp_middleware(request, call_next):
-    """
-    Lazily initialize MCP on first request to /mcp and mount it.
-    Health checks bypass MCP initialization.
-    """
-    # Health check doesn't need MCP
-    if request.url.path == "/health":
-        return await call_next(request)
-
-    # For /mcp requests and others, ensure MCP is initialized
-    if not _mcp_initialized and request.url.path.startswith("/mcp"):
-        try:
-            logger.info(f"🔄 First request to {request.url.path} - initializing MCP...")
-            _mcp, _mcp_asgi = await _ensure_mcp_initialized()
-
-            # Mount the MCP ASGI app at /mcp
-            if "/mcp" not in [route.path for route in app.routes]:
-                app.mount("/mcp", _mcp_asgi)
-                logger.info("✅ MCP mounted at /mcp")
-        except Exception as e:
-            logger.error(f"❌ Failed to initialize MCP: {e}")
-            return JSONResponse(
-                {"error": "MCP server initialization failed", "details": str(e)},
-                status_code=503,
-            )
-
-    return await call_next(request)
+# MCP is now initialized at startup (see lifespan function above)
+# No lazy loading middleware needed
 
 
 @app.on_event("startup")
 async def startup_event():
-    """App startup - MCP will be initialized lazily on first request."""
-    logger.info("✅ App started successfully - MCP will be initialized on first request")
-    logger.info("📊 Health check available at /health (doesn't require MCP)")
-    logger.info("ℹ️  Server info available at /info (triggers MCP initialization)")
-    logger.info("🔌 MCP endpoint available at /mcp (triggers lazy MCP initialization)")
+    """App startup - MCP is initialized in lifespan."""
+    logger.info("✅ App started successfully")
+    logger.info("📊 Health check available at /health")
+    logger.info("ℹ️  Server info available at /info")
+    logger.info("🔌 MCP endpoint available at /mcp")
 

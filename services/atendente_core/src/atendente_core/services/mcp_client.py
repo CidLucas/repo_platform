@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # For Cloud Run: Set to https://tool-pool-api-<PROJECT_ID>.southamerica-east1.run.app/mcp/
 MCP_URL = os.getenv(
     "MCP_SERVER_URL",
-    "http://tool-pool-api:9000/mcp/"  # Default for docker-compose
+    "http://tool_pool_api:8000/mcp/"  # Default for docker-compose (service name with underscore)
 )
 
 logger.info(f"Initializing MCP manager with URL: {MCP_URL}")
@@ -31,19 +31,25 @@ async def ensure_mcp_connected():
     """Ensure MCP is connected, with lazy initialization on first use."""
     global _mcp_connection_attempted, _mcp_connected
 
-    if _mcp_connection_attempted:
-        return _mcp_connected
+    # If already successfully connected, return immediately
+    if _mcp_connected:
+        return True
+
+    # If we've already tried and failed, don't retry (avoid spamming logs)
+    if _mcp_connection_attempted and not _mcp_connected:
+        return False
 
     _mcp_connection_attempted = True
 
     try:
         logger.info(f"Lazily connecting to MCP at {MCP_URL}...")
-        await asyncio.wait_for(mcp_manager.connect(), timeout=10)
+        # Increased timeout to 30s to allow MCP server lazy initialization
+        await asyncio.wait_for(mcp_manager.connect(), timeout=30)
         logger.info(f"✅ MCP connected! Tools: {[t.name for t in mcp_manager.tools]}")
         _mcp_connected = True
         return True
     except TimeoutError:
-        logger.warning("⚠️  Timeout connecting to MCP - continuing without tools")
+        logger.warning("⚠️  Timeout connecting to MCP (30s) - continuing without tools")
         return False
     except Exception as e:
         logger.warning(f"⚠️  Failed to connect to MCP: {e} - continuing without tools")

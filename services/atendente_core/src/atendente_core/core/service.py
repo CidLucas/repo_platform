@@ -30,6 +30,7 @@ from vizu_context_service.context_service import ContextService
 from vizu_db_connector.operations import VizuDBConnector
 from vizu_models.safe_client_context import InternalClientContext
 from vizu_models.vizu_client_context import VizuClientContext
+from atendente_core.services.mcp_client import ensure_mcp_connected
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +198,9 @@ class AtendenteService:
         )
 
         try:
+            # Ensure MCP connection is established before graph execution
+            await ensure_mcp_connected()
+
             # .ainvoke roda o grafo inteiro até chegar no END
             start_time = time.time()
             final_state = await self.graph.ainvoke(initial_state, config)

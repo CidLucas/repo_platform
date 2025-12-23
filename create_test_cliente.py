@@ -12,7 +12,7 @@ import psycopg2
 # Database connection
 conn = psycopg2.connect(
     host="localhost",
-    port=5433,  # Note: Docker Compose maps 5433 (host) to 5432 (container)
+    port=5432,  # Note: Docker Compose maps 5432 (host) to 5432 (container)
     user="user",
     password="password",
     database="vizu_db"
@@ -37,7 +37,7 @@ def create_cliente_vizu():
     cursor.execute(sql, (
         cliente_id,
         "Teste Produtos Computador",
-        "INTERNAL",  # tipo_cliente
+        "B2B",  # tipo_cliente
         "ENTERPRISE",  # tier
         api_key,
         json.dumps(["executar_sql_agent"])  # enabled_tools

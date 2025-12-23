@@ -3,6 +3,8 @@
  * Comunica com a Data Ingestion API para configurar e sincronizar fontes de dados.
  */
 
+import { supabase } from "../lib/supabase";
+
 const API_BASE_URL = import.meta.env.VITE_DATA_INGESTION_API_URL || 'http://localhost:8000';
 
 // Tipos
@@ -111,33 +113,43 @@ export interface ConnectorStatus {
  */
 export async function testConnection(
   platform: ConnectorPlatform,
-  credentials: CredentialPayload
+  payload: unknown
 ): Promise<TestConnectionResponse> {
-  // Determina o endpoint baseado no tipo de plataforma
   const isEcommerce = ['shopify', 'vtex', 'loja_integrada'].includes(platform);
   const endpoint = isEcommerce 
     ? `${API_BASE_URL}/ecommerce/test-connection`
     : `${API_BASE_URL}/credentials/test-connection`;
-  
-  const response = await fetch(endpoint, {
+
+  let body;
+  if (platform === 'bigquery') {
+    body = JSON.stringify(payload);
+  } else {
+    body = typeof payload === 'object' && payload !== null
+      ? JSON.stringify({
+          platform,
+          tipo_servico: platform.toUpperCase(),
+          credentials: payload,
+          ...payload,
+        })
+      : JSON.stringify({
+          platform,
+          tipo_servico: platform.toUpperCase(),
+          credentials: payload,
+        });
+  }
+
+  const apiResponse = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      platform,
-      tipo_servico: platform.toUpperCase(),
-      credentials,
-      ...credentials, // Spread para BigQuery/SQL que espera campos no root
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body,
   });
 
-  if (!response.ok) {
-    const error = await response.json();
+  if (!apiResponse.ok) {
+    const error = await apiResponse.json();
     throw new Error(error.detail || 'Falha no teste de conexão');
   }
 
-  return response.json();
+  return apiResponse.json();
 }
 
 /**
@@ -153,10 +165,15 @@ export async function createCredential(
     ? `${API_BASE_URL}/ecommerce/credentials`
     : `${API_BASE_URL}/credentials/create`;
 
+  // Busca o token do usuário autenticado no Supabase
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(request),
   });

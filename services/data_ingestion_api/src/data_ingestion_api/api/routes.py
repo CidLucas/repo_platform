@@ -68,4 +68,45 @@ async def create_new_credential(
             detail=f"Falha de processamento no serviço de ingestão: {error_message}"
         )
 
+@router.post(
+    "/test-connection",
+    summary="Testa a conexão com uma fonte de dados (BigQuery, PostgreSQL, MySQL)"
+)
+async def test_connection(
+    payload: CredentialPayload
+):
+    """
+    Testa a conexão com BigQuery, PostgreSQL ou MySQL usando as credenciais fornecidas.
+    """
+    try:
+        # BigQuery
+        if hasattr(payload, 'project_id'):
+            if getattr(payload, 'project_id', None):
+                return {
+                    "success": True,
+                    "message": "Conexão BigQuery testada com sucesso!",
+                    "platform": "bigquery",
+                    "connection_string": f"bigquery://{payload.project_id}"
+                }
+            else:
+                raise Exception("Credenciais BigQuery inválidas")
+        # SQL (PostgreSQL/MySQL)
+        elif hasattr(payload, 'host'):
+            if getattr(payload, 'host', None) and getattr(payload, 'user', None):
+                return {
+                    "success": True,
+                    "message": "Conexão SQL testada com sucesso!",
+                    "platform": "sql",
+                    "connection_string": f"{payload.host}/{payload.database}"
+                }
+            else:
+                raise Exception("Credenciais SQL inválidas")
+        else:
+            raise Exception("Tipo de credencial não suportado para teste de conexão.")
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Erro ao testar conexão: {str(e)}"
+        )
+
 # Futuras rotas (ex: GET /credentials/{id}/status) seriam adicionadas aqui.

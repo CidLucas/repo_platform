@@ -61,16 +61,27 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
   const handleTestConnection = async () => {
     setIsTesting(true);
     setTestResult(null);
-    
+
     try {
-      // Prepara as credenciais baseado no tipo de conector
       const credentials = prepareCredentials();
-      
+      let payload;
+
+      if (connector.id === 'bigquery') {
+        payload = {
+          cliente_vizu_id: 'test-user', // TODO: pegar do contexto de auth
+          nome_conexao: formData.nome_conexao || `${connector.name} - Teste`,
+          tipo_servico: 'BIGQUERY',
+          ...credentials,
+        };
+      } else {
+        payload = credentials;
+      }
+
       const response = await connectorService.testConnection(
         connector.id as connectorService.ConnectorPlatform,
-        credentials
+        payload
       );
-      
+      // ...restante do código...
       if (response.success) {
         setTestResult('success');
         toast({

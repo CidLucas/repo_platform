@@ -1,7 +1,6 @@
 """
 FastAPI dependencies for vizu_auth.
 """
-
 import logging
 from collections.abc import Awaitable, Callable
 from uuid import UUID

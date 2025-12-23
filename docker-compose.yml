@@ -78,36 +78,37 @@ services:
   # Rodam tanto em local quanto em prod
   # =========================================
 
-  atendente_core:
-    container_name: vizu_atendente_core
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/atendente_core/Dockerfile
-    # Ensure the container loads the repo .env and uses the compose postgres
-    # service as the DB host (avoid 'localhost' inside the container).
-    env_file:
-      - .env
-    environment:
-      <<: [*common-env, *atendente-env]
-      DATABASE_URL: "postgresql://user:password@postgres:5432/vizu_db"
-      PYTHONPATH: /app/services/atendente_core/src
-      # Local dev uses PostgreSQL directly, not Supabase SDK
-      USE_LOCAL_DB: "true"
-    ports:
-      - "8003:8000"
-    volumes:
-      - ./services/atendente_core/src:/app/services/atendente_core/src
-      - ./libs:/app/libs
-      - ./seeds:/app/seeds
-      - ./scripts:/app/scripts
-      - ./ferramentas:/app/ferramentas
-    depends_on:
-      redis:
-        condition: service_healthy
+  
+#  atendente_core:
+#    container_name: vizu_atendente_core
+#    platform: linux/amd64
+#    build:
+#      context: .
+#      dockerfile: ./services/atendente_core/Dockerfile
+#    # Ensure the container loads the repo .env and uses the compose postgres
+#    # service as the DB host (avoid 'localhost' inside the container).
+#    env_file:
+#      - .env
+#    environment:
+#      <<: [*common-env, *atendente-env]
+#      DATABASE_URL: "postgresql://user:password@postgres:5432/vizu_db"
+#      PYTHONPATH: /app/services/atendente_core/src
+#      # Local dev uses PostgreSQL directly, not Supabase SDK
+#      USE_LOCAL_DB: "true"
+#    ports:
+#      - "8003:8000"
+#    volumes:
+#      - ./services/atendente_core/src:/app/services/atendente_core/src
+#      - ./libs:/app/libs
+#      - ./seeds:/app/seeds
+#      - ./scripts:/app/scripts
+#      - ./ferramentas:/app/ferramentas
+#    depends_on:
+#      redis:
+#        condition: service_healthy
       # Em PROD, o postgres não existe, então removemos a dependência explícita
       # ou usamos required: false nas versões mais novas do Compose.
-      # Para simplificar, deixamos sem depends_on do banco, a app tenta reconectar.
+      # Para simplificar, deixamos sem depends_on do banco, a app tenta reconectar.####
 
   # =========================================
   # INFRAESTRUTURA DE APOIO (Sempre ativa)
@@ -253,46 +254,46 @@ services:
       retries: 5
 
   file_processing_worker:
-   container_name: vizu_file_processing_worker
-   platform: linux/amd64
-   build:
-     context: .
-     dockerfile: ./services/file_processing_worker/Dockerfile #
-   ports:
-     # Mapeia para a porta 8002 do host (o container expõe 8000)
-     - "8002:8000"
-   volumes:
-     # Volume para hot-reload
-     - ./services/file_processing_worker/src/file_processing_worker:/home/appuser/app/file_processing_worker
-     - ./libs:/home/appuser/app/libs
-   environment:
-     <<: *common-env
-     # Variáveis específicas do config.py
+    container_name: vizu_file_processing_worker
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./services/file_processing_worker/Dockerfile #
+    ports:
+      # Mapeia para a porta 8002 do host (o container expõe 8000)
+      - "8002:8000"
+    volumes:
+      # Volume para hot-reload
+      - ./services/file_processing_worker/src/file_processing_worker:/home/appuser/app/file_processing_worker
+      - ./libs:/home/appuser/app/libs
+    environment:
+      <<: *common-env
+      # Variáveis específicas do config.py
 
-     # MUDANÇA: Substituído por referência a variáveis de ambiente (ENV)
-     GCP_PROJECT_ID: ${GCP_PROJECT_ID}
-     PUBSUB_SUBSCRIPTION_ID: ${PUBSUB_SUBSCRIPTION_ID}
-     GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
-     # FIM DA MUDANÇA
+      # MUDANÇA: Substituído por referência a variáveis de ambiente (ENV)
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      PUBSUB_SUBSCRIPTION_ID: ${PUBSUB_SUBSCRIPTION_ID}
+      GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
+      # FIM DA MUDANÇA
 
-     QDRANT_COLLECTION_NAME: "vizu_knowledge_base" # Ou o nome que preferir
+      QDRANT_COLLECTION_NAME: "vizu_knowledge_base" # Ou o nome que preferir
 
-     # Aponta para os nomes dos serviços DENTRO do Docker
-     QDRANT_HOST: "qdrant_db"
-     QDRANT_PORT: "6334" # Porta HTTP do Qdrant
+      # Aponta para os nomes dos serviços DENTRO do Docker
+      QDRANT_HOST: "qdrant_db"
+      QDRANT_PORT: "6334" # Porta HTTP do Qdrant
 
-     # Sobrescreve a URL do cliente de embedding (Passo 2)
-     EMBEDDING_SERVICE_URL: "http://embedding_service:11435"
-   depends_on:
-     postgres:
-       condition: service_healthy
-     qdrant_db: # <-- Dependência crucial
-       condition: service_healthy
-   healthcheck:
-     test: ["CMD", "curl", "-f", "http://localhost:8000/health"] #
-     interval: 10s
-     timeout: 5s
-     retries: 5
+      # Sobrescreve a URL do cliente de embedding (Passo 2)
+      EMBEDDING_SERVICE_URL: "http://embedding_service:11435"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant_db: # <-- Dependência crucial
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"] #
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 
 
@@ -333,6 +334,8 @@ services:
     environment:
       <<: *common-env
       PYTHONPATH: /app/src:/app/libs
+    env_file:
+      - ./services/data_ingestion_api/.env
     # Note: postgres dependency is optional - use --profile local for local DB
 
 
@@ -383,8 +386,8 @@ services:
     environment:
       # Estas variáveis podem ser usadas em tempo de build (se necessário)
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8003}
-    depends_on:
-      - atendente_core
+  #  depends_on:
+  #    - atendente_core
     restart: unless-stopped
 
   # =========================================

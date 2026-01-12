@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -26,6 +26,7 @@ import {
 } from '@chakra-ui/react';
 import { FiCheck } from 'react-icons/fi';
 import * as connectorService from '../../services/connectorService';
+import { AuthContext } from '../../contexts/AuthContext';
 
 interface ConnectorConfig {
   id: string;
@@ -52,6 +53,10 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const toast = useToast();
+  const auth = useContext(AuthContext);
+
+  // Get user ID from auth context - use user's ID or email as fallback
+  const clienteVizuId = auth?.user?.id || auth?.user?.email || 'anonymous-user';
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -68,7 +73,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
 
       if (connector.id === 'bigquery') {
         payload = {
-          cliente_vizu_id: 'test-user', // TODO: pegar do contexto de auth
+          client_id: clienteVizuId,
           nome_conexao: formData.nome_conexao || `${connector.name} - Teste`,
           tipo_servico: 'BIGQUERY',
           ...credentials,
@@ -134,12 +139,19 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
           application_key: formData.application_key,
         };
       case 'bigquery':
+        const serviceAccountJson = formData.service_account_json
+          ? JSON.parse(formData.service_account_json)
+          : {};
+
+        // Extract project_id from service account JSON automatically
+        const projectId = serviceAccountJson.project_id || '';
+
         return {
-          project_id: formData.project_id || '',
+          project_id: projectId,
           dataset_id: formData.dataset_id,
-          service_account_json: formData.service_account_json 
-            ? JSON.parse(formData.service_account_json) 
-            : {},
+          table_name: formData.table_name || '',
+          location: formData.location || 'southamerica-east1',
+          service_account_json: serviceAccountJson,
         };
       case 'postgresql':
       case 'mysql':
@@ -157,37 +169,40 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
 
   const handleSubmit = async () => {
     setIsLoading(true);
-    
+
     try {
       const credentials = prepareCredentials();
       const tipoServico = connector.id.toUpperCase().replace('-', '_');
-      
+
       const response = await connectorService.createCredential({
-        cliente_vizu_id: 'current-user-id', // TODO: Obter do contexto de auth
+        client_id: clienteVizuId,
         nome_conexao: formData.nome_conexao || `${connector.name} - Produção`,
         tipo_servico: tipoServico,
         credentials,
       });
-      
+
       // Inicia sincronização automática após criar credencial
       try {
+        if (!formData.table_name) {
+          throw new Error('Table name is required for BigQuery connector');
+        }
         await connectorService.startSync(
           response.id_credencial,
-          tipoServico,  // Passa o tipo do conector
-          undefined     // resources (usa todos por padrão)
+          clienteVizuId,
+          formData.table_name  // Use ONLY user-provided table name, no fallback
         );
       } catch (syncError) {
         console.warn('Falha ao iniciar sincronização automática:', syncError);
         // Não falha a operação inteira se apenas a sync falhar
       }
-      
+
       toast({
         title: 'Conector configurado!',
         description: 'A sincronização de dados foi iniciada.',
         status: 'success',
         duration: 5000,
       });
-      
+
       onClose();
     } catch (error) {
       toast({
@@ -218,7 +233,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
                 O nome da sua loja (ex: minha-loja.myshopify.com)
               </FormHelperText>
             </FormControl>
-            
+
             <FormControl isRequired>
               <FormLabel fontSize="sm">Access Token</FormLabel>
               <Input
@@ -231,7 +246,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
                 Token de acesso da Admin API do Shopify
               </FormHelperText>
             </FormControl>
-            
+
             <FormControl>
               <FormLabel fontSize="sm">Versão da API</FormLabel>
               <Select
@@ -260,7 +275,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
                 O nome da sua conta VTEX
               </FormHelperText>
             </FormControl>
-            
+
             <FormControl isRequired>
               <FormLabel fontSize="sm">App Key</FormLabel>
               <Input
@@ -269,7 +284,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
                 onChange={(e) => handleInputChange('app_key', e.target.value)}
               />
             </FormControl>
-            
+
             <FormControl isRequired>
               <FormLabel fontSize="sm">App Token</FormLabel>
               <Input
@@ -279,7 +294,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
                 onChange={(e) => handleInputChange('app_token', e.target.value)}
               />
             </FormControl>
-            
+
             <FormControl>
               <FormLabel fontSize="sm">Ambiente</FormLabel>
               <Select
@@ -308,7 +323,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
                 Encontre em: Painel Admin → Configurações → Integrações → API
               </FormHelperText>
             </FormControl>
-            
+
             <FormControl>
               <FormLabel fontSize="sm">Chave da Aplicação (opcional)</FormLabel>
               <Input
@@ -324,27 +339,9 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
         return (
           <VStack spacing={4} align="stretch">
             <FormControl isRequired>
-              <FormLabel fontSize="sm">Project ID</FormLabel>
-              <Input
-                placeholder="meu-projeto-gcp"
-                value={formData.project_id || ''}
-                onChange={(e) => handleInputChange('project_id', e.target.value)}
-              />
-            </FormControl>
-            
-            <FormControl>
-              <FormLabel fontSize="sm">Dataset ID</FormLabel>
-              <Input
-                placeholder="meu_dataset"
-                value={formData.dataset_id || ''}
-                onChange={(e) => handleInputChange('dataset_id', e.target.value)}
-              />
-            </FormControl>
-            
-            <FormControl isRequired>
               <FormLabel fontSize="sm">Service Account JSON</FormLabel>
               <Textarea
-                placeholder='{"type": "service_account", ...}'
+                placeholder='{"type": "service_account", "project_id": "...", ...}'
                 value={formData.service_account_json || ''}
                 onChange={(e) => handleInputChange('service_account_json', e.target.value)}
                 minH="120px"
@@ -352,7 +349,47 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
                 fontSize="xs"
               />
               <FormHelperText>
-                Cole o conteúdo do arquivo JSON da Service Account
+                Cole o conteúdo do arquivo JSON da Service Account (contém project_id)
+              </FormHelperText>
+            </FormControl>
+
+            <FormControl isRequired>
+              <FormLabel fontSize="sm">Dataset ID</FormLabel>
+              <Input
+                placeholder="dataform"
+                value={formData.dataset_id || ''}
+                onChange={(e) => handleInputChange('dataset_id', e.target.value)}
+              />
+            </FormControl>
+
+            <FormControl isRequired>
+              <FormLabel fontSize="sm">Table Name</FormLabel>
+              <Input
+                placeholder="productsinvoices"
+                value={formData.table_name || ''}
+                onChange={(e) => handleInputChange('table_name', e.target.value)}
+              />
+              <FormHelperText>
+                Nome da tabela no BigQuery que você deseja sincronizar
+              </FormHelperText>
+            </FormControl>
+
+            <FormControl isRequired>
+              <FormLabel fontSize="sm">Data Location</FormLabel>
+              <Select
+                placeholder="Selecione a região dos dados"
+                value={formData.location || 'southamerica-east1'}
+                onChange={(e) => handleInputChange('location', e.target.value)}
+              >
+                <option value="southamerica-east1">South America - São Paulo (southamerica-east1)</option>
+                <option value="US">United States (US)</option>
+                <option value="EU">European Union (EU)</option>
+                <option value="us-east1">US East (us-east1)</option>
+                <option value="us-west1">US West (us-west1)</option>
+                <option value="asia-northeast1">Asia Northeast - Tokyo (asia-northeast1)</option>
+              </Select>
+              <FormHelperText>
+                Região onde seus dados do BigQuery estão armazenados
               </FormHelperText>
             </FormControl>
           </VStack>
@@ -371,7 +408,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
                   onChange={(e) => handleInputChange('host', e.target.value)}
                 />
               </FormControl>
-              
+
               <FormControl isRequired flex={1}>
                 <FormLabel fontSize="sm">Porta</FormLabel>
                 <Input
@@ -381,7 +418,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
                 />
               </FormControl>
             </HStack>
-            
+
             <FormControl isRequired>
               <FormLabel fontSize="sm">Banco de Dados</FormLabel>
               <Input
@@ -390,7 +427,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
                 onChange={(e) => handleInputChange('database', e.target.value)}
               />
             </FormControl>
-            
+
             <HStack spacing={4}>
               <FormControl isRequired>
                 <FormLabel fontSize="sm">Usuário</FormLabel>
@@ -400,7 +437,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
                   onChange={(e) => handleInputChange('user', e.target.value)}
                 />
               </FormControl>
-              
+
               <FormControl isRequired>
                 <FormLabel fontSize="sm">Senha</FormLabel>
                 <Input
@@ -438,9 +475,9 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
               align="center"
               justify="center"
             >
-              <Icon 
-                as={connector.icon} 
-                boxSize={5} 
+              <Icon
+                as={connector.icon}
+                boxSize={5}
                 color={connector.iconColor}
               />
             </Flex>
@@ -455,7 +492,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
           </HStack>
         </ModalHeader>
         <ModalCloseButton />
-        
+
         <ModalBody py={4}>
           <VStack spacing={5} align="stretch">
             {/* Nome da conexão */}
@@ -467,21 +504,21 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
                 onChange={(e) => handleInputChange('nome_conexao', e.target.value)}
               />
             </FormControl>
-            
+
             <Divider />
-            
+
             {/* Campos específicos do conector */}
             {renderFormFields()}
-            
+
             {/* Resultado do teste */}
             {testResult && (
-              <Alert 
+              <Alert
                 status={testResult === 'success' ? 'success' : 'error'}
                 borderRadius="md"
               >
                 <AlertIcon />
-                {testResult === 'success' 
-                  ? 'Conexão testada com sucesso!' 
+                {testResult === 'success'
+                  ? 'Conexão testada com sucesso!'
                   : 'Falha na conexão. Verifique suas credenciais.'}
               </Alert>
             )}
@@ -489,8 +526,8 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
         </ModalBody>
 
         <ModalFooter gap={3}>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={handleTestConnection}
             isLoading={isTesting}
             loadingText="Testando..."
@@ -499,7 +536,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
           >
             Testar Conexão
           </Button>
-          
+
           <Button
             colorScheme="blue"
             onClick={handleSubmit}

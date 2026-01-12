@@ -34,7 +34,7 @@ class Conversa(ConversaBase, table=True):
     session_id: str | None = Field(default=None, index=True)
 
     # Referência ao cliente Vizu (tenant) - obrigatório para RLS
-    cliente_vizu_id: uuid.UUID | None = Field(
+    client_id: uuid.UUID | None = Field(
         default=None,
         sa_column=Column(
             pgUUID(as_uuid=True),
@@ -53,13 +53,13 @@ class Conversa(ConversaBase, table=True):
 
 
 class ConversaCreate(ConversaBase):
-    cliente_vizu_id: uuid.UUID | None = None
+    client_id: uuid.UUID | None = None
     cliente_final_id: int | None = None
 
 
 class ConversaInDB(ConversaBase):
     id: uuid.UUID
-    cliente_vizu_id: uuid.UUID | None
+    client_id: uuid.UUID | None
     cliente_final_id: int | None
 
 

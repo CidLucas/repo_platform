@@ -261,7 +261,7 @@ class SchemaSnapshotGenerator:
                     ColumnMetadata(name="nome", data_type="varchar"),
                     ColumnMetadata(name="created_at", data_type="timestamp"),
                     ColumnMetadata(
-                        name="cliente_vizu_id",
+                        name="client_id",
                         data_type="uuid",
                         foreign_key_target="cliente_vizu.id",
                     ),
@@ -277,7 +277,7 @@ class SchemaSnapshotGenerator:
                     ColumnMetadata(name="caminho", data_type="varchar"),
                     ColumnMetadata(name="created_at", data_type="timestamp"),
                     ColumnMetadata(
-                        name="cliente_vizu_id",
+                        name="client_id",
                         data_type="uuid",
                         foreign_key_target="cliente_vizu.id",
                     ),
@@ -292,7 +292,7 @@ class SchemaSnapshotGenerator:
                     ColumnMetadata(name="nome_servico", data_type="varchar"),
                     ColumnMetadata(name="is_active", data_type="boolean"),
                     ColumnMetadata(
-                        name="cliente_vizu_id",
+                        name="client_id",
                         data_type="uuid",
                         foreign_key_target="cliente_vizu.id",
                     ),
@@ -316,7 +316,7 @@ class SchemaSnapshotGenerator:
                         name="ferramenta_agendamento_habilitada", data_type="boolean"
                     ),
                     ColumnMetadata(
-                        name="cliente_vizu_id",
+                        name="client_id",
                         data_type="uuid",
                         foreign_key_target="cliente_vizu.id",
                     ),

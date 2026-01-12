@@ -2,8 +2,8 @@
 Prompt Template Models
 
 Tabela para armazenar prompts versionados que podem ser:
-- Globais (cliente_vizu_id = NULL) - templates padrão do sistema
-- Por cliente (cliente_vizu_id != NULL) - customizações específicas
+- Globais (client_id = NULL) - templates padrão do sistema
+- Por cliente (client_id != NULL) - customizações específicas
 
 Integração com MCP: @mcp.prompt() pode buscar templates desta tabela.
 """
@@ -78,16 +78,16 @@ class PromptTemplate(PromptTemplateBase, table=True):
     Tabela de prompts versionados.
 
     Uso:
-    - cliente_vizu_id = NULL: Prompt global/default
-    - cliente_vizu_id != NULL: Override específico para o cliente
+    - client_id = NULL: Prompt global/default
+    - client_id != NULL: Override específico para o cliente
 
-    A combinação (name, version, cliente_vizu_id) deve ser única.
+    A combinação (name, version, client_id) deve ser única.
     """
 
     __tablename__ = "prompt_template"
     __table_args__ = (
         UniqueConstraint(
-            "name", "version", "cliente_vizu_id", name="uq_prompt_name_version_client"
+            "name", "version", "client_id", name="uq_prompt_name_version_client"
         ),
     )
 
@@ -96,7 +96,7 @@ class PromptTemplate(PromptTemplateBase, table=True):
         sa_column=Column(pgUUID(as_uuid=True), primary_key=True),
     )
 
-    cliente_vizu_id: uuid.UUID | None = Field(
+    client_id: uuid.UUID | None = Field(
         default=None,
         sa_column=Column(
             pgUUID(as_uuid=True),
@@ -129,14 +129,14 @@ class PromptTemplate(PromptTemplateBase, table=True):
 class PromptTemplateCreate(PromptTemplateBase):
     """Schema para criar um novo prompt."""
 
-    cliente_vizu_id: uuid.UUID | None = None
+    client_id: uuid.UUID | None = None
 
 
 class PromptTemplateRead(PromptTemplateBase):
     """Schema para leitura de prompt."""
 
     id: uuid.UUID
-    cliente_vizu_id: uuid.UUID | None = None
+    client_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
     created_by: str | None = None

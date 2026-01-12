@@ -1,5 +1,5 @@
 // filepath: /Users/tarsobarreto/Documents/vizu-mono/apps/vizu_dashboard/src/pages/admin/AdminFontesPage.tsx
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Box,
   VStack,
@@ -17,12 +17,13 @@ import {
   Tab,
   Flex,
   useDisclosure,
+  Spinner,
 } from '@chakra-ui/react';
 import { AdminLayout } from '../../components/layouts/AdminLayout';
-import { 
-  FiSearch, 
-  FiPlus, 
-  FiDatabase, 
+import {
+  FiSearch,
+  FiPlus,
+  FiDatabase,
   FiShoppingCart,
   FiCloud,
   FiFileText,
@@ -30,15 +31,17 @@ import {
   FiClock,
   FiAlertCircle
 } from 'react-icons/fi';
-import { 
-  SiShopify, 
-  SiGooglebigquery, 
-  SiPostgresql, 
-  SiMysql, 
+import {
+  SiShopify,
+  SiGooglebigquery,
+  SiPostgresql,
+  SiMysql,
   SiRedis,
   SiMongodb
 } from 'react-icons/si';
 import ConnectorModal from '../../components/admin/ConnectorModal';
+import { useConnectorStatus } from '../../hooks/useConnectorStatus';
+import type { ConnectorStatusResponse } from '../../services/connectorStatusService';
 
 // Tipos
 type ConnectorCategory = 'all' | 'ecommerce' | 'database' | 'files' | 'api';
@@ -58,112 +61,116 @@ interface ConnectorConfig {
   comingSoon?: boolean;
 }
 
-// Configuração dos conectores disponíveis
-const CONNECTORS: ConnectorConfig[] = [
-  // E-commerce
-  {
-    id: 'shopify',
-    name: 'Shopify',
-    description: 'Sincronize produtos, pedidos e clientes da sua loja Shopify',
-    icon: SiShopify,
-    iconColor: '#96BF48',
-    category: 'ecommerce',
-    status: 'not_configured',
-    isNew: true,
-  },
-  {
-    id: 'vtex',
-    name: 'VTEX',
-    description: 'Conecte sua loja VTEX e importe todos os dados de vendas',
-    icon: FiShoppingCart,
-    iconColor: '#F71963',
-    category: 'ecommerce',
-    status: 'not_configured',
-    isNew: true,
-  },
-  {
-    id: 'loja_integrada',
-    name: 'Loja Integrada',
-    description: 'Integre sua Loja Integrada para análise de vendas completa',
-    icon: FiShoppingCart,
-    iconColor: '#00A650',
-    category: 'ecommerce',
-    status: 'not_configured',
-    isNew: true,
-  },
-  // Databases
-  {
+// UI metadata for connector types
+interface ConnectorMetadata {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ElementType;
+  iconColor: string;
+  category: ConnectorCategory;
+  isNew?: boolean;
+  comingSoon?: boolean;
+}
+
+const CONNECTOR_METADATA: Record<string, ConnectorMetadata> = {
+  'BIGQUERY': {
     id: 'bigquery',
     name: 'Google BigQuery',
     description: 'Conecte seu Data Warehouse BigQuery para análises avançadas',
     icon: SiGooglebigquery,
     iconColor: '#4285F4',
     category: 'database',
-    status: 'connected',
-    lastSync: '2024-12-09T10:30:00',
-    recordsCount: 125430,
   },
-  {
+  'SHOPIFY': {
+    id: 'shopify',
+    name: 'Shopify',
+    description: 'Sincronize produtos, pedidos e clientes da sua loja Shopify',
+    icon: SiShopify,
+    iconColor: '#96BF48',
+    category: 'ecommerce',
+    isNew: true,
+  },
+  'VTEX': {
+    id: 'vtex',
+    name: 'VTEX',
+    description: 'Conecte sua loja VTEX e importe todos os dados de vendas',
+    icon: FiShoppingCart,
+    iconColor: '#F71963',
+    category: 'ecommerce',
+    isNew: true,
+  },
+  'LOJA_INTEGRADA': {
+    id: 'loja_integrada',
+    name: 'Loja Integrada',
+    description: 'Integre sua Loja Integrada para análise de vendas completa',
+    icon: FiShoppingCart,
+    iconColor: '#00A650',
+    category: 'ecommerce',
+    isNew: true,
+  },
+  'POSTGRES': {
     id: 'postgresql',
     name: 'PostgreSQL',
     description: 'Conecte bancos PostgreSQL para importar dados transacionais',
     icon: SiPostgresql,
     iconColor: '#336791',
     category: 'database',
-    status: 'not_configured',
   },
-  {
+  'MYSQL': {
     id: 'mysql',
     name: 'MySQL',
     description: 'Importe dados de bancos MySQL ou MariaDB',
     icon: SiMysql,
     iconColor: '#4479A1',
     category: 'database',
-    status: 'not_configured',
   },
-  {
-    id: 'redis',
-    name: 'Redis',
-    description: 'Conecte ao Redis para dados em tempo real',
-    icon: SiRedis,
-    iconColor: '#DC382D',
-    category: 'database',
-    status: 'not_configured',
-    comingSoon: true,
-  },
-  {
-    id: 'mongodb',
-    name: 'MongoDB',
-    description: 'Importe dados de coleções MongoDB',
-    icon: SiMongodb,
-    iconColor: '#47A248',
-    category: 'database',
-    status: 'not_configured',
-    comingSoon: true,
-  },
-  // Files
-  {
+  'CSV_UPLOAD': {
     id: 'csv_upload',
     name: 'Upload CSV/Excel',
     description: 'Faça upload de arquivos CSV ou Excel para análise',
     icon: FiFileText,
     iconColor: '#10B981',
     category: 'files',
-    status: 'connected',
-    recordsCount: 5420,
   },
-  // APIs
-  {
-    id: 'rest_api',
-    name: 'API REST',
-    description: 'Conecte qualquer API REST para importação de dados',
-    icon: FiCloud,
+  'DEFAULT': {
+    id: 'unknown',
+    name: 'Conector',
+    description: 'Fonte de dados conectada',
+    icon: FiDatabase,
     iconColor: '#6366F1',
-    category: 'api',
-    status: 'not_configured',
-    comingSoon: true,
+    category: 'database',
   },
-];
+};
+
+// Helper function to map backend connector to UI format
+function mapConnectorToUI(backendConnector: ConnectorStatusResponse): ConnectorConfig {
+  const metadata = CONNECTOR_METADATA[backendConnector.tipo_servico] || CONNECTOR_METADATA['DEFAULT'];
+
+  // Map backend status to UI status
+  let uiStatus: ConnectionStatus;
+  switch (backendConnector.status) {
+    case 'active':
+      uiStatus = 'connected';
+      break;
+    case 'error':
+      uiStatus = 'error';
+      break;
+    case 'pending':
+      uiStatus = 'pending';
+      break;
+    default:
+      uiStatus = 'not_configured';
+  }
+
+  return {
+    ...metadata,
+    name: backendConnector.nome_conexao || metadata.name,
+    status: uiStatus,
+    lastSync: backendConnector.last_sync_at || undefined,
+    recordsCount: backendConnector.records_count || undefined,
+  };
+}
 
 // Componente de Card do Conector
 interface ConnectorCardProps {
@@ -310,8 +317,40 @@ function AdminFontesPage() {
   const [selectedConnector, setSelectedConnector] = useState<ConnectorConfig | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
 
+  // Fetch real connector data
+  const { connectors: connectorsData, loading, error } = useConnectorStatus();
+
+  // Map backend connectors to UI format and merge with all available connector types
+  const allConnectors: ConnectorConfig[] = useMemo(() => {
+    // Start with all available connector types from metadata
+    const availableConnectorTypes: ConnectorConfig[] = Object.values(CONNECTOR_METADATA)
+      .filter(meta => meta.id !== 'unknown') // Exclude DEFAULT/unknown
+      .map(meta => ({
+        ...meta,
+        status: 'not_configured' as ConnectionStatus,
+      }));
+
+    // If we have backend data, merge it
+    if (connectorsData && connectorsData.connectors.length > 0) {
+      const backendConnectorMap = new Map(
+        connectorsData.connectors.map(bc => [bc.tipo_servico.toLowerCase(), bc])
+      );
+
+      return availableConnectorTypes.map(availableConn => {
+        const backendConn = backendConnectorMap.get(availableConn.id);
+        if (backendConn) {
+          return mapConnectorToUI(backendConn);
+        }
+        return availableConn;
+      });
+    }
+
+    // No backend data yet - return all connectors as not_configured
+    return availableConnectorTypes;
+  }, [connectorsData]);
+
   // Filtra conectores
-  const filteredConnectors = CONNECTORS.filter((connector) => {
+  const filteredConnectors = allConnectors.filter((connector) => {
     const matchesSearch = connector.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          connector.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || connector.category === selectedCategory;
@@ -319,8 +358,8 @@ function AdminFontesPage() {
   });
 
   // Contadores por categoria
-  const connectedCount = CONNECTORS.filter(c => c.status === 'connected').length;
-  const totalCount = CONNECTORS.length;
+  const connectedCount = allConnectors.filter(c => c.status === 'connected').length;
+  const totalCount = allConnectors.length;
 
   const handleConnectClick = (connector: ConnectorConfig) => {
     setSelectedConnector(connector);
@@ -329,11 +368,39 @@ function AdminFontesPage() {
 
   const categories = [
     { id: 'all', label: 'Todos', count: totalCount },
-    { id: 'ecommerce', label: 'E-commerce', count: CONNECTORS.filter(c => c.category === 'ecommerce').length },
-    { id: 'database', label: 'Bancos de Dados', count: CONNECTORS.filter(c => c.category === 'database').length },
-    { id: 'files', label: 'Arquivos', count: CONNECTORS.filter(c => c.category === 'files').length },
-    { id: 'api', label: 'APIs', count: CONNECTORS.filter(c => c.category === 'api').length },
+    { id: 'ecommerce', label: 'E-commerce', count: allConnectors.filter(c => c.category === 'ecommerce').length },
+    { id: 'database', label: 'Bancos de Dados', count: allConnectors.filter(c => c.category === 'database').length },
+    { id: 'files', label: 'Arquivos', count: allConnectors.filter(c => c.category === 'files').length },
+    { id: 'api', label: 'APIs', count: allConnectors.filter(c => c.category === 'api').length },
   ];
+
+  // Loading state (only show spinner if truly loading from API)
+  if (loading) {
+    return (
+      <AdminLayout>
+        <Box p={8} textAlign="center">
+          <Spinner size="xl" />
+          <Text mt={4}>Carregando conectores...</Text>
+        </Box>
+      </AdminLayout>
+    );
+  }
+
+  // Error state (only show error if API call failed, not if user is logged out)
+  if (error) {
+    return (
+      <AdminLayout>
+        <Box p={8} textAlign="center">
+          <Icon as={FiAlertCircle} boxSize={12} color="red.500" mb={4} />
+          <Text fontSize="18px" color="gray.700">Erro ao carregar conectores</Text>
+          <Text fontSize="14px" color="gray.500" mt={2}>{error.message}</Text>
+        </Box>
+      </AdminLayout>
+    );
+  }
+
+  // Note: If user is not authenticated (connectorsData is null),
+  // allConnectors will still show all available connector types as "not_configured"
 
   return (
     <AdminLayout>

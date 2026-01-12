@@ -4,7 +4,7 @@ set -euo pipefail
 # Simple JWT e2e smoke test that runs a Python snippet inside the
 # `atendente_core` container. The script:
 #  - generates an HS256 JWT using the container's `SUPABASE_JWT_SECRET` (if present),
-#  - includes `cliente_vizu_id` claim (either from argument or default seed),
+#  - includes `client_id` claim (either from argument or default seed),
 #  - posts JSON {"message":..., "session_id":...} to `http://127.0.0.1:8000/chat` inside the container,
 #  - prints token and HTTP response.
 #
@@ -16,7 +16,7 @@ set -euo pipefail
 SERVICE_NAME=${1:-atendente_core}
 CLIENTE_VIZU_ID=${2:-9930a61c-953e-47ba-86a2-c7ff03afe367}
 
-echo "Running JWT e2e smoke against service: $SERVICE_NAME (cliente_vizu_id=$CLIENTE_VIZU_ID)"
+echo "Running JWT e2e smoke against service: $SERVICE_NAME (client_id=$CLIENTE_VIZU_ID)"
 
 # Run a Python one-liner inside the container, setting E2E_CLIENTE_VIZU_ID env
 docker compose exec -T -e E2E_CLIENTE_VIZU_ID="$CLIENTE_VIZU_ID" "$SERVICE_NAME" python - <<'PY'
@@ -33,7 +33,7 @@ payload = {
 	'sub': cliente_id,
 	'aud': 'authenticated',
 	'exp': int(time.time()) + 300,
-	'cliente_vizu_id': cliente_id,
+	'client_id': cliente_id,
 	'role': 'authenticated'
 }
 

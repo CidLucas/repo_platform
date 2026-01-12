@@ -147,7 +147,7 @@ class LangfuseDatasetManager:
             # Prepara os dados do item
             input_data = {
                 "message": review.user_message,
-                "client_id": str(review.cliente_vizu_id),
+                "client_id": str(review.client_id),
                 "session_id": review.session_id,
             }
 

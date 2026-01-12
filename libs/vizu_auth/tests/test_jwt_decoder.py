@@ -10,12 +10,12 @@ from vizu_auth.core.models import JWTClaims
 
 
 class TestDecodeJWT:
-    def test_decode_valid_token(self, valid_jwt_token, sample_external_user_id, sample_cliente_vizu_id):
+    def test_decode_valid_token(self, valid_jwt_token, sample_external_user_id, sample_client_id):
         claims = decode_jwt(valid_jwt_token)
         assert isinstance(claims, JWTClaims)
         assert claims.sub == sample_external_user_id
         assert claims.email == "test@example.com"
-        assert claims.cliente_vizu_id == sample_cliente_vizu_id
+        assert claims.client_id == sample_client_id
 
     def test_decode_token_with_bearer_prefix(self, valid_jwt_token):
         token_with_prefix = f"Bearer {valid_jwt_token}"

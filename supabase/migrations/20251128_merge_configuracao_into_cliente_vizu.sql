@@ -30,7 +30,7 @@ BEGIN
         ferramenta_agendamento_habilitada = COALESCE(cn.ferramenta_agendamento_habilitada, false),
         collection_rag = cn.collection_rag
     FROM public.configuracao_negocio cn
-    WHERE cn.cliente_vizu_id = cv.id;
+    WHERE cn.client_id = cv.id;
   END IF;
 END
 $$;

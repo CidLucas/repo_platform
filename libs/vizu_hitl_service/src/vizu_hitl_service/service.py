@@ -45,16 +45,16 @@ class HitlService:
         # Cache de configs por cliente
         self._client_configs: dict[UUID, HitlConfig] = {}
 
-    def get_config(self, cliente_vizu_id: UUID | None = None) -> HitlConfig:
+    def get_config(self, client_id: UUID | None = None) -> HitlConfig:
         """Retorna configuração para um cliente (ou default)."""
-        if cliente_vizu_id and cliente_vizu_id in self._client_configs:
-            return self._client_configs[cliente_vizu_id]
+        if client_id and client_id in self._client_configs:
+            return self._client_configs[client_id]
         return self.default_config
 
-    def set_client_config(self, cliente_vizu_id: UUID, config: HitlConfig):
+    def set_client_config(self, client_id: UUID, config: HitlConfig):
         """Define configuração específica para um cliente."""
-        self._client_configs[cliente_vizu_id] = config
-        logger.info(f"HITL config set for client {cliente_vizu_id}")
+        self._client_configs[client_id] = config
+        logger.info(f"HITL config set for client {client_id}")
 
     # ========================================================================
     # EVALUATION
@@ -64,7 +64,7 @@ class HitlService:
         self,
         user_message: str,
         agent_response: str,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         confidence_score: float | None = None,
         tools_called: list[str] | None = None,
         tool_errors: list[str] | None = None,
@@ -79,7 +79,7 @@ class HitlService:
         Args:
             user_message: Mensagem do usuário
             agent_response: Resposta do agente
-            cliente_vizu_id: ID do cliente Vizu
+            client_id: ID do cliente Vizu
             confidence_score: Score de confiança da LLM (0-1)
             tools_called: Lista de ferramentas chamadas
             tool_errors: Lista de erros de ferramentas
@@ -91,7 +91,7 @@ class HitlService:
         Returns:
             HitlDecision indicando se deve revisar e por qual critério
         """
-        config = self.get_config(cliente_vizu_id)
+        config = self.get_config(client_id)
 
         if not config.enabled:
             return HitlDecision(should_review=False)
@@ -119,7 +119,7 @@ class HitlService:
 
             if triggered:
                 logger.info(
-                    f"HITL criterion {criterion.type} triggered for client {cliente_vizu_id}"
+                    f"HITL criterion {criterion.type} triggered for client {client_id}"
                 )
                 return HitlDecision(
                     should_review=True,
@@ -220,7 +220,7 @@ class HitlService:
         decision: HitlDecision,
         user_message: str,
         agent_response: str,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         session_id: str,
         cliente_final_id: UUID | None = None,
         trace_id: str | None = None,
@@ -238,11 +238,11 @@ class HitlService:
         Returns:
             HitlReview criado
         """
-        config = self.get_config(cliente_vizu_id)
+        config = self.get_config(client_id)
 
         review = HitlReviewCreate(
             session_id=session_id,
-            cliente_vizu_id=cliente_vizu_id,
+            client_id=client_id,
             cliente_final_id=cliente_final_id,
             user_message=user_message,
             agent_response=agent_response,
@@ -262,7 +262,7 @@ class HitlService:
 
         return self.queue.enqueue(
             review=review,
-            cliente_vizu_id=cliente_vizu_id,
+            client_id=client_id,
             priority=priority,
             ttl_hours=config.queue_ttl_hours,
         )

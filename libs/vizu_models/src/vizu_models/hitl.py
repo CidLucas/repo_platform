@@ -133,7 +133,7 @@ class HitlReviewBase(SQLModel):
 
     # Identificadores
     session_id: str = SQLField(index=True)
-    cliente_vizu_id: UUID = SQLField(index=True)
+    client_id: UUID = SQLField(index=True)
     cliente_final_id: int | None = SQLField(default=None, index=True)
 
     # Conteúdo da interação

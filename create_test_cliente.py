@@ -72,9 +72,9 @@ def create_fonte_de_dados():
     fonte_id = str(uuid.uuid4())
     sql = """
     INSERT INTO fonte_de_dados
-    (id, cliente_vizu_id, nome_fonte, tipo_fonte, config)
+    (id, client_id, nome_fonte, tipo_fonte, config)
     VALUES (%s, %s, %s, %s, %s)
-    RETURNING id, cliente_vizu_id
+    RETURNING id, client_id
     """
 
     config = {

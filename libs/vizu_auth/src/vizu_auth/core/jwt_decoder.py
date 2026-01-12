@@ -2,10 +2,12 @@
 Decodificador e validador de tokens JWT para vizu_auth.
 """
 
+import json
 import logging
 from uuid import UUID
 
 import jwt
+from jwt.algorithms import ECAlgorithm, RSAAlgorithm
 
 from vizu_auth.core.config import get_auth_settings
 from vizu_auth.core.exceptions import (
@@ -30,7 +32,7 @@ def decode_jwt(
     if not settings.has_jwt_secret:
         logger.error("JWT secret not configured")
         raise AuthError(
-            "JWT authentication not configured. Set SUPABASE_JWT_SECRET.",
+            "JWT authentication not configured. Set SUPABASE_JWT_SECRET or SUPABASE_JWT_JWK.",
             code="CONFIG_ERROR",
         )
 
@@ -50,22 +52,54 @@ def decode_jwt(
 
     audience = settings.jwt_audience if verify_aud else None
 
+    # Determine the key to use based on algorithm
+    key = None
+    algorithm = settings.jwt_algorithm
+
+    if algorithm in ("ES256", "ES384", "ES512"):
+        # Elliptic Curve - use JWK
+        if not settings.supabase_jwt_jwk:
+            raise AuthError("SUPABASE_JWT_JWK required for ES256/ES384/ES512", code="CONFIG_ERROR")
+        try:
+            jwk_data = json.loads(settings.supabase_jwt_jwk)
+            key = ECAlgorithm.from_jwk(json.dumps(jwk_data))
+        except (json.JSONDecodeError, Exception) as e:
+            logger.error(f"Failed to parse JWK: {e}")
+            raise AuthError(f"Invalid JWK format: {e}", code="CONFIG_ERROR")
+
+    elif algorithm in ("RS256", "RS384", "RS512"):
+        # RSA - use JWK or PEM
+        if settings.supabase_jwt_jwk:
+            try:
+                jwk_data = json.loads(settings.supabase_jwt_jwk)
+                key = RSAAlgorithm.from_jwk(json.dumps(jwk_data))
+            except (json.JSONDecodeError, Exception) as e:
+                logger.error(f"Failed to parse RSA JWK: {e}")
+                raise AuthError(f"Invalid RSA JWK format: {e}", code="CONFIG_ERROR")
+        else:
+            # Fallback to secret (PEM format)
+            key = settings.supabase_jwt_secret
+
+    else:
+        # HS256/HS384/HS512 - use secret
+        key = settings.supabase_jwt_secret
+
     try:
         payload = jwt.decode(
             token,
-            settings.supabase_jwt_secret,
-            algorithms=[settings.jwt_algorithm],
+            key,
+            algorithms=[algorithm],
             audience=audience,
             options=options,
         )
 
-        cliente_id_claim = settings.jwt_cliente_vizu_id_claim
+        cliente_id_claim = settings.jwt_client_id_claim
         if cliente_id_claim in payload:
             raw_id = payload[cliente_id_claim]
             try:
                 payload[cliente_id_claim] = UUID(str(raw_id))
             except (ValueError, TypeError):
-                logger.warning(f"Invalid cliente_vizu_id in token: {raw_id}")
+                logger.warning(f"Invalid client_id in token: {raw_id}")
                 payload[cliente_id_claim] = None
 
         logger.debug(f"JWT decoded successfully for sub: {payload.get('sub', 'unknown')}")
@@ -92,10 +126,10 @@ def decode_jwt(
         raise InvalidTokenError(f"Invalid token: {e}")
 
 
-def extract_cliente_vizu_id_from_jwt(token: str) -> UUID | None:
+def extract_client_id_from_jwt(token: str) -> UUID | None:
     try:
         claims = decode_jwt(token)
-        return claims.cliente_vizu_id
+        return claims.client_id
     except AuthError:
         return None
 

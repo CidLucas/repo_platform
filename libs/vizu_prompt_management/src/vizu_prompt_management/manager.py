@@ -21,7 +21,7 @@ class PromptVersion:
     is_active: bool = True
     created_at: datetime | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
-    cliente_vizu_id: UUID | None = None
+    client_id: UUID | None = None
 
     @property
     def full_name(self) -> str:
@@ -77,7 +77,7 @@ class PromptManager:
             query = select(PromptTemplate).where(PromptTemplate.name == name)
 
             if cliente_id:
-                query = query.where(PromptTemplate.cliente_vizu_id == cliente_id)
+                query = query.where(PromptTemplate.client_id == cliente_id)
 
             if not include_inactive:
                 query = query.where(PromptTemplate.is_active == True)
@@ -93,7 +93,7 @@ class PromptManager:
                     content=r.content,
                     is_active=r.is_active,
                     created_at=r.created_at if hasattr(r, "created_at") else None,
-                    cliente_vizu_id=r.cliente_vizu_id,
+                    client_id=r.client_id,
                 )
                 for r in results
             ]
@@ -162,7 +162,7 @@ class PromptManager:
                 content=content,
                 version=next_version,
                 is_active=activate,
-                cliente_vizu_id=cliente_id,
+                client_id=cliente_id,
             )
 
             self.db_session.add(prompt)
@@ -174,7 +174,7 @@ class PromptManager:
                 version=prompt.version,
                 content=prompt.content,
                 is_active=prompt.is_active,
-                cliente_vizu_id=prompt.cliente_vizu_id,
+                client_id=prompt.client_id,
                 metadata=metadata or {},
             )
 
@@ -268,9 +268,9 @@ class PromptManager:
                 PromptTemplate.version == version,
             )
             if cliente_id:
-                query = query.where(PromptTemplate.cliente_vizu_id == cliente_id)
+                query = query.where(PromptTemplate.client_id == cliente_id)
             else:
-                query = query.where(PromptTemplate.cliente_vizu_id == None)
+                query = query.where(PromptTemplate.client_id == None)
 
             prompt = self.db_session.exec(query).first()
             if prompt:

@@ -23,12 +23,12 @@ class TestJWTStrategy:
         assert jwt_strategy.can_handle(request) is False
 
     @pytest.mark.asyncio
-    async def test_authenticate_with_valid_token(self, valid_jwt_token, sample_cliente_vizu_id):
+    async def test_authenticate_with_valid_token(self, valid_jwt_token, sample_client_id):
         strategy = JWTStrategy()
         request = AuthRequest(jwt_token=valid_jwt_token)
         result = await strategy.authenticate(request)
         assert result is not None
-        assert isinstance(result.cliente_vizu_id, UUID)
+        assert isinstance(result.client_id, UUID)
 
 
 class TestApiKeyStrategy:

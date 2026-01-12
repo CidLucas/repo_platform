@@ -46,8 +46,10 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const auth = useContext(AuthContext);
 
-  // TODO: Get user name from auth context
-  const userName = 'Fábio';
+  // Get user name from auth context - fallback to first part of email if no display name
+  const userName = auth?.user?.user_metadata?.full_name ||
+                   auth?.user?.email?.split('@')[0] ||
+                   'Usuário';
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -81,7 +83,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
     try {
       const token = auth?.session?.access_token;
       const response = await fetch(
-        `${import.meta.env.VITE_ATENDENTE_CORE_URL || '/api/atendente_core'}/chat`,
+        `${import.meta.env.VITE_ATENDENTE_CORE}/chat`,
         {
           method: 'POST',
           headers: {
@@ -90,7 +92,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
           },
           body: JSON.stringify({
             message: userMessage.content,
-            session_id: 'default', // TODO: gerar/gerenciar session_id real
+            session_id: auth?.user?.id || 'anonymous',
           }),
         }
       );

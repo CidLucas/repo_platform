@@ -1,22 +1,23 @@
 # src/analytics_api/main.py
 import logging
+import os
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from analytics_api.api.router import api_router
 from analytics_api.core.config import settings
 
-# Configuração básica de logging (melhorar com observability_bootstrap)
+# Configuração de observabilidade
+from vizu_observability_bootstrap import setup_telemetry, setup_structured_logging
+
+# Configuração básica de logging
+setup_structured_logging()
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # LOG PARA VERIFICAR A URL DO BANCO
 logger.info(f"DATABASE_URL em uso: {settings.DATABASE_URL}")
-
-# TODO: Importar e configurar o vizu_observability_bootstrap
-# (Conforme Manual de Engenharia)
-# from vizu_observability_bootstrap import bootstrap
-# bootstrap(service_name="analytics-api")
 
 # --- Criação da Instância FastAPI ---
 # Esta é a variável 'app' que o Uvicorn procura
@@ -27,42 +28,52 @@ app = FastAPI(
     # TODO: Adicionar configuração de OpenAPI (docs_url, redoc_url)
 )
 
-# Rota de Health Check
-@app.get("/health", tags=["Infra"])
-def health_check():
-    """Verifica se a API está operacional."""
-    logger.info("Health check solicitado.")
-    return {"status": "ok", "service": "analytics-api", "client_id_configurado": settings.MOCK_CLIENT_ID}
+# Setup telemetry after app creation
+setup_telemetry(app=app, service_name="analytics-api")
 
-# Inclui todas as rotas (Home, Rankings, Detalhe) com prefixo /api
-logger.info("Incluindo rotas da API com prefixo /api")
-app.include_router(api_router, prefix="/api")
-
-# (Opcional, mas recomendado para desenvolvimento local com React)
-# Configurar CORS se o frontend estiver noutro domínio (ex: localhost:3000)
-from fastapi.middleware.cors import CORSMiddleware
-
-origins = [
-    "http://localhost:3000", # Assumindo que o React corre na porta 3000
-    "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",
-    "http://localhost:5175",
-    "http://localhost:5176",
-    "http://localhost:5177",
-    "http://127.0.0.1:5176",
-    # Adicionar a URL do frontend em produção/staging
-]
+# --- CORS Configuration (MUST be added BEFORE routes) ---
+# Get allowed origins from environment variable or use defaults
+allowed_origins_env = os.getenv("CORS_ORIGINS", "")
+if allowed_origins_env:
+    # Production: Use environment variable (comma-separated list)
+    origins = [origin.strip() for origin in allowed_origins_env.split(",")]
+else:
+    # Development: Allow common local ports
+    origins = [
+        "http://localhost:3000",
+        "http://localhost:3001",  # vizu_dashboard port
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:5176",
+        "http://localhost:5177",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5176",
+        "http://localhost:8080",  # Dashboard Docker port
+        "http://127.0.0.1:8080",
+    ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"], # Permite todos os métodos (GET, POST, etc.)
-    allow_headers=["*"], # Permite todos os headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 logger.info(f"Middleware CORS configurado para permitir origens: {origins}")
+
+# Rota de Health Check
+@app.get("/health", tags=["Infra"])
+def health_check():
+    """Verifica se a API está operacional."""
+    logger.info("Health check solicitado.")
+    return {"status": "ok", "service": "analytics-api", "auth": "jwt/header/query_param"}
+
+# Inclui todas as rotas (Home, Rankings, Detalhe) com prefixo /api
+logger.info("Incluindo rotas da API com prefixo /api")
+app.include_router(api_router, prefix="/api")
 
 # Bloco para permitir execução direta com 'python src/analytics_api/main.py' (embora usemos Uvicorn)
 if __name__ == "__main__":

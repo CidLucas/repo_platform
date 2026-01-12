@@ -7,8 +7,8 @@ This guide explains how Row Level Security (RLS) is implemented in the file uplo
 ## Architecture
 
 ### Data Flow
-1. Client uploads file → Authenticated with JWT (cliente_vizu_id extracted)
-2. File stored in Supabase Storage → Bucket path: `{cliente_vizu_id}/{job_id}-{filename}`
+1. Client uploads file → Authenticated with JWT (client_id extracted)
+2. File stored in Supabase Storage → Bucket path: `{client_id}/{job_id}-{filename}`
 3. Record created in `fonte_de_dados` table → With RLS policies enforced
 4. Response returned → With tracking IDs
 
@@ -24,7 +24,7 @@ CREATE POLICY "Users can upload to their own folder"
 ON storage.objects FOR INSERT
 WITH CHECK (
   bucket_id = 'file-uploads' AND
-  (storage.foldername(name))[1] = auth.jwt() ->> 'cliente_vizu_id'
+  (storage.foldername(name))[1] = auth.jwt() ->> 'client_id'
 );
 
 -- Allow users to read files from their own folder
@@ -32,7 +32,7 @@ CREATE POLICY "Users can read their own files"
 ON storage.objects FOR SELECT
 USING (
   bucket_id = 'file-uploads' AND
-  (storage.foldername(name))[1] = auth.jwt() ->> 'cliente_vizu_id'
+  (storage.foldername(name))[1] = auth.jwt() ->> 'client_id'
 );
 
 -- Allow users to delete their own files
@@ -40,7 +40,7 @@ CREATE POLICY "Users can delete their own files"
 ON storage.objects FOR DELETE
 USING (
   bucket_id = 'file-uploads' AND
-  (storage.foldername(name))[1] = auth.jwt() ->> 'cliente_vizu_id'
+  (storage.foldername(name))[1] = auth.jwt() ->> 'client_id'
 );
 ```
 
@@ -56,28 +56,28 @@ ALTER TABLE fonte_de_dados ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can insert their own fonte_de_dados"
 ON fonte_de_dados FOR INSERT
 WITH CHECK (
-  cliente_vizu_id::text = auth.jwt() ->> 'cliente_vizu_id'
+  client_id::text = auth.jwt() ->> 'client_id'
 );
 
 -- Allow users to read their own records
 CREATE POLICY "Users can read their own fonte_de_dados"
 ON fonte_de_dados FOR SELECT
 USING (
-  cliente_vizu_id::text = auth.jwt() ->> 'cliente_vizu_id'
+  client_id::text = auth.jwt() ->> 'client_id'
 );
 
 -- Allow users to update their own records
 CREATE POLICY "Users can update their own fonte_de_dados"
 ON fonte_de_dados FOR UPDATE
 USING (
-  cliente_vizu_id::text = auth.jwt() ->> 'cliente_vizu_id'
+  client_id::text = auth.jwt() ->> 'client_id'
 );
 
 -- Allow users to delete their own records
 CREATE POLICY "Users can delete their own fonte_de_dados"
 ON fonte_de_dados FOR DELETE
 USING (
-  cliente_vizu_id::text = auth.jwt() ->> 'cliente_vizu_id'
+  client_id::text = auth.jwt() ->> 'client_id'
 );
 ```
 
@@ -85,16 +85,16 @@ USING (
 
 ### 1. JWT-Based Authentication
 - Every request must include a valid JWT token
-- Token contains `cliente_vizu_id` claim
-- `get_cliente_vizu_id_from_token` dependency extracts and validates the ID
+- Token contains `client_id` claim
+- `get_client_id_from_token` dependency extracts and validates the ID
 
 ### 2. Path-Based Isolation (Storage)
-- Files stored at: `{cliente_vizu_id}/{job_id}-{filename}`
+- Files stored at: `{client_id}/{job_id}-{filename}`
 - Bucket policies enforce that users can only access their own folder
 - Prevents cross-tenant file access
 
 ### 3. Database RLS (fonte_de_dados)
-- RLS policies automatically filter queries by `cliente_vizu_id`
+- RLS policies automatically filter queries by `client_id`
 - Even if SQL injection occurs, RLS prevents data leakage
 - Server-side enforcement (cannot be bypassed from client)
 
@@ -116,7 +116,7 @@ curl -H "Authorization: Bearer {jwt_cliente_a}" \
 ### Test 2: Verify Database Isolation
 ```sql
 -- As cliente_a, try to query cliente_b's records
-SELECT * FROM fonte_de_dados WHERE cliente_vizu_id = '{cliente_b_id}';
+SELECT * FROM fonte_de_dados WHERE client_id = '{cliente_b_id}';
 -- Expected: Returns empty (RLS filters it out)
 ```
 
@@ -135,14 +135,14 @@ curl -X POST -H "Authorization: Bearer {jwt_cliente_a}" \
 **Symptom**: Users can see other clients' data
 **Solution**:
 1. Verify RLS is enabled: `SELECT relrowsecurity FROM pg_class WHERE relname = 'fonte_de_dados';`
-2. Check JWT claim name matches: `auth.jwt() ->> 'cliente_vizu_id'`
+2. Check JWT claim name matches: `auth.jwt() ->> 'client_id'`
 3. Ensure Supabase client is using service_role key for bypasses (admin operations only)
 
 ### Issue 2: Cannot Insert Records
 **Symptom**: `new row violates row-level security policy`
 **Solution**:
-1. Verify JWT contains `cliente_vizu_id` claim
-2. Check that INSERT policy WITH CHECK matches the cliente_vizu_id being inserted
+1. Verify JWT contains `client_id` claim
+2. Check that INSERT policy WITH CHECK matches the client_id being inserted
 3. Ensure data types match (UUID vs text)
 
 ### Issue 3: Files Uploaded but Not Registered
@@ -160,7 +160,7 @@ When setting up a new environment:
 - [ ] Configure storage bucket policies (see above)
 - [ ] Enable RLS on `fonte_de_dados` table
 - [ ] Create RLS policies for `fonte_de_dados` (see above)
-- [ ] Add `cliente_vizu_id` claim to JWT tokens
+- [ ] Add `client_id` claim to JWT tokens
 - [ ] Test upload with valid JWT
 - [ ] Test that cross-tenant access is blocked
 - [ ] Verify rollback works on database errors

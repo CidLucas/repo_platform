@@ -73,7 +73,7 @@ class SchemaMapping:
 class SchemaRegistryService:
     """
     Serviço para gerenciamento de mapeamentos de schema no Supabase.
-    
+
     Operações:
     - Salvar mapeamento (create/update)
     - Buscar mapeamento por credential_id
@@ -100,10 +100,10 @@ class SchemaRegistryService:
     ) -> SchemaMapping:
         """
         Salva ou atualiza um mapeamento de schema.
-        
+
         Usa upsert baseado em (credential_id, resource_type) para
         evitar duplicatas.
-        
+
         Args:
             credential_id: ID da credencial/fonte de dados
             resource_type: Tipo do recurso (products, orders, etc.)
@@ -113,7 +113,7 @@ class SchemaRegistryService:
             confidence_scores: Scores de confiança do match
             status: Status do mapeamento
             metadata: Metadados adicionais
-            
+
         Returns:
             SchemaMapping salvo/atualizado
         """
@@ -149,6 +149,23 @@ class SchemaRegistryService:
             return SchemaMapping.from_dict(result)
 
         except Exception as e:
+            # If table does not exist (Option B removed data_source_mappings), degrade gracefully
+            msg = str(e)
+            if "data_source_mappings" in msg or "PGRST205" in msg:
+                logger.warning(
+                    "Tabela data_source_mappings ausente; ignorando persistência e seguindo com column_mapping inline"
+                )
+                return SchemaMapping(
+                    credential_id=credential_id,
+                    resource_type=resource_type,
+                    source_columns=source_columns,
+                    mapping=mapping,
+                    unmapped_columns=unmapped_columns or [],
+                    confidence_scores=confidence_scores or {},
+                    status=status,
+                    metadata=metadata or {},
+                )
+
             logger.error(f"Erro ao salvar mapeamento: {e}")
             raise
 
@@ -159,11 +176,11 @@ class SchemaRegistryService:
     ) -> SchemaMapping | None:
         """
         Busca um mapeamento específico.
-        
+
         Args:
             credential_id: ID da credencial
             resource_type: Tipo do recurso
-            
+
         Returns:
             SchemaMapping encontrado ou None
         """
@@ -190,10 +207,10 @@ class SchemaRegistryService:
     ) -> list[SchemaMapping]:
         """
         Busca todos os mapeamentos de uma credencial.
-        
+
         Args:
             credential_id: ID da credencial
-            
+
         Returns:
             Lista de mapeamentos
         """
@@ -215,10 +232,10 @@ class SchemaRegistryService:
     ) -> list[SchemaMapping]:
         """
         Busca mapeamentos por status.
-        
+
         Args:
             status: Status a filtrar
-            
+
         Returns:
             Lista de mapeamentos com o status especificado
         """
@@ -243,12 +260,12 @@ class SchemaRegistryService:
     ) -> bool:
         """
         Atualiza apenas o status de um mapeamento.
-        
+
         Args:
             credential_id: ID da credencial
             resource_type: Tipo do recurso
             status: Novo status
-            
+
         Returns:
             True se atualizado com sucesso
         """
@@ -281,13 +298,13 @@ class SchemaRegistryService:
     ) -> SchemaMapping | None:
         """
         Atualiza o mapeamento de colunas (após revisão manual).
-        
+
         Args:
             credential_id: ID da credencial
             resource_type: Tipo do recurso
             mapping: Novo mapeamento confirmado
             unmapped_columns: Colunas não mapeadas atualizadas
-            
+
         Returns:
             SchemaMapping atualizado ou None
         """
@@ -325,11 +342,11 @@ class SchemaRegistryService:
     ) -> bool:
         """
         Deleta um mapeamento.
-        
+
         Args:
             credential_id: ID da credencial
             resource_type: Tipo do recurso
-            
+
         Returns:
             True se deletado com sucesso
         """
@@ -354,10 +371,10 @@ class SchemaRegistryService:
     async def delete_all_by_credential(self, credential_id: str) -> int:
         """
         Deleta todos os mapeamentos de uma credencial.
-        
+
         Args:
             credential_id: ID da credencial
-            
+
         Returns:
             Número de mapeamentos deletados
         """

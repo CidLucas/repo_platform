@@ -32,19 +32,19 @@ class ConfiguracaoNegocio(ConfiguracaoNegocioBase, table=True):
     __tablename__ = "configuracao_negocio"
 
     id: int | None = Field(default=None, primary_key=True)
-    cliente_vizu_id: uuid.UUID = Field(
+    client_id: uuid.UUID = Field(
         foreign_key="cliente_vizu.id", unique=True, index=True
     )
     cliente_vizu: "ClienteVizu" = Relationship(back_populates="configuracao")
 
 
 class ConfiguracaoNegocioCreate(ConfiguracaoNegocioBase):
-    cliente_vizu_id: uuid.UUID
+    client_id: uuid.UUID
 
 
 class ConfiguracaoNegocioRead(ConfiguracaoNegocioBase):
     id: int
-    cliente_vizu_id: uuid.UUID
+    client_id: uuid.UUID
 
 
 class ConfiguracaoNegocioUpdate(SQLModel):

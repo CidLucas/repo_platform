@@ -1,10 +1,12 @@
 """
-Indicator Service - Cálculos de indicadores agregados com cache.
+Indicator Service - Leitura de indicadores agregados da camada Gold.
 
 Implementa:
 - Growth rate (% vs período anterior)
 - Métricas por período (today, week, month)
-- Aggregations com cache Redis
+- Leitura direta de Gold tables (pré-computadas no ETL)
+
+Note: Redis cache removido - Gold tables já são o cache persistente.
 """
 import logging
 from dataclasses import asdict, dataclass
@@ -12,7 +14,6 @@ from datetime import datetime, timedelta
 from typing import Literal, Optional
 
 from analytics_api.data_access.postgres_repository import PostgresRepository
-from analytics_api.services.cache_service import CacheService, cache_service
 
 logger = logging.getLogger(__name__)
 
@@ -65,16 +66,15 @@ class IndicatorsResponse:
 
 class IndicatorService:
     """
-    Serviço de indicadores com cache Redis.
+    Serviço de indicadores lendo de Gold tables.
 
-    Calcula métricas agregadas e as armazena em cache para
-    evitar queries pesadas repetidas.
+    Lê métricas pré-agregadas da camada Gold (atualizadas no ETL).
+    Não usa cache - Gold tables já são rápidas (<10ms por query).
     """
 
     def __init__(self, repository: PostgresRepository, client_id: str):
         self.repository = repository
         self.client_id = client_id
-        self.cache = cache_service
 
     def _get_date_range(self, period: PeriodType) -> tuple[datetime, datetime]:
         """Retorna (start_date, end_date) para o período."""
@@ -99,27 +99,21 @@ class IndicatorService:
 
     async def get_order_metrics(self, period: PeriodType = "today") -> OrderMetrics:
         """
-        Calcula métricas de pedidos para o período.
+        Lê métricas de pedidos da camada Gold (pré-computadas).
 
-        Usa cache se disponível.
+        Note: period parameter não usado - Gold tem agregados all_time.
+        Para suportar períodos dinâmicos, seria necessário time_series Gold.
         """
-        cache_key = CacheService.build_key("orders", self.client_id, period)
-
-        # Tenta buscar do cache
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return OrderMetrics(**cached["data"])
-
-        # Calcula métricas
+        # Lê diretamente do Gold (sem cache - já é rápido)
         start_date, end_date = self._get_date_range(period)
         prev_start, prev_end = self._get_previous_period_range(period)
 
-        # Query atual
+        # Query atual - lê Gold table
         current_metrics = self.repository.get_order_metrics_by_date_range(
             self.client_id, start_date, end_date
         )
 
-        # Query período anterior (para growth)
+        # Query período anterior (para growth) - lê Gold table
         previous_metrics = self.repository.get_order_metrics_by_date_range(
             self.client_id, prev_start, prev_end
         )
@@ -140,21 +134,13 @@ class IndicatorService:
             period=period
         )
 
-        # Armazena no cache
-        await self.cache.set(cache_key, asdict(metrics))
-
         return metrics
 
     async def get_product_metrics(self, period: PeriodType = "today") -> ProductMetrics:
-        """Calcula métricas de produtos para o período."""
-        cache_key = CacheService.build_key("products", self.client_id, period)
-
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return ProductMetrics(**cached["data"])
-
+        """Lê métricas de produtos da camada Gold (pré-computadas)."""
         start_date, end_date = self._get_date_range(period)
 
+        # Lê diretamente do Gold (sem cache)
         product_data = self.repository.get_product_metrics_by_date_range(
             self.client_id, start_date, end_date
         )
@@ -168,19 +154,13 @@ class IndicatorService:
             period=period
         )
 
-        await self.cache.set(cache_key, asdict(metrics))
         return metrics
 
     async def get_customer_metrics(self, period: PeriodType = "today") -> CustomerMetrics:
-        """Calcula métricas de clientes para o período."""
-        cache_key = CacheService.build_key("customers", self.client_id, period)
-
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return CustomerMetrics(**cached["data"])
-
+        """Lê métricas de clientes da camada Gold (pré-computadas)."""
         start_date, end_date = self._get_date_range(period)
 
+        # Lê diretamente do Gold (sem cache)
         customer_data = self.repository.get_customer_metrics_by_date_range(
             self.client_id, start_date, end_date
         )
@@ -193,7 +173,6 @@ class IndicatorService:
             period=period
         )
 
-        await self.cache.set(cache_key, asdict(metrics))
         return metrics
 
     async def get_indicators(

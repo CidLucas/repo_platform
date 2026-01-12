@@ -1,0 +1,255 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.9, pytest-8.4.2, pluggy-1.6.0 -- /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/lucascruz/Documents/GitHub/vizu-mono/services/atendente_core
+configfile: pyproject.toml
+plugins: asyncio-0.23.8, anyio-4.12.0, langsmith-0.4.56, cov-7.0.0
+asyncio: mode=Mode.AUTO
+collecting ... collected 1 item
+
+tests/integration/test_full_flow.py::test_e2e_flow_with_db_and_redis_cache FAILED [100%]
+
+=================================== FAILURES ===================================
+____________________ test_e2e_flow_with_db_and_redis_cache _____________________
+
+test_client_db_session = <sqlalchemy.orm.session.Session object at 0x14927af90>
+test_client = (<starlette.testclient.TestClient object at 0x149277750>, <fakeredis._connection.FakeStrictRedis(<redis.connection.ConnectionPool(<fakeredis._connection.FakeConnection(server=<fakeredis._server.FakeServer object at 0x1493a46d0>,db=0)>)>)>)
+
+    @pytest.mark.integration
+    def test_e2e_flow_with_db_and_redis_cache(
+        test_client_db_session: Session,  # Recebe a sessão unificada
+        test_client,  # Recebe o cliente da API e do Redis
+    ):
+        """
+        Testa o fluxo completo de ponta a ponta, validando a estratégia "Redis-First".
+        """
+        db_session = test_client_db_session
+        client, redis_client = test_client
+    
+        # --- 1. SETUP DO AMBIENTE DE TESTE ---
+        redis_client.flushall()
+    
+        test_api_key = "test_api_key_12345"
+        test_phone_number = "whatsapp:+5521999998888"
+        cliente_id = uuid.uuid4()
+    
+        novo_cliente = ClienteVizu(
+            id=cliente_id,
+            api_key=test_api_key,
+            nome_empresa="Padaria Teste",
+            tipo_cliente=TipoCliente.EXTERNO,
+            tier=TierCliente.SME,
+        )
+        # Populate merged configuration fields directly on the client
+        novo_cliente.prompt_base = "Seja um assistente de padaria."
+>       novo_cliente.ferramenta_rag_habilitada = True
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_full_flow.py:40: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/sqlmodel/main.py:830: in __setattr__
+    super().__setattr__(name, value)
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/pydantic/main.py:1032: in __setattr__
+    elif (setattr_handler := self._setattr_handler(name, value)) is not None:
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ClienteVizu(nome_empresa='Padaria Teste', tipo_cliente=<TipoCliente.EXTERNO: 'EXTERNO'>, tier=<TierCliente.SME: 'SME'>...2345', horario_funcionamento=None, prompt_base='Seja um assistente de padaria.', enabled_tools=[], collection_rag=None)
+name = 'ferramenta_rag_habilitada', value = True
+
+    def _setattr_handler(self, name: str, value: Any) -> Callable[[BaseModel, str, Any], None] | None:
+        """Get a handler for setting an attribute on the model instance.
+    
+        Returns:
+            A handler for setting an attribute on the model instance. Used for memoization of the handler.
+            Memoizing the handlers leads to a dramatic performance improvement in `__setattr__`
+            Returns `None` when memoization is not safe, then the attribute is set directly.
+        """
+        cls = self.__class__
+        if name in cls.__class_vars__:
+            raise AttributeError(
+                f'{name!r} is a ClassVar of `{cls.__name__}` and cannot be set on an instance. '
+                f'If you want to set a value on the class, use `{cls.__name__}.{name} = value`.'
+            )
+        elif not _fields.is_valid_field_name(name):
+            if (attribute := cls.__private_attributes__.get(name)) is not None:
+                if hasattr(attribute, '__set__'):
+                    return lambda model, _name, val: attribute.__set__(model, val)
+                else:
+                    return _SIMPLE_SETATTR_HANDLERS['private']
+            else:
+                _object_setattr(self, name, value)
+                return None  # Can not return memoized handler with possibly freeform attr names
+    
+        attr = getattr(cls, name, None)
+        # NOTE: We currently special case properties and `cached_property`, but we might need
+        # to generalize this to all data/non-data descriptors at some point. For non-data descriptors
+        # (such as `cached_property`), it isn't obvious though. `cached_property` caches the value
+        # to the instance's `__dict__`, but other non-data descriptors might do things differently.
+        if isinstance(attr, cached_property):
+            return _SIMPLE_SETATTR_HANDLERS['cached_property']
+    
+        _check_frozen(cls, name, value)
+    
+        # We allow properties to be set only on non frozen models for now (to match dataclasses).
+        # This can be changed if it ever gets requested.
+        if isinstance(attr, property):
+            return lambda model, _name, val: attr.__set__(model, val)
+        elif cls.model_config.get('validate_assignment'):
+            return _SIMPLE_SETATTR_HANDLERS['validate_assignment']
+        elif name not in cls.__pydantic_fields__:
+            if cls.model_config.get('extra') != 'allow':
+                # TODO - matching error
+>               raise ValueError(f'"{cls.__name__}" object has no field "{name}"')
+E               ValueError: "ClienteVizu" object has no field "ferramenta_rag_habilitada"
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/pydantic/main.py:1079: ValueError
+---------------------------- Captured stdout setup -----------------------------
+01:30:23 vizu_context_service.redis_service INFO   RedisService inicializado com cliente.
+01:30:23 atendente_core.main INFO   🚀 Iniciando Vizu Atendente Core...
+01:30:23 atendente_core.main INFO   Iniciando em modo sem-ferramentas (lazy MCP connection)
+------------------------------ Captured log setup ------------------------------
+INFO     vizu_context_service.redis_service:redis_service.py:27 RedisService inicializado com cliente.
+INFO     atendente_core.main:main.py:44 🚀 Iniciando Vizu Atendente Core...
+INFO     atendente_core.main:main.py:48 Iniciando em modo sem-ferramentas (lazy MCP connection)
+--------------------------- Captured stdout teardown ---------------------------
+01:30:24 atendente_core.main INFO   🛑 Desligando Atendente Core...
+---------------------------- Captured log teardown -----------------------------
+INFO     atendente_core.main:main.py:53 🛑 Desligando Atendente Core...
+=============================== warnings summary ===============================
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/starlette/formparsers.py:12
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/starlette/formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+../../libs/vizu_auth/src/vizu_auth/core/models.py:18
+  /Users/lucascruz/Documents/GitHub/vizu-mono/libs/vizu_auth/src/vizu_auth/core/models.py:18: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class JWTClaims(BaseModel):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:20
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:20: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class BaseBucket(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:130
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:130: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SignedUrlJsonResponse(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:134
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:134: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SignedUrlsJsonItem(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:143
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:143: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class CreateSignedUploadUrlOptions(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:161
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:161: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class MetadataConfiguration(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:167
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:167: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ListIndexesOptions(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:173
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:173: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ListIndexesResponseItem(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:177
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:177: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ListVectorIndexesResponse(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:182
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:182: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class VectorIndex(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:194
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:194: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class GetVectorIndexResponse(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:201
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:201: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class VectorData(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:205
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:205: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class VectorObject(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:211
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:211: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class VectorMatch(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:218
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:218: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class GetVectorsResponse(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:222
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:222: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ListVectorsResponse(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:227
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:227: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class QueryVectorsResponse(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:231
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:231: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AnalyticsBucket(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:245
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:245: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AnalyticsBucketDeleteResponse(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:249
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:249: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class VectorBucketEncryptionConfiguration(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:254
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:254: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class VectorBucket(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:260
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:260: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class GetVectorBucketResponse(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:264
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:264: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ListVectorBucketsItem(BaseModel, extra=Extra.ignore):
+
+../../../../../Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:268
+  /Users/lucascruz/Library/Caches/pypoetry/virtualenvs/atendente-core-7-Nt9Dkj-py3.11/lib/python3.11/site-packages/storage3/types.py:268: PydanticDeprecatedSince20: `pydantic.config.Extra` is deprecated, use literal values instead (e.g. `extra='allow'`). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ListVectorBucketsResponse(BaseModel, extra=Extra.ignore):
+
+../../libs/vizu_models/src/vizu_models/hitl.py:65
+  /Users/lucascruz/Documents/GitHub/vizu-mono/libs/vizu_models/src/vizu_models/hitl.py:65: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HitlCriterion(BaseModel):
+
+../../libs/vizu_models/src/vizu_models/hitl.py:83
+  /Users/lucascruz/Documents/GitHub/vizu-mono/libs/vizu_models/src/vizu_models/hitl.py:83: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HitlConfig(BaseModel):
+
+../../libs/vizu_context_service/src/vizu_context_service/dependencies.py:17
+  /Users/lucascruz/Documents/GitHub/vizu-mono/libs/vizu_context_service/src/vizu_context_service/dependencies.py:17: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'env'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    REDIS_URL: str | None = Field(None, env="REDIS_URL")
+
+../../libs/vizu_context_service/src/vizu_context_service/dependencies.py:20
+  /Users/lucascruz/Documents/GitHub/vizu-mono/libs/vizu_context_service/src/vizu_context_service/dependencies.py:20: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'env'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    REDIS_HOST: str = Field(default="localhost", env="REDIS_HOST")
+
+../../libs/vizu_context_service/src/vizu_context_service/dependencies.py:21
+  /Users/lucascruz/Documents/GitHub/vizu-mono/libs/vizu_context_service/src/vizu_context_service/dependencies.py:21: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'env'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    REDIS_PORT: int = Field(default=6379, env="REDIS_PORT")
+
+../../libs/vizu_context_service/src/vizu_context_service/dependencies.py:22
+  /Users/lucascruz/Documents/GitHub/vizu-mono/libs/vizu_context_service/src/vizu_context_service/dependencies.py:22: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'env'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    REDIS_DB: int = Field(default=0, env="REDIS_DB")
+
+../../libs/vizu_context_service/src/vizu_context_service/dependencies.py:27
+  /Users/lucascruz/Documents/GitHub/vizu-mono/libs/vizu_context_service/src/vizu_context_service/dependencies.py:27: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'env'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    USE_LOCAL_DB: bool = Field(default=False, env="USE_LOCAL_DB")
+
+tests/integration/test_full_flow.py:13
+  /Users/lucascruz/Documents/GitHub/vizu-mono/services/atendente_core/tests/integration/test_full_flow.py:13: PytestUnknownMarkWarning: Unknown pytest.mark.integration - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.integration
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_full_flow.py::test_e2e_flow_with_db_and_redis_cache
+======================== 1 failed, 33 warnings in 0.25s ========================

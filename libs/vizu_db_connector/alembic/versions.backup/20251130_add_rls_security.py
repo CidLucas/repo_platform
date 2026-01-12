@@ -5,7 +5,7 @@ Revises: 20251129_add_conversa_mensagem
 Create Date: 2025-11-30
 
 This migration:
-1. Adds cliente_vizu_id FK to conversa table
+1. Adds client_id FK to conversa table
 2. Enables RLS on all tenant-specific tables
 3. Creates security policies ensuring clients only access their own data
 """
@@ -21,18 +21,18 @@ depends_on = None
 
 def upgrade() -> None:
     # =========================================================================
-    # 1. ADD cliente_vizu_id TO conversa TABLE
+    # 1. ADD client_id TO conversa TABLE
     # =========================================================================
 
     # Add the foreign key column
     op.execute("""
     ALTER TABLE conversa
-    ADD COLUMN IF NOT EXISTS cliente_vizu_id UUID REFERENCES cliente_vizu(id) ON DELETE CASCADE;
+    ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES cliente_vizu(id) ON DELETE CASCADE;
     """)
 
     # Create index for performance
     op.execute("""
-    CREATE INDEX IF NOT EXISTS ix_conversa_cliente_vizu_id ON conversa(cliente_vizu_id);
+    CREATE INDEX IF NOT EXISTS ix_conversa_client_id ON conversa(client_id);
     """)
 
     # =========================================================================
@@ -76,7 +76,7 @@ def upgrade() -> None:
     op.execute("""
     CREATE POLICY conversa_isolation ON conversa
         FOR ALL
-        USING (cliente_vizu_id = COALESCE(
+        USING (client_id = COALESCE(
             current_setting('app.current_cliente_id', true)::uuid,
             '00000000-0000-0000-0000-000000000000'::uuid
         ));
@@ -90,7 +90,7 @@ def upgrade() -> None:
         USING (
             conversa_id IN (
                 SELECT id FROM conversa
-                WHERE cliente_vizu_id = COALESCE(
+                WHERE client_id = COALESCE(
                     current_setting('app.current_cliente_id', true)::uuid,
                     '00000000-0000-0000-0000-000000000000'::uuid
                 )
@@ -102,7 +102,7 @@ def upgrade() -> None:
     op.execute("""
     CREATE POLICY cliente_final_isolation ON cliente_final
         FOR ALL
-        USING (cliente_vizu_id = COALESCE(
+        USING (client_id = COALESCE(
             current_setting('app.current_cliente_id', true)::uuid,
             '00000000-0000-0000-0000-000000000000'::uuid
         ));
@@ -112,7 +112,7 @@ def upgrade() -> None:
     op.execute("""
     CREATE POLICY fonte_de_dados_isolation ON fonte_de_dados
         FOR ALL
-        USING (cliente_vizu_id = COALESCE(
+        USING (client_id = COALESCE(
             current_setting('app.current_cliente_id', true)::uuid,
             '00000000-0000-0000-0000-000000000000'::uuid
         ));
@@ -122,7 +122,7 @@ def upgrade() -> None:
     op.execute("""
     CREATE POLICY credencial_servico_externo_isolation ON credencial_servico_externo
         FOR ALL
-        USING (cliente_vizu_id = COALESCE(
+        USING (client_id = COALESCE(
             current_setting('app.current_cliente_id', true)::uuid,
             '00000000-0000-0000-0000-000000000000'::uuid
         ));
@@ -203,5 +203,5 @@ def downgrade() -> None:
     op.execute("ALTER TABLE credencial_servico_externo DISABLE ROW LEVEL SECURITY;")
 
     # Drop column and index
-    op.execute("DROP INDEX IF EXISTS ix_conversa_cliente_vizu_id;")
-    op.execute("ALTER TABLE conversa DROP COLUMN IF EXISTS cliente_vizu_id;")
+    op.execute("DROP INDEX IF EXISTS ix_conversa_client_id;")
+    op.execute("ALTER TABLE conversa DROP COLUMN IF EXISTS client_id;")

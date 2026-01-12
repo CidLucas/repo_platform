@@ -72,7 +72,7 @@ def test_upload_file_success(
     # Verificar Pub/Sub (através do mock injetado no 'client')
     expected_payload = {
         "job_id": str(test_job_id),
-        "cliente_vizu_id": expected_cliente_id_str,
+        "client_id": expected_cliente_id_str,
         "gcs_path": expected_gcs_path,
         "original_filename": file_name,
         "content_type": content_type,

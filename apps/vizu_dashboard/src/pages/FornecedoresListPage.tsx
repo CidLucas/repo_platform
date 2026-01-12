@@ -115,9 +115,9 @@ function FornecedoresListPage() {
                   onClick={() => handleFornecedorRowClick(fornecedorItem)}
                 >
                   <Td py={5}>{fornecedorItem.nome}</Td>
-                  <Td py={5}>{`R$ ${fornecedorItem.receita_total.toLocaleString('pt-BR')}`}</Td>
-                  <Td py={5}>{`R$ ${fornecedorItem.ticket_medio.toLocaleString('pt-BR')}`}</Td>
-                  <Td py={5}>{`${fornecedorItem.frequencia_pedidos_mes.toFixed(2)} / mês`}</Td>
+                  <Td py={5}>{`R$ ${(fornecedorItem.receita_total ?? 0).toLocaleString('pt-BR')}`}</Td>
+                  <Td py={5}>{`R$ ${(fornecedorItem.ticket_medio ?? 0).toLocaleString('pt-BR')}`}</Td>
+                  <Td py={5}>{`${(fornecedorItem.frequencia_pedidos_mes ?? 0).toFixed(2)} / mês`}</Td>
                   <Td py={5}>{fornecedorItem.cluster_tier}</Td>
                 </Tr>
               ))}

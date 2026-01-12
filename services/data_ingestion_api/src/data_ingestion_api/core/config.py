@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     # --- CORS Configuration ---
     # Lista de origens permitidas separadas por vírgula
     # Exemplo: "http://localhost:5173,https://app.vizu.com.br"
-    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080"
 
     # Em desenvolvimento, pode permitir todas as origens
     CORS_ALLOW_ALL: bool = False

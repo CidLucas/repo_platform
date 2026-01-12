@@ -17,14 +17,14 @@ logger = logging.getLogger(__name__)
 DUMMY_CLIENTE_VIZU_ID = uuid.UUID("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11")
 
 
-def get_cliente_vizu_id_from_token() -> uuid.UUID:
+def get_client_id_from_token() -> uuid.UUID:
     """
     Dependência de Autenticação (Stub/Placeholder).
 
     Em um ambiente de produção, esta função faria:
     1. Receberia o token (ex: key: str = Depends(api_key_header)).
     2. Validaria o token (consultando o BD ou um serviço de auth).
-    3. Retornaria o 'cliente_vizu_id' associado.
+    3. Retornaria o 'client_id' associado.
     4. Lançaria um HTTPException 401/403 se o token fosse inválido.
 
     Para fins de desenvolvimento (e para os testes de unidade),

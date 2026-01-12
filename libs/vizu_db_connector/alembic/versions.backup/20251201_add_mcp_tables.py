@@ -25,30 +25,30 @@ def upgrade() -> None:
     op.execute("""
     CREATE TABLE IF NOT EXISTS prompt_template (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        
+
         -- Prompt identification
         name VARCHAR(100) NOT NULL,
         version INTEGER NOT NULL DEFAULT 1,
-        
+
         -- Content
         content TEXT NOT NULL,
         description TEXT,
-        
+
         -- Configuration
         variables JSONB,
         is_active BOOLEAN NOT NULL DEFAULT true,
         tags JSONB,
-        
+
         -- Ownership (NULL = global prompt, UUID = client-specific)
-        cliente_vizu_id UUID REFERENCES cliente_vizu(id) ON DELETE CASCADE,
-        
+        client_id UUID REFERENCES cliente_vizu(id) ON DELETE CASCADE,
+
         -- Audit
         created_at TIMESTAMP NOT NULL DEFAULT now(),
         updated_at TIMESTAMP NOT NULL DEFAULT now(),
         created_by VARCHAR(100),
-        
-        -- Unique constraint: name + version + cliente_vizu_id
-        CONSTRAINT uq_prompt_name_version_client UNIQUE (name, version, cliente_vizu_id)
+
+        -- Unique constraint: name + version + client_id
+        CONSTRAINT uq_prompt_name_version_client UNIQUE (name, version, client_id)
     );
     """)
 
@@ -57,7 +57,7 @@ def upgrade() -> None:
     CREATE INDEX IF NOT EXISTS ix_prompt_template_name ON prompt_template(name);
     """)
     op.execute("""
-    CREATE INDEX IF NOT EXISTS ix_prompt_template_cliente ON prompt_template(cliente_vizu_id);
+    CREATE INDEX IF NOT EXISTS ix_prompt_template_cliente ON prompt_template(client_id);
     """)
     op.execute("""
     CREATE INDEX IF NOT EXISTS ix_prompt_template_active ON prompt_template(is_active) WHERE is_active = true;
@@ -70,33 +70,33 @@ def upgrade() -> None:
     op.execute("""
     CREATE TABLE IF NOT EXISTS knowledge_base_config (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        
+
         -- Ownership
-        cliente_vizu_id UUID NOT NULL REFERENCES cliente_vizu(id) ON DELETE CASCADE,
-        
+        client_id UUID NOT NULL REFERENCES cliente_vizu(id) ON DELETE CASCADE,
+
         -- Base identification
         name VARCHAR(100) NOT NULL,
         description TEXT,
-        
+
         -- Qdrant configuration
         collection_name VARCHAR(100) NOT NULL,
         embedding_model VARCHAR(100) NOT NULL DEFAULT 'text-embedding-3-small',
-        
+
         -- Chunking configuration
         chunk_size INTEGER NOT NULL DEFAULT 512,
         chunk_overlap INTEGER NOT NULL DEFAULT 50,
-        
+
         -- Status
         is_active BOOLEAN NOT NULL DEFAULT true,
-        
+
         -- Configuration
         metadata_schema JSONB,
         search_config JSONB,
-        
+
         -- Stats
         document_count INTEGER NOT NULL DEFAULT 0,
         last_sync_at TIMESTAMP,
-        
+
         -- Audit
         created_at TIMESTAMP NOT NULL DEFAULT now(),
         updated_at TIMESTAMP NOT NULL DEFAULT now()
@@ -105,7 +105,7 @@ def upgrade() -> None:
 
     # Indexes for knowledge_base_config
     op.execute("""
-    CREATE INDEX IF NOT EXISTS ix_kb_config_cliente ON knowledge_base_config(cliente_vizu_id);
+    CREATE INDEX IF NOT EXISTS ix_kb_config_cliente ON knowledge_base_config(client_id);
     """)
     op.execute("""
     CREATE INDEX IF NOT EXISTS ix_kb_config_collection ON knowledge_base_config(collection_name);
@@ -118,8 +118,8 @@ def upgrade() -> None:
     # Seed: Default global prompts
     # ============================================================
     op.execute("""
-    INSERT INTO prompt_template (name, version, content, description, variables, tags, cliente_vizu_id)
-    VALUES 
+    INSERT INTO prompt_template (name, version, content, description, variables, tags, client_id)
+    VALUES
     (
         'atendente/system',
         1,
@@ -206,7 +206,7 @@ Opções disponíveis:
         '["disambiguation", "clarification"]',
         NULL
     )
-    ON CONFLICT (name, version, cliente_vizu_id) DO NOTHING;
+    ON CONFLICT (name, version, client_id) DO NOTHING;
     """)
 
 

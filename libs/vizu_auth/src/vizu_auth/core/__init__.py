@@ -19,7 +19,7 @@ from vizu_auth.core.exceptions import (
 )
 from vizu_auth.core.jwt_decoder import (
     decode_jwt,
-    extract_cliente_vizu_id_from_jwt,
+    extract_client_id_from_jwt,
     validate_jwt,
 )
 from vizu_auth.core.models import (
@@ -44,7 +44,7 @@ __all__ = [
     "AuthDisabledError",
     "decode_jwt",
     "validate_jwt",
-    "extract_cliente_vizu_id_from_jwt",
+    "extract_client_id_from_jwt",
     "AuthMethod",
     "AuthRequest",
     "AuthResult",

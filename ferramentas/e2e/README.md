@@ -6,7 +6,7 @@ Script: `run_jwt_smoke.sh`
 
 What it does:
 - Generates an HS256 JWT inside the target container using the container's `SUPABASE_JWT_SECRET` (or fallback envs).
-- Includes `cliente_vizu_id` in the token claims (so the JWT strategy can map the token to an existing client).
+- Includes `client_id` in the token claims (so the JWT strategy can map the token to an existing client).
 - Posts a JSON chat payload to `http://127.0.0.1:8000/chat` inside the container and prints the response.
 
 Usage

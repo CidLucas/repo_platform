@@ -43,7 +43,7 @@ class VizuDBConnector:
         with self._get_db() as db:
             try:
                 novo_registro = CredencialServicoExterno(
-                    cliente_vizu_id=data["cliente_vizu_id"],
+                    client_id=data["client_id"],
                     nome_servico=data["nome_conexao"],
                     # O Secret ID é o campo que armazena a referência para o Secret Manager
                     credenciais_cifradas=data["secret_manager_id"],
@@ -96,7 +96,7 @@ class VizuDBConnector:
     # --- Conversas / Mensagens ---
     async def create_or_get_conversa(
         self, session_id: str | None, cliente_final_id: int | None = None,
-        cliente_vizu_id: str | None = None
+        client_id: str | None = None
     ) -> str:
         """
         Cria uma conversa (ou retorna a existente) mapeada pelo `session_id`.
@@ -105,7 +105,7 @@ class VizuDBConnector:
         Args:
             session_id: Identificador da sessão
             cliente_final_id: ID do cliente final (opcional)
-            cliente_vizu_id: ID do cliente Vizu (obrigatório para RLS)
+            client_id: ID do cliente Vizu (obrigatório para RLS)
         """
         with self._get_db() as db:
             import uuid
@@ -121,16 +121,16 @@ class VizuDBConnector:
 
             # Parse UUID if provided as string
             cid = None
-            if cliente_vizu_id:
+            if client_id:
                 try:
-                    cid = uuid.UUID(cliente_vizu_id) if isinstance(cliente_vizu_id, str) else cliente_vizu_id
+                    cid = uuid.UUID(client_id) if isinstance(client_id, str) else client_id
                 except Exception:
-                    raise ValueError(f"cliente_vizu_id inválido: {cliente_vizu_id}")
+                    raise ValueError(f"client_id inválido: {client_id}")
 
             nova = Conversa(
                 session_id=session_id,
                 cliente_final_id=cliente_final_id,
-                cliente_vizu_id=cid
+                client_id=cid
             )
             db.add(nova)
             db.commit()

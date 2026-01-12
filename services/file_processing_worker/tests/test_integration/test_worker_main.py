@@ -49,7 +49,7 @@ def test_pubsub_push_integration_success(
     # 1.3. Criar a mensagem Pub/Sub (a ser codificada)
     message_payload = {
         "job_id": "job-integration-test",
-        "cliente_vizu_id": "client-abc",
+        "client_id": "client-abc",
         "gcs_path": "client-abc/job-integration-test.pdf",
         "original_filename": "teste.pdf",
         "content_type": "application/pdf",  # Importante para o RoutingService

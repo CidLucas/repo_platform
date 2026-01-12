@@ -267,7 +267,7 @@ class PostgRESTQueryExecutor:
         # Add tenant_id to filters
         if filters is None:
             filters = {}
-        filters["cliente_vizu_id"] = auth_context.tenant_id
+        filters["client_id"] = auth_context.tenant_id
 
         # Cap limit based on role (stub; would come from allowlist)
         role_max_rows = 10000  # Default; in Phase 1, get from AllowlistConfig

@@ -7,7 +7,7 @@ import ProdutosPage from "../pages/ProdutosPage";
 import ProdutosListPage from "../pages/ProdutosListPage";
 import ClientesPage from "../pages/ClientesPage";
 import ClientesListPage from "../pages/ClientesListPage";
-// Admin pages
+// Client management pages (formerly "admin" pages - now accessible to all authenticated users)
 import AdminHomePage from "../pages/admin/AdminHomePage";
 import AdminFontesPage from "../pages/admin/AdminFontesPage";
 import AdminFontesDetalhesPage from "../pages/admin/AdminFontesDetalhesPage";
@@ -19,6 +19,7 @@ import AdminPrivacidadePage from "../pages/admin/AdminPrivacidadePage";
 interface RouteConfig {
   path: string;
   element: React.ReactNode;
+  requiresAdmin?: boolean;
 }
 
 export const dashboardRoutes: RouteConfig[] = [
@@ -58,7 +59,37 @@ export const dashboardRoutes: RouteConfig[] = [
     path: "/dashboard/clientes/lista",
     element: <ClientesListPage />,
   },
-  // Admin routes
+  // Alias routes for Menu Rápido (English paths)
+  {
+    path: "/dashboard/suppliers",
+    element: <FornecedoresListPage />,
+  },
+  {
+    path: "/dashboard/products",
+    element: <ProdutosListPage />,
+  },
+  // Placeholder routes for Menu Rápido items (to be implemented)
+  {
+    path: "/dashboard/orders",
+    element: <HomePage />, // Placeholder - redirect to home for now
+  },
+  {
+    path: "/dashboard/orders/new",
+    element: <HomePage />, // Placeholder - redirect to home for now
+  },
+  {
+    path: "/dashboard/goals",
+    element: <HomePage />, // Placeholder - redirect to home for now
+  },
+  {
+    path: "/dashboard/goals/new",
+    element: <HomePage />, // Placeholder - redirect to home for now
+  },
+  {
+    path: "/dashboard/financial",
+    element: <HomePage />, // Placeholder - redirect to home for now
+  },
+  // Client management routes (formerly "admin" routes - accessible to all authenticated users)
   {
     path: "/dashboard/admin",
     element: <AdminHomePage />,

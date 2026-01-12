@@ -61,7 +61,7 @@ def create_external_credential_ref(
     Helper centralizado para criar uma referência de credencial.
     """
     db_cred = CredencialServicoExterno(
-        cliente_vizu_id=client_id,
+        client_id=client_id,
         nome_servico=nome_servico,
         credenciais_cifradas=secret_manager_id,
     )

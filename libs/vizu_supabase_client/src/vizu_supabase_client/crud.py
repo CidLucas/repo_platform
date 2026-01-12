@@ -208,7 +208,7 @@ class SupabaseCRUD:
 
     def get_clientes_finais(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         limit: int = 100,
         offset: int = 0
     ) -> list[dict[str, Any]]:
@@ -218,7 +218,7 @@ class SupabaseCRUD:
         Uses RLS context for automatic filtering.
 
         Args:
-            cliente_vizu_id: UUID of the parent cliente_vizu
+            client_id: UUID of the parent cliente_vizu
             limit: Maximum number of results
             offset: Number of records to skip
 
@@ -227,7 +227,7 @@ class SupabaseCRUD:
         """
         try:
             # Set RLS context first
-            set_rls_context(self.client, str(cliente_vizu_id))
+            set_rls_context(self.client, str(client_id))
 
             response = (
                 self.client
@@ -244,14 +244,14 @@ class SupabaseCRUD:
 
     def get_cliente_final_by_phone(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         telefone: str
     ) -> dict[str, Any] | None:
         """
         Get cliente final by phone number.
 
         Args:
-            cliente_vizu_id: UUID of the parent cliente_vizu
+            client_id: UUID of the parent cliente_vizu
             telefone: Phone number to search
 
         Returns:
@@ -259,7 +259,7 @@ class SupabaseCRUD:
         """
         try:
             # Set RLS context
-            set_rls_context(self.client, str(cliente_vizu_id))
+            set_rls_context(self.client, str(client_id))
 
             response = (
                 self.client
@@ -284,7 +284,7 @@ class SupabaseCRUD:
 
     def get_mensagens(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         cliente_final_id: UUID | None = None,
         limit: int = 50,
         offset: int = 0
@@ -293,7 +293,7 @@ class SupabaseCRUD:
         Get mensagens with optional filtering by cliente_final.
 
         Args:
-            cliente_vizu_id: UUID of the cliente_vizu (for RLS)
+            client_id: UUID of the cliente_vizu (for RLS)
             cliente_final_id: Optional UUID to filter by cliente_final
             limit: Maximum number of results
             offset: Number of records to skip
@@ -303,7 +303,7 @@ class SupabaseCRUD:
         """
         try:
             # Set RLS context
-            set_rls_context(self.client, str(cliente_vizu_id))
+            set_rls_context(self.client, str(client_id))
 
             query = (
                 self.client
@@ -328,14 +328,14 @@ class SupabaseCRUD:
 
     def create_mensagem(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         data: dict[str, Any]
     ) -> dict[str, Any] | None:
         """
         Create a new mensagem.
 
         Args:
-            cliente_vizu_id: UUID of the cliente_vizu (for RLS)
+            client_id: UUID of the cliente_vizu (for RLS)
             data: Mensagem data dict
 
         Returns:
@@ -343,10 +343,10 @@ class SupabaseCRUD:
         """
         try:
             # Set RLS context
-            set_rls_context(self.client, str(cliente_vizu_id))
+            set_rls_context(self.client, str(client_id))
 
-            # Ensure cliente_vizu_id is in data for RLS
-            data["cliente_vizu_id"] = str(cliente_vizu_id)
+            # Ensure client_id is in data for RLS
+            data["client_id"] = str(client_id)
 
             response = (
                 self.client
@@ -396,7 +396,7 @@ class SupabaseCRUD:
 
     def save_integration_config(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         provider: str,
         config_type: str,
         client_id_encrypted: str,
@@ -407,7 +407,7 @@ class SupabaseCRUD:
         """Save or update integration config."""
         try:
             data = {
-                "cliente_vizu_id": str(cliente_vizu_id),
+                "client_id": str(client_id),
                 "provider": provider,
                 "config_type": config_type,
                 "client_id_encrypted": client_id_encrypted,
@@ -418,7 +418,7 @@ class SupabaseCRUD:
             response = (
                 self.client
                 .table("integration_configs")
-                .upsert(data, on_conflict="cliente_vizu_id,provider,config_type")
+                .upsert(data, on_conflict="client_id,provider,config_type")
                 .execute()
             )
             if response.data and len(response.data) > 0:
@@ -430,7 +430,7 @@ class SupabaseCRUD:
 
     def get_integration_config(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         provider: str
     ) -> dict[str, Any] | None:
         """Get integration config."""
@@ -439,7 +439,7 @@ class SupabaseCRUD:
                 self.client
                 .table("integration_configs")
                 .select("*")
-                .eq("cliente_vizu_id", str(cliente_vizu_id))
+                .eq("client_id", str(client_id))
                 .eq("provider", provider)
                 .limit(1)
                 .execute()
@@ -457,7 +457,7 @@ class SupabaseCRUD:
 
     def save_integration_tokens(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         provider: str,
         access_token_encrypted: str,
         refresh_token_encrypted: str | None,
@@ -481,12 +481,12 @@ class SupabaseCRUD:
             if is_default:
                 self.client.table("integration_tokens").update(
                     {"is_default": False}
-                ).eq("cliente_vizu_id", str(cliente_vizu_id)).eq(
+                ).eq("client_id", str(client_id)).eq(
                     "provider", provider
                 ).eq("is_default", True).execute()
 
             data = {
-                "cliente_vizu_id": str(cliente_vizu_id),
+                "client_id": str(client_id),
                 "provider": provider,
                 "access_token_encrypted": access_token_encrypted,
                 "refresh_token_encrypted": refresh_token_encrypted,
@@ -501,7 +501,7 @@ class SupabaseCRUD:
             response = (
                 self.client
                 .table("integration_tokens")
-                .upsert(data, on_conflict="cliente_vizu_id,provider,account_email")
+                .upsert(data, on_conflict="client_id,provider,account_email")
                 .execute()
             )
             if response.data and len(response.data) > 0:
@@ -513,7 +513,7 @@ class SupabaseCRUD:
 
     def get_integration_tokens(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         provider: str,
         account_email: str | None = None,
     ) -> dict[str, Any] | None:
@@ -524,7 +524,7 @@ class SupabaseCRUD:
                     self.client
                     .table("integration_tokens")
                     .select("*")
-                    .eq("cliente_vizu_id", str(cliente_vizu_id))
+                    .eq("client_id", str(client_id))
                     .eq("provider", provider)
                     .eq("account_email", account_email)
                     .limit(1)
@@ -536,7 +536,7 @@ class SupabaseCRUD:
                     self.client
                     .table("integration_tokens")
                     .select("*")
-                    .eq("cliente_vizu_id", str(cliente_vizu_id))
+                    .eq("client_id", str(client_id))
                     .eq("provider", provider)
                     .order("is_default", desc=True)
                     .order("created_at")
@@ -552,7 +552,7 @@ class SupabaseCRUD:
 
     def list_integration_accounts(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         provider: str,
     ) -> list[dict[str, Any]]:
         """List all connected accounts for a cliente/provider."""
@@ -561,7 +561,7 @@ class SupabaseCRUD:
                 self.client
                 .table("integration_tokens")
                 .select("id,account_email,account_name,is_default,expires_at,scopes,created_at")
-                .eq("cliente_vizu_id", str(cliente_vizu_id))
+                .eq("client_id", str(client_id))
                 .eq("provider", provider)
                 .order("is_default", desc=True)
                 .order("account_email")
@@ -574,7 +574,7 @@ class SupabaseCRUD:
 
     def set_default_account(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         provider: str,
         account_email: str,
     ) -> dict[str, Any] | None:
@@ -583,7 +583,7 @@ class SupabaseCRUD:
             # Clear existing default
             self.client.table("integration_tokens").update(
                 {"is_default": False}
-            ).eq("cliente_vizu_id", str(cliente_vizu_id)).eq(
+            ).eq("client_id", str(client_id)).eq(
                 "provider", provider
             ).execute()
 
@@ -592,7 +592,7 @@ class SupabaseCRUD:
                 self.client
                 .table("integration_tokens")
                 .update({"is_default": True})
-                .eq("cliente_vizu_id", str(cliente_vizu_id))
+                .eq("client_id", str(client_id))
                 .eq("provider", provider)
                 .eq("account_email", account_email)
                 .execute()
@@ -606,7 +606,7 @@ class SupabaseCRUD:
 
     def revoke_integration(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         provider: str,
         account_email: str | None = None,
     ) -> bool:
@@ -614,15 +614,15 @@ class SupabaseCRUD:
         try:
             if account_email:
                 self.client.table("integration_tokens").delete().eq(
-                    "cliente_vizu_id", str(cliente_vizu_id)
+                    "client_id", str(client_id)
                 ).eq("provider", provider).eq("account_email", account_email).execute()
             else:
                 # Revoke all accounts for this provider
                 self.client.table("integration_tokens").delete().eq(
-                    "cliente_vizu_id", str(cliente_vizu_id)
+                    "client_id", str(client_id)
                 ).eq("provider", provider).execute()
                 self.client.table("integration_configs").delete().eq(
-                    "cliente_vizu_id", str(cliente_vizu_id)
+                    "client_id", str(client_id)
                 ).eq("provider", provider).execute()
             return True
         except Exception as e:

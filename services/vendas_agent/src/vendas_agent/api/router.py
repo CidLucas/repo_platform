@@ -89,7 +89,7 @@ async def chat_endpoint(
 
         # Process message
         result = await service.process_message(
-            cliente_vizu_id=auth_result.cliente_vizu_id,
+            client_id=auth_result.client_id,
             session_id=body.session_id,
             message_text=body.message,
             elicitation_response=elicitation_response,
@@ -156,7 +156,7 @@ async def get_client_context(
     from vizu_tool_registry import ToolRegistry
 
     try:
-        uuid_obj = UUID(str(auth_result.cliente_vizu_id))
+        uuid_obj = UUID(str(auth_result.client_id))
         client_context = await context_service.get_client_context_by_id(uuid_obj)
     except Exception as e:
         logger.error(f"Error getting client context: {e}")

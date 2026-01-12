@@ -21,18 +21,22 @@ class AuthSettings(BaseSettings):
 
     # === JWT (Supabase) ===
     supabase_jwt_secret: str = ""
-    jwt_algorithm: str = "HS256"
+    supabase_jwt_jwk: str = ""  # JSON Web Key for ES256/RS256
+    jwt_algorithm: str = "ES256"  # Default to ES256 for Supabase
     jwt_audience: str = "authenticated"
 
     # === Desenvolvimento ===
     auth_enabled: bool = True
 
-    # Claim customizada para cliente_vizu_id
-    jwt_cliente_vizu_id_claim: str = "cliente_vizu_id"
+    # Claim customizada para client_id
+    jwt_client_id_claim: str = "client_id"
 
     @property
     def has_jwt_secret(self) -> bool:
         """Verifica se o secret JWT está configurado e tem tamanho mínimo."""
+        # For ES256/RS256, we need JWK. For HS256, we need secret.
+        if self.jwt_algorithm in ("ES256", "RS256"):
+            return bool(self.supabase_jwt_jwk and len(self.supabase_jwt_jwk) >= 10)
         return bool(self.supabase_jwt_secret and len(self.supabase_jwt_secret) >= 32)
 
     def validate_production_config(self) -> None:

@@ -10,7 +10,7 @@ from vizu_models import ClienteVizu, ConfiguracaoNegocio
 
 def save_integration_config(
     db: Session,
-    cliente_vizu_id: uuid.UUID,
+    client_id: uuid.UUID,
     provider: str,
     config_type: str,
     client_id_encrypted: str,
@@ -22,15 +22,15 @@ def save_integration_config(
     stmt = text(
         """
         INSERT INTO integration_configs (
-            cliente_vizu_id, provider, config_type,
+            client_id, provider, config_type,
             client_id_encrypted, client_secret_encrypted,
             redirect_uri, scopes, created_at, updated_at
         ) VALUES (
-            :cliente_vizu_id, :provider, :config_type,
+            :client_id, :provider, :config_type,
             :client_id_encrypted, :client_secret_encrypted,
             :redirect_uri, :scopes, now(), now()
         )
-        ON CONFLICT (cliente_vizu_id, provider, config_type)
+        ON CONFLICT (client_id, provider, config_type)
         DO UPDATE SET
             client_id_encrypted = EXCLUDED.client_id_encrypted,
             client_secret_encrypted = EXCLUDED.client_secret_encrypted,
@@ -44,7 +44,7 @@ def save_integration_config(
     result = db.execute(
         stmt,
         {
-            "cliente_vizu_id": str(cliente_vizu_id),
+            "client_id": str(client_id),
             "provider": provider,
             "config_type": config_type,
             "client_id_encrypted": client_id_encrypted,
@@ -57,19 +57,19 @@ def save_integration_config(
     return result.fetchone()
 
 
-def get_integration_config(db: Session, cliente_vizu_id: uuid.UUID, provider: str):
+def get_integration_config(db: Session, client_id: uuid.UUID, provider: str):
     stmt = text(
-        "SELECT * FROM integration_configs WHERE cliente_vizu_id = :cliente_vizu_id AND provider = :provider LIMIT 1"
+        "SELECT * FROM integration_configs WHERE client_id = :client_id AND provider = :provider LIMIT 1"
     )
     res = db.execute(
-        stmt, {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider}
+        stmt, {"client_id": str(client_id), "provider": provider}
     ).fetchone()
     return res
 
 
 def save_integration_tokens(
     db: Session,
-    cliente_vizu_id: uuid.UUID,
+    client_id: uuid.UUID,
     provider: str,
     access_token_encrypted: str,
     refresh_token_encrypted: str | None,
@@ -97,29 +97,29 @@ def save_integration_tokens(
         clear_default_stmt = text("""
             UPDATE integration_tokens
             SET is_default = false
-            WHERE cliente_vizu_id = :cliente_vizu_id AND provider = :provider AND is_default = true
+            WHERE client_id = :client_id AND provider = :provider AND is_default = true
         """)
         db.execute(
             clear_default_stmt,
-            {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider},
+            {"client_id": str(client_id), "provider": provider},
         )
 
     stmt = text(
         """
         INSERT INTO integration_tokens (
-            cliente_vizu_id, provider,
+            client_id, provider,
             access_token_encrypted, refresh_token_encrypted,
             token_type, expires_at, scopes, metadata,
             account_email, account_name, is_default,
             created_at, updated_at
         ) VALUES (
-            :cliente_vizu_id, :provider,
+            :client_id, :provider,
             :access_token_encrypted, :refresh_token_encrypted,
             :token_type, :expires_at, :scopes, :metadata,
             :account_email, :account_name, :is_default,
             now(), now()
         )
-        ON CONFLICT (cliente_vizu_id, provider, account_email)
+        ON CONFLICT (client_id, provider, account_email)
         DO UPDATE SET
             access_token_encrypted = EXCLUDED.access_token_encrypted,
             refresh_token_encrypted = EXCLUDED.refresh_token_encrypted,
@@ -137,7 +137,7 @@ def save_integration_tokens(
     result = db.execute(
         stmt,
         {
-            "cliente_vizu_id": str(cliente_vizu_id),
+            "client_id": str(client_id),
             "provider": provider,
             "access_token_encrypted": access_token_encrypted,
             "refresh_token_encrypted": refresh_token_encrypted,
@@ -156,7 +156,7 @@ def save_integration_tokens(
 
 def get_integration_tokens(
     db: Session,
-    cliente_vizu_id: uuid.UUID,
+    client_id: uuid.UUID,
     provider: str,
     account_email: str | None = None,
 ):
@@ -168,7 +168,7 @@ def get_integration_tokens(
     if account_email:
         stmt = text(
             """SELECT * FROM integration_tokens
-               WHERE cliente_vizu_id = :cliente_vizu_id
+               WHERE client_id = :client_id
                AND provider = :provider
                AND account_email = :account_email
                LIMIT 1"""
@@ -176,7 +176,7 @@ def get_integration_tokens(
         res = db.execute(
             stmt,
             {
-                "cliente_vizu_id": str(cliente_vizu_id),
+                "client_id": str(client_id),
                 "provider": provider,
                 "account_email": account_email,
             },
@@ -185,7 +185,7 @@ def get_integration_tokens(
         # Try default account first, then fall back to any account
         stmt = text(
             """SELECT * FROM integration_tokens
-               WHERE cliente_vizu_id = :cliente_vizu_id
+               WHERE client_id = :client_id
                AND provider = :provider
                ORDER BY is_default DESC, created_at ASC
                LIMIT 1"""
@@ -193,7 +193,7 @@ def get_integration_tokens(
         res = db.execute(
             stmt,
             {
-                "cliente_vizu_id": str(cliente_vizu_id),
+                "client_id": str(client_id),
                 "provider": provider,
             },
         ).fetchone()
@@ -202,21 +202,21 @@ def get_integration_tokens(
 
 def list_integration_accounts(
     db: Session,
-    cliente_vizu_id: uuid.UUID,
+    client_id: uuid.UUID,
     provider: str,
 ):
     """List all connected accounts for a cliente/provider."""
     stmt = text(
         """SELECT id, account_email, account_name, is_default, expires_at, scopes, created_at
            FROM integration_tokens
-           WHERE cliente_vizu_id = :cliente_vizu_id
+           WHERE client_id = :client_id
            AND provider = :provider
            ORDER BY is_default DESC, account_email ASC"""
     )
     res = db.execute(
         stmt,
         {
-            "cliente_vizu_id": str(cliente_vizu_id),
+            "client_id": str(client_id),
             "provider": provider,
         },
     ).fetchall()
@@ -225,7 +225,7 @@ def list_integration_accounts(
 
 def set_default_account(
     db: Session,
-    cliente_vizu_id: uuid.UUID,
+    client_id: uuid.UUID,
     provider: str,
     account_email: str,
 ):
@@ -234,17 +234,17 @@ def set_default_account(
     clear_stmt = text("""
         UPDATE integration_tokens
         SET is_default = false
-        WHERE cliente_vizu_id = :cliente_vizu_id AND provider = :provider
+        WHERE client_id = :client_id AND provider = :provider
     """)
     db.execute(
-        clear_stmt, {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider}
+        clear_stmt, {"client_id": str(client_id), "provider": provider}
     )
 
     # Set new default
     set_stmt = text("""
         UPDATE integration_tokens
         SET is_default = true
-        WHERE cliente_vizu_id = :cliente_vizu_id
+        WHERE client_id = :client_id
         AND provider = :provider
         AND account_email = :account_email
         RETURNING *
@@ -252,7 +252,7 @@ def set_default_account(
     result = db.execute(
         set_stmt,
         {
-            "cliente_vizu_id": str(cliente_vizu_id),
+            "client_id": str(client_id),
             "provider": provider,
             "account_email": account_email,
         },
@@ -263,7 +263,7 @@ def set_default_account(
 
 def revoke_integration(
     db: Session,
-    cliente_vizu_id: uuid.UUID,
+    client_id: uuid.UUID,
     provider: str,
     account_email: str | None = None,
 ):
@@ -275,14 +275,14 @@ def revoke_integration(
     if account_email:
         stmt1 = text("""
             DELETE FROM integration_tokens
-            WHERE cliente_vizu_id = :cliente_vizu_id
+            WHERE client_id = :client_id
             AND provider = :provider
             AND account_email = :account_email
         """)
         db.execute(
             stmt1,
             {
-                "cliente_vizu_id": str(cliente_vizu_id),
+                "client_id": str(client_id),
                 "provider": provider,
                 "account_email": account_email,
             },
@@ -290,16 +290,16 @@ def revoke_integration(
     else:
         # Revoke all accounts for this provider
         stmt1 = text(
-            "DELETE FROM integration_tokens WHERE cliente_vizu_id = :cliente_vizu_id AND provider = :provider"
+            "DELETE FROM integration_tokens WHERE client_id = :client_id AND provider = :provider"
         )
         stmt2 = text(
-            "DELETE FROM integration_configs WHERE cliente_vizu_id = :cliente_vizu_id AND provider = :provider"
+            "DELETE FROM integration_configs WHERE client_id = :client_id AND provider = :provider"
         )
         db.execute(
-            stmt1, {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider}
+            stmt1, {"client_id": str(client_id), "provider": provider}
         )
         db.execute(
-            stmt2, {"cliente_vizu_id": str(cliente_vizu_id), "provider": provider}
+            stmt2, {"client_id": str(client_id), "provider": provider}
         )
     db.commit()
     return True
@@ -319,8 +319,8 @@ def get_cliente_vizu_by_id(db: Session, cliente_id: uuid.UUID):
 
 def get_configuracao_negocio(db: Session, cliente_id: uuid.UUID):
     """Busca as configurações de negócio de um cliente"""
-    # Transitional helper: query legacy configuracao_negocio by cliente_vizu_id
+    # Transitional helper: query legacy configuracao_negocio by client_id
     statement = select(ConfiguracaoNegocio).where(
-        ConfiguracaoNegocio.cliente_vizu_id == cliente_id
+        ConfiguracaoNegocio.client_id == cliente_id
     )
     return db.execute(statement).scalars().first()

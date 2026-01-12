@@ -33,6 +33,8 @@ export interface LojaIntegradaCredentials {
 export interface BigQueryCredentials {
   project_id: string;
   dataset_id?: string;
+  table_name: string;
+  location?: string;
   service_account_json: Record<string, unknown>;
 }
 
@@ -44,15 +46,15 @@ export interface SQLCredentials {
   password: string;
 }
 
-export type CredentialPayload = 
-  | ShopifyCredentials 
-  | VTEXCredentials 
-  | LojaIntegradaCredentials 
-  | BigQueryCredentials 
+export type CredentialPayload =
+  | ShopifyCredentials
+  | VTEXCredentials
+  | LojaIntegradaCredentials
+  | BigQueryCredentials
   | SQLCredentials;
 
 export interface CreateCredentialRequest {
-  cliente_vizu_id: string;
+  client_id: string;
   nome_conexao: string;
   tipo_servico: string;
   credentials: CredentialPayload;
@@ -105,6 +107,17 @@ export interface ConnectorStatus {
   error_message?: string;
 }
 
+// Resolve the current user's JWT from Supabase for authenticated ingestion calls.
+async function getAuthToken(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  return data?.session?.access_token ?? null;
+}
+
+async function buildAuthHeaders(): Promise<Record<string, string>> {
+  const token = await getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 // Funções da API
 
 /**
@@ -116,7 +129,7 @@ export async function testConnection(
   payload: unknown
 ): Promise<TestConnectionResponse> {
   const isEcommerce = ['shopify', 'vtex', 'loja_integrada'].includes(platform);
-  const endpoint = isEcommerce 
+  const endpoint = isEcommerce
     ? `${API_BASE_URL}/ecommerce/test-connection`
     : `${API_BASE_URL}/credentials/test-connection`;
 
@@ -126,27 +139,41 @@ export async function testConnection(
   } else {
     body = typeof payload === 'object' && payload !== null
       ? JSON.stringify({
-          platform,
-          tipo_servico: platform.toUpperCase(),
-          credentials: payload,
-          ...payload,
-        })
+        platform,
+        tipo_servico: platform.toUpperCase(),
+        credentials: payload,
+        ...payload,
+      })
       : JSON.stringify({
-          platform,
-          tipo_servico: platform.toUpperCase(),
-          credentials: payload,
-        });
+        platform,
+        tipo_servico: platform.toUpperCase(),
+        credentials: payload,
+      });
   }
 
   const apiResponse = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(await buildAuthHeaders()),
+    },
     body,
   });
 
   if (!apiResponse.ok) {
     const error = await apiResponse.json();
-    throw new Error(error.detail || 'Falha no teste de conexão');
+    // Handle FastAPI validation errors (422) and structured error details
+    if (error?.detail) {
+      if (Array.isArray(error.detail)) {
+        const errorMessages = error.detail.map((err: any) => `${err.loc?.join('.') || 'field'}: ${err.msg}`).join('; ');
+        throw new Error(errorMessages);
+      }
+      if (typeof error.detail === 'object') {
+        throw new Error(JSON.stringify(error.detail));
+      }
+      throw new Error(error.detail);
+    }
+    throw new Error('Falha no teste de conexão');
   }
 
   return apiResponse.json();
@@ -159,27 +186,49 @@ export async function testConnection(
 export async function createCredential(
   request: CreateCredentialRequest
 ): Promise<CredentialResponse> {
+  // Ensure client_id is always present; fallback to Supabase user id if not provided
+  const { data: userData } = await supabase.auth.getUser();
+  const clientIdFromRequest = request.client_id || (userData?.user?.id || '');
+
+  if (!clientIdFromRequest) {
+    throw new Error('client_id is required; could not derive from request or Supabase user');
+  }
+
+  const tipoServicoUpper = (request.tipo_servico || '').toUpperCase();
+
   // Determina o endpoint baseado no tipo de serviço
-  const isEcommerce = ['SHOPIFY', 'VTEX', 'LOJA_INTEGRADA'].includes(request.tipo_servico);
-  const endpoint = isEcommerce 
+  const isEcommerce = ['SHOPIFY', 'VTEX', 'LOJA_INTEGRADA'].includes(tipoServicoUpper);
+  const endpoint = isEcommerce
     ? `${API_BASE_URL}/ecommerce/credentials`
     : `${API_BASE_URL}/credentials/create`;
 
-  // Busca o token do usuário autenticado no Supabase
-  const { data } = await supabase.auth.getSession();
-  const token = data?.session?.access_token;
+  // Flatten the payload: backend expects credentials fields at root level, not nested
+  // IMPORTANT: Use 'client_id' (not 'cliente_vizu_id') to match schema
+  const payload = {
+    client_id: clientIdFromRequest,
+    nome_conexao: request.nome_conexao,
+    tipo_servico: tipoServicoUpper,
+    ...request.credentials, // Spread credentials fields to root level
+  };
 
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await buildAuthHeaders()),
     },
-    body: JSON.stringify(request),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
     const error = await response.json();
+    // Handle FastAPI validation errors (422) which return an array of error objects
+    if (error.detail && Array.isArray(error.detail)) {
+      const errorMessages = error.detail.map((err: any) =>
+        `${err.loc?.join('.') || 'field'}: ${err.msg}`
+      ).join('; ');
+      throw new Error(errorMessages);
+    }
     throw new Error(error.detail || 'Falha ao criar credencial');
   }
 
@@ -191,11 +240,12 @@ export async function createCredential(
  */
 export async function listConnections(clienteVizuId: string): Promise<ConnectorStatus[]> {
   const response = await fetch(
-    `${API_BASE_URL}/credentials?cliente_vizu_id=${clienteVizuId}`,
+    `${API_BASE_URL}/credentials?client_id=${clienteVizuId}`,
     {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        ...(await buildAuthHeaders()),
       },
     }
   );
@@ -218,6 +268,7 @@ export async function extractData(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(await buildAuthHeaders()),
     },
     body: JSON.stringify(request),
   });
@@ -242,6 +293,7 @@ export async function extractDataDirect(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(await buildAuthHeaders()),
     },
     body: JSON.stringify({
       credentials,
@@ -260,23 +312,24 @@ export async function extractDataDirect(
 
 /**
  * Inicia a sincronização de dados para uma conexão.
- * Isso dispara o worker de ingestão.
+ * Isso dispara o ETL job (Extract, Transform, Load).
  */
 export async function startSync(
-  credentialId: string, 
-  connectorType: string = 'BIGQUERY',
-  resources?: string[]
-): Promise<{ job_id: string; status: string }> {
-  const response = await fetch(`${API_BASE_URL}/ingestion/start`, {
+  credentialId: string,
+  clienteVizuId: string,
+  resourceType: string = 'invoices'
+): Promise<{ status: string; message: string; rows_processed?: number }> {
+  const response = await fetch(`${API_BASE_URL}/etl/run`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      ...(await buildAuthHeaders()),
     },
     body: JSON.stringify({
-      client_id: credentialId,
-      connector_type: connectorType.toUpperCase(),
-      target_resource: 'all',
-      resources: resources, // Para e-commerce
+      credential_id: credentialId,
+      client_id: clienteVizuId,
+      resource_type: resourceType,
+      limit: null, // No limit - process all data
     }),
   });
 
@@ -302,6 +355,7 @@ export async function getSyncStatus(jobId: string): Promise<{
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
+      ...(await buildAuthHeaders()),
     },
   });
 
@@ -321,6 +375,7 @@ export async function deleteConnection(credentialId: string): Promise<void> {
     method: 'DELETE',
     headers: {
       'Content-Type': 'application/json',
+      ...(await buildAuthHeaders()),
     },
   });
 
@@ -344,6 +399,7 @@ export async function getPlatformInfo(): Promise<{
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
+      ...(await buildAuthHeaders()),
     },
   });
 

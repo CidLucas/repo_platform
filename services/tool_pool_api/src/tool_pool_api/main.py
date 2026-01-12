@@ -54,6 +54,11 @@ async def _ensure_mcp_initialized():
         from .server.mcp_server import create_mcp_server
         _mcp, mcp_app = create_mcp_server()
         _mcp_asgi = mcp_app
+
+        # Mount MCP at /mcp
+        app.mount("/mcp", _mcp_asgi)
+        logger.info("✅ MCP mounted at /mcp")
+
         _mcp_initialized = True
         logger.info("✅ MCP server initialized successfully")
         return _mcp, _mcp_asgi
@@ -66,29 +71,19 @@ async def _ensure_mcp_initialized():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan - MCP is initialized at startup."""
-    logger.info("🚀 Tool Pool API starting - initializing MCP...")
+    """Application lifespan - MCP is initialized lazily after startup."""
+    logger.info("🚀 Tool Pool API starting...")
 
-    # Initialize MCP at startup
-    global _mcp, _mcp_asgi, _mcp_initialized
-    try:
-        from .server.mcp_server import create_mcp_server
-        _mcp, _mcp_asgi = create_mcp_server()
+    # Yield immediately to let the server become ready for health checks
+    # MCP will be initialized on first use (lazy loading)
+    yield
 
-        # Mount MCP at /mcp
-        app.mount("/mcp", _mcp_asgi)
-        logger.info("✅ MCP mounted at /mcp")
+    logger.info("🛑 Tool Pool API shutting down...")
 
-        # Run the MCP app's lifespan
-        async with _mcp_asgi.lifespan(app):
-            _mcp_initialized = True
-            logger.info("✅ MCP SessionManager initialized")
-            yield
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize MCP: {e}")
-        raise
-    finally:
-        logger.info("🛑 Tool Pool API shutting down...")
+    # Cleanup MCP if it was initialized
+    global _mcp_initialized
+    if _mcp_initialized:
+        logger.info("Cleaning up MCP resources...")
 
 
 # Create minimal FastAPI app that will initialize MCP lazily

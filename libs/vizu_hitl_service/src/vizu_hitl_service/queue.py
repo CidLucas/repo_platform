@@ -31,7 +31,7 @@ class HitlQueue:
     hashes para armazenar os dados completos.
 
     Keys:
-    - hitl:pending:{cliente_vizu_id} - Sorted set de IDs pendentes
+    - hitl:pending:{client_id} - Sorted set de IDs pendentes
     - hitl:review:{review_id} - Hash com dados completos
     - hitl:stats - Estatísticas globais
     """
@@ -56,7 +56,7 @@ class HitlQueue:
     def enqueue(
         self,
         review: HitlReviewCreate,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         priority: int = 1,
         ttl_hours: int = 24,
     ) -> HitlReview:
@@ -65,7 +65,7 @@ class HitlQueue:
 
         Args:
             review: Dados da revisão
-            cliente_vizu_id: ID do cliente Vizu
+            client_id: ID do cliente Vizu
             priority: Prioridade (maior = mais urgente)
             ttl_hours: Tempo de vida na fila
 
@@ -107,7 +107,7 @@ class HitlQueue:
         pipe.expire(review_key, ttl_hours * 3600)
 
         # Sorted set para ordem de prioridade
-        pending_key = f"{self.PENDING_KEY_PREFIX}{cliente_vizu_id}"
+        pending_key = f"{self.PENDING_KEY_PREFIX}{client_id}"
         pipe.zadd(pending_key, {str(review_id): score})
 
         # Stats
@@ -116,23 +116,23 @@ class HitlQueue:
 
         pipe.execute()
 
-        logger.info(f"HITL Review {review_id} enqueued for client {cliente_vizu_id}")
+        logger.info(f"HITL Review {review_id} enqueued for client {client_id}")
         return full_review
 
     def dequeue(
-        self, cliente_vizu_id: UUID | None = None
+        self, client_id: UUID | None = None
     ) -> HitlReviewRead | None:
         """
         Remove e retorna a próxima revisão da fila.
 
         Args:
-            cliente_vizu_id: Se fornecido, busca apenas deste cliente
+            client_id: Se fornecido, busca apenas deste cliente
 
         Returns:
             Próxima revisão ou None se fila vazia
         """
-        if cliente_vizu_id:
-            pending_key = f"{self.PENDING_KEY_PREFIX}{cliente_vizu_id}"
+        if client_id:
+            pending_key = f"{self.PENDING_KEY_PREFIX}{client_id}"
             result = self.redis.zpopmax(pending_key, count=1)
         else:
             # Busca de qualquer cliente (scan por pattern)
@@ -158,7 +158,7 @@ class HitlQueue:
 
     def get_pending(
         self,
-        cliente_vizu_id: UUID | None = None,
+        client_id: UUID | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[HitlReviewRead]:
@@ -166,7 +166,7 @@ class HitlQueue:
         Lista revisões pendentes.
 
         Args:
-            cliente_vizu_id: Filtrar por cliente
+            client_id: Filtrar por cliente
             limit: Máximo de resultados
             offset: Pular N resultados
 
@@ -175,8 +175,8 @@ class HitlQueue:
         """
         reviews = []
 
-        if cliente_vizu_id:
-            pending_key = f"{self.PENDING_KEY_PREFIX}{cliente_vizu_id}"
+        if client_id:
+            pending_key = f"{self.PENDING_KEY_PREFIX}{client_id}"
             review_ids = self.redis.zrevrange(pending_key, offset, offset + limit - 1)
         else:
             # Aggregate from all clients
@@ -245,9 +245,9 @@ class HitlQueue:
         self.redis.hset(review_key, mapping=updates)
 
         # Remove da fila de pendentes
-        cliente_vizu_id = self.redis.hget(review_key, "cliente_vizu_id")
-        if cliente_vizu_id:
-            pending_key = f"{self.PENDING_KEY_PREFIX}{cliente_vizu_id}"
+        client_id = self.redis.hget(review_key, "client_id")
+        if client_id:
+            pending_key = f"{self.PENDING_KEY_PREFIX}{client_id}"
             self.redis.zrem(pending_key, str(review_id))
 
         # Stats
@@ -258,12 +258,12 @@ class HitlQueue:
         )
         return self._get_review_data(str(review_id))
 
-    def get_stats(self, cliente_vizu_id: UUID | None = None) -> HitlQueueStats:
+    def get_stats(self, client_id: UUID | None = None) -> HitlQueueStats:
         """Retorna estatísticas da fila."""
-        if cliente_vizu_id:
-            pending_key = f"{self.PENDING_KEY_PREFIX}{cliente_vizu_id}"
+        if client_id:
+            pending_key = f"{self.PENDING_KEY_PREFIX}{client_id}"
             total_pending = self.redis.zcard(pending_key)
-            by_client = {str(cliente_vizu_id): total_pending}
+            by_client = {str(client_id): total_pending}
         else:
             total_pending = 0
             by_client = {}
@@ -342,7 +342,7 @@ class HitlQueue:
                     data[field] = [] if field.endswith("s") else {}
 
         # Parse UUID fields
-        for field in ["id", "cliente_vizu_id", "cliente_final_id"]:
+        for field in ["id", "client_id", "cliente_final_id"]:
             if field in data and data[field]:
                 try:
                     data[field] = UUID(data[field])

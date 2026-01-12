@@ -21,6 +21,7 @@ interface DashboardCardProps {
   mapData?: any;
   // Modal content
   modalContent?: React.ReactNode;
+  kpiItems?: { label: string; content: React.ReactNode }[]; // Dynamic KPI items
   // Text color for content overlay
   textColor?: string;
   // Modal background colors
@@ -40,6 +41,7 @@ export const DashboardCard = ({
   mainText,
   mapData,
   modalContent,
+  kpiItems, // Destructure new prop
   textColor = "gray.800", // Default text color
   modalLeftBgColor = "#C9EDFF", // Default for Fornecedores
   modalRightBgColor = "#92DAFF", // Default for Fornecedores
@@ -147,7 +149,7 @@ export const DashboardCard = ({
                     {mainText || "Informações descritivas sobre o card."}
                   </Text>
                   <AccordionComponent
-                    items={[
+                    items={kpiItems || [
                       { label: "KPI 1", content: <Text>Detalhes do KPI 1</Text> },
                       { label: "KPI 2", content: <Text>Detalhes do KPI 2</Text> },
                       { label: "KPI 3", content: <Text>Detalhes do KPI 3</Text> },

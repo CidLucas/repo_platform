@@ -13,7 +13,7 @@ class CredencialBase(BaseModel):
     Schema base para qualquer credencial de serviço externo.
     Garante a modularização e agnósticismo do tipo de serviço.
     """
-    cliente_vizu_id: str = Field(..., description="ID do Cliente Vizu que está criando a credencial.")
+    client_id: str = Field(..., description="ID do Cliente Vizu que está criando a credencial.")
     nome_conexao: str = Field(..., description="Nome dado à conexão (ex: 'BigQuery Produção').")
     tipo_servico: str = Field(..., description="Tipo de serviço externo (ex: 'POSTGRES', 'BIGQUERY', 'VTEX').")
 
@@ -33,12 +33,14 @@ class SQLCredentialCreate(CredencialBase):
 
 class BigQueryCredentialCreate(CredencialBase):
     """
-    Contrato para credenciais BigQuery. 
+    Contrato para credenciais BigQuery.
     O payload sensível será o JSON da Service Account Key.
     """
     # Detalhes da conexão
     project_id: str = Field(..., description="ID do Projeto GCP que contém o BigQuery.")
     dataset_id: str | None = Field(None, description="ID do Dataset padrão para consultas.")
+    table_name: str | None = Field(None, description="Nome da tabela no BigQuery para sincronizar.")
+    location: str | None = Field(None, description="Região do BigQuery onde os dados estão (US, EU, southamerica-east1, etc.). Required.")
 
     # O payload sensível que será enviado ao Secret Manager.
     # Usamos Dict[str, Any] para o JSON da Service Account Key

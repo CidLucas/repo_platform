@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { supabase } from '../lib/supabase';
 
-const API_BASE_URL = 'http://localhost:8009/api'; // Assuming this is the base URL for your Analytics API
+const API_BASE_URL = import.meta.env.VITE_API_URL_ANALYTICS || 'http://localhost:8004';
 
 // --- Type Definitions ---
 export interface Pedido {
@@ -44,9 +45,33 @@ export interface ChartDataPoint {
   [key: string]: any; // Allows for other properties like 'total', 'percentual', etc.
 }
 
+// Corresponds to the Pydantic 'ChartData'
+export interface ChartData {
+  id: string;
+  title: string;
+  data: ChartDataPoint[];
+}
+
+// Corresponds to the Pydantic 'HomeScorecards'
+export interface HomeScorecards {
+  receita_total: number;
+  total_fornecedores: number;
+  total_produtos: number;
+  total_regioes: number;
+  total_clientes: number;
+  total_pedidos: number;
+}
+
+// Corresponds to the Pydantic 'HomeMetricsResponse'
+export interface HomeMetricsResponse {
+  scorecards: HomeScorecards;
+  charts: ChartData[];
+}
+
 // Corresponds to the Pydantic 'FornecedoresOverviewResponse'
 export interface FornecedoresOverviewResponse {
   scorecard_total_fornecedores: number;
+  scorecard_crescimento_percentual?: number | null;
   chart_fornecedores_no_tempo: ChartDataPoint[];
   chart_fornecedores_por_regiao: ChartDataPoint[];
   chart_cohort_fornecedores: ChartDataPoint[];
@@ -86,6 +111,7 @@ export interface ClientesOverviewResponse {
   scorecard_total_clientes: number;
   scorecard_ticket_medio_geral: number;
   scorecard_frequencia_media_geral: number;
+  scorecard_crescimento_percentual?: number | null;
   chart_clientes_por_regiao: ChartDataPoint[];
   chart_cohort_clientes: ChartDataPoint[];
   ranking_por_receita: RankingItem[];
@@ -128,14 +154,19 @@ export interface ProdutoDetailResponse {
 
 // --- API Client Functions ---
 
-// Placeholder for authentication token (replace with actual token retrieval logic)
-const getAuthToken = (): string | null => {
-  // In a real app, you'd get this from localStorage, a Redux store, Context API, etc.
-  return localStorage.getItem('authToken'); // Example
+const getAuthToken = async (): Promise<string | null> => {
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data?.session?.access_token) return data.session.access_token;
+  } catch (err) {
+    console.warn('Failed to read Supabase session token, falling back to localStorage', err);
+  }
+
+  return localStorage.getItem('authToken');
 };
 
 const axiosInstance = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: `${API_BASE_URL}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -143,16 +174,15 @@ const axiosInstance = axios.create({
 
 // Add a request interceptor to include the auth token
 axiosInstance.interceptors.request.use(
-  (config) => {
-    const token = getAuthToken();
+  async (config) => {
+    const token = await getAuthToken();
     if (token) {
+      config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
 // Pedidos API calls
@@ -199,5 +229,25 @@ export const getProdutosOverview = async (): Promise<ProdutosOverviewResponse> =
 // Produto API call (details)
 export const getProdutoDetails = async (nome_produto: string): Promise<ProdutoDetailResponse> => {
   const response = await axiosInstance.get<ProdutoDetailResponse>(`/produto/${nome_produto}`);
+  return response.data;
+};
+
+// Home metrics API call (dashboard overview)
+export const getHomeMetrics = async (): Promise<HomeMetricsResponse> => {
+  const response = await axiosInstance.get<HomeMetricsResponse>('/dashboard/home_gold');
+  return response.data;
+};
+
+// User profile API call - creates client_id if doesn't exist
+export interface MeResponse {
+  client_id: string;
+}
+
+export const getMe = async (token: string): Promise<MeResponse> => {
+  const response = await axios.get<MeResponse>(`${API_BASE_URL}/api/dashboard/me`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
   return response.data;
 };

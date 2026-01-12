@@ -61,7 +61,7 @@ class SupabaseUploadService:
 
     def _register_fonte_de_dados(
         self,
-        cliente_vizu_id: uuid.UUID,
+        client_id: uuid.UUID,
         storage_path: str,
         file_name: str,
         content_type: str
@@ -75,7 +75,7 @@ class SupabaseUploadService:
         - Metadata for downstream processing
 
         Args:
-            cliente_vizu_id: UUID of the client
+            client_id: UUID of the client
             storage_path: Full path in Supabase Storage
             file_name: Original filename
             content_type: MIME type
@@ -86,7 +86,7 @@ class SupabaseUploadService:
         logger.info(f"Registering fonte_de_dados for {storage_path}")
 
         data = {
-            "cliente_vizu_id": str(cliente_vizu_id),
+            "client_id": str(client_id),
             "tipo_fonte": TipoFonte.UPLOAD.value,  # Or use the string value directly
             "caminho": storage_path,
             "nome_arquivo": file_name,
@@ -106,7 +106,7 @@ class SupabaseUploadService:
         return fonte_id
 
     def process_upload(
-        self, file: UploadFile, cliente_vizu_id: uuid.UUID
+        self, file: UploadFile, client_id: uuid.UUID
     ) -> FileUploadResponse:
         """
         Process file upload with full RLS security and database registration:
@@ -116,11 +116,11 @@ class SupabaseUploadService:
         4. Return response with tracking IDs
 
         RLS Security:
-        - Supabase Storage bucket policies enforce cliente_vizu_id access
+        - Supabase Storage bucket policies enforce client_id access
         - Database RLS policies on fonte_de_dados table enforce tenant isolation
         """
         logger.info(
-            f"Starting upload processing for cliente_vizu_id: {cliente_vizu_id}"
+            f"Starting upload processing for client_id: {client_id}"
         )
 
         # 1. Generate IDs
@@ -139,7 +139,7 @@ class SupabaseUploadService:
             result = self.storage.upload_file_for_cliente(
                 file_content=file_content,
                 filename=file.filename,
-                cliente_id=cliente_vizu_id,
+                cliente_id=client_id,
                 content_type=file.content_type,
                 job_id=job_id,
             )
@@ -153,7 +153,7 @@ class SupabaseUploadService:
         # 4. Register in database (with RLS security)
         try:
             fonte_id = self._register_fonte_de_dados(
-                cliente_vizu_id=cliente_vizu_id,
+                client_id=client_id,
                 storage_path=result.full_path,
                 file_name=file.filename,
                 content_type=file.content_type or "application/octet-stream"

@@ -114,8 +114,8 @@ function ProdutosListPage() {
                   onClick={() => handleProductRowClick(produtoItem)}
                 >
                   <Td py={5}>{produtoItem.nome}</Td> {/* Increased py */}
-                  <Td py={5}>{`R$ ${produtoItem.receita_total.toLocaleString('pt-BR')}`}</Td>
-                  <Td py={5}>{`R$ ${produtoItem.valor_unitario_medio.toLocaleString('pt-BR')}`}</Td>
+                  <Td py={5}>{`R$ ${(produtoItem.receita_total ?? 0).toLocaleString('pt-BR')}`}</Td>
+                  <Td py={5}>{`R$ ${(produtoItem.valor_unitario_medio ?? 0).toLocaleString('pt-BR')}`}</Td>
                   {/* Add other relevant columns from RankingItem if needed */}
                 </Tr>
               ))}

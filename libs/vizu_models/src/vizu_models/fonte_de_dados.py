@@ -20,5 +20,5 @@ class FonteDeDados(SQLModel, table=True):
     data_upload: str | None = None  # ISO datetime string
     status: str | None = None  # e.g., "PENDENTE_PROCESSAMENTO", "PROCESSADO", "ERRO"
 
-    cliente_vizu_id: uuid.UUID = Field(foreign_key="cliente_vizu.id")
+    client_id: uuid.UUID = Field(foreign_key="cliente_vizu.id")
     cliente_vizu: "ClienteVizu" = Relationship(back_populates="fontes_de_dados")

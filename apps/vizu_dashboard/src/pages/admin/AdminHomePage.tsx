@@ -1,16 +1,20 @@
-import { 
-  Box, 
-  VStack, 
-  HStack, 
-  Text, 
-  Avatar, 
+import {
+  Box,
+  VStack,
+  HStack,
+  Text,
+  Avatar,
   Icon,
   SimpleGrid,
   Flex,
-  Link
+  Link,
+  Spinner
 } from '@chakra-ui/react';
 import { AdminLayout } from '../../components/layouts/AdminLayout';
-import { FiDatabase, FiUsers, FiExternalLink } from 'react-icons/fi';
+import { FiDatabase, FiUsers, FiExternalLink, FiAlertCircle } from 'react-icons/fi';
+import { useContext } from 'react';
+import { AuthContext } from '../../contexts/AuthContext';
+import { useDashboardStats } from '../../hooks/useDashboardStats';
 
 // Card component for plan info
 interface InfoCardProps {
@@ -103,9 +107,19 @@ const InfoCard = ({ title, description, items, linkText, linkHref, image }: Info
 };
 
 function AdminHomePage() {
-  // TODO: Get user name from auth context
-  const userName = "Fábio S.";
-  const userInitials = "FB";
+  const auth = useContext(AuthContext);
+  const { stats, loading, error } = useDashboardStats();
+
+  // Get user name from auth context - fallback to first part of email if no display name
+  const userName = auth?.user?.user_metadata?.full_name ||
+                   auth?.user?.email?.split('@')[0] ||
+                   'Usuário';
+
+  // Format storage usage
+  const formatStorage = (gb: number): string => {
+    if (gb < 1) return `${(gb * 1024).toFixed(2)} MB`;
+    return `${gb.toFixed(2)} GB`;
+  };
 
   return (
     <AdminLayout>
@@ -113,30 +127,28 @@ function AdminHomePage() {
         {/* Welcome Section */}
         <VStack spacing={6} mb={12}>
           {/* Avatar */}
-          <Avatar 
+          <Avatar
             size="xl"
             name={userName}
             bg="black"
             color="white"
             fontSize="18px"
-          >
-            <Text fontSize="18px" fontWeight="normal">{userInitials}</Text>
-          </Avatar>
-          
+          />
+
           {/* Welcome Text */}
-          <Text 
-            fontSize="34px" 
-            fontWeight="normal" 
+          <Text
+            fontSize="34px"
+            fontWeight="normal"
             color="gray.900"
             letterSpacing="-0.3px"
             textAlign="center"
           >
             Bem-vindo, {userName}
           </Text>
-          
-          <Text 
-            fontSize="16px" 
-            color="black" 
+
+          <Text
+            fontSize="16px"
+            color="black"
             textAlign="center"
             maxW="413px"
             lineHeight="24px"
@@ -145,36 +157,48 @@ function AdminHomePage() {
             Gerencia suas informações, privacidade e segurança para que a VIZU atenda suas necessidades.
           </Text>
         </VStack>
-        
+
         {/* Cards Grid */}
-        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
-          <InfoCard
-            title="MEU PLANO"
-            description="Com seu plano VIZUXX, você tem mais mais conectores de dados disponíveis, acesso a um agente e muito mais"
-            items={[
-              {
-                icon: FiDatabase,
-                title: "8 fontes de dados conectadas",
-                subtitle: "Uso: 12,96 GB de 2 TB"
-              },
-              {
-                icon: FiUsers,
-                title: "Agente especialista contratado",
-                subtitle: "Potencialize sua jornada com o agente VIZU"
-              }
-            ]}
-            linkText="Ver detalhes do plano"
-            linkHref="/dashboard/admin/planos"
-          />
-          
-          <InfoCard
-            title="Privacidade e personalização"
-            description="Veja os termos de privacidade e segurança referentes ao seu plano VIZUXX"
-            items={[]}
-            linkText="Gerenciar privacidade e personalização"
-            linkHref="/dashboard/admin/privacidade"
-          />
-        </SimpleGrid>
+        {loading ? (
+          <Box textAlign="center" py={12}>
+            <Spinner size="xl" />
+            <Text mt={4}>Carregando estatísticas...</Text>
+          </Box>
+        ) : error ? (
+          <Box textAlign="center" py={12}>
+            <Icon as={FiAlertCircle} boxSize={10} color="red.500" mb={4} />
+            <Text fontSize="16px" color="gray.700">Erro ao carregar estatísticas</Text>
+          </Box>
+        ) : stats ? (
+          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
+            <InfoCard
+              title="MEU PLANO"
+              description="Com seu plano VIZUXX, você tem mais conectores de dados disponíveis, acesso a um agente e muito mais"
+              items={[
+                {
+                  icon: FiDatabase,
+                  title: `${stats.connected_connectors} fontes de dados conectadas`,
+                  subtitle: `Uso: ${formatStorage(stats.storage_usage.total_storage_gb)} de ${stats.storage_usage.quota_gb || 2000} GB`
+                },
+                {
+                  icon: FiUsers,
+                  title: "Agente especialista contratado",
+                  subtitle: "Potencialize sua jornada com o agente VIZU"
+                }
+              ]}
+              linkText="Ver detalhes do plano"
+              linkHref="/dashboard/admin/planos"
+            />
+
+            <InfoCard
+              title="Privacidade e personalização"
+              description="Veja os termos de privacidade e segurança referentes ao seu plano VIZUXX"
+              items={[]}
+              linkText="Gerenciar privacidade e personalização"
+              linkHref="/dashboard/admin/privacidade"
+            />
+          </SimpleGrid>
+        ) : null}
       </Box>
     </AdminLayout>
   );

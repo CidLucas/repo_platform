@@ -165,7 +165,7 @@ async def chat_endpoint(
             api_key=None,
             session_id=body.session_id,
             message_text=body.message,
-            cliente_vizu_id=auth_result.cliente_vizu_id,
+            client_id=auth_result.client_id,
             model_override=model_override,
             elicitation_response=elicitation_response,
         )
@@ -246,12 +246,12 @@ async def twilio_webhook(
             twiml_response = create_twiml_response(response_text)
             return Response(content=twiml_response, media_type="application/xml")
 
-        # Processa a mensagem usando o cliente_vizu_id
+        # Processa a mensagem usando o client_id
         result = await service.process_message(
             api_key=None,
             session_id=f"whatsapp:{phone_number}",  # Session ID baseada no número
             message_text=Body,
-            cliente_vizu_id=str(cliente_final.cliente_vizu_id),
+            client_id=str(cliente_final.client_id),
         )
 
         # Resposta em XML TwiML (exigido pelo Twilio)
@@ -361,7 +361,7 @@ async def get_client_context(
 
     # Obtém o contexto completo do cliente
     try:
-        uuid_obj = UUID(str(auth_result.cliente_vizu_id))
+        uuid_obj = UUID(str(auth_result.client_id))
         client_context = await context_service.get_client_context_by_id(uuid_obj)
     except Exception as e:
         logger.error(f"Erro ao obter contexto do cliente: {e}")

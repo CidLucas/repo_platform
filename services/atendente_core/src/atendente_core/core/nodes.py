@@ -60,7 +60,7 @@ def get_prompt_from_db(
 
     Prioridade:
     1. Prompt específico do cliente (se cliente_id fornecido)
-    2. Prompt global (cliente_vizu_id = NULL)
+    2. Prompt global (client_id = NULL)
 
     Args:
         name: Nome do prompt (ex: 'atendente/system')
@@ -77,7 +77,7 @@ def get_prompt_from_db(
             if cliente_id:
                 query = select(PromptTemplate).where(
                     PromptTemplate.name == name,
-                    PromptTemplate.cliente_vizu_id == cliente_id,
+                    PromptTemplate.client_id == cliente_id,
                     PromptTemplate.is_active == True,
                 )
 
@@ -96,7 +96,7 @@ def get_prompt_from_db(
             # Fallback: busca prompt global
             query = select(PromptTemplate).where(
                 PromptTemplate.name == name,
-                PromptTemplate.cliente_vizu_id == None,
+                PromptTemplate.client_id == None,
                 PromptTemplate.is_active == True,
             )
 

@@ -361,7 +361,7 @@ def _get_prompt_template(
 
     Prioridade:
     1. Prompt específico do cliente (se cliente_id fornecido)
-    2. Prompt global (cliente_vizu_id = NULL)
+    2. Prompt global (client_id = NULL)
 
     Args:
         name: Nome do prompt (ex: 'atendente/system')
@@ -380,7 +380,7 @@ def _get_prompt_template(
                 # Query para prompt específico do cliente
                 query = select(PromptTemplate).where(
                     PromptTemplate.name == name,
-                    PromptTemplate.cliente_vizu_id == uuid_obj,
+                    PromptTemplate.client_id == uuid_obj,
                     PromptTemplate.is_active == True,
                 )
 
@@ -399,7 +399,7 @@ def _get_prompt_template(
         # Fallback: busca prompt global
         query = select(PromptTemplate).where(
             PromptTemplate.name == name,
-            PromptTemplate.cliente_vizu_id == None,
+            PromptTemplate.client_id == None,
             PromptTemplate.is_active == True,
         )
 
@@ -424,13 +424,13 @@ def _list_prompt_templates(cliente_id: str | None = None) -> list[PromptTemplate
                 uuid_obj = UUID(cliente_id)
                 # Inclui prompts do cliente também
                 query = query.where(
-                    (PromptTemplate.cliente_vizu_id == None)
-                    | (PromptTemplate.cliente_vizu_id == uuid_obj)
+                    (PromptTemplate.client_id == None)
+                    | (PromptTemplate.client_id == uuid_obj)
                 )
             except ValueError:
-                query = query.where(PromptTemplate.cliente_vizu_id == None)
+                query = query.where(PromptTemplate.client_id == None)
         else:
-            query = query.where(PromptTemplate.cliente_vizu_id == None)
+            query = query.where(PromptTemplate.client_id == None)
 
         query = query.order_by(PromptTemplate.name, PromptTemplate.version.desc())
 
@@ -450,7 +450,7 @@ def _get_knowledge_base_configs(cliente_id: str) -> list[KnowledgeBaseConfig]:
         try:
             uuid_obj = UUID(cliente_id)
             query = select(KnowledgeBaseConfig).where(
-                KnowledgeBaseConfig.cliente_vizu_id == uuid_obj,
+                KnowledgeBaseConfig.client_id == uuid_obj,
                 KnowledgeBaseConfig.is_active == True,
             )
             return list(db.exec(query).all())
@@ -673,7 +673,7 @@ def register_resources(mcp: FastMCP) -> None:
                 current_name = tpl.name
                 result += f"## `{tpl.name}`\n"
 
-            scope = "🌐 Global" if not tpl.cliente_vizu_id else "🏢 Cliente"
+            scope = "🌐 Global" if not tpl.client_id else "🏢 Cliente"
             result += f"- **v{tpl.version}** ({scope}): {tpl.description or 'Sem descrição'}\n"
 
         return result

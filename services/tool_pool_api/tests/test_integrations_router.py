@@ -29,7 +29,7 @@ class FakeContext:
 
     async def save_integration_config(
         self,
-        cliente_vizu_id,
+        client_id,
         provider,
         config_type,
         client_id,
@@ -38,7 +38,7 @@ class FakeContext:
         scopes,
     ):
         self.saved_config = {
-            "cliente_vizu_id": cliente_vizu_id,
+            "client_id": client_id,
             "provider": provider,
             "config_type": config_type,
             "client_id_encrypted": f"enc:{client_id}",
@@ -48,12 +48,12 @@ class FakeContext:
         }
         return self.saved_config
 
-    async def get_integration_config(self, cliente_vizu_id, provider):
+    async def get_integration_config(self, client_id, provider):
         return self.saved_config
 
     async def save_integration_tokens(
         self,
-        cliente_vizu_id,
+        client_id,
         provider,
         access_token,
         refresh_token,
@@ -73,7 +73,7 @@ class FakeContext:
         return self.saved_tokens
 
     async def get_integration_tokens(
-        self, cliente_vizu_id, provider, auto_refresh=True
+        self, client_id, provider, auto_refresh=True
     ):
         if not self.saved_tokens:
             return None
@@ -104,7 +104,7 @@ class FakeContext:
 
         return Wrapper(self.saved_tokens)
 
-    async def revoke_integration(self, cliente_vizu_id, provider):
+    async def revoke_integration(self, client_id, provider):
         self.saved_config = None
         self.saved_tokens = None
         return True
@@ -117,8 +117,8 @@ class FakeContext:
 
 
 class FakeAuthResult:
-    def __init__(self, cliente_vizu_id):
-        self.cliente_vizu_id = cliente_vizu_id
+    def __init__(self, client_id):
+        self.client_id = client_id
 
 
 @pytest.fixture
@@ -136,14 +136,14 @@ def client(app, monkeypatch):
         return fake_ctx
 
     async def fake_auth_result(*args, **kwargs):
-        return FakeAuthResult(cliente_vizu_id=uuid.uuid4())
+        return FakeAuthResult(client_id=uuid.uuid4())
 
     # Patch the dependency used in the router
     monkeypatch.setattr(integrations_router, "get_context_service", lambda: fake_ctx)
     monkeypatch.setattr(
         integrations_router,
         "_get_auth_result",
-        lambda *a, **k: FakeAuthResult(cliente_vizu_id=uuid.uuid4()),
+        lambda *a, **k: FakeAuthResult(client_id=uuid.uuid4()),
     )
 
     # Patch OAuthManager methods to avoid external calls

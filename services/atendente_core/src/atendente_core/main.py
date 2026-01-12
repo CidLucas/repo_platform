@@ -1,8 +1,10 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 # Imports corrigidos para a nova estrutura
 from atendente_core.api.router import router as api_router
@@ -63,6 +65,36 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan,
 )
+
+# --- CORS Configuration ---
+allowed_origins_env = os.getenv("CORS_ORIGINS", "")
+if allowed_origins_env:
+    origins = [origin.strip() for origin in allowed_origins_env.split(",")]
+else:
+    origins = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:5176",
+        "http://localhost:5177",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5176",
+        "http://localhost:8080",  # Dashboard Docker port
+        "http://127.0.0.1:8080",
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+logger.info(f"CORS configurado para: {origins}")
 
 # Configura Telemetria (se disponível)
 if settings.OTEL_EXPORTER_OTLP_ENDPOINT:

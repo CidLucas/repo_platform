@@ -29,7 +29,7 @@ def upgrade() -> None:
         # Identificadores
         sa.Column("session_id", sa.String(), nullable=False, index=True),
         sa.Column(
-            "cliente_vizu_id", postgresql.UUID(as_uuid=True), nullable=False, index=True
+            "client_id", postgresql.UUID(as_uuid=True), nullable=False, index=True
         ),
         sa.Column("cliente_final_id", sa.Integer(), nullable=True, index=True),
         # Conteúdo da interação
@@ -70,7 +70,7 @@ def upgrade() -> None:
         "fk_hitl_review_cliente_vizu",
         "hitl_review",
         "cliente_vizu",
-        ["cliente_vizu_id"],
+        ["client_id"],
         ["id"],
         ondelete="CASCADE",
     )
@@ -88,7 +88,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_hitl_review_pending_by_client",
         "hitl_review",
-        ["cliente_vizu_id", "status"],
+        ["client_id", "status"],
         postgresql_where=sa.text("status = 'pending'"),
     )
 

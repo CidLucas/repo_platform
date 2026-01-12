@@ -84,7 +84,7 @@ async def get_indicators(
     """
     Retorna indicadores agregados para o período especificado.
 
-    Usa cache Redis para otimizar queries pesadas.
+    Lê de Gold tables pré-computadas (atualizadas no ETL).
     Inclui comparativos percentuais vs 7, 30, 90 dias quando solicitado.
 
     **Períodos suportados:**

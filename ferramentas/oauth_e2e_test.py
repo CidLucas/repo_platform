@@ -36,7 +36,7 @@ async def main():
     ctx = ContextService(cache_service=cache, db_session=db_session, use_supabase=False)
 
     cliente_id = uuid.uuid4()
-    print("Test cliente_vizu_id:", cliente_id)
+    print("Test client_id:", cliente_id)
 
     # Save a fake integration config
     scopes = [
@@ -50,7 +50,7 @@ async def main():
     redirect_uri = "http://localhost/integrations/google/callback"
 
     await ctx.save_integration_config(
-        cliente_vizu_id=cliente_id,
+        client_id=cliente_id,
         provider="google",
         config_type="oauth2_client",
         client_id=client_id,
@@ -72,7 +72,7 @@ async def main():
     expires_at = datetime.utcnow() + timedelta(seconds=tokens.expires_in or 0)
 
     await ctx.save_integration_tokens(
-        cliente_vizu_id=cliente_id,
+        client_id=cliente_id,
         provider="google",
         access_token=tokens.access_token,
         refresh_token=tokens.refresh_token,

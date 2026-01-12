@@ -333,7 +333,7 @@ def page_pending():
 
     # Fetch reviews
     reviews = queue.get_pending(
-        cliente_vizu_id=client_uuid,
+        client_id=client_uuid,
         limit=get_settings().PAGE_SIZE,
     )
 

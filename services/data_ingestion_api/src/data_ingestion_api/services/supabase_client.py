@@ -17,10 +17,25 @@ from vizu_supabase_client.client import set_rls_context
 logger = logging.getLogger(__name__)
 
 
-async def insert(table: str, data: dict[str, Any]) -> dict[str, Any]:
+async def insert(table: str, data: dict[str, Any] | list[dict[str, Any]]) -> dict[str, Any] | list[dict[str, Any]]:
+    """
+    Insert record(s) into a table.
+
+    Args:
+        table: Table name
+        data: Single record (dict) or list of records (list of dicts)
+
+    Returns:
+        Inserted record(s) - single dict or list of dicts
+    """
     client = _get_shared_supabase_client()
     resp = client.table(table).insert(data).execute()
-    return resp.data[0] if resp.data else {}
+
+    # Return appropriate format based on input
+    if isinstance(data, list):
+        return resp.data if resp.data else []
+    else:
+        return resp.data[0] if resp.data else {}
 
 
 async def upsert(table: str, data: dict[str, Any], on_conflict: str = "id") -> dict[str, Any]:
@@ -29,13 +44,13 @@ async def upsert(table: str, data: dict[str, Any], on_conflict: str = "id") -> d
     return resp.data[0] if resp.data else {}
 
 
-async def select(table: str, columns: str = "*", filters: dict[str, Any] | None = None, cliente_vizu_id: str | None = None) -> list[dict[str, Any]]:
+async def select(table: str, columns: str = "*", filters: dict[str, Any] | None = None, client_id: str | None = None) -> list[dict[str, Any]]:
     client = _get_shared_supabase_client()
 
     # If caller provides a tenant id, set RLS context for tenant-scoped tables
-    if cliente_vizu_id:
+    if client_id:
         try:
-            set_rls_context(client, str(cliente_vizu_id))
+            set_rls_context(client, str(client_id))
         except Exception:
             logger.debug("Failed to set RLS context; continuing without it")
 
@@ -48,8 +63,8 @@ async def select(table: str, columns: str = "*", filters: dict[str, Any] | None 
     return resp.data or []
 
 
-async def select_one(table: str, columns: str = "*", filters: dict[str, Any] | None = None, cliente_vizu_id: str | None = None) -> dict[str, Any] | None:
-    res = await select(table, columns, filters, cliente_vizu_id)
+async def select_one(table: str, columns: str = "*", filters: dict[str, Any] | None = None, client_id: str | None = None) -> dict[str, Any] | None:
+    res = await select(table, columns, filters, client_id)
     return res[0] if res else None
 
 

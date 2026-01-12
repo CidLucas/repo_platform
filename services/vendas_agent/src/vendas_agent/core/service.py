@@ -77,7 +77,7 @@ class VendasService:
 
     async def process_message(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         session_id: str,
         message_text: str,
         elicitation_response: dict[str, Any] | None = None,
@@ -86,7 +86,7 @@ class VendasService:
         Process a sales message.
 
         Args:
-            cliente_vizu_id: Client UUID
+            client_id: Client UUID
             session_id: Session identifier
             message_text: User message
             elicitation_response: Optional response to pending elicitation
@@ -95,9 +95,9 @@ class VendasService:
             VendasResult with response and metadata
         """
         # 1. Get client context
-        client_context = await self.context_service.get_client_context_by_id(cliente_vizu_id)
+        client_context = await self.context_service.get_client_context_by_id(client_id)
         if not client_context:
-            raise ValueError(f"Client not found: {cliente_vizu_id}")
+            raise ValueError(f"Client not found: {client_id}")
 
         # 2. Get MCP manager
         mcp_manager = await get_mcp_manager()

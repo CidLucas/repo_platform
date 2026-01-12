@@ -12,7 +12,7 @@ from fastapi import (
 )
 
 from file_upload_api.api.dependencies import (
-    get_cliente_vizu_id_from_token,
+    get_client_id_from_token,
 )
 from file_upload_api.core.config import Settings, get_settings
 from file_upload_api.schemas.upload_schemas import FileUploadResponse
@@ -39,7 +39,7 @@ api_router = APIRouter(
 )
 def upload_file(
     # Dependência de Autenticação
-    cliente_vizu_id: uuid.UUID = Depends(get_cliente_vizu_id_from_token),
+    client_id: uuid.UUID = Depends(get_client_id_from_token),
     # Dependência do Arquivo (requer python-multipart)
     file: UploadFile = File(..., description="O arquivo a ser processado."),
     # Dependência da Lógica de Negócio (usando Supabase Storage)
@@ -49,7 +49,7 @@ def upload_file(
     Recebe um arquivo (via multipart/form-data) para um cliente Vizu autenticado.
 
     O serviço irá:
-    1. Autenticar o cliente (via `get_cliente_vizu_id_from_token`).
+    1. Autenticar o cliente (via `get_client_id_from_token`).
     2. Fazer o upload do arquivo para Supabase Storage.
     3. Retornar um ID de job e os metadados do arquivo.
 
@@ -64,19 +64,19 @@ def upload_file(
 
     try:
         logger.info(
-            f"Recebida requisição de upload de {cliente_vizu_id} para o arquivo: {file.filename}"
+            f"Recebida requisição de upload de {client_id} para o arquivo: {file.filename}"
         )
 
         # Chama a camada de serviço modularizada
         response_data = service.process_upload(
-            file=file, cliente_vizu_id=cliente_vizu_id
+            file=file, client_id=client_id
         )
 
         return response_data
 
     except Exception as e:
         logger.error(
-            f"Erro ao processar upload para {cliente_vizu_id}: {e}", exc_info=True
+            f"Erro ao processar upload para {client_id}: {e}", exc_info=True
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

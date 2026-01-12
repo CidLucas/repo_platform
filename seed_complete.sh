@@ -32,7 +32,7 @@ VALUES
 );
 
 INSERT INTO fonte_de_dados
-(id, cliente_vizu_id, nome_fonte, tipo_fonte, config)
+(id, client_id, nome_fonte, tipo_fonte, config)
 VALUES
 (
     gen_random_uuid(),

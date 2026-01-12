@@ -411,10 +411,10 @@ class SqlValidator:
         # For Phase 0, we assume tenant filtering is in views
         # Real validation would parse WHERE clauses in Phase 2
 
-        # Simple heuristic: check if client_id or cliente_vizu_id appears in WHERE
+        # Simple heuristic: check if client_id or client_id appears in WHERE
         tenant_patterns = [
             r"client_id\s*=",
-            r"cliente_vizu_id\s*=",
+            r"client_id\s*=",
             r"tenant_id\s*=",
         ]
         has_filter = any(

@@ -49,7 +49,7 @@ service = HitlService(queue, config)
 decision = service.evaluate(
     user_message="Quero agendar um corte",
     agent_response="Claro! Para qual dia?",
-    cliente_vizu_id=cliente_id,
+    client_id=cliente_id,
     confidence_score=0.65,  # < 0.7 → vai para HITL
 )
 
@@ -58,7 +58,7 @@ if decision.should_review:
         decision=decision,
         user_message="...",
         agent_response="...",
-        cliente_vizu_id=cliente_id,
+        client_id=cliente_id,
         session_id="session-123",
     )
 ```

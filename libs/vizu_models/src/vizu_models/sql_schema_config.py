@@ -39,7 +39,7 @@ class SqlTableConfig(SQLModel, table=True):
         sa_column=Column(pgUUID(as_uuid=True), primary_key=True),
     )
 
-    cliente_vizu_id: uuid.UUID = Field(
+    client_id: uuid.UUID = Field(
         sa_column=Column(
             pgUUID(as_uuid=True),
             ForeignKey("cliente_vizu.id"),
@@ -122,7 +122,7 @@ class SqlTableConfig(SQLModel, table=True):
 class SqlTableConfigCreate(SQLModel):
     """Schema para criar uma nova configuração de tabela."""
 
-    cliente_vizu_id: uuid.UUID
+    client_id: uuid.UUID
     table_name: str
     schema_name: str = "public"
     display_name: str | None = None
@@ -137,7 +137,7 @@ class SqlTableConfigRead(SQLModel):
     """Schema para leitura de configuração de tabela."""
 
     id: uuid.UUID
-    cliente_vizu_id: uuid.UUID
+    client_id: uuid.UUID
     table_name: str
     schema_name: str
     display_name: str | None = None

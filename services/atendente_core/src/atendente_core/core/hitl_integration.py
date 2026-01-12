@@ -107,7 +107,7 @@ class HitlIntegration:
         self,
         user_message: str,
         agent_response: str,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         session_id: str,
         trace_id: str | None = None,
         tools_called: list[str] | None = None,
@@ -135,7 +135,7 @@ class HitlIntegration:
             decision = service.evaluate(
                 user_message=user_message,
                 agent_response=agent_response,
-                cliente_vizu_id=cliente_vizu_id,
+                client_id=client_id,
                 confidence_score=confidence_score,
                 tools_called=tools_called,
                 tool_errors=tool_errors,
@@ -149,7 +149,7 @@ class HitlIntegration:
                     decision=decision,
                     user_message=user_message,
                     agent_response=agent_response,
-                    cliente_vizu_id=cliente_vizu_id,
+                    client_id=client_id,
                     session_id=session_id,
                     trace_id=trace_id,
                     tools_called=tools_called,
@@ -166,13 +166,13 @@ class HitlIntegration:
             # Erros de HITL não devem afetar o fluxo principal
             logger.warning(f"HITL evaluation failed (non-blocking): {e}")
 
-    def get_stats(self, cliente_vizu_id: UUID | None = None):
+    def get_stats(self, client_id: UUID | None = None):
         """Retorna estatísticas da fila HITL."""
         if not self._enabled or not self._queue:
             return None
 
         try:
-            return self._queue.get_stats(cliente_vizu_id)
+            return self._queue.get_stats(client_id)
         except Exception as e:
             logger.warning(f"Failed to get HITL stats: {e}")
             return None

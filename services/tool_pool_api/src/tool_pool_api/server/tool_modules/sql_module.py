@@ -88,7 +88,7 @@ async def _get_enriched_schema_context(
 
         with SessionLocal() as session:
             stmt = select(SqlTableConfig).where(
-                SqlTableConfig.cliente_vizu_id == cliente_id,
+                SqlTableConfig.client_id == cliente_id,
                 SqlTableConfig.is_active == True,
             )
             configs = session.exec(stmt).all()

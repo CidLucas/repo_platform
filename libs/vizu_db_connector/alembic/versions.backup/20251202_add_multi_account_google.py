@@ -1,8 +1,8 @@
 """Add multi-account support for Google integration
 
 Adds account_email column to integration_tokens to allow multiple Google accounts
-per cliente. Updates unique constraint from (cliente_vizu_id, provider) to
-(cliente_vizu_id, provider, account_email).
+per cliente. Updates unique constraint from (client_id, provider) to
+(client_id, provider, account_email).
 
 Revision ID: 20251202_add_multi_account_google
 Revises: 20251202_add_integration_tables
@@ -47,7 +47,7 @@ def upgrade() -> None:
     op.execute("""
     ALTER TABLE integration_tokens
     ADD CONSTRAINT uq_integration_tokens_cliente_provider_account
-    UNIQUE (cliente_vizu_id, provider, account_email);
+    UNIQUE (client_id, provider, account_email);
     """)
 
     # Update existing rows to have a placeholder email if null
@@ -73,13 +73,13 @@ def upgrade() -> None:
 
     op.execute("""
     CREATE INDEX IF NOT EXISTS idx_integration_tokens_cliente_provider_email
-    ON integration_tokens (cliente_vizu_id, provider, account_email);
+    ON integration_tokens (client_id, provider, account_email);
     """)
 
     # Add partial unique index to ensure only one default per cliente/provider
     op.execute("""
     CREATE UNIQUE INDEX IF NOT EXISTS idx_integration_tokens_default
-    ON integration_tokens (cliente_vizu_id, provider)
+    ON integration_tokens (client_id, provider)
     WHERE is_default = true;
     """)
 
@@ -101,13 +101,13 @@ def downgrade() -> None:
     op.execute("""
     ALTER TABLE integration_tokens
     ADD CONSTRAINT uq_integration_tokens_cliente_provider
-    UNIQUE (cliente_vizu_id, provider);
+    UNIQUE (client_id, provider);
     """)
 
     # Restore original index
     op.execute("""
     CREATE INDEX IF NOT EXISTS idx_integration_tokens_cliente_provider
-    ON integration_tokens (cliente_vizu_id, provider);
+    ON integration_tokens (client_id, provider);
     """)
 
     # Remove new columns

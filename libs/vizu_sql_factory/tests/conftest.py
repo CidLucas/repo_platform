@@ -21,7 +21,7 @@ def mock_vizu_client_context() -> VizuClientContext:
         credenciais=[
             CredencialServicoExternoCreate(
                 nome_servico="sql_service_mock",
-                cliente_vizu_id=cliente_id,
+                client_id=cliente_id,
                 credenciais={
                     "db_dialeto": "postgresql",
                     "db_user": "user_mock",

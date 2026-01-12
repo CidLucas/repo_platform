@@ -50,41 +50,41 @@ def upgrade() -> None:
     op.create_table(
         'fonte_de_dados',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('cliente_vizu_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('client_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('nome_fonte', sa.String(length=255), nullable=False),
         sa.Column('tipo_fonte', sa.String(length=100), nullable=False),
         sa.Column('config', postgresql.JSON(), nullable=True),
-        sa.ForeignKeyConstraint(['cliente_vizu_id'], ['cliente_vizu.id'], ),
+        sa.ForeignKeyConstraint(['client_id'], ['cliente_vizu.id'], ),
     )
 
     # Create credencial_servico_externo table
     op.create_table(
         'credencial_servico_externo',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('cliente_vizu_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('client_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('servico', sa.String(length=100), nullable=False),
         sa.Column('credenciais', postgresql.JSON(), nullable=False),
         sa.Column('ativo', sa.Boolean(), nullable=False, server_default='true'),
-        sa.ForeignKeyConstraint(['cliente_vizu_id'], ['cliente_vizu.id'], ),
+        sa.ForeignKeyConstraint(['client_id'], ['cliente_vizu.id'], ),
     )
 
     # Create cliente_final table
     op.create_table(
         'cliente_final',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('cliente_vizu_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('client_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('nome', sa.String(length=255), nullable=False),
         sa.Column('email', sa.String(length=255), nullable=True),
         sa.Column('telefone', sa.String(length=20), nullable=True),
         sa.Column('metadata', postgresql.JSON(), nullable=True),
-        sa.ForeignKeyConstraint(['cliente_vizu_id'], ['cliente_vizu.id'], ),
+        sa.ForeignKeyConstraint(['client_id'], ['cliente_vizu.id'], ),
     )
 
     # Create conversa table
     op.create_table(
         'conversa',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('cliente_vizu_id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('client_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('cliente_final_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('session_id', sa.String(length=255), nullable=False, index=True),
         sa.Column('titulo', sa.String(length=255), nullable=True),
@@ -92,7 +92,7 @@ def upgrade() -> None:
         sa.Column('metadata', postgresql.JSON(), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
-        sa.ForeignKeyConstraint(['cliente_vizu_id'], ['cliente_vizu.id'], ),
+        sa.ForeignKeyConstraint(['client_id'], ['cliente_vizu.id'], ),
         sa.ForeignKeyConstraint(['cliente_final_id'], ['cliente_final.id'], ),
     )
 
@@ -112,14 +112,14 @@ def upgrade() -> None:
     op.create_table(
         'configuracao_negocio',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('cliente_vizu_id', postgresql.UUID(as_uuid=True), nullable=False, unique=True),
+        sa.Column('client_id', postgresql.UUID(as_uuid=True), nullable=False, unique=True),
         sa.Column('horario_funcionamento', postgresql.JSON(), nullable=True),
         sa.Column('prompt_base', sa.Text(), nullable=True),
         sa.Column('ferramenta_rag_habilitada', sa.Boolean(), nullable=False, server_default='false'),
         sa.Column('ferramenta_sql_habilitada', sa.Boolean(), nullable=False, server_default='false'),
         sa.Column('ferramenta_agendamento_habilitada', sa.Boolean(), nullable=False, server_default='false'),
         sa.Column('collection_rag', sa.String(), nullable=True),
-        sa.ForeignKeyConstraint(['cliente_vizu_id'], ['cliente_vizu.id'], ),
+        sa.ForeignKeyConstraint(['client_id'], ['cliente_vizu.id'], ),
     )
 
     # NOTE: Do NOT manually create alembic_version table.

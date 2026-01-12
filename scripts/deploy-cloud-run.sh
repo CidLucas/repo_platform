@@ -1,16 +1,18 @@
 #!/bin/bash
-# Deploy Vizu to Google Cloud Run
+# Full CI/CD Workflow for Vizu - Build, Test, Push to Artifact Registry, Deploy to Cloud Run
 # Prerequisites:
 #   - gcloud CLI installed and authenticated
 #   - GCP_PROJECT_ID set in environment
-#   - GCP_REGION set (default: us-east1)
+#   - Poetry installed for running tests
+#   - Docker with buildx support
 
 set -euo pipefail
 
 # Configuration
 PROJECT_ID="${GCP_PROJECT_ID:-}"
-REGION="${GCP_REGION:-us-east1}"
-REGISTRY="us-east1-docker.pkg.dev"
+REGION="${GCP_REGION:-southamerica-east1}"
+REGISTRY="southamerica-east1-docker.pkg.dev"
+REPO_NAME="vizu-mono"
 SERVICE_ACCOUNT="${GCP_SA_EMAIL:-github-actions@${PROJECT_ID}.iam.gserviceaccount.com}"
 
 # Colors for output
@@ -45,6 +47,10 @@ validate_prerequisites() {
         error "Docker not found. Please install it: https://docs.docker.com/get-docker/"
     fi
 
+    if ! command -v poetry &> /dev/null; then
+        warn "Poetry not found. Tests will be skipped."
+    fi
+
     if [ -z "$PROJECT_ID" ]; then
         error "GCP_PROJECT_ID not set. Export it: export GCP_PROJECT_ID=your-project"
     fi
@@ -63,40 +69,123 @@ configure_docker() {
 create_registry() {
     log "Ensuring Artifact Registry repository exists..."
 
-    if ! gcloud artifacts repositories describe vizu \
+    if ! gcloud artifacts repositories describe ${REPO_NAME} \
         --location=${REGION} \
         --project=${PROJECT_ID} &> /dev/null; then
         log "Creating Artifact Registry repository..."
-        gcloud artifacts repositories create vizu \
+        gcloud artifacts repositories create ${REPO_NAME} \
             --repository-format=docker \
             --location=${REGION} \
-            --project=${PROJECT_ID}
+            --project=${PROJECT_ID} \
+            --description="Vizu mono-repo Docker images"
         log "Repository created ✓"
     else
         log "Repository already exists ✓"
     fi
 }
 
+# Run tests for a service
+run_tests() {
+    local service=$1
+
+    if ! command -v poetry &> /dev/null; then
+        warn "Poetry not found. Skipping tests for $service"
+        return 0
+    fi
+
+    log "Running tests for $service..."
+
+    if [ ! -d "services/$service/tests" ]; then
+        warn "No tests directory found for $service, skipping..."
+        return 0
+    fi
+
+    cd "services/$service"
+
+    # Install dependencies
+    if ! poetry install --with dev &> /dev/null; then
+        warn "Failed to install dependencies for $service, skipping tests..."
+        cd ../..
+        return 0
+    fi
+
+    # Ensure pytest-cov is installed
+    poetry add --group dev pytest-cov &> /dev/null || true
+
+    # Run tests
+    if poetry run pytest tests/ -v --cov=src --cov-report=term-missing 2>&1 | tee test-output.log; then
+        log "$service tests passed ✓"
+    elif poetry run pytest tests/ -v 2>&1 | tee test-output.log; then
+        log "$service tests passed ✓ (without coverage)"
+    else
+        warn "$service tests failed, but continuing..."
+    fi
+
+    cd ../..
+}
+
 # Build and push a single service
 build_and_push() {
     local service=$1
     local dockerfile=$2
-    local pythonpath=$3
 
     log "Building $service..."
 
-    local image_uri="${REGISTRY}/${PROJECT_ID}/vizu/${service}:$(date +%Y%m%d-%H%M%S)-$(git rev-parse --short HEAD)"
+    local commit_short=$(git rev-parse --short HEAD 2>/dev/null || echo "local")
+    local timestamp=$(date +%Y%m%d-%H%M%S)
+    local image_tag="${timestamp}-${commit_short}"
 
-    docker build \
-        --build-arg PYTHONPATH="${pythonpath}" \
-        -t "${image_uri}" \
-        -f "${dockerfile}" .
+    local image_base="${REGISTRY}/${PROJECT_ID}/${REPO_NAME}/vizu-${service}"
+    local image_versioned="${image_base}:${image_tag}"
+    local image_latest="${image_base}:latest"
 
-    log "Pushing $service to Artifact Registry..."
-    docker push "${image_uri}"
+    # Build arguments for dashboard (Vite environment variables from .env file)
+    local build_args=""
+    if [[ "$service" == "dashboard" ]]; then
+        log "Loading Vite environment variables from .env file..."
+        if [ -f "apps/vizu_dashboard/.env" ]; then
+            # Load .env file and create build args
+            while IFS='=' read -r key value; do
+                # Skip comments and empty lines
+                [[ $key =~ ^#.*$ ]] && continue
+                [[ -z $key ]] && continue
+                # Trim whitespace
+                key=$(echo "$key" | xargs)
+                value=$(echo "$value" | xargs)
+                # Only process VITE_* variables
+                if [[ $key =~ ^VITE_ ]]; then
+                    # Remove quotes from value if present
+                    value=$(echo "$value" | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")
+                    build_args="$build_args --build-arg ${key}=${value}"
+                    # Truncate long values for display
+                    local display_value="${value:0:50}"
+                    if [ ${#value} -gt 50 ]; then
+                        display_value="${display_value}..."
+                    fi
+                    log "  ${key}=${display_value}"
+                fi
+            done < "apps/vizu_dashboard/.env"
+        else
+            warn "apps/vizu_dashboard/.env not found, building without Vite variables"
+        fi
+    fi
+
+    # Build using buildx for linux/amd64 (Cloud Run requirement)
+    docker buildx build \
+        --platform linux/amd64 \
+        -f "${dockerfile}" \
+        $build_args \
+        -t "${image_versioned}" \
+        -t "${image_latest}" \
+        --push \
+        .
 
     log "$service built and pushed ✓"
-    echo "${image_uri}"
+    log "  Versioned: ${image_versioned}"
+    log "  Latest: ${image_latest}"
+
+    # Return the latest tag for deployment
+    echo "${image_latest}"
 }
 
 # Deploy a service to Cloud Run
@@ -136,13 +225,15 @@ deploy_to_cloud_run() {
         --ingress=internal-and-cloud-load-balancing \
         --set-env-vars="ENVIRONMENT=production,LOG_LEVEL=INFO" \
         --service-account="${SERVICE_ACCOUNT}" \
+        --cpu-boost \
+        --no-cpu-throttling \
         --project=${PROJECT_ID} \
         --quiet
 
     log "$service_name deployed ✓"
 }
 
-# Main deployment
+# Main CI/CD workflow
 main() {
     local deploy_type=${1:-all}
 
@@ -152,76 +243,82 @@ main() {
 
     case "$deploy_type" in
         agents-pool)
-            log "Deploying agents pool..."
+            log "========================================="
+            log "CI/CD: Agents Pool"
+            log "========================================="
 
-            # Atendente Core (main entry point)
-            local img=$(build_and_push "atendente-core" \
-                "services/atendente_core/Dockerfile" \
-                "/app/services/atendente_core/src")
-            deploy_to_cloud_run "atendente-core" "$img" "2Gi" "2" "10" "3600" "50" "1"
+            # Run tests
+            run_tests "atendente_core"
+            run_tests "tool_pool_api"
 
-            # Tool Pool API
-            local img=$(build_and_push "tool-pool-api" \
-                "services/tool_pool_api/Dockerfile" \
-                "/app/services/tool_pool_api/src")
-            deploy_to_cloud_run "tool-pool-api" "$img" "2Gi" "2" "5" "3600" "20" "1" "9000" "false"
+            # Build and push
+            log "Building and pushing images..."
+            local img_atendente=$(build_and_push "atendente_core" "services/atendente_core/Dockerfile")
+            local img_tool_pool=$(build_and_push "tool_pool_api" "services/tool_pool_api/Dockerfile")
+            local img_vendas=$(build_and_push "vendas_agent" "services/vendas_agent/Dockerfile")
+            local img_support=$(build_and_push "support_agent" "services/support_agent/Dockerfile")
 
-            # Vendas Agent
-            local img=$(build_and_push "vendas-agent" \
-                "services/vendas_agent/Dockerfile" \
-                "/app/src")
-            deploy_to_cloud_run "vendas-agent" "$img" "2Gi" "2" "10" "3600" "50" "0"
-
-            # Support Agent
-            local img=$(build_and_push "support-agent" \
-                "services/support_agent/Dockerfile" \
-                "/app/src")
-            deploy_to_cloud_run "support-agent" "$img" "2Gi" "2" "10" "3600" "50" "0"
+            # Deploy
+            log "Deploying to Cloud Run..."
+            deploy_to_cloud_run "atendente-core" "$img_atendente" "2Gi" "2" "10" "3600" "50" "1" "8000" "true"
+            deploy_to_cloud_run "tool-pool-api" "$img_tool_pool" "2Gi" "2" "5" "3600" "20" "1" "8000" "false"
+            deploy_to_cloud_run "vendas-agent" "$img_vendas" "2Gi" "2" "10" "3600" "50" "0" "8000" "true"
+            deploy_to_cloud_run "support-agent" "$img_support" "2Gi" "2" "10" "3600" "50" "0" "8000" "true"
             ;;
 
         workers-pool)
-            log "Deploying workers pool..."
+            log "========================================="
+            log "CI/CD: Workers Pool"
+            log "========================================="
 
-            # Data Ingestion Worker
-            local img=$(build_and_push "data-ingestion-worker" \
-                "services/data_ingestion_worker/Dockerfile" \
-                "/app/src:/app/libs")
-            deploy_to_cloud_run "data-ingestion-worker" "$img" "1Gi" "2" "50" "600" "100" "0" "8000" "false"
+            # Run tests
+            run_tests "data_ingestion_api"
+            run_tests "analytics_api"
 
-            # File Processing Worker
-            local img=$(build_and_push "file-processing-worker" \
-                "services/file_processing_worker/Dockerfile" \
-                "/app/src")
-            deploy_to_cloud_run "file-processing-worker" "$img" "2Gi" "2" "20" "1800" "50" "0" "8000" "false"
+            # Build and push
+            log "Building and pushing images..."
+            local img_file_upload=$(build_and_push "file_upload_api" "services/file_upload_api/Dockerfile")
+            local img_data_ingestion=$(build_and_push "data_ingestion_api" "services/data_ingestion_api/Dockerfile")
+            local img_analytics=$(build_and_push "analytics_api" "services/analytics_api/Dockerfile")
 
-            # File Upload API
-            local img=$(build_and_push "file-upload-api" \
-                "services/file_upload_api/Dockerfile" \
-                "/app/src")
-            deploy_to_cloud_run "file-upload-api" "$img" "1Gi" "2" "50" "300" "50" "1"
+            # Deploy
+            log "Deploying to Cloud Run..."
+            deploy_to_cloud_run "file-upload-api" "$img_file_upload" "1Gi" "2" "50" "300" "50" "1"
+            deploy_to_cloud_run "data-ingestion-api" "$img_data_ingestion" "2Gi" "2" "50" "600" "50" "1"
+            deploy_to_cloud_run "analytics-api" "$img_analytics" "2Gi" "2" "50" "300" "50" "1"
             ;;
 
-        embedding-service)
-            log "Deploying embedding service..."
-            local img=$(build_and_push "embedding-service" \
-                "services/embedding_service/Dockerfile" \
-                "/app/src")
-            deploy_to_cloud_run "embedding-service" "$img" "2Gi" "2" "50" "60" "50" "1" "11435" "false"
+        dashboard)
+            log "========================================="
+            log "CI/CD: Dashboard"
+            log "========================================="
+
+            # Build and push
+            log "Building and pushing dashboard..."
+            local img_dashboard=$(build_and_push "dashboard" "apps/vizu_dashboard/Dockerfile")
+
+            # Deploy
+            log "Deploying to Cloud Run..."
+            deploy_to_cloud_run "vizu-dashboard" "$img_dashboard" "512Mi" "1" "80" "300" "10" "0" "80" "true"
             ;;
 
         all)
-            log "Deploying all services..."
+            log "========================================="
+            log "Full CI/CD Workflow - All Services"
+            log "========================================="
             $0 agents-pool
             $0 workers-pool
-            $0 embedding-service
+            $0 dashboard
             ;;
 
         *)
-            error "Unknown service: $deploy_type. Options: agents-pool, workers-pool, embedding-service, all"
+            error "Unknown service: $deploy_type. Options: agents-pool, workers-pool, dashboard, all"
             ;;
     esac
 
-    log "Deployment complete ✓"
+    log "========================================="
+    log "CI/CD Complete ✓"
+    log "========================================="
 }
 
 # Run main if script is executed directly

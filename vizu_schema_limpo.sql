@@ -87,7 +87,7 @@ CREATE TABLE public.cliente_final (
     nome character varying(255),
     metadados json,
     id integer NOT NULL,
-    cliente_vizu_id uuid NOT NULL
+    client_id uuid NOT NULL
 );
 
 
@@ -135,7 +135,7 @@ CREATE TABLE public.configuracao_negocio (
     ferramenta_sql_habilitada boolean NOT NULL,
     ferramenta_agendamento_habilitada boolean NOT NULL,
     id integer NOT NULL,
-    cliente_vizu_id uuid NOT NULL
+    client_id uuid NOT NULL
 );
 
 
@@ -166,7 +166,7 @@ ALTER SEQUENCE public.configuracao_negocio_id_seq OWNED BY public.configuracao_n
 CREATE TABLE public.credencial_servico_externo (
     nome_servico character varying NOT NULL,
     id integer NOT NULL,
-    cliente_vizu_id uuid NOT NULL
+    client_id uuid NOT NULL
 );
 
 
@@ -198,7 +198,7 @@ CREATE TABLE public.fonte_de_dados (
     id integer NOT NULL,
     tipo_fonte public.tipofonte NOT NULL,
     caminho character varying NOT NULL,
-    cliente_vizu_id uuid NOT NULL
+    client_id uuid NOT NULL
 );
 
 
@@ -313,42 +313,42 @@ CREATE UNIQUE INDEX ix_cliente_vizu_api_key ON public.cliente_vizu USING btree (
 
 
 --
--- Name: ix_configuracao_negocio_cliente_vizu_id; Type: INDEX; Schema: public; Owner: -
+-- Name: ix_configuracao_negocio_client_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX ix_configuracao_negocio_cliente_vizu_id ON public.configuracao_negocio USING btree (cliente_vizu_id);
+CREATE UNIQUE INDEX ix_configuracao_negocio_client_id ON public.configuracao_negocio USING btree (client_id);
 
 
 --
--- Name: cliente_final cliente_final_cliente_vizu_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: cliente_final cliente_final_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.cliente_final
-    ADD CONSTRAINT cliente_final_cliente_vizu_id_fkey FOREIGN KEY (cliente_vizu_id) REFERENCES public.cliente_vizu(id);
+    ADD CONSTRAINT cliente_final_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.cliente_vizu(id);
 
 
 --
--- Name: configuracao_negocio configuracao_negocio_cliente_vizu_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: configuracao_negocio configuracao_negocio_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.configuracao_negocio
-    ADD CONSTRAINT configuracao_negocio_cliente_vizu_id_fkey FOREIGN KEY (cliente_vizu_id) REFERENCES public.cliente_vizu(id);
+    ADD CONSTRAINT configuracao_negocio_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.cliente_vizu(id);
 
 
 --
--- Name: credencial_servico_externo credencial_servico_externo_cliente_vizu_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: credencial_servico_externo credencial_servico_externo_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.credencial_servico_externo
-    ADD CONSTRAINT credencial_servico_externo_cliente_vizu_id_fkey FOREIGN KEY (cliente_vizu_id) REFERENCES public.cliente_vizu(id);
+    ADD CONSTRAINT credencial_servico_externo_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.cliente_vizu(id);
 
 
 --
--- Name: fonte_de_dados fonte_de_dados_cliente_vizu_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: fonte_de_dados fonte_de_dados_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.fonte_de_dados
-    ADD CONSTRAINT fonte_de_dados_cliente_vizu_id_fkey FOREIGN KEY (cliente_vizu_id) REFERENCES public.cliente_vizu(id);
+    ADD CONSTRAINT fonte_de_dados_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.cliente_vizu(id);
 
 
 --

@@ -33,14 +33,14 @@ class ApiKeyStrategy(AuthStrategy):
         if not api_key:
             raise InvalidApiKeyError("Empty API key provided")
 
-        cliente_vizu_id = await self._api_key_lookup_fn(api_key)
-        if not cliente_vizu_id:
+        client_id = await self._api_key_lookup_fn(api_key)
+        if not client_id:
             key_suffix = api_key[-4:] if len(api_key) >= 4 else "****"
             logger.warning(f"Invalid API key ending in ... {key_suffix}")
             raise InvalidApiKeyError("Invalid or expired API key")
 
         return AuthResult(
-            cliente_vizu_id=cliente_vizu_id,
+            client_id=client_id,
             auth_method=AuthMethod.API_KEY,
             raw_claims={"api_key_suffix": api_key[-4:]},
         )

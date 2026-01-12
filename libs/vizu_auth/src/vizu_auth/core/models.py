@@ -23,14 +23,14 @@ class JWTClaims(BaseModel):
     email: str | None = None
     phone: str | None = None
     role: str | None = None
-    cliente_vizu_id: UUID | None = None
+    client_id: UUID | None = None
 
     class Config:
         extra = "allow"
 
 
 class AuthResult(BaseModel):
-    cliente_vizu_id: UUID
+    client_id: UUID
     auth_method: AuthMethod
     external_user_id: str | None = None
     email: str | None = None

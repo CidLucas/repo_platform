@@ -27,17 +27,17 @@ class ClienteFinal(ClienteFinalBase, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
 
-    cliente_vizu_id: uuid.UUID = Field(foreign_key="cliente_vizu.id")
+    client_id: uuid.UUID = Field(foreign_key="cliente_vizu.id")
     cliente_vizu: "ClienteVizu" = Relationship(back_populates="clientes_finais")
 
 
 class ClienteFinalCreate(ClienteFinalBase):
-    cliente_vizu_id: uuid.UUID
+    client_id: uuid.UUID
 
 
 class ClienteFinalRead(ClienteFinalBase):
     id: int
-    cliente_vizu_id: uuid.UUID
+    client_id: uuid.UUID
 
 
 class ClienteFinalUpdate(SQLModel):

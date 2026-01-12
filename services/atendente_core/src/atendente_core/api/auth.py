@@ -6,9 +6,11 @@ nos endpoints em substituição ao header `X-API-KEY` direto.
 """
 
 import logging
+from uuid import UUID
 
 from fastapi import Depends, Header, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import text
 
 from vizu_auth.adapters.context_service_adapter import (
     api_key_lookup_from_context_service,
@@ -40,7 +42,11 @@ async def get_auth_result(
 
     # Cria funções de lookup atreladas à instância do ContextService
     api_key_lookup = api_key_lookup_from_context_service(ctx_service)
-    external_user_lookup = external_user_lookup_from_context_service(ctx_service)
+    # NOTE: We use None for external_user_lookup because:
+    # - ContextService doesn't have get_context_by_external_user_id method
+    # - We use the Supabase user ID (JWT sub claim) directly as client_id
+    # - This allows new users to authenticate without needing a database lookup
+    external_user_lookup = None
 
     # Cria factory (leve) e delega a validação passando os objetos já resolvidos
     auth_factory = create_auth_dependency(

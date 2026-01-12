@@ -30,7 +30,7 @@ class VizuDBConnector:
 # TODO: Classe deve ser injetada via DI para maior testabilidade
 class DataProcessor:
     """
-    Worker assíncrono responsável por buscar dados, transformá-los 
+    Worker assíncrono responsável por buscar dados, transformá-los
     e carregá-los no destino final (ex: base vetorial, Cloud SQL).
     """
 
@@ -39,11 +39,11 @@ class DataProcessor:
         self.db_connector = db_connector
         self.secret_manager = secret_manager
 
-    async def process_ingestion(self, cliente_vizu_id: str, id_credencial: str) -> bool:
+    async def process_ingestion(self, client_id: str, id_credencial: str) -> bool:
         """
         Fluxo principal de Extração, Transformação e Carga (ETL/ELT).
         """
-        logger.info(f"Iniciando processamento para Cliente: {cliente_vizu_id}, Credencial: {id_credencial}")
+        logger.info(f"Iniciando processamento para Cliente: {client_id}, Credencial: {id_credencial}")
 
         # 1. Busca Segredo: O Worker precisa do JSON da Service Account
         try:
@@ -88,7 +88,7 @@ class DataProcessor:
         # 4. Carga: Salva o resultado (ex: no banco vetorial Qdrant ou no Cloud SQL)
         await self._load_data(transformed_df)
 
-        logger.info(f"Processamento concluído com sucesso para Cliente: {cliente_vizu_id}")
+        logger.info(f"Processamento concluído com sucesso para Cliente: {client_id}")
         return True
 
     # Métodos Auxiliares

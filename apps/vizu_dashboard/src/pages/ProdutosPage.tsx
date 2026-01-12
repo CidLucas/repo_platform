@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { ProdutoDetailsModal } from '../components/ProdutoDetailsModal';
 import { getProdutosOverview, getProdutoDetails } from '../services/analyticsService';
 import type { ProdutosOverviewResponse, ProdutoDetailResponse } from '../services/analyticsService';
+import { DEFAULT_BRAZIL_CENTER } from '../utils/regionCoordinates';
 
 function ProdutosPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -70,7 +71,7 @@ function ProdutosPage() {
   const listCardItems = overviewData?.ranking_por_receita?.map(item => ({
     id: item.nome, // Use 'nome' as a unique ID for the card
     title: item.nome,
-    description: `Receita: R$ ${item.receita_total.toLocaleString('pt-BR')}`,
+    description: `Receita: R$ ${(item.receita_total ?? 0).toLocaleString('pt-BR')}`,
     // status: item.cluster_tier, // cluster_tier is not available in product ranking item
   })) || [];
 
@@ -112,8 +113,12 @@ function ProdutosPage() {
             title="Performance de Produtos"
             size="large"
             bgColor="#FFFB97" // Specific color for Produtos module
-            graphData={{ values: [10, 20, 15, 25, 22] }} // Placeholder
-            scorecardValue={`R$ ${overviewData.ranking_por_receita.reduce((acc, curr) => acc + curr.receita_total, 0).toLocaleString('pt-BR')}`} // Sum of top 10 products revenue
+            graphData={{
+              values: overviewData.ranking_por_receita && overviewData.ranking_por_receita.length > 0
+                ? overviewData.ranking_por_receita.slice(0, 10).map((p: any) => p.receita_total || 0)
+                : []
+            }}
+            scorecardValue={`R$ ${(overviewData.ranking_por_receita || []).reduce((acc: number, curr: any) => acc + curr.receita_total, 0).toLocaleString('pt-BR')}`}
             scorecardLabel="Total Vendido (Top 10)"
             modalLeftBgColor="#FFFB97" // Modal left background
             modalRightBgColor="#FFF856" // Modal right background
@@ -127,8 +132,8 @@ function ProdutosPage() {
             bgGradient="linear-gradient(to-br, #353A5A, #1F2138)"
             textColor="white"
             mainText="Análise das categorias de produtos mais vendidas."
-            scorecardValue="15" // Placeholder
-            scorecardLabel="Categorias Ativas"
+            scorecardValue={overviewData.scorecard_total_itens_unicos.toString()}
+            scorecardLabel="Produtos Únicos"
             modalLeftBgColor="#FFFB97"
             modalRightBgColor="#FFF856"
             modalContent={<Text>Detalhes das categorias de produtos</Text>}
@@ -147,7 +152,11 @@ function ProdutosPage() {
             title="Distribuição Geográfica"
             size="large"
             bgColor="white"
-            mapData={{ center: [-23.55052, -46.633308], zoom: 10, markers: [{ position: [-23.55052, -46.633308], popupText: 'São Paulo' }] }} // Placeholder
+            mapData={{
+              center: [DEFAULT_BRAZIL_CENTER.lat, DEFAULT_BRAZIL_CENTER.lng] as [number, number],
+              zoom: 4,
+              markers: [{ position: [DEFAULT_BRAZIL_CENTER.lat, DEFAULT_BRAZIL_CENTER.lng] as [number, number], popupText: 'Brasil' }]
+            }}
             mainText="Principais regiões de venda de produtos."
             modalLeftBgColor="#FFFB97"
             modalRightBgColor="#FFF856"

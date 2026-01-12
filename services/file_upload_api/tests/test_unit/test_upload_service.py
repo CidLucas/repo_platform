@@ -56,7 +56,7 @@ def test_process_upload_success(
 
     # --- 2. Act (Execução) ---
 
-    response = service.process_upload(file=mock_file, cliente_vizu_id=cliente_id)
+    response = service.process_upload(file=mock_file, client_id=cliente_id)
 
     # --- 3. Assert (Verificação) ---
 
@@ -84,7 +84,7 @@ def test_process_upload_success(
     # O payload da mensagem deve ser serializado corretamente
     expected_payload = {
         "job_id": str(test_job_id),
-        "cliente_vizu_id": str(cliente_id),
+        "client_id": str(cliente_id),
         "gcs_path": expected_gcs_path,
         "original_filename": "teste.txt",
         "content_type": "text/plain",

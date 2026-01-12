@@ -1,10 +1,12 @@
 # services/data_ingestion_api/services/credential_service.py
 
+import json
 import logging
 import uuid
 from typing import Any
 
-from vizu_auth import SecretManager
+# Note: SecretManager requires GCP credentials - disabled for now
+# from vizu_auth import SecretManager
 
 from data_ingestion_api.schemas.schemas import (
     BigQueryCredentialCreate,
@@ -15,68 +17,85 @@ from data_ingestion_api.services import supabase_client
 
 logger = logging.getLogger(__name__)
 
-# Instanciação do Secret Manager
-secret_manager = SecretManager()
+# NOTE: Secret Manager disabled - storing credentials directly in Supabase
+# For production: Enable Secret Manager and configure GCP credentials
+# secret_manager = SecretManager()
 
 class CredentialService:
     """
     Serviço de Lógica de Negócios para a manipulação de Credenciais.
-    Responsabilidade: Segurança (Secret Manager) e Persistência (DB).
+    Responsabilidade: Segurança (Supabase encrypted storage) e Persistência (DB).
     """
 
     async def create_credential(self, credenciais: SQLCredentialCreate | BigQueryCredentialCreate) -> CredencialResponse:
         """
         Fluxo unificado para criar a credencial de um cliente Enterprise.
+
+        NOTE: Currently stores credentials directly in Supabase as JSON.
+        For production: Use Google Secret Manager for better security.
         """
-        client_id = credenciais.cliente_vizu_id
-        secret_id = None # CRÍTICO: Inicializar para garantir o escopo no bloco finally
+        client_id = credenciais.client_id
 
         try:
-            # 1. Armazenar credenciais sensíveis no Secret Manager
-            # Convertemos o Pydantic para dict e filtramos dados sensíveis, se necessário
-            # Nota: O Pydantic to_dict() garante que a senha seja convertida
+            # 0. Log safe summary
+            tipo = credenciais.tipo_servico
+            logger.info(
+                "Creating credential: client_id=%s, tipo_servico=%s, nome_conexao=%s",
+                client_id,
+                tipo,
+                credenciais.nome_conexao,
+            )
 
-            # Criamos o payload de credenciais (apenas os dados necessários para o conector)
-            sensitive_payload = credenciais.model_dump(exclude={"cliente_vizu_id", "nome_conexao", "tipo_servico"})
+            # 1. Prepare sensitive payload (credentials only, excluding metadata)
+            sensitive_payload = credenciais.model_dump(exclude={"client_id", "nome_conexao", "tipo_servico"})
 
-            logger.info(f"Armazenando segredo para cliente {client_id} no Secret Manager.")
-            secret_id = await secret_manager.store_secret(client_id, sensitive_payload)
+            # Mask secrets for logs
+            safe_log = dict(sensitive_payload)
+            if "password" in safe_log:
+                safe_log["password"] = "***"
+            if "service_account_json" in safe_log and isinstance(safe_log["service_account_json"], dict):
+                saj = safe_log["service_account_json"]
+                safe_log["service_account_json"] = {
+                    "project_id": saj.get("project_id"),
+                    "client_email": saj.get("client_email"),
+                    # Do not log private_key
+                    "keys": list(saj.keys())
+                }
+            logger.info("Sensitive payload summary: %s", safe_log)
 
-            # 2. Persistir a REFERÊNCIA (Secret ID) no Supabase
+            # 2. Store credentials directly in Supabase
+            # TODO: For production, use Secret Manager instead
+            logger.info(f"Storing credentials for client {client_id} in Supabase.")
+            credentials_json = json.dumps(sensitive_payload)
+
+            # 3. Persist to Supabase with all metadata
             db_payload = {
-                "cliente_vizu_id": client_id,
+                "client_id": client_id,
                 "nome_servico": credenciais.nome_conexao,
-                "credenciais_cifradas": secret_id,  # Store the Secret Manager ID
+                "tipo_servico": credenciais.tipo_servico,
+                "credenciais_cifradas": credentials_json,  # Store JSON directly (Supabase encrypts at rest)
+                "status": "pending",  # Will be updated after first successful sync
             }
 
             db_result = await supabase_client.insert("credencial_servico_externo", db_payload)
+            logger.info("Supabase insert into credencial_servico_externo returned: id=%s", db_result.get("id"))
 
-            # 3. Finalizar e Retornar
-            # Map Supabase response to expected format
+            # 4. Return response
             response_data = {
                 "id_credencial": str(db_result.get("id", uuid.uuid4())),
-                "secret_manager_id": secret_id,
+                "secret_manager_id": f"supabase:{client_id}",  # Indicate storage location
                 "nome_conexao": credenciais.nome_conexao,
                 "tipo_servico": credenciais.tipo_servico,
                 "status": "PENDENTE_VALIDACAO"
             }
 
-            logger.info(f"Referência de credencial {response_data['id_credencial']} salva com Secret ID {secret_id}.")
+            logger.info(f"Credential {response_data['id_credencial']} saved successfully.")
 
             return CredencialResponse(**response_data)
 
         except Exception as e:
-            # Fluxo de Rollback: Se o Secret Manager teve sucesso, mas a persistência ou o retorno falharam
-            if secret_id:
-                logger.warning(f"Persistência falhou. Iniciando ROLLBACK: Deletando segredo {secret_id}.")
-                # Adicionamos um try interno para não obscurecer o erro original
-                try:
-                    await secret_manager.delete_secret(secret_id)
-                    logger.warning(f"Rollback bem-sucedido: Segredo {secret_id} deletado.")
-                except Exception as rollback_e:
-                    logger.error(f"FALHA CRÍTICA: Rollback do segredo {secret_id} falhou: {rollback_e}")
-
-            # Re-lança o erro original, garantindo que a API retorne um 500
+            # Log error and re-raise
+            logger.error(f"Failed to create credential for client {client_id}: {e}", exc_info=True)
             raise e
 
 credential_service = CredentialService()

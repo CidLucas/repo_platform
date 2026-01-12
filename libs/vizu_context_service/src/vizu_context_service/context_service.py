@@ -321,7 +321,7 @@ class ContextService:
 
     async def save_integration_config(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         provider: str,
         config_type: str,
         client_id: str,
@@ -337,7 +337,7 @@ class ContextService:
             try:
                 return await asyncio.to_thread(
                     self._supabase_crud.save_integration_config,
-                    cliente_vizu_id,
+                    client_id,
                     provider,
                     config_type,
                     enc_client_id,
@@ -351,7 +351,7 @@ class ContextService:
             return await asyncio.to_thread(
                 sqlalchemy_crud.save_integration_config,
                 self.db,
-                cliente_vizu_id,
+                client_id,
                 provider,
                 config_type,
                 enc_client_id,
@@ -360,25 +360,25 @@ class ContextService:
                 scopes,
             )
 
-    async def get_integration_config(self, cliente_vizu_id: UUID, provider: str):
+    async def get_integration_config(self, client_id: UUID, provider: str):
         """Retrieve integration config and decrypt public values when needed."""
         if self._use_supabase:
             row = await asyncio.to_thread(
-                self._supabase_crud.get_integration_config, cliente_vizu_id, provider
+                self._supabase_crud.get_integration_config, client_id, provider
             )
             return row
         else:
             row = await asyncio.to_thread(
                 sqlalchemy_crud.get_integration_config,
                 self.db,
-                cliente_vizu_id,
+                client_id,
                 provider,
             )
             return row
 
     async def save_integration_tokens(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         provider: str,
         access_token: str,
         refresh_token: str | None,
@@ -393,7 +393,7 @@ class ContextService:
         """Encrypt tokens and persist them.
 
         Args:
-            cliente_vizu_id: The cliente UUID
+            client_id: The cliente UUID
             provider: Provider name (e.g., 'google')
             access_token: OAuth access token
             refresh_token: OAuth refresh token
@@ -415,7 +415,7 @@ class ContextService:
         if self._use_supabase:
             return await asyncio.to_thread(
                 self._supabase_crud.save_integration_tokens,
-                cliente_vizu_id,
+                client_id,
                 provider,
                 enc_access,
                 enc_refresh,
@@ -431,7 +431,7 @@ class ContextService:
             return await asyncio.to_thread(
                 sqlalchemy_crud.save_integration_tokens,
                 self.db,
-                cliente_vizu_id,
+                client_id,
                 provider,
                 enc_access,
                 enc_refresh,
@@ -542,7 +542,7 @@ class ContextService:
 
     async def _refresh_google_token(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         refresh_token: str,
         account_email: str | None = None,
     ) -> Optional["ContextService._IntegrationTokenWrapper"]:
@@ -552,10 +552,10 @@ class ContextService:
         """
         try:
             # Get the OAuth config to get client_id/secret
-            cfg_row = await self.get_integration_config(cliente_vizu_id, "google")
+            cfg_row = await self.get_integration_config(client_id, "google")
             if not cfg_row:
                 logger.error(
-                    f"[Token Refresh] No Google config found for cliente {cliente_vizu_id}"
+                    f"[Token Refresh] No Google config found for cliente {client_id}"
                 )
                 return None
 
@@ -603,7 +603,7 @@ class ContextService:
 
             # Save the new tokens
             await self.save_integration_tokens(
-                cliente_vizu_id=cliente_vizu_id,
+                client_id=client_id,
                 provider="google",
                 access_token=new_tokens.access_token,
                 refresh_token=new_tokens.refresh_token
@@ -615,12 +615,12 @@ class ContextService:
             )
 
             logger.info(
-                f"[Token Refresh] Successfully refreshed Google token for cliente {cliente_vizu_id}"
+                f"[Token Refresh] Successfully refreshed Google token for cliente {client_id}"
             )
 
             # Return new wrapper
             return await self.get_integration_tokens(
-                cliente_vizu_id,
+                client_id,
                 "google",
                 auto_refresh=False,
                 account_email=account_email,
@@ -634,7 +634,7 @@ class ContextService:
 
     async def get_integration_tokens(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         provider: str,
         auto_refresh: bool = True,
         account_email: str | None = None,
@@ -642,7 +642,7 @@ class ContextService:
         """Retrieve tokens wrapper that exposes is_valid and get_decrypted_tokens.
 
         Args:
-            cliente_vizu_id: The cliente UUID
+            client_id: The cliente UUID
             provider: Provider name (e.g., 'google')
             auto_refresh: If True and token is expired/expiring, attempt refresh
             account_email: Specific account to get (None = default account)
@@ -653,7 +653,7 @@ class ContextService:
         if self._use_supabase:
             row = await asyncio.to_thread(
                 self._supabase_crud.get_integration_tokens,
-                cliente_vizu_id,
+                client_id,
                 provider,
                 account_email,
             )
@@ -661,7 +661,7 @@ class ContextService:
             row = await asyncio.to_thread(
                 sqlalchemy_crud.get_integration_tokens,
                 self.db,
-                cliente_vizu_id,
+                client_id,
                 provider,
                 account_email,
             )
@@ -673,7 +673,7 @@ class ContextService:
             row,
             self._decrypt,
             context_service=self,
-            cliente_id=cliente_vizu_id,
+            cliente_id=client_id,
             provider=provider,
         )
 
@@ -689,10 +689,10 @@ class ContextService:
 
             if refresh_token:
                 logger.info(
-                    f"[Token Refresh] Token expiring soon for {cliente_vizu_id}, attempting refresh..."
+                    f"[Token Refresh] Token expiring soon for {client_id}, attempting refresh..."
                 )
                 refreshed_wrapper = await self._refresh_google_token(
-                    cliente_vizu_id,
+                    client_id,
                     refresh_token,
                     account_email=current_account_email,
                 )
@@ -704,14 +704,14 @@ class ContextService:
                     )
             else:
                 logger.warning(
-                    f"[Token Refresh] No refresh token available for {cliente_vizu_id}"
+                    f"[Token Refresh] No refresh token available for {client_id}"
                 )
 
         return wrapper
 
     async def list_integration_accounts(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         provider: str,
     ) -> list:
         """List all connected accounts for a cliente/provider.
@@ -721,14 +721,14 @@ class ContextService:
         if self._use_supabase:
             rows = await asyncio.to_thread(
                 self._supabase_crud.list_integration_accounts,
-                cliente_vizu_id,
+                client_id,
                 provider,
             )
         else:
             rows = await asyncio.to_thread(
                 sqlalchemy_crud.list_integration_accounts,
                 self.db,
-                cliente_vizu_id,
+                client_id,
                 provider,
             )
 
@@ -753,7 +753,7 @@ class ContextService:
 
     async def set_default_account(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         provider: str,
         account_email: str,
     ) -> bool:
@@ -761,7 +761,7 @@ class ContextService:
         if self._use_supabase:
             result = await asyncio.to_thread(
                 self._supabase_crud.set_default_account,
-                cliente_vizu_id,
+                client_id,
                 provider,
                 account_email,
             )
@@ -769,7 +769,7 @@ class ContextService:
             result = await asyncio.to_thread(
                 sqlalchemy_crud.set_default_account,
                 self.db,
-                cliente_vizu_id,
+                client_id,
                 provider,
                 account_email,
             )
@@ -777,7 +777,7 @@ class ContextService:
 
     async def revoke_integration(
         self,
-        cliente_vizu_id: UUID,
+        client_id: UUID,
         provider: str,
         account_email: str | None = None,
     ) -> bool:
@@ -789,7 +789,7 @@ class ContextService:
         if self._use_supabase:
             return await asyncio.to_thread(
                 self._supabase_crud.revoke_integration,
-                cliente_vizu_id,
+                client_id,
                 provider,
                 account_email,
             )
@@ -797,7 +797,7 @@ class ContextService:
             return await asyncio.to_thread(
                 sqlalchemy_crud.revoke_integration,
                 self.db,
-                cliente_vizu_id,
+                client_id,
                 provider,
                 account_email,
             )

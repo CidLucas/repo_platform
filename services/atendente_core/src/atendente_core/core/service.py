@@ -91,7 +91,7 @@ class AtendenteService:
         api_key: str | None,
         session_id: str,
         message_text: str,
-        cliente_vizu_id: str | None = None,
+        client_id: str | None = None,
         model_override: str | None = None,
         elicitation_response: dict[str, Any] | None = None,
     ) -> ProcessMessageResult:
@@ -102,7 +102,7 @@ class AtendenteService:
             api_key: API Key do cliente (compatibilidade)
             session_id: ID da sessão
             message_text: Mensagem do usuário
-            cliente_vizu_id: ID do cliente (autenticação via JWT)
+            client_id: ID do cliente (autenticação via JWT)
             model_override: Nome do modelo LLM a usar (opcional)
             elicitation_response: Resposta do usuário a uma elicitation pendente (opcional)
 
@@ -110,12 +110,12 @@ class AtendenteService:
             ProcessMessageResult com resposta, modelo usado e possível elicitation pendente
         """
         # 1. Identificação: Quem é este cliente?
-        # Preferimos `cliente_vizu_id` se fornecido (autenticação via JWT),
+        # Preferimos `client_id` se fornecido (autenticação via JWT),
         # caso contrário usamos a API Key (compatibilidade).
         client_context: VizuClientContext | None
-        if cliente_vizu_id:
+        if client_id:
             try:
-                uuid_obj = UUID(str(cliente_vizu_id))
+                uuid_obj = UUID(str(client_id))
             except Exception:
                 raise ValueError("ID de cliente inválido.")
 
@@ -178,11 +178,11 @@ class AtendenteService:
         # Persiste a conversa e a mensagem inicial
         try:
             # cliente_final_id pode ser desconhecido no momento; passamos None
-            # cliente_vizu_id vem do contexto autenticado
+            # client_id vem do contexto autenticado
             conversa_id = await self.db.create_or_get_conversa(
                 session_id,
                 cliente_final_id=None,
-                cliente_vizu_id=str(client_context.id)
+                client_id=str(client_context.id)
             )
             # Armazena a mensagem do usuário
             await self.db.add_mensagem(conversa_id, "user", message_text)
@@ -236,7 +236,7 @@ class AtendenteService:
                 await self.hitl.evaluate_and_submit(
                     user_message=message_text,
                     agent_response=agent_response,
-                    cliente_vizu_id=client_context.id,
+                    client_id=client_context.id,
                     session_id=session_id,
                     trace_id=config.get("metadata", {}).get("trace_id"),
                     tools_called=tools_called,

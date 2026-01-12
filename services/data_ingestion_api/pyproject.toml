@@ -14,12 +14,14 @@ pydantic = "^2.7.4"
 pydantic-settings = "^2.2.1"
 supabase = "^2.4.0"  # Cliente Python para Supabase
 psycopg2-binary = "^2.9.9"
-google-auth = "^2.29.0"     # Para autenticação GCP
+google-auth = "^2.28.0"  # Lightweight auth for BigQuery REST
+requests = "^2.32.3"      # HTTP client for BigQuery REST
 
 # --- DEPENDÊNCIAS INTERNAS DO MONOREPO (LINKS PARA LIBS/) ---
 vizu_auth = {path = "../../libs/vizu_auth", develop = true}
 vizu_supabase_client = {path = "../../libs/vizu_supabase_client", develop = true}
-vizu_data_connectors = {path = "../../libs/vizu_data_connectors", develop = true}
+# REMOVED: vizu_data_connectors - using Supabase FDW instead of BigQuery SDK
+# Note: google-auth + requests used only for lightweight schema discovery
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"

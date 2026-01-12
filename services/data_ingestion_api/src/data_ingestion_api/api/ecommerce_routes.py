@@ -74,12 +74,12 @@ async def create_ecommerce_credential(
 ):
     """
     Cadastra as credenciais de uma plataforma de e-commerce.
-    
+
     Plataformas suportadas:
     - **Shopify**: Requer shop_name e access_token
     - **VTEX**: Requer account_name, app_key e app_token
     - **Loja Integrada**: Requer api_key
-    
+
     O segredo é armazenado de forma segura no Secret Manager.
     """
     try:
@@ -103,14 +103,14 @@ async def test_ecommerce_connection(
 ):
     """
     Testa a conexão com a plataforma de e-commerce antes de salvar as credenciais.
-    
+
     Útil para validar se as credenciais estão corretas antes do cadastro.
     """
     try:
         connector_class = _get_connector_class(payload.tipo_servico)
 
         # Converte o payload para dicionário de credenciais
-        credentials = payload.model_dump(exclude={"cliente_vizu_id", "nome_conexao", "tipo_servico"})
+        credentials = payload.model_dump(exclude={"client_id", "nome_conexao", "tipo_servico"})
 
         async with connector_class(credentials) as connector:
             is_valid = await connector.validate_connection()
@@ -160,13 +160,13 @@ async def extract_ecommerce_data(
 ):
     """
     Extrai dados de uma plataforma de e-commerce.
-    
+
     Recursos disponíveis:
     - **products**: Lista de produtos
     - **orders**: Lista de pedidos
     - **customers**: Lista de clientes
     - **inventory**: Dados de estoque
-    
+
     A extração é feita com paginação automática.
     """
     try:
@@ -201,10 +201,10 @@ async def extract_direct(
 ):
     """
     Extrai dados diretamente de uma plataforma e-commerce.
-    
-    **ATENÇÃO**: Este endpoint recebe as credenciais diretamente. 
+
+    **ATENÇÃO**: Este endpoint recebe as credenciais diretamente.
     Em produção, prefira usar o endpoint /extract com credential_id.
-    
+
     Parâmetros:
     - **platform**: shopify, vtex ou loja_integrada
     - **resource**: products, orders, customers ou inventory
@@ -213,7 +213,7 @@ async def extract_direct(
     """
     try:
         connector_class = _get_connector_class(platform)
-        creds = credentials.model_dump(exclude={"cliente_vizu_id", "nome_conexao", "tipo_servico"})
+        creds = credentials.model_dump(exclude={"client_id", "nome_conexao", "tipo_servico"})
 
         async with connector_class(creds) as connector:
             # Valida a conexão primeiro

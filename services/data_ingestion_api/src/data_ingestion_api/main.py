@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 # Importação dos routers da aplicação
 from data_ingestion_api.api.routes import router as credential_router
 from data_ingestion_api.api.schema_routes import router as schema_router
+from data_ingestion_api.api.etl_routes import router as etl_router
+from data_ingestion_api.api.connector_status_routes import router as connector_status_router
 
 # Tenta importar configuração de settings (padrão Vizu)
 try:
@@ -62,6 +64,8 @@ def create_app() -> FastAPI:
     # Inclui os routers principais
     app.include_router(credential_router)
     app.include_router(schema_router, prefix="/schema", tags=["Schema Mapping"])
+    app.include_router(etl_router)  # ETL routes already have /etl prefix
+    app.include_router(connector_status_router)  # Connector status routes with /connectors prefix
 
     # Endpoint de saúde
     @app.get("/health", tags=["Health Check"])

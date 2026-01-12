@@ -90,7 +90,7 @@ class KnowledgeBaseConfig(KnowledgeBaseConfigBase, table=True):
         sa_column=Column(pgUUID(as_uuid=True), primary_key=True),
     )
 
-    cliente_vizu_id: uuid.UUID = Field(
+    client_id: uuid.UUID = Field(
         sa_column=Column(
             pgUUID(as_uuid=True),
             ForeignKey("cliente_vizu.id"),
@@ -128,14 +128,14 @@ class KnowledgeBaseConfig(KnowledgeBaseConfigBase, table=True):
 class KnowledgeBaseConfigCreate(KnowledgeBaseConfigBase):
     """Schema para criar uma nova base de conhecimento."""
 
-    cliente_vizu_id: uuid.UUID
+    client_id: uuid.UUID
 
 
 class KnowledgeBaseConfigRead(KnowledgeBaseConfigBase):
     """Schema para leitura de base de conhecimento."""
 
     id: uuid.UUID
-    cliente_vizu_id: uuid.UUID
+    client_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
     document_count: int

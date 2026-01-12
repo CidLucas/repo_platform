@@ -1,19 +1,22 @@
-import { 
-  Box, 
-  VStack, 
-  HStack, 
-  Text, 
+import {
+  Box,
+  VStack,
+  HStack,
+  Text,
   Icon,
   Button,
   IconButton,
   Menu,
   MenuButton,
   MenuList,
-  MenuItem
+  MenuItem,
+  Spinner,
+  useToast
 } from '@chakra-ui/react';
 import { AdminLayout } from '../../components/layouts/AdminLayout';
-import { FiDatabase, FiMoreVertical, FiTrash2, FiPlus } from 'react-icons/fi';
+import { FiDatabase, FiMoreVertical, FiTrash2, FiPlus, FiAlertCircle, FiFileText } from 'react-icons/fi';
 import { useParams } from 'react-router-dom';
+import { useUploadedFiles } from '../../hooks/useUploadedFiles';
 
 // File item component
 interface FileItemProps {
@@ -81,16 +84,42 @@ const FileItem = ({ fileName, uploadDate, fileSize, onDelete }: FileItemProps) =
 
 function AdminFontesDetalhesPage() {
   const { type } = useParams<{ type: string }>();
-  
-  // Mock data for files
-  const files = [
-    { fileName: 'PLANILHA_SOLEDAD_19_10_2017.CVS', uploadDate: '15/10/2024', fileSize: '1GB' },
-    { fileName: 'PLANILHA_SOLEDAD_19_10_2017.CVS', uploadDate: '15/10/2024', fileSize: '1GB' },
-    { fileName: 'PLANILHA_SOLEDAD_19_10_2017.CVS', uploadDate: '15/10/2024', fileSize: '1GB' },
-    { fileName: 'PLANILHA_SOLEDAD_19_10_2017.CVS', uploadDate: '15/10/2024', fileSize: '1GB' },
-    { fileName: 'PLANILHA_SOLEDAD_19_10_2017.CVS', uploadDate: '15/10/2024', fileSize: '1GB' },
-    { fileName: 'PLANILHA_SOLEDAD_19_10_2017.CVS', uploadDate: '15/10/2024', fileSize: '1GB' },
-  ];
+  const toast = useToast();
+
+  // Fetch real file data
+  const { files: filesData, loading, error, deleteFile } = useUploadedFiles();
+
+  // Format file size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  };
+
+  // Handle delete with confirmation
+  const handleDelete = async (fileId: string, fileName: string) => {
+    if (!confirm(`Tem certeza que deseja deletar ${fileName}?`)) return;
+
+    try {
+      await deleteFile(fileId);
+      toast({
+        title: 'Arquivo deletado',
+        description: `${fileName} foi deletado com sucesso.`,
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (err) {
+      toast({
+        title: 'Erro ao deletar',
+        description: err instanceof Error ? err.message : 'Falha ao deletar arquivo',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
 
   const getTypeTitle = () => {
     switch (type) {
@@ -101,6 +130,31 @@ function AdminFontesDetalhesPage() {
       default: return type?.toUpperCase() || 'Arquivos';
     }
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <AdminLayout>
+        <Box p={8} textAlign="center">
+          <Spinner size="xl" />
+          <Text mt={4}>Carregando arquivos...</Text>
+        </Box>
+      </AdminLayout>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <AdminLayout>
+        <Box p={8} textAlign="center">
+          <Icon as={FiAlertCircle} boxSize={12} color="red.500" mb={4} />
+          <Text fontSize="18px" color="gray.700">Erro ao carregar arquivos</Text>
+          <Text fontSize="14px" color="gray.500" mt={2}>{error.message}</Text>
+        </Box>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
@@ -160,15 +214,24 @@ function AdminFontesDetalhesPage() {
         
         {/* Files List */}
         <VStack spacing={3} align="stretch">
-          {files.map((file, index) => (
-            <FileItem
-              key={index}
-              fileName={file.fileName}
-              uploadDate={file.uploadDate}
-              fileSize={file.fileSize}
-              onDelete={() => console.log('Delete', file.fileName)}
-            />
-          ))}
+          {filesData && filesData.files.length > 0 ? (
+            filesData.files.map((file) => (
+              <FileItem
+                key={file.id}
+                fileName={file.file_name}
+                uploadDate={new Date(file.uploaded_at).toLocaleDateString('pt-BR')}
+                fileSize={formatFileSize(file.file_size_bytes)}
+                onDelete={() => handleDelete(file.id, file.file_name)}
+              />
+            ))
+          ) : (
+            <Box textAlign="center" py={12} bg="gray.50" borderRadius="16px">
+              <Icon as={FiFileText} boxSize={10} color="gray.300" mb={4} />
+              <Text fontSize="16px" color="gray.500">
+                Nenhum arquivo encontrado
+              </Text>
+            </Box>
+          )}
         </VStack>
       </Box>
     </AdminLayout>

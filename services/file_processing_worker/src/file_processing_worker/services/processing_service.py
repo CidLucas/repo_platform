@@ -82,7 +82,7 @@ class ProcessingService:
 
             # Validação e extração de metadados
             gcs_path = message_dict["gcs_path"]
-            cliente_vizu_id = message_dict["cliente_vizu_id"]
+            client_id = message_dict["client_id"]
             original_filename = message_dict.get("original_filename", "N/A")
             file_mime_type = message_dict["file_mime_type"]
 
@@ -131,7 +131,7 @@ class ProcessingService:
             base_metadata = {
                 "job_id": job_id,
                 "gcs_path": gcs_path,
-                "cliente_vizu_id": cliente_vizu_id,
+                "client_id": client_id,
                 "original_filename": original_filename,
                 "file_mime_type": file_mime_type,
             }

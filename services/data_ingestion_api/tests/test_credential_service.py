@@ -25,7 +25,7 @@ def bigquery_payload():
         "token_uri": "https://oauth2.googleapis.com/token",
     }
     return BigQueryCredentialCreate(
-        cliente_vizu_id="vizu-cliente-a",
+        client_id="vizu-cliente-a",
         nome_conexao="BQ Dados Financeiros",
         tipo_servico="BIGQUERY",
         project_id="projeto-cliente-a-prod",
@@ -51,7 +51,7 @@ def mock_credential_service(mocker):
     )
     mock_save_ref.return_value = {
         "id": "db-uuid-001",
-        "cliente_vizu_id": "vizu-cliente-a",
+        "client_id": "vizu-cliente-a",
         "nome_servico": "BigQuery Teste",
         "credenciais_cifradas": "vizu-prod-secret-id-gcp-12345"
     }
@@ -109,7 +109,7 @@ async def test_create_bigquery_credential_validation_error():
     """Testa se a validação Pydantic funciona corretamente (falta project_id)."""
     with pytest.raises(ValidationError):
         BigQueryCredentialCreate(
-            cliente_vizu_id="vizu-cliente-b",
+            client_id="vizu-cliente-b",
             nome_conexao="BQ Incompleto",
             tipo_servico="BIGQUERY",
             project_id=None, # Deve falhar, pois é obrigatório

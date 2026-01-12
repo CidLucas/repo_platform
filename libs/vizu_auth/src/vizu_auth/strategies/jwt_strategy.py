@@ -30,17 +30,23 @@ class JWTStrategy(AuthStrategy):
 
         claims: JWTClaims = decode_jwt(request.jwt_token)
 
-        cliente_vizu_id = claims.cliente_vizu_id
+        client_id = claims.client_id
 
-        if not cliente_vizu_id and self._cliente_lookup_fn:
-            cliente_vizu_id = await self._cliente_lookup_fn(claims.sub)
+        if not client_id and self._cliente_lookup_fn:
+            client_id = await self._cliente_lookup_fn(claims.sub)
 
-        if not cliente_vizu_id:
-            logger.warning(f"Could not resolve cliente_vizu_id for user {claims.sub}")
-            raise ClientNotFoundError(f"No Vizu client associated with user: {claims.sub}")
+        # If still no client_id, use the Supabase user ID (sub claim) directly
+        # This allows users to authenticate without needing a pre-existing database record
+        if not client_id:
+            logger.info(f"Using Supabase user ID as client_id for user {claims.sub}")
+            try:
+                client_id = UUID(claims.sub)
+            except (ValueError, TypeError) as e:
+                logger.error(f"Invalid UUID in JWT sub claim: {claims.sub}, error: {e}")
+                raise ClientNotFoundError(f"Invalid user ID format: {claims.sub}")
 
         return AuthResult(
-            cliente_vizu_id=cliente_vizu_id,
+            client_id=client_id,
             auth_method=AuthMethod.JWT,
             external_user_id=claims.sub,
             email=claims.email,

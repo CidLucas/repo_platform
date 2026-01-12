@@ -1,6 +1,8 @@
 # services/data_ingestion_api/routes.py
 
-from typing import Union
+from typing import Any, Union
+import logging
+from pydantic import ValidationError
 
 from data_ingestion_api.schemas.schemas import (
     BigQueryCredentialCreate,
@@ -12,12 +14,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from vizu_auth.fastapi.dependencies import create_auth_dependency
 
 
-# Factory de autenticação (apenas JWT, sem API Key)
-def fake_api_key_lookup(api_key: str):
-    # Retorne None para desabilitar API Key
-    return None
-
-auth_factory = create_auth_dependency(api_key_lookup_fn=fake_api_key_lookup)
+# Autenticação via Supabase JWT (API Key desabilitada)
+auth_factory = create_auth_dependency(api_key_lookup_fn=lambda _key: None)
+logger = logging.getLogger(__name__)
 
 # Cria um router para agrupar endpoints de credenciais.
 router = APIRouter(
@@ -38,7 +37,7 @@ CredentialPayload = Union[BigQueryCredentialCreate, SQLCredentialCreate]
     summary="Cria uma referência de credencial e armazena o segredo."
 )
 async def create_new_credential(
-    payload: CredentialPayload,  # FastAPI usa Pydantic para validar o JSON de entrada
+    payload: dict[str, Any],  # aceitar JSON bruto e construir o schema manualmente
     auth=Depends(auth_factory.get_auth_result),
 ):
     """
@@ -49,22 +48,62 @@ async def create_new_credential(
     Retorna a CredencialResponse com o ID de rastreamento.
     """
     try:
+        # Construir schema adequado com base nos campos presentes
+        logger.info("/credentials/create received payload keys: %s", list(payload.keys()))
+
+        # Handle legacy field name: map cliente_vizu_id to client_id if needed
+        if 'cliente_vizu_id' in payload and 'client_id' not in payload:
+            logger.warning("Detected legacy 'cliente_vizu_id' field; mapping to 'client_id'")
+            payload['client_id'] = payload.pop('cliente_vizu_id')
+
+        model: BigQueryCredentialCreate | SQLCredentialCreate
+        if 'project_id' in payload and 'service_account_json' in payload:
+            # Log safe summary of BigQuery payload without secrets
+            sj = payload.get('service_account_json') or {}
+            safe_keys = list(sj.keys()) if isinstance(sj, dict) else []
+            logger.info(
+                "BigQuery payload summary: project_id=%s, dataset_id=%s, service_account_json keys=%s",
+                payload.get('project_id'),
+                payload.get('dataset_id'),
+                safe_keys,
+            )
+            model = BigQueryCredentialCreate(**payload)
+        elif 'host' in payload and 'user' in payload and 'database' in payload:
+            logger.info(
+                "SQL payload summary: host=%s, port=%s, database=%s, user=%s",
+                payload.get('host'),
+                payload.get('port'),
+                payload.get('database'),
+                payload.get('user'),
+            )
+            model = SQLCredentialCreate(**payload)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Payload inválido: forneça campos de BigQuery (project_id, service_account_json) ou SQL (host, user, database, password).",
+            )
+
         # Chama o serviço (Core da lógica de negócio e Rollback)
-        response = await credential_service.create_credential(payload)
+        response = await credential_service.create_credential(model)
 
         # Futuro: Aqui o serviço orquestraria o Worker (Pub/Sub)
         # para iniciar a validação assíncrona da conexão.
 
         return response
 
+    except ValidationError as ve:
+        logger.error("ValidationError in /credentials/create: %s", ve.errors())
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=ve.errors(),
+        )
     except Exception as e:
         # Padrão Vizu: Captura qualquer erro de negócio/rollback e retorna
         # um status de falha apropriado para o frontend.
+        logger.error("Unexpected error in /credentials/create: %s", e, exc_info=True)
         error_message = f"Falha ao processar credencial: {e.__class__.__name__}"
-
-        # Utilizamos o status 500 para falhas críticas de infra (Secret Manager, DB)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Falha de processamento no serviço de ingestão: {error_message}"
         )
 
@@ -73,31 +112,31 @@ async def create_new_credential(
     summary="Testa a conexão com uma fonte de dados (BigQuery, PostgreSQL, MySQL)"
 )
 async def test_connection(
-    payload: CredentialPayload
+    payload: dict[str, Any]
 ):
     """
     Testa a conexão com BigQuery, PostgreSQL ou MySQL usando as credenciais fornecidas.
     """
     try:
-        # BigQuery
-        if hasattr(payload, 'project_id'):
-            if getattr(payload, 'project_id', None):
+        # BigQuery (minimal payload for test)
+        if 'project_id' in payload:
+            if payload.get('project_id'):
                 return {
                     "success": True,
                     "message": "Conexão BigQuery testada com sucesso!",
                     "platform": "bigquery",
-                    "connection_string": f"bigquery://{payload.project_id}"
+                    "connection_string": f"bigquery://{payload.get('project_id')}"
                 }
             else:
                 raise Exception("Credenciais BigQuery inválidas")
-        # SQL (PostgreSQL/MySQL)
-        elif hasattr(payload, 'host'):
-            if getattr(payload, 'host', None) and getattr(payload, 'user', None):
+        # SQL (PostgreSQL/MySQL) (minimal payload for test)
+        elif 'host' in payload:
+            if payload.get('host') and payload.get('user'):
                 return {
                     "success": True,
                     "message": "Conexão SQL testada com sucesso!",
                     "platform": "sql",
-                    "connection_string": f"{payload.host}/{payload.database}"
+                    "connection_string": f"{payload.get('host')}/{payload.get('database')}"
                 }
             else:
                 raise Exception("Credenciais SQL inválidas")

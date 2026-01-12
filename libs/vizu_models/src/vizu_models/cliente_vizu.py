@@ -1,7 +1,8 @@
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import JSON, Boolean, String, Text
+from sqlalchemy import JSON, Boolean, String, Text, DateTime
 from sqlalchemy import Enum as pgEnum
 from sqlalchemy.dialects.postgresql import UUID as pgUUID
 from sqlmodel import Column, Field, Relationship, SQLModel
@@ -31,7 +32,7 @@ class ClienteVizuBase(SQLModel):
 
 
 class ClienteVizu(ClienteVizuBase, table=True):
-    __tablename__ = "cliente_vizu"
+    __tablename__ = "clientes_vizu"
 
     id: uuid.UUID | None = Field(
         default_factory=uuid.uuid4,
@@ -59,6 +60,23 @@ class ClienteVizu(ClienteVizuBase, table=True):
 
 
     collection_rag: str | None = Field(default=None, sa_column=Column(String))
+
+    # Multi-tenant support fields (added for clientes_vizu table)
+    external_user_id: str | None = Field(
+        default=None,
+        sa_column=Column(Text, unique=True, index=True),
+        description="External user ID from OAuth provider (e.g., Supabase auth.users.id)"
+    )
+
+    created_at: datetime | None = Field(
+        default_factory=datetime.utcnow,
+        sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+
+    updated_at: datetime | None = Field(
+        default_factory=datetime.utcnow,
+        sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
 
     clientes_finais: list["ClienteFinal"] = Relationship(back_populates="cliente_vizu")
     fontes_de_dados: list["FonteDeDados"] = Relationship(back_populates="cliente_vizu")

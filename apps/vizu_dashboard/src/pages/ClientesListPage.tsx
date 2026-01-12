@@ -115,9 +115,9 @@ function ClientesListPage() {
                   onClick={() => handleClientRowClick(clienteItem)}
                 >
                   <Td py={5}>{clienteItem.nome}</Td>
-                  <Td py={5}>{`R$ ${clienteItem.receita_total.toLocaleString('pt-BR')}`}</Td>
-                  <Td py={5}>{`R$ ${clienteItem.ticket_medio.toLocaleString('pt-BR')}`}</Td>
-                  <Td py={5}>{`${clienteItem.frequencia_pedidos_mes.toFixed(2)} / mês`}</Td>
+                  <Td py={5}>{`R$ ${(clienteItem.receita_total ?? 0).toLocaleString('pt-BR')}`}</Td>
+                  <Td py={5}>{`R$ ${(clienteItem.ticket_medio ?? 0).toLocaleString('pt-BR')}`}</Td>
+                  <Td py={5}>{`${(clienteItem.frequencia_pedidos_mes ?? 0).toFixed(2)} / mês`}</Td>
                   <Td py={5}>{clienteItem.cluster_tier}</Td>
                 </Tr>
               ))}

@@ -58,9 +58,22 @@ class ConnectorFactory:
             # BigQuery needs special client
             try:
                 from google.cloud import bigquery
+                from google.oauth2 import service_account
                 from vizu_data_connectors.bigquery import BigQueryConnector
 
-                google_client = bigquery.Client()
+                # If credentials provided, create client with service account
+                if credentials and "project_id" in credentials:
+                    logger.info(f"Creating BigQuery client with service account for project: {credentials.get('project_id')}")
+                    gcp_credentials = service_account.Credentials.from_service_account_info(credentials)
+                    google_client = bigquery.Client(
+                        credentials=gcp_credentials,
+                        project=credentials.get("project_id")
+                    )
+                else:
+                    # Fallback to default credentials from environment
+                    logger.info("Creating BigQuery client with default credentials")
+                    google_client = bigquery.Client()
+
                 return BigQueryConnector(client=google_client)
             except ImportError as e:
                 raise ValueError(

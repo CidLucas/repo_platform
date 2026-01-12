@@ -19,10 +19,10 @@ class GoogleSuiteTool:
     def __init__(self, context_service: ContextService):
         self.context_service = context_service
 
-    async def _get_user_tokens(self, cliente_vizu_id: UUID) -> dict:
+    async def _get_user_tokens(self, client_id: UUID) -> dict:
         """Recupera tokens OAuth do vizu_context_service"""
         integration = await self.context_service.get_integration_tokens(
-            cliente_vizu_id=cliente_vizu_id, provider="google"
+            client_id=client_id, provider="google"
         )
         if not integration or not getattr(integration, "is_valid", lambda: True)():
             raise ValueError("Google integration not configured or expired")
@@ -35,22 +35,22 @@ class GoogleSuiteTool:
         spreadsheet_id: str,
         range_name: str,
         values: list[list[Any]],
-        cliente_vizu_id: UUID,  # Injetado pelo auth middleware
+        client_id: UUID,  # Injetado pelo auth middleware
     ) -> dict:
         """Escreve dados em uma planilha Google Sheets"""
-        tokens = await self._get_user_tokens(cliente_vizu_id)
+        tokens = await self._get_user_tokens(client_id)
         client = GoogleSheetsClient(access_token=tokens["access_token"])
         result = await client.append_values(spreadsheet_id, range_name, values)
         return {"status": "success", "updated_cells": result.updated_cells}
 
     @mcp.tool()
     async def read_emails(
-        self, query: str, max_results: int = 10, cliente_vizu_id: UUID | None = None
+        self, query: str, max_results: int = 10, client_id: UUID | None = None
     ) -> list[dict]:
         """Busca e lê emails do Gmail"""
-        if cliente_vizu_id is None:
-            raise ValueError("cliente_vizu_id is required")
-        tokens = await self._get_user_tokens(cliente_vizu_id)
+        if client_id is None:
+            raise ValueError("client_id is required")
+        tokens = await self._get_user_tokens(client_id)
         client = GoogleGmailClient(access_token=tokens["access_token"])
         emails = await client.search_messages(query, max_results)
         return [email.to_dict() for email in emails]
@@ -61,12 +61,12 @@ class GoogleSuiteTool:
         time_min: datetime,
         time_max: datetime,
         calendar_id: str = "primary",
-        cliente_vizu_id: UUID | None = None,
+        client_id: UUID | None = None,
     ) -> list[dict]:
         """Consulta eventos do Google Calendar"""
-        if cliente_vizu_id is None:
-            raise ValueError("cliente_vizu_id is required")
-        tokens = await self._get_user_tokens(cliente_vizu_id)
+        if client_id is None:
+            raise ValueError("client_id is required")
+        tokens = await self._get_user_tokens(client_id)
         client = GoogleCalendarClient(access_token=tokens["access_token"])
         events = await client.list_events(calendar_id, time_min, time_max)
         return [event.to_dict() for event in events]

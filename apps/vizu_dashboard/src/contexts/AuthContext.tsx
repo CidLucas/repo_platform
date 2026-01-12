@@ -6,6 +6,7 @@ import React, {
 } from "react";
 import { User, Session, AuthError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
+import { getMe } from "../services/analyticsService";
 
 export interface AuthContextType {
   user: User | null;
@@ -43,6 +44,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       } = await supabase.auth.getSession();
       setSession(session);
       setUser(session?.user ?? null);
+
+      // Initialize client_id on first login
+      if (session?.access_token) {
+        try {
+          await getMe(session.access_token);
+          console.log('✅ Cliente Vizu ID initialized');
+        } catch (error) {
+          console.error('Failed to initialize client_id:', error);
+        }
+      }
+
       setIsLoading(false);
     };
 
@@ -51,9 +63,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     // Escuta mudanças de autenticação
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+
+      // Initialize client_id when user signs in
+      if (session?.access_token && _event === 'SIGNED_IN') {
+        try {
+          await getMe(session.access_token);
+          console.log('✅ Cliente Vizu ID initialized on sign in');
+        } catch (error) {
+          console.error('Failed to initialize client_id:', error);
+        }
+      }
+
       setIsLoading(false);
     });
 

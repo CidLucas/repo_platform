@@ -60,7 +60,7 @@ def upgrade() -> None:
                         ferramenta_agendamento_habilitada = COALESCE(cn.ferramenta_agendamento_habilitada, false),
                         collection_rag = cn.collection_rag
                     FROM public.configuracao_negocio cn
-                    WHERE cn.cliente_vizu_id = cv.id;
+                    WHERE cn.client_id = cv.id;
                 ELSE
                     UPDATE public.cliente_vizu cv
                     SET horario_funcionamento = cn.horario_funcionamento,
@@ -69,7 +69,7 @@ def upgrade() -> None:
                         ferramenta_sql_habilitada = COALESCE(cn.ferramenta_sql_habilitada, false),
                         ferramenta_agendamento_habilitada = COALESCE(cn.ferramenta_agendamento_habilitada, false)
                     FROM public.configuracao_negocio cn
-                    WHERE cn.cliente_vizu_id = cv.id;
+                    WHERE cn.client_id = cv.id;
                 END IF;
             END IF;
         END

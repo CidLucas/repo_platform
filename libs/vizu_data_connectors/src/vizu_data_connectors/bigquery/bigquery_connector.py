@@ -105,7 +105,24 @@ class BigQueryConnector(AbstractDataConnector):
 
             column_names = [field.name for field in results.schema]
 
-        """
-        Removed: BigQueryConnector implementation (see SUPABASE_SIMPLIFICATION_PLAN.md)
-        """
+            # Iterate through result pages and yield DataFrames
+            for page in results.pages:
+                # Extract data from page rows
+                data = [list(row.values()) for row in page]
+
+                if not data:
+                    logger.warning("Empty page received from BigQuery, skipping.")
+                    continue
+
+                # Create DataFrame chunk
                 dataframe_chunk = pd.DataFrame(data, columns=column_names)
+
+                logger.info(f"BigQueryConnector (Sync): Yielding chunk de {len(dataframe_chunk)} linhas.")
+                yield dataframe_chunk
+
+        except GoogleAPICallError as e:
+            logger.error(f"Google API error during BigQuery extraction: {e}")
+            raise ExecutionError(f"BigQuery API error: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error in BigQuery extraction: {e}")
+            raise ExecutionError(f"BigQuery extraction failed: {e}")

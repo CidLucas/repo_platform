@@ -1,11 +1,15 @@
 # --- DEFINIÇÕES COMUNS ---
 x-common-env: &common-env
-  # Variáveis Padronizadas
-  DATABASE_URL: ${DATABASE_URL}
+  # Variáveis Padronizadas Supabase (Primary Data Store)
   SUPABASE_URL: ${SUPABASE_URL}
-  SUPABASE_KEY: ${SUPABASE_KEY}
+  SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-${SUPABASE_KEY}}  # Primary variable, fallback to legacy SUPABASE_KEY
   SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
-  DB_MODE: ${DB_MODE:-postgres_local}
+  SUPABASE_JWT_JWK: ${SUPABASE_JWT_JWK}
+  JWT_ALGORITHM: ${JWT_ALGORITHM:-ES256}
+  # Legacy PostgreSQL (deprecated - use Supabase REST API instead)
+  # Only kept for backward compatibility with tests
+  DATABASE_URL: ${DATABASE_URL:-}
+  DB_MODE: ${DB_MODE:-supabase}
   # Configs de serviços
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
   EMBEDDING_SERVICE_URL: http://embedding_service:11435
@@ -15,7 +19,7 @@ x-common-env: &common-env
 
 x-atendente-env: &atendente-env
   REDIS_URL: redis://redis:6379/0
-  OLLAMA_BASE_URL: http://ollama_service:11434
+  OLLAMA_BASE_URL: ${OLLAMA_CLOUD_BASE_URL:-https://ollama.com}
   LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
   TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
   # LLM Provider - ollama, ollama_cloud, openai, anthropic, google
@@ -129,15 +133,7 @@ services:
       timeout: 5s
       retries: 5
 
-  ollama_service:
-    container_name: vizu_ollama_dev
-    build:
-      context: .
-      dockerfile: ./services/ollama_service/Dockerfile
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_storage:/root/.ollama
+
 
 
   # evaluation_suite:
@@ -314,9 +310,14 @@ services:
     environment:
       <<: *common-env
       PYTHONPATH: /app/src
-    depends_on:
-      postgres:
-        condition: service_healthy
+      # Analytics API uses Supabase REST API (via common-env)
+      # No DATABASE_URL override needed - uses SUPABASE_URL + SUPABASE_SERVICE_KEY
+    # Configure DNS servers for external connectivity (Supabase)
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
+    # Note: Works with Supabase (production) and local postgres (testing)
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -339,6 +340,11 @@ services:
       PYTHONPATH: /app/src:/app/libs
     env_file:
       - ./services/data_ingestion_api/.env
+    # Configure DNS servers for external connectivity (Supabase)
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
     # Note: postgres dependency is optional - use --profile local for local DB
 
 
@@ -372,8 +378,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      ollama_service:
-        condition: service_started
+
 
   # =========================================
   # FRONTEND DASHBOARD (SPA React + Nginx)
@@ -382,12 +387,20 @@ services:
     container_name: vizu_dashboard
     platform: linux/amd64
     build:
-      context: ./apps/vizu_dashboard
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/vizu_dashboard/Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8003}
+        VITE_ATENDENTE_CORE: ${VITE_ATENDENTE_CORE:-http://localhost:8003}
+        VITE_API_URL_ANALYTICS: ${VITE_API_URL_ANALYTICS:-http://localhost:8004}
+        VITE_DATA_INGESTION_API_URL: ${VITE_DATA_INGESTION_API_URL:-http://localhost:8008}
     ports:
-      - "3000:80"
+      - "8080:8080"
     environment:
-      # Estas variáveis podem ser usadas em tempo de build (se necessário)
+      # Runtime environment (not used by Vite build, just for reference)
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8003}
   #  depends_on:
   #    - atendente_core
@@ -450,6 +463,5 @@ services:
 # Definição de volumes persistentes
 volumes:
   qdrant_data:
-  ollama_storage:
   postgres_data:
   huggingface_cache:

@@ -6,6 +6,8 @@ import React, { useState, useEffect } from 'react';
 import { FornecedorDetailsModal } from '../components/FornecedorDetailsModal';
 import { getFornecedores, getFornecedor } from '../services/analyticsService';
 import type { FornecedoresOverviewResponse, FornecedorDetailResponse } from '../services/analyticsService';
+import { useUserProfile } from '../hooks/useUserProfile';
+import { getRegionCoordinates } from '../utils/regionCoordinates';
 
 function FornecedoresPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -13,6 +15,8 @@ function FornecedoresPage() {
   const [overviewData, setOverviewData] = useState<FornecedoresOverviewResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const profile = useUserProfile();
+  const userName = profile?.full_name.split(' ')[0] || 'Usuário';
 
   useEffect(() => {
     const fetchFornecedoresData = async () => {
@@ -66,11 +70,39 @@ function FornecedoresPage() {
     );
   }
 
+  // Calculate total revenue from all suppliers
+  const totalRevenue = (overviewData.ranking_por_receita || []).reduce(
+    (sum: number, item: any) => sum + item.receita_total,
+    0
+  );
+
+  // Calculate new suppliers (first purchase in last 30 days)
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const newSuppliersCount = (overviewData.ranking_por_receita || []).filter((item: any) => {
+    const firstSaleDate = new Date(item.primeira_venda);
+    return firstSaleDate >= thirtyDaysAgo;
+  }).length;
+
+  // Transform regional chart data for map
+  const mapMarkers = (overviewData.chart_fornecedores_por_regiao || []).map((region: any) => {
+    const coords = getRegionCoordinates(region.name);
+    return {
+      position: [coords.lat, coords.lng] as [number, number],
+      popupText: `${region.name}: ${region.total || 0} fornecedores`
+    };
+  });
+
+  // Use first marker for center, or default to São Paulo
+  const mapCenter = mapMarkers.length > 0
+    ? mapMarkers[0].position
+    : [-23.55052, -46.633308] as [number, number];
+
   // Map the data for the ListCard
-  const listCardItems = overviewData.ranking_por_receita.map(item => ({
+  const listCardItems = (overviewData.ranking_por_receita || []).map(item => ({
     id: item.nome, // Use 'nome' as a unique ID for the card
     title: item.nome,
-    description: `Receita: R$ ${item.receita_total.toLocaleString('pt-BR')}`,
+    description: `Receita: R$ ${(item.receita_total ?? 0).toLocaleString('pt-BR')}`,
     status: item.cluster_tier,
   }));
 
@@ -86,7 +118,11 @@ function FornecedoresPage() {
         color="gray.800"
       >
         <Flex justify="space-between" align="flex-start" mb="8px">
-          <Text as="h1" textStyle="pageSubtitle">Fábio, você aumentou<br />sua base de fornecedores em <Text as="span" fontWeight="bold">+0.85%</Text></Text>
+          <Text as="h1" textStyle="pageSubtitle">
+            {userName}, você {overviewData.scorecard_crescimento_percentual !== null && overviewData.scorecard_crescimento_percentual !== undefined
+              ? `aumentou sua base de fornecedores em ${overviewData.scorecard_crescimento_percentual >= 0 ? '+' : ''}${overviewData.scorecard_crescimento_percentual.toFixed(2)}%`
+              : 'está expandindo sua rede de fornecedores'}
+          </Text>
         </Flex>
         
         <Flex justify="space-between" align="flex-end" mb="36px">
@@ -114,8 +150,12 @@ function FornecedoresPage() {
             title="Performance de Vendas"
             size="large"
             bgColor="#B2E7FF"
-            graphData={{ values: [10, 20, 15, 25, 22] }}
-            scorecardValue="R$ 1.5M"
+            graphData={{
+              values: overviewData.chart_fornecedores_no_tempo
+                ? overviewData.chart_fornecedores_no_tempo.map((d: any) => d.total_cumulativo || 0)
+                : []
+            }}
+            scorecardValue={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRevenue)}
             scorecardLabel="Total Vendido"
             modalLeftBgColor="#B2E7FF"
             modalRightBgColor="#92DAFF"
@@ -126,8 +166,8 @@ function FornecedoresPage() {
             size="small"
             bgGradient="linear-gradient(to-br, #353A5A, #1F2138)"
             textColor="white"
-            mainText="Aumentamos nossa base em 15% no último mês."
-            scorecardValue="120"
+            mainText={`Aumentamos nossa base com ${newSuppliersCount} novos fornecedores no último mês.`}
+            scorecardValue={newSuppliersCount.toString()}
             scorecardLabel="Novos Cadastros"
             modalLeftBgColor="#B2E7FF"
             modalRightBgColor="#92DAFF"
@@ -144,7 +184,11 @@ function FornecedoresPage() {
             title="Distribuição Geográfica"
             size="large"
             bgColor="white"
-            mapData={{ center: [-23.55052, -46.633308], zoom: 10, markers: [{ position: [-23.55052, -46.633308], popupText: 'São Paulo' }] }}
+            mapData={{
+              center: mapCenter,
+              zoom: mapMarkers.length > 1 ? 4 : 10,
+              markers: mapMarkers.length > 0 ? mapMarkers : [{ position: [-23.55052, -46.633308] as [number, number], popupText: 'São Paulo' }]
+            }}
             mainText="Principais regiões de atuação dos fornecedores."
             modalLeftBgColor="#B2E7FF"
             modalRightBgColor="#92DAFF"

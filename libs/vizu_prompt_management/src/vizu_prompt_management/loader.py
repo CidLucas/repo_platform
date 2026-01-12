@@ -165,7 +165,7 @@ class PromptLoader:
             if cliente_id:
                 query = select(PromptTemplate).where(
                     PromptTemplate.name == name,
-                    PromptTemplate.cliente_vizu_id == cliente_id,
+                    PromptTemplate.client_id == cliente_id,
                     PromptTemplate.is_active == True,
                 )
                 if version:
@@ -180,7 +180,7 @@ class PromptLoader:
             # Fallback to global
             query = select(PromptTemplate).where(
                 PromptTemplate.name == name,
-                PromptTemplate.cliente_vizu_id == None,
+                PromptTemplate.client_id == None,
                 PromptTemplate.is_active == True,
             )
             if version:
@@ -206,8 +206,8 @@ class PromptLoader:
             source="database",
             metadata={
                 "id": str(db_prompt.id) if hasattr(db_prompt, "id") else None,
-                "cliente_vizu_id": str(db_prompt.cliente_vizu_id)
-                if db_prompt.cliente_vizu_id
+                "client_id": str(db_prompt.client_id)
+                if db_prompt.client_id
                 else None,
             },
         )

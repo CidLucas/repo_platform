@@ -52,7 +52,7 @@ def test_create_cliente_vizu(db_session: Session):
 
     # 2. Criação: Criar a FonteDeDados associada ao cliente
     nova_fonte = FonteDeDados(
-        cliente_vizu_id=cliente_pai.id,
+        client_id=cliente_pai.id,
         tipo_fonte=TipoFonte.URL,
         caminho="https://vizu.ai/docs",
     )
@@ -63,7 +63,7 @@ def test_create_cliente_vizu(db_session: Session):
     # 3. Asserts: Verificar os dados da fonte
     assert nova_fonte.id is not None
     assert nova_fonte.tipo_fonte == TipoFonte.URL
-    assert nova_fonte.cliente_vizu_id == cliente_pai.id
+    assert nova_fonte.client_id == cliente_pai.id
 
     # 4. Verificar o relacionamento a partir do cliente
     #    Recarregar o cliente da sessão para ver as mudanças do relacionamento

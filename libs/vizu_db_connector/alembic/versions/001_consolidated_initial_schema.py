@@ -61,40 +61,40 @@ def upgrade() -> None:
     op.create_table(
         'fonte_de_dados',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('cliente_vizu_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
+        sa.Column('client_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
         sa.Column('nome_fonte', sa.String(length=255), nullable=False),
         sa.Column('tipo_fonte', sa.String(length=100), nullable=False),
         sa.Column('config', postgresql.JSON(), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
-        sa.ForeignKeyConstraint(['cliente_vizu_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['client_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
     )
 
     # credencial_servico_externo - external service credentials
     op.create_table(
         'credencial_servico_externo',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('cliente_vizu_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
+        sa.Column('client_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
         sa.Column('servico', sa.String(length=100), nullable=False),
         sa.Column('credenciais', postgresql.JSON(), nullable=False),
         sa.Column('ativo', sa.Boolean(), nullable=False, server_default='true'),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
-        sa.ForeignKeyConstraint(['cliente_vizu_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['client_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
     )
 
     # cliente_final - end users/customers of the client
     op.create_table(
         'cliente_final',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('cliente_vizu_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
+        sa.Column('client_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
         sa.Column('nome', sa.String(length=255), nullable=False),
         sa.Column('email', sa.String(length=255), nullable=True, index=True),
         sa.Column('telefone', sa.String(length=20), nullable=True),
         sa.Column('metadata', postgresql.JSON(), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
-        sa.ForeignKeyConstraint(['cliente_vizu_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['client_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
     )
 
     # ========== CONVERSATION TABLES ==========
@@ -103,13 +103,13 @@ def upgrade() -> None:
     op.create_table(
         'conversa',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('cliente_vizu_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
+        sa.Column('client_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
         sa.Column('cliente_final_id', postgresql.UUID(as_uuid=True), nullable=True, index=True),
         sa.Column('session_id', sa.String(length=255), nullable=True, index=True),
         sa.Column('timestamp_inicio', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
-        sa.ForeignKeyConstraint(['cliente_vizu_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['client_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['cliente_final_id'], ['cliente_final.id'], ondelete='SET NULL'),
     )
 
@@ -130,7 +130,7 @@ def upgrade() -> None:
     op.create_table(
         'configuracao_negocio',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('cliente_vizu_id', postgresql.UUID(as_uuid=True), nullable=False, unique=True, index=True),
+        sa.Column('client_id', postgresql.UUID(as_uuid=True), nullable=False, unique=True, index=True),
         sa.Column('horario_funcionamento', postgresql.JSON(), nullable=True),
         sa.Column('prompt_base', sa.Text(), nullable=True),
         sa.Column('ferramenta_rag_habilitada', sa.Boolean(), nullable=False, server_default='false'),
@@ -139,7 +139,7 @@ def upgrade() -> None:
         sa.Column('collection_rag', sa.String(), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
-        sa.ForeignKeyConstraint(['cliente_vizu_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['client_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
     )
 
     # ========== MCP / TOOL INTEGRATION TABLES ==========
@@ -181,12 +181,12 @@ def upgrade() -> None:
         sa.Column('variables', postgresql.JSON(), nullable=True),
         sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
         sa.Column('tags', postgresql.JSON(), nullable=True),
-        sa.Column('cliente_vizu_id', postgresql.UUID(as_uuid=True), nullable=True, index=True),
+        sa.Column('client_id', postgresql.UUID(as_uuid=True), nullable=True, index=True),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
         sa.Column('created_by', sa.String(length=100), nullable=True),
-        sa.ForeignKeyConstraint(['cliente_vizu_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
-        sa.UniqueConstraint('name', 'version', 'cliente_vizu_id', name='uq_prompt_name_version_client'),
+        sa.ForeignKeyConstraint(['client_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
+        sa.UniqueConstraint('name', 'version', 'client_id', name='uq_prompt_name_version_client'),
     )
 
     # ========== HITL (Human-in-the-loop) TABLES ==========
@@ -195,7 +195,7 @@ def upgrade() -> None:
     op.create_table(
         'hitl_review',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('cliente_vizu_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
+        sa.Column('client_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
         sa.Column('conversa_id', postgresql.UUID(as_uuid=True), nullable=True, index=True),
         sa.Column('tool_call_id', sa.String(length=255), nullable=True, index=True),
         sa.Column('tool_name', sa.String(length=255), nullable=False),
@@ -206,7 +206,7 @@ def upgrade() -> None:
         sa.Column('approved_by', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
         sa.Column('reviewed_at', sa.DateTime(), nullable=True),
-        sa.ForeignKeyConstraint(['cliente_vizu_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['client_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['conversa_id'], ['conversa.id'], ondelete='SET NULL'),
     )
 
@@ -216,7 +216,7 @@ def upgrade() -> None:
     op.create_table(
         'experiment',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('cliente_vizu_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
+        sa.Column('client_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
         sa.Column('name', sa.String(length=255), nullable=False),
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('status', sa.String(length=50), nullable=False, server_default='draft'),
@@ -226,7 +226,7 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
         sa.Column('started_at', sa.DateTime(), nullable=True),
         sa.Column('ended_at', sa.DateTime(), nullable=True),
-        sa.ForeignKeyConstraint(['cliente_vizu_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['client_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
     )
 
     # ========== INTEGRATION TABLES ==========
@@ -235,26 +235,26 @@ def upgrade() -> None:
     op.create_table(
         'integration_connection',
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column('cliente_vizu_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
+        sa.Column('client_id', postgresql.UUID(as_uuid=True), nullable=False, index=True),
         sa.Column('service_type', sa.String(length=100), nullable=False),
         sa.Column('config', postgresql.JSON(), nullable=False),
         sa.Column('active', sa.Boolean(), nullable=False, server_default='true'),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
-        sa.ForeignKeyConstraint(['cliente_vizu_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['client_id'], ['cliente_vizu.id'], ondelete='CASCADE'),
     )
 
     # ========== INDEXES FOR COMMON QUERIES ==========
 
-    op.create_index('ix_fonte_de_dados_cliente_vizu', 'fonte_de_dados', ['cliente_vizu_id'])
-    op.create_index('ix_credencial_servico_cliente_vizu', 'credencial_servico_externo', ['cliente_vizu_id'])
-    op.create_index('ix_cliente_final_cliente_vizu', 'cliente_final', ['cliente_vizu_id'])
-    op.create_index('ix_conversa_cliente_vizu', 'conversa', ['cliente_vizu_id'])
+    op.create_index('ix_fonte_de_dados_cliente_vizu', 'fonte_de_dados', ['client_id'])
+    op.create_index('ix_credencial_servico_cliente_vizu', 'credencial_servico_externo', ['client_id'])
+    op.create_index('ix_cliente_final_cliente_vizu', 'cliente_final', ['client_id'])
+    op.create_index('ix_conversa_cliente_vizu', 'conversa', ['client_id'])
     # Note: session_id index is already created by the table definition
     op.create_index('ix_mensagem_conversa', 'mensagem', ['conversa_id'])
-    op.create_index('ix_hitl_review_cliente_vizu', 'hitl_review', ['cliente_vizu_id'])
-    op.create_index('ix_experiment_cliente_vizu', 'experiment', ['cliente_vizu_id'])
-    op.create_index('ix_integration_connection_cliente_vizu', 'integration_connection', ['cliente_vizu_id'])
+    op.create_index('ix_hitl_review_cliente_vizu', 'hitl_review', ['client_id'])
+    op.create_index('ix_experiment_cliente_vizu', 'experiment', ['client_id'])
+    op.create_index('ix_integration_connection_cliente_vizu', 'integration_connection', ['client_id'])
 def downgrade() -> None:
     """Drop all tables and types"""
 

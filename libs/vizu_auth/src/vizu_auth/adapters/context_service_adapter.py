@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 
 def api_key_lookup_from_context_service(ctx_service: "ContextService") -> Callable[[str], Awaitable[UUID | None]]:
     """
-    Retorna uma função async que mapeia `api_key -> cliente_vizu_id` usando
+    Retorna uma função async que mapeia `api_key -> client_id` usando
     uma instância de `ContextService`.
 
     Uso:
@@ -70,7 +70,7 @@ def api_key_lookup_from_context_service(ctx_service: "ContextService") -> Callab
 def external_user_lookup_from_context_service(ctx_service: "ContextService") -> Callable[[str], Awaitable[UUID | None]]:
     """
     Retorna uma função async que tenta mapear `external_user_id (sub)` para
-    `cliente_vizu_id` usando `ContextService`.
+    `client_id` usando `ContextService`.
 
     Observação: nem todas as versões de `ContextService` expõem um método
     para buscar por `external_user_id`. Esta fábrica tenta usar

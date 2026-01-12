@@ -26,7 +26,7 @@ class Authenticator:
                 from uuid import UUID
 
                 return AuthResult(
-                    cliente_vizu_id=UUID("00000000-0000-0000-0000-000000000001"),
+                    client_id=UUID("00000000-0000-0000-0000-000000000001"),
                     auth_method="none",
                     external_user_id="dev-user",
                     email="dev@vizu.local",
@@ -47,7 +47,7 @@ class Authenticator:
             try:
                 result = await strategy.authenticate(request)
                 if result:
-                    logger.info(f"Authentication successful via {result.auth_method} for cliente: {result.cliente_vizu_id}")
+                    logger.info(f"Authentication successful via {result.auth_method} for cliente: {result.client_id}")
                     return result
             except AuthError as e:
                 last_error = e

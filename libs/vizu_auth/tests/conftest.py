@@ -33,7 +33,7 @@ def jwt_secret() -> str:
 
 
 @pytest.fixture
-def sample_cliente_vizu_id():
+def sample_client_id():
     return uuid4()
 
 
@@ -43,7 +43,7 @@ def sample_external_user_id() -> str:
 
 
 @pytest.fixture
-def valid_jwt_payload(sample_external_user_id: str, sample_cliente_vizu_id) -> dict[str, Any]:
+def valid_jwt_payload(sample_external_user_id: str, sample_client_id) -> dict[str, Any]:
     now = datetime.now(UTC)
     return {
         "sub": sample_external_user_id,
@@ -52,7 +52,7 @@ def valid_jwt_payload(sample_external_user_id: str, sample_cliente_vizu_id) -> d
         "aud": "authenticated",
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(hours=1)).timestamp()),
-        "cliente_vizu_id": str(sample_cliente_vizu_id),
+        "client_id": str(sample_client_id),
     }
 
 

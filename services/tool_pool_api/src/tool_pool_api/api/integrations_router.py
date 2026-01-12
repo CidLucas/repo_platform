@@ -94,7 +94,7 @@ async def configure_google_integration(
 
     # Persist encrypted config via ContextService
     await context.save_integration_config(
-        cliente_vizu_id=auth.cliente_vizu_id,
+        client_id=auth.client_id,
         provider="google",
         config_type="oauth2_client",
         client_id=final_client_id,
@@ -121,7 +121,7 @@ async def initiate_google_auth(
     context: ContextService = Depends(get_context_service),
 ):
     # Retrieve saved config
-    cfg_row = await context.get_integration_config(auth.cliente_vizu_id, "google")
+    cfg_row = await context.get_integration_config(auth.client_id, "google")
     if not cfg_row:
         raise HTTPException(status_code=400, detail="Google integration not configured")
 
@@ -166,7 +166,7 @@ async def initiate_google_auth(
         context.cache.client.setex,
         f"oauth_state:{state}",
         300,
-        str(auth.cliente_vizu_id),
+        str(auth.client_id),
     )
 
     manager = OAuthManager("google")
@@ -182,23 +182,23 @@ async def google_auth_callback(
     context: ContextService = Depends(get_context_service),
 ):
     # Validate state
-    cliente_vizu_id_str = await asyncio.to_thread(
+    client_id_str = await asyncio.to_thread(
         context.cache.client.get, f"oauth_state:{state}"
     )
-    if not cliente_vizu_id_str:
+    if not client_id_str:
         raise HTTPException(status_code=400, detail="Invalid or expired state")
 
-    cliente_vizu_id = UUID(
-        cliente_vizu_id_str.decode()
-        if isinstance(cliente_vizu_id_str, bytes)
-        else cliente_vizu_id_str
+    client_id = UUID(
+        client_id_str.decode()
+        if isinstance(client_id_str, bytes)
+        else client_id_str
     )
 
     # Remove state
     await asyncio.to_thread(context.cache.client.delete, f"oauth_state:{state}")
 
     # Load integration config
-    cfg_row = await context.get_integration_config(cliente_vizu_id, "google")
+    cfg_row = await context.get_integration_config(client_id, "google")
     if not cfg_row:
         raise HTTPException(status_code=400, detail="Google integration not configured")
 
@@ -269,13 +269,13 @@ async def google_auth_callback(
 
     # Check if this is the first account (make it default)
     existing_accounts = await context.list_integration_accounts(
-        cliente_vizu_id, "google"
+        client_id, "google"
     )
     is_default = len(existing_accounts) == 0
 
     # Persist tokens with account info
     await context.save_integration_tokens(
-        cliente_vizu_id=cliente_vizu_id,
+        client_id=client_id,
         provider="google",
         access_token=tokens.access_token,
         refresh_token=tokens.refresh_token,
@@ -305,7 +305,7 @@ async def list_google_accounts(
     context: ContextService = Depends(get_context_service),
 ):
     """List all connected Google accounts for the authenticated cliente."""
-    accounts = await context.list_integration_accounts(auth.cliente_vizu_id, "google")
+    accounts = await context.list_integration_accounts(auth.client_id, "google")
     return accounts
 
 
@@ -317,7 +317,7 @@ async def set_default_google_account(
 ):
     """Set a specific Google account as the default."""
     success = await context.set_default_account(
-        auth.cliente_vizu_id, "google", payload.account_email
+        auth.client_id, "google", payload.account_email
     )
     if not success:
         raise HTTPException(status_code=404, detail="Account not found")
@@ -341,7 +341,7 @@ async def revoke_google_auth(
     if target_email:
         # Revoke specific account
         tokens = await context.get_integration_tokens(
-            auth.cliente_vizu_id,
+            auth.client_id,
             "google",
             auto_refresh=False,
             account_email=target_email,
@@ -353,7 +353,7 @@ async def revoke_google_auth(
             except Exception:
                 pass  # Continue even if revoke fails
         await context.revoke_integration(
-            auth.cliente_vizu_id, "google", account_email=target_email
+            auth.client_id, "google", account_email=target_email
         )
         return {
             "status": "revoked",
@@ -363,12 +363,12 @@ async def revoke_google_auth(
     else:
         # Revoke all accounts
         accounts = await context.list_integration_accounts(
-            auth.cliente_vizu_id, "google"
+            auth.client_id, "google"
         )
         for account in accounts:
             try:
                 tokens = await context.get_integration_tokens(
-                    auth.cliente_vizu_id,
+                    auth.client_id,
                     "google",
                     auto_refresh=False,
                     account_email=account.get("account_email"),
@@ -378,7 +378,7 @@ async def revoke_google_auth(
                     await manager.revoke(tokens.get_decrypted_tokens()["access_token"])
             except Exception:
                 pass  # Continue even if revoke fails
-        await context.revoke_integration(auth.cliente_vizu_id, "google")
+        await context.revoke_integration(auth.client_id, "google")
         return {"status": "revoked", "provider": "google", "all_accounts": True}
 
 
@@ -395,12 +395,12 @@ async def get_google_status(
     If account_email is provided, returns status for that specific account.
     Otherwise, returns overall status and list of all accounts.
     """
-    config = await context.get_integration_config(auth.cliente_vizu_id, "google")
+    config = await context.get_integration_config(auth.client_id, "google")
 
     if account_email:
         # Status for specific account
         tokens = await context.get_integration_tokens(
-            auth.cliente_vizu_id,
+            auth.client_id,
             "google",
             auto_refresh=False,
             account_email=account_email,
@@ -415,10 +415,10 @@ async def get_google_status(
     else:
         # Overall status with all accounts
         accounts = await context.list_integration_accounts(
-            auth.cliente_vizu_id, "google"
+            auth.client_id, "google"
         )
         default_tokens = await context.get_integration_tokens(
-            auth.cliente_vizu_id, "google", auto_refresh=False
+            auth.client_id, "google", auto_refresh=False
         )
 
         return {

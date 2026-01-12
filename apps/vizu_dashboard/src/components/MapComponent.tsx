@@ -25,8 +25,10 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   return (
     <MapContainer center={center} zoom={zoom} style={{ height: '100%', width: '100%' }}>
       <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+        url="https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg"
+        attribution='Map tiles by <a href="https://stamen.com">Stamen Design</a>, under <a href="https://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="https://openstreetmap.org">OpenStreetMap</a>, under <a href="https://creativecommons.org/licenses/by-sa/3.0">CC BY SA</a>.'
+        subdomains={['a', 'b', 'c', 'd']}
+        maxZoom={18}
       />
       {markers.map((marker, index) => (
         <Marker key={index} position={marker.position}>

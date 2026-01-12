@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-The current Vizu schema has **multi-tenant isolation** built on the `cliente_vizu` table (tenant root), with all operational tables (cliente_final, configuracao_negocio, credencial_servico_externo, fonte_de_dados) linked via foreign key `cliente_vizu_id`.
+The current Vizu schema has **multi-tenant isolation** built on the `cliente_vizu` table (tenant root), with all operational tables (cliente_final, configuracao_negocio, credencial_servico_externo, fonte_de_dados) linked via foreign key `client_id`.
 
 **RLS Status**: Partially enabled (cliente_vizu and configuracao_negocio have basic service-role + authenticated policies). **Missing**: tenant-filtered RLS on operational tables (cliente_final, credencial_servico_externo, fonte_de_dados).
 
@@ -47,7 +47,7 @@ The current Vizu schema has **multi-tenant isolation** built on the `cliente_viz
   - `id_externo` (varchar, external reference)
   - `nome` (varchar 255)
   - `metadados` (json)
-  - `cliente_vizu_id` (uuid, FK to cliente_vizu)
+  - `client_id` (uuid, FK to cliente_vizu)
 - **RLS Status**: ❌ **NOT Enabled**
   - **Gap**: Any authenticated user can read all customers across tenants.
 - **Index**: `ix_cliente_final_id_externo` (for external ID lookups)
@@ -61,19 +61,19 @@ The current Vizu schema has **multi-tenant isolation** built on the `cliente_viz
   - `ferramenta_rag_habilitada` (boolean, default false)
   - `ferramenta_sql_habilitada` (boolean, default false)
   - `ferramenta_agendamento_habilitada` (boolean, default false)
-  - `cliente_vizu_id` (uuid, FK to cliente_vizu)
+  - `client_id` (uuid, FK to cliente_vizu)
 - **RLS Status**: ✅ **Enabled**
   - Policy: `allow_service_role_all_configuracao` (service role)
   - Policy: `allow_authenticated_select_configuracao` (authenticated)
   - **Gap**: No tenant-filtering (can see other tenants' configurations).
-- **Index**: `ix_configuracao_negocio_cliente_vizu_id` (unique on tenant)
+- **Index**: `ix_configuracao_negocio_client_id` (unique on tenant)
 
 #### 4. `credencial_servico_externo` (External Service Credentials)
 - **Purpose**: Store API keys/credentials for external integrations (Twilio, OAuth, etc.).
 - **Columns**:
   - `id` (int, PK, auto-increment)
   - `nome_servico` (varchar, e.g., "twilio", "google_oauth")
-  - `cliente_vizu_id` (uuid, FK to cliente_vizu)
+  - `client_id` (uuid, FK to cliente_vizu)
 - **RLS Status**: ❌ **NOT Enabled**
   - **Gap**: Highly sensitive; credentials can be exposed to other tenants.
   - **Recommendation**: Critical RLS policy required; consider encryption.
@@ -84,7 +84,7 @@ The current Vizu schema has **multi-tenant isolation** built on the `cliente_viz
   - `id` (int, PK, auto-increment)
   - `tipo_fonte` (enum: URL)
   - `caminho` (varchar, e.g., file path or URL)
-  - `cliente_vizu_id` (uuid, FK to cliente_vizu)
+  - `client_id` (uuid, FK to cliente_vizu)
 - **RLS Status**: ❌ **NOT Enabled**
   - **Gap**: No RLS prevents cross-tenant data source access.
 
@@ -100,10 +100,10 @@ The current Vizu schema has **multi-tenant isolation** built on the `cliente_viz
 | Table | Current RLS | Gap | Risk | Recommended Policy |
 |-------|-------------|-----|------|-------------------|
 | `cliente_vizu` | Partial | No tenant-filtering for authenticated users | Medium | `SELECT USING (id = current_user_id OR is_admin)` — requires JWT claim extraction |
-| `cliente_final` | ❌ None | Can read all customers across tenants | **High** | `SELECT/INSERT/UPDATE USING (cliente_vizu_id = current_tenant_id)` |
-| `configuracao_negocio` | Partial | No tenant-filtering | Medium | `SELECT USING (cliente_vizu_id = current_tenant_id)` |
-| `credencial_servico_externo` | ❌ None | Can expose credentials across tenants | **Critical** | `SELECT/INSERT/UPDATE USING (cliente_vizu_id = current_tenant_id)`; consider encryption at rest |
-| `fonte_de_dados` | ❌ None | Can access other tenants' data sources | High | `SELECT/INSERT/UPDATE USING (cliente_vizu_id = current_tenant_id)` |
+| `cliente_final` | ❌ None | Can read all customers across tenants | **High** | `SELECT/INSERT/UPDATE USING (client_id = current_tenant_id)` |
+| `configuracao_negocio` | Partial | No tenant-filtering | Medium | `SELECT USING (client_id = current_tenant_id)` |
+| `credencial_servico_externo` | ❌ None | Can expose credentials across tenants | **Critical** | `SELECT/INSERT/UPDATE USING (client_id = current_tenant_id)`; consider encryption at rest |
+| `fonte_de_dados` | ❌ None | Can access other tenants' data sources | High | `SELECT/INSERT/UPDATE USING (client_id = current_tenant_id)` |
 
 ### Implementation Strategy
 
@@ -117,18 +117,18 @@ The current Vizu schema has **multi-tenant isolation** built on the `cliente_viz
 ```sql
 -- For cliente_final table
 CREATE POLICY "tenant_isolation_cliente_final" ON cliente_final
-  FOR SELECT USING (cliente_vizu_id = (auth.jwt() ->> 'tenant_id')::uuid)
-  WITH CHECK (cliente_vizu_id = (auth.jwt() ->> 'tenant_id')::uuid);
+  FOR SELECT USING (client_id = (auth.jwt() ->> 'tenant_id')::uuid)
+  WITH CHECK (client_id = (auth.jwt() ->> 'tenant_id')::uuid);
 
 -- For credencial_servico_externo table
 CREATE POLICY "tenant_isolation_credentials" ON credencial_servico_externo
-  FOR ALL USING (cliente_vizu_id = (auth.jwt() ->> 'tenant_id')::uuid)
-  WITH CHECK (cliente_vizu_id = (auth.jwt() ->> 'tenant_id')::uuid);
+  FOR ALL USING (client_id = (auth.jwt() ->> 'tenant_id')::uuid)
+  WITH CHECK (client_id = (auth.jwt() ->> 'tenant_id')::uuid);
 
 -- For fonte_de_dados table
 CREATE POLICY "tenant_isolation_data_sources" ON fonte_de_dados
-  FOR ALL USING (cliente_vizu_id = (auth.jwt() ->> 'tenant_id')::uuid)
-  WITH CHECK (cliente_vizu_id = (auth.jwt() ->> 'tenant_id')::uuid);
+  FOR ALL USING (client_id = (auth.jwt() ->> 'tenant_id')::uuid)
+  WITH CHECK (client_id = (auth.jwt() ->> 'tenant_id')::uuid);
 ```
 
 ---

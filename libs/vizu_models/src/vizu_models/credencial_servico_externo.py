@@ -23,7 +23,7 @@ class CredencialServicoExterno(CredencialServicoExternoBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
 
     # Relacionamentos e Chaves Estrangeiras
-    cliente_vizu_id: uuid.UUID = Field(foreign_key="cliente_vizu.id")
+    client_id: uuid.UUID = Field(foreign_key="clientes_vizu.id")
 
     # Relationship usando string para evitar erro de importação circular no runtime
     cliente_vizu: "ClienteVizu" = Relationship(back_populates="credenciais")
@@ -31,10 +31,10 @@ class CredencialServicoExterno(CredencialServicoExternoBase, table=True):
 
 # 3. Schemas de Pydantic (Create/Read/Update) vêm depois
 class CredencialServicoExternoCreate(CredencialServicoExternoBase):
-    cliente_vizu_id: uuid.UUID
+    client_id: uuid.UUID
     credenciais: dict
 
 
 class CredencialServicoExternoInDB(CredencialServicoExternoBase):
     id: int
-    cliente_vizu_id: uuid.UUID
+    client_id: uuid.UUID

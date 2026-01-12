@@ -1,9 +1,9 @@
-import { 
-  Avatar, 
-  Flex, 
-  Spacer, 
-  IconButton, 
-  HStack, 
+import {
+  Avatar,
+  Flex,
+  Spacer,
+  IconButton,
+  HStack,
   Text,
   Menu,
   MenuButton,
@@ -17,6 +17,8 @@ import { BellIcon, ChatIcon } from '@chakra-ui/icons';
 import { FiUser, FiSettings, FiShield, FiLogOut, FiGrid } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
 import { useChat } from '../contexts/ChatContext';
+import { useContext } from 'react';
+import { AuthContext } from '../contexts/AuthContext';
 import Logo from '../assets/logo.svg?react';
 import { MenuDrawer } from './MenuDrawer';
 
@@ -24,13 +26,26 @@ export const Header = () => {
   const { toggleChat } = useChat();
   const navigate = useNavigate();
   const { isOpen: isMenuOpen, onOpen: onMenuOpen, onClose: onMenuClose } = useDisclosure();
-  
-  // TODO: Get user name from auth context
-  const userName = "Fábio";
-  const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  
-  // TODO: Check if user is admin from auth context
-  const isAdmin = true;
+  const auth = useContext(AuthContext);
+
+  // Get user name from auth context - fallback to first part of email if no display name
+  const userName = auth?.user?.user_metadata?.full_name ||
+                   auth?.user?.email?.split('@')[0] ||
+                   'Usuário';
+
+  // Check if user is admin from auth context - checks for admin role in user metadata
+  const isAdmin = auth?.user?.user_metadata?.role === 'admin' ||
+                  auth?.user?.app_metadata?.role === 'admin' ||
+                  false;
+
+  const handleLogout = async () => {
+    try {
+      await auth?.signOut();
+      navigate('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
   
   return (
     <>
@@ -85,23 +100,21 @@ export const Header = () => {
           {/* User Avatar with Dropdown Menu */}
           <Menu>
           <MenuButton>
-            <Avatar 
-              name={userName} 
-              bg="black" 
+            <Avatar
+              name={userName}
+              bg="black"
               color="white"
               size="sm"
               fontSize="xs"
               cursor="pointer"
               _hover={{ opacity: 0.8 }}
-            >
-              <Text fontSize="xs" fontWeight="normal">{userInitials}</Text>
-            </Avatar>
+            />
           </MenuButton>
           <MenuList shadow="lg" borderRadius="12px" py={2}>
             {/* User Info */}
             <Box px={4} py={2} mb={2}>
               <Text fontWeight="medium" fontSize="sm">{userName}</Text>
-              <Text fontSize="xs" color="gray.500">fabio@vizu.ai</Text>
+              <Text fontSize="xs" color="gray.500">{auth?.user?.email || 'Sem email'}</Text>
             </Box>
             <MenuDivider />
             
@@ -138,14 +151,11 @@ export const Header = () => {
             )}
             
             <MenuDivider />
-            <MenuItem 
-              icon={<FiLogOut />} 
+            <MenuItem
+              icon={<FiLogOut />}
               fontSize="sm"
               color="red.500"
-              onClick={() => {
-                // TODO: Implement logout
-                console.log('Logout');
-              }}
+              onClick={handleLogout}
             >
               Sair
             </MenuItem>

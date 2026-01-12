@@ -73,7 +73,7 @@ def test_process_message_success(
     # Criar a mensagem Pub/Sub (payload)
     message_payload = {
         "job_id": "job-123",
-        "cliente_vizu_id": "client-456",
+        "client_id": "client-456",
         "gcs_path": "client-456/job-123-teste.pdf",
         "original_filename": "teste.pdf",
         "content_type": "application/pdf",

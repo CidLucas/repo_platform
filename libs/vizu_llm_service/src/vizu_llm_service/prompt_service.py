@@ -205,14 +205,14 @@ class PromptCacheDB:
     async def get(
         self,
         name: str,
-        cliente_vizu_id: str | None = None,
+        client_id: str | None = None,
     ) -> FetchedPrompt | None:
         """
         Get cached prompt from local database.
 
         Args:
             name: Prompt name
-            cliente_vizu_id: Optional client ID for client-specific prompts
+            client_id: Optional client ID for client-specific prompts
 
         Returns:
             FetchedPrompt or None
@@ -228,14 +228,14 @@ class PromptCacheDB:
                 PromptTemplate.is_active.is_(True),
             )
 
-            if cliente_vizu_id:
+            if client_id:
                 import uuid
 
                 stmt = stmt.where(
-                    PromptTemplate.cliente_vizu_id == uuid.UUID(cliente_vizu_id)
+                    PromptTemplate.client_id == uuid.UUID(client_id)
                 )
             else:
-                stmt = stmt.where(PromptTemplate.cliente_vizu_id.is_(None))
+                stmt = stmt.where(PromptTemplate.client_id.is_(None))
 
             stmt = stmt.order_by(PromptTemplate.version.desc()).limit(1)
 
@@ -264,7 +264,7 @@ class PromptCacheDB:
     async def upsert(
         self,
         prompt: FetchedPrompt,
-        cliente_vizu_id: str | None = None,
+        client_id: str | None = None,
     ) -> bool:
         """
         Insert or update a prompt in the cache.
@@ -274,7 +274,7 @@ class PromptCacheDB:
 
         Args:
             prompt: The fetched prompt to cache
-            cliente_vizu_id: Optional client ID
+            client_id: Optional client ID
 
         Returns:
             True if successful
@@ -292,12 +292,12 @@ class PromptCacheDB:
                 PromptTemplate.version == prompt.version,
             )
 
-            if cliente_vizu_id:
+            if client_id:
                 stmt = stmt.where(
-                    PromptTemplate.cliente_vizu_id == uuid.UUID(cliente_vizu_id)
+                    PromptTemplate.client_id == uuid.UUID(client_id)
                 )
             else:
-                stmt = stmt.where(PromptTemplate.cliente_vizu_id.is_(None))
+                stmt = stmt.where(PromptTemplate.client_id.is_(None))
 
             result = await self.db.exec(stmt)
             existing = result.first()
@@ -320,8 +320,8 @@ class PromptCacheDB:
                     tags=prompt.labels,
                     is_active=True,
                     variables=prompt.config.model_dump() if prompt.config else None,
-                    cliente_vizu_id=uuid.UUID(cliente_vizu_id)
-                    if cliente_vizu_id
+                    client_id=uuid.UUID(client_id)
+                    if client_id
                     else None,
                     created_by="langfuse_sync",
                 )
@@ -411,7 +411,7 @@ class PromptService:
         name: str,
         version: int | None = None,
         label: str | None = None,
-        cliente_vizu_id: str | None = None,
+        client_id: str | None = None,
     ) -> str:
         """Generate cache key for a prompt."""
         parts = [name]
@@ -419,8 +419,8 @@ class PromptService:
             parts.append(f"v{version}")
         if label:
             parts.append(f"@{label}")
-        if cliente_vizu_id:
-            parts.append(f"#{cliente_vizu_id[:8]}")
+        if client_id:
+            parts.append(f"#{client_id[:8]}")
         return ":".join(parts)
 
     async def get_prompt(
@@ -428,7 +428,7 @@ class PromptService:
         name: str,
         version: int | None = None,
         label: str = "production",
-        cliente_vizu_id: str | None = None,
+        client_id: str | None = None,
         use_cache: bool = True,
     ) -> FetchedPrompt | None:
         """
@@ -443,13 +443,13 @@ class PromptService:
             name: Prompt name (e.g., "atendente/system")
             version: Specific version (overrides label)
             label: Label to fetch (default: "production")
-            cliente_vizu_id: Optional client ID for client-specific prompts
+            client_id: Optional client ID for client-specific prompts
             use_cache: Whether to use memory cache
 
         Returns:
             FetchedPrompt or None if not found anywhere
         """
-        cache_key = self._cache_key(name, version, label, cliente_vizu_id)
+        cache_key = self._cache_key(name, version, label, client_id)
 
         # 1. Check memory cache
         if use_cache and cache_key in self._memory_cache:
@@ -480,13 +480,13 @@ class PromptService:
 
                 # Cache to database (async, for fallback)
                 if self.cache_to_db and self._db_cache:
-                    await self._db_cache.upsert(prompt, cliente_vizu_id)
+                    await self._db_cache.upsert(prompt, client_id)
 
                 return prompt
 
         # 3. Fallback to local database cache
         if self._db_cache:
-            prompt = await self._db_cache.get(name, cliente_vizu_id)
+            prompt = await self._db_cache.get(name, client_id)
             if prompt:
                 logger.warning(
                     f"Prompt '{name}' from LOCAL CACHE (Langfuse unavailable)"

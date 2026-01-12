@@ -44,7 +44,7 @@
                         {
                             "from_view": "customers_view",
                             "to_view": "data_sources_summary_view",
-                            "on": "cliente_vizu_id",
+                            "on": "client_id",
                             "allowed": false
                         }
                     ]

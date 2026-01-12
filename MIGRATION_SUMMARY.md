@@ -202,7 +202,7 @@ curl -X POST http://localhost:8003/chat \
 - **Service Logs**: `docker compose logs atendente_core`
 
 ### Future Enhancements
-1. Load multi-tenant data using `cliente_vizu_id` for isolation
+1. Load multi-tenant data using `client_id` for isolation
 2. Add Row-Level Security (RLS) policies
 3. Set up CDC (Change Data Capture) for real-time sync
 4. Implement data versioning with temporal tables

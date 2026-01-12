@@ -86,6 +86,7 @@ class HomeMetricsResponse(BaseModel):
 
 class FornecedoresOverviewResponse(BaseModel):
     scorecard_total_fornecedores: int
+    scorecard_crescimento_percentual: float | None = None  # Percentual de crescimento da base de fornecedores
     chart_fornecedores_no_tempo: list[ChartDataPoint]
     chart_fornecedores_por_regiao: list[ChartDataPoint]
     chart_cohort_fornecedores: list[ChartDataPoint]
@@ -99,6 +100,7 @@ class ClientesOverviewResponse(BaseModel):
     scorecard_total_clientes: int
     scorecard_ticket_medio_geral: float
     scorecard_frequencia_media_geral: float
+    scorecard_crescimento_percentual: float | None = None  # Percentual de crescimento da base de clientes
     chart_clientes_por_regiao: list[ChartDataPoint]
     chart_cohort_clientes: list[ChartDataPoint]
     ranking_por_receita: list[RankingItem]

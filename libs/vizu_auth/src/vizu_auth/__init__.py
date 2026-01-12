@@ -25,7 +25,7 @@ try:
         TokenExpiredError,
         clear_auth_settings_cache,
         decode_jwt,
-        extract_cliente_vizu_id_from_jwt,
+        extract_client_id_from_jwt,
         get_auth_settings,
         validate_jwt,
     )

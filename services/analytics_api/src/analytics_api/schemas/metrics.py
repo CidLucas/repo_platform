@@ -63,6 +63,29 @@ class CadastralData(BaseModel):
         extra = 'ignore' # Ignora campos extras se houver
 
 # ---
+# SCHEMAS ESPECÍFICOS PARA RANKINGS DE PRODUTOS
+# (Substitui dict[str, Any] por modelos explícitos)
+# ---
+
+class ProdutoRankingReceita(BaseModel):
+    """Ranking simplificado de produtos por receita total."""
+    nome: str = Field(description="Nome do produto")
+    receita_total: float = Field(description="Receita total gerada pelo produto")
+    valor_unitario_medio: float = Field(description="Valor unitário médio do produto")
+
+class ProdutoRankingVolume(BaseModel):
+    """Ranking simplificado de produtos por volume (quantidade vendida)."""
+    nome: str = Field(description="Nome do produto")
+    quantidade_total: float = Field(description="Quantidade total vendida")
+    valor_unitario_medio: float = Field(description="Valor unitário médio do produto")
+
+class ProdutoRankingTicket(BaseModel):
+    """Ranking simplificado de produtos por ticket médio."""
+    nome: str = Field(description="Nome do produto")
+    ticket_medio: float = Field(description="Ticket médio do produto")
+    valor_unitario_medio: float = Field(description="Valor unitário médio do produto")
+
+# ---
 # NÍVEL 1: HOME
 # ---
 
@@ -94,13 +117,14 @@ class FornecedoresOverviewResponse(BaseModel):
     ranking_por_qtd_media: list[RankingItem]
     ranking_por_ticket_medio: list[RankingItem]
     ranking_por_frequencia: list[RankingItem]
-    ranking_produtos_mais_vendidos: list[dict[str, Any]] # (nome, receita_total, valor_unitario_medio)
+    ranking_produtos_mais_vendidos: list[ProdutoRankingReceita]
 
 class ClientesOverviewResponse(BaseModel):
     scorecard_total_clientes: int
     scorecard_ticket_medio_geral: float
     scorecard_frequencia_media_geral: float
     scorecard_crescimento_percentual: float | None = None  # Percentual de crescimento da base de clientes
+    chart_clientes_no_tempo: list[ChartDataPoint]  # Time series (monthly unique customers)
     chart_clientes_por_regiao: list[ChartDataPoint]
     chart_cohort_clientes: list[ChartDataPoint]
     ranking_por_receita: list[RankingItem]
@@ -110,9 +134,10 @@ class ClientesOverviewResponse(BaseModel):
 
 class ProdutosOverviewResponse(BaseModel):
     scorecard_total_itens_unicos: int
-    ranking_por_receita: list[dict[str, Any]] # (nome, receita_total, valor_unitario_medio)
-    ranking_por_volume: list[dict[str, Any]] # (nome, quantidade_total, valor_unitario_medio)
-    ranking_por_ticket_medio: list[dict[str, Any]] # (nome, ticket_medio, valor_unitario_medio)
+    chart_produtos_no_tempo: list[ChartDataPoint]  # Time series (monthly unique products)
+    ranking_por_receita: list[ProdutoRankingReceita]
+    ranking_por_volume: list[ProdutoRankingVolume]
+    ranking_por_ticket_medio: list[ProdutoRankingTicket]
 
 class PedidoItem(BaseModel):
     order_id: str
@@ -126,6 +151,7 @@ class PedidosOverviewResponse(BaseModel):
     scorecard_qtd_media_produtos_por_pedido: float
     scorecard_taxa_recorrencia_clientes_perc: float
     scorecard_recencia_media_entre_pedidos_dias: float
+    chart_pedidos_no_tempo: list[ChartDataPoint]  # Time series (monthly unique orders)
     ranking_pedidos_por_regiao: list[ChartDataPoint]
     ultimos_pedidos: list[PedidoItem]
 

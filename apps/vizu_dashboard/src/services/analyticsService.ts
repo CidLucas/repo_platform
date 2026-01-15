@@ -4,6 +4,10 @@ import { supabase } from '../lib/supabase';
 const API_BASE_URL = import.meta.env.VITE_API_URL_ANALYTICS || 'http://localhost:8004';
 
 // --- Type Definitions ---
+
+// Note: This Pedido interface appears to be for a different use case (possibly OLTP/UI-specific)
+// and does not match the backend's PedidoItem or PedidoDetailResponse from the analytics API.
+// Consider renaming this to avoid confusion or document its specific purpose.
 export interface Pedido {
   id: string;
   title: string;
@@ -20,6 +24,90 @@ export interface Pedido {
   frete?: string;
   quantidadeItens?: number;
   // Add other fields as per your API response for Pedidos
+}
+
+// Corresponds to the Pydantic 'PedidoItem' (used in PedidosOverviewResponse)
+export interface PedidoItem {
+  order_id: string;
+  data_transacao: string; // ISO date string
+  id_cliente: string;
+  ticket_pedido: number;
+  qtd_produtos: number;
+}
+
+// Corresponds to the Pydantic 'PedidoItemDetalhe' (used in PedidoDetailResponse)
+export interface PedidoItemDetalhe {
+  raw_product_description: string;
+  quantidade: number;
+  valor_unitario: number;
+  valor_total_emitter: number;
+}
+
+// Corresponds to the Pydantic 'PedidosOverviewResponse'
+export interface PedidosOverviewResponse {
+  scorecard_ticket_medio_por_pedido: number;
+  scorecard_qtd_media_produtos_por_pedido: number;
+  scorecard_taxa_recorrencia_clientes_perc: number;
+  scorecard_recencia_media_entre_pedidos_dias: number;
+  chart_pedidos_no_tempo: ChartDataPoint[];
+  ranking_pedidos_por_regiao: ChartDataPoint[];
+  ultimos_pedidos: PedidoItem[];
+}
+
+// Corresponds to the Pydantic 'CustomerMetricsResponse' from indicators endpoint
+export interface CustomerMetricsResponse {
+  total_active: number;
+  new_customers: number;
+  returning_customers: number;
+  avg_lifetime_value: number;
+  period: string;
+  comparisons?: {
+    vs_7_days: number | null;
+    vs_30_days: number | null;
+    vs_90_days: number | null;
+    trend: string | null;
+  };
+}
+
+// Corresponds to the Pydantic 'ProductMetricsResponse' from indicators endpoint
+export interface ProductMetricsResponse {
+  total_sold: number;
+  unique_products: number;
+  top_sellers: any[];
+  low_stock_alerts: number;
+  avg_price: number;
+  period: string;
+  comparisons?: {
+    vs_7_days: number | null;
+    vs_30_days: number | null;
+    vs_90_days: number | null;
+    trend: string | null;
+  };
+}
+
+// Corresponds to the Pydantic 'OrderMetricsResponse' from indicators endpoint
+export interface OrderMetricsResponse {
+  total: number;
+  revenue: number;
+  avg_order_value: number;
+  growth_rate: number | null;
+  by_status: Record<string, any>;
+  period: string;
+  comparisons?: {
+    vs_7_days: number | null;
+    vs_30_days: number | null;
+    vs_90_days: number | null;
+    trend: string | null;
+  };
+}
+
+// Corresponds to the Pydantic 'PedidoDetailResponse'
+export interface PedidoDetailResponse {
+  order_id: string;
+  status_pedido: string;
+  total_pedido: number;
+  dados_cliente: CadastralData;
+  itens_pedido: PedidoItemDetalhe[];
 }
 
 // Corresponds to the Pydantic 'RankingItem'
@@ -52,6 +140,27 @@ export interface ChartData {
   data: ChartDataPoint[];
 }
 
+// Corresponds to the Pydantic 'ProdutoRankingReceita'
+export interface ProdutoRankingReceita {
+  nome: string;
+  receita_total: number;
+  valor_unitario_medio: number;
+}
+
+// Corresponds to the Pydantic 'ProdutoRankingVolume'
+export interface ProdutoRankingVolume {
+  nome: string;
+  quantidade_total: number;
+  valor_unitario_medio: number;
+}
+
+// Corresponds to the Pydantic 'ProdutoRankingTicket'
+export interface ProdutoRankingTicket {
+  nome: string;
+  ticket_medio: number;
+  valor_unitario_medio: number;
+}
+
 // Corresponds to the Pydantic 'HomeScorecards'
 export interface HomeScorecards {
   receita_total: number;
@@ -79,7 +188,7 @@ export interface FornecedoresOverviewResponse {
   ranking_por_qtd_media: RankingItem[];
   ranking_por_ticket_medio: RankingItem[];
   ranking_por_frequencia: RankingItem[];
-  ranking_produtos_mais_vendidos: { nome: string; receita_total: number; valor_unitario_medio: number; }[]; // Corrected type based on backend
+  ranking_produtos_mais_vendidos: ProdutoRankingReceita[];
 }
 
 // Corresponds to the Pydantic 'CadastralData'
@@ -112,6 +221,7 @@ export interface ClientesOverviewResponse {
   scorecard_ticket_medio_geral: number;
   scorecard_frequencia_media_geral: number;
   scorecard_crescimento_percentual?: number | null;
+  chart_clientes_no_tempo: ChartDataPoint[];
   chart_clientes_por_regiao: ChartDataPoint[];
   chart_cohort_clientes: ChartDataPoint[];
   ranking_por_receita: RankingItem[];
@@ -133,9 +243,10 @@ export interface ClienteDetailResponse {
 // Corresponds to the Pydantic 'ProdutosOverviewResponse'
 export interface ProdutosOverviewResponse {
   scorecard_total_itens_unicos: number;
-  ranking_por_receita: { nome: string; receita_total: number; valor_unitario_medio: number; }[]; // Matching backend's simplified return
-  ranking_por_volume: { nome: string; quantidade_total: number; valor_unitario_medio: number; }[]; // Matching backend's simplified return
-  ranking_por_ticket_medio: { nome: string; ticket_medio: number; valor_unitario_medio: number; }[]; // Matching backend's simplified return
+  chart_produtos_no_tempo: ChartDataPoint[];
+  ranking_por_receita: ProdutoRankingReceita[];
+  ranking_por_volume: ProdutoRankingVolume[];
+  ranking_por_ticket_medio: ProdutoRankingTicket[];
 }
 
 // Corresponds to the Pydantic 'ProdutoDetailResponse'
@@ -185,7 +296,20 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Pedidos API calls
+// Pedidos API calls (overview)
+export const getPedidosOverview = async (): Promise<PedidosOverviewResponse> => {
+  const response = await axiosInstance.get<PedidosOverviewResponse>('/pedidos');
+  return response.data;
+};
+
+// Pedido API call (details)
+export const getPedidoDetails = async (order_id: string): Promise<PedidoDetailResponse> => {
+  const response = await axiosInstance.get<PedidoDetailResponse>(`/pedido/${order_id}`);
+  return response.data;
+};
+
+// Legacy Pedidos API calls (OLTP/UI-specific - not from analytics API)
+// TODO: Verify if these are still needed or should be removed
 export const getPedidos = async (): Promise<Pedido[]> => {
   const response = await axiosInstance.get<Pedido[]>('/pedidos');
   return response.data;
@@ -235,6 +359,30 @@ export const getProdutoDetails = async (nome_produto: string): Promise<ProdutoDe
 // Home metrics API call (dashboard overview)
 export const getHomeMetrics = async (): Promise<HomeMetricsResponse> => {
   const response = await axiosInstance.get<HomeMetricsResponse>('/dashboard/home_gold');
+  return response.data;
+};
+
+// Customer Indicators (from IndicatorService)
+export const getCustomerIndicators = async (period: string = 'month'): Promise<CustomerMetricsResponse> => {
+  const response = await axiosInstance.get<CustomerMetricsResponse>(`/indicators/customers`, {
+    params: { period, include_comparisons: true }
+  });
+  return response.data;
+};
+
+// Product Indicators (from IndicatorService)
+export const getProductIndicators = async (period: string = 'month'): Promise<ProductMetricsResponse> => {
+  const response = await axiosInstance.get<ProductMetricsResponse>(`/indicators/products`, {
+    params: { period, include_comparisons: true }
+  });
+  return response.data;
+};
+
+// Order Indicators (from IndicatorService)
+export const getOrderIndicators = async (period: string = 'month'): Promise<OrderMetricsResponse> => {
+  const response = await axiosInstance.get<OrderMetricsResponse>(`/indicators/orders`, {
+    params: { period, include_comparisons: true }
+  });
   return response.data;
 };
 

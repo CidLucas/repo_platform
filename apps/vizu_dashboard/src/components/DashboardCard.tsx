@@ -118,7 +118,7 @@ export const DashboardCard = ({
           </Flex>
 
           {/* Conditional rendering of content */}
-          {graphData && <GraphComponent data={graphData.values.map((val: number, index: number) => ({ name: `Item ${index + 1}`, value: val }))} dataKey="value" lineColor={textColor} />}
+          {graphData && <GraphComponent data={graphData.values} dataKey="value" lineColor={textColor} />}
           {mainText && <Text fontSize="md" mb={2}>{mainText}</Text>}
 
           {(scorecardValue || scorecardLabel) && (
@@ -169,7 +169,7 @@ export const DashboardCard = ({
                     <GraphCarousel
                       graphs={[
                         {
-                          data: graphData?.values.map((val: number, index: number) => ({ name: `Item ${index + 1}`, value: val })) || [],
+                          data: graphData?.values || [],
                           dataKey: "value",
                           lineColor: "white",
                           title: "Gráfico Principal",

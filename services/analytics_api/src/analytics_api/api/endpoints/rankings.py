@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 
 from analytics_api.api.dependencies import get_client_id, get_postgres_repository
+from analytics_api.api.helpers import dict_to_ranking_item
 from analytics_api.data_access.postgres_repository import PostgresRepository
 from analytics_api.schemas.metrics import (
     ClientesOverviewResponse,
@@ -11,6 +12,9 @@ from analytics_api.schemas.metrics import (
     RankingItem,
     ChartDataPoint,
     PedidoItem,
+    ProdutoRankingReceita,
+    ProdutoRankingVolume,
+    ProdutoRankingTicket,
 )
 from fastapi import APIRouter, Depends
 
@@ -32,37 +36,18 @@ def get_fornecedores_overview_endpoint(
     suppliers = repo.get_gold_suppliers_metrics(client_id) or []
     products = repo.get_gold_products_metrics(client_id) or []
 
-    def _dt(value: datetime | None) -> datetime:
-        return value if isinstance(value, datetime) else datetime(1970, 1, 1, tzinfo=timezone.utc)
-
-    def _to_ranking_item(row: dict) -> RankingItem:
-        return RankingItem(
-            nome=row.get("supplier_name", ""),
-            receita_total=float(row.get("total_revenue", 0)),
-            quantidade_total=float(row.get("quantidade_total", 0)),
-            num_pedidos_unicos=int(row.get("num_pedidos_unicos", row.get("total_orders", 0) or 0)),
-            primeira_venda=_dt(row.get("primeira_venda")),
-            ultima_venda=_dt(row.get("ultima_venda")),
-            ticket_medio=float(row.get("ticket_medio", row.get("avg_order_value", 0) or 0)),
-            qtd_media_por_pedido=float(row.get("qtd_media_por_pedido", 0)),
-            frequencia_pedidos_mes=float(row.get("frequencia_pedidos_mes", 0)),
-            recencia_dias=int(row.get("recencia_dias", 0)),
-            valor_unitario_medio=float(row.get("valor_unitario_medio", row.get("avg_price", 0) or 0)),
-            cluster_score=float(row.get("cluster_score", 0)),
-            cluster_tier=str(row.get("cluster_tier", "") or ""),
-        )
-
-    ranking_por_receita = [_to_ranking_item(r) for r in sorted(suppliers, key=lambda x: x.get("total_revenue", 0), reverse=True)[:10]]
-    ranking_por_ticket_medio = [_to_ranking_item(r) for r in sorted(suppliers, key=lambda x: x.get("ticket_medio", x.get("avg_order_value", 0)), reverse=True)[:10]]
-    ranking_por_qtd_media = [_to_ranking_item(r) for r in sorted(suppliers, key=lambda x: x.get("qtd_media_por_pedido", 0), reverse=True)[:10]]
-    ranking_por_frequencia = [_to_ranking_item(r) for r in sorted(suppliers, key=lambda x: x.get("frequencia_pedidos_mes", 0), reverse=True)[:10]]
+    # Convert to RankingItem using helper function
+    ranking_por_receita = [dict_to_ranking_item(r) for r in sorted(suppliers, key=lambda x: x.get("total_revenue", 0), reverse=True)[:10]]
+    ranking_por_ticket_medio = [dict_to_ranking_item(r) for r in sorted(suppliers, key=lambda x: x.get("ticket_medio", x.get("avg_order_value", 0)), reverse=True)[:10]]
+    ranking_por_qtd_media = [dict_to_ranking_item(r) for r in sorted(suppliers, key=lambda x: x.get("qtd_media_por_pedido", 0), reverse=True)[:10]]
+    ranking_por_frequencia = [dict_to_ranking_item(r) for r in sorted(suppliers, key=lambda x: x.get("frequencia_pedidos_mes", 0), reverse=True)[:10]]
 
     ranking_produtos_mais_vendidos = [
-        {
-            "nome": p.get("product_name", ""),
-            "receita_total": p.get("total_revenue", 0),
-            "valor_unitario_medio": p.get("avg_price", 0),
-        }
+        ProdutoRankingReceita(
+            nome=p.get("product_name", ""),
+            receita_total=p.get("total_revenue", 0),
+            valor_unitario_medio=p.get("avg_price", 0),
+        )
         for p in sorted(products, key=lambda x: x.get("total_revenue", 0), reverse=True)[:10]
     ]
 
@@ -81,10 +66,14 @@ def get_fornecedores_overview_endpoint(
 
     # Time/regional charts from Gold (precomputed)
     time_data = repo.get_gold_time_series(client_id, 'fornecedores_no_tempo')
-    chart_fornecedores_no_tempo = [
-        ChartDataPoint(name=point['name'], total=point['total'])
-        for point in time_data
-    ]
+    # Calculate cumulative sum for frontend (expects total_cumulativo)
+    cumulative_sum = 0
+    chart_fornecedores_no_tempo = []
+    for point in time_data:
+        cumulative_sum += point['total']
+        chart_fornecedores_no_tempo.append(
+            ChartDataPoint(name=point['name'], total=point['total'], total_cumulativo=cumulative_sum)
+        )
 
     regional_data = repo.get_gold_regional(client_id, 'fornecedores_por_regiao')
     chart_fornecedores_por_regiao = [
@@ -92,9 +81,12 @@ def get_fornecedores_overview_endpoint(
         for point in regional_data
     ]
 
+    # Calculate growth percentage from time series data
+    crescimento_percentual = repo.calculate_growth_from_time_series(client_id, 'fornecedores_no_tempo')
+
     return FornecedoresOverviewResponse(
         scorecard_total_fornecedores=len(suppliers),
-        scorecard_crescimento_percentual=None,
+        scorecard_crescimento_percentual=crescimento_percentual,
         chart_fornecedores_no_tempo=chart_fornecedores_no_tempo,
         chart_fornecedores_por_regiao=chart_fornecedores_por_regiao,
         chart_cohort_fornecedores=chart_cohort_fornecedores,
@@ -120,30 +112,11 @@ def get_clientes_overview_endpoint(
 
     customers = repo.get_gold_customers_metrics(client_id) or []
 
-    def _dt(value: datetime | None) -> datetime:
-        return value if isinstance(value, datetime) else datetime(1970, 1, 1, tzinfo=timezone.utc)
-
-    def _to_ranking_item(row: dict) -> RankingItem:
-        return RankingItem(
-            nome=row.get("customer_name", ""),
-            receita_total=float(row.get("lifetime_value", 0)),
-            quantidade_total=float(row.get("quantidade_total", 0)),
-            num_pedidos_unicos=int(row.get("num_pedidos_unicos", row.get("total_orders", 0) or 0)),
-            primeira_venda=_dt(row.get("primeira_venda", row.get("first_order_date"))),
-            ultima_venda=_dt(row.get("ultima_venda", row.get("last_order_date"))),
-            ticket_medio=float(row.get("ticket_medio", row.get("avg_order_value", 0) or 0)),
-            qtd_media_por_pedido=float(row.get("qtd_media_por_pedido", 0)),
-            frequencia_pedidos_mes=float(row.get("frequencia_pedidos_mes", 0)),
-            recencia_dias=int(row.get("recencia_dias", 0)),
-            valor_unitario_medio=float(row.get("valor_unitario_medio", row.get("avg_price", 0) or 0)),
-            cluster_score=float(row.get("cluster_score", 0)),
-            cluster_tier=str(row.get("cluster_tier", "") or ""),
-        )
-
-    ranking_por_receita = [_to_ranking_item(r) for r in sorted(customers, key=lambda x: x.get("lifetime_value", 0), reverse=True)[:10]]
-    ranking_por_ticket_medio = [_to_ranking_item(r) for r in sorted(customers, key=lambda x: x.get("ticket_medio", x.get("avg_order_value", 0)), reverse=True)[:10]]
-    ranking_por_qtd_pedidos = [_to_ranking_item(r) for r in sorted(customers, key=lambda x: x.get("num_pedidos_unicos", x.get("total_orders", 0)), reverse=True)[:10]]
-    ranking_por_cluster_vizu = [_to_ranking_item(r) for r in sorted(customers, key=lambda x: x.get("cluster_score", 0), reverse=True)[:10]]
+    # Convert to RankingItem using helper function
+    ranking_por_receita = [dict_to_ranking_item(r) for r in sorted(customers, key=lambda x: x.get("lifetime_value", 0), reverse=True)[:10]]
+    ranking_por_ticket_medio = [dict_to_ranking_item(r) for r in sorted(customers, key=lambda x: x.get("ticket_medio", x.get("avg_order_value", 0)), reverse=True)[:10]]
+    ranking_por_qtd_pedidos = [dict_to_ranking_item(r) for r in sorted(customers, key=lambda x: x.get("num_pedidos_unicos", x.get("total_orders", 0)), reverse=True)[:10]]
+    ranking_por_cluster_vizu = [dict_to_ranking_item(r) for r in sorted(customers, key=lambda x: x.get("cluster_score", 0), reverse=True)[:10]]
 
     chart_cohort_clientes = []
     if customers:
@@ -171,11 +144,25 @@ def get_clientes_overview_endpoint(
         sum(float(c.get("frequencia_pedidos_mes", 0)) for c in customers) / len(customers)
     ) if customers else 0.0
 
+    # Time series from Gold (precomputed) with cumulative calculation
+    time_data = repo.get_gold_time_series(client_id, 'clientes_no_tempo')
+    cumulative_sum = 0
+    chart_clientes_no_tempo = []
+    for point in time_data:
+        cumulative_sum += point['total']
+        chart_clientes_no_tempo.append(
+            ChartDataPoint(name=point['name'], total=point['total'], total_cumulativo=cumulative_sum)
+        )
+
+    # Calculate growth percentage from time series data
+    crescimento_percentual = repo.calculate_growth_from_time_series(client_id, 'clientes_no_tempo')
+
     return ClientesOverviewResponse(
         scorecard_total_clientes=len(customers),
         scorecard_ticket_medio_geral=float(ticket_medio_geral),
         scorecard_frequencia_media_geral=float(freq_media_geral),
-        scorecard_crescimento_percentual=None,
+        scorecard_crescimento_percentual=crescimento_percentual,
+        chart_clientes_no_tempo=chart_clientes_no_tempo,
         chart_clientes_por_regiao=chart_clientes_por_regiao,
         chart_cohort_clientes=chart_cohort_clientes,
         ranking_por_receita=ranking_por_receita,
@@ -200,34 +187,45 @@ def get_produtos_overview_endpoint(
     products = repo.get_gold_products_metrics(client_id) or []
 
     ranking_por_receita = [
-        {
-            "nome": p.get("product_name", ""),
-            "receita_total": p.get("total_revenue", 0),
-            "valor_unitario_medio": p.get("avg_price", 0),
-        }
+        ProdutoRankingReceita(
+            nome=p.get("product_name", ""),
+            receita_total=p.get("total_revenue", 0),
+            valor_unitario_medio=p.get("avg_price", 0),
+        )
         for p in sorted(products, key=lambda x: x.get("total_revenue", 0), reverse=True)[:10]
     ]
 
     ranking_por_volume = [
-        {
-            "nome": p.get("product_name", ""),
-            "quantidade_total": p.get("total_quantity_sold", 0),
-            "valor_unitario_medio": p.get("avg_price", 0),
-        }
+        ProdutoRankingVolume(
+            nome=p.get("product_name", ""),
+            quantidade_total=p.get("total_quantity_sold", 0),
+            valor_unitario_medio=p.get("avg_price", 0),
+        )
         for p in sorted(products, key=lambda x: x.get("total_quantity_sold", 0), reverse=True)[:10]
     ]
 
     ranking_por_ticket_medio = [
-        {
-            "nome": p.get("product_name", ""),
-            "ticket_medio": p.get("ticket_medio", p.get("avg_price", 0)),
-            "valor_unitario_medio": p.get("avg_price", 0),
-        }
+        ProdutoRankingTicket(
+            nome=p.get("product_name", ""),
+            ticket_medio=p.get("ticket_medio", p.get("avg_price", 0)),
+            valor_unitario_medio=p.get("avg_price", 0),
+        )
         for p in sorted(products, key=lambda x: x.get("ticket_medio", x.get("avg_price", 0)), reverse=True)[:10]
     ]
 
+    # Time series from Gold (precomputed) with cumulative calculation
+    time_data = repo.get_gold_time_series(client_id, 'produtos_no_tempo')
+    cumulative_sum = 0
+    chart_produtos_no_tempo = []
+    for point in time_data:
+        cumulative_sum += point['total']
+        chart_produtos_no_tempo.append(
+            ChartDataPoint(name=point['name'], total=point['total'], total_cumulativo=cumulative_sum)
+        )
+
     return ProdutosOverviewResponse(
         scorecard_total_itens_unicos=len(products),
+        chart_produtos_no_tempo=chart_produtos_no_tempo,
         ranking_por_receita=ranking_por_receita,
         ranking_por_volume=ranking_por_volume,
         ranking_por_ticket_medio=ranking_por_ticket_medio,
@@ -272,11 +270,22 @@ def get_pedidos_overview_endpoint(
         for order in last_orders_data
     ]
 
+    # Time series from Gold (precomputed) with cumulative calculation
+    time_data = repo.get_gold_time_series(client_id, 'pedidos_no_tempo')
+    cumulative_sum = 0
+    chart_pedidos_no_tempo = []
+    for point in time_data:
+        cumulative_sum += point['total']
+        chart_pedidos_no_tempo.append(
+            ChartDataPoint(name=point['name'], total=point['total'], total_cumulativo=cumulative_sum)
+        )
+
     return PedidosOverviewResponse(
         scorecard_ticket_medio_por_pedido=scorecard_ticket_medio_por_pedido,
         scorecard_qtd_media_produtos_por_pedido=scorecard_qtd_media_produtos_por_pedido,
         scorecard_taxa_recorrencia_clientes_perc=scorecard_taxa_recorrencia_clientes_perc,
         scorecard_recencia_media_entre_pedidos_dias=scorecard_recencia_media_entre_pedidos_dias,
+        chart_pedidos_no_tempo=chart_pedidos_no_tempo,
         ranking_pedidos_por_regiao=ranking_pedidos_por_regiao,
         ultimos_pedidos=ultimos_pedidos,
     )

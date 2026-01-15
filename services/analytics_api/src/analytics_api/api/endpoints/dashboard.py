@@ -6,7 +6,18 @@ from analytics_api.api.dependencies import (
     get_postgres_repository,
 )
 from analytics_api.data_access.postgres_repository import PostgresRepository
-from analytics_api.schemas.metrics import HomeMetricsResponse
+from analytics_api.schemas.metrics import (
+    HomeMetricsResponse,
+    HomeScorecards,
+    ProdutosOverviewResponse,
+    ProdutoRankingReceita,
+    ProdutoRankingVolume,
+    ProdutoRankingTicket,
+    ClientesOverviewResponse,
+    FornecedoresOverviewResponse,
+    ChartDataPoint,
+    RankingItem,
+)
 from analytics_api.services.metric_service import MetricService
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -71,27 +82,28 @@ async def get_home_dashboard_gold(
     customers_data = repo.get_gold_customers_metrics(client_id)
     products_data = repo.get_gold_products_metrics(client_id)
 
-    # Build scorecards
-    scorecards = {
-        "receita_total": float(orders_data.get("total_revenue", 0)),
-        "total_pedidos": int(orders_data.get("total_orders", 0)),
-        "total_fornecedores": len(suppliers_data) if suppliers_data else 0,
-        "total_clientes": len(customers_data) if customers_data else 0,
-        "total_produtos": len(products_data) if products_data else 0,
-        "total_regioes": 0,  # TODO: Calculate from analytics_silver if needed
-    }
+    # Build scorecards using Pydantic model
+    scorecards = HomeScorecards(
+        receita_total=float(orders_data.get("total_revenue", 0)),
+        total_pedidos=int(orders_data.get("total_orders", 0)),
+        total_fornecedores=len(suppliers_data) if suppliers_data else 0,
+        total_clientes=len(customers_data) if customers_data else 0,
+        total_produtos=len(products_data) if products_data else 0,
+        total_regioes=0,  # TODO: Calculate from regional aggregation
+    )
 
     # Build charts (empty for now, can be populated later)
     charts = []
 
-    return {
-        "scorecards": scorecards,
-        "charts": charts
-    }
+    return HomeMetricsResponse(
+        scorecards=scorecards,
+        charts=charts
+    )
 
 
 @router.get(
     "/produtos/gold",
+    response_model=ProdutosOverviewResponse,
     summary="Métricas agregadas de produtos - View Ouro",
     tags=["Produtos", "Ouro"],
 )
@@ -110,79 +122,57 @@ async def get_products_gold(
     # Calculate total unique items
     total_itens_unicos = len(products_data) if products_data else 0
 
-    # Sort by total revenue
-    ranking_por_receita_raw = sorted(
-        products_data,
-        key=lambda x: x.get("total_revenue", 0),
-        reverse=True
-    )[:10] if products_data else []
-
-    # Sort by volume (quantity sold)
-    ranking_por_volume_raw = sorted(
-        products_data,
-        key=lambda x: x.get("total_quantity_sold", 0),
-        reverse=True
-    )[:10] if products_data else []
-
-    # Sort by average price (ticket medio)
-    ranking_por_ticket_medio_raw = sorted(
-        products_data,
-        key=lambda x: x.get("avg_price", 0),
-        reverse=True
-    )[:10] if products_data else []
-
-    # Transform to expected format: list of dicts with (nome, receita_total, valor_unitario_medio)
+    # Sort and convert directly to Pydantic models
     ranking_por_receita = [
-        {
-            "nome": p.get("product_name", ""),
-            "receita_total": p.get("total_revenue", 0),
-            "valor_unitario_medio": p.get("avg_price", 0),
-        }
-        for p in ranking_por_receita_raw
-    ]
+        ProdutoRankingReceita(
+            nome=p.get("product_name", ""),
+            receita_total=p.get("total_revenue", 0),
+            valor_unitario_medio=p.get("avg_price", 0),
+        )
+        for p in sorted(products_data, key=lambda x: x.get("total_revenue", 0), reverse=True)[:10]
+    ] if products_data else []
 
-    # Transform to expected format: list of dicts with (nome, quantidade_total, valor_unitario_medio)
     ranking_por_volume = [
-        {
-            "nome": p.get("product_name", ""),
-            "quantidade_total": p.get("total_quantity_sold", 0),
-            "valor_unitario_medio": p.get("avg_price", 0),
-        }
-        for p in ranking_por_volume_raw
-    ]
+        ProdutoRankingVolume(
+            nome=p.get("product_name", ""),
+            quantidade_total=p.get("total_quantity_sold", 0),
+            valor_unitario_medio=p.get("avg_price", 0),
+        )
+        for p in sorted(products_data, key=lambda x: x.get("total_quantity_sold", 0), reverse=True)[:10]
+    ] if products_data else []
 
-    # Transform to expected format: list of dicts with (nome, ticket_medio, valor_unitario_medio)
     ranking_por_ticket_medio = [
-        {
-            "nome": p.get("product_name", ""),
-            "ticket_medio": p.get("avg_price", 0),
-            "valor_unitario_medio": p.get("avg_price", 0),
-        }
-        for p in ranking_por_ticket_medio_raw
-    ]
+        ProdutoRankingTicket(
+            nome=p.get("product_name", ""),
+            ticket_medio=p.get("avg_price", 0),
+            valor_unitario_medio=p.get("avg_price", 0),
+        )
+        for p in sorted(products_data, key=lambda x: x.get("avg_price", 0), reverse=True)[:10]
+    ] if products_data else []
 
-    return {
-        "scorecard_total_itens_unicos": total_itens_unicos,
-        "ranking_por_receita": ranking_por_receita,
-        "ranking_por_volume": ranking_por_volume,
-        "ranking_por_ticket_medio": ranking_por_ticket_medio,
-    }
+    return ProdutosOverviewResponse(
+        scorecard_total_itens_unicos=total_itens_unicos,
+        ranking_por_receita=ranking_por_receita,
+        ranking_por_volume=ranking_por_volume,
+        ranking_por_ticket_medio=ranking_por_ticket_medio,
+    )
 
 
 @router.get(
     "/clientes/gold",
-    summary="Métricas agregadas de clientes - View Ouro",
-    tags=["Clientes", "Ouro"],
+    summary="⚠️  DEPRECATED: Use /api/clientes instead",
+    tags=["Clientes", "Ouro", "Deprecated"],
+    deprecated=True
 )
 async def get_customers_gold(
     repo: PostgresRepository = Depends(get_postgres_repository),
     client_id: str = Depends(get_client_id)
 ):
     """
-    Retorna métricas agregadas de clientes a partir da view ouro (analytics_gold_customers).
-    Calcula charts de região a partir da view silver (transações).
+    ⚠️  DEPRECATED: Complex endpoint that duplicates /api/clientes functionality.
 
-    Requires client_id for data isolation (RLS).
+    Use `/api/clientes` endpoint instead for properly typed ClientesOverviewResponse.
+    This endpoint will be removed in a future version.
     """
     customers_data = repo.get_gold_customers_metrics(client_id)
 
@@ -280,174 +270,6 @@ async def get_customers_gold(
         "ranking_por_qtd_pedidos": ranking_por_qtd_pedidos,
         "ranking_por_cluster_vizu": ranking_por_cluster_vizu,
     }
-
-
-@router.get(
-    "/fornecedores/gold",
-    summary="Métricas agregadas de fornecedores - View Ouro",
-    tags=["Fornecedores", "Ouro"],
-)
-async def get_suppliers_gold(
-    repo: PostgresRepository = Depends(get_postgres_repository),
-    client_id: str = Depends(get_client_id)
-):
-    """
-    Retorna métricas agregadas de fornecedores a partir da view ouro (analytics_gold_suppliers).
-    Calcula charts de região a partir da view silver (transações).
-
-    Requires client_id for data isolation (RLS).
-    """
-    suppliers_data = repo.get_gold_suppliers_metrics(client_id)
-    products_data = repo.get_gold_products_metrics(client_id)
-
-    # Calculate aggregated metrics
-    total_fornecedores = len(suppliers_data) if suppliers_data else 0
-
-    # Sort by total revenue for ranking
-    ranking_por_receita = sorted(
-        suppliers_data,
-        key=lambda x: x.get("total_revenue", 0),
-        reverse=True
-    )[:10] if suppliers_data else []
-
-    # Sort by avg order value for ticket medio ranking
-    ranking_por_qtd_media = sorted(
-        suppliers_data,
-        key=lambda x: x.get("avg_order_value", 0),
-        reverse=True
-    )[:10] if suppliers_data else []
-
-    # Sort by unique products
-    ranking_por_ticket_medio = sorted(
-        suppliers_data,
-        key=lambda x: x.get("unique_products", 0),
-        reverse=True
-    )[:10] if suppliers_data else []
-
-    # Sort by order frequency (total_orders / time_period)
-    ranking_por_frequencia = sorted(
-        suppliers_data,
-        key=lambda x: x.get("total_orders", 0),
-        reverse=True
-    )[:10] if suppliers_data else []
-
-    # Get top products by revenue
-    ranking_produtos_mais_vendidos = sorted(
-        products_data,
-        key=lambda x: x.get("total_revenue", 0),
-        reverse=True
-    )[:10] if products_data else []
-
-    # Transform to expected format (nome, receita_total, valor_unitario_medio)
-    produtos_vendidos_formatted = [
-        {
-            "nome": p.get("product_name", ""),
-            "receita_total": p.get("total_revenue", 0),
-            "valor_unitario_medio": p.get("avg_price", 0),
-        }
-        for p in ranking_produtos_mais_vendidos
-    ]
-
-    # Get silver data for charts (has geographic and temporal columns)
-    df_silver = repo.get_silver_dataframe(client_id)
-
-    # Calculate regional chart from silver data
-    chart_fornecedores_por_regiao = []
-    state_col = None
-    for col in ['emitterstateuf', 'emitter_estado', 'emitter_state']:
-        if col in df_silver.columns:
-            state_col = col
-            break
-
-    if state_col and 'emitter_nome' in df_silver.columns:
-        # Group by state and count unique suppliers
-        regional_groups = df_silver.groupby(state_col)['emitter_nome'].nunique()
-        total_by_region = regional_groups.sum()
-        chart_fornecedores_por_regiao = [
-            {
-                "name": state,
-                "total": int(count),
-                "percentual": float((count / total_by_region) * 100)
-            }
-            for state, count in regional_groups.items()
-        ]
-
-    # Calculate time series from silver data
-    chart_fornecedores_no_tempo = []
-    if 'data_transacao' in df_silver.columns and 'emitter_nome' in df_silver.columns:
-        # Convert to datetime and group by month
-        df_silver['ano_mes'] = pd.to_datetime(df_silver['data_transacao']).dt.to_period('M').astype(str)
-        # Cumulative count of unique suppliers over time
-        time_series = df_silver.groupby('ano_mes')['emitter_nome'].nunique().cumsum()
-        chart_fornecedores_no_tempo = [
-            {
-                "name": month,
-                "total_cumulativo": int(count)
-            }
-            for month, count in time_series.items()
-        ]
-
-    return {
-        "scorecard_total_fornecedores": total_fornecedores,
-        "scorecard_crescimento_percentual": None,
-        "chart_fornecedores_no_tempo": chart_fornecedores_no_tempo,
-        "chart_fornecedores_por_regiao": chart_fornecedores_por_regiao,
-        "chart_cohort_fornecedores": [],
-        "ranking_por_receita": ranking_por_receita,
-        "ranking_por_qtd_media": ranking_por_qtd_media,
-        "ranking_por_ticket_medio": ranking_por_ticket_medio,
-        "ranking_por_frequencia": ranking_por_frequencia,
-        "ranking_produtos_mais_vendidos": produtos_vendidos_formatted,
-    }
-
-
-@router.get(
-    "/fornecedores",
-    summary="Métricas agregadas de fornecedores",
-    tags=["Fornecedores"],
-)
-async def get_suppliers(
-    repo: PostgresRepository = Depends(get_postgres_repository),
-    client_id: str = Depends(get_client_id)
-):
-    """
-    Retorna métricas agregadas de fornecedores a partir da view ouro (analytics_gold_suppliers).
-
-    Requires client_id for data isolation (RLS).
-    """
-    return repo.get_gold_suppliers_metrics(client_id)
-
-@router.get(
-    "/produtos",
-    summary="Métricas agregadas de produtos",
-    tags=["Produtos"],
-)
-async def get_products(
-    repo: PostgresRepository = Depends(get_postgres_repository),
-    client_id: str = Depends(get_client_id)
-):
-    """
-    Retorna métricas agregadas de produtos a partir da view ouro (analytics_gold_products).
-
-    Requires client_id for data isolation (RLS).
-    """
-    return repo.get_gold_products_metrics(client_id)
-
-@router.get(
-    "/clientes",
-    summary="Métricas agregadas de clientes",
-    tags=["Clientes"],
-)
-async def get_customers(
-    repo: PostgresRepository = Depends(get_postgres_repository),
-    client_id: str = Depends(get_client_id)
-):
-    """
-    Retorna métricas agregadas de clientes a partir da view ouro (analytics_gold_customers).
-
-    Requires client_id for data isolation (RLS).
-    """
-    return repo.get_gold_customers_metrics(client_id)
 
 
 @router.get(

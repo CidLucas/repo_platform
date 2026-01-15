@@ -1,47 +1,74 @@
-import { Box, Flex, Text, Heading, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon } from '@chakra-ui/react';
+import { Box, Flex, Text, Heading, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon, IconButton, Badge } from '@chakra-ui/react';
+import { RepeatIcon } from '@chakra-ui/icons';
 import { MainLayout } from '../components/layouts/MainLayout';
 import { DashboardCard } from '../components/DashboardCard';
 import { ListCard } from '../components/ListCard';
 import React, { useState, useEffect } from 'react';
 import { ClienteDetailsModal } from '../components/ClienteDetailsModal';
-import { getClientes, getCliente } from '../services/analyticsService';
-import type { ClientesOverviewResponse, ClienteDetailResponse } from '../services/analyticsService';
+import { getClientes, getCliente, getCustomerIndicators } from '../services/analyticsService';
+import type { ClientesOverviewResponse, ClienteDetailResponse, CustomerMetricsResponse } from '../services/analyticsService';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { getRegionCoordinates } from '../utils/regionCoordinates';
+
+type PeriodType = 'week' | 'month' | 'quarter' | 'year';
+type MetricType = 'receita' | 'ticket_medio' | 'qtd_pedidos';
 
 function ClientesPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedItem, setSelectedItem] = useState<ClienteDetailResponse | null>(null); // This will hold the detailed data for the modal
   const [overviewData, setOverviewData] = useState<ClientesOverviewResponse | null>(null);
+  const [customerMetrics, setCustomerMetrics] = useState<CustomerMetricsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>('month');
+  const [selectedMetric, setSelectedMetric] = useState<MetricType>('receita');
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const profile = useUserProfile();
   const userName = profile?.full_name.split(' ')[0] || 'Usuário';
 
-  useEffect(() => {
-    const fetchClientesData = async () => {
-      try {
-        setLoading(true);
-        const data = await getClientes();
-        console.log('Clientes data received:', data);
+  const fetchClientesData = async () => {
+    try {
+      setLoading(true);
 
-        // Check if data is in expected format
-        if (Array.isArray(data)) {
-          console.error('API returned array instead of ClientesOverviewResponse object');
-          setError('Formato de dados inválido retornado pela API');
-          return;
-        }
+      // Fetch both overview data and customer indicators in parallel
+      const [overviewResponse, metricsResponse] = await Promise.all([
+        getClientes(),
+        getCustomerIndicators(selectedPeriod)
+      ]);
 
-        setOverviewData(data);
-      } catch (err: any) {
-        console.error('Error fetching clientes:', err);
-        setError(err.message || 'Erro ao carregar dados dos clientes.');
-      } finally {
-        setLoading(false);
+      console.log('Clientes data received:', overviewResponse);
+      console.log('Customer metrics received:', metricsResponse);
+
+      // Check if data is in expected format
+      if (Array.isArray(overviewResponse)) {
+        console.error('API returned array instead of ClientesOverviewResponse object');
+        setError('Formato de dados inválido retornado pela API');
+        return;
       }
-    };
+
+      setOverviewData(overviewResponse);
+      setCustomerMetrics(metricsResponse);
+      setLastUpdate(new Date());
+      setError(null);
+    } catch (err: any) {
+      console.error('Error fetching clientes:', err);
+      setError(err.message || 'Erro ao carregar dados dos clientes.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchClientesData();
-  }, []);
+  }, [selectedPeriod]);
+
+  const handlePeriodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedPeriod(e.target.value as PeriodType);
+  };
+
+  const handleMetricChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedMetric(e.target.value as MetricType);
+  };
 
   const handleMiniCardClick = async (clickedItem: { id: string }) => {
     // When a mini-card is clicked, fetch the detailed data for that specific client
@@ -108,13 +135,36 @@ function ClientesPage() {
     ? mapMarkers[0].position
     : [-23.55052, -46.633308] as [number, number];
 
-  // Map the data for the ListCard - using ranking_por_receita for clients
-  const listCardItems = (overviewData.ranking_por_receita || []).map(item => ({
-    id: item.nome, // Use 'nome' as a unique ID for the card
-    title: item.nome,
-    description: `Receita: R$ ${(item.receita_total ?? 0).toLocaleString('pt-BR')}`,
-    status: item.cluster_tier, // Using cluster_tier as status
-  }));
+  // Map the data for the ListCard - dynamic based on selected metric
+  const getCurrentRanking = () => {
+    switch (selectedMetric) {
+      case 'receita':
+        return overviewData.ranking_por_receita || [];
+      case 'ticket_medio':
+        return overviewData.ranking_por_ticket_medio || [];
+      case 'qtd_pedidos':
+        return overviewData.ranking_por_qtd_pedidos || [];
+      default:
+        return overviewData.ranking_por_receita || [];
+    }
+  };
+
+  const listCardItems = getCurrentRanking().map((item: any) => {
+    let description = '';
+    if (selectedMetric === 'receita') {
+      description = `Receita: R$ ${(item.receita_total ?? item.lifetime_value ?? 0).toLocaleString('pt-BR')}`;
+    } else if (selectedMetric === 'ticket_medio') {
+      description = `Ticket Médio: R$ ${(item.ticket_medio ?? item.avg_order_value ?? 0).toLocaleString('pt-BR')}`;
+    } else if (selectedMetric === 'qtd_pedidos') {
+      description = `Qtd Pedidos: ${(item.qtd_pedidos ?? 0).toLocaleString('pt-BR')}`;
+    }
+    return {
+      id: item.nome,
+      title: item.nome,
+      description,
+      status: item.cluster_tier,
+    };
+  });
 
   return (
     <MainLayout>
@@ -133,6 +183,18 @@ function ClientesPage() {
               ? `aumentou em ${overviewData.scorecard_crescimento_percentual >= 0 ? '+' : ''}${overviewData.scorecard_crescimento_percentual.toFixed(2)}%`
               : 'está sendo analisada'}
           </Text>
+          <HStack spacing={2}>
+            <Text fontSize="sm" color="gray.600">
+              Atualizado: {lastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+            <IconButton
+              icon={<RepeatIcon />}
+              aria-label="Atualizar dados"
+              size="sm"
+              onClick={fetchClientesData}
+              isLoading={loading}
+            />
+          </HStack>
         </Flex>
 
         <Flex justify="space-between" align="flex-end" mb="36px">
@@ -141,16 +203,28 @@ function ClientesPage() {
             <Text as="h2" textStyle="pageBigNumberSmall" mt="4px">{overviewData.scorecard_total_clientes}</Text>
           </Box>
           <HStack spacing="4" position="relative">
-            <Select placeholder="Período" width="150px" bg="white" color="gray.800">
-              <option value="semana">Última semana</option>
-              <option value="mes">Último mês</option>
-              <option value="tri">Último tri</option>
-              <option value="total">Total</option>
+            <Select
+              value={selectedPeriod}
+              onChange={handlePeriodChange}
+              width="150px"
+              bg="white"
+              color="gray.800"
+            >
+              <option value="week">Última semana</option>
+              <option value="month">Último mês</option>
+              <option value="quarter">Último trimestre</option>
+              <option value="year">Último ano</option>
             </Select>
-            <Select placeholder="Métricas" width="150px" bg="white" color="gray.800">
+            <Select
+              value={selectedMetric}
+              onChange={handleMetricChange}
+              width="150px"
+              bg="white"
+              color="gray.800"
+            >
               <option value="receita">Receita</option>
-              <option value="quantidade">Quantidade</option>
               <option value="ticket_medio">Ticket Médio</option>
+              <option value="qtd_pedidos">Quantidade de Pedidos</option>
             </Select>
           </HStack>
         </Flex>
@@ -162,15 +236,66 @@ function ClientesPage() {
             size="large"
             bgColor="#FFD1DC" // Lighter pink
             graphData={{
-              values: overviewData.chart_cohort_clientes
-                ? overviewData.chart_cohort_clientes.map((d: any) => d.contagem || 0)
+              values: customerMetrics
+                ? [
+                  { name: 'Ativos', value: customerMetrics.total_active },
+                  { name: 'Novos', value: customerMetrics.new_customers },
+                  { name: 'Recorrentes', value: customerMetrics.returning_customers },
+                  { name: 'LTV Médio', value: Math.round(customerMetrics.avg_lifetime_value) }
+                ]
                 : []
             }}
             scorecardValue={`R$ ${(overviewData.scorecard_ticket_medio_geral ?? 0).toLocaleString('pt-BR')}`}
             scorecardLabel="Ticket Médio Geral"
+            kpiItems={
+              customerMetrics
+                ? [
+                  {
+                    label: `Clientes Ativos: ${customerMetrics.total_active.toLocaleString('pt-BR')}`,
+                    content: (
+                      <Box>
+                        <Text>Total de clientes ativos no período de {customerMetrics.period}</Text>
+                        <Text mt={2} fontSize="sm">Clientes que realizaram pelo menos uma compra no período</Text>
+                        <Text mt={2} fontSize="sm" color="gray.600">Métrica: <strong>total_active</strong></Text>
+                      </Box>
+                    )
+                  },
+                  {
+                    label: `Novos Clientes: ${customerMetrics.new_customers.toLocaleString('pt-BR')}`,
+                    content: (
+                      <Box>
+                        <Text>Clientes que fizeram sua primeira compra no período de {customerMetrics.period}</Text>
+                        <Text mt={2} fontSize="sm">Representa a expansão da base de clientes</Text>
+                        <Text mt={2} fontSize="sm" color="gray.600">Métrica: <strong>new_customers</strong></Text>
+                      </Box>
+                    )
+                  },
+                  {
+                    label: `Clientes Recorrentes: ${customerMetrics.returning_customers.toLocaleString('pt-BR')}`,
+                    content: (
+                      <Box>
+                        <Text>Clientes que retornaram para fazer novas compras no período de {customerMetrics.period}</Text>
+                        <Text mt={2} fontSize="sm">Indica a fidelização e satisfação dos clientes</Text>
+                        <Text mt={2} fontSize="sm" color="gray.600">Métrica: <strong>returning_customers</strong></Text>
+                      </Box>
+                    )
+                  },
+                  {
+                    label: `Valor Médio de Vida (LTV): R$ ${customerMetrics.avg_lifetime_value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                    content: (
+                      <Box>
+                        <Text>Valor médio total que um cliente gasta durante todo o seu relacionamento com a empresa</Text>
+                        <Text mt={2} fontSize="sm">Métrica crucial para avaliar o valor de longo prazo de cada cliente</Text>
+                        <Text mt={2} fontSize="sm" color="gray.600">Métrica: <strong>avg_lifetime_value</strong></Text>
+                      </Box>
+                    )
+                  }
+                ]
+                : undefined
+            }
             modalLeftBgColor="#FFD1DC"
             modalRightBgColor="#FFB6C1" // Pink
-            modalContent={<Text>Detalhes do gráfico de clientes</Text>}
+            modalContent={<Text>Métricas detalhadas de clientes no período de {customerMetrics?.period || 'mês'}</Text>}
           />
 
           <DashboardCard
@@ -187,7 +312,11 @@ function ClientesPage() {
           />
 
           <ListCard
-            title="Clientes com Maior Receita"
+            title={(() => {
+              if (selectedMetric === 'receita') return 'Clientes com Maior Receita';
+              if (selectedMetric === 'ticket_medio') return 'Clientes com Maior Ticket Médio';
+              return 'Clientes com Mais Pedidos';
+            })()}
             items={listCardItems}
             onMiniCardClick={handleMiniCardClick}
             viewAllLink="/dashboard/clientes/lista" // Link to the full list page

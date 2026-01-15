@@ -1,5 +1,4 @@
 import HomePage from "../pages/HomePage";
-import ChartsPage from "../pages/ChartsPage";
 import SettingsPage from "../pages/SettingsPage";
 import FornecedoresPage from "../pages/FornecedoresPage";
 import FornecedoresListPage from "../pages/FornecedoresListPage";
@@ -26,10 +25,6 @@ export const dashboardRoutes: RouteConfig[] = [
   {
     path: "/dashboard",
     element: <HomePage />,
-  },
-  {
-    path: "/dashboard/charts",
-    element: <ChartsPage />,
   },
   {
     path: "/dashboard/settings",

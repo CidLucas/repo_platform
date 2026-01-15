@@ -92,6 +92,10 @@ class MetricService:
             logger.warning(f"⚠️  Missing canonical columns: {missing_canonical}")
             logger.info(f"Available raw columns (first 20): {available_cols[:20]}")
 
+        # Log silver input data quality at DEBUG level
+        if logger.isEnabledFor(logging.DEBUG):
+            DataQualityLogger.log_dataframe_describe(self.df, "Silver Input", "raw data")
+
         # Only compute ano_mes/ano_semana if data_transacao exists and has non-null values
         if 'data_transacao' in self.df.columns and not self.df['data_transacao'].isna().all():
             # Remove timezone before converting to period to avoid warnings
@@ -110,13 +114,19 @@ class MetricService:
         logger.info(f"🔄 Computing aggregations...")
         self.df_clientes_agg = self._get_aggregated_metrics_by_dimension(self.df, 'receiver_nome')
         logger.info(f"  - Customers aggregated: {len(self.df_clientes_agg)} records")
+        if logger.isEnabledFor(logging.DEBUG):
+            DataQualityLogger.log_dataframe_describe(self.df_clientes_agg, "After Aggregation", "customers")
 
         self.df_fornecedores_agg = self._get_aggregated_metrics_by_dimension(self.df, 'emitter_nome')
         logger.info(f"  - Suppliers aggregated: {len(self.df_fornecedores_agg)} records")
+        if logger.isEnabledFor(logging.DEBUG):
+            DataQualityLogger.log_dataframe_describe(self.df_fornecedores_agg, "After Aggregation", "suppliers")
 
-        # Products need DIFFERENT aggregation (no customer-specific metrics)
-        self.df_produtos_agg = self._get_product_aggregation(self.df)
+        # Products aggregation (use full metrics like customers/suppliers)
+        self.df_produtos_agg = self._get_aggregated_metrics_by_dimension(self.df, 'raw_product_description')
         logger.info(f"  - Products aggregated: {len(self.df_produtos_agg)} records")
+        if logger.isEnabledFor(logging.DEBUG):
+            DataQualityLogger.log_dataframe_describe(self.df_produtos_agg, "After Aggregation", "products")
 
         # --- PERSIST TO GOLD TABLES ---
         # Only persist when explicitly allowed (ingestion/connector flows)
@@ -135,9 +145,11 @@ class MetricService:
         """
         if df.empty or dimension_col not in df.columns:
             cols = ['nome', 'receita_total', 'quantidade_total', 'num_pedidos_unicos',
-                    'primeira_venda', 'ultima_venda', 'ticket_medio', 'qtd_media_por_pedido',
+                    'primeira_venda', 'ultima_venda', 'period_start', 'period_end',
+                    'ticket_medio', 'qtd_media_por_pedido',
                     'frequencia_pedidos_mes', 'recencia_dias',
                     'valor_unitario_medio', # (Q1)
+                    'score_r', 'score_f', 'score_m',
                     'cluster_score', 'cluster_tier'] # (Q2)
             return pd.DataFrame(columns=cols)
 
@@ -155,12 +167,20 @@ class MetricService:
         if 'valor_unitario' in df.columns:
             agg_ops['valor_unitario_medio'] = ('valor_unitario', 'mean')
 
+        # Preserve CNPJ/CPF fields using 'first' aggregation (they should be the same for each name)
+        if dimension_col == 'emitter_nome' and 'emitter_cnpj' in df.columns:
+            agg_ops['emitter_cnpj'] = ('emitter_cnpj', 'first')
+        if dimension_col == 'receiver_nome' and 'receiver_cpf_cnpj' in df.columns:
+            agg_ops['receiver_cpf_cnpj'] = ('receiver_cpf_cnpj', 'first')
+
         if not agg_ops:
             logger.warning(f"No aggregatable columns found for {dimension_col}")
             return pd.DataFrame(columns=['nome', 'receita_total', 'quantidade_total', 'num_pedidos_unicos',
-                                         'primeira_venda', 'ultima_venda', 'ticket_medio', 'qtd_media_por_pedido',
+                                         'primeira_venda', 'ultima_venda', 'period_start', 'period_end',
+                                         'ticket_medio', 'qtd_media_por_pedido',
                                          'frequencia_pedidos_mes', 'recencia_dias',
-                                         'valor_unitario_medio', 'cluster_score', 'cluster_tier'])
+                                         'valor_unitario_medio', 'score_r', 'score_f', 'score_m',
+                                         'cluster_score', 'cluster_tier'])
 
         agg_df = df.groupby(dimension_col).agg(**agg_ops).reset_index()
 
@@ -186,12 +206,32 @@ class MetricService:
 
         # Handle missing date columns
         if 'primeira_venda' in agg_df.columns and 'ultima_venda' in agg_df.columns:
+            # Add period start/end columns
+            agg_df['period_start'] = agg_df['primeira_venda']
+            agg_df['period_end'] = agg_df['ultima_venda']
+
+            # Calculate activity period
             dias_ativo = (agg_df['ultima_venda'] - agg_df['primeira_venda']).dt.days
             meses_ativo = (dias_ativo / 30.44).clip(lower=1)
             agg_df['frequencia_pedidos_mes'] = agg_df['num_pedidos_unicos'] / meses_ativo
-            agg_df['recencia_dias'] = (self.today - agg_df['ultima_venda']).dt.days
+
+            # FIXED: recencia_dias should be average days BETWEEN transactions, not days since last purchase
+            # If only 1 order, return 0. If multiple orders, calculate average interval between consecutive orders.
+            def calculate_avg_days_between_orders(entity_name):
+                entity_df = df[df[dimension_col] == entity_name].sort_values('data_transacao')
+                if len(entity_df) <= 1:
+                    # Only one transaction - return 0 (no interval to calculate)
+                    return 0
+                # Calculate intervals between consecutive transactions
+                intervals = entity_df['data_transacao'].diff().dt.days.dropna()
+                return intervals.mean() if len(intervals) > 0 else 0
+
+            # Apply before renaming dimension_col to 'nome'
+            agg_df['recencia_dias'] = agg_df[dimension_col].apply(calculate_avg_days_between_orders)
         else:
             logger.warning(f"⚠️  Date columns missing, setting time-based metrics to 0")
+            agg_df['period_start'] = None
+            agg_df['period_end'] = None
             agg_df['frequencia_pedidos_mes'] = 0
             agg_df['recencia_dias'] = 0
 
@@ -227,47 +267,6 @@ class MetricService:
 
         return agg_df
 
-    def _get_product_aggregation(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Specialized product aggregation (no customer/order-specific metrics).
-        Products only care about: quantity sold, revenue, avg price, order count.
-        """
-        if df.empty or 'raw_product_description' not in df.columns:
-            logger.warning("Cannot aggregate products: empty df or missing raw_product_description")
-            return pd.DataFrame(columns=['nome', 'quantidade_total', 'receita_total', 'valor_unitario_medio', 'num_pedidos_unicos'])
-
-        agg_ops = {}
-        if 'quantidade' in df.columns:
-            agg_ops['quantidade_total'] = ('quantidade', 'sum')
-        if 'valor_total_emitter' in df.columns:
-            agg_ops['receita_total'] = ('valor_total_emitter', 'sum')
-        if 'order_id' in df.columns:
-            agg_ops['num_pedidos_unicos'] = ('order_id', 'nunique')
-        if 'valor_unitario' in df.columns:
-            agg_ops['valor_unitario_medio'] = ('valor_unitario', 'mean')
-
-        if not agg_ops:
-            logger.warning("No aggregatable columns found for products")
-            return pd.DataFrame(columns=['nome', 'quantidade_total', 'receita_total', 'valor_unitario_medio', 'num_pedidos_unicos'])
-
-        agg_df = df.groupby('raw_product_description').agg(**agg_ops).reset_index()
-
-        # Fill missing columns with defaults
-        if 'quantidade_total' not in agg_df.columns:
-            agg_df['quantidade_total'] = 0
-        if 'receita_total' not in agg_df.columns:
-            agg_df['receita_total'] = 0.0
-        if 'valor_unitario_medio' not in agg_df.columns:
-            agg_df['valor_unitario_medio'] = 0.0
-        if 'num_pedidos_unicos' not in agg_df.columns:
-            agg_df['num_pedidos_unicos'] = 0
-
-        agg_df.rename(columns={'raw_product_description': 'nome'}, inplace=True)
-        agg_df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        agg_df.fillna(0, inplace=True)
-
-        return agg_df
-
     # =====================================================================
     # Write methods: Persist computed metrics to gold tables
     # =====================================================================
@@ -292,6 +291,8 @@ class MetricService:
             # Write customers with data quality check
             if not self.df_clientes_agg.empty:
                 logger.info(f"  ➜ Writing {len(self.df_clientes_agg)} customers...")
+                if logger.isEnabledFor(logging.DEBUG):
+                    DataQualityLogger.log_dataframe_describe(self.df_clientes_agg, "Before Write", "gold_customers")
                 DataQualityLogger.log_dataframe_quality(self.df_clientes_agg, "analytics_gold_customers", self.client_id)
 
                 # Add CPF/CNPJ from source if available
@@ -313,6 +314,8 @@ class MetricService:
             # Write suppliers with data quality check
             if not self.df_fornecedores_agg.empty:
                 logger.info(f"  ➜ Writing {len(self.df_fornecedores_agg)} suppliers...")
+                if logger.isEnabledFor(logging.DEBUG):
+                    DataQualityLogger.log_dataframe_describe(self.df_fornecedores_agg, "Before Write", "gold_suppliers")
                 DataQualityLogger.log_dataframe_quality(self.df_fornecedores_agg, "analytics_gold_suppliers", self.client_id)
 
                 # Add CNPJ from source if available
@@ -333,6 +336,8 @@ class MetricService:
             # Write products with data quality check
             if not self.df_produtos_agg.empty:
                 logger.info(f"  ➜ Writing {len(self.df_produtos_agg)} products...")
+                if logger.isEnabledFor(logging.DEBUG):
+                    DataQualityLogger.log_dataframe_describe(self.df_produtos_agg, "Before Write", "gold_products")
                 DataQualityLogger.log_dataframe_quality(self.df_produtos_agg, "analytics_gold_products", self.client_id)
                 self.repository.write_gold_products(
                     self.client_id,
@@ -343,10 +348,19 @@ class MetricService:
 
             # Write orders summary with data quality check
             if not self.df.empty and 'order_id' in self.df.columns:
+                # Calculate period_start and period_end from data_transacao
+                period_start = None
+                period_end = None
+                if 'data_transacao' in self.df.columns and not self.df['data_transacao'].isna().all():
+                    period_start = self.df['data_transacao'].min()
+                    period_end = self.df['data_transacao'].max()
+
                 orders_metrics = {
                     "total_orders": int(self.df['order_id'].nunique()),
                     "total_revenue": float(self.df['valor_total_emitter'].sum()) if 'valor_total_emitter' in self.df.columns else 0,
                     "avg_order_value": float((self.df['valor_total_emitter'].sum() / self.df['order_id'].nunique())) if 'valor_total_emitter' in self.df.columns and self.df['order_id'].nunique() > 0 else 0,
+                    "period_start": period_start,
+                    "period_end": period_end,
                 }
                 logger.info(f"  ➜ Writing order summary: {orders_metrics['total_orders']} orders, revenue: {orders_metrics['total_revenue']:.2f}")
                 DataQualityLogger.log_dict_quality(orders_metrics, "analytics_gold_orders", self.client_id)
@@ -363,6 +377,80 @@ class MetricService:
         except Exception as e:
             logger.error(f"❌ Failed to write gold tables: {e}", exc_info=True)
             # Don't raise - let metrics still be computed even if persistence fails
+
+    def _calculate_total_regions(self) -> int:
+        """
+        Calculate total unique regions (states/UF) across both suppliers and customers.
+        Returns the count of distinct regions present in the data.
+        """
+        unique_regions = set()
+
+        # Check emitter (supplier) regions
+        for col in ['emitterstateuf', 'emitter_estado', 'emitter_state']:
+            if col in self.df.columns:
+                regions = self.df[col].dropna().unique()
+                unique_regions.update(regions)
+                break
+
+        # Check receiver (customer) regions
+        for col in ['receiverstateuf', 'receiver_estado', 'receiver_state']:
+            if col in self.df.columns:
+                regions = self.df[col].dropna().unique()
+                unique_regions.update(regions)
+                break
+
+        total = len(unique_regions)
+        logger.info(f"  ✓ Calculated {total} unique regions")
+        return total
+
+    def _calculate_growth_percentage(self, current_count: int, previous_count: int) -> float | None:
+        """
+        Calculate period-over-period growth percentage.
+
+        Args:
+            current_count: Count in current period
+            previous_count: Count in previous period
+
+        Returns:
+            Growth percentage (e.g., 15.5 for 15.5% growth) or None if no previous data
+        """
+        if previous_count == 0 or previous_count is None:
+            return None
+
+        growth = ((current_count - previous_count) / previous_count) * 100
+        return round(growth, 2)
+
+    def _calculate_time_series_growth(self, dimension_col: str, entity_name_col: str) -> float | None:
+        """
+        Calculate growth rate by comparing current month vs previous month unique entities.
+
+        Args:
+            dimension_col: Column name for time dimension (e.g., 'ano_mes')
+            entity_name_col: Column name for entity to count (e.g., 'emitter_nome', 'receiver_nome')
+
+        Returns:
+            Growth percentage or None if insufficient data
+        """
+        if self.df.empty or dimension_col not in self.df.columns or entity_name_col not in self.df.columns:
+            return None
+
+        try:
+            # Group by month and count unique entities (cumulative)
+            df_time = self.df.dropna(subset=[dimension_col, entity_name_col])
+            time_series = df_time.groupby(dimension_col)[entity_name_col].nunique().sort_index()
+
+            if len(time_series) < 2:
+                return None  # Need at least 2 periods for comparison
+
+            # Get last two periods
+            previous_count = time_series.iloc[-2]
+            current_count = time_series.iloc[-1]
+
+            return self._calculate_growth_percentage(int(current_count), int(previous_count))
+
+        except Exception as e:
+            logger.warning(f"Failed to calculate time series growth: {e}")
+            return None
 
     def _write_gold_charts(self) -> None:
         """
@@ -393,6 +481,9 @@ class MetricService:
             return
 
         try:
+            # Collect ALL time series data first, then write in a single batch
+            all_time_series_data = []
+
             # Fornecedores no tempo
             if 'emitter_nome' in self.df.columns:
                 df_time = self.df.copy()
@@ -414,10 +505,83 @@ class MetricService:
                     }
                     for _, row in time_series.iterrows()
                 ]
+                all_time_series_data.extend(chart_data)
+                logger.info(f"  ✓ Computed {len(chart_data)} fornecedores time series points")
 
-                if chart_data:
-                    self.repository.write_gold_time_series(self.client_id, chart_data)
-                    logger.info(f"  ✓ Written {len(chart_data)} fornecedores time series points")
+            # Clientes no tempo (customers over time)
+            if 'receiver_nome' in self.df.columns:
+                df_time = self.df.copy()
+                dt_no_tz = df_time['data_transacao'].dt.tz_localize(None)
+                df_time['ano_mes'] = dt_no_tz.dt.to_period('M').astype(str)
+                df_time['period_date'] = dt_no_tz.dt.to_period('M').dt.to_timestamp()
+
+                time_series = df_time.dropna(subset=['ano_mes']).groupby(['ano_mes', 'period_date'])['receiver_nome'].nunique().reset_index()
+                time_series.rename(columns={'receiver_nome': 'total'}, inplace=True)
+
+                chart_data = [
+                    {
+                        'chart_type': 'clientes_no_tempo',
+                        'dimension': 'customers',
+                        'period': row['ano_mes'],
+                        'period_date': pd.Timestamp(row['period_date']).date(),
+                        'total': int(row['total'])
+                    }
+                    for _, row in time_series.iterrows()
+                ]
+                all_time_series_data.extend(chart_data)
+                logger.info(f"  ✓ Computed {len(chart_data)} clientes time series points")
+
+            # Produtos no tempo (products over time)
+            if 'raw_product_description' in self.df.columns:
+                df_time = self.df.copy()
+                dt_no_tz = df_time['data_transacao'].dt.tz_localize(None)
+                df_time['ano_mes'] = dt_no_tz.dt.to_period('M').astype(str)
+                df_time['period_date'] = dt_no_tz.dt.to_period('M').dt.to_timestamp()
+
+                time_series = df_time.dropna(subset=['ano_mes']).groupby(['ano_mes', 'period_date'])['raw_product_description'].nunique().reset_index()
+                time_series.rename(columns={'raw_product_description': 'total'}, inplace=True)
+
+                chart_data = [
+                    {
+                        'chart_type': 'produtos_no_tempo',
+                        'dimension': 'products',
+                        'period': row['ano_mes'],
+                        'period_date': pd.Timestamp(row['period_date']).date(),
+                        'total': int(row['total'])
+                    }
+                    for _, row in time_series.iterrows()
+                ]
+                all_time_series_data.extend(chart_data)
+                logger.info(f"  ✓ Computed {len(chart_data)} produtos time series points")
+
+            # Pedidos no tempo (orders over time - count of orders, not unique entities)
+            if 'order_id' in self.df.columns:
+                df_time = self.df.copy()
+                dt_no_tz = df_time['data_transacao'].dt.tz_localize(None)
+                df_time['ano_mes'] = dt_no_tz.dt.to_period('M').astype(str)
+                df_time['period_date'] = dt_no_tz.dt.to_period('M').dt.to_timestamp()
+
+                # For orders, count unique order_ids per month
+                time_series = df_time.dropna(subset=['ano_mes']).groupby(['ano_mes', 'period_date'])['order_id'].nunique().reset_index()
+                time_series.rename(columns={'order_id': 'total'}, inplace=True)
+
+                chart_data = [
+                    {
+                        'chart_type': 'pedidos_no_tempo',
+                        'dimension': 'orders',
+                        'period': row['ano_mes'],
+                        'period_date': pd.Timestamp(row['period_date']).date(),
+                        'total': int(row['total'])
+                    }
+                    for _, row in time_series.iterrows()
+                ]
+                all_time_series_data.extend(chart_data)
+                logger.info(f"  ✓ Computed {len(chart_data)} pedidos time series points")
+
+            # Write all time series data in a single batch
+            if all_time_series_data:
+                self.repository.write_gold_time_series(self.client_id, all_time_series_data)
+                logger.info(f"  ✓ Written total of {len(all_time_series_data)} time series points to database")
 
         except Exception as e:
             logger.error(f"Failed to write time series charts: {e}", exc_info=True)
@@ -592,14 +756,8 @@ class MetricService:
             if 'raw_product_description' in self.df.columns:
                 scorecards_data["total_produtos"] = int(self.df['raw_product_description'].nunique())
 
-            # Try multiple column names for city (emittercity or emitter_cidade)
-            city_col = None
-            for col in ['emittercity', 'emitter_cidade']:
-                if col in self.df.columns:
-                    city_col = col
-                    break
-            if city_col:
-                scorecards_data["total_regioes"] = int(self.df[city_col].nunique())
+            # Calculate total unique regions (use state/UF for broader coverage)
+            scorecards_data["total_regioes"] = self._calculate_total_regions()
 
             if 'receiver_nome' in self.df.columns:
                 scorecards_data["total_clientes"] = int(self.df['receiver_nome'].nunique())
@@ -672,20 +830,26 @@ class MetricService:
         # CORREÇÃO: Renomeia a coluna para corresponder ao schema ChartDataPoint
         df_cohort.rename(columns={'cluster_tier': 'name'}, inplace=True)
 
-        # NOVO: Calcula crescimento percentual da base de fornecedores (mês atual vs mês anterior)
+        # Calculate growth percentage using helper method
         crescimento_percentual = None
-        if not self.df.empty:
-            # Agrupar por fornecedor e mês de primeira venda
-            df_novos_fornecedores = self.df.sort_values('data_transacao').drop_duplicates('emitter_nome')[['emitter_nome', 'ano_mes']]
-            fornecedores_por_mes = df_novos_fornecedores.groupby('ano_mes').size()
+        if not self.df.empty and 'ano_mes' in self.df.columns and 'emitter_nome' in self.df.columns:
+            crescimento_percentual = self._calculate_time_series_growth('ano_mes', 'emitter_nome')
+            if crescimento_percentual is not None:
+                logger.info(f"  ✓ Fornecedores growth: {crescimento_percentual}%")
 
-            if len(fornecedores_por_mes) >= 2:
-                # Pega os dois últimos meses
-                mes_atual = fornecedores_por_mes.iloc[-1]
-                mes_anterior = fornecedores_por_mes.iloc[-2]
+            # Fallback to original logic if helper returns None
+            if crescimento_percentual is None:
+                # Agrupar por fornecedor e mês de primeira venda
+                df_novos_fornecedores = self.df.sort_values('data_transacao').drop_duplicates('emitter_nome')[['emitter_nome', 'ano_mes']]
+                fornecedores_por_mes = df_novos_fornecedores.groupby('ano_mes').size()
 
-                if mes_anterior > 0:
-                    crescimento_percentual = float(((mes_atual - mes_anterior) / mes_anterior) * 100)
+                if len(fornecedores_por_mes) >= 2:
+                    # Pega os dois últimos meses
+                    mes_atual = fornecedores_por_mes.iloc[-1]
+                    mes_anterior = fornecedores_por_mes.iloc[-2]
+
+                    if mes_anterior > 0:
+                        crescimento_percentual = float(((mes_atual - mes_anterior) / mes_anterior) * 100)
 
         # Convert dataframes to Pydantic objects
         chart_fornecedores_no_tempo = [
@@ -781,20 +945,26 @@ class MetricService:
             df_cohort = pd.DataFrame()
             logger.warning(f"⚠️  Missing cluster_tier column in df_clientes_agg; cohort chart will be empty")
 
-        # NOVO: Calcula crescimento percentual da base de clientes (mês atual vs mês anterior)
+        # Calculate growth percentage using helper method
         crescimento_percentual = None
-        if not self.df.empty:
-            # Agrupar por cliente e mês de primeira venda
-            df_novos_clientes = self.df.sort_values('data_transacao').drop_duplicates('receiver_nome')[['receiver_nome', 'ano_mes']]
-            clientes_por_mes = df_novos_clientes.groupby('ano_mes').size()
+        if not self.df.empty and 'ano_mes' in self.df.columns and 'receiver_nome' in self.df.columns:
+            crescimento_percentual = self._calculate_time_series_growth('ano_mes', 'receiver_nome')
+            if crescimento_percentual is not None:
+                logger.info(f"  ✓ Clientes growth: {crescimento_percentual}%")
 
-            if len(clientes_por_mes) >= 2:
-                # Pega os dois últimos meses
-                mes_atual = clientes_por_mes.iloc[-1]
-                mes_anterior = clientes_por_mes.iloc[-2]
+            # Fallback to original logic if helper returns None
+            if crescimento_percentual is None:
+                # Agrupar por cliente e mês de primeira venda
+                df_novos_clientes = self.df.sort_values('data_transacao').drop_duplicates('receiver_nome')[['receiver_nome', 'ano_mes']]
+                clientes_por_mes = df_novos_clientes.groupby('ano_mes').size()
 
-                if mes_anterior > 0:
-                    crescimento_percentual = float(((mes_atual - mes_anterior) / mes_anterior) * 100)
+                if len(clientes_por_mes) >= 2:
+                    # Pega os dois últimos meses
+                    mes_atual = clientes_por_mes.iloc[-1]
+                    mes_anterior = clientes_por_mes.iloc[-2]
+
+                    if mes_anterior > 0:
+                        crescimento_percentual = float(((mes_atual - mes_anterior) / mes_anterior) * 100)
 
         # Convert dataframes to Pydantic objects
         chart_clientes_por_regiao = [
@@ -849,19 +1019,34 @@ class MetricService:
         # 1. Usa o Helper pré-calculado
         df_produtos_agg = self.df_produtos_agg
 
+        # Convert to specific product ranking schemas (simpler than RankingItem)
+        from analytics_api.schemas.metrics import ProdutoRankingReceita, ProdutoRankingVolume, ProdutoRankingTicket
+
         ranking_por_receita = [
-            RankingItem(**record)
-            for record in df_produtos_agg.sort_values('receita_total', ascending=False).head(10)[['nome', 'receita_total', 'valor_unitario_medio']].to_dict('records')
+            ProdutoRankingReceita(
+                nome=record['nome'],
+                receita_total=record['receita_total'],
+                valor_unitario_medio=record['valor_unitario_medio']
+            )
+            for record in df_produtos_agg.sort_values('receita_total', ascending=False).head(10).to_dict('records')
         ]
 
         ranking_por_volume = [
-            RankingItem(**record)
-            for record in df_produtos_agg.sort_values('quantidade_total', ascending=False).head(10)[['nome', 'quantidade_total', 'valor_unitario_medio']].to_dict('records')
+            ProdutoRankingVolume(
+                nome=record['nome'],
+                quantidade_total=record['quantidade_total'],
+                valor_unitario_medio=record['valor_unitario_medio']
+            )
+            for record in df_produtos_agg.sort_values('quantidade_total', ascending=False).head(10).to_dict('records')
         ]
 
         ranking_por_ticket_medio = [
-            RankingItem(**record)
-            for record in df_produtos_agg.sort_values('ticket_medio', ascending=False).head(10)[['nome', 'ticket_medio', 'valor_unitario_medio']].to_dict('records')
+            ProdutoRankingTicket(
+                nome=record['nome'],
+                ticket_medio=record['ticket_medio'],
+                valor_unitario_medio=record['valor_unitario_medio']
+            )
+            for record in df_produtos_agg.sort_values('ticket_medio', ascending=False).head(10).to_dict('records')
         ]
 
         return ProdutosOverviewResponse(

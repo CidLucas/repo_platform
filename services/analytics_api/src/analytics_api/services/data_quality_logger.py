@@ -18,6 +18,65 @@ class DataQualityLogger:
     """Logs data quality metrics for Gold table writes."""
 
     @staticmethod
+    def log_dataframe_describe(df: pd.DataFrame, stage: str, table_name: str = "") -> None:
+        """
+        Log detailed describe() statistics for a DataFrame at a specific processing stage.
+
+        Args:
+            df: DataFrame to analyze
+            stage: Processing stage name (e.g., "Silver Input", "After Aggregation", "Before Write")
+            table_name: Optional table name for context
+        """
+        if df.empty:
+            logger.info(f"📊 [{stage}] {table_name} - Empty DataFrame")
+            return
+
+        prefix = f"[{stage}]" + (f" {table_name}" if table_name else "")
+
+        logger.info(f"📊 {prefix} - Shape: {df.shape} (rows × columns)")
+
+        # Describe numeric columns
+        numeric_cols = df.select_dtypes(include=['int64', 'float64', 'int32', 'float32']).columns
+        if len(numeric_cols) > 0:
+            desc = df[numeric_cols].describe()
+            logger.info(f"   Numeric Statistics:")
+            logger.info(f"   {'Column':<30} {'Count':<10} {'Mean':<12} {'Min':<12} {'Max':<12} {'Zeros':<8}")
+            logger.info(f"   {'-'*85}")
+
+            for col in numeric_cols[:10]:  # Limit to first 10 numeric columns
+                stats = desc[col]
+                zero_count = (df[col] == 0).sum()
+                zero_pct = (zero_count / len(df)) * 100 if len(df) > 0 else 0
+
+                logger.info(
+                    f"   {col:<30} "
+                    f"{int(stats['count']):<10} "
+                    f"{stats['mean']:<12.2f} "
+                    f"{stats['min']:<12.2f} "
+                    f"{stats['max']:<12.2f} "
+                    f"{zero_count} ({zero_pct:.0f}%)"
+                )
+
+        # Date columns
+        date_cols = df.select_dtypes(include=['datetime64']).columns
+        if len(date_cols) > 0:
+            logger.info(f"   Date Columns:")
+            for col in date_cols:
+                min_date = df[col].min()
+                max_date = df[col].max()
+                null_count = df[col].isnull().sum()
+                logger.info(f"   {col:<30} Range: {min_date} to {max_date} (nulls: {null_count})")
+
+        # Object/String columns
+        object_cols = df.select_dtypes(include=['object', 'string']).columns
+        if len(object_cols) > 0:
+            logger.info(f"   Categorical Columns:")
+            for col in object_cols[:5]:  # Limit to first 5
+                unique_count = df[col].nunique()
+                null_count = df[col].isnull().sum()
+                logger.info(f"   {col:<30} Unique: {unique_count}, Nulls: {null_count}")
+
+    @staticmethod
     def log_dataframe_quality(df: pd.DataFrame, table_name: str, client_id: str) -> Dict[str, Any]:
         """
         Analisa qualidade dos dados de um DataFrame antes de persistir.

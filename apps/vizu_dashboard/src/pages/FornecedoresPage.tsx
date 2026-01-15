@@ -1,4 +1,5 @@
-import { Box, Flex, Text, Heading, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon } from '@chakra-ui/react';
+import { Box, Flex, Text, Heading, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon, IconButton } from '@chakra-ui/react';
+import { RepeatIcon } from '@chakra-ui/icons';
 import { MainLayout } from '../components/layouts/MainLayout';
 import { DashboardCard } from '../components/DashboardCard';
 import { ListCard } from '../components/ListCard';
@@ -9,29 +10,46 @@ import type { FornecedoresOverviewResponse, FornecedorDetailResponse } from '../
 import { useUserProfile } from '../hooks/useUserProfile';
 import { getRegionCoordinates } from '../utils/regionCoordinates';
 
+type PeriodType = 'week' | 'month' | 'quarter' | 'year';
+type MetricType = 'receita' | 'qtd_media' | 'ticket_medio' | 'frequencia';
+
 function FornecedoresPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedItem, setSelectedItem] = useState<FornecedorDetailResponse | null>(null); // This will hold the detailed data for the modal
   const [overviewData, setOverviewData] = useState<FornecedoresOverviewResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>('month');
+  const [selectedMetric, setSelectedMetric] = useState<MetricType>('receita');
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const profile = useUserProfile();
   const userName = profile?.full_name.split(' ')[0] || 'Usuário';
 
+  const fetchFornecedoresData = async () => {
+    try {
+      setLoading(true);
+      const data = await getFornecedores();
+      setOverviewData(data);
+      setLastUpdate(new Date());
+      setError(null);
+    } catch (err: any) {
+      setError(err.message || 'Erro ao carregar dados dos fornecedores.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchFornecedoresData = async () => {
-      try {
-        setLoading(true);
-        const data = await getFornecedores();
-        setOverviewData(data);
-      } catch (err: any) {
-        setError(err.message || 'Erro ao carregar dados dos fornecedores.');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchFornecedoresData();
-  }, []);
+  }, [selectedPeriod]);
+
+  const handlePeriodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedPeriod(e.target.value as PeriodType);
+  };
+
+  const handleMetricChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedMetric(e.target.value as MetricType);
+  };
 
   const handleMiniCardClick = async (clickedItem: { id: string }) => {
     // When a mini-card is clicked, fetch the detailed data for that specific supplier
@@ -98,13 +116,40 @@ function FornecedoresPage() {
     ? mapMarkers[0].position
     : [-23.55052, -46.633308] as [number, number];
 
-  // Map the data for the ListCard
-  const listCardItems = (overviewData.ranking_por_receita || []).map(item => ({
-    id: item.nome, // Use 'nome' as a unique ID for the card
-    title: item.nome,
-    description: `Receita: R$ ${(item.receita_total ?? 0).toLocaleString('pt-BR')}`,
-    status: item.cluster_tier,
-  }));
+  // Map the data for the ListCard - dynamic based on selected metric
+  const getCurrentRanking = () => {
+    switch (selectedMetric) {
+      case 'receita':
+        return overviewData.ranking_por_receita || [];
+      case 'qtd_media':
+        return overviewData.ranking_por_qtd_media || [];
+      case 'ticket_medio':
+        return overviewData.ranking_por_ticket_medio || [];
+      case 'frequencia':
+        return overviewData.ranking_por_frequencia || [];
+      default:
+        return overviewData.ranking_por_receita || [];
+    }
+  };
+
+  const listCardItems = getCurrentRanking().map((item: any) => {
+    let description = '';
+    if (selectedMetric === 'receita') {
+      description = `Receita: R$ ${(item.receita_total ?? 0).toLocaleString('pt-BR')}`;
+    } else if (selectedMetric === 'qtd_media') {
+      description = `Qtd Média: ${(item.qtd_media_por_pedido ?? item.qtd_media ?? 0).toLocaleString('pt-BR')}`;
+    } else if (selectedMetric === 'ticket_medio') {
+      description = `Ticket Médio: R$ ${(item.ticket_medio ?? item.avg_order_value ?? 0).toLocaleString('pt-BR')}`;
+    } else if (selectedMetric === 'frequencia') {
+      description = `Frequência: ${(item.frequencia_pedidos_mes ?? item.frequencia ?? 0).toFixed(1)} pedidos/mês`;
+    }
+    return {
+      id: item.nome,
+      title: item.nome,
+      description,
+      status: item.cluster_tier,
+    };
+  });
 
   return (
     <MainLayout>
@@ -123,28 +168,53 @@ function FornecedoresPage() {
               ? `aumentou sua base de fornecedores em ${overviewData.scorecard_crescimento_percentual >= 0 ? '+' : ''}${overviewData.scorecard_crescimento_percentual.toFixed(2)}%`
               : 'está expandindo sua rede de fornecedores'}
           </Text>
+          <HStack spacing={2}>
+            <Text fontSize="sm" color="gray.600">
+              Atualizado: {lastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+            <IconButton
+              icon={<RepeatIcon />}
+              aria-label="Atualizar dados"
+              size="sm"
+              onClick={fetchFornecedoresData}
+              isLoading={loading}
+            />
+          </HStack>
         </Flex>
-        
+
         <Flex justify="space-between" align="flex-end" mb="36px">
           <Box>
             <Text textStyle="homeCardStatLabel">TOTAL DE FORNECEDORES</Text>
             <Text as="h2" textStyle="pageBigNumberSmall" mt="4px">{overviewData.scorecard_total_fornecedores}</Text>
           </Box>
           <HStack spacing="4" position="relative">
-            <Select placeholder="Período" width="150px" bg="white" color="gray.800">
-              <option value="semana">Última semana</option>
-              <option value="mes">Último mês</option>
-              <option value="tri">Último tri</option>
-              <option value="total">Total</option>
+            <Select
+              value={selectedPeriod}
+              onChange={handlePeriodChange}
+              width="150px"
+              bg="white"
+              color="gray.800"
+            >
+              <option value="week">Última semana</option>
+              <option value="month">Último mês</option>
+              <option value="quarter">Último trimestre</option>
+              <option value="year">Último ano</option>
             </Select>
-            <Select placeholder="Métricas" width="150px" bg="white" color="gray.800">
+            <Select
+              value={selectedMetric}
+              onChange={handleMetricChange}
+              width="150px"
+              bg="white"
+              color="gray.800"
+            >
               <option value="receita">Receita</option>
-              <option value="quantidade">Quantidade</option>
+              <option value="qtd_media">Qtd Média</option>
               <option value="ticket_medio">Ticket Médio</option>
+              <option value="frequencia">Frequência</option>
             </Select>
           </HStack>
         </Flex>
-        
+
         <Flex wrap="wrap" justify="center" gap="16px">
           <DashboardCard
             title="Performance de Vendas"
@@ -152,11 +222,36 @@ function FornecedoresPage() {
             bgColor="#B2E7FF"
             graphData={{
               values: overviewData.chart_fornecedores_no_tempo
-                ? overviewData.chart_fornecedores_no_tempo.map((d: any) => d.total_cumulativo || 0)
+                ? overviewData.chart_fornecedores_no_tempo.map((d: any) => ({
+                  name: d.name,
+                  value: d.total_cumulativo || 0
+                }))
                 : []
             }}
             scorecardValue={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRevenue)}
             scorecardLabel="Total Vendido"
+            kpiItems={
+              overviewData
+                ? [
+                  {
+                    label: `Total de Fornecedores: ${overviewData.scorecard_total_fornecedores}`,
+                    content: <Text>Número total de fornecedores ativos na base</Text>
+                  },
+                  {
+                    label: `Receita Total: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRevenue)}`,
+                    content: <Text>Valor total de receita gerada através de todos os fornecedores</Text>
+                  },
+                  {
+                    label: `Crescimento: ${overviewData.scorecard_crescimento_percentual?.toFixed(1) || 0}%`,
+                    content: <Text>Taxa de crescimento da base de fornecedores no período</Text>
+                  },
+                  {
+                    label: 'Evolução no Tempo',
+                    content: <Text>Acompanhe o crescimento do número de fornecedores ao longo do tempo. O gráfico mostra o total cumulativo de fornecedores ativos.</Text>
+                  }
+                ]
+                : undefined
+            }
             modalLeftBgColor="#B2E7FF"
             modalRightBgColor="#92DAFF"
             modalContent={<Text>Detalhes do gráfico de vendas</Text>}
@@ -174,7 +269,12 @@ function FornecedoresPage() {
             modalContent={<Text>Detalhes dos novos fornecedores</Text>}
           />
           <ListCard
-            title="Últimos Fornecedores"
+            title={(() => {
+              if (selectedMetric === 'receita') return 'Fornecedores com Maior Receita';
+              if (selectedMetric === 'qtd_media') return 'Fornecedores com Maior Qtd Média';
+              if (selectedMetric === 'ticket_medio') return 'Fornecedores com Maior Ticket Médio';
+              return 'Fornecedores com Maior Frequência';
+            })()}
             items={listCardItems}
             onMiniCardClick={handleMiniCardClick}
             viewAllLink="/dashboard/fornecedores/lista"

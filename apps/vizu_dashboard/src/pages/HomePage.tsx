@@ -115,12 +115,12 @@ function HomePage() {
           <Flex wrap="wrap" justify="center" gap="16px">
             <Link to="/dashboard/fornecedores">
               <StatCard
-                title="PEDIDOS"
-                percentage={ordersGrowth}
+                title="FORNECEDORES"
+                percentage={ordersGrowth.toLocaleString()}
                 total={ordersTotal.toLocaleString()}
                 totalLabel="TOTAL"
                 frequency={`R$ ${ordersRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-                frequencyLabel="RECEITA"
+                frequencyLabel="FREQUÊNCIA"
                 color="#F9BBCB"
               />
             </Link>

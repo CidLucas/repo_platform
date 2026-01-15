@@ -467,21 +467,34 @@ class PostgresRepository:
                 {"client_id": client_id}
             )
 
-            # Prepare bulk data
+            # Prepare bulk data - include ALL ranking fields
             values = [
                 (
                     client_id,
                     customer.get("nome"),
                     customer.get("receiver_cpf_cnpj"),
+                    # Old columns (kept for backwards compatibility)
+                    int(customer.get("num_pedidos_unicos", 0)),  # total_orders
+                    self._sanitize_numeric(customer.get("receita_total", 0)),  # lifetime_value
+                    self._sanitize_numeric(customer.get("ticket_medio", 0)),  # avg_order_value
+                    customer.get("primeira_venda"),  # first_order_date
+                    customer.get("ultima_venda"),  # last_order_date
+                    customer.get("cluster_tier"),  # customer_type
+                    "all_time",  # period_type
+                    customer.get("period_start"),
+                    customer.get("period_end"),
+                    # New ranking columns (from 20260109 migration)
+                    self._sanitize_numeric(customer.get("quantidade_total", 0)),
                     int(customer.get("num_pedidos_unicos", 0)),
-                    self._sanitize_numeric(customer.get("receita_total", 0)),
                     self._sanitize_numeric(customer.get("ticket_medio", 0)),
+                    self._sanitize_numeric(customer.get("qtd_media_por_pedido", 0)),
+                    self._sanitize_numeric(customer.get("frequencia_pedidos_mes", 0)),
+                    int(customer.get("recencia_dias", 0)),
+                    self._sanitize_numeric(customer.get("valor_unitario_medio", 0)),
+                    self._sanitize_numeric(customer.get("cluster_score", 0)),
+                    customer.get("cluster_tier"),
                     customer.get("primeira_venda"),
                     customer.get("ultima_venda"),
-                    customer.get("cluster_tier"),
-                    "all_time",
-                    None,
-                    None,
                 )
                 for customer in customers_data
             ]
@@ -496,11 +509,15 @@ class PostgresRepository:
                     client_id, customer_name, customer_cpf_cnpj,
                     total_orders, lifetime_value, avg_order_value,
                     first_order_date, last_order_date, customer_type, period_type,
-                    period_start, period_end, calculated_at, created_at, updated_at
+                    period_start, period_end,
+                    quantidade_total, num_pedidos_unicos, ticket_medio, qtd_media_por_pedido,
+                    frequencia_pedidos_mes, recencia_dias, valor_unitario_medio,
+                    cluster_score, cluster_tier, primeira_venda, ultima_venda,
+                    calculated_at, created_at, updated_at
                 ) VALUES %s
                 """,
                 values,
-                template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
+                template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
                 page_size=1000
             )
 
@@ -522,19 +539,32 @@ class PostgresRepository:
                 {"client_id": client_id}
             )
 
-            # Prepare bulk data
+            # Prepare bulk data - include ALL ranking fields
             values = [
                 (
                     client_id,
                     supplier.get("nome"),
                     supplier.get("emitter_cnpj"),
+                    # Old columns (kept for backwards compatibility)
+                    int(supplier.get("num_pedidos_unicos", 0)),  # total_orders
+                    self._sanitize_numeric(supplier.get("receita_total", 0)),  # total_revenue
+                    self._sanitize_numeric(supplier.get("ticket_medio", 0)),  # avg_order_value
+                    0,  # unique_products (not calculated yet)
+                    "all_time",  # period_type
+                    supplier.get("period_start"),
+                    supplier.get("period_end"),
+                    # New ranking columns (from 20260109 migration)
+                    self._sanitize_numeric(supplier.get("quantidade_total", 0)),
                     int(supplier.get("num_pedidos_unicos", 0)),
-                    self._sanitize_numeric(supplier.get("receita_total", 0)),
                     self._sanitize_numeric(supplier.get("ticket_medio", 0)),
-                    int(supplier.get("quantidade_total", 0)),
-                    "all_time",
-                    None,
-                    None,
+                    self._sanitize_numeric(supplier.get("qtd_media_por_pedido", 0)),
+                    self._sanitize_numeric(supplier.get("frequencia_pedidos_mes", 0)),
+                    int(supplier.get("recencia_dias", 0)),
+                    self._sanitize_numeric(supplier.get("valor_unitario_medio", 0)),
+                    self._sanitize_numeric(supplier.get("cluster_score", 0)),
+                    supplier.get("cluster_tier"),
+                    supplier.get("primeira_venda"),
+                    supplier.get("ultima_venda"),
                 )
                 for supplier in suppliers_data
             ]
@@ -548,11 +578,15 @@ class PostgresRepository:
                 INSERT INTO analytics_gold_suppliers (
                     client_id, supplier_name, supplier_cnpj,
                     total_orders, total_revenue, avg_order_value, unique_products, period_type,
-                    period_start, period_end, calculated_at, created_at, updated_at
+                    period_start, period_end,
+                    quantidade_total, num_pedidos_unicos, ticket_medio, qtd_media_por_pedido,
+                    frequencia_pedidos_mes, recencia_dias, valor_unitario_medio,
+                    cluster_score, cluster_tier, primeira_venda, ultima_venda,
+                    calculated_at, created_at, updated_at
                 ) VALUES %s
                 """,
                 values,
-                template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
+                template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
                 page_size=1000
             )
 
@@ -574,18 +608,30 @@ class PostgresRepository:
                 {"client_id": client_id}
             )
 
-            # Prepare bulk data
+            # Prepare bulk data - include ALL ranking fields
             values = [
                 (
                     client_id,
                     product.get("nome"),
+                    # Old columns (kept for backwards compatibility)
+                    self._sanitize_numeric(product.get("quantidade_total", 0)),  # total_quantity_sold
+                    self._sanitize_numeric(product.get("receita_total", 0)),  # total_revenue
+                    self._sanitize_numeric(product.get("valor_unitario_medio", 0)),  # avg_price
+                    int(product.get("num_pedidos_unicos", 0)),  # order_count
+                    "all_time",  # period_type
+                    product.get("period_start"),
+                    product.get("period_end"),
+                    # New ranking columns (from 20260109 migration)
                     self._sanitize_numeric(product.get("quantidade_total", 0)),
-                    self._sanitize_numeric(product.get("receita_total", 0)),
-                    self._sanitize_numeric(product.get("valor_unitario_medio", 0)),
                     int(product.get("num_pedidos_unicos", 0)),
-                    "all_time",
-                    None,
-                    None,
+                    self._sanitize_numeric(product.get("ticket_medio", 0)),
+                    self._sanitize_numeric(product.get("qtd_media_por_pedido", 0)),
+                    self._sanitize_numeric(product.get("frequencia_pedidos_mes", 0)),
+                    int(product.get("recencia_dias", 0)),
+                    self._sanitize_numeric(product.get("cluster_score", 0)),
+                    product.get("cluster_tier"),
+                    product.get("primeira_venda"),
+                    product.get("ultima_venda"),
                 )
                 for product in products_data
             ]
@@ -599,11 +645,15 @@ class PostgresRepository:
                 INSERT INTO analytics_gold_products (
                     client_id, product_name,
                     total_quantity_sold, total_revenue, avg_price, order_count, period_type,
-                    period_start, period_end, calculated_at, created_at, updated_at
+                    period_start, period_end,
+                    quantidade_total, num_pedidos_unicos, ticket_medio, qtd_media_por_pedido,
+                    frequencia_pedidos_mes, recencia_dias,
+                    cluster_score, cluster_tier, primeira_venda, ultima_venda,
+                    calculated_at, created_at, updated_at
                 ) VALUES %s
                 """,
                 values,
-                template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
+                template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW(), NOW())",
                 page_size=1000
             )
 
@@ -642,8 +692,8 @@ class PostgresRepository:
                 "avg_order_value": self._sanitize_numeric(orders_metrics.get("avg_order_value", 0)),
                 "by_status": json.dumps({}),
                 "period_type": "all_time",
-                "period_start": None,  # NULL for all_time aggregation
-                "period_end": None     # NULL for all_time aggregation
+                "period_start": orders_metrics.get("period_start"),
+                "period_end": orders_metrics.get("period_end")
             })
             self.db_session.commit()
             logger.info(f"✓ Wrote order metrics to analytics_gold_orders: total_orders={orders_metrics.get('total_orders', 0)}, revenue={orders_metrics.get('total_revenue', 0):.2f}")
@@ -882,4 +932,37 @@ class PostgresRepository:
         except Exception as e:
             logger.error(f"❌ Failed to read last orders: {e}", exc_info=True)
             return []
+
+    def calculate_growth_from_time_series(self, client_id: str, chart_type: str) -> float | None:
+        """
+        Calculate period-over-period growth percentage from time series data.
+        Returns growth % comparing last two periods (e.g., current month vs previous month).
+        """
+        try:
+            result = self.db_session.execute(
+                text("""
+                    SELECT period, total
+                    FROM analytics_gold_time_series
+                    WHERE client_id = :client_id AND chart_type = :chart_type
+                    ORDER BY period_date DESC
+                    LIMIT 2
+                """),
+                {"client_id": client_id, "chart_type": chart_type}
+            ).fetchall()
+
+            if len(result) < 2:
+                return None  # Need at least 2 periods for comparison
+
+            current_total = result[0].total
+            previous_total = result[1].total
+
+            if previous_total == 0:
+                return None
+
+            growth = ((current_total - previous_total) / previous_total) * 100
+            return round(growth, 2)
+
+        except Exception as e:
+            logger.error(f"❌ Failed to calculate growth from time series {chart_type}: {e}")
+            return None
 

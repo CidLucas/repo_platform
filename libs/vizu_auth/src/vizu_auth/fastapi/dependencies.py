@@ -1,119 +1,103 @@
 """
-FastAPI dependencies for vizu_auth.
+FastAPI dependencies for vizu_auth - JWT-only authentication.
 """
 import logging
-from collections.abc import Awaitable, Callable
 from uuid import UUID
 
-from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from vizu_auth.core.exceptions import (
-    AuthDisabledError,
     AuthError,
-    ClientNotFoundError,
-    InvalidApiKeyError,
     InvalidTokenError,
-    MissingCredentialsError,
     TokenExpiredError,
 )
-from vizu_auth.core.models import AuthRequest, AuthResult
-from vizu_auth.strategies.api_key_strategy import ApiKeyStrategy
-from vizu_auth.strategies.authenticator import Authenticator
-from vizu_auth.strategies.jwt_strategy import JWTStrategy
+from vizu_auth.core.jwt_decoder import decode_jwt
+from vizu_auth.core.models import AuthMethod, AuthResult
 
 logger = logging.getLogger(__name__)
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
-# Type aliases
-ApiKeyLookupFn = Callable[[str], Awaitable[UUID | None]]
-ExternalUserLookupFn = Callable[[str], Awaitable[UUID | None]]
 
+async def get_auth_result(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> AuthResult:
+    """
+    JWT-only authentication dependency.
 
-class AuthDependencyFactory:
-    def __init__(
-        self,
-        api_key_lookup_fn: ApiKeyLookupFn,
-        external_user_lookup_fn: ExternalUserLookupFn | None = None,
-        *,
-        allow_auth_disabled: bool = False,
-    ):
-        self._api_key_lookup_fn = api_key_lookup_fn
-        self._external_user_lookup_fn = external_user_lookup_fn
-        self._allow_auth_disabled = allow_auth_disabled
+    Validates the Bearer token and returns an AuthResult with:
+    - client_id: UUID from JWT (Supabase user ID)
+    - auth_method: JWT
+    - external_user_id: Supabase user ID (sub claim)
+    - email: User email from JWT
 
-        self._jwt_strategy = JWTStrategy(cliente_lookup_fn=external_user_lookup_fn)
-        self._api_key_strategy = ApiKeyStrategy(api_key_lookup_fn=api_key_lookup_fn)
-
-        self._authenticator = Authenticator(
-            strategies=[self._jwt_strategy, self._api_key_strategy],
-            allow_auth_disabled=allow_auth_disabled,
+    Raises HTTPException 401 if token is missing or invalid.
+    """
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Provide Bearer token.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
-    async def get_auth_result(
-        self,
-        request: Request,
-        credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-        x_api_key: str | None = Header(None, alias="X-API-KEY"),
-    ) -> AuthResult:
-        auth_request = AuthRequest(
-            jwt_token=credentials.credentials if credentials else None,
-            api_key=x_api_key,
-        )
+    try:
+        claims = decode_jwt(credentials.credentials)
 
+        # Use Supabase user ID (sub) as client_id
         try:
-            result = await self._authenticator.authenticate(auth_request)
-            if not result:
-                raise MissingCredentialsError()
-            return result
+            client_id = UUID(claims.sub)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid UUID in JWT sub claim: {claims.sub}, error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid user ID format in token.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-        except MissingCredentialsError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required. Provide Bearer token or X-API-KEY.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        except TokenExpiredError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has expired. Please refresh your authentication.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        except (InvalidTokenError, InvalidApiKeyError) as e:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=str(e),
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        except ClientNotFoundError as e:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
-        except AuthDisabledError:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Authentication service is disabled.")
-        except AuthError as e:
-            logger.error(f"Unexpected auth error: {e}")
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed.")
+        logger.debug(f"JWT auth successful for user: {claims.sub}")
 
-    async def get_optional_auth_result(
-        self,
-        request: Request,
-        credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-        x_api_key: str | None = Header(None, alias="X-API-KEY"),
-    ) -> AuthResult | None:
-        auth_request = AuthRequest(
-            jwt_token=credentials.credentials if credentials else None,
-            api_key=x_api_key,
+        return AuthResult(
+            client_id=client_id,
+            auth_method=AuthMethod.JWT,
+            external_user_id=claims.sub,
+            email=claims.email,
+            raw_claims=claims.model_dump(exclude_none=True),
         )
-        try:
-            return await self._authenticator.authenticate(auth_request, require_auth=False)
-        except AuthError:
-            logger.debug("Optional auth failed")
-            return None
+
+    except TokenExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired. Please refresh your authentication.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except AuthError as e:
+        logger.error(f"Auth error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication failed.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
-def create_auth_dependency(api_key_lookup_fn: ApiKeyLookupFn, external_user_lookup_fn: ExternalUserLookupFn | None = None, *, allow_auth_disabled: bool = False) -> AuthDependencyFactory:
-    return AuthDependencyFactory(
-        api_key_lookup_fn=api_key_lookup_fn,
-        external_user_lookup_fn=external_user_lookup_fn,
-        allow_auth_disabled=allow_auth_disabled,
-    )
+async def get_optional_auth_result(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> AuthResult | None:
+    """
+    Optional JWT authentication - returns None if no token provided.
+
+    Useful for endpoints that work with or without authentication.
+    """
+    if not credentials:
+        return None
+
+    try:
+        return await get_auth_result(credentials)
+    except HTTPException:
+        return None

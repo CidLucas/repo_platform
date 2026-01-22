@@ -1,5 +1,5 @@
 """
-Modelos Pydantic para autenticação.
+Modelos Pydantic para autenticação JWT.
 """
 
 from enum import Enum
@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field
 
 class AuthMethod(str, Enum):
     JWT = "jwt"
-    API_KEY = "api_key"
     NONE = "none"
 
 
@@ -39,15 +38,3 @@ class AuthResult(BaseModel):
     @property
     def is_jwt_auth(self) -> bool:
         return self.auth_method == AuthMethod.JWT
-
-    @property
-    def is_api_key_auth(self) -> bool:
-        return self.auth_method == AuthMethod.API_KEY
-
-
-class AuthRequest(BaseModel):
-    jwt_token: str | None = None
-    api_key: str | None = None
-
-    def has_credentials(self) -> bool:
-        return bool(self.jwt_token or self.api_key)

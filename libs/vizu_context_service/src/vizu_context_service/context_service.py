@@ -122,39 +122,6 @@ class ContextService:
             except Exception as e:
                 logger.warning(f"Could not set RLS context (SQLAlchemy): {e}")
 
-    async def get_client_context_by_api_key(
-        self, api_key: str
-    ) -> VizuClientContext | None:
-        """
-        Busca o contexto completo do cliente usando a API Key.
-        1. Busca ID no DB (leve).
-        2. Chama get_client_context_by_id (que tem cache pesado).
-        """
-        try:
-            if self._use_supabase:
-                # Supabase SDK mode
-                cliente_data = await asyncio.to_thread(
-                    self._supabase_crud.get_cliente_vizu_by_api_key, api_key
-                )
-                if not cliente_data:
-                    return None
-                cliente_id = UUID(cliente_data["id"])
-            else:
-                # Legacy SQLAlchemy mode
-                cliente_db = await asyncio.to_thread(
-                    sqlalchemy_crud.get_cliente_vizu_by_api_key, self.db, api_key
-                )
-                if not cliente_db:
-                    return None
-                cliente_id = cliente_db.id
-
-            # 2. Com o ID em mãos, buscamos o contexto completo (com cache)
-            return await self.get_client_context_by_id(cliente_id)
-
-        except Exception as e:
-            logger.error(f"Erro na autenticação por API Key: {e}", exc_info=True)
-            return None
-
     def _build_context_from_dict(self, data: dict) -> VizuClientContext:
         """Build VizuClientContext from Supabase response dict."""
         def _normalize_enabled_tools(raw):
@@ -189,7 +156,6 @@ class ContextService:
 
         return VizuClientContext(
             id=UUID(data["id"]) if isinstance(data["id"], str) else data["id"],
-            api_key=data["api_key"],
             nome_empresa=data["nome_empresa"],
             tipo_cliente=data["tipo_cliente"],
             tier=data["tier"],
@@ -216,7 +182,6 @@ class ContextService:
 
         return VizuClientContext(
             id=cliente_db.id,
-            api_key=cliente_db.api_key,
             nome_empresa=cliente_db.nome_empresa,
             tipo_cliente=cliente_db.tipo_cliente,
             tier=cliente_db.tier,
@@ -324,13 +289,13 @@ class ContextService:
         client_id: UUID,
         provider: str,
         config_type: str,
-        client_id: str,
+        oauth_client_id: str,
         client_secret: str,
         redirect_uri: str,
         scopes: list,
     ):
         """Encrypt and persist integration client credentials."""
-        enc_client_id = await asyncio.to_thread(self._encrypt, client_id)
+        enc_client_id = await asyncio.to_thread(self._encrypt, oauth_client_id)
         enc_client_secret = await asyncio.to_thread(self._encrypt, client_secret)
 
         if self._use_supabase:

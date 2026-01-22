@@ -25,7 +25,7 @@ export const useUploadedFiles = (): UseUploadedFilesReturn => {
   const [refetchFlag, setRefetchFlag] = useState(0);
 
   useEffect(() => {
-    if (!auth?.user?.id) {
+    if (!auth?.clientId) {
       setFiles(null);
       setLoading(false);
       return;
@@ -36,7 +36,7 @@ export const useUploadedFiles = (): UseUploadedFilesReturn => {
       setError(null);
 
       try {
-        const data = await getUploadedFiles(auth.user!.id);
+        const data = await getUploadedFiles(auth.clientId!);
         setFiles(data);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch files'));
@@ -46,14 +46,14 @@ export const useUploadedFiles = (): UseUploadedFilesReturn => {
     };
 
     fetchFiles();
-  }, [auth?.user?.id, refetchFlag]);
+  }, [auth?.clientId, refetchFlag]);
 
   const refetch = () => setRefetchFlag((prev) => prev + 1);
 
   const deleteFile = async (fileId: string) => {
-    if (!auth?.user?.id) throw new Error('User not authenticated');
+    if (!auth?.clientId) throw new Error('User not authenticated');
 
-    await deleteUploadedFile(fileId, auth.user.id);
+    await deleteUploadedFile(fileId, auth.clientId);
     refetch();
   };
 

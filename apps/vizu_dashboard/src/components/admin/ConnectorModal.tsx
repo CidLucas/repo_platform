@@ -55,8 +55,8 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
   const toast = useToast();
   const auth = useContext(AuthContext);
 
-  // Get user ID from auth context - use user's ID or email as fallback
-  const clienteVizuId = auth?.user?.id || auth?.user?.email || 'anonymous-user';
+  // Get real client_id from auth context (from /me endpoint, not Supabase user ID)
+  const clienteVizuId = auth?.clientId || '';
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));

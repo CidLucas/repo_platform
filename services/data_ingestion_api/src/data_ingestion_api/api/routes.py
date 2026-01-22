@@ -11,11 +11,10 @@ from data_ingestion_api.schemas.schemas import (
 )
 from data_ingestion_api.services.credential_service import credential_service
 from fastapi import APIRouter, Depends, HTTPException, status
-from vizu_auth.fastapi.dependencies import create_auth_dependency
+from vizu_auth.fastapi.dependencies import get_auth_result
 
 
 # Autenticação via Supabase JWT (API Key desabilitada)
-auth_factory = create_auth_dependency(api_key_lookup_fn=lambda _key: None)
 logger = logging.getLogger(__name__)
 
 # Cria um router para agrupar endpoints de credenciais.
@@ -38,7 +37,7 @@ CredentialPayload = Union[BigQueryCredentialCreate, SQLCredentialCreate]
 )
 async def create_new_credential(
     payload: dict[str, Any],  # aceitar JSON bruto e construir o schema manualmente
-    auth=Depends(auth_factory.get_auth_result),
+    auth=Depends(get_auth_result),
 ):
     """
     Recebe as credenciais de um serviço externo (BigQuery, SQL) e inicia o fluxo de segurança:

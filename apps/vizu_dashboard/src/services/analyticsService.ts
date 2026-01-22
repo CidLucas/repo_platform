@@ -182,6 +182,9 @@ export interface FornecedoresOverviewResponse {
   scorecard_total_fornecedores: number;
   scorecard_crescimento_percentual?: number | null;
   chart_fornecedores_no_tempo: ChartDataPoint[];
+  chart_receita_no_tempo: ChartDataPoint[]; // Monthly revenue fluctuation
+  chart_ticketmedio_no_tempo: ChartDataPoint[]; // Monthly avg ticket fluctuation
+  chart_quantidade_no_tempo: ChartDataPoint[]; // Monthly volume (kg/tons) fluctuation
   chart_fornecedores_por_regiao: ChartDataPoint[];
   chart_cohort_fornecedores: ChartDataPoint[];
   ranking_por_receita: RankingItem[];
@@ -222,6 +225,9 @@ export interface ClientesOverviewResponse {
   scorecard_frequencia_media_geral: number;
   scorecard_crescimento_percentual?: number | null;
   chart_clientes_no_tempo: ChartDataPoint[];
+  chart_receita_no_tempo: ChartDataPoint[]; // Monthly revenue from customers
+  chart_ticketmedio_no_tempo: ChartDataPoint[]; // Monthly average ticket from customers
+  chart_quantidade_no_tempo: ChartDataPoint[]; // Monthly volume purchased by customers
   chart_clientes_por_regiao: ChartDataPoint[];
   chart_cohort_clientes: ChartDataPoint[];
   ranking_por_receita: RankingItem[];
@@ -233,10 +239,9 @@ export interface ClientesOverviewResponse {
 // Corresponds to the Pydantic 'ClienteDetailResponse'
 export interface ClienteDetailResponse {
   dados_cadastrais: CadastralData;
-  scorecards: RankingItem | null; // Optional because it can be {}
+  scorecards: RankingItem | null;
   rankings_internos: {
     mix_de_produtos_por_receita: RankingItem[];
-    // ultimos_pedidos: any[]; // Removed from rankings_internos in backend
   };
 }
 
@@ -244,6 +249,8 @@ export interface ClienteDetailResponse {
 export interface ProdutosOverviewResponse {
   scorecard_total_itens_unicos: number;
   chart_produtos_no_tempo: ChartDataPoint[];
+  chart_receita_no_tempo: ChartDataPoint[]; // Monthly revenue from products
+  chart_quantidade_no_tempo: ChartDataPoint[]; // Monthly volume of products sold
   ranking_por_receita: ProdutoRankingReceita[];
   ranking_por_volume: ProdutoRankingVolume[];
   ranking_por_ticket_medio: ProdutoRankingTicket[];
@@ -276,6 +283,12 @@ const getAuthToken = async (): Promise<string | null> => {
   return localStorage.getItem('authToken');
 };
 
+// Get client ID from localStorage (stored by AuthContext from /me endpoint)
+// This is the real client_id from clientes_vizu table, NOT the Supabase user.id
+const getClientId = (): string | null => {
+  return localStorage.getItem('vizu_client_id');
+};
+
 const axiosInstance = axios.create({
   baseURL: `${API_BASE_URL}/api`,
   headers: {
@@ -283,14 +296,23 @@ const axiosInstance = axios.create({
   },
 });
 
-// Add a request interceptor to include the auth token
+// Add a request interceptor to include the auth token and client ID
 axiosInstance.interceptors.request.use(
   async (config) => {
+    config.headers = config.headers ?? {};
+
+    // Add Authorization header with JWT token
     const token = await getAuthToken();
     if (token) {
-      config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Add X-Client-ID header with the real client_id from clientes_vizu
+    const clientId = getClientId();
+    if (clientId) {
+      config.headers['X-Client-ID'] = clientId;
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -308,51 +330,45 @@ export const getPedidoDetails = async (order_id: string): Promise<PedidoDetailRe
   return response.data;
 };
 
-// Legacy Pedidos API calls (OLTP/UI-specific - not from analytics API)
-// TODO: Verify if these are still needed or should be removed
-export const getPedidos = async (): Promise<Pedido[]> => {
-  const response = await axiosInstance.get<Pedido[]>('/pedidos');
-  return response.data;
-};
-
-export const getPedido = async (id: string): Promise<Pedido> => {
-  const response = await axiosInstance.get<Pedido>(`/pedidos/${id}`);
-  return response.data;
-};
-
 // Fornecedores API calls (overview)
-export const getFornecedores = async (): Promise<FornecedoresOverviewResponse> => {
-  const response = await axiosInstance.get<FornecedoresOverviewResponse>('/fornecedores');
+export const getFornecedores = async (period: string = 'all'): Promise<FornecedoresOverviewResponse> => {
+  const response = await axiosInstance.get<FornecedoresOverviewResponse>('/fornecedores', {
+    params: { period }
+  });
   return response.data;
 };
 
-// Fornecedor API call (details)
+// Fornecedor API call (details) - Uses GOLD table for fast reads
 export const getFornecedor = async (nome_fornecedor: string): Promise<FornecedorDetailResponse> => {
-  const response = await axiosInstance.get<FornecedorDetailResponse>(`/fornecedor/${nome_fornecedor}`);
+  const response = await axiosInstance.get<FornecedorDetailResponse>(`/fornecedor/${nome_fornecedor}/gold`);
   return response.data;
 };
 
 // Clientes API calls (overview)
-export const getClientes = async (): Promise<ClientesOverviewResponse> => {
-  const response = await axiosInstance.get<ClientesOverviewResponse>('/clientes');
+export const getClientes = async (period: string = 'all'): Promise<ClientesOverviewResponse> => {
+  const response = await axiosInstance.get<ClientesOverviewResponse>('/clientes', {
+    params: { period }
+  });
   return response.data;
 };
 
-// Cliente API call (details)
+// Cliente API call (details) - Uses GOLD table for fast reads
 export const getCliente = async (nome_cliente: string): Promise<ClienteDetailResponse> => {
-  const response = await axiosInstance.get<ClienteDetailResponse>(`/cliente/${nome_cliente}`);
+  const response = await axiosInstance.get<ClienteDetailResponse>(`/cliente/${nome_cliente}/gold`);
   return response.data;
 };
 
 // Produtos API calls (overview)
-export const getProdutosOverview = async (): Promise<ProdutosOverviewResponse> => {
-  const response = await axiosInstance.get<ProdutosOverviewResponse>('/produtos');
+export const getProdutosOverview = async (period: string = 'all'): Promise<ProdutosOverviewResponse> => {
+  const response = await axiosInstance.get<ProdutosOverviewResponse>('/produtos', {
+    params: { period }
+  });
   return response.data;
 };
 
-// Produto API call (details)
+// Produto API call (details) - Uses GOLD table for fast reads
 export const getProdutoDetails = async (nome_produto: string): Promise<ProdutoDetailResponse> => {
-  const response = await axiosInstance.get<ProdutoDetailResponse>(`/produto/${nome_produto}`);
+  const response = await axiosInstance.get<ProdutoDetailResponse>(`/produto/${nome_produto}/gold`);
   return response.data;
 };
 
@@ -363,26 +379,125 @@ export const getHomeMetrics = async (): Promise<HomeMetricsResponse> => {
 };
 
 // Customer Indicators (from IndicatorService)
-export const getCustomerIndicators = async (period: string = 'month'): Promise<CustomerMetricsResponse> => {
+export const getCustomerIndicators = async (period: string = 'month', includeComparisons: boolean = false): Promise<CustomerMetricsResponse> => {
   const response = await axiosInstance.get<CustomerMetricsResponse>(`/indicators/customers`, {
-    params: { period, include_comparisons: true }
+    params: { period, include_comparisons: includeComparisons }
   });
   return response.data;
 };
 
 // Product Indicators (from IndicatorService)
-export const getProductIndicators = async (period: string = 'month'): Promise<ProductMetricsResponse> => {
+export const getProductIndicators = async (period: string = 'month', includeComparisons: boolean = false): Promise<ProductMetricsResponse> => {
   const response = await axiosInstance.get<ProductMetricsResponse>(`/indicators/products`, {
-    params: { period, include_comparisons: true }
+    params: { period, include_comparisons: includeComparisons }
   });
   return response.data;
 };
 
 // Order Indicators (from IndicatorService)
-export const getOrderIndicators = async (period: string = 'month'): Promise<OrderMetricsResponse> => {
+export const getOrderIndicators = async (period: string = 'month', includeComparisons: boolean = false): Promise<OrderMetricsResponse> => {
   const response = await axiosInstance.get<OrderMetricsResponse>(`/indicators/orders`, {
-    params: { period, include_comparisons: true }
+    params: { period, include_comparisons: includeComparisons }
   });
+  return response.data;
+};
+
+// Geographic clusters API call
+export interface GeoCluster {
+  location: string;
+  count: number;
+  total_revenue: number;
+  coordinates: [number, number];
+}
+
+export interface GeoClustersResponse {
+  clusters: GeoCluster[];
+  center: [number, number];
+  max_count: number;
+  total_clusters: number;
+}
+
+export const getGeoClusters = async (groupBy: 'state' | 'city' | 'cep' = 'state'): Promise<GeoClustersResponse> => {
+  const response = await axiosInstance.get<GeoClustersResponse>(`/dashboard/clientes/geo-clusters`, {
+    params: { group_by: groupBy }
+  });
+  return response.data;
+};
+
+// --- FILTER ENDPOINTS: Customer-Product Cross Analysis ---
+
+// Product filter item (for dropdown)
+export interface ProductFilterItem {
+  nome: string;
+  receita_total: number;
+  total_clientes: number;
+}
+
+// Customer filter item (for dropdown)
+export interface CustomerFilterItem {
+  customer_cpf_cnpj: string;
+  nome: string;
+  receita_total: number;
+  total_produtos: number;
+}
+
+// Customer by product (cross analysis result)
+export interface CustomerByProduct {
+  customer_cpf_cnpj: string;
+  nome: string;
+  produto_receita: number;
+  produto_quantidade: number;
+  produto_pedidos: number;
+  cliente_receita_total: number;
+  percentual_do_total: number;
+}
+
+// Product by customer (cross analysis result)
+export interface ProductByCustomer {
+  nome: string;
+  receita_total: number;
+  quantidade_total: number;
+  num_pedidos: number;
+  valor_unitario_medio: number;
+}
+
+// Monthly orders data for customer time series
+export interface MonthlyOrderData {
+  month: string;  // YYYY-MM format
+  num_pedidos: number;
+}
+
+// Get products list for filter dropdown
+export const getProductsForFilter = async (): Promise<ProductFilterItem[]> => {
+  const response = await axiosInstance.get<ProductFilterItem[]>('/filters/products');
+  return response.data;
+};
+
+// Get customers list for filter dropdown
+export const getCustomersForFilter = async (): Promise<CustomerFilterItem[]> => {
+  const response = await axiosInstance.get<CustomerFilterItem[]>('/filters/customers');
+  return response.data;
+};
+
+// Get customers who bought a specific product
+export const getCustomersByProduct = async (productName: string, limit: number = 100): Promise<CustomerByProduct[]> => {
+  const response = await axiosInstance.get<CustomerByProduct[]>(`/customers-by-product/${encodeURIComponent(productName)}`, {
+    params: { limit }
+  });
+  return response.data;
+};
+
+// Get products bought by a specific customer
+export const getProductsByCustomer = async (customerCpfCnpj: string, limit: number = 100): Promise<ProductByCustomer[]> => {
+  const response = await axiosInstance.get<ProductByCustomer[]>(`/products-by-customer/${encodeURIComponent(customerCpfCnpj)}`, {
+    params: { limit }
+  });
+  return response.data;
+};
+
+// Get monthly orders for a specific customer (time series)
+export const getCustomerMonthlyOrders = async (customerCpfCnpj: string): Promise<MonthlyOrderData[]> => {
+  const response = await axiosInstance.get<MonthlyOrderData[]>(`/customer-monthly-orders/${encodeURIComponent(customerCpfCnpj)}`);
   return response.data;
 };
 

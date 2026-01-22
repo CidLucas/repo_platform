@@ -27,6 +27,19 @@ interface DashboardCardProps {
   // Modal background colors
   modalLeftBgColor?: string;
   modalRightBgColor?: string;
+  // Graph modal labels
+  graphTitle?: string;
+  graphDescription?: string;
+  // Custom expand click handler (overrides default modal)
+  onExpandClick?: () => void;
+  // Carousel graphs for modal (multiple graphs)
+  carouselGraphs?: {
+    data: any[];
+    dataKey: string;
+    lineColor?: string;
+    title: string;
+    description?: string;
+  }[];
 }
 
 export const DashboardCard = ({
@@ -45,6 +58,10 @@ export const DashboardCard = ({
   textColor = "gray.800", // Default text color
   modalLeftBgColor = "#C9EDFF", // Default for Fornecedores
   modalRightBgColor = "#92DAFF", // Default for Fornecedores
+  graphTitle,
+  graphDescription,
+  onExpandClick,
+  carouselGraphs, // Destructure carousel graphs prop
 }: DashboardCardProps) => {
 
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -59,13 +76,12 @@ export const DashboardCard = ({
       <Flex
         direction="column"
         position="relative"
-        bg={bgImage ? `url(${bgImage})` : bgColor} // Apply bg or bgImage
-        bgGradient={bgGradient} // Apply bgGradient separately
+        bg={bgImage ? `url(${bgImage})` : bgColor}
+        bgGradient={bgGradient}
         backgroundSize="cover"
         backgroundPosition="center"
         borderRadius={cardBorderRadius}
         boxShadow="md"
-        // Removed cursor="pointer" and onClick={onOpen} from here
         width={cardWidth}
         height={cardHeight}
         _hover={{ boxShadow: "lg" }}
@@ -108,7 +124,7 @@ export const DashboardCard = ({
                 aria-label="Expand card"
                 icon={<ExternalLinkIcon />} // Modal expand icon
                 size="sm"
-                onClick={onOpen} // This icon now triggers the modal
+                onClick={onExpandClick || onOpen} // Use custom handler if provided, otherwise open internal modal
                 variant="ghost"
                 color={textColor}
                 _hover={{ color: "gray.200" }}
@@ -118,7 +134,7 @@ export const DashboardCard = ({
           </Flex>
 
           {/* Conditional rendering of content */}
-          {graphData && <GraphComponent data={graphData.values} dataKey="value" lineColor={textColor} />}
+          {graphData && <GraphComponent data={graphData.values} dataKey="value" lineColor="#FFA500" />}
           {mainText && <Text fontSize="md" mb={2}>{mainText}</Text>}
 
           {(scorecardValue || scorecardLabel) && (
@@ -167,19 +183,16 @@ export const DashboardCard = ({
                 ) : (
                   <Flex direction="column" height="100%" p={8}>
                     <GraphCarousel
-                      graphs={[
+                      graphs={carouselGraphs || [
                         {
                           data: graphData?.values || [],
                           dataKey: "value",
                           lineColor: "white",
-                          title: "Gráfico Principal",
+                          title: graphTitle || title,
+                          description: graphDescription || "Visualização dos dados ao longo do tempo.",
                         },
-                        // Add more graphs here for carousel
                       ]}
                     />
-                    <Box mt={8}>
-                      <Text textStyle="modalTextInfo">Observações sobre o gráfico...</Text>
-                    </Box>
                   </Flex>
                 )
               }

@@ -1,25 +1,27 @@
 import asyncio
+import logging
 import secrets
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from tool_pool_api.core.config import get_settings
 from tool_pool_api.server.dependencies import get_context_service
 
-from vizu_auth.adapters.context_service_adapter import (
-    api_key_lookup_from_context_service,
-    external_user_lookup_from_context_service,
+from vizu_auth.core.exceptions import (
+    AuthError,
+    InvalidTokenError,
+    TokenExpiredError,
 )
-from vizu_auth.core.models import AuthRequest, AuthResult
+from vizu_auth.core.jwt_decoder import decode_jwt
+from vizu_auth.core.models import AuthMethod, AuthResult
 from vizu_auth.oauth2.models import OAuthConfig
 from vizu_auth.oauth2.oauth_manager import OAuthManager
-from vizu_auth.strategies.api_key_strategy import ApiKeyStrategy
-from vizu_auth.strategies.authenticator import Authenticator
-from vizu_auth.strategies.jwt_strategy import JWTStrategy
 from vizu_context_service.context_service import ContextService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/integrations", tags=["Integrations"])
 
@@ -50,28 +52,56 @@ class GoogleAccountInfo(BaseModel):
 
 
 async def _get_auth_result(
-    request: Request,
-    ctx_service: ContextService = Depends(get_context_service),
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    x_api_key: str | None = Header(None, alias="X-API-KEY"),
 ) -> AuthResult:
-    """Authenticate via API key or JWT token."""
-    api_key_lookup = api_key_lookup_from_context_service(ctx_service)
-    external_user_lookup = external_user_lookup_from_context_service(ctx_service)
+    """JWT-only authentication for integrations API."""
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Provide Bearer token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    jwt_strategy = JWTStrategy(cliente_lookup_fn=external_user_lookup)
-    api_key_strategy = ApiKeyStrategy(api_key_lookup_fn=api_key_lookup)
-    authenticator = Authenticator(strategies=[jwt_strategy, api_key_strategy])
+    try:
+        claims = decode_jwt(credentials.credentials)
 
-    auth_request = AuthRequest(
-        jwt_token=credentials.credentials if credentials else None,
-        api_key=x_api_key,
-    )
+        try:
+            client_id = UUID(claims.sub)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid UUID in JWT sub claim: {claims.sub}, error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid user ID format in token.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-    result = await authenticator.authenticate(auth_request)
-    if not result:
-        raise HTTPException(status_code=401, detail="Invalid or expired API key")
-    return result
+        return AuthResult(
+            client_id=client_id,
+            auth_method=AuthMethod.JWT,
+            external_user_id=claims.sub,
+            email=claims.email,
+            raw_claims=claims.model_dump(exclude_none=True),
+        )
+
+    except TokenExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired. Please refresh your authentication.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except AuthError as e:
+        logger.error(f"Auth error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication failed.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 @router.post("/google/config")
@@ -97,7 +127,7 @@ async def configure_google_integration(
         client_id=auth.client_id,
         provider="google",
         config_type="oauth2_client",
-        client_id=final_client_id,
+        oauth_client_id=final_client_id,
         client_secret=final_client_secret,
         redirect_uri=f"{settings.MCP_AUTH_BASE_URL}/integrations/google/callback",
         scopes=[

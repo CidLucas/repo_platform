@@ -6,6 +6,7 @@ import ProdutosPage from "../pages/ProdutosPage";
 import ProdutosListPage from "../pages/ProdutosListPage";
 import ClientesPage from "../pages/ClientesPage";
 import ClientesListPage from "../pages/ClientesListPage";
+import PedidosPage from "../pages/PedidosPage";
 // Client management pages (formerly "admin" pages - now accessible to all authenticated users)
 import AdminHomePage from "../pages/admin/AdminHomePage";
 import AdminFontesPage from "../pages/admin/AdminFontesPage";
@@ -63,26 +64,13 @@ export const dashboardRoutes: RouteConfig[] = [
     path: "/dashboard/products",
     element: <ProdutosListPage />,
   },
-  // Placeholder routes for Menu Rápido items (to be implemented)
+  {
+    path: "/dashboard/pedidos",
+    element: <PedidosPage />,
+  },
   {
     path: "/dashboard/orders",
-    element: <HomePage />, // Placeholder - redirect to home for now
-  },
-  {
-    path: "/dashboard/orders/new",
-    element: <HomePage />, // Placeholder - redirect to home for now
-  },
-  {
-    path: "/dashboard/goals",
-    element: <HomePage />, // Placeholder - redirect to home for now
-  },
-  {
-    path: "/dashboard/goals/new",
-    element: <HomePage />, // Placeholder - redirect to home for now
-  },
-  {
-    path: "/dashboard/financial",
-    element: <HomePage />, // Placeholder - redirect to home for now
+    element: <PedidosPage />,
   },
   // Client management routes (formerly "admin" routes - accessible to all authenticated users)
   {

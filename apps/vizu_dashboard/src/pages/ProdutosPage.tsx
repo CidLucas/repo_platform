@@ -25,7 +25,7 @@ function ProdutosPage() {
   const fetchProdutosData = async () => {
     try {
       setLoading(true);
-      const data = await getProdutosOverview();
+      const data = await getProdutosOverview(selectedPeriod);
       setOverviewData(data);
       setLastUpdate(new Date());
       setError(null);
@@ -38,7 +38,7 @@ function ProdutosPage() {
 
   useEffect(() => {
     fetchProdutosData();
-  }, [selectedPeriod]);
+  }, [selectedPeriod, selectedMetric]);
 
   const handlePeriodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedPeriod(e.target.value as PeriodType);
@@ -260,7 +260,12 @@ function ProdutosPage() {
       </Flex>
 
       {/* Reusable ProdutoDetailsModal */}
-      <ProdutoDetailsModal isOpen={isOpen} onClose={onClose} produto={selectedItem} />
+      <ProdutoDetailsModal
+        isOpen={isOpen}
+        onClose={onClose}
+        produto={selectedItem}
+        overviewData={overviewData}
+      />
     </MainLayout>
   );
 }

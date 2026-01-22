@@ -23,7 +23,7 @@ export const useConnectorStatus = (): UseConnectorStatusReturn => {
   const [refetchFlag, setRefetchFlag] = useState(0);
 
   useEffect(() => {
-    if (!auth?.user?.id) {
+    if (!auth?.clientId) {
       setConnectors(null);
       setLoading(false);
       return;
@@ -34,8 +34,8 @@ export const useConnectorStatus = (): UseConnectorStatusReturn => {
       setError(null);
 
       try {
-        // Use user.id as client_id
-        const data = await getConnectorStatus(auth.user!.id);
+        // Use real client_id from clientes_vizu table
+        const data = await getConnectorStatus(auth.clientId!);
         setConnectors(data);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch connectors'));
@@ -45,7 +45,7 @@ export const useConnectorStatus = (): UseConnectorStatusReturn => {
     };
 
     fetchConnectors();
-  }, [auth?.user?.id, refetchFlag]);
+  }, [auth?.clientId, refetchFlag]);
 
   const refetch = () => setRefetchFlag((prev) => prev + 1);
 

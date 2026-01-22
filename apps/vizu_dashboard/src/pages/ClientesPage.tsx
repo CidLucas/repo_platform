@@ -8,7 +8,7 @@ import { ClienteDetailsModal } from '../components/ClienteDetailsModal';
 import { getClientes, getCliente, getCustomerIndicators } from '../services/analyticsService';
 import type { ClientesOverviewResponse, ClienteDetailResponse, CustomerMetricsResponse } from '../services/analyticsService';
 import { useUserProfile } from '../hooks/useUserProfile';
-import { getRegionCoordinates } from '../utils/regionCoordinates';
+import { useGeoClusters } from '../hooks/useGeoClusters';
 
 type PeriodType = 'week' | 'month' | 'quarter' | 'year';
 type MetricType = 'receita' | 'ticket_medio' | 'qtd_pedidos';
@@ -26,6 +26,9 @@ function ClientesPage() {
   const profile = useUserProfile();
   const userName = profile?.full_name.split(' ')[0] || 'Usuário';
 
+  // Fetch geographic clusters for map visualization
+  const { data: geoClusters, loading: loadingGeoClusters } = useGeoClusters('state');
+
   const fetchClientesData = async () => {
     try {
       setLoading(true);
@@ -35,9 +38,6 @@ function ClientesPage() {
         getClientes(),
         getCustomerIndicators(selectedPeriod)
       ]);
-
-      console.log('Clientes data received:', overviewResponse);
-      console.log('Customer metrics received:', metricsResponse);
 
       // Check if data is in expected format
       if (Array.isArray(overviewResponse)) {
@@ -121,20 +121,6 @@ function ClientesPage() {
     ? ((newCustomersCount / (totalCustomers - newCustomersCount)) * 100).toFixed(1)
     : '0.0';
 
-  // Transform regional chart data for map
-  const mapMarkers = (overviewData.chart_clientes_por_regiao || []).map((region: any) => {
-    const coords = getRegionCoordinates(region.name);
-    return {
-      position: [coords.lat, coords.lng] as [number, number],
-      popupText: `${region.name}: ${region.percentual || 0}% dos clientes`
-    };
-  });
-
-  // Use first marker for center, or default to São Paulo
-  const mapCenter = mapMarkers.length > 0
-    ? mapMarkers[0].position
-    : [-23.55052, -46.633308] as [number, number];
-
   // Map the data for the ListCard - dynamic based on selected metric
   const getCurrentRanking = () => {
     switch (selectedMetric) {
@@ -156,7 +142,7 @@ function ClientesPage() {
     } else if (selectedMetric === 'ticket_medio') {
       description = `Ticket Médio: R$ ${(item.ticket_medio ?? item.avg_order_value ?? 0).toLocaleString('pt-BR')}`;
     } else if (selectedMetric === 'qtd_pedidos') {
-      description = `Qtd Pedidos: ${(item.qtd_pedidos ?? 0).toLocaleString('pt-BR')}`;
+      description = `Qtd Pedidos: ${(item.num_pedidos_unicos ?? item.total_orders ?? 0).toLocaleString('pt-BR')}`;
     }
     return {
       id: item.nome,
@@ -232,21 +218,176 @@ function ClientesPage() {
         <Flex wrap="wrap" justify="center" gap="16px">
           {/* Example Dashboard Cards - these would need to be adapted for client specific data */}
           <DashboardCard
+            key={`performance-chart-${selectedMetric}`}
             title="Performance de Clientes"
             size="large"
             bgColor="#FFD1DC" // Lighter pink
             graphData={{
-              values: customerMetrics
-                ? [
-                  { name: 'Ativos', value: customerMetrics.total_active },
-                  { name: 'Novos', value: customerMetrics.new_customers },
-                  { name: 'Recorrentes', value: customerMetrics.returning_customers },
-                  { name: 'LTV Médio', value: Math.round(customerMetrics.avg_lifetime_value) }
-                ]
-                : []
+              values: (() => {
+                // Use time-series data based on selected metric
+                // CGC1: Receita, CGC2: Ticket Médio, CGC3: Quantidade
+                let chartData: any[] = [];
+                if (selectedMetric === 'receita') {
+                  chartData = overviewData.chart_receita_no_tempo || [];
+                } else if (selectedMetric === 'ticket_medio') {
+                  chartData = overviewData.chart_ticketmedio_no_tempo || [];
+                } else {
+                  chartData = overviewData.chart_quantidade_no_tempo || [];
+                }
+                return chartData.map((d: any) => ({
+                  name: d.name,
+                  value: d.total ?? d.value ?? d.receita ?? d.ticket_medio ?? d.quantidade ?? 0
+                }));
+              })()
             }}
             scorecardValue={`R$ ${(overviewData.scorecard_ticket_medio_geral ?? 0).toLocaleString('pt-BR')}`}
             scorecardLabel="Ticket Médio Geral"
+            graphTitle={(() => {
+              if (selectedMetric === 'receita') return 'Receita Mensal dos Clientes';
+              if (selectedMetric === 'ticket_medio') return 'Ticket Médio Mensal';
+              return 'Volume Comprado Mensal';
+            })()}
+            graphDescription={(() => {
+              if (selectedMetric === 'receita') return 'Mês a mês da flutuação de receita geral comprada por todos os clientes.';
+              if (selectedMetric === 'ticket_medio') return 'Mês a mês da flutuação do ticket médio geral dos clientes.';
+              return 'Mês a mês da flutuação do volume comprado por clientes.';
+            })()}
+            carouselGraphs={[
+              {
+                data: (overviewData.chart_receita_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                dataKey: "value",
+                lineColor: "#82ca9d",
+                title: "Receita Mensal dos Clientes",
+                description: "Receita média gerada por cada cliente da base ao longo do tempo."
+              },
+              {
+                data: (overviewData.chart_clientes_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                dataKey: "value",
+                lineColor: "#8884d8",
+                title: "Frequência de Pedidos no Tempo",
+                description: "Frequência média de compras por cliente por mês."
+              },
+              {
+                data: (overviewData.chart_ticketmedio_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                dataKey: "value",
+                lineColor: "#ffc658",
+                title: "Ticket Médio no Tempo",
+                description: "Valor médio gasto por pedido por cliente ao longo dos meses."
+              },
+              {
+                data: (overviewData.chart_quantidade_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                dataKey: "value",
+                lineColor: "#ff7300",
+                title: "Média de Pedidos por Cliente",
+                description: "Número médio de pedidos realizados por cliente ao longo do tempo."
+              }
+            ]}
+            kpiItems={(() => {
+              // Calculate averages from ranking data
+              const clientes = overviewData.ranking_por_receita || [];
+              const totalClientes = clientes.length || 1;
+
+              const mediaReceitaPorCliente = clientes.reduce((sum, c) => sum + (c.receita_total || 0), 0) / totalClientes;
+              const mediaFrequenciaPorCliente = clientes.reduce((sum, c) => sum + (c.frequencia_pedidos_mes || 0), 0) / totalClientes;
+              const mediaTicketMedioPorCliente = clientes.reduce((sum, c) => sum + (c.ticket_medio || 0), 0) / totalClientes;
+              const mediaPedidosPorCliente = clientes.reduce((sum, c) => sum + (c.num_pedidos_unicos || 0), 0) / totalClientes;
+
+              return [
+                {
+                  label: `Média de Receita por Cliente: R$ ${mediaReceitaPorCliente.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                  content: (
+                    <Box>
+                      <Text>Receita média gerada por cada cliente da base</Text>
+                      <Text mt={2} fontSize="sm">Calculado dividindo a receita total pelo número de clientes ({totalClientes})</Text>
+                      <Text mt={2} fontSize="sm" color="gray.600">Métrica: <strong>receita_total / total_clientes</strong></Text>
+                    </Box>
+                  )
+                },
+                {
+                  label: `Frequência Média de Pedidos: ${mediaFrequenciaPorCliente.toFixed(2)} pedidos/mês`,
+                  content: (
+                    <Box>
+                      <Text>Frequência média de compras por cliente por mês</Text>
+                      <Text mt={2} fontSize="sm">Indica a regularidade de compras dos clientes</Text>
+                      <Text mt={2} fontSize="sm" color="gray.600">Métrica: <strong>frequencia_pedidos_mes</strong></Text>
+                    </Box>
+                  )
+                },
+                {
+                  label: `Ticket Médio por Cliente: R$ ${mediaTicketMedioPorCliente.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                  content: (
+                    <Box>
+                      <Text>Valor médio gasto por pedido por cliente</Text>
+                      <Text mt={2} fontSize="sm">Representa o valor médio de cada transação</Text>
+                      <Text mt={2} fontSize="sm" color="gray.600">Métrica: <strong>ticket_medio</strong></Text>
+                    </Box>
+                  )
+                },
+                {
+                  label: `Média de Pedidos por Cliente: ${mediaPedidosPorCliente.toFixed(1)} pedidos`,
+                  content: (
+                    <Box>
+                      <Text>Número médio de pedidos realizados por cliente</Text>
+                      <Text mt={2} fontSize="sm">Total de pedidos únicos dividido pelo número de clientes</Text>
+                      <Text mt={2} fontSize="sm" color="gray.600">Métrica: <strong>num_pedidos_unicos</strong></Text>
+                    </Box>
+                  )
+                }
+              ];
+            })()}
+            modalLeftBgColor="#FFD1DC"
+            modalRightBgColor="#FFB6C1" // Pink
+            modalContent={<Text>Métricas detalhadas de clientes no período de {customerMetrics?.period || 'mês'}</Text>}
+          />
+
+          <DashboardCard
+            title="Novos Clientes"
+            size="small"
+            bgGradient="linear-gradient(to-br, #353A5A, #1F2138)"
+            textColor="white"
+            mainText={`Aumentamos nossa base em +${growthPercentage}% no último mês.`}
+            scorecardValue={newCustomersCount.toString()}
+            scorecardLabel="Novos Cadastros"
+            modalLeftBgColor="#FFD1DC"
+            modalRightBgColor="#FFB6C1"
+            graphData={{
+              values: (overviewData.chart_clientes_no_tempo || []).map((d: any) => ({
+                name: d.name,
+                value: d.total ?? d.value ?? 0
+              }))
+            }}
+            graphTitle="Evolução de Clientes"
+            graphDescription="Evolução mensal da base de clientes."
+            carouselGraphs={[
+              {
+                data: (overviewData.chart_clientes_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                dataKey: "value",
+                lineColor: "#82ca9d",
+                title: "Clientes Ativos no Tempo",
+                description: "Evolução mensal do número total de clientes ativos na base."
+              },
+              {
+                data: (overviewData.chart_receita_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                dataKey: "value",
+                lineColor: "#8884d8",
+                title: "Receita por Cliente no Tempo",
+                description: "Flutuação mensal da receita gerada pelos clientes."
+              },
+              {
+                data: (overviewData.chart_ticketmedio_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                dataKey: "value",
+                lineColor: "#ffc658",
+                title: "Ticket Médio no Tempo",
+                description: "Valor médio gasto por pedido ao longo dos meses."
+              },
+              {
+                data: (overviewData.chart_quantidade_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                dataKey: "value",
+                lineColor: "#ff7300",
+                title: "Volume Comprado no Tempo",
+                description: "Quantidade total comprada pelos clientes mês a mês."
+              }
+            ]}
             kpiItems={
               customerMetrics
                 ? [
@@ -293,22 +434,6 @@ function ClientesPage() {
                 ]
                 : undefined
             }
-            modalLeftBgColor="#FFD1DC"
-            modalRightBgColor="#FFB6C1" // Pink
-            modalContent={<Text>Métricas detalhadas de clientes no período de {customerMetrics?.period || 'mês'}</Text>}
-          />
-
-          <DashboardCard
-            title="Novos Clientes"
-            size="small"
-            bgGradient="linear-gradient(to-br, #353A5A, #1F2138)"
-            textColor="white"
-            mainText={`Aumentamos nossa base em +${growthPercentage}% no último mês.`}
-            scorecardValue={newCustomersCount.toString()}
-            scorecardLabel="Novos Cadastros"
-            modalLeftBgColor="#FFD1DC"
-            modalRightBgColor="#FFB6C1" // Pink
-            modalContent={<Text>Detalhes dos novos clientes</Text>}
           />
 
           <ListCard
@@ -328,9 +453,10 @@ function ClientesPage() {
             size="large"
             bgColor="white"
             mapData={{
-              center: mapCenter,
-              zoom: mapMarkers.length > 1 ? 4 : 10,
-              markers: mapMarkers.length > 0 ? mapMarkers : [{ position: [-23.55052, -46.633308] as [number, number], popupText: 'São Paulo' }]
+              center: geoClusters?.center || [-14.2350, -51.9253],
+              zoom: 4.5,
+              clusters: geoClusters?.clusters || [],
+              maxCount: geoClusters?.max_count || 1
             }}
             mainText="Principais regiões de atuação dos clientes."
             modalLeftBgColor="#FFD1DC"
@@ -340,8 +466,8 @@ function ClientesPage() {
         </Flex>
       </Flex>
 
-      {/* Reusable ClienteDetailsModal */}
-      <ClienteDetailsModal isOpen={isOpen} onClose={onClose} cliente={selectedItem} />
+      {/* Reusable ClienteDetailsModal for list item clicks */}
+      <ClienteDetailsModal isOpen={isOpen} onClose={onClose} cliente={selectedItem} overviewData={overviewData} />
     </MainLayout>
   );
 }

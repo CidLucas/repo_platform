@@ -21,13 +21,10 @@ from typing import Any
 from data_ingestion_api.services.etl_service_v2 import etl_service_v2
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from vizu_auth.fastapi.dependencies import create_auth_dependency
-
-# Auth factory (Supabase JWT only; API key disabled)
-auth_factory = create_auth_dependency(api_key_lookup_fn=lambda _key: None)
+from vizu_auth.fastapi.dependencies import get_auth_result
 
 
-async def get_auth(auth=Depends(auth_factory.get_auth_result)):
+async def get_auth(auth=Depends(get_auth_result)):
     # Keep auth dependency for authentication, but do not enforce client_id
     if not auth:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")

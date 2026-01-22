@@ -23,15 +23,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from vizu_auth.dependencies.jwt_only import get_jwt_claims
-from vizu_auth.fastapi import create_auth_dependency
+from vizu_auth.fastapi import get_auth_result
 
 router = APIRouter()
-
-# Dependência de autenticação (ajuste conforme sua factory real)
-auth_dependency = create_auth_dependency(
-    api_key_lookup_fn=lambda key: None,  # Substitua por função real se usar API Key
-    external_user_lookup_fn=None,
-)
 
 
 class MeResponse(BaseModel):
@@ -288,25 +282,111 @@ async def get_me(
     Uses JWT-only authentication to avoid circular dependency:
     - Validates JWT and extracts Supabase user ID from sub claim
     - Creates a clientes_vizu record if it doesn't exist yet
-    - Returns the Supabase user ID as client_id
+    - Returns the actual client_id from clientes_vizu table
     """
-    # claims.sub = Supabase user ID (external_user_id) = client_id
+    # claims.sub = Supabase user ID (external_user_id)
     if not claims.sub:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não autenticado."
         )
 
-    # Ensure clientes_vizu record exists for this user
-    # This allows the rest of the system (atendente_core) to use the full auth flow
+    # Ensure clientes_vizu record exists and get the actual client_id
     try:
-        repo.ensure_cliente_vizu_exists(
+        actual_client_id = repo.ensure_cliente_vizu_exists(
             external_user_id=claims.sub,
             email=claims.email,
-            client_id=claims.sub  # Use Supabase user ID as client_id
         )
+        return MeResponse(client_id=actual_client_id)
     except Exception as e:
-        # Log but don't fail - we can still return the ID even if DB write fails
         import logging
-        logging.error(f"Failed to create clientes_vizu record: {e}")
+        logging.error(f"Failed to get/create clientes_vizu record: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro ao obter client_id do usuário."
+        )
 
-    return MeResponse(client_id=claims.sub)
+
+@router.get(
+    "/clientes/geo-clusters",
+    summary="Agrega clientes por localização geográfica",
+    tags=["Clientes", "Ouro"],
+)
+async def get_customers_geo_clusters(
+    repo: PostgresRepository = Depends(get_postgres_repository),
+    client_id: str = Depends(get_client_id),
+    group_by: str = "state"  # "state", "city", or "cep"
+):
+    """
+    Retorna clusters de clientes agrupados por localização (estado, cidade ou CEP).
+
+    Para cada cluster, retorna:
+    - location: nome do estado/cidade
+    - count: número de clientes
+    - total_revenue: receita total do cluster
+    - coordinates: lat/lon aproximado do cluster
+    """
+    customers_data = repo.get_gold_customers_metrics(client_id)
+
+    if not customers_data:
+        return {"clusters": [], "center": [-14.2350, -51.9253], "max_count": 0}
+
+    # Brazilian state coordinates (approximate centers)
+    state_coords = {
+        "AC": [-9.0238, -70.8120], "AL": [-9.5713, -36.7820], "AP": [1.4100, -51.7700],
+        "AM": [-3.4168, -65.8561], "BA": [-12.5797, -41.7007], "CE": [-5.4984, -39.3206],
+        "DF": [-15.7998, -47.8645], "ES": [-19.1834, -40.3089], "GO": [-15.8270, -49.8362],
+        "MA": [-4.9609, -45.2744], "MT": [-12.6819, -56.9211], "MS": [-20.7722, -54.7852],
+        "MG": [-18.5122, -44.5550], "PA": [-1.9981, -54.9306], "PB": [-7.2399, -36.7820],
+        "PR": [-24.8980, -51.4010], "PE": [-8.8137, -36.9541], "PI": [-6.6000, -42.2800],
+        "RJ": [-22.9099, -43.2095], "RN": [-5.4026, -36.9541], "RS": [-30.0346, -51.2177],
+        "RO": [-10.9472, -62.8256], "RR": [1.9910, -61.3300], "SC": [-27.2423, -50.2189],
+        "SP": [-23.5329, -46.6395], "SE": [-10.5741, -37.3857], "TO": [-10.1753, -48.2982]
+    }
+
+    clusters = {}
+
+    if group_by == "state":
+        # Group by state (UF)
+        for customer in customers_data:
+            uf = customer.get("endereco_uf") or "UNKNOWN"
+            if uf not in clusters:
+                clusters[uf] = {
+                    "location": uf,
+                    "count": 0,
+                    "total_revenue": 0,
+                    "coordinates": state_coords.get(uf, [-14.2350, -51.9253])
+                }
+            clusters[uf]["count"] += 1
+            clusters[uf]["total_revenue"] += float(customer.get("lifetime_value", 0))
+
+    elif group_by == "city":
+        # Group by city (would need geocoding for accurate coordinates)
+        for customer in customers_data:
+            city = customer.get("endereco_cidade") or "UNKNOWN"
+            uf = customer.get("endereco_uf") or "UNKNOWN"
+            key = f"{city}-{uf}"
+
+            if key not in clusters:
+                # Use state coordinates as approximation
+                clusters[key] = {
+                    "location": f"{city}, {uf}",
+                    "count": 0,
+                    "total_revenue": 0,
+                    "coordinates": state_coords.get(uf, [-14.2350, -51.9253])
+                }
+            clusters[key]["count"] += 1
+            clusters[key]["total_revenue"] += float(customer.get("lifetime_value", 0))
+
+    # Convert to list and sort by count
+    cluster_list = sorted(clusters.values(), key=lambda x: x["count"], reverse=True)
+
+    # Find center (largest cluster)
+    center = cluster_list[0]["coordinates"] if cluster_list else [-14.2350, -51.9253]
+    max_count = cluster_list[0]["count"] if cluster_list else 0
+
+    return {
+        "clusters": cluster_list,
+        "center": center,
+        "max_count": max_count,
+        "total_clusters": len(cluster_list)
+    }

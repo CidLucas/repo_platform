@@ -93,7 +93,7 @@ class KnowledgeBaseConfig(KnowledgeBaseConfigBase, table=True):
     client_id: uuid.UUID = Field(
         sa_column=Column(
             pgUUID(as_uuid=True),
-            ForeignKey("cliente_vizu.id"),
+            ForeignKey("clientes_vizu.client_id"),
             nullable=False,
             index=True,
         )

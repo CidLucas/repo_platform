@@ -88,10 +88,9 @@ class AtendenteService:
 
     async def process_message(
         self,
-        api_key: str | None,
         session_id: str,
         message_text: str,
-        client_id: str | None = None,
+        client_id: UUID,
         model_override: str | None = None,
         elicitation_response: dict[str, Any] | None = None,
     ) -> ProcessMessageResult:
@@ -99,45 +98,21 @@ class AtendenteService:
         Recebe a mensagem crua, hidrata com o contexto do cliente e executa o agente.
 
         Args:
-            api_key: API Key do cliente (compatibilidade)
             session_id: ID da sessão
             message_text: Mensagem do usuário
-            client_id: ID do cliente (autenticação via JWT)
+            client_id: ID do cliente (autenticado via JWT)
             model_override: Nome do modelo LLM a usar (opcional)
             elicitation_response: Resposta do usuário a uma elicitation pendente (opcional)
 
         Returns:
             ProcessMessageResult com resposta, modelo usado e possível elicitation pendente
         """
-        # 1. Identificação: Quem é este cliente?
-        # Preferimos `client_id` se fornecido (autenticação via JWT),
-        # caso contrário usamos a API Key (compatibilidade).
-        client_context: VizuClientContext | None
-        if client_id:
-            try:
-                uuid_obj = UUID(str(client_id))
-            except Exception:
-                raise ValueError("ID de cliente inválido.")
-
-            client_context = await self.context_service.get_client_context_by_id(
-                uuid_obj
-            )
-        else:
-            if not api_key:
-                logger.warning(
-                    "Nenhuma credencial fornecida para identificar o cliente."
-                )
-                raise ValueError("Credenciais não fornecidas.")
-            client_context = await self.context_service.get_client_context_by_api_key(
-                api_key
-            )
+        # 1. Get client context using the authenticated client_id
+        client_context = await self.context_service.get_client_context_by_id(client_id)
 
         if not client_context:
-            key_display = api_key[-4:] if api_key else "----"
-            logger.warning(
-                f"Autenticação falhou para API Key terminada em ...{key_display}"
-            )
-            raise ValueError("API Key inválida ou cliente não encontrado.")
+            logger.warning(f"Cliente não encontrado para ID: {client_id}")
+            raise ValueError("Cliente não encontrado.")
 
         logger.info(f"Atendendo: {client_context.nome_empresa} | Sessão: {session_id}")
 

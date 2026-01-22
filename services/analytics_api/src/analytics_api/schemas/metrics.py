@@ -111,6 +111,9 @@ class FornecedoresOverviewResponse(BaseModel):
     scorecard_total_fornecedores: int
     scorecard_crescimento_percentual: float | None = None  # Percentual de crescimento da base de fornecedores
     chart_fornecedores_no_tempo: list[ChartDataPoint]
+    chart_receita_no_tempo: list[ChartDataPoint]  # Monthly revenue fluctuation
+    chart_ticketmedio_no_tempo: list[ChartDataPoint]  # Monthly avg ticket fluctuation
+    chart_quantidade_no_tempo: list[ChartDataPoint]  # Monthly volume (kg/tons) fluctuation
     chart_fornecedores_por_regiao: list[ChartDataPoint]
     chart_cohort_fornecedores: list[ChartDataPoint]
     ranking_por_receita: list[RankingItem]
@@ -125,6 +128,9 @@ class ClientesOverviewResponse(BaseModel):
     scorecard_frequencia_media_geral: float
     scorecard_crescimento_percentual: float | None = None  # Percentual de crescimento da base de clientes
     chart_clientes_no_tempo: list[ChartDataPoint]  # Time series (monthly unique customers)
+    chart_receita_no_tempo: list[ChartDataPoint]  # Monthly revenue from customers
+    chart_ticketmedio_no_tempo: list[ChartDataPoint]  # Monthly avg ticket from customers
+    chart_quantidade_no_tempo: list[ChartDataPoint]  # Monthly volume purchased by customers
     chart_clientes_por_regiao: list[ChartDataPoint]
     chart_cohort_clientes: list[ChartDataPoint]
     ranking_por_receita: list[RankingItem]
@@ -135,6 +141,8 @@ class ClientesOverviewResponse(BaseModel):
 class ProdutosOverviewResponse(BaseModel):
     scorecard_total_itens_unicos: int
     chart_produtos_no_tempo: list[ChartDataPoint]  # Time series (monthly unique products)
+    chart_receita_no_tempo: list[ChartDataPoint]  # Monthly revenue from products
+    chart_quantidade_no_tempo: list[ChartDataPoint]  # Monthly volume of products sold
     ranking_por_receita: list[ProdutoRankingReceita]
     ranking_por_volume: list[ProdutoRankingVolume]
     ranking_por_ticket_medio: list[ProdutoRankingTicket]

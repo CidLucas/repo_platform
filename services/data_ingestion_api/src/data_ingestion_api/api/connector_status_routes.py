@@ -15,12 +15,9 @@ from data_ingestion_api.schemas.connector_schemas import (
 )
 from data_ingestion_api.services.connector_status_service import connector_status_service
 from data_ingestion_api.services.file_metadata_service import file_metadata_service
-from vizu_auth.fastapi.dependencies import create_auth_dependency
+from vizu_auth.fastapi.dependencies import get_auth_result
 
 logger = logging.getLogger(__name__)
-
-# Auth factory (JWT only via Supabase; API key disabled)
-auth_factory = create_auth_dependency(api_key_lookup_fn=lambda _key: None)
 
 router = APIRouter(
     prefix="/connectors",
@@ -29,7 +26,7 @@ router = APIRouter(
 
 
 # Derive the tenant/client id from the authenticated JWT to prevent caller spoofing
-async def get_client_id_from_auth(auth=Depends(auth_factory.get_auth_result)) -> str:
+async def get_client_id_from_auth(auth=Depends(get_auth_result)) -> str:
     if not auth or not auth.client_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="client_id missing from token")
     return str(auth.client_id)
@@ -42,7 +39,7 @@ async def get_client_id_from_auth(auth=Depends(auth_factory.get_auth_result)) ->
 )
 async def get_connector_status(
     client_id: str = Depends(get_client_id_from_auth),
-    auth=Depends(auth_factory.get_auth_result),
+    auth=Depends(get_auth_result),
 ):
     """
     Get all configured connectors for a client with latest sync status.
@@ -69,7 +66,7 @@ async def get_connector_status(
 async def get_sync_history(
     credential_id: int,
     limit: int = 10,
-    auth=Depends(auth_factory.get_auth_result),
+    auth=Depends(get_auth_result),
 ):
     """Get recent sync history for a connector."""
     try:
@@ -89,7 +86,7 @@ async def get_sync_history(
 )
 async def start_sync_job(
     request: StartSyncRequest,
-    auth=Depends(auth_factory.get_auth_result),
+    auth=Depends(get_auth_result),
 ):
     """
     Start a new sync job for a connector.
@@ -126,7 +123,7 @@ async def start_sync_job(
 )
 async def get_uploaded_files(
     client_id: str,
-    auth=Depends(auth_factory.get_auth_result),
+    auth=Depends(get_auth_result),
 ):
     """Get all uploaded CSV/Excel files for a client."""
     try:
@@ -146,7 +143,7 @@ async def get_uploaded_files(
 async def delete_uploaded_file(
     file_id: UUID,
     client_id: str,
-    auth=Depends(auth_factory.get_auth_result),
+    auth=Depends(get_auth_result),
 ):
     """Delete a file (soft delete and remove from storage)."""
     try:
@@ -172,7 +169,7 @@ async def delete_uploaded_file(
 )
 async def get_dashboard_stats(
     client_id: str,
-    auth=Depends(auth_factory.get_auth_result),
+    auth=Depends(get_auth_result),
 ):
     """
     Get summary statistics for admin home page:

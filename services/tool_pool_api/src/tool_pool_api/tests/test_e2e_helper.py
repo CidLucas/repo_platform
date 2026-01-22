@@ -62,7 +62,7 @@ async def main():
         client_id=cliente_id,
         provider="google",
         config_type="oauth2_client",
-        client_id=client_id,
+        oauth_client_id=client_id,
         client_secret=client_secret,
         redirect_uri=redirect_uri,
         scopes=scopes,

@@ -97,53 +97,160 @@ class IndicatorService:
         duration = end - start
         return (start - duration, start)
 
+    def _filter_records_by_date_range(self, records: list[dict], start_date: datetime, end_date: datetime) -> list[dict]:
+        """
+        Filtra registros mensais que intersectam com o período especificado.
+
+        Args:
+            records: Lista de registros mensais do gold_orders
+            start_date: Data inicial do período
+            end_date: Data final do período
+
+        Returns:
+            Lista filtrada de registros que intersectam com o período
+        """
+        from datetime import timezone
+
+        filtered = []
+        for record in records:
+            period_start = record.get("period_start")
+            period_end = record.get("period_end")
+
+            if not period_start or not period_end:
+                continue
+
+            # Garante timezone-aware datetimes
+            if period_start.tzinfo is None:
+                period_start = period_start.replace(tzinfo=timezone.utc)
+            if period_end.tzinfo is None:
+                period_end = period_end.replace(tzinfo=timezone.utc)
+            if start_date.tzinfo is None:
+                start_date = start_date.replace(tzinfo=timezone.utc)
+            if end_date.tzinfo is None:
+                end_date = end_date.replace(tzinfo=timezone.utc)
+
+            # Verifica se há interseção entre os períodos
+            # Interseção existe se: period_start < end_date AND period_end > start_date
+            if period_start < end_date and period_end > start_date:
+                filtered.append(record)
+
+        return filtered
+
+    def _filter_time_series_by_date_range(self, records: list[dict], start_date: datetime, end_date: datetime) -> list[dict]:
+        """
+        Filtra registros da gold_time_series que intersectam com o período especificado.
+
+        Args:
+            records: Lista de registros da analytics_gold_time_series
+            start_date: Data inicial do período
+            end_date: Data final do período
+
+        Returns:
+            Lista filtrada de registros cujo period_date cai dentro do período
+        """
+        from datetime import timezone, timedelta
+        from dateutil.relativedelta import relativedelta
+
+        filtered = []
+        for record in records:
+            period_date = record.get("period_date")
+
+            if not period_date:
+                continue
+
+            # Converte date para datetime se necessário
+            if isinstance(period_date, datetime):
+                period_start = period_date
+            else:
+                period_start = datetime.combine(period_date, datetime.min.time())
+
+            # O registro representa um mês inteiro (do dia 1 ao último dia do mês)
+            period_end = period_start + relativedelta(months=1)
+
+            # Garante timezone-aware datetimes
+            if period_start.tzinfo is None:
+                period_start = period_start.replace(tzinfo=timezone.utc)
+            if period_end.tzinfo is None:
+                period_end = period_end.replace(tzinfo=timezone.utc)
+            if start_date.tzinfo is None:
+                start_date = start_date.replace(tzinfo=timezone.utc)
+            if end_date.tzinfo is None:
+                end_date = end_date.replace(tzinfo=timezone.utc)
+
+            # Verifica se há interseção entre os períodos
+            # Interseção existe se: period_start < end_date AND period_end > start_date
+            if period_start < end_date and period_end > start_date:
+                filtered.append(record)
+
+        return filtered
+
     async def get_order_metrics(self, period: PeriodType = "today") -> OrderMetrics:
         """
-        Lê métricas de pedidos da camada Gold (pré-computadas).
+        Lê métricas de pedidos da gold_orders com date filtering e growth.
 
-        Note: period parameter não usado - Gold tem agregados all_time.
-        Para suportar períodos dinâmicos, seria necessário time_series Gold.
+        Usa gold_orders monthly data que inclui revenue, não gold_time_series.
         """
-        # Lê diretamente do Gold (sem cache - já é rápido)
         start_date, end_date = self._get_date_range(period)
         prev_start, prev_end = self._get_previous_period_range(period)
 
-        # Query atual - lê Gold table
-        current_metrics = self.repository.get_order_metrics_by_date_range(
-            self.client_id, start_date, end_date
-        )
+        # Busca registros mensais do gold_orders (tem revenue)
+        monthly_records = self.repository.get_gold_orders_time_series(self.client_id)
 
-        # Query período anterior (para growth) - lê Gold table
-        previous_metrics = self.repository.get_order_metrics_by_date_range(
-            self.client_id, prev_start, prev_end
-        )
+        if not monthly_records:
+            logger.warning(f"No monthly records found for client {self.client_id}")
+            return OrderMetrics(
+                total=0,
+                revenue=0.0,
+                avg_order_value=0.0,
+                growth_rate=None,
+                by_status={},
+                period=period
+            )
+
+        # Filtra registros mensais por período
+        current_records = self._filter_records_by_date_range(monthly_records, start_date, end_date)
+        previous_records = self._filter_records_by_date_range(monthly_records, prev_start, prev_end)
+
+        # Agrega métricas do período atual
+        current_total = sum(r.get("total_orders", 0) for r in current_records)
+        current_revenue = sum(r.get("total_revenue", 0.0) for r in current_records)
+        current_avg = current_revenue / current_total if current_total > 0 else 0.0
+
+        # Agrega métricas do período anterior
+        prev_total = sum(r.get("total_orders", 0) for r in previous_records)
 
         # Calcula growth rate
         growth_rate = None
-        if previous_metrics.get("total", 0) > 0:
-            current_total = current_metrics.get("total", 0)
-            prev_total = previous_metrics.get("total", 0)
+        if prev_total > 0:
             growth_rate = ((current_total - prev_total) / prev_total) * 100
 
+        logger.info(f"Order metrics for period '{period}': {current_total} orders, growth: {growth_rate}%")
+
         metrics = OrderMetrics(
-            total=current_metrics.get("total", 0),
-            revenue=current_metrics.get("revenue", 0.0),
-            avg_order_value=current_metrics.get("avg_order_value", 0.0),
+            total=current_total,
+            revenue=current_revenue,
+            avg_order_value=current_avg,
             growth_rate=round(growth_rate, 2) if growth_rate else None,
-            by_status=current_metrics.get("by_status", {}),
+            by_status={},
             period=period
         )
 
         return metrics
 
     async def get_product_metrics(self, period: PeriodType = "today") -> ProductMetrics:
-        """Lê métricas de produtos da camada Gold (pré-computadas)."""
+        """
+        Lê métricas de produtos da gold_products com date filtering.
+
+        Filtra produtos por ultima_venda e agrega métricas.
+        """
         start_date, end_date = self._get_date_range(period)
 
-        # Lê diretamente do Gold (sem cache)
-        product_data = self.repository.get_product_metrics_by_date_range(
+        # Busca e agrega produtos filtrados por date range
+        product_data = self.repository.get_gold_products_aggregated(
             self.client_id, start_date, end_date
         )
+
+        logger.info(f"Product metrics for period '{period}': {product_data.get('unique_products', 0)} products")
 
         metrics = ProductMetrics(
             total_sold=product_data.get("total_sold", 0),
@@ -157,13 +264,19 @@ class IndicatorService:
         return metrics
 
     async def get_customer_metrics(self, period: PeriodType = "today") -> CustomerMetrics:
-        """Lê métricas de clientes da camada Gold (pré-computadas)."""
+        """
+        Lê métricas de clientes da gold_customers com date filtering.
+
+        Filtra clientes por ultima_compra e primeira_compra para calcular new/returning.
+        """
         start_date, end_date = self._get_date_range(period)
 
-        # Lê diretamente do Gold (sem cache)
-        customer_data = self.repository.get_customer_metrics_by_date_range(
+        # Busca e agrega clientes filtrados por date range
+        customer_data = self.repository.get_gold_customers_aggregated(
             self.client_id, start_date, end_date
         )
+
+        logger.info(f"Customer metrics for period '{period}': {customer_data.get('total_active', 0)} customers")
 
         metrics = CustomerMetrics(
             total_active=customer_data.get("total_active", 0),

@@ -30,20 +30,11 @@ class Conversa(ConversaBase, table=True):
         sa_column=Column(pgUUID(as_uuid=True), primary_key=True),
     )
 
-    # Session id (string) para mapear sessões temporárias (ex: session_id usado pelo agente)
+    # Session id (string) para mapear sessões temporárias
     session_id: str | None = Field(default=None, index=True)
 
-    # Referência ao cliente Vizu (tenant) - obrigatório para RLS
-    client_id: uuid.UUID | None = Field(
-        default=None,
-        sa_column=Column(
-            pgUUID(as_uuid=True),
-            ForeignKey("cliente_vizu.id", ondelete="CASCADE"),
-            index=True,
-        ),
-    )
-
     # Referência ao cliente final (opcional)
+    # Note: Supabase schema does NOT have client_id FK, only cliente_final_id
     cliente_final_id: int | None = Field(
         default=None, foreign_key="cliente_final.id"
     )
@@ -53,13 +44,11 @@ class Conversa(ConversaBase, table=True):
 
 
 class ConversaCreate(ConversaBase):
-    client_id: uuid.UUID | None = None
     cliente_final_id: int | None = None
 
 
 class ConversaInDB(ConversaBase):
     id: uuid.UUID
-    client_id: uuid.UUID | None
     cliente_final_id: int | None
 
 

@@ -1,5 +1,5 @@
 """
-vizu_auth.core - Core authentication components.
+vizu_auth.core - Core authentication components (JWT-only).
 """
 
 from vizu_auth.core.config import (
@@ -11,8 +11,6 @@ from vizu_auth.core.exceptions import (
     AuthDisabledError,
     AuthError,
     ClientNotFoundError,
-    InvalidApiKeyError,
-    InvalidSignatureError,
     InvalidTokenError,
     MissingCredentialsError,
     TokenExpiredError,
@@ -24,7 +22,6 @@ from vizu_auth.core.jwt_decoder import (
 )
 from vizu_auth.core.models import (
     AuthMethod,
-    AuthRequest,
     AuthResult,
     JWTClaims,
 )
@@ -38,15 +35,12 @@ __all__ = [
     "MissingCredentialsError",
     "InvalidTokenError",
     "TokenExpiredError",
-    "InvalidSignatureError",
-    "InvalidApiKeyError",
     "ClientNotFoundError",
     "AuthDisabledError",
     "decode_jwt",
     "validate_jwt",
     "extract_client_id_from_jwt",
     "AuthMethod",
-    "AuthRequest",
     "AuthResult",
     "JWTClaims",
     "SecretManager",

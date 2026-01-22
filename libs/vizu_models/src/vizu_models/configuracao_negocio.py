@@ -33,7 +33,7 @@ class ConfiguracaoNegocio(ConfiguracaoNegocioBase, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     client_id: uuid.UUID = Field(
-        foreign_key="cliente_vizu.id", unique=True, index=True
+        foreign_key="clientes_vizu.client_id", unique=True, index=True
     )
     cliente_vizu: "ClienteVizu" = Relationship(back_populates="configuracao")
 

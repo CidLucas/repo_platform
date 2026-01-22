@@ -30,9 +30,6 @@ function PedidosPage() {
         getOrderIndicators(selectedPeriod)
       ]);
 
-      console.log('Pedidos overview received:', overviewResponse);
-      console.log('Order metrics received:', metricsResponse);
-
       setOverviewData(overviewResponse);
       setOrderMetrics(metricsResponse);
       setLastUpdate(new Date());

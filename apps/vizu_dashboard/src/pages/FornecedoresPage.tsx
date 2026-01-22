@@ -28,7 +28,7 @@ function FornecedoresPage() {
   const fetchFornecedoresData = async () => {
     try {
       setLoading(true);
-      const data = await getFornecedores();
+      const data = await getFornecedores(selectedPeriod);
       setOverviewData(data);
       setLastUpdate(new Date());
       setError(null);
@@ -41,7 +41,7 @@ function FornecedoresPage() {
 
   useEffect(() => {
     fetchFornecedoresData();
-  }, [selectedPeriod]);
+  }, [selectedPeriod, selectedMetric]);
 
   const handlePeriodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedPeriod(e.target.value as PeriodType);
@@ -217,45 +217,125 @@ function FornecedoresPage() {
 
         <Flex wrap="wrap" justify="center" gap="16px">
           <DashboardCard
-            title="Performance de Vendas"
-            size="large"
+            title="Crescimento de Fornecedores no Tempo"
+            size="small"
             bgColor="#B2E7FF"
             graphData={{
               values: overviewData.chart_fornecedores_no_tempo
                 ? overviewData.chart_fornecedores_no_tempo.map((d: any) => ({
                   name: d.name,
-                  value: d.total_cumulativo || 0
+                  value: d.total || 0
+                }))
+                : []
+            }}
+            scorecardValue={overviewData.scorecard_total_fornecedores.toString()}
+            scorecardLabel="Total de Fornecedores"
+            kpiItems={[
+              {
+                label: `Total de Fornecedores: ${overviewData.scorecard_total_fornecedores}`,
+                content: <Text>Número total de fornecedores ativos na base</Text>
+              },
+              {
+                label: 'Evolução no Tempo',
+                content: <Text>Acompanhe o crescimento do número de fornecedores ao longo do tempo.</Text>
+              }
+            ]}
+            modalLeftBgColor="#B2E7FF"
+            modalRightBgColor="#92DAFF"
+          />
+
+          <DashboardCard
+            title="Receita Mensal dos Fornecedores"
+            size="small"
+            bgColor="#B2E7FF"
+            graphData={{
+              values: overviewData.chart_receita_no_tempo
+                ? overviewData.chart_receita_no_tempo.map((d: any) => ({
+                  name: d.name,
+                  value: d.total || 0
                 }))
                 : []
             }}
             scorecardValue={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRevenue)}
-            scorecardLabel="Total Vendido"
-            kpiItems={
-              overviewData
-                ? [
-                  {
-                    label: `Total de Fornecedores: ${overviewData.scorecard_total_fornecedores}`,
-                    content: <Text>Número total de fornecedores ativos na base</Text>
-                  },
-                  {
-                    label: `Receita Total: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRevenue)}`,
-                    content: <Text>Valor total de receita gerada através de todos os fornecedores</Text>
-                  },
-                  {
-                    label: `Crescimento: ${overviewData.scorecard_crescimento_percentual?.toFixed(1) || 0}%`,
-                    content: <Text>Taxa de crescimento da base de fornecedores no período</Text>
-                  },
-                  {
-                    label: 'Evolução no Tempo',
-                    content: <Text>Acompanhe o crescimento do número de fornecedores ao longo do tempo. O gráfico mostra o total cumulativo de fornecedores ativos.</Text>
-                  }
-                ]
-                : undefined
-            }
+            scorecardLabel="Receita Total"
+            kpiItems={[
+              {
+                label: `Receita Total: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRevenue)}`,
+                content: <Text>Valor total de receita gerada através de todos os fornecedores</Text>
+              },
+              {
+                label: 'Flutuação Mensal',
+                content: <Text>Acompanhe mês a mês da flutuação de receita geral comercializada por todos os fornecedores.</Text>
+              }
+            ]}
             modalLeftBgColor="#B2E7FF"
             modalRightBgColor="#92DAFF"
-            modalContent={<Text>Detalhes do gráfico de vendas</Text>}
           />
+
+          <DashboardCard
+            title="Ticket Médio dos Fornecedores"
+            size="small"
+            bgColor="#B2E7FF"
+            graphData={{
+              values: overviewData.chart_ticketmedio_no_tempo
+                ? overviewData.chart_ticketmedio_no_tempo.map((d: any) => ({
+                  name: d.name,
+                  value: d.total || 0
+                }))
+                : []
+            }}
+            scorecardValue={overviewData.chart_ticketmedio_no_tempo && overviewData.chart_ticketmedio_no_tempo.length > 0
+              ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                overviewData.chart_ticketmedio_no_tempo[overviewData.chart_ticketmedio_no_tempo.length - 1].total || 0
+              )
+              : 'N/A'
+            }
+            scorecardLabel="Ticket Médio Atual"
+            kpiItems={[
+              {
+                label: 'Ticket Médio',
+                content: <Text>Quantidade total comercializada dividida pela quantidade de orders.</Text>
+              },
+              {
+                label: 'Evolução Mensal',
+                content: <Text>Mês a mês da flutuação do ticket médio geral dos fornecedores.</Text>
+              }
+            ]}
+            modalLeftBgColor="#B2E7FF"
+            modalRightBgColor="#92DAFF"
+          />
+
+          <DashboardCard
+            title="Volume Comercializado (Quantidade)"
+            size="small"
+            bgColor="#B2E7FF"
+            graphData={{
+              values: overviewData.chart_quantidade_no_tempo
+                ? overviewData.chart_quantidade_no_tempo.map((d: any) => ({
+                  name: d.name,
+                  value: d.total || 0
+                }))
+                : []
+            }}
+            scorecardValue={overviewData.chart_quantidade_no_tempo && overviewData.chart_quantidade_no_tempo.length > 0
+              ? overviewData.chart_quantidade_no_tempo[overviewData.chart_quantidade_no_tempo.length - 1].total?.toLocaleString('pt-BR') || 'N/A'
+              : 'N/A'
+            }
+            scorecardLabel="Volume Atual"
+            kpiItems={[
+              {
+                label: 'Volume Total',
+                content: <Text>Quantidade total (toneladas ou kgs) comercializada pelos fornecedores.</Text>
+              },
+              {
+                label: 'Flutuação Mensal',
+                content: <Text>Mês a mês da flutuação do volume comercializado.</Text>
+              }
+            ]}
+            modalLeftBgColor="#B2E7FF"
+            modalRightBgColor="#92DAFF"
+          />
+
           <DashboardCard
             title="Novos Fornecedores"
             size="small"
@@ -296,7 +376,12 @@ function FornecedoresPage() {
           />
         </Flex>
       </Flex>
-      <FornecedorDetailsModal isOpen={isOpen} onClose={onClose} fornecedor={selectedItem} />
+      <FornecedorDetailsModal
+        isOpen={isOpen}
+        onClose={onClose}
+        fornecedor={selectedItem}
+        overviewData={overviewData}
+      />
     </MainLayout>
   );
 }

@@ -12,6 +12,7 @@ export interface AuthContextType {
   user: User | null;
   session: Session | null;
   isLoading: boolean;
+  clientId: string | null; // Real client_id from clientes_vizu table
   signInWithEmail: (
     email: string,
     password: string
@@ -35,6 +36,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [clientId, setClientId] = useState<string | null>(null);
 
   useEffect(() => {
     // Verifica sessão atual
@@ -48,8 +50,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       // Initialize client_id on first login
       if (session?.access_token) {
         try {
-          await getMe(session.access_token);
-          console.log('✅ Cliente Vizu ID initialized');
+          const meResponse = await getMe(session.access_token);
+          setClientId(meResponse.client_id);
+          // Store in localStorage for services that don't have React context access
+          localStorage.setItem('vizu_client_id', meResponse.client_id);
+          console.log('✅ Cliente Vizu ID initialized:', meResponse.client_id);
         } catch (error) {
           console.error('Failed to initialize client_id:', error);
         }
@@ -70,11 +75,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       // Initialize client_id when user signs in
       if (session?.access_token && _event === 'SIGNED_IN') {
         try {
-          await getMe(session.access_token);
-          console.log('✅ Cliente Vizu ID initialized on sign in');
+          const meResponse = await getMe(session.access_token);
+          setClientId(meResponse.client_id);
+          // Store in localStorage for services that don't have React context access
+          localStorage.setItem('vizu_client_id', meResponse.client_id);
+          console.log('✅ Cliente Vizu ID initialized on sign in:', meResponse.client_id);
         } catch (error) {
           console.error('Failed to initialize client_id:', error);
         }
+      }
+
+      // Clear clientId on sign out
+      if (_event === 'SIGNED_OUT') {
+        setClientId(null);
+        localStorage.removeItem('vizu_client_id');
       }
 
       setIsLoading(false);
@@ -147,6 +161,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         user,
         session,
         isLoading,
+        clientId,
         signInWithEmail,
         signInWithGoogle,
         signInWithMicrosoft,

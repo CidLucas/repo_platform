@@ -92,7 +92,7 @@ services:
       - .env.production
     environment:
       <<: [*common-env, *atendente-env]
-      PYTHONPATH: /app/services/atendente_core/src
+      PYTHONPATH: /app/src
       USE_LOCAL_DB: "false"
     ports:
       - "127.0.0.1:8003:8000"

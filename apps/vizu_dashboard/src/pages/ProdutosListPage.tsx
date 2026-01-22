@@ -29,9 +29,6 @@ function ProdutosListPage() {
         getProductIndicators(selectedPeriod)
       ]);
 
-      console.log('Produtos overview received:', overviewResponse);
-      console.log('Product metrics received:', metricsResponse);
-
       setOverviewData(overviewResponse);
       setProductMetrics(metricsResponse);
       setLastUpdate(new Date());

@@ -14,11 +14,13 @@ class VizuClientContext(ClienteVizuBase):
     PHASE 1: Dynamic Tool Allocation
     - enabled_tools: Lista dinâmica de ferramentas habilitadas (substitui 3 booleans)
     - tier: Tier do cliente determina acesso baseline
+
+    Authentication: JWT-only (Supabase)
+    - id: The client UUID (same as Supabase user ID)
     """
 
     # Informações de Identificação do Cliente
     id: uuid.UUID
-    api_key: str
     nome_empresa: str
 
     # PHASE 1: Dynamic Tool Allocation - New enabled_tools list

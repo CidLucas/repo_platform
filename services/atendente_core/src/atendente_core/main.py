@@ -28,11 +28,15 @@ async def check_mcp_connection() -> bool:
 
 
 async def check_database() -> bool:
-    """Check database connectivity."""
+    """Check database connectivity via Supabase REST API."""
     try:
-        from vizu_observability_bootstrap import check_database_url
-        return await check_database_url()
-    except Exception:
+        from vizu_supabase_client import get_supabase_client
+        client = get_supabase_client()
+        # Simple health check: query clientes_vizu with limit 1
+        response = client.table("clientes_vizu").select("client_id").limit(1).execute()
+        return response is not None
+    except Exception as e:
+        logger.warning(f"Database health check failed: {e}")
         return False
 
 

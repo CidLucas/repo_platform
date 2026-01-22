@@ -17,7 +17,7 @@ class IntegrationConfig(SQLModel, table=True):
     __tablename__ = "integration_configs"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    client_id: UUID = Field(foreign_key="cliente_vizu.id", index=True)
+    client_id: UUID = Field(foreign_key="clientes_vizu.client_id", index=True)
 
     provider: str = Field(index=True)
     config_type: str
@@ -39,7 +39,7 @@ class IntegrationTokens(SQLModel, table=True):
     __tablename__ = "integration_tokens"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    client_id: UUID = Field(foreign_key="cliente_vizu.id", index=True)
+    client_id: UUID = Field(foreign_key="clientes_vizu.client_id", index=True)
     provider: str = Field(index=True)
 
     access_token_encrypted: str

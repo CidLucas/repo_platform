@@ -128,6 +128,10 @@ class MetricService:
         if logger.isEnabledFor(logging.DEBUG):
             DataQualityLogger.log_dataframe_describe(self.df_produtos_agg, "After Aggregation", "products")
 
+        # Customer-Product aggregation (for mix_de_produtos in ClienteDetailsModal)
+        self.df_customer_products_agg = self._get_customer_product_aggregation()
+        logger.info(f"  - Customer-Products aggregated: {len(self.df_customer_products_agg)} records")
+
         # --- PERSIST TO GOLD TABLES ---
         # Only persist when explicitly allowed (ingestion/connector flows)
         if self.write_gold:
@@ -172,6 +176,23 @@ class MetricService:
             agg_ops['emitter_cnpj'] = ('emitter_cnpj', 'first')
         if dimension_col == 'receiver_nome' and 'receiver_cpf_cnpj' in df.columns:
             agg_ops['receiver_cpf_cnpj'] = ('receiver_cpf_cnpj', 'first')
+            # Preserve contact and address fields for customers
+            if 'receiver_telefone' in df.columns:
+                agg_ops['receiver_telefone'] = ('receiver_telefone', 'first')
+            if 'receiver_rua' in df.columns:
+                agg_ops['receiver_rua'] = ('receiver_rua', 'first')
+            if 'receiver_numero' in df.columns:
+                agg_ops['receiver_numero'] = ('receiver_numero', 'first')
+            if 'receiver_bairro' in df.columns:
+                agg_ops['receiver_bairro'] = ('receiver_bairro', 'first')
+            if 'receiver_cidade' in df.columns:
+                agg_ops['receiver_cidade'] = ('receiver_cidade', 'first')
+            if 'receiver_uf' in df.columns:
+                agg_ops['receiver_uf'] = ('receiver_uf', 'first')
+            elif 'receiverstateuf' in df.columns:
+                agg_ops['receiverstateuf'] = ('receiverstateuf', 'first')
+            if 'receiver_cep' in df.columns:
+                agg_ops['receiver_cep'] = ('receiver_cep', 'first')
 
         if not agg_ops:
             logger.warning(f"No aggregatable columns found for {dimension_col}")
@@ -249,7 +270,7 @@ class MetricService:
         # Usamos qcut (quantil) para dividir em 4 grupos (A, B, C, D)
         if agg_df['cluster_score'].nunique() > 1:
             try:
-                agg_df['cluster_tier'] = pd.qcut(agg_df['cluster_score'], 4, labels=["D (Piores)", "C", "B", "A (Melhores)"])
+                agg_df['cluster_tier'] = pd.qcut(agg_df['cluster_score'], 4, labels=["D", "C", "B", "A"])
             except ValueError:
                 # Fallback se não houver dados suficientes para 4 quantis
                 agg_df['cluster_tier'] = "C"
@@ -264,6 +285,70 @@ class MetricService:
         agg_df.rename(columns={dimension_col: 'nome'}, inplace=True)
         agg_df.replace([np.inf, -np.inf], np.nan, inplace=True)
         agg_df.fillna(0, inplace=True)
+
+        return agg_df
+
+    def _get_customer_product_aggregation(self) -> pd.DataFrame:
+        """
+        Aggregate product metrics per customer (customer_cpf_cnpj + product_name).
+        This enables fast lookup of "what products did this customer buy" from gold tables.
+        Used by ClienteDetailsModal to show mix_de_produtos_por_receita.
+        """
+        required_cols = ['receiver_cpf_cnpj', 'raw_product_description']
+        if self.df.empty or not all(col in self.df.columns for col in required_cols):
+            logger.warning("Cannot compute customer-product aggregation: missing required columns")
+            return pd.DataFrame(columns=[
+                'customer_cpf_cnpj', 'customer_name', 'product_name',
+                'receita_total', 'quantidade_total', 'num_pedidos',
+                'valor_unitario_medio', 'primeira_compra', 'ultima_compra'
+            ])
+
+        # Filter out rows with missing customer identifier
+        df_valid = self.df[self.df['receiver_cpf_cnpj'].notna()].copy()
+        if df_valid.empty:
+            logger.warning("No valid customer CPF/CNPJ data for customer-product aggregation")
+            return pd.DataFrame()
+
+        # Build aggregation operations
+        agg_ops = {
+            'receita_total': ('valor_total_emitter', 'sum') if 'valor_total_emitter' in df_valid.columns else ('receiver_cpf_cnpj', 'count'),
+            'quantidade_total': ('quantidade', 'sum') if 'quantidade' in df_valid.columns else ('receiver_cpf_cnpj', 'count'),
+        }
+
+        if 'order_id' in df_valid.columns:
+            agg_ops['num_pedidos'] = ('order_id', 'nunique')
+        if 'valor_unitario' in df_valid.columns:
+            agg_ops['valor_unitario_medio'] = ('valor_unitario', 'mean')
+        if 'data_transacao' in df_valid.columns:
+            agg_ops['primeira_compra'] = ('data_transacao', 'min')
+            agg_ops['ultima_compra'] = ('data_transacao', 'max')
+        if 'receiver_nome' in df_valid.columns:
+            agg_ops['customer_name'] = ('receiver_nome', 'first')
+
+        # Group by customer + product
+        agg_df = df_valid.groupby(['receiver_cpf_cnpj', 'raw_product_description']).agg(**agg_ops).reset_index()
+
+        # Rename columns to match gold table schema
+        agg_df.rename(columns={
+            'receiver_cpf_cnpj': 'customer_cpf_cnpj',
+            'raw_product_description': 'product_name',
+        }, inplace=True)
+
+        # Fill missing columns with defaults
+        if 'num_pedidos' not in agg_df.columns:
+            agg_df['num_pedidos'] = 1
+        if 'valor_unitario_medio' not in agg_df.columns:
+            agg_df['valor_unitario_medio'] = 0
+        if 'primeira_compra' not in agg_df.columns:
+            agg_df['primeira_compra'] = None
+        if 'ultima_compra' not in agg_df.columns:
+            agg_df['ultima_compra'] = None
+        if 'customer_name' not in agg_df.columns:
+            agg_df['customer_name'] = None
+
+        # Clean up NaN/inf values
+        agg_df.replace([np.inf, -np.inf], np.nan, inplace=True)
+        agg_df.fillna({'receita_total': 0, 'quantidade_total': 0, 'num_pedidos': 0, 'valor_unitario_medio': 0}, inplace=True)
 
         return agg_df
 
@@ -346,25 +431,24 @@ class MetricService:
             else:
                 logger.warning(f"  ⚠️  No product data to write")
 
-            # Write orders summary with data quality check
-            if not self.df.empty and 'order_id' in self.df.columns:
-                # Calculate period_start and period_end from data_transacao
-                period_start = None
-                period_end = None
-                if 'data_transacao' in self.df.columns and not self.df['data_transacao'].isna().all():
-                    period_start = self.df['data_transacao'].min()
-                    period_end = self.df['data_transacao'].max()
+            # Write customer-product relationships (for mix_de_produtos in ClienteDetailsModal)
+            if not self.df_customer_products_agg.empty:
+                logger.info(f"  ➜ Writing {len(self.df_customer_products_agg)} customer-product relationships...")
+                self.repository.write_gold_customer_products(
+                    self.client_id,
+                    self.df_customer_products_agg.to_dict('records')
+                )
+            else:
+                logger.warning(f"  ⚠️  No customer-product data to write")
 
-                orders_metrics = {
-                    "total_orders": int(self.df['order_id'].nunique()),
-                    "total_revenue": float(self.df['valor_total_emitter'].sum()) if 'valor_total_emitter' in self.df.columns else 0,
-                    "avg_order_value": float((self.df['valor_total_emitter'].sum() / self.df['order_id'].nunique())) if 'valor_total_emitter' in self.df.columns and self.df['order_id'].nunique() > 0 else 0,
-                    "period_start": period_start,
-                    "period_end": period_end,
-                }
-                logger.info(f"  ➜ Writing order summary: {orders_metrics['total_orders']} orders, revenue: {orders_metrics['total_revenue']:.2f}")
-                DataQualityLogger.log_dict_quality(orders_metrics, "analytics_gold_orders", self.client_id)
-                self.repository.write_gold_orders(self.client_id, orders_metrics)
+            # Write orders summary with data quality check (all-time + monthly)
+            if not self.df.empty and 'order_id' in self.df.columns:
+                # Calculate all-time and monthly order metrics
+                orders_metrics_list = self._calculate_orders_metrics()
+                logger.info(f"  ➜ Writing order metrics: {len(orders_metrics_list)} periods (1 all-time + {len(orders_metrics_list)-1} monthly)")
+                for orders_metrics in orders_metrics_list:
+                    DataQualityLogger.log_dict_quality(orders_metrics, "analytics_gold_orders", self.client_id)
+                self.repository.write_gold_orders_bulk(self.client_id, orders_metrics_list)
             else:
                 logger.warning(f"  ⚠️  No order data to write (missing order_id or empty df)")
 
@@ -377,6 +461,113 @@ class MetricService:
         except Exception as e:
             logger.error(f"❌ Failed to write gold tables: {e}", exc_info=True)
             # Don't raise - let metrics still be computed even if persistence fails
+
+    def _calculate_orders_metrics(self) -> list[dict]:
+        """
+        Calculate order metrics for both all-time and monthly periods.
+
+        Returns:
+            List of dicts with metrics for each period:
+            - 1 all-time aggregate
+            - N monthly aggregates (one per month in the data)
+        """
+        metrics_list = []
+
+        # Validate required columns
+        if self.df.empty or 'order_id' not in self.df.columns:
+            logger.warning("Cannot calculate orders metrics: missing order_id column")
+            return metrics_list
+
+        has_dates = 'data_transacao' in self.df.columns and not self.df['data_transacao'].isna().all()
+        has_revenue = 'valor_total_emitter' in self.df.columns
+        has_quantity = 'quantidade' in self.df.columns
+
+        # --- ALL-TIME METRICS ---
+        try:
+            period_start = self.df['data_transacao'].min() if has_dates else None
+            period_end = self.df['data_transacao'].max() if has_dates else None
+            total_orders = int(self.df['order_id'].nunique())
+            total_revenue = float(self.df['valor_total_emitter'].sum()) if has_revenue else 0.0
+            quantidade_total = float(self.df['quantidade'].sum()) if has_quantity else 0.0
+
+            # Calculate frequency and recency
+            frequencia_pedidos_mes = 0.0
+            recencia_dias = 0
+            if has_dates and period_start and period_end:
+                dias_ativo = (period_end - period_start).days
+                meses_ativo = max((dias_ativo / 30.44), 1)  # At least 1 month
+                frequencia_pedidos_mes = float(total_orders / meses_ativo)
+
+                # Recency: average days between consecutive orders
+                if total_orders > 1:
+                    df_sorted = self.df.sort_values('data_transacao')
+                    intervals = df_sorted['data_transacao'].diff().dt.days.dropna()
+                    recencia_dias = int(intervals.mean()) if len(intervals) > 0 else 0
+
+            all_time_metrics = {
+                "period_type": "all_time",
+                "period_start": period_start,
+                "period_end": period_end,
+                "total_orders": total_orders,
+                "total_revenue": total_revenue,
+                "avg_order_value": float(total_revenue / total_orders) if total_orders > 0 else 0.0,
+                "quantidade_total": quantidade_total,
+                "frequencia_pedidos_mes": frequencia_pedidos_mes,
+                "recencia_dias": recencia_dias,
+                "primeira_transacao": period_start,
+                "ultima_transacao": period_end,
+            }
+            metrics_list.append(all_time_metrics)
+            logger.info(f"    ✓ All-time metrics: {total_orders} orders, {total_revenue:.2f} revenue, {frequencia_pedidos_mes:.2f} freq/mo")
+
+        except Exception as e:
+            logger.error(f"Failed to calculate all-time order metrics: {e}", exc_info=True)
+
+        # --- MONTHLY METRICS ---
+        if has_dates and 'ano_mes' in self.df.columns:
+            try:
+                # Group by month
+                for period, df_month in self.df.groupby('ano_mes'):
+                    if df_month.empty:
+                        continue
+
+                    period_start_month = df_month['data_transacao'].min()
+                    period_end_month = df_month['data_transacao'].max()
+                    total_orders_month = int(df_month['order_id'].nunique())
+                    total_revenue_month = float(df_month['valor_total_emitter'].sum()) if has_revenue else 0.0
+                    quantidade_total_month = float(df_month['quantidade'].sum()) if has_quantity else 0.0
+
+                    # For monthly metrics, frequency is orders per month (always in this month)
+                    frequencia_pedidos_mes_month = float(total_orders_month)
+
+                    # Recency: average days between orders within this month
+                    recencia_dias_month = 0
+                    if total_orders_month > 1:
+                        df_sorted = df_month.sort_values('data_transacao')
+                        intervals = df_sorted['data_transacao'].diff().dt.days.dropna()
+                        recencia_dias_month = int(intervals.mean()) if len(intervals) > 0 else 0
+
+                    monthly_metrics = {
+                        "period_type": "monthly",
+                        "period_start": period_start_month,
+                        "period_end": period_end_month,
+                        "total_orders": total_orders_month,
+                        "total_revenue": total_revenue_month,
+                        "avg_order_value": float(total_revenue_month / total_orders_month) if total_orders_month > 0 else 0.0,
+                        "quantidade_total": quantidade_total_month,
+                        "frequencia_pedidos_mes": frequencia_pedidos_mes_month,
+                        "recencia_dias": recencia_dias_month,
+                        "primeira_transacao": period_start_month,
+                        "ultima_transacao": period_end_month,
+                    }
+                    metrics_list.append(monthly_metrics)
+
+                logger.info(f"    ✓ Monthly metrics: {len(metrics_list) - 1} months calculated")
+
+            except Exception as e:
+                logger.error(f"Failed to calculate monthly order metrics: {e}", exc_info=True)
+
+        return metrics_list
 
     def _calculate_total_regions(self) -> int:
         """
@@ -578,6 +769,199 @@ class MetricService:
                 all_time_series_data.extend(chart_data)
                 logger.info(f"  ✓ Computed {len(chart_data)} pedidos time series points")
 
+            # --- NEW: Revenue, Ticket Medio, and Quantidade time series ---
+
+            # Receita de Fornecedores no tempo (supplier revenue over time)
+            if 'emitter_nome' in self.df.columns and 'valor_total_emitter' in self.df.columns:
+                df_time = self.df.copy()
+                dt_no_tz = df_time['data_transacao'].dt.tz_localize(None)
+                df_time['ano_mes'] = dt_no_tz.dt.to_period('M').astype(str)
+                df_time['period_date'] = dt_no_tz.dt.to_period('M').dt.to_timestamp()
+
+                time_series = df_time.dropna(subset=['ano_mes']).groupby(['ano_mes', 'period_date'])['valor_total_emitter'].sum().reset_index()
+                time_series.rename(columns={'valor_total_emitter': 'total'}, inplace=True)
+
+                chart_data = [
+                    {
+                        'chart_type': 'receita_fornecedores_no_tempo',
+                        'dimension': 'suppliers',
+                        'period': row['ano_mes'],
+                        'period_date': pd.Timestamp(row['period_date']).date(),
+                        'total': float(row['total'])
+                    }
+                    for _, row in time_series.iterrows()
+                ]
+                all_time_series_data.extend(chart_data)
+                logger.info(f"  ✓ Computed {len(chart_data)} receita fornecedores time series points")
+
+            # Ticket Médio de Fornecedores no tempo
+            if 'emitter_nome' in self.df.columns and 'valor_total_emitter' in self.df.columns and 'order_id' in self.df.columns:
+                df_time = self.df.copy()
+                dt_no_tz = df_time['data_transacao'].dt.tz_localize(None)
+                df_time['ano_mes'] = dt_no_tz.dt.to_period('M').astype(str)
+                df_time['period_date'] = dt_no_tz.dt.to_period('M').dt.to_timestamp()
+
+                # Calculate ticket medio = total revenue / unique orders per month
+                grouped = df_time.dropna(subset=['ano_mes']).groupby(['ano_mes', 'period_date']).agg({
+                    'valor_total_emitter': 'sum',
+                    'order_id': 'nunique'
+                }).reset_index()
+                grouped['total'] = grouped['valor_total_emitter'] / grouped['order_id']
+
+                chart_data = [
+                    {
+                        'chart_type': 'ticket_medio_fornecedores_no_tempo',
+                        'dimension': 'suppliers',
+                        'period': row['ano_mes'],
+                        'period_date': pd.Timestamp(row['period_date']).date(),
+                        'total': float(row['total'])
+                    }
+                    for _, row in grouped.iterrows()
+                ]
+                all_time_series_data.extend(chart_data)
+                logger.info(f"  ✓ Computed {len(chart_data)} ticket medio fornecedores time series points")
+
+            # Quantidade de Fornecedores no tempo (volume in kg/ton)
+            if 'emitter_nome' in self.df.columns and 'quantidade' in self.df.columns:
+                df_time = self.df.copy()
+                dt_no_tz = df_time['data_transacao'].dt.tz_localize(None)
+                df_time['ano_mes'] = dt_no_tz.dt.to_period('M').astype(str)
+                df_time['period_date'] = dt_no_tz.dt.to_period('M').dt.to_timestamp()
+
+                time_series = df_time.dropna(subset=['ano_mes']).groupby(['ano_mes', 'period_date'])['quantidade'].sum().reset_index()
+                time_series.rename(columns={'quantidade': 'total'}, inplace=True)
+
+                chart_data = [
+                    {
+                        'chart_type': 'quantidade_fornecedores_no_tempo',
+                        'dimension': 'suppliers',
+                        'period': row['ano_mes'],
+                        'period_date': pd.Timestamp(row['period_date']).date(),
+                        'total': float(row['total'])
+                    }
+                    for _, row in time_series.iterrows()
+                ]
+                all_time_series_data.extend(chart_data)
+                logger.info(f"  ✓ Computed {len(chart_data)} quantidade fornecedores time series points")
+
+            # Receita de Clientes no tempo (customer revenue over time)
+            if 'receiver_nome' in self.df.columns and 'valor_total_emitter' in self.df.columns:
+                df_time = self.df.copy()
+                dt_no_tz = df_time['data_transacao'].dt.tz_localize(None)
+                df_time['ano_mes'] = dt_no_tz.dt.to_period('M').astype(str)
+                df_time['period_date'] = dt_no_tz.dt.to_period('M').dt.to_timestamp()
+
+                time_series = df_time.dropna(subset=['ano_mes']).groupby(['ano_mes', 'period_date'])['valor_total_emitter'].sum().reset_index()
+                time_series.rename(columns={'valor_total_emitter': 'total'}, inplace=True)
+
+                chart_data = [
+                    {
+                        'chart_type': 'receita_clientes_no_tempo',
+                        'dimension': 'customers',
+                        'period': row['ano_mes'],
+                        'period_date': pd.Timestamp(row['period_date']).date(),
+                        'total': float(row['total'])
+                    }
+                    for _, row in time_series.iterrows()
+                ]
+                all_time_series_data.extend(chart_data)
+                logger.info(f"  ✓ Computed {len(chart_data)} receita clientes time series points")
+
+            # Ticket Médio de Clientes no tempo
+            if 'receiver_nome' in self.df.columns and 'valor_total_emitter' in self.df.columns and 'order_id' in self.df.columns:
+                df_time = self.df.copy()
+                dt_no_tz = df_time['data_transacao'].dt.tz_localize(None)
+                df_time['ano_mes'] = dt_no_tz.dt.to_period('M').astype(str)
+                df_time['period_date'] = dt_no_tz.dt.to_period('M').dt.to_timestamp()
+
+                grouped = df_time.dropna(subset=['ano_mes']).groupby(['ano_mes', 'period_date']).agg({
+                    'valor_total_emitter': 'sum',
+                    'order_id': 'nunique'
+                }).reset_index()
+                grouped['total'] = grouped['valor_total_emitter'] / grouped['order_id']
+
+                chart_data = [
+                    {
+                        'chart_type': 'ticket_medio_clientes_no_tempo',
+                        'dimension': 'customers',
+                        'period': row['ano_mes'],
+                        'period_date': pd.Timestamp(row['period_date']).date(),
+                        'total': float(row['total'])
+                    }
+                    for _, row in grouped.iterrows()
+                ]
+                all_time_series_data.extend(chart_data)
+                logger.info(f"  ✓ Computed {len(chart_data)} ticket medio clientes time series points")
+
+            # Quantidade de Clientes no tempo (volume purchased)
+            if 'receiver_nome' in self.df.columns and 'quantidade' in self.df.columns:
+                df_time = self.df.copy()
+                dt_no_tz = df_time['data_transacao'].dt.tz_localize(None)
+                df_time['ano_mes'] = dt_no_tz.dt.to_period('M').astype(str)
+                df_time['period_date'] = dt_no_tz.dt.to_period('M').dt.to_timestamp()
+
+                time_series = df_time.dropna(subset=['ano_mes']).groupby(['ano_mes', 'period_date'])['quantidade'].sum().reset_index()
+                time_series.rename(columns={'quantidade': 'total'}, inplace=True)
+
+                chart_data = [
+                    {
+                        'chart_type': 'quantidade_clientes_no_tempo',
+                        'dimension': 'customers',
+                        'period': row['ano_mes'],
+                        'period_date': pd.Timestamp(row['period_date']).date(),
+                        'total': float(row['total'])
+                    }
+                    for _, row in time_series.iterrows()
+                ]
+                all_time_series_data.extend(chart_data)
+                logger.info(f"  ✓ Computed {len(chart_data)} quantidade clientes time series points")
+
+            # Receita de Produtos no tempo (product revenue over time)
+            if 'raw_product_description' in self.df.columns and 'valor_total_emitter' in self.df.columns:
+                df_time = self.df.copy()
+                dt_no_tz = df_time['data_transacao'].dt.tz_localize(None)
+                df_time['ano_mes'] = dt_no_tz.dt.to_period('M').astype(str)
+                df_time['period_date'] = dt_no_tz.dt.to_period('M').dt.to_timestamp()
+
+                time_series = df_time.dropna(subset=['ano_mes']).groupby(['ano_mes', 'period_date'])['valor_total_emitter'].sum().reset_index()
+                time_series.rename(columns={'valor_total_emitter': 'total'}, inplace=True)
+
+                chart_data = [
+                    {
+                        'chart_type': 'receita_produtos_no_tempo',
+                        'dimension': 'products',
+                        'period': row['ano_mes'],
+                        'period_date': pd.Timestamp(row['period_date']).date(),
+                        'total': float(row['total'])
+                    }
+                    for _, row in time_series.iterrows()
+                ]
+                all_time_series_data.extend(chart_data)
+                logger.info(f"  ✓ Computed {len(chart_data)} receita produtos time series points")
+
+            # Quantidade de Produtos no tempo (volume sold)
+            if 'raw_product_description' in self.df.columns and 'quantidade' in self.df.columns:
+                df_time = self.df.copy()
+                dt_no_tz = df_time['data_transacao'].dt.tz_localize(None)
+                df_time['ano_mes'] = dt_no_tz.dt.to_period('M').astype(str)
+                df_time['period_date'] = dt_no_tz.dt.to_period('M').dt.to_timestamp()
+
+                time_series = df_time.dropna(subset=['ano_mes']).groupby(['ano_mes', 'period_date'])['quantidade'].sum().reset_index()
+                time_series.rename(columns={'quantidade': 'total'}, inplace=True)
+
+                chart_data = [
+                    {
+                        'chart_type': 'quantidade_produtos_no_tempo',
+                        'dimension': 'products',
+                        'period': row['ano_mes'],
+                        'period_date': pd.Timestamp(row['period_date']).date(),
+                        'total': float(row['total'])
+                    }
+                    for _, row in time_series.iterrows()
+                ]
+                all_time_series_data.extend(chart_data)
+                logger.info(f"  ✓ Computed {len(chart_data)} quantidade produtos time series points")
+
             # Write all time series data in a single batch
             if all_time_series_data:
                 self.repository.write_gold_time_series(self.client_id, all_time_series_data)
@@ -697,12 +1081,19 @@ class MetricService:
             return
 
         try:
-            df_orders = self.df.groupby('order_id').agg(
-                data_transacao=('data_transacao', 'max'),
-                id_cliente=('receiver_nome', 'first'),
-                ticket_pedido=('valor_total_emitter', 'sum'),
-                qtd_produtos=('raw_product_description', 'nunique'),
-            ).reset_index()
+            # Build aggregation dict - include cpf_cnpj if available
+            agg_dict = {
+                'data_transacao': ('data_transacao', 'max'),
+                'customer_name': ('receiver_nome', 'first'),
+                'ticket_pedido': ('valor_total_emitter', 'sum'),
+                'qtd_produtos': ('raw_product_description', 'nunique'),
+            }
+
+            # Add customer_cpf_cnpj if available in the dataframe
+            if 'receiver_cpf_cnpj' in self.df.columns:
+                agg_dict['customer_cpf_cnpj'] = ('receiver_cpf_cnpj', 'first')
+
+            df_orders = self.df.groupby('order_id').agg(**agg_dict).reset_index()
 
             # Sort by date descending and take top 20
             df_orders = df_orders.sort_values('data_transacao', ascending=False).head(20).reset_index(drop=True)
@@ -713,8 +1104,9 @@ class MetricService:
             chart_data = [
                 {
                     'order_id': row['order_id'],
-                    'data_transacao': pd.Timestamp(row['data_transacao']).to_pydatetime() if pd.notna(row['data_transacao']) else None,  # Convert to Python datetime
-                    'id_cliente': row['id_cliente'],
+                    'data_transacao': pd.Timestamp(row['data_transacao']).to_pydatetime() if pd.notna(row['data_transacao']) else None,
+                    'customer_cpf_cnpj': row.get('customer_cpf_cnpj', None),
+                    'customer_name': row.get('customer_name', None),
                     'ticket_pedido': float(row['ticket_pedido']),
                     'qtd_produtos': int(row['qtd_produtos']),
                     'order_rank': int(row['order_rank'])

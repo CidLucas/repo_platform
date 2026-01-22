@@ -100,7 +100,7 @@ class PromptTemplate(PromptTemplateBase, table=True):
         default=None,
         sa_column=Column(
             pgUUID(as_uuid=True),
-            ForeignKey("cliente_vizu.id"),
+            ForeignKey("clientes_vizu.client_id"),
             nullable=True,
             index=True,
         ),

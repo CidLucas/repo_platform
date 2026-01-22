@@ -23,7 +23,7 @@ export const useDashboardStats = (): UseDashboardStatsReturn => {
   const [refetchFlag, setRefetchFlag] = useState(0);
 
   useEffect(() => {
-    if (!auth?.user?.id) {
+    if (!auth?.clientId) {
       setStats(null);
       setLoading(false);
       return;
@@ -34,7 +34,7 @@ export const useDashboardStats = (): UseDashboardStatsReturn => {
       setError(null);
 
       try {
-        const data = await getDashboardStats(auth.user!.id);
+        const data = await getDashboardStats(auth.clientId!);
         setStats(data);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch dashboard stats'));
@@ -44,7 +44,7 @@ export const useDashboardStats = (): UseDashboardStatsReturn => {
     };
 
     fetchStats();
-  }, [auth?.user?.id, refetchFlag]);
+  }, [auth?.clientId, refetchFlag]);
 
   const refetch = () => setRefetchFlag((prev) => prev + 1);
 

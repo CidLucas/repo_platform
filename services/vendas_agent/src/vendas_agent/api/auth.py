@@ -1,21 +1,23 @@
 """
-Authentication helpers for Vendas Agent API.
+JWT-only authentication for vendas_agent using vizu_auth.
 
-Uses vizu_auth for JWT and API key validation.
+This module provides the `get_auth_result` dependency that validates
+JWT tokens from Supabase and returns an AuthResult.
 """
 
 import logging
+from uuid import UUID
 
-from fastapi import Depends, Header, Request
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from vizu_auth.adapters.context_service_adapter import (
-    api_key_lookup_from_context_service,
-    external_user_lookup_from_context_service,
+from vizu_auth.core.exceptions import (
+    AuthError,
+    InvalidTokenError,
+    TokenExpiredError,
 )
-from vizu_auth.fastapi import create_auth_dependency
-from vizu_context_service.context_service import ContextService
-from vizu_context_service.dependencies import get_context_service
+from vizu_auth.core.jwt_decoder import decode_jwt
+from vizu_auth.core.models import AuthMethod, AuthResult
 
 logger = logging.getLogger(__name__)
 
@@ -23,31 +25,66 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_auth_result(
-    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    x_api_key: str | None = Header(None, alias="X-API-KEY"),
-    ctx_service: ContextService = Depends(get_context_service),
-):
+) -> AuthResult:
     """
-    Dependency FastAPI que constrói, em runtime, um `AuthDependencyFactory`
-    usando o `ContextService` e os adapters; em seguida delega a validação
-    para `AuthDependencyFactory.get_auth_result`.
+    JWT-only authentication dependency.
+
+    Validates the Bearer token and returns an AuthResult with:
+    - client_id: UUID from JWT (Supabase user ID)
+    - auth_method: JWT
+    - external_user_id: Supabase user ID (sub claim)
+    - email: User email from JWT
+
+    Raises HTTPException 401 if token is missing or invalid.
     """
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required. Provide Bearer token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    # Cria funções de lookup atreladas à instância do ContextService
-    api_key_lookup = api_key_lookup_from_context_service(ctx_service)
-    external_user_lookup = external_user_lookup_from_context_service(ctx_service)
+    try:
+        claims = decode_jwt(credentials.credentials)
 
-    # Cria factory (leve) e delega a validação passando os objetos já resolvidos
-    auth_factory = create_auth_dependency(
-        api_key_lookup_fn=api_key_lookup,
-        external_user_lookup_fn=external_user_lookup,
-        allow_auth_disabled=False,
-    )
+        # Use Supabase user ID (sub) as client_id
+        try:
+            client_id = UUID(claims.sub)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid UUID in JWT sub claim: {claims.sub}, error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid user ID format in token.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-    # Delegamos chamando o método do factory passando explicitamente os valores
-    return await auth_factory.get_auth_result(
-        request=request,
-        credentials=credentials,
-        x_api_key=x_api_key,
-    )
+        logger.info(f"JWT auth successful for user: {claims.sub}")
+
+        return AuthResult(
+            client_id=client_id,
+            auth_method=AuthMethod.JWT,
+            external_user_id=claims.sub,
+            email=claims.email,
+            raw_claims=claims.model_dump(exclude_none=True),
+        )
+
+    except TokenExpiredError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired. Please refresh your authentication.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except AuthError as e:
+        logger.error(f"Auth error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication failed.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )

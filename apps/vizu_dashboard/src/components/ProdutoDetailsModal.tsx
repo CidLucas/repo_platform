@@ -1,24 +1,37 @@
 import { Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, Flex, Text, Box } from '@chakra-ui/react';
 import React from 'react';
 import { ModalContentLayout } from './ModalContentLayout';
-import { MapComponent } from './MapComponent'; // Assuming map component is generic
-import { ProdutoDetailResponse } from '../services/analyticsService'; // Import the new type
+import { GraphCarousel } from './GraphCarousel';
+import { ScorecardCard } from './ScorecardCard';
+import { ProdutoDetailResponse, ProdutosOverviewResponse } from '../services/analyticsService';
 
 interface ProdutoDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  produto: ProdutoDetailResponse | null; // The detailed product data
+  produto: ProdutoDetailResponse | null;
+  overviewData?: ProdutosOverviewResponse | null;
 }
 
-export const ProdutoDetailsModal: React.FC<ProdutoDetailsModalProps> = ({ isOpen, onClose, produto }) => {
-  if (!produto) return null; // Don't render if no produto is selected
+export const ProdutoDetailsModal: React.FC<ProdutoDetailsModalProps> = ({ isOpen, onClose, produto, overviewData }) => {
+  if (!produto) return null;
 
-  const { nome_produto, scorecards, charts, rankings_internos } = produto;
+  const { nome_produto, scorecards, rankings_internos } = produto;
 
-  // Note: old fields like 'clientName', 'id', 'status', 'precoUnitario', 'estoque',
-  // 'vendasMes', 'avaliacaoMedia', 'categoria', 'fornecedor', 'descricaoDetalhada'
-  // are NOT directly available in ProdutoDetailResponse.
-  // We will display what is available.
+  const topClient = rankings_internos?.clientes_por_receita?.[0];
+  const topClientDisplay = topClient
+    ? `${topClient.nome.substring(0, 30)}${topClient.nome.length > 30 ? '...' : ''}`
+    : 'N/A';
+  const topClientRevenue = topClient
+    ? `R$ ${topClient.receita_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+    : '';
+
+  const totalRevenue = scorecards?.receita_total
+    ? `R$ ${scorecards.receita_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+    : 'N/A';
+  const totalQuantity = scorecards?.quantidade_total?.toLocaleString('pt-BR') || 'N/A';
+  const avgPrice = scorecards?.valor_unitario_medio
+    ? `R$ ${scorecards.valor_unitario_medio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+    : 'N/A';
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="full">
@@ -26,18 +39,17 @@ export const ProdutoDetailsModal: React.FC<ProdutoDetailsModalProps> = ({ isOpen
       <ModalContent bg="transparent" boxShadow="none" overflow="hidden" height="100vh">
         <ModalBody p={0}>
           <ModalContentLayout
-            leftBgColor={"#FFFB97"}
-            rightBgColor={"#FFF856"}
-            isMapModal={false} // Product details modal is not a map modal
+            leftBgColor="#FFFB97"
+            rightBgColor="#FFF856"
+            isMapModal={false}
             mapData={undefined}
             leftContent={
               <Flex direction="column" height="100%">
-                <Text textStyle="modalFinancialInfo" textTransform="uppercase" mb={0}>{nome_produto || "N/A"}</Text> {/* Product Name */}
+                <Text textStyle="modalFinancialInfo" textTransform="uppercase" mb={0}>{nome_produto || "N/A"}</Text>
                 <Flex justify="space-between" align="center" mb={4}>
-                  <Text textStyle="modalTitle" fontSize="24px" fontWeight="semibold">Produto: {nome_produto || "N/A"}</Text> {/* Display name as title */}
+                  <Text textStyle="modalTitle" fontSize="24px" fontWeight="semibold">Produto: {nome_produto || "N/A"}</Text>
                 </Flex>
-                <Flex flex="1" alignItems="center" justifyContent="center"> {/* Wrapper to center financial list */}
-                  {/* Displaying scorecard if available */}
+                <Flex flex="1" alignItems="center" justifyContent="center">
                   {scorecards && (
                     <Flex direction="column" width="100%">
                       <Flex justify="space-between" align="center" py={3}>
@@ -64,46 +76,59 @@ export const ProdutoDetailsModal: React.FC<ProdutoDetailsModalProps> = ({ isOpen
             }
             rightContent={
               <Flex direction="column" height="100%" p={8}>
-                <Flex justify="space-between" align="center" mb={4}>
-                  <Text textStyle="modalTitle" textTransform="uppercase" fontWeight="semibold">DETALHE DO PRODUTO</Text>
+                <Flex justify="space-between" align="center" mb={6}>
+                  <Text textStyle="modalTitle" textTransform="uppercase" fontWeight="semibold">INSIGHTS</Text>
                   <ModalCloseButton position="static" onClick={onClose} />
                 </Flex>
-                <Flex direction="column" gap={4}>
-                  {/* Chart for segmentos de clientes */}
-                  {charts?.segmentos_de_clientes && charts.segmentos_de_clientes.length > 0 && (
-                    <Box
-                      width="100%"
-                      height="140px"
-                      borderRadius="24px"
-                      bg="#FFFB97"
-                      p={4}
-                      boxShadow="md"
-                    >
-                      <Text textTransform="uppercase" fontSize="md">Segmentos de Clientes</Text>
-                      {/* You'd typically render a chart component here */}
-                      <Text fontSize="sm" color="gray.600" noOfLines={2}>
-                        {charts.segmentos_de_clientes.map(s => `${s.name}: ${s.percentual}%`).join(', ')}
-                      </Text>
-                    </Box>
-                  )}
 
-                  {/* Example of displaying internal rankings if available */}
-                  {rankings_internos?.clientes_por_receita && rankings_internos.clientes_por_receita.length > 0 && (
-                    <Box
-                      width="100%"
-                      height="140px"
-                      borderRadius="24px"
-                      bg="#FFFB97"
-                      p={4}
-                      boxShadow="md"
-                    >
-                      <Text textTransform="uppercase" fontSize="md">Clientes por Receita</Text>
-                      <Text fontSize="sm" color="gray.600" noOfLines={2}>
-                        {rankings_internos.clientes_por_receita[0].nome} (R$ {rankings_internos.clientes_por_receita[0].receita_total.toLocaleString('pt-BR')})
-                      </Text>
-                    </Box>
-                  )}
+                <Flex direction="column" gap={4} mb={6}>
+                  <ScorecardCard
+                    title="Top Cliente Comprador"
+                    value={topClientDisplay}
+                    subtitle={topClientRevenue}
+                    bgColor="#FFFB97"
+                  />
+                  <ScorecardCard
+                    title="Receita Total"
+                    value={totalRevenue}
+                    subtitle={`Quantidade: ${totalQuantity}`}
+                    bgColor="#FFFB97"
+                  />
+                  <ScorecardCard
+                    title="Preço Médio"
+                    value={avgPrice}
+                    subtitle="Valor unitário médio"
+                    bgColor="#FFFB97"
+                  />
                 </Flex>
+
+                {overviewData && (
+                  <Box flex="1">
+                    <Text textStyle="modalTitle" mb={4}>Análise de Performance no Tempo</Text>
+                    <GraphCarousel
+                      graphs={[
+                        {
+                          data: overviewData.chart_receita_no_tempo?.map((d: any) => ({
+                            name: d.name,
+                            receita: d.total || d.receita || 0
+                          })) || [],
+                          dataKey: "receita",
+                          lineColor: "#FFF856",
+                          title: "Receita Mensal dos Produtos",
+                        },
+                        {
+                          data: overviewData.chart_quantidade_no_tempo?.map((d: any) => ({
+                            name: d.name,
+                            quantidade: d.total || d.quantidade || 0
+                          })) || [],
+                          dataKey: "quantidade",
+                          lineColor: "#FFD700",
+                          title: "Volume Mensal (kg/ton)",
+                        },
+                      ]}
+                    />
+                  </Box>
+                )}
               </Flex>
             }
           />

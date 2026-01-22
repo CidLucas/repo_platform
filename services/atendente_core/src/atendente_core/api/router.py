@@ -162,7 +162,6 @@ async def chat_endpoint(
 
         # Chama a lógica de negócio pura (sem saber se veio de HTTP ou Twilio)
         result = await service.process_message(
-            api_key=None,
             session_id=body.session_id,
             message_text=body.message,
             client_id=auth_result.client_id,

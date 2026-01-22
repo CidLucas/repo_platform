@@ -9,6 +9,7 @@ interface GraphCarouselProps {
     dataKey: string;
     lineColor?: string;
     title: string;
+    description?: string;
   }[];
 }
 
@@ -54,6 +55,11 @@ export const GraphCarousel: React.FC<GraphCarouselProps> = ({ graphs }) => {
           variant="ghost"
         />
       </Flex>
+      {currentGraph.description && (
+        <Text textStyle="modalTextInfo" mt={4} textAlign="center">
+          {currentGraph.description}
+        </Text>
+      )}
     </Flex>
   );
 };

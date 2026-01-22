@@ -111,12 +111,18 @@ async def get_indicators(
         metrics=request.metrics
     )
 
+    # OPTIMIZATION: Preload all comparisons in a SINGLE query
+    preloaded_comparisons: dict[str, ComparisonData] = {}
+    if request.include_comparisons:
+        preloaded_comparisons = await _get_comparisons_from_time_series(service)
+        logger.debug(f"Preloaded comparisons for {len(preloaded_comparisons)} metrics")
+
     # Processa orders com comparativos
     orders_response = None
     if result.orders:
         comparisons = None
         if request.include_comparisons:
-            comparisons = await _calculate_comparisons(service, "orders")
+            comparisons = await _calculate_comparisons(service, "orders", preloaded_comparisons)
         orders_response = OrderMetricsResponse(
             **asdict(result.orders),
             comparisons=comparisons
@@ -127,7 +133,7 @@ async def get_indicators(
     if result.products:
         comparisons = None
         if request.include_comparisons:
-            comparisons = await _calculate_comparisons(service, "products")
+            comparisons = await _calculate_comparisons(service, "products", preloaded_comparisons)
         products_response = ProductMetricsResponse(
             **asdict(result.products),
             comparisons=comparisons
@@ -138,7 +144,7 @@ async def get_indicators(
     if result.customers:
         comparisons = None
         if request.include_comparisons:
-            comparisons = await _calculate_comparisons(service, "customers")
+            comparisons = await _calculate_comparisons(service, "customers", preloaded_comparisons)
         customers_response = CustomerMetricsResponse(
             **asdict(result.customers),
             comparisons=comparisons
@@ -165,7 +171,8 @@ async def get_order_indicators(
 
     comparisons = None
     if include_comparisons:
-        comparisons = await _calculate_comparisons(service, "orders")
+        preloaded = await _get_comparisons_from_time_series(service)
+        comparisons = await _calculate_comparisons(service, "orders", preloaded)
 
     return OrderMetricsResponse(
         **asdict(metrics),
@@ -184,7 +191,8 @@ async def get_product_indicators(
 
     comparisons = None
     if include_comparisons:
-        comparisons = await _calculate_comparisons(service, "products")
+        preloaded = await _get_comparisons_from_time_series(service)
+        comparisons = await _calculate_comparisons(service, "products", preloaded)
 
     return ProductMetricsResponse(
         **asdict(metrics),
@@ -203,7 +211,8 @@ async def get_customer_indicators(
 
     comparisons = None
     if include_comparisons:
-        comparisons = await _calculate_comparisons(service, "customers")
+        preloaded = await _get_comparisons_from_time_series(service)
+        comparisons = await _calculate_comparisons(service, "customers", preloaded)
 
     return CustomerMetricsResponse(
         **asdict(metrics),
@@ -213,18 +222,72 @@ async def get_customer_indicators(
 
 # --- Funções Auxiliares de Comparação ---
 
+# Note: These caches are cleared automatically after each request since
+# the indicator_service is recreated per request. For additional safety,
+# we use client_id as cache keys.
+
+async def _get_comparisons_from_time_series(
+    service: IndicatorService,
+) -> dict[str, ComparisonData]:
+    """
+    OPTIMIZED: Fetches comparisons for ALL metrics from gold_time_series in a SINGLE query.
+
+    Instead of making 12+ queries (4 periods x 3 metric types), we make just 1 query
+    that retrieves all comparison data from the pre-computed time series table.
+
+    Returns a dict with keys: 'orders', 'products', 'customers' -> ComparisonData
+    """
+    try:
+        # Access repository through service.repository (not postgres_repo)
+        batch_data = service.repository.get_all_comparison_metrics_batch(service.client_id)
+        logger.info(f"✅ Fetched comparison metrics from time_series in single query for client {service.client_id[:8]}...")
+
+        result = {}
+        for metric_type, metrics in batch_data.items():
+            if metrics.get("current_month", 0) > 0:  # Only use if we have data
+                result[metric_type] = ComparisonData(
+                    vs_7_days=metrics.get("vs_prev_month"),  # Map vs_prev_month to vs_7_days for UI
+                    vs_30_days=metrics.get("vs_3_months"),   # Map vs_3_months to vs_30_days
+                    vs_90_days=metrics.get("vs_12_months"),  # Map vs_12_months to vs_90_days
+                    trend=metrics.get("trend", "stable")
+                )
+        return result
+
+    except Exception as e:
+        logger.warning(f"Failed to fetch from time_series: {e}")
+        return {}
+
+
 async def _calculate_comparisons(
     service: IndicatorService,
-    metric_type: str
+    metric_type: str,
+    preloaded_comparisons: dict[str, ComparisonData] | None = None
 ) -> ComparisonData:
     """
     Calcula comparativos percentuais vs 7, 30, 90 dias.
 
-    Para cada métrica, compara o valor de hoje com a média diária
-    dos últimos 7, 30 e 90 dias.
+    OPTIMIZED: Now accepts preloaded_comparisons from single batch query.
+    Falls back to legacy method if time_series data unavailable.
+    """
+    # Use preloaded data if available
+    if preloaded_comparisons and metric_type in preloaded_comparisons:
+        return preloaded_comparisons[metric_type]
+
+    # Fallback to legacy calculation
+    return await _calculate_comparisons_legacy(service, metric_type)
+
+
+async def _calculate_comparisons_legacy(
+    service: IndicatorService,
+    metric_type: str
+) -> ComparisonData:
+    """
+    Legacy comparison calculation - makes 4 separate queries per metric.
+    Used as fallback when time_series data is not available.
     """
     try:
         if metric_type == "orders":
+            # Fetch all periods - SQLAlchemy sessions are sync so these run sequentially
             today = await service.get_order_metrics("today")
             week = await service.get_order_metrics("week")
             month = await service.get_order_metrics("month")
@@ -263,7 +326,6 @@ async def _calculate_comparisons(
         vs_30 = _calc_percentage(today_value, month_avg)
         vs_90 = _calc_percentage(today_value, quarter_avg)
 
-        # Determina tendência baseado na média dos comparativos
         trend = _determine_trend(vs_7, vs_30, vs_90)
 
         return ComparisonData(

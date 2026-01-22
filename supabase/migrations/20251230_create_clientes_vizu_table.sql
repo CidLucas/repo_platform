@@ -8,7 +8,7 @@
 -- Create clientes_vizu table
 CREATE TABLE IF NOT EXISTS public.clientes_vizu (
     -- Primary identifier (uses Supabase auth.users.id for OAuth users)
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- Legacy API key support (optional)
     api_key TEXT UNIQUE,
@@ -83,7 +83,7 @@ WITH CHECK (external_user_id = auth.jwt() ->> 'sub');
 
 -- Add comments
 COMMENT ON TABLE public.clientes_vizu IS 'Multi-tenant client/customer records for authentication and context';
-COMMENT ON COLUMN public.clientes_vizu.id IS 'Primary identifier, uses Supabase user ID for OAuth users';
+COMMENT ON COLUMN public.clientes_vizu.client_id IS 'Primary identifier, uses Supabase user ID for OAuth users';
 COMMENT ON COLUMN public.clientes_vizu.api_key IS 'Legacy API key for non-OAuth authentication';
 COMMENT ON COLUMN public.clientes_vizu.external_user_id IS 'Supabase auth.users.id for OAuth users';
 COMMENT ON COLUMN public.clientes_vizu.enabled_tools IS 'Array of tool names enabled for this client';

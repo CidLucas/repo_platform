@@ -64,6 +64,16 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
   };
 
   const handleTestConnection = async () => {
+    if (!clienteVizuId) {
+      toast({
+        title: 'Erro de autenticação',
+        description: 'Não foi possível identificar o cliente. Por favor, faça login novamente.',
+        status: 'error',
+        duration: 5000,
+      });
+      return;
+    }
+
     setIsTesting(true);
     setTestResult(null);
 
@@ -168,6 +178,16 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
   };
 
   const handleSubmit = async () => {
+    if (!clienteVizuId) {
+      toast({
+        title: 'Erro de autenticação',
+        description: 'Não foi possível identificar o cliente. Por favor, faça login novamente.',
+        status: 'error',
+        duration: 5000,
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {

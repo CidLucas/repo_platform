@@ -354,7 +354,8 @@ export const getClientes = async (period: string = 'all'): Promise<ClientesOverv
 
 // Cliente API call (details) - Uses GOLD table for fast reads
 export const getCliente = async (nome_cliente: string): Promise<ClienteDetailResponse> => {
-  const response = await axiosInstance.get<ClienteDetailResponse>(`/cliente/${nome_cliente}/gold`);
+  const encoded = encodeURIComponent(nome_cliente || '');
+  const response = await axiosInstance.get<ClienteDetailResponse>(`/cliente/${encoded}/gold`);
   return response.data;
 };
 

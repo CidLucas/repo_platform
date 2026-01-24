@@ -57,6 +57,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           console.log('✅ Cliente Vizu ID initialized:', meResponse.client_id);
         } catch (error) {
           console.error('Failed to initialize client_id:', error);
+          // Try to recover from localStorage
+          const storedClientId = localStorage.getItem('vizu_client_id');
+          if (storedClientId) {
+            setClientId(storedClientId);
+            console.log('✅ Cliente Vizu ID recovered from localStorage:', storedClientId);
+          }
         }
       }
 
@@ -72,16 +78,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setSession(session);
       setUser(session?.user ?? null);
 
-      // Initialize client_id when user signs in
-      if (session?.access_token && _event === 'SIGNED_IN') {
-        try {
-          const meResponse = await getMe(session.access_token);
-          setClientId(meResponse.client_id);
-          // Store in localStorage for services that don't have React context access
-          localStorage.setItem('vizu_client_id', meResponse.client_id);
-          console.log('✅ Cliente Vizu ID initialized on sign in:', meResponse.client_id);
-        } catch (error) {
-          console.error('Failed to initialize client_id:', error);
+      // Initialize client_id for any auth event that provides a valid session
+      // This handles SIGNED_IN, TOKEN_REFRESHED, INITIAL_SESSION, and USER_UPDATED
+      if (session?.access_token && _event !== 'SIGNED_OUT') {
+        // Only fetch if we don't already have a clientId
+        if (!clientId) {
+          try {
+            const meResponse = await getMe(session.access_token);
+            setClientId(meResponse.client_id);
+            // Store in localStorage for services that don't have React context access
+            localStorage.setItem('vizu_client_id', meResponse.client_id);
+            console.log(`✅ Cliente Vizu ID initialized on ${_event}:`, meResponse.client_id);
+          } catch (error) {
+            console.error('Failed to initialize client_id:', error);
+            // Try to recover from localStorage
+            const storedClientId = localStorage.getItem('vizu_client_id');
+            if (storedClientId) {
+              setClientId(storedClientId);
+              console.log('✅ Cliente Vizu ID recovered from localStorage:', storedClientId);
+            }
+          }
         }
       }
 

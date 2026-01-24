@@ -186,12 +186,27 @@ export async function testConnection(
 export async function createCredential(
   request: CreateCredentialRequest
 ): Promise<CredentialResponse> {
-  // Ensure client_id is always present; fallback to Supabase user id if not provided
-  const { data: userData } = await supabase.auth.getUser();
-  const clientIdFromRequest = request.client_id || (userData?.user?.id || '');
+  // Use provided client_id, fallback to localStorage, then fetch from /me if needed
+  let resolvedClientId = request.client_id || localStorage.getItem('vizu_client_id') || '';
 
-  if (!clientIdFromRequest) {
-    throw new Error('client_id is required; could not derive from request or Supabase user');
+  if (!resolvedClientId) {
+    // Last resort: fetch from /me endpoint (NOT Supabase user ID - that's different!)
+    const token = await getAuthToken();
+    if (token) {
+      const ANALYTICS_API_URL = import.meta.env.VITE_API_URL_ANALYTICS || 'http://localhost:8004';
+      const meResponse = await fetch(`${ANALYTICS_API_URL}/api/dashboard/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (meResponse.ok) {
+        const meData = await meResponse.json();
+        resolvedClientId = meData.client_id;
+        localStorage.setItem('vizu_client_id', resolvedClientId);
+      }
+    }
+  }
+
+  if (!resolvedClientId) {
+    throw new Error('client_id is required; could not resolve from context, localStorage, or /me endpoint');
   }
 
   const tipoServicoUpper = (request.tipo_servico || '').toUpperCase();
@@ -205,7 +220,7 @@ export async function createCredential(
   // Flatten the payload: backend expects credentials fields at root level, not nested
   // IMPORTANT: Use 'client_id' (not 'cliente_vizu_id') to match schema
   const payload = {
-    client_id: clientIdFromRequest,
+    client_id: resolvedClientId,
     nome_conexao: request.nome_conexao,
     tipo_servico: tipoServicoUpper,
     ...request.credentials, // Spread credentials fields to root level
@@ -319,6 +334,29 @@ export async function startSync(
   clienteVizuId: string,
   resourceType: string = 'invoices'
 ): Promise<{ status: string; message: string; rows_processed?: number }> {
+  // Use provided client_id, fallback to localStorage, then fetch from /me if needed
+  let resolvedClientId = clienteVizuId || localStorage.getItem('vizu_client_id') || '';
+
+  if (!resolvedClientId) {
+    // Last resort: fetch from /me endpoint
+    const token = await getAuthToken();
+    if (token) {
+      const ANALYTICS_API_URL = import.meta.env.VITE_API_URL_ANALYTICS || 'http://localhost:8004';
+      const meResponse = await fetch(`${ANALYTICS_API_URL}/api/dashboard/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (meResponse.ok) {
+        const meData = await meResponse.json();
+        resolvedClientId = meData.client_id;
+        localStorage.setItem('vizu_client_id', resolvedClientId);
+      }
+    }
+  }
+
+  if (!resolvedClientId) {
+    throw new Error('client_id is required; could not resolve from context, localStorage, or /me endpoint');
+  }
+
   const response = await fetch(`${API_BASE_URL}/etl/run`, {
     method: 'POST',
     headers: {
@@ -327,7 +365,7 @@ export async function startSync(
     },
     body: JSON.stringify({
       credential_id: credentialId,
-      client_id: clienteVizuId,
+      client_id: resolvedClientId,
       resource_type: resourceType,
       limit: null, // No limit - process all data
     }),

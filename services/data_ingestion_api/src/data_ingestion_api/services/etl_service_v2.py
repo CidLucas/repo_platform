@@ -143,6 +143,16 @@ class ETLServiceV2:
         """
         logger.info(f"Starting ETL V2 job for client_id={client_id}, resource_type={resource_type}")
 
+        # Validate client_id is a valid UUID (not empty string)
+        if not client_id or not client_id.strip():
+            raise ValueError("client_id is required and cannot be empty")
+
+        import uuid
+        try:
+            uuid.UUID(client_id)
+        except ValueError:
+            raise ValueError(f"client_id must be a valid UUID, got: '{client_id}'")
+
         from datetime import datetime
         sync_started_at = datetime.utcnow()
         sync_id = None
@@ -649,17 +659,19 @@ class ETLServiceV2:
 
     async def _trigger_analytics_processing(self, client_id: str) -> None:
         """
-        Trigger Analytics API to recompute and write gold tables.
+        Trigger Analytics API to recompute and write analytics_v2 tables.
 
         Calls /api/ingest/recompute which:
-        - Instantiates MetricService with write_gold=True
         - Loads Silver dataframe via get_silver_dataframe()
-        - Computes aggregations (customers, suppliers, products, orders)
-        - Writes to analytics_gold_* tables (including time_series, regional, last_orders)
+        - Computes aggregations (customers, suppliers, products)
+        - Writes to analytics_v2 tables
 
         This ensures data is visible immediately after sync without user navigation.
 
         IMPORTANT: Passes client_id as query parameter for proper data isolation.
+
+        NOTE: This is non-blocking - if analytics API is unavailable, data is still
+        persisted to the silver layer. Analytics can be triggered manually later.
         """
         import os
         import httpx
@@ -668,7 +680,7 @@ class ETLServiceV2:
         recompute_endpoint = f"{analytics_api_url}/api/ingest/recompute"
 
         try:
-            async with httpx.AsyncClient(timeout=None) as http_client:  # No timeout - large datasets can take time
+            async with httpx.AsyncClient(timeout=30) as http_client:
                 logger.info(f"🔄 Triggering analytics recompute for client {client_id}")
                 logger.info(f"   Endpoint: {recompute_endpoint}")
 
@@ -683,17 +695,20 @@ class ETLServiceV2:
 
                 if response.status_code in (200, 202):
                     logger.info(f"✅ Analytics recompute successful: {response.status_code}")
-                    logger.info(f"   Gold tables written for {client_id}")
+                    logger.info(f"   Analytics_v2 tables written for {client_id}")
                 else:
                     logger.error(
-                        f"❌ Analytics recompute failed: {response.status_code} - {response.text}"
+                        f"❌ Analytics recompute failed: {response.status_code} - {response.text[:200]}"
                     )
+        except httpx.ConnectError as e:
+            logger.warning(f"⚠️  Cannot reach Analytics API: {e}")
+            logger.info(f"   Data is safely persisted to silver layer. Analytics can be triggered manually.")
         except httpx.TimeoutException:
-            logger.error(f"⏱️  Analytics recompute timed out for {client_id}")
-            # Don't fail the entire ETL - data is in silver, analytics can be triggered manually
+            logger.warning(f"⏱️  Analytics recompute timed out for {client_id}")
+            logger.info(f"   Data is safely persisted to silver layer. Analytics can be triggered manually.")
         except Exception as e:
-            logger.error(f"❌ Failed to trigger analytics: {e}", exc_info=True)
-            # Don't fail the entire ETL - data is in silver, analytics can be triggered manually
+            logger.warning(f"⚠️  Failed to trigger analytics: {type(e).__name__}: {str(e)[:200]}")
+            logger.info(f"   Data is safely persisted to silver layer. Analytics can be triggered manually.")
 
 
 # Singleton instance

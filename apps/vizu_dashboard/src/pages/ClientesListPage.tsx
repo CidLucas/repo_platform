@@ -138,6 +138,11 @@ function ClientesListPage() {
 
   const handleClientRowClick = async (clienteNome: string) => {
     try {
+      if (!clienteNome || clienteNome.trim() === '') {
+        console.warn('handleClientRowClick called with empty clienteNome', clienteNome);
+        setError('Nome de cliente inválido ao tentar carregar detalhes.');
+        return;
+      }
       setSelectedCliente(null);
       const details = await getCliente(clienteNome);
       setSelectedCliente(details);

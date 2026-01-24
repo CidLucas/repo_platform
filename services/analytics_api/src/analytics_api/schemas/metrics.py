@@ -94,14 +94,21 @@ class HomeScorecards(BaseModel):
     receita_total: float
     total_fornecedores: int
     total_produtos: int
-    total_regioes: int
     total_clientes: int
     total_pedidos: int
+    ticket_medio: float = 0.0
+    crescimento_receita: float = 0.0
+    total_regioes: int = 0  # Optional, computed from customer locations
+
 
 class HomeMetricsResponse(BaseModel):
     """Resposta completa para a Home (Nível 1)."""
     scorecards: HomeScorecards
-    charts: list[ChartData]
+    chart_receita_no_tempo: list[ChartDataPoint] = []
+    chart_pedidos_no_tempo: list[ChartDataPoint] = []
+    ranking_clientes: list[RankingItem] = []
+    ranking_fornecedores: list[RankingItem] = []
+    ranking_produtos: list[ProdutoRankingReceita] = []
 
 # ---
 # NÍVEL 2: MÓDULOS (OVERVIEW)

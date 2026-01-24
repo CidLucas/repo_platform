@@ -134,6 +134,7 @@ class CSVBackedRepository(PostgresRepository):
 
 def main():
     """Main entry point for the ETL script."""
+    repo = None
     try:
         logger.info("=" * 60)
         logger.info("ETL: CSV -> Supabase analytics_v2 (Direct SQL)")
@@ -142,6 +143,7 @@ def main():
         df = load_and_transform_csv()
 
         # CSVBackedRepository reads from CSV but writes to real Supabase
+        # Use context manager to ensure session is properly closed
         repo = CSVBackedRepository(df)
 
         logger.info(f"Target client_id: {TEST_CLIENT_ID}")
@@ -165,6 +167,11 @@ def main():
     except Exception as e:
         logger.error(f"ETL failed: {e}", exc_info=True)
         return 1
+    finally:
+        # Always close repository session to release connection back to pool
+        if repo is not None:
+            repo.close()
+            logger.info("Database session closed")
 
 
 if __name__ == "__main__":

@@ -21,11 +21,35 @@ class PostgresRepository:
 
     - Supabase SDK: For simple CRUD operations via REST API
     - SQLAlchemy: For complex queries, bulk inserts, and star schema writes
+
+    Supports context manager for automatic session cleanup:
+        with PostgresRepository() as repo:
+            repo.get_dim_customers(client_id)
+        # Session automatically closed
     """
     def __init__(self):
         """Initialize with both Supabase client and SQLAlchemy session."""
         self.supabase = get_supabase_client()
         self.db_session = SessionLocal()
+        self._owns_session = True  # Track if we should close session
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - ensure session is closed."""
+        self.close()
+        return False  # Don't suppress exceptions
+
+    def close(self):
+        """Explicitly close the database session to release connection back to pool."""
+        if self.db_session and self._owns_session:
+            try:
+                self.db_session.close()
+                logger.debug("Database session closed successfully")
+            except Exception as e:
+                logger.warning(f"Error closing database session: {e}")
 
     @staticmethod
     def _sanitize_numeric(value: Any, default: float = 0.0, max_value: float = 9999999999.99) -> float:
@@ -363,7 +387,7 @@ class PostgresRepository:
                     customer.get("receiver_numero"),
                     customer.get("receiver_bairro"),
                     customer.get("receiver_cidade"),
-                    customer.get("receiverstateuf") or customer.get("receiver_uf"),
+                    (customer.get("estado") or customer.get("endereco_uf") or customer.get("receiverstateuf") or customer.get("receiver_uf") or None),
                     customer.get("receiver_cep"),
                 )
                 for customer in unique_customers
@@ -555,12 +579,18 @@ class PostgresRepository:
             logger.error(f"❌ Failed to bulk write products to analytics_v2: {e}", exc_info=True)
             return 0
 
-    def write_fact_sales(self, client_id: str, invoices_data: list[dict]) -> int:
+    def write_fact_sales(self, client_id: str, invoices_data: list[dict], truncate_first: bool = True) -> int:
         """Bulk persist transactional fact table fact_sales with FK references to dimensions.
 
         Each invoice line item becomes one row in fact_sales.
         Uses bulk dimension lookups for performance (~1000s of rows in seconds).
         Includes retry logic for transient timeouts and batching for large datasets.
+
+        Args:
+            client_id: The client ID to write data for
+            invoices_data: List of invoice dictionaries
+            truncate_first: If True, delete existing fact_sales for this client before insert.
+                           This is faster than UPSERT for full reloads.
 
         Expected invoice_data columns (mapped from source):
         - receiver_cpf_cnpj: Customer identifier
@@ -572,7 +602,17 @@ class PostgresRepository:
             return 0
 
         try:
-            logger.debug(f"📥 Preparing to write {len(invoices_data)} invoice rows to fact_sales...")
+            logger.info(f"📥 Preparing to write {len(invoices_data)} invoice rows to fact_sales...")
+
+            # OPTIMIZATION: Truncate existing data for this client (faster than UPSERT)
+            if truncate_first:
+                logger.info(f"  🗑️  Clearing existing fact_sales for client {client_id}...")
+                self.db_session.execute(
+                    text("DELETE FROM analytics_v2.fact_sales WHERE client_id = :client_id"),
+                    {"client_id": client_id}
+                )
+                self.db_session.commit()
+                logger.info(f"  ✓ Cleared existing fact_sales")
 
             # OPTIMIZATION: Bulk load all dimension data once instead of querying per row
             logger.debug(f"  Loading dimension lookup tables...")
@@ -1767,4 +1807,193 @@ class PostgresRepository:
     def get_gold_customers_aggregated(self, client_id: str, start_date=None, end_date=None) -> dict:
         """Alias for get_dim_customers_aggregated (backward compatibility)."""
         return self.get_dim_customers_aggregated(client_id, start_date, end_date)
+
+    # =========================================================================
+    # Materialized Views - Fast pre-computed aggregations for dashboards
+    # =========================================================================
+
+    def get_mv_customer_summary(self, client_id: str) -> list[dict]:
+        """
+        Read from mv_customer_summary materialized view.
+        Fast pre-computed customer aggregations for dashboard.
+
+        Returns: List of customer summaries with:
+        - customer_id, name, cpf_cnpj, estado
+        - total_orders, lifetime_value, avg_order_value
+        - total_quantity, last_order_date, first_order_date
+        - days_since_last_order
+        """
+        try:
+            query = text("""
+                SELECT
+                    customer_id,
+                    name,
+                    cpf_cnpj,
+                    estado,
+                    COALESCE(total_orders, 0) as total_orders,
+                    COALESCE(lifetime_value, 0) as lifetime_value,
+                    COALESCE(avg_order_value, 0) as avg_order_value,
+                    COALESCE(total_quantity, 0) as total_quantity,
+                    last_order_date,
+                    first_order_date,
+                    COALESCE(days_since_last_order, 0) as days_since_last_order
+                FROM analytics_v2.mv_customer_summary
+                WHERE client_id = :client_id
+                ORDER BY lifetime_value DESC
+            """)
+            result = self.db_session.execute(query, {"client_id": client_id})
+            rows = result.fetchall()
+
+            return [
+                {
+                    "customer_id": str(row[0]) if row[0] else None,
+                    "name": row[1],
+                    "cpf_cnpj": row[2],
+                    "estado": row[3],
+                    "total_orders": int(row[4] or 0),
+                    "lifetime_value": float(row[5] or 0),
+                    "avg_order_value": float(row[6] or 0),
+                    "total_quantity": float(row[7] or 0),
+                    "last_order_date": str(row[8]) if row[8] else None,
+                    "first_order_date": str(row[9]) if row[9] else None,
+                    "days_since_last_order": int(row[10] or 0),
+                }
+                for row in rows
+            ]
+        except Exception as e:
+            logger.error(f"❌ Failed to read mv_customer_summary: {e}", exc_info=True)
+            self.db_session.rollback()
+            return []
+
+    def get_mv_product_summary(self, client_id: str) -> list[dict]:
+        """
+        Read from mv_product_summary materialized view.
+        Fast pre-computed product aggregations for dashboard.
+
+        Returns: List of product summaries with:
+        - product_id, product_name
+        - times_sold, total_quantity_sold, total_revenue
+        - avg_order_value, avg_price, min_price, max_price
+        - last_sold_date, unique_customers
+        """
+        try:
+            query = text("""
+                SELECT
+                    product_id,
+                    product_name,
+                    COALESCE(times_sold, 0) as times_sold,
+                    COALESCE(total_quantity_sold, 0) as total_quantity_sold,
+                    COALESCE(total_revenue, 0) as total_revenue,
+                    COALESCE(avg_order_value, 0) as avg_order_value,
+                    COALESCE(avg_price, 0) as avg_price,
+                    COALESCE(min_price, 0) as min_price,
+                    COALESCE(max_price, 0) as max_price,
+                    last_sold_date,
+                    COALESCE(unique_customers, 0) as unique_customers
+                FROM analytics_v2.mv_product_summary
+                WHERE client_id = :client_id
+                ORDER BY total_revenue DESC
+            """)
+            result = self.db_session.execute(query, {"client_id": client_id})
+            rows = result.fetchall()
+
+            return [
+                {
+                    "product_id": str(row[0]) if row[0] else None,
+                    "product_name": row[1],
+                    "times_sold": int(row[2] or 0),
+                    "total_quantity_sold": float(row[3] or 0),
+                    "total_revenue": float(row[4] or 0),
+                    "avg_order_value": float(row[5] or 0),
+                    "avg_price": float(row[6] or 0),
+                    "min_price": float(row[7] or 0),
+                    "max_price": float(row[8] or 0),
+                    "last_sold_date": str(row[9]) if row[9] else None,
+                    "unique_customers": int(row[10] or 0),
+                }
+                for row in rows
+            ]
+        except Exception as e:
+            logger.error(f"❌ Failed to read mv_product_summary: {e}", exc_info=True)
+            self.db_session.rollback()
+            return []
+
+    def get_mv_monthly_sales_trend(self, client_id: str) -> list[dict]:
+        """
+        Read from mv_monthly_sales_trend materialized view.
+        Fast pre-computed monthly sales data for time-series charts.
+
+        Returns: List of monthly data with:
+        - month (YYYY-MM-DD format)
+        - orders_that_month, unique_customers_that_month
+        - revenue_that_month, avg_order_value_that_month
+        """
+        try:
+            query = text("""
+                SELECT
+                    TO_CHAR(month, 'YYYY-MM') as month,
+                    COALESCE(orders_that_month, 0) as orders_that_month,
+                    COALESCE(unique_customers_that_month, 0) as unique_customers_that_month,
+                    COALESCE(revenue_that_month, 0) as revenue_that_month,
+                    COALESCE(avg_order_value_that_month, 0) as avg_order_value_that_month
+                FROM analytics_v2.mv_monthly_sales_trend
+                WHERE client_id = :client_id
+                ORDER BY month ASC
+            """)
+            result = self.db_session.execute(query, {"client_id": client_id})
+            rows = result.fetchall()
+
+            return [
+                {
+                    "month": row[0],
+                    "name": row[0],  # For chart compatibility (name is the x-axis label)
+                    "orders": int(row[1] or 0),
+                    "unique_customers": int(row[2] or 0),
+                    "revenue": float(row[3] or 0),
+                    "total": float(row[3] or 0),  # For chart compatibility
+                    "avg_order_value": float(row[4] or 0),
+                }
+                for row in rows
+            ]
+        except Exception as e:
+            logger.error(f"❌ Failed to read mv_monthly_sales_trend: {e}", exc_info=True)
+            self.db_session.rollback()
+            return []
+
+    def get_mv_dashboard_summary(self, client_id: str) -> dict:
+        """
+        Get dashboard summary metrics from materialized views.
+        Combines all MV data into a single response for the home dashboard.
+        """
+        try:
+            # Get counts from MVs
+            customer_summary = self.get_mv_customer_summary(client_id)
+            product_summary = self.get_mv_product_summary(client_id)
+            monthly_trend = self.get_mv_monthly_sales_trend(client_id)
+
+            total_revenue = sum(c.get("lifetime_value", 0) for c in customer_summary)
+            total_orders = sum(c.get("total_orders", 0) for c in customer_summary)
+
+            return {
+                "total_customers": len(customer_summary),
+                "total_products": len(product_summary),
+                "total_orders": total_orders,
+                "total_revenue": total_revenue,
+                "avg_order_value": total_revenue / total_orders if total_orders > 0 else 0,
+                "monthly_trend": monthly_trend,
+                "top_customers": customer_summary[:10],
+                "top_products": product_summary[:10],
+            }
+        except Exception as e:
+            logger.error(f"❌ Failed to get MV dashboard summary: {e}", exc_info=True)
+            return {
+                "total_customers": 0,
+                "total_products": 0,
+                "total_orders": 0,
+                "total_revenue": 0,
+                "avg_order_value": 0,
+                "monthly_trend": [],
+                "top_customers": [],
+                "top_products": [],
+            }
 

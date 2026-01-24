@@ -3,12 +3,13 @@ import { RepeatIcon } from '@chakra-ui/icons';
 import { MainLayout } from '../components/layouts/MainLayout';
 import { DashboardCard } from '../components/DashboardCard';
 import { ListCard } from '../components/ListCard';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ClienteDetailsModal } from '../components/ClienteDetailsModal';
 import { getClientes, getCliente, getCustomerIndicators } from '../services/analyticsService';
 import type { ClientesOverviewResponse, ClienteDetailResponse, CustomerMetricsResponse } from '../services/analyticsService';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useGeoClusters } from '../hooks/useGeoClusters';
+import { useMVMonthlySales, useMVCustomers } from '../hooks/useMVData';
 
 type PeriodType = 'week' | 'month' | 'quarter' | 'year';
 type MetricType = 'receita' | 'ticket_medio' | 'qtd_pedidos';
@@ -26,8 +27,42 @@ function ClientesPage() {
   const profile = useUserProfile();
   const userName = profile?.full_name.split(' ')[0] || 'Usuário';
 
+  // Fetch from materialized views for faster chart data
+  const { chartData: mvChartData, loading: mvLoading } = useMVMonthlySales();
+  const { data: mvCustomers } = useMVCustomers();
+
   // Fetch geographic clusters for map visualization
   const { data: geoClusters, loading: loadingGeoClusters } = useGeoClusters('state');
+
+  // Memoize chart data from MV (falls back to empty if MV not available)
+  const chartRevenueData = useMemo(() => {
+    if (mvChartData && mvChartData.length > 0) {
+      return mvChartData.map(d => ({ name: d.name, value: d.revenue, total: d.revenue }));
+    }
+    // Fallback to overviewData if MV not available
+    return (overviewData?.chart_receita_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0, total: d.total ?? d.value ?? 0 }));
+  }, [mvChartData, overviewData]);
+
+  const chartOrdersData = useMemo(() => {
+    if (mvChartData && mvChartData.length > 0) {
+      return mvChartData.map(d => ({ name: d.name, value: d.orders, total: d.orders }));
+    }
+    return (overviewData?.chart_clientes_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0, total: d.total ?? d.value ?? 0 }));
+  }, [mvChartData, overviewData]);
+
+  const chartCustomersData = useMemo(() => {
+    if (mvChartData && mvChartData.length > 0) {
+      return mvChartData.map(d => ({ name: d.name, value: d.customers, total: d.customers }));
+    }
+    return (overviewData?.chart_clientes_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0, total: d.total ?? d.value ?? 0 }));
+  }, [mvChartData, overviewData]);
+
+  const chartAvgOrderData = useMemo(() => {
+    if (mvChartData && mvChartData.length > 0) {
+      return mvChartData.map(d => ({ name: d.name, value: d.avgOrderValue, total: d.avgOrderValue }));
+    }
+    return (overviewData?.chart_ticketmedio_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0, total: d.total ?? d.value ?? 0 }));
+  }, [mvChartData, overviewData]);
 
   const fetchClientesData = async () => {
     try {
@@ -259,32 +294,32 @@ function ClientesPage() {
             })()}
             carouselGraphs={[
               {
-                data: (overviewData.chart_receita_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                data: chartRevenueData,
                 dataKey: "value",
                 lineColor: "#82ca9d",
                 title: "Receita Mensal dos Clientes",
-                description: "Receita média gerada por cada cliente da base ao longo do tempo."
+                description: "Receita total gerada por todos os clientes ao longo do tempo (via MV)."
               },
               {
-                data: (overviewData.chart_clientes_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                data: chartCustomersData,
                 dataKey: "value",
                 lineColor: "#8884d8",
-                title: "Frequência de Pedidos no Tempo",
-                description: "Frequência média de compras por cliente por mês."
+                title: "Clientes Únicos por Mês",
+                description: "Número de clientes únicos que compraram em cada mês (via MV)."
               },
               {
-                data: (overviewData.chart_ticketmedio_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                data: chartAvgOrderData,
                 dataKey: "value",
                 lineColor: "#ffc658",
                 title: "Ticket Médio no Tempo",
-                description: "Valor médio gasto por pedido por cliente ao longo dos meses."
+                description: "Valor médio por pedido ao longo dos meses (via MV)."
               },
               {
-                data: (overviewData.chart_quantidade_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                data: chartOrdersData,
                 dataKey: "value",
                 lineColor: "#ff7300",
-                title: "Média de Pedidos por Cliente",
-                description: "Número médio de pedidos realizados por cliente ao longo do tempo."
+                title: "Pedidos por Mês",
+                description: "Total de pedidos realizados em cada mês (via MV)."
               }
             ]}
             kpiItems={(() => {
@@ -365,32 +400,32 @@ function ClientesPage() {
             graphDescription="Evolução mensal da base de clientes."
             carouselGraphs={[
               {
-                data: (overviewData.chart_clientes_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                data: chartCustomersData,
                 dataKey: "value",
                 lineColor: "#82ca9d",
-                title: "Clientes Ativos no Tempo",
-                description: "Evolução mensal do número total de clientes ativos na base."
+                title: "Clientes Únicos por Mês",
+                description: "Evolução mensal do número de clientes únicos (via MV)."
               },
               {
-                data: (overviewData.chart_receita_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                data: chartRevenueData,
                 dataKey: "value",
                 lineColor: "#8884d8",
-                title: "Receita por Cliente no Tempo",
-                description: "Flutuação mensal da receita gerada pelos clientes."
+                title: "Receita Mensal",
+                description: "Flutuação mensal da receita total (via MV)."
               },
               {
-                data: (overviewData.chart_ticketmedio_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                data: chartAvgOrderData,
                 dataKey: "value",
                 lineColor: "#ffc658",
                 title: "Ticket Médio no Tempo",
-                description: "Valor médio gasto por pedido ao longo dos meses."
+                description: "Valor médio por pedido ao longo dos meses (via MV)."
               },
               {
-                data: (overviewData.chart_quantidade_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0 })),
+                data: chartOrdersData,
                 dataKey: "value",
                 lineColor: "#ff7300",
-                title: "Volume Comprado no Tempo",
-                description: "Quantidade total comprada pelos clientes mês a mês."
+                title: "Pedidos por Mês",
+                description: "Total de pedidos realizados mês a mês (via MV)."
               }
             ]}
             kpiItems={

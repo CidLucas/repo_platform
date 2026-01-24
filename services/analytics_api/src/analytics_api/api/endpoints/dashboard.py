@@ -299,6 +299,77 @@ async def get_me(
         )
 
 
+# =========================================================================
+# Materialized View Endpoints - Fast pre-computed data
+# =========================================================================
+
+@router.get(
+    "/mv/customers",
+    summary="Customer summary from materialized view",
+    tags=["Materialized Views"],
+)
+async def get_mv_customers(
+    repo: PostgresRepository = Depends(get_postgres_repository),
+    client_id: str = Depends(get_client_id),
+):
+    """
+    Returns customer summary data from mv_customer_summary.
+    Fast pre-computed aggregations - no joins required.
+    """
+    data = repo.get_mv_customer_summary(client_id)
+    return {"customers": data, "total": len(data)}
+
+
+@router.get(
+    "/mv/products",
+    summary="Product summary from materialized view",
+    tags=["Materialized Views"],
+)
+async def get_mv_products(
+    repo: PostgresRepository = Depends(get_postgres_repository),
+    client_id: str = Depends(get_client_id),
+):
+    """
+    Returns product summary data from mv_product_summary.
+    Fast pre-computed aggregations - no joins required.
+    """
+    data = repo.get_mv_product_summary(client_id)
+    return {"products": data, "total": len(data)}
+
+
+@router.get(
+    "/mv/monthly-sales",
+    summary="Monthly sales trend from materialized view",
+    tags=["Materialized Views"],
+)
+async def get_mv_monthly_sales(
+    repo: PostgresRepository = Depends(get_postgres_repository),
+    client_id: str = Depends(get_client_id),
+):
+    """
+    Returns monthly sales trend from mv_monthly_sales_trend.
+    Perfect for time-series charts (revenue, orders, customers by month).
+    """
+    data = repo.get_mv_monthly_sales_trend(client_id)
+    return {"monthly_sales": data, "total_months": len(data)}
+
+
+@router.get(
+    "/mv/summary",
+    summary="Complete dashboard summary from materialized views",
+    tags=["Materialized Views"],
+)
+async def get_mv_dashboard_summary(
+    repo: PostgresRepository = Depends(get_postgres_repository),
+    client_id: str = Depends(get_client_id),
+):
+    """
+    Returns combined dashboard summary from all materialized views.
+    Includes: totals, monthly trend, top customers, top products.
+    """
+    return repo.get_mv_dashboard_summary(client_id)
+
+
 @router.get(
     "/clientes/geo-clusters",
     summary="Agrega clientes por localização geográfica",

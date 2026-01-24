@@ -12,6 +12,7 @@ COPY libs/vizu_db_connector libs/vizu_db_connector
 COPY libs/vizu_models libs/vizu_models
 COPY libs/vizu_auth libs/vizu_auth
 COPY libs/vizu_observability_bootstrap libs/vizu_observability_bootstrap
+COPY libs/vizu_supabase_client libs/vizu_supabase_client
 
 # Copy service
 COPY services/analytics_api services/analytics_api
@@ -28,7 +29,7 @@ WORKDIR /app/services/analytics_api
 
 # PATH and PYTHONPATH - absolute paths
 ENV PATH="/app/services/analytics_api/.venv/bin:$PATH" \
-    PYTHONPATH="/app/services/analytics_api/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src:/app/libs/vizu_auth/src:/app/libs/vizu_observability_bootstrap/src"
+    PYTHONPATH="/app/services/analytics_api/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src:/app/libs/vizu_auth/src:/app/libs/vizu_observability_bootstrap/src:/app/libs/vizu_supabase_client/src"
 
 # Copy .venv to same path as builder (shebangs)
 COPY --from=builder /app/services/analytics_api/.venv ./.venv
@@ -42,6 +43,7 @@ COPY --from=builder /app/libs/vizu_db_connector/src /app/libs/vizu_db_connector/
 COPY --from=builder /app/libs/vizu_models/src /app/libs/vizu_models/src
 COPY --from=builder /app/libs/vizu_auth/src /app/libs/vizu_auth/src
 COPY --from=builder /app/libs/vizu_observability_bootstrap/src /app/libs/vizu_observability_bootstrap/src
+COPY --from=builder /app/libs/vizu_supabase_client/src /app/libs/vizu_supabase_client/src
 
 # Copy service source
 COPY --from=builder /app/services/analytics_api/src ./src

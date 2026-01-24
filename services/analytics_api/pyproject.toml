@@ -16,6 +16,7 @@ pydantic-settings = "^2.0.0"  # Settings management
 vizu-db-connector = { path = "../../libs/vizu_db_connector", develop = true }
 vizu_models = { path = "../../libs/vizu_models", develop = true }
 vizu_auth = { path = "../../libs/vizu_auth", develop = true }
+vizu_supabase_client = { path = "../../libs/vizu_supabase_client", develop = true }
 vizu_observability_bootstrap = {path = "../../libs/vizu_observability_bootstrap", develop = true  }
 [tool.pytest.ini_options]
 pythonpath = [

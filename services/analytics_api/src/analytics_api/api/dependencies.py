@@ -15,15 +15,13 @@ logger = logging.getLogger(__name__)
 
 # --- Camada de Conexão (DB) ---
 
-def get_postgres_repository(
-    db_session: Session = Depends(get_vizu_db_session)
-) -> PostgresRepository:
+def get_postgres_repository() -> PostgresRepository:
     """
-    Instancia o Repositório de dados Prata.
-    Recebe a sessão ativa do banco de dados via injeção de dependência.
+    Create PostgresRepository instance.
+    Now uses Supabase SDK for all operations (not direct SQLAlchemy).
     """
-    logger.debug("Criando instância de PostgresRepository com sessão injetada.")
-    return PostgresRepository(db_session=db_session)
+    logger.debug("Creating PostgresRepository instance (Supabase SDK).")
+    return PostgresRepository()
 
 # --- Camada de Autenticação (Real - No More Mocks!) ---
 
@@ -112,12 +110,11 @@ async def get_metric_service(
     """
     Função injetável principal (Dependency Injector) para consumo no frontend.
 
-    Carrega dados prata apenas para leitura e NÃO persiste em tabelas ouro
-    (write_gold=False). Use get_metric_service_ingest para fluxos de ingestão.
+    Loads silver data, computes aggregations, and persists to analytics_v2 tables.
     """
     try:
-        service_instance = MetricService(repository=repo, client_id=client_id, write_gold=False)
-        logger.info(f"MetricService inicializado (read-only) para {client_id}.")
+        service_instance = MetricService(repository=repo, client_id=client_id)
+        logger.info(f"MetricService initialized with persistence to analytics_v2 for {client_id}.")
         return service_instance
     except ValueError as e:
         logger.error(f"Erro ao inicializar MetricService para {client_id}: {e}", exc_info=True)
@@ -139,10 +136,10 @@ async def get_metric_service_ingest(
 ) -> MetricService:
     """
     Dependency para fluxos de ingestão (ex.: modal de connector).
-    Habilita persistência das agregações na camada ouro (write_gold=True).
+    MetricService automatically persists aggregations to analytics_v2 tables.
     """
     try:
-        service_instance = MetricService(repository=repo, client_id=client_id, write_gold=True)
+        service_instance = MetricService(repository=repo, client_id=client_id)
         logger.info(f"MetricService inicializado (ingest) para {client_id}.")
         return service_instance
     except ValueError as e:

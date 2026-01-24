@@ -39,8 +39,8 @@ def get_fornecedores_overview_endpoint(
 ):
     """Retorna KPIs, rankings e gráficos para a página de Fornecedores a partir da camada ouro."""
 
-    suppliers = repo.get_gold_suppliers_metrics(client_id, period) or []
-    products = repo.get_gold_products_metrics(client_id) or []
+    suppliers = repo.get_dim_suppliers(client_id, period) or []
+    products = repo.get_dim_products(client_id) or []
 
     # Convert to RankingItem using helper function
     ranking_por_receita = [dict_to_ranking_item(r) for r in sorted(suppliers, key=lambda x: x.get("total_revenue", 0), reverse=True)[:10]]
@@ -71,7 +71,7 @@ def get_fornecedores_overview_endpoint(
         ]
 
     # Time/regional charts from Gold (precomputed)
-    time_data = repo.get_gold_time_series(client_id, 'fornecedores_no_tempo')
+    time_data = repo.get_v2_time_series(client_id, 'fornecedores_no_tempo')
     # Calculate cumulative sum for frontend (expects total_cumulativo)
     cumulative_sum = 0
     chart_fornecedores_no_tempo = []
@@ -81,7 +81,7 @@ def get_fornecedores_overview_endpoint(
             ChartDataPoint(name=point['name'], total=point['total'], total_cumulativo=cumulative_sum)
         )
 
-    regional_data = repo.get_gold_regional(client_id, 'fornecedores_por_regiao')
+    regional_data = repo.get_v2_regional(client_id, 'fornecedores_por_regiao')
     chart_fornecedores_por_regiao = [
         ChartDataPoint(name=point['name'], total=point['total'], percentual=point['percentual'])
         for point in regional_data
@@ -91,19 +91,19 @@ def get_fornecedores_overview_endpoint(
     crescimento_percentual = repo.calculate_growth_from_time_series(client_id, 'fornecedores_no_tempo')
 
     # NEW: Get time-series for receita, ticket medio, quantidade
-    receita_time_data = repo.get_gold_time_series(client_id, 'receita_fornecedores_no_tempo')
+    receita_time_data = repo.get_v2_time_series(client_id, 'receita_fornecedores_no_tempo')
     chart_receita_no_tempo = [
         ChartDataPoint(name=point['name'], total=point['total'])
         for point in receita_time_data
     ]
 
-    ticket_time_data = repo.get_gold_time_series(client_id, 'ticket_medio_fornecedores_no_tempo')
+    ticket_time_data = repo.get_v2_time_series(client_id, 'ticket_medio_fornecedores_no_tempo')
     chart_ticketmedio_no_tempo = [
         ChartDataPoint(name=point['name'], total=point['total'])
         for point in ticket_time_data
     ]
 
-    quantidade_time_data = repo.get_gold_time_series(client_id, 'quantidade_fornecedores_no_tempo')
+    quantidade_time_data = repo.get_v2_time_series(client_id, 'quantidade_fornecedores_no_tempo')
     chart_quantidade_no_tempo = [
         ChartDataPoint(name=point['name'], total=point['total'])
         for point in quantidade_time_data
@@ -139,7 +139,7 @@ def get_clientes_overview_endpoint(
 ):
     """Retorna KPIs, rankings e gráficos para a página de Clientes a partir da camada ouro."""
 
-    customers = repo.get_gold_customers_metrics(client_id, period) or []
+    customers = repo.get_dim_customers(client_id, period) or []
 
     # Convert to RankingItem using helper function
     ranking_por_receita = [dict_to_ranking_item(r) for r in sorted(customers, key=lambda x: x.get("lifetime_value", 0), reverse=True)[:10]]
@@ -160,7 +160,7 @@ def get_clientes_overview_endpoint(
         ]
 
     # Regional charts from Gold (precomputed)
-    regional_data = repo.get_gold_regional(client_id, 'clientes_por_regiao')
+    regional_data = repo.get_v2_regional(client_id, 'clientes_por_regiao')
     chart_clientes_por_regiao = [
         ChartDataPoint(name=point['name'], contagem=point['contagem'], percentual=point['percentual'])
         for point in regional_data
@@ -174,7 +174,7 @@ def get_clientes_overview_endpoint(
     ) if customers else 0.0
 
     # Time series from Gold (precomputed) with cumulative calculation
-    time_data = repo.get_gold_time_series(client_id, 'clientes_no_tempo')
+    time_data = repo.get_v2_time_series(client_id, 'clientes_no_tempo')
     cumulative_sum = 0
     chart_clientes_no_tempo = []
     for point in time_data:
@@ -187,19 +187,19 @@ def get_clientes_overview_endpoint(
     crescimento_percentual = repo.calculate_growth_from_time_series(client_id, 'clientes_no_tempo')
 
     # NEW: Get time-series for receita, ticket medio, quantidade from clientes
-    receita_time_data = repo.get_gold_time_series(client_id, 'receita_clientes_no_tempo')
+    receita_time_data = repo.get_v2_time_series(client_id, 'receita_clientes_no_tempo')
     chart_receita_no_tempo = [
         ChartDataPoint(name=point['name'], total=point['total'])
         for point in receita_time_data
     ]
 
-    ticket_time_data = repo.get_gold_time_series(client_id, 'ticket_medio_clientes_no_tempo')
+    ticket_time_data = repo.get_v2_time_series(client_id, 'ticket_medio_clientes_no_tempo')
     chart_ticketmedio_no_tempo = [
         ChartDataPoint(name=point['name'], total=point['total'])
         for point in ticket_time_data
     ]
 
-    quantidade_time_data = repo.get_gold_time_series(client_id, 'quantidade_clientes_no_tempo')
+    quantidade_time_data = repo.get_v2_time_series(client_id, 'quantidade_clientes_no_tempo')
     chart_quantidade_no_tempo = [
         ChartDataPoint(name=point['name'], total=point['total'])
         for point in quantidade_time_data
@@ -236,7 +236,7 @@ def get_produtos_overview_endpoint(
 ):
     """Retorna KPIs e rankings para a página de Produtos a partir da camada ouro."""
 
-    products = repo.get_gold_products_metrics(client_id, period) or []
+    products = repo.get_dim_products(client_id, period) or []
 
     ranking_por_receita = [
         ProdutoRankingReceita(
@@ -266,7 +266,7 @@ def get_produtos_overview_endpoint(
     ]
 
     # Time series from Gold (precomputed) with cumulative calculation
-    time_data = repo.get_gold_time_series(client_id, 'produtos_no_tempo')
+    time_data = repo.get_v2_time_series(client_id, 'produtos_no_tempo')
     cumulative_sum = 0
     chart_produtos_no_tempo = []
     for point in time_data:
@@ -276,13 +276,13 @@ def get_produtos_overview_endpoint(
         )
 
     # NEW: Get time-series for receita and quantidade from produtos
-    receita_time_data = repo.get_gold_time_series(client_id, 'receita_produtos_no_tempo')
+    receita_time_data = repo.get_v2_time_series(client_id, 'receita_produtos_no_tempo')
     chart_receita_no_tempo = [
         ChartDataPoint(name=point['name'], total=point['total'])
         for point in receita_time_data
     ]
 
-    quantidade_time_data = repo.get_gold_time_series(client_id, 'quantidade_produtos_no_tempo')
+    quantidade_time_data = repo.get_v2_time_series(client_id, 'quantidade_produtos_no_tempo')
     chart_quantidade_no_tempo = [
         ChartDataPoint(name=point['name'], total=point['total'])
         for point in quantidade_time_data
@@ -311,7 +311,7 @@ def get_pedidos_overview_endpoint(
 ):
     """Retorna KPIs e lista de últimos pedidos a partir da camada ouro (dados agregados)."""
 
-    orders = repo.get_gold_orders_metrics(client_id) or {}
+    orders = repo.get_fact_sales_aggregated(client_id) or {}
 
     scorecard_ticket_medio_por_pedido = float(orders.get("avg_order_value", 0))
     scorecard_qtd_media_produtos_por_pedido = float(orders.get("qtd_media_por_pedido", 0))
@@ -319,13 +319,13 @@ def get_pedidos_overview_endpoint(
     scorecard_recencia_media_entre_pedidos_dias = float(orders.get("recencia_dias", 0))
 
     # Regional and last orders from Gold (precomputed)
-    regional_data = repo.get_gold_regional(client_id, 'pedidos_por_regiao')
+    regional_data = repo.get_v2_regional(client_id, 'pedidos_por_regiao')
     ranking_pedidos_por_regiao = [
         ChartDataPoint(name=point['name'], contagem=point['contagem'], percentual=point['percentual'])
         for point in regional_data
     ]
 
-    last_orders_data = repo.get_gold_last_orders(client_id, limit=20)
+    last_orders_data = repo.get_v2_last_orders(client_id, limit=20)
     ultimos_pedidos = [
         PedidoItem(
             order_id=order['order_id'],
@@ -338,7 +338,7 @@ def get_pedidos_overview_endpoint(
     ]
 
     # Time series from Gold (precomputed) with cumulative calculation
-    time_data = repo.get_gold_time_series(client_id, 'pedidos_no_tempo')
+    time_data = repo.get_v2_time_series(client_id, 'pedidos_no_tempo')
     cumulative_sum = 0
     chart_pedidos_no_tempo = []
     for point in time_data:
@@ -382,7 +382,7 @@ def get_cliente_detail_gold(
     """
     nome_decoded = unquote(nome_cliente)
 
-    customers = repo.get_gold_customers_metrics(client_id, period="all") or []
+    customers = repo.get_dim_customers(client_id, period="all") or []
 
     # Filter customers by name - may return multiple records
     matching_customers = [c for c in customers if c.get("customer_name") == nome_decoded]
@@ -428,7 +428,7 @@ def get_cliente_detail_gold(
     customer_cpf_cnpj = customer.get("customer_cpf_cnpj")
     mix_de_produtos = []
     if customer_cpf_cnpj:
-        products = repo.get_gold_customer_products(client_id, customer_cpf_cnpj, limit=10)
+        products = repo.get_v2_customer_products(client_id, customer_cpf_cnpj, limit=10)
         mix_de_produtos = [
             RankingItem(
                 nome=p.get("nome", ""),
@@ -494,7 +494,7 @@ def get_fornecedor_detail_gold(
     """
     nome_decoded = unquote(nome_fornecedor)
 
-    suppliers = repo.get_gold_suppliers_metrics(client_id, period="all") or []
+    suppliers = repo.get_dim_suppliers(client_id, period="all") or []
 
     # Filter suppliers by name - may return multiple records
     matching_suppliers = [s for s in suppliers if s.get("supplier_name") == nome_decoded]
@@ -552,7 +552,7 @@ def get_produto_detail_gold(
     """
     nome_decoded = unquote(nome_produto)
 
-    products = repo.get_gold_products_metrics(client_id) or []
+    products = repo.get_dim_products(client_id) or []
 
     # Filter products by name - may return multiple records
     matching_products = [p for p in products if p.get("product_name") == nome_decoded]
@@ -691,7 +691,7 @@ def get_products_by_customer(
     - valor_unitario_medio: Preço médio unitário
     """
     cpf_decoded = unquote(customer_cpf_cnpj)
-    return repo.get_gold_customer_products(client_id, cpf_decoded, limit)
+    return repo.get_v2_customer_products(client_id, cpf_decoded, limit)
 
 
 @router.get(

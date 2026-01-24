@@ -193,49 +193,60 @@ class IndicatorService:
         start_date, end_date = self._get_date_range(period)
         prev_start, prev_end = self._get_previous_period_range(period)
 
-        # Busca registros mensais do gold_orders (tem revenue)
-        monthly_records = self.repository.get_gold_orders_time_series(self.client_id)
+        # Read time-series from analytics_v2 (pattern used in dashboard.py)
+        try:
+            ts = self.repository.get_v2_time_series(self.client_id, 'pedidos_no_tempo') or []
+        except Exception:
+            ts = []
 
-        if not monthly_records:
-            logger.warning(f"No monthly records found for client {self.client_id}")
-            return OrderMetrics(
-                total=0,
-                revenue=0.0,
-                avg_order_value=0.0,
-                growth_rate=None,
-                by_status={},
-                period=period
-            )
+        # Helper to parse period name (expecting YYYY-MM) to period start datetime
+        from datetime import datetime
 
-        # Filtra registros mensais por período
-        current_records = self._filter_records_by_date_range(monthly_records, start_date, end_date)
-        previous_records = self._filter_records_by_date_range(monthly_records, prev_start, prev_end)
+        def period_start_from_name(name: str):
+            try:
+                return datetime.strptime(name, '%Y-%m')
+            except Exception:
+                return None
 
-        # Agrega métricas do período atual
-        current_total = sum(r.get("total_orders", 0) for r in current_records)
-        current_revenue = sum(r.get("total_revenue", 0.0) for r in current_records)
+        current_total = 0
+        current_revenue = 0.0
+
+        for rec in ts:
+            name = rec.get('name')
+            total = float(rec.get('total', 0) or 0)
+            ps = period_start_from_name(name) if name else None
+            if ps is None:
+                continue
+            # consider month falls into requested range if its first day between start_date and end_date
+            if start_date <= ps <= end_date:
+                current_total += int(total)
+
+        # revenue/avg are not available in simple time_series; fallback to dashboard summary
+        summary = {}
+        try:
+            summary = self.repository.get_dashboard_summary(self.client_id) or {}
+        except Exception:
+            summary = {}
+
+        current_revenue = float(summary.get('total_revenue', 0) or 0)
         current_avg = current_revenue / current_total if current_total > 0 else 0.0
 
-        # Agrega métricas do período anterior
-        prev_total = sum(r.get("total_orders", 0) for r in previous_records)
-
-        # Calcula growth rate
-        growth_rate = None
-        if prev_total > 0:
-            growth_rate = ((current_total - prev_total) / prev_total) * 100
+        # Growth via repository helper
+        try:
+            growth_rate = self.repository.calculate_growth_from_time_series(self.client_id, 'pedidos_no_tempo')
+        except Exception:
+            growth_rate = None
 
         logger.info(f"Order metrics for period '{period}': {current_total} orders, growth: {growth_rate}%")
 
-        metrics = OrderMetrics(
+        return OrderMetrics(
             total=current_total,
             revenue=current_revenue,
             avg_order_value=current_avg,
-            growth_rate=round(growth_rate, 2) if growth_rate else None,
+            growth_rate=round(growth_rate, 2) if isinstance(growth_rate, (int, float)) else None,
             by_status={},
             period=period
         )
-
-        return metrics
 
     async def get_product_metrics(self, period: PeriodType = "today") -> ProductMetrics:
         """
@@ -245,14 +256,16 @@ class IndicatorService:
         """
         start_date, end_date = self._get_date_range(period)
 
-        # Busca e agrega produtos filtrados por date range
-        product_data = self.repository.get_gold_products_aggregated(
-            self.client_id, start_date, end_date
-        )
+        # Read aggregated product metrics from analytics_v2 dim_product
+        try:
+            product_data = self.repository.get_dim_products_aggregated(self.client_id, start_date, end_date)
+        except Exception:
+            # Fallback to legacy alias
+            product_data = self.repository.get_gold_products_aggregated(self.client_id, start_date, end_date) or {}
 
         logger.info(f"Product metrics for period '{period}': {product_data.get('unique_products', 0)} products")
 
-        metrics = ProductMetrics(
+        return ProductMetrics(
             total_sold=product_data.get("total_sold", 0),
             unique_products=product_data.get("unique_products", 0),
             top_sellers=product_data.get("top_sellers", [])[:10],
@@ -260,8 +273,6 @@ class IndicatorService:
             avg_price=product_data.get("avg_price", 0.0),
             period=period
         )
-
-        return metrics
 
     async def get_customer_metrics(self, period: PeriodType = "today") -> CustomerMetrics:
         """
@@ -271,22 +282,22 @@ class IndicatorService:
         """
         start_date, end_date = self._get_date_range(period)
 
-        # Busca e agrega clientes filtrados por date range
-        customer_data = self.repository.get_gold_customers_aggregated(
-            self.client_id, start_date, end_date
-        )
+        # Read aggregated customer metrics from analytics_v2 dim_customer
+        try:
+            customer_data = self.repository.get_dim_customers_aggregated(self.client_id, start_date, end_date)
+        except Exception:
+            # Fallback to legacy alias
+            customer_data = self.repository.get_gold_customers_aggregated(self.client_id, start_date, end_date) or {}
 
         logger.info(f"Customer metrics for period '{period}': {customer_data.get('total_active', 0)} customers")
 
-        metrics = CustomerMetrics(
+        return CustomerMetrics(
             total_active=customer_data.get("total_active", 0),
             new_customers=customer_data.get("new_customers", 0),
             returning_customers=customer_data.get("returning_customers", 0),
             avg_lifetime_value=customer_data.get("avg_lifetime_value", 0.0),
             period=period
         )
-
-        return metrics
 
     async def get_indicators(
         self,

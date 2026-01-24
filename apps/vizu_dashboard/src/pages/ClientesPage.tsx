@@ -73,6 +73,11 @@ function ClientesPage() {
   const handleMiniCardClick = async (clickedItem: { id: string }) => {
     // When a mini-card is clicked, fetch the detailed data for that specific client
     try {
+      if (!clickedItem?.id || clickedItem.id.trim() === '') {
+        console.warn('handleMiniCardClick called with empty client id', clickedItem);
+        setError('Nome de cliente inválido ao tentar carregar detalhes.');
+        return;
+      }
       setSelectedItem(null); // Clear previous selection while loading
       const details = await getCliente(clickedItem.id); // 'id' is 'nome'
       setSelectedItem(details);

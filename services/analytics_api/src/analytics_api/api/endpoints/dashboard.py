@@ -1,8 +1,14 @@
 # src/analytics_api/api/endpoints/dashboard.py
-import pandas as pd
+"""
+Dashboard endpoints - Read from analytics_v2 star schema.
+
+These endpoints read pre-computed metrics from the star schema.
+They do NOT trigger silver data computation (BigQuery FDW).
+
+To recompute metrics from silver data, use POST /ingest/recompute
+"""
 from analytics_api.api.dependencies import (
     get_client_id,
-    get_metric_service,
     get_postgres_repository,
 )
 from analytics_api.data_access.postgres_repository import PostgresRepository
@@ -18,12 +24,11 @@ from analytics_api.schemas.metrics import (
     ChartDataPoint,
     RankingItem,
 )
-from analytics_api.services.metric_service import MetricService
+from analytics_api.api.helpers import dict_to_ranking_item
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from vizu_auth.dependencies.jwt_only import get_jwt_claims
-from vizu_auth.fastapi import get_auth_result
 
 router = APIRouter()
 
@@ -34,236 +39,226 @@ class MeResponse(BaseModel):
 
 @router.get(
     "/home",
-    # RESPONSE_MODEL ATUALIZADO: Corresponde ao schema novo
     response_model=HomeMetricsResponse,
     summary="Métricas Agregadas (Nível 1)",
     tags=["Nível 1 - Home"],
 )
-async def get_home_dashboard(service: MetricService = Depends(get_metric_service)):
+async def get_home_dashboard(
+    repo: PostgresRepository = Depends(get_postgres_repository),
+    client_id: str = Depends(get_client_id),
+):
     """
     Retorna os scorecards agregados e gráficos para a página
     principal (Home) do cliente.
 
-    Client ID is extracted from:
-    - Query param: ?client_id=xxx
-    - Header: X-Client-ID
-    - JWT token: sub claim
+    Reads directly from analytics_v2 star schema - NO silver data computation.
     """
-    # Nenhuma mudança aqui, a função já era get_home_metrics
-    metrics_data = service.get_home_metrics()
-    return metrics_data
+    # Get summary counts from star schema
+    summary = repo.get_dashboard_summary(client_id)
+
+    # Get rankings from dimension tables
+    customers = repo.get_dim_customers(client_id) or []
+    suppliers = repo.get_dim_suppliers(client_id) or []
+    products = repo.get_dim_products(client_id) or []
+
+    # Get time series data
+    time_series_receita = repo.get_v2_time_series(client_id, 'receita_no_tempo')
+    time_series_pedidos = repo.get_v2_time_series(client_id, 'pedidos_no_tempo')
+
+    # Calculate growth
+    crescimento_receita = repo.calculate_growth_from_time_series(client_id, 'receita_no_tempo')
+
+    # Build rankings
+    ranking_clientes = [
+        dict_to_ranking_item(c) for c in sorted(customers, key=lambda x: x.get("total_revenue", 0), reverse=True)[:5]
+    ]
+    ranking_fornecedores = [
+        dict_to_ranking_item(s) for s in sorted(suppliers, key=lambda x: x.get("total_revenue", 0), reverse=True)[:5]
+    ]
+    ranking_produtos = [
+        ProdutoRankingReceita(
+            nome=p.get("product_name", ""),
+            receita_total=p.get("total_revenue", 0),
+            valor_unitario_medio=p.get("avg_price", 0),
+        )
+        for p in sorted(products, key=lambda x: x.get("total_revenue", 0), reverse=True)[:5]
+    ]
+
+    # Build chart data
+    chart_receita = [
+        ChartDataPoint(name=p.get('name', ''), total=p.get('total', 0))
+        for p in time_series_receita
+    ]
+    chart_pedidos = [
+        ChartDataPoint(name=p.get('name', ''), total=p.get('total', 0))
+        for p in time_series_pedidos
+    ]
+
+    # Calculate totals
+    total_revenue = sum(c.get("total_revenue", 0) or 0 for c in customers)
+    avg_ticket = total_revenue / summary.get("total_orders", 1) if summary.get("total_orders", 0) > 0 else 0
+
+    return HomeMetricsResponse(
+        scorecards=HomeScorecards(
+            total_pedidos=summary.get("total_orders", 0),
+            total_clientes=summary.get("total_customers", 0),
+            total_fornecedores=summary.get("total_suppliers", 0),
+            total_produtos=summary.get("total_products", 0),
+            receita_total=total_revenue,
+            ticket_medio=avg_ticket,
+            crescimento_receita=crescimento_receita,
+        ),
+        chart_receita_no_tempo=chart_receita,
+        chart_pedidos_no_tempo=chart_pedidos,
+        ranking_clientes=ranking_clientes,
+        ranking_fornecedores=ranking_fornecedores,
+        ranking_produtos=ranking_produtos,
+    )
 
 
 @router.get(
     "/home_gold",
     response_model=HomeMetricsResponse,
-    summary="Métricas Agregadas (Nível 1) - View Ouro",
+    summary="Métricas Agregadas (Nível 1) - View Ouro (Analytics V2)",
     tags=["Nível 1 - Home", "Ouro"],
 )
 async def get_home_dashboard_gold(
     repo: PostgresRepository = Depends(get_postgres_repository),
-    client_id: str = Depends(get_client_id)
+    client_id: str = Depends(get_client_id),
 ):
     """
-    Retorna os scorecards agregados e gráficos para a página principal (Home) do cliente,
-    consultando todas as views ouro (orders, suppliers, customers, products).
-
-    Requires client_id for data isolation (RLS).
+    Alias for /home - reads from analytics_v2 star schema.
+    Kept for backwards compatibility with frontend.
     """
-    # Get data from all gold tables filtered by client_id
-    orders_data = repo.get_gold_orders_metrics(client_id)
-    suppliers_data = repo.get_gold_suppliers_metrics(client_id)
-    customers_data = repo.get_gold_customers_metrics(client_id)
-    products_data = repo.get_gold_products_metrics(client_id)
-
-    # Build scorecards using Pydantic model
-    scorecards = HomeScorecards(
-        receita_total=float(orders_data.get("total_revenue", 0)),
-        total_pedidos=int(orders_data.get("total_orders", 0)),
-        total_fornecedores=len(suppliers_data) if suppliers_data else 0,
-        total_clientes=len(customers_data) if customers_data else 0,
-        total_produtos=len(products_data) if products_data else 0,
-        total_regioes=0,  # TODO: Calculate from regional aggregation
-    )
-
-    # Build charts (empty for now, can be populated later)
-    charts = []
-
-    return HomeMetricsResponse(
-        scorecards=scorecards,
-        charts=charts
-    )
+    return await get_home_dashboard(repo=repo, client_id=client_id)
 
 
 @router.get(
     "/produtos/gold",
     response_model=ProdutosOverviewResponse,
-    summary="Métricas agregadas de produtos - View Ouro",
+    summary="Métricas agregadas de produtos - Analytics V2",
     tags=["Produtos", "Ouro"],
 )
 async def get_products_gold(
     repo: PostgresRepository = Depends(get_postgres_repository),
-    client_id: str = Depends(get_client_id)
+    client_id: str = Depends(get_client_id),
 ):
     """
-    Retorna métricas agregadas de produtos a partir da view ouro (analytics_gold_products).
-    Transforma os dados brutos em ProdutosOverviewResponse com scorecards e rankings.
-
-    Requires client_id for data isolation (RLS).
+    Retorna métricas agregadas de produtos do analytics_v2 star schema.
+    Reads directly from dim_product - NO silver data computation.
     """
-    products_data = repo.get_gold_products_metrics(client_id)
+    products = repo.get_dim_products(client_id) or []
 
-    # Calculate total unique items
-    total_itens_unicos = len(products_data) if products_data else 0
-
-    # Sort and convert directly to Pydantic models
+    # Build rankings
     ranking_por_receita = [
         ProdutoRankingReceita(
             nome=p.get("product_name", ""),
             receita_total=p.get("total_revenue", 0),
             valor_unitario_medio=p.get("avg_price", 0),
         )
-        for p in sorted(products_data, key=lambda x: x.get("total_revenue", 0), reverse=True)[:10]
-    ] if products_data else []
+        for p in sorted(products, key=lambda x: x.get("total_revenue", 0), reverse=True)[:10]
+    ]
 
     ranking_por_volume = [
         ProdutoRankingVolume(
             nome=p.get("product_name", ""),
             quantidade_total=p.get("total_quantity_sold", 0),
-            valor_unitario_medio=p.get("avg_price", 0),
+            num_pedidos=p.get("number_of_orders", 0),
         )
-        for p in sorted(products_data, key=lambda x: x.get("total_quantity_sold", 0), reverse=True)[:10]
-    ] if products_data else []
+        for p in sorted(products, key=lambda x: x.get("total_quantity_sold", 0), reverse=True)[:10]
+    ]
 
-    ranking_por_ticket_medio = [
+    ranking_por_ticket = [
         ProdutoRankingTicket(
             nome=p.get("product_name", ""),
             ticket_medio=p.get("avg_price", 0),
-            valor_unitario_medio=p.get("avg_price", 0),
+            num_pedidos=p.get("number_of_orders", 0),
         )
-        for p in sorted(products_data, key=lambda x: x.get("avg_price", 0), reverse=True)[:10]
-    ] if products_data else []
+        for p in sorted(products, key=lambda x: x.get("avg_price", 0), reverse=True)[:10]
+    ]
+
+    # Time series
+    time_series = repo.get_v2_time_series(client_id, 'produtos_no_tempo')
+    chart_produtos_no_tempo = [
+        ChartDataPoint(name=p.get('name', ''), total=p.get('total', 0))
+        for p in time_series
+    ]
+
+    # Growth
+    crescimento = repo.calculate_growth_from_time_series(client_id, 'produtos_no_tempo')
 
     return ProdutosOverviewResponse(
-        scorecard_total_itens_unicos=total_itens_unicos,
+        scorecard_total_produtos=len(products),
+        scorecard_crescimento_percentual=crescimento,
+        chart_produtos_no_tempo=chart_produtos_no_tempo,
         ranking_por_receita=ranking_por_receita,
         ranking_por_volume=ranking_por_volume,
-        ranking_por_ticket_medio=ranking_por_ticket_medio,
+        ranking_por_ticket=ranking_por_ticket,
     )
 
 
 @router.get(
     "/clientes/gold",
-    summary="⚠️  DEPRECATED: Use /api/clientes instead",
-    tags=["Clientes", "Ouro", "Deprecated"],
-    deprecated=True
+    response_model=ClientesOverviewResponse,
+    summary="Métricas agregadas de clientes - Analytics V2",
+    tags=["Clientes", "Ouro"],
 )
 async def get_customers_gold(
     repo: PostgresRepository = Depends(get_postgres_repository),
-    client_id: str = Depends(get_client_id)
+    client_id: str = Depends(get_client_id),
 ):
     """
-    ⚠️  DEPRECATED: Complex endpoint that duplicates /api/clientes functionality.
-
-    Use `/api/clientes` endpoint instead for properly typed ClientesOverviewResponse.
-    This endpoint will be removed in a future version.
+    Retorna métricas agregadas de clientes do analytics_v2 star schema.
+    Reads directly from dim_customer - NO silver data computation.
     """
-    customers_data = repo.get_gold_customers_metrics(client_id)
+    customers = repo.get_dim_customers(client_id) or []
 
-    # Calculate aggregated metrics
-    total_clientes = len(customers_data) if customers_data else 0
+    # Build rankings
+    ranking_por_receita = [dict_to_ranking_item(c) for c in sorted(customers, key=lambda x: x.get("total_revenue", 0), reverse=True)[:10]]
+    ranking_por_ticket_medio = [dict_to_ranking_item(c) for c in sorted(customers, key=lambda x: x.get("avg_order_value", 0), reverse=True)[:10]]
+    ranking_por_qtd_pedidos = [dict_to_ranking_item(c) for c in sorted(customers, key=lambda x: x.get("total_orders", 0), reverse=True)[:10]]
+    ranking_por_cluster_vizu = [dict_to_ranking_item(c) for c in sorted(customers, key=lambda x: x.get("cluster_score", 0), reverse=True)[:10]]
 
-    # Calculate average ticket and frequency if data exists
-    if customers_data:
-        total_lifetime_value = sum(c.get("lifetime_value", 0) for c in customers_data)
-        total_orders = sum(c.get("total_orders", 0) for c in customers_data)
-
-        ticket_medio = (total_lifetime_value / total_orders) if total_orders > 0 else 0
-        frequencia_media = (total_orders / total_clientes) if total_clientes > 0 else 0
-    else:
-        ticket_medio = 0
-        frequencia_media = 0
-
-    # Sort by lifetime value for ranking
-    ranking_por_receita = sorted(
-        customers_data,
-        key=lambda x: x.get("lifetime_value", 0),
-        reverse=True
-    )[:10] if customers_data else []
-
-    # Sort by average order value for ticket medio ranking
-    ranking_por_ticket_medio = sorted(
-        customers_data,
-        key=lambda x: x.get("avg_order_value", 0),
-        reverse=True
-    )[:10] if customers_data else []
-
-    # Sort by total orders for quantidade ranking
-    ranking_por_qtd_pedidos = sorted(
-        customers_data,
-        key=lambda x: x.get("total_orders", 0),
-        reverse=True
-    )[:10] if customers_data else []
-
-    # Sort by customer type for cluster ranking
-    ranking_por_cluster_vizu = sorted(
-        customers_data,
-        key=lambda x: (x.get("customer_type", ""), x.get("lifetime_value", 0)),
-        reverse=True
-    )[:10] if customers_data else []
-
-    # Get silver data for charts (has geographic columns)
-    df_silver = repo.get_silver_dataframe(client_id)
-
-    # Calculate regional chart from silver data
-    chart_clientes_por_regiao = []
-    state_col = None
-    for col in ['receiverstateuf', 'receiver_estado', 'receiver_state']:
-        if col in df_silver.columns:
-            state_col = col
-            break
-
-    if state_col and 'receiver_nome' in df_silver.columns:
-        # Group by state and count unique customers
-        regional_groups = df_silver.groupby(state_col)['receiver_nome'].nunique()
-        total_by_region = regional_groups.sum()
-        chart_clientes_por_regiao = [
-            {
-                "name": state,
-                "contagem": int(count),
-                "percentual": float((count / total_by_region) * 100)
-            }
-            for state, count in regional_groups.items()
-        ]
-
-    # Calculate cohort chart from gold data if cluster_tier exists
+    # Cohort by tier
     chart_cohort_clientes = []
-    if customers_data and len(customers_data) > 0:
-        df_customers = pd.DataFrame(customers_data)
-        if 'cluster_tier' in df_customers.columns:
-            cohort_groups = df_customers.groupby('cluster_tier').size()
-            total_by_cohort = cohort_groups.sum()
-            chart_cohort_clientes = [
-                {
-                    "name": tier,
-                    "contagem": int(count),
-                    "percentual": float((count / total_by_cohort) * 100)
-                }
-                for tier, count in cohort_groups.items()
-            ]
+    by_tier: dict[str, int] = {}
+    for c in customers:
+        tier = str(c.get("cluster_tier", "")).strip() or "C"
+        by_tier[tier] = by_tier.get(tier, 0) + 1
+    total = sum(by_tier.values()) or 1
+    chart_cohort_clientes = [
+        ChartDataPoint(name=tier, contagem=count, percentual=(count / total) * 100)
+        for tier, count in sorted(by_tier.items())
+    ]
 
-    return {
-        "scorecard_total_clientes": total_clientes,
-        "scorecard_ticket_medio_geral": float(ticket_medio),
-        "scorecard_frequencia_media_geral": float(frequencia_media),
-        "scorecard_crescimento_percentual": None,
-        "chart_clientes_por_regiao": chart_clientes_por_regiao,
-        "chart_cohort_clientes": chart_cohort_clientes,
-        "ranking_por_receita": ranking_por_receita,
-        "ranking_por_ticket_medio": ranking_por_ticket_medio,
-        "ranking_por_qtd_pedidos": ranking_por_qtd_pedidos,
-        "ranking_por_cluster_vizu": ranking_por_cluster_vizu,
-    }
+    # Time series
+    time_series = repo.get_v2_time_series(client_id, 'clientes_no_tempo')
+    chart_clientes_no_tempo = [
+        ChartDataPoint(name=p.get('name', ''), total=p.get('total', 0))
+        for p in time_series
+    ]
+
+    # Regional
+    regional = repo.get_v2_regional(client_id, 'clientes_por_regiao')
+    chart_clientes_por_regiao = [
+        ChartDataPoint(name=p.get('name', ''), total=p.get('total', 0), percentual=p.get('percentual', 0))
+        for p in regional
+    ]
+
+    # Growth
+    crescimento = repo.calculate_growth_from_time_series(client_id, 'clientes_no_tempo')
+
+    return ClientesOverviewResponse(
+        scorecard_total_clientes=len(customers),
+        scorecard_crescimento_percentual=crescimento,
+        chart_clientes_no_tempo=chart_clientes_no_tempo,
+        chart_clientes_por_regiao=chart_clientes_por_regiao,
+        chart_cohort_clientes=chart_cohort_clientes,
+        ranking_por_receita=ranking_por_receita,
+        ranking_por_ticket_medio=ranking_por_ticket_medio,
+        ranking_por_qtd_pedidos=ranking_por_qtd_pedidos,
+        ranking_por_cluster_vizu=ranking_por_cluster_vizu,
+    )
 
 
 @router.get(
@@ -284,13 +279,11 @@ async def get_me(
     - Creates a clientes_vizu record if it doesn't exist yet
     - Returns the actual client_id from clientes_vizu table
     """
-    # claims.sub = Supabase user ID (external_user_id)
     if not claims.sub:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não autenticado."
         )
 
-    # Ensure clientes_vizu record exists and get the actual client_id
     try:
         actual_client_id = repo.ensure_cliente_vizu_exists(
             external_user_id=claims.sub,
@@ -314,20 +307,15 @@ async def get_me(
 async def get_customers_geo_clusters(
     repo: PostgresRepository = Depends(get_postgres_repository),
     client_id: str = Depends(get_client_id),
-    group_by: str = "state"  # "state", "city", or "cep"
+    group_by: str = "state"
 ):
     """
     Retorna clusters de clientes agrupados por localização (estado, cidade ou CEP).
-
-    Para cada cluster, retorna:
-    - location: nome do estado/cidade
-    - count: número de clientes
-    - total_revenue: receita total do cluster
-    - coordinates: lat/lon aproximado do cluster
+    Reads from analytics_v2 star schema - NO silver data computation.
     """
-    customers_data = repo.get_gold_customers_metrics(client_id)
+    customers = repo.get_dim_customers(client_id) or []
 
-    if not customers_data:
+    if not customers:
         return {"clusters": [], "center": [-14.2350, -51.9253], "max_count": 0}
 
     # Brazilian state coordinates (approximate centers)
@@ -346,9 +334,8 @@ async def get_customers_geo_clusters(
     clusters = {}
 
     if group_by == "state":
-        # Group by state (UF)
-        for customer in customers_data:
-            uf = customer.get("endereco_uf") or "UNKNOWN"
+        for c in customers:
+            uf = c.get('endereco_uf') or "UNKNOWN"
             if uf not in clusters:
                 clusters[uf] = {
                     "location": uf,
@@ -357,17 +344,14 @@ async def get_customers_geo_clusters(
                     "coordinates": state_coords.get(uf, [-14.2350, -51.9253])
                 }
             clusters[uf]["count"] += 1
-            clusters[uf]["total_revenue"] += float(customer.get("lifetime_value", 0))
+            clusters[uf]["total_revenue"] += c.get("total_revenue", 0) or 0
 
     elif group_by == "city":
-        # Group by city (would need geocoding for accurate coordinates)
-        for customer in customers_data:
-            city = customer.get("endereco_cidade") or "UNKNOWN"
-            uf = customer.get("endereco_uf") or "UNKNOWN"
+        for c in customers:
+            city = c.get('endereco_cidade') or "UNKNOWN"
+            uf = c.get('endereco_uf') or "UNKNOWN"
             key = f"{city}-{uf}"
-
             if key not in clusters:
-                # Use state coordinates as approximation
                 clusters[key] = {
                     "location": f"{city}, {uf}",
                     "count": 0,
@@ -375,12 +359,11 @@ async def get_customers_geo_clusters(
                     "coordinates": state_coords.get(uf, [-14.2350, -51.9253])
                 }
             clusters[key]["count"] += 1
-            clusters[key]["total_revenue"] += float(customer.get("lifetime_value", 0))
+            clusters[key]["total_revenue"] += c.get("total_revenue", 0) or 0
 
     # Convert to list and sort by count
     cluster_list = sorted(clusters.values(), key=lambda x: x["count"], reverse=True)
 
-    # Find center (largest cluster)
     center = cluster_list[0]["coordinates"] if cluster_list else [-14.2350, -51.9253]
     max_count = cluster_list[0]["count"] if cluster_list else 0
 

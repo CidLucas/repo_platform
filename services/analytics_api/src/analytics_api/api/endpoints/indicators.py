@@ -238,23 +238,38 @@ async def _get_comparisons_from_time_series(
     Returns a dict with keys: 'orders', 'products', 'customers' -> ComparisonData
     """
     try:
-        # Access repository through service.repository (not postgres_repo)
-        batch_data = service.repository.get_all_comparison_metrics_batch(service.client_id)
-        logger.info(f"✅ Fetched comparison metrics from time_series in single query for client {service.client_id[:8]}...")
+        # New approach: read v2 time series per metric and compute simple growth.
+        metric_map = {
+            'orders': 'pedidos_no_tempo',
+            'products': 'produtos_no_tempo',
+            'customers': 'clientes_no_tempo'
+        }
 
-        result = {}
-        for metric_type, metrics in batch_data.items():
-            if metrics.get("current_month", 0) > 0:  # Only use if we have data
+        result: dict[str, ComparisonData] = {}
+        for metric_type, chart_type in metric_map.items():
+            try:
+                ts = service.repository.get_v2_time_series(service.client_id, chart_type) or []
+                if len(ts) < 2:
+                    continue
+                current = float(ts[-1].get('total', 0))
+                previous = float(ts[-2].get('total', 0))
+                vs = _calc_percentage(current, previous)
+                trend = _determine_trend(vs, vs, vs)
+                # Use the same computed growth for all three buckets as a best-effort fallback.
                 result[metric_type] = ComparisonData(
-                    vs_7_days=metrics.get("vs_prev_month"),  # Map vs_prev_month to vs_7_days for UI
-                    vs_30_days=metrics.get("vs_3_months"),   # Map vs_3_months to vs_30_days
-                    vs_90_days=metrics.get("vs_12_months"),  # Map vs_12_months to vs_90_days
-                    trend=metrics.get("trend", "stable")
+                    vs_7_days=vs,
+                    vs_30_days=vs,
+                    vs_90_days=vs,
+                    trend=trend
                 )
+            except Exception as e:
+                logger.debug(f"Failed to compute comparisons for {metric_type}: {e}")
+
+        logger.info(f"✅ Computed comparisons from v2 time_series for client {service.client_id[:8]}...")
         return result
 
     except Exception as e:
-        logger.warning(f"Failed to fetch from time_series: {e}")
+        logger.warning(f"Failed to fetch/compute comparisons from time_series: {e}")
         return {}
 
 

@@ -1,8 +1,7 @@
 # src/analytics_api/api/endpoints/ingestion.py
 """Endpoints específicos para fluxos de ingestão/connector.
 
-Estes endpoints instanciam o MetricService com write_gold=True,
-recomputam agregações e persistem na camada ouro.
+MetricService automatically persists aggregations to analytics_v2 tables.
 """
 
 import logging
@@ -25,19 +24,20 @@ async def recompute_gold_metrics(
     service: MetricService = Depends(get_metric_service_ingest),
 ):
     """
-    Usa o MetricService em modo write_gold=True para recalcular agregações
-    a partir da camada prata e persistir nas tabelas ouro.
+    Recalculates and persists metrics to analytics_v2 tables.
 
-    Destinado ao modal de connector (ingestão). Requer client_id via
-    query/header/JWT conforme get_client_id.
+    MetricService initializes with silver data, computes aggregations,
+    and persists to analytics_v2 tables. If persistence fails, this endpoint
+    will return an error (not silently succeed).
     """
     try:
-        # A persistência acontece no __init__ quando write_gold=True.
-        logger.info("Ingest: métricas recalculadas e persistidas na camada ouro.")
-        return {"status": "accepted", "detail": "Gold metrics recomputed"}
-    except Exception as exc:  # defensive: should already be covered in dependency
-        logger.error(f"Falha ao recalcular métricas ouro: {exc}", exc_info=True)
+        # Persistence happens in MetricService.__init__.
+        # If it fails, an exception is raised and caught here.
+        logger.info("Ingest: metrics recomputed and persisted to analytics_v2.")
+        return {"status": "success", "detail": "Metrics recomputed and persisted to analytics_v2"}
+    except Exception as exc:
+        logger.error(f"Failed to recompute metrics: {exc}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Erro ao recalcular métricas ouro"
+            detail=f"Error recomputing and persisting metrics: {str(exc)}"
         )

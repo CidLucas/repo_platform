@@ -20,7 +20,15 @@ _SessionLocal = None
 
 
 def get_engine():
-    """Get or create the database engine."""
+    """Get or create the database engine.
+
+    Connection pool settings optimized for Supabase pooler:
+    - pool_size: Max persistent connections (keep low for Supabase Session mode)
+    - max_overflow: Additional connections allowed temporarily
+    - pool_timeout: Seconds to wait for a connection from pool
+    - pool_recycle: Recycle connections after N seconds (prevents stale connections)
+    - pool_pre_ping: Test connections before use (handles dropped connections)
+    """
     global _engine
     if _engine is None:
         if not DATABASE_URL:
@@ -28,7 +36,14 @@ def get_engine():
                 "DATABASE_URL environment variable is not set. "
                 "Cannot create database engine."
             )
-        _engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+        _engine = create_engine(
+            DATABASE_URL,
+            pool_pre_ping=True,
+            pool_size=5,          # Keep low - Supabase Session mode has limited slots
+            max_overflow=10,      # Allow burst up to 15 total connections
+            pool_timeout=30,      # Wait up to 30s for a connection
+            pool_recycle=1800,    # Recycle connections every 30 minutes
+        )
     return _engine
 
 

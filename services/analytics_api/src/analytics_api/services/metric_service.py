@@ -240,20 +240,26 @@ class MetricService:
             meses_ativo = (dias_ativo / 30.44).clip(lower=1)
             agg_df['frequencia_pedidos_mes'] = agg_df['num_pedidos_unicos'] / meses_ativo
 
-            # FIXED: recencia_dias should be average days BETWEEN transactions, not days since last purchase
-            # If only 1 order, return 0. If multiple orders, calculate average interval between consecutive orders.
-            def calculate_avg_days_between_orders(entity_name):
-                entity_df = df[df[dimension_col] == entity_name].sort_values('data_transacao')
-                if len(entity_df) <= 1:
-                    # Only one transaction - return 0 (no interval to calculate)
-                    return 0
-                # Calculate intervals between consecutive transactions
-                intervals = entity_df['data_transacao'].diff().dt.days.dropna()
-                return intervals.mean() if len(intervals) > 0 else 0
+            # OPTIMIZED: Vectorized recency calculation (O(n log n) instead of O(n²))
+            # Calculate average days between consecutive transactions per entity
+            # Using groupby + transform instead of row-by-row apply()
+            if 'data_transacao' in df.columns and not df['data_transacao'].isna().all():
+                # Sort once, then compute diff within groups
+                df_sorted = df[[dimension_col, 'data_transacao']].dropna().sort_values(
+                    [dimension_col, 'data_transacao']
+                )
+                # Calculate interval to previous transaction within same entity
+                df_sorted['interval_days'] = df_sorted.groupby(dimension_col)['data_transacao'].diff().dt.days
 
-            # Apply before renaming dimension_col to 'nome'
-            # ⚠️  WARNING: This apply() is O(n²) - iterates rows and filters df for each
-            agg_df['recencia_dias'] = agg_df[dimension_col].apply(calculate_avg_days_between_orders)
+                # Aggregate: mean interval per entity (excluding first row which has NaN)
+                recency_agg = df_sorted.groupby(dimension_col)['interval_days'].mean().fillna(0).reset_index()
+                recency_agg.columns = [dimension_col, 'recencia_dias']
+
+                # Merge back to agg_df
+                agg_df = agg_df.merge(recency_agg, on=dimension_col, how='left')
+                agg_df['recencia_dias'] = agg_df['recencia_dias'].fillna(0)
+            else:
+                agg_df['recencia_dias'] = 0
         else:
             logger.warning(f"⚠️  Date columns missing, setting time-based metrics to 0")
             agg_df['period_start'] = None
@@ -366,6 +372,11 @@ class MetricService:
         Persist computed aggregations to analytics_v2 star schema.
         Called after all aggregations are computed to make data available for frontend/queries.
 
+        OPTIMIZED: Write order is now:
+        1. All dimensions first (customers, suppliers, products) - needed for FK references
+        2. fact_sales (uses dimension FKs)
+        3. All aggregate updates together (they read from fact_sales)
+
         Tables written:
         - analytics_v2.dim_customer (from df_clientes_agg)
         - analytics_v2.dim_supplier (from df_fornecedores_agg)
@@ -380,86 +391,88 @@ class MetricService:
             return
 
         try:
-            # Write customers dimension
+            start_time = time.time()
+
+            # PHASE 1: Write all dimensions first (order doesn't matter between them)
+            logger.info("📦 Phase 1: Writing dimension tables...")
+
             if not self.df_clientes_agg.empty:
                 logger.info(f"  ➜ Writing {len(self.df_clientes_agg)} customers to analytics_v2.dim_customer...")
                 customers_data = self.df_clientes_agg.to_dict('records')
-                try:
-                    self.repository.write_star_customers(self.client_id, customers_data)
-                    logger.info(f"    ✓ Persisted {len(customers_data)} customers")
-                except Exception as e:
-                    logger.error(f"    ✗ Failed: {e}", exc_info=True)
-                    raise
+                self.repository.write_star_customers(self.client_id, customers_data)
+                logger.info(f"    ✓ Persisted {len(customers_data)} customers")
 
-                # After ensuring dim_customer rows exist, compute and populate derived aggregates
-                try:
-                    self._populate_dim_customer_aggregates()
-                except Exception as e:
-                    logger.warning(f"Failed to populate dim_customer aggregates: {e}")
-
-            # Write suppliers dimension
             if not self.df_fornecedores_agg.empty:
                 logger.info(f"  ➜ Writing {len(self.df_fornecedores_agg)} suppliers to analytics_v2.dim_supplier...")
                 suppliers_data = self.df_fornecedores_agg.to_dict('records')
-                try:
-                    self.repository.write_star_suppliers(self.client_id, suppliers_data)
-                    logger.info(f"    ✓ Persisted {len(suppliers_data)} suppliers")
-                except Exception as e:
-                    logger.error(f"    ✗ Failed: {e}", exc_info=True)
-                    raise
-                # After ensuring dim_supplier rows exist, compute and populate derived aggregates
-                try:
-                    self._populate_dim_supplier_aggregates()
-                except Exception as e:
-                    logger.warning(f"Failed to populate dim_supplier aggregates: {e}")
+                self.repository.write_star_suppliers(self.client_id, suppliers_data)
+                logger.info(f"    ✓ Persisted {len(suppliers_data)} suppliers")
 
-            # Write products dimension
             if not self.df_produtos_agg.empty:
                 logger.info(f"  ➜ Writing {len(self.df_produtos_agg)} products to analytics_v2.dim_product...")
                 products_data = self.df_produtos_agg.to_dict('records')
-                try:
-                    self.repository.write_star_products(self.client_id, products_data)
-                    logger.info(f"    ✓ Persisted {len(products_data)} products")
-                except Exception as e:
-                    logger.error(f"    ✗ Failed: {e}", exc_info=True)
-                    raise
+                self.repository.write_star_products(self.client_id, products_data)
+                logger.info(f"    ✓ Persisted {len(products_data)} products")
 
-                # After ensuring dim_product rows exist, compute and populate derived aggregates
-                try:
-                    self._populate_dim_product_aggregates()
-                except Exception as e:
-                    logger.warning(f"Failed to populate dim_product aggregates: {e}")
+            dim_time = time.time()
+            logger.info(f"  ⏱️  Dimensions written in {dim_time - start_time:.1f}s")
 
-            # Write fact_sales (transaction-level data)
+            # PHASE 2: Write fact_sales (needs dimension FKs to exist)
+            logger.info("📦 Phase 2: Writing fact_sales...")
+
+            sales_count = 0
             if not self.df.empty:
-                logger.info(f"  ➜ Writing transaction-level data to analytics_v2.fact_sales...")
                 required_cols = ['order_id', 'data_transacao', 'quantidade', 'valor_unitario', 'valor_total_emitter',
                                'receiver_cpf_cnpj', 'emitter_cnpj', 'raw_product_description']
                 available_cols = [col for col in required_cols if col in self.df.columns]
 
                 if available_cols:
                     transactions_data = self.df[available_cols].copy().to_dict('records')
-                    try:
-                        sales_count = self.repository.write_fact_sales(self.client_id, transactions_data)
-                        logger.info(f"    ✓ Persisted {sales_count} transactions")
-                    except Exception as e:
-                        logger.error(f"    ✗ Failed: {e}", exc_info=True)
-                        raise
+                    sales_count = self.repository.write_fact_sales(self.client_id, transactions_data)
+                    logger.info(f"    ✓ Persisted {sales_count} transactions")
                 else:
                     logger.warning(f"    ⚠️  No transaction columns available for fact_sales")
 
-            # Write customer-product relationships
+            fact_time = time.time()
+            logger.info(f"  ⏱️  Fact sales written in {fact_time - dim_time:.1f}s")
+
+            # PHASE 3: Populate dimension aggregates from fact_sales (only if we have sales)
+            # These SQL updates read from fact_sales to compute totals, frequencies, etc.
+            if sales_count > 0:
+                logger.info("📦 Phase 3: Populating dimension aggregates from fact_sales...")
+
+                if not self.df_clientes_agg.empty:
+                    try:
+                        self._populate_dim_customer_aggregates()
+                    except Exception as e:
+                        logger.warning(f"Failed to populate dim_customer aggregates: {e}")
+
+                if not self.df_fornecedores_agg.empty:
+                    try:
+                        self._populate_dim_supplier_aggregates()
+                    except Exception as e:
+                        logger.warning(f"Failed to populate dim_supplier aggregates: {e}")
+
+                if not self.df_produtos_agg.empty:
+                    try:
+                        self._populate_dim_product_aggregates()
+                    except Exception as e:
+                        logger.warning(f"Failed to populate dim_product aggregates: {e}")
+
+                agg_time = time.time()
+                logger.info(f"  ⏱️  Aggregates populated in {agg_time - fact_time:.1f}s")
+            else:
+                logger.info("  ⏩ Skipping aggregate population (no fact_sales written)")
+
+            # PHASE 4: Write customer-product relationships (optional)
             if not self.df_customer_products_agg.empty:
                 logger.info(f"  ➜ Writing {len(self.df_customer_products_agg)} customer-product relationships...")
                 customer_products_data = self.df_customer_products_agg.to_dict('records')
-                try:
-                    self.repository.write_star_customer_products(self.client_id, customer_products_data)
-                    logger.info(f"    ✓ Persisted {len(customer_products_data)} relationships")
-                except Exception as e:
-                    logger.error(f"    ✗ Failed: {e}", exc_info=True)
-                    raise
+                self.repository.write_star_customer_products(self.client_id, customer_products_data)
+                logger.info(f"    ✓ Persisted {len(customer_products_data)} relationships")
 
-            logger.info(f"✅ All analytics_v2 aggregations persisted successfully")
+            total_time = time.time() - start_time
+            logger.info(f"✅ All analytics_v2 aggregations persisted successfully in {total_time:.1f}s")
 
         except Exception as e:
             logger.error(f"❌ Failed to persist to analytics_v2: {e}", exc_info=True)

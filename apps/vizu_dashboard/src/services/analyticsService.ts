@@ -515,3 +515,97 @@ export const getMe = async (token: string): Promise<MeResponse> => {
   });
   return response.data;
 };
+
+// --- MATERIALIZED VIEW ENDPOINTS (Fast pre-computed data) ---
+
+// MV Customer Summary
+export interface MVCustomerSummary {
+  customer_id: string;
+  name: string;
+  cpf_cnpj: string;
+  estado: string | null;
+  total_orders: number;
+  lifetime_value: number;
+  avg_order_value: number;
+  total_quantity: number;
+  last_order_date: string | null;
+  first_order_date: string | null;
+  days_since_last_order: number;
+}
+
+export interface MVCustomersResponse {
+  customers: MVCustomerSummary[];
+  total: number;
+}
+
+// MV Product Summary
+export interface MVProductSummary {
+  product_id: string;
+  product_name: string;
+  times_sold: number;
+  total_quantity_sold: number;
+  total_revenue: number;
+  avg_order_value: number;
+  avg_price: number;
+  min_price: number;
+  max_price: number;
+  last_sold_date: string | null;
+  unique_customers: number;
+}
+
+export interface MVProductsResponse {
+  products: MVProductSummary[];
+  total: number;
+}
+
+// MV Monthly Sales Trend
+export interface MVMonthlySales {
+  month: string;  // YYYY-MM format
+  name: string;   // Same as month, for chart compatibility
+  orders: number;
+  unique_customers: number;
+  revenue: number;
+  total: number;  // Same as revenue, for chart compatibility
+  avg_order_value: number;
+}
+
+export interface MVMonthlySalesResponse {
+  monthly_sales: MVMonthlySales[];
+  total_months: number;
+}
+
+// MV Dashboard Summary (combined)
+export interface MVDashboardSummary {
+  total_customers: number;
+  total_products: number;
+  total_orders: number;
+  total_revenue: number;
+  avg_order_value: number;
+  monthly_trend: MVMonthlySales[];
+  top_customers: MVCustomerSummary[];
+  top_products: MVProductSummary[];
+}
+
+// Get customer summary from materialized view
+export const getMVCustomers = async (): Promise<MVCustomersResponse> => {
+  const response = await axiosInstance.get<MVCustomersResponse>('/dashboard/mv/customers');
+  return response.data;
+};
+
+// Get product summary from materialized view
+export const getMVProducts = async (): Promise<MVProductsResponse> => {
+  const response = await axiosInstance.get<MVProductsResponse>('/dashboard/mv/products');
+  return response.data;
+};
+
+// Get monthly sales trend from materialized view
+export const getMVMonthlySales = async (): Promise<MVMonthlySalesResponse> => {
+  const response = await axiosInstance.get<MVMonthlySalesResponse>('/dashboard/mv/monthly-sales');
+  return response.data;
+};
+
+// Get complete dashboard summary from materialized views
+export const getMVDashboardSummary = async (): Promise<MVDashboardSummary> => {
+  const response = await axiosInstance.get<MVDashboardSummary>('/dashboard/mv/summary');
+  return response.data;
+};

@@ -680,7 +680,8 @@ class ETLServiceV2:
         recompute_endpoint = f"{analytics_api_url}/api/ingest/recompute"
 
         try:
-            async with httpx.AsyncClient(timeout=30) as http_client:
+            # Timeout increased to 5 minutes - BigQuery FDW queries can take a while
+            async with httpx.AsyncClient(timeout=300) as http_client:
                 logger.info(f"🔄 Triggering analytics recompute for client {client_id}")
                 logger.info(f"   Endpoint: {recompute_endpoint}")
 

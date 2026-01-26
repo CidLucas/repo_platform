@@ -65,7 +65,12 @@ class PostgresRepository:
         except (TypeError, ValueError):
             return default
 
-    def get_silver_dataframe(self, client_id: str) -> pd.DataFrame:
+    def get_silver_dataframe(
+        self,
+        client_id: str,
+        incremental: bool = False,
+        since_timestamp: datetime = None
+    ) -> pd.DataFrame:
         """
         Fetch silver data for client via direct SQL (for foreign tables) or Supabase API.
 
@@ -74,8 +79,14 @@ class PostgresRepository:
 
         Applies column_mapping from client_data_sources to translate
         source column names to canonical names.
+
+        Args:
+            client_id: The client ID to fetch data for
+            incremental: If True, only fetch data since last sync
+            since_timestamp: Optional explicit timestamp to filter from.
+                           If None and incremental=True, uses last_synced_at from DB.
         """
-        logger.info(f"🔄 [get_silver_dataframe] Loading silver data for client: {client_id}")
+        logger.info(f"🔄 [get_silver_dataframe] Loading silver data for client: {client_id} (incremental={incremental})")
 
         # Load column_mapping
         column_mapping = self._get_column_mapping(client_id)
@@ -92,6 +103,22 @@ class PostgresRepository:
             logger.info(f"    '{source}' → {canonical}")
 
         try:
+            # Determine the timestamp filter for incremental mode
+            filter_timestamp = None
+            if incremental:
+                filter_timestamp = since_timestamp or self.get_last_sync_timestamp(client_id)
+                if filter_timestamp:
+                    logger.info(f"  📅 Incremental mode: fetching data since {filter_timestamp}")
+                else:
+                    logger.info(f"  📅 Incremental mode requested but no previous sync - doing full load")
+
+            # Find the date column name in the source (before mapping)
+            date_source_col = None
+            for source_col, canonical_col in column_mapping.items():
+                if canonical_col == 'data_transacao':
+                    date_source_col = source_col
+                    break
+
             # Foreign tables (bigquery.*) must be queried via direct SQL
             # PostgREST doesn't expose foreign tables or non-public schemas
             if table_name.startswith("bigquery.") or "." in table_name:
@@ -107,27 +134,46 @@ class PostgresRepository:
                 except Exception as timeout_err:
                     logger.warning(f"  ⚠️ Could not set statement_timeout: {timeout_err}")
 
-                result = self.db_session.execute(
-                    text(f"SELECT * FROM {quoted_table}")
-                )
+                # Build query with optional WHERE clause for incremental
+                if filter_timestamp and date_source_col:
+                    # Use parameterized query to prevent SQL injection
+                    query_sql = f'SELECT * FROM {quoted_table} WHERE "{date_source_col}" > :since_ts'
+                    logger.info(f"  🔍 Incremental query: WHERE {date_source_col} > {filter_timestamp}")
+                    result = self.db_session.execute(
+                        text(query_sql),
+                        {"since_ts": filter_timestamp}
+                    )
+                else:
+                    result = self.db_session.execute(
+                        text(f"SELECT * FROM {quoted_table}")
+                    )
+
                 rows = result.fetchall()
                 columns = list(result.keys())  # Convert RMKeyView to list
                 logger.info(f"  📋 Foreign table columns: {columns}")
                 if not rows:
-                    logger.warning(f"No data found in {table_name}")
+                    if filter_timestamp:
+                        logger.info(f"No new data found since {filter_timestamp}")
+                    else:
+                        logger.warning(f"No data found in {table_name}")
                     return pd.DataFrame()
                 logger.info(f"  📊 Fetched {len(rows)} rows from foreign table")
                 df = pd.DataFrame(rows, columns=columns)
             else:
                 # Regular tables can use Supabase REST API
-                response = (
-                    self.supabase
-                    .table(table_name)
-                    .select("*")
-                    .execute()
-                )
+                query = self.supabase.table(table_name).select("*")
+
+                # Add filter for incremental mode
+                if filter_timestamp and date_source_col:
+                    query = query.gt(date_source_col, filter_timestamp.isoformat())
+                    logger.info(f"  🔍 Incremental query: {date_source_col} > {filter_timestamp}")
+
+                response = query.execute()
                 if not response.data:
-                    logger.warning(f"No data found in {table_name}")
+                    if filter_timestamp:
+                        logger.info(f"No new data found since {filter_timestamp}")
+                    else:
+                        logger.warning(f"No data found in {table_name}")
                     return pd.DataFrame()
                 df = pd.DataFrame(response.data)
 
@@ -579,7 +625,13 @@ class PostgresRepository:
             logger.error(f"❌ Failed to bulk write products to analytics_v2: {e}", exc_info=True)
             return 0
 
-    def write_fact_sales(self, client_id: str, invoices_data: list[dict], truncate_first: bool = True) -> int:
+    def write_fact_sales(
+        self,
+        client_id: str,
+        invoices_data: list[dict],
+        truncate_first: bool = True,
+        incremental: bool = False
+    ) -> int:
         """Bulk persist transactional fact table fact_sales with FK references to dimensions.
 
         Each invoice line item becomes one row in fact_sales.
@@ -590,7 +642,9 @@ class PostgresRepository:
             client_id: The client ID to write data for
             invoices_data: List of invoice dictionaries
             truncate_first: If True, delete existing fact_sales for this client before insert.
-                           This is faster than UPSERT for full reloads.
+                           This is faster than UPSERT for full reloads. Ignored if incremental=True.
+            incremental: If True, use UPSERT (ON CONFLICT) instead of truncate+insert.
+                        This preserves existing data and only adds/updates new records.
 
         Expected invoice_data columns (mapped from source):
         - receiver_cpf_cnpj: Customer identifier
@@ -602,10 +656,11 @@ class PostgresRepository:
             return 0
 
         try:
-            logger.info(f"📥 Preparing to write {len(invoices_data)} invoice rows to fact_sales...")
+            logger.info(f"📥 Preparing to write {len(invoices_data)} invoice rows to fact_sales (incremental={incremental})...")
 
             # OPTIMIZATION: Truncate existing data for this client (faster than UPSERT)
-            if truncate_first:
+            # Skip truncation in incremental mode - we want to preserve existing data
+            if truncate_first and not incremental:
                 logger.info(f"  🗑️  Clearing existing fact_sales for client {client_id}...")
                 self.db_session.execute(
                     text("DELETE FROM analytics_v2.fact_sales WHERE client_id = :client_id"),
@@ -613,6 +668,8 @@ class PostgresRepository:
                 )
                 self.db_session.commit()
                 logger.info(f"  ✓ Cleared existing fact_sales")
+            elif incremental:
+                logger.info(f"  📝 Incremental mode: will UPSERT new records")
 
             # OPTIMIZATION: Bulk load all dimension data once instead of querying per row
             logger.debug(f"  Loading dimension lookup tables...")
@@ -725,11 +782,45 @@ class PostgresRepository:
                 return 0
 
             # Bulk insert using psycopg2 for speed - batch if large dataset
-            logger.debug(f"  Bulk inserting {len(values)} valid rows (in batches of 5000)...")
+            mode_str = "UPSERT" if incremental else "INSERT"
+            logger.debug(f"  Bulk {mode_str}ing {len(values)} valid rows (in batches of 5000)...")
 
             batch_size = 5000
             total_inserted = 0
             max_retries = 3
+
+            # Choose SQL based on mode
+            if incremental:
+                # UPSERT: Insert or update on conflict with order_id + client_id
+                insert_sql = """
+                    INSERT INTO analytics_v2.fact_sales (
+                        client_id, customer_id, supplier_id, product_id,
+                        order_id, data_transacao, quantidade, valor_unitario, valor_total,
+                        customer_cpf_cnpj, supplier_cnpj,
+                        created_at, updated_at
+                    ) VALUES %s
+                    ON CONFLICT (client_id, order_id) DO UPDATE SET
+                        customer_id = EXCLUDED.customer_id,
+                        supplier_id = EXCLUDED.supplier_id,
+                        product_id = EXCLUDED.product_id,
+                        data_transacao = EXCLUDED.data_transacao,
+                        quantidade = EXCLUDED.quantidade,
+                        valor_unitario = EXCLUDED.valor_unitario,
+                        valor_total = EXCLUDED.valor_total,
+                        customer_cpf_cnpj = EXCLUDED.customer_cpf_cnpj,
+                        supplier_cnpj = EXCLUDED.supplier_cnpj,
+                        updated_at = NOW()
+                """
+            else:
+                # Standard INSERT (used after truncate)
+                insert_sql = """
+                    INSERT INTO analytics_v2.fact_sales (
+                        client_id, customer_id, supplier_id, product_id,
+                        order_id, data_transacao, quantidade, valor_unitario, valor_total,
+                        customer_cpf_cnpj, supplier_cnpj,
+                        created_at, updated_at
+                    ) VALUES %s
+                """
 
             for batch_idx in range(0, len(values), batch_size):
                 batch = values[batch_idx:batch_idx + batch_size]
@@ -739,21 +830,14 @@ class PostgresRepository:
                 retry_count = 0
                 while retry_count < max_retries:
                     try:
-                        logger.debug(f"    Batch {batch_num}/{total_batches}: Inserting {len(batch)} rows (attempt {retry_count + 1})...")
+                        logger.debug(f"    Batch {batch_num}/{total_batches}: {mode_str}ing {len(batch)} rows (attempt {retry_count + 1})...")
 
                         conn = self.db_session.connection().connection
                         cursor = conn.cursor()
 
                         execute_values(
                             cursor,
-                            """
-                            INSERT INTO analytics_v2.fact_sales (
-                                client_id, customer_id, supplier_id, product_id,
-                                order_id, data_transacao, quantidade, valor_unitario, valor_total,
-                                customer_cpf_cnpj, supplier_cnpj,
-                                created_at, updated_at
-                            ) VALUES %s
-                            """,
+                            insert_sql,
                             batch,
                             template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())",
                             page_size=1000
@@ -761,7 +845,7 @@ class PostgresRepository:
 
                         conn.commit()
                         total_inserted += len(batch)
-                        logger.debug(f"    ✓ Batch {batch_num}/{total_batches} inserted successfully")
+                        logger.debug(f"    ✓ Batch {batch_num}/{total_batches} {mode_str}ed successfully")
                         break
 
                     except Exception as batch_error:
@@ -2001,4 +2085,135 @@ class PostgresRepository:
                 "top_customers": [],
                 "top_products": [],
             }
+
+    # =========================================================================
+    # Incremental Sync - Watermark Management
+    # =========================================================================
+
+    def get_last_sync_timestamp(self, client_id: str) -> datetime | None:
+        """
+        Get the last successful sync timestamp for a client.
+
+        Checks client_data_sources.last_synced_at for the most recent sync.
+        Returns None if no previous sync exists (triggers full load).
+        """
+        try:
+            query = text("""
+                SELECT last_synced_at
+                FROM client_data_sources
+                WHERE client_id = :client_id
+                AND last_synced_at IS NOT NULL
+                ORDER BY last_synced_at DESC
+                LIMIT 1
+            """)
+            result = self.db_session.execute(query, {"client_id": client_id})
+            row = result.fetchone()
+
+            if row and row[0]:
+                logger.info(f"📅 Last sync for {client_id}: {row[0]}")
+                return row[0]
+
+            logger.info(f"📅 No previous sync found for {client_id} - will do full load")
+            return None
+
+        except Exception as e:
+            logger.warning(f"⚠️ Could not get last_sync_timestamp: {e}")
+            return None
+
+    def update_last_sync_timestamp(self, client_id: str, sync_time: datetime = None) -> bool:
+        """
+        Update the last_synced_at timestamp for a client after successful sync.
+
+        Args:
+            client_id: The client ID
+            sync_time: Optional timestamp (defaults to NOW())
+        """
+        try:
+            if sync_time is None:
+                sync_time = datetime.utcnow()
+
+            query = text("""
+                UPDATE client_data_sources
+                SET last_synced_at = :sync_time,
+                    updated_at = NOW()
+                WHERE client_id = :client_id
+            """)
+            self.db_session.execute(query, {
+                "client_id": client_id,
+                "sync_time": sync_time
+            })
+            self.db_session.commit()
+
+            logger.info(f"✅ Updated last_synced_at for {client_id} to {sync_time}")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Failed to update last_sync_timestamp: {e}")
+            self.db_session.rollback()
+            return False
+
+    def record_sync_event(
+        self,
+        client_id: str,
+        status: str,
+        records_processed: int = 0,
+        records_inserted: int = 0,
+        records_updated: int = 0,
+        error_message: str = None
+    ) -> bool:
+        """
+        Record a sync event in connector_sync_history for audit trail.
+
+        Args:
+            client_id: The client ID
+            status: 'running', 'completed', 'failed', 'cancelled'
+            records_processed: Total records processed
+            records_inserted: New records inserted
+            records_updated: Existing records updated
+            error_message: Error details if failed
+        """
+        try:
+            # Get credential_id for this client
+            cred_query = text("""
+                SELECT cse.id
+                FROM credencial_servico_externo cse
+                JOIN clientes_vizu cv ON cse.client_id = cv.client_id
+                WHERE cv.client_id::text = :client_id
+                LIMIT 1
+            """)
+            cred_result = self.db_session.execute(cred_query, {"client_id": client_id})
+            cred_row = cred_result.fetchone()
+
+            credential_id = cred_row[0] if cred_row else None
+
+            query = text("""
+                INSERT INTO connector_sync_history (
+                    credential_id, client_id, sync_started_at, sync_completed_at,
+                    status, records_processed, records_inserted, records_updated,
+                    error_message, resource_type
+                ) VALUES (
+                    :credential_id, :client_id, NOW(),
+                    CASE WHEN :status IN ('completed', 'failed') THEN NOW() ELSE NULL END,
+                    :status, :records_processed, :records_inserted, :records_updated,
+                    :error_message, 'analytics_v2'
+                )
+            """)
+            self.db_session.execute(query, {
+                "credential_id": credential_id,
+                "client_id": client_id,
+                "status": status,
+                "records_processed": records_processed,
+                "records_inserted": records_inserted,
+                "records_updated": records_updated,
+                "error_message": error_message
+            })
+            self.db_session.commit()
+
+            logger.debug(f"📝 Recorded sync event: {status} for {client_id}")
+            return True
+
+        except Exception as e:
+            logger.warning(f"⚠️ Could not record sync event: {e}")
+            self.db_session.rollback()
+            return False
 

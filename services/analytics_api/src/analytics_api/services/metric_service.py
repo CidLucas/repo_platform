@@ -33,17 +33,28 @@ class MetricService:
 
     Implementa os requisitos de métricas avançadas (Cohorts, Preço Médio)
     e serve os Níveis 1, 2 e 3 de forma agnóstica.
+
+    Supports incremental mode for daily updates:
+    - incremental=False (default): Full reload from source
+    - incremental=True: Only fetch new data since last sync
     """
 
-    def __init__(self, repository: PostgresRepository, client_id: str):
+    def __init__(
+        self,
+        repository: PostgresRepository,
+        client_id: str,
+        incremental: bool = False
+    ):
         self.repository = repository
         self.client_id = client_id
         self.today = pd.Timestamp.now(tz='UTC')
+        self.incremental = incremental
 
-        logger.info(f"🚀 [MetricService] Initializing for client: {client_id}")
+        mode_str = "INCREMENTAL" if incremental else "FULL"
+        logger.info(f"🚀 [MetricService] Initializing for client: {client_id} (mode={mode_str})")
 
-        # Load silver data
-        self.df = self.repository.get_silver_dataframe(client_id)
+        # Load silver data (with optional incremental filter)
+        self.df = self.repository.get_silver_dataframe(client_id, incremental=incremental)
         logger.info(f"📊 Silver dataframe loaded: {len(self.df) if self.df is not None else 0} rows, {len(self.df.columns) if self.df is not None else 0} columns")
 
         if self.df is None or self.df.empty:
@@ -428,8 +439,14 @@ class MetricService:
 
                 if available_cols:
                     transactions_data = self.df[available_cols].copy().to_dict('records')
-                    sales_count = self.repository.write_fact_sales(self.client_id, transactions_data)
-                    logger.info(f"    ✓ Persisted {sales_count} transactions")
+                    # Pass incremental flag to use UPSERT instead of truncate+insert
+                    sales_count = self.repository.write_fact_sales(
+                        self.client_id,
+                        transactions_data,
+                        incremental=self.incremental
+                    )
+                    mode_str = "UPSERTed" if self.incremental else "inserted"
+                    logger.info(f"    ✓ {mode_str} {sales_count} transactions")
                 else:
                     logger.warning(f"    ⚠️  No transaction columns available for fact_sales")
 
@@ -474,8 +491,29 @@ class MetricService:
             total_time = time.time() - start_time
             logger.info(f"✅ All analytics_v2 aggregations persisted successfully in {total_time:.1f}s")
 
+            # Update last_sync_at timestamp for future incremental syncs
+            from datetime import datetime, timezone
+            sync_time = datetime.now(timezone.utc)
+            self.repository.update_last_sync_timestamp(self.client_id, sync_time)
+
+            # Record sync event for audit trail
+            total_records = len(self.df) if not self.df.empty else 0
+            self.repository.record_sync_event(
+                client_id=self.client_id,
+                status='completed',
+                records_processed=total_records,
+                records_inserted=sales_count,
+                records_updated=0 if not self.incremental else sales_count
+            )
+
         except Exception as e:
             logger.error(f"❌ Failed to persist to analytics_v2: {e}", exc_info=True)
+            # Record failed sync
+            self.repository.record_sync_event(
+                client_id=self.client_id,
+                status='failed',
+                error_message=str(e)[:500]
+            )
             raise
 
     def _populate_dim_product_aggregates(self) -> None:

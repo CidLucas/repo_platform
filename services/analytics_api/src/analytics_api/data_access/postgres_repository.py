@@ -1824,22 +1824,27 @@ class PostgresRepository:
         - days_since_last_order
         """
         try:
+            # Prefer pre-computed materialized view, but the view schema has changed
+            # in some deployments (uses `estado`) while dim_customer uses `endereco_uf`.
+            # To be resilient, LEFT JOIN the dim_customer table and prefer the
+            # materialized view's `estado`, falling back to `endereco_uf`.
             query = text("""
                 SELECT
-                    customer_id,
-                    name,
-                    cpf_cnpj,
-                    estado,
-                    COALESCE(total_orders, 0) as total_orders,
-                    COALESCE(lifetime_value, 0) as lifetime_value,
-                    COALESCE(avg_order_value, 0) as avg_order_value,
-                    COALESCE(total_quantity, 0) as total_quantity,
-                    last_order_date,
-                    first_order_date,
-                    COALESCE(days_since_last_order, 0) as days_since_last_order
-                FROM analytics_v2.mv_customer_summary
-                WHERE client_id = :client_id
-                ORDER BY lifetime_value DESC
+                    m.customer_id,
+                    m.name,
+                    m.cpf_cnpj,
+                    COALESCE(m.estado, d.endereco_uf) AS estado,
+                    COALESCE(m.total_orders, 0) as total_orders,
+                    COALESCE(m.lifetime_value, 0) as lifetime_value,
+                    COALESCE(m.avg_order_value, 0) as avg_order_value,
+                    COALESCE(m.total_quantity, 0) as total_quantity,
+                    m.last_order_date,
+                    m.first_order_date,
+                    COALESCE(m.days_since_last_order, 0) as days_since_last_order
+                FROM analytics_v2.mv_customer_summary m
+                LEFT JOIN analytics_v2.dim_customer d ON d.customer_id = m.customer_id
+                WHERE m.client_id = :client_id
+                ORDER BY m.lifetime_value DESC
             """)
             result = self.db_session.execute(query, {"client_id": client_id})
             rows = result.fetchall()

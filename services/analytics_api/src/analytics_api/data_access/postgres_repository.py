@@ -2055,6 +2055,7 @@ class PostgresRepository:
         """
         try:
             # Get estado from dim_customer (mv_customer_summary doesn't have estado column)
+            # Calculate days_since_last_order from last_order_date (not a column in the view)
             query = text("""
                 SELECT
                     m.customer_id,
@@ -2067,7 +2068,7 @@ class PostgresRepository:
                     COALESCE(m.total_quantity, 0) as total_quantity,
                     m.last_order_date,
                     m.first_order_date,
-                    COALESCE(m.days_since_last_order, 0) as days_since_last_order
+                    COALESCE(EXTRACT(DAY FROM (CURRENT_DATE - m.last_order_date::date)), 0)::int as days_since_last_order
                 FROM analytics_v2.mv_customer_summary m
                 LEFT JOIN analytics_v2.dim_customer d ON d.customer_id = m.customer_id AND d.client_id = m.client_id
                 WHERE m.client_id = :client_id
@@ -2323,6 +2324,55 @@ class PostgresRepository:
         except Exception as e:
             logger.warning(f"⚠️ Could not check has_analytics_data: {e}")
             return False
+
+    def refresh_materialized_views(self) -> dict:
+        """
+        Refresh all materialized views in analytics_v2 schema.
+        
+        Calls the database function that refreshes:
+        - mv_customer_summary
+        - mv_product_summary  
+        - mv_monthly_sales_trend
+        
+        Returns:
+            dict with status of each view refresh
+        """
+        import time
+        
+        try:
+            start_time = time.time()
+            logger.info("🔄 Refreshing all materialized views...")
+            
+            # Call the database function that refreshes all MVs
+            result = self.db_session.execute(
+                text("SELECT * FROM analytics_v2.refresh_materialized_views();")
+            )
+            rows = result.fetchall()
+            
+            elapsed = time.time() - start_time
+            
+            results = {}
+            for row in rows:
+                view_name = row[0]
+                status = row[1]
+                results[view_name] = status
+                logger.info(f"  ✅ {view_name}: {status}")
+            
+            logger.info(f"✅ All materialized views refreshed in {elapsed:.1f}s")
+            
+            return {
+                "status": "success",
+                "elapsed_seconds": elapsed,
+                "views_refreshed": results
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to refresh materialized views: {e}", exc_info=True)
+            self.db_session.rollback()
+            return {
+                "status": "error",
+                "error": str(e)
+            }
 
     def record_sync_event(
         self,

@@ -54,8 +54,8 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "NÃO use para responder clientes."
         ),
     )
-    def ferramenta_publica_de_teste(**kwargs) -> str:
-        # Tolerante a argumentos extras (p.ex. cliente_id) enviados pela LLM
+    def ferramenta_publica_de_teste() -> str:
+        """Diagnostic tool for connectivity tests."""
         return _ferramenta_publica_de_teste_logic()
 
     logger.info("[Common Module] Ferramentas registradas.")

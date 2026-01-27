@@ -83,19 +83,33 @@ class MCPPromptBuilder:
         try:
             from fastmcp.prompts import Message
 
-            # Build argument signature
-            def make_prompt_fn(config):
-                def prompt_fn(**kwargs) -> list:
-                    prompt = self.loader.load_builtin(name, kwargs)
+            loader = self.loader
+
+            # Use explicit parameter (JSON string) instead of **kwargs
+            def make_prompt_fn(prompt_name, cfg):
+                def prompt_fn(variables: str = "{}") -> list:
+                    """
+                    Load and render a built-in prompt template.
+
+                    Args:
+                        variables: JSON string with template variables (default: "{}")
+                    """
+                    import json
+                    try:
+                        kwargs = json.loads(variables) if variables else {}
+                    except json.JSONDecodeError:
+                        kwargs = {}
+
+                    prompt = loader.load_builtin(prompt_name, kwargs)
                     return [Message(role="system", content=prompt.content)]
 
                 # Set function name and doc
-                prompt_fn.__name__ = name.replace("/", "_").replace("-", "_")
-                prompt_fn.__doc__ = config.description
+                prompt_fn.__name__ = prompt_name.replace("/", "_").replace("-", "_")
+                prompt_fn.__doc__ = cfg.description
 
                 return prompt_fn
 
-            prompt_fn = make_prompt_fn(config)
+            prompt_fn = make_prompt_fn(name, config)
 
             # Register with MCP
             self.mcp.prompt(name)(prompt_fn)
@@ -116,10 +130,29 @@ class MCPPromptBuilder:
             from fastmcp.prompts import Message
 
             loader = self.loader
+            prompt_name = name
 
-            async def dynamic_prompt_fn(**kwargs) -> list:
-                cliente_id = kwargs.pop("cliente_id", None)
-                prompt = await loader.load(name, kwargs, cliente_id)
+            async def dynamic_prompt_fn(
+                cliente_id: str = "",
+                variables: str = "{}"
+            ) -> list:
+                """
+                Load and render a dynamic prompt from database.
+
+                Args:
+                    cliente_id: Client UUID (optional)
+                    variables: JSON string with template variables (default: "{}")
+                """
+                import json
+                from uuid import UUID
+
+                try:
+                    kwargs = json.loads(variables) if variables else {}
+                except json.JSONDecodeError:
+                    kwargs = {}
+
+                cid = UUID(cliente_id) if cliente_id else None
+                prompt = await loader.load(prompt_name, kwargs, cid)
                 return [Message(role="system", content=prompt.content)]
 
             dynamic_prompt_fn.__name__ = name.replace("/", "_").replace("-", "_")
@@ -155,10 +188,26 @@ class MCPPromptBuilder:
 
             loader = self.loader
             ctx_factory = self.context_service_factory
+            prompt_name = name
 
-            async def context_prompt_fn(cliente_id: str, **kwargs) -> list:
-                # Load context
+            async def context_prompt_fn(
+                cliente_id: str,
+                extra_variables: str = "{}"
+            ) -> list:
+                """
+                Load a context-aware prompt that auto-populates client variables.
+
+                Args:
+                    cliente_id: Client UUID (required)
+                    extra_variables: JSON string with additional variables (default: "{}")
+                """
+                import json
                 from uuid import UUID
+
+                try:
+                    extra_kwargs = json.loads(extra_variables) if extra_variables else {}
+                except json.JSONDecodeError:
+                    extra_kwargs = {}
 
                 ctx_service = ctx_factory()
                 context = await ctx_service.get_client_context_by_id(UUID(cliente_id))
@@ -173,10 +222,10 @@ class MCPPromptBuilder:
 
                 # Extract variables from context
                 variables = VariableExtractor.from_client_context(context)
-                merged = {**variables.to_dict(), **kwargs}
+                merged = {**variables.to_dict(), **extra_kwargs}
 
                 # Load prompt
-                prompt = await loader.load(name, merged, UUID(cliente_id))
+                prompt = await loader.load(prompt_name, merged, UUID(cliente_id))
                 return [Message(role="system", content=prompt.content)]
 
             context_prompt_fn.__name__ = name.replace("/", "_").replace("-", "_")

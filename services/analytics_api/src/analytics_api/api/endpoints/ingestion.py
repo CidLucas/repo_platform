@@ -75,13 +75,20 @@ async def recompute_gold_metrics(
         rows_processed = len(service.df) if service.df is not None else 0
         logger.info(f"Ingest: {mode_str} recompute completed for {client_id} ({rows_processed} rows)")
 
+        # 🔄 REFRESH MATERIALIZED VIEWS after data is written
+        # This ensures MVs reflect the latest data in fact_sales
+        logger.info(f"📊 Refreshing materialized views to reflect new data...")
+        mv_result = repo.refresh_materialized_views()
+        
         return {
             "status": "success",
             "mode": "incremental" if incremental else "full",
             "auto_detected": not force_full,
             "last_sync": str(last_sync) if last_sync else None,
             "rows_processed": rows_processed,
-            "detail": f"Metrics recomputed ({mode_str}) and persisted to analytics_v2"
+            "detail": f"Metrics recomputed ({mode_str}) and persisted to analytics_v2",
+            "materialized_views_refreshed": mv_result.get("status") == "success",
+            "materialized_views": mv_result.get("views_refreshed", {})
         }
     except Exception as exc:
         logger.error(f"Failed to recompute metrics: {exc}", exc_info=True)
@@ -115,15 +122,72 @@ async def recompute_full(
         rows_processed = len(service.df) if service.df is not None else 0
         logger.info(f"Ingest: full recompute completed for {client_id} ({rows_processed} rows)")
 
+        # 🔄 REFRESH MATERIALIZED VIEWS after data is written
+        logger.info(f"📊 Refreshing materialized views to reflect new data...")
+        mv_result = repo.refresh_materialized_views()
+        
         return {
             "status": "success",
             "mode": "full",
             "rows_processed": rows_processed,
-            "detail": "Full reload completed and persisted to analytics_v2"
+            "detail": "Full reload completed and persisted to analytics_v2",
+            "materialized_views_refreshed": mv_result.get("status") == "success",
+            "materialized_views": mv_result.get("views_refreshed", {})
         }
     except Exception as exc:
         logger.error(f"Failed to run full recompute: {exc}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error in full recompute: {str(exc)}"
+        )
+
+
+@router.post(
+    "/refresh-views",
+    summary="Refresh materialized views (admin endpoint)",
+    status_code=status.HTTP_200_OK,
+)
+async def refresh_materialized_views(
+    repo: PostgresRepository = Depends(get_postgres_repository),
+):
+    """
+    Manually refresh all materialized views in analytics_v2 schema.
+    
+    This endpoint refreshes:
+    - mv_customer_summary
+    - mv_product_summary
+    - mv_monthly_sales_trend
+    
+    **Use Cases:**
+    - Manual refresh between scheduled ingestions
+    - Testing after manual data modifications
+    - Part of scheduled jobs (e.g., hourly refresh)
+    
+    **Scope**: Global (refreshes for ALL clients)
+    
+    Returns:
+        Refresh status for each view
+    """
+    try:
+        logger.info("🔄 Admin: Refreshing all materialized views")
+        result = repo.refresh_materialized_views()
+        
+        if result.get("status") == "success":
+            return {
+                "status": "success",
+                "detail": "All materialized views refreshed successfully",
+                "elapsed_seconds": result.get("elapsed_seconds"),
+                "views": result.get("views_refreshed", {})
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to refresh views: {result.get('error')}"
+            )
+            
+    except Exception as exc:
+        logger.error(f"Failed to refresh materialized views: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error refreshing materialized views: {str(exc)}"
         )

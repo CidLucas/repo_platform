@@ -1,39 +1,105 @@
 import React from 'react';
-import { LineChart, Line, XAxis, Tooltip } from 'recharts';
-import { Box } from '@chakra-ui/react';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { Box, Text } from '@chakra-ui/react';
 
 interface GraphComponentProps {
   data: any[];
   dataKey: string;
   lineColor?: string;
+  showGrid?: boolean;
+  height?: number | string;
 }
 
 export const GraphComponent: React.FC<GraphComponentProps> = ({
   data,
   dataKey,
   lineColor = '#FFA500',
+  showGrid = false,
+  height = 250,
 }) => {
+  // Validate data - ensure we have valid data points
+  const validData = data?.filter(item => item && item.name !== undefined && item[dataKey] !== undefined) || [];
+
+  if (validData.length === 0) {
+    return (
+      <Box width="100%" height={height} display="flex" alignItems="center" justifyContent="center">
+        <Text color="gray.500" fontSize="sm">Sem dados para exibir</Text>
+      </Box>
+    );
+  }
+
+  // Format large numbers for better readability
+  const formatYAxis = (value: number) => {
+    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `${(value / 1000).toFixed(0)}K`;
+    return value.toFixed(0);
+  };
+
+  // Format tooltip values
+  const formatTooltipValue = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
   return (
-    <Box width="100%" height="100%">
-      <LineChart data={data} width={400} height={250} margin={{ top: 5, right: 40, left: 40, bottom: 5 }}>
-        <XAxis
-          dataKey="name"
-          stroke="black"
-          strokeWidth={3}
-          tickFormatter={(value) => value.toUpperCase()}
-          style={{
-            fontSize: '14px',
-            fontWeight: 400,
-            fontFamily: 'Inter',
-          }}
-        />
-        <Tooltip
-          contentStyle={{ backgroundColor: 'rgba(0,0,0,0.7)', border: 'none', borderRadius: '4px', fontFamily: 'Inter', fontSize: '14px' }}
-          itemStyle={{ color: 'white', textTransform: 'uppercase' }}
-          labelStyle={{ color: 'white', textTransform: 'uppercase' }}
-        />
-        <Line type="monotone" dataKey={dataKey} stroke={lineColor} strokeWidth={8} dot={false} />
-      </LineChart>
+    <Box width="100%" height={height}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={validData} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+          {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />}
+          <XAxis
+            dataKey="name"
+            stroke="#333"
+            strokeWidth={1}
+            tickFormatter={(value) => {
+              // Format month labels (e.g., "2023-01" -> "Jan/23")
+              if (typeof value === 'string' && value.match(/^\d{4}-\d{2}$/)) {
+                const [year, month] = value.split('-');
+                const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                return `${months[parseInt(month, 10) - 1]}/${year.slice(2)}`;
+              }
+              return String(value).toUpperCase();
+            }}
+            tick={{ fontSize: 11, fontFamily: 'Inter' }}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            stroke="#666"
+            tickFormatter={formatYAxis}
+            tick={{ fontSize: 10, fontFamily: 'Inter' }}
+            width={50}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: 'rgba(0,0,0,0.85)',
+              border: 'none',
+              borderRadius: '8px',
+              fontFamily: 'Inter',
+              fontSize: '13px',
+              padding: '10px 14px',
+            }}
+            itemStyle={{ color: 'white' }}
+            labelStyle={{ color: 'white', fontWeight: 'bold', marginBottom: '4px' }}
+            formatter={(value: number) => [formatTooltipValue(value), dataKey]}
+            labelFormatter={(label) => {
+              if (typeof label === 'string' && label.match(/^\d{4}-\d{2}$/)) {
+                const [year, month] = label.split('-');
+                const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+                return `${months[parseInt(month, 10) - 1]} ${year}`;
+              }
+              return label;
+            }}
+          />
+          <Line
+            type="monotone"
+            dataKey={dataKey}
+            stroke={lineColor}
+            strokeWidth={3}
+            dot={{ fill: lineColor, strokeWidth: 2, r: 4 }}
+            activeDot={{ r: 6, fill: lineColor, stroke: 'white', strokeWidth: 2 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </Box>
   );
 };

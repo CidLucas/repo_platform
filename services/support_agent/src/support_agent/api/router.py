@@ -203,9 +203,12 @@ async def get_client_context(
 
     from vizu_tool_registry import ToolRegistry
 
+    # Note: auth_result.client_id from JWT is actually external_user_id (Supabase Auth user ID)
     try:
-        uuid_obj = UUID(str(auth_result.client_id))
-        client_context = await context_service.get_client_context_by_id(uuid_obj)
+        external_user_id = str(auth_result.client_id)
+        client_context = await context_service.get_client_context_by_external_user_id(
+            external_user_id
+        )
     except Exception as e:
         logger.error(f"Error getting client context: {e}")
         raise HTTPException(

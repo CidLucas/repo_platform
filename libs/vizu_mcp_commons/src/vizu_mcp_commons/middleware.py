@@ -126,7 +126,7 @@ async def _resolve_context_by_external_id(
     """Resolve VizuClientContext by external user ID (OAuth sub claim)."""
     ctx_service = get_context_service_fn()
     try:
-        context = await ctx_service.get_context_by_external_user_id(
+        context = await ctx_service.get_client_context_by_external_user_id(
             external_user_id=external_user_id
         )
         if not context:

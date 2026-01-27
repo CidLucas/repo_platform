@@ -194,12 +194,67 @@ class ContextService:
             credenciais=[],
         )
 
+    async def get_client_context_by_external_user_id(
+        self, external_user_id: str | UUID
+    ) -> VizuClientContext | None:
+        """
+        Recupera o contexto do cliente usando o external_user_id (Supabase Auth user ID).
+
+        Este é o método principal para autenticação JWT:
+        - JWT `sub` claim contém o Supabase Auth user ID
+        - Este ID é armazenado na coluna `external_user_id`
+        - A coluna `id` é o ID interno do cliente Vizu (diferente)
+
+        Args:
+            external_user_id: Supabase Auth user ID (from JWT sub claim)
+
+        Returns:
+            VizuClientContext or None if not found
+        """
+        if not self._use_supabase:
+            logger.error(
+                "get_client_context_by_external_user_id requires Supabase backend"
+            )
+            return None
+
+        try:
+            # Look up cliente by external_user_id
+            cliente_data = await asyncio.to_thread(
+                self._supabase_crud.get_cliente_vizu_by_external_user_id,
+                str(external_user_id)
+            )
+
+            if not cliente_data:
+                logger.warning(
+                    f"Cliente não encontrado para external_user_id={external_user_id}"
+                )
+                return None
+
+            # Extract the internal client ID
+            internal_client_id = UUID(cliente_data["id"])
+            logger.debug(
+                f"Found cliente: external_user_id={external_user_id} -> id={internal_client_id}"
+            )
+
+            # Use existing method to get full context (with caching and RLS)
+            return await self.get_client_context_by_id(internal_client_id)
+
+        except Exception as e:
+            logger.error(
+                f"Erro ao buscar contexto por external_user_id={external_user_id}: {e}",
+                exc_info=True
+            )
+            return None
+
     async def get_client_context_by_id(
         self, cliente_id: UUID
     ) -> VizuClientContext | None:
         """
         Recupera o contexto completo (Cliente + Configurações), usando Cache Redis.
         Também configura o contexto RLS para garantir isolamento de dados.
+
+        Note: For JWT authentication, prefer get_client_context_by_external_user_id()
+        since JWT sub claim = external_user_id, not the internal id.
         """
         cache_key = self._get_cache_key(cliente_id)
 

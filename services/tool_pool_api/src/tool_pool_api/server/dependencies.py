@@ -12,7 +12,6 @@ from tool_pool_api.core.config import Settings, get_settings
 # Importações Vizu
 from vizu_context_service.context_service import ContextService
 from vizu_context_service.redis_service import RedisService
-from vizu_db_connector.database import SessionLocal
 from vizu_models.vizu_client_context import VizuClientContext
 
 logger = logging.getLogger(__name__)
@@ -45,22 +44,19 @@ def get_context_service() -> ContextService:
     """
     Cria uma nova instância do ContextService com sessão DB e Redis.
 
-    Cada chamada cria uma nova sessão do banco de dados.
     O pool Redis é compartilhado entre todas as chamadas.
+    Uses Supabase mode for external_user_id lookups.
     """
     logger.debug("Criando nova instância de ContextService...")
-
-    # Cria sessão do banco (será fechada pelo chamador ou pelo FastAPI)
-    db = SessionLocal()
 
     # Cria cliente Redis usando o pool compartilhado
     pool = _get_redis_pool()
     redis_client = redis.Redis(connection_pool=pool)
     redis_service = RedisService(redis_client=redis_client)
 
-    # Use SQLAlchemy mode for local PostgreSQL (not Supabase cloud)
+    # Use Supabase mode for external_user_id lookups (required for JWT auth)
     return ContextService(
-        db_session=db, cache_service=redis_service, use_supabase=False
+        cache_service=redis_service, use_supabase=True
     )
 
 
@@ -101,7 +97,7 @@ async def load_context_from_token(
     )
 
     try:
-        vizu_context = await ctx_service.get_context_by_external_user_id(
+        vizu_context = await ctx_service.get_client_context_by_external_user_id(
             external_user_id=external_user_id
         )
 

@@ -360,10 +360,13 @@ async def get_client_context(
     # Ensure MCP is connected before accessing tools
     await ensure_mcp_connected()
 
-    # Obtém o contexto completo do cliente
+    # Obtém o contexto completo do cliente usando external_user_id
+    # Note: auth_result.client_id from JWT is actually external_user_id (Supabase Auth user ID)
     try:
-        uuid_obj = UUID(str(auth_result.client_id))
-        client_context = await context_service.get_client_context_by_id(uuid_obj)
+        external_user_id = str(auth_result.client_id)
+        client_context = await context_service.get_client_context_by_external_user_id(
+            external_user_id
+        )
     except Exception as e:
         logger.error(f"Erro ao obter contexto do cliente: {e}")
         raise HTTPException(

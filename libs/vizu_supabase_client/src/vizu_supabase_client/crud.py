@@ -71,10 +71,10 @@ class SupabaseCRUD:
 
     def get_cliente_vizu_by_id(self, cliente_id: UUID) -> dict[str, Any] | None:
         """
-        Fetch cliente by ID.
+        Fetch cliente by ID (internal Vizu ID).
 
         Args:
-            cliente_id: UUID of the cliente
+            cliente_id: UUID of the cliente (internal ID)
 
         Returns:
             Dict with cliente data or None if not found
@@ -95,6 +95,47 @@ class SupabaseCRUD:
 
         except Exception as e:
             logger.error(f"Error fetching cliente by ID: {e}")
+            return None
+
+    def get_cliente_vizu_by_external_user_id(
+        self, external_user_id: str | UUID
+    ) -> dict[str, Any] | None:
+        """
+        Fetch cliente by external_user_id (Supabase auth user ID from JWT sub claim).
+
+        This is the primary lookup method for JWT authentication:
+        - JWT `sub` claim contains the Supabase Auth user ID
+        - This ID is stored in the `external_user_id` column
+        - The `id` column is the internal Vizu client ID (different)
+
+        Args:
+            external_user_id: Supabase Auth user ID (from JWT sub claim)
+
+        Returns:
+            Dict with cliente data or None if not found
+        """
+        try:
+            response = (
+                self.client
+                .table("cliente_vizu")
+                .select("*")
+                .eq("external_user_id", str(external_user_id))
+                .limit(1)
+                .execute()
+            )
+
+            if response.data and len(response.data) > 0:
+                logger.debug(
+                    f"Found cliente by external_user_id={external_user_id}: "
+                    f"id={response.data[0].get('id')}"
+                )
+                return response.data[0]
+
+            logger.warning(f"No cliente found for external_user_id={external_user_id}")
+            return None
+
+        except Exception as e:
+            logger.error(f"Error fetching cliente by external_user_id: {e}")
             return None
 
     def list_clientes_vizu(
@@ -129,6 +170,10 @@ class SupabaseCRUD:
     def create_cliente_vizu(self, data: dict[str, Any]) -> dict[str, Any] | None:
         """
         Create a new cliente.
+
+        Note: `id` and `external_user_id` are intentionally different:
+        - `id`: Internal Vizu client ID (auto-generated UUID)
+        - `external_user_id`: Supabase Auth user ID (from JWT sub claim)
 
         Args:
             data: Dict with cliente fields (nome_empresa, tipo_cliente, tier, etc.)
@@ -731,3 +776,12 @@ def get_cliente_vizu_by_api_key(api_key: str) -> dict[str, Any] | None:
 def get_cliente_vizu_by_id(cliente_id: UUID) -> dict[str, Any] | None:
     """Convenience function matching old crud.py signature."""
     return get_crud().get_cliente_vizu_by_id(cliente_id)
+
+
+def get_cliente_vizu_by_external_user_id(external_user_id: str | UUID) -> dict[str, Any] | None:
+    """
+    Fetch cliente by external_user_id (Supabase auth user ID).
+
+    Use this for JWT authentication where JWT sub = external_user_id.
+    """
+    return get_crud().get_cliente_vizu_by_external_user_id(external_user_id)

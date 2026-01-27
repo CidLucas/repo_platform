@@ -108,11 +108,15 @@ class AtendenteService:
         Returns:
             ProcessMessageResult com resposta, modelo usado e possível elicitation pendente
         """
-        # 1. Get client context using the authenticated client_id
-        client_context = await self.context_service.get_client_context_by_id(client_id)
+        # 1. Get client context using the external_user_id from JWT
+        # Note: client_id from JWT is actually external_user_id (Supabase Auth user ID)
+        # We need to look up the cliente by external_user_id, not by internal id
+        client_context = await self.context_service.get_client_context_by_external_user_id(
+            str(client_id)
+        )
 
         if not client_context:
-            logger.warning(f"Cliente não encontrado para ID: {client_id}")
+            logger.warning(f"Cliente não encontrado para external_user_id: {client_id}")
             raise ValueError("Cliente não encontrado.")
 
         logger.info(f"Atendendo: {client_context.nome_empresa} | Sessão: {session_id}")

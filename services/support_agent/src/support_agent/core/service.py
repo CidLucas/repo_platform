@@ -90,10 +90,13 @@ class SupportService:
         Returns:
             SupportResult with response and metadata
         """
-        # 1. Get client context
-        client_context = await self.context_service.get_client_context_by_id(client_id)
+        # 1. Get client context using external_user_id from JWT
+        # Note: client_id from JWT is actually external_user_id (Supabase Auth user ID)
+        client_context = await self.context_service.get_client_context_by_external_user_id(
+            str(client_id)
+        )
         if not client_context:
-            raise ValueError(f"Client not found: {client_id}")
+            raise ValueError(f"Client not found for external_user_id: {client_id}")
 
         # 2. Get dependencies
         llm_client = await self._get_llm_client()

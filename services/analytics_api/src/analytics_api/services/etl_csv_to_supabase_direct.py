@@ -122,7 +122,12 @@ class CSVBackedRepository(PostgresRepository):
         self._csv_df = csv_dataframe
         logger.info(f"CSVBackedRepository initialized with {len(csv_dataframe)} rows (writing to real DB)")
 
-    def get_silver_dataframe(self, client_id: str) -> pd.DataFrame:
+    def get_silver_dataframe(
+        self,
+        client_id: str,
+        incremental: bool = False,
+        since_timestamp: datetime.datetime = None
+    ) -> pd.DataFrame:
         """Return CSV data instead of querying silver table."""
         logger.info(f"Returning CSV data for client {client_id} ({len(self._csv_df)} rows)")
         return self._csv_df.copy()

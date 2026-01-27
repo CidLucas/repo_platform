@@ -2,9 +2,9 @@
 SQL Query Rewrites
 
 Implements SQL query normalization and safety rewrites:
-- Expand SELECT * to explicit columns
-- Inject LIMIT clause
-- Inject tenant filter
+ - Expand SELECT * to explicit columns
+ - Inject LIMIT clause
+ - Inject client filter
 """
 
 import logging
@@ -27,7 +27,7 @@ class SqlRewriter:
     Rewrites queries for safety:
     - Expand SELECT * to explicit columns
     - Inject LIMIT if missing or capped if too high
-    - Inject tenant filter if missing
+    - Inject client filter if missing
     """
 
     def __init__(self, dialect: str = "postgres"):
@@ -155,24 +155,24 @@ class SqlRewriter:
             logger.error(f"Error rewriting LIMIT: {e}")
             return sql
 
-    def rewrite_inject_tenant_filter(
+    def rewrite_inject_client_filter(
         self,
         sql: str,
-        tenant_id: str,
-        tenant_column: str = "client_id"
+        client_id: str,
+        client_column: str = "client_id"
     ) -> str:
         """
-        Inject tenant filter if missing.
+        Inject client filter if missing.
 
-        Only injects if query doesn't already have a filter for the tenant column.
+        Only injects if query doesn't already have a filter for the client column.
 
         Args:
             sql: SQL query
-            tenant_id: Tenant ID value
-            tenant_column: Column name for tenant filter (default: client_id)
+            client_id: Client ID value
+            client_column: Column name for client filter (default: client_id)
 
         Returns:
-            Rewritten SQL with tenant filter
+            Rewritten SQL with client filter
         """
         if not SQLGLOT_AVAILABLE:
             logger.warning("sqlglot not available; returning original SQL")
@@ -188,51 +188,51 @@ class SqlRewriter:
             if where:
                 # Check if tenant_column is mentioned in WHERE clause
                 where_sql = where.sql(dialect=self.dialect).lower()
-                if tenant_column.lower() in where_sql:
+                if client_column.lower() in where_sql:
                     # Filter already present
                     return sql
 
-            # Create tenant filter: client_id = '...'
-            tenant_filter = exp.EQ(
-                this=exp.Column(name=tenant_column),
-                expression=exp.Literal.string(tenant_id)
+            # Create client filter: client_id = '...'
+            client_filter = exp.EQ(
+                this=exp.Column(name=client_column),
+                expression=exp.Literal.string(client_id)
             )
 
             if where is None:
                 # No WHERE clause; add one
-                ast.set('where', exp.Where(this=tenant_filter))
+                ast.set('where', exp.Where(this=client_filter))
             else:
                 # Existing WHERE; add as AND
                 existing = where.this
-                combined = exp.And(this=existing, expression=tenant_filter)
+                combined = exp.And(this=existing, expression=client_filter)
                 where.set('this', combined)
 
             rewritten = ast.sql(dialect=self.dialect)
-            logger.info(f"Injected tenant filter: {tenant_column} = '{tenant_id}'")
+            logger.info(f"Injected client filter: {client_column} = '{client_id}'")
             return rewritten
         except Exception as e:
-            logger.error(f"Error injecting tenant filter: {e}")
+            logger.error(f"Error injecting client filter: {e}")
             return sql
 
     def apply_all_rewrites(
         self,
         sql: str,
-        tenant_id: str,
+        client_id: str,
         max_rows: int,
         allowed_columns: dict[str, list[str]],
-        tenant_column: str = "client_id"
+        client_column: str = "client_id"
     ) -> str:
         """
         Apply all rewrites in sequence.
 
-        Order: expand SELECT * → inject LIMIT → inject tenant filter
+        Order: expand SELECT * → inject LIMIT → inject client filter
 
         Args:
             sql: SQL query
             tenant_id: Tenant ID
             max_rows: Maximum rows
             allowed_columns: Allowed columns dict
-            tenant_column: Tenant filter column name
+            client_column: Client filter column name
 
         Returns:
             Fully rewritten SQL
@@ -245,7 +245,7 @@ class SqlRewriter:
         # 2. Inject LIMIT
         result = self.rewrite_inject_limit(result, max_rows)
 
-        # 3. Inject tenant filter
-        result = self.rewrite_inject_tenant_filter(result, tenant_id, tenant_column)
+        # 3. Inject client filter
+        result = self.rewrite_inject_client_filter(result, client_id, client_column)
 
         return result

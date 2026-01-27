@@ -24,6 +24,41 @@ from .config import LLMSettings, get_llm_settings
 logger = logging.getLogger(__name__)
 
 
+def sanitize_observation(obj: dict, max_messages: int = 6) -> dict:
+    """
+    Return a sanitized shallow copy of an observation-like mapping.
+
+    - Removes `_internal_context`.
+    - Truncates `messages` to the last `max_messages` entries.
+    - Trims `response_metadata` inside messages to small subset.
+    """
+    try:
+        from collections.abc import Mapping
+    except Exception:
+        Mapping = dict
+
+    if not isinstance(obj, Mapping):
+        return obj
+
+    o = dict(obj)
+    o.pop("_internal_context", None)
+
+    msgs = o.get("messages")
+    if isinstance(msgs, list) and len(msgs) > max_messages:
+        o["messages"] = msgs[-max_messages:]
+
+    if isinstance(o.get("messages"), list):
+        for m in o["messages"]:
+            if isinstance(m, dict) and "response_metadata" in m:
+                rm = m.get("response_metadata")
+                if isinstance(rm, dict):
+                    m["response_metadata"] = {
+                        k: rm.get(k) for k in ("model", "done", "done_reason") if k in rm
+                    }
+
+    return o
+
+
 # ============================================================================
 # ENUMS
 # ============================================================================
@@ -110,8 +145,87 @@ def get_langfuse_callback(
         # Cria o handler - SDK v3 não aceita args no construtor
         handler = CallbackHandler()
 
-        logger.info(f"Langfuse callback criado - host: {settings.LANGFUSE_HOST}")
-        return handler
+        # Wrap handler with a sanitizer to avoid leaking internal state
+        class SanitizingCallback(BaseCallbackHandler):
+            """
+            Wrapper around an existing callback handler that sanitizes
+            any dict-like observation/outputs passed to callback methods.
+
+            Behaviors:
+            - Truncates `messages` lists to `max_messages` (default 6)
+            - Removes `_internal_context` key entirely
+            - Truncates large `response_metadata` objects to a small subset
+            """
+
+            def __init__(self, inner, max_messages: int = 6):
+                self._inner = inner
+                self._max_messages = max_messages
+
+            def _sanitize_obj(self, obj):
+                try:
+                    return sanitize_observation(obj, max_messages=self._max_messages)
+                except Exception:
+                    return obj
+
+            def _wrap_call(self, func, *args, **kwargs):
+                # Sanitize all mapping-like positional args and kwargs
+                new_args = []
+                for a in args:
+                    try:
+                        from collections.abc import Mapping
+                    except Exception:
+                        Mapping = dict
+                    if isinstance(a, Mapping):
+                        new_args.append(self._sanitize_obj(a))
+                    else:
+                        new_args.append(a)
+
+                new_kwargs = {}
+                for k, v in kwargs.items():
+                    try:
+                        from collections.abc import Mapping
+                    except Exception:
+                        Mapping = dict
+                    if isinstance(v, Mapping):
+                        new_kwargs[k] = self._sanitize_obj(v)
+                    else:
+                        new_kwargs[k] = v
+
+                return func(*new_args, **new_kwargs)
+
+            # Generic delegation for known callback entrypoints
+            def on_chain_start(self, serialized, inputs, **kwargs):
+                try:
+                    return self._wrap_call(self._inner.on_chain_start, serialized, inputs, **kwargs)
+                except Exception:
+                    return None
+
+            def on_chain_end(self, outputs, **kwargs):
+                try:
+                    return self._wrap_call(self._inner.on_chain_end, outputs, **kwargs)
+                except Exception:
+                    return None
+
+            def on_llm_end(self, response, **kwargs):
+                try:
+                    return self._wrap_call(self._inner.on_llm_end, response, **kwargs)
+                except Exception:
+                    return None
+
+            def on_tool_end(self, output, **kwargs):
+                try:
+                    return self._wrap_call(self._inner.on_tool_end, output, **kwargs)
+                except Exception:
+                    return None
+
+            def __getattr__(self, name):
+                # Fallback: delegate any other attribute to inner handler
+                return getattr(self._inner, name)
+
+        wrapped = SanitizingCallback(handler, max_messages=getattr(settings, "LANGFUSE_MAX_OBSERVATION_MESSAGES", 6))
+
+        logger.debug(f"Langfuse callback created - host: {settings.LANGFUSE_HOST}")
+        return wrapped
 
     except ImportError:
         logger.warning("langfuse não instalado, tracing desabilitado")
@@ -198,9 +312,7 @@ def _get_ollama_model(
     """Cria cliente Ollama (local)."""
     from langchain_ollama import ChatOllama
 
-    logger.info(
-        f"Conectando ao Ollama Local: {settings.OLLAMA_BASE_URL} modelo={model_name}"
-    )
+    logger.debug(f"Ollama Local: {settings.OLLAMA_BASE_URL} model={model_name}")
 
     return ChatOllama(
         base_url=settings.OLLAMA_BASE_URL,
@@ -237,7 +349,7 @@ def _get_ollama_cloud_model(
 
     base_url = settings.OLLAMA_CLOUD_BASE_URL  # https://ollama.com
 
-    logger.info(f"Conectando ao Ollama Cloud: {base_url} modelo={model_name}")
+    logger.debug(f"Ollama Cloud: {base_url} model={model_name}")
 
     # Ollama Cloud usa a mesma API do Ollama local, mas com autenticação
     # Passamos o header de autorização via client_kwargs
@@ -268,7 +380,7 @@ def _get_openai_model(
     if not api_key:
         raise ValueError("OPENAI_API_KEY não configurada")
 
-    logger.info(f"Conectando ao OpenAI: modelo={model_name}")
+    logger.debug(f"OpenAI: model={model_name}")
 
     return ChatOpenAI(model=model_name, api_key=api_key, callbacks=callbacks, **kwargs)
 
@@ -291,7 +403,7 @@ def _get_anthropic_model(
     if not api_key:
         raise ValueError("ANTHROPIC_API_KEY não configurada")
 
-    logger.info(f"Conectando ao Anthropic: modelo={model_name}")
+    logger.debug(f"Anthropic: model={model_name}")
 
     return ChatAnthropic(
         model=model_name, api_key=api_key, callbacks=callbacks, **kwargs
@@ -316,7 +428,7 @@ def _get_google_model(
     if not api_key:
         raise ValueError("GOOGLE_API_KEY não configurada")
 
-    logger.info(f"Conectando ao Google Gemini: modelo={model_name}")
+    logger.debug(f"Google Gemini: model={model_name}")
 
     return ChatGoogleGenerativeAI(
         model=model_name, google_api_key=api_key, callbacks=callbacks, **kwargs
@@ -452,7 +564,7 @@ def flush_langfuse():
         from langfuse import get_client
 
         get_client().flush()
-        logger.info("Langfuse flush executado")
+        logger.debug("Langfuse flush completed")
     except Exception as e:
         logger.warning(f"Erro ao flush Langfuse: {e}")
 
@@ -463,6 +575,6 @@ def shutdown_langfuse():
         from langfuse import get_client
 
         get_client().shutdown()
-        logger.info("Langfuse shutdown executado")
+        logger.debug("Langfuse shutdown completed")
     except Exception as e:
         logger.warning(f"Erro ao shutdown Langfuse: {e}")

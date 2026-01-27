@@ -91,7 +91,7 @@ USING (
 ### 2. Path-Based Isolation (Storage)
 - Files stored at: `{client_id}/{job_id}-{filename}`
 - Bucket policies enforce that users can only access their own folder
-- Prevents cross-tenant file access
+  - Prevents cross-client file access
 
 ### 3. Database RLS (fonte_de_dados)
 - RLS policies automatically filter queries by `client_id`
@@ -162,7 +162,7 @@ When setting up a new environment:
 - [ ] Create RLS policies for `fonte_de_dados` (see above)
 - [ ] Add `client_id` claim to JWT tokens
 - [ ] Test upload with valid JWT
-- [ ] Test that cross-tenant access is blocked
+- [ ] Test that cross-client access is blocked
 - [ ] Verify rollback works on database errors
 
 ## Monitoring
@@ -171,7 +171,7 @@ When setting up a new environment:
 1. Failed uploads (rollback triggered)
 2. RLS policy violations (should be 0 if working correctly)
 3. Orphaned files (files without database records)
-4. Cross-tenant access attempts (security audit)
+4. Cross-client access attempts (security audit)
 
 ### Logs to Review
 ```python
@@ -191,7 +191,7 @@ logger.error(f"Job [{job_id}]: CRITICAL - Failed to delete file during rollback"
 2. **Never use service_role key in client** - Only in server-side admin operations
 3. **Test RLS policies in staging** - Before deploying to production
 4. **Monitor rollback logs** - Indicates system health issues
-5. **Regular security audits** - Verify no cross-tenant data leakage
+5. **Regular security audits** - Verify no cross-client data leakage
 6. **Keep JWT claims minimal** - Only include necessary information
 7. **Use HTTPS only** - Prevent token interception
 

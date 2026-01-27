@@ -99,11 +99,11 @@ class TestSchemaSnapshot:
             columns=[ColumnMetadata(name="id", data_type="integer")],
         )
         snapshot = SchemaSnapshot(
-            tenant_id="tenant1",
+            client_id="tenant1",
             role="analyst",
             views={"customers_view": view},
         )
-        assert snapshot.tenant_id == "tenant1"
+        assert snapshot.client_id == "tenant1"
         assert snapshot.role == "analyst"
         assert "customers_view" in snapshot.views
 
@@ -118,7 +118,7 @@ class TestSchemaSnapshot:
             columns=[ColumnMetadata(name="id", data_type="integer")],
         )
         snapshot = SchemaSnapshot(
-            tenant_id="tenant1",
+            client_id="tenant1",
             role="analyst",
             views={"customers_view": view1, "orders_view": view2},
         )
@@ -138,7 +138,7 @@ class TestSchemaSnapshot:
             columns=[ColumnMetadata(name="id", data_type="integer")],
         )
         snapshot = SchemaSnapshot(
-            tenant_id="tenant1",
+            client_id="tenant1",
             role="analyst",
             views={"customers_view": view1, "orders_view": view2},
         )
@@ -151,13 +151,13 @@ class TestSchemaSnapshot:
             columns=[ColumnMetadata(name="id", data_type="integer")],
         )
         snapshot = SchemaSnapshot(
-            tenant_id="tenant1",
+            client_id="tenant1",
             role="analyst",
             views={"customers_view": view},
             constraints={"max_rows": 10000},
         )
         d = snapshot.to_dict()
-        assert d["tenant_id"] == "tenant1"
+        assert d["client_id"] == "tenant1"
         assert d["role"] == "analyst"
         assert "customers_view" in d["views"]
         assert d["constraints"]["max_rows"] == 10000
@@ -169,13 +169,13 @@ class TestSchemaSnapshot:
             columns=[ColumnMetadata(name="id", data_type="integer")],
         )
         snapshot = SchemaSnapshot(
-            tenant_id="tenant1",
+            client_id="tenant1",
             role="analyst",
             views={"customers_view": view},
         )
         json_str = snapshot.to_json()
         data = json.loads(json_str)
-        assert data["tenant_id"] == "tenant1"
+        assert data["client_id"] == "tenant1"
         assert "customers_view" in data["views"]
 
 
@@ -189,7 +189,7 @@ class TestCacheEntry:
             columns=[ColumnMetadata(name="id", data_type="integer")],
         )
         snapshot = SchemaSnapshot(
-            tenant_id="tenant1",
+            client_id="tenant1",
             role="analyst",
             views={"test_view": view},
         )
@@ -208,7 +208,7 @@ class TestCacheEntry:
             columns=[ColumnMetadata(name="id", data_type="integer")],
         )
         snapshot = SchemaSnapshot(
-            tenant_id="tenant1",
+            client_id="tenant1",
             role="analyst",
             views={"test_view": view},
         )
@@ -311,7 +311,7 @@ class TestSchemaSnapshotGenerator:
         snapshot = gen.generate("tenant1", "analyst")
 
         assert snapshot is not None
-        assert snapshot.tenant_id == "tenant1"
+        assert snapshot.client_id == "tenant1"
         assert snapshot.role == "analyst"
         # Analyst should see customers and data_sources views
         assert "customers_view" in snapshot.views
@@ -446,7 +446,7 @@ class TestSchemaSnapshotFormatter:
             description="Customer records",
         )
         return SchemaSnapshot(
-            tenant_id="tenant1",
+            client_id="tenant1",
             role="analyst",
             views={"customers_view": view},
             constraints={
@@ -473,6 +473,6 @@ class TestSchemaSnapshotFormatter:
         json_str = SchemaSnapshotFormatter.format_as_json(sample_snapshot)
         data = json.loads(json_str)
 
-        assert data["tenant_id"] == "tenant1"
+        assert data["client_id"] == "tenant1"
         assert data["role"] == "analyst"
         assert "customers_view" in data["views"]

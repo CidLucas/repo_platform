@@ -11,11 +11,14 @@ from atendente_core.api.router import router as api_router
 from atendente_core.core.config import get_settings
 from atendente_core.services.mcp_client import mcp_manager
 
-# Configuração de Logs
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+# Configuração de Logs - INFO level, verbose libs silenciadas
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Silencia bibliotecas verbosas
+logging.getLogger("langfuse").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 # Health check functions for dependencies

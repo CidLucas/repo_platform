@@ -43,18 +43,28 @@ async def recompute_gold_metrics(
     will return an error (not silently succeed).
     """
     try:
-        # Auto-detect mode: check if previous sync exists
+        # Auto-detect mode: check if previous sync exists AND there's actual data
         last_sync = repo.get_last_sync_timestamp(client_id)
+
+        # Even if we have a last_sync timestamp, check if there's actually data
+        # in analytics_v2. If no data exists, we need a full load regardless.
+        has_existing_data = False
+        if last_sync is not None:
+            has_existing_data = repo.has_analytics_data(client_id)
+            if not has_existing_data:
+                logger.warning(
+                    f"last_sync exists ({last_sync}) but no analytics_v2 data found - forcing full load"
+                )
 
         if force_full:
             incremental = False
             mode_str = "full (forced)"
-        elif last_sync is not None:
+        elif last_sync is not None and has_existing_data:
             incremental = True
             mode_str = f"incremental (since {last_sync})"
         else:
             incremental = False
-            mode_str = "full (first sync)"
+            mode_str = "full (first sync)" if last_sync is None else "full (no data found)"
 
         logger.info(f"Starting {mode_str} recompute for client {client_id}")
 

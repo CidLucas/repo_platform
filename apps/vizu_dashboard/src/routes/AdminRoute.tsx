@@ -1,7 +1,8 @@
-import { Navigate } from "react-router-dom";
-import { Box, Text, VStack, Button, Center } from "@chakra-ui/react";
+import { useState, useEffect } from "react";
+import { Box, Text, VStack, Button, Center, Spinner } from "@chakra-ui/react";
 import { useAuth } from "../hooks/useAuth";
 import { FiShield } from "react-icons/fi";
+import { isCurrentUserAdmin } from "../services/adminService";
 
 interface AdminRouteProps {
   children: React.ReactNode;
@@ -9,15 +10,51 @@ interface AdminRouteProps {
 
 /**
  * Component to protect admin-only routes.
- * Checks if the logged-in user has admin role.
+ * Checks if the logged-in user has ADMIN tier in cliente_vizu table.
+ *
+ * This check is done via the backend API, which validates the JWT
+ * and checks the user's tier in the database.
  */
 export const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Check if user has admin role
-  const isAdmin =
-    user?.user_metadata?.role === 'admin' ||
-    user?.app_metadata?.role === 'admin';
+  useEffect(() => {
+    const checkAdminAccess = async () => {
+      if (!user) {
+        setIsAdmin(false);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const adminStatus = await isCurrentUserAdmin();
+        setIsAdmin(adminStatus);
+      } catch (error) {
+        console.error("Failed to check admin status:", error);
+        setIsAdmin(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (!authLoading) {
+      checkAdminAccess();
+    }
+  }, [user, authLoading]);
+
+  // Show loading while checking auth or admin status
+  if (authLoading || loading) {
+    return (
+      <Center h="100vh" bg="white">
+        <VStack spacing={4}>
+          <Spinner size="xl" color="gray.500" />
+          <Text color="gray.500">Verificando permissões...</Text>
+        </VStack>
+      </Center>
+    );
+  }
 
   // If user is not admin, show access denied page
   if (!isAdmin) {
@@ -38,7 +75,7 @@ export const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
             </Text>
             <Text fontSize="16px" color="gray.600" textAlign="center" maxW="400px">
               Você não tem permissão para acessar esta área.
-              Apenas administradores podem visualizar esta página.
+              Apenas usuários com tier ADMIN podem visualizar esta página.
             </Text>
           </VStack>
           <Button

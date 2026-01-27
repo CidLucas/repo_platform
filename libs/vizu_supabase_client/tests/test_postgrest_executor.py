@@ -73,7 +73,7 @@ class TestPostgRESTQueryExecutor:
         """Create sample auth context."""
         return AuthContext(
             user_id="user123",
-            tenant_id="tenant456",
+            client_id="tenant456",
             role="analyst",
         )
 
@@ -261,11 +261,11 @@ class TestPostgRESTQueryExecutor:
                 view_name="customers_view",
                 auth_context=auth_context,
             )
-            # Verify tenant_id filter was added
+            # Verify client_id filter was added
             assert mock_table.eq.called
 
-    def test_query_with_context_includes_tenant_id(self, executor, auth_context):
-        """Test that query_with_context includes tenant_id filter."""
+    def test_query_with_context_includes_client_id(self, executor, auth_context):
+        """Test that query_with_context includes client_id filter."""
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.data = [{"id": 1}]
@@ -284,9 +284,9 @@ class TestPostgRESTQueryExecutor:
                 auth_context=auth_context,
                 filters={"status": "active"},
             )
-            # Verify both tenant_id and status filters were applied
+            # Verify both client_id and status filters were applied
             calls = [call for call in mock_table.eq.call_args_list]
-            # Should have been called for tenant_id
+            # Should have been called for client_id
             assert len(calls) >= 1
 
 

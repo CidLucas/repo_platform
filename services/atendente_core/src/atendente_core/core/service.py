@@ -93,6 +93,7 @@ class AtendenteService:
         client_id: UUID,
         model_override: str | None = None,
         elicitation_response: dict[str, Any] | None = None,
+        user_jwt: str | None = None,
     ) -> ProcessMessageResult:
         """
         Recebe a mensagem crua, hidrata com o contexto do cliente e executa o agente.
@@ -133,6 +134,8 @@ class AtendenteService:
             model_override=model_override,  # Modelo específico para este request
             # PHASE 5: cliente_id para buscar prompts customizados
             cliente_id=client_context.id,
+            # Include original user's JWT so executor can propagate to tools
+            user_jwt=user_jwt,
             # PHASE 3: Elicitation fields
             pending_elicitation=None,
             elicitation_response=elicitation_response,  # Inject response if provided
@@ -179,6 +182,12 @@ class AtendenteService:
             # .ainvoke roda o grafo inteiro até chegar no END
             start_time = time.time()
             final_state = await self.graph.ainvoke(initial_state, config)
+            # Prune final_state messages to a bounded window to avoid
+            # persisting entire conversation in the state (reduces span size
+            # and memory bloat). Uses same window size as the node.
+            history_window = getattr(self.settings, "SESSION_HISTORY_WINDOW", 6)
+            if final_state and "messages" in final_state and isinstance(final_state["messages"], list):
+                final_state["messages"] = final_state["messages"][-history_window:]
             response_time = time.time() - start_time
 
             # 5. Extração da Resposta

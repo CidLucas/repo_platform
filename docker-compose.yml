@@ -11,7 +11,7 @@ x-common-env: &common-env
   DATABASE_URL: ${DATABASE_URL:-}
   DB_MODE: ${DB_MODE:-supabase}
   # Configs de serviços
-  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
   EMBEDDING_SERVICE_URL: http://embedding_service:11435
   QDRANT_URL: http://qdrant_db:6333
   # Internal API base (atendente_core is the main entry point)
@@ -94,7 +94,6 @@ services:
       - .env
     environment:
       <<: [*common-env, *atendente-env]
-      DATABASE_URL: "postgresql://user:password@postgres:5432/vizu_db"
       PYTHONPATH: /app/services/atendente_core/src
       # Local dev uses PostgreSQL directly, not Supabase SDK
       USE_LOCAL_DB: "true"
@@ -182,8 +181,12 @@ services:
     image: otel/opentelemetry-collector-contrib:0.91.0
     container_name: otel-collector
     command: ["--config=/etc/otel-collector-config.yaml"]
+    # Use the production-style collector config which forwards to Grafana Cloud
     volumes:
-      - ./docker-configs/otel-collector/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+      - ./docker-configs/otel-collector/otel-collector-config.prod.yaml:/etc/otel-collector-config.yaml
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
     ports:
       - "4317:4317" # OTLP gRPC receiver
       - "4318:4318" # OTLP HTTP receiver
@@ -397,6 +400,7 @@ services:
         VITE_ATENDENTE_CORE: ${VITE_ATENDENTE_CORE:-http://localhost:8003}
         VITE_API_URL_ANALYTICS: ${VITE_API_URL_ANALYTICS:-http://localhost:8004}
         VITE_DATA_INGESTION_API_URL: ${VITE_DATA_INGESTION_API_URL:-http://localhost:8008}
+        VITE_TOOL_POOL_API_URL: ${VITE_TOOL_POOL_API_URL:-http://localhost:8006}
     ports:
       - "8080:8080"
     environment:

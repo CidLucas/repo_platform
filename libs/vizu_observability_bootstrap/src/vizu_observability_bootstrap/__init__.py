@@ -1,11 +1,9 @@
 import logging
 import os
+from urllib.parse import urlparse, unquote
 
 from fastapi import FastAPI
 from opentelemetry import trace
-
-# 1. IMPORTAÇÃO ATUALIZADA para o OTLP Exporter
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -49,20 +47,72 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
+
 def setup_telemetry(app: FastAPI, service_name: str):
+    """
+    Configure OpenTelemetry tracing for a FastAPI app.
+
+    Supports:
+    - Grafana Cloud OTLP (HTTPS with Basic Auth)
+    - Local OTLP collector (gRPC)
+    - No-op fallback (silent, no console spam)
+
+    Environment variables:
+    - OTEL_EXPORTER_OTLP_ENDPOINT: OTLP endpoint URL
+    - OTEL_EXPORTER_OTLP_HEADERS: Headers (URL-encoded, e.g., "Authorization=Basic%20...")
+    """
     resource = Resource(attributes={"service.name": service_name})
     tracer_provider = TracerProvider(resource=resource)
 
-    # 2. CONFIGURAÇÃO ATUALIZADA para usar o OTLP Exporter
-    # Por padrão, ele tentará se conectar a um coletor em http://localhost:4317
-    # Podemos sobrescrever isso com variáveis de ambiente se necessário.
-    exporter = OTLPSpanExporter()
+    otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") or os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+    otlp_headers_raw = os.environ.get("OTEL_EXPORTER_OTLP_HEADERS", "")
 
-    processor = BatchSpanProcessor(exporter)
-    tracer_provider.add_span_processor(processor)
+    # Parse headers from URL-encoded format: "Key1=Value1,Key2=Value2"
+    headers = {}
+    if otlp_headers_raw:
+        for pair in otlp_headers_raw.split(","):
+            if "=" in pair:
+                key, value = pair.split("=", 1)
+                headers[unquote(key)] = unquote(value)
+
+    exporter = None
+
+    if otlp_endpoint:
+        parsed = urlparse(otlp_endpoint)
+
+        # Grafana Cloud and other HTTPS endpoints use HTTP/protobuf
+        if parsed.scheme == "https":
+            try:
+                from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter as HTTPSpanExporter
+                exporter = HTTPSpanExporter(
+                    endpoint=f"{otlp_endpoint}/v1/traces",
+                    headers=headers,
+                )
+                logger.info(f"OTLP HTTP exporter configured: {otlp_endpoint}")
+            except ImportError:
+                logger.warning("opentelemetry-exporter-otlp-proto-http not installed, tracing disabled")
+            except Exception as e:
+                logger.warning(f"Failed to configure OTLP HTTP exporter: {e}")
+        else:
+            # Local gRPC collector (http:// or grpc://)
+            try:
+                from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter as GRPCSpanExporter
+                exporter = GRPCSpanExporter(endpoint=otlp_endpoint)
+                logger.info(f"OTLP gRPC exporter configured: {otlp_endpoint}")
+            except ImportError:
+                logger.warning("opentelemetry-exporter-otlp-proto-grpc not installed, tracing disabled")
+            except Exception as e:
+                logger.warning(f"Failed to configure OTLP gRPC exporter: {e}")
+    else:
+        # No endpoint configured - tracing disabled (silent, no console spam)
+        logger.info("No OTEL_EXPORTER_OTLP_ENDPOINT configured, tracing disabled")
+
+    if exporter:
+        processor = BatchSpanProcessor(exporter)
+        tracer_provider.add_span_processor(processor)
+
     trace.set_tracer_provider(tracer_provider)
     FastAPIInstrumentor.instrument_app(app)
     setup_structured_logging()
 
-    logger.info(f"Observabilidade configurada com sucesso para o serviço: {service_name}")
-    logger.info(f"OTLP Exporter endpoint: {os.environ.get('OTEL_EXPORTER_OTLP_ENDPOINT', 'http://localhost:4317')}")
+    logger.info(f"Telemetry configured for service: {service_name}")

@@ -6,7 +6,8 @@ import uvicorn  # Importe o uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from .core.config import get_settings
+from .api.admin_router import router as admin_router
+from .api.integrations_router import router as integrations_router
 
 # Configurar logging para todos os módulos do tool_pool_api e vizu_*
 logging.basicConfig(
@@ -23,89 +24,85 @@ logging.getLogger("vizu_llm_service").setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
-# Global state for lazy MCP initialization
+# Global state for MCP
 _mcp = None
 _mcp_asgi = None
 _mcp_initialized = False
-_initialization_in_progress = False
 
 
-async def _ensure_mcp_initialized():
-    """Lazy initialization of MCP server - synchronizes multiple concurrent requests."""
-    global _mcp, _mcp_asgi, _mcp_initialized, _initialization_in_progress
+def _create_mcp():
+    """Create MCP server and ASGI app."""
+    global _mcp, _mcp_asgi, _mcp_initialized
 
-    if _mcp_initialized:
-        return _mcp, _mcp_asgi
-
-    # If another request is already initializing, wait for it
-    if _initialization_in_progress:
-        # Simple polling - in production would use asyncio.Event
-        import asyncio
-        max_retries = 300  # 30 seconds with 100ms waits
-        for _ in range(max_retries):
-            if _mcp_initialized:
-                return _mcp, _mcp_asgi
-            await asyncio.sleep(0.1)
-        raise TimeoutError("MCP initialization timeout")
-
-    _initialization_in_progress = True
-    try:
-        logger.info("🚀 Initializing MCP server (lazy)...")
-        from .server.mcp_server import create_mcp_server
-        _mcp, mcp_app = create_mcp_server()
-        _mcp_asgi = mcp_app
-
-        # Mount MCP at /mcp
-        app.mount("/mcp", _mcp_asgi)
-        logger.info("✅ MCP mounted at /mcp")
-
-        _mcp_initialized = True
-        logger.info("✅ MCP server initialized successfully")
-        return _mcp, _mcp_asgi
-    except Exception as e:
-        logger.exception(f"❌ Failed to initialize MCP server: {e}")
-        raise
-    finally:
-        _initialization_in_progress = False
+    logger.info("🚀 Creating MCP server...")
+    from .server.mcp_server import create_mcp_server
+    _mcp, _mcp_asgi = create_mcp_server()
+    _mcp_initialized = True
+    logger.info("✅ MCP server created successfully")
+    return _mcp, _mcp_asgi
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan - MCP is initialized lazily after startup."""
+    """
+    Application lifespan - initializes MCP with proper lifespan management.
+
+    IMPORTANT: The MCP ASGI app has its own lifespan that must be run
+    to initialize the StreamableHTTPSessionManager task group.
+    """
     logger.info("🚀 Tool Pool API starting...")
 
-    # Yield immediately to let the server become ready for health checks
-    # MCP will be initialized on first use (lazy loading)
-    yield
+    # Create MCP server
+    try:
+        mcp, mcp_asgi = _create_mcp()
+
+        # Mount MCP at /mcp
+        app.mount("/mcp", mcp_asgi)
+        logger.info("✅ MCP mounted at /mcp")
+
+        # Run MCP's lifespan to initialize the task group
+        # This is CRITICAL - without this, the StreamableHTTPSessionManager fails
+        async with mcp_asgi.lifespan(mcp_asgi):
+            logger.info("✅ MCP lifespan started - SessionManager initialized")
+            yield
+            logger.info("🛑 MCP lifespan ending...")
+
+    except Exception as e:
+        logger.error(f"⚠️ MCP initialization failed: {e}")
+        logger.info("Server will start without MCP - health check still available")
+        yield
 
     logger.info("🛑 Tool Pool API shutting down...")
 
-    # Cleanup MCP if it was initialized
-    global _mcp_initialized
-    if _mcp_initialized:
-        logger.info("Cleaning up MCP resources...")
 
-
-# Create minimal FastAPI app that will initialize MCP lazily
+# Create FastAPI app with combined lifespan
 app = FastAPI(
     title="Tool Pool API",
-    description="MCP Server for Vizu Tools (lazy-loaded)",
+    description="MCP Server for Vizu Tools",
     lifespan=lifespan,
 )
+
+# Mount API routers
+app.include_router(admin_router)
+app.include_router(integrations_router)
 
 
 # Health check endpoint that doesn't require MCP
 @app.get("/health")
 async def health_check():
-    """Health check for load balancers - fast endpoint, doesn't initialize MCP."""
+    """Health check for load balancers - fast endpoint."""
     return {"status": "healthy", "service": "tool_pool_api"}
 
 
 @app.get("/info")
 async def server_info():
-    """Server info endpoint - initializes MCP on first call."""
+    """Server info endpoint."""
     try:
-        _mcp, _ = await _ensure_mcp_initialized()
+        if not _mcp_initialized:
+            return JSONResponse(
+                {"error": "MCP not initialized", "status": "mcp_not_ready"},
+                status_code=503,
+            )
 
         from .server.tools import get_available_modules
         modules = get_available_modules()
@@ -120,20 +117,17 @@ async def server_info():
     except Exception as e:
         logger.error(f"Failed to get server info: {e}")
         return JSONResponse(
-            {"error": str(e), "status": "mcp_initialization_failed"},
+            {"error": str(e), "status": "error"},
             status_code=503,
         )
 
 
-# MCP is now initialized at startup (see lifespan function above)
-# No lazy loading middleware needed
-
-
 @app.on_event("startup")
 async def startup_event():
-    """App startup - MCP is initialized in lifespan."""
+    """App startup logging."""
     logger.info("✅ App started successfully")
     logger.info("📊 Health check available at /health")
     logger.info("ℹ️  Server info available at /info")
     logger.info("🔌 MCP endpoint available at /mcp")
-
+    logger.info("🔗 Integrations API available at /integrations")
+    logger.info("🔐 Admin API available at /admin/clients (requires ADMIN tier)")

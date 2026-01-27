@@ -91,7 +91,7 @@ ATENDENTE_SYSTEM_V2 = PromptTemplateConfig(
 - FAQ e dúvidas frequentes
 - Políticas e procedimentos
 - Informações sobre a empresa
-
+        "client_id",
 **Como usar:** Passe a pergunta do cliente no campo `query`.
 
 ### 2. executar_sql_agent
@@ -118,10 +118,6 @@ ATENDENTE_SYSTEM_V3 = PromptTemplateConfig(
     optional_variables={
         "prompt_personalizado": "Assistente virtual focado em atendimento ao cliente.",
         "horario_formatado": "Horário não configurado.",
-        "tools_description": "",
-        "agent_personality": "",
-    },
-    content="""Você é o assistente virtual de **{{ nome_empresa }}**.
 
 ## SOBRE A EMPRESA
 {{ prompt_personalizado }}
@@ -133,7 +129,6 @@ ATENDENTE_SYSTEM_V3 = PromptTemplateConfig(
 
 {% if tools_description %}
 ## FERRAMENTAS DISPONÍVEIS
-{{ tools_description }}
 {% endif %}
 
 {% if agent_personality %}
@@ -345,7 +340,7 @@ TEXT_TO_SQL_V1 = PromptTemplateConfig(
 
 ## Core Constraints
 
-1. **Multi-Tenant Isolation**: NEVER query across client boundaries. Always include `client_id = '{{ tenant_id }}'` filter.
+1. **Multi-Tenant Isolation**: NEVER query across client boundaries. Always include `client_id = '{{ client_id }}'` filter.
 2. **Role-Based Access**: Only query views and columns allowed for the {{ user_role }} role.
 3. **Aggregate Whitelisting**: Only use these aggregates: {{ allowed_aggregates }}
 4. **LIMIT Enforcement**: Always include a LIMIT clause (max: {{ max_rows_limit }} rows).
@@ -387,7 +382,7 @@ If the question violates constraints or cannot be answered safely, respond with:
 Given the above constraints and schema, generate a PostgreSQL SELECT query for the user's question.
 The query must:
 ✓ Be syntactically valid PostgreSQL
-✓ Include client_id = '{{ tenant_id }}' filter
+✓ Include client_id = '{{ client_id }}' filter
 ✓ Only use allowed views and columns
 ✓ Only use allowed aggregate functions
 ✓ Include a LIMIT clause

@@ -1,40 +1,38 @@
 """
-Indicator Service - Leitura de indicadores agregados da camada Gold.
+Indicator Service - Reads metrics from analytics_v2 star schema.
 
-Implementa:
-- Growth rate (% vs período anterior)
-- Métricas por período (today, week, month)
-- Leitura direta de Gold tables (pré-computadas no ETL)
-
-Note: Redis cache removido - Gold tables já são o cache persistente.
+Optimized for performance:
+- Single query fetches all metrics (orders, products, customers)
+- No legacy gold tables - uses star schema directly
+- Minimal logging to reduce noise
 """
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Literal, Optional
+from typing import Literal
 
 from analytics_api.data_access.postgres_repository import PostgresRepository
 
 logger = logging.getLogger(__name__)
 
-# Tipos de período suportados
+# Supported period types
 PeriodType = Literal["today", "yesterday", "week", "month", "quarter", "year"]
 
 
 @dataclass
 class OrderMetrics:
-    """Métricas de pedidos."""
+    """Order metrics from fact_sales."""
     total: int
     revenue: float
     avg_order_value: float
-    growth_rate: float | None  # % em relação ao período anterior
+    growth_rate: float | None
     by_status: dict
     period: str
 
 
 @dataclass
 class ProductMetrics:
-    """Métricas de produtos."""
+    """Product metrics from dim_product."""
     total_sold: int
     unique_products: int
     top_sellers: list
@@ -45,7 +43,7 @@ class ProductMetrics:
 
 @dataclass
 class CustomerMetrics:
-    """Métricas de clientes."""
+    """Customer metrics from dim_customer."""
     total_active: int
     new_customers: int
     returning_customers: int
@@ -55,7 +53,7 @@ class CustomerMetrics:
 
 @dataclass
 class IndicatorsResponse:
-    """Resposta consolidada de indicadores."""
+    """Consolidated indicators response."""
     orders: OrderMetrics | None
     products: ProductMetrics | None
     customers: CustomerMetrics | None
@@ -66,10 +64,10 @@ class IndicatorsResponse:
 
 class IndicatorService:
     """
-    Serviço de indicadores lendo de Gold tables.
+    Reads indicator metrics from analytics_v2 star schema.
 
-    Lê métricas pré-agregadas da camada Gold (atualizadas no ETL).
-    Não usa cache - Gold tables já são rápidas (<10ms por query).
+    Uses a single optimized query to fetch all metrics at once,
+    avoiding the N+1 query problem of the legacy implementation.
     """
 
     def __init__(self, repository: PostgresRepository, client_id: str):
@@ -77,7 +75,7 @@ class IndicatorService:
         self.client_id = client_id
 
     def _get_date_range(self, period: PeriodType) -> tuple[datetime, datetime]:
-        """Retorna (start_date, end_date) para o período."""
+        """Get (start_date, end_date) for the specified period."""
         now = datetime.utcnow()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -91,250 +89,98 @@ class IndicatorService:
         }
         return ranges.get(period, ranges["today"])
 
-    def _get_previous_period_range(self, period: PeriodType) -> tuple[datetime, datetime]:
-        """Retorna range do período anterior para cálculo de growth."""
-        start, end = self._get_date_range(period)
-        duration = end - start
-        return (start - duration, start)
-
-    def _filter_records_by_date_range(self, records: list[dict], start_date: datetime, end_date: datetime) -> list[dict]:
-        """
-        Filtra registros mensais que intersectam com o período especificado.
-
-        Args:
-            records: Lista de registros mensais do gold_orders
-            start_date: Data inicial do período
-            end_date: Data final do período
-
-        Returns:
-            Lista filtrada de registros que intersectam com o período
-        """
-        from datetime import timezone
-
-        filtered = []
-        for record in records:
-            period_start = record.get("period_start")
-            period_end = record.get("period_end")
-
-            if not period_start or not period_end:
-                continue
-
-            # Garante timezone-aware datetimes
-            if period_start.tzinfo is None:
-                period_start = period_start.replace(tzinfo=timezone.utc)
-            if period_end.tzinfo is None:
-                period_end = period_end.replace(tzinfo=timezone.utc)
-            if start_date.tzinfo is None:
-                start_date = start_date.replace(tzinfo=timezone.utc)
-            if end_date.tzinfo is None:
-                end_date = end_date.replace(tzinfo=timezone.utc)
-
-            # Verifica se há interseção entre os períodos
-            # Interseção existe se: period_start < end_date AND period_end > start_date
-            if period_start < end_date and period_end > start_date:
-                filtered.append(record)
-
-        return filtered
-
-    def _filter_time_series_by_date_range(self, records: list[dict], start_date: datetime, end_date: datetime) -> list[dict]:
-        """
-        Filtra registros da gold_time_series que intersectam com o período especificado.
-
-        Args:
-            records: Lista de registros da analytics_gold_time_series
-            start_date: Data inicial do período
-            end_date: Data final do período
-
-        Returns:
-            Lista filtrada de registros cujo period_date cai dentro do período
-        """
-        from datetime import timezone, timedelta
-        from dateutil.relativedelta import relativedelta
-
-        filtered = []
-        for record in records:
-            period_date = record.get("period_date")
-
-            if not period_date:
-                continue
-
-            # Converte date para datetime se necessário
-            if isinstance(period_date, datetime):
-                period_start = period_date
-            else:
-                period_start = datetime.combine(period_date, datetime.min.time())
-
-            # O registro representa um mês inteiro (do dia 1 ao último dia do mês)
-            period_end = period_start + relativedelta(months=1)
-
-            # Garante timezone-aware datetimes
-            if period_start.tzinfo is None:
-                period_start = period_start.replace(tzinfo=timezone.utc)
-            if period_end.tzinfo is None:
-                period_end = period_end.replace(tzinfo=timezone.utc)
-            if start_date.tzinfo is None:
-                start_date = start_date.replace(tzinfo=timezone.utc)
-            if end_date.tzinfo is None:
-                end_date = end_date.replace(tzinfo=timezone.utc)
-
-            # Verifica se há interseção entre os períodos
-            # Interseção existe se: period_start < end_date AND period_end > start_date
-            if period_start < end_date and period_end > start_date:
-                filtered.append(record)
-
-        return filtered
-
-    async def get_order_metrics(self, period: PeriodType = "today") -> OrderMetrics:
-        """
-        Lê métricas de pedidos da gold_orders com date filtering e growth.
-
-        Usa gold_orders monthly data que inclui revenue, não gold_time_series.
-        """
-        start_date, end_date = self._get_date_range(period)
-        prev_start, prev_end = self._get_previous_period_range(period)
-
-        # Read time-series from analytics_v2 (pattern used in dashboard.py)
-        try:
-            ts = self.repository.get_v2_time_series(self.client_id, 'pedidos_no_tempo') or []
-        except Exception:
-            ts = []
-
-        # Helper to parse period name (expecting YYYY-MM) to period start datetime
-        from datetime import datetime
-
-        def period_start_from_name(name: str):
-            try:
-                return datetime.strptime(name, '%Y-%m')
-            except Exception:
-                return None
-
-        current_total = 0
-        current_revenue = 0.0
-
-        for rec in ts:
-            name = rec.get('name')
-            total = float(rec.get('total', 0) or 0)
-            ps = period_start_from_name(name) if name else None
-            if ps is None:
-                continue
-            # consider month falls into requested range if its first day between start_date and end_date
-            if start_date <= ps <= end_date:
-                current_total += int(total)
-
-        # revenue/avg are not available in simple time_series; fallback to dashboard summary
-        summary = {}
-        try:
-            summary = self.repository.get_dashboard_summary(self.client_id) or {}
-        except Exception:
-            summary = {}
-
-        current_revenue = float(summary.get('total_revenue', 0) or 0)
-        current_avg = current_revenue / current_total if current_total > 0 else 0.0
-
-        # Growth via repository helper
-        try:
-            growth_rate = self.repository.calculate_growth_from_time_series(self.client_id, 'pedidos_no_tempo')
-        except Exception:
-            growth_rate = None
-
-        logger.info(f"Order metrics for period '{period}': {current_total} orders, growth: {growth_rate}%")
-
-        return OrderMetrics(
-            total=current_total,
-            revenue=current_revenue,
-            avg_order_value=current_avg,
-            growth_rate=round(growth_rate, 2) if isinstance(growth_rate, (int, float)) else None,
-            by_status={},
-            period=period
-        )
-
-    async def get_product_metrics(self, period: PeriodType = "today") -> ProductMetrics:
-        """
-        Lê métricas de produtos da gold_products com date filtering.
-
-        Filtra produtos por ultima_venda e agrega métricas.
-        """
-        start_date, end_date = self._get_date_range(period)
-
-        # Read aggregated product metrics from analytics_v2 dim_product
-        try:
-            product_data = self.repository.get_dim_products_aggregated(self.client_id, start_date, end_date)
-        except Exception:
-            # Fallback to legacy alias
-            product_data = self.repository.get_gold_products_aggregated(self.client_id, start_date, end_date) or {}
-
-        logger.info(f"Product metrics for period '{period}': {product_data.get('unique_products', 0)} products")
-
-        return ProductMetrics(
-            total_sold=product_data.get("total_sold", 0),
-            unique_products=product_data.get("unique_products", 0),
-            top_sellers=product_data.get("top_sellers", [])[:10],
-            low_stock_alerts=product_data.get("low_stock_alerts", 0),
-            avg_price=product_data.get("avg_price", 0.0),
-            period=period
-        )
-
-    async def get_customer_metrics(self, period: PeriodType = "today") -> CustomerMetrics:
-        """
-        Lê métricas de clientes da gold_customers com date filtering.
-
-        Filtra clientes por ultima_compra e primeira_compra para calcular new/returning.
-        """
-        start_date, end_date = self._get_date_range(period)
-
-        # Read aggregated customer metrics from analytics_v2 dim_customer
-        try:
-            customer_data = self.repository.get_dim_customers_aggregated(self.client_id, start_date, end_date)
-        except Exception:
-            # Fallback to legacy alias
-            customer_data = self.repository.get_gold_customers_aggregated(self.client_id, start_date, end_date) or {}
-
-        logger.info(f"Customer metrics for period '{period}': {customer_data.get('total_active', 0)} customers")
-
-        return CustomerMetrics(
-            total_active=customer_data.get("total_active", 0),
-            new_customers=customer_data.get("new_customers", 0),
-            returning_customers=customer_data.get("returning_customers", 0),
-            avg_lifetime_value=customer_data.get("avg_lifetime_value", 0.0),
-            period=period
-        )
-
     async def get_indicators(
         self,
         period: PeriodType = "today",
         metrics: list[str] | None = None
     ) -> IndicatorsResponse:
         """
-        Retorna indicadores consolidados.
+        Fetch all indicators in a single optimized query.
 
         Args:
-            period: Período para cálculo
-            metrics: Lista de métricas a incluir ["orders", "products", "customers"]
-                     Se None, retorna todas.
+            period: Time period for filtering fact_sales
+            metrics: List of metrics to include ["orders", "products", "customers"]
+                     If None, returns all.
+
+        Returns:
+            IndicatorsResponse with requested metrics
         """
         if metrics is None:
             metrics = ["orders", "products", "customers"]
 
+        start_date, end_date = self._get_date_range(period)
+
+        # Single optimized query for all metrics
+        data = self.repository.get_all_indicators(
+            self.client_id,
+            start_date=start_date,
+            end_date=end_date
+        )
+
         orders = None
         products = None
         customers = None
-        cached = False
-        ttl = None
 
-        if "orders" in metrics:
-            orders = await self.get_order_metrics(period)
+        if "orders" in metrics and data.get("orders"):
+            orders = OrderMetrics(
+                total=data["orders"].get("total", 0),
+                revenue=data["orders"].get("revenue", 0.0),
+                avg_order_value=data["orders"].get("avg_order_value", 0.0),
+                growth_rate=data["orders"].get("growth_rate"),
+                by_status=data["orders"].get("by_status", {}),
+                period=period
+            )
 
-        if "products" in metrics:
-            products = await self.get_product_metrics(period)
+        if "products" in metrics and data.get("products"):
+            products = ProductMetrics(
+                total_sold=data["products"].get("total_sold", 0),
+                unique_products=data["products"].get("unique_products", 0),
+                top_sellers=data["products"].get("top_sellers", [])[:10],
+                low_stock_alerts=data["products"].get("low_stock_alerts", 0),
+                avg_price=data["products"].get("avg_price", 0.0),
+                period=period
+            )
 
-        if "customers" in metrics:
-            customers = await self.get_customer_metrics(period)
+        if "customers" in metrics and data.get("customers"):
+            customers = CustomerMetrics(
+                total_active=data["customers"].get("total_active", 0),
+                new_customers=data["customers"].get("new_customers", 0),
+                returning_customers=data["customers"].get("returning_customers", 0),
+                avg_lifetime_value=data["customers"].get("avg_lifetime_value", 0.0),
+                period=period
+            )
+
+        logger.debug(f"Indicators fetched for {self.client_id}: period={period}")
 
         return IndicatorsResponse(
             orders=orders,
             products=products,
             customers=customers,
-            cached=cached,
+            cached=False,
             generated_at=datetime.utcnow().isoformat(),
-            ttl=ttl
+            ttl=None
+        )
+
+    async def get_order_metrics(self, period: PeriodType = "today") -> OrderMetrics:
+        """Get only order metrics."""
+        result = await self.get_indicators(period=period, metrics=["orders"])
+        return result.orders or OrderMetrics(
+            total=0, revenue=0.0, avg_order_value=0.0,
+            growth_rate=None, by_status={}, period=period
+        )
+
+    async def get_product_metrics(self, period: PeriodType = "today") -> ProductMetrics:
+        """Get only product metrics."""
+        result = await self.get_indicators(period=period, metrics=["products"])
+        return result.products or ProductMetrics(
+            total_sold=0, unique_products=0, top_sellers=[],
+            low_stock_alerts=0, avg_price=0.0, period=period
+        )
+
+    async def get_customer_metrics(self, period: PeriodType = "today") -> CustomerMetrics:
+        """Get only customer metrics."""
+        result = await self.get_indicators(period=period, metrics=["customers"])
+        return result.customers or CustomerMetrics(
+            total_active=0, new_customers=0, returning_customers=0,
+            avg_lifetime_value=0.0, period=period
         )

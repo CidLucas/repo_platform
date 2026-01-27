@@ -111,6 +111,7 @@ async def chat_endpoint(
     x_llm_model: str | None = Header(None, alias="X-LLM-Model"),
     # Substitui o header direto por uma dependency que valida JWT ou API-Key
     auth_result: AuthResult = Depends(get_auth_result),
+    authorization: str | None = Header(None, alias="Authorization"),
     service: AtendenteService = Depends(get_atendente_service),
 ):
     """
@@ -167,6 +168,7 @@ async def chat_endpoint(
             client_id=auth_result.client_id,
             model_override=model_override,
             elicitation_response=elicitation_response,
+            user_jwt=authorization,
         )
 
         # PHASE 3: Convert pending_elicitation to API schema
@@ -218,7 +220,7 @@ async def twilio_webhook(
     # O Twilio envia os dados como FORM DATA (application/x-www-form-urlencoded)
     From: str = Form(...),
     Body: str = Form(...),
-    To: str | None = Form(None),  # Número de destino (opcional, para multi-tenant)
+    To: str | None = Form(None),  # Número de destino (opcional, para multi-client)
     service: AtendenteService = Depends(get_atendente_service),
     db: Session = Depends(get_db_session),
 ):

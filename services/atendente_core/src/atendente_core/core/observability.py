@@ -55,7 +55,7 @@ def get_langfuse_config(
     Args:
         session_id: Session ID for trace grouping and thread memory
         user_id: User ID for attribution
-        cliente_id: Vizu client ID for multi-tenant filtering
+        cliente_id: Vizu client ID for multi-client filtering
         tags: Optional tags for filtering
 
     Returns:

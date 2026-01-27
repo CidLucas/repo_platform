@@ -221,7 +221,7 @@ class TextToSqlLLMCall:
             "You are a SQL query generator for a multi-tenant analytics platform. "
             "Your task is to generate safe, valid PostgreSQL SELECT queries. "
             "CRITICAL CONSTRAINTS:\n"
-            "1. NEVER bypass tenant isolation - always include client_id filter\n"
+               "1. NEVER bypass client isolation - always include client_id filter\n"
             "2. NO DDL/DML - SELECT only\n"
             "3. LIMIT results - max 100,000 rows\n"
             "4. Aggregates only: COUNT, SUM, AVG, MIN, MAX\n"
@@ -342,7 +342,7 @@ class TextToSqlLLMCall:
         mock_sql = (
             "SELECT COUNT(*) AS total_records "
             "FROM customers_view "
-            "WHERE client_id = '{tenant_id}' "
+               "WHERE client_id = '{client_id}' "
             "LIMIT 100"
         )
 

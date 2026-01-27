@@ -47,7 +47,7 @@ class TextToSqlPrompt:
     async def build(
         self,
         question: str,
-        tenant_id: str,
+        client_id: str,
         role: str,
         schema_snapshot: dict | None = None,
         role_config: dict | None = None,
@@ -59,7 +59,7 @@ class TextToSqlPrompt:
 
         Args:
             question: User's natural language question
-            tenant_id: Client ID for multi-tenant isolation
+            client_id: Client ID for multi-client isolation
             role: User role (viewer, analyst, admin)
             schema_snapshot: Schema metadata (from SchemaSnapshotGenerator)
             role_config: Role-based constraints (from AllowlistConfig)
@@ -72,7 +72,7 @@ class TextToSqlPrompt:
         """
         # Build variables using centralized builder
         builder = ContextVariableBuilder()
-        builder.with_cliente_id(tenant_id)
+        builder.with_cliente_id(client_id)
         builder.with_custom("role", role)
         builder.with_custom("question", question)
 
@@ -104,7 +104,7 @@ class TextToSqlPrompt:
         loaded_prompt = await self.loader.load(
             "text-to-sql/v1",
             variables=variables,
-            cliente_id=UUID(tenant_id) if tenant_id else None,
+            cliente_id=UUID(client_id) if client_id else None,
         )
 
         return loaded_prompt.content
@@ -146,7 +146,7 @@ class TextToSqlPrompt:
         """
         Build prompt from client context object.
 
-        Extracts tenant_id and role from context using VariableExtractor.
+        Extracts client_id and role from context using VariableExtractor.
 
         Args:
             question: User's question
@@ -163,7 +163,7 @@ class TextToSqlPrompt:
         # Build prompt
         return await self.build(
             question=question,
-            tenant_id=str(context.id) if hasattr(context, "id") else "unknown",
+            client_id=str(context.id) if hasattr(context, "id") else "unknown",
             role=extracted_vars.tier or "viewer",
             schema_snapshot=schema_snapshot,
             role_config=role_config,

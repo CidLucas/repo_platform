@@ -29,7 +29,8 @@ class TierLevel(str, Enum):
     """
     Service tiers that control tool access.
 
-    Order: FREE < BASIC < SME < PREMIUM < ENTERPRISE
+    Order: FREE < BASIC < SME < PREMIUM < ENTERPRISE < ADMIN
+    ADMIN tier has full access to all tools and admin endpoints.
     """
 
     FREE = "FREE"
@@ -37,12 +38,25 @@ class TierLevel(str, Enum):
     SME = "SME"
     PREMIUM = "PREMIUM"
     ENTERPRISE = "ENTERPRISE"
+    ADMIN = "ADMIN"
 
     @classmethod
     def get_order(cls, tier: str) -> int:
         """Get numeric order for tier comparison."""
-        order = {"FREE": 0, "BASIC": 1, "SME": 2, "PREMIUM": 3, "ENTERPRISE": 4}
+        order = {
+            "FREE": 0,
+            "BASIC": 1,
+            "SME": 2,
+            "PREMIUM": 3,
+            "ENTERPRISE": 4,
+            "ADMIN": 99,  # Admin has highest access
+        }
         return order.get(tier, 0)
+
+    @classmethod
+    def is_admin(cls, tier: str) -> bool:
+        """Check if tier has admin privileges."""
+        return tier == cls.ADMIN.value
 
     def __lt__(self, other: "TierLevel") -> bool:
         return self.get_order(self.value) < self.get_order(other.value)

@@ -2,7 +2,7 @@
 Schema snapshot generator for safe text-to-SQL queries.
 
 This module provides role-based schema introspection, caching, and filtering
-to return only allowed views, columns, and relationships per tenant/role.
+to return only allowed views, columns, and relationships per client/role.
 """
 
 import json
@@ -54,8 +54,8 @@ class ViewMetadata:
 
 @dataclass
 class SchemaSnapshot:
-    """Complete schema snapshot for a tenant/role combination."""
-    tenant_id: str
+    """Complete schema snapshot for a client/role combination."""
+    client_id: str
     role: str
     views: dict[str, ViewMetadata] = field(default_factory=dict)
     join_paths: list[dict[str, Any]] = field(default_factory=list)
@@ -66,7 +66,7 @@ class SchemaSnapshot:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
-            "tenant_id": self.tenant_id,
+            "client_id": self.client_id,
             "role": self.role,
             "views": {name: view.to_dict() for name, view in self.views.items()},
             "join_paths": self.join_paths,
@@ -113,7 +113,7 @@ class SchemaSnapshotGenerator:
 
     Responsibilities:
     - Introspect database schema (views, columns, relationships)
-    - Filter by allowlist (views/columns per role/tenant)
+    - Filter by allowlist (views/columns per role/client)
     - Cache snapshots with TTL
     - Return structured snapshot for LLM prompting
     """
@@ -138,41 +138,41 @@ class SchemaSnapshotGenerator:
         self._cache: dict[str, CacheEntry] = {}
         logger.info(f"SchemaSnapshotGenerator initialized (TTL={cache_ttl_seconds}s)")
 
-    def _cache_key(self, tenant_id: str, role: str) -> str:
-        """Generate cache key for tenant/role combination."""
-        return f"{tenant_id}:{role}"
+    def _cache_key(self, client_id: str, role: str) -> str:
+        """Generate cache key for client/role combination."""
+        return f"{client_id}:{role}"
 
     def generate(
         self,
-        tenant_id: str,
+        client_id: str,
         role: str,
         force_refresh: bool = False,
     ) -> SchemaSnapshot | None:
         """
-        Generate or retrieve cached schema snapshot for tenant/role.
+        Generate or retrieve cached schema snapshot for client/role.
 
         Args:
-            tenant_id: Tenant identifier.
+            client_id: Client identifier.
             role: User role.
             force_refresh: Force regeneration even if cached.
 
         Returns:
-            SchemaSnapshot if successful, None if tenant/role not configured.
+            SchemaSnapshot if successful, None if client/role not configured.
 
         Raises:
             ValueError: If introspection fails or role is invalid.
         """
-        # Validate tenant and role against allowlist
-        if not self.allowlist_config.is_tenant_valid(tenant_id):
-            logger.warning(f"Tenant not configured in allowlist: {tenant_id}")
+        # Validate client and role against allowlist
+        if not self.allowlist_config.is_client_valid(client_id):
+            logger.warning(f"Client not configured in allowlist: {client_id}")
             return None
 
-        if not self.allowlist_config.is_role_valid(tenant_id, role):
-            logger.warning(f"Role not valid for tenant {tenant_id}: {role}")
+        if not self.allowlist_config.is_role_valid(client_id, role):
+            logger.warning(f"Role not valid for client {client_id}: {role}")
             return None
 
         # Check cache
-        cache_key = self._cache_key(tenant_id, role)
+        cache_key = self._cache_key(client_id, role)
         if not force_refresh and cache_key in self._cache:
             cached = self._cache[cache_key]
             if not cached.is_expired():
@@ -186,8 +186,8 @@ class SchemaSnapshotGenerator:
                 del self._cache[cache_key]
 
         # Generate snapshot
-        logger.info(f"Generating schema snapshot for {tenant_id}/{role}")
-        snapshot = self._build_snapshot(tenant_id, role)
+        logger.info(f"Generating schema snapshot for {client_id}/{role}")
+        snapshot = self._build_snapshot(client_id, role)
 
         # Cache result
         if snapshot:
@@ -200,20 +200,20 @@ class SchemaSnapshotGenerator:
 
         return snapshot
 
-    def _build_snapshot(self, tenant_id: str, role: str) -> SchemaSnapshot:
+    def _build_snapshot(self, client_id: str, role: str) -> SchemaSnapshot:
         """
         Build schema snapshot by introspecting and filtering.
 
         Args:
-            tenant_id: Tenant identifier.
+            client_id: Client identifier.
             role: User role.
 
         Returns:
             SchemaSnapshot instance.
         """
-        role_config = self.allowlist_config.get_role_config(tenant_id, role)
+        role_config = self.allowlist_config.get_role_config(client_id, role)
         if not role_config:
-            raise ValueError(f"No role config for {tenant_id}/{role}")
+            raise ValueError(f"No role config for {client_id}/{role}")
 
         # Get all schema info (in production, this would query information_schema)
         all_views = self._introspect_views()
@@ -223,7 +223,7 @@ class SchemaSnapshotGenerator:
 
         # Build snapshot
         snapshot = SchemaSnapshot(
-            tenant_id=tenant_id,
+            client_id=client_id,
             role=role,
             views=filtered_views,
             join_paths=self._build_join_paths(role_config, filtered_views),
@@ -266,7 +266,7 @@ class SchemaSnapshotGenerator:
                         foreign_key_target="cliente_vizu.id",
                     ),
                 ],
-                description="Customer records per tenant",
+                description="Customer records per client",
                 row_count_estimate=5000,
             ),
             "data_sources_summary_view": ViewMetadata(
@@ -321,7 +321,7 @@ class SchemaSnapshotGenerator:
                         foreign_key_target="cliente_vizu.id",
                     ),
                 ],
-                description="Readable tenant configuration",
+                description="Readable client configuration",
                 row_count_estimate=1,
             ),
         }
@@ -425,31 +425,31 @@ class SchemaSnapshotGenerator:
             ],
         }
 
-    def clear_cache(self, tenant_id: str | None = None) -> int:
+    def clear_cache(self, client_id: str | None = None) -> int:
         """
         Clear cache entries.
 
         Args:
-            tenant_id: If provided, clear only entries for this tenant.
+            client_id: If provided, clear only entries for this client.
                       If None, clear entire cache.
 
         Returns:
             Number of entries cleared.
         """
-        if tenant_id is None:
+        if client_id is None:
             count = len(self._cache)
             self._cache.clear()
             logger.info(f"Cleared entire cache ({count} entries)")
             return count
 
-        prefix = f"{tenant_id}:"
+        prefix = f"{client_id}:"
         count = 0
         keys_to_delete = [k for k in self._cache if k.startswith(prefix)]
         for k in keys_to_delete:
             del self._cache[k]
             count += 1
 
-        logger.info(f"Cleared {count} cache entries for tenant {tenant_id}")
+        logger.info(f"Cleared {count} cache entries for client {client_id}")
         return count
 
 
@@ -469,7 +469,7 @@ class SchemaSnapshotFormatter:
         """
         lines = []
 
-        lines.append(f"## Schema for {snapshot.tenant_id} ({snapshot.role} role)\n")
+        lines.append(f"## Schema for {snapshot.client_id} ({snapshot.role} role)\n")
         lines.append(f"Generated: {snapshot.generated_at.isoformat()}\n")
         lines.append("Constraints:")
         lines.append(f"- Max rows per query: {snapshot.constraints.get('max_rows', 'N/A')}")

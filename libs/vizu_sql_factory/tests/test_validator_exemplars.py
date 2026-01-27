@@ -139,7 +139,7 @@ class TestSqlValidatorExemplars:
 
         result = self.validator.validate(
             sql=sql,
-            tenant_id="123",
+            client_id="123",
             allowed_views=allowed_views,
             allowed_columns=allowed_columns,
             max_rows=100,
@@ -172,7 +172,7 @@ class TestSqlValidatorExemplars:
             if not exemplar["should_pass"]:  # Should be invalid
                 result = self.validator.validate(
                     sql=exemplar["sql"],
-                    tenant_id="123",
+                    client_id="123",
                     allowed_views=exemplar.get("allowed_views", []),
                     allowed_columns=exemplar.get("allowed_columns", {}),
                     max_rows=100,
@@ -201,7 +201,7 @@ class TestSqlValidatorExemplars:
             if exemplar["should_pass"]:  # Should be valid
                 result = self.validator.validate(
                     sql=exemplar["sql"],
-                    tenant_id="123",
+                    client_id="123",
                     allowed_views=exemplar.get("allowed_views", []),
                     allowed_columns=exemplar.get("allowed_columns", {}),
                     max_rows=100,
@@ -230,7 +230,7 @@ class TestSqlValidatorExemplars:
         for exemplar in EXEMPLARS:
             result = self.validator.validate(
                 sql=exemplar["sql"],
-                tenant_id="123",
+                client_id="123",
                 allowed_views=exemplar.get("allowed_views", []),
                 allowed_columns=exemplar.get("allowed_columns", {}),
                 max_rows=100,
@@ -269,7 +269,7 @@ class TestSqlValidatorExemplarEdgeCases:
         for sql in sqls:
             result = self.validator.validate(
                 sql=sql,
-                tenant_id="123",
+                client_id="123",
                 allowed_views=["customers"],
                 allowed_columns={"customers": ["id", "client_id"]},
                 max_rows=100,
@@ -289,7 +289,7 @@ class TestSqlValidatorExemplarEdgeCases:
         for sql in sqls:
             result = self.validator.validate(
                 sql=sql,
-                tenant_id="123",
+                client_id="123",
                 allowed_views=["customers"],
                 allowed_columns={"customers": ["id", "client_id"]},
                 max_rows=100,
@@ -303,7 +303,7 @@ class TestSqlValidatorExemplarEdgeCases:
         # Exactly at max
         result = self.validator.validate(
             sql="SELECT id FROM customers WHERE client_id = '123' LIMIT 100",
-            tenant_id="123",
+            client_id="123",
             allowed_views=["customers"],
             allowed_columns={"customers": ["id", "client_id"]},
             max_rows=100
@@ -313,7 +313,7 @@ class TestSqlValidatorExemplarEdgeCases:
         # Just over max
         result = self.validator.validate(
             sql="SELECT id FROM customers WHERE client_id = '123' LIMIT 101",
-            tenant_id="123",
+            client_id="123",
             allowed_views=["customers"],
             allowed_columns={"customers": ["id", "client_id"]},
             max_rows=100

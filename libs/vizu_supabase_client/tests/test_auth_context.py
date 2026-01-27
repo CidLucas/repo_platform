@@ -22,31 +22,31 @@ class TestAuthContext:
         """Test basic auth context creation."""
         ctx = AuthContext(
             user_id="user123",
-            tenant_id="tenant456",
+            client_id="tenant456",
             role="analyst",
             email="user@example.com",
         )
         assert ctx.user_id == "user123"
-        assert ctx.tenant_id == "tenant456"
+        assert ctx.client_id == "tenant456"
         assert ctx.role == "analyst"
 
     def test_auth_context_to_dict(self):
         """Test conversion to dict."""
         ctx = AuthContext(
             user_id="user123",
-            tenant_id="tenant456",
+            client_id="tenant456",
             role="analyst",
         )
         d = ctx.to_dict()
         assert d["user_id"] == "user123"
-        assert d["tenant_id"] == "tenant456"
+        assert d["client_id"] == "tenant456"
         assert d["role"] == "analyst"
 
     def test_auth_context_validate_valid(self):
         """Test validation of valid context."""
         ctx = AuthContext(
             user_id="user123",
-            tenant_id="tenant456",
+            client_id="tenant456",
             role="analyst",
         )
         assert ctx.validate() is True
@@ -55,16 +55,16 @@ class TestAuthContext:
         """Test validation fails with missing user_id."""
         ctx = AuthContext(
             user_id="",
-            tenant_id="tenant456",
+            client_id="tenant456",
             role="analyst",
         )
         assert ctx.validate() is False
 
-    def test_auth_context_validate_missing_tenant_id(self):
-        """Test validation fails with missing tenant_id."""
+    def test_auth_context_validate_missing_client_id(self):
+        """Test validation fails with missing client_id."""
         ctx = AuthContext(
             user_id="user123",
-            tenant_id="",
+            client_id="",
             role="analyst",
         )
         assert ctx.validate() is False
@@ -73,7 +73,7 @@ class TestAuthContext:
         """Test validation fails with missing role."""
         ctx = AuthContext(
             user_id="user123",
-            tenant_id="tenant456",
+            client_id="tenant456",
             role="",
         )
         assert ctx.validate() is False
@@ -82,7 +82,7 @@ class TestAuthContext:
         """Test is_expired returns False when no exp claim."""
         ctx = AuthContext(
             user_id="user123",
-            tenant_id="tenant456",
+            client_id="tenant456",
             role="analyst",
         )
         assert ctx.is_expired() is False
@@ -92,7 +92,7 @@ class TestAuthContext:
         future_timestamp = int(datetime.utcnow().timestamp()) + 3600  # 1 hour
         ctx = AuthContext(
             user_id="user123",
-            tenant_id="tenant456",
+            client_id="tenant456",
             role="analyst",
             expires_at=future_timestamp,
         )
@@ -103,7 +103,7 @@ class TestAuthContext:
         past_timestamp = int(datetime.utcnow().timestamp()) - 3600  # 1 hour ago
         ctx = AuthContext(
             user_id="user123",
-            tenant_id="tenant456",
+            client_id="tenant456",
             role="analyst",
             expires_at=past_timestamp,
         )
@@ -123,7 +123,7 @@ class TestJWTContextExtractor:
         """Create sample JWT payload."""
         return {
             "sub": "user123",
-            "tenant_id": "tenant456",
+            "client_id": "tenant456",
             "role": "analyst",
             "email": "user@example.com",
             "scope": "read write",
@@ -134,24 +134,24 @@ class TestJWTContextExtractor:
     def test_extractor_initialization(self, extractor):
         """Test extractor initialization."""
         assert extractor.claims["user_id_claim"] == "sub"
-        assert extractor.claims["tenant_id_claim"] == "tenant_id"
+        assert extractor.claims["client_id_claim"] == "client_id"
         assert extractor.claims["role_claim"] == "role"
 
     def test_extractor_custom_claims(self):
         """Test extractor with custom claim mapping."""
         custom_mapping = {
             "user_id_claim": "user_sub",
-            "tenant_id_claim": "org_id",
+            "client_id_claim": "org_id",
         }
         extractor = JWTContextExtractor(claim_mapping=custom_mapping)
         assert extractor.claims["user_id_claim"] == "user_sub"
-        assert extractor.claims["tenant_id_claim"] == "org_id"
+        assert extractor.claims["client_id_claim"] == "org_id"
 
     def test_extract_valid_payload(self, extractor, sample_payload):
         """Test extracting valid payload."""
         ctx = extractor.extract(sample_payload)
         assert ctx.user_id == "user123"
-        assert ctx.tenant_id == "tenant456"
+        assert ctx.client_id == "tenant456"
         assert ctx.role == "analyst"
         assert ctx.email == "user@example.com"
         assert ctx.scopes == ["read", "write"]
@@ -162,9 +162,9 @@ class TestJWTContextExtractor:
         with pytest.raises(ValueError, match="Missing required claim"):
             extractor.extract(sample_payload)
 
-    def test_extract_missing_tenant_id(self, extractor, sample_payload):
-        """Test extraction fails when tenant_id claim missing."""
-        del sample_payload["tenant_id"]
+    def test_extract_missing_client_id(self, extractor, sample_payload):
+        """Test extraction fails when client_id claim missing."""
+        del sample_payload["client_id"]
         with pytest.raises(ValueError, match="Missing required claim"):
             extractor.extract(sample_payload)
 
@@ -189,7 +189,7 @@ class TestJWTContextExtractor:
         auth_header = f"Bearer {token}"
         ctx = extractor.extract_from_header(auth_header)
         assert ctx.user_id == "user123"
-        assert ctx.tenant_id == "tenant456"
+        assert ctx.client_id == "tenant456"
 
     def test_extract_from_header_invalid_format(self, extractor):
         """Test header extraction with invalid format."""
@@ -245,7 +245,7 @@ class TestJWTContextExtractorIntegration:
         """Test full flow from Authorization header to AuthContext."""
         payload = {
             "sub": "alice123",
-            "tenant_id": "acme_corp",
+            "client_id": "acme_corp",
             "role": "analyst",
             "email": "alice@acme.com",
             "exp": int(datetime.utcnow().timestamp()) + 3600,
@@ -267,7 +267,7 @@ class TestJWTContextExtractorIntegration:
 
         # Verify
         assert ctx.user_id == "alice123"
-        assert ctx.tenant_id == "acme_corp"
+        assert ctx.client_id == "acme_corp"
         assert ctx.role == "analyst"
         assert ctx.validate() is True
         assert ctx.is_expired() is False

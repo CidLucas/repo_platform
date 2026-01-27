@@ -117,7 +117,7 @@ class SupabaseUploadService:
 
         RLS Security:
         - Supabase Storage bucket policies enforce client_id access
-        - Database RLS policies on fonte_de_dados table enforce tenant isolation
+        - Database RLS policies on fonte_de_dados table enforce client isolation
         """
         logger.info(
             f"Starting upload processing for client_id: {client_id}"

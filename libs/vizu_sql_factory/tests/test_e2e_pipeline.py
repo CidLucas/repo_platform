@@ -32,7 +32,7 @@ class TestSqlValidation:
         """Test that DDL statements are rejected."""
         result = self.validator.validate(
             "CREATE TABLE test (id INT)",
-            tenant_id="test_tenant",
+            client_id="test_tenant",
             role="analyst"
         )
         assert not result.is_valid
@@ -41,7 +41,7 @@ class TestSqlValidation:
         """Test that DML statements are rejected."""
         result = self.validator.validate(
             "INSERT INTO users VALUES (1, 'John')",
-            tenant_id="test_tenant",
+            client_id="test_tenant",
             role="analyst"
         )
         assert not result.is_valid
@@ -50,7 +50,7 @@ class TestSqlValidation:
         """Test that DROP statements are rejected."""
         result = self.validator.validate(
             "DROP TABLE users",
-            tenant_id="test_tenant",
+            client_id="test_tenant",
             role="analyst"
         )
         assert not result.is_valid
@@ -59,7 +59,7 @@ class TestSqlValidation:
         """Test that simple SELECT queries are accepted."""
         result = self.validator.validate(
             "SELECT id, name FROM users WHERE id = 1 LIMIT 10",
-            tenant_id="test_tenant",
+            client_id="test_tenant",
             role="analyst"
         )
         assert result.is_valid
@@ -68,7 +68,7 @@ class TestSqlValidation:
         """Test that missing LIMIT is injected by validator."""
         result = self.validator.validate(
             "SELECT id, name FROM users WHERE id = 1",
-            tenant_id="test_tenant",
+            client_id="test_tenant",
             role="analyst"
         )
         # Validator injects LIMIT instead of rejecting
@@ -79,7 +79,7 @@ class TestSqlValidation:
         """Test that SELECT * is allowed by validator."""
         result = self.validator.validate(
             "SELECT * FROM users WHERE id = 1 LIMIT 10",
-            tenant_id="test_tenant",
+            client_id="test_tenant",
             role="analyst"
         )
         # Validator allows SELECT * - column filtering happens at result sanitization
@@ -228,26 +228,26 @@ class TestExecutorConfig:
     def test_config_creation(self):
         """Test ExecutionConfig creation."""
         config = ExecutionConfig(
-            tenant_id="tenant123",
+            client_id="tenant123",
             allowed_views=["customers", "orders"],
             allowed_columns={"customers": ["id", "name"]},
             max_rows=10000,
         )
 
-        assert config.tenant_id == "tenant123"
+        assert config.client_id == "tenant123"
         assert "customers" in config.allowed_views
         assert config.max_rows == 10000
 
     def test_config_with_all_fields(self):
         """Test ExecutionConfig with all fields."""
         config = ExecutionConfig(
-            tenant_id="tenant123",
+            client_id="tenant123",
             allowed_views=["users"],
             allowed_columns={"users": ["id", "email"]},
             max_rows=1000
         )
 
-        assert config.tenant_id == "tenant123"
+        assert config.client_id == "tenant123"
         assert config.max_rows == 1000
         assert config.allowed_views == ["users"]
 

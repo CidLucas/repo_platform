@@ -71,7 +71,7 @@ class TestTextToSqlPrompt:
         # Call build
         result = await prompt_obj.build(
             question="How many customers do we have?",
-            tenant_id="550e8400-e29b-41d4-a716-446655440000",
+            client_id="550e8400-e29b-41d4-a716-446655440000",
             role="analyst",
             schema_snapshot={
                 "tables": {
@@ -95,7 +95,7 @@ class TestTextToSqlPrompt:
         assert "variables" in call_kwargs
         variables = call_kwargs["variables"]
         assert variables["question"] == "How many customers do we have?"
-        assert variables["tenant_id"] == "550e8400-e29b-41d4-a716-446655440000"
+        assert variables["client_id"] == "550e8400-e29b-41d4-a716-446655440000"
         assert variables["user_role"] == "analyst"
 
         # Check result
@@ -147,7 +147,7 @@ class TestTextToSqlPrompt:
 
         result = await prompt_obj.build(
             question="Get count of records",
-            tenant_id="550e8400-e29b-41d4-a716-446655440000",
+            client_id="550e8400-e29b-41d4-a716-446655440000",
             role="analyst",
             schema_snapshot={},
             role_config={},
@@ -168,7 +168,7 @@ class TestTextToSqlPrompt:
 
         result = await prompt_obj.build(
             question="Simple question",
-            tenant_id="550e8400-e29b-41d4-a716-446655440000",
+            client_id="550e8400-e29b-41d4-a716-446655440000",
             role="viewer",
             schema_snapshot=None,
             role_config=None,
@@ -264,7 +264,7 @@ class TestTextToSqlPromptIntegration:
 
             await prompt_obj.build(
                 question="Test",
-                tenant_id="550e8400-e29b-41d4-a716-446655440000",
+                client_id="550e8400-e29b-41d4-a716-446655440000",
                 role="analyst",
             )
 
@@ -279,7 +279,7 @@ class TestTextToSqlPromptIntegration:
         # This should use ContextVariableBuilder internally
         await prompt_obj.build(
             question="Test question",
-            tenant_id="550e8400-e29b-41d4-a716-446655440000",
+            client_id="550e8400-e29b-41d4-a716-446655440000",
             role="admin",
         )
 
@@ -289,7 +289,7 @@ class TestTextToSqlPromptIntegration:
 
         # Should have expected keys from builder
         assert "cliente_id" in variables
-        assert "tenant_id" in variables
+        assert "client_id" in variables
         assert "user_role" in variables
         assert "question" in variables
 
@@ -304,7 +304,7 @@ class TestTextToSqlPromptEdgeCases:
 
         result = await prompt_obj.build(
             question="Query",
-            tenant_id="550e8400-e29b-41d4-a716-446655440000",
+            client_id="550e8400-e29b-41d4-a716-446655440000",
             role="analyst",
             schema_snapshot={},
         )
@@ -328,7 +328,7 @@ class TestTextToSqlPromptEdgeCases:
 
         result = await prompt_obj.build(
             question="Count records",
-            tenant_id="550e8400-e29b-41d4-a716-446655440000",
+            client_id="550e8400-e29b-41d4-a716-446655440000",
             role="analyst",
             schema_snapshot=large_schema,
         )
@@ -342,7 +342,7 @@ class TestTextToSqlPromptEdgeCases:
 
         result = await prompt_obj.build(
             question="What's the count of 'active' users & pending orders?",
-            tenant_id="550e8400-e29b-41d4-a716-446655440000",
+            client_id="550e8400-e29b-41d4-a716-446655440000",
             role="analyst",
         )
 

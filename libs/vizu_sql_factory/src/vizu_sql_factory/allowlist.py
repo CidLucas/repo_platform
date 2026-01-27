@@ -2,7 +2,7 @@
 Allowlist configuration and management for text-to-SQL queries.
 
 This module provides role-based access control (RBAC) for SQL query execution,
-enforcing view, column, and aggregate function restrictions per tenant and role.
+enforcing view, column, and aggregate function restrictions per client and role.
 """
 
 import json
@@ -25,7 +25,7 @@ class JoinPath:
 
 @dataclass
 class RoleConfig:
-    """Configuration for a specific role within a tenant."""
+    """Configuration for a specific role within a client."""
     views: list[str]  # Allowed views
     columns: dict[str, list[str]]  # Allowed columns per view; "*" means all
     aggregates: list[str]  # Allowed aggregate functions (COUNT, SUM, AVG, etc.)
@@ -69,55 +69,64 @@ class RoleConfig:
 
 @dataclass
 class TenantConfig:
-    """Configuration for a specific tenant."""
+    """Configuration for a specific client."""
     name: str
     roles: dict[str, RoleConfig]
 
     def get_role_config(self, role: str) -> RoleConfig | None:
-        """Get role configuration for this tenant."""
+        """Get role configuration for this client."""
         return self.roles.get(role)
 
     def is_role_valid(self, role: str) -> bool:
-        """Check if a role is defined for this tenant."""
+        """Check if a role is defined for this client."""
         return role in self.roles
 
     def get_available_roles(self) -> list[str]:
-        """Get list of available roles for this tenant."""
+        """Get list of available roles for this client."""
         return list(self.roles.keys())
 
 
 @dataclass
 class AllowlistConfig:
-    """Master allowlist configuration for all tenants and roles."""
+    """Master allowlist configuration for all clients and roles."""
     version: str = "1.0.0"
     description: str = ""
     default_max_rows: int = 10000
     tenants: dict[str, TenantConfig] = field(default_factory=dict)
 
-    def get_tenant_config(self, tenant_id: str) -> TenantConfig | None:
-        """Get configuration for a specific tenant, with fallback to 'default'."""
-        if tenant_id in self.tenants:
-            return self.tenants[tenant_id]
-        # Fallback to 'default' template if tenant not explicitly configured
+    def get_client_config(self, client_id: str) -> TenantConfig | None:
+        """Get configuration for a specific client, with fallback to 'default'."""
+        if client_id in self.tenants:
+            return self.tenants[client_id]
+        # Fallback to 'default' template if client not explicitly configured
         return self.tenants.get("default")
 
-    def get_role_config(self, tenant_id: str, role: str) -> RoleConfig | None:
-        """Get role configuration for tenant and role combination."""
-        tenant_config = self.get_tenant_config(tenant_id)
+    def get_role_config(self, client_id: str, role: str) -> RoleConfig | None:
+        """Get role configuration for client and role combination."""
+        tenant_config = self.get_client_config(client_id)
         if tenant_config is None:
             return None
         return tenant_config.get_role_config(role)
 
-    def is_tenant_valid(self, tenant_id: str) -> bool:
-        """Check if tenant has a configured allowlist."""
-        return self.get_tenant_config(tenant_id) is not None
+    def is_client_valid(self, client_id: str) -> bool:
+        """Check if client has a configured allowlist."""
+        return self.get_client_config(client_id) is not None
 
-    def is_role_valid(self, tenant_id: str, role: str) -> bool:
-        """Check if role is valid for tenant."""
-        tenant_config = self.get_tenant_config(tenant_id)
+    def is_role_valid(self, client_id: str, role: str) -> bool:
+        """Check if role is valid for client."""
+        tenant_config = self.get_client_config(client_id)
         if tenant_config is None:
             return False
         return tenant_config.is_role_valid(role)
+
+    # Backwards-compatible aliases for older API that used "tenant" terminology
+    def get_tenant_config(self, tenant_id: str) -> TenantConfig | None:
+        """Deprecated alias for `get_client_config`."""
+        return self.get_client_config(tenant_id)
+
+    def is_tenant_valid(self, tenant_id: str) -> bool:
+        """Deprecated alias for `is_client_valid`."""
+        return self.is_client_valid(tenant_id)
 
 
 class AllowlistLoader:

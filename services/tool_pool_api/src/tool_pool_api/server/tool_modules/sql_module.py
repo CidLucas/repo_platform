@@ -1,29 +1,16 @@
 # tool_pool_api/server/tool_modules/sql_module.py
 """
-Módulo SQL - Ferramentas de SQL Agent
+Módulo SQL - executar_sql_agent
 
-Este módulo contém tools para consultas a dados estruturados do cliente.
+Natural language to SQL tool for client data queries.
 
-ARCHITECTURE NOTE:
-==================
-
-**Two SQL Query Tools Co-exist for Backwards Compatibility**:
-
-1. executar_sql_agent (sql_module.py - THIS FILE)
-   - Simplified approach: Single LLM call for SQL generation + direct execution
-   - Reason: Most LLMs (including gpt-oss) don't support ReAct or function-calling
-     formats required by LangChain SQL Agent
-   - Pipeline: Schema → LLM generates SQL → Execute with RLS → Return results
-   - Note: client_id is injected server-side, never exposed to the LLM
-
-2. query_database_text_to_sql (vizu_tool_registry/sql_tool.py)
-   - NEW: Text-to-SQL safe execution pipeline (Phase 1+)
-   - Responsibility: Modern contract with documented input/output schemas
-   - Integration: Schema snapshot, SQL validator, PostgREST executor
-   - Will be: Primary tool after full feature parity
+**Architecture**:
+- Single LLM call for SQL generation + direct execution
+- Pipeline: Schema → LLM generates SQL → Execute with RLS → Return results
+- client_id is injected server-side, never exposed to the LLM
 
 **Security**:
-- client_id/tenant_id: Injected server-side, not from LLM
+- client_id: Injected server-side via middleware
 - RLS: PostgreSQL Row-Level Security enforces data isolation
 - SQL Validation: Only SELECT queries allowed, forbidden keywords blocked
 """
@@ -65,7 +52,7 @@ async def _get_enriched_schema_context(
     Build enriched schema context for the LLM.
 
     This function:
-    1. Gets SqlTableConfig entries for the client (if any)
+    1. Gets SqlTableConfig entries from Supabase for the client (if any)
     2. Falls back to raw SQLDatabase schema if no config exists
     3. Adds semantic metadata (descriptions, enum values, examples)
 
@@ -78,66 +65,83 @@ async def _get_enriched_schema_context(
         Enriched schema string for the LLM prompt
     """
     from langchain_community.utilities.sql_database import SQLDatabase
-    from sqlmodel import select
 
-    from vizu_db_connector.database import SessionLocal
+    from vizu_supabase_client import get_supabase_client
 
-    # Try to get client-specific table configs
+    # Try to get client-specific table configs from Supabase
     try:
-        from vizu_models import SqlTableConfig
+        supabase = get_supabase_client()
 
-        with SessionLocal() as session:
-            stmt = select(SqlTableConfig).where(
-                SqlTableConfig.client_id == cliente_id,
-                SqlTableConfig.is_active == True,
+        response = (
+            supabase
+            .table("sql_table_config")
+            .select("*")
+            .eq("client_id", str(cliente_id))
+            .eq("is_active", True)
+            .execute()
+        )
+
+        configs = response.data or []
+
+        if configs:
+            # Build enriched schema from configs
+            schema_parts = []
+
+            # Sort: primary tables first, then by name
+            sorted_configs = sorted(
+                configs,
+                key=lambda c: (not c.get("is_primary", False), c.get("table_name", ""))
             )
-            configs = session.exec(stmt).all()
 
-            if configs:
-                # Build enriched schema from configs
-                schema_parts = []
+            for config in sorted_configs:
+                table_name = config.get("table_name", "")
+                display_name = config.get("display_name")
+                description = config.get("description")
+                column_descriptions = config.get("column_descriptions") or {}
+                enum_values = config.get("enum_values") or {}
+                example_queries = config.get("example_queries") or []
 
-                for config in sorted(configs, key=lambda c: (not c.is_primary, c.table_name)):
-                    part = f"\n## Table: {config.table_name}"
-                    if config.display_name:
-                        part += f" ({config.display_name})"
-                    part += "\n"
+                part = f"\n## Table: {table_name}"
+                if display_name:
+                    part += f" ({display_name})"
+                part += "\n"
 
-                    if config.description:
-                        part += f"Description: {config.description}\n"
+                if description:
+                    part += f"Description: {description}\n"
 
-                    # Get actual schema for this table
-                    db = SQLDatabase(engine=engine, include_tables=[config.table_name])
+                # Get actual schema for this table
+                try:
+                    db = SQLDatabase(engine=engine, include_tables=[table_name])
                     table_schema = db.get_table_info()
                     part += f"\n{table_schema}\n"
+                except Exception as schema_err:
+                    logger.warning(f"Could not get schema for {table_name}: {schema_err}")
 
-                    # Add column descriptions
-                    if config.column_descriptions:
-                        part += "\nColumn Details:\n"
-                        for col, desc in config.column_descriptions.items():
-                            part += f"  - {col}: {desc}\n"
+                # Add column descriptions
+                if column_descriptions:
+                    part += "\nColumn Details:\n"
+                    for col, desc in column_descriptions.items():
+                        part += f"  - {col}: {desc}\n"
 
-                    # Add enum values (CRITICAL for case-sensitivity!)
-                    if config.enum_values:
-                        part += "\nValid Values (use EXACTLY as shown):\n"
-                        for col, values in config.enum_values.items():
-                            part += f"  - {col}: {values}\n"
+                # Add enum values (CRITICAL for case-sensitivity!)
+                if enum_values:
+                    part += "\nValid Values (use EXACTLY as shown):\n"
+                    for col, values in enum_values.items():
+                        part += f"  - {col}: {values}\n"
 
-                    # Add example queries
-                    if config.example_queries:
-                        part += "\nExample Queries:\n"
-                        for ex in config.example_queries[:3]:  # Max 3 examples
-                            part += f"  Q: {ex.get('question', '')}\n"
-                            part += f"  SQL: {ex.get('sql', '')}\n\n"
+                # Add example queries
+                if example_queries:
+                    part += "\nExample Queries:\n"
+                    for ex in example_queries[:3]:  # Max 3 examples
+                        part += f"  Q: {ex.get('question', '')}\n"
+                        part += f"  SQL: {ex.get('sql', '')}\n\n"
 
-                    schema_parts.append(part)
+                schema_parts.append(part)
 
-                return "\n".join(schema_parts)
+            return "\n".join(schema_parts)
 
-    except ImportError:
-        logger.warning("SqlTableConfig not available, using raw schema")
     except Exception as e:
-        logger.warning(f"Error loading SqlTableConfig: {e}, falling back to raw schema")
+        logger.warning(f"Error loading SqlTableConfig from Supabase: {e}, falling back to raw schema")
 
     # Fallback: raw SQLDatabase schema
     db = SQLDatabase(engine=engine, include_tables=include_tables)
@@ -365,12 +369,7 @@ SQL QUERY:"""
 @register_module
 def register_tools(mcp: FastMCP) -> list[str]:
     """Registra as tools do módulo SQL."""
-    from vizu_tool_registry.tools.sql_tool import (
-        QueryDatabaseTextToSQL,
-        SQLToolInput,
-    )
-
-    # Legacy tool: executar_sql_agent
+    # Register executar_sql_agent - simple natural language to SQL tool
     mcp.tool(
         name="executar_sql_agent",
         description=(
@@ -383,53 +382,5 @@ def register_tools(mcp: FastMCP) -> list[str]:
         ),
     )(mcp_inject_cliente_id(get_context_service)(_executar_sql_agent_logic))
 
-    # New tool: query_database_text_to_sql (Phase 3.3)
-    sql_tool = QueryDatabaseTextToSQL()
-
-    async def _query_database_text_to_sql_logic(
-        question: str,
-        tenant_id: str,
-        role: str,
-        optional_constraints: dict = None,
-        user_jwt: str = None,
-    ) -> dict:
-        """Execute text-to-SQL query with validation and sanitization."""
-        try:
-            input_params = SQLToolInput(
-                question=question,
-                tenant_id=tenant_id,
-                role=role,
-                optional_constraints=optional_constraints,
-                user_jwt=user_jwt,
-            )
-
-            result = sql_tool.invoke(input_params)
-            return result.to_dict()
-        except Exception as e:
-            logger.exception(f"[sql_tool] Error in text-to-SQL: {e}")
-            return {
-                "success": False,
-                "sql": None,
-                "rows": [],
-                "columns": [],
-                "caveats": [],
-                "error": {
-                    "code": "EXECUTION_ERROR",
-                    "message": str(e),
-                    "suggestion": "Check logs for details",
-                },
-                "telemetry_id": None,
-                "execution_time_ms": 0.0,
-            }
-
-    mcp.tool(
-        name="query_database_text_to_sql",
-        description=(
-            "Translates natural language questions into SQL queries, "
-            "validates safety constraints, and executes them with Row-Level Security enforcement. "
-            "Returns structured results with optional PII masking and row limits per role."
-        ),
-    )(mcp_inject_cliente_id(get_context_service)(_query_database_text_to_sql_logic))
-
-    logger.info("[SQL Module] Ferramentas registradas: executar_sql_agent, query_database_text_to_sql")
-    return ["executar_sql_agent", "query_database_text_to_sql"]
+    logger.info("[SQL Module] Ferramenta registrada: executar_sql_agent")
+    return ["executar_sql_agent"]

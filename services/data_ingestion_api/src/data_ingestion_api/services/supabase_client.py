@@ -47,7 +47,7 @@ async def upsert(table: str, data: dict[str, Any], on_conflict: str = "id") -> d
 async def select(table: str, columns: str = "*", filters: dict[str, Any] | None = None, client_id: str | None = None) -> list[dict[str, Any]]:
     client = _get_shared_supabase_client()
 
-    # If caller provides a tenant id, set RLS context for tenant-scoped tables
+    # If caller provides a client id, set RLS context for client-scoped tables
     if client_id:
         try:
             set_rls_context(client, str(client_id))

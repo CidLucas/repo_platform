@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class AuthContext:
     """Extracted authentication context from JWT claims."""
     user_id: str
-    tenant_id: str
+    client_id: str
     role: str
     email: str | None = None
     scopes: list | None = None
@@ -29,7 +29,7 @@ class AuthContext:
         """Convert to dictionary."""
         return {
             "user_id": self.user_id,
-            "tenant_id": self.tenant_id,
+            "client_id": self.client_id,
             "role": self.role,
             "email": self.email,
             "scopes": self.scopes,
@@ -45,7 +45,7 @@ class AuthContext:
 
     def validate(self) -> bool:
         """Validate context has required fields."""
-        return bool(self.user_id and self.tenant_id and self.role)
+        return bool(self.user_id and self.client_id and self.role)
 
 
 class JWTContextExtractor:
@@ -54,7 +54,7 @@ class JWTContextExtractor:
     # Default claim names (can be overridden)
     DEFAULT_CLAIMS = {
         "user_id_claim": "sub",  # Standard: "sub" = subject (user ID)
-        "tenant_id_claim": "tenant_id",  # Custom claim for tenant
+        "client_id_claim": "client_id",  # Custom claim for client
         "role_claim": "role",  # Custom claim for role
         "email_claim": "email",
         "scopes_claim": "scope",  # Space-separated scopes
@@ -68,7 +68,7 @@ class JWTContextExtractor:
 
         Args:
             claim_mapping: Dict mapping standard claim keys to actual JWT claim names.
-                          E.g., {"tenant_id_claim": "org_id"} to use "org_id" instead of "tenant_id".
+                          E.g., {"client_id_claim": "org_id"} to use "org_id" instead of "client_id".
         """
         self.claims = {**self.DEFAULT_CLAIMS}
         if claim_mapping:
@@ -89,16 +89,16 @@ class JWTContextExtractor:
             ValueError: If required claims are missing.
         """
         user_id = jwt_payload.get(self.claims["user_id_claim"])
-        tenant_id = jwt_payload.get(self.claims["tenant_id_claim"])
+        client_id = jwt_payload.get(self.claims["client_id_claim"])
         role = jwt_payload.get(self.claims["role_claim"])
 
         if not user_id:
             raise ValueError(
                 f"Missing required claim: {self.claims['user_id_claim']}"
             )
-        if not tenant_id:
+        if not client_id:
             raise ValueError(
-                f"Missing required claim: {self.claims['tenant_id_claim']}"
+                f"Missing required claim: {self.claims['client_id_claim']}"
             )
         if not role:
             raise ValueError(
@@ -112,7 +112,7 @@ class JWTContextExtractor:
 
         context = AuthContext(
             user_id=user_id,
-            tenant_id=tenant_id,
+            client_id=client_id,
             role=role,
             email=email,
             scopes=scopes,
@@ -124,7 +124,7 @@ class JWTContextExtractor:
             raise ValueError("Extracted context failed validation")
 
         logger.debug(
-            f"Extracted AuthContext: user={user_id}, tenant={tenant_id}, role={role}"
+            f"Extracted AuthContext: user={user_id}, client={client_id}, role={role}"
         )
         return context
 

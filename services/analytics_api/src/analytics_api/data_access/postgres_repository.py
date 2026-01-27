@@ -136,13 +136,19 @@ class PostgresRepository:
 
                 # Build query with optional WHERE clause for incremental
                 if filter_timestamp and date_source_col:
-                    # Use parameterized query to prevent SQL injection
-                    query_sql = f'SELECT * FROM {quoted_table} WHERE "{date_source_col}" > :since_ts'
-                    logger.info(f"  🔍 Incremental query: WHERE {date_source_col} > {filter_timestamp}")
-                    result = self.db_session.execute(
-                        text(query_sql),
-                        {"since_ts": filter_timestamp}
-                    )
+                    # BigQuery DATETIME doesn't support timezone - strip it
+                    # Convert to naive datetime string format: 'YYYY-MM-DD HH:MM:SS'
+                    if hasattr(filter_timestamp, 'replace'):
+                        # Remove timezone info for BigQuery compatibility
+                        ts_naive = filter_timestamp.replace(tzinfo=None)
+                        ts_str = ts_naive.strftime('%Y-%m-%d %H:%M:%S')
+                    else:
+                        ts_str = str(filter_timestamp)[:19]  # Truncate to 'YYYY-MM-DD HH:MM:SS'
+
+                    # Use string literal in query since BigQuery FDW has issues with parameterized timestamps
+                    query_sql = f'SELECT * FROM {quoted_table} WHERE "{date_source_col}" > TIMESTAMP \'{ts_str}\''
+                    logger.info(f"  🔍 Incremental query: WHERE {date_source_col} > {ts_str}")
+                    result = self.db_session.execute(text(query_sql))
                 else:
                     result = self.db_session.execute(
                         text(f"SELECT * FROM {quoted_table}")
@@ -1879,18 +1885,158 @@ class PostgresRepository:
             self.db_session.rollback()
             return {}
 
-    # Aliases for backward compatibility with indicator_service
-    def get_gold_orders_time_series(self, client_id: str) -> list[dict]:
-        """Alias for get_fact_sales_time_series (backward compatibility)."""
-        return self.get_fact_sales_time_series(client_id)
+    def get_all_indicators(self, client_id: str, start_date=None, end_date=None) -> dict:
+        """
+        OPTIMIZED: Fetch ALL indicator metrics in a SINGLE database query.
 
-    def get_gold_products_aggregated(self, client_id: str, start_date=None, end_date=None) -> dict:
-        """Alias for get_dim_products_aggregated (backward compatibility)."""
-        return self.get_dim_products_aggregated(client_id, start_date, end_date)
+        Returns orders, products, and customers metrics together,
+        reducing round-trips from 12+ queries to just 1.
 
-    def get_gold_customers_aggregated(self, client_id: str, start_date=None, end_date=None) -> dict:
-        """Alias for get_dim_customers_aggregated (backward compatibility)."""
-        return self.get_dim_customers_aggregated(client_id, start_date, end_date)
+        This reads from the analytics_v2 star schema:
+        - fact_sales: order metrics (total, revenue, avg value)
+        - dim_product: product metrics (count, sold, avg price)
+        - dim_customer: customer metrics (active, new, returning, LTV)
+
+        Args:
+            client_id: The client identifier
+            start_date: Optional start date filter (for fact_sales)
+            end_date: Optional end date filter (for fact_sales)
+
+        Returns:
+            Dict with 'orders', 'products', 'customers' keys
+        """
+        try:
+            # Build date filter clause for fact_sales
+            date_filter = ""
+            params = {"client_id": client_id}
+
+            if start_date and end_date:
+                date_filter = "AND f.data_transacao BETWEEN :start_date AND :end_date"
+                params["start_date"] = start_date
+                params["end_date"] = end_date
+
+            query = text(f"""
+                WITH order_metrics AS (
+                    SELECT
+                        COUNT(DISTINCT f.order_id) as total_orders,
+                        COALESCE(SUM(f.valor_total), 0) as total_revenue,
+                        COALESCE(AVG(f.valor_total), 0) as avg_order_value
+                    FROM analytics_v2.fact_sales f
+                    WHERE f.client_id = :client_id {date_filter}
+                ),
+                product_metrics AS (
+                    SELECT
+                        COUNT(*) as unique_products,
+                        COALESCE(SUM(total_quantity_sold), 0) as total_sold,
+                        COALESCE(AVG(avg_price), 0) as avg_price,
+                        COALESCE(SUM(total_revenue), 0) as product_revenue
+                    FROM analytics_v2.dim_product
+                    WHERE client_id = :client_id
+                ),
+                customer_metrics AS (
+                    SELECT
+                        COUNT(*) as total_active,
+                        COUNT(CASE WHEN total_orders = 1 THEN 1 END) as new_customers,
+                        COUNT(CASE WHEN total_orders > 1 THEN 1 END) as returning_customers,
+                        COALESCE(AVG(total_revenue), 0) as avg_lifetime_value
+                    FROM analytics_v2.dim_customer
+                    WHERE client_id = :client_id
+                ),
+                growth_calc AS (
+                    SELECT
+                        DATE_TRUNC('month', data_transacao) as month,
+                        COUNT(DISTINCT order_id) as month_orders,
+                        SUM(valor_total) as month_revenue
+                    FROM analytics_v2.fact_sales
+                    WHERE client_id = :client_id
+                      AND data_transacao >= NOW() - INTERVAL '3 months'
+                    GROUP BY DATE_TRUNC('month', data_transacao)
+                    ORDER BY month DESC
+                    LIMIT 2
+                ),
+                top_products AS (
+                    SELECT product_name, total_revenue, total_quantity_sold
+                    FROM analytics_v2.dim_product
+                    WHERE client_id = :client_id
+                    ORDER BY total_revenue DESC
+                    LIMIT 10
+                )
+                SELECT
+                    -- Orders (indices 0-2)
+                    o.total_orders,
+                    o.total_revenue,
+                    o.avg_order_value,
+                    -- Products (indices 3-6)
+                    p.unique_products,
+                    p.total_sold,
+                    p.avg_price,
+                    p.product_revenue,
+                    -- Customers (indices 7-10)
+                    c.total_active,
+                    c.new_customers,
+                    c.returning_customers,
+                    c.avg_lifetime_value,
+                    -- Growth data (indices 11-12)
+                    (SELECT month_orders FROM growth_calc LIMIT 1) as current_month_orders,
+                    (SELECT month_orders FROM growth_calc OFFSET 1 LIMIT 1) as prev_month_orders,
+                    -- Top products as JSON (index 13)
+                    (SELECT json_agg(row_to_json(t)) FROM top_products t) as top_sellers_json
+                FROM order_metrics o, product_metrics p, customer_metrics c
+            """)
+
+            result = self.db_session.execute(query, params)
+            row = result.fetchone()
+
+            if not row:
+                logger.debug(f"No indicator data found for client {client_id}")
+                return {"orders": {}, "products": {}, "customers": {}}
+
+            # Calculate growth rate
+            current_orders = row[11] or 0
+            prev_orders = row[12] or 0
+            growth_rate = None
+            if prev_orders > 0:
+                growth_rate = round(((current_orders - prev_orders) / prev_orders) * 100, 2)
+
+            # Parse top sellers JSON
+            top_sellers = []
+            if row[13]:
+                try:
+                    top_sellers = [
+                        {"name": p["product_name"], "revenue": float(p["total_revenue"] or 0), "quantity": float(p["total_quantity_sold"] or 0)}
+                        for p in row[13]
+                    ]
+                except (TypeError, KeyError):
+                    pass
+
+            return {
+                "orders": {
+                    "total": row[0] or 0,
+                    "revenue": float(row[1] or 0),
+                    "avg_order_value": float(row[2] or 0),
+                    "growth_rate": growth_rate,
+                    "by_status": {}
+                },
+                "products": {
+                    "unique_products": row[3] or 0,
+                    "total_sold": int(row[4] or 0),
+                    "avg_price": float(row[5] or 0),
+                    "total_revenue": float(row[6] or 0),
+                    "top_sellers": top_sellers,
+                    "low_stock_alerts": 0
+                },
+                "customers": {
+                    "total_active": row[7] or 0,
+                    "new_customers": row[8] or 0,
+                    "returning_customers": row[9] or 0,
+                    "avg_lifetime_value": float(row[10] or 0)
+                }
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get all indicators for {client_id}: {e}", exc_info=True)
+            self.db_session.rollback()
+            return {"orders": {}, "products": {}, "customers": {}}
 
     # =========================================================================
     # Materialized Views - Fast pre-computed aggregations for dashboards
@@ -1908,16 +2054,13 @@ class PostgresRepository:
         - days_since_last_order
         """
         try:
-            # Prefer pre-computed materialized view, but the view schema has changed
-            # in some deployments (uses `estado`) while dim_customer uses `endereco_uf`.
-            # To be resilient, LEFT JOIN the dim_customer table and prefer the
-            # materialized view's `estado`, falling back to `endereco_uf`.
+            # Get estado from dim_customer (mv_customer_summary doesn't have estado column)
             query = text("""
                 SELECT
                     m.customer_id,
                     m.name,
                     m.cpf_cnpj,
-                    COALESCE(m.estado, d.endereco_uf) AS estado,
+                    d.endereco_uf AS estado,
                     COALESCE(m.total_orders, 0) as total_orders,
                     COALESCE(m.lifetime_value, 0) as lifetime_value,
                     COALESCE(m.avg_order_value, 0) as avg_order_value,
@@ -1926,7 +2069,7 @@ class PostgresRepository:
                     m.first_order_date,
                     COALESCE(m.days_since_last_order, 0) as days_since_last_order
                 FROM analytics_v2.mv_customer_summary m
-                LEFT JOIN analytics_v2.dim_customer d ON d.customer_id = m.customer_id
+                LEFT JOIN analytics_v2.dim_customer d ON d.customer_id = m.customer_id AND d.client_id = m.client_id
                 WHERE m.client_id = :client_id
                 ORDER BY m.lifetime_value DESC
             """)
@@ -2150,6 +2293,35 @@ class PostgresRepository:
         except Exception as e:
             logger.error(f"❌ Failed to update last_sync_timestamp: {e}")
             self.db_session.rollback()
+            return False
+
+    def has_analytics_data(self, client_id: str) -> bool:
+        """
+        Check if client has any data in analytics_v2 tables.
+
+        Used to determine if incremental mode is valid - even if last_synced_at
+        exists, we need actual data to do an incremental update.
+
+        Returns:
+            True if fact_sales has at least one row for this client
+        """
+        try:
+            query = text("""
+                SELECT EXISTS (
+                    SELECT 1 FROM analytics_v2.fact_sales
+                    WHERE client_id = :client_id
+                    LIMIT 1
+                )
+            """)
+            result = self.db_session.execute(query, {"client_id": client_id})
+            row = result.fetchone()
+
+            has_data = row[0] if row else False
+            logger.info(f"📊 Client {client_id} has_analytics_data: {has_data}")
+            return has_data
+
+        except Exception as e:
+            logger.warning(f"⚠️ Could not check has_analytics_data: {e}")
             return False
 
     def record_sync_event(

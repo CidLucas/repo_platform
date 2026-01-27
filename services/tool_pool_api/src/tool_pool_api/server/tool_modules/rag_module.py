@@ -90,18 +90,26 @@ async def _executar_rag_cliente_logic(
     cliente_id: str | None = None,
 ) -> str:
     """
-    Executa consulta RAG na base de conhecimento do cliente.
+   **Tool: executar_rag_cliente**
 
-    Args:
-        query: Pergunta do usuário
-        ctx: Contexto MCP
-        cliente_id: ID do cliente (injetado pelo middleware ou explícito)
+**Purpose:** Search a company's knowledge base for information about their products, services, pricing, policies, FAQs, and business operations.
 
-    Returns:
-        Resposta gerada pelo RAG
+**When to use this tool:**
+- User asks questions about a company's offerings, prices, or services
+- User needs information from company documentation, manuals, or help articles
+- User asks about company policies, terms of service, or procedures
+- User requests information that should be in the company's internal knowledge base
 
-    Raises:
-        ToolError: Se cliente não autorizado ou RAG desabilitado
+**Input format:**
+- query: (string) The user's question about the business
+
+**Examples:**
+- "What are your shipping costs to Europe?"
+- "Tell me about your premium subscription features"
+- "What's your return policy for electronics?"
+- "How do I set up two-factor authentication?"
+
+**IMPORTANT:** This tool accesses the specific company's knowledge base. The company context is automatically injected - do NOT ask the user for company ID.
     """
     # 1. Obter dependências
 

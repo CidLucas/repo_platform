@@ -230,30 +230,73 @@ def register_tools(mcp: FastMCP) -> list[str]:
     mcp.tool(
         name="write_to_sheet",
         description=(
-            "Write rows to a Google Sheets spreadsheet. "
-            "Params: spreadsheet_id (ID from URL), range_name (A1 notation like 'Sheet1!A1'), "
-            "values (list of rows, each row is a list of cell values), "
-            "account_email (optional, specific Google account to use)."
+            """**Purpose:** Write data to a Google Sheets spreadsheet.
+
+**When to use this tool:**
+- User wants to save data to a spreadsheet
+- User asks to "add this to a Google Sheet"
+- Recording data, logs, or information in tabular format
+- Exporting conversation data or results
+
+**Input format:**
+- spreadsheet_id: (string) The ID from the spreadsheet URL
+- range_name: (string) A1 notation range (e.g., "Sheet1!A1")
+- values: (list of rows) Each row is a list of cell values
+- account_email: (optional string) Specific Google account to use
+
+**Examples:**
+- "save these customer names to my spreadsheet"
+- "add this data to row 5 of Sheet1"
+- "append these results to my Google Sheet"""
         ),
     )(write_to_sheet_wrapper)
 
     mcp.tool(
         name="read_emails",
         description=(
-            "Search and read Gmail messages. "
-            "Params: query (Gmail search query like 'is:unread' or 'from:user@example.com'), "
-            "max_results (optional, default 10), "
-            "account_email (optional, specific Google account to use)."
+            """**Purpose:** Search and read Gmail messages.
+
+**When to use this tool:**
+- User asks to check their email
+- User wants to search for specific emails
+- User needs information from recent correspondence
+- Finding emails from specific senders or with specific content
+
+**Input format:**
+- query: (string) Gmail search query (e.g., "from:example.com", "is:unread")
+- max_results: (optional integer) Number of emails to return (default 10)
+- account_email: (optional string) Specific Google account to use
+
+**Examples:**
+- "check my unread emails from yesterday"
+- "find emails from John about the project"
+- "search for emails with 'invoice' in subject"
+- "what's in my inbox right now?"""
         ),
     )(read_emails_wrapper)
 
     mcp.tool(
         name="query_calendar",
         description=(
-            "Query Google Calendar events within a time range. "
-            "Params: time_min (ISO 8601 start), time_max (ISO 8601 end), "
-            "calendar_id (optional, default 'primary'), "
-            "account_email (optional, specific Google account to use)."
+           """ **Purpose:** Query Google Calendar events within a time range.
+
+**When to use this tool:**
+- User asks about their schedule or appointments
+- User wants to check availability
+- User needs to see upcoming meetings
+- Scheduling coordination or planning
+
+**Input format:**
+- time_min: (string) ISO 8601 start time (e.g., "2024-01-01T00:00:00Z")
+- time_max: (string) ISO 8601 end time
+- calendar_id: (optional string) Calendar ID (default "primary")
+- account_email: (optional string) Specific Google account to use
+
+**Examples:**
+- "what meetings do I have today?"
+- "check my schedule for next week"
+- "what's on my calendar tomorrow?"
+- "show my appointments between 9am and 5pm"""
         ),
     )(query_calendar_wrapper)
 

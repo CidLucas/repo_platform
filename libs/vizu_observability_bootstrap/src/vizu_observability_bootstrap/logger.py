@@ -30,5 +30,9 @@ def setup_structured_logging():
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
 
-    # Silencia loggers muito verbosos de bibliotecas de terceiros, se necessário
+    # Silencia loggers muito verbosos de bibliotecas de terceiros
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("langfuse").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("opentelemetry").setLevel(logging.WARNING)

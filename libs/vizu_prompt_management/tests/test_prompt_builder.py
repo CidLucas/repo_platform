@@ -217,11 +217,11 @@ def test_format_allowed_aggregates(prompt_builder, mock_role_config):
 
 def test_format_mandatory_filters(prompt_builder):
     """Test mandatory filters formatting."""
-    tenant_id = "550e8400-e29b-41d4-a716-446655440000"
-    formatted = prompt_builder._format_mandatory_filters(tenant_id)
+    client_id = "550e8400-e29b-41d4-a716-446655440000"
+    formatted = prompt_builder._format_mandatory_filters(client_id)
 
     assert "client_id" in formatted
-    assert tenant_id in formatted
+    assert client_id in formatted
     assert "multi-tenant" in formatted.lower()
 
 
@@ -235,7 +235,7 @@ def test_substitute_template(prompt_builder, mock_schema_snapshot, mock_role_con
     template = prompt_builder._load_template()
     context = TextToSqlPromptContext(
         question="Test question",
-        tenant_id="550e8400-e29b-41d4-a716-446655440000",
+        client_id="550e8400-e29b-41d4-a716-446655440000",
         role="analyst",
         schema_snapshot=mock_schema_snapshot,
         role_config=mock_role_config,
@@ -257,7 +257,7 @@ def test_substitute_template_all_variables_replaced(prompt_builder, mock_schema_
     template = prompt_builder._load_template()
     context = TextToSqlPromptContext(
         question="Test question",
-        tenant_id="550e8400-e29b-41d4-a716-446655440000",
+        client_id="550e8400-e29b-41d4-a716-446655440000",
         role="analyst",
         schema_snapshot=mock_schema_snapshot,
         role_config=mock_role_config,
@@ -279,7 +279,7 @@ def test_context_valid(mock_schema_snapshot, mock_role_config):
     """Test context validation with all fields."""
     context = TextToSqlPromptContext(
         question="Test question",
-        tenant_id="550e8400-e29b-41d4-a716-446655440000",
+        client_id="550e8400-e29b-41d4-a716-446655440000",
         role="analyst",
         schema_snapshot=mock_schema_snapshot,
         role_config=mock_role_config,
@@ -292,7 +292,7 @@ def test_context_invalid_missing_question(mock_schema_snapshot, mock_role_config
     """Test context validation fails without question."""
     context = TextToSqlPromptContext(
         question="",
-        tenant_id="550e8400-e29b-41d4-a716-446655440000",
+        client_id="550e8400-e29b-41d4-a716-446655440000",
         role="analyst",
         schema_snapshot=mock_schema_snapshot,
         role_config=mock_role_config,
@@ -305,7 +305,7 @@ def test_context_invalid_missing_schema(mock_role_config):
     """Test context validation fails without schema."""
     context = TextToSqlPromptContext(
         question="Test question",
-        tenant_id="550e8400-e29b-41d4-a716-446655440000",
+        client_id="550e8400-e29b-41d4-a716-446655440000",
         role="analyst",
         schema_snapshot=None,
         role_config=mock_role_config,
@@ -323,7 +323,7 @@ def test_build_complete_prompt(prompt_builder, mock_schema_snapshot, mock_role_c
     """Test building a complete prompt."""
     context = TextToSqlPromptContext(
         question="How many customers do we have?",
-        tenant_id="550e8400-e29b-41d4-a716-446655440000",
+        client_id="550e8400-e29b-41d4-a716-446655440000",
         role="analyst",
         schema_snapshot=mock_schema_snapshot,
         role_config=mock_role_config,
@@ -345,7 +345,7 @@ def test_build_with_optional_constraints(prompt_builder, mock_schema_snapshot, m
     """Test building prompt with optional constraints."""
     context = TextToSqlPromptContext(
         question="Sales in the last 30 days",
-        tenant_id="550e8400-e29b-41d4-a716-446655440000",
+        client_id="550e8400-e29b-41d4-a716-446655440000",
         role="analyst",
         schema_snapshot=mock_schema_snapshot,
         role_config=mock_role_config,
@@ -362,7 +362,7 @@ def test_build_invalid_context_raises(prompt_builder, mock_role_config):
     """Test that build() raises on invalid context."""
     context = TextToSqlPromptContext(
         question="",  # Invalid: empty question
-        tenant_id="550e8400-e29b-41d4-a716-446655440000",
+        client_id="550e8400-e29b-41d4-a716-446655440000",
         role="analyst",
         schema_snapshot=None,  # Invalid: no schema
         role_config=mock_role_config,
@@ -381,7 +381,7 @@ def test_build_from_parts(prompt_builder, mock_schema_snapshot, mock_role_config
     """Test convenience method build_from_parts."""
     prompt = prompt_builder.build_from_parts(
         question="Top 5 customers by revenue",
-        tenant_id="550e8400-e29b-41d4-a716-446655440000",
+        client_id="550e8400-e29b-41d4-a716-446655440000",
         role="analyst",
         schema_snapshot=mock_schema_snapshot,
         role_config=mock_role_config,
@@ -395,7 +395,7 @@ def test_build_from_parts_with_constraints(prompt_builder, mock_schema_snapshot,
     """Test build_from_parts with optional constraints."""
     prompt = prompt_builder.build_from_parts(
         question="Q4 sales",
-        tenant_id="550e8400-e29b-41d4-a716-446655440000",
+        client_id="550e8400-e29b-41d4-a716-446655440000",
         role="analyst",
         schema_snapshot=mock_schema_snapshot,
         role_config=mock_role_config,
@@ -461,7 +461,7 @@ def test_build_with_very_long_question(prompt_builder, mock_schema_snapshot, moc
 
     context = TextToSqlPromptContext(
         question=long_question,
-        tenant_id="550e8400-e29b-41d4-a716-446655440000",
+        client_id="550e8400-e29b-41d4-a716-446655440000",
         role="analyst",
         schema_snapshot=mock_schema_snapshot,
         role_config=mock_role_config,
@@ -479,7 +479,7 @@ def test_build_with_special_characters_in_question(prompt_builder, mock_schema_s
 
     context = TextToSqlPromptContext(
         question=special_question,
-        tenant_id="550e8400-e29b-41d4-a716-446655440000",
+        client_id="550e8400-e29b-41d4-a716-446655440000",
         role="analyst",
         schema_snapshot=mock_schema_snapshot,
         role_config=mock_role_config,
@@ -502,7 +502,7 @@ def test_build_logs_telemetry(prompt_builder, mock_schema_snapshot, mock_role_co
 
     context = TextToSqlPromptContext(
         question="Test question",
-        tenant_id="550e8400-e29b-41d4-a716-446655440000",
+        client_id="550e8400-e29b-41d4-a716-446655440000",
         role="analyst",
         schema_snapshot=mock_schema_snapshot,
         role_config=mock_role_config,

@@ -11,13 +11,9 @@ from analytics_api.core.config import settings
 # Configuração de observabilidade
 from vizu_observability_bootstrap import setup_telemetry, setup_structured_logging
 
-# Configuração básica de logging
+# Configuração de logging (INFO level - structured logging handles this)
 setup_structured_logging()
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-# LOG PARA VERIFICAR A URL DO BANCO
-logger.info(f"DATABASE_URL em uso: {settings.DATABASE_URL}")
 
 # --- Criação da Instância FastAPI ---
 # Esta é a variável 'app' que o Uvicorn procura
@@ -62,17 +58,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-logger.info(f"Middleware CORS configurado para permitir origens: {origins}")
+logger.debug(f"CORS origins configured: {origins}")
 
 # Rota de Health Check
 @app.get("/health", tags=["Infra"])
 def health_check():
     """Verifica se a API está operacional."""
-    logger.info("Health check solicitado.")
     return {"status": "ok", "service": "analytics-api", "auth": "jwt/header/query_param"}
 
-# Inclui todas as rotas (Home, Rankings, Detalhe) com prefixo /api
-logger.info("Incluindo rotas da API com prefixo /api")
+# Inclui todas as rotas com prefixo /api
 app.include_router(api_router, prefix="/api")
 
 # Bloco para permitir execução direta com 'python src/analytics_api/main.py' (embora usemos Uvicorn)

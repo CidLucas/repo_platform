@@ -4,7 +4,7 @@ Text-to-SQL Prompt Builder
 Assembles complete prompts for LLM-based SQL generation, incorporating:
 - Schema snapshots (allowed views/columns per role)
 - Allowlist constraints (aggregates, limits, join paths)
-- User context (tenant_id, role, optional constraints)
+    - User context (client_id, role, optional constraints)
 - Exemplars (learn-from examples)
 - Safety instructions
 
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class TextToSqlPromptContext:
     """Context for building a text-to-SQL prompt."""
     question: str  # User's natural language question
-    tenant_id: str  # Tenant identifier
+    client_id: str  # Client identifier
     role: str  # User role (viewer, analyst, admin)
     schema_snapshot: SchemaSnapshot  # Schema with role-based filtering
     role_config: RoleConfig  # Allowlist config for this role
@@ -37,7 +37,7 @@ class TextToSqlPromptContext:
         """Validate context has all required fields."""
         return all([
             self.question,
-            self.tenant_id,
+            self.client_id,
             self.role,
             self.schema_snapshot,
             self.role_config,
@@ -70,7 +70,7 @@ class TextToSqlPromptBuilder:
         "MAX_EXECUTION_TIME_SECONDS": "<MAX_EXECUTION_TIME_SECONDS>",
         "DATE_RANGE_CONSTRAINTS": "<DATE_RANGE_CONSTRAINTS>",
         "MANDATORY_FILTERS": "<MANDATORY_FILTERS>",
-        "TENANT_ID": "<TENANT_ID>",
+        "CLIENT_ID": "<CLIENT_ID>",
     }
 
     def __init__(self, template_path: Path | None = None):
@@ -168,9 +168,9 @@ class TextToSqlPromptBuilder:
 
         return "\n".join(constraints)
 
-    def _format_mandatory_filters(self, tenant_id: str) -> str:
+    def _format_mandatory_filters(self, client_id: str) -> str:
         """Format mandatory filters (always client_id)."""
-        return f"- `client_id = '{tenant_id}'` (required for all queries - multi-tenant isolation)"
+        return f"- `client_id = '{client_id}'` (required for all queries - multi-client isolation)"
 
     def _substitute_template(self, template: str, context: TextToSqlPromptContext) -> str:
         """Substitute all template variables."""
@@ -186,8 +186,8 @@ class TextToSqlPromptBuilder:
                 context.role_config,
                 context.optional_constraints
             ),
-            self.TEMPLATE_VARS["MANDATORY_FILTERS"]: self._format_mandatory_filters(context.tenant_id),
-            self.TEMPLATE_VARS["TENANT_ID"]: context.tenant_id,
+            self.TEMPLATE_VARS["MANDATORY_FILTERS"]: self._format_mandatory_filters(context.client_id),
+            self.TEMPLATE_VARS["CLIENT_ID"]: context.client_id,
         }
 
         result = template
@@ -201,7 +201,7 @@ class TextToSqlPromptBuilder:
         Build complete prompt for text-to-SQL generation.
 
         Args:
-            context: TextToSqlPromptContext with question, tenant_id, role, schema, etc.
+            context: TextToSqlPromptContext with question, client_id, role, schema, etc.
 
         Returns:
             Complete prompt ready for LLM consumption.
@@ -217,7 +217,7 @@ class TextToSqlPromptBuilder:
         logger.info(
             f"[prompt_builder] Building prompt: "
             f"question='{context.question[:50]}...', "
-            f"tenant={context.tenant_id}, role={context.role}"
+            f"client={context.client_id}, role={context.role}"
         )
 
         try:
@@ -240,7 +240,7 @@ class TextToSqlPromptBuilder:
     def build_from_parts(
         self,
         question: str,
-        tenant_id: str,
+        client_id: str,
         role: str,
         schema_snapshot: SchemaSnapshot,
         role_config: RoleConfig,
@@ -253,7 +253,7 @@ class TextToSqlPromptBuilder:
 
         Args:
             question: User's natural language question
-            tenant_id: Tenant identifier
+            client_id: Client identifier
             role: User role
             schema_snapshot: Schema with allowed views/columns
             role_config: Role-specific constraints
@@ -264,7 +264,7 @@ class TextToSqlPromptBuilder:
         """
         context = TextToSqlPromptContext(
             question=question,
-            tenant_id=tenant_id,
+            client_id=client_id,
             role=role,
             schema_snapshot=schema_snapshot,
             role_config=role_config,

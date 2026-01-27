@@ -19,7 +19,7 @@ class ValidationLogEntry:
     """Structured log entry for SQL validation."""
 
     timestamp: str
-    tenant_id: str
+    client_id: str
     user_id: str | None
     role: str | None
     question_hash: str
@@ -65,7 +65,7 @@ class SqlValidationObserver:
 
     def log_validation(
         self,
-        tenant_id: str,
+        client_id: str,
         original_sql: str,
         validation_result: dict[str, Any],
         question_hash: str,
@@ -77,7 +77,7 @@ class SqlValidationObserver:
         Log a validation decision.
 
         Args:
-            tenant_id: Tenant ID
+            client_id: Client ID
             original_sql: Original SQL query
             validation_result: ValidationResult dict from SqlValidator
             question_hash: Hash of original question
@@ -96,7 +96,7 @@ class SqlValidationObserver:
 
         entry = ValidationLogEntry(
             timestamp=datetime.utcnow().isoformat(),
-            tenant_id=tenant_id,
+            client_id=client_id,
             user_id=user_id,
             role=role,
             question_hash=question_hash,
@@ -116,10 +116,10 @@ class SqlValidationObserver:
 
         # Log at appropriate level
         if is_valid:
-            self.logger.info(f"Validation PASS: tenant={tenant_id}, checks_passed={len(checks_passed)}")
+            self.logger.info(f"Validation PASS: client={client_id}, checks_passed={len(checks_passed)}")
         else:
             self.logger.warning(
-                f"Validation FAIL: tenant={tenant_id}, errors={len(errors)}, "
+                f"Validation FAIL: client={client_id}, errors={len(errors)}, "
                 f"summary={entry.error_summary}"
             )
 

@@ -42,7 +42,7 @@ class PostgRESTQueryExecutor:
     Features:
     - User JWT authentication (RLS enforcement)
     - Pagination support (limit, offset)
-    - Configurable row limits per tenant/role
+    - Configurable row limits per client/role
     - Retry logic with exponential backoff
     - Query timeout enforcement
     - Column filtering (select specific columns)
@@ -248,13 +248,13 @@ class PostgRESTQueryExecutor:
         user_jwt: str | None = None,
     ) -> QueryResult:
         """
-        Execute query with auth context (tenant/role).
+        Execute query with auth context (client/role).
 
-        Automatically filters by tenant_id and enforces role-based limits.
+        Automatically filters by client_id and enforces role-based limits.
 
         Args:
             view_name: View to query.
-            auth_context: AuthContext with tenant_id and role.
+            auth_context: AuthContext with client_id and role.
             filters: Additional filters.
             columns: Columns to select.
             limit: Max rows (will be capped based on role).
@@ -264,17 +264,17 @@ class PostgRESTQueryExecutor:
         Returns:
             QueryResult.
         """
-        # Add tenant_id to filters
+        # Add client_id to filters
         if filters is None:
             filters = {}
-        filters["client_id"] = auth_context.tenant_id
+        filters["client_id"] = auth_context.client_id
 
         # Cap limit based on role (stub; would come from allowlist)
         role_max_rows = 10000  # Default; in Phase 1, get from AllowlistConfig
         limit = min(limit or role_max_rows, role_max_rows)
 
         logger.info(
-            f"Query with context: tenant={auth_context.tenant_id}, "
+            f"Query with context: client={auth_context.client_id}, "
             f"role={auth_context.role}, limit={limit}"
         )
 

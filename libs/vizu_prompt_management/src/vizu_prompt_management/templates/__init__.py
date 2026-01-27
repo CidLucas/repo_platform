@@ -40,7 +40,7 @@ TEXT_TO_SQL_TEMPLATE = PromptTemplateConfig(
 
 ### Core Constraints
 
-1. **Multi-Tenant Isolation**: NEVER query across client boundaries. Always include `client_id = '<TENANT_ID>'` filter.
+1. **Multi-Tenant Isolation**: NEVER query across client boundaries. Always include `client_id = '<CLIENT_ID>'` filter.
 2. **Role-Based Access**: Only query views and columns allowed for the user's role.
 3. **Aggregate Whitelisting**: Only use COUNT, SUM, AVG, MIN, MAX - no other functions.
 4. **LIMIT Enforcement**: Always include a LIMIT clause (max: <MAX_ROWS_LIMIT>).
@@ -69,7 +69,7 @@ Translate this question to PostgreSQL: <QUESTION>
 Return ONLY valid PostgreSQL SQL. No explanations, no markdown, no caveats.
 """,
     required_variables=[
-        "TENANT_ID",
+        "CLIENT_ID",
         "ROLE",
         "SCHEMA_SNAPSHOT",
         "ALLOWED_VIEWS",

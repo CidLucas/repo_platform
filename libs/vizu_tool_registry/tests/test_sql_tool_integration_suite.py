@@ -38,7 +38,7 @@ class TestSQLToolSchema:
         assert input_schema["type"] == "object"
         assert "properties" in input_schema
         assert "required" in input_schema
-        assert set(input_schema["required"]) == {"question", "tenant_id", "role"}
+            assert set(input_schema["required"]) == {"question", "client_id", "role"}
 
         # Validate output schema structure
         output_schema = schema["outputSchema"]
@@ -75,7 +75,7 @@ class TestSQLToolInput:
         """Valid input parameters."""
         input_params = SQLToolInput(
             question="How many orders?",
-            tenant_id="tenant-123",
+                client_id="tenant-123",
             role="analyst",
         )
         assert input_params.validate()
@@ -84,16 +84,16 @@ class TestSQLToolInput:
         """Input missing question."""
         input_params = SQLToolInput(
             question="",
-            tenant_id="tenant-123",
+                client_id="tenant-123",
             role="analyst",
         )
         assert not input_params.validate()
 
-    def test_invalid_input_missing_tenant_id(self):
-        """Input missing tenant_id."""
+    def test_invalid_input_missing_client_id(self):
+        """Input missing client_id."""
         input_params = SQLToolInput(
             question="How many orders?",
-            tenant_id="",
+                client_id="",
             role="analyst",
         )
         assert not input_params.validate()
@@ -102,7 +102,7 @@ class TestSQLToolInput:
         """Input missing role."""
         input_params = SQLToolInput(
             question="How many orders?",
-            tenant_id="tenant-123",
+                client_id="tenant-123",
             role="",
         )
         assert not input_params.validate()
@@ -216,7 +216,7 @@ class TestSQLToolInvocation:
         """Tool invocation returns structured output."""
         mock_output = QueryDatabaseTextToSQL.create_mock_output(
             question="How many orders?",
-            tenant_id="tenant-123",
+                client_id="tenant-123",
             success=True,
             rows=[{"count": 42}],
         )
@@ -231,7 +231,7 @@ class TestSQLToolInvocation:
         """Tool output can be serialized to dict."""
         mock_output = QueryDatabaseTextToSQL.create_mock_output(
             question="How many orders?",
-            tenant_id="tenant-123",
+                client_id="tenant-123",
             success=True,
             rows=[{"count": 42}],
         )

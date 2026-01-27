@@ -629,6 +629,84 @@ class SupabaseCRUD:
             logger.error(f"Error revoking integration: {e}")
             return False
 
+    # ========================================================================
+    # PROMPT TEMPLATE OPERATIONS
+    # ========================================================================
+
+    def get_prompt_template(
+        self,
+        name: str,
+        client_id: UUID | None = None,
+        version: int | None = None,
+    ) -> dict[str, Any] | None:
+        """
+        Get a prompt template by name.
+
+        Priority:
+        1. Client-specific prompt (if client_id provided)
+        2. Global prompt (client_id = NULL)
+
+        Args:
+            name: Prompt name (e.g., 'atendente/system')
+            client_id: Optional client UUID for client-specific override
+            version: Optional specific version (None = latest)
+
+        Returns:
+            Prompt template dict or None if not found
+        """
+        try:
+            # Try client-specific prompt first
+            if client_id:
+                query = (
+                    self.client
+                    .table("prompt_template")
+                    .select("*")
+                    .eq("name", name)
+                    .eq("client_id", str(client_id))
+                    .eq("is_active", True)
+                )
+
+                if version:
+                    query = query.eq("version", version)
+                else:
+                    query = query.order("version", desc=True)
+
+                response = query.limit(1).execute()
+
+                if response.data and len(response.data) > 0:
+                    logger.debug(
+                        f"Prompt '{name}' v{response.data[0].get('version')} "
+                        f"found for client {client_id}"
+                    )
+                    return response.data[0]
+
+            # Fallback: global prompt (client_id is NULL)
+            query = (
+                self.client
+                .table("prompt_template")
+                .select("*")
+                .eq("name", name)
+                .is_("client_id", "null")
+                .eq("is_active", True)
+            )
+
+            if version:
+                query = query.eq("version", version)
+            else:
+                query = query.order("version", desc=True)
+
+            response = query.limit(1).execute()
+
+            if response.data and len(response.data) > 0:
+                logger.debug(f"Global prompt '{name}' v{response.data[0].get('version')} found")
+                return response.data[0]
+
+            return None
+
+        except Exception as e:
+            logger.warning(f"Error fetching prompt template '{name}': {e}")
+            return None
+
 
 # ============================================================================
 # CONVENIENCE FUNCTIONS (backwards compatibility with old crud.py)

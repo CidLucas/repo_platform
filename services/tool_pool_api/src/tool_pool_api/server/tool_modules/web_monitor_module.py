@@ -74,24 +74,67 @@ def register_tools(mcp: FastMCP) -> list[str]:
     mcp.tool(
         name="monitor_feature",
         description=(
-            "Monitor feature/flagship pages for a domain using semantic crawl4ai search. "
-            "Params: domain, query"
+            """
+**Purpose:** Monitor specific feature or flagship pages on a website using semantic search.
+
+**When to use this tool:**
+- User wants to track specific pages or features on a competitor's website
+- User asks "what features does [website] have?"
+- User wants to monitor changes to specific pages over time
+- Business intelligence/competitive analysis requests
+
+**Input format:**
+- domain: (string) The website domain to monitor (e.g., "example.com")
+- query: (string) Semantic search query describing the feature or page
+
+**Examples:**
+- "monitor pricing page on stripe.com"
+- "what new features has github.com launched recently?"
+- "track the careers page on google.com"""
         ),
     )(monitor_feature)
 
     mcp.tool(
         name="monitor_keywords",
         description=(
-            "Search a domain for the supplied keywords or phrases. "
-            "Params: domain, keywords (list of strings)"
+            """**Purpose:** Search a website for specific keywords or phrases.
+
+**When to use this tool:**
+- User wants to check if a website mentions certain keywords
+- Content auditing or keyword presence checking
+- Competitive keyword research
+- Brand mention tracking on specific sites
+
+**Input format:**
+- domain: (string) Website domain to search
+- keywords: (list of strings) Keywords to search for
+
+**Examples:**
+- "check if apple.com mentions 'privacy' and 'security'"
+- "search for 'AI' and 'machine learning' on openai.com"
+- "see if amazon.com mentions 'same-day delivery"""
         ),
     )(monitor_keywords)
 
     mcp.tool(
         name="monitor_company",
         description=(
-            "Track brand/company mentions across domains. "
-            "Params: company, domains (optional list; defaults to the provided company domain)"
+            """**Purpose:** Track brand/company mentions across multiple websites.
+
+**When to use this tool:**
+- User wants to monitor brand reputation
+- Track company mentions across the web
+- Competitive intelligence for specific companies
+- News/media monitoring for brands
+
+**Input format:**
+- company: (string) Company name to track
+- domains: (optional list of strings) Specific domains to monitor (defaults to company's domain)
+
+**Examples:**
+- "monitor mentions of Tesla across automotive websites"
+- "track OpenAI mentions on tech blogs"
+- "monitor Starbucks brand mentions"""
         ),
     )(monitor_company)
 

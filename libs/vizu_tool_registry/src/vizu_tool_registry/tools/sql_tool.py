@@ -53,14 +53,14 @@ class SQLToolError(Enum):
 class SQLToolInput:
     """Input parameters for the SQL tool."""
     question: str  # Natural language question
-    tenant_id: str  # Tenant identifier (from JWT context)
+    client_id: str  # Client identifier (from JWT context)
     role: str  # User role (from JWT context)
     optional_constraints: dict[str, Any] | None = None  # e.g., {"date_range": "last_30_days", "max_rows": 100}
     user_jwt: str | None = None  # User JWT token for RLS enforcement
 
     def validate(self) -> bool:
         """Validate input parameters."""
-        return bool(self.question and self.tenant_id and self.role)
+        return bool(self.question and self.client_id and self.role)
 
 
 @dataclass
@@ -127,10 +127,10 @@ class QueryDatabaseTextToSQL:
                 "minLength": 5,
                 "maxLength": 500,
             },
-            "tenant_id": {
+            "client_id": {
                 "type": "string",
-                "description": "Tenant/organization identifier. Extracted from JWT context at runtime. "
-                "Used to enforce multi-tenant isolation.",
+                "description": "Client/organization identifier. Extracted from JWT context at runtime. "
+                "Used to enforce multi-client isolation.",
                 "format": "uuid",
             },
             "role": {
@@ -159,7 +159,7 @@ class QueryDatabaseTextToSQL:
                 },
             },
         },
-        "required": ["question", "tenant_id", "role"],
+        "required": ["question", "client_id", "role"],
     }
 
     # Tool schema (output)
@@ -192,7 +192,7 @@ class QueryDatabaseTextToSQL:
             },
             "caveats": {
                 "type": "array",
-                "description": "Execution notes (e.g., 'Result limited to 100 rows', 'Cross-tenant queries blocked').",
+                "description": "Execution notes (e.g., 'Result limited to 100 rows', 'Cross-client queries blocked').",
                 "items": {"type": "string"},
             },
             "error": {
@@ -329,7 +329,7 @@ class QueryDatabaseTextToSQL:
         6. Return SQLToolOutput
 
         Args:
-            input_params: SQLToolInput with question, tenant_id, role.
+            input_params: SQLToolInput with question, client_id, role.
 
         Returns:
             SQLToolOutput with results or error.
@@ -357,7 +357,7 @@ class QueryDatabaseTextToSQL:
                     caveats=["Input validation failed"],
                     error={
                         "code": SQLToolError.LLM_UNABLE.value,
-                        "message": "Invalid input parameters: missing question, tenant_id, or role",
+                            "message": "Invalid input parameters: missing question, client_id, or role",
                         "suggestion": "Provide all required parameters",
                     },
                     telemetry_id=telemetry_id,
@@ -366,7 +366,7 @@ class QueryDatabaseTextToSQL:
 
             logger.info(
                 f"[sql_tool] Invoked: question='{input_params.question[:50]}...', "
-                f"tenant={input_params.tenant_id}, role={input_params.role}, "
+                f"client={input_params.client_id}, role={input_params.role}, "
                 f"telemetry_id={telemetry_id}"
             )
 
@@ -375,7 +375,7 @@ class QueryDatabaseTextToSQL:
                 llm = get_model(
                     tier=ModelTier.DEFAULT,
                     task="text_to_sql",
-                    user_id=str(input_params.tenant_id),
+                    user_id=str(input_params.client_id),
                     tags=["tool_pool", "sql_tool", f"role_{input_params.role}"],
                 )
             except Exception as e:
@@ -391,7 +391,7 @@ class QueryDatabaseTextToSQL:
                 prompt = TextToSqlPrompt.build()
                 sql = llm.invoke(prompt.build_from_context(
                     question=input_params.question,
-                    tenant_id=input_params.tenant_id,
+                    client_id=input_params.client_id,
                     role=input_params.role,
                 ))
 
@@ -415,13 +415,13 @@ class QueryDatabaseTextToSQL:
             # 4. Set up execution config based on role
             role_config = self._get_role_config(input_params.role)
             config = ExecutionConfig(
-                tenant_id=input_params.tenant_id,
+                client_id=input_params.client_id,
                 allowed_views=role_config["allowed_views"],
                 allowed_columns=role_config["allowed_columns"],
                 max_rows=role_config["max_rows"],
                 mandatory_filters=["client_id"],
                 allow_rewrites=True,
-                tenant_column="client_id",
+                client_column="client_id",
             )
 
             # 5. Execute with validation, rewriting, and sanitization
@@ -592,7 +592,7 @@ class QueryDatabaseTextToSQL:
     @staticmethod
     def create_mock_output(
         question: str,
-        tenant_id: str,
+        client_id: str,
         success: bool = True,
         rows: list[dict] = None,
     ) -> SQLToolOutput:
@@ -601,7 +601,7 @@ class QueryDatabaseTextToSQL:
 
         Args:
             question: User question.
-            tenant_id: Tenant ID.
+            client_id: Client ID.
             success: Whether mock succeeded.
             rows: Mock rows to return.
 

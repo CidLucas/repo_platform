@@ -38,17 +38,25 @@ try:
 except ImportError:
     HAS_PROMPT_MANAGEMENT = False
 
-# PHASE 5: Prompt Management - importa models para busca de prompts
-from sqlmodel import select
-
-from vizu_db_connector.database import SessionLocal
-from vizu_models import PromptTemplate
+# PHASE 5: Prompt Management - use Supabase SDK
+from vizu_supabase_client import SupabaseCRUD
 
 logger = logging.getLogger(__name__)
 
+# Singleton for prompt queries
+_supabase_crud: SupabaseCRUD | None = None
+
+
+def _get_supabase_crud() -> SupabaseCRUD:
+    """Get singleton SupabaseCRUD instance."""
+    global _supabase_crud
+    if _supabase_crud is None:
+        _supabase_crud = SupabaseCRUD()
+    return _supabase_crud
+
 
 # ============================================================================
-# PHASE 5: PROMPT MANAGEMENT - Versioned prompts from database
+# PHASE 5: PROMPT MANAGEMENT - Versioned prompts from database (Supabase)
 # ============================================================================
 
 
@@ -56,7 +64,7 @@ def get_prompt_from_db(
     name: str, cliente_id: UUID | None = None, version: int | None = None
 ) -> str | None:
     """
-    Busca um prompt template do banco de dados.
+    Busca um prompt template do banco de dados via Supabase SDK.
 
     Prioridade:
     1. Prompt específico do cliente (se cliente_id fornecido)
@@ -71,51 +79,21 @@ def get_prompt_from_db(
         Conteúdo do prompt ou None se não encontrado
     """
     try:
-        db = SessionLocal()
-        try:
-            # Tenta buscar prompt específico do cliente primeiro
-            if cliente_id:
-                query = select(PromptTemplate).where(
-                    PromptTemplate.name == name,
-                    PromptTemplate.client_id == cliente_id,
-                    PromptTemplate.is_active == True,
-                )
+        crud = _get_supabase_crud()
+        result = crud.get_prompt_template(
+            name=name,
+            client_id=cliente_id,
+            version=version,
+        )
 
-                if version:
-                    query = query.where(PromptTemplate.version == version)
-                else:
-                    query = query.order_by(PromptTemplate.version.desc())
+        if result:
+            return result.get("content")
 
-                result = db.execute(query).scalars().first()
-                if result:
-                    logger.debug(
-                        f"Prompt '{name}' v{result.version} encontrado para cliente {cliente_id}"
-                    )
-                    return result.content
-
-            # Fallback: busca prompt global
-            query = select(PromptTemplate).where(
-                PromptTemplate.name == name,
-                PromptTemplate.client_id == None,
-                PromptTemplate.is_active == True,
-            )
-
-            if version:
-                query = query.where(PromptTemplate.version == version)
-            else:
-                query = query.order_by(PromptTemplate.version.desc())
-
-            result = db.execute(query).scalars().first()
-            if result:
-                logger.debug(f"Prompt global '{name}' v{result.version} encontrado")
-                return result.content
-        finally:
-            db.close()
+        return None
 
     except Exception as e:
         logger.warning(f"Erro ao buscar prompt do DB: {e}")
-
-    return None
+        return None
 
 
 # ============================================================================
@@ -202,6 +180,60 @@ def filter_tools_for_client(
     return filtered
 
 
+def _filter_prompt_tools(prompt_base: str, available_tool_names: set[str]) -> str:
+    """
+    Filter tool references in prompt_base to only include enabled tools.
+
+    This prevents the LLM from trying to use tools that are mentioned in the
+    prompt but not actually available/enabled for the client.
+
+    Args:
+        prompt_base: The client's custom prompt
+        available_tool_names: Set of tool names actually available
+
+    Returns:
+        Filtered prompt with unavailable tool sections removed/noted
+    """
+    if not prompt_base:
+        return ""
+
+    # Deprecated tools that should always be removed from prompts
+    deprecated_tools = {"query_database_text_to_sql"}
+
+    # Active SQL tool
+    sql_tools = {"executar_sql_agent"}
+
+    # Always remove deprecated tool references
+    lines = prompt_base.split('\n')
+    filtered_lines = []
+    skip_until_next_section = False
+
+    for line in lines:
+        # Always skip lines mentioning deprecated tools
+        if any(tool in line for tool in deprecated_tools):
+            skip_until_next_section = True
+            continue
+
+        # Skip SQL tool lines if not enabled
+        if any(tool in line for tool in sql_tools) and not (sql_tools & available_tool_names):
+            skip_until_next_section = True
+            continue
+
+        # Reset skip flag on new section headers
+        if line.strip().startswith('###') or line.strip().startswith('##'):
+            skip_until_next_section = False
+
+        if not skip_until_next_section:
+            filtered_lines.append(line)
+
+    result = '\n'.join(filtered_lines)
+
+    if result != prompt_base:
+        logger.info("Filtered unavailable/deprecated tools from prompt_base")
+
+    return result
+
+
 def build_dynamic_system_prompt(
     safe_context: SafeClientContext | None,
     available_tools: list[BaseTool],
@@ -214,6 +246,7 @@ def build_dynamic_system_prompt(
     - Uses vizu_prompt_management when available
     - Falls back to database lookup via get_prompt_from_db
     - Falls back to hardcoded template if nothing found
+    - Filters prompt_base to only mention actually available tools
 
     Args:
         safe_context: Contexto seguro do cliente
@@ -224,6 +257,7 @@ def build_dynamic_system_prompt(
         System prompt personalizado
     """
     nome_empresa = safe_context.nome_empresa if safe_context else "Vizu"
+    available_tool_names = {t.name for t in available_tools} if available_tools else set()
 
     # Build variables for template rendering
     tools_list = (
@@ -238,7 +272,9 @@ def build_dynamic_system_prompt(
                 f"- {dia}: {h}" for dia, h in horarios.items()
             )
 
-    prompt_base = safe_context.prompt_base if safe_context else ""
+    # Filter prompt_base to only reference enabled tools
+    raw_prompt_base = safe_context.prompt_base if safe_context else ""
+    prompt_base = _filter_prompt_tools(raw_prompt_base, available_tool_names)
 
     variables = {
         "nome_empresa": nome_empresa,
@@ -441,7 +477,12 @@ def supervisor_node(state: AgentState) -> dict:
     logger.debug(f"System prompt gerado ({len(system_prompt)} chars)")
 
     # Constrói a lista de mensagens com o System Message no início
-    messages = [SystemMessage(content=system_prompt)] + state["messages"]
+    # Limita a janela de histórico enviada ao LLM para evitar que o state
+    # cresça indefinidamente (reduzindo o tamanho dos spans/trace exports).
+    history_window = getattr(get_settings(), "SESSION_HISTORY_WINDOW", 6)
+    past_messages = state.get("messages", []) or []
+    recent_msgs = past_messages[-history_window:]
+    messages = [SystemMessage(content=system_prompt)] + recent_msgs
 
     # 5. Bind das Tools filtradas no Modelo
     llm = get_llm(model_override=model_override)
@@ -530,9 +571,56 @@ async def execute_tools_node(state: AgentState) -> dict:
                 )
                 args_to_pass.pop("cliente_id")
 
-            # Injeta cliente_id validado
-            if cliente_id:
+            # Check if tool accepts cliente_id parameter before injecting
+            # Known tools that accept cliente_id (MCP middleware-wrapped tools
+            # don't always expose this in their schema, so we maintain a list)
+            TOOLS_ACCEPTING_CLIENTE_ID = {
+                "executar_sql_agent",
+                "executar_rag_cliente",
+                "list_google_accounts_wrapper",
+                "write_to_sheet_wrapper",
+                "read_emails_wrapper",
+                "query_calendar_wrapper",
+            }
+
+            tool_accepts_cliente_id = tool_name in TOOLS_ACCEPTING_CLIENTE_ID
+            tool_accepts_user_jwt = False
+
+            # Also try schema detection as fallback
+            if not tool_accepts_cliente_id:
+                try:
+                    # LangChain tools have args_schema or get_input_schema()
+                    if hasattr(tool, "args_schema") and tool.args_schema:
+                        schema_fields = tool.args_schema.model_fields if hasattr(tool.args_schema, "model_fields") else {}
+                        tool_accepts_cliente_id = "cliente_id" in schema_fields
+                    elif hasattr(tool, "get_input_schema"):
+                        schema = tool.get_input_schema()
+                        if hasattr(schema, "model_fields"):
+                            tool_accepts_cliente_id = "cliente_id" in schema.model_fields
+                        elif hasattr(schema, "schema"):
+                            props = schema.schema().get("properties", {})
+                            tool_accepts_cliente_id = "cliente_id" in props
+                            tool_accepts_user_jwt = "user_jwt" in props
+                except Exception:
+                    # If we can't determine, don't inject to avoid errors
+                    pass
+
+            # Injeta cliente_id validado only if tool accepts it
+            if cliente_id and tool_accepts_cliente_id:
                 args_to_pass["cliente_id"] = cliente_id
+                logger.debug(f"Injected cliente_id into '{tool_name}'")
+            elif cliente_id and not tool_accepts_cliente_id:
+                logger.debug(f"Tool '{tool_name}' does not accept cliente_id - not injecting")
+
+            # Inject user JWT to tools that accept it (so server-side helpers
+            # like load_context_from_token can work when tools support user_jwt)
+            user_jwt = state.get("user_jwt") if state else None
+            if user_jwt and tool_accepts_user_jwt:
+                args_to_pass["user_jwt"] = user_jwt
+
+            # NOTE: removed forced fallback injection for RAG tools to avoid
+            # silently overriding tool auth flows. Tools should rely on explicit
+            # `cliente_id` injection or token-based auth via `user_jwt`.
 
             # Injeta elicitation response se aplicável
             if (

@@ -55,11 +55,12 @@ class InternalClientContext(BaseModel):
     (autenticação, injeção de cliente_id em tools, etc.)
 
     NUNCA deve ser exposto à LLM ou incluído em prompts.
+
+    Authentication: JWT-only (Supabase) - api_key is deprecated.
     """
 
     # Identificadores internos
     id: uuid.UUID
-    api_key: str
 
     # Contexto seguro (pode ser extraído para a LLM)
     safe_context: SafeClientContext
@@ -73,6 +74,8 @@ class InternalClientContext(BaseModel):
         PHASE 1: Uses enabled_tools list as the single source of truth.
         No more boolean flags for individual tools - all tools are managed
         through the enabled_tools list.
+
+        Authentication: JWT-only - api_key no longer required.
         """
         # Get enabled tools - this is the authoritative field
         enabled_tools = []
@@ -96,7 +99,6 @@ class InternalClientContext(BaseModel):
         )
         return cls(
             id=ctx.id,
-            api_key=ctx.api_key,
             safe_context=safe,
         )
 

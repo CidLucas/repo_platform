@@ -77,7 +77,7 @@ class SqlValidator:
     def validate(
         self,
         sql: str,
-        tenant_id: str,
+        client_id: str,
         allowed_views: list[str],
         allowed_columns: dict[str, list[str]],
         max_rows: int = 100,
@@ -91,7 +91,7 @@ class SqlValidator:
 
         Args:
             sql: SQL query to validate
-            tenant_id: Tenant ID for mandatory filter check
+            client_id: Client ID for mandatory filter check
             allowed_views: List of allowed view names
             allowed_columns: Dict mapping view names to allowed columns
             max_rows: Maximum rows allowed (default 100)
@@ -163,8 +163,8 @@ class SqlValidator:
             result.is_valid = False
             return result
 
-        # Check: Mandatory filters (tenant_id)
-        if self._check_mandatory_filters(ast, tenant_id, mandatory_filters, result):
+        # Check: Mandatory filters (client_id)
+        if self._check_mandatory_filters(ast, client_id, mandatory_filters, result):
             result.add_check_passed("mandatory_filters")
         else:
             if not allow_rewrites:
@@ -296,7 +296,7 @@ class SqlValidator:
 
         return True
 
-    def _check_mandatory_filters(self, ast, tenant_id: str, mandatory_filters: list[str], result: ValidationResult) -> bool:
+    def _check_mandatory_filters(self, ast, client_id: str, mandatory_filters: list[str], result: ValidationResult) -> bool:
         """Check query includes mandatory filters (e.g., client_id = '...')"""
         predicates = self.parser.extract_where_predicates(ast)
 

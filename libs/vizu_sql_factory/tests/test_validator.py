@@ -190,7 +190,7 @@ class TestSqlValidator:
         """Test validating simple SELECT."""
         result = validator_no_allowlist.validate(
             "SELECT id, name FROM customers LIMIT 100",
-            tenant_id="tenant1",
+                client_id="tenant1",
             role="analyst",
         )
         assert result.is_valid is True
@@ -200,7 +200,7 @@ class TestSqlValidator:
         """Test validation blocks INSERT."""
         result = validator_no_allowlist.validate(
             "INSERT INTO customers VALUES (1, 'test')",
-            tenant_id="tenant1",
+                client_id="tenant1",
             role="analyst",
         )
         assert result.is_valid is False
@@ -210,7 +210,7 @@ class TestSqlValidator:
         """Test validation blocks UPDATE."""
         result = validator_no_allowlist.validate(
             "UPDATE customers SET name = 'new' WHERE id = 1",
-            tenant_id="tenant1",
+                client_id="tenant1",
             role="analyst",
         )
         assert result.is_valid is False
@@ -220,7 +220,7 @@ class TestSqlValidator:
         """Test validation blocks DELETE."""
         result = validator_no_allowlist.validate(
             "DELETE FROM customers WHERE id = 1",
-            tenant_id="tenant1",
+                client_id="tenant1",
             role="analyst",
         )
         assert result.is_valid is False
@@ -229,7 +229,7 @@ class TestSqlValidator:
         """Test validation blocks DROP."""
         result = validator_no_allowlist.validate(
             "DROP TABLE customers",
-            tenant_id="tenant1",
+                client_id="tenant1",
             role="analyst",
         )
         assert result.is_valid is False
@@ -238,7 +238,7 @@ class TestSqlValidator:
         """Test validation warns about missing LIMIT."""
         result = validator_no_allowlist.validate(
             "SELECT * FROM customers",
-            tenant_id="tenant1",
+                client_id="tenant1",
             role="analyst",
         )
         assert result.is_valid is True  # Not blocking, just warning
@@ -249,7 +249,7 @@ class TestSqlValidator:
         """Test validation passes with LIMIT."""
         result = validator_no_allowlist.validate(
             "SELECT * FROM customers LIMIT 100",
-            tenant_id="tenant1",
+                client_id="tenant1",
             role="analyst",
         )
         assert "limit_present" in result.checks_passed
@@ -258,7 +258,7 @@ class TestSqlValidator:
         """Test validation blocks disallowed view."""
         result = validator_with_allowlist.validate(
             "SELECT * FROM admin_view LIMIT 100",
-            tenant_id="tenant1",
+                client_id="tenant1",
             role="analyst",
         )
         assert result.is_valid is False
@@ -268,7 +268,7 @@ class TestSqlValidator:
         """Test validation allows allowed view."""
         result = validator_with_allowlist.validate(
             "SELECT * FROM customers_view LIMIT 100",
-            tenant_id="tenant1",
+                client_id="tenant1",
             role="analyst",
         )
         assert "allowed_views" in result.checks_passed
@@ -277,7 +277,7 @@ class TestSqlValidator:
         """Test validation blocks disallowed aggregate."""
         result = validator_with_allowlist.validate(
             "SELECT STRING_AGG(name, ',') FROM customers_view LIMIT 100",
-            tenant_id="tenant1",
+                client_id="tenant1",
             role="analyst",
         )
         assert result.is_valid is False
@@ -287,7 +287,7 @@ class TestSqlValidator:
         """Test validation allows allowed aggregate."""
         result = validator_with_allowlist.validate(
             "SELECT COUNT(*) FROM customers_view LIMIT 100",
-            tenant_id="tenant1",
+                client_id="tenant1",
             role="analyst",
         )
         assert "allowed_aggregates" in result.checks_passed
@@ -359,7 +359,7 @@ class TestSqlValidator:
         original = "SELECT * FROM customers LIMIT 100"
         result = validator_no_allowlist.rewrite(
             original,
-            tenant_id="tenant1",
+            client_id="tenant1",
             role="analyst",
             max_rows=50,
         )
@@ -400,8 +400,8 @@ class TestSqlValidator:
         """Test validation result includes metadata."""
         result = validator_no_allowlist.validate(
             "SELECT * FROM customers LIMIT 100",
-            tenant_id="test_tenant",
+                client_id="test_tenant",
             role="analyst",
         )
-        assert result.metadata["tenant_id"] == "test_tenant"
+            assert result.metadata["client_id"] == "test_tenant"
         assert result.metadata["role"] == "analyst"

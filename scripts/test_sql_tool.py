@@ -35,7 +35,7 @@ class SQLToolTester:
             "simple_count": {
                 "description": "Simple aggregation (count)",
                 "question": "How many customers do we have?",
-                "tenant_id": "test-tenant-123",
+                "client_id": "test-tenant-123",
                 "role": "analyst",
                 "expected_success": True,
                 "expected_columns": ["count"],
@@ -43,7 +43,7 @@ class SQLToolTester:
             "with_filter": {
                 "description": "Query with date filter",
                 "question": "How many orders in the last 7 days?",
-                "tenant_id": "test-tenant-123",
+                "client_id": "test-tenant-123",
                 "role": "analyst",
                 "optional_constraints": {"date_range": "last_7_days"},
                 "expected_success": True,
@@ -52,7 +52,7 @@ class SQLToolTester:
             "join_query": {
                 "description": "Query with JOIN",
                 "question": "Show me top 5 customers by revenue",
-                "tenant_id": "test-tenant-123",
+                "client_id": "test-tenant-123",
                 "role": "analyst",
                 "expected_success": True,
                 "expected_columns": ["name", "revenue"],
@@ -60,7 +60,7 @@ class SQLToolTester:
             "validation_failure": {
                 "description": "Query that should fail validation",
                 "question": "Show me all data from the internal audit table",
-                "tenant_id": "test-tenant-123",
+                "client_id": "test-tenant-123",
                 "role": "viewer",
                 "expected_success": False,
                 "expected_error_code": "validation_failed",
@@ -68,7 +68,7 @@ class SQLToolTester:
             "viewer_role_limit": {
                 "description": "Viewer role with restricted access",
                 "question": "List all transactions",
-                "tenant_id": "test-tenant-123",
+                "client_id": "test-tenant-123",
                 "role": "viewer",
                 "expected_success": False,
                 "expected_error_code": "validation_failed",
@@ -78,7 +78,7 @@ class SQLToolTester:
     def run_single_test(
         self,
         question: str,
-        tenant_id: str,
+        client_id: str,
         role: str,
         optional_constraints: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -87,7 +87,7 @@ class SQLToolTester:
 
         Args:
             question: Natural language question
-            tenant_id: Tenant identifier
+            client_id: Client identifier
             role: User role
             optional_constraints: Optional query constraints
 
@@ -101,7 +101,7 @@ class SQLToolTester:
         tool = QueryDatabaseTextToSQL()
         input_params = SQLToolInput(
             question=question,
-            tenant_id=tenant_id,
+            client_id=client_id,
             role=role,
             optional_constraints=optional_constraints,
         )
@@ -202,7 +202,7 @@ class SQLToolTester:
 
             result = self.run_single_test(
                 question=test_config["question"],
-                tenant_id=test_config["tenant_id"],
+                client_id=test_config["client_id"],
                 role=test_config["role"],
                 optional_constraints=test_config.get("optional_constraints"),
             )
@@ -269,7 +269,7 @@ class SQLToolTester:
                     question = user_input[2:].strip()
                     result = self.run_single_test(
                         question=question,
-                        tenant_id="test-tenant-123",
+                        client_id="test-tenant-123",
                         role="analyst",
                     )
                     print("\nResult:")
@@ -300,9 +300,10 @@ def main():
         help="User role",
     )
     parser.add_argument(
-        "--tenant-id",
+        "--client-id",
+        dest="client_id",
         default="test-tenant-123",
-        help="Tenant identifier",
+        help="Client identifier",
     )
     parser.add_argument(
         "--interactive",
@@ -341,7 +342,7 @@ def main():
     elif args.question:
         result = tester.run_single_test(
             question=args.question,
-            tenant_id=args.tenant_id,
+            client_id=args.client_id,
             role=args.role,
         )
         if args.json:

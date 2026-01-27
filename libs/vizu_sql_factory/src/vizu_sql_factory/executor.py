@@ -1,18 +1,18 @@
 """
 Text-to-SQL Executor
 
-Orchestrates the full SQL validation and execution pipeline:
-1. Parse question → LLM to generate SQL
-2. Validate SQL with SqlValidator (security, constraints)
-3. Rewrite SQL for safety (SELECT *, LIMIT, tenant filter)
-4. Execute via PostgRESTQueryExecutor (RLS enforcement)
-5. Return results with telemetry
+    Orchestrates the full SQL validation and execution pipeline:
+    1. Parse question → LLM to generate SQL
+    2. Validate SQL with SqlValidator (security, constraints)
+    3. Rewrite SQL for safety (SELECT *, LIMIT, client filter)
+    4. Execute via PostgRESTQueryExecutor (RLS enforcement)
+    5. Return results with telemetry
 
-Reuses:
-- vizu_supabase_client.PostgRESTQueryExecutor for safe query execution
-- vizu_supabase_client.AuthContext for multi-tenant isolation
-- vizu_supabase_client.JWTContextExtractor for JWT handling
-"""
+    Reuses:
+    - vizu_supabase_client.PostgRESTQueryExecutor for safe query execution
+    - vizu_supabase_client.AuthContext for multi-client isolation
+    - vizu_supabase_client.JWTContextExtractor for JWT handling
+    """
 
 import logging
 import time
@@ -37,14 +37,14 @@ logger = logging.getLogger(__name__)
 class ExecutionConfig:
     """Configuration for SQL execution."""
 
-    tenant_id: str
+    client_id: str
     allowed_views: list[str]
     allowed_columns: dict[str, list[str]]
     max_rows: int = 100
     mandatory_filters: list[str] | None = None
     allowed_aggregates: list[str] | None = None
     allow_rewrites: bool = True
-    tenant_column: str = "client_id"
+    client_column: str = "client_id"
 
 
 @dataclass
@@ -112,9 +112,9 @@ class TextToSqlExecutor:
 
         Args:
             sql: SQL query to execute
-            config: ExecutionConfig with tenant, allowlist, limits
+            config: ExecutionConfig with client, allowlist, limits
             user_jwt: User JWT token for RLS enforcement
-            auth_context: AuthContext (if provided, overrides config tenant_id)
+            auth_context: AuthContext (if provided, overrides config client_id)
 
         Returns:
             ExecutionResult with rows, columns, and telemetry
@@ -123,7 +123,7 @@ class TextToSqlExecutor:
         start_time = time.time()
 
         logger.info(
-            f"[executor] Starting: tenant={config.tenant_id}, "
+            f"[executor] Starting: client={config.client_id}, "
             f"telemetry_id={telemetry_id}"
         )
 
@@ -132,7 +132,7 @@ class TextToSqlExecutor:
             with ValidationTimer("sql_validation", logger):
                 validation_result = self.validator.validate(
                     sql=sql,
-                    tenant_id=config.tenant_id,
+                    client_id=config.client_id,
                     allowed_views=config.allowed_views,
                     allowed_columns=config.allowed_columns,
                     max_rows=config.max_rows,
@@ -157,10 +157,10 @@ class TextToSqlExecutor:
                 with ValidationTimer("sql_rewrites", logger):
                     normalized_sql = self.rewriter.apply_all_rewrites(
                         sql=validation_result.get("normalized_sql", sql),
-                        tenant_id=config.tenant_id,
+                        client_id=config.client_id,
                         max_rows=config.max_rows,
                         allowed_columns=config.allowed_columns,
-                        tenant_column=config.tenant_column
+                        client_column=config.client_column
                     )
 
             logger.info(

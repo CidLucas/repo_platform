@@ -59,7 +59,7 @@ class TestSupabaseCRUD:
         assert result is not None
         assert result["id"] == "test-uuid"
         assert result["nome_empresa"] == "Test Corp"
-        mock_client.table.assert_called_with("cliente_vizu")
+        mock_client.table.assert_called_with("clientes_vizu")
 
     def test_get_cliente_vizu_by_api_key_not_found(self, crud, mock_client):
         """Test fetching cliente by API key when not found."""

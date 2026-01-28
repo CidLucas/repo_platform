@@ -1,13 +1,13 @@
 # Summary of Changes: Data Lifecycle & MV Refresh Implementation
 
-**Date**: January 27, 2026  
+**Date**: January 27, 2026
 **Status**: ✅ COMPLETE
 
 ---
 
 ## 🎯 Problem Solved
 
-**Before**: Materialized views remained stale after data was written to fact_sales  
+**Before**: Materialized views remained stale after data was written to fact_sales
 **After**: MVs are automatically refreshed after each data ingest, ensuring frontend always reads fresh data
 
 ---
@@ -19,7 +19,7 @@
 
 **Changes**:
 - ✅ `/recompute` - Now auto-refreshes MVs after data write
-- ✅ `/recompute/full` - Now auto-refreshes MVs after data write  
+- ✅ `/recompute/full` - Now auto-refreshes MVs after data write
 - ✅ NEW `/refresh-views` - Manual MV refresh endpoint (admin)
 
 **Response Format** (now includes MV refresh status):
@@ -97,7 +97,7 @@ POST /api/ingest/recompute (incremental=true)
 ├─ Load new silver data only
 ├─ Write to fact_sales ✅
 └─ ✅ REFRESH MVs (AUTO!)
-    
+
 18:00 UTC → Repeat
 
 
@@ -293,7 +293,7 @@ Current implementation:
 - `/recompute` and `/recompute/full`: Requires valid JWT (client_id extracted)
 - `/refresh-views`: Requires valid JWT (no client_id check, affects all clients)
 
-**Future Consideration**: 
+**Future Consideration**:
 - Add `@require_admin_role` decorator to `/refresh-views`
 - Or make it client-specific to limit scope
 

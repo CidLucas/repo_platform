@@ -79,7 +79,7 @@ async def recompute_gold_metrics(
         # This ensures MVs reflect the latest data in fact_sales
         logger.info(f"📊 Refreshing materialized views to reflect new data...")
         mv_result = repo.refresh_materialized_views()
-        
+
         return {
             "status": "success",
             "mode": "incremental" if incremental else "full",
@@ -125,7 +125,7 @@ async def recompute_full(
         # 🔄 REFRESH MATERIALIZED VIEWS after data is written
         logger.info(f"📊 Refreshing materialized views to reflect new data...")
         mv_result = repo.refresh_materialized_views()
-        
+
         return {
             "status": "success",
             "mode": "full",
@@ -152,26 +152,26 @@ async def refresh_materialized_views(
 ):
     """
     Manually refresh all materialized views in analytics_v2 schema.
-    
+
     This endpoint refreshes:
     - mv_customer_summary
     - mv_product_summary
     - mv_monthly_sales_trend
-    
+
     **Use Cases:**
     - Manual refresh between scheduled ingestions
     - Testing after manual data modifications
     - Part of scheduled jobs (e.g., hourly refresh)
-    
+
     **Scope**: Global (refreshes for ALL clients)
-    
+
     Returns:
         Refresh status for each view
     """
     try:
         logger.info("🔄 Admin: Refreshing all materialized views")
         result = repo.refresh_materialized_views()
-        
+
         if result.get("status") == "success":
             return {
                 "status": "success",
@@ -184,7 +184,7 @@ async def refresh_materialized_views(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to refresh views: {result.get('error')}"
             )
-            
+
     except Exception as exc:
         logger.error(f"Failed to refresh materialized views: {exc}", exc_info=True)
         raise HTTPException(

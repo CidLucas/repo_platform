@@ -1,6 +1,6 @@
 # Data Lifecycle & Materialized View Refresh Strategy
 
-**Last Updated**: January 27, 2026  
+**Last Updated**: January 27, 2026
 **Status**: ✅ Implementation Complete
 
 ---
@@ -59,19 +59,19 @@ T0      User registers + connects      No data yet
 
 T1      POST /api/ingest/recompute
         └─ Mode: FULL (first sync)     fact_sales, dim_* (empty if no invoices)
-        └─ Load silver data from FDW   
-        └─ Write to fact_sales         
+        └─ Load silver data from FDW
+        └─ Write to fact_sales
         └─ ✅ AUTO-REFRESH MVs         mv_customer_summary (current)
                                        mv_product_summary (current)
                                        mv_monthly_sales_trend (current)
 
-T2      User logs in to dashboard      
-        └─ Frontend loads home page    
+T2      User logs in to dashboard
+        └─ Frontend loads home page
         └─ GET /dashboard/home         Reads FRESH mv_* views
         └─ GET /dashboard/mv/*         Shows CORRECT data
         ├─ Shows correct totals        ✅ Data is LIVE
-        ├─ Shows correct charts        
-        └─ Shows correct rankings      
+        ├─ Shows correct charts
+        └─ Shows correct rankings
 ```
 
 ### Phase 2: Daily/Scheduled Data Updates
@@ -84,19 +84,19 @@ T0      Connector syncs new data        Silver layer (fact_sales in BigQuery FDW
         (2x daily = 12:00, 18:00 UTC)  New invoices added
 
 T1      POST /api/ingest/recompute
-        └─ Mode: INCREMENTAL           
+        └─ Mode: INCREMENTAL
         └─ last_synced_at check        Only fetches since last sync
         └─ Write new rows to fact_sales  Rows inserted/updated
         └─ ✅ AUTO-REFRESH MVs         MVs now reflect new data
                                        Max data lag: <1 minute
                                        (until next user page load)
 
-T2      User refreshes browser          
-        └─ GET /dashboard/home         
+T2      User refreshes browser
+        └─ GET /dashboard/home
         └─ Reads from MV              Shows NEW data
         └─ Max lag: ~2 hours           (next scheduled recompute)
 
-T3      (Optional) Admin triggers       
+T3      (Optional) Admin triggers
         POST /api/ingest/refresh-views MVs manually refreshed
         └─ For immediate updates        Data live in <30 seconds
         └─ No data recomputation       (just MV refresh, faster)
@@ -133,7 +133,7 @@ POST /api/ingest/recompute
     ├─ Write to fact_sales
     ├─ Write to dim_customer/product/supplier
     └─ ❌ DO NOT refresh MVs
-    
+
     Consequence:
     └─ Frontend reads stale MVs
     └─ Data lag: hours/days until manual refresh
@@ -150,7 +150,7 @@ POST /api/ingest/recompute
     │   ├─ REFRESH mv_product_summary
     │   └─ REFRESH mv_monthly_sales_trend
     └─ Return response with refresh status
-    
+
     Response includes:
     {
         "status": "success",

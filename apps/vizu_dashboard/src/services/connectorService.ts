@@ -218,7 +218,7 @@ export async function createCredential(
     : `${API_BASE_URL}/credentials/create`;
 
   // Flatten the payload: backend expects credentials fields at root level, not nested
-  // IMPORTANT: Use 'client_id' (not 'cliente_vizu_id') to match schema
+  // IMPORTANT: Use 'client_id' (not 'client_id') to match schema
   const payload = {
     client_id: resolvedClientId,
     nome_conexao: request.nome_conexao,

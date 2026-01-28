@@ -18,8 +18,8 @@ class FonteDeDados(SQLModel, table=True):
     tipo_fonte: TipoFonte
     caminho: str
 
-    # Supabase FK is cliente_vizu_id pointing to clientes_vizu.client_id
-    cliente_vizu_id: uuid.UUID = Field(
+    # Supabase FK is client_id pointing to clientes_vizu.client_id
+    client_id: uuid.UUID = Field(
         sa_column=Column(
             pgUUID(as_uuid=True),
             ForeignKey("clientes_vizu.client_id"),

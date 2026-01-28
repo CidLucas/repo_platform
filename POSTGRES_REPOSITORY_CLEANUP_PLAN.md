@@ -72,7 +72,7 @@
 - ✅ `get_v2_customer_products()` - Read from v_customer_products view
 
 **Client Management**:
-- ✅ `get_or_create_cliente_vizu_id()` - Create/get cliente_vizu
+- ✅ `get_or_create_client_id()` - Create/get cliente_vizu
 - ✅ `ensure_cliente_vizu_exists()` - Ensure user exists, return client_id
 
 **Utility**:

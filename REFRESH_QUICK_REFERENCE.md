@@ -19,7 +19,7 @@ POST /api/ingest/recompute
 ├─ Write to dim_customer/product/supplier (new entities)
 └─ ✅ AUTO-REFRESH MVs (AUTOMATIC)
     ├─ mv_customer_summary
-    ├─ mv_product_summary  
+    ├─ mv_product_summary
     └─ mv_monthly_sales_trend
 ```
 

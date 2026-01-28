@@ -54,7 +54,7 @@ class SupabaseCRUD:
         try:
             response = (
                 self.client
-                .table("cliente_vizu")
+                .table("clientes_vizu")
                 .select("*")
                 .eq("api_key", api_key)
                 .limit(1)
@@ -82,9 +82,9 @@ class SupabaseCRUD:
         try:
             response = (
                 self.client
-                .table("cliente_vizu")
+                .table("clientes_vizu")
                 .select("*")
-                .eq("id", str(cliente_id))
+                .eq("client_id", str(cliente_id))
                 .limit(1)
                 .execute()
             )
@@ -106,7 +106,7 @@ class SupabaseCRUD:
         This is the primary lookup method for JWT authentication:
         - JWT `sub` claim contains the Supabase Auth user ID
         - This ID is stored in the `external_user_id` column
-        - The `id` column is the internal Vizu client ID (different)
+        - The `client_id` column is the internal Vizu client ID (different)
 
         Args:
             external_user_id: Supabase Auth user ID (from JWT sub claim)
@@ -117,7 +117,7 @@ class SupabaseCRUD:
         try:
             response = (
                 self.client
-                .table("cliente_vizu")
+                .table("clientes_vizu")
                 .select("*")
                 .eq("external_user_id", str(external_user_id))
                 .limit(1)
@@ -127,7 +127,7 @@ class SupabaseCRUD:
             if response.data and len(response.data) > 0:
                 logger.debug(
                     f"Found cliente by external_user_id={external_user_id}: "
-                    f"id={response.data[0].get('id')}"
+                    f"client_id={response.data[0].get('client_id')}"
                 )
                 return response.data[0]
 
@@ -156,7 +156,7 @@ class SupabaseCRUD:
         try:
             response = (
                 self.client
-                .table("cliente_vizu")
+                .table("clientes_vizu")
                 .select("*")
                 .range(offset, offset + limit - 1)
                 .execute()
@@ -184,7 +184,7 @@ class SupabaseCRUD:
         try:
             response = (
                 self.client
-                .table("cliente_vizu")
+                .table("clientes_vizu")
                 .insert(data)
                 .execute()
             )
@@ -215,9 +215,9 @@ class SupabaseCRUD:
         try:
             response = (
                 self.client
-                .table("cliente_vizu")
+                .table("clientes_vizu")
                 .update(data)
-                .eq("id", str(cliente_id))
+                .eq("client_id", str(cliente_id))
                 .execute()
             )
 
@@ -240,7 +240,7 @@ class SupabaseCRUD:
             True if deleted, False on error
         """
         try:
-            self.client.table("cliente_vizu").delete().eq("id", str(cliente_id)).execute()
+            self.client.table("clientes_vizu").delete().eq("client_id", str(cliente_id)).execute()
             return True
 
         except Exception as e:

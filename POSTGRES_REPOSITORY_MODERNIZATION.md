@@ -125,7 +125,7 @@ Remove methods in this order to minimize integration issues:
 - get_gold_customers_aggregated()         # Utility
 
 # USER MANAGEMENT (Keep)
-- get_or_create_cliente_vizu_id()         # Legacy client creation
+- get_or_create_client_id()         # Legacy client creation
 - ensure_cliente_vizu_exists()            # Modern client management
 
 # REMOVE COMPLETELY

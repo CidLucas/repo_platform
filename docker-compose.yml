@@ -96,7 +96,7 @@ services:
       <<: [*common-env, *atendente-env]
       PYTHONPATH: /app/services/atendente_core/src
       # Local dev uses PostgreSQL directly, not Supabase SDK
-      USE_LOCAL_DB: "true"
+      USE_LOCAL_DB: "false"
       # MCP Tool Pool integration
       MCP_SERVER_URL: http://tool_pool_api:8000/mcp/
     ports:

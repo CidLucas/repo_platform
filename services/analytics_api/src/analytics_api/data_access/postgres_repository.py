@@ -312,10 +312,10 @@ class PostgresRepository:
             logger.error(f"  ❌ Error loading column_mapping: {type(e).__name__}: {str(e)[:200]}")
             return None
 
-    def get_or_create_cliente_vizu_id(self, external_user_id: str) -> str:
+    def get_or_create_client_id(self, external_user_id: str) -> str:
         """
-        Busca ou cria um cliente_vizu_id associado ao external_user_id (Supabase user id).
-        Retorna o cliente_vizu_id (UUID em string).
+        Busca ou cria um client_id associado ao external_user_id (Supabase user id).
+        Retorna o client_id (UUID em string).
         """
         # Exemplo: tabela clientes (id UUID, external_user_id TEXT UNIQUE)
         result = self.db_session.execute(
@@ -2068,7 +2068,7 @@ class PostgresRepository:
                     COALESCE(m.total_quantity, 0) as total_quantity,
                     m.last_order_date,
                     m.first_order_date,
-                    COALESCE(EXTRACT(DAY FROM (CURRENT_DATE - m.last_order_date::date)), 0)::int as days_since_last_order
+                    COALESCE(CURRENT_DATE - m.last_order_date::date, 0)::int as days_since_last_order
                 FROM analytics_v2.mv_customer_summary m
                 LEFT JOIN analytics_v2.dim_customer d ON d.customer_id = m.customer_id AND d.client_id = m.client_id
                 WHERE m.client_id = :client_id
@@ -2328,51 +2328,98 @@ class PostgresRepository:
     def refresh_materialized_views(self) -> dict:
         """
         Refresh all materialized views in analytics_v2 schema.
-        
+
         Calls the database function that refreshes:
         - mv_customer_summary
-        - mv_product_summary  
+        - mv_product_summary
         - mv_monthly_sales_trend
-        
+
+        Uses CONCURRENT refresh mode (non-blocking) if possible.
+        Falls back to blocking mode if CONCURRENT fails.
+
         Returns:
             dict with status of each view refresh
         """
         import time
-        
+
         try:
             start_time = time.time()
-            logger.info("🔄 Refreshing all materialized views...")
-            
-            # Call the database function that refreshes all MVs
+            logger.info("🔄 Refreshing all materialized views (CONCURRENT mode)...")
+
+            # Try to call the database function that refreshes all MVs with CONCURRENT mode
+            # This requires unique indexes on the MVs but allows concurrent reads
             result = self.db_session.execute(
                 text("SELECT * FROM analytics_v2.refresh_materialized_views();")
             )
             rows = result.fetchall()
-            
+
             elapsed = time.time() - start_time
-            
+
             results = {}
+            has_errors = False
             for row in rows:
                 view_name = row[0]
                 status = row[1]
                 results[view_name] = status
-                logger.info(f"  ✅ {view_name}: {status}")
-            
+
+                if 'Error' in status:
+                    has_errors = True
+                    logger.warning(f"  ⚠️ {view_name}: {status}")
+                else:
+                    logger.info(f"  ✅ {view_name}: {status}")
+
             logger.info(f"✅ All materialized views refreshed in {elapsed:.1f}s")
-            
+
             return {
                 "status": "success",
                 "elapsed_seconds": elapsed,
-                "views_refreshed": results
+                "views_refreshed": results,
+                "mode": "concurrent"
             }
-            
+
         except Exception as e:
-            logger.error(f"❌ Failed to refresh materialized views: {e}", exc_info=True)
+            # If CONCURRENT mode fails (e.g., due to missing unique indexes),
+            # try blocking mode as fallback
+            logger.warning(f"⚠️ CONCURRENT refresh failed: {e}")
+            logger.info("🔄 Retrying with blocking mode...")
+
             self.db_session.rollback()
-            return {
-                "status": "error",
-                "error": str(e)
-            }
+
+            try:
+                start_time = time.time()
+
+                # Fall back to blocking refresh mode
+                result = self.db_session.execute(
+                    text("SELECT * FROM analytics_v2.refresh_materialized_views_blocking();")
+                )
+                rows = result.fetchall()
+
+                elapsed = time.time() - start_time
+
+                results = {}
+                for row in rows:
+                    view_name = row[0]
+                    status = row[1]
+                    results[view_name] = status
+                    logger.info(f"  ✅ {view_name}: {status}")
+
+                logger.info(f"✅ All materialized views refreshed in {elapsed:.1f}s (blocking mode)")
+
+                return {
+                    "status": "success",
+                    "elapsed_seconds": elapsed,
+                    "views_refreshed": results,
+                    "mode": "blocking (fallback)"
+                }
+
+            except Exception as fallback_error:
+                logger.error(f"❌ Failed to refresh materialized views (both modes): {fallback_error}", exc_info=True)
+                self.db_session.rollback()
+                return {
+                    "status": "error",
+                    "error": str(fallback_error),
+                    "mode": "failed"
+                }
 
     def record_sync_event(
         self,

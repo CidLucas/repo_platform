@@ -50,10 +50,10 @@ async def create_new_credential(
         # Construir schema adequado com base nos campos presentes
         logger.info("/credentials/create received payload keys: %s", list(payload.keys()))
 
-        # Handle legacy field name: map cliente_vizu_id to client_id if needed
-        if 'cliente_vizu_id' in payload and 'client_id' not in payload:
-            logger.warning("Detected legacy 'cliente_vizu_id' field; mapping to 'client_id'")
-            payload['client_id'] = payload.pop('cliente_vizu_id')
+        # Handle legacy field name: map client_id to client_id if needed
+        if 'client_id' in payload and 'client_id' not in payload:
+            logger.warning("Detected legacy 'client_id' field; mapping to 'client_id'")
+            payload['client_id'] = payload.pop('client_id')
 
         model: BigQueryCredentialCreate | SQLCredentialCreate
         if 'project_id' in payload and 'service_account_json' in payload:

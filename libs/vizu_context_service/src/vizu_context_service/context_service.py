@@ -155,7 +155,7 @@ class ContextService:
         enabled_tools = _normalize_enabled_tools(data.get("enabled_tools"))
 
         return VizuClientContext(
-            id=UUID(data["id"]) if isinstance(data["id"], str) else data["id"],
+            id=UUID(data["client_id"]) if isinstance(data["client_id"], str) else data["client_id"],
             nome_empresa=data["nome_empresa"],
             tipo_cliente=data["tipo_cliente"],
             tier=data["tier"],
@@ -230,10 +230,10 @@ class ContextService:
                 )
                 return None
 
-            # Extract the internal client ID
-            internal_client_id = UUID(cliente_data["id"])
+            # Extract the internal client ID (column name is client_id, not id)
+            internal_client_id = UUID(cliente_data["client_id"])
             logger.debug(
-                f"Found cliente: external_user_id={external_user_id} -> id={internal_client_id}"
+                f"Found cliente: external_user_id={external_user_id} -> client_id={internal_client_id}"
             )
 
             # Use existing method to get full context (with caching and RLS)

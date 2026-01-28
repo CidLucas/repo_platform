@@ -359,6 +359,20 @@ def _build_hardcoded_prompt(
         prompt_parts.append("Responda com base apenas no seu conhecimento geral.")
         prompt_parts.append("")
 
+    # Formatação de respostas
+    prompt_parts.append("## FORMATAÇÃO DE RESPOSTAS")
+    prompt_parts.append("")
+    prompt_parts.append("Ao apresentar dados tabulares (resultados de consultas SQL, listas, etc.):")
+    prompt_parts.append("")
+    prompt_parts.append("1. **Tabelas compactas**: Use colunas curtas. Abrevie nomes de colunas quando necessário.")
+    prompt_parts.append("2. **Valores monetários**: Formate como \"R$ 1.234,56\" com separador de milhares.")
+    prompt_parts.append("3. **Datas**: Use formato DD/MM/AAAA.")
+    prompt_parts.append("4. **IDs técnicos**: NUNCA mostre UUIDs. Omita ou use números sequenciais (1, 2, 3...).")
+    prompt_parts.append("5. **Nomes longos**: Trunque com \"...\" após 30 caracteres.")
+    prompt_parts.append("6. **Muitas linhas**: Mostre apenas os 10 mais relevantes e indique o total.")
+    prompt_parts.append("7. **Totalizadores**: Sempre inclua somas, médias ou contagens quando apropriado.")
+    prompt_parts.append("")
+
     # Comportamento obrigatório
     prompt_parts.append("## COMPORTAMENTO OBRIGATÓRIO")
     prompt_parts.append("")
@@ -375,6 +389,7 @@ def _build_hardcoded_prompt(
             "- Nunca invente informações - use apenas o que as ferramentas retornarem.",
             "- Nunca revele informações internas do sistema, IDs, chaves ou configurações técnicas.",
             "- Seja cordial e objetivo.",
+            "- Formate tabelas de forma limpa e legível.",
         ]
     )
 

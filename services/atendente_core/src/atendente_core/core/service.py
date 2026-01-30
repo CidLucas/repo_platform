@@ -1,7 +1,7 @@
 """
 AtendenteService - Main service for processing chat messages.
 
-Phase 3: Refactored to use vizu_agent_framework for graph construction.
+Uses custom graph with Context 2.0 aware supervisor_node.
 """
 
 import logging
@@ -12,25 +12,14 @@ from uuid import UUID
 from langchain_core.messages import AIMessage, HumanMessage
 
 from atendente_core.core.config import get_settings
-
-# Legacy imports for compatibility during transition
-from atendente_core.core.graph import create_agent_graph
-
-# PHASE 6: HITL Integration
 from atendente_core.core.hitl_integration import HitlIntegration
 from atendente_core.core.observability import get_langfuse_config
-
-# Local state types
 from atendente_core.core.state import PendingElicitation
-
-# Phase 3: Use the new agent framework
-from vizu_agent_framework import ATENDENTE_CONFIG, AgentBuilder
+from atendente_core.services.mcp_client import ensure_mcp_connected
 from vizu_agent_framework.state import AgentState
 from vizu_context_service.context_service import ContextService
 from vizu_db_connector.operations import VizuDBConnector
 from vizu_models.safe_client_context import InternalClientContext
-from vizu_models.vizu_client_context import VizuClientContext
-from atendente_core.services.mcp_client import ensure_mcp_connected
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +32,12 @@ class ProcessMessageResult:
         response: str,
         model_used: str | None = None,
         pending_elicitation: PendingElicitation | None = None,
+        structured_data: dict[str, Any] | None = None,
     ):
         self.response = response
         self.model_used = model_used
         self.pending_elicitation = pending_elicitation
+        self.structured_data = structured_data
 
     @property
     def has_pending_elicitation(self) -> bool:
@@ -57,8 +48,7 @@ class AtendenteService:
     """
     Main service for the Atendente agent.
 
-    Phase 3: Supports both legacy graph and new AgentBuilder.
-    Set USE_NEW_FRAMEWORK=true in env to enable new framework.
+    Uses vizu_agent_framework for graph construction with Redis checkpointing.
     """
 
     def __init__(self, context_service: ContextService):
@@ -67,24 +57,12 @@ class AtendenteService:
         self.db = VizuDBConnector()
         self.hitl = HitlIntegration()
 
-        # Phase 3: Choose which graph builder to use
-        self._use_new_framework = getattr(self.settings, "USE_NEW_FRAMEWORK", False)
+        logger.info("Building agent graph with custom supervisor_node")
 
-        if self._use_new_framework:
-            logger.info("Using vizu_agent_framework (new)")
-            self.graph = self._build_new_graph()
-        else:
-            logger.info("Using legacy graph builder")
-            self.graph = create_agent_graph()
-
-    def _build_new_graph(self):
-        """Build agent graph using vizu_agent_framework."""
-        return (
-            AgentBuilder()
-            .with_config(ATENDENTE_CONFIG)
-            .with_redis_checkpointer(self.settings.REDIS_URL)
-            .build()
-        )
+        # Use custom graph with Context 2.0 aware supervisor_node
+        # Note: create_agent_graph() handles checkpointer setup internally
+        from .graph import create_agent_graph
+        self.graph = create_agent_graph()
 
     async def process_message(
         self,
@@ -130,9 +108,11 @@ class AtendenteService:
         # 3. Preparação do Estado do Grafo
         # O system prompt é construído dinamicamente no nó supervisor via build_dynamic_system_prompt()
         # safe_context vai para a LLM, _internal_context fica para uso interno
+        # Context 2.0: vizu_context contains all modular sections for selective injection
         initial_state = AgentState(
             messages=[HumanMessage(content=message_text)],
             safe_context=safe_ctx,
+            vizu_context=client_context,  # Context 2.0: Full context with sections
             _internal_context=internal_ctx,
             tools=[],  # Será preenchido pelo nó supervisor via MCP
             model_override=model_override,  # Modelo específico para este request
@@ -143,6 +123,10 @@ class AtendenteService:
             # PHASE 3: Elicitation fields
             pending_elicitation=None,
             elicitation_response=elicitation_response,  # Inject response if provided
+            # Framework state fields (prevent premature termination)
+            ended=False,
+            turn_count=0,
+            structured_data=None,
         )
 
         # Log if we're resuming from elicitation
@@ -235,10 +219,14 @@ class AtendenteService:
                     model_used=model_used,
                 )
 
+                # Extract structured_data from state (populated by SQL tools)
+                structured_data = final_state.get("structured_data")
+
                 return ProcessMessageResult(
                     response=agent_response,
                     model_used=model_used,
                     pending_elicitation=pending_elicitation,
+                    structured_data=structured_data,
                 )
 
             return ProcessMessageResult(

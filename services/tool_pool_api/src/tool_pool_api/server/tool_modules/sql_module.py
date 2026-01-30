@@ -13,6 +13,10 @@ Natural language to SQL tool for client data queries.
 - client_id: Injected server-side via middleware
 - RLS: PostgreSQL Row-Level Security enforces data isolation
 - SQL Validation: Only SELECT queries allowed, forbidden keywords blocked
+
+**Context 2.0**:
+- Uses modular context sections for enriched prompts
+- data_schema, policies, and company_profile guide SQL generation
 """
 
 import logging
@@ -28,10 +32,10 @@ from tool_pool_api.server.dependencies import (
 )
 from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
 from vizu_llm_service import ModelTier, get_model
-from vizu_models.vizu_client_context import VizuClientContext
 
-# Phase 3: Use ToolRegistry for validation
-from vizu_tool_registry import ToolRegistry
+# Context 2.0: Import ContextSection for selective injection
+from vizu_models.enums import ContextSection
+from vizu_models.vizu_client_context import VizuClientContext
 
 from . import register_module
 
@@ -42,17 +46,42 @@ logger = logging.getLogger(__name__)
 # HELPERS
 # =============================================================================
 
+import re
+
+
+def _strip_markdown_code_block(text: str) -> str:
+    """
+    Remove markdown code block markers from text.
+
+    Handles various formats:
+    - ```sql ... ```
+    - ```python ... ```
+    - ``` ... ```
+
+    Args:
+        text: Text potentially wrapped in markdown code block
+
+    Returns:
+        Text with markdown code block markers removed
+    """
+    text = text.strip()
+    # Pattern matches ```language\n content \n``` or just ```\n content \n```
+    pattern = r"^```(?:\w+)?\n?(.*?)```$"
+    match = re.match(pattern, text, re.DOTALL)
+    return match.group(1).strip() if match else text
+
 
 async def _get_enriched_schema_context(
     cliente_id: UUID,
     engine,
     include_tables: list[str] | None = None,
+    context_service=None,
 ) -> str:
     """
     Build enriched schema context for the LLM.
 
     This function:
-    1. Gets SqlTableConfig entries from Supabase for the client (if any)
+    1. Gets SqlTableConfig entries via ContextService (Redis-cached)
     2. Falls back to raw SQLDatabase schema if no config exists
     3. Adds semantic metadata (descriptions, enum values, examples)
 
@@ -60,28 +89,20 @@ async def _get_enriched_schema_context(
         cliente_id: UUID of the client
         engine: SQLAlchemy engine
         include_tables: Optional list of tables to include
+        context_service: Optional ContextService for cached config retrieval
 
     Returns:
         Enriched schema string for the LLM prompt
     """
     from langchain_community.utilities.sql_database import SQLDatabase
 
-    from vizu_supabase_client import get_supabase_client
-
-    # Try to get client-specific table configs from Supabase
+    # Try to get client-specific table configs (cached via ContextService)
     try:
-        supabase = get_supabase_client()
+        # Use context_service if provided, otherwise get singleton
+        if context_service is None:
+            context_service = get_context_service()
 
-        response = (
-            supabase
-            .table("sql_table_config")
-            .select("*")
-            .eq("client_id", str(cliente_id))
-            .eq("is_active", True)
-            .execute()
-        )
-
-        configs = response.data or []
+        configs = await context_service.get_sql_table_configs(cliente_id)
 
         if configs:
             # Build enriched schema from configs
@@ -215,7 +236,8 @@ TABLE: analytics_v2.dim_supplier
 
 TABLE: analytics_v2.dim_product
 - product_id (UUID) - Primary key
-- product_name (TEXT), categoria (TEXT)
+- product_name (TEXT) - USE FOR FILTERING BY PRODUCT TYPE (e.g., ILIKE '%ALUMINIO%')
+- categoria (TEXT) - OFTEN NULL, prefer product_name for searches
 - total_quantity_sold (NUMERIC), total_revenue (NUMERIC)
 
 JOINS: fact_sales -> dim_customer/dim_supplier/dim_product via customer_id/supplier_id/product_id
@@ -223,36 +245,58 @@ JOINS: fact_sales -> dim_customer/dim_supplier/dim_product via customer_id/suppl
 """
 
 
-def _is_tool_enabled_for_client(
-    tool_name: str, context: VizuClientContext
-) -> bool:
+def _build_context_guidance(vizu_context: VizuClientContext) -> str:
     """
-    Check if a tool is enabled for a client.
+    Build context-aware guidance for SQL generation using Context 2.0 sections.
 
-    Supports both:
-    - New `enabled_tools` list field
-    - Legacy boolean flags
-
-    Args:
-        tool_name: Name of the tool (e.g., "executar_sql_agent")
-        context: VizuClientContext
+    Extracts relevant information from:
+    - data_schema: Available data, key metrics, report preferences
+    - policies: Data handling rules, operational limits
+    - company_profile: Industry context for better understanding
 
     Returns:
-        True if tool is enabled
+        Formatted guidance string for the LLM
     """
-    # Only use the new `enabled_tools` list and tier checks. Legacy boolean
-    # flags have been removed from the models and DB via migration.
-    enabled = getattr(context, "enabled_tools", None) or []
+    guidance_parts = []
 
-    if tool_name not in enabled:
-        return False
+    # Extract company context for industry understanding
+    company = vizu_context.company_profile
+    if company:
+        industry = company.get("industry", "")
+        business_type = company.get("business_archetype", "")
+        if industry or business_type:
+            guidance_parts.append(f"BUSINESS CONTEXT: {industry or ''} {business_type or ''}".strip())
 
-    tier = getattr(context, "tier", "BASIC") or "BASIC"
-    tool_meta = ToolRegistry.get_tool(tool_name)
-    if tool_meta and not tool_meta.is_accessible_by_tier(tier):
-        return False
+    # Extract data schema guidance
+    data_schema = vizu_context.data_schema
+    if data_schema:
+        key_metrics = data_schema.get("key_metrics", [])
+        if key_metrics:
+            guidance_parts.append(f"KEY METRICS: {', '.join(key_metrics[:5])}")
 
-    return True
+        report_types = data_schema.get("report_types", [])
+        if report_types:
+            guidance_parts.append(f"COMMON REPORTS: {', '.join(report_types[:5])}")
+
+        data_notes = data_schema.get("data_notes", "")
+        if data_notes:
+            guidance_parts.append(f"DATA NOTES: {data_notes}")
+
+    # Extract policies for data handling
+    policies = vizu_context.policies
+    if policies:
+        data_rules = policies.get("data_handling_rules", [])
+        if data_rules:
+            guidance_parts.append(f"DATA RULES: {'; '.join(data_rules[:3])}")
+
+    if not guidance_parts:
+        return ""
+
+    return "\n=== CLIENT CONTEXT ===\n" + "\n".join(guidance_parts) + "\n"
+
+
+# Use shared helper - see tool_helpers.py for implementation
+from tool_pool_api.server.tool_helpers import is_tool_enabled_for_client
 
 
 def _validate_sql_for_production_schema(sql: str) -> tuple[bool, str]:
@@ -419,7 +463,7 @@ async def _executar_sql_agent_logic(
     real_client_id = vizu_context.id
     logger.info(f"[SQL] Executando para {real_client_id}...")
 
-    if not _is_tool_enabled_for_client("executar_sql_agent", vizu_context):
+    if not is_tool_enabled_for_client("executar_sql_agent", vizu_context):
         logger.warning(f"[SQL] Ferramenta desabilitada para {real_client_id}.")
         raise ToolError("Ferramenta SQL não está habilitada para este cliente.")
 
@@ -439,113 +483,163 @@ async def _executar_sql_agent_logic(
             tags=["tool_pool", "sql_module"],
         )
 
-        # Get enriched schema context (uses SqlTableConfig if available)
+        # Get enriched schema context (uses Redis-cached SqlTableConfig)
         engine = get_shared_engine()
-        table_info = await _get_enriched_schema_context(real_client_id, engine)
+        table_info = await _get_enriched_schema_context(
+            real_client_id, engine, context_service=ctx_service
+        )
+
+        # Context 2.0: Get client-specific guidance from context sections
+        context_guidance = _build_context_guidance(vizu_context)
 
         logger.info(f"[SQL] Schema context length: {len(table_info)} chars")
+        logger.info(f"[SQL] Context guidance length: {len(context_guidance)} chars")
         logger.info(f"[SQL] User question: {query}")
+
+        # FULL PROMPT DEBUG - Enable with LOG_LEVEL=DEBUG to inspect complete SQL generation prompt
+        logger.debug(f"=== SQL GENERATION FULL PROMPT ===")
+        logger.debug(f"Context guidance:\n{context_guidance}")
+        logger.debug(f"\nTable info:\n{table_info}")
+        logger.debug(f"\nUser question: {query}")
+        logger.debug(f"=== END SQL GENERATION PROMPT ===")
 
         # Single LLM call to generate SQL
         # SECURITY: LLM should NOT see or handle client_id, UUIDs, or sensitive identifiers
         # The client_id filter is HARD-INJECTED after SQL generation
-        sql_generation_prompt = f"""You are a SQL expert for an analytics platform using a star schema architecture.
+        sql_generation_prompt = f"""You are a SQL expert. Generate the SIMPLEST query for the user's question.
+{context_guidance}
+=== SCHEMA ===
 
-STAR SCHEMA ARCHITECTURE (schema: analytics_v2):
-- FACT TABLE: fact_sales (transaction line items)
-- DIMENSION TABLES: dim_customer, dim_supplier, dim_product
+analytics_v2.fact_sales (ALWAYS USE FOR REVENUE/QUANTITY - source of truth)
+- order_id, data_transacao (date), customer_id, supplier_id, product_id
+- quantidade, valor_unitario, valor_total
 
-KEY TABLES AND COLUMNS (business data only):
+analytics_v2.dim_supplier (JOIN via supplier_id)
+- supplier_id, name, cnpj
+- NOTE: endereco_cidade/endereco_uf may be NULL - use dim_customer for geography when possible
 
-fact_sales (grain: order_id, line_item_sequence):
-- order_id (TEXT) - order identifier
-- data_transacao (TIMESTAMPTZ) - USE THIS FOR DATE FILTERING
-- quantidade (NUMERIC) - quantity sold
-- valor_unitario (NUMERIC) - unit price
-- valor_total (NUMERIC) - line total
-- customer_id, supplier_id, product_id (UUID) - FKs to dimensions
+analytics_v2.dim_customer (JOIN via customer_id - HAS GEOGRAPHY DATA)
+- customer_id, name, cpf_cnpj
+- endereco_cidade, endereco_uf (RELIABLE - use for city/state analysis)
 
-dim_customer:
-- customer_id (UUID) - Primary key for joins
-- name (TEXT) - customer name
-- cpf_cnpj (TEXT) - customer document
-- telefone (TEXT) - phone
-- total_orders (INT), total_revenue (NUMERIC), avg_order_value (NUMERIC)
+analytics_v2.dim_product (JOIN via product_id)
+- product_id, product_name, categoria
 
-dim_supplier:
-- supplier_id (UUID) - Primary key for joins
-- name (TEXT) - supplier name
-- cnpj (TEXT) - supplier document
-- telefone (TEXT) - phone
-- endereco_cidade (TEXT) - city (USE FOR CITY/REGION GROUPING)
-- endereco_uf (TEXT) - state (USE FOR STATE/REGION GROUPING)
-- total_revenue (NUMERIC), total_orders_received (INT)
+=== CRITICAL RULES ===
 
-dim_product:
-- product_id (UUID) - Primary key for joins
-- product_name (TEXT), categoria (TEXT) - product info
-- total_quantity_sold (NUMERIC), total_revenue (NUMERIC)
+1. ALWAYS aggregate from fact_sales using SUM(f.valor_total)
+2. ALWAYS prefix tables: analytics_v2.fact_sales, analytics_v2.dim_supplier
+3. For city/state analysis, prefer dim_customer (has reliable address data)
+4. Output ONLY SQL - no explanations, no markdown
+5. For "top N per group" use ONE CTE with ROW_NUMBER() and window SUM()
 
-DATABASE SCHEMA:
-{table_info}
+=== AGGREGATION EXAMPLES ===
 
-RULES:
-1. Generate ONLY valid SELECT queries - you can use WITH clauses (CTEs) followed by SELECT
-2. Output ONLY the SQL query, nothing else - no explanations, no markdown
-3. Use proper SQL syntax for PostgreSQL
-4. MANDATORY: Use 'data_transacao' for date filtering (NOT 'order_date')
-5. Use schema-qualified names: analytics_v2.fact_sales, analytics_v2.dim_customer, etc.
-6. Use EXACT column names from the schema (case-sensitive)
-7. Always include LIMIT clause (max 1000 rows) unless aggregating
-8. Do NOT query analytics_silver or analytics_gold tables (deprecated)
-9. Join fact_sales to dimensions via customer_id, supplier_id, product_id
-10. NEVER output or reference specific IDs, or other sensitive identifiers in results
-11. For ranking, use window functions like ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...) - very effective for top-N queries
-12. All data is automatically scoped to the current client - write queries as if you're an employee querying your own company's data
+-- Top 10 suppliers by revenue
+SELECT s.name, SUM(f.valor_total) as receita
+FROM analytics_v2.fact_sales f
+JOIN analytics_v2.dim_supplier s USING (supplier_id)
+GROUP BY s.name
+ORDER BY receita DESC LIMIT 10;
 
-EXAMPLE QUERIES:
-1. "How many unique customers?"
-   => SELECT COUNT(DISTINCT customer_id) FROM analytics_v2.dim_customer
+-- Top 10 cities by revenue (USE DIM_CUSTOMER for geography)
+SELECT c.endereco_cidade as cidade, SUM(f.valor_total) as receita
+FROM analytics_v2.fact_sales f
+JOIN analytics_v2.dim_customer c USING (customer_id)
+WHERE c.endereco_cidade IS NOT NULL
+GROUP BY c.endereco_cidade
+ORDER BY receita DESC LIMIT 10;
 
-2. "What is total revenue last month?"
-   => SELECT SUM(valor_total) FROM analytics_v2.fact_sales
-      WHERE data_transacao >= date_trunc('month', current_date - interval '1 month')
-      AND data_transacao < date_trunc('month', current_date)
+-- Revenue by state
+SELECT c.endereco_uf as estado, SUM(f.valor_total) as receita
+FROM analytics_v2.fact_sales f
+JOIN analytics_v2.dim_customer c USING (customer_id)
+WHERE c.endereco_uf IS NOT NULL
+GROUP BY c.endereco_uf
+ORDER BY receita DESC;
 
-3. "List top 10 products by revenue"
-   => SELECT product_name, SUM(valor_total) as revenue
-      FROM analytics_v2.fact_sales
-      JOIN analytics_v2.dim_product USING (product_id)
-      GROUP BY product_name
-      ORDER BY revenue DESC
-      LIMIT 10
+-- Monthly trend
+SELECT DATE_TRUNC('month', data_transacao) as mes, SUM(valor_total) as receita
+FROM analytics_v2.fact_sales
+WHERE data_transacao >= CURRENT_DATE - INTERVAL '12 months'
+GROUP BY 1 ORDER BY 1;
 
-4. "Top 3 suppliers by city" (with CTE)
-   => WITH supplier_sales AS (
-       SELECT endereco_cidade as city, name as supplier_name,
-              SUM(valor_total) as total_revenue
-       FROM analytics_v2.fact_sales
-       JOIN analytics_v2.dim_supplier USING (supplier_id)
-       GROUP BY endereco_cidade, name
-     )
-     SELECT city, supplier_name, total_revenue,
-            ROW_NUMBER() OVER (PARTITION BY city ORDER BY total_revenue DESC) as rank
-     FROM supplier_sales
-     WHERE rank <= 3
-     ORDER BY city, rank
+-- Top N suppliers per city (join both dimensions)
+WITH ranked AS (
+  SELECT
+    c.endereco_cidade as cidade,
+    s.name as fornecedor,
+    SUM(f.valor_total) as receita,
+    SUM(SUM(f.valor_total)) OVER (PARTITION BY c.endereco_cidade) as cidade_total,
+    ROW_NUMBER() OVER (PARTITION BY c.endereco_cidade ORDER BY SUM(f.valor_total) DESC) as rn
+  FROM analytics_v2.fact_sales f
+  JOIN analytics_v2.dim_supplier s USING (supplier_id)
+  JOIN analytics_v2.dim_customer c USING (customer_id)
+  WHERE c.endereco_cidade IS NOT NULL
+  GROUP BY c.endereco_cidade, s.name
+)
+SELECT cidade, fornecedor, receita
+FROM ranked WHERE rn <= 5
+ORDER BY cidade_total DESC, rn LIMIT 50;
 
-5. "Orders from last month for a specific product" (complex query)
-   => SELECT order_id, data_transacao, quantidade, valor_total
-      FROM analytics_v2.fact_sales
-      JOIN analytics_v2.dim_product USING (product_id)
-      WHERE product_name ILIKE '%product_keyword%'
-      AND data_transacao >= date_trunc('month', current_date) - interval '1 month'
-      AND data_transacao < date_trunc('month', current_date)
-      LIMIT 1000
+-- Top N customers per state
+WITH ranked AS (
+  SELECT
+    c.endereco_uf as estado,
+    c.name as cliente,
+    SUM(f.valor_total) as receita,
+    SUM(SUM(f.valor_total)) OVER (PARTITION BY c.endereco_uf) as estado_total,
+    ROW_NUMBER() OVER (PARTITION BY c.endereco_uf ORDER BY SUM(f.valor_total) DESC) as rn
+  FROM analytics_v2.fact_sales f
+  JOIN analytics_v2.dim_customer c USING (customer_id)
+  GROUP BY c.endereco_uf, c.name
+)
+SELECT estado, cliente, receita
+FROM ranked WHERE rn <= 3
+ORDER BY estado_total DESC, rn LIMIT 30;
+
+-- Top products by revenue (with product filter)
+SELECT p.product_name, SUM(f.valor_total) as receita, SUM(f.quantidade) as qtd
+FROM analytics_v2.fact_sales f
+JOIN analytics_v2.dim_product p USING (product_id)
+WHERE p.product_name ILIKE '%aluminio%'
+GROUP BY p.product_name
+ORDER BY receita DESC LIMIT 20;
+
+-- Average ticket by customer
+SELECT c.name, COUNT(DISTINCT f.order_id) as pedidos, SUM(f.valor_total) as total,
+       SUM(f.valor_total) / NULLIF(COUNT(DISTINCT f.order_id), 0) as ticket_medio
+FROM analytics_v2.fact_sales f
+JOIN analytics_v2.dim_customer c USING (customer_id)
+GROUP BY c.name
+ORDER BY ticket_medio DESC LIMIT 20;
+
+-- Revenue by customer city (top 10)
+SELECT c.endereco_cidade as cidade, SUM(f.valor_total) as receita
+FROM analytics_v2.fact_sales f
+JOIN analytics_v2.dim_customer c USING (customer_id)
+GROUP BY c.endereco_cidade
+ORDER BY receita DESC LIMIT 10;
+
+-- Top suppliers per product category (double aggregation)
+WITH ranked AS (
+  SELECT
+    p.product_name as produto,
+    s.name as fornecedor,
+    SUM(f.valor_total) as receita,
+    ROW_NUMBER() OVER (PARTITION BY p.product_name ORDER BY SUM(f.valor_total) DESC) as rn
+  FROM analytics_v2.fact_sales f
+  JOIN analytics_v2.dim_supplier s USING (supplier_id)
+  JOIN analytics_v2.dim_product p USING (product_id)
+  GROUP BY p.product_name, s.name
+)
+SELECT produto, fornecedor, receita
+FROM ranked WHERE rn <= 3
+ORDER BY produto, rn LIMIT 60;
 
 USER QUESTION: {query}
 
-SQL QUERY:"""
+SQL:"""
 
         response = llm.invoke([
             SystemMessage(content="You are a SQL query generator. Output only valid SQL."),
@@ -555,10 +649,7 @@ SQL QUERY:"""
         generated_sql = response.content.strip()
 
         # Clean up the SQL (remove markdown code blocks if present)
-        if generated_sql.startswith("```"):
-            lines = generated_sql.split("\n")
-            # Remove first and last lines (``` markers)
-            generated_sql = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+        generated_sql = _strip_markdown_code_block(generated_sql)
         generated_sql = generated_sql.strip().rstrip(";") + ";"
 
         logger.info(f"[SQL] Generated SQL (before injection): {generated_sql}")
@@ -602,6 +693,8 @@ SQL QUERY:"""
         # Execute the SQL directly with RLS context (defense in depth)
         # SECURITY: RLS policies on analytics_v2 tables provide additional enforcement
         try:
+            from .structured_data_formatter import format_sql_result
+
             with engine.connect() as conn:
                 # Set RLS context for this session (defense in depth with hard-injected filter)
                 # Use 'true' for local (transaction-scoped) setting
@@ -616,24 +709,45 @@ SQL QUERY:"""
                 results = cursor.fetchall()
 
                 if not results:
-                    result = "No results found."
-                else:
-                    columns = list(cursor.keys())
-                    result = str([dict(zip(columns, row)) for row in results])
+                    return {
+                        "output": "Nenhum resultado encontrado.",
+                        "sql": final_sql,
+                        "success": True,
+                        "structured_data": None,
+                    }
 
-                logger.info(f"[SQL] Query result: {result[:500] if len(result) > 500 else result}")
+                columns = list(cursor.keys())
+                rows_as_dicts = [dict(zip(columns, row)) for row in results]
+
+                # Create structured data for frontend display
+                # Truncate query for title display
+                title_query = query[:60] + "..." if len(query) > 60 else query
+                structured_data = format_sql_result(
+                    columns=columns,
+                    rows=rows_as_dicts,
+                    sql_query=final_sql,
+                    title=f"Resultado: {title_query}",
+                )
+
+                # Keep text result for backward compatibility / text-based clients
+                result = str(rows_as_dicts[:20])  # Limit text output
+
+                logger.info(f"[SQL] Query result: {len(rows_as_dicts)} rows, structured_data generated")
 
                 return {
                     "output": result,
                     "sql": final_sql,  # Return the SQL with client_id for debugging
-                    "success": True
+                    "success": True,
+                    "structured_data": structured_data.model_dump(),
+                    "all_rows": rows_as_dicts,  # Full data for export
                 }
         except Exception as exec_error:
             logger.error(f"[SQL] Execution error: {exec_error}")
             return {
                 "output": f"SQL execution error: {str(exec_error)}",
                 "sql": final_sql,
-                "success": False
+                "success": False,
+                "structured_data": None,
             }
 
     except Exception as e:
@@ -653,22 +767,16 @@ def register_tools(mcp: FastMCP) -> list[str]:
     mcp.tool(
         name="executar_sql_agent",
         description=(
-            "Executes SQL queries on the client's analytics database using natural language. "
-            "ALWAYS call this tool for ANY question about data, orders, sales, products, customers, suppliers, revenue, quantities, or analytics. "
-            "DO NOT assume what columns exist - the tool has full schema access and will figure it out. "
+            "Answers data questions by querying the analytics database. "
             "\n\n"
-            "Available tables in analytics_v2 schema:\n"
-            "- fact_sales: transactional data (order_id, data_transacao, quantidade, valor_total, valor_unitario)\n"
-            "- dim_customer: customer info (name, cpf_cnpj, telefone, endereco_*, total_orders, total_revenue)\n"
-            "- dim_supplier: supplier info (name, cnpj, telefone, endereco_cidade, endereco_uf, total_revenue)\n"
-            "- dim_product: product catalog (product_name, categoria, total_quantity_sold, total_revenue)\n"
-            "\n"
-            "ONLY requires ONE parameter: 'query' - the natural language question. "
-            "Security filters are automatically applied. "
+            "⚠️ CRITICAL: Pass the user's question IN NATURAL LANGUAGE. Do NOT write SQL - the tool generates SQL internally."
             "\n\n"
-            "WHEN TO USE: Questions about top suppliers, revenue by region/city/state, product rankings, "
-            "order history, customer analysis, sales trends, etc. "
-            "ALWAYS TRY THIS TOOL FIRST for data questions - even if you're unsure about column names."
+            "PARAMETER 'query': The user's question exactly as they asked it (e.g., 'top 10 suppliers by revenue', 'sales by city last month')."
+            "\n\n"
+            "DATA AVAILABLE: sales transactions, customers, suppliers, products, revenue, quantities, dates, addresses (city/state)."
+            "\n\n"
+            "WHEN TO USE: Any question about data, analytics, rankings, trends, totals, comparisons. "
+            "ALWAYS try this tool for data questions - it knows the schema and will figure out the right query."
         ),
     )(mcp_inject_cliente_id(get_context_service)(_executar_sql_agent_logic))
 

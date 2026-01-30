@@ -1,6 +1,4 @@
-# src/atendente_api/core/state.py
-
-# src/atendente_api/core/state.py
+# src/atendente_core/core/state.py
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -11,6 +9,9 @@ from typing_extensions import TypedDict
 # --- IMPORT CORRIGIDO ---
 # Importamos os modelos de contexto seguros da lib compartilhada
 from vizu_models.safe_client_context import InternalClientContext, SafeClientContext
+
+# Context 2.0: Full client context with all sections
+from vizu_models.vizu_client_context import VizuClientContext
 
 
 class PendingElicitation(TypedDict):
@@ -45,6 +46,9 @@ class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
     # Contexto seguro para a LLM (sem dados sensíveis)
     safe_context: SafeClientContext | None
+    # Context 2.0: Full client context with all modular sections
+    # Used for selective context injection in build_dynamic_system_prompt
+    vizu_context: VizuClientContext | None
     # Contexto interno para operações do servidor (injeção de cliente_id em tools)
     # Este campo NÃO deve ser incluído em prompts
     _internal_context: InternalClientContext | None
@@ -61,3 +65,7 @@ class AgentState(TypedDict):
     pending_elicitation: PendingElicitation | None
     # Resposta do usuário para elicitation pendente
     elicitation_response: dict[str, Any] | None
+
+    # --- STRUCTURED DATA (from SQL queries) ---
+    # Rich tabular data for interactive display (sorting, filtering, export)
+    structured_data: dict[str, Any] | None

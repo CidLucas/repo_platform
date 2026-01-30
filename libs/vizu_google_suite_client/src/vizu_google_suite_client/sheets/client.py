@@ -63,3 +63,56 @@ class GoogleSheetsClient(BaseGoogleClient):
             values=result.get("values", []),
             major_dimension=result.get("majorDimension", "ROWS"),
         )
+
+    async def list_spreadsheets(self, max_results: int = 20) -> list[dict]:
+        """
+        List user's recent spreadsheets from Google Drive.
+
+        Args:
+            max_results: Maximum number of spreadsheets to return
+
+        Returns:
+            List of dicts with spreadsheet_id, title, and url
+        """
+        try:
+            from googleapiclient.discovery import build  # type: ignore
+        except ImportError:
+            raise ImportError("google-api-python-client not installed")
+
+        creds = self._get_credentials()
+        drive_service = build("drive", "v3", credentials=creds, cache_discovery=False)
+
+        # Query for spreadsheets only, ordered by most recent
+        query = "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false"
+        results = drive_service.files().list(
+            q=query,
+            pageSize=max_results,
+            fields="files(id, name, webViewLink, modifiedTime)",
+            orderBy="modifiedTime desc",
+        ).execute()
+
+        files = results.get("files", [])
+        return [
+            {
+                "spreadsheet_id": f["id"],
+                "title": f["name"],
+                "url": f.get("webViewLink", f"https://docs.google.com/spreadsheets/d/{f['id']}"),
+                "modified_time": f.get("modifiedTime"),
+            }
+            for f in files
+        ]
+
+    async def get_sheet_names(self, spreadsheet_id: str) -> list[str]:
+        """
+        Get list of sheet names in a spreadsheet.
+
+        Args:
+            spreadsheet_id: The spreadsheet ID
+
+        Returns:
+            List of sheet names
+        """
+        service = self._build_service()
+        spreadsheet = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+        sheets = spreadsheet.get("sheets", [])
+        return [sheet["properties"]["title"] for sheet in sheets]

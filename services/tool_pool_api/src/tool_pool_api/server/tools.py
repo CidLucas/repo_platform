@@ -72,23 +72,8 @@ sys.modules.setdefault(
 # =============================================================================
 # BACKWARD COMPATIBILITY
 # =============================================================================
-# As funções _*_logic foram movidas para seus respectivos módulos:
-# - _executar_rag_cliente_logic → tool_modules/rag_module.py
-# - _executar_sql_agent_logic → tool_modules/sql_module.py
-# - _ferramenta_publica_de_teste_logic → tool_modules/common_module.py
-#
-# Se você precisa importar diretamente (ex: testes), use:
-#   from tool_pool_api.server.tool_modules.rag_module import _executar_rag_cliente_logic
-#   from tool_pool_api.server.tool_modules.sql_module import _executar_sql_agent_logic
-#   from tool_pool_api.server.tool_modules.common_module import _ferramenta_publica_de_teste_logic
-
 from tool_pool_api.server.dependencies import (
     get_context_service,
     load_context_from_token,
 )
-from tool_pool_api.server.tool_modules.common_module import (
-    _ferramenta_publica_de_teste_logic,  # noqa: F401
-)
-from tool_pool_api.server.tool_modules.rag_module import _executar_rag_cliente_logic  # noqa: F401
-from tool_pool_api.server.tool_modules.sql_module import _executar_sql_agent_logic  # noqa: F401
 from vizu_rag_factory.factory import create_rag_runnable

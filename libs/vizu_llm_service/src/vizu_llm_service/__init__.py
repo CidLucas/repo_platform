@@ -38,6 +38,15 @@ from .client import (
     shutdown_langfuse,
 )
 from .config import LLMSettings, clear_settings_cache, get_llm_settings
+from .token_budget import (
+    DEFAULT_CHARS_PER_TOKEN,
+    DEFAULT_MAX_PROMPT_TOKENS,
+    TokenBudget,
+    TokenBudgetResult,
+    estimate_tokens,
+    get_message_content,
+    truncate_messages,
+)
 from .prompt_service import (
     FetchedPrompt,
     LangfusePromptClient,
@@ -85,6 +94,14 @@ __all__ = [
     # Main API
     "get_model",
     "get_embedding_model",
+    # Token Budgeting
+    "TokenBudget",
+    "TokenBudgetResult",
+    "estimate_tokens",
+    "get_message_content",
+    "truncate_messages",
+    "DEFAULT_MAX_PROMPT_TOKENS",
+    "DEFAULT_CHARS_PER_TOKEN",
     # Prompt Management (Langfuse-First)
     "PromptService",
     "FetchedPrompt",

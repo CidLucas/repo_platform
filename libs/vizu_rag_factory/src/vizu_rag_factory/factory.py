@@ -115,7 +115,14 @@ def create_rag_runnable(
             try:
                 docs = retriever.invoke(question)
                 logger.info(f"RAG: Recuperados {len(docs)} documentos")
-                return _format_docs(docs)
+                formatted_context = _format_docs(docs)
+
+                # FULL CONTEXT DEBUG - Enable with LOG_LEVEL=DEBUG to inspect retrieved RAG context
+                logger.debug(f"=== RAG RETRIEVED CONTEXT ({len(docs)} docs) ===")
+                logger.debug(formatted_context)
+                logger.debug(f"=== END RAG CONTEXT ===")
+
+                return formatted_context
             except Exception as e:
                 logger.error(f"RAG: Erro na busca: {e}")
                 return "Erro ao buscar informações."

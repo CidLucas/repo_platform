@@ -31,6 +31,11 @@ from vizu_qdrant_client import get_qdrant_client
 # Phase 3: Use vizu_tool_registry for dynamic tool filtering
 from vizu_tool_registry import ToolRegistry
 
+from tool_pool_api.server.tool_helpers import (
+    get_enabled_tools_for_context,
+    get_tier_for_context,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -86,7 +91,7 @@ async def _get_knowledge_summary(cliente_id: str | None = None) -> str:
     """
     context = await _resolve_client_context(cliente_id)
 
-    enabled_tools = _get_enabled_tools_for_context(context)
+    enabled_tools = get_enabled_tools_for_context(context)
     if "executar_rag_cliente" not in enabled_tools:
         return f"# Base de Conhecimento - {context.nome_empresa}\n\n⚠️ RAG não habilitado para este cliente."
 
@@ -155,7 +160,7 @@ async def _search_knowledge(
     """
     context = await _resolve_client_context(cliente_id)
 
-    enabled = _get_enabled_tools_for_context(context)
+    enabled = get_enabled_tools_for_context(context)
     if "executar_rag_cliente" not in enabled:
         raise ResourceError("RAG não habilitado para este cliente.")
 
@@ -203,43 +208,6 @@ async def _search_knowledge(
 
 
 # =============================================================================
-# HELPER: Get enabled tools from context (supports legacy and new fields)
-# =============================================================================
-
-
-def _get_enabled_tools_for_context(context: VizuClientContext) -> list[str]:
-    """
-    Get enabled tools from client context.
-
-    Supports both:
-    - New `enabled_tools` list field (preferred)
-    - Legacy boolean flags (ferramenta_rag_habilitada, etc.)
-
-    Args:
-        context: VizuClientContext from the client
-
-    Returns:
-        List of enabled tool names
-    """
-    # Only use the authoritative `enabled_tools` list; legacy booleans were
-    # removed by migration.
-    return getattr(context, "enabled_tools", []) or []
-
-
-def _get_tier_for_context(context: VizuClientContext) -> str:
-    """
-    Get tier from client context.
-
-    Returns:
-        Tier string ("BASIC", "SME", "ENTERPRISE")
-    """
-    if hasattr(context, "tier") and context.tier:
-        return context.tier
-    # Default for legacy clients
-    return "BASIC"
-
-
-# =============================================================================
 # RESOURCES: Client Configuration
 # =============================================================================
 
@@ -260,8 +228,8 @@ async def _get_client_config(cliente_id: str | None = None) -> str:
     context = await _resolve_client_context(cliente_id)
 
     # Get enabled tools and tier
-    enabled_tools = _get_enabled_tools_for_context(context)
-    tier = _get_tier_for_context(context)
+    enabled_tools = get_enabled_tools_for_context(context)
+    tier = get_tier_for_context(context)
 
     # Get available tools from registry (validates against tier)
     available_tools = ToolRegistry.get_available_tools(
@@ -579,8 +547,8 @@ def register_resources(mcp: FastMCP) -> None:
         """
         context = await _resolve_client_context(cliente_id)
 
-        enabled_tools = _get_enabled_tools_for_context(context)
-        tier = _get_tier_for_context(context)
+        enabled_tools = get_enabled_tools_for_context(context)
+        tier = get_tier_for_context(context)
 
         available = ToolRegistry.get_available_tools(
             enabled_tools=enabled_tools,

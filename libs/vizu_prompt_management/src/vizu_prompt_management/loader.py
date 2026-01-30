@@ -109,8 +109,13 @@ class PromptLoader:
                     loaded_at=datetime.utcnow(),
                 )
 
-        # Try database first
-        db_prompt = await self._load_from_database(name, cliente_id, version)
+        # Try database first (SQLAlchemy if session available, else Supabase)
+        db_prompt = None
+        if self.db_session:
+            db_prompt = await self._load_from_database(name, cliente_id, version)
+        else:
+            db_prompt = await self._load_from_supabase(name, cliente_id, version)
+
         if db_prompt:
             content = self.renderer.render(db_prompt.content, variables)
             loaded = LoadedPrompt(
@@ -128,7 +133,8 @@ class PromptLoader:
         builtin = BUILTIN_TEMPLATES.get(name)
         if builtin:
             # Apply default values for optional variables
-            merged_vars = {**builtin.optional_variables, **variables}
+            optional_vars = builtin.get_optional_variables_dict() if hasattr(builtin, 'get_optional_variables_dict') else (builtin.optional_variables if isinstance(builtin.optional_variables, dict) else {})
+            merged_vars = {**optional_vars, **variables}
             content = self.renderer.render(builtin.content, merged_vars)
             return LoadedPrompt(
                 name=builtin.name,
@@ -152,7 +158,7 @@ class PromptLoader:
         cliente_id: UUID | None,
         version: int | None,
     ) -> LoadedPrompt | None:
-        """Load prompt from database."""
+        """Load prompt from database via SQLAlchemy."""
         if not self.db_session:
             return None
 
@@ -212,6 +218,75 @@ class PromptLoader:
             },
         )
 
+    async def _load_from_supabase(
+        self,
+        name: str,
+        cliente_id: UUID | None,
+        version: int | None,
+    ) -> LoadedPrompt | None:
+        """Load prompt from Supabase when no SQLAlchemy session available."""
+        try:
+            from vizu_supabase_client import get_supabase_client
+
+            supabase = get_supabase_client()  # Singleton
+
+            # Try client-specific first
+            if cliente_id:
+                query = (
+                    supabase
+                    .table("prompt_template")
+                    .select("*")
+                    .eq("name", name)
+                    .eq("client_id", str(cliente_id))
+                    .eq("is_active", True)
+                )
+                if version:
+                    query = query.eq("version", version)
+                else:
+                    query = query.order("version", desc=True)
+
+                response = query.limit(1).execute()
+                if response.data:
+                    return self._dict_to_loaded(response.data[0])
+
+            # Fallback to global
+            query = (
+                supabase
+                .table("prompt_template")
+                .select("*")
+                .eq("name", name)
+                .is_("client_id", "null")
+                .eq("is_active", True)
+            )
+            if version:
+                query = query.eq("version", version)
+            else:
+                query = query.order("version", desc=True)
+
+            response = query.limit(1).execute()
+            if response.data:
+                return self._dict_to_loaded(response.data[0])
+
+        except ImportError:
+            logger.debug("vizu_supabase_client not available for prompt loading")
+        except Exception as e:
+            logger.warning(f"Supabase prompt load failed: {e}")
+
+        return None
+
+    def _dict_to_loaded(self, data: dict) -> LoadedPrompt:
+        """Convert Supabase dict to LoadedPrompt."""
+        return LoadedPrompt(
+            name=data.get("name", ""),
+            content=data.get("content", ""),
+            version=data.get("version", 1),
+            source="database",
+            metadata={
+                "id": data.get("id"),
+                "client_id": data.get("client_id"),
+            },
+        )
+
     def load_builtin(
         self,
         name: str,
@@ -233,7 +308,8 @@ class PromptLoader:
         if not builtin:
             raise PromptNotFoundError(f"Built-in prompt not found: {name}")
 
-        merged_vars = {**builtin.optional_variables, **variables}
+        optional_vars = builtin.get_optional_variables_dict() if hasattr(builtin, 'get_optional_variables_dict') else (builtin.optional_variables if isinstance(builtin.optional_variables, dict) else {})
+        merged_vars = {**optional_vars, **variables}
         content = self.renderer.render(builtin.content, merged_vars)
 
         return LoadedPrompt(

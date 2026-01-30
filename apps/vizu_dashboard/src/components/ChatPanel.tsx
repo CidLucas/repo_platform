@@ -9,16 +9,19 @@ import {
   Textarea,
   Slide,
   Portal,
+  useToast,
 } from '@chakra-ui/react';
 import { useState, useRef, useEffect, useContext } from 'react';
 import { ArrowForwardIcon, AttachmentIcon, AddIcon, ChatIcon, CloseIcon } from '@chakra-ui/icons';
 import { AuthContext } from '../contexts/AuthContext';
+import { SimpleDataTable, type StructuredData } from './SimpleDataTable';
 
 interface Message {
   id: string;
   content: string;
   sender: 'user' | 'assistant';
   timestamp: Date;
+  structuredData?: StructuredData;
 }
 
 interface SuggestionChip {
@@ -45,6 +48,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const auth = useContext(AuthContext);
+  const toast = useToast();
 
   // Get user name from auth context - fallback to first part of email if no display name
   const userName = auth?.user?.user_metadata?.full_name ||
@@ -64,6 +68,21 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
       setTimeout(() => textareaRef.current?.focus(), 300);
     }
   }, [isOpen]);
+
+  // Handle export to Google Sheets
+  const handleExportToSheets = async (data: StructuredData) => {
+    toast({
+      title: 'Exportando...',
+      description: 'Preparando dados para exportar ao Google Sheets',
+      status: 'info',
+      duration: 2000,
+    });
+
+    // TODO: Integrate with Google Sheets export via agent
+    // For now, just show a message to the user
+    setInputValue(`Exportar os dados "${data.title || 'da consulta'}" para o Google Sheets`);
+    textareaRef.current?.focus();
+  };
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
@@ -98,13 +117,18 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
       );
       if (!response.ok) throw new Error('Erro ao se comunicar com o atendente');
       const data = await response.json();
+
+      // Check for structured data in the response
+      const structuredData = data.structured_data as StructuredData | undefined;
+
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now().toString() + '-assistant',
-          content: data.response || 'Sem resposta do atendente.',
+          content: data.response || (structuredData ? '' : 'Sem resposta do atendente.'),
           sender: 'assistant',
           timestamp: new Date(),
+          structuredData,
         },
       ]);
     } catch (err: any) {
@@ -281,19 +305,37 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
                   <Flex
                     key={message.id}
                     justify={message.sender === 'user' ? 'flex-end' : 'flex-start'}
+                    w="100%"
                   >
                     <Box
-                      maxW="85%"
-                      bg={message.sender === 'user' ? 'black' : 'rgba(0, 0, 0, 0.06)'}
-                      color={message.sender === 'user' ? 'white' : 'black'}
-                      px={4}
-                      py={3}
-                      borderRadius="18px"
-                      boxShadow={message.sender === 'user' ? '0 2px 8px rgba(0,0,0,0.15)' : 'none'}
+                      maxW={message.structuredData ? '100%' : '85%'}
+                      w={message.structuredData ? '100%' : 'auto'}
                     >
-                      <Text fontSize="15px" fontFamily="'Noto Sans', sans-serif" lineHeight="1.4">
-                        {message.content}
-                      </Text>
+                      {/* Text content */}
+                      {message.content && (
+                        <Box
+                          bg={message.sender === 'user' ? 'black' : 'rgba(0, 0, 0, 0.06)'}
+                          color={message.sender === 'user' ? 'white' : 'black'}
+                          px={4}
+                          py={3}
+                          borderRadius="18px"
+                          boxShadow={message.sender === 'user' ? '0 2px 8px rgba(0,0,0,0.15)' : 'none'}
+                          mb={message.structuredData ? 3 : 0}
+                        >
+                          <Text fontSize="15px" fontFamily="'Noto Sans', sans-serif" lineHeight="1.4">
+                            {message.content}
+                          </Text>
+                        </Box>
+                      )}
+
+                      {/* Structured data table */}
+                      {message.structuredData && (
+                        <SimpleDataTable
+                          data={message.structuredData}
+                          onExportToSheets={() => handleExportToSheets(message.structuredData!)}
+                          maxHeight="350px"
+                        />
+                      )}
                     </Box>
                   </Flex>
                 ))}

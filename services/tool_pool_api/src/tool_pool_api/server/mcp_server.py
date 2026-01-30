@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastmcp import FastMCP
 
-from .prompts import register_prompts
 from .resources import register_resources
 from .tools import get_available_modules, register_tools
 
@@ -16,30 +15,49 @@ logger = logging.getLogger(__name__)
 
 # Docker MCP integration - lazy import to avoid startup errors
 _docker_mcp_adapter = None
+_docker_mcp_init_lock = asyncio.Lock()
+_docker_mcp_initialized = False
 
 
 async def _initialize_docker_mcp(mcp: FastMCP):
-    """Initialize Docker MCP integration if enabled."""
-    global _docker_mcp_adapter
-    try:
-        from .docker_mcp_adapter import get_docker_mcp_adapter
+    """
+    Initialize Docker MCP integration if enabled.
 
-        adapter = get_docker_mcp_adapter()
-        await adapter.initialize()
+    Thread-safe via asyncio.Lock - prevents concurrent initialization.
+    """
+    global _docker_mcp_adapter, _docker_mcp_initialized
 
-        # Discover and register Docker MCP tools
-        registered = await adapter.discover_and_register(mcp)
-        _docker_mcp_adapter = adapter
+    # Fast path: already initialized
+    if _docker_mcp_initialized:
+        return
 
-        if registered:
-            logger.info(f"Docker MCP: Registered {len(registered)} tools")
-        else:
-            logger.debug("Docker MCP: No tools registered (disabled or no containers)")
+    async with _docker_mcp_init_lock:
+        # Double-check after acquiring lock
+        if _docker_mcp_initialized:
+            return
 
-    except ImportError as e:
-        logger.debug(f"Docker MCP adapter not available: {e}")
-    except Exception as e:
-        logger.warning(f"Docker MCP initialization failed: {e}")
+        try:
+            from .docker_mcp_adapter import get_docker_mcp_adapter
+
+            adapter = get_docker_mcp_adapter()
+            await adapter.initialize()
+
+            # Discover and register Docker MCP tools
+            registered = await adapter.discover_and_register(mcp)
+            _docker_mcp_adapter = adapter
+            _docker_mcp_initialized = True
+
+            if registered:
+                logger.info(f"Docker MCP: Registered {len(registered)} tools")
+            else:
+                logger.debug("Docker MCP: No tools registered (disabled or no containers)")
+
+        except ImportError as e:
+            logger.debug(f"Docker MCP adapter not available: {e}")
+            _docker_mcp_initialized = True  # Mark as done to avoid retries
+        except Exception as e:
+            logger.warning(f"Docker MCP initialization failed: {e}")
+            _docker_mcp_initialized = True  # Mark as done to avoid retries
 
 
 def create_mcp_server():
@@ -59,9 +77,9 @@ def create_mcp_server():
     mcp = FastMCP("Vizu Tool Pool")
 
     # 2. Registre os componentes MCP
+    # Tools include prompt_module which registers native MCP prompts
     register_tools(mcp)
     register_resources(mcp)
-    register_prompts(mcp)
 
     # 3. Crie a aplicação MCP ASGI
     # path='/' significa que o endpoint MCP será /mcp (sem duplicação)

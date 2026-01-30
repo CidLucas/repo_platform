@@ -61,7 +61,7 @@ async def init_node(state: AgentState) -> dict[str, Any]:
     - Validates required fields
     - Sets up initial context
     """
-    logger.debug(f"Init node: session={state.get('session_id')}")
+    logger.info(f"init_node called: session={state.get('session_id')}, messages={len(state.get('messages', []))}")
 
     turn_count = state.get("turn_count", 0) + 1
     max_turns = state.get("max_turns", 20)
@@ -89,7 +89,7 @@ async def elicit_node(state: AgentState) -> dict[str, Any]:
     - Processes elicitation responses
     - Triggers new elicitations based on strategy
     """
-    logger.debug(f"Elicit node: session={state.get('session_id')}")
+    logger.info(f"elicit_node called: session={state.get('session_id')}, pending={state.get('pending_elicitation')}")
 
     pending = state.get("pending_elicitation")
     response = state.get("elicitation_response")

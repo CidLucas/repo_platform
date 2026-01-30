@@ -19,64 +19,11 @@ from fastmcp.server.dependencies import AccessToken
 from vizu_llm_service import ModelTier, get_model
 from vizu_models.vizu_client_context import VizuClientContext
 
-# Phase 3: Use ToolRegistry for validation
-from vizu_tool_registry import ToolRegistry
+from tool_pool_api.server.tool_helpers import is_tool_enabled_for_client
 
 from . import register_module
 
 logger = logging.getLogger(__name__)
-
-
-# =============================================================================
-# HELPERS
-# =============================================================================
-
-
-def _is_tool_enabled_for_client(
-    tool_name: str, context: VizuClientContext
-) -> bool:
-    """
-    Check if a tool is enabled for a client.
-
-    Supports both:
-    - New `enabled_tools` list field
-    - Legacy boolean flags
-
-    Args:
-        tool_name: Name of the tool (e.g., "executar_rag_cliente")
-        context: VizuClientContext
-
-    Returns:
-        True if tool is enabled
-    """
-    # Only consult the authoritative `enabled_tools` list and enforce tier.
-    enabled = getattr(context, "enabled_tools", None)
-    if enabled is not None and not isinstance(enabled, list | tuple | set):
-        enabled = None
-    legacy_tools = ToolRegistry.get_tool_names_for_legacy_flags(
-        rag_enabled=getattr(context, "ferramenta_rag_habilitada", False),
-        sql_enabled=getattr(context, "ferramenta_sql_habilitada", False),
-        scheduling_enabled=getattr(context, "ferramenta_agendamento_habilitada", False),
-    )
-
-    if enabled is not None and tool_name not in enabled:
-        return False
-
-    if enabled is None and tool_name not in legacy_tools:
-        return False
-
-    raw_tier = getattr(context, "tier", None)
-    if isinstance(raw_tier, str) and raw_tier:
-        tier = raw_tier
-    elif hasattr(raw_tier, "value") and isinstance(raw_tier.value, str) and raw_tier.value:
-        tier = raw_tier.value
-    else:
-        tier = "BASIC"
-    tool_meta = ToolRegistry.get_tool(tool_name)
-    if tool_meta and not tool_meta.is_accessible_by_tier(tier):
-        return False
-
-    return True
 
 
 # =============================================================================
@@ -167,7 +114,7 @@ async def _executar_rag_cliente_logic(
     real_client_id = vizu_context.id
     logger.info(f"[RAG] Executando para cliente {real_client_id}...")
 
-    if not _is_tool_enabled_for_client("executar_rag_cliente", vizu_context):
+    if not is_tool_enabled_for_client("executar_rag_cliente", vizu_context):
         logger.warning(f"[RAG] Ferramenta desabilitada para {real_client_id}.")
         raise ToolError("Ferramenta RAG não está habilitada para este cliente.")
 

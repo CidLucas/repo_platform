@@ -1,3 +1,13 @@
+"""
+Agent graph builder for atendente_core.
+
+Builds a LangGraph-based agent graph with:
+- Supervisor node for routing decisions
+- Tool execution node for parallel tool calls
+- Elicitation node for human-in-the-loop interactions
+- Redis checkpointing for conversation memory
+"""
+
 import asyncio
 
 from langgraph.checkpoint.redis import RedisSaver

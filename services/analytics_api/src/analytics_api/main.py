@@ -66,6 +66,35 @@ def health_check():
     """Verifica se a API está operacional."""
     return {"status": "ok", "service": "analytics-api", "auth": "jwt/header/query_param"}
 
+
+# --- Lifecycle Events ---
+@app.on_event("startup")
+async def startup_event():
+    """Initialize resources on startup."""
+    logger.info("Analytics API starting up...")
+    # Connection pool is lazily initialized on first use
+    logger.info("Database connection pool will be initialized on first request")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """
+    Cleanup resources on shutdown.
+
+    Properly disposes database engine to close all pooled connections.
+    This prevents connection leaks when the service restarts.
+    """
+    logger.info("Analytics API shutting down...")
+    try:
+        from vizu_db_connector.database import get_engine
+        engine = get_engine()
+        if engine:
+            engine.dispose()
+            logger.info("Database connection pool disposed successfully")
+    except Exception as e:
+        logger.warning(f"Error disposing database pool: {e}")
+
+
 # Inclui todas as rotas com prefixo /api
 app.include_router(api_router, prefix="/api")
 

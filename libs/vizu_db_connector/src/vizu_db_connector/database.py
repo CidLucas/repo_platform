@@ -28,6 +28,15 @@ def get_engine():
     - pool_timeout: Seconds to wait for a connection from pool
     - pool_recycle: Recycle connections after N seconds (prevents stale connections)
     - pool_pre_ping: Test connections before use (handles dropped connections)
+
+    NOTE: Supabase PgBouncer may drop idle connections after ~60s.
+    We use aggressive pool_recycle to prevent SSL disconnection errors.
+
+    IMPORTANT: Connection pool is shared across all users of vizu_db_connector.
+    Each service should ensure connections are properly returned to pool via:
+    - Using context managers: `with session:` or `with PostgresRepository():`
+    - FastAPI dependencies with yield pattern (generator)
+    - Explicit .close() calls in finally blocks
     """
     global _engine
     if _engine is None:
@@ -38,11 +47,12 @@ def get_engine():
             )
         _engine = create_engine(
             DATABASE_URL,
-            pool_pre_ping=True,
-            pool_size=5,          # Keep low - Supabase Session mode has limited slots
-            max_overflow=10,      # Allow burst up to 15 total connections
+            pool_pre_ping=True,   # CRITICAL: Test connection before use
+            pool_size=5,          # Increased from 3 - allows more concurrent requests
+            max_overflow=10,      # Allow burst up to 15 total connections (was 7)
             pool_timeout=30,      # Wait up to 30s for a connection
-            pool_recycle=1800,    # Recycle connections every 30 minutes
+            pool_recycle=180,     # Recycle every 3 min (was 5 min - more aggressive for Supabase)
+            # echo_pool="debug",  # Disabled - enable for pool debugging only
         )
     return _engine
 

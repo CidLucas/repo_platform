@@ -2,8 +2,11 @@ import asyncio
 import logging
 import os
 from datetime import UTC, datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from vizu_prompt_management import PromptLoader
 
 from cryptography.fernet import Fernet
 
@@ -123,7 +126,10 @@ class ContextService:
                 logger.warning(f"Could not set RLS context (SQLAlchemy): {e}")
 
     def _build_context_from_dict(self, data: dict) -> VizuClientContext:
-        """Build VizuClientContext from Supabase response dict."""
+        """Build VizuClientContext from Supabase response dict.
+
+        Context 2.0: Now includes all modular context sections.
+        """
         def _normalize_enabled_tools(raw):
             if not raw:
                 return []
@@ -155,10 +161,27 @@ class ContextService:
         enabled_tools = _normalize_enabled_tools(data.get("enabled_tools"))
 
         return VizuClientContext(
+            # Identification
             id=UUID(data["client_id"]) if isinstance(data["client_id"], str) else data["client_id"],
             nome_empresa=data["nome_empresa"],
+            cpf_cnpj=data.get("cpf_cnpj"),
             tipo_cliente=data["tipo_cliente"],
             tier=data["tier"],
+
+            # Context 2.0 sections
+            company_profile=data.get("company_profile"),
+            brand_voice=data.get("brand_voice"),
+            product_catalog=data.get("product_catalog"),
+            target_audience=data.get("target_audience"),
+            market_context=data.get("market_context"),
+            current_moment=data.get("current_moment"),
+            team_structure=data.get("team_structure"),
+            policies=data.get("policies"),
+            data_schema=data.get("data_schema"),
+            available_tools=data.get("available_tools"),
+            client_custom=data.get("client_custom"),
+
+            # Legacy fields (backward compatibility)
             prompt_base=data.get("prompt_base") or "Você é um assistente útil.",
             horario_funcionamento=data.get("horario_funcionamento") or {},
             enabled_tools=enabled_tools,
@@ -167,7 +190,10 @@ class ContextService:
         )
 
     def _build_context_from_orm(self, cliente_db) -> VizuClientContext:
-        """Build VizuClientContext from SQLAlchemy ORM object."""
+        """Build VizuClientContext from SQLAlchemy ORM object.
+
+        Context 2.0: Now includes all modular context sections.
+        """
         raw = getattr(cliente_db, "enabled_tools", None) or []
         # Normalize/dedupe preserving order
         seen = set()
@@ -181,10 +207,27 @@ class ContextService:
             deduped.append(v)
 
         return VizuClientContext(
-            id=cliente_db.id,
+            # Identification
+            id=cliente_db.client_id,
             nome_empresa=cliente_db.nome_empresa,
+            cpf_cnpj=getattr(cliente_db, "cpf_cnpj", None),
             tipo_cliente=cliente_db.tipo_cliente,
             tier=cliente_db.tier,
+
+            # Context 2.0 sections
+            company_profile=getattr(cliente_db, "company_profile", None),
+            brand_voice=getattr(cliente_db, "brand_voice", None),
+            product_catalog=getattr(cliente_db, "product_catalog", None),
+            target_audience=getattr(cliente_db, "target_audience", None),
+            market_context=getattr(cliente_db, "market_context", None),
+            current_moment=getattr(cliente_db, "current_moment", None),
+            team_structure=getattr(cliente_db, "team_structure", None),
+            policies=getattr(cliente_db, "policies", None),
+            data_schema=getattr(cliente_db, "data_schema", None),
+            available_tools=getattr(cliente_db, "available_tools", None),
+            client_custom=getattr(cliente_db, "client_custom", None),
+
+            # Legacy fields (backward compatibility)
             prompt_base=getattr(cliente_db, "prompt_base", None)
             or "Você é um assistente útil.",
             horario_funcionamento=getattr(cliente_db, "horario_funcionamento", {})
@@ -321,6 +364,137 @@ class ContextService:
         cache_key = self._get_cache_key(cliente_id)
         await asyncio.to_thread(self.cache.delete, cache_key)
         logger.info(f"Cache invalidado para: {cliente_id}")
+
+    # --------------------------
+    # Resource caching methods
+    # --------------------------
+
+    async def get_sql_table_configs(self, cliente_id: UUID) -> list[dict]:
+        """
+        Get SQL table configurations for client, with Redis caching.
+
+        Uses:
+        - Redis pool (singleton via cache_service)
+        - Supabase client (singleton via get_supabase_client())
+
+        Args:
+            cliente_id: The client UUID
+
+        Returns:
+            List of table config dicts from sql_table_config table
+        """
+        cache_key = f"sql_configs:{cliente_id}"
+
+        # Check Redis cache
+        try:
+            cached = await asyncio.to_thread(self.cache.get_json, cache_key)
+            if cached is not None:
+                logger.debug(f"SQL configs cache hit for {cliente_id}")
+                return cached
+        except Exception as e:
+            logger.warning(f"Redis cache read failed for sql_configs: {e}")
+
+        # Fetch from Supabase
+        configs = []
+        if self._use_supabase:
+            try:
+                supabase = get_supabase_client()  # Singleton
+                response = (
+                    supabase
+                    .table("sql_table_config")
+                    .select("*")
+                    .eq("client_id", str(cliente_id))
+                    .eq("is_active", True)
+                    .execute()
+                )
+                configs = response.data or []
+                logger.debug(f"Loaded {len(configs)} SQL configs from Supabase for {cliente_id}")
+            except Exception as e:
+                logger.error(f"Failed to load SQL configs from Supabase: {e}")
+        else:
+            # SQLAlchemy fallback - not implemented, return empty
+            logger.warning("SQL table configs not implemented for SQLAlchemy backend")
+
+        # Cache in Redis
+        if configs:
+            try:
+                await asyncio.to_thread(
+                    self.cache.set_json,
+                    cache_key,
+                    configs,
+                    self.CACHE_TTL_SECONDS
+                )
+            except Exception as e:
+                logger.warning(f"Failed to cache SQL configs: {e}")
+
+        return configs
+
+    async def get_cached_prompt(
+        self,
+        name: str,
+        cliente_id: UUID | None,
+        loader: "PromptLoader",
+        variables: dict,
+    ) -> str:
+        """
+        Get prompt with Redis caching.
+
+        Caches RAW template (before variable substitution).
+        Variables are applied after cache retrieval for freshness.
+
+        Args:
+            name: Prompt template name (e.g., "atendente/system/v3")
+            cliente_id: Client UUID for client-specific prompts
+            loader: PromptLoader instance (injected, not created inside)
+            variables: Variables to render into template
+
+        Returns:
+            Rendered prompt content
+        """
+        cache_key = f"prompt:{name}:{cliente_id or 'global'}"
+
+        # Check Redis cache for raw template
+        try:
+            cached = await asyncio.to_thread(self.cache.get_json, cache_key)
+            if cached and "content" in cached:
+                logger.debug(f"Prompt cache hit for {name}")
+                return loader.renderer.render(cached["content"], variables)
+        except Exception as e:
+            logger.warning(f"Redis cache read failed for prompt: {e}")
+
+        # Load from DB via PromptLoader
+        try:
+            loaded = await loader.load(name, variables={}, cliente_id=cliente_id)
+
+            # Cache raw template
+            try:
+                await asyncio.to_thread(
+                    self.cache.set_json,
+                    cache_key,
+                    {"content": loaded.content, "version": loaded.version},
+                    self.CACHE_TTL_SECONDS
+                )
+            except Exception as e:
+                logger.warning(f"Failed to cache prompt: {e}")
+
+            return loader.renderer.render(loaded.content, variables)
+
+        except Exception as e:
+            logger.warning(f"PromptLoader.load failed for {name}: {e}, using builtin")
+            loaded = loader.load_builtin(name, variables)
+            return loaded.content
+
+    async def clear_sql_configs_cache(self, cliente_id: UUID) -> None:
+        """Clear SQL table configs cache for a client."""
+        cache_key = f"sql_configs:{cliente_id}"
+        await asyncio.to_thread(self.cache.delete, cache_key)
+        logger.info(f"SQL configs cache invalidated for: {cliente_id}")
+
+    async def clear_prompt_cache(self, name: str, cliente_id: UUID | None = None) -> None:
+        """Clear prompt cache for a specific prompt."""
+        cache_key = f"prompt:{name}:{cliente_id or 'global'}"
+        await asyncio.to_thread(self.cache.delete, cache_key)
+        logger.info(f"Prompt cache invalidated for: {name}")
 
     # --------------------------
     # Integration helpers

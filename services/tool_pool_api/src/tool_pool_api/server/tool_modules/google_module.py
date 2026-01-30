@@ -128,6 +128,74 @@ async def _list_google_accounts_logic(cliente_id: str) -> list:
     return accounts
 
 
+async def _list_spreadsheets_logic(
+    cliente_id: str,
+    max_results: int = 20,
+    account_email: str | None = None,
+) -> list:
+    """List user's recent Google Spreadsheets."""
+    tokens = await _get_google_tokens(cliente_id, account_email)
+    client = GoogleSheetsClient(access_token=tokens["access_token"])
+    spreadsheets = await client.list_spreadsheets(max_results)
+    return spreadsheets
+
+
+async def _export_data_to_sheet_logic(
+    spreadsheet_id: str,
+    sheet_name: str,
+    values: list[list],
+    cliente_id: str,
+    account_email: str | None = None,
+) -> dict:
+    """Export data to an existing Google Sheet."""
+    tokens = await _get_google_tokens(cliente_id, account_email)
+    client = GoogleSheetsClient(access_token=tokens["access_token"])
+
+    # Get existing sheet names to validate
+    sheet_names = await client.get_sheet_names(spreadsheet_id)
+
+    # Use provided sheet name or default to first sheet
+    target_sheet = sheet_name if sheet_name in sheet_names else sheet_names[0]
+    range_name = f"{target_sheet}!A1"
+
+    result = await client.append_values(spreadsheet_id, range_name, values)
+
+    return {
+        "status": "success",
+        "spreadsheet_id": spreadsheet_id,
+        "spreadsheet_url": f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}",
+        "sheet_name": target_sheet,
+        "rows_written": len(values),
+        "updated_cells": result.updated_cells,
+    }
+
+
+async def _create_spreadsheet_with_data_logic(
+    title: str,
+    values: list[list],
+    cliente_id: str,
+    account_email: str | None = None,
+) -> dict:
+    """Create a new Google Spreadsheet and populate with data."""
+    tokens = await _get_google_tokens(cliente_id, account_email)
+    client = GoogleSheetsClient(access_token=tokens["access_token"])
+
+    # Create new spreadsheet
+    spreadsheet = await client.create_spreadsheet(title)
+    spreadsheet_id = spreadsheet["spreadsheet_id"]
+
+    # Write data to the new spreadsheet
+    if values:
+        await client.append_values(spreadsheet_id, "A1", values)
+
+    return {
+        "status": "success",
+        "spreadsheet_id": spreadsheet_id,
+        "spreadsheet_url": spreadsheet["spreadsheet_url"],
+        "rows_written": len(values),
+    }
+
+
 # =============================================================================
 # REGISTRO DO MÓDULO
 # =============================================================================
@@ -309,7 +377,114 @@ def register_tools(mcp: FastMCP) -> list[str]:
         ),
     )(list_google_accounts_wrapper)
 
+    # Tool 5: List User's Spreadsheets
+    async def list_spreadsheets_wrapper(
+        max_results: int = 20,
+        ctx: Context = None,
+        cliente_id: str | None = None,
+        account_email: str | None = None,
+    ) -> list:
+        """
+        List user's recent Google Spreadsheets.
+
+        Returns a list of spreadsheets with their IDs, titles, and URLs.
+        Use this to let users select an existing spreadsheet for export.
+
+        Args:
+            max_results: Maximum number of spreadsheets to return (default 20)
+            cliente_id: ID do cliente (injected internally)
+            account_email: Optional Google account to use
+        """
+        if not cliente_id:
+            raise ValueError("cliente_id is required")
+        return await _list_spreadsheets_logic(cliente_id, max_results, account_email)
+
+    mcp.tool(
+        name="list_spreadsheets",
+        description=(
+            "List user's recent Google Spreadsheets. "
+            "Returns spreadsheet IDs, titles, and URLs. "
+            "Use this to let users select where to export data."
+        ),
+    )(list_spreadsheets_wrapper)
+
+    # Tool 6: Export Data to Existing Sheet
+    async def export_to_sheet_wrapper(
+        spreadsheet_id: str,
+        values: list[list],
+        sheet_name: str = "Sheet1",
+        ctx: Context = None,
+        cliente_id: str | None = None,
+        account_email: str | None = None,
+    ) -> dict:
+        """
+        Export data to an existing Google Spreadsheet.
+
+        Args:
+            spreadsheet_id: ID of the target spreadsheet
+            values: Data as list of rows (each row is a list of values)
+            sheet_name: Name of the sheet tab (default "Sheet1")
+            cliente_id: ID do cliente (injected internally)
+            account_email: Optional Google account to use
+        """
+        if not cliente_id:
+            raise ValueError("cliente_id is required")
+        return await _export_data_to_sheet_logic(
+            spreadsheet_id, sheet_name, values, cliente_id, account_email
+        )
+
+    mcp.tool(
+        name="export_to_sheet",
+        description=(
+            "Export data to an existing Google Spreadsheet. "
+            "Use after list_spreadsheets to let user select destination. "
+            "Appends data to the specified sheet."
+        ),
+    )(export_to_sheet_wrapper)
+
+    # Tool 7: Create New Spreadsheet with Data
+    async def create_spreadsheet_with_data_wrapper(
+        title: str,
+        values: list[list],
+        ctx: Context = None,
+        cliente_id: str | None = None,
+        account_email: str | None = None,
+    ) -> dict:
+        """
+        Create a new Google Spreadsheet and populate with data.
+
+        Args:
+            title: Title for the new spreadsheet
+            values: Data as list of rows (each row is a list of values)
+            cliente_id: ID do cliente (injected internally)
+            account_email: Optional Google account to use
+        """
+        if not cliente_id:
+            raise ValueError("cliente_id is required")
+        return await _create_spreadsheet_with_data_logic(
+            title, values, cliente_id, account_email
+        )
+
+    mcp.tool(
+        name="create_spreadsheet_with_data",
+        description=(
+            "Create a new Google Spreadsheet and populate with data. "
+            "Use when user wants to create a fresh spreadsheet for export. "
+            "Returns the new spreadsheet URL."
+        ),
+    )(create_spreadsheet_with_data_wrapper)
+
     logger.info(
-        "[Google Module] Tools registered: write_to_sheet, read_emails, query_calendar, list_google_accounts"
+        "[Google Module] Tools registered: write_to_sheet, read_emails, query_calendar, "
+        "list_google_accounts, list_spreadsheets, export_to_sheet, create_spreadsheet_with_data"
     )
-    return ["write_to_sheet", "read_emails", "query_calendar", "list_google_accounts"]
+    return [
+        "write_to_sheet",
+        "read_emails",
+        "query_calendar",
+        "list_google_accounts",
+        "list_spreadsheets",
+        "export_to_sheet",
+        "create_spreadsheet_with_data",
+    ]
+

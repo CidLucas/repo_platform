@@ -408,9 +408,12 @@ class AgentBuilder:
         Create respond node with LLM integration.
         """
         llm_client = self._llm_client
+        logger.info(f"Creating respond node with llm_client={llm_client is not None}")
 
         async def respond_node(state: AgentState) -> dict[str, Any]:
             from langchain_core.messages import AIMessage
+
+            logger.info(f"respond_node called, llm_client={llm_client is not None}")
 
             messages = state.get("messages", [])
             system_prompt = state.get("system_prompt", "")

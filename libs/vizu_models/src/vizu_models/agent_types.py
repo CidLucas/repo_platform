@@ -13,6 +13,7 @@ Categorias:
 2. Tool Management - Tool info and permissions
 3. Agent State - Shared state structures
 4. Chat/Message - Request/response patterns
+5. Structured Data - SQL query results display
 """
 
 from enum import Enum
@@ -223,6 +224,11 @@ class AgentChatResponse(BaseModel):
     trace_id: str | None = Field(
         None, description="ID do trace para observabilidade (Langfuse)"
     )
+    # Structured data for rich table display (from SQL queries)
+    structured_data: "StructuredDataResponse | None" = Field(
+        None,
+        description="Structured tabular data for interactive display (sorting, filtering, export)",
+    )
 
 
 # ============================================================================
@@ -265,3 +271,10 @@ class ClientContextResponse(BaseModel):
     docker_mcp_enabled: bool = Field(
         False, description="Se integrações Docker MCP estão disponíveis"
     )
+
+
+# Resolve forward reference for StructuredDataResponse
+# Import at end to avoid circular imports
+from .structured_data import StructuredDataResponse  # noqa: E402
+
+AgentChatResponse.model_rebuild()

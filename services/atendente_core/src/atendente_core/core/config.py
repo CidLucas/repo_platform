@@ -23,9 +23,6 @@ class Settings(BaseSettings):
     # Credenciais e chaves de API
     LANGCHAIN_API_KEY: str | None = None  # Opcional, para LangSmith
 
-    # Phase 3: Feature flag for new agent framework
-    USE_NEW_FRAMEWORK: bool = False
-
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )

@@ -189,37 +189,47 @@ class VariableExtractor:
 
     @staticmethod
     def build_tools_description(
-        tools: list[str],
+        tools: list,
         tool_registry: Any | None = None,
     ) -> str:
         """
         Build a description of available tools.
 
         Args:
-            tools: List of tool names
+            tools: List of tool names (str) OR tool objects (with .name attribute)
             tool_registry: Optional ToolRegistry for metadata
 
         Returns:
             Formatted tool descriptions
         """
         if not tools:
-            return "Nenhuma ferramenta disponível."
+            return ""
 
-        lines = ["As seguintes ferramentas estão disponíveis para você:"]
+        lines = []
 
-        for i, tool_name in enumerate(tools, 1):
-            description = f"Ferramenta {tool_name}"
+        for tool in tools:
+            # Handle both string names and tool objects
+            if isinstance(tool, str):
+                tool_name = tool
+                tool_desc = None
+            else:
+                tool_name = getattr(tool, "name", str(tool))
+                tool_desc = getattr(tool, "description", None)
 
-            # Try to get description from registry
-            if tool_registry:
+            # Try to get description from registry if not already present
+            description = tool_desc
+            if not description and tool_registry:
                 try:
                     meta = tool_registry.get_tool(tool_name)
-                    if meta and meta.description:
+                    if meta and hasattr(meta, "description"):
                         description = meta.description
                 except Exception:
                     pass
 
-            lines.append(f"{i}. **{tool_name}** - {description}")
+            if not description:
+                description = "Sem descrição"
+
+            lines.append(f"- **{tool_name}**: {description}")
 
         return "\n".join(lines)
 

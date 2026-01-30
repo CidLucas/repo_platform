@@ -15,6 +15,10 @@ from vizu_db_connector.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
+# Default statement timeout (30 seconds) to prevent queries holding connections too long
+DEFAULT_STATEMENT_TIMEOUT = "30s"
+
+
 class PostgresRepository:
     """
     Data access layer using both Supabase SDK and direct SQLAlchemy.
@@ -26,12 +30,32 @@ class PostgresRepository:
         with PostgresRepository() as repo:
             repo.get_dim_customers(client_id)
         # Session automatically closed
+
+    IMPORTANT: Always use context manager OR call .close() explicitly to
+    return connections to the pool. Connection leaks cause QueuePool exhaustion.
     """
-    def __init__(self):
-        """Initialize with both Supabase client and SQLAlchemy session."""
+    def __init__(self, statement_timeout: str = DEFAULT_STATEMENT_TIMEOUT):
+        """
+        Initialize with both Supabase client and SQLAlchemy session.
+
+        Args:
+            statement_timeout: SQL statement timeout (default 30s).
+                              Set to None to disable timeout.
+        """
         self.supabase = get_supabase_client()
         self.db_session = SessionLocal()
         self._owns_session = True  # Track if we should close session
+        self._statement_timeout = statement_timeout
+
+        # Set default statement timeout to prevent queries holding connections too long
+        if statement_timeout:
+            try:
+                self.db_session.execute(
+                    text(f"SET statement_timeout = '{statement_timeout}'")
+                )
+                logger.debug(f"Set statement_timeout to {statement_timeout}")
+            except Exception as e:
+                logger.warning(f"Could not set statement_timeout: {e}")
 
     def __enter__(self):
         """Context manager entry."""
@@ -43,11 +67,19 @@ class PostgresRepository:
         return False  # Don't suppress exceptions
 
     def close(self):
-        """Explicitly close the database session to release connection back to pool."""
+        """
+        Explicitly close the database session to release connection back to pool.
+
+        CRITICAL: Must be called to prevent connection leaks and QueuePool exhaustion.
+        """
         if self.db_session and self._owns_session:
             try:
+                # Rollback any uncommitted transaction before closing
+                self.db_session.rollback()
                 self.db_session.close()
                 logger.debug("Database session closed successfully")
+            except Exception as e:
+                logger.warning(f"Error closing database session: {e}")
             except Exception as e:
                 logger.warning(f"Error closing database session: {e}")
 

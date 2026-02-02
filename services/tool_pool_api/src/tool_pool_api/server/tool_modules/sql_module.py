@@ -734,12 +734,45 @@ SQL:"""
 
                 logger.info(f"[SQL] Query result: {len(rows_as_dicts)} rows, structured_data generated")
 
+                # Store full data in Redis cache to avoid context bloat
+                # The cache ref_id allows retrieval for exports without
+                # storing massive datasets in conversation history
+                try:
+                    from vizu_context_service.tool_cache import get_tool_cache
+
+                    cache = get_tool_cache()
+                    session_id = ctx.request_context.lifespan_context.get("session_id", "default")
+
+                    # Store full result in cache (1 hour TTL, session-scoped)
+                    cache_ref_id = cache.store(
+                        session_id=session_id,
+                        tool_name="executar_sql_agent",
+                        args={"query": query, "cliente_id": client_id_str},
+                        result={
+                            "all_rows": rows_as_dicts,
+                            "columns": columns,
+                            "sql": final_sql,
+                            "row_count": len(rows_as_dicts),
+                        },
+                        metadata={
+                            "cliente_id": client_id_str,
+                            "query_preview": title_query,
+                        },
+                    )
+                    logger.info(f"[SQL] Full data cached: ref_id={cache_ref_id}, rows={len(rows_as_dicts)}")
+                except Exception as cache_err:
+                    logger.warning(f"[SQL] Cache store failed (non-fatal): {cache_err}")
+                    cache_ref_id = None
+
                 return {
                     "output": result,
                     "sql": final_sql,  # Return the SQL with client_id for debugging
                     "success": True,
                     "structured_data": structured_data.model_dump(),
-                    "all_rows": rows_as_dicts,  # Full data for export
+                    "row_count": len(rows_as_dicts),
+                    "cache_ref_id": cache_ref_id,  # Reference to full data in Redis
+                    # NOTE: all_rows removed to prevent context bloat
+                    # Use cache_ref_id to retrieve full data for exports
                 }
         except Exception as exec_error:
             logger.error(f"[SQL] Execution error: {exec_error}")

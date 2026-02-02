@@ -1,19 +1,113 @@
-# Em docker-configs/otel-collector/otel-collector-config.yaml
+# OpenTelemetry Collector Configuration for Development
+# Sends LLM traces to local Langfuse for observability
+#
+# Required environment variables:
+#   - LANGFUSE_PUBLIC_KEY: Langfuse public key
+#   - LANGFUSE_SECRET_KEY: Langfuse secret key
 
 receivers:
   otlp:
     protocols:
       grpc:
+        endpoint: "0.0.0.0:4317"
+        max_recv_msg_size_mib: 16  # Increase from default 4MB
       http:
+        endpoint: "0.0.0.0:4318"
+
+processors:
+  # Memory limiter to prevent OOM - drops data when memory is high
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+    send_batch_max_size: 1024
+
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: development
+        action: upsert
+      - key: service.namespace
+        value: vizu
+        action: upsert
+
+  # Filter processor for Langfuse - only send LLM traces from atendente_core /chat
+  # Drops spans that don't match the criteria
+  filter/langfuse:
+    error_mode: ignore
+    traces:
+      span:
+        # Exclude spans that are NOT from atendente-api service
+        # OR are not related to /chat endpoint
+        # We use negative logic: drop if NOT matching our criteria
+        - 'resource.attributes["service.name"] != "atendente-api"'
+        - 'attributes["http.target"] != nil and not IsMatch(attributes["http.target"], "/chat.*")'
+        - 'attributes["http.route"] != nil and attributes["http.route"] != "/chat"'
 
 exporters:
-  # CORREÇÃO: Renomeado de 'logging' para 'debug'
+  # Langfuse OTLP Exporter (for LLM traces)
+  otlphttp/langfuse:
+    endpoint: http://langfuse:3000/api/public/otel
+    headers:
+      Authorization: "Basic ${env:LANGFUSE_OTEL_AUTH}"
+    # NOTE: Do NOT enable compression - Langfuse returns protobuf parse error with gzip
+    # Timeout settings
+    timeout: 30s
+    # TLS - disable since we're using HTTP
+    tls:
+      insecure: true
+    # Retry settings for debugging
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 10s
+      max_elapsed_time: 30s
+    # Sending queue for debugging
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 100
+
+  # Debug exporter for console output
   debug:
-    # A verbosidade agora é controlada por esta chave
     verbosity: detailed
+    sampling_initial: 10
+    sampling_thereafter: 10
+
+extensions:
+  health_check:
+    endpoint: "0.0.0.0:13133"
 
 service:
+  telemetry:
+    logs:
+      level: info  # Reduce noise, change to debug if troubleshooting
+
+  extensions: [health_check]
+
   pipelines:
-    traces:
+    # Pipeline for Langfuse - only LLM traces from atendente_core /chat
+    traces/langfuse:
       receivers: [otlp]
-      exporters: [debug] # <-- CORREÇÃO AQUI TAMBÉM
+      processors: [memory_limiter, resource, filter/langfuse, batch]
+      exporters: [otlphttp/langfuse]
+
+    # Pipeline for debug - all traces (for local development visibility)
+    traces/debug:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [debug]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]

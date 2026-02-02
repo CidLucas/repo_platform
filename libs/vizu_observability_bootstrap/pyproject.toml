@@ -19,8 +19,8 @@ opentelemetry-exporter-otlp = "^1.38.0"
 python-json-logger = "^2.0.7"
 
 # === Langfuse (LLM Observability) ===
-# NOTE: v2 for self-hosted Langfuse v2 server (v3 uses OTLP requiring ClickHouse)
-langfuse = ">=2.0.0,<3.0.0"
+# v3 OTEL-native with ClickHouse backend
+langfuse = ">=3.0.0"
 langchain-core = ">=0.3.0"  # For callback types
 
 # === Web Framework ===

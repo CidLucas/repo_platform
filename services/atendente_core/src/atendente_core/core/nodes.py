@@ -636,8 +636,17 @@ async def execute_tools_node(state: AgentState) -> dict:
             logger.info(
                 f"Tool '{tool_name}' resultado (primeiros 300 chars): {str(output)[:300]}"
             )
+
+            # Truncate tool output to prevent context bloat
+            # Full data is already cached in Redis (via ToolResultCache in sql_module)
+            MAX_TOOL_OUTPUT_CHARS = 8000  # ~2000 tokens
+            output_str = str(output)
+            if len(output_str) > MAX_TOOL_OUTPUT_CHARS:
+                output_str = output_str[:MAX_TOOL_OUTPUT_CHARS] + "\n\n[Output truncated. Full data available via cache_ref_id.]"
+                logger.info(f"Tool '{tool_name}' output truncated from {len(str(output))} to {MAX_TOOL_OUTPUT_CHARS} chars")
+
             return ToolMessage(
-                content=str(output), tool_call_id=tool_call_id, name=tool_name
+                content=output_str, tool_call_id=tool_call_id, name=tool_name
             )
 
         except (ClosedResourceError, BrokenResourceError) as stream_err:

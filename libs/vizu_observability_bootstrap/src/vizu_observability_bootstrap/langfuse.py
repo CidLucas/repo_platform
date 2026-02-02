@@ -86,13 +86,14 @@ def is_langfuse_enabled() -> bool:
 # =============================================================================
 
 
-def sanitize_observation(obj: dict, max_messages: int = 6) -> dict:
+def sanitize_observation(obj: dict, max_messages: int = 6, max_str_len: int = 2000) -> dict:
     """
     Return a sanitized shallow copy of an observation-like mapping.
 
-    - Removes `_internal_context`.
+    - Removes `_internal_context`, `all_rows`, `vizu_context`.
     - Truncates `messages` to the last `max_messages` entries.
     - Trims `response_metadata` inside messages to small subset.
+    - Truncates large string values to prevent trace bloat.
     """
     from collections.abc import Mapping
 
@@ -100,7 +101,10 @@ def sanitize_observation(obj: dict, max_messages: int = 6) -> dict:
         return obj
 
     o = dict(obj)
-    o.pop("_internal_context", None)
+
+    # Remove keys that cause trace bloat
+    for key in ("_internal_context", "all_rows", "vizu_context", "safe_context"):
+        o.pop(key, None)
 
     msgs = o.get("messages")
     if isinstance(msgs, list) and len(msgs) > max_messages:
@@ -114,6 +118,11 @@ def sanitize_observation(obj: dict, max_messages: int = 6) -> dict:
                     m["response_metadata"] = {
                         k: rm.get(k) for k in ("model", "done", "done_reason") if k in rm
                     }
+
+    # Truncate any large string values
+    for key, value in list(o.items()):
+        if isinstance(value, str) and len(value) > max_str_len:
+            o[key] = value[:max_str_len] + f"... [truncated {len(value) - max_str_len} chars]"
 
     return o
 
@@ -192,10 +201,48 @@ class SanitizingLangfuseCallback:
             return None
 
     def on_tool_end(self, output: Any, **kwargs: Any) -> Any:
+        """Handle tool output - truncate large outputs and remove all_rows."""
         try:
-            return self._wrap_call(self._inner.on_tool_end, output, **kwargs)
+            sanitized_output = self._sanitize_tool_output(output)
+            return self._wrap_call(self._inner.on_tool_end, sanitized_output, **kwargs)
         except Exception:
             return None
+
+    def _sanitize_tool_output(self, output: Any, max_len: int = 4000) -> Any:
+        """Sanitize tool output to prevent trace bloat."""
+        import json
+
+        if output is None:
+            return output
+
+        # If it's a string, check if it's JSON and sanitize
+        if isinstance(output, str):
+            # Try to parse as JSON and remove all_rows
+            try:
+                data = json.loads(output)
+                if isinstance(data, dict):
+                    # Remove keys that cause bloat
+                    for key in ("all_rows", "rows", "data", "raw_data"):
+                        if key in data and isinstance(data[key], list) and len(data[key]) > 10:
+                            data[key] = f"[{len(data[key])} rows omitted from trace]"
+                    output = json.dumps(data)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+            # Truncate if still too long
+            if len(output) > max_len:
+                return output[:max_len] + f"... [truncated {len(output) - max_len} chars]"
+            return output
+
+        # If it's a dict, sanitize directly
+        if isinstance(output, dict):
+            output = dict(output)
+            for key in ("all_rows", "rows", "data", "raw_data"):
+                if key in output and isinstance(output[key], list) and len(output[key]) > 10:
+                    output[key] = f"[{len(output[key])} rows omitted from trace]"
+            return output
+
+        return output
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._inner, name)

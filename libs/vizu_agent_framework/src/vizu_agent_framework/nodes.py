@@ -61,7 +61,7 @@ async def init_node(state: AgentState) -> dict[str, Any]:
     - Validates required fields
     - Sets up initial context
     """
-    logger.info(f"init_node called: session={state.get('session_id')}, messages={len(state.get('messages', []))}")
+    logger.debug(f"init_node: session={state.get('session_id')}, messages={len(state.get('messages', []))}")
 
     turn_count = state.get("turn_count", 0) + 1
     max_turns = state.get("max_turns", 20)
@@ -89,7 +89,7 @@ async def elicit_node(state: AgentState) -> dict[str, Any]:
     - Processes elicitation responses
     - Triggers new elicitations based on strategy
     """
-    logger.info(f"elicit_node called: session={state.get('session_id')}, pending={state.get('pending_elicitation')}")
+    logger.debug(f"elicit_node: session={state.get('session_id')}, pending={state.get('pending_elicitation')}")
 
     pending = state.get("pending_elicitation")
     response = state.get("elicitation_response")
@@ -147,7 +147,7 @@ async def execute_tool_node(state: AgentState) -> dict[str, Any]:
 
     # Note: Actual execution happens via MCPToolExecutor
     # This is a placeholder that will be replaced by AgentBuilder
-    logger.info(f"Executing tool: {tool_name} with args: {tool_args}")
+    logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
 
     # Return placeholder - actual execution is wired in AgentBuilder
     return {
@@ -271,10 +271,10 @@ def with_logging(node_name: str):
         @wraps(func)
         async def wrapper(state: AgentState) -> dict[str, Any]:
             session_id = state.get("session_id", "unknown")
-            logger.info(f"[{node_name}] Starting: session={session_id}")
+            logger.debug(f"[{node_name}] Starting: session={session_id}")
             try:
                 result = await func(state)
-                logger.info(f"[{node_name}] Completed: session={session_id}")
+                logger.debug(f"[{node_name}] Completed: session={session_id}")
                 return result
             except Exception as e:
                 logger.error(f"[{node_name}] Error: {e}")

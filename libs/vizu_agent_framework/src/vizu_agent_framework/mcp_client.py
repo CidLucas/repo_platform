@@ -62,7 +62,7 @@ class MCPConnectionManager:
 
         for attempt in range(max_retries):
             try:
-                logger.info(f"Tentando conectar ao MCP em {self.url} (tentativa {attempt + 1}/{max_retries})...")
+                logger.debug(f"MCP connect attempt {attempt + 1}/{max_retries}: {self.url}")
 
                 # Close previous stack if exists
                 if self._exit_stack:
@@ -87,8 +87,8 @@ class MCPConnectionManager:
                 self.tools = await load_mcp_tools(self._session)
                 self._connected = True
 
-                logger.info(
-                    f"✅ MCP Conectado! Tools carregadas: {[t.name for t in self.tools]}"
+                logger.debug(
+                    f"MCP connected, tools: {[t.name for t in self.tools]}"
                 )
                 return
 
@@ -103,18 +103,18 @@ class MCPConnectionManager:
                 self._connected = False
 
                 if attempt < max_retries - 1:
-                    logger.info(f"Reconectando em {backoff}s...")
+                    logger.debug(f"MCP reconnecting in {backoff}s...")
                     await asyncio.sleep(backoff)
                     backoff = min(backoff * 2, 30)
                 else:
-                    logger.error("Máximo de tentativas de reconexão atingido")
+                    logger.error("MCP max retries reached")
                     raise
 
     async def disconnect(self):
         """Fecha conexão MCP."""
         async with self._lock:
             if self._exit_stack:
-                logger.info("Fechando conexão MCP...")
+                logger.debug("Closing MCP connection...")
                 try:
                     await self._exit_stack.aclose()
                 except Exception:
@@ -156,7 +156,7 @@ class MCPConnectionManager:
                     f"[MCP] Connection error ao chamar '{tool_name}' (tentativa {attempt+1}/2): {e}"
                 )
                 if attempt == 0:
-                    logger.info("[MCP] Reconectando e tentando novamente...")
+                    logger.debug("[MCP] Reconnecting and retrying...")
                     await self.disconnect()
                     await self.connect()
                 else:

@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -6,19 +5,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Imports corrigidos para a nova estrutura
 from atendente_core.api.router import router as api_router
 from atendente_core.core.config import get_settings
 from atendente_core.services.mcp_client import mcp_manager
 
-# Configuração de Logs - INFO level, verbose libs silenciadas
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Silencia bibliotecas verbosas
-logging.getLogger("langfuse").setLevel(logging.WARNING)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 # Health check functions for dependencies
@@ -48,20 +39,26 @@ async def lifespan(app: FastAPI):
     """Gerencia o ciclo de vida da aplicação (Startup/Shutdown)"""
 
     # --- STARTUP ---
-    logger.info("🚀 Iniciando Vizu Atendente Core...")
-
-    # Skip MCP connection during startup to allow fast container startup
-    # MCP will be connected lazily on first API request if needed
-    logger.info("Iniciando em modo sem-ferramentas (lazy MCP connection)")
+    logger.info("Starting Vizu Atendente Core...")
+    logger.debug("MCP connection deferred (lazy initialization)")
 
     yield
 
     # --- SHUTDOWN ---
-    logger.info("🛑 Desligando Atendente Core...")
+    logger.info("Shutting down Atendente Core...")
+
+    # Flush observability data
+    try:
+        from vizu_observability_bootstrap import shutdown_observability
+        await shutdown_observability(timeout=5.0)
+    except Exception as e:
+        logger.warning(f"Observability shutdown error: {e}")
+
+    # Disconnect MCP
     try:
         await mcp_manager.disconnect()
     except Exception as e:
-        logger.error(f"Erro ao desconectar: {e}")
+        logger.error(f"MCP disconnect error: {e}")
 
 
 # Inicializa a App
@@ -103,27 +100,25 @@ app.add_middleware(
 )
 logger.info(f"CORS configurado para: {origins}")
 
-# Configura Telemetria (se disponível)
-if settings.OTEL_EXPORTER_OTLP_ENDPOINT:
-    try:
-        from vizu_observability_bootstrap import create_health_router, setup_telemetry
+# Configure observability (OTLP + Langfuse)
+try:
+    from vizu_observability_bootstrap import create_health_router, setup_observability
 
-        setup_telemetry(app, service_name=settings.SERVICE_NAME)
-        logger.info("🔭 Telemetria OpenTelemetry configurada.")
+    setup_observability(app, service_name=settings.SERVICE_NAME)
 
-        # Add comprehensive health router
-        health_router = create_health_router(
-            service_name=settings.SERVICE_NAME,
-            version="2.0.0",
-            checks={
-                "database": check_database,
-                "mcp_tools": check_mcp_connection,
-            }
-        )
-        app.include_router(health_router)
-        logger.info("✅ Health router configurado com checks de database e MCP.")
-    except ImportError as e:
-        logger.warning(f"⚠️ Lib de observabilidade não encontrada: {e}. Pulando setup.")
+    # Add health router with dependency checks
+    health_router = create_health_router(
+        service_name=settings.SERVICE_NAME,
+        version="2.0.0",
+        checks={
+            "database": check_database,
+            "mcp_tools": check_mcp_connection,
+        }
+    )
+    app.include_router(health_router)
+    logger.debug("Health router configured with database and MCP checks")
+except ImportError as e:
+    logger.warning(f"Observability bootstrap not available: {e}")
 
 # Registra as Rotas
 # 1. Prefixo /api/v1 (Boas práticas)

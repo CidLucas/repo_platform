@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 if TYPE_CHECKING:
@@ -9,7 +9,8 @@ if TYPE_CHECKING:
 # Stream error handling for MCP reconnection
 from anyio import BrokenResourceError, ClosedResourceError
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from langchain_core.tools import BaseTool
+from langchain_core.tools import BaseTool, StructuredTool
+from pydantic import BaseModel, create_model
 
 from atendente_core.core.config import get_settings
 from atendente_core.core.state import AgentState
@@ -48,6 +49,80 @@ from vizu_prompt_management import (
 from vizu_tool_registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
+
+
+def sanitize_tool_for_llm(tool: BaseTool) -> BaseTool:
+    """
+    Remove cliente_id and user_jwt from tool schema for LLM binding.
+
+    MCP tools accept cliente_id/user_jwt for backend injection, but these
+    should NOT be visible to the LLM. This function creates a new tool with
+    a sanitized schema that excludes internal parameters.
+
+    Args:
+        tool: Original tool from MCP with full schema
+
+    Returns:
+        New tool with sanitized schema (cliente_id/user_jwt removed)
+    """
+    # Skip if tool has no args_schema
+    if not hasattr(tool, "args_schema") or tool.args_schema is None:
+        return tool
+
+    # Get model fields
+    if not hasattr(tool.args_schema, "model_fields"):
+        return tool
+
+    original_fields = tool.args_schema.model_fields
+
+    # Check if cliente_id or user_jwt exist
+    has_internal_params = "cliente_id" in original_fields or "user_jwt" in original_fields
+    if not has_internal_params:
+        return tool
+
+    # Create new schema without internal params
+    sanitized_fields = {}
+    for field_name, field_info in original_fields.items():
+        if field_name not in ("cliente_id", "user_jwt"):
+            # Preserve field type and metadata
+            sanitized_fields[field_name] = (
+                field_info.annotation,
+                field_info,
+            )
+
+    # Create new Pydantic model with sanitized fields
+    SanitizedSchema = create_model(
+        f"{tool.args_schema.__name__}Sanitized",
+        **sanitized_fields,
+    )
+
+    # Create new tool with sanitized schema
+    sanitized_tool = StructuredTool(
+        name=tool.name,
+        description=tool.description,
+        args_schema=SanitizedSchema,
+        func=tool.func if hasattr(tool, "func") else None,
+        coroutine=tool.coroutine if hasattr(tool, "coroutine") else None,
+    )
+
+    logger.debug(
+        f"Sanitized tool '{tool.name}': removed cliente_id/user_jwt from LLM schema"
+    )
+
+    return sanitized_tool
+
+
+def sanitize_tools_for_llm(tools: list[BaseTool]) -> list[BaseTool]:
+    """
+    Sanitize all tools to hide internal parameters from LLM.
+
+    Args:
+        tools: List of tools from MCP
+
+    Returns:
+        List of tools with sanitized schemas
+    """
+    return [sanitize_tool_for_llm(tool) for tool in tools]
 
 
 # ============================================================================
@@ -391,7 +466,11 @@ async def supervisor_node(state: AgentState) -> dict:
     llm = get_llm(model_override=model_override)
 
     if available_tools:
-        llm = llm.bind_tools(available_tools)
+        # CRITICAL: Sanitize tool schemas to hide cliente_id/user_jwt from LLM
+        # The LLM should NOT see these internal parameters
+        sanitized_tools = sanitize_tools_for_llm(available_tools)
+        llm = llm.bind_tools(sanitized_tools)
+        logger.debug(f"Bound {len(sanitized_tools)} sanitized tools to LLM")
 
     # 6. Invoca o Modelo
     try:

@@ -12,6 +12,8 @@ x-common-env: &common-env
   DB_MODE: ${DB_MODE:-supabase}
   # Configs de serviços
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
+  # TEMPORARY: Disable OTLP traces until otel-collector is deployed (metrics/logs still work)
+  OTEL_TRACES_EXPORTER: "none"
   EMBEDDING_SERVICE_URL: http://embedding_service:11435
   QDRANT_URL: http://qdrant_db:6333
   # Internal API base (atendente_core is the main entry point)
@@ -33,6 +35,10 @@ x-atendente-env: &atendente-env
   LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3000}
   LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
   LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+  # Disable Langfuse SDK's built-in OTLP export (we use OpenTelemetry directly)
+  LANGFUSE_ENABLE_OBSERVABILITY: "false"
+  # TEMPORARY: Disable OTLP traces to debug Langfuse issue (metrics/logs still work)
+  OTEL_TRACES_EXPORTER: "none"
 
 services:
   # =========================================
@@ -185,6 +191,7 @@ services:
     volumes:
       - ./docker-configs/otel-collector/otel-collector-config.prod.yaml:/etc/otel-collector-config.yaml
     environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
     ports:
@@ -193,6 +200,49 @@ services:
       - "8888:8888" # Prometheus metrics exposed by the collector
       - "8889:8889" # Prometheus exporter metrics
       - "13133:13133" # health_check extension
+
+  # =========================================
+  # LANGFUSE (Local LLM Observability)
+  # Self-hosted Langfuse for prompt testing & tracing
+  # =========================================
+  langfuse-db:
+    image: postgres:15-alpine
+    container_name: langfuse_postgres
+    profiles: ["observability"]
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  langfuse:
+    image: langfuse/langfuse:2  # Pin to v2.x (no ClickHouse required)
+    container_name: langfuse
+    profiles: ["observability"]
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: mysecretkey-change-in-production
+      SALT: mysalt-change-in-production
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/public/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # embedding_service:
   #   container_name: vizu_embedding_service
@@ -246,9 +296,7 @@ services:
       GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
       PUBSUB_TOPIC_ID: ${PUBSUB_TOPIC_ID}
       # FIM DA MUDANÇA
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # Note: Uses Supabase REST API, no local postgres needed
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -287,8 +335,6 @@ services:
       # Sobrescreve a URL do cliente de embedding (Passo 2)
       EMBEDDING_SERVICE_URL: "http://embedding_service:11435"
     depends_on:
-      postgres:
-        condition: service_healthy
       qdrant_db: # <-- Dependência crucial
         condition: service_healthy
     healthcheck:
@@ -377,8 +423,6 @@ services:
       DOCKER_MCP_ENABLED: ${DOCKER_MCP_ENABLED:-false}
       MCP_INTEGRATIONS: ${MCP_INTEGRATIONS:-}
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
 
@@ -469,3 +513,4 @@ volumes:
   qdrant_data:
   postgres_data:
   huggingface_cache:
+  langfuse_postgres_data:

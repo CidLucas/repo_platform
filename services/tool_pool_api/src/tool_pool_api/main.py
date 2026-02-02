@@ -2,25 +2,12 @@ import logging
 import sys
 from contextlib import asynccontextmanager
 
-import uvicorn  # Importe o uvicorn
+import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from .api.admin_router import router as admin_router
 from .api.integrations_router import router as integrations_router
-
-# Configurar logging para todos os módulos do tool_pool_api e vizu_*
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
-
-# Aumentar o nível de log para módulos específicos
-logging.getLogger("tool_pool_api").setLevel(logging.DEBUG)
-logging.getLogger("vizu_rag_factory").setLevel(logging.DEBUG)
-logging.getLogger("vizu_qdrant_client").setLevel(logging.DEBUG)
-logging.getLogger("vizu_llm_service").setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
@@ -50,29 +37,32 @@ async def lifespan(app: FastAPI):
     IMPORTANT: The MCP ASGI app has its own lifespan that must be run
     to initialize the StreamableHTTPSessionManager task group.
     """
-    logger.info("🚀 Tool Pool API starting...")
+    logger.info("Starting Tool Pool API...")
 
-    # Create MCP server
     try:
         mcp, mcp_asgi = _create_mcp()
 
-        # Mount MCP at /mcp
         app.mount("/mcp", mcp_asgi)
-        logger.info("✅ MCP mounted at /mcp")
+        logger.debug("MCP mounted at /mcp")
 
-        # Run MCP's lifespan to initialize the task group
-        # This is CRITICAL - without this, the StreamableHTTPSessionManager fails
         async with mcp_asgi.lifespan(mcp_asgi):
-            logger.info("✅ MCP lifespan started - SessionManager initialized")
+            logger.debug("MCP lifespan started")
             yield
-            logger.info("🛑 MCP lifespan ending...")
+            logger.debug("MCP lifespan ending...")
 
     except Exception as e:
-        logger.error(f"⚠️ MCP initialization failed: {e}")
-        logger.info("Server will start without MCP - health check still available")
+        logger.error(f"MCP initialization failed: {e}")
+        logger.warning("Server starting without MCP")
         yield
 
-    logger.info("🛑 Tool Pool API shutting down...")
+    # Shutdown observability
+    try:
+        from vizu_observability_bootstrap import shutdown_observability
+        await shutdown_observability(timeout=5.0)
+    except Exception as e:
+        logger.warning(f"Observability shutdown error: {e}")
+
+    logger.info("Tool Pool API shutdown complete")
 
 
 # Create FastAPI app with combined lifespan
@@ -81,6 +71,13 @@ app = FastAPI(
     description="MCP Server for Vizu Tools",
     lifespan=lifespan,
 )
+
+# Configure observability
+try:
+    from vizu_observability_bootstrap import setup_observability
+    setup_observability(app, service_name="tool_pool_api")
+except ImportError as e:
+    logger.warning(f"Observability bootstrap not available: {e}")
 
 # Mount API routers
 app.include_router(admin_router)
@@ -125,9 +122,4 @@ async def server_info():
 @app.on_event("startup")
 async def startup_event():
     """App startup logging."""
-    logger.info("✅ App started successfully")
-    logger.info("📊 Health check available at /health")
-    logger.info("ℹ️  Server info available at /info")
-    logger.info("🔌 MCP endpoint available at /mcp")
-    logger.info("🔗 Integrations API available at /integrations")
-    logger.info("🔐 Admin API available at /admin/clients (requires ADMIN tier)")
+    logger.debug("Tool Pool API started - endpoints: /health, /info, /mcp, /integrations, /admin/clients")

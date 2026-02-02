@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "vizu-observability-bootstrap"
-version = "0.1.0"
-description = "Biblioteca centralizada para configurar observabilidade (logs e traces) nos serviços da Vizu."
+version = "0.2.0"
+description = "Unified observability for Vizu services: OTLP (traces, logs, metrics) + Langfuse (LLM tracing)"
 authors = ["Vizu DevOps <devops@vizu.ai>"]
 readme = "README.md"
 packages = [{include = "vizu_observability_bootstrap", from = "src"}]
@@ -9,16 +9,21 @@ packages = [{include = "vizu_observability_bootstrap", from = "src"}]
 [tool.poetry.dependencies]
 python = "^3.11"
 
-# === Bloco OpenTelemetry ALINHADO E COMPATÍVEL ===
-# Usando as versões estáveis mais recentes que funcionam em conjunto.
+# === OpenTelemetry Core ===
 opentelemetry-api = "^1.38.0"
 opentelemetry-sdk = "^1.38.0"
 opentelemetry-instrumentation-fastapi = "^0.59b0"
 opentelemetry-exporter-otlp = "^1.38.0"
-# ===============================================
 
+# === Logging ===
 python-json-logger = "^2.0.7"
-# Atualizado para a versão mais recente para garantir compatibilidade
+
+# === Langfuse (LLM Observability) ===
+# NOTE: v2 for self-hosted Langfuse v2 server (v3 uses OTLP requiring ClickHouse)
+langfuse = ">=2.0.0,<3.0.0"
+langchain-core = ">=0.3.0"  # For callback types
+
+# === Web Framework ===
 fastapi = "^0.111.0"
 
 

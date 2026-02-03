@@ -104,6 +104,7 @@ jobs:
     name: Build & Push ${{ matrix.service }}
     runs-on: ubuntu-latest
     needs: [test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: read
       id-token: write
@@ -158,7 +159,7 @@ jobs:
         env:
           DOCKERFILE_PATH: ${{ matrix.dockerfile_path || format('services/{0}/Dockerfile', matrix.service) }}
         run: |
-          echo "Building multi-arch image for ${{ matrix.service }}"
+          echo "Building image for ${{ matrix.service }}"
 
           # Build arguments for dashboard (Vite environment variables)
           BUILD_ARGS=""
@@ -167,9 +168,9 @@ jobs:
               --build-arg VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }} \
               --build-arg VITE_GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
               --build-arg VITE_API_URL=${{ secrets.VITE_API_URL }} \
-              --build-arg VITE_ATENDENTE_CORE=https://atendente-core-qrfhgfkvja-rj.a.run.app \
-              --build-arg VITE_API_URL_ANALYTICS=https://analytics-api-qrfhgfkvja-rj.a.run.app \
-              --build-arg VITE_DATA_INGESTION_API_URL=https://data-ingestion-api-qrfhgfkvja-rj.a.run.app"
+              --build-arg VITE_ATENDENTE_CORE=${{ secrets.VITE_ATENDENTE_CORE }} \
+              --build-arg VITE_API_URL_ANALYTICS=${{ secrets.VITE_API_URL_ANALYTICS }} \
+              --build-arg VITE_DATA_INGESTION_API_URL=${{ secrets.VITE_DATA_INGESTION_API_URL }}"
           fi
 
           # Build and push for linux/amd64 (Cloud Run requirement)
@@ -185,18 +186,3 @@ jobs:
           echo "## 🐳 Published: ${{ matrix.service }}" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ steps.tags.outputs.image_versioned }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ steps.tags.outputs.image_latest }}\`" >> $GITHUB_STEP_SUMMARY
-
-      - name: Check image size
-        run: |
-          # Pull image to inspect size
-          docker pull ${{ steps.tags.outputs.image_latest }}
-          SIZE=$(docker image inspect ${{ steps.tags.outputs.image_latest }} --format='{{.Size}}')
-          SIZE_MB=$((SIZE / 1024 / 1024))
-          echo "Image size: ${SIZE_MB}MB"
-
-          # Warning if image is larger than 500MB
-          if [ $SIZE_MB -gt 500 ]; then
-            echo "⚠️ Image large: ${SIZE_MB}MB > 500MB" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "✅ Image size OK: ${SIZE_MB}MB" >> $GITHUB_STEP_SUMMARY
-          fi

@@ -59,6 +59,7 @@ class ConnectorFactory:
             try:
                 from google.cloud import bigquery
                 from google.oauth2 import service_account
+
                 from vizu_data_connectors.bigquery import BigQueryConnector
 
                 # If credentials provided, create client with service account
@@ -77,8 +78,8 @@ class ConnectorFactory:
                 return BigQueryConnector(client=google_client)
             except ImportError as e:
                 raise ValueError(
-                    f"BigQuery connector requires 'google-cloud-bigquery' package. "
-                    f"Install with: pip install vizu-data-connectors[bigquery]"
+                    "BigQuery connector requires 'google-cloud-bigquery' package. "
+                    "Install with: pip install vizu-data-connectors[bigquery]"
                 ) from e
 
         elif tipo == "SHOPIFY":

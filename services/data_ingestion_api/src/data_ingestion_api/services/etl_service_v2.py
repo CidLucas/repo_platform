@@ -168,13 +168,25 @@ class ETLServiceV2:
             if not credential:
                 raise ValueError(f"Credential not found: {credential_id}")
 
-            # Parse credentials
-            import json
-            creds_json = credential.get("credenciais_cifradas")
-            if not creds_json:
-                raise ValueError(f"No credentials found for credential_id={credential_id}")
-
-            creds = json.loads(creds_json) if isinstance(creds_json, str) else creds_json
+            # Retrieve credentials (vault or legacy plaintext)
+            vault_key_id = credential.get("vault_key_id")
+            if vault_key_id:
+                # New: Retrieve from Supabase Vault (encrypted)
+                logger.info(f"Retrieving credentials from vault: vault_key_id={vault_key_id}")
+                creds = await supabase_client.rpc(
+                    "get_credential_from_vault",
+                    {"p_vault_key_id": vault_key_id}
+                )
+                if not creds:
+                    raise ValueError(f"Failed to retrieve credentials from vault: {vault_key_id}")
+            else:
+                # Legacy: Parse plaintext JSON from credenciais_cifradas
+                import json
+                creds_json = credential.get("credenciais_cifradas")
+                if not creds_json:
+                    raise ValueError(f"No credentials found for credential_id={credential_id}")
+                creds = json.loads(creds_json) if isinstance(creds_json, str) else creds_json
+                logger.warning(f"Using legacy plaintext credentials for credential_id={credential_id} - consider migrating to vault")
 
             project_id = creds.get("project_id")
             dataset_id = creds.get("dataset_id")

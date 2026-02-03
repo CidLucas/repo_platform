@@ -30,13 +30,14 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Set timeouts at session level for this request
         # These are more aggressive than database defaults since API requests should be fast
+        from sqlalchemy import text
         from vizu_db_connector.database import SessionLocal
         session = SessionLocal()
         try:
             # 30s statement timeout - any single query taking longer is killed
-            session.execute("SET statement_timeout = '30s'")
+            session.execute(text("SET statement_timeout = '30s'"))
             # 5min idle_in_transaction timeout - transaction idle > 5min is auto-rolled back
-            session.execute("SET idle_in_transaction_session_timeout = '5min'")
+            session.execute(text("SET idle_in_transaction_session_timeout = '5min'"))
             session.close()
         except Exception as e:
             logger.warning(f"Could not set session timeouts: {e}")

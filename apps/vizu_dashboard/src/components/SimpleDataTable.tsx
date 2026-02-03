@@ -82,7 +82,7 @@ const DataCard = ({ row, columns, formatValue }: DataCardProps) => {
               <Text fontSize="xs" color={labelColor} fontWeight="500">
                 {col.label}
               </Text>
-              <Text fontSize="sm" fontWeight="400" textAlign="right" maxW="60%">
+              <Text fontSize="sm" fontWeight="400" textAlign="left" maxW="60%">
                 {formatValue(row[col.key], col.type)}
               </Text>
             </Flex>

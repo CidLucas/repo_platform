@@ -336,7 +336,7 @@ class AgentBuilder:
 
         compiled = self._graph.compile(**compile_kwargs)
 
-        logger.info(
+        logger.debug(
             f"Built agent '{self.config.name}' with "
             f"{len(wrapped_nodes)} nodes and {len(self._edges)} edges"
         )
@@ -408,12 +408,12 @@ class AgentBuilder:
         Create respond node with LLM integration.
         """
         llm_client = self._llm_client
-        logger.info(f"Creating respond node with llm_client={llm_client is not None}")
+        logger.debug(f"Creating respond node with llm_client={llm_client is not None}")
 
         async def respond_node(state: AgentState) -> dict[str, Any]:
             from langchain_core.messages import AIMessage
 
-            logger.info(f"respond_node called, llm_client={llm_client is not None}")
+            logger.debug(f"respond_node: llm_client={llm_client is not None}")
 
             messages = state.get("messages", [])
             system_prompt = state.get("system_prompt", "")

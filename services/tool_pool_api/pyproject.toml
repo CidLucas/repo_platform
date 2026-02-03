@@ -17,12 +17,14 @@ fastmcp = "^2.11.0"
 anyio = "^4.1.1"
 redis = "^5.0.0"
 httpx = "^0.28.1"
+langfuse = "^3.0.0"
 
 # --- Internal libs (only direct dependencies) ---
 vizu-models = { path = "../../libs/vizu_models", develop = true }
 vizu-db-connector = { path = "../../libs/vizu_db_connector", develop = true }
 vizu-context-service = { path = "../../libs/vizu_context_service", develop = true }
 vizu-auth = { path = "../../libs/vizu_auth", develop = true }
+vizu-observability-bootstrap = { path = "../../libs/vizu_observability_bootstrap" }
 vizu-llm-service = { path = "../../libs/vizu_llm_service", develop = true }
 vizu-rag-factory = { path = "../../libs/vizu_rag_factory", develop = true }
 vizu-sql-factory = { path = "../../libs/vizu_sql_factory", develop = true }

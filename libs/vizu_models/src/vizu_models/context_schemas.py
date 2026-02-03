@@ -104,129 +104,6 @@ class BrandVoice(BaseModel):
 
 
 # =============================================================================
-# BUSINESS SECTIONS (Monthly updates)
-# =============================================================================
-
-
-class ProductService(BaseModel):
-    """Single product or service in the catalog."""
-
-    name: str
-    description: str | None = None
-    category: str | None = None
-    target_segment: str | None = None
-    key_features: list[str] = Field(default_factory=list)
-    pricing_model: str | None = Field(
-        None,
-        description="e.g., 'subscription', 'per-unit', 'usage-based'",
-    )
-
-
-class ProductCatalog(BaseModel):
-    """
-    Section: PRODUCT_CATALOG - What we offer.
-
-    Lists products and services with enough detail for sales/support agents.
-    """
-
-    products: list[ProductService] = Field(default_factory=list)
-    services: list[ProductService] = Field(default_factory=list)
-    flagship_offering: str | None = Field(
-        None,
-        description="Main product/service to emphasize",
-    )
-    pricing_tiers: list[dict[str, Any]] = Field(
-        default_factory=list,
-        description="List of pricing packages",
-    )
-
-
-class BuyerPersona(BaseModel):
-    """Individual buyer persona."""
-
-    role: str = Field(..., description="e.g., 'Diretor de Sustentabilidade'")
-    responsibilities: str | None = None
-    pain_points: list[str] = Field(default_factory=list)
-    goals: list[str] = Field(default_factory=list)
-    objections: list[str] = Field(default_factory=list)
-
-
-class TargetAudience(BaseModel):
-    """
-    Section: TARGET_AUDIENCE - Who we serve.
-
-    Defines ICP and personas for sales and marketing agents.
-    """
-
-    primary_audience: str | None = Field(
-        None,
-        description="Main target customer description",
-    )
-    ideal_customer_profile: str | None = Field(
-        None,
-        description="Detailed ICP description",
-    )
-
-    # Demographics
-    industries_served: list[str] = Field(default_factory=list)
-    company_size_target: str | None = Field(
-        None,
-        description="e.g., 'Faturamento > R$50M/ano'",
-    )
-    geographic_focus: list[str] = Field(default_factory=list)
-
-    # Personas
-    buyer_personas: list[BuyerPersona] = Field(default_factory=list)
-
-    # Pain Points
-    common_pain_points: list[str] = Field(
-        default_factory=list,
-        description="Problems our audience faces",
-    )
-
-
-class Competitor(BaseModel):
-    """Individual competitor entry."""
-
-    name: str
-    positioning: str | None = Field(None, description="How they position themselves")
-    strengths: list[str] = Field(default_factory=list)
-    weaknesses: list[str] = Field(default_factory=list)
-
-
-class MarketContext(BaseModel):
-    """
-    Section: MARKET_CONTEXT - Where we compete.
-
-    Provides competitive intelligence and regulatory context.
-    """
-
-    # Competition
-    key_competitors: list[Competitor] = Field(default_factory=list)
-    differentiators: list[str] = Field(
-        default_factory=list,
-        description="What makes us unique",
-    )
-    market_position: str | None = Field(
-        None,
-        description="e.g., 'market leader', 'challenger', 'niche specialist'",
-    )
-
-    # Regulatory
-    regulatory_environment: str | None = Field(
-        None,
-        description="Relevant regulations (e.g., LGPD, PNRS)",
-    )
-    compliance_requirements: list[str] = Field(default_factory=list)
-
-    # Trends
-    market_trends: list[str] = Field(
-        default_factory=list,
-        description="Current trends affecting the market",
-    )
-
-
-# =============================================================================
 # OPERATIONS SECTIONS (Weekly updates)
 # =============================================================================
 
@@ -373,11 +250,50 @@ class Policies(BaseModel):
 # =============================================================================
 
 
+class TableSchemaInfo(BaseModel):
+    """
+    Detailed schema information for a single table.
+
+    Used by SQL agents to understand table structure and generate queries.
+    Populated from sql_table_config entries.
+    """
+
+    table_name: str = Field(..., description="Full table name (e.g., analytics_v2.fact_sales)")
+    display_name: str | None = Field(None, description="Human-readable name")
+    description: str | None = Field(None, description="What this table contains")
+    is_primary: bool = Field(False, description="Primary table for queries (fact table)")
+
+    # Column information
+    columns: dict[str, str] = Field(
+        default_factory=dict,
+        description="Column name → description mapping",
+    )
+
+    # Enum/valid values for categorical columns
+    enum_values: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Column name → list of valid values (case-sensitive)",
+    )
+
+    # Example queries for this table
+    example_queries: list[dict[str, str]] = Field(
+        default_factory=list,
+        description="List of {'question': ..., 'sql': ...} examples",
+    )
+
+    # Join hints
+    join_keys: list[str] = Field(
+        default_factory=list,
+        description="Primary/foreign keys for joins (e.g., 'customer_id', 'supplier_id')",
+    )
+
+
 class DataSchema(BaseModel):
     """
     Section: DATA_SCHEMA - What data is available.
 
     Describes available data for SQL/RAG agents.
+    Now includes detailed table schemas for SQL generation.
     """
 
     available_tables: list[str] = Field(default_factory=list)
@@ -396,6 +312,12 @@ class DataSchema(BaseModel):
     data_sources: list[str] = Field(
         default_factory=list,
         description="Where data comes from (BigQuery, internal, etc.)",
+    )
+
+    # NEW: Detailed table schemas for SQL generation
+    table_schemas: list[TableSchemaInfo] = Field(
+        default_factory=list,
+        description="Detailed schema information from sql_table_config",
     )
 
 
@@ -444,9 +366,6 @@ class AvailableTools(BaseModel):
 SECTION_SCHEMAS: dict[str, type[BaseModel]] = {
     "company_profile": CompanyProfile,
     "brand_voice": BrandVoice,
-    "product_catalog": ProductCatalog,
-    "target_audience": TargetAudience,
-    "market_context": MarketContext,
     "current_moment": CurrentMoment,
     "team_structure": TeamStructure,
     "policies": Policies,

@@ -24,7 +24,6 @@ import logging
 import sys
 
 from fastmcp import FastMCP
-from fastmcp.server.dependencies import get_access_token
 
 # Importa o registry de módulos
 from tool_pool_api.server.tool_modules import AVAILABLE_MODULES, register_all_tools

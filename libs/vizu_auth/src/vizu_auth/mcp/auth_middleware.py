@@ -11,11 +11,14 @@ access token is present or no mapping exists, it leaves the kwargs
 unchanged and lets the tool handle auth/fallbacks.
 """
 
+import logging
 from collections.abc import Awaitable, Callable
 from functools import wraps
 
+logger = logging.getLogger(__name__)
+
 from fastmcp.exceptions import ToolError
-from fastmcp.server.dependencies import get_access_token
+from fastmcp.server.dependencies import get_access_token, get_http_headers
 
 from vizu_auth.adapters.context_service_adapter import external_user_lookup_from_context_service
 
@@ -38,39 +41,48 @@ def mcp_inject_cliente_id(get_context_service_fn: Callable[[], object]) -> Calla
     def decorator(fn: Callable[..., Awaitable]) -> Callable[..., Awaitable]:
         @wraps(fn)
         async def wrapper(*args, **kwargs):
-            # If an access token is present we will prefer server-resolved cliente_id
-            # over any caller-supplied value. If no access token is present we
-            # preserve any provided cliente_id (legacy tunnel usage).
+            # Priority for cliente_id resolution:
+            # 1. X-Cliente-Id header (set by atendente_core after JWT validation)
+            # 2. AccessToken claims.sub -> lookup via ContextService
+            # 3. Caller-provided cliente_id (fallback)
 
-            try:
-                access_token = get_access_token()
-            except Exception:
-                # get_access_token may raise if not in a request context; fallback.
-                access_token = None
+            cliente_id = None
 
-            if access_token is None:
-                # No token available: preserve caller-provided cliente_id
-                return await fn(*args, **kwargs)
+            # Method 1: Check X-Cliente-Id header (preferred for internal calls)
+            # This is set by atendente_core which already validated the JWT
+            headers = get_http_headers(include_all=True)
+            header_cliente_id = headers.get("x-cliente-id")
+            if header_cliente_id:
+                cliente_id = header_cliente_id
+                logger.info(f"[mcp_inject_cliente_id] Got cliente_id from X-Cliente-Id header: {cliente_id}")
 
-            external_user_id = getattr(access_token, "claims", {}).get("sub") if hasattr(access_token, "claims") else None
+            # Method 2: Try JWT claims.sub if no header
+            if not cliente_id:
+                try:
+                    access_token = get_access_token()
+                except Exception:
+                    access_token = None
 
-            if not external_user_id:
-                return await fn(*args, **kwargs)
+                if access_token:
+                    external_user_id = getattr(access_token, "claims", {}).get("sub") if hasattr(access_token, "claims") else None
+                    if external_user_id:
+                        logger.debug(f"[mcp_inject_cliente_id] Trying to resolve from JWT sub: {external_user_id}")
+                        try:
+                            ctx_service = get_context_service_fn()
+                            lookup = external_user_lookup_from_context_service(ctx_service)
+                            cliente_id = await lookup(external_user_id)
+                            if cliente_id:
+                                logger.info(f"[mcp_inject_cliente_id] Resolved cliente_id from JWT: {cliente_id}")
+                        except ToolError:
+                            raise
+                        except Exception as e:
+                            logger.warning(f"[mcp_inject_cliente_id] Failed to resolve from JWT: {e}")
 
-            # Resolve ContextService and perform lookup
-            try:
-                ctx_service = get_context_service_fn()
-                lookup = external_user_lookup_from_context_service(ctx_service)
-                cliente_id = await lookup(external_user_id)
-                if cliente_id:
-                    # Override any caller-provided cliente_id with server-resolved one.
-                    kwargs["cliente_id"] = str(cliente_id)
-            except ToolError:
-                # ToolError indicates authentication/authorization problems — re-raise
-                raise
-            except Exception:
-                # Any failure resolving should be non-fatal for injection; continue
-                pass
+            # Inject cliente_id if resolved
+            if cliente_id:
+                kwargs["cliente_id"] = str(cliente_id)
+            else:
+                logger.warning("[mcp_inject_cliente_id] No cliente_id resolved, using caller-provided value")
 
             return await fn(*args, **kwargs)
 

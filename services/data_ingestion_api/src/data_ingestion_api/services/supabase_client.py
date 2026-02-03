@@ -84,3 +84,19 @@ async def delete(table: str, filters: dict[str, Any]) -> list[dict[str, Any]]:
         query = query.eq(col, val)
     resp = query.execute()
     return resp.data or []
+
+
+async def rpc(function_name: str, params: dict[str, Any] | None = None) -> Any:
+    """
+    Call a Supabase RPC (stored procedure/function).
+
+    Args:
+        function_name: Name of the PostgreSQL function
+        params: Parameters to pass to the function
+
+    Returns:
+        Function result (varies by function)
+    """
+    client = _get_shared_supabase_client()
+    resp = client.rpc(function_name, params or {}).execute()
+    return resp.data

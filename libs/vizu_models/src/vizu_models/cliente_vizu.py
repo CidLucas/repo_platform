@@ -32,13 +32,21 @@ class ClienteVizuBase(SQLModel):
 
 class ClienteVizu(ClienteVizuBase, table=True):
     """
-    Main client table with embedded context sections (Context 2.0).
+    Main client table with Context 2.0 sections for prompt injection.
 
-    Structure:
-    - Core identity: client_id, nome_empresa, cpf_cnpj, tier
-    - Auth: external_user_id
-    - Context sections: JSONB columns for each section type
-    - Legacy: prompt_base, enabled_tools (deprecated, use available_tools section)
+    Context sections (JSONB):
+    - company_profile: Company identity, mission, values
+    - brand_voice: Communication style, tone, phrases
+    - current_moment: Weekly priorities, challenges, metrics
+    - team_structure: Contacts, business hours, escalation
+    - policies: Business rules, guardrails, forbidden topics
+    - data_schema: Available data tables for SQL agent
+    - available_tools: enabled_tool_names, default_system_prompt
+
+    Tool configuration:
+    - tier: BASIC, SME, ENTERPRISE (tool access level)
+    - enabled_tools: Tool whitelist array
+    - collection_rag: Qdrant collection name
     """
     __tablename__ = "clientes_vizu"
 
@@ -63,6 +71,8 @@ class ClienteVizu(ClienteVizuBase, table=True):
     )
 
     # ===== CONTEXT SECTIONS (Context 2.0) =====
+    # These JSONB columns store client-specific data for prompt injection
+
     # Core Identity (quarterly updates)
     company_profile: dict[str, Any] | None = Field(
         default=None,
@@ -74,25 +84,6 @@ class ClienteVizu(ClienteVizuBase, table=True):
         default=None,
         sa_column=Column(JSONB, nullable=True),
         description="Communication style: tone, phrases to use/avoid"
-    )
-
-    # Business (monthly updates)
-    product_catalog: dict[str, Any] | None = Field(
-        default=None,
-        sa_column=Column(JSONB, nullable=True),
-        description="Products and services offered"
-    )
-
-    target_audience: dict[str, Any] | None = Field(
-        default=None,
-        sa_column=Column(JSONB, nullable=True),
-        description="ICP, buyer personas, pain points"
-    )
-
-    market_context: dict[str, Any] | None = Field(
-        default=None,
-        sa_column=Column(JSONB, nullable=True),
-        description="Competitors, differentiators, regulations"
     )
 
     # Operations (weekly updates)
@@ -124,39 +115,14 @@ class ClienteVizu(ClienteVizuBase, table=True):
     available_tools: dict[str, Any] | None = Field(
         default=None,
         sa_column=Column(JSONB, nullable=True),
-        description="Tool permissions, limits, default prompts"
+        description="Tool permissions: enabled_tool_names list and default_system_prompt"
     )
 
-    # Custom extension
-    client_custom: dict[str, Any] | None = Field(
-        default=None,
-        sa_column=Column(JSONB, nullable=True),
-        description="Client-specific custom context"
-    )
-
-    # ===== LEGACY FIELDS (deprecated - use context sections) =====
-    horario_funcionamento: dict | None = Field(
-        default=None,
-        sa_column=Column(JSONB, nullable=True, server_default="{}"),
-        description="DEPRECATED: Use team_structure.business_hours"
-    )
-
-    prompt_base: str | None = Field(
-        default=None,
-        sa_column=Column(Text, nullable=True),
-        description="DEPRECATED: Use available_tools.default_system_prompt"
-    )
-
+    # ===== TOOL CONFIGURATION =====
     enabled_tools: list[str] | None = Field(
         default=None,
         sa_column=Column(ARRAY(Text), nullable=True, server_default="ARRAY[]::text[]"),
         description="DEPRECATED: Use available_tools.enabled_tool_names"
-    )
-
-    collection_rag: str | None = Field(
-        default=None,
-        sa_column=Column(Text, nullable=True),
-        description="RAG collection name"
     )
 
     # ===== TIMESTAMPS =====
@@ -196,23 +162,27 @@ class ClienteVizu(ClienteVizuBase, table=True):
 
     def get_default_prompt(self) -> str | None:
         """
-        Get default system prompt (Context 2.0 compatible).
-
-        Prefers available_tools section, falls back to legacy prompt_base.
+        Get default system prompt from Context 2.0 available_tools section.
         """
         if self.available_tools and self.available_tools.get("default_system_prompt"):
             return self.available_tools["default_system_prompt"]
-        return self.prompt_base
+        return None
 
-    def get_business_hours(self) -> dict | None:
+    def get_business_hours(self) -> str | None:
         """
-        Get business hours (Context 2.0 compatible).
-
-        Prefers team_structure section, falls back to legacy horario_funcionamento.
+        Get business hours from Context 2.0 team_structure section.
         """
         if self.team_structure and self.team_structure.get("business_hours"):
-            return {"horario": self.team_structure["business_hours"]}
-        return self.horario_funcionamento
+            return self.team_structure["business_hours"]
+        return None
+
+    def get_rag_collection(self) -> str | None:
+        """
+        Get RAG collection name from Context 2.0 available_tools section.
+        """
+        if self.available_tools and self.available_tools.get("rag_collection"):
+            return self.available_tools["rag_collection"]
+        return None
 
 
 # ===== API SCHEMAS =====
@@ -221,24 +191,17 @@ class ClienteVizuCreate(ClienteVizuBase):
     """Schema for creating a new client."""
     external_user_id: str | None = None
 
-    # Context sections
+    # Context 2.0 sections
     company_profile: dict[str, Any] | None = None
     brand_voice: dict[str, Any] | None = None
-    product_catalog: dict[str, Any] | None = None
-    target_audience: dict[str, Any] | None = None
-    market_context: dict[str, Any] | None = None
     current_moment: dict[str, Any] | None = None
-    team_structure: dict[str, Any] | None = None
+    team_structure: dict[str, Any] | None = None  # Contains business_hours
     policies: dict[str, Any] | None = None
     data_schema: dict[str, Any] | None = None
-    available_tools: dict[str, Any] | None = None
-    client_custom: dict[str, Any] | None = None
+    available_tools: dict[str, Any] | None = None  # Contains rag_collection, default_system_prompt
 
-    # Legacy (optional)
-    horario_funcionamento: dict | None = None
-    prompt_base: str | None = None
+    # Tool configuration
     enabled_tools: list[str] | None = None
-    collection_rag: str | None = None
 
 
 class ClienteVizuRead(ClienteVizuBase):
@@ -246,24 +209,17 @@ class ClienteVizuRead(ClienteVizuBase):
     id: uuid.UUID
     external_user_id: str | None = None
 
-    # Context sections
+    # Context 2.0 sections
     company_profile: dict[str, Any] | None = None
     brand_voice: dict[str, Any] | None = None
-    product_catalog: dict[str, Any] | None = None
-    target_audience: dict[str, Any] | None = None
-    market_context: dict[str, Any] | None = None
     current_moment: dict[str, Any] | None = None
     team_structure: dict[str, Any] | None = None
     policies: dict[str, Any] | None = None
     data_schema: dict[str, Any] | None = None
     available_tools: dict[str, Any] | None = None
-    client_custom: dict[str, Any] | None = None
 
-    # Legacy
-    horario_funcionamento: dict | None = None
-    prompt_base: str | None = None
+    # Tool configuration
     enabled_tools: list[str] | None = None
-    collection_rag: str | None = None
 
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -281,21 +237,14 @@ class ClienteVizuUpdate(SQLModel):
     tier: str | None = None
     tipo_cliente: str | None = None
 
-    # Context sections
+    # Context 2.0 sections
     company_profile: dict[str, Any] | None = None
     brand_voice: dict[str, Any] | None = None
-    product_catalog: dict[str, Any] | None = None
-    target_audience: dict[str, Any] | None = None
-    market_context: dict[str, Any] | None = None
     current_moment: dict[str, Any] | None = None
     team_structure: dict[str, Any] | None = None
     policies: dict[str, Any] | None = None
     data_schema: dict[str, Any] | None = None
     available_tools: dict[str, Any] | None = None
-    client_custom: dict[str, Any] | None = None
 
-    # Legacy
-    horario_funcionamento: dict | None = None
-    prompt_base: str | None = None
+    # Tool configuration
     enabled_tools: list[str] | None = None
-    collection_rag: str | None = None

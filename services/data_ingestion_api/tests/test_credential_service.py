@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-# Corrija as importações internas para usar o caminho do arquivo (sem o nome do pacote):
 from data_ingestion_api.schemas.schemas import (
     BigQueryCredentialCreate,
 )
@@ -25,83 +24,88 @@ def bigquery_payload():
         "token_uri": "https://oauth2.googleapis.com/token",
     }
     return BigQueryCredentialCreate(
-        client_id="vizu-cliente-a",
+        client_id="550e8400-e29b-41d4-a716-446655440000",
         nome_conexao="BQ Dados Financeiros",
         tipo_servico="BIGQUERY",
         project_id="projeto-cliente-a-prod",
         service_account_json=service_account_data
     )
 
-# Fixture que será injetada em todos os testes
+
 @pytest.fixture
 def mock_credential_service(mocker):
-    """Cria uma instância do CredentialService com mocks para Secret Manager e DB."""
+    """Cria uma instância do CredentialService com mocks para Vault e DB."""
 
-    # 1. Mock do Secret Manager (Simula o envio e retorno do Secret ID)
-    mock_store_secret = mocker.patch(
-        'data_ingestion_api.services.credential_service.secret_manager.store_secret',
-        new_callable=AsyncMock
-    )
-    mock_store_secret.return_value = "vizu-prod-secret-id-gcp-12345"
-
-    # 2. Mock do Supabase Client (Simula a persistência do Secret ID)
-    mock_save_ref = mocker.patch(
+    # 1. Mock do Supabase insert (creates credential record)
+    mock_insert = mocker.patch(
         'data_ingestion_api.services.supabase_client.insert',
         new_callable=AsyncMock
     )
-    mock_save_ref.return_value = {
-        "id": "db-uuid-001",
-        "client_id": "vizu-cliente-a",
-        "nome_servico": "BigQuery Teste",
-        "credenciais_cifradas": "vizu-prod-secret-id-gcp-12345"
+    mock_insert.return_value = {
+        "id": 123,
+        "client_id": "550e8400-e29b-41d4-a716-446655440000",
+        "nome_servico": "BQ Dados Financeiros",
+        "tipo_servico": "BIGQUERY",
+        "status": "pending",
     }
 
-    # 3. Mock do Rollback (delete_secret) - NOVO
-    mock_delete_secret = mocker.patch(
-        'data_ingestion_api.services.credential_service.secret_manager.delete_secret',
+    # 2. Mock do Supabase RPC (stores in vault)
+    mock_rpc = mocker.patch(
+        'data_ingestion_api.services.supabase_client.rpc',
         new_callable=AsyncMock
     )
-    mock_delete_secret.return_value = True # Sucesso no rollback
+    mock_rpc.return_value = "vault-key-uuid-12345"
 
-    # Instancia o serviço com os mocks
+    # 3. Mock do Supabase update (sets vault_key_id)
+    mock_update = mocker.patch(
+        'data_ingestion_api.services.supabase_client.update',
+        new_callable=AsyncMock
+    )
+    mock_update.return_value = [{"id": 123, "vault_key_id": "vault-key-uuid-12345"}]
+
     service = CredentialService()
 
-    return service, mock_store_secret, mock_save_ref, mock_delete_secret
+    return service, mock_insert, mock_rpc, mock_update
 
 
 @pytest.mark.asyncio
 async def test_create_bigquery_credential_success(mock_credential_service, bigquery_payload):
     """
     Testa o fluxo completo de criação de credenciais BigQuery.
-    CRÍTICO: Garante que a senha (service_account_json) NÃO é enviada ao DB.
+    CRÍTICO: Garante que credentials são armazenadas no vault, não no DB.
     """
+    service, mock_insert, mock_rpc, mock_update = mock_credential_service
 
-    # Desempacota QUATRO mocks
-    service, mock_store_secret, mock_save_ref, mock_delete_secret = mock_credential_service
-
-    # 2. Executa a função
     response = await service.create_credential(bigquery_payload)
 
-    # 3. Assertions (Verificação de Segurança e Fluxo)
-
-    # A) SEGURANÇA: Verifica se a Service Account Key foi enviada ao Secret Manager
-    mock_store_secret.assert_called_once()
-
-    # B) INTEGRIDADE: Verifica se o Secret ID foi retornado e persistido
-    assert response.secret_manager_id == "vizu-prod-secret-id-gcp-12345"
-    assert response.status == "PENDENTE_VALIDACAO"
-
-    # C) CRÍTICO (VIZU CORE): Garante que a Service Account Key NUNCA foi enviada ao Supabase
-    db_call_args, db_call_kwargs = mock_save_ref.call_args
-    table_name = db_call_args[0]
-    db_payload = db_call_args[1]
+    # A) Verifica que o registro foi criado sem credentials
+    mock_insert.assert_called_once()
+    insert_args = mock_insert.call_args[0]
+    table_name = insert_args[0]
+    db_payload = insert_args[1]
 
     assert table_name == "credencial_servico_externo"
-    assert "service_account_json" not in db_payload # Confirma que o dado sensível não está aqui
-    assert db_payload["credenciais_cifradas"] == "vizu-prod-secret-id-gcp-12345" # Apenas o Secret ID está aqui
+    assert "service_account_json" not in db_payload
+    assert "credenciais_cifradas" not in db_payload
+    assert db_payload["status"] == "pending"
 
-    # NOVO ASSERÇÃO: Garante que o Rollback NÃO foi chamado no sucesso
-    mock_delete_secret.assert_not_called()
+    # B) Verifica que o vault RPC foi chamado
+    mock_rpc.assert_called_once()
+    rpc_args = mock_rpc.call_args[0]
+    assert rpc_args[0] == "store_credential_in_vault"
+    rpc_params = rpc_args[1]
+    assert "p_credentials" in rpc_params
+    assert "service_account_json" in rpc_params["p_credentials"]
+
+    # C) Verifica que o vault_key_id foi salvo
+    mock_update.assert_called_once()
+    update_args = mock_update.call_args[0]
+    assert update_args[1] == {"vault_key_id": "vault-key-uuid-12345"}
+
+    # D) Verifica a resposta
+    assert response.id_credencial == "123"
+    assert response.secret_manager_id == "vault:vault-key-uuid-12345"
+    assert response.status == "PENDENTE_VALIDACAO"
 
 
 @pytest.mark.asyncio
@@ -109,52 +113,43 @@ async def test_create_bigquery_credential_validation_error():
     """Testa se a validação Pydantic funciona corretamente (falta project_id)."""
     with pytest.raises(ValidationError):
         BigQueryCredentialCreate(
-            client_id="vizu-cliente-b",
+            client_id="550e8400-e29b-41d4-a716-446655440000",
             nome_conexao="BQ Incompleto",
             tipo_servico="BIGQUERY",
-            project_id=None, # Deve falhar, pois é obrigatório
+            project_id=None,
             service_account_json={"key": "value"}
         )
 
-# NOVO TESTE: Falha no Secret Manager
-@pytest.mark.asyncio
-async def test_create_credential_secret_manager_error(mock_credential_service, bigquery_payload):
-    """
-    Testa a falha na chamada inicial ao Secret Manager.
-    CRÍTICO: Garante que o DB NUNCA é chamado, pois o fluxo falha no início.
-    """
-    service, mock_store_secret, mock_save_ref, mock_delete_secret = mock_credential_service
 
-    # Setup: Simula a falha do Secret Manager
-    mock_store_secret.side_effect = Exception("Erro de Permissão no Secret Manager")
+@pytest.mark.asyncio
+async def test_create_credential_vault_error(mock_credential_service, bigquery_payload):
+    """
+    Testa a falha na chamada ao Vault RPC.
+    """
+    service, mock_insert, mock_rpc, mock_update = mock_credential_service
+
+    mock_rpc.side_effect = Exception("Vault RPC failed")
 
     with pytest.raises(Exception):
         await service.create_credential(bigquery_payload)
 
-    # Asserções Críticas (Segurança do Fluxo):
-    mock_store_secret.assert_called_once()
-    mock_save_ref.assert_not_called()     # O DB não deve ser tocado
-    mock_delete_secret.assert_not_called() # Não há segredo para dar rollback
+    mock_insert.assert_called_once()
+    mock_rpc.assert_called_once()
+    mock_update.assert_not_called()
 
 
-# NOVO TESTE: Falha no DB e Acionamento do Rollback
 @pytest.mark.asyncio
-async def test_create_credential_db_error_triggers_rollback(mock_credential_service, bigquery_payload):
+async def test_create_credential_db_insert_error(mock_credential_service, bigquery_payload):
     """
-    Testa a falha na persistência do DB após o sucesso do Secret Manager.
-    CRÍTICO: Garante que o ROLLBACK (delete_secret) é acionado.
+    Testa a falha na inserção inicial do registro.
     """
-    service, mock_store_secret, mock_save_ref, mock_delete_secret = mock_credential_service
+    service, mock_insert, mock_rpc, mock_update = mock_credential_service
 
-    # Setup: Simula o sucesso do SM e a falha do DB
-    mock_save_ref.side_effect = Exception("Erro de Conexão com o Banco de Dados")
+    mock_insert.side_effect = Exception("Database connection error")
 
     with pytest.raises(Exception):
         await service.create_credential(bigquery_payload)
 
-    # Asserções Críticas (Segurança e Rollback):
-    mock_store_secret.assert_called_once() # Deve ter tentado salvar o segredo
-    mock_save_ref.assert_called_once()     # Deve ter tentado persistir no DB
-
-    # O teste mais importante: O Rollback deve ser chamado com o ID do segredo
-    mock_delete_secret.assert_called_once_with(mock_store_secret.return_value)
+    mock_insert.assert_called_once()
+    mock_rpc.assert_not_called()
+    mock_update.assert_not_called()

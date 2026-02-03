@@ -20,8 +20,8 @@ langgraph-checkpoint-redis = "^0.1.3"
 mcp = ">=1.9.0"
 langchain-mcp-adapters = "^0.1.13"
 
-# Observabilidade via Langfuse
-langfuse = "^3.0.0"
+# Observabilidade via Langfuse v3 (OTEL-native)
+langfuse = ">=3.0.0"
 
 # Service-specific dependencies
 redis = "^5.0.4"

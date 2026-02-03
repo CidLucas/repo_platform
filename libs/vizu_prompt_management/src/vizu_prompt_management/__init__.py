@@ -2,12 +2,13 @@
 vizu_prompt_management - Centralized prompt management for Vizu services.
 
 This library provides:
-- Prompt loading from database and files
-- Versioning and A/B testing
+- Prompt loading from Langfuse (primary) or database (fallback)
 - Variable substitution with Jinja2
 - Client-specific overrides
 - MCP integration
 - Unified dynamic prompt building
+
+NOTE: Prompt versioning and A/B testing are managed via Langfuse UI.
 """
 
 __version__ = "0.1.0"
@@ -15,7 +16,6 @@ __version__ = "0.1.0"
 # Templates are exposed as module
 from vizu_prompt_management import templates
 from vizu_prompt_management.loader import LoadedPrompt, PromptLoader
-from vizu_prompt_management.manager import PromptManager, PromptVersion
 
 # Phase 1: Text-to-SQL prompt building (legacy - consider using dynamic_builder)
 from vizu_prompt_management.prompt_builder import (
@@ -45,9 +45,6 @@ __all__ = [
     # Loader
     "PromptLoader",
     "LoadedPrompt",
-    # Manager
-    "PromptManager",
-    "PromptVersion",
     # Variables
     "VariableExtractor",
     "PromptVariables",

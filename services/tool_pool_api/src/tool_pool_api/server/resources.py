@@ -6,6 +6,7 @@ Resources são diferentes de Tools:
 - Resources: expõem dados estáticos/semi-estáticos (knowledge base, config, prompts)
 
 Phase 3: Refactored to use vizu_tool_registry for dynamic tool filtering.
+Phase 4: Prompts now use Langfuse-first strategy via PromptLoader.
 
 Referência: https://fastmcp.mintlify.app/servers/resources
 """
@@ -15,7 +16,7 @@ from uuid import UUID
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ResourceError
-from fastmcp.server.dependencies import AccessToken, get_access_token
+from fastmcp.server.dependencies import get_access_token
 from sqlmodel import select
 
 from tool_pool_api.server.dependencies import (
@@ -26,6 +27,7 @@ from vizu_db_connector.database import SessionLocal
 from vizu_llm_service.client import get_embedding_model
 from vizu_models import KnowledgeBaseConfig, PromptTemplate
 from vizu_models.vizu_client_context import VizuClientContext
+from vizu_prompt_management import PromptLoader
 from vizu_qdrant_client import get_qdrant_client
 
 # Phase 3: Use vizu_tool_registry for dynamic tool filtering
@@ -48,7 +50,7 @@ async def _resolve_client_context(
     cliente_id: str | None = None,
 ) -> VizuClientContext:
     """
-    Resolve o contexto do cliente via ID explícito ou token JWT.
+    Resolve o contexto do cliente via ID explícito ou AccessToken do MCP.
 
     Args:
         cliente_id: ID do cliente (opcional, usado pelo atendente_core)
@@ -71,7 +73,8 @@ async def _resolve_client_context(
         except ValueError:
             raise ResourceError(f"ID de cliente inválido: {cliente_id}")
     else:
-        access_token: AccessToken | None = get_access_token()
+        # Fallback to AccessToken from MCP request
+        access_token = get_access_token()
         return await load_context_from_token(ctx_service, access_token)
 
 
@@ -95,7 +98,10 @@ async def _get_knowledge_summary(cliente_id: str | None = None) -> str:
     if "executar_rag_cliente" not in enabled_tools:
         return f"# Base de Conhecimento - {context.nome_empresa}\n\n⚠️ RAG não habilitado para este cliente."
 
-    collection_name = context.collection_rag or str(context.id)
+    # Get collection name from available_tools config or use client_id
+    collection_name = (
+        context.available_tools.get("rag_collection") if context.available_tools else None
+    ) or str(context.id)
 
     try:
         qdrant = get_qdrant_client()
@@ -164,7 +170,10 @@ async def _search_knowledge(
     if "executar_rag_cliente" not in enabled:
         raise ResourceError("RAG não habilitado para este cliente.")
 
-    collection_name = context.collection_rag or str(context.id)
+    # Get collection name from available_tools config or use client_id
+    collection_name = (
+        context.available_tools.get("rag_collection") if context.available_tools else None
+    ) or str(context.id)
 
     try:
         qdrant = get_qdrant_client()
@@ -238,19 +247,10 @@ async def _get_client_config(cliente_id: str | None = None) -> str:
         include_google=True,
     )
 
-    # Formata horários
-    horarios = context.horario_funcionamento or {}
-    horarios_str = ""
-    if horarios:
-        for dia, info in horarios.items():
-            if isinstance(info, dict):
-                abertura = info.get("abertura", "N/A")
-                fechamento = info.get("fechamento", "N/A")
-                horarios_str += f"- **{dia.capitalize()}:** {abertura} - {fechamento}\n"
-            else:
-                horarios_str += f"- **{dia.capitalize()}:** {info}\n"
-    else:
-        horarios_str = "Não configurado"
+    # Get business hours from team_structure if available
+    horarios_str = "Não configurado"
+    if context.team_structure and context.team_structure.get("business_hours"):
+        horarios_str = context.team_structure["business_hours"]
 
     # Lista de ferramentas (from registry)
     tools_status = []
@@ -290,9 +290,11 @@ async def _get_client_config(cliente_id: str | None = None) -> str:
                 result += f"❌ {name} (requer tier {tool_meta.tier_required.value})\n"
         result += "\n"
 
-    if context.collection_rag:
+    # Show RAG collection from available_tools config
+    rag_collection = context.available_tools.get("rag_collection") if context.available_tools else None
+    if rag_collection:
         result += "## Base de Conhecimento\n"
-        result += f"- **Coleção RAG:** `{context.collection_rag}`\n\n"
+        result += f"- **Coleção RAG:** `{rag_collection}`\n\n"
 
     return result
 
@@ -301,35 +303,89 @@ async def _get_client_prompt(cliente_id: str | None = None) -> str:
     """
     Retorna o prompt base configurado para o cliente.
 
-    Este é o prompt personalizado que define o comportamento do agente
-    para este cliente específico.
+    Note: Prompts are now managed via Langfuse. This resource shows
+    the fallback prompt from available_tools.default_system_prompt if set.
     """
     context = await _resolve_client_context(cliente_id)
 
-    if not context.prompt_base:
+    default_prompt = (
+        context.available_tools.get("default_system_prompt")
+        if context.available_tools else None
+    )
+
+    if not default_prompt:
         return (
             f"# Prompt - {context.nome_empresa}\n\n"
             "⚠️ Nenhum prompt personalizado configurado.\n\n"
-            "O agente usará o prompt padrão do sistema."
+            "O agente usará o prompt do Langfuse (atendente/system/v3)."
         )
 
-    return f"# Prompt - {context.nome_empresa}\n\n" f"```\n{context.prompt_base}\n```"
+    return f"# Prompt - {context.nome_empresa}\n\n" f"```\n{default_prompt}\n```"
 
 
 # =============================================================================
-# RESOURCES: Prompt Templates (from Database)
+# RESOURCES: Prompt Templates (Langfuse-first, DB fallback)
 # =============================================================================
+
+# Global PromptLoader instance
+_prompt_loader: PromptLoader | None = None
+
+
+def _get_prompt_loader() -> PromptLoader:
+    """Get or create the global PromptLoader instance."""
+    global _prompt_loader
+    if _prompt_loader is None:
+        _prompt_loader = PromptLoader()
+    return _prompt_loader
+
+
+async def _load_prompt(
+    name: str, cliente_id: str | None = None, langfuse_label: str = "production"
+) -> dict:
+    """
+    Load a prompt using the Langfuse-first strategy.
+
+    Priority:
+    1. Langfuse (label="production" by default)
+    2. DB client-specific override (if cliente_id provided)
+    3. DB global prompt
+    4. Builtin template
+
+    Args:
+        name: Prompt name (e.g., 'atendente/system')
+        cliente_id: Optional client ID for client-specific overrides
+        langfuse_label: Langfuse label to use (default: "production")
+
+    Returns:
+        Dict with prompt info: {name, content, source, version, metadata}
+    """
+    loader = _get_prompt_loader()
+    uuid_obj = UUID(cliente_id) if cliente_id else None
+
+    loaded = await loader.load(
+        name=name,
+        cliente_id=uuid_obj,
+        langfuse_label=langfuse_label,
+    )
+
+    return {
+        "name": loaded.name,
+        "content": loaded.content,
+        "source": loaded.source,
+        "version": loaded.version,
+        "metadata": loaded.metadata,
+        "trace_metadata": loaded.get_trace_metadata() if hasattr(loaded, "get_trace_metadata") else None,
+    }
 
 
 def _get_prompt_template(
     name: str, version: int | None = None, cliente_id: str | None = None
 ) -> PromptTemplate | None:
     """
-    Busca um prompt template do banco de dados.
+    Busca um prompt template do banco de dados (legacy, for version-specific lookups).
 
-    Prioridade:
-    1. Prompt específico do cliente (se cliente_id fornecido)
-    2. Prompt global (client_id = NULL)
+    NOTE: For new code, prefer using _load_prompt() which uses Langfuse-first strategy.
+    This function is kept for backward compatibility and version-specific lookups.
 
     Args:
         name: Nome do prompt (ex: 'atendente/system')
@@ -599,17 +655,23 @@ def register_resources(mcp: FastMCP) -> None:
 
         return result
 
-    # --- Prompt Template Resources (from Database) ---
+    # --- Prompt Template Resources (Langfuse-first, DB fallback) ---
 
     @mcp.resource("prompts://list")
     def prompt_list() -> str:
-        """Lista todos os prompts globais disponíveis."""
+        """
+        Lista todos os prompts globais disponíveis (do banco de dados).
+
+        NOTE: Prompts principais são gerenciados via Langfuse UI.
+        Esta lista mostra apenas prompts armazenados no DB para referência.
+        """
         templates = _list_prompt_templates()
 
         if not templates:
-            return "# Prompt Templates\n\nNenhum prompt template encontrado."
+            return "# Prompt Templates (DB)\n\nNenhum prompt template encontrado no banco.\n\n💡 **Dica:** Prompts principais são gerenciados via Langfuse UI."
 
-        result = f"# Prompt Templates ({len(templates)})\n\n"
+        result = f"# Prompt Templates - DB ({len(templates)})\n\n"
+        result += "💡 **Nota:** Prompts principais são gerenciados via Langfuse UI.\n\n"
 
         # Agrupa por nome
         current_name = None
@@ -647,37 +709,50 @@ def register_resources(mcp: FastMCP) -> None:
         return result
 
     @mcp.resource("prompts://{name}")
-    def prompt_get(name: str) -> str:
+    async def prompt_get(name: str) -> str:
         """
-        Obtém um prompt template pelo nome (versão mais recente).
+        Obtém um prompt pelo nome usando estratégia Langfuse-first.
+
         O nome deve usar underscores em vez de barras (ex: atendente_system).
+
+        Prioridade de carregamento:
+        1. Langfuse (label="production")
+        2. DB global
+        3. Template builtin
         """
         # Converte underscores para barras (URI-safe)
         prompt_name = name.replace("_", "/")
 
-        template = _get_prompt_template(prompt_name)
+        try:
+            prompt_info = await _load_prompt(prompt_name)
 
-        if not template:
-            return f"# Prompt não encontrado\n\n`{prompt_name}` não existe ou está inativo."
+            result = f"# {prompt_info['name']}\n\n"
+            result += f"**Fonte:** {prompt_info['source']}\n"
 
-        result = f"# {template.name} (v{template.version})\n\n"
-        result += f"**Descrição:** {template.description or 'N/A'}\n\n"
+            if prompt_info.get('version'):
+                result += f"**Versão:** {prompt_info['version']}\n"
 
-        if template.tags:
-            result += f"**Tags:** {', '.join(template.tags)}\n\n"
+            if prompt_info.get('trace_metadata'):
+                trace = prompt_info['trace_metadata']
+                if trace.get('langfuse_prompt_version'):
+                    result += f"**Langfuse Version:** {trace['langfuse_prompt_version']}\n"
 
-        if template.variables:
-            result += "## Variáveis\n\n"
-            result += f"```json\n{template.variables}\n```\n\n"
+            result += "\n## Conteúdo\n\n"
+            result += f"```\n{prompt_info['content']}\n```\n"
 
-        result += "## Conteúdo\n\n"
-        result += f"```\n{template.content}\n```\n"
+            return result
 
-        return result
+        except Exception as e:
+            logger.error(f"Erro ao carregar prompt {prompt_name}: {e}")
+            return f"# Prompt não encontrado\n\n`{prompt_name}` não existe ou ocorreu um erro: {e}"
 
     @mcp.resource("prompts://{name}/v{version}")
     def prompt_get_version(name: str, version: str) -> str:
-        """Obtém uma versão específica de um prompt template."""
+        """
+        Obtém uma versão específica de um prompt template (apenas do DB).
+
+        NOTE: Para prompts versionados do Langfuse, use a UI do Langfuse.
+        """
         prompt_name = name.replace("_", "/")
 
         try:

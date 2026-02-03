@@ -107,7 +107,7 @@ def route_from_init(state: AgentState) -> Literal["elicit", "respond", "end"]:
         - "end": End conversation
     """
     if state.get("ended"):
-        logger.info("route_from_init: ended=True, returning 'end'")
+        logger.debug("route_from_init: ended=True -> 'end'")
         return "end"
 
     # If there are messages, we might need to respond directly
@@ -120,10 +120,10 @@ def route_from_init(state: AgentState) -> Literal["elicit", "respond", "end"]:
         # Simple greetings or farewells can skip elicitation
         simple_patterns = ["oi", "olá", "tchau", "obrigado", "thanks"]
         if any(pattern in content for pattern in simple_patterns):
-            logger.info(f"route_from_init: simple pattern matched, returning 'respond'")
+            logger.debug("route_from_init: simple pattern -> 'respond'")
             return "respond"
 
-    logger.info(f"route_from_init: returning 'elicit' (messages={len(messages)})")
+    logger.debug(f"route_from_init: -> 'elicit' (messages={len(messages)})")
     return "elicit"
 
 

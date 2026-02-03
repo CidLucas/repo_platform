@@ -171,21 +171,14 @@ class ContextService:
             # Context 2.0 sections
             company_profile=data.get("company_profile"),
             brand_voice=data.get("brand_voice"),
-            product_catalog=data.get("product_catalog"),
-            target_audience=data.get("target_audience"),
-            market_context=data.get("market_context"),
             current_moment=data.get("current_moment"),
             team_structure=data.get("team_structure"),
             policies=data.get("policies"),
             data_schema=data.get("data_schema"),
             available_tools=data.get("available_tools"),
-            client_custom=data.get("client_custom"),
 
-            # Legacy fields (backward compatibility)
-            prompt_base=data.get("prompt_base") or "Você é um assistente útil.",
-            horario_funcionamento=data.get("horario_funcionamento") or {},
+            # Tool configuration
             enabled_tools=enabled_tools,
-            collection_rag=data.get("collection_rag", "default_collection"),
             credenciais=[],
         )
 
@@ -217,25 +210,82 @@ class ContextService:
             # Context 2.0 sections
             company_profile=getattr(cliente_db, "company_profile", None),
             brand_voice=getattr(cliente_db, "brand_voice", None),
-            product_catalog=getattr(cliente_db, "product_catalog", None),
-            target_audience=getattr(cliente_db, "target_audience", None),
-            market_context=getattr(cliente_db, "market_context", None),
             current_moment=getattr(cliente_db, "current_moment", None),
             team_structure=getattr(cliente_db, "team_structure", None),
             policies=getattr(cliente_db, "policies", None),
             data_schema=getattr(cliente_db, "data_schema", None),
             available_tools=getattr(cliente_db, "available_tools", None),
-            client_custom=getattr(cliente_db, "client_custom", None),
 
-            # Legacy fields (backward compatibility)
-            prompt_base=getattr(cliente_db, "prompt_base", None)
-            or "Você é um assistente útil.",
-            horario_funcionamento=getattr(cliente_db, "horario_funcionamento", {})
-            or {},
+            # Tool configuration
             enabled_tools=deduped,
-            collection_rag=getattr(cliente_db, "collection_rag", "default_collection"),
             credenciais=[],
         )
+
+    async def _enrich_data_schema_with_table_schemas(
+        self, context: VizuClientContext, cliente_id: UUID
+    ) -> VizuClientContext:
+        """
+        Enrich VizuClientContext.data_schema with detailed table schemas.
+
+        Fetches sql_table_config entries and populates the table_schemas field
+        in the data_schema section for use by SQL agents.
+
+        Args:
+            context: The VizuClientContext to enrich
+            cliente_id: Client UUID for fetching table configs
+
+        Returns:
+            Enriched VizuClientContext (mutated in place)
+        """
+        try:
+            # Get table configs (uses Redis cache internally)
+            configs = await self.get_sql_table_configs(cliente_id)
+
+            if not configs:
+                logger.debug(f"No sql_table_config entries for {cliente_id}")
+                return context
+
+            # Build table_schemas list using Pydantic models
+            from vizu_models.context_schemas import DataSchema, TableSchemaInfo
+
+            table_schemas = []
+            for config in configs:
+                schema_info = TableSchemaInfo(
+                    table_name=config.get("table_name", ""),
+                    display_name=config.get("display_name"),
+                    description=config.get("description"),
+                    is_primary=config.get("is_primary", False),
+                    columns=config.get("column_descriptions") or {},
+                    enum_values=config.get("enum_values") or {},
+                    example_queries=config.get("example_queries") or [],
+                    join_keys=config.get("join_keys") or [],
+                )
+                table_schemas.append(schema_info)
+
+            # Build or update DataSchema using Pydantic model
+            if context.data_schema and isinstance(context.data_schema, dict):
+                # Existing data_schema is a dict - convert to model and add table_schemas
+                existing_data = context.data_schema.copy()
+                existing_data["table_schemas"] = table_schemas
+                context.data_schema = DataSchema.model_validate(existing_data)
+            elif context.data_schema and hasattr(context.data_schema, 'model_copy'):
+                # Existing data_schema is already a Pydantic model
+                context.data_schema = context.data_schema.model_copy(
+                    update={"table_schemas": table_schemas}
+                )
+            else:
+                # Create new DataSchema with table_schemas
+                context.data_schema = DataSchema(
+                    table_schemas=table_schemas,
+                    available_tables=[ts.table_name for ts in table_schemas],
+                )
+
+            logger.info(f"Enriched data_schema with {len(table_schemas)} table schemas for {cliente_id}")
+            return context
+
+        except Exception as e:
+            logger.warning(f"Failed to enrich data_schema with table_schemas: {e}")
+            return context
 
     async def get_client_context_by_external_user_id(
         self, external_user_id: str | UUID
@@ -331,6 +381,11 @@ class ContextService:
                     )
                     return None
                 client_context = self._build_context_from_dict(cliente_data)
+
+                # Enrich data_schema with table_schemas from sql_table_config
+                client_context = await self._enrich_data_schema_with_table_schemas(
+                    client_context, cliente_id
+                )
             else:
                 # Legacy SQLAlchemy mode
                 cliente_db = await asyncio.to_thread(

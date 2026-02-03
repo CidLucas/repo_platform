@@ -104,7 +104,6 @@ jobs:
     name: Build & Push ${{ matrix.service }}
     runs-on: ubuntu-latest
     needs: [test]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
       contents: read
       id-token: write
@@ -112,19 +111,11 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          # Agents pool
           - atendente_core
           - tool_pool_api
-          - vendas_agent
-          - support_agent
-          # Workers pool
-          - data_ingestion_worker
-          - file_processing_worker
-          - file_upload_api
           - data_ingestion_api
           - analytics_api
         include:
-          # Frontend dashboard (built from apps/)
           - service: dashboard
             dockerfile_path: apps/vizu_dashboard/Dockerfile
 
@@ -209,27 +200,3 @@ jobs:
           else
             echo "✅ Image size OK: ${SIZE_MB}MB" >> $GITHUB_STEP_SUMMARY
           fi
-
-  # =========================================================================
-  # Stage 4: Trigger deployment on success
-  # =========================================================================
-  trigger-deploy:
-    name: Trigger Deployment
-    runs-on: ubuntu-latest
-    needs: [docker-build-and-push]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - name: Trigger deploy-cloud-run workflow
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'deploy-cloud-run.yml',
-              ref: 'main',
-              inputs: {
-                service: 'all'
-              }
-            });
-            console.log('✅ Triggered deployment workflow');

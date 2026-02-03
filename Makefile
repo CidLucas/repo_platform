@@ -630,3 +630,27 @@ langfuse-down:
 
 langfuse-logs:
 	@cd langfuse && docker compose logs -f --tail 50
+# =============================================================================
+# DATABASE MONITORING
+# =============================================================================
+
+.PHONY: monitor-start monitor-stop monitor-logs monitor-once
+
+monitor-start:
+	@echo "🔍 Starting connection pool monitor..."
+	@$(COMPOSE) up -d connection_monitor
+	@echo "✅ Monitor running - checks every 5 minutes"
+	@echo "   Auto-kills: transactions idle > 15min, queries running > 5min"
+	@echo "   View logs: make monitor-logs"
+
+monitor-stop:
+	@echo "⏹️  Stopping connection pool monitor..."
+	@$(COMPOSE) stop connection_monitor
+	@$(COMPOSE) rm -f connection_monitor
+
+monitor-logs:
+	@$(COMPOSE) logs -f connection_monitor
+
+monitor-once:
+	@echo "🔍 Running connection monitor once (dry-run)..."
+	@DRY_RUN=true DATABASE_URL="$$DATABASE_URL" python ferramentas/monitor_kill_idle_connections.py

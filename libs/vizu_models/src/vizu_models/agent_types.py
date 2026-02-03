@@ -257,15 +257,14 @@ class ClientContextResponse(BaseModel):
         description="Lista de nomes de ferramentas habilitadas (ex: ['executar_rag_cliente', 'executar_sql_agent'])"
     )
 
-    collection_rag: str | None = Field(None, description="Nome da collection RAG (se RAG tool habilitada)")
-
     available_tools: list[ToolInfo] = Field(
         default_factory=list, description="Ferramentas disponíveis e seus status"
     )
-    horario_funcionamento: dict[str, Any] | None = Field(
-        None, description="Horário de funcionamento configurado"
-    )
-    has_custom_prompt: bool = Field(False, description="Se tem prompt customizado")
+
+    # Context 2.0: Structured configuration
+    has_custom_prompt: bool = Field(False, description="Se tem prompt customizado no Langfuse ou available_tools")
+    has_business_hours: bool = Field(False, description="Se tem horário de funcionamento configurado")
+    has_rag_collection: bool = Field(False, description="Se tem coleção RAG configurada")
 
     # PHASE 1: Docker MCP integration flag
     docker_mcp_enabled: bool = Field(

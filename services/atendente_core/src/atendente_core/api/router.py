@@ -396,8 +396,8 @@ async def get_client_context(
         nome_empresa=safe_ctx.nome_empresa,
         tier=safe_ctx.tier,
         enabled_tools=safe_ctx.enabled_tools,
-        collection_rag=safe_ctx.collection_rag,
         available_tools=available_tools,
-        horario_funcionamento=safe_ctx.horario_funcionamento,
-        has_custom_prompt=bool(safe_ctx.prompt_base),
+        has_custom_prompt=bool(safe_ctx.available_tools_config),
+        has_business_hours=bool(safe_ctx.team_structure and safe_ctx.team_structure.business_hours),
+        has_rag_collection="executar_rag_cliente" in safe_ctx.enabled_tools,
     )

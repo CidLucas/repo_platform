@@ -2,14 +2,43 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from atendente_core.api.router import router as api_router
 from atendente_core.core.config import get_settings
 from atendente_core.services.mcp_client import mcp_manager
 
 logger = logging.getLogger(__name__)
+
+
+# --- Database Connection Timeout Middleware ---
+class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
+    """
+    Sets PostgreSQL session timeouts on every request to prevent connection leaks.
+
+    Protects against:
+    - Long-running queries blocking connection pool
+    - Idle transactions holding locks
+    - Frontend disconnections leaving transactions open
+    """
+    async def dispatch(self, request: Request, call_next):
+        # Set timeouts at session level for this request
+        try:
+            from vizu_db_connector.database import SessionLocal
+            session = SessionLocal()
+            try:
+                # 30s statement timeout - any single query taking longer is killed
+                session.execute("SET statement_timeout = '30s'")
+                # 5min idle_in_transaction timeout - transaction idle > 5min is auto-rolled back
+                session.execute("SET idle_in_transaction_session_timeout = '5min'")
+            finally:
+                session.close()
+        except Exception as e:
+            logger.warning(f"Could not set session timeouts: {e}")
+
+        return await call_next(request)
 
 
 # Health check functions for dependencies
@@ -99,6 +128,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 logger.info(f"CORS configurado para: {origins}")
+
+# Add database timeout middleware
+app.add_middleware(DatabaseTimeoutMiddleware)
+logger.debug("Database timeout middleware configured (30s query, 5min idle)")
 
 # Configure observability (OTLP + Langfuse)
 try:

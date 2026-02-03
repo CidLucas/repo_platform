@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     MCP_AUTH_BASE_URL: str = "http://localhost:8000"
     MCP_AUTH_REQUIRED_SCOPES: str = "email,profile"
 
+    # --- JWT Authentication (Supabase) ---
+    # JWK for ES256 verification (Supabase uses ECC P-256)
+    SUPABASE_JWT_JWK: str | None = None
+    JWT_ALGORITHM: str = "ES256"
+    # Optional: Supabase URL for issuer validation
+    SUPABASE_URL: str | None = None
+
     # --- Internal tools service ---
     TOOLS_SERVICE_BASE_URL: str = "http://tools:8000"
 

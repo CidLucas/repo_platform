@@ -70,22 +70,30 @@ def create_mcp_server():
     - Prompts: Templates de prompt versionados
 
     Transporte: HTTP (Streamable HTTP) - mais moderno que SSE
+
+    Authentication:
+    - JWT tokens are validated at the TOOL level, not transport level
+    - Tools extract Authorization header via get_http_headers()
+    - Tokens validated using vizu_auth.decode_jwt()
+    - This allows shared MCP connections without per-connection auth
     """
     logger.info("Criando instância do FastMCP...")
 
-    # 1. Crie o objeto FastMCP isolado
+    # Create FastMCP WITHOUT auth provider - tools handle auth themselves
+    # This allows atendente_core to maintain a shared MCP connection
+    # while individual tool calls are authenticated via JWT in headers
     mcp = FastMCP("Vizu Tool Pool")
 
-    # 2. Registre os componentes MCP
+    # Registre os componentes MCP
     # Tools include prompt_module which registers native MCP prompts
     register_tools(mcp)
     register_resources(mcp)
 
-    # 3. Crie a aplicação MCP ASGI
+    # Crie a aplicação MCP ASGI
     # path='/' significa que o endpoint MCP será /mcp (sem duplicação)
     mcp_asgi = mcp.http_app(path="/")
 
-    # 4. Crie o app FastAPI com lifespan do MCP (OBRIGATÓRIO para HTTP transport)
+    # Crie o app FastAPI com lifespan do MCP (OBRIGATÓRIO para HTTP transport)
     @asynccontextmanager
     async def combined_lifespan(app: FastAPI):
         """Combina o lifespan do MCP com o do FastAPI."""

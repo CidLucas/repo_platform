@@ -2,8 +2,9 @@
 import logging
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from analytics_api.api.router import api_router
 from analytics_api.core.config import settings
@@ -14,6 +15,35 @@ from vizu_observability_bootstrap import setup_telemetry, setup_structured_loggi
 # Configuração de logging (INFO level - structured logging handles this)
 setup_structured_logging()
 logger = logging.getLogger(__name__)
+
+
+# --- Database Connection Timeout Middleware ---
+class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
+    """
+    Sets PostgreSQL session timeouts on every request to prevent connection leaks.
+
+    Protects against:
+    - Long-running queries blocking connection pool
+    - Idle transactions holding locks
+    - Frontend disconnections leaving transactions open
+    """
+    async def dispatch(self, request: Request, call_next):
+        # Set timeouts at session level for this request
+        # These are more aggressive than database defaults since API requests should be fast
+        from vizu_db_connector.database import SessionLocal
+        session = SessionLocal()
+        try:
+            # 30s statement timeout - any single query taking longer is killed
+            session.execute("SET statement_timeout = '30s'")
+            # 5min idle_in_transaction timeout - transaction idle > 5min is auto-rolled back
+            session.execute("SET idle_in_transaction_session_timeout = '5min'")
+            session.close()
+        except Exception as e:
+            logger.warning(f"Could not set session timeouts: {e}")
+            session.close()
+
+        return await call_next(request)
+
 
 # --- Criação da Instância FastAPI ---
 # Esta é a variável 'app' que o Uvicorn procura
@@ -59,6 +89,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 logger.debug(f"CORS origins configured: {origins}")
+
+# Add database timeout middleware
+app.add_middleware(DatabaseTimeoutMiddleware)
+logger.debug("Database timeout middleware configured (30s query, 5min idle)")
 
 # Rota de Health Check
 @app.get("/health", tags=["Infra"])

@@ -124,25 +124,22 @@ class ClientCreateRequest(BaseModel):
         default="BASIC",
         description="Client tier: FREE, BASIC, SME, PREMIUM, ENTERPRISE"
     )
-    horario_funcionamento: dict | None = Field(
-        default=None,
-        description="Business hours as JSON object"
-    )
-    prompt_base: str | None = Field(
-        default=None,
-        description="Custom system prompt for this client"
-    )
     enabled_tools: list[str] | None = Field(
         default=None,
         description="List of enabled tool names"
     )
-    collection_rag: str | None = Field(
-        default=None,
-        description="RAG collection name for this client"
-    )
     external_user_id: str | None = Field(
         default=None,
         description="External user ID from OAuth provider"
+    )
+    # Context 2.0 sections (optional)
+    available_tools: dict | None = Field(
+        default=None,
+        description="Tool configuration including rag_collection and default_system_prompt"
+    )
+    team_structure: dict | None = Field(
+        default=None,
+        description="Team info including business_hours"
     )
 
 
@@ -154,11 +151,11 @@ class ClientUpdateRequest(BaseModel):
         default=None,
         description="Client tier: FREE, BASIC, SME, PREMIUM, ENTERPRISE"
     )
-    horario_funcionamento: dict | None = None
-    prompt_base: str | None = None
     enabled_tools: list[str] | None = None
-    collection_rag: str | None = None
     external_user_id: str | None = None
+    # Context 2.0 sections (optional)
+    available_tools: dict | None = None
+    team_structure: dict | None = None
 
 
 class ClientResponse(BaseModel):
@@ -167,11 +164,11 @@ class ClientResponse(BaseModel):
     nome_empresa: str
     tipo_cliente: str | None = None
     tier: str | None = None
-    horario_funcionamento: dict | None = None
-    prompt_base: str | None = None
     enabled_tools: list[str] | None = None
-    collection_rag: str | None = None
     external_user_id: str | None = None
+    # Context 2.0 sections
+    available_tools: dict | None = None
+    team_structure: dict | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -222,11 +219,10 @@ def _dict_to_response(data: dict) -> ClientResponse:
         nome_empresa=data.get("nome_empresa", ""),
         tipo_cliente=data.get("tipo_cliente"),
         tier=data.get("tier"),
-        horario_funcionamento=data.get("horario_funcionamento"),
-        prompt_base=data.get("prompt_base"),
         enabled_tools=data.get("enabled_tools"),
-        collection_rag=data.get("collection_rag"),
         external_user_id=data.get("external_user_id"),
+        available_tools=data.get("available_tools"),
+        team_structure=data.get("team_structure"),
         created_at=str(data["created_at"]) if data.get("created_at") else None,
         updated_at=str(data["updated_at"]) if data.get("updated_at") else None,
     )

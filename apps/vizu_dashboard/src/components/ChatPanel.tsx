@@ -15,6 +15,7 @@ import { useState, useRef, useEffect, useContext } from 'react';
 import { ArrowForwardIcon, AttachmentIcon, AddIcon, ChatIcon, CloseIcon } from '@chakra-ui/icons';
 import { AuthContext } from '../contexts/AuthContext';
 import { SimpleDataTable, type StructuredData } from './SimpleDataTable';
+import { MarkdownMessage } from './MarkdownMessage';
 
 interface Message {
   id: string;
@@ -52,8 +53,8 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
 
   // Get user name from auth context - fallback to first part of email if no display name
   const userName = auth?.user?.user_metadata?.full_name ||
-                   auth?.user?.email?.split('@')[0] ||
-                   'Usuário';
+    auth?.user?.email?.split('@')[0] ||
+    'Usuário';
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -322,9 +323,10 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
                           boxShadow={message.sender === 'user' ? '0 2px 8px rgba(0,0,0,0.15)' : 'none'}
                           mb={message.structuredData ? 3 : 0}
                         >
-                          <Text fontSize="15px" fontFamily="'Noto Sans', sans-serif" lineHeight="1.4">
-                            {message.content}
-                          </Text>
+                          <MarkdownMessage
+                            content={message.content}
+                            isUser={message.sender === 'user'}
+                          />
                         </Box>
                       )}
 

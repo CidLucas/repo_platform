@@ -2,18 +2,15 @@
 """
 SafeClientContext - Modular context safe for LLM exposure (Context 2.0).
 
-Este modelo contém APENAS os dados que são seguros para serem
-expostos à LLM. Nenhuma informação sensível (API keys, IDs internos,
-credenciais) deve estar aqui.
+Contains ONLY data safe for LLM exposure. No sensitive information
+(API keys, internal IDs, credentials) should be here.
 
-IMPORTANTE: Qualquer dado neste modelo pode potencialmente ser
-incluído em prompts ou respostas da LLM.
+IMPORTANT: Any data in this model may be included in prompts or LLM responses.
 
 Context 2.0 Features:
 - Modular sections that can be loaded/injected independently
 - Selective injection based on node requirements
 - Immutable to prevent accidental modifications
-- Backward compatible with legacy prompt_base field
 """
 
 import uuid
@@ -28,10 +25,7 @@ from .context_schemas import (
     CompanyProfile,
     CurrentMoment,
     DataSchema,
-    MarketContext,
     Policies,
-    ProductCatalog,
-    TargetAudience,
     TeamStructure,
     SECTION_SCHEMAS,
 )
@@ -41,9 +35,7 @@ class SafeClientContext(BaseModel):
     """
     Modular client context safe for LLM exposure (Context 2.0).
 
-    Supports both legacy single-field context (prompt_base) and
-    new modular sections. Sections can be loaded independently
-    and compiled into prompt text selectively.
+    Sections can be loaded independently and compiled into prompt text selectively.
 
     NÃO INCLUIR:
     - api_key / credenciais
@@ -69,32 +61,14 @@ class SafeClientContext(BaseModel):
     tier: str = "BASIC"
     enabled_tools: list[str] = Field(default_factory=list)
 
-    # ===== LEGACY FIELDS (backward compatibility) =====
-    prompt_base: str | None = None
-    horario_funcionamento: dict[str, Any] | None = None
-    collection_rag: str | None = None
-
     # ===== MODULAR SECTIONS (Context 2.0) =====
-    # Core Identity
     company_profile: CompanyProfile | None = None
     brand_voice: BrandVoice | None = None
-
-    # Business
-    product_catalog: ProductCatalog | None = None
-    target_audience: TargetAudience | None = None
-    market_context: MarketContext | None = None
-
-    # Operations
     current_moment: CurrentMoment | None = None
     team_structure: TeamStructure | None = None
     policies: Policies | None = None
-
-    # Technical
     data_schema: DataSchema | None = None
     available_tools_config: AvailableTools | None = None
-
-    # Custom
-    client_custom: dict[str, Any] | None = None
 
     # ===== METADATA =====
     loaded_sections: list[ContextSection] = Field(default_factory=list)
@@ -104,15 +78,11 @@ class SafeClientContext(BaseModel):
         section_map = {
             ContextSection.COMPANY_PROFILE: self.company_profile,
             ContextSection.BRAND_VOICE: self.brand_voice,
-            ContextSection.PRODUCT_CATALOG: self.product_catalog,
-            ContextSection.TARGET_AUDIENCE: self.target_audience,
-            ContextSection.MARKET_CONTEXT: self.market_context,
             ContextSection.CURRENT_MOMENT: self.current_moment,
             ContextSection.TEAM_STRUCTURE: self.team_structure,
             ContextSection.POLICIES: self.policies,
             ContextSection.DATA_SCHEMA: self.data_schema,
             ContextSection.AVAILABLE_TOOLS: self.available_tools_config,
-            ContextSection.CLIENT_CUSTOM: self.client_custom,
         }
         return section_map.get(section)
 
@@ -141,8 +111,8 @@ class SafeClientContext(BaseModel):
         parts = []
 
         if include_header:
-            parts.append(f"# Contexto: {self.nome_empresa}")
-            parts.append(f"**Tier:** {self.tier}")
+            parts.append(f"# Context: {self.nome_empresa}")
+            parts.append(f"**Service Tier:** {self.tier}")
 
         # Compile each requested section
         for section in sections:
@@ -154,10 +124,6 @@ class SafeClientContext(BaseModel):
             if section_text:
                 parts.append(section_text)
 
-        # Legacy fallback: include prompt_base if no sections loaded
-        if not sections and self.prompt_base:
-            parts.append(f"\n## Instruções\n{self.prompt_base}")
-
         return "\n\n".join(parts)
 
     def _format_section(self, section: ContextSection, content: Any) -> str:
@@ -165,19 +131,15 @@ class SafeClientContext(BaseModel):
         if content is None:
             return ""
 
-        # Section headers in Portuguese
+        # Section headers in English
         headers = {
-            ContextSection.COMPANY_PROFILE: "## Perfil da Empresa",
-            ContextSection.BRAND_VOICE: "## Voz da Marca",
-            ContextSection.PRODUCT_CATALOG: "## Produtos e Serviços",
-            ContextSection.TARGET_AUDIENCE: "## Público-Alvo",
-            ContextSection.MARKET_CONTEXT: "## Contexto de Mercado",
-            ContextSection.CURRENT_MOMENT: "## Momento Atual",
-            ContextSection.TEAM_STRUCTURE: "## Estrutura da Equipe",
-            ContextSection.POLICIES: "## Políticas e Limites",
-            ContextSection.DATA_SCHEMA: "## Dados Disponíveis",
-            ContextSection.AVAILABLE_TOOLS: "## Ferramentas Disponíveis",
-            ContextSection.CLIENT_CUSTOM: "## Contexto Personalizado",
+            ContextSection.COMPANY_PROFILE: "## Company Profile",
+            ContextSection.BRAND_VOICE: "## Brand Voice & Communication",
+            ContextSection.CURRENT_MOMENT: "## Current Business Context",
+            ContextSection.TEAM_STRUCTURE: "## Team & Operations",
+            ContextSection.POLICIES: "## Policies & Boundaries",
+            ContextSection.DATA_SCHEMA: "## Available Data",
+            ContextSection.AVAILABLE_TOOLS: "## Tool Configuration",
         }
 
         header = headers.get(section, f"## {section.value}")
@@ -191,8 +153,101 @@ class SafeClientContext(BaseModel):
         if not content_dict:
             return ""
 
+        # Special handling for DATA_SCHEMA with table_schemas
+        if section == ContextSection.DATA_SCHEMA and "table_schemas" in content_dict:
+            return self._format_data_schema_section(header, content_dict)
+
         lines = [header]
         self._format_dict_to_lines(content_dict, lines, indent=0)
+
+        return "\n".join(lines) if len(lines) > 1 else ""
+
+    def _format_data_schema_section(self, header: str, content_dict: dict) -> str:
+        """
+        Format DATA_SCHEMA section with detailed table schemas for SQL agents.
+
+        Renders table_schemas in a SQL-friendly format that LLMs can use
+        to understand available data and generate queries.
+        """
+        lines = [header]
+
+        # Add general info if present
+        if content_dict.get("data_freshness"):
+            lines.append(f"**Data Freshness:** {content_dict['data_freshness']}")
+        if content_dict.get("data_sources"):
+            lines.append(f"**Data Sources:** {', '.join(content_dict['data_sources'])}")
+        if content_dict.get("data_formats"):
+            formats = content_dict["data_formats"]
+            lines.append(f"**Data Formats:** {', '.join(f'{k}={v}' for k, v in formats.items())}")
+
+        # Render table schemas
+        table_schemas = content_dict.get("table_schemas", [])
+        if table_schemas:
+            lines.append("")
+            lines.append("### Database Schema")
+            lines.append("")
+
+            # Sort: primary tables first, then by name
+            sorted_schemas = sorted(
+                table_schemas,
+                key=lambda t: (not t.get("is_primary", False), t.get("table_name", ""))
+            )
+
+            for table in sorted_schemas:
+                table_name = table.get("table_name", "unknown")
+                display_name = table.get("display_name", "")
+                description = table.get("description", "")
+                is_primary = table.get("is_primary", False)
+
+                # Table header
+                primary_marker = " (PRIMARY)" if is_primary else ""
+                if display_name:
+                    lines.append(f"**{table_name}**{primary_marker} - {display_name}")
+                else:
+                    lines.append(f"**{table_name}**{primary_marker}")
+
+                if description:
+                    lines.append(f"  {description}")
+
+                # Columns
+                columns = table.get("columns", {})
+                if columns:
+                    lines.append("  Columns:")
+                    for col_name, col_desc in columns.items():
+                        lines.append(f"    - `{col_name}`: {col_desc}")
+
+                # Enum values (critical for case-sensitive queries)
+                enum_values = table.get("enum_values", {})
+                if enum_values:
+                    lines.append("  Valid Values (use EXACTLY as shown):")
+                    for col_name, values in enum_values.items():
+                        values_str = ", ".join(f"'{v}'" for v in values[:10])
+                        if len(values) > 10:
+                            values_str += f" ... (+{len(values) - 10} more)"
+                        lines.append(f"    - `{col_name}`: {values_str}")
+
+                # Join keys
+                join_keys = table.get("join_keys", [])
+                if join_keys:
+                    lines.append(f"  Join Keys: {', '.join(f'`{k}`' for k in join_keys)}")
+
+                # Example queries (max 2 per table)
+                examples = table.get("example_queries", [])[:2]
+                if examples:
+                    lines.append("  Examples:")
+                    for ex in examples:
+                        q = ex.get("question", "")
+                        sql = ex.get("sql", "")
+                        if q and sql:
+                            lines.append(f"    Q: {q}")
+                            lines.append(f"    SQL: `{sql[:100]}{'...' if len(sql) > 100 else ''}`")
+
+                lines.append("")  # Blank line between tables
+
+        # Also include available_tables for backward compatibility
+        available_tables = content_dict.get("available_tables", [])
+        if available_tables and not table_schemas:
+            lines.append(f"**Available Tables:** {', '.join(available_tables)}")
 
         return "\n".join(lines) if len(lines) > 1 else ""
 

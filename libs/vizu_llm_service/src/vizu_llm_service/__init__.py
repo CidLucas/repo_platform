@@ -47,19 +47,11 @@ from .token_budget import (
     get_message_content,
     truncate_messages,
 )
-from .prompt_service import (
-    FetchedPrompt,
-    LangfusePromptClient,
-    PromptConfig,
-    PromptService,
-    get_prompt,
-    get_prompt_service,
-)
 
 # text_to_sql imports are lazy to avoid pulling in vizu_sql_factory/vizu_prompt_management
 # for services that don't need them (e.g., file_processing_worker)
 def __getattr__(name):
-    """Lazy import for text_to_sql related symbols."""
+    """Lazy import for text_to_sql and prompt-related symbols."""
     _text_to_sql_symbols = {
         "TextToSqlPrompt",
         "get_text_to_sql_prompt",
@@ -72,6 +64,12 @@ def __getattr__(name):
         "get_llm_call",
         "ConfigLLMProvider",
     }
+
+    # LangfusePromptClient is lazy to avoid requiring vizu_observability_bootstrap
+    # in services that don't need prompt management
+    if name == "LangfusePromptClient":
+        from vizu_observability_bootstrap.langfuse import LangfusePromptClient
+        return LangfusePromptClient
 
     if name in _text_to_sql_symbols:
         from .text_to_sql import TextToSqlPrompt, get_text_to_sql_prompt
@@ -102,13 +100,8 @@ __all__ = [
     "truncate_messages",
     "DEFAULT_MAX_PROMPT_TOKENS",
     "DEFAULT_CHARS_PER_TOKEN",
-    # Prompt Management (Langfuse-First)
-    "PromptService",
-    "FetchedPrompt",
-    "PromptConfig",
+    # Prompt Management (from vizu_observability_bootstrap)
     "LangfusePromptClient",
-    "get_prompt_service",
-    "get_prompt",
     # Text-to-SQL (Phase 1 Refactoring)
     "TextToSqlPrompt",
     "get_text_to_sql_prompt",

@@ -20,11 +20,12 @@ Natural language to SQL tool for client data queries.
 """
 
 import logging
+import time
 from uuid import UUID
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
-from fastmcp.server.dependencies import AccessToken, get_access_token
+from fastmcp.server.dependencies import AccessToken, get_access_token, get_http_headers
 
 from tool_pool_api.server.dependencies import (
     get_context_service,
@@ -32,6 +33,7 @@ from tool_pool_api.server.dependencies import (
 )
 from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
 from vizu_llm_service import ModelTier, get_model
+from vizu_observability_bootstrap.langfuse import get_langfuse_callback, is_langfuse_enabled
 
 # Context 2.0: Import ContextSection for selective injection
 from vizu_models.enums import ContextSection
@@ -426,6 +428,23 @@ async def _executar_sql_agent_logic(
     Returns:
         Dict with SQL query results
     """
+    # Initialize Langfuse trace for this tool execution
+    langfuse_trace = None
+    trace_spans = {}  # Track spans for nested operations
+
+    try:
+        if is_langfuse_enabled():
+            from langfuse import Langfuse
+            langfuse = Langfuse()
+            langfuse_trace = langfuse.trace(
+                name="executar_sql_agent",
+                input={"query": query, "cliente_id": cliente_id},
+                tags=["tool_pool", "sql_module"],
+            )
+            logger.debug("[SQL] Langfuse trace started")
+    except Exception as lf_err:
+        logger.warning(f"[SQL] Langfuse trace init failed (non-fatal): {lf_err}")
+
     # 1. Obter dependências
     try:
         ctx_service = get_context_service()
@@ -434,6 +453,7 @@ async def _executar_sql_agent_logic(
         raise ToolError("Erro interno no serviço de ferramentas.")
 
     # 2. Resolver o Contexto Vizu
+    # Priority: 1) cliente_id param (injected by decorator), 2) access token
     vizu_context: VizuClientContext | None = None
 
     try:
@@ -449,6 +469,7 @@ async def _executar_sql_agent_logic(
             if not vizu_context:
                 raise ToolError(f"Contexto não encontrado para o ID: {cliente_id}")
         else:
+            # Fallback to FastMCP access token (direct API calls)
             access_token: AccessToken | None = get_access_token()
             vizu_context = await load_context_from_token(ctx_service, access_token)
 
@@ -483,6 +504,18 @@ async def _executar_sql_agent_logic(
             tags=["tool_pool", "sql_module"],
         )
 
+        # Span: Schema Loading
+        schema_start = time.perf_counter()
+        schema_span = None
+        try:
+            if langfuse_trace:
+                schema_span = langfuse_trace.span(
+                    name="load_schema_context",
+                    input={"cliente_id": str(real_client_id)},
+                )
+        except Exception:
+            pass
+
         # Get enriched schema context (uses Redis-cached SqlTableConfig)
         engine = get_shared_engine()
         table_info = await _get_enriched_schema_context(
@@ -491,6 +524,13 @@ async def _executar_sql_agent_logic(
 
         # Context 2.0: Get client-specific guidance from context sections
         context_guidance = _build_context_guidance(vizu_context)
+
+        if schema_span:
+            schema_span.end(
+                output={"schema_chars": len(table_info), "guidance_chars": len(context_guidance)},
+                level="DEFAULT",
+            )
+        logger.debug(f"[SQL] Schema loaded in {(time.perf_counter() - schema_start)*1000:.1f}ms")
 
         logger.info(f"[SQL] Schema context length: {len(table_info)} chars")
         logger.info(f"[SQL] Context guidance length: {len(context_guidance)} chars")
@@ -641,12 +681,33 @@ USER QUESTION: {query}
 
 SQL:"""
 
+        # Span: SQL Generation LLM Call
+        llm_start = time.perf_counter()
+        llm_span = None
+        try:
+            if langfuse_trace:
+                llm_span = langfuse_trace.span(
+                    name="llm_sql_generation",
+                    input={"query": query, "prompt_length": len(sql_generation_prompt)},
+                )
+        except Exception:
+            pass
+
         response = llm.invoke([
             SystemMessage(content="You are a SQL query generator. Output only valid SQL."),
             HumanMessage(content=sql_generation_prompt)
         ])
 
         generated_sql = response.content.strip()
+
+        # End LLM span
+        llm_duration = (time.perf_counter() - llm_start) * 1000
+        if llm_span:
+            llm_span.end(
+                output={"generated_sql": generated_sql[:500], "duration_ms": llm_duration},
+                level="DEFAULT",
+            )
+        logger.info(f"[SQL] LLM generated SQL in {llm_duration:.1f}ms")
 
         # Clean up the SQL (remove markdown code blocks if present)
         generated_sql = _strip_markdown_code_block(generated_sql)
@@ -692,6 +753,19 @@ SQL:"""
 
         # Execute the SQL directly with RLS context (defense in depth)
         # SECURITY: RLS policies on analytics_v2 tables provide additional enforcement
+
+        # Span: SQL Execution
+        exec_start = time.perf_counter()
+        exec_span = None
+        try:
+            if langfuse_trace:
+                exec_span = langfuse_trace.span(
+                    name="sql_execution",
+                    input={"sql_preview": final_sql[:200]},
+                )
+        except Exception:
+            pass
+
         try:
             from .structured_data_formatter import format_sql_result
 
@@ -709,6 +783,11 @@ SQL:"""
                 results = cursor.fetchall()
 
                 if not results:
+                    # End spans on empty result
+                    if exec_span:
+                        exec_span.end(output={"row_count": 0, "duration_ms": (time.perf_counter() - exec_start) * 1000}, level="DEFAULT")
+                    if langfuse_trace:
+                        langfuse_trace.update(output={"success": True, "row_count": 0})
                     return {
                         "output": "Nenhum resultado encontrado.",
                         "sql": final_sql,
@@ -764,18 +843,36 @@ SQL:"""
                     logger.warning(f"[SQL] Cache store failed (non-fatal): {cache_err}")
                     cache_ref_id = None
 
+                # End execution span on success
+                exec_duration = (time.perf_counter() - exec_start) * 1000
+                if exec_span:
+                    exec_span.end(
+                        output={"row_count": len(rows_as_dicts), "duration_ms": exec_duration},
+                        level="DEFAULT",
+                    )
+
+                # Update trace with final output
+                if langfuse_trace:
+                    langfuse_trace.update(
+                        output={"success": True, "row_count": len(rows_as_dicts), "cache_ref_id": cache_ref_id},
+                    )
+
+                # Return dict - MCP handles JSON serialization
+                # Use model_dump(mode='json') to ensure all values are JSON-serializable
                 return {
-                    "output": result,
-                    "sql": final_sql,  # Return the SQL with client_id for debugging
+                    "output": f"{len(rows_as_dicts)} registros encontrados",
+                    "sql": final_sql,
                     "success": True,
-                    "structured_data": structured_data.model_dump(),
+                    "structured_data": structured_data.model_dump(mode="json"),
                     "row_count": len(rows_as_dicts),
-                    "cache_ref_id": cache_ref_id,  # Reference to full data in Redis
-                    # NOTE: all_rows removed to prevent context bloat
-                    # Use cache_ref_id to retrieve full data for exports
+                    "cache_ref_id": cache_ref_id,
                 }
         except Exception as exec_error:
             logger.error(f"[SQL] Execution error: {exec_error}")
+            if exec_span:
+                exec_span.end(output={"error": str(exec_error)}, level="ERROR")
+            if langfuse_trace:
+                langfuse_trace.update(output={"success": False, "error": str(exec_error)})
             return {
                 "output": f"SQL execution error: {str(exec_error)}",
                 "sql": final_sql,
@@ -785,6 +882,8 @@ SQL:"""
 
     except Exception as e:
         logger.exception(f"[SQL] Erro ao executar para {real_client_id}: {e}")
+        if langfuse_trace:
+            langfuse_trace.update(output={"success": False, "error": str(e)})
         raise ToolError(f"Erro ao processar a consulta SQL: {e}")
 
 
@@ -797,6 +896,7 @@ SQL:"""
 def register_tools(mcp: FastMCP) -> list[str]:
     """Registra as tools do módulo SQL."""
     # Register executar_sql_agent - simple natural language to SQL tool
+    # Uses mcp_inject_cliente_id decorator to inject cliente_id from auth
     mcp.tool(
         name="executar_sql_agent",
         description=(
@@ -813,5 +913,5 @@ def register_tools(mcp: FastMCP) -> list[str]:
         ),
     )(mcp_inject_cliente_id(get_context_service)(_executar_sql_agent_logic))
 
-    logger.info("[SQL Module] Ferramenta registrada: executar_sql_agent")
+    logger.info("[SQL Module] Tool registered: executar_sql_agent")
     return ["executar_sql_agent"]

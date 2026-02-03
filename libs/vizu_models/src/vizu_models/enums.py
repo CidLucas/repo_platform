@@ -77,30 +77,25 @@ class ContextSection(str, Enum):
     Each section can be injected independently into agent nodes,
     enabling selective context injection based on node requirements.
 
-    Grouped by typical update frequency:
-    - Core Identity: Quarterly updates
-    - Business: Monthly updates
-    - Operations: Weekly updates
-    - Technical: On-change updates
+    Sections used for prompt injection:
+    - COMPANY_PROFILE: Company identity
+    - BRAND_VOICE: Communication style
+    - CURRENT_MOMENT: Weekly priorities/challenges
+    - TEAM_STRUCTURE: Contacts and business hours
+    - POLICIES: Business rules and guardrails
+    - DATA_SCHEMA: Available data for SQL agent
+    - AVAILABLE_TOOLS: Tool configuration
     """
 
-    # Core Identity (quarterly updates)
+    # Core Identity
     COMPANY_PROFILE = "company_profile"  # Mission, vision, values, archetype
     BRAND_VOICE = "brand_voice"  # Tone, style, phrases to use/avoid
 
-    # Business (monthly updates)
-    PRODUCT_CATALOG = "product_catalog"  # Products/services offered
-    TARGET_AUDIENCE = "target_audience"  # ICP, personas, pain points
-    MARKET_CONTEXT = "market_context"  # Competitors, differentiators, regulations
-
-    # Operations (weekly updates)
+    # Operations
     CURRENT_MOMENT = "current_moment"  # Priorities, challenges, wins, metrics
     TEAM_STRUCTURE = "team_structure"  # Key contacts, escalation paths
     POLICIES = "policies"  # Rules, limits, approval flows, guardrails
 
-    # Technical (on-change updates)
+    # Technical
     DATA_SCHEMA = "data_schema"  # Available tables, formats, key fields
     AVAILABLE_TOOLS = "available_tools"  # Tool descriptions, limits
-
-    # Custom extension point
-    CLIENT_CUSTOM = "client_custom"  # Client-specific extensions

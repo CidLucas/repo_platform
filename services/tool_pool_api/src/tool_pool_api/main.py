@@ -3,13 +3,42 @@ import sys
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .api.admin_router import router as admin_router
 from .api.integrations_router import router as integrations_router
 
 logger = logging.getLogger(__name__)
+
+
+# --- Database Connection Timeout Middleware ---
+class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
+    """
+    Sets PostgreSQL session timeouts on every request to prevent connection leaks.
+
+    Protects against:
+    - Long-running queries blocking connection pool
+    - Idle transactions holding locks
+    - Frontend disconnections leaving transactions open
+    """
+    async def dispatch(self, request: Request, call_next):
+        # Set timeouts at session level for this request
+        try:
+            from vizu_db_connector.database import SessionLocal
+            session = SessionLocal()
+            try:
+                # 30s statement timeout - any single query taking longer is killed
+                session.execute("SET statement_timeout = '30s'")
+                # 5min idle_in_transaction timeout - transaction idle > 5min is auto-rolled back
+                session.execute("SET idle_in_transaction_session_timeout = '5min'")
+            finally:
+                session.close()
+        except Exception as e:
+            logger.warning(f"Could not set session timeouts: {e}")
+
+        return await call_next(request)
 
 # Global state for MCP
 _mcp = None
@@ -82,6 +111,10 @@ except ImportError as e:
 # Mount API routers
 app.include_router(admin_router)
 app.include_router(integrations_router)
+
+# Add database timeout middleware
+app.add_middleware(DatabaseTimeoutMiddleware)
+logger.debug("Database timeout middleware configured (30s query, 5min idle)")
 
 
 # Health check endpoint that doesn't require MCP

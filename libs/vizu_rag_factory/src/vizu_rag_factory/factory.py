@@ -72,9 +72,12 @@ def create_rag_runnable(
     if "executar_rag_cliente" not in enabled:
         return None
 
-    # Usa o collection_rag definido no contexto do cliente para garantir isolamento
-    # Se não estiver definido, usa um fallback baseado no ID do cliente
-    collection_name = contexto.collection_rag or str(contexto.id)
+    # Get collection name from available_tools config, fallback to client ID
+    collection_name = None
+    if contexto.available_tools:
+        collection_name = contexto.available_tools.get("rag_collection")
+    collection_name = collection_name or str(contexto.id)
+
     logger.debug(
         f"Creating RAG runnable for client {contexto.id}, collection: {collection_name}"
     )

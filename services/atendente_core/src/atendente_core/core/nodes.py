@@ -1,12 +1,16 @@
 import asyncio
 import logging
-from typing import Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from vizu_context_service import ContextService
 
 # Stream error handling for MCP reconnection
 from anyio import BrokenResourceError, ClosedResourceError
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
-from langchain_core.tools import BaseTool
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.tools import BaseTool, StructuredTool
+from pydantic import BaseModel, create_model
 
 from atendente_core.core.config import get_settings
 from atendente_core.core.state import AgentState
@@ -22,78 +26,170 @@ from vizu_elicitation_service import (
 )
 
 # Importa o cliente LLM centralizado
-from vizu_llm_service import ModelTier, get_model
+from vizu_llm_service import ModelTier, TokenBudget, get_model
+
+# Context 2.0: Import ContextSection for selective injection
+from vizu_models.enums import ContextSection
 
 # Importa o contexto seguro para tipagem
 from vizu_models.safe_client_context import SafeClientContext
 
+# Context 2.0: Import VizuClientContext for full context access
+from vizu_models.vizu_client_context import VizuClientContext
+
+# PHASE 3+5: Use vizu_prompt_management unified dynamic builder
+from vizu_prompt_management import (
+    build_prompt,
+    build_tools_description,
+)
+
 # PHASE 3: Use vizu_tool_registry for tool filtering
 from vizu_tool_registry import ToolRegistry
 
-# PHASE 3: Use vizu_prompt_management for prompt loading
-try:
-    from vizu_prompt_management import PromptLoader, TemplateRenderer
-    from vizu_prompt_management.variables import VariableExtractor
-    HAS_PROMPT_MANAGEMENT = True
-except ImportError:
-    HAS_PROMPT_MANAGEMENT = False
-
-# PHASE 5: Prompt Management - use Supabase SDK
-from vizu_supabase_client import SupabaseCRUD
-
 logger = logging.getLogger(__name__)
 
-# Singleton for prompt queries
-_supabase_crud: SupabaseCRUD | None = None
 
-
-def _get_supabase_crud() -> SupabaseCRUD:
-    """Get singleton SupabaseCRUD instance."""
-    global _supabase_crud
-    if _supabase_crud is None:
-        _supabase_crud = SupabaseCRUD()
-    return _supabase_crud
-
-
-# ============================================================================
-# PHASE 5: PROMPT MANAGEMENT - Versioned prompts from database (Supabase)
-# ============================================================================
-
-
-def get_prompt_from_db(
-    name: str, cliente_id: UUID | None = None, version: int | None = None
-) -> str | None:
+def _create_llm_data_summary(structured_data: dict, full_output: dict) -> str:
     """
-    Busca um prompt template do banco de dados via Supabase SDK.
+    Create a concise LLM-friendly summary of SQL results.
 
-    Prioridade:
-    1. Prompt específico do cliente (se cliente_id fornecido)
-    2. Prompt global (client_id = NULL)
+    The LLM should NOT receive all rows - just:
+    - Total count
+    - Column names
+    - 3 sample rows for context
+    - Aggregated stats if numeric columns exist
 
     Args:
-        name: Nome do prompt (ex: 'atendente/system')
-        cliente_id: UUID do cliente para override específico
-        version: Versão específica (None = mais recente)
+        structured_data: Full structured_data with all rows
+        full_output: Full tool output dict (has row_count, sql, etc.)
 
     Returns:
-        Conteúdo do prompt ou None se não encontrado
+        Formatted string summary for LLM context
     """
-    try:
-        crud = _get_supabase_crud()
-        result = crud.get_prompt_template(
-            name=name,
-            client_id=cliente_id,
-            version=version,
+    rows = structured_data.get("rows", [])
+    columns = structured_data.get("columns", [])
+    total_rows = full_output.get("row_count", len(rows))
+    sql = full_output.get("sql", "")
+
+    # Build summary
+    summary_parts = [f"{total_rows} registros encontrados."]
+
+    if columns:
+        summary_parts.append(f"Colunas: {', '.join(columns)}")
+
+    # Add 3 sample rows for context
+    if rows:
+        sample_rows = rows[:3]
+        sample_text = "\n".join([
+            f"  Exemplo {i+1}: {row}"
+            for i, row in enumerate(sample_rows)
+        ])
+        summary_parts.append(f"\nPrimeiros 3 registros:\n{sample_text}")
+
+    # Try to add aggregated stats for numeric columns
+    if rows and columns:
+        numeric_stats = _calculate_numeric_stats(rows, columns)
+        if numeric_stats:
+            summary_parts.append(f"\nEstatísticas: {numeric_stats}")
+
+    # Add truncation note
+    if total_rows > 3:
+        summary_parts.append(f"\n(Mostrando 3 de {total_rows}. Dados completos exibidos na tabela para o usuário.)")
+
+    return "\n".join(summary_parts)
+
+
+def _calculate_numeric_stats(rows: list[dict], columns: list[str]) -> str | None:
+    """
+    Calculate basic stats for numeric columns.
+
+    Returns:
+        String with stats like "total_valor: R$123.456, avg: R$1.234"
+    """
+    import statistics
+
+    stats_parts = []
+
+    for col in columns:
+        try:
+            # Extract numeric values
+            values = []
+            for row in rows:
+                val = row.get(col)
+                if val is not None:
+                    if isinstance(val, (int, float)):
+                        values.append(float(val))
+                    elif isinstance(val, str):
+                        # Try to parse numeric string
+                        cleaned = val.replace("R$", "").replace(".", "").replace(",", ".").strip()
+                        if cleaned.replace("-", "").replace(".", "").isdigit():
+                            values.append(float(cleaned))
+
+            if values and len(values) >= 3:
+                total = sum(values)
+                avg = statistics.mean(values)
+
+                # Format based on magnitude
+                if total > 1000:
+                    stats_parts.append(f"{col}: total={total:,.2f}, média={avg:,.2f}")
+        except (ValueError, TypeError, statistics.StatisticsError):
+            continue
+
+    return "; ".join(stats_parts) if stats_parts else None
+
+
+def sanitize_tool_for_llm(tool: BaseTool) -> BaseTool:
+    """
+    Validate that tool schemas do not expose internal parameters to the LLM.
+
+    Tools should NOT have cliente_id or user_jwt in their schemas - these
+    should be handled via backend authentication (JWT tokens).
+
+    If a tool exposes internal params, this logs an error but returns the tool
+    as-is to avoid breaking the system. The fix should be in the tool definition.
+
+    Args:
+        tool: Tool from MCP
+
+    Returns:
+        The same tool (validation only, no modification)
+    """
+    INTERNAL_PARAMS = {"cliente_id", "user_jwt"}
+
+    # Skip if tool has no args_schema
+    if not hasattr(tool, "args_schema") or tool.args_schema is None:
+        return tool
+
+    schema = tool.args_schema
+
+    # Check for internal params in schema
+    fields = set()
+    if hasattr(schema, "model_fields"):
+        fields = set(schema.model_fields.keys())
+    elif isinstance(schema, dict):
+        fields = set(schema.get("properties", {}).keys())
+
+    exposed_params = INTERNAL_PARAMS & fields
+    if exposed_params:
+        logger.error(
+            f"[SECURITY] Tool '{tool.name}' exposes internal params {exposed_params} to LLM! "
+            f"Fix the tool definition to remove these from the signature."
         )
 
-        if result:
-            return result.get("content")
+    return tool
 
-        return None
 
-    except Exception as e:
-        logger.warning(f"Erro ao buscar prompt do DB: {e}")
-        return None
+def sanitize_tools_for_llm(tools: list[BaseTool]) -> list[BaseTool]:
+    """
+    Sanitize all tools to hide internal parameters from LLM.
+
+    Args:
+        tools: List of tools from MCP
+
+    Returns:
+        List of tools with sanitized schemas
+    """
+    return [sanitize_tool_for_llm(tool) for tool in tools]
 
 
 # ============================================================================
@@ -180,205 +276,78 @@ def filter_tools_for_client(
     return filtered
 
 
-def _filter_prompt_tools(prompt_base: str, available_tool_names: set[str]) -> str:
-    """
-    Filter tool references in prompt_base to only include enabled tools.
-
-    This prevents the LLM from trying to use tools that are mentioned in the
-    prompt but not actually available/enabled for the client.
-
-    Args:
-        prompt_base: The client's custom prompt
-        available_tool_names: Set of tool names actually available
-
-    Returns:
-        Filtered prompt with unavailable tool sections removed/noted
-    """
-    if not prompt_base:
-        return ""
-
-    # Deprecated tools that should always be removed from prompts
-    deprecated_tools = {"query_database_text_to_sql"}
-
-    # Active SQL tool
-    sql_tools = {"executar_sql_agent"}
-
-    # Always remove deprecated tool references
-    lines = prompt_base.split('\n')
-    filtered_lines = []
-    skip_until_next_section = False
-
-    for line in lines:
-        # Always skip lines mentioning deprecated tools
-        if any(tool in line for tool in deprecated_tools):
-            skip_until_next_section = True
-            continue
-
-        # Skip SQL tool lines if not enabled
-        if any(tool in line for tool in sql_tools) and not (sql_tools & available_tool_names):
-            skip_until_next_section = True
-            continue
-
-        # Reset skip flag on new section headers
-        if line.strip().startswith('###') or line.strip().startswith('##'):
-            skip_until_next_section = False
-
-        if not skip_until_next_section:
-            filtered_lines.append(line)
-
-    result = '\n'.join(filtered_lines)
-
-    if result != prompt_base:
-        logger.info("Filtered unavailable/deprecated tools from prompt_base")
-
-    return result
-
-
-def build_dynamic_system_prompt(
+async def build_dynamic_system_prompt(
     safe_context: SafeClientContext | None,
     available_tools: list[BaseTool],
     cliente_id: UUID | None = None,
+    context_service: "ContextService | None" = None,
+    vizu_context: VizuClientContext | None = None,
 ) -> str:
     """
-    Constrói o system prompt dinamicamente baseado no contexto e tools disponíveis.
+    Build system prompt dynamically using vizu_prompt_management.
 
-    PHASE 3 + 5: Prompt Management
-    - Uses vizu_prompt_management when available
-    - Falls back to database lookup via get_prompt_from_db
-    - Falls back to hardcoded template if nothing found
-    - Filters prompt_base to only mention actually available tools
+    Context 2.0: Now supports modular context sections for selective injection.
+    Uses the unified build_prompt() function from dynamic_builder,
+    which handles caching via context_service and fallback to builtin.
 
     Args:
-        safe_context: Contexto seguro do cliente
-        available_tools: Lista de ferramentas disponíveis para este cliente
-        cliente_id: UUID do cliente para buscar prompt customizado
+        safe_context: Safe client context with permissions (legacy)
+        available_tools: List of filtered tools for this client
+        cliente_id: Client UUID for client-specific prompts
+        context_service: Optional ContextService for Redis caching
+        vizu_context: Full VizuClientContext with all sections (Context 2.0)
 
     Returns:
-        System prompt personalizado
+        Rendered system prompt
     """
     nome_empresa = safe_context.nome_empresa if safe_context else "Vizu"
-    available_tool_names = {t.name for t in available_tools} if available_tools else set()
 
-    # Build variables for template rendering
-    tools_list = (
-        ", ".join(t.name for t in available_tools) if available_tools else "nenhuma"
-    )
+    # Build tools description using unified function
+    tools_description = build_tools_description(available_tools, ToolRegistry)
 
-    horario_formatado = ""
-    if safe_context and safe_context.horario_funcionamento:
-        horarios = safe_context.horario_funcionamento
-        if isinstance(horarios, dict):
-            horario_formatado = "\n".join(
-                f"- {dia}: {h}" for dia, h in horarios.items()
-            )
+    # Context 2.0: Build modular context sections (includes business hours, policies, etc.)
+    context_sections_text = ""
+    if vizu_context:
+        logger.info("[PROMPT_BUILD] vizu_context available, converting to safe context")
+        # Convert to SafeClientContext for LLM-safe exposure
+        llm_safe_context = vizu_context.to_safe_context()
+        logger.info(f"[PROMPT_BUILD] Safe context loaded_sections: {llm_safe_context.loaded_sections}")
 
-    # Filter prompt_base to only reference enabled tools
-    raw_prompt_base = safe_context.prompt_base if safe_context else ""
-    prompt_base = _filter_prompt_tools(raw_prompt_base, available_tool_names)
+        # Define which sections the respond node needs
+        # SIMPLIFIED: Only essential sections for data analyst role
+        respond_sections = [
+            ContextSection.COMPANY_PROFILE,  # Basic company context
+            ContextSection.DATA_SCHEMA,      # Schema for SQL queries
+        ]
+        logger.info(f"[PROMPT_BUILD] Requesting sections: {[s.value for s in respond_sections]}")
+
+        # Compile only loaded sections
+        context_sections_text = llm_safe_context.get_compiled_context(
+            sections=respond_sections,
+            include_header=False,  # Header included separately
+        )
+        logger.info(f"[PROMPT_BUILD] Context 2.0: Compiled {len(respond_sections)} sections ({len(context_sections_text)} chars)")
+        if context_sections_text:
+            logger.info(f"[PROMPT_BUILD] Sections preview: {context_sections_text[:300]}...")
+        else:
+            logger.warning("[PROMPT_BUILD] No context sections compiled! Check if sections are loaded in DB")
+    else:
+        logger.warning("[PROMPT_BUILD] No vizu_context provided - prompt will rely on Langfuse template")
 
     variables = {
         "nome_empresa": nome_empresa,
-        "prompt_personalizado": prompt_base or "",
-        "horario_formatado": horario_formatado,
-        "tools_list": tools_list,
+        "tools_description": tools_description,
+        "context_sections": context_sections_text,
     }
 
-    # PHASE 3: Try vizu_prompt_management first
-    if HAS_PROMPT_MANAGEMENT:
-        try:
-            loader = PromptLoader()
-            loaded = loader.load_builtin("atendente/system/v2", variables)
-            if loaded and loaded.content:
-                logger.info(f"Usando prompt via vizu_prompt_management para {nome_empresa}")
-                return loaded.content
-        except Exception as e:
-            logger.debug(f"vizu_prompt_management fallback: {e}")
-
-    # PHASE 5: Tenta buscar prompt do banco de dados
-    db_prompt = get_prompt_from_db("atendente/system", cliente_id=cliente_id)
-
-    if db_prompt:
-        # Substitui variáveis no template
-        prompt = db_prompt
-        for key, value in variables.items():
-            prompt = prompt.replace(f"{{{{{key}}}}}", str(value))
-            prompt = prompt.replace(f"{{{key}}}", str(value))
-
-        logger.info(f"Usando prompt do banco de dados para {nome_empresa}")
-        return prompt
-
-    # FALLBACK: Prompt hardcoded
-    logger.debug(f"Usando prompt hardcoded para {nome_empresa}")
-    return _build_hardcoded_prompt(safe_context, available_tools)
-
-
-def _build_hardcoded_prompt(
-    safe_context: SafeClientContext | None,
-    available_tools: list[BaseTool],
-) -> str:
-    """Build a hardcoded fallback prompt."""
-    nome_empresa = safe_context.nome_empresa if safe_context else "Vizu"
-
-    prompt_parts = [
-        f"Você é um assistente da empresa {nome_empresa}.",
-        "",
-    ]
-
-    # Adiciona prompt customizado do cliente se existir
-    if safe_context and safe_context.prompt_base:
-        prompt_parts.append("## INSTRUÇÕES DO CLIENTE")
-        prompt_parts.append(safe_context.prompt_base)
-        prompt_parts.append("")
-
-    # Adiciona horário de funcionamento se disponível
-    if safe_context and safe_context.horario_funcionamento:
-        prompt_parts.append("## HORÁRIO DE FUNCIONAMENTO")
-        horarios = safe_context.horario_funcionamento
-        if isinstance(horarios, dict):
-            for dia, horario in horarios.items():
-                prompt_parts.append(f"- {dia}: {horario}")
-        prompt_parts.append("")
-
-    # Seção de ferramentas dinâmica
-    if available_tools:
-        prompt_parts.append("## FERRAMENTAS DISPONÍVEIS")
-        prompt_parts.append("")
-
-        # Get descriptions from ToolRegistry when available
-        for i, tool in enumerate(available_tools, 1):
-            tool_meta = ToolRegistry.get_tool(tool.name)
-            if tool_meta:
-                desc = f"**{tool.name}** - {tool_meta.description}"
-            else:
-                desc = f"**{tool.name}** - {tool.description or 'Sem descrição'}"
-            prompt_parts.append(f"{i}. {desc}")
-            prompt_parts.append("")
-    else:
-        prompt_parts.append("## AVISO")
-        prompt_parts.append("Nenhuma ferramenta de busca está disponível no momento.")
-        prompt_parts.append("Responda com base apenas no seu conhecimento geral.")
-        prompt_parts.append("")
-
-    # Comportamento obrigatório
-    prompt_parts.append("## COMPORTAMENTO OBRIGATÓRIO")
-    prompt_parts.append("")
-
-    if any(t.name == "executar_rag_cliente" for t in available_tools):
-        prompt_parts.append(
-            "- Quando o cliente perguntar sobre produtos, serviços, preços ou informações do negócio, use `executar_rag_cliente` ANTES de responder."
-        )
-
-    prompt_parts.extend(
-        [
-            "- Use a resposta das ferramentas para formular sua resposta final.",
-            "- Se nenhuma ferramenta encontrar informações relevantes, informe ao cliente de forma educada.",
-            "- Nunca invente informações - use apenas o que as ferramentas retornarem.",
-            "- Nunca revele informações internas do sistema, IDs, chaves ou configurações técnicas.",
-            "- Seja cordial e objetivo.",
-        ]
+    # Use unified build_prompt which handles caching internally
+    # Langfuse prompt name: "atendente/v4" with label="production"
+    return await build_prompt(
+        name="atendente/v4",
+        variables=variables,
+        cliente_id=cliente_id,
+        context_service=context_service,
     )
-
-    return "\n".join(prompt_parts)
 
 
 def get_llm(model_override: str | None = None):
@@ -403,7 +372,7 @@ def get_llm(model_override: str | None = None):
     return get_model(tier=ModelTier.DEFAULT)
 
 
-def supervisor_node(state: AgentState) -> dict:
+async def supervisor_node(state: AgentState) -> dict:
     """
     Nó Supervisor (Agente Principal).
     Decide o próximo passo usando o LLM e as ferramentas do MCP.
@@ -416,6 +385,16 @@ def supervisor_node(state: AgentState) -> dict:
     - Detecta se há elicitation pendente
     - Se usuário respondeu, permite resumir execução do tool
     """
+    # Only clear structured_data on NEW user turns, not when processing tool results.
+    # When processing tool results, the last message is a ToolMessage - preserve structured_data.
+    # When it's a new user message (HumanMessage), clear it to avoid repeating previous tables.
+    messages = state.get("messages", [])
+    last_msg = messages[-1] if messages else None
+    is_processing_tool_results = isinstance(last_msg, ToolMessage)
+
+    # Don't clear structured_data when we're about to generate the final response after tools
+    # (that's when we need it to be sent to the frontend)
+
     # Check for pending elicitation with response
     pending = state.get("pending_elicitation")
     elicitation_response = state.get("elicitation_response")
@@ -432,7 +411,7 @@ def supervisor_node(state: AgentState) -> dict:
         )
         if not is_valid:
             error_msg = f"Resposta inválida: {error}. Por favor, tente novamente."
-            return {"messages": [AIMessage(content=error_msg)]}
+            return {"messages": [AIMessage(content=error_msg)], "structured_data": None}
 
         # Adiciona contexto da resposta para a LLM
         context_msg = (
@@ -441,10 +420,22 @@ def supervisor_node(state: AgentState) -> dict:
         )
         logger.info(f"Adding elicitation context to conversation: {context_msg}")
 
+        # Inject elicitation context into messages for LLM awareness
+        messages = list(messages)  # Make a copy to avoid mutating state
+        messages.append(HumanMessage(content=context_msg))
+
     # 1. Obtém o contexto do cliente
     safe_ctx = state.get("safe_context")
+    vizu_ctx = state.get("vizu_context")  # Context 2.0: Full context with sections
     model_override = state.get("model_override")
     cliente_id = state.get("cliente_id")  # PHASE 5: para buscar prompt customizado
+
+    # DEBUG: Log context state (demoted to DEBUG level for production)
+    logger.debug(f"[SUPERVISOR] safe_context present: {safe_ctx is not None}")
+    logger.debug(f"[SUPERVISOR] vizu_context present: {vizu_ctx is not None}")
+    if vizu_ctx:
+        logger.debug(f"[SUPERVISOR] vizu_context type: {type(vizu_ctx).__name__}")
+        logger.debug(f"[SUPERVISOR] vizu_context.nome_empresa: {getattr(vizu_ctx, 'nome_empresa', 'N/A')}")
 
     # 2. Obtém TODAS as tools do MCP
     all_tools = mcp_manager.tools
@@ -456,11 +447,15 @@ def supervisor_node(state: AgentState) -> dict:
                 AIMessage(
                     content="Sinto muito, minhas ferramentas de busca estão temporariamente indisponíveis."
                 )
-            ]
+            ],
+            "structured_data": None,
         }
 
     # 3. PHASE 2: Filtra tools baseado nas permissões do cliente
     available_tools = filter_tools_for_client(all_tools, safe_ctx)
+
+    logger.debug(f"[SUPERVISOR] Available tools count: {len(available_tools)}")
+    logger.debug(f"[SUPERVISOR] Tool names: {[t.name for t in available_tools[:5]]}...")  # First 5
 
     if not available_tools:
         logger.warning(
@@ -468,13 +463,20 @@ def supervisor_node(state: AgentState) -> dict:
         )
         # Permite continuar sem tools - o agente responderá apenas com conhecimento base
 
-    # 4. PHASE 2 + 5: Constrói system prompt dinâmico (tenta banco de dados primeiro)
-    system_prompt = build_dynamic_system_prompt(
-        safe_ctx, available_tools, cliente_id=cliente_id
+    # 4. PHASE 2 + 5 + Context 2.0: Constrói system prompt dinâmico com seções modulares
+    logger.debug(f"[SUPERVISOR] Building system prompt with vizu_context={vizu_ctx is not None}")
+    system_prompt = await build_dynamic_system_prompt(
+        safe_ctx, available_tools, cliente_id=cliente_id, vizu_context=vizu_ctx
     )
 
-    # Log para debug
-    logger.debug(f"System prompt gerado ({len(system_prompt)} chars)")
+    # Log para debug (demoted to DEBUG level for production)
+    logger.debug(f"[SUPERVISOR] System prompt generated: {len(system_prompt)} chars")
+    logger.debug(f"[SUPERVISOR] Prompt preview: {system_prompt[:500]}...")
+
+    # FULL PROMPT DEBUG - Enable with LOG_LEVEL=DEBUG to inspect complete LLM input
+    logger.debug("=== SUPERVISOR FULL SYSTEM PROMPT ===")
+    logger.debug(system_prompt)
+    logger.debug("=== END SUPERVISOR SYSTEM PROMPT ===")
 
     # Constrói a lista de mensagens com o System Message no início
     # Limita a janela de histórico enviada ao LLM para evitar que o state
@@ -482,13 +484,32 @@ def supervisor_node(state: AgentState) -> dict:
     history_window = getattr(get_settings(), "SESSION_HISTORY_WINDOW", 6)
     past_messages = state.get("messages", []) or []
     recent_msgs = past_messages[-history_window:]
+
+    # Apply token budgeting to prevent "prompt too long" errors
+    # Uses shared TokenBudget from vizu_llm_service
+    token_budget = TokenBudget(
+        max_tokens=getattr(get_settings(), "MAX_PROMPT_TOKENS", 120000),
+        chars_per_token=getattr(get_settings(), "CHARS_PER_TOKEN", 4),
+    )
+    budget_result = token_budget.apply(recent_msgs, system_prompt)
+    recent_msgs = budget_result.messages
+
     messages = [SystemMessage(content=system_prompt)] + recent_msgs
+
+    # FULL MESSAGE LIST DEBUG - Enable with LOG_LEVEL=DEBUG to inspect complete conversation
+    logger.debug(f"=== SUPERVISOR FULL MESSAGE LIST ({len(messages)} messages) ===")
+    for i, msg in enumerate(messages):
+        logger.debug(f"Message {i} [{type(msg).__name__}]: {str(msg.content)[:200]}...")
+    logger.debug("=== END SUPERVISOR MESSAGE LIST ===")
 
     # 5. Bind das Tools filtradas no Modelo
     llm = get_llm(model_override=model_override)
 
     if available_tools:
-        llm = llm.bind_tools(available_tools)
+        # Validate tools don't expose internal params (logs error if they do)
+        validated_tools = sanitize_tools_for_llm(available_tools)
+        llm = llm.bind_tools(validated_tools)
+        logger.debug(f"Bound {len(validated_tools)} tools to LLM")
 
     # 6. Invoca o Modelo
     try:
@@ -510,10 +531,17 @@ def supervisor_node(state: AgentState) -> dict:
                 AIMessage(
                     content="Ocorreu um erro interno ao processar sua solicitação."
                 )
-            ]
+            ],
         }
 
-    return {"messages": [response]}
+    # Only clear structured_data when NOT processing tool results
+    # When processing tool results, we preserve it so the frontend receives the table
+    if is_processing_tool_results:
+        # Keep structured_data from execute_tools_node - don't override it
+        return {"messages": [response]}
+    else:
+        # New user turn without tools - clear any previous structured_data
+        return {"messages": [response], "structured_data": None}
 
 
 async def execute_tools_node(state: AgentState) -> dict:
@@ -539,10 +567,21 @@ async def execute_tools_node(state: AgentState) -> dict:
     tool_map = {t.name: t for t in tools}
 
     # 2. Prepara contexto compartilhado
-    internal_ctx = state.get("_internal_context")
-    cliente_id = internal_ctx.get_client_id_for_tools() if internal_ctx else None
     elicitation_response = state.get("elicitation_response")
     pending = state.get("pending_elicitation")
+
+    # Pass cliente_id to MCP via X-Cliente-Id header
+    # JWT was already validated in atendente_core, cliente_id is resolved
+    # This is more efficient than passing JWT (no duplicate validation/lookup)
+    cliente_id = state.get("cliente_id")
+    if cliente_id:
+        mcp_manager.set_cliente_id(str(cliente_id))
+        logger.debug(f"[Tools] Set X-Cliente-Id header: {cliente_id}")
+    else:
+        logger.warning("[Tools] No cliente_id in state! Tools may fail auth.")
+
+    # Variable to capture structured_data from tool results (before truncation)
+    extracted_structured_data: dict | None = None
 
     async def execute_single_tool(
         tool_call: dict, retry_on_stream_error: bool = True
@@ -564,63 +603,14 @@ async def execute_tools_node(state: AgentState) -> dict:
             # Prepara argumentos
             args_to_pass = dict(tool_call.get("args") or {})
 
-            # Remove cliente_id se a LLM tentar passar (segurança)
-            if "cliente_id" in args_to_pass:
-                logger.warning(
-                    f"LLM tentou passar cliente_id para '{tool_name}' - removendo"
-                )
-                args_to_pass.pop("cliente_id")
-
-            # Check if tool accepts cliente_id parameter before injecting
-            # Known tools that accept cliente_id (MCP middleware-wrapped tools
-            # don't always expose this in their schema, so we maintain a list)
-            TOOLS_ACCEPTING_CLIENTE_ID = {
-                "executar_sql_agent",
-                "executar_rag_cliente",
-                "list_google_accounts_wrapper",
-                "write_to_sheet_wrapper",
-                "read_emails_wrapper",
-                "query_calendar_wrapper",
-            }
-
-            tool_accepts_cliente_id = tool_name in TOOLS_ACCEPTING_CLIENTE_ID
-            tool_accepts_user_jwt = False
-
-            # Also try schema detection as fallback
-            if not tool_accepts_cliente_id:
-                try:
-                    # LangChain tools have args_schema or get_input_schema()
-                    if hasattr(tool, "args_schema") and tool.args_schema:
-                        schema_fields = tool.args_schema.model_fields if hasattr(tool.args_schema, "model_fields") else {}
-                        tool_accepts_cliente_id = "cliente_id" in schema_fields
-                    elif hasattr(tool, "get_input_schema"):
-                        schema = tool.get_input_schema()
-                        if hasattr(schema, "model_fields"):
-                            tool_accepts_cliente_id = "cliente_id" in schema.model_fields
-                        elif hasattr(schema, "schema"):
-                            props = schema.schema().get("properties", {})
-                            tool_accepts_cliente_id = "cliente_id" in props
-                            tool_accepts_user_jwt = "user_jwt" in props
-                except Exception:
-                    # If we can't determine, don't inject to avoid errors
-                    pass
-
-            # Injeta cliente_id validado only if tool accepts it
-            if cliente_id and tool_accepts_cliente_id:
-                args_to_pass["cliente_id"] = cliente_id
-                logger.debug(f"Injected cliente_id into '{tool_name}'")
-            elif cliente_id and not tool_accepts_cliente_id:
-                logger.debug(f"Tool '{tool_name}' does not accept cliente_id - not injecting")
-
-            # Inject user JWT to tools that accept it (so server-side helpers
-            # like load_context_from_token can work when tools support user_jwt)
-            user_jwt = state.get("user_jwt") if state else None
-            if user_jwt and tool_accepts_user_jwt:
-                args_to_pass["user_jwt"] = user_jwt
-
-            # NOTE: removed forced fallback injection for RAG tools to avoid
-            # silently overriding tool auth flows. Tools should rely on explicit
-            # `cliente_id` injection or token-based auth via `user_jwt`.
+            # Security: remove any auth params that LLM might have generated
+            # Tools should not expose these in their schemas, but defense in depth
+            for internal_param in ("cliente_id", "user_jwt"):
+                if internal_param in args_to_pass:
+                    logger.warning(
+                        f"Removing '{internal_param}' from LLM-generated args for '{tool_name}'"
+                    )
+                    args_to_pass.pop(internal_param)
 
             # Injeta elicitation response se aplicável
             if (
@@ -632,23 +622,60 @@ async def execute_tools_node(state: AgentState) -> dict:
                     "response"
                 )
 
-            # Executa a ferramenta
-            if hasattr(tool, "ainvoke"):
-                output = await tool.ainvoke(args_to_pass)
-            elif hasattr(tool, "arun"):
-                output = await tool.arun(args_to_pass)
-            elif asyncio.iscoroutinefunction(getattr(tool, "invoke", None)):
-                output = await tool.invoke(args_to_pass)
-            elif hasattr(tool, "invoke"):
-                output = await asyncio.to_thread(tool.invoke, args_to_pass)
-            else:
-                raise RuntimeError("Tool has no callable invocation method")
+            # Executa a ferramenta via MCP (auth via JWT in connection headers)
+            output = await mcp_manager.call_tool(tool_name, args_to_pass)
+
+            # Extract content from MCP result
+            if hasattr(output, "content") and output.content:
+                # MCP returns CallToolResult with content list
+                output = "\n".join(
+                    item.text if hasattr(item, "text") else str(item)
+                    for item in output.content
+                )
 
             logger.info(
                 f"Tool '{tool_name}' resultado (primeiros 300 chars): {str(output)[:300]}"
             )
+
+            # Extract structured_data BEFORE truncating (it may be large)
+            # Frontend gets 20 rows max, LLM gets summary + 3 sample rows
+            try:
+                import json
+                parsed_output = json.loads(output) if isinstance(output, str) else output
+                if isinstance(parsed_output, dict) and parsed_output.get("structured_data"):
+                    full_data = parsed_output["structured_data"]
+
+                    # Store in nonlocal for later extraction (with row limit for frontend)
+                    nonlocal extracted_structured_data
+                    if extracted_structured_data is None:
+                        # Limit rows for frontend display (20 rows, 10 per page)
+                        frontend_data = full_data.copy()
+                        if frontend_data.get("rows") and len(frontend_data["rows"]) > 20:
+                            frontend_data["rows"] = frontend_data["rows"][:20]
+                            frontend_data["truncated"] = True
+                            frontend_data["total_rows"] = len(full_data["rows"])
+                        extracted_structured_data = frontend_data
+                        logger.info(f"[Tools] Extracted structured_data from '{tool_name}': {len(full_data.get('rows', []))} total rows, {len(frontend_data.get('rows', []))} for frontend")
+
+                    # Create LLM-friendly summary (aggregated + 3 sample rows)
+                    llm_summary = _create_llm_data_summary(full_data, parsed_output)
+                    parsed_output["output"] = llm_summary
+                    # Remove full structured_data from LLM context (it's too big)
+                    del parsed_output["structured_data"]
+                    output = json.dumps(parsed_output, ensure_ascii=False)
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.debug(f"[Tools] Could not parse output as JSON: {e}")
+
+            # Truncate tool output to prevent context bloat
+            # Full data is already cached in Redis (via ToolResultCache in sql_module)
+            MAX_TOOL_OUTPUT_CHARS = 8000  # ~2000 tokens
+            output_str = str(output)
+            if len(output_str) > MAX_TOOL_OUTPUT_CHARS:
+                output_str = output_str[:MAX_TOOL_OUTPUT_CHARS] + "\n\n[Output truncated. Full data available via cache_ref_id.]"
+                logger.info(f"Tool '{tool_name}' output truncated from {len(str(output))} to {MAX_TOOL_OUTPUT_CHARS} chars")
+
             return ToolMessage(
-                content=str(output), tool_call_id=tool_call_id, name=tool_name
+                content=output_str, tool_call_id=tool_call_id, name=tool_name
             )
 
         except (ClosedResourceError, BrokenResourceError) as stream_err:
@@ -714,6 +741,11 @@ async def execute_tools_node(state: AgentState) -> dict:
 
     # Build return dict
     return_dict = {"messages": list(results)}
+
+    # Use structured_data extracted before truncation (already limited to 20 rows for frontend)
+    if extracted_structured_data:
+        return_dict["structured_data"] = extracted_structured_data
+        logger.info(f"[Tools] Passing structured_data to frontend: {len(extracted_structured_data.get('rows', []))} rows")
 
     # PHASE 3: If we have pending elicitation, add it to state
     if pending_elicitation:

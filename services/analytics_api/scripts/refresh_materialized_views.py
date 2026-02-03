@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 
+
 def load_database_url_from_dotenv(dotenv_path: Path) -> str | None:
     if not dotenv_path.exists():
         return None

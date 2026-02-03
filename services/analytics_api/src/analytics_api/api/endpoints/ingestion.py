@@ -6,11 +6,11 @@ Supports incremental mode for daily updates (only fetches new data since last sy
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from analytics_api.api.dependencies import get_postgres_repository, get_client_id
+from analytics_api.api.dependencies import get_client_id, get_postgres_repository
 from analytics_api.data_access.postgres_repository import PostgresRepository
 from analytics_api.services.metric_service import MetricService
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 router = APIRouter(prefix="/ingest", tags=["Ingest"],)
 
@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 )
 async def recompute_gold_metrics(
     force_full: bool = Query(
-        default=False,
-        description="Force full reload even if previous sync exists. Default: auto-detect."
+        default=True,  # Changed: Default to full reload when called from frontend
+        description="Force full reload even if previous sync exists. Default: true (full reload)."
     ),
     repo: PostgresRepository = Depends(get_postgres_repository),
     client_id: str = Depends(get_client_id),
@@ -33,10 +33,9 @@ async def recompute_gold_metrics(
     """
     Recalculates and persists metrics to analytics_v2 tables.
 
-    Mode is AUTO-DETECTED:
-    - If this is the first sync (no last_synced_at), does a FULL load
-    - If previous sync exists, does an INCREMENTAL load (only new data)
-    - Use force_full=true to override and force a full reload
+    Mode:
+    - DEFAULT (force_full=true): Always does a FULL load (recommended for manual recomputes)
+    - Incremental (force_full=false): Only fetches new data since last sync (for automated jobs)
 
     MetricService initializes with silver data, computes aggregations,
     and persists to analytics_v2 tables. If persistence fails, this endpoint
@@ -77,7 +76,7 @@ async def recompute_gold_metrics(
 
         # 🔄 REFRESH MATERIALIZED VIEWS after data is written
         # This ensures MVs reflect the latest data in fact_sales
-        logger.info(f"📊 Refreshing materialized views to reflect new data...")
+        logger.info("📊 Refreshing materialized views to reflect new data...")
         mv_result = repo.refresh_materialized_views()
 
         return {
@@ -123,7 +122,7 @@ async def recompute_full(
         logger.info(f"Ingest: full recompute completed for {client_id} ({rows_processed} rows)")
 
         # 🔄 REFRESH MATERIALIZED VIEWS after data is written
-        logger.info(f"📊 Refreshing materialized views to reflect new data...")
+        logger.info("📊 Refreshing materialized views to reflect new data...")
         mv_result = repo.refresh_materialized_views()
 
         return {

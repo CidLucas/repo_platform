@@ -57,7 +57,32 @@ from .credencial_servico_externo import (
     CredencialServicoExternoCreate,
     CredencialServicoExternoInDB,
 )
-from .enums import TierCliente, TipoCliente, TipoFonte, ToolCategory
+from .enums import ContextSection, TierCliente, TipoCliente, TipoFonte, ToolCategory
+
+# Context 2.0 - Modular Client Context
+from .context_schemas import (
+    AvailableTools,
+    BrandVoice,
+    CompanyProfile,
+    CurrentMoment,
+    DataSchema,
+    Policies,
+    SECTION_SCHEMAS,
+    TeamMember,
+    TeamStructure,
+    get_section_schema,
+    validate_section_content,
+)
+from .client_context_section import (
+    BulkSectionResponse,
+    BulkSectionUpsert,
+    ClientContextSection,
+    ClientContextSectionBase,
+    ClientContextSectionCreate,
+    ClientContextSectionRead,
+    ClientContextSectionSummary,
+    ClientContextSectionUpdate,
+)
 
 # Experiment Suite (Dataset Generation)
 from .experiment import (
@@ -120,6 +145,13 @@ from .sql_schema_config import (
     SqlTableConfigRead,
     SqlTableConfigUpdate,
 )
+
+# Structured Data (for SQL query results display)
+from .structured_data import (
+    ColumnType,
+    StructuredDataColumn,
+    StructuredDataResponse,
+)
 from .vizu_client_context import VizuClientContext
 
 
@@ -171,6 +203,28 @@ __all__ = [
     "TierCliente",
     "TipoFonte",
     "ToolCategory",
+    "ContextSection",
+    # Context 2.0 - Modular Context Schemas
+    "CompanyProfile",
+    "BrandVoice",
+    "CurrentMoment",
+    "TeamStructure",
+    "TeamMember",
+    "Policies",
+    "DataSchema",
+    "AvailableTools",
+    "SECTION_SCHEMAS",
+    "get_section_schema",
+    "validate_section_content",
+    # Context 2.0 - Section Storage
+    "ClientContextSection",
+    "ClientContextSectionBase",
+    "ClientContextSectionCreate",
+    "ClientContextSectionRead",
+    "ClientContextSectionUpdate",
+    "ClientContextSectionSummary",
+    "BulkSectionUpsert",
+    "BulkSectionResponse",
     # MCP Resources & Prompts support
     "PromptTemplate",
     "PromptTemplateCreate",
@@ -226,4 +280,8 @@ __all__ = [
     "IntegrationTokens",
     "OAuthTokenResponse",
     "IntegrationProvider",
+    # Structured Data (SQL results display)
+    "ColumnType",
+    "StructuredDataColumn",
+    "StructuredDataResponse",
 ]

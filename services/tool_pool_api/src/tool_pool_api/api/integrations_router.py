@@ -7,9 +7,9 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+
 from tool_pool_api.core.config import get_settings
 from tool_pool_api.server.dependencies import get_context_service
-
 from vizu_auth.core.exceptions import (
     AuthError,
     InvalidTokenError,
@@ -24,6 +24,38 @@ from vizu_context_service.context_service import ContextService
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/integrations", tags=["Integrations"])
+
+
+def _extract_oauth_config(
+    cfg_row, context: ContextService
+) -> tuple[str, str, str, list[str]]:
+    """
+    Extract and decrypt OAuth config from database row.
+
+    Args:
+        cfg_row: Database row (dict or object)
+        context: ContextService for decryption
+
+    Returns:
+        Tuple of (client_id, client_secret, redirect_uri, scopes)
+
+    Raises:
+        HTTPException: If extraction or decryption fails
+    """
+
+    def _get(key: str):
+        return cfg_row.get(key) if isinstance(cfg_row, dict) else getattr(cfg_row, key)
+
+    try:
+        client_id = context._decrypt(_get("client_id_encrypted"))
+        client_secret = context._decrypt(_get("client_secret_encrypted"))
+        redirect_uri = _get("redirect_uri")
+        scopes = _get("scopes")
+        return client_id, client_secret, redirect_uri, scopes
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to read integration config: {e}"
+        )
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -155,32 +187,7 @@ async def initiate_google_auth(
     if not cfg_row:
         raise HTTPException(status_code=400, detail="Google integration not configured")
 
-    # Decrypt client_id/secret using internal helper
-    try:
-        client_id = context._decrypt(
-            cfg_row.get("client_id_encrypted")
-            if isinstance(cfg_row, dict)
-            else cfg_row.client_id_encrypted
-        )
-        client_secret = context._decrypt(
-            cfg_row.get("client_secret_encrypted")
-            if isinstance(cfg_row, dict)
-            else cfg_row.client_secret_encrypted
-        )
-        redirect_uri = (
-            cfg_row.get("redirect_uri")
-            if isinstance(cfg_row, dict)
-            else cfg_row.redirect_uri
-        )
-        scopes = (
-            cfg_row.get("scopes")
-            if isinstance(cfg_row, dict)
-            else cfg_row.scopes
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to read integration config: {e}"
-        )
+    client_id, client_secret, redirect_uri, scopes = _extract_oauth_config(cfg_row, context)
 
     oauth_config = OAuthConfig(
         client_id=client_id,
@@ -232,34 +239,10 @@ async def google_auth_callback(
     if not cfg_row:
         raise HTTPException(status_code=400, detail="Google integration not configured")
 
-    try:
-        client_id = context._decrypt(
-            cfg_row.get("client_id_encrypted")
-            if isinstance(cfg_row, dict)
-            else cfg_row.client_id_encrypted
-        )
-        client_secret = context._decrypt(
-            cfg_row.get("client_secret_encrypted")
-            if isinstance(cfg_row, dict)
-            else cfg_row.client_secret_encrypted
-        )
-        redirect_uri = (
-            cfg_row.get("redirect_uri")
-            if isinstance(cfg_row, dict)
-            else cfg_row.redirect_uri
-        )
-        scopes = (
-            cfg_row.get("scopes")
-            if isinstance(cfg_row, dict)
-            else cfg_row.scopes
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to read integration config: {e}"
-        )
+    oauth_client_id, client_secret, redirect_uri, scopes = _extract_oauth_config(cfg_row, context)
 
     oauth_config = OAuthConfig(
-        client_id=client_id,
+        client_id=oauth_client_id,
         client_secret=client_secret,
         redirect_uri=redirect_uri,
         scopes=scopes,
@@ -291,9 +274,7 @@ async def google_auth_callback(
                 )
     except Exception as e:
         # If we can't get user info, use a fallback
-        import logging
-
-        logging.warning(f"Failed to get Google user info: {e}")
+        logger.warning(f"Failed to get Google user info: {e}")
         account_email = f"account_{secrets.token_hex(4)}@unknown.com"
         account_name = "Google Account"
 
@@ -380,8 +361,8 @@ async def revoke_google_auth(
             try:
                 manager = OAuthManager("google")
                 await manager.revoke(tokens.get_decrypted_tokens()["access_token"])
-            except Exception:
-                pass  # Continue even if revoke fails
+            except Exception as e:
+                logger.warning(f"Failed to revoke Google token: {e}")
         await context.revoke_integration(
             auth.client_id, "google", account_email=target_email
         )
@@ -406,8 +387,8 @@ async def revoke_google_auth(
                 if tokens:
                     manager = OAuthManager("google")
                     await manager.revoke(tokens.get_decrypted_tokens()["access_token"])
-            except Exception:
-                pass  # Continue even if revoke fails
+            except Exception as e:
+                logger.warning(f"Failed to revoke Google token for account: {e}")
         await context.revoke_integration(auth.client_id, "google")
         return {"status": "revoked", "provider": "google", "all_accounts": True}
 

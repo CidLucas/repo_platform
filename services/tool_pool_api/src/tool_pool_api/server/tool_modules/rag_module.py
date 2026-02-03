@@ -14,69 +14,16 @@ from uuid import UUID
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
-from fastmcp.server.dependencies import AccessToken
 
+from tool_pool_api.server.dependencies import get_context_service
+from tool_pool_api.server.tool_helpers import is_tool_enabled_for_client
+from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
 from vizu_llm_service import ModelTier, get_model
 from vizu_models.vizu_client_context import VizuClientContext
-
-# Phase 3: Use ToolRegistry for validation
-from vizu_tool_registry import ToolRegistry
 
 from . import register_module
 
 logger = logging.getLogger(__name__)
-
-
-# =============================================================================
-# HELPERS
-# =============================================================================
-
-
-def _is_tool_enabled_for_client(
-    tool_name: str, context: VizuClientContext
-) -> bool:
-    """
-    Check if a tool is enabled for a client.
-
-    Supports both:
-    - New `enabled_tools` list field
-    - Legacy boolean flags
-
-    Args:
-        tool_name: Name of the tool (e.g., "executar_rag_cliente")
-        context: VizuClientContext
-
-    Returns:
-        True if tool is enabled
-    """
-    # Only consult the authoritative `enabled_tools` list and enforce tier.
-    enabled = getattr(context, "enabled_tools", None)
-    if enabled is not None and not isinstance(enabled, list | tuple | set):
-        enabled = None
-    legacy_tools = ToolRegistry.get_tool_names_for_legacy_flags(
-        rag_enabled=getattr(context, "ferramenta_rag_habilitada", False),
-        sql_enabled=getattr(context, "ferramenta_sql_habilitada", False),
-        scheduling_enabled=getattr(context, "ferramenta_agendamento_habilitada", False),
-    )
-
-    if enabled is not None and tool_name not in enabled:
-        return False
-
-    if enabled is None and tool_name not in legacy_tools:
-        return False
-
-    raw_tier = getattr(context, "tier", None)
-    if isinstance(raw_tier, str) and raw_tier:
-        tier = raw_tier
-    elif hasattr(raw_tier, "value") and isinstance(raw_tier.value, str) and raw_tier.value:
-        tier = raw_tier.value
-    else:
-        tier = "BASIC"
-    tool_meta = ToolRegistry.get_tool(tool_name)
-    if tool_meta and not tool_meta.is_accessible_by_tier(tier):
-        return False
-
-    return True
 
 
 # =============================================================================
@@ -133,12 +80,21 @@ async def _executar_rag_cliente_logic(
         raise ToolError("Erro interno no serviço de ferramentas.")
 
     # 2. Resolver o Contexto Vizu
+    # Priority: 1) cliente_id param, 2) request meta, 3) access token
     vizu_context: VizuClientContext | None = None
+
+    # Try to get cliente_id from request meta (passed by atendente_core via _meta)
+    if not cliente_id and ctx and hasattr(ctx, "request_context"):
+        meta = getattr(ctx.request_context, "meta", None)
+        if meta:
+            meta_dict = meta.model_dump() if hasattr(meta, "model_dump") else dict(meta)
+            cliente_id = meta_dict.get("cliente_id")
+            if cliente_id:
+                logger.info(f"[RAG] Using cliente_id from request meta: {cliente_id}")
 
     try:
         if cliente_id:
-            # Caminho A: Injeção via MCP Client (Túnel Persistente)
-            logger.info(f"[RAG] Usando cliente_id injetado: {cliente_id}")
+            logger.info(f"[RAG] Usando cliente_id: {cliente_id}")
             try:
                 uuid_obj = UUID(cliente_id)
             except ValueError:
@@ -150,10 +106,11 @@ async def _executar_rag_cliente_logic(
                 raise ToolError(f"Contexto não encontrado para o ID: {cliente_id}")
 
         else:
-            # Caminho B: Autenticação via Token
-            access_token: AccessToken | None = server_tools.get_access_token()
-            vizu_context = await server_tools.load_context_from_token(
-                ctx_service, access_token
+            # Fallback to JWT auth (direct API calls)
+            # Uses vizu_auth for token validation from MCP request headers
+            jwt_claims = server_tools.get_jwt_claims_from_mcp()
+            vizu_context = await server_tools.load_context_from_jwt_claims(
+                ctx_service, jwt_claims
             )
 
     except ToolError as e:
@@ -167,7 +124,7 @@ async def _executar_rag_cliente_logic(
     real_client_id = vizu_context.id
     logger.info(f"[RAG] Executando para cliente {real_client_id}...")
 
-    if not _is_tool_enabled_for_client("executar_rag_cliente", vizu_context):
+    if not is_tool_enabled_for_client("executar_rag_cliente", vizu_context):
         logger.warning(f"[RAG] Ferramenta desabilitada para {real_client_id}.")
         raise ToolError("Ferramenta RAG não está habilitada para este cliente.")
 
@@ -204,36 +161,18 @@ async def _executar_rag_cliente_logic(
 @register_module
 def register_tools(mcp: FastMCP) -> list[str]:
     """Registra as tools do módulo RAG."""
-
-    # Wrapper que aceita cliente_id injetado pelo atendente_core
-    # mas não expõe ao schema público da LLM
-    async def _rag_tool_wrapper(
-        query: str,
-        ctx: Context,
-        cliente_id: str | None = None,  # Injetado pelo atendente_core
-    ) -> str:
-        """
-        Busca informações na base de conhecimento do cliente.
-
-        Args:
-            query: Pergunta do usuário sobre o negócio
-            cliente_id: ID do cliente (injetado internamente, não pela LLM)
-        """
-        return await _executar_rag_cliente_logic(
-            query=query, ctx=ctx, cliente_id=cliente_id
-        )
-
-    # Registra com description que menciona apenas 'query'
-    # O cliente_id é hidden (não aparece no schema da LLM)
+    # Register using mcp_inject_cliente_id decorator to inject cliente_id from auth
     mcp.tool(
         name="executar_rag_cliente",
         description=(
-            "Busca informações na base de conhecimento do cliente "
-            "(produtos, serviços, preços, FAQ, políticas). "
-            "USE ESTA FERRAMENTA para responder perguntas sobre o negócio. "
-            "Parâmetro: query (string com a pergunta do usuário)."
+            "Search the company's knowledge base for information about products, "
+            "services, pricing, policies, FAQs, and business operations. "
+            "Parameter: query (the user's question in natural language)."
         ),
-    )(_rag_tool_wrapper)
+    )(mcp_inject_cliente_id(get_context_service)(_executar_rag_cliente_logic))
 
-    logger.info("[RAG Module] Ferramentas registradas.")
+    logger.info("[RAG Module] Tool registered: executar_rag_cliente")
+    return ["executar_rag_cliente"]
+
+    logger.info("[RAG Module] Tool registered: executar_rag_cliente")
     return ["executar_rag_cliente"]

@@ -8,8 +8,9 @@ Gera relatórios de qualidade dos dados agregados:
 - Estatísticas básicas
 """
 import logging
+from typing import Any, Dict
+
 import pandas as pd
-from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class DataQualityLogger:
         numeric_cols = df.select_dtypes(include=['int64', 'float64', 'int32', 'float32']).columns
         if len(numeric_cols) > 0:
             desc = df[numeric_cols].describe()
-            logger.info(f"   Numeric Statistics:")
+            logger.info("   Numeric Statistics:")
             logger.info(f"   {'Column':<30} {'Count':<10} {'Mean':<12} {'Min':<12} {'Max':<12} {'Zeros':<8}")
             logger.info(f"   {'-'*85}")
 
@@ -60,7 +61,7 @@ class DataQualityLogger:
         # Date columns
         date_cols = df.select_dtypes(include=['datetime64']).columns
         if len(date_cols) > 0:
-            logger.info(f"   Date Columns:")
+            logger.info("   Date Columns:")
             for col in date_cols:
                 min_date = df[col].min()
                 max_date = df[col].max()
@@ -70,14 +71,14 @@ class DataQualityLogger:
         # Object/String columns
         object_cols = df.select_dtypes(include=['object', 'string']).columns
         if len(object_cols) > 0:
-            logger.info(f"   Categorical Columns:")
+            logger.info("   Categorical Columns:")
             for col in object_cols[:5]:  # Limit to first 5
                 unique_count = df[col].nunique()
                 null_count = df[col].isnull().sum()
                 logger.info(f"   {col:<30} Unique: {unique_count}, Nulls: {null_count}")
 
     @staticmethod
-    def log_dataframe_quality(df: pd.DataFrame, table_name: str, client_id: str) -> Dict[str, Any]:
+    def log_dataframe_quality(df: pd.DataFrame, table_name: str, client_id: str) -> dict[str, Any]:
         """
         Analisa qualidade dos dados de um DataFrame antes de persistir.
 
@@ -115,19 +116,19 @@ class DataQualityLogger:
         logger.info(f"   Rows: {stats['rows']}, Columns: {stats['columns']}")
 
         if stats["null_counts"]:
-            logger.warning(f"   ⚠️  Null values found:")
+            logger.warning("   ⚠️  Null values found:")
             for col, count in sorted(stats["null_counts"].items(), key=lambda x: x[1], reverse=True)[:5]:
                 pct = (count / stats['rows']) * 100
                 logger.warning(f"      - {col}: {count}/{stats['rows']} ({pct:.1f}%)")
         else:
-            logger.info(f"   ✅ No null values")
+            logger.info("   ✅ No null values")
 
         if stats["zero_counts"]:
             # Only warn if >50% are zeros
             high_zero_cols = {col: count for col, count in stats["zero_counts"].items()
                             if (count / stats['rows']) > 0.5}
             if high_zero_cols:
-                logger.warning(f"   ⚠️  High zero counts (>50%):")
+                logger.warning("   ⚠️  High zero counts (>50%):")
                 for col, count in sorted(high_zero_cols.items(), key=lambda x: x[1], reverse=True)[:5]:
                     pct = (count / stats['rows']) * 100
                     logger.warning(f"      - {col}: {count}/{stats['rows']} ({pct:.1f}%)")
@@ -135,7 +136,7 @@ class DataQualityLogger:
         return stats
 
     @staticmethod
-    def log_dict_quality(data: Dict[str, Any], table_name: str, client_id: str) -> Dict[str, Any]:
+    def log_dict_quality(data: dict[str, Any], table_name: str, client_id: str) -> dict[str, Any]:
         """Analisa qualidade de um dicionário de métricas."""
         stats = {
             "table": table_name,

@@ -22,36 +22,72 @@ MCP_URL = os.getenv(
 logger.info(f"Initializing MCP manager with URL: {MCP_URL}")
 mcp_manager = MCPConnectionManager(url=MCP_URL)
 
-# Track if we've already tried to connect
-_mcp_connection_attempted = False
+# Track connection state
 _mcp_connected = False
+_mcp_connection_lock = asyncio.Lock()
+
+# Retry configuration
+MAX_RETRIES = 3
+RETRY_DELAY_BASE = 2  # seconds (exponential backoff: 2, 4, 8)
+CONNECTION_TIMEOUT = 30  # seconds
 
 
-async def ensure_mcp_connected():
-    """Ensure MCP is connected, with lazy initialization on first use."""
-    global _mcp_connection_attempted, _mcp_connected
+async def ensure_mcp_connected() -> bool:
+    """
+    Ensure MCP is connected, with lazy initialization and retry logic.
 
-    # If already successfully connected, return immediately
+    Uses exponential backoff for retries (2s, 4s, 8s).
+    Thread-safe via asyncio.Lock.
+
+    Returns:
+        True if connected, False otherwise
+    """
+    global _mcp_connected
+
+    # Fast path: already connected
     if _mcp_connected:
         return True
 
-    # If we've already tried and failed, don't retry (avoid spamming logs)
-    if _mcp_connection_attempted and not _mcp_connected:
-        return False
+    # Acquire lock to prevent concurrent connection attempts
+    async with _mcp_connection_lock:
+        # Double-check after acquiring lock
+        if _mcp_connected:
+            return True
 
-    _mcp_connection_attempted = True
+        for attempt in range(MAX_RETRIES):
+            try:
+                logger.info(
+                    f"Connecting to MCP at {MCP_URL} (attempt {attempt + 1}/{MAX_RETRIES})..."
+                )
+                await asyncio.wait_for(mcp_manager.connect(), timeout=CONNECTION_TIMEOUT)
+                logger.info(f"MCP connected! Tools: {[t.name for t in mcp_manager.tools]}")
+                _mcp_connected = True
+                return True
+            except TimeoutError:
+                if attempt < MAX_RETRIES - 1:
+                    delay = RETRY_DELAY_BASE ** (attempt + 1)
+                    logger.warning(
+                        f"Timeout connecting to MCP ({CONNECTION_TIMEOUT}s). "
+                        f"Retrying in {delay}s..."
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        f"MCP connection timed out after {MAX_RETRIES} attempts - "
+                        "continuing without tools"
+                    )
+                    return False
+            except Exception as e:
+                if attempt < MAX_RETRIES - 1:
+                    delay = RETRY_DELAY_BASE ** (attempt + 1)
+                    logger.warning(f"Failed to connect to MCP: {e}. Retrying in {delay}s...")
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        f"MCP connection failed after {MAX_RETRIES} attempts: {e} - "
+                        "continuing without tools"
+                    )
+                    return False
 
-    try:
-        logger.info(f"Lazily connecting to MCP at {MCP_URL}...")
-        # Increased timeout to 30s to allow MCP server lazy initialization
-        await asyncio.wait_for(mcp_manager.connect(), timeout=30)
-        logger.info(f"✅ MCP connected! Tools: {[t.name for t in mcp_manager.tools]}")
-        _mcp_connected = True
-        return True
-    except TimeoutError:
-        logger.warning("⚠️  Timeout connecting to MCP (30s) - continuing without tools")
-        return False
-    except Exception as e:
-        logger.warning(f"⚠️  Failed to connect to MCP: {e} - continuing without tools")
         return False
 

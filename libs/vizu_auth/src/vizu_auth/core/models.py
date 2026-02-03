@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-class AuthMethod(str, Enum):
+class AuthMethod(Enum):
     JWT = "jwt"
     NONE = "none"
 

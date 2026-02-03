@@ -21,6 +21,7 @@ from typing import Any
 from data_ingestion_api.services.etl_service_v2 import etl_service_v2
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+
 from vizu_auth.fastapi.dependencies import get_auth_result
 
 

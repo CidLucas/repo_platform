@@ -1,19 +1,24 @@
 # src/analytics_api/data_access/postgres_repository.py
-import logging
 import json
+import logging
 import uuid
 from datetime import datetime
 from typing import Any
 
 import numpy as np
 import pandas as pd
+from analytics_api.core.analytics_mapping import get_silver_table_name
 from psycopg2.extras import execute_values
 from sqlalchemy import text
-from analytics_api.core.analytics_mapping import get_silver_table_name
-from vizu_supabase_client.client import get_supabase_client
+
 from vizu_db_connector.database import SessionLocal
+from vizu_supabase_client.client import get_supabase_client
 
 logger = logging.getLogger(__name__)
+
+# Default statement timeout (30 seconds) to prevent queries holding connections too long
+DEFAULT_STATEMENT_TIMEOUT = "30s"
+
 
 class PostgresRepository:
     """
@@ -26,12 +31,32 @@ class PostgresRepository:
         with PostgresRepository() as repo:
             repo.get_dim_customers(client_id)
         # Session automatically closed
+
+    IMPORTANT: Always use context manager OR call .close() explicitly to
+    return connections to the pool. Connection leaks cause QueuePool exhaustion.
     """
-    def __init__(self):
-        """Initialize with both Supabase client and SQLAlchemy session."""
+    def __init__(self, statement_timeout: str = DEFAULT_STATEMENT_TIMEOUT):
+        """
+        Initialize with both Supabase client and SQLAlchemy session.
+
+        Args:
+            statement_timeout: SQL statement timeout (default 30s).
+                              Set to None to disable timeout.
+        """
         self.supabase = get_supabase_client()
         self.db_session = SessionLocal()
         self._owns_session = True  # Track if we should close session
+        self._statement_timeout = statement_timeout
+
+        # Set default statement timeout to prevent queries holding connections too long
+        if statement_timeout:
+            try:
+                self.db_session.execute(
+                    text(f"SET statement_timeout = '{statement_timeout}'")
+                )
+                logger.debug(f"Set statement_timeout to {statement_timeout}")
+            except Exception as e:
+                logger.warning(f"Could not set statement_timeout: {e}")
 
     def __enter__(self):
         """Context manager entry."""
@@ -43,9 +68,15 @@ class PostgresRepository:
         return False  # Don't suppress exceptions
 
     def close(self):
-        """Explicitly close the database session to release connection back to pool."""
+        """
+        Explicitly close the database session to release connection back to pool.
+
+        CRITICAL: Must be called to prevent connection leaks and QueuePool exhaustion.
+        """
         if self.db_session and self._owns_session:
             try:
+                # Rollback any uncommitted transaction before closing
+                self.db_session.rollback()
                 self.db_session.close()
                 logger.debug("Database session closed successfully")
             except Exception as e:
@@ -96,11 +127,11 @@ class PostgresRepository:
             logger.warning(f"⚠️  No column_mapping found for client {client_id}")
             return pd.DataFrame()
 
-        logger.info(f"🔍 Querying silver table: {table_name}")
-        logger.info(f"  📝 Column mapping: {len(column_mapping)} columns")
-        logger.info(f"  Sample mappings (first 5):")
+        logger.debug(f"🔍 Querying silver table: {table_name}")
+        logger.debug(f"  📝 Column mapping: {len(column_mapping)} columns")
+        logger.debug("  Sample mappings (first 5):")
         for source, canonical in list(column_mapping.items())[:5]:
-            logger.info(f"    '{source}' → {canonical}")
+            logger.debug(f"    '{source}' → {canonical}")
 
         try:
             # Determine the timestamp filter for incremental mode
@@ -108,9 +139,9 @@ class PostgresRepository:
             if incremental:
                 filter_timestamp = since_timestamp or self.get_last_sync_timestamp(client_id)
                 if filter_timestamp:
-                    logger.info(f"  📅 Incremental mode: fetching data since {filter_timestamp}")
+                    logger.debug(f"  📅 Incremental mode: fetching data since {filter_timestamp}")
                 else:
-                    logger.info(f"  📅 Incremental mode requested but no previous sync - doing full load")
+                    logger.debug("  📅 Incremental mode requested but no previous sync - doing full load")
 
             # Find the date column name in the source (before mapping)
             date_source_col = None
@@ -122,7 +153,7 @@ class PostgresRepository:
             # Foreign tables (bigquery.*) must be queried via direct SQL
             # PostgREST doesn't expose foreign tables or non-public schemas
             if table_name.startswith("bigquery.") or "." in table_name:
-                logger.info(f"  🔗 Using direct SQL for foreign table: {table_name}")
+                logger.debug(f"  🔗 Using direct SQL for foreign table: {table_name}")
                 # Format table name for SQL: bigquery.table_name -> "bigquery"."table_name"
                 quoted_table = '"' + table_name.replace('.', '"."') + '"'
 
@@ -130,7 +161,7 @@ class PostgresRepository:
                 # FDW queries can be slow due to network latency to BigQuery
                 try:
                     self.db_session.execute(text("SET LOCAL statement_timeout = '300s'"))
-                    logger.info("  ⏱️ Set statement_timeout to 300s for FDW query")
+                    logger.debug("  ⏱️ Set statement_timeout to 300s for FDW query")
                 except Exception as timeout_err:
                     logger.warning(f"  ⚠️ Could not set statement_timeout: {timeout_err}")
 
@@ -147,7 +178,7 @@ class PostgresRepository:
 
                     # Use string literal in query since BigQuery FDW has issues with parameterized timestamps
                     query_sql = f'SELECT * FROM {quoted_table} WHERE "{date_source_col}" > TIMESTAMP \'{ts_str}\''
-                    logger.info(f"  🔍 Incremental query: WHERE {date_source_col} > {ts_str}")
+                    logger.debug(f"  🔍 Incremental query: WHERE {date_source_col} > {ts_str}")
                     result = self.db_session.execute(text(query_sql))
                 else:
                     result = self.db_session.execute(
@@ -156,14 +187,14 @@ class PostgresRepository:
 
                 rows = result.fetchall()
                 columns = list(result.keys())  # Convert RMKeyView to list
-                logger.info(f"  📋 Foreign table columns: {columns}")
+                logger.debug(f"  📋 Foreign table columns: {columns}")
                 if not rows:
                     if filter_timestamp:
-                        logger.info(f"No new data found since {filter_timestamp}")
+                        logger.info(f"⏭️  No new data found in {table_name} since {filter_timestamp} (incremental query returned 0 rows)")
                     else:
                         logger.warning(f"No data found in {table_name}")
                     return pd.DataFrame()
-                logger.info(f"  📊 Fetched {len(rows)} rows from foreign table")
+                logger.debug(f"  📊 Fetched {len(rows)} rows from foreign table")
                 df = pd.DataFrame(rows, columns=columns)
             else:
                 # Regular tables can use Supabase REST API
@@ -172,19 +203,19 @@ class PostgresRepository:
                 # Add filter for incremental mode
                 if filter_timestamp and date_source_col:
                     query = query.gt(date_source_col, filter_timestamp.isoformat())
-                    logger.info(f"  🔍 Incremental query: {date_source_col} > {filter_timestamp}")
+                    logger.debug(f"  🔍 Incremental query: {date_source_col} > {filter_timestamp}")
 
                 response = query.execute()
                 if not response.data:
                     if filter_timestamp:
-                        logger.info(f"No new data found since {filter_timestamp}")
+                        logger.info(f"⏭️  No new data found in {table_name} since {filter_timestamp} (incremental query returned 0 rows)")
                     else:
                         logger.warning(f"No data found in {table_name}")
                     return pd.DataFrame()
                 df = pd.DataFrame(response.data)
 
-            logger.info(f"  ✓ Query returned data: {len(df)} rows, {len(df.columns)} columns")
-            logger.info(f"  📊 DataFrame columns (raw): {list(df.columns)}")
+            logger.debug(f"  ✓ Query returned data: {len(df)} rows, {len(df.columns)} columns")
+            logger.debug(f"  📊 DataFrame columns (raw): {list(df.columns)}")
 
             # Rename columns to canonical names
             rename_map = {}
@@ -194,21 +225,21 @@ class PostgresRepository:
                 else:
                     logger.debug(f"  ⚠️  Mapping '{source_col}' → '{canonical_col}' skipped: source not in DataFrame")
 
-            logger.info(f"  🔄 Rename map ({len(rename_map)} mappings): {rename_map}")
+            logger.debug(f"  🔄 Rename map ({len(rename_map)} mappings): {rename_map}")
 
             if rename_map:
                 df.rename(columns=rename_map, inplace=True)
-                logger.info(f"  📊 DataFrame columns (after rename): {list(df.columns)}")
-                logger.info(f"  📈 Data types:")
+                logger.debug(f"  📊 DataFrame columns (after rename): {list(df.columns)}")
+                logger.debug("  📈 Data types:")
                 for col in df.columns[:10]:
-                    logger.info(f"    {col}: {df[col].dtype}")
+                    logger.debug(f"    {col}: {df[col].dtype}")
 
                 # Log sample values from first row
                 if not df.empty:
-                    logger.info(f"  📍 First row sample:")
+                    logger.debug("  📍 First row sample:")
                     for col in list(df.columns)[:5]:
                         val = df[col].iloc[0]
-                        logger.info(f"    {col}: {type(val).__name__} = {str(val)[:100]}")
+                        logger.debug(f"    {col}: {type(val).__name__} = {str(val)[:100]}")
 
             # FALLBACK: Generate synthetic order_id if missing
             if 'order_id' not in df.columns and not df.empty:
@@ -230,15 +261,15 @@ class PostgresRepository:
                         composite_key = composite_key + '_' + component
 
                     df['order_id'] = composite_key.apply(lambda x: str(abs(hash(x)) % 10**10))
-                    logger.info(f"  ✓ Generated {len(df['order_id'].unique())} unique synthetic order_ids")
+                    logger.debug(f"  ✓ Generated {len(df['order_id'].unique())} unique synthetic order_ids")
                 else:
                     df['order_id'] = df.index.astype(str)
-                    logger.warning(f"  ⚠️  Using row index as order_id")
+                    logger.warning("  ⚠️  Using row index as order_id")
 
             # DATA QUALITY CHECK
             if not df.empty:
-                logger.info(f"[DATA QUALITY CHECK]")
-                logger.info(f"  Total rows: {len(df)}")
+                logger.debug("[DATA QUALITY CHECK]")
+                logger.debug(f"  Total rows: {len(df)}")
 
                 quality_warnings = []
                 for col in df.columns:
@@ -256,13 +287,13 @@ class PostgresRepository:
                         logger.debug(f"  ✓ {col}: 100% populated, {unique_vals:,} unique values")
 
                 if quality_warnings:
-                    logger.warning(f"  ⚠️  Quality Issues Detected:")
+                    logger.warning("  ⚠️  Quality Issues Detected:")
                     for warning in quality_warnings:
                         logger.warning(f"    - {warning}")
                 else:
-                    logger.info(f"  ✓ All columns have good quality (< 50% NULL)")
+                    logger.debug("  ✓ All columns have good quality (< 50% NULL)")
 
-            logger.info(f"✅ [get_silver_dataframe] Complete - {len(df)} rows, {len(df.columns)} columns")
+            logger.debug(f"✅ [get_silver_dataframe] Complete - {len(df)} rows, {len(df.columns)} columns")
             return df
 
         except Exception as e:
@@ -281,7 +312,7 @@ class PostgresRepository:
             or None if no mapping exists
         """
         try:
-            logger.info(f"  Loading column_mapping from client_data_sources for client_id={client_id}...")
+            logger.debug(f"  Loading column_mapping from client_data_sources for client_id={client_id}...")
 
             # Query via Supabase API
             response = (
@@ -299,10 +330,10 @@ class PostgresRepository:
             if response.data and len(response.data) > 0:
                 column_mapping = response.data[0].get("column_mapping")
                 if column_mapping:
-                    logger.info(f"  ✓ Loaded column_mapping: {len(column_mapping)} mappings")
+                    logger.debug(f"  ✓ Loaded column_mapping: {len(column_mapping)} mappings")
                     # Log all mappings
                     for source, canonical in sorted(column_mapping.items()):
-                        logger.info(f"    '{source}' → {canonical}")
+                        logger.debug(f"    '{source}' → {canonical}")
                     return column_mapping
 
             logger.warning(f"  ⚠️  No column_mapping found for client_id={client_id}")
@@ -385,7 +416,7 @@ class PostgresRepository:
 
             if upsert_response.data and len(upsert_response.data) > 0:
                 created_client_id = str(upsert_response.data[0]["client_id"])
-                logger.info(f"Created/updated clientes_vizu record with client_id={created_client_id} for external_user_id={external_user_id}")
+                logger.debug(f"Created/updated clientes_vizu record with client_id={created_client_id} for external_user_id={external_user_id}")
                 return created_client_id
 
             # Fallback: query again to get the client_id (in case upsert didn't return it)
@@ -426,7 +457,7 @@ class PostgresRepository:
                 if cpf:
                     seen_cpf[cpf] = customer
             unique_customers = list(seen_cpf.values())
-            logger.info(f"  Deduped {len(customers_data)} -> {len(unique_customers)} unique customers by cpf_cnpj")
+            logger.debug(f"  Deduped {len(customers_data)} -> {len(unique_customers)} unique customers by cpf_cnpj")
 
             # Prepare bulk data for star schema
             values = [
@@ -474,7 +505,7 @@ class PostgresRepository:
             )
 
             self.db_session.commit()
-            logger.info(f"✓ Bulk wrote {len(unique_customers)} customer records to analytics_v2.dim_customer for {client_id}")
+            logger.debug(f"✓ Bulk wrote {len(unique_customers)} customer records to analytics_v2.dim_customer for {client_id}")
             return len(unique_customers)
         except Exception as e:
             self.db_session.rollback()
@@ -495,7 +526,7 @@ class PostgresRepository:
                 if cnpj:
                     seen_cnpj[cnpj] = supplier
             unique_suppliers = list(seen_cnpj.values())
-            logger.info(f"  Deduped {len(suppliers_data)} -> {len(unique_suppliers)} unique suppliers by cnpj")
+            logger.debug(f"  Deduped {len(suppliers_data)} -> {len(unique_suppliers)} unique suppliers by cnpj")
 
             # Prepare bulk data for star schema
             values = [
@@ -534,7 +565,7 @@ class PostgresRepository:
             )
 
             self.db_session.commit()
-            logger.info(f"✓ Bulk wrote {len(unique_suppliers)} supplier records to analytics_v2.dim_supplier for {client_id}")
+            logger.debug(f"✓ Bulk wrote {len(unique_suppliers)} supplier records to analytics_v2.dim_supplier for {client_id}")
             return len(unique_suppliers)
         except Exception as e:
             self.db_session.rollback()
@@ -624,7 +655,7 @@ class PostgresRepository:
             )
 
             self.db_session.commit()
-            logger.info(f"✓ Bulk wrote {len(products_data)} product records to analytics_v2.dim_product for {client_id}")
+            logger.debug(f"✓ Bulk wrote {len(products_data)} product records to analytics_v2.dim_product for {client_id}")
             return len(products_data)
         except Exception as e:
             self.db_session.rollback()
@@ -662,23 +693,23 @@ class PostgresRepository:
             return 0
 
         try:
-            logger.info(f"📥 Preparing to write {len(invoices_data)} invoice rows to fact_sales (incremental={incremental})...")
+            logger.debug(f"📥 Preparing to write {len(invoices_data)} invoice rows to fact_sales (incremental={incremental})...")
 
             # OPTIMIZATION: Truncate existing data for this client (faster than UPSERT)
             # Skip truncation in incremental mode - we want to preserve existing data
             if truncate_first and not incremental:
-                logger.info(f"  🗑️  Clearing existing fact_sales for client {client_id}...")
+                logger.debug(f"  🗑️  Clearing existing fact_sales for client {client_id}...")
                 self.db_session.execute(
                     text("DELETE FROM analytics_v2.fact_sales WHERE client_id = :client_id"),
                     {"client_id": client_id}
                 )
                 self.db_session.commit()
-                logger.info(f"  ✓ Cleared existing fact_sales")
+                logger.debug("  ✓ Cleared existing fact_sales")
             elif incremental:
-                logger.info(f"  📝 Incremental mode: will UPSERT new records")
+                logger.debug("  📝 Incremental mode: will UPSERT new records")
 
             # OPTIMIZATION: Bulk load all dimension data once instead of querying per row
-            logger.debug(f"  Loading dimension lookup tables...")
+            logger.debug("  Loading dimension lookup tables...")
 
             # Helper to normalize cpf/cnpj for lookups (handles float vs string)
             def normalize_doc(val):
@@ -696,7 +727,7 @@ class PostgresRepository:
                 for row in customer_results:
                     # Store with normalized key
                     customers_lookup[normalize_doc(row.cpf_cnpj)] = row.customer_id
-                logger.info(f"    ✓ Loaded {len(customers_lookup)} customers for lookup")
+                logger.debug(f"    ✓ Loaded {len(customers_lookup)} customers for lookup")
             except Exception as e:
                 logger.error(f"  ✗ Failed to load customers: {e}")
                 raise
@@ -711,7 +742,7 @@ class PostgresRepository:
                 for row in supplier_results:
                     # Store with normalized key
                     suppliers_lookup[normalize_doc(row.cnpj)] = row.supplier_id
-                logger.info(f"    ✓ Loaded {len(suppliers_lookup)} suppliers for lookup")
+                logger.debug(f"    ✓ Loaded {len(suppliers_lookup)} suppliers for lookup")
             except Exception as e:
                 logger.error(f"  ✗ Failed to load suppliers: {e}")
                 raise
@@ -780,7 +811,7 @@ class PostgresRepository:
                 # Log first few failures for debugging
                 if failed_rows:
                     logger.warning(f"⚠️  No valid fact_sales rows to insert (all {len(invoices_data)} had missing dimensions)")
-                    logger.warning(f"  Sample failures (first 5):")
+                    logger.warning("  Sample failures (first 5):")
                     for fail in failed_rows[:5]:
                         logger.warning(f"    - order_id={fail.get('order_id')}: {fail.get('reason')}")
                 else:
@@ -868,7 +899,7 @@ class PostgresRepository:
                             raise
 
             self.db_session.commit()
-            logger.info(f"✓ Bulk wrote {total_inserted} fact_sales records to analytics_v2.fact_sales for {client_id}")
+            logger.debug(f"✓ Bulk wrote {total_inserted} fact_sales records to analytics_v2.fact_sales for {client_id}")
 
             if failed_rows:
                 logger.warning(f"⚠️  {len(failed_rows)} fact_sales inserts skipped due to missing dimensions:")
@@ -886,28 +917,28 @@ class PostgresRepository:
         """Skip writing - time series data is now computed from v_time_series view."""
         if not chart_data:
             return 0
-        logger.info(f"⊗ Skipping write_star_time_series for {client_id} - data available via v_time_series view ({len(chart_data)} items)")
+        logger.debug(f"⊗ Skipping write_star_time_series for {client_id} - data available via v_time_series view ({len(chart_data)} items)")
         return len(chart_data)
 
     def write_star_regional(self, client_id: str, chart_data: list[dict]) -> int:
         """Skip writing - regional data is now computed from v_regional view."""
         if not chart_data:
             return 0
-        logger.info(f"⊗ Skipping write_star_regional for {client_id} - data available via v_regional view ({len(chart_data)} items)")
+        logger.debug(f"⊗ Skipping write_star_regional for {client_id} - data available via v_regional view ({len(chart_data)} items)")
         return len(chart_data)
 
     def write_star_last_orders(self, client_id: str, orders_data: list[dict]) -> int:
         """Skip writing - last orders data is now computed from v_last_orders view."""
         if not orders_data:
             return 0
-        logger.info(f"⊗ Skipping write_star_last_orders for {client_id} - data available via v_last_orders view ({len(orders_data)} items)")
+        logger.debug(f"⊗ Skipping write_star_last_orders for {client_id} - data available via v_last_orders view ({len(orders_data)} items)")
         return len(orders_data)
 
     def write_star_customer_products(self, client_id: str, customer_products_data: list[dict]) -> int:
         """Skip writing - customer-product data is now computed from v_customer_products view."""
         if not customer_products_data:
             return 0
-        logger.info(f"⊗ Skipping write_star_customer_products for {client_id} - data available via v_customer_products view ({len(customer_products_data)} items)")
+        logger.debug(f"⊗ Skipping write_star_customer_products for {client_id} - data available via v_customer_products view ({len(customer_products_data)} items)")
         return len(customer_products_data)
 
     # ---
@@ -1059,7 +1090,7 @@ class PostgresRepository:
                 ]
 
             # Fallback: return empty if view is empty
-            logger.debug(f"⚠️  v_last_orders empty")
+            logger.debug("⚠️  v_last_orders empty")
             return []
         except Exception as e:
             logger.error(f"❌ Failed to read v_last_orders: {e}", exc_info=True)
@@ -1235,7 +1266,7 @@ class PostgresRepository:
                 customer['cluster_tier'] = 'A' if cluster_score >= 70 else 'B' if cluster_score >= 40 else 'C'
                 customers.append(customer)
 
-            logger.info(f"✓ Loaded {len(customers)} customers from analytics_v2.dim_customer")
+            logger.debug(f"✓ Loaded {len(customers)} customers from analytics_v2.dim_customer")
             return customers
 
         except Exception as e:
@@ -1363,7 +1394,7 @@ class PostgresRepository:
                 supplier['cluster_tier'] = 'A' if cluster_score >= 70 else 'B' if cluster_score >= 40 else 'C'
                 suppliers.append(supplier)
 
-            logger.info(f"✓ Loaded {len(suppliers)} suppliers from analytics_v2.dim_supplier")
+            logger.debug(f"✓ Loaded {len(suppliers)} suppliers from analytics_v2.dim_supplier")
             return suppliers
 
         except Exception as e:
@@ -1525,7 +1556,7 @@ class PostgresRepository:
             columns = result.keys()
 
             products = [dict(zip(columns, row)) for row in rows]
-            logger.info(f"✓ Loaded {len(products)} products from analytics_v2.dim_product (period={period})")
+            logger.debug(f"✓ Loaded {len(products)} products from analytics_v2.dim_product (period={period})")
             return products
 
         except Exception as e:
@@ -1571,7 +1602,7 @@ class PostgresRepository:
             columns = result.keys()
 
             orders = [dict(zip(columns, row)) for row in rows]
-            logger.info(f"✓ Loaded {len(orders)} orders from analytics_v2.fact_sales")
+            logger.debug(f"✓ Loaded {len(orders)} orders from analytics_v2.fact_sales")
             return orders
 
         except Exception as e:
@@ -1591,7 +1622,7 @@ class PostgresRepository:
 
             result = self.db_session.execute(query, {"client_id": client_id})
             products = [{"product_name": row[0], "product_id": str(row[1])} for row in result.fetchall()]
-            logger.info(f"✓ Loaded {len(products)} distinct products for filters")
+            logger.debug(f"✓ Loaded {len(products)} distinct products for filters")
             return products
 
         except Exception as e:
@@ -1614,7 +1645,7 @@ class PostgresRepository:
                 {"name": row[0], "cpf_cnpj": row[1], "customer_id": str(row[2])}
                 for row in result.fetchall()
             ]
-            logger.info(f"✓ Loaded {len(customers)} distinct customers for filters")
+            logger.debug(f"✓ Loaded {len(customers)} distinct customers for filters")
             return customers
 
         except Exception as e:
@@ -1660,7 +1691,7 @@ class PostgresRepository:
             columns = result.keys()
 
             customers = [dict(zip(columns, row)) for row in rows]
-            logger.info(f"✓ Found {len(customers)} customers for product '{product_name}'")
+            logger.debug(f"✓ Found {len(customers)} customers for product '{product_name}'")
             return customers
 
         except Exception as e:
@@ -1759,7 +1790,7 @@ class PostgresRepository:
                     'avg_order_value': float(r.get('avg_order_value') or 0),
                 })
 
-            logger.info(f"✓ Loaded {len(monthly_data)} months of data for customer {customer_cpf_cnpj}")
+            logger.debug(f"✓ Loaded {len(monthly_data)} months of data for customer {customer_cpf_cnpj}")
             return monthly_data
 
         except Exception as e:
@@ -2053,7 +2084,7 @@ class PostgresRepository:
             columns = result.keys()
 
             orders = [dict(zip(columns, row)) for row in rows]
-            logger.info(f"✓ Loaded {len(orders)} recent orders")
+            logger.debug(f"✓ Loaded {len(orders)} recent orders")
             return orders
 
         except Exception as e:
@@ -2581,10 +2612,10 @@ class PostgresRepository:
             row = result.fetchone()
 
             if row and row[0]:
-                logger.info(f"📅 Last sync for {client_id}: {row[0]}")
+                logger.debug(f"📅 Last sync for {client_id}: {row[0]}")
                 return row[0]
 
-            logger.info(f"📅 No previous sync found for {client_id} - will do full load")
+            logger.debug(f"📅 No previous sync found for {client_id} - will do full load")
             return None
 
         except Exception as e:
@@ -2615,7 +2646,7 @@ class PostgresRepository:
             })
             self.db_session.commit()
 
-            logger.info(f"✅ Updated last_synced_at for {client_id} to {sync_time}")
+            logger.debug(f"✅ Updated last_synced_at for {client_id} to {sync_time}")
             return True
 
         except Exception as e:
@@ -2645,7 +2676,7 @@ class PostgresRepository:
             row = result.fetchone()
 
             has_data = row[0] if row else False
-            logger.info(f"📊 Client {client_id} has_analytics_data: {has_data}")
+            logger.debug(f"📊 Client {client_id} has_analytics_data: {has_data}")
             return has_data
 
         except Exception as e:
@@ -2693,7 +2724,7 @@ class PostgresRepository:
                     has_errors = True
                     logger.warning(f"  ⚠️ {view_name}: {status}")
                 else:
-                    logger.info(f"  ✅ {view_name}: {status}")
+                    logger.debug(f"  ✅ {view_name}: {status}")
 
             logger.info(f"✅ All materialized views refreshed in {elapsed:.1f}s")
 
@@ -2708,7 +2739,7 @@ class PostgresRepository:
             # If CONCURRENT mode fails (e.g., due to missing unique indexes),
             # try blocking mode as fallback
             logger.warning(f"⚠️ CONCURRENT refresh failed: {e}")
-            logger.info("🔄 Retrying with blocking mode...")
+            logger.debug("🔄 Retrying with blocking mode...")
 
             self.db_session.rollback()
 
@@ -2728,7 +2759,7 @@ class PostgresRepository:
                     view_name = row[0]
                     status = row[1]
                     results[view_name] = status
-                    logger.info(f"  ✅ {view_name}: {status}")
+                    logger.debug(f"  ✅ {view_name}: {status}")
 
                 logger.info(f"✅ All materialized views refreshed in {elapsed:.1f}s (blocking mode)")
 

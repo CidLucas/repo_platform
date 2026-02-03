@@ -13,6 +13,7 @@ COPY libs/vizu_db_connector ./libs/vizu_db_connector
 COPY libs/vizu_context_service ./libs/vizu_context_service
 COPY libs/vizu_supabase_client ./libs/vizu_supabase_client
 COPY libs/vizu_auth ./libs/vizu_auth
+COPY libs/vizu_observability_bootstrap ./libs/vizu_observability_bootstrap
 COPY libs/vizu_llm_service ./libs/vizu_llm_service
 COPY libs/vizu_qdrant_client ./libs/vizu_qdrant_client
 COPY libs/vizu_rag_factory ./libs/vizu_rag_factory
@@ -43,6 +44,7 @@ COPY libs/vizu_models/src ./libs/vizu_models/src
 COPY libs/vizu_db_connector/src ./libs/vizu_db_connector/src
 COPY libs/vizu_context_service/src ./libs/vizu_context_service/src
 COPY libs/vizu_auth/src ./libs/vizu_auth/src
+COPY libs/vizu_observability_bootstrap/src ./libs/vizu_observability_bootstrap/src
 COPY libs/vizu_llm_service/src ./libs/vizu_llm_service/src
 COPY libs/vizu_qdrant_client/src ./libs/vizu_qdrant_client/src
 COPY libs/vizu_rag_factory/src ./libs/vizu_rag_factory/src
@@ -56,7 +58,7 @@ COPY services/tool_pool_api/src ./src
 
 # PYTHONPATH for imports
 ENV PATH="/app/services/tool_pool_api/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_context_service/src:/app/libs/vizu_auth/src:/app/libs/vizu_llm_service/src:/app/libs/vizu_qdrant_client/src:/app/libs/vizu_rag_factory/src:/app/libs/vizu_sql_factory/src:/app/libs/vizu_tool_registry/src:/app/libs/vizu_prompt_management/src:/app/libs/vizu_google_suite_client/src"
+ENV PYTHONPATH="/app/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_context_service/src:/app/libs/vizu_auth/src:/app/libs/vizu_observability_bootstrap/src:/app/libs/vizu_llm_service/src:/app/libs/vizu_qdrant_client/src:/app/libs/vizu_rag_factory/src:/app/libs/vizu_sql_factory/src:/app/libs/vizu_tool_registry/src:/app/libs/vizu_prompt_management/src:/app/libs/vizu_google_suite_client/src"
 
 EXPOSE 8000
 

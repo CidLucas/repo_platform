@@ -1,29 +1,30 @@
 # src/analytics_api/services/metric_service.py
 import logging
+from datetime import UTC
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import text
 from analytics_api.data_access.postgres_repository import PostgresRepository
-from analytics_api.services.data_quality_logger import DataQualityLogger
 from analytics_api.schemas.metrics import (
+    CadastralData,
     ChartData,
     ChartDataPoint,
-    RankingItem,
-    CadastralData,
-    HomeScorecards,
-    HomeMetricsResponse,
-    FornecedoresOverviewResponse,
-    ClientesOverviewResponse,
-    ProdutosOverviewResponse,
-    PedidosOverviewResponse,
-    PedidoItem,
-    FornecedorDetailResponse,
     ClienteDetailResponse,
-    ProdutoDetailResponse,
+    ClientesOverviewResponse,
+    FornecedorDetailResponse,
+    FornecedoresOverviewResponse,
+    HomeMetricsResponse,
+    HomeScorecards,
     PedidoDetailResponse,
+    PedidoItem,
     PedidoItemDetalhe,
+    PedidosOverviewResponse,
+    ProdutoDetailResponse,
+    ProdutosOverviewResponse,
+    RankingItem,
 )
+from analytics_api.services.data_quality_logger import DataQualityLogger
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ class MetricService:
 
         # Load silver data (with optional incremental filter)
         self.df = self.repository.get_silver_dataframe(client_id, incremental=incremental)
-        logger.info(f"📊 Silver dataframe loaded: {len(self.df) if self.df is not None else 0} rows, {len(self.df.columns) if self.df is not None else 0} columns")
+        logger.debug(f"📊 Silver dataframe loaded: {len(self.df) if self.df is not None else 0} rows, {len(self.df.columns) if self.df is not None else 0} columns")
 
         if self.df is None or self.df.empty:
             logger.warning(f"No silver data found for client_id: {self.client_id} - initializing empty service")
@@ -73,7 +74,7 @@ class MetricService:
             return
 
         # --- Pré-processamento Crítico ---
-        logger.debug(f"🔧 Starting preprocessing...")
+        logger.debug("🔧 Starting preprocessing...")
 
         # Convert data_transacao to datetime, handling errors gracefully
         if 'data_transacao' in self.df.columns:
@@ -95,7 +96,7 @@ class MetricService:
         if 'valor_unitario' in self.df.columns:
             self.df['valor_unitario'] = pd.to_numeric(self.df['valor_unitario'], errors='coerce')
 
-        logger.debug(f"✓ Preprocessing completed")
+        logger.debug("✓ Preprocessing completed")
 
         # Log which canonical columns we have
         canonical_expected = ['order_id', 'data_transacao', 'quantidade', 'valor_unitario',
@@ -104,10 +105,10 @@ class MetricService:
         found_canonical = [col for col in canonical_expected if col in available_cols]
         missing_canonical = [col for col in canonical_expected if col not in available_cols]
 
-        logger.info(f"📊 Canonical columns found: {found_canonical}")
+        logger.debug(f"📊 Canonical columns found: {found_canonical}")
         if missing_canonical:
             logger.warning(f"⚠️  Missing canonical columns: {missing_canonical}")
-            logger.info(f"Available raw columns (first 20): {available_cols[:20]}")
+            logger.debug(f"Available raw columns (first 20): {available_cols[:20]}")
 
         # Log silver input data quality at DEBUG level
         if logger.isEnabledFor(logging.DEBUG):
@@ -119,71 +120,57 @@ class MetricService:
             dt_no_tz = self.df['data_transacao'].dt.tz_localize(None)
             self.df['ano_mes'] = dt_no_tz.dt.to_period('M').astype(str)
             self.df['ano_semana'] = dt_no_tz.dt.to_period('W').astype(str)
-            logger.info(f"✓ Date columns processed successfully")
+            logger.debug("✓ Date columns processed successfully")
         else:
-            logger.warning(f"⚠️  data_transacao column not usable, skipping time-based features")
+            logger.warning("⚠️  data_transacao column not usable, skipping time-based features")
             self.df['ano_mes'] = ''
             self.df['ano_semana'] = ''
 
-        # --- PRÉ-CÁLCULO DE COHORTS (Q2) ---
-        # Pré-calculamos os tiers de *Clientes* e *Fornecedores*
-        # para que possam ser usados em todos os módulos.
-        logger.info(f"🔄 Computing aggregations...")
+        # --- PRÉ-EXTRACT DIMENSION ENTITIES (SQL-Only Approach) ---
+        # Extract unique dimension entities (names, IDs, contact info)
+        # NO METRICS are computed here - SQL does ALL aggregations from fact_sales
+        logger.debug("🔄 Extracting dimension entities...")
 
         self.df_clientes_agg = self._get_aggregated_metrics_by_dimension(self.df, 'receiver_nome')
-        logger.info(f"  ✓ Customers aggregated: {len(self.df_clientes_agg)} records")
+        logger.debug(f"  ✓ Customers extracted: {len(self.df_clientes_agg)} records")
 
         self.df_fornecedores_agg = self._get_aggregated_metrics_by_dimension(self.df, 'emitter_nome')
-        logger.info(f"  ✓ Suppliers aggregated: {len(self.df_fornecedores_agg)} records")
+        logger.debug(f"  ✓ Suppliers extracted: {len(self.df_fornecedores_agg)} records")
 
         # Products aggregation (use full metrics like customers/suppliers)
         self.df_produtos_agg = self._get_aggregated_metrics_by_dimension(self.df, 'raw_product_description')
-        logger.info(f"  ✓ Products aggregated: {len(self.df_produtos_agg)} records")
+        logger.debug(f"  ✓ Products extracted: {len(self.df_produtos_agg)} records")
 
         # Customer-Product aggregation (for mix_de_produtos in ClienteDetailsModal)
         self.df_customer_products_agg = self._get_customer_product_aggregation()
-        logger.info(f"  ✓ Customer-Products aggregated: {len(self.df_customer_products_agg)} records")
+        logger.debug(f"  ✓ Customer-Products extracted: {len(self.df_customer_products_agg)} records")
 
         # --- PERSIST TO ANALYTICS_V2 TABLES ---
-        # Write computed aggregations to analytics_v2 star schema for frontend queries
-        logger.info(f"💾 Persisting aggregations to analytics_v2...")
+        # Write skeleton dimension records (IDs/names only, metrics are NULL)
+        # Then SQL populates ALL metrics from fact_sales (single source of truth)
+        logger.debug("💾 Persisting to analytics_v2...")
         self._persist_to_analytics_v2()
 
-        logger.info(f"✅ [MetricService] Initialization complete")
+        logger.info("✅ [MetricService] Initialization complete")
 
 
     # ---
-    # HELPER AGREGADOR (ATUALIZADO PARA Q1 e Q2)
+    # DIMENSION EXTRACTOR (SQL-Only Aggregation Approach)
     # ---
 
     def _get_aggregated_metrics_by_dimension(self, df: pd.DataFrame, dimension_col: str) -> pd.DataFrame:
         """
-        O CÉREBRO agnóstico de Nível 2 e 3. (Atualizado v2)
-        Handles missing columns and NaN values gracefully.
+        Extract unique dimension entities (IDs, names, contact info).
+        ALL METRICS are computed by SQL after fact_sales is written.
+        This eliminates dual computation (pandas + SQL).
         """
         if df.empty or dimension_col not in df.columns:
-            cols = ['nome', 'receita_total', 'quantidade_total', 'num_pedidos_unicos',
-                    'primeira_venda', 'ultima_venda', 'period_start', 'period_end',
-                    'ticket_medio', 'qtd_media_por_pedido',
-                    'frequencia_pedidos_mes', 'recencia_dias',
-                    'valor_unitario_medio', # (Q1)
-                    'score_r', 'score_f', 'score_m',
-                    'cluster_score', 'cluster_tier'] # (Q2)
-            return pd.DataFrame(columns=cols)
+            return pd.DataFrame(columns=['nome'])
 
-        # 1. Agregação Primária - only include columns that exist
+        # Extract dimension identity fields only (no metric computation)
         agg_ops = {}
-        if 'valor_total_emitter' in df.columns:
-            agg_ops['receita_total'] = ('valor_total_emitter', 'sum')
-        if 'quantidade' in df.columns:
-            agg_ops['quantidade_total'] = ('quantidade', 'sum')
-        if 'order_id' in df.columns:
-            agg_ops['num_pedidos_unicos'] = ('order_id', 'nunique')
-        if 'data_transacao' in df.columns:
-            agg_ops['primeira_venda'] = ('data_transacao', 'min')
-            agg_ops['ultima_venda'] = ('data_transacao', 'max')
-        if 'valor_unitario' in df.columns:
-            agg_ops['valor_unitario_medio'] = ('valor_unitario', 'mean')
+
+        # Preserve CNPJ/CPF fields using 'first' aggregation (they should be the same for each name)
 
         # Preserve CNPJ/CPF fields using 'first' aggregation (they should be the same for each name)
         if dimension_col == 'emitter_nome' and 'emitter_cnpj' in df.columns:
@@ -207,107 +194,21 @@ class MetricService:
                 agg_ops['receiverstateuf'] = ('receiverstateuf', 'first')
             if 'receiver_cep' in df.columns:
                 agg_ops['receiver_cep'] = ('receiver_cep', 'first')
+        if dimension_col == 'raw_product_description':
+            # Preserve NCM, CFOP for products
+            if 'ncm' in df.columns:
+                agg_ops['ncm'] = ('ncm', 'first')
+            if 'cfop' in df.columns:
+                agg_ops['cfop'] = ('cfop', 'first')
 
         if not agg_ops:
-            logger.warning(f"No aggregatable columns found for {dimension_col}")
-            return pd.DataFrame(columns=['nome', 'receita_total', 'quantidade_total', 'num_pedidos_unicos',
-                                         'primeira_venda', 'ultima_venda', 'period_start', 'period_end',
-                                         'ticket_medio', 'qtd_media_por_pedido',
-                                         'frequencia_pedidos_mes', 'recencia_dias',
-                                         'valor_unitario_medio', 'score_r', 'score_f', 'score_m',
-                                         'cluster_score', 'cluster_tier'])
+            logger.warning(f"No identity columns found for {dimension_col}")
+            return pd.DataFrame(columns=['nome'])
 
         agg_df = df.groupby(dimension_col).agg(**agg_ops).reset_index()
-        logger.debug(f"  [Groupby] {dimension_col}: {len(agg_df)} groups")
-
-        # 2. Métricas Derivadas (with defensive checks for missing columns)
-        # Handle missing base columns - fill with 0 if they don't exist
-        if 'receita_total' not in agg_df.columns:
-            logger.warning(f"⚠️  receita_total not available for {dimension_col}, setting to 0")
-            agg_df['receita_total'] = 0
-        if 'quantidade_total' not in agg_df.columns:
-            logger.warning(f"⚠️  quantidade_total not available for {dimension_col}, setting to 0")
-            agg_df['quantidade_total'] = 0
-        if 'valor_unitario_medio' not in agg_df.columns:
-            logger.warning(f"⚠️  valor_unitario_medio not available for {dimension_col}, setting to 0")
-            agg_df['valor_unitario_medio'] = 0
-
-        # Handle missing num_pedidos_unicos (if order_id wasn't available)
-        if 'num_pedidos_unicos' not in agg_df.columns:
-            logger.warning(f"⚠️  num_pedidos_unicos not available for {dimension_col}, assuming 1 order per entity")
-            agg_df['num_pedidos_unicos'] = 1
-
-        agg_df['ticket_medio'] = agg_df['receita_total'] / agg_df['num_pedidos_unicos']
-        agg_df['qtd_media_por_pedido'] = agg_df['quantidade_total'] / agg_df['num_pedidos_unicos']
-
-        # Handle missing date columns
-        if 'primeira_venda' in agg_df.columns and 'ultima_venda' in agg_df.columns:
-            # Add period start/end columns
-            agg_df['period_start'] = agg_df['primeira_venda']
-            agg_df['period_end'] = agg_df['ultima_venda']
-
-            # Calculate activity period
-            dias_ativo = (agg_df['ultima_venda'] - agg_df['primeira_venda']).dt.days
-            meses_ativo = (dias_ativo / 30.44).clip(lower=1)
-            agg_df['frequencia_pedidos_mes'] = agg_df['num_pedidos_unicos'] / meses_ativo
-
-            # OPTIMIZED: Vectorized recency calculation (O(n log n) instead of O(n²))
-            # Calculate average days between consecutive transactions per entity
-            # Using groupby + transform instead of row-by-row apply()
-            if 'data_transacao' in df.columns and not df['data_transacao'].isna().all():
-                # Sort once, then compute diff within groups
-                df_sorted = df[[dimension_col, 'data_transacao']].dropna().sort_values(
-                    [dimension_col, 'data_transacao']
-                )
-                # Calculate interval to previous transaction within same entity
-                df_sorted['interval_days'] = df_sorted.groupby(dimension_col)['data_transacao'].diff().dt.days
-
-                # Aggregate: mean interval per entity (excluding first row which has NaN)
-                recency_agg = df_sorted.groupby(dimension_col)['interval_days'].mean().fillna(0).reset_index()
-                recency_agg.columns = [dimension_col, 'recencia_dias']
-
-                # Merge back to agg_df
-                agg_df = agg_df.merge(recency_agg, on=dimension_col, how='left')
-                agg_df['recencia_dias'] = agg_df['recencia_dias'].fillna(0)
-            else:
-                agg_df['recencia_dias'] = 0
-        else:
-            logger.warning(f"⚠️  Date columns missing, setting time-based metrics to 0")
-            agg_df['period_start'] = None
-            agg_df['period_end'] = None
-            agg_df['frequencia_pedidos_mes'] = 0
-            agg_df['recencia_dias'] = 0
-
-        # 3. Cluster Vizu (Score Simples) - with safe division
-        max_recencia = agg_df['recencia_dias'].max() if agg_df['recencia_dias'].max() > 0 else 1
-        max_frequencia = agg_df['frequencia_pedidos_mes'].max() if agg_df['frequencia_pedidos_mes'].max() > 0 else 1
-        max_receita = agg_df['receita_total'].max() if agg_df['receita_total'].max() > 0 else 1
-
-        agg_df['score_r'] = (1 - (agg_df['recencia_dias'] / max_recencia)) * 100
-        agg_df['score_f'] = (agg_df['frequencia_pedidos_mes'] / max_frequencia) * 100
-        agg_df['score_m'] = (agg_df['receita_total'] / max_receita) * 100
-        agg_df['cluster_score'] = (agg_df['score_r'] * 0.2) + (agg_df['score_f'] * 0.4) + (agg_df['score_m'] * 0.4)
-
-        # ATUALIZADO (Q2): Criar Tiers (Segmentos)
-        # Usamos qcut (quantil) para dividir em 4 grupos (A, B, C, D)
-        if agg_df['cluster_score'].nunique() > 1:
-            try:
-                agg_df['cluster_tier'] = pd.qcut(agg_df['cluster_score'], 4, labels=["D", "C", "B", "A"])
-            except ValueError:
-                # Fallback se não houver dados suficientes para 4 quantis
-                agg_df['cluster_tier'] = "C"
-        else:
-            agg_df['cluster_tier'] = "C" # Tier único
-
-        # --- ADICIONE ESTA LINHA ---
-        # Converte a coluna categórica para string antes do fillna
-        agg_df['cluster_tier'] = agg_df['cluster_tier'].astype(str)
-        # --- FIM DA ADIÇÃO ---
+        logger.debug(f"  [Dimension Extract] {dimension_col}: {len(agg_df)} unique entities")
 
         agg_df.rename(columns={dimension_col: 'nome'}, inplace=True)
-        agg_df.replace([np.inf, -np.inf], np.nan, inplace=True)
-        agg_df.fillna(0, inplace=True)
-
         return agg_df
 
     def _get_customer_product_aggregation(self) -> pd.DataFrame:
@@ -408,25 +309,25 @@ class MetricService:
             logger.info("📦 Phase 1: Writing dimension tables...")
 
             if not self.df_clientes_agg.empty:
-                logger.info(f"  ➜ Writing {len(self.df_clientes_agg)} customers to analytics_v2.dim_customer...")
+                logger.debug(f"  ➜ Writing {len(self.df_clientes_agg)} customers to analytics_v2.dim_customer...")
                 customers_data = self.df_clientes_agg.to_dict('records')
                 self.repository.write_star_customers(self.client_id, customers_data)
-                logger.info(f"    ✓ Persisted {len(customers_data)} customers")
+                logger.debug(f"    ✓ Persisted {len(customers_data)} customers")
 
             if not self.df_fornecedores_agg.empty:
-                logger.info(f"  ➜ Writing {len(self.df_fornecedores_agg)} suppliers to analytics_v2.dim_supplier...")
+                logger.debug(f"  ➜ Writing {len(self.df_fornecedores_agg)} suppliers to analytics_v2.dim_supplier...")
                 suppliers_data = self.df_fornecedores_agg.to_dict('records')
                 self.repository.write_star_suppliers(self.client_id, suppliers_data)
-                logger.info(f"    ✓ Persisted {len(suppliers_data)} suppliers")
+                logger.debug(f"    ✓ Persisted {len(suppliers_data)} suppliers")
 
             if not self.df_produtos_agg.empty:
-                logger.info(f"  ➜ Writing {len(self.df_produtos_agg)} products to analytics_v2.dim_product...")
+                logger.debug(f"  ➜ Writing {len(self.df_produtos_agg)} products to analytics_v2.dim_product...")
                 products_data = self.df_produtos_agg.to_dict('records')
                 self.repository.write_star_products(self.client_id, products_data)
-                logger.info(f"    ✓ Persisted {len(products_data)} products")
+                logger.debug(f"    ✓ Persisted {len(products_data)} products")
 
             dim_time = time.time()
-            logger.info(f"  ⏱️  Dimensions written in {dim_time - start_time:.1f}s")
+            logger.debug(f"  ⏱️  Dimensions written in {dim_time - start_time:.1f}s")
 
             # PHASE 2: Write fact_sales (needs dimension FKs to exist)
             logger.info("📦 Phase 2: Writing fact_sales...")
@@ -446,54 +347,52 @@ class MetricService:
                         incremental=self.incremental
                     )
                     mode_str = "UPSERTed" if self.incremental else "inserted"
-                    logger.info(f"    ✓ {mode_str} {sales_count} transactions")
+                    logger.debug(f"    ✓ {mode_str} {sales_count} transactions")
                 else:
-                    logger.warning(f"    ⚠️  No transaction columns available for fact_sales")
+                    logger.warning("    ⚠️  No transaction columns available for fact_sales")
 
             fact_time = time.time()
-            logger.info(f"  ⏱️  Fact sales written in {fact_time - dim_time:.1f}s")
+            logger.debug(f"  ⏱️  Fact sales written in {fact_time - dim_time:.1f}s")
 
-            # PHASE 3: Populate dimension aggregates from fact_sales (only if we have sales)
-            # These SQL updates read from fact_sales to compute totals, frequencies, etc.
-            if sales_count > 0:
-                logger.info("📦 Phase 3: Populating dimension aggregates from fact_sales...")
+            # PHASE 3: Populate dimension aggregates from fact_sales
+            # SQL computes ALL metrics from fact_sales (single source of truth)
+            # This always runs - even if incremental with no new records, existing data needs metrics
+            logger.info("📦 Phase 3: Populating dimension aggregates from fact_sales...")
 
-                if not self.df_clientes_agg.empty:
-                    try:
-                        self._populate_dim_customer_aggregates()
-                    except Exception as e:
-                        logger.warning(f"Failed to populate dim_customer aggregates: {e}")
+            if not self.df_clientes_agg.empty:
+                try:
+                    self._populate_dim_customer_aggregates()
+                except Exception as e:
+                    logger.warning(f"Failed to populate dim_customer aggregates: {e}")
 
-                if not self.df_fornecedores_agg.empty:
-                    try:
-                        self._populate_dim_supplier_aggregates()
-                    except Exception as e:
-                        logger.warning(f"Failed to populate dim_supplier aggregates: {e}")
+            if not self.df_fornecedores_agg.empty:
+                try:
+                    self._populate_dim_supplier_aggregates()
+                except Exception as e:
+                    logger.warning(f"Failed to populate dim_supplier aggregates: {e}")
 
-                if not self.df_produtos_agg.empty:
-                    try:
-                        self._populate_dim_product_aggregates()
-                    except Exception as e:
-                        logger.warning(f"Failed to populate dim_product aggregates: {e}")
+            if not self.df_produtos_agg.empty:
+                try:
+                    self._populate_dim_product_aggregates()
+                except Exception as e:
+                    logger.warning(f"Failed to populate dim_product aggregates: {e}")
 
-                agg_time = time.time()
-                logger.info(f"  ⏱️  Aggregates populated in {agg_time - fact_time:.1f}s")
-            else:
-                logger.info("  ⏩ Skipping aggregate population (no fact_sales written)")
+            agg_time = time.time()
+            logger.debug(f"  ⏱️  Aggregates populated in {agg_time - fact_time:.1f}s")
 
             # PHASE 4: Write customer-product relationships (optional)
             if not self.df_customer_products_agg.empty:
-                logger.info(f"  ➜ Writing {len(self.df_customer_products_agg)} customer-product relationships...")
+                logger.debug(f"  ➜ Writing {len(self.df_customer_products_agg)} customer-product relationships...")
                 customer_products_data = self.df_customer_products_agg.to_dict('records')
                 self.repository.write_star_customer_products(self.client_id, customer_products_data)
-                logger.info(f"    ✓ Persisted {len(customer_products_data)} relationships")
+                logger.debug(f"    ✓ Persisted {len(customer_products_data)} relationships")
 
             total_time = time.time() - start_time
             logger.info(f"✅ All analytics_v2 aggregations persisted successfully in {total_time:.1f}s")
 
             # Update last_sync_at timestamp for future incremental syncs
             from datetime import datetime, timezone
-            sync_time = datetime.now(timezone.utc)
+            sync_time = datetime.now(UTC)
             self.repository.update_last_sync_timestamp(self.client_id, sync_time)
 
             # Record sync event for audit trail
@@ -525,7 +424,7 @@ class MetricService:
         client = self.client_id
 
         try:
-            logger.info("  ➜ Populating dim_product aggregates from fact_sales (this may take a while)...")
+            logger.debug("  ➜ Populating dim_product aggregates from fact_sales (this may take a while)...")
             with conn.begin():
                 # 1) totals, avg price, avg quantity per order
                 q1 = text("""
@@ -640,7 +539,7 @@ class MetricService:
                 """)
                 conn.execute(q4, {'client_id': client})
 
-            logger.info("    ✓ dim_product aggregates populated")
+            logger.debug("    ✓ dim_product aggregates populated")
         except Exception as e:
             logger.error(f"    ✗ Error populating dim_product aggregates: {e}", exc_info=True)
             raise
@@ -654,9 +553,9 @@ class MetricService:
         client = self.client_id
 
         try:
-            logger.info("  ➜ Populating dim_customer aggregates from fact_sales...")
+            logger.debug("  ➜ Populating dim_customer aggregates from fact_sales...")
             with conn.begin():
-                # 1) basic totals and last_30_days
+                # 1) basic totals, last_30_days, and lifetime dates
                 q1 = text("""
                 WITH cust_stats AS (
                     SELECT
@@ -665,7 +564,9 @@ class MetricService:
                         COALESCE(SUM(f.valor_total),0)::numeric AS total_revenue,
                         COALESCE(SUM(f.quantidade),0)::numeric AS total_quantity,
                         COUNT(DISTINCT CASE WHEN f.data_transacao >= now() - interval '30 days' THEN f.order_id END)::int AS orders_last_30_days,
-                        COUNT(DISTINCT date_trunc('month', f.data_transacao)) AS months_active
+                        COUNT(DISTINCT date_trunc('month', f.data_transacao)) AS months_active,
+                        MIN(f.data_transacao) AS lifetime_start_date,
+                        MAX(f.data_transacao) AS lifetime_end_date
                     FROM analytics_v2.fact_sales f
                     JOIN analytics_v2.dim_customer c ON f.customer_id = c.customer_id
                     WHERE c.client_id = :client_id
@@ -677,6 +578,8 @@ class MetricService:
                     total_revenue = s.total_revenue,
                     total_quantity = s.total_quantity,
                     orders_last_30_days = s.orders_last_30_days,
+                    lifetime_start_date = s.lifetime_start_date,
+                    lifetime_end_date = s.lifetime_end_date,
                     updated_at = now()
                 FROM cust_stats s
                 WHERE dc.customer_id = s.customer_id AND dc.client_id = :client_id
@@ -718,7 +621,7 @@ class MetricService:
                 """)
                 conn.execute(q2, {'client_id': client})
 
-            logger.info("    ✓ dim_customer aggregates populated")
+            logger.debug("    ✓ dim_customer aggregates populated")
         except Exception as e:
             logger.error(f"    ✗ Error populating dim_customer aggregates: {e}", exc_info=True)
             raise
@@ -732,7 +635,7 @@ class MetricService:
         client = self.client_id
 
         try:
-            logger.info("  ➜ Populating dim_supplier aggregates from fact_sales...")
+            logger.debug("  ➜ Populating dim_supplier aggregates from fact_sales...")
             with conn.begin():
                 # 1) basic totals and last_30_days
                 q1 = text("""
@@ -800,7 +703,7 @@ class MetricService:
                 """)
                 conn.execute(q2, {'client_id': client})
 
-            logger.info("    ✓ dim_supplier aggregates populated")
+            logger.debug("    ✓ dim_supplier aggregates populated")
         except Exception as e:
             logger.error(f"    ✗ Error populating dim_supplier aggregates: {e}", exc_info=True)
             raise
@@ -861,7 +764,7 @@ class MetricService:
                 "ultima_transacao": period_end,
             }
             metrics_list.append(all_time_metrics)
-            logger.info(f"    ✓ All-time metrics: {total_orders} orders, {total_revenue:.2f} revenue, {frequencia_pedidos_mes:.2f} freq/mo")
+            logger.debug(f"    ✓ All-time metrics: {total_orders} orders, {total_revenue:.2f} revenue, {frequencia_pedidos_mes:.2f} freq/mo")
 
         except Exception as e:
             logger.error(f"Failed to calculate all-time order metrics: {e}", exc_info=True)
@@ -870,7 +773,7 @@ class MetricService:
         if has_dates and 'ano_mes' in self.df.columns:
             try:
                 # Group by month
-                for period, df_month in self.df.groupby('ano_mes'):
+                for _period, df_month in self.df.groupby('ano_mes'):
                     if df_month.empty:
                         continue
 
@@ -905,7 +808,7 @@ class MetricService:
                     }
                     metrics_list.append(monthly_metrics)
 
-                logger.info(f"    ✓ Monthly metrics: {len(metrics_list) - 1} months calculated")
+                logger.debug(f"    ✓ Monthly metrics: {len(metrics_list) - 1} months calculated")
 
             except Exception as e:
                 logger.error(f"Failed to calculate monthly order metrics: {e}", exc_info=True)
@@ -934,7 +837,7 @@ class MetricService:
                 break
 
         total = len(unique_regions)
-        logger.info(f"  ✓ Calculated {total} unique regions")
+        logger.debug(f"  ✓ Calculated {total} unique regions")
         return total
 
     def _calculate_growth_percentage(self, current_count: int, previous_count: int) -> float | None:
@@ -992,7 +895,7 @@ class MetricService:
         This eliminates the need to load full Silver dataframe on every module page view.
         """
         try:
-            logger.info(f"📊 Computing and writing chart data to analytics_v2...")
+            logger.debug("📊 Computing and writing chart data to analytics_v2...")
 
             # 1. Time Series Charts
             self._write_time_series_charts()
@@ -1003,7 +906,7 @@ class MetricService:
             # 3. Last Orders
             self._write_last_orders()
 
-            logger.info(f"✅ All chart data written successfully")
+            logger.debug("✅ All chart data written successfully")
 
         except Exception as e:
             logger.error(f"❌ Failed to write chart data: {e}", exc_info=True)
@@ -1040,7 +943,7 @@ class MetricService:
                     for _, row in time_series.iterrows()
                 ]
                 all_time_series_data.extend(chart_data)
-                logger.info(f"  ✓ Computed {len(chart_data)} fornecedores time series points")
+                logger.debug(f"  ✓ Computed {len(chart_data)} fornecedores time series points")
 
             # Clientes no tempo (customers over time)
             if 'receiver_nome' in self.df.columns:
@@ -1063,7 +966,7 @@ class MetricService:
                     for _, row in time_series.iterrows()
                 ]
                 all_time_series_data.extend(chart_data)
-                logger.info(f"  ✓ Computed {len(chart_data)} clientes time series points")
+                logger.debug(f"  ✓ Computed {len(chart_data)} clientes time series points")
 
             # Produtos no tempo (products over time)
             if 'raw_product_description' in self.df.columns:
@@ -1086,7 +989,7 @@ class MetricService:
                     for _, row in time_series.iterrows()
                 ]
                 all_time_series_data.extend(chart_data)
-                logger.info(f"  ✓ Computed {len(chart_data)} produtos time series points")
+                logger.debug(f"  ✓ Computed {len(chart_data)} produtos time series points")
 
             # Pedidos no tempo (orders over time - count of orders, not unique entities)
             if 'order_id' in self.df.columns:
@@ -1110,7 +1013,7 @@ class MetricService:
                     for _, row in time_series.iterrows()
                 ]
                 all_time_series_data.extend(chart_data)
-                logger.info(f"  ✓ Computed {len(chart_data)} pedidos time series points")
+                logger.debug(f"  ✓ Computed {len(chart_data)} pedidos time series points")
 
             # --- NEW: Revenue, Ticket Medio, and Quantidade time series ---
 
@@ -1135,7 +1038,7 @@ class MetricService:
                     for _, row in time_series.iterrows()
                 ]
                 all_time_series_data.extend(chart_data)
-                logger.info(f"  ✓ Computed {len(chart_data)} receita fornecedores time series points")
+                logger.debug(f"  ✓ Computed {len(chart_data)} receita fornecedores time series points")
 
             # Ticket Médio de Fornecedores no tempo
             if 'emitter_nome' in self.df.columns and 'valor_total_emitter' in self.df.columns and 'order_id' in self.df.columns:
@@ -1162,7 +1065,7 @@ class MetricService:
                     for _, row in grouped.iterrows()
                 ]
                 all_time_series_data.extend(chart_data)
-                logger.info(f"  ✓ Computed {len(chart_data)} ticket medio fornecedores time series points")
+                logger.debug(f"  ✓ Computed {len(chart_data)} ticket medio fornecedores time series points")
 
             # Quantidade de Fornecedores no tempo (volume in kg/ton)
             if 'emitter_nome' in self.df.columns and 'quantidade' in self.df.columns:
@@ -1185,7 +1088,7 @@ class MetricService:
                     for _, row in time_series.iterrows()
                 ]
                 all_time_series_data.extend(chart_data)
-                logger.info(f"  ✓ Computed {len(chart_data)} quantidade fornecedores time series points")
+                logger.debug(f"  ✓ Computed {len(chart_data)} quantidade fornecedores time series points")
 
             # Receita de Clientes no tempo (customer revenue over time)
             if 'receiver_nome' in self.df.columns and 'valor_total_emitter' in self.df.columns:
@@ -1208,7 +1111,7 @@ class MetricService:
                     for _, row in time_series.iterrows()
                 ]
                 all_time_series_data.extend(chart_data)
-                logger.info(f"  ✓ Computed {len(chart_data)} receita clientes time series points")
+                logger.debug(f"  ✓ Computed {len(chart_data)} receita clientes time series points")
 
             # Ticket Médio de Clientes no tempo
             if 'receiver_nome' in self.df.columns and 'valor_total_emitter' in self.df.columns and 'order_id' in self.df.columns:
@@ -1234,7 +1137,7 @@ class MetricService:
                     for _, row in grouped.iterrows()
                 ]
                 all_time_series_data.extend(chart_data)
-                logger.info(f"  ✓ Computed {len(chart_data)} ticket medio clientes time series points")
+                logger.debug(f"  ✓ Computed {len(chart_data)} ticket medio clientes time series points")
 
             # Quantidade de Clientes no tempo (volume purchased)
             if 'receiver_nome' in self.df.columns and 'quantidade' in self.df.columns:
@@ -1257,7 +1160,7 @@ class MetricService:
                     for _, row in time_series.iterrows()
                 ]
                 all_time_series_data.extend(chart_data)
-                logger.info(f"  ✓ Computed {len(chart_data)} quantidade clientes time series points")
+                logger.debug(f"  ✓ Computed {len(chart_data)} quantidade clientes time series points")
 
             # Receita de Produtos no tempo (product revenue over time)
             if 'raw_product_description' in self.df.columns and 'valor_total_emitter' in self.df.columns:
@@ -1280,7 +1183,7 @@ class MetricService:
                     for _, row in time_series.iterrows()
                 ]
                 all_time_series_data.extend(chart_data)
-                logger.info(f"  ✓ Computed {len(chart_data)} receita produtos time series points")
+                logger.debug(f"  ✓ Computed {len(chart_data)} receita produtos time series points")
 
             # Quantidade de Produtos no tempo (volume sold)
             if 'raw_product_description' in self.df.columns and 'quantidade' in self.df.columns:
@@ -1303,13 +1206,13 @@ class MetricService:
                     for _, row in time_series.iterrows()
                 ]
                 all_time_series_data.extend(chart_data)
-                logger.info(f"  ✓ Computed {len(chart_data)} quantidade produtos time series points")
+                logger.debug(f"  ✓ Computed {len(chart_data)} quantidade produtos time series points")
 
             # Write all time series data to v2
             if all_time_series_data:
                 try:
                     v2_count = self.repository.write_star_time_series(self.client_id, all_time_series_data)
-                    logger.info(f"  ✓ Written {v2_count} time series points to analytics_v2")
+                    logger.debug(f"  ✓ Written {v2_count} time series points to analytics_v2")
                 except Exception as e:
                     logger.error(f"  ✗ Failed to write v2 time_series: {e}", exc_info=True)
 
@@ -1354,7 +1257,7 @@ class MetricService:
                     if chart_data:
                         try:
                             v2_count = self.repository.write_star_regional(self.client_id, chart_data)
-                            logger.info(f"  ✓ Written {v2_count} regional points to analytics_v2 (fornecedores)")
+                            logger.debug(f"  ✓ Written {v2_count} regional points to analytics_v2 (fornecedores)")
                         except Exception as e:
                             logger.error(f"  ✗ Failed to write v2 regional (fornecedores): {e}", exc_info=True)
 
@@ -1389,7 +1292,7 @@ class MetricService:
                     if chart_data:
                         try:
                             v2_count = self.repository.write_star_regional(self.client_id, chart_data)
-                            logger.info(f"  ✓ Written {v2_count} regional points to analytics_v2 (clientes)")
+                            logger.debug(f"  ✓ Written {v2_count} regional points to analytics_v2 (clientes)")
                         except Exception as e:
                             logger.error(f"  ✗ Failed to write v2 regional (clientes): {e}", exc_info=True)
 
@@ -1417,7 +1320,7 @@ class MetricService:
                 if chart_data:
                     try:
                         v2_count = self.repository.write_star_regional(self.client_id, chart_data)
-                        logger.info(f"  ✓ Written {v2_count} regional points to analytics_v2 (pedidos)")
+                        logger.debug(f"  ✓ Written {v2_count} regional points to analytics_v2 (pedidos)")
                     except Exception as e:
                         logger.error(f"  ✗ Failed to write v2 regional (pedidos): {e}", exc_info=True)
 
@@ -1472,7 +1375,7 @@ class MetricService:
             if chart_data:
                 try:
                     v2_count = self.repository.write_star_last_orders(self.client_id, chart_data)
-                    logger.info(f"  ✓ Written {v2_count} last orders to analytics_v2")
+                    logger.debug(f"  ✓ Written {v2_count} last orders to analytics_v2")
                 except Exception as e:
                     logger.error(f"  ✗ Failed to write v2 last_orders: {e}", exc_info=True)
 
@@ -1532,7 +1435,7 @@ class MetricService:
     # ---
     def get_home_metrics(self) -> HomeMetricsResponse:
         """Returns home metrics as Pydantic model for validation."""
-        logger.info(f"[MetricService] Calculando métricas Nível 1 para {self.client_id}")
+        logger.debug(f"[MetricService] Calculando métricas Nível 1 para {self.client_id}")
 
         # Build scorecards defensively, always returning required keys
         scorecards_data = {
@@ -1591,7 +1494,7 @@ class MetricService:
 
     def get_fornecedores_overview(self) -> FornecedoresOverviewResponse:
         """Returns fornecedores overview as Pydantic model for validation."""
-        logger.info(f"[MetricService] Calculando métricas Nível 2 (Fornecedores) para {self.client_id}")
+        logger.debug(f"[MetricService] Calculando métricas Nível 2 (Fornecedores) para {self.client_id}")
 
         # 1. Usa o Helper pré-calculado
         df_fornecedores_agg = self.df_fornecedores_agg
@@ -1648,7 +1551,7 @@ class MetricService:
         if not self.df.empty and 'ano_mes' in self.df.columns and 'emitter_nome' in self.df.columns:
             crescimento_percentual = self._calculate_time_series_growth('ano_mes', 'emitter_nome')
             if crescimento_percentual is not None:
-                logger.info(f"  ✓ Fornecedores growth: {crescimento_percentual}%")
+                logger.debug(f"  ✓ Fornecedores growth: {crescimento_percentual}%")
 
             # Fallback to original logic if helper returns None
             if crescimento_percentual is None:
@@ -1717,9 +1620,9 @@ class MetricService:
 
     def get_clientes_overview(self) -> ClientesOverviewResponse:
         """Returns clientes overview as Pydantic model for validation."""
-        logger.info(f"[MetricService] Calculando métricas Nível 2 (Clientes) para {self.client_id}")
-        logger.info(f"[DEBUG] self.df shape: {self.df.shape}, columns: {list(self.df.columns)[:10]}...")
-        logger.info(f"[DEBUG] df_clientes_agg shape: {self.df_clientes_agg.shape}, columns: {list(self.df_clientes_agg.columns)}")
+        logger.debug(f"[MetricService] Calculando métricas Nível 2 (Clientes) para {self.client_id}")
+        logger.debug(f"[DEBUG] self.df shape: {self.df.shape}, columns: {list(self.df.columns)[:10]}...")
+        logger.debug(f"[DEBUG] df_clientes_agg shape: {self.df_clientes_agg.shape}, columns: {list(self.df_clientes_agg.columns)}")
 
         # 1. Usa o Helper pré-calculado
         df_clientes_agg = self.df_clientes_agg
@@ -1752,7 +1655,7 @@ class MetricService:
                 state_col = col
                 break
 
-        logger.info(f"[DEBUG] State column search result: state_col={state_col}, receiver_nome in columns: {'receiver_nome' in self.df.columns}")
+        logger.debug(f"[DEBUG] State column search result: state_col={state_col}, receiver_nome in columns: {'receiver_nome' in self.df.columns}")
 
         if state_col and 'receiver_nome' in self.df.columns:
             df_clientes_regiao = self.df.groupby(state_col)['receiver_nome'].nunique().reset_index(name='contagem')
@@ -1760,30 +1663,30 @@ class MetricService:
             df_clientes_regiao['percentual'] = (df_clientes_regiao['contagem'] / total_clientes_regiao) * 100
             # Rename column to 'name' for ChartDataPoint schema
             df_clientes_regiao.rename(columns={state_col: 'name'}, inplace=True)
-            logger.info(f"[DEBUG] chart_clientes_por_regiao generated: {len(df_clientes_regiao)} regions")
-            logger.info(f"[DEBUG] chart_clientes_por_regiao sample: {df_clientes_regiao.head(3).to_dict('records')}")
+            logger.debug(f"[DEBUG] chart_clientes_por_regiao generated: {len(df_clientes_regiao)} regions")
+            logger.debug(f"[DEBUG] chart_clientes_por_regiao sample: {df_clientes_regiao.head(3).to_dict('records')}")
         else:
             logger.warning(f"⚠️  Missing state column for clientes_regiao; skipping. state_col={state_col}, has receiver_nome={'receiver_nome' in self.df.columns}")
 
         # NOVO (Q2): Gráfico de Cohort (Tiers)
-        logger.info(f"[DEBUG] Checking cluster_tier: 'cluster_tier' in df_clientes_agg.columns = {'cluster_tier' in df_clientes_agg.columns}")
+        logger.debug(f"[DEBUG] Checking cluster_tier: 'cluster_tier' in df_clientes_agg.columns = {'cluster_tier' in df_clientes_agg.columns}")
         if 'cluster_tier' in df_clientes_agg.columns:
             df_cohort = df_clientes_agg.groupby('cluster_tier').size().reset_index(name='contagem')
             df_cohort['percentual'] = (df_cohort['contagem'] / df_cohort['contagem'].sum()) * 100
             # CORREÇÃO: Renomeia a coluna para corresponder ao schema ChartDataPoint
             df_cohort.rename(columns={'cluster_tier': 'name'}, inplace=True)
-            logger.info(f"[DEBUG] chart_cohort_clientes generated: {len(df_cohort)} tiers")
-            logger.info(f"[DEBUG] chart_cohort_clientes data: {df_cohort.to_dict('records')}")
+            logger.debug(f"[DEBUG] chart_cohort_clientes generated: {len(df_cohort)} tiers")
+            logger.debug(f"[DEBUG] chart_cohort_clientes data: {df_cohort.to_dict('records')}")
         else:
             df_cohort = pd.DataFrame()
-            logger.warning(f"⚠️  Missing cluster_tier column in df_clientes_agg; cohort chart will be empty")
+            logger.warning("⚠️  Missing cluster_tier column in df_clientes_agg; cohort chart will be empty")
 
         # Calculate growth percentage using helper method
         crescimento_percentual = None
         if not self.df.empty and 'ano_mes' in self.df.columns and 'receiver_nome' in self.df.columns:
             crescimento_percentual = self._calculate_time_series_growth('ano_mes', 'receiver_nome')
             if crescimento_percentual is not None:
-                logger.info(f"  ✓ Clientes growth: {crescimento_percentual}%")
+                logger.debug(f"  ✓ Clientes growth: {crescimento_percentual}%")
 
             # Fallback to original logic if helper returns None
             if crescimento_percentual is None:
@@ -1843,11 +1746,8 @@ class MetricService:
             ranking_por_cluster_vizu=ranking_por_cluster_vizu,
         )
 
-        logger.info(f"[DEBUG] Response chart lengths - regiao: {len(chart_clientes_por_regiao)}, cohort: {len(chart_cohort_clientes)}")
-        logger.info(f"[DEBUG] Response ranking lengths - receita: {len(ranking_por_receita)}, ticket: {len(ranking_por_ticket_medio)}")
-
     def get_produtos_overview(self) -> ProdutosOverviewResponse:
-        logger.info(f"[MetricService] Calculando métricas Nível 2 (Produtos) para {self.client_id}")
+        logger.debug(f"[MetricService] Calculando métricas Nível 2 (Produtos) para {self.client_id}")
 
         # 1. Usa o Helper pré-calculado
         df_produtos_agg = self.df_produtos_agg
@@ -1873,7 +1773,11 @@ class MetricService:
             logger.debug("Failed to prefer mv_product_summary for produtos; using computed aggregation")
 
         # Convert to specific product ranking schemas (simpler than RankingItem)
-        from analytics_api.schemas.metrics import ProdutoRankingReceita, ProdutoRankingVolume, ProdutoRankingTicket
+        from analytics_api.schemas.metrics import (
+            ProdutoRankingReceita,
+            ProdutoRankingTicket,
+            ProdutoRankingVolume,
+        )
 
         ranking_por_receita = [
             ProdutoRankingReceita(
@@ -1911,7 +1815,7 @@ class MetricService:
 
     def get_pedidos_overview(self) -> PedidosOverviewResponse:
         # ... (sem mudanças significativas, código da v1) ...
-        logger.info(f"[MetricService] Calculando métricas Nível 2 (Pedidos) para {self.client_id}")
+        logger.debug(f"[MetricService] Calculando métricas Nível 2 (Pedidos) para {self.client_id}")
         df_pedidos_agg = self.df.groupby('order_id').agg(
             data_transacao=('data_transacao', 'first'),
             id_cliente=('receiver_nome', 'first'),
@@ -1946,7 +1850,7 @@ class MetricService:
     # ---
 
     def get_fornecedor_details(self, nome_fornecedor: str) -> FornecedorDetailResponse:
-        logger.info(f"[MetricService] Loading fornecedor details from star schema for: {nome_fornecedor}")
+        logger.debug(f"[MetricService] Loading fornecedor details from star schema for: {nome_fornecedor}")
 
         # Get supplier metadata from dim_supplier
         supplier = self.repository.get_supplier_detail(self.client_id, nome_fornecedor)
@@ -2095,7 +1999,7 @@ class MetricService:
 
 
     def get_cliente_details(self, nome_cliente: str) -> ClienteDetailResponse:
-        logger.info(f"[MetricService] Loading cliente details from star schema for: {nome_cliente}")
+        logger.debug(f"[MetricService] Loading cliente details from star schema for: {nome_cliente}")
 
         # Use the repository to read from analytics_v2.dim_customer
         customer = self.repository.get_customer_detail(self.client_id, nome_cliente)
@@ -2167,7 +2071,7 @@ class MetricService:
         )
 
     def get_produto_details(self, nome_produto: str) -> ProdutoDetailResponse:
-        logger.info(f"[MetricService] Loading produto details from star schema for: {nome_produto}")
+        logger.debug(f"[MetricService] Loading produto details from star schema for: {nome_produto}")
 
         # Get product metadata
         product = self.repository.get_product_detail(self.client_id, nome_produto)
@@ -2289,7 +2193,7 @@ class MetricService:
 
     def get_pedido_details(self, order_id: str) -> PedidoDetailResponse:
         # ... (sem mudanças significativas, código da v1) ...
-        logger.info(f"[MetricService] Calculando métricas Nível 3 para Pedido: {order_id}")
+        logger.debug(f"[MetricService] Calculando métricas Nível 3 para Pedido: {order_id}")
         df_filtrado = self.df[self.df['order_id'] == order_id].copy()
         if df_filtrado.empty:
             raise ValueError(f"Pedido (order_id) não encontrado: {order_id}")

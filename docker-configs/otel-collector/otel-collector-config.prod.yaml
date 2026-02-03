@@ -26,7 +26,7 @@ processors:
   resource:
     attributes:
       - key: deployment.environment
-        value: ${ENVIRONMENT:-production}
+        value: ${env:ENVIRONMENT}
         action: upsert
       - key: service.namespace
         value: vizu
@@ -41,9 +41,9 @@ processors:
 exporters:
   # Grafana Cloud OTLP Exporter
   otlphttp:
-    endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
     headers:
-      Authorization: ${OTEL_EXPORTER_OTLP_HEADERS}
+      Authorization: ${env:OTEL_EXPORTER_OTLP_HEADERS}
     compression: gzip
     retry_on_failure:
       enabled: true

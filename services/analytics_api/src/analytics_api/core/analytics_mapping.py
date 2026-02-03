@@ -1,6 +1,7 @@
 # src/analytics_api/core/analytics_mapping.py
 import logging
 import os
+
 from sqlalchemy import create_engine, text
 
 logger = logging.getLogger(__name__)

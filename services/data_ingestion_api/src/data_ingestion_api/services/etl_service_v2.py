@@ -19,25 +19,25 @@ from typing import Any, List
 
 from data_ingestion_api.services import supabase_client
 from data_ingestion_api.services.bigquery_wrapper_service import (
-    bigquery_wrapper_service,
     _sanitize_identifier,
+    bigquery_wrapper_service,
 )
 from data_ingestion_api.services.schema_matcher_service import schema_matcher
-from data_ingestion_api.services.schema_registry_service import schema_registry, MappingStatus
+from data_ingestion_api.services.schema_registry_service import MappingStatus, schema_registry
 
 logger = logging.getLogger(__name__)
 
 
 # Minimal BigQuery REST schema fetcher using service account JSON
-def _fetch_bigquery_schema(service_account_json: dict[str, Any], project_id: str, dataset_id: str, table_name: str) -> List[dict[str, str]]:
+def _fetch_bigquery_schema(service_account_json: dict[str, Any], project_id: str, dataset_id: str, table_name: str) -> list[dict[str, str]]:
     """Fetch BigQuery table schema via REST API (no heavy SDK).
 
     Returns a list of {name, type} mappings using simple Postgres-friendly types.
     """
     try:
-        from google.oauth2 import service_account  # lightweight dependency
-        from google.auth.transport.requests import Request
         import requests
+        from google.auth.transport.requests import Request
+        from google.oauth2 import service_account  # lightweight dependency
 
         creds = service_account.Credentials.from_service_account_info(service_account_json, scopes=["https://www.googleapis.com/auth/bigquery"])
         creds.refresh(Request())
@@ -168,13 +168,25 @@ class ETLServiceV2:
             if not credential:
                 raise ValueError(f"Credential not found: {credential_id}")
 
-            # Parse credentials
-            import json
-            creds_json = credential.get("credenciais_cifradas")
-            if not creds_json:
-                raise ValueError(f"No credentials found for credential_id={credential_id}")
-
-            creds = json.loads(creds_json) if isinstance(creds_json, str) else creds_json
+            # Retrieve credentials (vault or legacy plaintext)
+            vault_key_id = credential.get("vault_key_id")
+            if vault_key_id:
+                # New: Retrieve from Supabase Vault (encrypted)
+                logger.info(f"Retrieving credentials from vault: vault_key_id={vault_key_id}")
+                creds = await supabase_client.rpc(
+                    "get_credential_from_vault",
+                    {"p_vault_key_id": vault_key_id}
+                )
+                if not creds:
+                    raise ValueError(f"Failed to retrieve credentials from vault: {vault_key_id}")
+            else:
+                # Legacy: Parse plaintext JSON from credenciais_cifradas
+                import json
+                creds_json = credential.get("credenciais_cifradas")
+                if not creds_json:
+                    raise ValueError(f"No credentials found for credential_id={credential_id}")
+                creds = json.loads(creds_json) if isinstance(creds_json, str) else creds_json
+                logger.warning(f"Using legacy plaintext credentials for credential_id={credential_id} - consider migrating to vault")
 
             project_id = creds.get("project_id")
             dataset_id = creds.get("dataset_id")
@@ -360,16 +372,16 @@ class ETLServiceV2:
                 # LOUD SUCCESS/WARNING based on match quality
                 if len(match_result.unmatched) > 0:
                     logger.warning(f"\n{'!'*80}")
-                    logger.warning(f"⚠️  WARNING: Schema matching incomplete!")
+                    logger.warning("⚠️  WARNING: Schema matching incomplete!")
                     logger.warning(f"  ✓ Mapped: {len(mapping_dict)} columns")
                     logger.warning(f"  ⚠ Needs review: {len(needs_review)} columns")
                     logger.warning(f"  ✗ UNMATCHED: {len(match_result.unmatched)} columns")
-                    logger.warning(f"\n  📍 Mapped source columns (these WILL be available):")
+                    logger.warning("\n  📍 Mapped source columns (these WILL be available):")
                     for source_col, canonical_col in list(mapping_dict.items())[:20]:
                         logger.warning(f"    '{source_col}' → '{canonical_col}'")
                     if len(mapping_dict) > 20:
                         logger.warning(f"    ... and {len(mapping_dict) - 20} more")
-                    logger.warning(f"\n  Unmatched columns (will NOT be available in analytics):")
+                    logger.warning("\n  Unmatched columns (will NOT be available in analytics):")
                     for col in match_result.unmatched[:20]:
                         logger.warning(f"    - {col}")
                     if len(match_result.unmatched) > 20:
@@ -377,7 +389,7 @@ class ETLServiceV2:
                     logger.warning(f"{'!'*80}\n")
                 else:
                     logger.info(f"\n{'='*80}")
-                    logger.info(f"✅ Schema mapping SUCCESS!")
+                    logger.info("✅ Schema mapping SUCCESS!")
                     logger.info(f"  ✓ All {len(mapping_dict)} columns mapped successfully")
                     if needs_review:
                         logger.info(f"  ⚠ {len(needs_review)} columns flagged for review (lower confidence)")
@@ -385,7 +397,7 @@ class ETLServiceV2:
 
                 # MAPPING QUALITY ASSESSMENT
                 logger.info(f"\n{'='*80}")
-                logger.info(f"[MAPPING QUALITY ASSESSMENT]")
+                logger.info("[MAPPING QUALITY ASSESSMENT]")
 
                 # 1. Schema Coverage: What % of canonical schema was filled?
                 canonical_cols = schema_matcher.get_canonical_schema(schema_type_for_match)
@@ -417,16 +429,16 @@ class ETLServiceV2:
 
                 if missing_critical:
                     logger.error(f"\n{'#'*80}")
-                    logger.error(f"❌ CRITICAL ERROR: Key columns missing from mapping!")
+                    logger.error("❌ CRITICAL ERROR: Key columns missing from mapping!")
                     logger.error(f"  Missing canonical columns: {missing_critical}")
-                    logger.error(f"  These columns are REQUIRED for analytics but were not matched.")
-                    logger.error(f"  Impact:")
+                    logger.error("  These columns are REQUIRED for analytics but were not matched.")
+                    logger.error("  Impact:")
                     for col in missing_critical:
                         if col == "order_id":
-                            logger.error(f"    - order_id: Aggregations will use synthetic IDs (may affect accuracy)")
+                            logger.error("    - order_id: Aggregations will use synthetic IDs (may affect accuracy)")
                         elif col in ["emitter_nome", "receiver_nome"]:
                             logger.error(f"    - {col}: Customer/supplier analytics will be empty")
-                    logger.error(f"  Check if source columns exist in BigQuery or if aliases need updating.")
+                    logger.error("  Check if source columns exist in BigQuery or if aliases need updating.")
                     logger.error(f"{'#'*80}\n")
 
                 # Persist mapping in registry (best-effort, non-blocking)
@@ -448,17 +460,17 @@ class ETLServiceV2:
                     )
                     logger.info("✓ Schema mapping persisted to data_source_mappings table")
                 except Exception as registry_error:
-                    logger.warning(f"\n⚠️  WARNING: Failed to persist mapping to data_source_mappings table")
+                    logger.warning("\n⚠️  WARNING: Failed to persist mapping to data_source_mappings table")
                     logger.warning(f"  Error: {registry_error}")
-                    logger.warning(f"  Impact: Mapping will still be stored in client_data_sources.column_mapping")
-                    logger.warning(f"  This is non-fatal - ETL will continue.\n")
+                    logger.warning("  Impact: Mapping will still be stored in client_data_sources.column_mapping")
+                    logger.warning("  This is non-fatal - ETL will continue.\n")
 
             except Exception as e:
                 logger.error(f"\n{'#'*80}")
-                logger.error(f"❌ CRITICAL ERROR: Schema matching failed completely!")
+                logger.error("❌ CRITICAL ERROR: Schema matching failed completely!")
                 logger.error(f"  Error: {e}")
-                logger.error(f"  Impact: No column mapping will be available - analytics will likely FAIL")
-                logger.error(f"  Fallback: Using empty mapping (analytics will use column names as-is)")
+                logger.error("  Impact: No column mapping will be available - analytics will likely FAIL")
+                logger.error("  Fallback: Using empty mapping (analytics will use column names as-is)")
                 logger.error(f"{'#'*80}\n", exc_info=True)
                 mapping_dict = {}  # Empty mapping as last resort
 
@@ -537,20 +549,20 @@ class ETLServiceV2:
 
             # CRITICAL: Log what we're about to persist
             logger.info(f"\n{'='*80}")
-            logger.info(f"[PERSISTENCE] Saving data source to client_data_sources")
+            logger.info("[PERSISTENCE] Saving data source to client_data_sources")
             logger.info(f"  client_id: {client_id}")
             logger.info(f"  credential_id: {credential_id}")
             logger.info(f"  resource_type: {resource_type}")
             logger.info(f"  storage_location: {foreign_table_name}")
             logger.info(f"  column_mapping entries: {len(column_mapping_for_ds) if column_mapping_for_ds else 0}")
             if column_mapping_for_ds:
-                logger.info(f"  Sample mappings (first 10):")
+                logger.info("  Sample mappings (first 10):")
                 for source, canonical in list(column_mapping_for_ds.items())[:10]:
                     logger.info(f"    '{source}' → '{canonical}'")
                 if len(column_mapping_for_ds) > 10:
                     logger.info(f"    ... and {len(column_mapping_for_ds) - 10} more")
             else:
-                logger.error(f"  ⚠️  WARNING: column_mapping is EMPTY! Analytics will likely fail.")
+                logger.error("  ⚠️  WARNING: column_mapping is EMPTY! Analytics will likely fail.")
             logger.info(f"{'='*80}\n")
 
             # Use upsert to handle re-syncs (updates existing record if client_id+source_type+resource_type exists)
@@ -574,10 +586,10 @@ class ETLServiceV2:
                 logger.info("✅ Successfully persisted data source to client_data_sources")
             except Exception as persist_error:
                 logger.error(f"\n{'#'*80}")
-                logger.error(f"❌ CRITICAL ERROR: Failed to persist to client_data_sources!")
+                logger.error("❌ CRITICAL ERROR: Failed to persist to client_data_sources!")
                 logger.error(f"  Error: {persist_error}")
-                logger.error(f"  Impact: Analytics API will NOT be able to find this data source")
-                logger.error(f"  This is a FATAL error - ETL cannot continue")
+                logger.error("  Impact: Analytics API will NOT be able to find this data source")
+                logger.error("  This is a FATAL error - ETL cannot continue")
                 logger.error(f"{'#'*80}\n", exc_info=True)
                 raise  # Re-raise to fail the ETL job
 
@@ -619,7 +631,7 @@ class ETLServiceV2:
                 "foreign_table": foreign_table_name,
                 "columns": [col["name"] for col in foreign_table_columns],
                 "sync_id": sync_id,
-                "message": f"Foreign table created and gold tables populated. Data ready!",
+                "message": "Foreign table created and gold tables populated. Data ready!",
             }
 
         except Exception as e:
@@ -674,6 +686,7 @@ class ETLServiceV2:
         persisted to the silver layer. Analytics can be triggered manually later.
         """
         import os
+
         import httpx
 
         analytics_api_url = os.getenv("ANALYTICS_API_URL", "http://analytics_api:8000")
@@ -703,13 +716,13 @@ class ETLServiceV2:
                     )
         except httpx.ConnectError as e:
             logger.warning(f"⚠️  Cannot reach Analytics API: {e}")
-            logger.info(f"   Data is safely persisted to silver layer. Analytics can be triggered manually.")
+            logger.info("   Data is safely persisted to silver layer. Analytics can be triggered manually.")
         except httpx.TimeoutException:
             logger.warning(f"⏱️  Analytics recompute timed out for {client_id}")
-            logger.info(f"   Data is safely persisted to silver layer. Analytics can be triggered manually.")
+            logger.info("   Data is safely persisted to silver layer. Analytics can be triggered manually.")
         except Exception as e:
             logger.warning(f"⚠️  Failed to trigger analytics: {type(e).__name__}: {str(e)[:200]}")
-            logger.info(f"   Data is safely persisted to silver layer. Analytics can be triggered manually.")
+            logger.info("   Data is safely persisted to silver layer. Analytics can be triggered manually.")
 
 
 # Singleton instance

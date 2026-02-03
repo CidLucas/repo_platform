@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.14.11
       - name: Run ruff check
         run: |
           # Uses config from root pyproject.toml (excludes langfuse, ferramentas)
@@ -112,19 +112,11 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          # Agents pool
           - atendente_core
           - tool_pool_api
-          - vendas_agent
-          - support_agent
-          # Workers pool
-          - data_ingestion_worker
-          - file_processing_worker
-          - file_upload_api
           - data_ingestion_api
           - analytics_api
         include:
-          # Frontend dashboard (built from apps/)
           - service: dashboard
             dockerfile_path: apps/vizu_dashboard/Dockerfile
 
@@ -167,7 +159,7 @@ jobs:
         env:
           DOCKERFILE_PATH: ${{ matrix.dockerfile_path || format('services/{0}/Dockerfile', matrix.service) }}
         run: |
-          echo "Building multi-arch image for ${{ matrix.service }}"
+          echo "Building image for ${{ matrix.service }}"
 
           # Build arguments for dashboard (Vite environment variables)
           BUILD_ARGS=""
@@ -176,9 +168,9 @@ jobs:
               --build-arg VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }} \
               --build-arg VITE_GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
               --build-arg VITE_API_URL=${{ secrets.VITE_API_URL }} \
-              --build-arg VITE_ATENDENTE_CORE=https://atendente-core-qrfhgfkvja-rj.a.run.app \
-              --build-arg VITE_API_URL_ANALYTICS=https://analytics-api-qrfhgfkvja-rj.a.run.app \
-              --build-arg VITE_DATA_INGESTION_API_URL=https://data-ingestion-api-qrfhgfkvja-rj.a.run.app"
+              --build-arg VITE_ATENDENTE_CORE=${{ secrets.VITE_ATENDENTE_CORE }} \
+              --build-arg VITE_API_URL_ANALYTICS=${{ secrets.VITE_API_URL_ANALYTICS }} \
+              --build-arg VITE_DATA_INGESTION_API_URL=${{ secrets.VITE_DATA_INGESTION_API_URL }}"
           fi
 
           # Build and push for linux/amd64 (Cloud Run requirement)
@@ -194,42 +186,3 @@ jobs:
           echo "## 🐳 Published: ${{ matrix.service }}" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ steps.tags.outputs.image_versioned }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- \`${{ steps.tags.outputs.image_latest }}\`" >> $GITHUB_STEP_SUMMARY
-
-      - name: Check image size
-        run: |
-          # Pull image to inspect size
-          docker pull ${{ steps.tags.outputs.image_latest }}
-          SIZE=$(docker image inspect ${{ steps.tags.outputs.image_latest }} --format='{{.Size}}')
-          SIZE_MB=$((SIZE / 1024 / 1024))
-          echo "Image size: ${SIZE_MB}MB"
-
-          # Warning if image is larger than 500MB
-          if [ $SIZE_MB -gt 500 ]; then
-            echo "⚠️ Image large: ${SIZE_MB}MB > 500MB" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "✅ Image size OK: ${SIZE_MB}MB" >> $GITHUB_STEP_SUMMARY
-          fi
-
-  # =========================================================================
-  # Stage 4: Trigger deployment on success
-  # =========================================================================
-  trigger-deploy:
-    name: Trigger Deployment
-    runs-on: ubuntu-latest
-    needs: [docker-build-and-push]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - name: Trigger deploy-cloud-run workflow
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'deploy-cloud-run.yml',
-              ref: 'main',
-              inputs: {
-                service: 'all'
-              }
-            });
-            console.log('✅ Triggered deployment workflow');

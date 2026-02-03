@@ -72,11 +72,14 @@ def create_rag_runnable(
     if "executar_rag_cliente" not in enabled:
         return None
 
-    # Usa o collection_rag definido no contexto do cliente para garantir isolamento
-    # Se não estiver definido, usa um fallback baseado no ID do cliente
-    collection_name = contexto.collection_rag or str(contexto.id)
-    logger.info(
-        f"Criando RAG runnable para cliente {contexto.id} com coleção: {collection_name}..."
+    # Get collection name from available_tools config, fallback to client ID
+    collection_name = None
+    if contexto.available_tools:
+        collection_name = contexto.available_tools.get("rag_collection")
+    collection_name = collection_name or str(contexto.id)
+
+    logger.debug(
+        f"Creating RAG runnable for client {contexto.id}, collection: {collection_name}"
     )
 
     try:
@@ -110,12 +113,19 @@ def create_rag_runnable(
         def retrieve_and_format(input_dict):
             """Busca documentos e formata o contexto."""
             question = input_dict.get("question", "")
-            logger.info(f"RAG: Buscando documentos para query: '{question[:100]}...'")
+            logger.debug(f"RAG search: '{question[:100]}...'")
 
             try:
                 docs = retriever.invoke(question)
-                logger.info(f"RAG: Recuperados {len(docs)} documentos")
-                return _format_docs(docs)
+                logger.debug(f"RAG retrieved {len(docs)} documents")
+                formatted_context = _format_docs(docs)
+
+                # FULL CONTEXT DEBUG - Enable with LOG_LEVEL=DEBUG to inspect retrieved RAG context
+                logger.debug(f"=== RAG RETRIEVED CONTEXT ({len(docs)} docs) ===")
+                logger.debug(formatted_context)
+                logger.debug("=== END RAG CONTEXT ===")
+
+                return formatted_context
             except Exception as e:
                 logger.error(f"RAG: Erro na busca: {e}")
                 return "Erro ao buscar informações."
@@ -128,7 +138,7 @@ def create_rag_runnable(
             | StrOutputParser()
         )
 
-        logger.info(f"Runnable RAG criado com sucesso para {contexto.id}.")
+        logger.debug(f"RAG runnable created for {contexto.id}")
         return rag_chain
 
     except Exception as e:

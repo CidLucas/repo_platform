@@ -18,18 +18,18 @@ class TestSQLToolInput:
         """Test basic input creation."""
         input_data = SQLToolInput(
             question="How many customers are there?",
-                client_id="tenant123",
+            client_id="tenant123",
             role="analyst",
         )
         assert input_data.question == "How many customers are there?"
-            assert input_data.client_id == "tenant123"
+        assert input_data.client_id == "tenant123"
         assert input_data.role == "analyst"
 
     def test_input_with_constraints(self):
         """Test input with optional constraints."""
         input_data = SQLToolInput(
             question="Top products this month",
-                client_id="tenant123",
+            client_id="tenant123",
             role="analyst",
             optional_constraints={"date_range": "last_30_days", "max_rows": 50},
         )
@@ -40,7 +40,7 @@ class TestSQLToolInput:
         """Test validation of valid input."""
         input_data = SQLToolInput(
             question="Test question",
-                client_id="tenant123",
+            client_id="tenant123",
             role="analyst",
         )
         assert input_data.validate() is True
@@ -49,7 +49,7 @@ class TestSQLToolInput:
         """Test validation fails with missing question."""
         input_data = SQLToolInput(
             question="",
-                client_id="tenant123",
+            client_id="tenant123",
             role="analyst",
         )
         assert input_data.validate() is False
@@ -67,7 +67,7 @@ class TestSQLToolInput:
         """Test validation fails with missing role."""
         input_data = SQLToolInput(
             question="Test question",
-                client_id="tenant123",
+            client_id="tenant123",
             role="",
         )
         assert input_data.validate() is False
@@ -137,13 +137,13 @@ class TestQueryDatabaseTextToSQL:
         assert "inputSchema" in definition
         assert "outputSchema" in definition
         assert definition["inputSchema"]["properties"]["question"]
-            assert definition["inputSchema"]["required"] == ["question", "client_id", "role"]
+        assert definition["inputSchema"]["required"] == ["question", "client_id", "role"]
 
     def test_tool_input_schema_validation(self):
         """Test input schema has correct properties."""
         schema = QueryDatabaseTextToSQL.INPUT_SCHEMA
         assert "question" in schema["properties"]
-            assert "client_id" in schema["properties"]
+        assert "client_id" in schema["properties"]
         assert "role" in schema["properties"]
         assert schema["properties"]["role"]["enum"] == ["viewer", "analyst", "admin"]
 
@@ -162,7 +162,7 @@ class TestQueryDatabaseTextToSQL:
         """Test invoking tool with valid input."""
         input_data = SQLToolInput(
             question="How many customers?",
-                client_id="tenant123",
+            client_id="tenant123",
             role="analyst",
         )
         tool = QueryDatabaseTextToSQL()
@@ -178,7 +178,7 @@ class TestQueryDatabaseTextToSQL:
         """Test invoking tool with invalid input."""
         input_data = SQLToolInput(
             question="",  # Invalid: empty question
-                client_id="tenant123",
+            client_id="tenant123",
             role="analyst",
         )
         tool = QueryDatabaseTextToSQL()
@@ -211,7 +211,7 @@ class TestQueryDatabaseTextToSQL:
         """Test creating mock output."""
         mock_output = QueryDatabaseTextToSQL.create_mock_output(
             question="Test",
-                client_id="tenant123",
+            client_id="tenant123",
             success=True,
             rows=[{"value": 42}],
         )
@@ -223,7 +223,7 @@ class TestQueryDatabaseTextToSQL:
         """Test creating mock failure output."""
         mock_output = QueryDatabaseTextToSQL.create_mock_output(
             question="Test",
-                client_id="tenant123",
+            client_id="tenant123",
             success=False,
         )
         assert mock_output.success is False
@@ -239,7 +239,7 @@ class TestQueryDatabaseTextToSQL:
         tool = QueryDatabaseTextToSQL()
         input_data = SQLToolInput(
             question="Test",
-                client_id="tenant123",
+            client_id="tenant123",
             role="analyst",
         )
         output = tool.invoke(input_data)

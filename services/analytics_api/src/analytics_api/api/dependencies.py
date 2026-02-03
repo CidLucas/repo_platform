@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Generator
 from typing import Optional
 
 from analytics_api.data_access.postgres_repository import PostgresRepository
@@ -6,6 +7,7 @@ from analytics_api.services.indicator_service import IndicatorService
 from analytics_api.services.metric_service import MetricService
 from fastapi import Depends, HTTPException, Query, Request, status
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from vizu_auth.dependencies.jwt_only import get_jwt_claims
@@ -15,19 +17,70 @@ logger = logging.getLogger(__name__)
 
 # --- Camada de Conexão (DB) ---
 
-def get_postgres_repository() -> PostgresRepository:
+def get_postgres_repository() -> Generator[PostgresRepository, None, None]:
     """
-    Create PostgresRepository instance.
-    Now uses Supabase SDK for all operations (not direct SQLAlchemy).
+    Create PostgresRepository instance with proper lifecycle management.
+
+    Uses generator pattern to ensure session is ALWAYS closed after request,
+    releasing the connection back to the pool.
+
+    CRITICAL: This prevents QueuePool exhaustion errors.
     """
-    logger.debug("Creating PostgresRepository instance (Supabase SDK).")
-    return PostgresRepository()
+    logger.debug("Creating PostgresRepository instance")
+    repo = PostgresRepository()
+    try:
+        yield repo
+    finally:
+        repo.close()
+        logger.debug("PostgresRepository session closed, connection returned to pool")
 
 # --- Camada de Autenticação (Real - No More Mocks!) ---
 
+def _resolve_client_id_from_db(db_session: Session, external_user_id: str, email: str | None) -> str | None:
+    """
+    Resolve external_user_id to client_id with retry on connection errors.
+
+    Handles transient SSL connection drops from Supabase PgBouncer.
+    """
+    max_retries = 2
+    for attempt in range(max_retries + 1):
+        try:
+            result = db_session.execute(
+                text("SELECT client_id FROM clientes_vizu WHERE external_user_id = :external_user_id"),
+                {"external_user_id": external_user_id}
+            ).fetchone()
+
+            if result:
+                return str(result[0])
+
+            # User exists in Supabase but not in clientes_vizu - create record
+            logger.warning(f"No clientes_vizu record for external_user_id={external_user_id}, creating one")
+            new_result = db_session.execute(
+                text("""
+                    INSERT INTO clientes_vizu (external_user_id, nome_empresa, tipo_cliente, tier, created_at, updated_at)
+                    VALUES (:external_user_id, :nome_empresa, 'standard', 'free', NOW(), NOW())
+                    ON CONFLICT (external_user_id) DO UPDATE SET updated_at = NOW()
+                    RETURNING client_id
+                """),
+                {"external_user_id": external_user_id, "nome_empresa": email or "Empresa"}
+            ).fetchone()
+            db_session.commit()
+            return str(new_result[0])
+
+        except OperationalError as e:
+            # SSL connection dropped - this is recoverable
+            if attempt < max_retries:
+                logger.warning(f"DB connection error (attempt {attempt + 1}/{max_retries + 1}), retrying: {e}")
+                db_session.rollback()
+                continue
+            raise
+
+    return None
+
+
 async def get_client_id(
     request: Request,
-    client_id_param: Optional[str] = Query(None, alias="client_id"),
+    client_id_param: str | None = Query(None, alias="client_id"),
     db_session: Session = Depends(get_vizu_db_session),
 ) -> str:
     """
@@ -56,7 +109,6 @@ async def get_client_id(
         try:
             # Extract and validate JWT
             from vizu_auth.core.jwt_decoder import decode_jwt
-            from sqlalchemy import text
 
             token = auth_header.replace("Bearer ", "")
             claims = decode_jwt(token)
@@ -64,33 +116,17 @@ async def get_client_id(
                 external_user_id = claims.sub
                 logger.debug(f"JWT sub (external_user_id): {external_user_id}")
 
-                # Resolve external_user_id to clientes_vizu.client_id
-                result = db_session.execute(
-                    text("SELECT client_id FROM clientes_vizu WHERE external_user_id = :external_user_id"),
-                    {"external_user_id": external_user_id}
-                ).fetchone()
+                # Resolve external_user_id to clientes_vizu.client_id (with retry)
+                actual_client_id = _resolve_client_id_from_db(
+                    db_session,
+                    external_user_id,
+                    claims.email
+                )
 
-                if result:
-                    actual_client_id = str(result[0])
+                if actual_client_id:
                     logger.info(f"Resolved external_user_id={external_user_id} to client_id={actual_client_id}")
                     return actual_client_id
-                else:
-                    # User exists in Supabase but not in clientes_vizu
-                    # Create a record for them
-                    logger.warning(f"No clientes_vizu record for external_user_id={external_user_id}, creating one")
-                    new_result = db_session.execute(
-                        text("""
-                            INSERT INTO clientes_vizu (external_user_id, nome_empresa, tipo_cliente, tier, created_at, updated_at)
-                            VALUES (:external_user_id, :nome_empresa, 'standard', 'free', NOW(), NOW())
-                            ON CONFLICT (external_user_id) DO UPDATE SET updated_at = NOW()
-                            RETURNING client_id
-                        """),
-                        {"external_user_id": external_user_id, "nome_empresa": claims.email or "Empresa"}
-                    ).fetchone()
-                    db_session.commit()
-                    actual_client_id = str(new_result[0])
-                    logger.info(f"Created clientes_vizu record: external_user_id={external_user_id} -> client_id={actual_client_id}")
-                    return actual_client_id
+
         except Exception as e:
             logger.warning(f"Failed to decode JWT or resolve client_id: {e}")
 

@@ -10,8 +10,12 @@ x-common-env: &common-env
   # Only kept for backward compatibility with tests
   DATABASE_URL: ${DATABASE_URL:-}
   DB_MODE: ${DB_MODE:-supabase}
-  # Configs de serviços
+  # OpenTelemetry - traces go to collector which forwards to Langfuse
+  # Metrics disabled (Langfuse only needs traces for LLM observability)
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
+  OTEL_TRACES_EXPORTER: ${OTEL_TRACES_EXPORTER:-otlp}
+  OTEL_METRICS_EXPORTER: ${OTEL_METRICS_EXPORTER:-none}
+  OTEL_LOGS_EXPORTER: ${OTEL_LOGS_EXPORTER:-none}
   EMBEDDING_SERVICE_URL: http://embedding_service:11435
   QDRANT_URL: http://qdrant_db:6333
   # Internal API base (atendente_core is the main entry point)
@@ -29,8 +33,7 @@ x-atendente-env: &atendente-env
   OLLAMA_CLOUD_BASE_URL: ${OLLAMA_CLOUD_BASE_URL:-https://ollama.com}
   OLLAMA_CLOUD_DEFAULT_MODEL: ${OLLAMA_CLOUD_DEFAULT_MODEL:-gpt-oss:20b}
   # Langfuse Observability - default to local Langfuse instance
-  # To use cloud: set LANGFUSE_HOST=https://us.cloud.langfuse.com in .env
-  LANGFUSE_HOST: ${LANGFUSE_HOST:-http://host.docker.internal:3000}
+  LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse:3000}
   LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
   LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
 
@@ -180,19 +183,183 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.91.0
     container_name: otel-collector
+    profiles: ["observability"]  # Only start with Langfuse stack
     command: ["--config=/etc/otel-collector-config.yaml"]
-    # Use the production-style collector config which forwards to Grafana Cloud
+    # Dev: Langfuse config | Prod: use docker-compose.prod.yml override
     volumes:
-      - ./docker-configs/otel-collector/otel-collector-config.prod.yaml:/etc/otel-collector-config.yaml
+      - ./docker-configs/otel-collector/otel-collector-config.yaml:/etc/otel-collector-config.yaml
     environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LANGFUSE_OTEL_AUTH: ${LANGFUSE_OTEL_AUTH:-}
+      # Grafana Cloud (used in prod override)
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+    depends_on:
+      langfuse:
+        condition: service_healthy
     ports:
       - "4317:4317" # OTLP gRPC receiver
       - "4318:4318" # OTLP HTTP receiver
       - "8888:8888" # Prometheus metrics exposed by the collector
       - "8889:8889" # Prometheus exporter metrics
       - "13133:13133" # health_check extension
+
+  # =========================================
+  # LANGFUSE v3 (LLM Observability with ClickHouse)
+  # Self-hosted for dev prompt testing & tracing
+  # =========================================
+
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: langfuse_clickhouse
+    profiles: ["observability"]
+    environment:
+      CLICKHOUSE_DB: langfuse
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: langfuse_ch_secret
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+    ports:
+      - "8123:8123"  # HTTP interface
+      - "9000:9000"  # Native protocol
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  langfuse-redis:
+    image: redis:7-alpine
+    container_name: langfuse_redis
+    profiles: ["observability"]
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - langfuse_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  langfuse-minio:
+    image: minio/minio:latest
+    container_name: langfuse_minio
+    profiles: ["observability"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: langfuse
+      MINIO_ROOT_PASSWORD: langfuse_minio_secret
+    volumes:
+      - langfuse_minio_data:/data
+    ports:
+      - "9002:9000"   # S3 API
+      - "9001:9001"   # Console
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  langfuse-db:
+    image: postgres:15-alpine
+    container_name: langfuse_postgres
+    profiles: ["observability"]
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: langfuse
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  langfuse:
+    image: langfuse/langfuse:3
+    container_name: langfuse
+    profiles: ["observability"]
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    environment:
+      # PostgreSQL
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
+
+      # ClickHouse
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse:langfuse_ch_secret@langfuse-clickhouse:9000/langfuse
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: langfuse_ch_secret
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+
+      # Redis
+      REDIS_CONNECTION_STRING: redis://langfuse-redis:6379
+
+      # S3/MinIO for blob storage
+      LANGFUSE_S3_EVENT_UPLOAD_ENABLED: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse-events
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: langfuse_minio_secret
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+
+      # Auth
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-mysecretkey-change-in-production}
+      SALT: ${LANGFUSE_SALT:-mysalt-change-in-production}
+
+      # Logging - enable debug for OTEL troubleshooting
+      LANGFUSE_LOG_LEVEL: debug
+
+      # Features
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://$(hostname -i):3000/api/public/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    container_name: langfuse_worker
+    profiles: ["observability"]
+    depends_on:
+      langfuse:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse:langfuse_ch_secret@langfuse-clickhouse:9000/langfuse
+      CLICKHOUSE_USER: langfuse
+      CLICKHOUSE_PASSWORD: langfuse_ch_secret
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      REDIS_CONNECTION_STRING: redis://langfuse-redis:6379
+      LANGFUSE_S3_EVENT_UPLOAD_ENABLED: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse-events
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: langfuse_minio_secret
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_LOG_LEVEL: debug
 
   # embedding_service:
   #   container_name: vizu_embedding_service
@@ -246,9 +413,7 @@ services:
       GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
       PUBSUB_TOPIC_ID: ${PUBSUB_TOPIC_ID}
       # FIM DA MUDANÇA
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # Note: Uses Supabase REST API, no local postgres needed
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -287,8 +452,6 @@ services:
       # Sobrescreve a URL do cliente de embedding (Passo 2)
       EMBEDDING_SERVICE_URL: "http://embedding_service:11435"
     depends_on:
-      postgres:
-        condition: service_healthy
       qdrant_db: # <-- Dependência crucial
         condition: service_healthy
     healthcheck:
@@ -377,8 +540,6 @@ services:
       DOCKER_MCP_ENABLED: ${DOCKER_MCP_ENABLED:-false}
       MCP_INTEGRATIONS: ${MCP_INTEGRATIONS:-}
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
 
@@ -469,3 +630,7 @@ volumes:
   qdrant_data:
   postgres_data:
   huggingface_cache:
+  langfuse_postgres_data:
+  langfuse_clickhouse_data:
+  langfuse_redis_data:
+  langfuse_minio_data:

@@ -2,7 +2,7 @@
 from enum import Enum
 
 
-class TipoCliente(str, Enum):
+class TipoCliente(Enum):
     """
     Enum para os tipos de cliente Vizu.
     """
@@ -13,7 +13,7 @@ class TipoCliente(str, Enum):
     # Adicione outros tipos conforme necessário
 
 
-class TierCliente(str, Enum):
+class TierCliente(Enum):
     """
     Enum para os tiers de serviço do cliente.
 
@@ -48,7 +48,7 @@ class TierCliente(str, Enum):
         return not self.__lt__(other)
 
 
-class ToolCategory(str, Enum):
+class ToolCategory(Enum):
     """
     Categorias de ferramentas disponíveis no sistema.
     """
@@ -60,7 +60,7 @@ class ToolCategory(str, Enum):
     PUBLIC = "public"
 
 
-class TipoFonte(str, Enum):
+class TipoFonte(Enum):
     """
     Enum para os tipos de fontes de dados.
     """
@@ -68,3 +68,34 @@ class TipoFonte(str, Enum):
     URL = "URL"
     UPLOAD = "UPLOAD"
     # Adicione outros tipos conforme necessário
+
+
+class ContextSection(Enum):
+    """
+    Sections of the modular client context (Context 2.0).
+
+    Each section can be injected independently into agent nodes,
+    enabling selective context injection based on node requirements.
+
+    Sections used for prompt injection:
+    - COMPANY_PROFILE: Company identity
+    - BRAND_VOICE: Communication style
+    - CURRENT_MOMENT: Weekly priorities/challenges
+    - TEAM_STRUCTURE: Contacts and business hours
+    - POLICIES: Business rules and guardrails
+    - DATA_SCHEMA: Available data for SQL agent
+    - AVAILABLE_TOOLS: Tool configuration
+    """
+
+    # Core Identity
+    COMPANY_PROFILE = "company_profile"  # Mission, vision, values, archetype
+    BRAND_VOICE = "brand_voice"  # Tone, style, phrases to use/avoid
+
+    # Operations
+    CURRENT_MOMENT = "current_moment"  # Priorities, challenges, wins, metrics
+    TEAM_STRUCTURE = "team_structure"  # Key contacts, escalation paths
+    POLICIES = "policies"  # Rules, limits, approval flows, guardrails
+
+    # Technical
+    DATA_SCHEMA = "data_schema"  # Available tables, formats, key fields
+    AVAILABLE_TOOLS = "available_tools"  # Tool descriptions, limits

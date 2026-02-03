@@ -22,8 +22,8 @@ from uuid import uuid4
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import create_engine, text
 from psycopg2.extras import execute_values
+from sqlalchemy import create_engine, text
 
 # Configure logging
 logging.basicConfig(
@@ -103,7 +103,7 @@ def load_and_transform_csv() -> pd.DataFrame:
     # Convert data_transacao from Unix timestamp (ms) to datetime
     if 'data_transacao' in df.columns:
         df['data_transacao'] = pd.to_datetime(df['data_transacao'], unit='ms', errors='coerce', utc=True)
-        logger.info(f"📅 Converted data_transacao to datetime")
+        logger.info("📅 Converted data_transacao to datetime")
         logger.info(f"   Date range: {df['data_transacao'].min()} to {df['data_transacao'].max()}")
 
     # Ensure numeric columns are numeric
@@ -401,7 +401,7 @@ def run_etl(client_id: str = TEST_CLIENT_ID):
     df = load_and_transform_csv()
 
     # Show data quality
-    logger.info(f"\n📈 Data Quality Summary:")
+    logger.info("\n📈 Data Quality Summary:")
     for col in ['order_id', 'data_transacao', 'receiver_cpf_cnpj', 'emitter_cnpj',
                 'raw_product_description', 'valor_total_emitter', 'quantidade']:
         if col in df.columns:
@@ -411,7 +411,7 @@ def run_etl(client_id: str = TEST_CLIENT_ID):
 
     # Step 2: Create database engine
     engine = get_db_engine()
-    logger.info(f"\n✓ Connected to database")
+    logger.info("\n✓ Connected to database")
 
     # Step 3: Write dimension tables
     logger.info("\n" + "=" * 80)

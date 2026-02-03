@@ -400,8 +400,8 @@ class TestSqlValidator:
         """Test validation result includes metadata."""
         result = validator_no_allowlist.validate(
             "SELECT * FROM customers LIMIT 100",
-                client_id="test_tenant",
+            client_id="test_tenant",
             role="analyst",
         )
-            assert result.metadata["client_id"] == "test_tenant"
+        assert result.metadata["client_id"] == "test_tenant"
         assert result.metadata["role"] == "analyst"

@@ -2,14 +2,14 @@
 Service for managing uploaded file metadata.
 """
 import logging
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
 
-from data_ingestion_api.services import supabase_client
 from data_ingestion_api.schemas.connector_schemas import (
-    UploadedFileResponse,
     FileListResponse,
+    UploadedFileResponse,
 )
+from data_ingestion_api.services import supabase_client
 
 logger = logging.getLogger(__name__)
 

@@ -4,6 +4,7 @@ src/vizu_context_service/__init__.py
 src/vizu_context_service/context_service.py
 src/vizu_context_service/dependencies.py
 src/vizu_context_service/redis_service.py
+src/vizu_context_service/tool_cache.py
 src/vizu_context_service.egg-info/PKG-INFO
 src/vizu_context_service.egg-info/SOURCES.txt
 src/vizu_context_service.egg-info/dependency_links.txt

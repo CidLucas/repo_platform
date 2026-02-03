@@ -1,7 +1,7 @@
 """
 Helper functions for API endpoints to reduce code duplication.
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 from analytics_api.schemas.metrics import RankingItem
 
@@ -20,7 +20,7 @@ def dict_to_ranking_item(row: dict) -> RankingItem:
     """
     def _dt(value: datetime | None) -> datetime:
         """Safe datetime conversion with default fallback."""
-        return value if isinstance(value, datetime) else datetime(1970, 1, 1, tzinfo=timezone.utc)
+        return value if isinstance(value, datetime) else datetime(1970, 1, 1, tzinfo=UTC)
 
     # Busca o nome em todas as possíveis chaves de dimensão
     nome = (

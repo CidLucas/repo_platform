@@ -15,7 +15,7 @@ from vizu_models import (
 )
 
 
-class TicketPriority(str, Enum):
+class TicketPriority(Enum):
     """Ticket priority levels."""
     LOW = "low"
     MEDIUM = "medium"

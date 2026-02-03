@@ -10,14 +10,6 @@ Suporta:
 import logging
 from typing import Union
 
-from vizu_data_connectors import (
-    AuthenticationError,
-    EcommerceConnectorError,
-    LojaIntegradaConnector,
-    RateLimitError,
-    ShopifyConnector,
-    VTEXConnector,
-)
 from data_ingestion_api.schemas.schemas import (
     ConnectionTestResponse,
     CredencialResponse,
@@ -29,6 +21,14 @@ from data_ingestion_api.schemas.schemas import (
 )
 from data_ingestion_api.services.credential_service import credential_service
 from fastapi import APIRouter, HTTPException, status
+from vizu_data_connectors import (
+    AuthenticationError,
+    EcommerceConnectorError,
+    LojaIntegradaConnector,
+    RateLimitError,
+    ShopifyConnector,
+    VTEXConnector,
+)
 
 logger = logging.getLogger(__name__)
 

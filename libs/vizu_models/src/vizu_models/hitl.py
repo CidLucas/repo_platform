@@ -22,7 +22,7 @@ from sqlmodel import Field as SQLField
 # ============================================================================
 
 
-class HitlCriteriaType(str, Enum):
+class HitlCriteriaType(Enum):
     """Tipos de critérios para roteamento HITL."""
 
     LOW_CONFIDENCE = "low_confidence"  # Confiança da LLM baixa
@@ -36,7 +36,7 @@ class HitlCriteriaType(str, Enum):
     LONG_RESPONSE_TIME = "long_response_time"  # Resposta demorou muito
 
 
-class HitlReviewStatus(str, Enum):
+class HitlReviewStatus(Enum):
     """Status de uma review HITL."""
 
     PENDING = "pending"  # Aguardando revisão
@@ -47,7 +47,7 @@ class HitlReviewStatus(str, Enum):
     EXPIRED = "expired"  # Expirou sem revisão
 
 
-class HitlFeedbackType(str, Enum):
+class HitlFeedbackType(Enum):
     """Tipos de feedback do revisor."""
 
     CORRECT = "correct"  # Resposta correta

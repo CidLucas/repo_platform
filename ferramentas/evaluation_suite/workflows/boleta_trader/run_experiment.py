@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 # --- Data Classes ---
 
-class CaseOutcome(str, Enum):
+class CaseOutcome(Enum):
     SUCCESS = "success"
     FAILURE = "failure"
     ERROR = "error"

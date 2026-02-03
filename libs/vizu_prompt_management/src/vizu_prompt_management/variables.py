@@ -15,8 +15,6 @@ class PromptVariables:
 
     # Core variables
     nome_empresa: str | None = None
-    prompt_personalizado: str | None = None
-    horario_formatado: str | None = None
 
     # Tool-related
     tools_description: str | None = None
@@ -26,7 +24,10 @@ class PromptVariables:
     agent_personality: str | None = None
     agent_name: str | None = None
 
-    # Context
+    # Context 2.0: compiled sections
+    context_sections: str | None = None
+
+    # Metadata
     cliente_id: str | None = None
     tier: str | None = None
 
@@ -37,12 +38,11 @@ class PromptVariables:
         """Convert to dictionary for template rendering."""
         result = {
             "nome_empresa": self.nome_empresa or "Vizu",
-            "prompt_personalizado": self.prompt_personalizado or "",
-            "horario_formatado": self.horario_formatado or "",
             "tools_description": self.tools_description or "",
             "enabled_tools": self.enabled_tools,
             "agent_personality": self.agent_personality or "",
             "agent_name": self.agent_name or "Assistente",
+            "context_sections": self.context_sections or "",
             "cliente_id": self.cliente_id or "",
             "tier": self.tier or "",
         }
@@ -87,15 +87,6 @@ class VariableExtractor:
         elif hasattr(context, "nome_cliente"):
             variables.nome_empresa = context.nome_cliente
 
-        if hasattr(context, "prompt_base"):
-            variables.prompt_personalizado = context.prompt_base
-
-        # Horários
-        if hasattr(context, "horario_funcionamento"):
-            variables.horario_formatado = VariableExtractor._format_horarios(
-                context.horario_funcionamento
-            )
-
         # Tools
         if hasattr(context, "get_enabled_tools_list"):
             variables.enabled_tools = context.get_enabled_tools_list()
@@ -124,31 +115,22 @@ class VariableExtractor:
         """
         variables = PromptVariables()
 
-        # Map known keys
+        # Map known keys (Context 2.0 - no legacy fields)
         key_mapping = {
             "nome_empresa": "nome_empresa",
             "nome_cliente": "nome_empresa",
-            "prompt_base": "prompt_personalizado",
-            "prompt_personalizado": "prompt_personalizado",
-            "horario_funcionamento": None,  # Needs special handling
-            "horario_formatado": "horario_formatado",
             "tools_description": "tools_description",
             "enabled_tools": "enabled_tools",
             "agent_personality": "agent_personality",
             "agent_name": "agent_name",
             "cliente_id": "cliente_id",
             "tier": "tier",
+            "context_sections": "context_sections",
         }
 
         for src_key, dest_key in key_mapping.items():
             if src_key in data and dest_key:
                 setattr(variables, dest_key, data[src_key])
-
-        # Special handling for horario_funcionamento
-        if "horario_funcionamento" in data and not variables.horario_formatado:
-            variables.horario_formatado = VariableExtractor._format_horarios(
-                data["horario_funcionamento"]
-            )
 
         # Copy remaining keys to custom
         known_keys = set(key_mapping.keys())
@@ -189,37 +171,47 @@ class VariableExtractor:
 
     @staticmethod
     def build_tools_description(
-        tools: list[str],
+        tools: list,
         tool_registry: Any | None = None,
     ) -> str:
         """
         Build a description of available tools.
 
         Args:
-            tools: List of tool names
+            tools: List of tool names (str) OR tool objects (with .name attribute)
             tool_registry: Optional ToolRegistry for metadata
 
         Returns:
             Formatted tool descriptions
         """
         if not tools:
-            return "Nenhuma ferramenta disponível."
+            return ""
 
-        lines = ["As seguintes ferramentas estão disponíveis para você:"]
+        lines = []
 
-        for i, tool_name in enumerate(tools, 1):
-            description = f"Ferramenta {tool_name}"
+        for tool in tools:
+            # Handle both string names and tool objects
+            if isinstance(tool, str):
+                tool_name = tool
+                tool_desc = None
+            else:
+                tool_name = getattr(tool, "name", str(tool))
+                tool_desc = getattr(tool, "description", None)
 
-            # Try to get description from registry
-            if tool_registry:
+            # Try to get description from registry if not already present
+            description = tool_desc
+            if not description and tool_registry:
                 try:
                     meta = tool_registry.get_tool(tool_name)
-                    if meta and meta.description:
+                    if meta and hasattr(meta, "description"):
                         description = meta.description
                 except Exception:
                     pass
 
-            lines.append(f"{i}. **{tool_name}** - {description}")
+            if not description:
+                description = "Sem descrição"
+
+            lines.append(f"- **{tool_name}**: {description}")
 
         return "\n".join(lines)
 

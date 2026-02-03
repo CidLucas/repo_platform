@@ -13,6 +13,7 @@ import json
 from uuid import uuid4
 
 import pytest
+
 from vizu_tool_registry.tools.sql_tool import (
     QueryDatabaseTextToSQL,
     SQLToolError,
@@ -38,7 +39,7 @@ class TestSQLToolSchema:
         assert input_schema["type"] == "object"
         assert "properties" in input_schema
         assert "required" in input_schema
-            assert set(input_schema["required"]) == {"question", "client_id", "role"}
+        assert set(input_schema["required"]) == {"question", "client_id", "role"}
 
         # Validate output schema structure
         output_schema = schema["outputSchema"]

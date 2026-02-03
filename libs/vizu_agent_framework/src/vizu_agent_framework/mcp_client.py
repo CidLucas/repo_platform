@@ -29,21 +29,93 @@ class MCPConnectionManager:
     - Compatível com proxies/load balancers
 
     Inclui reconnect automático quando a sessão fecha inesperadamente.
+    Supports auth headers for authenticated tool calls.
     """
 
-    def __init__(self, url: str = "http://tool_pool_api:9000/mcp/"):
+    def __init__(self, url: str = "http://tool_pool_api:9000/mcp/", headers: dict[str, str] | None = None):
         """
         Initialize MCP connection manager.
 
         Args:
             url: MCP server URL (e.g., "http://tool_pool_api:9000/mcp/")
+            headers: Optional HTTP headers (e.g., {"Authorization": "Bearer <token>"})
         """
         self.url = url
+        self.headers = headers or {}
         self.tools: list[BaseTool] = []
         self._exit_stack: AsyncExitStack | None = None
         self._session: ClientSession | None = None
         self._lock = asyncio.Lock()
         self._connected = False
+
+    def set_auth_token(self, token: str) -> None:
+        """
+        Set the Authorization header for authenticated requests.
+
+        NOTE: For Streamable HTTP transport, headers are set at connection time.
+        If the token changes while connected, mark the connection as needing
+        reconnection so the next call will reconnect with new headers.
+
+        Args:
+            token: JWT or Bearer token (can include "Bearer " prefix or not)
+        """
+        # Normalize token format
+        if token:
+            # Remove "Bearer " prefix if present to avoid duplication
+            clean_token = token.removeprefix("Bearer ").strip()
+            new_auth = f"Bearer {clean_token}"
+        else:
+            new_auth = None
+
+        # Check if header actually changed
+        current_auth = self.headers.get("Authorization")
+        if current_auth == new_auth:
+            return  # No change needed
+
+        # Update header
+        if new_auth:
+            self.headers["Authorization"] = new_auth
+            logger.debug(f"[MCP] Auth header updated (token: {clean_token[:20]}...)")
+        elif "Authorization" in self.headers:
+            del self.headers["Authorization"]
+            logger.debug("[MCP] Auth header cleared")
+
+        # Mark connection as stale so next call_tool will reconnect
+        # This is necessary because Streamable HTTP headers are fixed at connection time
+        if self._connected:
+            logger.debug("[MCP] Auth changed while connected, will reconnect on next call")
+            self._connected = False
+
+    def set_cliente_id(self, cliente_id: str) -> None:
+        """
+        Set the X-Cliente-Id header for server-side client identification.
+
+        This is the preferred authentication method for internal service-to-service
+        calls where the caller (atendente_core) has already validated the JWT and
+        resolved the cliente_id.
+
+        Args:
+            cliente_id: The resolved Vizu client UUID
+        """
+        if not cliente_id:
+            if "X-Cliente-Id" in self.headers:
+                del self.headers["X-Cliente-Id"]
+                logger.debug("[MCP] X-Cliente-Id header cleared")
+            return
+
+        # Check if header actually changed
+        current_cliente_id = self.headers.get("X-Cliente-Id")
+        if current_cliente_id == cliente_id:
+            return  # No change needed
+
+        # Update header
+        self.headers["X-Cliente-Id"] = cliente_id
+        logger.info(f"[MCP] X-Cliente-Id header set: {cliente_id}")
+
+        # Mark connection as stale so next call_tool will reconnect with new header
+        if self._connected:
+            logger.debug("[MCP] Cliente-Id changed while connected, will reconnect on next call")
+            self._connected = False
 
     @property
     def is_connected(self) -> bool:
@@ -62,7 +134,7 @@ class MCPConnectionManager:
 
         for attempt in range(max_retries):
             try:
-                logger.info(f"Tentando conectar ao MCP em {self.url} (tentativa {attempt + 1}/{max_retries})...")
+                logger.debug(f"MCP connect attempt {attempt + 1}/{max_retries}: {self.url}")
 
                 # Close previous stack if exists
                 if self._exit_stack:
@@ -73,8 +145,10 @@ class MCPConnectionManager:
                 self._exit_stack = AsyncExitStack()
 
                 # Conecta via Streamable HTTP (transporte moderno)
+                # Pass headers for authentication if configured
+                logger.info(f"[MCP] Connecting with headers: {list(self.headers.keys()) if self.headers else 'None'}")
                 read, write, _ = await self._exit_stack.enter_async_context(
-                    streamablehttp_client(url=self.url)
+                    streamablehttp_client(url=self.url, headers=self.headers if self.headers else None)
                 )
 
                 self._session = await self._exit_stack.enter_async_context(
@@ -87,8 +161,8 @@ class MCPConnectionManager:
                 self.tools = await load_mcp_tools(self._session)
                 self._connected = True
 
-                logger.info(
-                    f"✅ MCP Conectado! Tools carregadas: {[t.name for t in self.tools]}"
+                logger.debug(
+                    f"MCP connected, tools: {[t.name for t in self.tools]}"
                 )
                 return
 
@@ -103,18 +177,18 @@ class MCPConnectionManager:
                 self._connected = False
 
                 if attempt < max_retries - 1:
-                    logger.info(f"Reconectando em {backoff}s...")
+                    logger.debug(f"MCP reconnecting in {backoff}s...")
                     await asyncio.sleep(backoff)
                     backoff = min(backoff * 2, 30)
                 else:
-                    logger.error("Máximo de tentativas de reconexão atingido")
+                    logger.error("MCP max retries reached")
                     raise
 
     async def disconnect(self):
         """Fecha conexão MCP."""
         async with self._lock:
             if self._exit_stack:
-                logger.info("Fechando conexão MCP...")
+                logger.debug("Closing MCP connection...")
                 try:
                     await self._exit_stack.aclose()
                 except Exception:
@@ -129,13 +203,20 @@ class MCPConnectionManager:
         if not self.is_connected:
             await self.connect()
 
-    async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> Any:
+    async def call_tool(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+        meta: dict[str, Any] | None = None,
+    ) -> Any:
         """
         Call an MCP tool with automatic reconnect on ClosedResourceError.
 
         Args:
             tool_name: Name of the tool to call
             arguments: Arguments to pass to the tool
+            meta: Optional metadata (passed as _meta, not visible to LLM schema)
+                  Use for auth info like cliente_id
 
         Returns:
             Tool result
@@ -149,14 +230,23 @@ class MCPConnectionManager:
             try:
                 if self._session is None:
                     raise ClosedResourceError("Session is None")
-                result = await self._session.call_tool(tool_name, arguments)
+                # Pass meta if the session supports it
+                if meta and hasattr(self._session, "call_tool"):
+                    # Try to pass meta - some MCP versions support it
+                    try:
+                        result = await self._session.call_tool(tool_name, arguments, meta=meta)
+                    except TypeError:
+                        # Fallback if meta not supported
+                        result = await self._session.call_tool(tool_name, arguments)
+                else:
+                    result = await self._session.call_tool(tool_name, arguments)
                 return result
             except (ClosedResourceError, BrokenResourceError) as e:
                 logger.warning(
                     f"[MCP] Connection error ao chamar '{tool_name}' (tentativa {attempt+1}/2): {e}"
                 )
                 if attempt == 0:
-                    logger.info("[MCP] Reconectando e tentando novamente...")
+                    logger.debug("[MCP] Reconnecting and retrying...")
                     await self.disconnect()
                     await self.connect()
                 else:

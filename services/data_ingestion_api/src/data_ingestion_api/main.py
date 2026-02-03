@@ -1,14 +1,16 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from data_ingestion_api.api.connector_status_routes import router as connector_status_router
+from data_ingestion_api.api.etl_routes import router as etl_router
 
 # Importação dos routers da aplicação
 from data_ingestion_api.api.routes import router as credential_router
 from data_ingestion_api.api.schema_routes import router as schema_router
-from data_ingestion_api.api.etl_routes import router as etl_router
-from data_ingestion_api.api.connector_status_routes import router as connector_status_router
 
 # Tenta importar configuração de settings (padrão Vizu)
 try:
@@ -21,6 +23,35 @@ except ImportError:
     OTEL_EXPORTER_OTLP_ENDPOINT = None
 
 logger = logging.getLogger(__name__)
+
+
+# --- Database Connection Timeout Middleware ---
+class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
+    """
+    Sets PostgreSQL session timeouts on every request to prevent connection leaks.
+
+    Protects against:
+    - Long-running queries blocking connection pool
+    - Idle transactions holding locks
+    - Frontend disconnections leaving transactions open
+    """
+    async def dispatch(self, request: Request, call_next):
+        # Set timeouts at session level for this request
+        try:
+            from vizu_db_connector.database import SessionLocal
+            session = SessionLocal()
+            try:
+                # 30s statement timeout - any single query taking longer is killed
+                session.execute("SET statement_timeout = '30s'")
+                # 5min idle_in_transaction timeout - transaction idle > 5min is auto-rolled back
+                session.execute("SET idle_in_transaction_session_timeout = '5min'")
+            finally:
+                session.close()
+        except Exception as e:
+            logger.warning(f"Could not set session timeouts: {e}")
+
+        return await call_next(request)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -49,6 +80,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],  # Permite todos os métodos (GET, POST, PUT, DELETE, OPTIONS, etc.)
         allow_headers=["*"],  # Permite todos os headers (Authorization, Content-Type, etc.)
     )
+
+    # Add database timeout middleware
+    app.add_middleware(DatabaseTimeoutMiddleware)
+    logger.debug("Database timeout middleware configured (30s query, 5min idle)")
 
     # Observabilidade (OpenTelemetry)
     if OTEL_EXPORTER_OTLP_ENDPOINT:

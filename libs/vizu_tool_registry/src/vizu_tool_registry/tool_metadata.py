@@ -13,7 +13,7 @@ from enum import Enum
 from typing import Any
 
 
-class ToolCategory(str, Enum):
+class ToolCategory(Enum):
     """Categories of tools available in the system."""
 
     RAG = "rag"
@@ -25,7 +25,7 @@ class ToolCategory(str, Enum):
     CUSTOM = "custom"
 
 
-class TierLevel(str, Enum):
+class TierLevel(Enum):
     """
     Service tiers that control tool access.
 

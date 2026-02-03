@@ -2,27 +2,43 @@ import logging
 import sys
 from contextlib import asynccontextmanager
 
-import uvicorn  # Importe o uvicorn
-from fastapi import FastAPI
+import uvicorn
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .api.admin_router import router as admin_router
 from .api.integrations_router import router as integrations_router
 
-# Configurar logging para todos os módulos do tool_pool_api e vizu_*
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
-)
-
-# Aumentar o nível de log para módulos específicos
-logging.getLogger("tool_pool_api").setLevel(logging.DEBUG)
-logging.getLogger("vizu_rag_factory").setLevel(logging.DEBUG)
-logging.getLogger("vizu_qdrant_client").setLevel(logging.DEBUG)
-logging.getLogger("vizu_llm_service").setLevel(logging.DEBUG)
-
 logger = logging.getLogger(__name__)
+
+
+# --- Database Connection Timeout Middleware ---
+class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
+    """
+    Sets PostgreSQL session timeouts on every request to prevent connection leaks.
+
+    Protects against:
+    - Long-running queries blocking connection pool
+    - Idle transactions holding locks
+    - Frontend disconnections leaving transactions open
+    """
+    async def dispatch(self, request: Request, call_next):
+        # Set timeouts at session level for this request
+        try:
+            from vizu_db_connector.database import SessionLocal
+            session = SessionLocal()
+            try:
+                # 30s statement timeout - any single query taking longer is killed
+                session.execute("SET statement_timeout = '30s'")
+                # 5min idle_in_transaction timeout - transaction idle > 5min is auto-rolled back
+                session.execute("SET idle_in_transaction_session_timeout = '5min'")
+            finally:
+                session.close()
+        except Exception as e:
+            logger.warning(f"Could not set session timeouts: {e}")
+
+        return await call_next(request)
 
 # Global state for MCP
 _mcp = None
@@ -50,29 +66,32 @@ async def lifespan(app: FastAPI):
     IMPORTANT: The MCP ASGI app has its own lifespan that must be run
     to initialize the StreamableHTTPSessionManager task group.
     """
-    logger.info("🚀 Tool Pool API starting...")
+    logger.info("Starting Tool Pool API...")
 
-    # Create MCP server
     try:
         mcp, mcp_asgi = _create_mcp()
 
-        # Mount MCP at /mcp
         app.mount("/mcp", mcp_asgi)
-        logger.info("✅ MCP mounted at /mcp")
+        logger.debug("MCP mounted at /mcp")
 
-        # Run MCP's lifespan to initialize the task group
-        # This is CRITICAL - without this, the StreamableHTTPSessionManager fails
         async with mcp_asgi.lifespan(mcp_asgi):
-            logger.info("✅ MCP lifespan started - SessionManager initialized")
+            logger.debug("MCP lifespan started")
             yield
-            logger.info("🛑 MCP lifespan ending...")
+            logger.debug("MCP lifespan ending...")
 
     except Exception as e:
-        logger.error(f"⚠️ MCP initialization failed: {e}")
-        logger.info("Server will start without MCP - health check still available")
+        logger.error(f"MCP initialization failed: {e}")
+        logger.warning("Server starting without MCP")
         yield
 
-    logger.info("🛑 Tool Pool API shutting down...")
+    # Shutdown observability
+    try:
+        from vizu_observability_bootstrap import shutdown_observability
+        await shutdown_observability(timeout=5.0)
+    except Exception as e:
+        logger.warning(f"Observability shutdown error: {e}")
+
+    logger.info("Tool Pool API shutdown complete")
 
 
 # Create FastAPI app with combined lifespan
@@ -82,9 +101,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Configure observability
+try:
+    from vizu_observability_bootstrap import setup_observability
+    setup_observability(app, service_name="tool_pool_api")
+except ImportError as e:
+    logger.warning(f"Observability bootstrap not available: {e}")
+
 # Mount API routers
 app.include_router(admin_router)
 app.include_router(integrations_router)
+
+# Add database timeout middleware
+app.add_middleware(DatabaseTimeoutMiddleware)
+logger.debug("Database timeout middleware configured (30s query, 5min idle)")
 
 
 # Health check endpoint that doesn't require MCP
@@ -125,9 +155,4 @@ async def server_info():
 @app.on_event("startup")
 async def startup_event():
     """App startup logging."""
-    logger.info("✅ App started successfully")
-    logger.info("📊 Health check available at /health")
-    logger.info("ℹ️  Server info available at /info")
-    logger.info("🔌 MCP endpoint available at /mcp")
-    logger.info("🔗 Integrations API available at /integrations")
-    logger.info("🔐 Admin API available at /admin/clients (requires ADMIN tier)")
+    logger.debug("Tool Pool API started - endpoints: /health, /info, /mcp, /integrations, /admin/clients")

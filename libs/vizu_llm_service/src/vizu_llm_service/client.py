@@ -1,14 +1,14 @@
 # libs/vizu_llm_service/src/vizu_llm_service/client.py
 """
-Vizu LLM Service: Cliente centralizado para LLMs locais e comerciais.
+Vizu LLM Service: Centralized client for local and commercial LLMs.
 
-Suporta:
+Supports:
 - Ollama (local)
 - OpenAI (API)
 - Anthropic (API)
 - Google Gemini (API)
 
-Com integração Langfuse para observabilidade.
+Langfuse integration is handled by vizu_observability_bootstrap.
 """
 
 import logging
@@ -24,56 +24,21 @@ from .config import LLMSettings, get_llm_settings
 logger = logging.getLogger(__name__)
 
 
-def sanitize_observation(obj: dict, max_messages: int = 6) -> dict:
-    """
-    Return a sanitized shallow copy of an observation-like mapping.
-
-    - Removes `_internal_context`.
-    - Truncates `messages` to the last `max_messages` entries.
-    - Trims `response_metadata` inside messages to small subset.
-    """
-    try:
-        from collections.abc import Mapping
-    except Exception:
-        Mapping = dict
-
-    if not isinstance(obj, Mapping):
-        return obj
-
-    o = dict(obj)
-    o.pop("_internal_context", None)
-
-    msgs = o.get("messages")
-    if isinstance(msgs, list) and len(msgs) > max_messages:
-        o["messages"] = msgs[-max_messages:]
-
-    if isinstance(o.get("messages"), list):
-        for m in o["messages"]:
-            if isinstance(m, dict) and "response_metadata" in m:
-                rm = m.get("response_metadata")
-                if isinstance(rm, dict):
-                    m["response_metadata"] = {
-                        k: rm.get(k) for k in ("model", "done", "done_reason") if k in rm
-                    }
-
-    return o
-
-
 # ============================================================================
 # ENUMS
 # ============================================================================
 
 
-class ModelTier(str, Enum):
-    """Tier de modelo - controla qualidade vs custo/velocidade."""
+class ModelTier(Enum):
+    """Model tier - controls quality vs cost/speed."""
 
-    DEFAULT = "default"  # Modelo padrão balanceado
-    FAST = "fast"  # Modelo rápido/barato
-    POWERFUL = "powerful"  # Modelo mais capaz/caro
+    DEFAULT = "default"  # Balanced default model
+    FAST = "fast"  # Fast/cheap model
+    POWERFUL = "powerful"  # Most capable/expensive model
 
 
-class ModelTask(str, Enum):
-    """Tipo de tarefa - pode influenciar na escolha do modelo."""
+class ModelTask(Enum):
+    """Task type - may influence model selection."""
 
     GENERAL_AGENT = "general_agent"
     CLASSIFICATION = "classification"
@@ -81,8 +46,8 @@ class ModelTask(str, Enum):
     RAG = "rag"
 
 
-class LLMProvider(str, Enum):
-    """Provedor de LLM."""
+class LLMProvider(Enum):
+    """LLM provider."""
 
     OLLAMA = "ollama"  # Local (container)
     OLLAMA_CLOUD = "ollama_cloud"  # Ollama Cloud API (api.ollama.com)
@@ -92,7 +57,7 @@ class LLMProvider(str, Enum):
 
 
 # ============================================================================
-# LANGFUSE CALLBACK (SDK v3)
+# LANGFUSE CALLBACKS (delegated to vizu_observability_bootstrap)
 # ============================================================================
 
 
@@ -104,134 +69,32 @@ def get_langfuse_callback(
     metadata: dict[str, Any] | None = None,
 ) -> BaseCallbackHandler | None:
     """
-    Cria o CallbackHandler do Langfuse para tracing.
+    Create Langfuse CallbackHandler for LLM tracing.
 
-    SDK v3: Usa variáveis de ambiente ou inicialização explícita.
-
-    Variáveis necessárias:
-    - LANGFUSE_SECRET_KEY
-    - LANGFUSE_PUBLIC_KEY
-    - LANGFUSE_HOST (opcional, default: https://cloud.langfuse.com)
+    Delegates to vizu_observability_bootstrap.langfuse module.
 
     Args:
-        settings: LLMSettings (opcional)
-        user_id: ID do usuário para agrupar traces
-        session_id: ID da sessão para agrupar traces
-        tags: Tags para categorização
-        metadata: Metadados adicionais
+        settings: LLMSettings (optional, for backwards compatibility)
+        user_id: User ID for trace grouping
+        session_id: Session ID for trace grouping
+        tags: Tags for categorization
+        metadata: Additional metadata
 
     Returns:
-        CallbackHandler ou None se Langfuse não estiver configurado
+        CallbackHandler or None if Langfuse not configured
     """
-    if settings is None:
-        settings = get_llm_settings()
-
-    if not settings.langfuse_enabled:
-        logger.debug("Langfuse não está habilitado (faltam credenciais)")
-        return None
-
     try:
-        # Langfuse SDK v3 - import correto
-        from langfuse import Langfuse
-        from langfuse.langchain import CallbackHandler
-
-        # Inicializa o cliente Langfuse (singleton)
-        Langfuse(
-            public_key=settings.LANGFUSE_PUBLIC_KEY,
-            secret_key=settings.LANGFUSE_SECRET_KEY,
-            host=settings.LANGFUSE_HOST,
+        from vizu_observability_bootstrap.langfuse import (
+            get_langfuse_callback as _get_callback,
         )
-
-        # Cria o handler - SDK v3 não aceita args no construtor
-        handler = CallbackHandler()
-
-        # Wrap handler with a sanitizer to avoid leaking internal state
-        class SanitizingCallback(BaseCallbackHandler):
-            """
-            Wrapper around an existing callback handler that sanitizes
-            any dict-like observation/outputs passed to callback methods.
-
-            Behaviors:
-            - Truncates `messages` lists to `max_messages` (default 6)
-            - Removes `_internal_context` key entirely
-            - Truncates large `response_metadata` objects to a small subset
-            """
-
-            def __init__(self, inner, max_messages: int = 6):
-                self._inner = inner
-                self._max_messages = max_messages
-
-            def _sanitize_obj(self, obj):
-                try:
-                    return sanitize_observation(obj, max_messages=self._max_messages)
-                except Exception:
-                    return obj
-
-            def _wrap_call(self, func, *args, **kwargs):
-                # Sanitize all mapping-like positional args and kwargs
-                new_args = []
-                for a in args:
-                    try:
-                        from collections.abc import Mapping
-                    except Exception:
-                        Mapping = dict
-                    if isinstance(a, Mapping):
-                        new_args.append(self._sanitize_obj(a))
-                    else:
-                        new_args.append(a)
-
-                new_kwargs = {}
-                for k, v in kwargs.items():
-                    try:
-                        from collections.abc import Mapping
-                    except Exception:
-                        Mapping = dict
-                    if isinstance(v, Mapping):
-                        new_kwargs[k] = self._sanitize_obj(v)
-                    else:
-                        new_kwargs[k] = v
-
-                return func(*new_args, **new_kwargs)
-
-            # Generic delegation for known callback entrypoints
-            def on_chain_start(self, serialized, inputs, **kwargs):
-                try:
-                    return self._wrap_call(self._inner.on_chain_start, serialized, inputs, **kwargs)
-                except Exception:
-                    return None
-
-            def on_chain_end(self, outputs, **kwargs):
-                try:
-                    return self._wrap_call(self._inner.on_chain_end, outputs, **kwargs)
-                except Exception:
-                    return None
-
-            def on_llm_end(self, response, **kwargs):
-                try:
-                    return self._wrap_call(self._inner.on_llm_end, response, **kwargs)
-                except Exception:
-                    return None
-
-            def on_tool_end(self, output, **kwargs):
-                try:
-                    return self._wrap_call(self._inner.on_tool_end, output, **kwargs)
-                except Exception:
-                    return None
-
-            def __getattr__(self, name):
-                # Fallback: delegate any other attribute to inner handler
-                return getattr(self._inner, name)
-
-        wrapped = SanitizingCallback(handler, max_messages=getattr(settings, "LANGFUSE_MAX_OBSERVATION_MESSAGES", 6))
-
-        logger.debug(f"Langfuse callback created - host: {settings.LANGFUSE_HOST}")
-        return wrapped
-
+        return _get_callback(
+            user_id=user_id,
+            session_id=session_id,
+            tags=tags,
+            metadata=metadata,
+        )
     except ImportError:
-        logger.warning("langfuse não instalado, tracing desabilitado")
-        return None
-    except Exception as e:
-        logger.error(f"Erro ao criar Langfuse callback: {e}")
+        logger.debug("vizu_observability_bootstrap not available, Langfuse disabled")
         return None
 
 
@@ -241,7 +104,7 @@ def get_base_callbacks(
     session_id: str | None = None,
     tags: list[str] | None = None,
 ) -> list[BaseCallbackHandler]:
-    """Retorna lista de callbacks padrão (Langfuse, etc)."""
+    """Return list of default callbacks (Langfuse, etc)."""
     callbacks = []
 
     lf = get_langfuse_callback(
@@ -545,36 +408,30 @@ def get_model(
 
 
 def get_embedding_model() -> Embeddings:
-    """Retorna o cliente de embeddings (via API)."""
+    """Return embedding client (via API)."""
     settings = get_llm_settings()
-    logger.info(
-        f"Inicializando VizuEmbeddingAPIClient: {settings.EMBEDDING_SERVICE_URL}"
-    )
+    logger.debug(f"VizuEmbeddingAPIClient: {settings.EMBEDDING_SERVICE_URL}")
     return VizuEmbeddingAPIClient(base_url=settings.EMBEDDING_SERVICE_URL)
 
 
 # ============================================================================
-# LANGFUSE UTILITIES
+# LANGFUSE UTILITIES (delegated to vizu_observability_bootstrap)
 # ============================================================================
 
 
 def flush_langfuse():
-    """Força o flush dos eventos do Langfuse."""
+    """Force flush Langfuse events."""
     try:
-        from langfuse import get_client
-
-        get_client().flush()
-        logger.debug("Langfuse flush completed")
-    except Exception as e:
-        logger.warning(f"Erro ao flush Langfuse: {e}")
+        from vizu_observability_bootstrap.langfuse import flush_langfuse as _flush
+        _flush()
+    except ImportError:
+        logger.debug("vizu_observability_bootstrap not available")
 
 
 def shutdown_langfuse():
-    """Encerra o cliente Langfuse."""
+    """Shutdown Langfuse client."""
     try:
-        from langfuse import get_client
-
-        get_client().shutdown()
-        logger.debug("Langfuse shutdown completed")
-    except Exception as e:
-        logger.warning(f"Erro ao shutdown Langfuse: {e}")
+        from vizu_observability_bootstrap.langfuse import shutdown_langfuse as _shutdown
+        _shutdown()
+    except ImportError:
+        logger.debug("vizu_observability_bootstrap not available")

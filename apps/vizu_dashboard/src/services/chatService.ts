@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { StructuredData } from '../components/SimpleDataTable';
 
 // API Base URL - connects to analytics_api for chat
 const CHAT_API_URL = 'http://localhost:8009/api/chat';
@@ -9,6 +10,7 @@ export interface ChatMessage {
   content: string;
   sender: 'user' | 'assistant';
   timestamp: Date;
+  structuredData?: StructuredData;
 }
 
 export interface ChatRequest {
@@ -24,6 +26,7 @@ export interface ChatResponse {
   response: string;
   session_id: string;
   suggestions?: string[];
+  structured_data?: StructuredData;
   data_references?: {
     type: string;
     id: string;
@@ -87,14 +90,14 @@ export async function sendChatMessageStream(
 
     while (true) {
       const { done, value } = await reader.read();
-      
+
       if (done) {
         onComplete();
         break;
       }
 
       const chunk = decoder.decode(value, { stream: true });
-      
+
       // Parse SSE format
       const lines = chunk.split('\n');
       for (const line of lines) {

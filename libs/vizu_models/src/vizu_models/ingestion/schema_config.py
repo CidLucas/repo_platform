@@ -7,7 +7,7 @@ from sqlmodel import Field, SQLModel
 from .vizu_schema import VizuCanonicalColumn
 
 
-class ColumnFormat(str, Enum):
+class ColumnFormat(Enum):
     """Formatos de dados que o nosso sistema deve suportar."""
 
     STRING = "STRING"

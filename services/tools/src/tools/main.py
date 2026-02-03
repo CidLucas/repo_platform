@@ -22,7 +22,7 @@ async def monitor_keywords(domain: str, keywords: list[str] = Query(...)):
 
 
 @app.get("/monitor-company")
-async def monitor_company(company: str, domains: Optional[list[str]] = Query(None)):
+async def monitor_company(company: str, domains: list[str] | None = Query(None)):
     use_domain = domains[0] if domains and len(domains) > 0 else "zerezes.com.br"
     monitor = await get_monitor_instance(use_domain)
     result = await monitor.monitor_company_web(company, extra_domains=domains or [])

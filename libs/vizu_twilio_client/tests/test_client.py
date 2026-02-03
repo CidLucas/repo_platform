@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-
 from vizu_twilio_client import TwilioClient, TwilioSettings
 
 

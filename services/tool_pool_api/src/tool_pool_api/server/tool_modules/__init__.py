@@ -58,7 +58,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
     modules_loaded = []
 
     # Importa módulos para trigger os decorators
-    from . import common_module, rag_module, sql_module, web_monitor_module
+    from . import common_module, prompt_module, rag_module, sql_module, web_monitor_module
 
     # Optional Google module (integration)
     try:
@@ -107,6 +107,11 @@ AVAILABLE_MODULES = {
         "description": "Google Suite integrations (Sheets, Gmail, Calendar)",
         "tools": ["write_to_sheet", "read_emails", "query_calendar"],
         "requires_auth": True,
+    },
+    "prompts": {
+        "description": "Native MCP prompts for dynamic prompt generation",
+        "prompts": ["atendente_system", "text_to_sql_system", "rag_context", "elicitation"],
+        "requires_auth": False,  # Prompts are public, auth is handled at variable level
     },
     # Futuros módulos:
     # "scheduling": {

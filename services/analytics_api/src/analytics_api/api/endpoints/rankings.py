@@ -1,27 +1,28 @@
 # services/analytics_api/src/analytics_api/api/endpoints/rankings.py
-from datetime import datetime, timezone as tz
+from datetime import UTC, datetime
+from datetime import timezone as tz
 from urllib.parse import unquote
 
 from analytics_api.api.dependencies import get_client_id, get_postgres_repository
 from analytics_api.api.helpers import dict_to_ranking_item
 from analytics_api.data_access.postgres_repository import PostgresRepository
 from analytics_api.schemas.metrics import (
-    ClientesOverviewResponse,
-    ClienteDetailResponse,
-    FornecedoresOverviewResponse,
-    FornecedorDetailResponse,
-    PedidosOverviewResponse,
-    ProdutosOverviewResponse,
-    ProdutoDetailResponse,
-    RankingItem,
-    ChartDataPoint,
     CadastralData,
+    ChartDataPoint,
+    ClienteDetailResponse,
+    ClientesOverviewResponse,
+    FornecedorDetailResponse,
+    FornecedoresOverviewResponse,
     PedidoItem,
+    PedidosOverviewResponse,
+    ProdutoDetailResponse,
     ProdutoRankingReceita,
-    ProdutoRankingVolume,
     ProdutoRankingTicket,
+    ProdutoRankingVolume,
+    ProdutosOverviewResponse,
+    RankingItem,
 )
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 router = APIRouter()
 
@@ -426,7 +427,7 @@ def get_cliente_detail_gold(
         ultima_venda = datetime.fromisoformat(ultima_venda.replace('Z', '+00:00'))
 
     # Default dates if not available
-    now = datetime.now(tz.utc)
+    now = datetime.now(UTC)
     primeira_venda = primeira_venda or now
     ultima_venda = ultima_venda or now
 
@@ -616,7 +617,7 @@ def get_produto_detail_gold(
     if isinstance(ultima_venda, str):
         ultima_venda = datetime.fromisoformat(ultima_venda.replace('Z', '+00:00'))
 
-    now = datetime.now(tz.utc)
+    now = datetime.now(UTC)
     primeira_venda = primeira_venda or now
     ultima_venda = ultima_venda or now
 

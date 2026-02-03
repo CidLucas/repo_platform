@@ -1,8 +1,7 @@
 # services/data_ingestion_api/routes.py
 
-from typing import Any, Union
 import logging
-from pydantic import ValidationError
+from typing import Any, Union
 
 from data_ingestion_api.schemas.schemas import (
     BigQueryCredentialCreate,
@@ -11,8 +10,9 @@ from data_ingestion_api.schemas.schemas import (
 )
 from data_ingestion_api.services.credential_service import credential_service
 from fastapi import APIRouter, Depends, HTTPException, status
-from vizu_auth.fastapi.dependencies import get_auth_result
+from pydantic import ValidationError
 
+from vizu_auth.fastapi.dependencies import get_auth_result
 
 # Autenticação via Supabase JWT (API Key desabilitada)
 logger = logging.getLogger(__name__)

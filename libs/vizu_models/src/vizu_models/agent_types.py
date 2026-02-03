@@ -13,6 +13,7 @@ Categorias:
 2. Tool Management - Tool info and permissions
 3. Agent State - Shared state structures
 4. Chat/Message - Request/response patterns
+5. Structured Data - SQL query results display
 """
 
 from enum import Enum
@@ -25,7 +26,7 @@ from pydantic import BaseModel, Field
 # ============================================================================
 
 
-class ElicitationType(str, Enum):
+class ElicitationType(Enum):
     """
     Tipos de elicitation suportados pelo sistema.
 
@@ -223,6 +224,11 @@ class AgentChatResponse(BaseModel):
     trace_id: str | None = Field(
         None, description="ID do trace para observabilidade (Langfuse)"
     )
+    # Structured data for rich table display (from SQL queries)
+    structured_data: "StructuredDataResponse | None" = Field(
+        None,
+        description="Structured tabular data for interactive display (sorting, filtering, export)",
+    )
 
 
 # ============================================================================
@@ -251,17 +257,23 @@ class ClientContextResponse(BaseModel):
         description="Lista de nomes de ferramentas habilitadas (ex: ['executar_rag_cliente', 'executar_sql_agent'])"
     )
 
-    collection_rag: str | None = Field(None, description="Nome da collection RAG (se RAG tool habilitada)")
-
     available_tools: list[ToolInfo] = Field(
         default_factory=list, description="Ferramentas disponíveis e seus status"
     )
-    horario_funcionamento: dict[str, Any] | None = Field(
-        None, description="Horário de funcionamento configurado"
-    )
-    has_custom_prompt: bool = Field(False, description="Se tem prompt customizado")
+
+    # Context 2.0: Structured configuration
+    has_custom_prompt: bool = Field(False, description="Se tem prompt customizado no Langfuse ou available_tools")
+    has_business_hours: bool = Field(False, description="Se tem horário de funcionamento configurado")
+    has_rag_collection: bool = Field(False, description="Se tem coleção RAG configurada")
 
     # PHASE 1: Docker MCP integration flag
     docker_mcp_enabled: bool = Field(
         False, description="Se integrações Docker MCP estão disponíveis"
     )
+
+
+# Resolve forward reference for StructuredDataResponse
+# Import at end to avoid circular imports
+from .structured_data import StructuredDataResponse  # noqa: E402
+
+AgentChatResponse.model_rebuild()

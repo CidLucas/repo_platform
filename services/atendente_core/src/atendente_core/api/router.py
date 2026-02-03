@@ -199,6 +199,7 @@ async def chat_endpoint(
             session_id=body.session_id,
             model_used=result.model_used,
             elicitation_pending=pending_elicitation,
+            structured_data=result.structured_data,
         )
 
     except ValueError as e:
@@ -249,7 +250,6 @@ async def twilio_webhook(
 
         # Processa a mensagem usando o client_id
         result = await service.process_message(
-            api_key=None,
             session_id=f"whatsapp:{phone_number}",  # Session ID baseada no número
             message_text=Body,
             client_id=str(cliente_final.client_id),
@@ -313,8 +313,9 @@ async def list_models():
             ("cogito-2.1:671b", "Cogito 2.1 - raciocínio avançado"),
             ("kimi-k2:1t", "Kimi K2 - 1 trilhão de parâmetros"),
         ]
+        existing_names = {m.name for m in models}  # O(1) lookup instead of O(n)
         for name, desc in cloud_models:
-            if not any(m.name == name for m in models):
+            if name not in existing_names:
                 models.append(
                     ModelInfo(
                         name=name,
@@ -384,20 +385,19 @@ async def get_client_context(
     all_tools = mcp_manager.tools or []
     filtered_tools = filter_tools_for_client(all_tools, safe_ctx)
 
-    # Monta lista de tools com status
-    available_tools = []
-    for tool in all_tools:
-        is_enabled = any(t.name == tool.name for t in filtered_tools)
-        available_tools.append(
-            ToolInfo(name=tool.name, description=tool.description, enabled=is_enabled)
-        )
+    # Monta lista de tools com status - use set for O(1) lookup
+    filtered_names = {t.name for t in filtered_tools}
+    available_tools = [
+        ToolInfo(name=tool.name, description=tool.description, enabled=tool.name in filtered_names)
+        for tool in all_tools
+    ]
 
     return ClientContextResponse(
         nome_empresa=safe_ctx.nome_empresa,
         tier=safe_ctx.tier,
         enabled_tools=safe_ctx.enabled_tools,
-        collection_rag=safe_ctx.collection_rag,
         available_tools=available_tools,
-        horario_funcionamento=safe_ctx.horario_funcionamento,
-        has_custom_prompt=bool(safe_ctx.prompt_base),
+        has_custom_prompt=bool(safe_ctx.available_tools_config),
+        has_business_hours=bool(safe_ctx.team_structure and safe_ctx.team_structure.business_hours),
+        has_rag_collection="executar_rag_cliente" in safe_ctx.enabled_tools,
     )

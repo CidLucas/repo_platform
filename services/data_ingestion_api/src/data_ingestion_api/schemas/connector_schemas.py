@@ -2,10 +2,10 @@
 Pydantic schemas for connector status, sync history, and file metadata.
 """
 from datetime import datetime
-from typing import Optional, Literal
-from pydantic import BaseModel, Field
+from typing import Literal, Optional
 from uuid import UUID
 
+from pydantic import BaseModel, Field
 
 # --- Connector Status Schemas ---
 
@@ -18,12 +18,12 @@ class ConnectorStatusResponse(BaseModel):
     status: Literal['active', 'inactive', 'error', 'pending']
 
     # Latest sync information
-    last_sync_at: Optional[datetime] = None
-    last_sync_status: Optional[Literal['completed', 'failed', 'running']] = None
-    records_count: Optional[int] = None  # Total records from latest sync
+    last_sync_at: datetime | None = None
+    last_sync_status: Literal['completed', 'failed', 'running'] | None = None
+    records_count: int | None = None  # Total records from latest sync
 
     # Error information
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
     created_at: datetime
     updated_at: datetime
@@ -47,15 +47,15 @@ class SyncHistoryResponse(BaseModel):
     status: Literal['running', 'completed', 'failed', 'cancelled']
 
     sync_started_at: datetime
-    sync_completed_at: Optional[datetime] = None
+    sync_completed_at: datetime | None = None
 
     records_processed: int = 0
     records_inserted: int = 0
     records_updated: int = 0
     records_failed: int = 0
 
-    resource_type: Optional[str] = None
-    error_message: Optional[str] = None
+    resource_type: str | None = None
+    error_message: str | None = None
 
     created_at: datetime
 
@@ -64,7 +64,7 @@ class StartSyncRequest(BaseModel):
     """Request to start a new sync job."""
 
     credential_id: int = Field(..., description="ID of the credential to sync")
-    resource_type: Optional[str] = Field(None, description="Specific resource to sync (products, orders, etc.)")
+    resource_type: str | None = Field(None, description="Specific resource to sync (products, orders, etc.)")
 
 
 class StartSyncResponse(BaseModel):
@@ -84,17 +84,17 @@ class UploadedFileResponse(BaseModel):
     id: UUID
     file_name: str
     file_size_bytes: int
-    file_type: Optional[str] = None
+    file_type: str | None = None
 
     status: Literal['uploaded', 'processing', 'completed', 'failed', 'deleted']
     records_count: int = 0
     records_imported: int = 0
 
     uploaded_at: datetime
-    processed_at: Optional[datetime] = None
+    processed_at: datetime | None = None
 
     storage_path: str
-    download_url: Optional[str] = None  # Signed URL for download
+    download_url: str | None = None  # Signed URL for download
 
 
 class FileListResponse(BaseModel):
@@ -124,8 +124,8 @@ class StorageUsageResponse(BaseModel):
     total_storage_gb: float
 
     # Quota (if applicable)
-    quota_gb: Optional[float] = None
-    usage_percentage: Optional[float] = None
+    quota_gb: float | None = None
+    usage_percentage: float | None = None
 
     # File counts
     total_files: int
@@ -142,5 +142,5 @@ class DashboardStatsResponse(BaseModel):
 
     storage_usage: StorageUsageResponse
 
-    last_sync_at: Optional[datetime] = None
+    last_sync_at: datetime | None = None
     total_syncs_today: int = 0

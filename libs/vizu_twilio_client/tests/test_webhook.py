@@ -5,7 +5,6 @@ import hmac
 from hashlib import sha1
 
 import pytest
-
 from vizu_twilio_client.webhook import (
     create_twiml_response,
     create_voice_twiml_response,

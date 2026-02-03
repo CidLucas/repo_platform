@@ -16,7 +16,7 @@ import data_ingestion_api.services.supabase_client as supabase_client
 logger = logging.getLogger(__name__)
 
 
-class MappingStatus(str, Enum):
+class MappingStatus(Enum):
     """Status possíveis de um mapeamento."""
     PENDING = "pending"
     NEEDS_REVIEW = "needs_review"

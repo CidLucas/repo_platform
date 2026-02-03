@@ -62,6 +62,10 @@ def get_shared_engine() -> Engine:
     """
     Retorna a engine compartilhada (singleton).
     Cria a engine na primeira chamada.
+
+    NOTE: Pool settings are conservative to avoid exhausting Supabase connections
+    when combined with vizu_db_connector pools from other services.
+    Total Supabase connection limit is typically 60 for Session mode.
     """
     global _shared_engine
 
@@ -72,10 +76,11 @@ def get_shared_engine() -> Engine:
         _shared_engine = create_engine(
             db_url,
             poolclass=QueuePool,
-            pool_size=10,  # Conexões mantidas no pool
-            max_overflow=20,  # Conexões extras em pico
-            pool_recycle=300,  # Recicla conexões a cada 5 min
+            pool_size=5,       # Reduced from 10 - share Supabase slots with other services
+            max_overflow=10,   # Reduced from 20 - prevents pool exhaustion
+            pool_recycle=180,  # Recycle every 3 min (was 5 min - more aggressive for Supabase)
             pool_pre_ping=True,  # Verifica conexão antes de usar
+            pool_timeout=30,   # Wait up to 30s for connection (fail fast)
             echo=False,  # Desabilita log de queries (usar logging próprio)
         )
 

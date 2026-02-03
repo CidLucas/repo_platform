@@ -82,6 +82,7 @@ ignore = [
     "F841",   # local variable assigned but never used
     "UP007",  # use X | Y for type annotations
     "UP035",  # deprecated typing imports
+    "UP042",  # class inherits from both str and Enum (StrEnum migration)
     "W191",   # indentation contains tabs
     "W291",   # trailing whitespace
     "W293",   # blank line contains whitespace

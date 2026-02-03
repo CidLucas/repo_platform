@@ -145,6 +145,8 @@ export interface ProdutoRankingReceita {
   nome: string;
   receita_total: number;
   valor_unitario_medio: number;
+  quantidade_total: number;
+  cluster_tier: string;
 }
 
 // Corresponds to the Pydantic 'ProdutoRankingVolume'
@@ -152,6 +154,8 @@ export interface ProdutoRankingVolume {
   nome: string;
   quantidade_total: number;
   valor_unitario_medio: number;
+  receita_total: number;
+  cluster_tier: string;
 }
 
 // Corresponds to the Pydantic 'ProdutoRankingTicket'
@@ -159,6 +163,8 @@ export interface ProdutoRankingTicket {
   nome: string;
   ticket_medio: number;
   valor_unitario_medio: number;
+  quantidade_total: number;
+  cluster_tier: string;
 }
 
 // Corresponds to the Pydantic 'HomeScorecards'
@@ -215,6 +221,9 @@ export interface FornecedorDetailResponse {
     clientes_por_receita: RankingItem[];
     produtos_por_receita: RankingItem[];
     regioes_por_receita: RankingItem[];
+  };
+  charts: {
+    receita_no_tempo: ChartDataPoint[];
   };
 }
 
@@ -499,6 +508,54 @@ export const getProductsByCustomer = async (customerCpfCnpj: string, limit: numb
 // Get monthly orders for a specific customer (time series)
 export const getCustomerMonthlyOrders = async (customerCpfCnpj: string): Promise<MonthlyOrderData[]> => {
   const response = await axiosInstance.get<MonthlyOrderData[]>(`/customer-monthly-orders/${encodeURIComponent(customerCpfCnpj)}`);
+  return response.data;
+};
+
+// Interface for customers by supplier
+export interface CustomerBySupplier {
+  nome: string;
+  customer_cpf_cnpj: string;
+  receita_total: number;
+  quantidade_total: number;
+  num_pedidos: number;
+  ticket_medio: number;
+}
+
+// Get customers who bought from a specific supplier
+export const getCustomersBySupplier = async (supplierCnpj: string, limit: number = 100): Promise<CustomerBySupplier[]> => {
+  const response = await axiosInstance.get<CustomerBySupplier[]>(`/customers-by-supplier/${encodeURIComponent(supplierCnpj)}`, {
+    params: { limit }
+  });
+  return response.data;
+};
+
+// Get products sold by a specific supplier
+export const getProductsBySupplier = async (supplierCnpj: string, limit: number = 100): Promise<ProductByCustomer[]> => {
+  const response = await axiosInstance.get<ProductByCustomer[]>(`/products-by-supplier/${encodeURIComponent(supplierCnpj)}`, {
+    params: { limit }
+  });
+  return response.data;
+};
+
+// Interface for suppliers by product
+export interface SupplierByProduct {
+  supplier_id: string;
+  supplier_name: string;
+  supplier_cnpj: string;
+  endereco_cidade: string | null;
+  endereco_uf: string | null;
+  quantity_sold: number;
+  total_revenue: number;
+  order_count: number;
+  avg_unit_price: number;
+  last_sale: string | null;
+}
+
+// Get suppliers who sell a specific product
+export const getSuppliersByProduct = async (productName: string, limit: number = 100): Promise<SupplierByProduct[]> => {
+  const response = await axiosInstance.get<SupplierByProduct[]>(`/suppliers-by-product/${encodeURIComponent(productName)}`, {
+    params: { limit }
+  });
   return response.data;
 };
 

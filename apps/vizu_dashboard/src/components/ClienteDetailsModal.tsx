@@ -82,11 +82,12 @@ export const ClienteDetailsModal: React.FC<ClienteDetailsModalProps> = ({ isOpen
 
   // Navigation handlers
   const handleProductClick = () => {
-    console.log('Product click handler called', { topProduct });
-    if (topProduct) {
-      console.log('Navigating to product filter:', topProduct.nome);
+    console.log('Product click handler called', { topProduct, clientName, cnpj });
+    // Navigate to PRODUCTS page (yellow) showing products bought by this customer
+    if (cnpj && clientName) {
+      console.log('Navigating to products bought by customer:', clientName);
       onClose();
-      navigate(`/dashboard/clientes/lista?view=product&product=${encodeURIComponent(topProduct.nome)}`);
+      navigate(`/dashboard/produtos/lista?view=by-customer&customer=${encodeURIComponent(cnpj)}&customerName=${encodeURIComponent(clientName)}`);
     }
   };
 

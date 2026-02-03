@@ -8,21 +8,24 @@ import {
   getCliente,
   getProductsForFilter,
   getCustomersByProduct,
-  getProductsByCustomer
+  getProductsByCustomer,
+  getCustomersBySupplier
 } from '../services/analyticsService';
 import type {
   ClientesOverviewResponse,
   ClienteDetailResponse,
   ProductFilterItem,
   CustomerByProduct,
-  ProductByCustomer
+  ProductByCustomer,
+  CustomerBySupplier
 } from '../services/analyticsService';
 
-type ViewMode = 'all' | 'by-product' | 'by-customer';
+type ViewMode = 'all' | 'by-product' | 'by-customer' | 'by-supplier';
 
 function ClientesListPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [searchParams, setSearchParams] = useSearchParams();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const location = useLocation();
   const [selectedCliente, setSelectedCliente] = useState<ClienteDetailResponse | null>(null);
   const [overviewData, setOverviewData] = useState<ClientesOverviewResponse | null>(null);
@@ -33,15 +36,20 @@ function ClientesListPage() {
   const viewParam = searchParams.get('view');
   const productParam = searchParams.get('product');
   const clientParam = searchParams.get('client');
+  const supplierParam = searchParams.get('supplier');
+  const supplierNameParam = searchParams.get('supplierName');
 
   const [viewMode, setViewMode] = useState<ViewMode>(
-    viewParam === 'product' ? 'by-product' : viewParam === 'customer' ? 'by-customer' : 'all'
+    viewParam === 'product' ? 'by-product' : 
+    viewParam === 'customer' ? 'by-customer' : 
+    viewParam === 'by-supplier' ? 'by-supplier' : 'all'
   );
   const [productsList, setProductsList] = useState<ProductFilterItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<string>(productParam || '');
   const [selectedCustomer, setSelectedCustomer] = useState<string>(clientParam || '');
   const [customersByProduct, setCustomersByProduct] = useState<CustomerByProduct[]>([]);
   const [productsByCustomer, setProductsByCustomer] = useState<ProductByCustomer[]>([]);
+  const [customersBySupplier, setCustomersBySupplier] = useState<CustomerBySupplier[]>([]);
   const [loadingProducts, setLoadingProducts] = useState<boolean>(false);
 
   // Load initial data and products list
@@ -55,8 +63,8 @@ function ClientesListPage() {
         ]);
         setOverviewData(clientesData);
         setProductsList(productsData);
-      } catch (err: any) {
-        setError(err.message || 'Erro ao carregar dados.');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Erro ao carregar dados.');
       } finally {
         setLoading(false);
       }
@@ -77,11 +85,29 @@ function ClientesListPage() {
         // Show products bought by this customer
         setViewMode('by-customer');
         setSelectedCustomer(clientParam);
+      } else if (viewParam === 'by-supplier' && supplierParam) {
+        // Show customers who bought from this supplier
+        setViewMode('by-supplier');
+        await fetchCustomersBySupplierFilter(supplierParam);
       }
     };
 
     handleUrlParams();
-  }, [loading, overviewData, viewParam, productParam, clientParam, onOpen]);
+  }, [loading, overviewData, viewParam, productParam, clientParam, supplierParam, onOpen]);
+
+  // Fetch customers by supplier
+  const fetchCustomersBySupplierFilter = async (cnpj: string) => {
+    try {
+      setLoadingProducts(true);
+      const data = await getCustomersBySupplier(cnpj);
+      setCustomersBySupplier(data);
+    } catch (err: unknown) {
+      console.error('Erro ao carregar clientes por fornecedor:', err);
+      setCustomersBySupplier([]);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
 
   // Load customers when product filter changes
   useEffect(() => {
@@ -94,7 +120,7 @@ function ClientesListPage() {
         setLoadingProducts(true);
         const data = await getCustomersByProduct(selectedProduct);
         setCustomersByProduct(data);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Erro ao carregar clientes por produto:', err);
         setCustomersByProduct([]);
       } finally {
@@ -123,7 +149,7 @@ function ClientesListPage() {
           const data = await getProductsByCustomer(cpfCnpj);
           setProductsByCustomer(data);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Erro ao carregar produtos por cliente:', err);
         setProductsByCustomer([]);
       } finally {
@@ -147,9 +173,9 @@ function ClientesListPage() {
       const details = await getCliente(clienteNome);
       setSelectedCliente(details);
       onOpen();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao carregar detalhes do cliente:", err);
-      setError(err.message || 'Erro ao carregar detalhes do cliente.');
+      setError(err instanceof Error ? err.message : 'Erro ao carregar detalhes do cliente.');
     }
   };
 
@@ -160,6 +186,7 @@ function ClientesListPage() {
       setSelectedCustomer('');
       setCustomersByProduct([]);
       setProductsByCustomer([]);
+      setCustomersBySupplier([]);
       // Clear URL params
       setSearchParams({});
     }
@@ -202,7 +229,22 @@ function ClientesListPage() {
   // Determine which data to show based on view mode
   const showingCustomersByProduct = viewMode === 'by-product' && selectedProduct && customersByProduct.length > 0;
   const showingProductsByCustomer = viewMode === 'by-customer' && selectedCustomer && productsByCustomer.length > 0;
+  const showingCustomersBySupplier = viewMode === 'by-supplier' && customersBySupplier.length > 0;
   const clientesList = overviewData.ranking_por_receita || [];
+
+  // Get title based on view mode
+  const getPageTitle = () => {
+    if (showingCustomersByProduct) {
+      return `Clientes que compraram: ${selectedProduct.substring(0, 40)}${selectedProduct.length > 40 ? '...' : ''}`;
+    }
+    if (showingProductsByCustomer) {
+      return `Produtos comprados por: ${selectedCustomer.substring(0, 40)}${selectedCustomer.length > 40 ? '...' : ''}`;
+    }
+    if (showingCustomersBySupplier && supplierNameParam) {
+      return `Clientes de: ${decodeURIComponent(supplierNameParam).substring(0, 40)}${supplierNameParam.length > 40 ? '...' : ''}`;
+    }
+    return 'Clientes por Receita';
+  };
 
   return (
     <MainLayout>
@@ -219,12 +261,7 @@ function ClientesListPage() {
         <Flex justify="space-between" align="flex-end" mb="24px">
           <Box>
             <Text as="h1" textStyle="pageTitle" mt="32px">
-              {showingCustomersByProduct
-                ? `Clientes que compraram: ${selectedProduct.substring(0, 40)}${selectedProduct.length > 40 ? '...' : ''}`
-                : showingProductsByCustomer
-                ? `Produtos comprados por: ${selectedCustomer.substring(0, 40)}${selectedCustomer.length > 40 ? '...' : ''}`
-                : 'Clientes por Receita'
-              }
+              {getPageTitle()}
             </Text>
             {showingCustomersByProduct && (
               <Text fontSize="sm" color="gray.600" mt={1}>
@@ -236,10 +273,25 @@ function ClientesListPage() {
                 {productsByCustomer.length} produtos encontrados
               </Text>
             )}
+            {showingCustomersBySupplier && (
+              <Text fontSize="sm" color="gray.600" mt={1}>
+                {customersBySupplier.length} clientes encontrados
+              </Text>
+            )}
           </Box>
-          <Button variant="solid" bg="white" color="gray.800" _hover={{ bg: "gray.100" }}>
-            Cadastrar Novo Cliente
-          </Button>
+          {(viewMode === 'by-supplier') ? (
+            <Button 
+              variant="outline" 
+              borderColor="gray.800"
+              onClick={() => handleViewModeChange('all')}
+            >
+              Ver Todos os Clientes
+            </Button>
+          ) : (
+            <Button variant="solid" bg="white" color="gray.800" _hover={{ bg: "gray.100" }}>
+              Cadastrar Novo Cliente
+            </Button>
+          )}
         </Flex>
 
         {/* Filters */}
@@ -363,6 +415,42 @@ function ClientesListPage() {
                   <Td py={5} isNumeric>{product.num_pedidos}</Td>
                   <Td py={5} isNumeric>
                     R$ {product.valor_unitario_medio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        ) : showingCustomersBySupplier ? (
+          /* Filtered by Supplier View - Shows Customers */
+          <Table variant="unstyled">
+            <Thead>
+              <Tr borderBottom="3px solid black">
+                <Th py={4}>Cliente</Th>
+                <Th py={4} isNumeric>Receita Total</Th>
+                <Th py={4} isNumeric>Quantidade</Th>
+                <Th py={4} isNumeric>Pedidos</Th>
+                <Th py={4} isNumeric>Ticket Médio</Th>
+              </Tr>
+            </Thead>
+            <Tbody>
+              {customersBySupplier.map((customer, index) => (
+                <Tr
+                  key={customer.customer_cpf_cnpj}
+                  borderBottom={index < customersBySupplier.length - 1 ? "1px solid black" : "none"}
+                  cursor="pointer"
+                  _hover={{ bg: "pink.100" }}
+                  onClick={() => handleClientRowClick(customer.nome)}
+                >
+                  <Td py={5}>{customer.nome}</Td>
+                  <Td py={5} isNumeric fontWeight="bold" color="green.700">
+                    R$ {customer.receita_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </Td>
+                  <Td py={5} isNumeric>
+                    {customer.quantidade_total.toLocaleString('pt-BR')} kg
+                  </Td>
+                  <Td py={5} isNumeric>{customer.num_pedidos}</Td>
+                  <Td py={5} isNumeric>
+                    R$ {customer.ticket_medio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </Td>
                 </Tr>
               ))}

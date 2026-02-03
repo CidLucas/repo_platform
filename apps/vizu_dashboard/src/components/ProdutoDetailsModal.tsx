@@ -1,5 +1,6 @@
 import { Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, Flex, Text, Box } from '@chakra-ui/react';
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ModalContentLayout } from './ModalContentLayout';
 import { GraphCarousel } from './GraphCarousel';
 import { ScorecardCard } from './ScorecardCard';
@@ -13,6 +14,8 @@ interface ProdutoDetailsModalProps {
 }
 
 export const ProdutoDetailsModal: React.FC<ProdutoDetailsModalProps> = ({ isOpen, onClose, produto, overviewData }) => {
+  const navigate = useNavigate();
+
   if (!produto) return null;
 
   const { nome_produto, scorecards, rankings_internos } = produto;
@@ -24,6 +27,23 @@ export const ProdutoDetailsModal: React.FC<ProdutoDetailsModalProps> = ({ isOpen
   const topClientRevenue = topClient
     ? `R$ ${topClient.receita_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
     : '';
+
+  // Handler to navigate to client details (clients who bought this product)
+  const handleClientClick = () => {
+    if (!topClient) return;
+    
+    // Navigate to ClientesListPage filtered by this product's buyers
+    const productName = encodeURIComponent(nome_produto);
+    navigate(`/dashboard/clientes/lista?view=by-product&product=${productName}&productName=${productName}`);
+    onClose();
+  };
+
+  // Handler to navigate to suppliers who sell this product
+  const handleSupplierClick = () => {
+    const productName = encodeURIComponent(nome_produto);
+    navigate(`/dashboard/fornecedores/lista?view=by-product&product=${productName}&productName=${productName}`);
+    onClose();
+  };
 
   const totalRevenue = scorecards?.receita_total
     ? `R$ ${scorecards.receita_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
@@ -85,8 +105,16 @@ export const ProdutoDetailsModal: React.FC<ProdutoDetailsModalProps> = ({ isOpen
                   <ScorecardCard
                     title="Top Cliente Comprador"
                     value={topClientDisplay}
-                    subtitle={topClientRevenue}
+                    subtitle={topClientRevenue ? `${topClientRevenue} - Clique para ver todos` : undefined}
                     bgColor="#FFFB97"
+                    onClick={topClient ? handleClientClick : undefined}
+                  />
+                  <ScorecardCard
+                    title="Fornecedores"
+                    value="Ver Fornecedores"
+                    subtitle="Clique para ver todos os fornecedores deste produto"
+                    bgColor="#FFFB97"
+                    onClick={handleSupplierClick}
                   />
                   <ScorecardCard
                     title="Receita Total"
@@ -108,7 +136,7 @@ export const ProdutoDetailsModal: React.FC<ProdutoDetailsModalProps> = ({ isOpen
                     <GraphCarousel
                       graphs={[
                         {
-                          data: overviewData.chart_receita_no_tempo?.map((d: any) => ({
+                          data: overviewData.chart_receita_no_tempo?.map((d: { name: string; total?: number; receita?: number }) => ({
                             name: d.name,
                             receita: d.total || d.receita || 0
                           })) || [],
@@ -117,7 +145,7 @@ export const ProdutoDetailsModal: React.FC<ProdutoDetailsModalProps> = ({ isOpen
                           title: "Receita Mensal dos Produtos",
                         },
                         {
-                          data: overviewData.chart_quantidade_no_tempo?.map((d: any) => ({
+                          data: overviewData.chart_quantidade_no_tempo?.map((d: { name: string; total?: number; quantidade?: number }) => ({
                             name: d.name,
                             quantidade: d.total || d.quantidade || 0
                           })) || [],

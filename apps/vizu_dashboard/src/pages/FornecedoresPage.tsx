@@ -1,21 +1,21 @@
-import { Box, Flex, Text, Heading, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon, IconButton } from '@chakra-ui/react';
+import { Box, Flex, Text, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon, IconButton } from '@chakra-ui/react';
 import { RepeatIcon } from '@chakra-ui/icons';
 import { MainLayout } from '../components/layouts/MainLayout';
 import { DashboardCard } from '../components/DashboardCard';
 import { ListCard } from '../components/ListCard';
-import React, { useState, useEffect } from 'react';
 import { FornecedorDetailsModal } from '../components/FornecedorDetailsModal';
 import { getFornecedores, getFornecedor } from '../services/analyticsService';
 import type { FornecedoresOverviewResponse, FornecedorDetailResponse } from '../services/analyticsService';
 import { useUserProfile } from '../hooks/useUserProfile';
-import { getRegionCoordinates } from '../utils/regionCoordinates';
+import { useGeoClusters } from '../hooks/useGeoClusters';
+import React, { useState, useEffect } from 'react';
 
 type PeriodType = 'week' | 'month' | 'quarter' | 'year';
 type MetricType = 'receita' | 'qtd_media' | 'ticket_medio' | 'frequencia';
 
 function FornecedoresPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const [selectedItem, setSelectedItem] = useState<FornecedorDetailResponse | null>(null); // This will hold the detailed data for the modal
+  const [selectedItem, setSelectedItem] = useState<FornecedorDetailResponse | null>(null);
   const [overviewData, setOverviewData] = useState<FornecedoresOverviewResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,10 +25,28 @@ function FornecedoresPage() {
   const profile = useUserProfile();
   const userName = profile?.full_name.split(' ')[0] || 'Usuário';
 
+  // Hooks para dados
+  const { data: geoClusters } = useGeoClusters('state');
+
   const fetchFornecedoresData = async () => {
     try {
       setLoading(true);
       const data = await getFornecedores(selectedPeriod);
+      console.log('API Response Fornecedores:', data);
+      console.log('First ranking item structure:', data.ranking_por_receita?.[0]);
+      console.log('Keys in first item:', Object.keys(data.ranking_por_receita?.[0] || {}));
+      console.log('Chart data structure:', {
+        receita: data.chart_receita_no_tempo?.[0],
+        fornecedores: data.chart_fornecedores_no_tempo?.[0],
+        ticket: data.chart_ticketmedio_no_tempo?.[0],
+      });
+      // DEBUG: Log mapped graph data for "Novos Fornecedores" card
+      const mappedGraphData = (data.chart_fornecedores_no_tempo || []).map((d: any) => ({
+        name: d.name,
+        value: d.total ?? d.value ?? 0
+      }));
+      console.log('📊 Mapped graphData for Novos Fornecedores:', mappedGraphData.slice(0, 3));
+      console.log('📊 Total mapped items:', mappedGraphData.length);
       setOverviewData(data);
       setLastUpdate(new Date());
       setError(null);
@@ -41,7 +59,7 @@ function FornecedoresPage() {
 
   useEffect(() => {
     fetchFornecedoresData();
-  }, [selectedPeriod, selectedMetric]);
+  }, [selectedPeriod]);
 
   const handlePeriodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedPeriod(e.target.value as PeriodType);
@@ -52,10 +70,9 @@ function FornecedoresPage() {
   };
 
   const handleMiniCardClick = async (clickedItem: { id: string }) => {
-    // When a mini-card is clicked, fetch the detailed data for that specific supplier
     try {
-      setSelectedItem(null); // Clear previous selection while loading
-      const details = await getFornecedor(clickedItem.id); // 'id' is 'nome_fornecedor'
+      setSelectedItem(null);
+      const details = await getFornecedor(clickedItem.id);
       setSelectedItem(details);
       onOpen();
     } catch (err: any) {
@@ -64,7 +81,6 @@ function FornecedoresPage() {
     }
   };
 
-  // Conditional rendering for loading and error states
   if (loading) {
     return (
       <MainLayout>
@@ -88,13 +104,7 @@ function FornecedoresPage() {
     );
   }
 
-  // Calculate total revenue from all suppliers
-  const totalRevenue = (overviewData.ranking_por_receita || []).reduce(
-    (sum: number, item: any) => sum + item.receita_total,
-    0
-  );
-
-  // Calculate new suppliers (first purchase in last 30 days)
+  // Cálculos derivados
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const newSuppliersCount = (overviewData.ranking_por_receita || []).filter((item: any) => {
@@ -102,21 +112,12 @@ function FornecedoresPage() {
     return firstSaleDate >= thirtyDaysAgo;
   }).length;
 
-  // Transform regional chart data for map
-  const mapMarkers = (overviewData.chart_fornecedores_por_regiao || []).map((region: any) => {
-    const coords = getRegionCoordinates(region.name);
-    return {
-      position: [coords.lat, coords.lng] as [number, number],
-      popupText: `${region.name}: ${region.total || 0} fornecedores`
-    };
-  });
+  // Calcular crescimento percentual
+  const growthPercentage = newSuppliersCount > 0 && overviewData.scorecard_total_fornecedores > 0
+    ? ((newSuppliersCount / (overviewData.scorecard_total_fornecedores - newSuppliersCount)) * 100).toFixed(1)
+    : '0.0';
 
-  // Use first marker for center, or default to São Paulo
-  const mapCenter = mapMarkers.length > 0
-    ? mapMarkers[0].position
-    : [-23.55052, -46.633308] as [number, number];
-
-  // Map the data for the ListCard - dynamic based on selected metric
+  // Mapear dados para ListCard - dinâmico por métrica
   const getCurrentRanking = () => {
     switch (selectedMetric) {
       case 'receita':
@@ -133,6 +134,8 @@ function FornecedoresPage() {
   };
 
   const listCardItems = getCurrentRanking().map((item: any) => {
+    console.log('Item:', item); // ← ADICIONE ISTO
+    console.log('Item.nome:', item.nome); // ← E ISTO
     let description = '';
     if (selectedMetric === 'receita') {
       description = `Receita: R$ ${(item.receita_total ?? 0).toLocaleString('pt-BR')}`;
@@ -141,7 +144,7 @@ function FornecedoresPage() {
     } else if (selectedMetric === 'ticket_medio') {
       description = `Ticket Médio: R$ ${(item.ticket_medio ?? item.avg_order_value ?? 0).toLocaleString('pt-BR')}`;
     } else if (selectedMetric === 'frequencia') {
-      description = `Frequência: ${(item.frequencia_pedidos_mes ?? item.frequencia ?? 0).toFixed(1)} pedidos/mês`;
+      description = `Frequência: ${(item.frequencia_pedidos_mes ?? item.frequencia ?? 0).toFixed(1)} vendas/mês`;
     }
     return {
       id: item.nome,
@@ -159,14 +162,15 @@ function FornecedoresPage() {
         px={{ base: '20px', md: '40px', lg: '80px' }}
         pt={{ base: '20px', md: '40px', lg: '20px' }}
         pb={{ base: '80px', md: '40px', lg: '20px' }}
-        bg="#92DAFF"
+        bg="#B2E7FF"
         color="gray.800"
       >
+        {/* ===== HEADER ===== */}
         <Flex justify="space-between" align="flex-start" mb="8px">
           <Text as="h1" textStyle="pageSubtitle">
-            {userName}, você {overviewData.scorecard_crescimento_percentual !== null && overviewData.scorecard_crescimento_percentual !== undefined
-              ? `aumentou sua base de fornecedores em ${overviewData.scorecard_crescimento_percentual >= 0 ? '+' : ''}${overviewData.scorecard_crescimento_percentual.toFixed(2)}%`
-              : 'está expandindo sua rede de fornecedores'}
+            {userName}, sua base de fornecedores {overviewData.scorecard_crescimento_percentual !== null && overviewData.scorecard_crescimento_percentual !== undefined
+              ? `aumentou em ${overviewData.scorecard_crescimento_percentual >= 0 ? '+' : ''}${overviewData.scorecard_crescimento_percentual.toFixed(2)}%`
+              : 'está sendo analisada'}
           </Text>
           <HStack spacing={2}>
             <Text fontSize="sm" color="gray.600">
@@ -182,10 +186,13 @@ function FornecedoresPage() {
           </HStack>
         </Flex>
 
+        {/* ===== STATS + FILTERS ===== */}
         <Flex justify="space-between" align="flex-end" mb="36px">
           <Box>
             <Text textStyle="homeCardStatLabel">TOTAL DE FORNECEDORES</Text>
-            <Text as="h2" textStyle="pageBigNumberSmall" mt="4px">{overviewData.scorecard_total_fornecedores}</Text>
+            <Text as="h2" textStyle="pageBigNumberSmall" mt="4px">
+              {overviewData.scorecard_total_fornecedores}
+            </Text>
           </Box>
           <HStack spacing="4" position="relative">
             <Select
@@ -215,139 +222,318 @@ function FornecedoresPage() {
           </HStack>
         </Flex>
 
+        {/* ===== 4 CARDS APENAS ===== */}
         <Flex wrap="wrap" justify="center" gap="16px">
+          {/* CARD 1: LARGE - Performance de Fornecedores */}
           <DashboardCard
-            title="Crescimento de Fornecedores no Tempo"
-            size="small"
-            bgColor="#B2E7FF"
+            key={`performance-chart-${selectedMetric}`}
+            title="Performance de Fornecedores"
+            size="large"
+            bgColor="#D4F1F4"
             graphData={{
-              values: overviewData.chart_fornecedores_no_tempo
-                ? overviewData.chart_fornecedores_no_tempo.map((d: any) => ({
+              values: (() => {
+                let chartData: any[] = [];
+                if (selectedMetric === 'receita') {
+                  chartData = overviewData.chart_receita_no_tempo || [];
+                } else if (selectedMetric === 'qtd_media') {
+                  chartData = overviewData.chart_quantidade_no_tempo || [];
+                } else if (selectedMetric === 'ticket_medio') {
+                  chartData = overviewData.chart_ticketmedio_no_tempo || [];
+                } else {
+                  // frequencia usa receita como fallback
+                  chartData = overviewData.chart_receita_no_tempo || [];
+                }
+                return chartData.map((d: any) => ({
                   name: d.name,
-                  value: d.total || 0
-                }))
-                : []
+                  value: d.total ?? d.value ?? 0
+                }));
+              })()
             }}
-            scorecardValue={overviewData.scorecard_total_fornecedores.toString()}
-            scorecardLabel="Total de Fornecedores"
-            kpiItems={[
+            scorecardValue={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+              overviewData.chart_ticketmedio_no_tempo && overviewData.chart_ticketmedio_no_tempo.length > 0
+                ? overviewData.chart_ticketmedio_no_tempo[overviewData.chart_ticketmedio_no_tempo.length - 1].total || 0
+                : 0
+            )}
+            scorecardLabel="Ticket Médio Geral"
+            graphTitle={(() => {
+              if (selectedMetric === 'receita') return 'Receita Mensal dos Fornecedores';
+              if (selectedMetric === 'qtd_media') return 'Volume Comercializado Mensal';
+              if (selectedMetric === 'ticket_medio') return 'Ticket Médio Mensal';
+              return 'Receita Mensal dos Fornecedores';
+            })()}
+            graphDescription={(() => {
+              if (selectedMetric === 'receita') return 'Mês a mês da flutuação de receita geral comercializada por todos os fornecedores.';
+              if (selectedMetric === 'qtd_media') return 'Mês a mês da flutuação do volume comercializado pelos fornecedores.';
+              if (selectedMetric === 'ticket_medio') return 'Mês a mês da flutuação do ticket médio geral dos fornecedores.';
+              return 'Mês a mês da flutuação de receita geral comercializada por todos os fornecedores.';
+            })()}
+            carouselGraphs={[
               {
-                label: `Total de Fornecedores: ${overviewData.scorecard_total_fornecedores}`,
-                content: <Text>Número total de fornecedores ativos na base</Text>
+                data: (overviewData.chart_receita_no_tempo || []).map((d: any) => ({
+                  name: d.name,
+                  value: d.total ?? d.value ?? 0
+                })),
+                dataKey: "value",
+                lineColor: "#82ca9d",
+                title: "Receita Mensal dos Fornecedores",
+                description: "Receita total gerada por todos os fornecedores ao longo do tempo."
               },
               {
-                label: 'Evolução no Tempo',
-                content: <Text>Acompanhe o crescimento do número de fornecedores ao longo do tempo.</Text>
-              }
-            ]}
-            modalLeftBgColor="#B2E7FF"
-            modalRightBgColor="#92DAFF"
-          />
-
-          <DashboardCard
-            title="Receita Mensal dos Fornecedores"
-            size="small"
-            bgColor="#B2E7FF"
-            graphData={{
-              values: overviewData.chart_receita_no_tempo
-                ? overviewData.chart_receita_no_tempo.map((d: any) => ({
+                data: (overviewData.chart_fornecedores_no_tempo || []).map((d: any) => ({
                   name: d.name,
-                  value: d.total || 0
-                }))
-                : []
-            }}
-            scorecardValue={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRevenue)}
-            scorecardLabel="Receita Total"
-            kpiItems={[
-              {
-                label: `Receita Total: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRevenue)}`,
-                content: <Text>Valor total de receita gerada através de todos os fornecedores</Text>
+                  value: d.total ?? d.value ?? 0
+                })),
+                dataKey: "value",
+                lineColor: "#8884d8",
+                title: "Fornecedores Únicos por Mês",
+                description: "Número de fornecedores únicos que realizaram vendas em cada mês."
               },
               {
-                label: 'Flutuação Mensal',
-                content: <Text>Acompanhe mês a mês da flutuação de receita geral comercializada por todos os fornecedores.</Text>
-              }
-            ]}
-            modalLeftBgColor="#B2E7FF"
-            modalRightBgColor="#92DAFF"
-          />
-
-          <DashboardCard
-            title="Ticket Médio dos Fornecedores"
-            size="small"
-            bgColor="#B2E7FF"
-            graphData={{
-              values: overviewData.chart_ticketmedio_no_tempo
-                ? overviewData.chart_ticketmedio_no_tempo.map((d: any) => ({
+                data: (overviewData.chart_ticketmedio_no_tempo || []).map((d: any) => ({
                   name: d.name,
-                  value: d.total || 0
-                }))
-                : []
-            }}
-            scorecardValue={overviewData.chart_ticketmedio_no_tempo && overviewData.chart_ticketmedio_no_tempo.length > 0
-              ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                overviewData.chart_ticketmedio_no_tempo[overviewData.chart_ticketmedio_no_tempo.length - 1].total || 0
-              )
-              : 'N/A'
-            }
-            scorecardLabel="Ticket Médio Atual"
-            kpiItems={[
-              {
-                label: 'Ticket Médio',
-                content: <Text>Quantidade total comercializada dividida pela quantidade de orders.</Text>
-              },
-              {
-                label: 'Evolução Mensal',
-                content: <Text>Mês a mês da flutuação do ticket médio geral dos fornecedores.</Text>
+                  value: d.total ?? d.value ?? 0
+                })),
+                dataKey: "value",
+                lineColor: "#ffc658",
+                title: "Ticket Médio no Tempo",
+                description: "Valor médio por pedido ao longo dos meses."
               }
             ]}
-            modalLeftBgColor="#B2E7FF"
-            modalRightBgColor="#92DAFF"
+            kpiItems={(() => {
+              const fornecedores = overviewData.ranking_por_receita || [];
+              const totalFornecedores = fornecedores.length || 1;
+
+              const mediaReceitaPorFornecedor = fornecedores.reduce((sum, f) => sum + (f.receita_total || 0), 0) / totalFornecedores;
+              const mediaFrequenciaPorFornecedor = fornecedores.reduce((sum, f) => sum + (f.frequencia_pedidos_mes || 0), 0) / totalFornecedores;
+              const mediaTicketMedioPorFornecedor = fornecedores.reduce((sum, f) => sum + (f.ticket_medio || 0), 0) / totalFornecedores;
+              const mediaQtdPorFornecedor = fornecedores.reduce((sum, f) => sum + (f.qtd_media_por_pedido || 0), 0) / totalFornecedores;
+
+              return [
+                {
+                  label: `Média de Receita por Fornecedor: R$ ${mediaReceitaPorFornecedor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                  content: (
+                    <Box>
+                      <Text>Receita média gerada por cada fornecedor da base</Text>
+                      <Text mt={2} fontSize="sm">Calculado dividindo a receita total pelo número de fornecedores ({totalFornecedores})</Text>
+                      <Text mt={2} fontSize="sm" color="gray.600">Métrica: <strong>receita_total / total_fornecedores</strong></Text>
+                    </Box>
+                  )
+                },
+                {
+                  label: `Frequência Média de Vendas: ${mediaFrequenciaPorFornecedor.toFixed(2)} vendas/mês`,
+                  content: (
+                    <Box>
+                      <Text>Frequência média de vendas por fornecedor por mês</Text>
+                      <Text mt={2} fontSize="sm">Indica a regularidade de vendas dos fornecedores</Text>
+                      <Text mt={2} fontSize="sm" color="gray.600">Métrica: <strong>frequencia_pedidos_mes</strong></Text>
+                    </Box>
+                  )
+                },
+                {
+                  label: `Ticket Médio por Fornecedor: R$ ${mediaTicketMedioPorFornecedor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                  content: (
+                    <Box>
+                      <Text>Valor médio gerado por pedido de cada fornecedor</Text>
+                      <Text mt={2} fontSize="sm">Representa o valor médio de cada transação</Text>
+                      <Text mt={2} fontSize="sm" color="gray.600">Métrica: <strong>ticket_medio</strong></Text>
+                    </Box>
+                  )
+                },
+                {
+                  label: `Quantidade Média por Pedido: ${mediaQtdPorFornecedor.toFixed(1)} unidades`,
+                  content: (
+                    <Box>
+                      <Text>Quantidade média comercializada por pedido</Text>
+                      <Text mt={2} fontSize="sm">Total de quantidade dividido pelo número de pedidos</Text>
+                      <Text mt={2} fontSize="sm" color="gray.600">Métrica: <strong>qtd_media_por_pedido</strong></Text>
+                    </Box>
+                  )
+                }
+              ];
+            })()}
+            modalLeftBgColor="#D4F1F4"
+            modalRightBgColor="#B2E7FF"
           />
 
+          {/* CARD 2: SMALL - Insights de Fornecedores */}
           <DashboardCard
-            title="Volume Comercializado (Quantidade)"
-            size="small"
-            bgColor="#B2E7FF"
-            graphData={{
-              values: overviewData.chart_quantidade_no_tempo
-                ? overviewData.chart_quantidade_no_tempo.map((d: any) => ({
-                  name: d.name,
-                  value: d.total || 0
-                }))
-                : []
-            }}
-            scorecardValue={overviewData.chart_quantidade_no_tempo && overviewData.chart_quantidade_no_tempo.length > 0
-              ? overviewData.chart_quantidade_no_tempo[overviewData.chart_quantidade_no_tempo.length - 1].total?.toLocaleString('pt-BR') || 'N/A'
-              : 'N/A'
-            }
-            scorecardLabel="Volume Atual"
-            kpiItems={[
-              {
-                label: 'Volume Total',
-                content: <Text>Quantidade total (toneladas ou kgs) comercializada pelos fornecedores.</Text>
-              },
-              {
-                label: 'Flutuação Mensal',
-                content: <Text>Mês a mês da flutuação do volume comercializado.</Text>
-              }
-            ]}
-            modalLeftBgColor="#B2E7FF"
-            modalRightBgColor="#92DAFF"
-          />
-
-          <DashboardCard
-            title="Novos Fornecedores"
+            title="Insights de Fornecedores"
             size="small"
             bgGradient="linear-gradient(to-br, #353A5A, #1F2138)"
             textColor="white"
-            mainText={`Aumentamos nossa base com ${newSuppliersCount} novos fornecedores no último mês.`}
+            mainText={`Aumentamos nossa base em +${growthPercentage}% no último mês.`}
             scorecardValue={newSuppliersCount.toString()}
             scorecardLabel="Novos Cadastros"
-            modalLeftBgColor="#B2E7FF"
-            modalRightBgColor="#92DAFF"
-            modalContent={<Text>Detalhes dos novos fornecedores</Text>}
+            barChartData={(() => {
+              // Calcular dados por tier para o gráfico de barras
+              const fornecedores = overviewData.ranking_por_receita || [];
+              const tierA = fornecedores.filter((f: any) => f.cluster_tier === 'A').length;
+              const tierB = fornecedores.filter((f: any) => f.cluster_tier === 'B').length;
+              const tierC = fornecedores.filter((f: any) => f.cluster_tier === 'C').length;
+              const outros = fornecedores.length - tierA - tierB - tierC;
+              
+              return [
+                { name: 'Tier A', value: tierA, color: '#4CAF50' },
+                { name: 'Tier B', value: tierB, color: '#FFC107' },
+                { name: 'Tier C', value: tierC, color: '#FF5722' },
+                ...(outros > 0 ? [{ name: 'Outros', value: outros, color: '#9E9E9E' }] : []),
+              ];
+            })()}
+            graphTitle="Distribuição por Tier"
+            graphDescription="Quantidade de fornecedores por tier de performance."
+            kpiItems={(() => {
+              // Calcular métricas por tier
+              const fornecedores = overviewData.ranking_por_receita || [];
+              const tierA = fornecedores.filter((f: any) => f.cluster_tier === 'A');
+              const tierB = fornecedores.filter((f: any) => f.cluster_tier === 'B');
+              const tierC = fornecedores.filter((f: any) => f.cluster_tier === 'C');
+
+              const calcTierMetrics = (tier: any[]) => {
+                if (tier.length === 0) return { qtdMedia: 0, ticketMedio: 0, frequencia: 0 };
+                return {
+                  qtdMedia: tier.reduce((sum, f) => sum + (f.qtd_media_por_pedido || 0), 0) / tier.length,
+                  ticketMedio: tier.reduce((sum, f) => sum + (f.ticket_medio || 0), 0) / tier.length,
+                  frequencia: tier.reduce((sum, f) => sum + (f.frequencia_pedidos_mes || 0), 0) / tier.length,
+                };
+              };
+
+              const metricsA = calcTierMetrics(tierA);
+              const metricsB = calcTierMetrics(tierB);
+              const metricsC = calcTierMetrics(tierC);
+
+              return [
+                {
+                  label: `Tier A: ${tierA.length} fornecedores`,
+                  content: (
+                    <Box>
+                      <Text>Fornecedores de alta performance</Text>
+                      <Text mt={2} fontSize="sm">Qtd Média: {metricsA.qtdMedia.toFixed(1)} un/pedido</Text>
+                      <Text fontSize="sm">Ticket Médio: R$ {metricsA.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
+                      <Text fontSize="sm">Frequência: {metricsA.frequencia.toFixed(1)} vendas/mês</Text>
+                    </Box>
+                  )
+                },
+                {
+                  label: `Tier B: ${tierB.length} fornecedores`,
+                  content: (
+                    <Box>
+                      <Text>Fornecedores de média performance</Text>
+                      <Text mt={2} fontSize="sm">Qtd Média: {metricsB.qtdMedia.toFixed(1)} un/pedido</Text>
+                      <Text fontSize="sm">Ticket Médio: R$ {metricsB.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
+                      <Text fontSize="sm">Frequência: {metricsB.frequencia.toFixed(1)} vendas/mês</Text>
+                    </Box>
+                  )
+                },
+                {
+                  label: `Tier C: ${tierC.length} fornecedores`,
+                  content: (
+                    <Box>
+                      <Text>Fornecedores em desenvolvimento</Text>
+                      <Text mt={2} fontSize="sm">Qtd Média: {metricsC.qtdMedia.toFixed(1)} un/pedido</Text>
+                      <Text fontSize="sm">Ticket Médio: R$ {metricsC.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
+                      <Text fontSize="sm">Frequência: {metricsC.frequencia.toFixed(1)} vendas/mês</Text>
+                    </Box>
+                  )
+                },
+                {
+                  label: `Novos (últimos 30 dias): ${newSuppliersCount}`,
+                  content: (
+                    <Box>
+                      <Text>Fornecedores cadastrados recentemente</Text>
+                      <Text mt={2} fontSize="sm">Crescimento: +{growthPercentage}%</Text>
+                      <Text fontSize="sm" color="gray.600">Fornecedores com primeira venda nos últimos 30 dias</Text>
+                    </Box>
+                  )
+                }
+              ];
+            })()}
+            modalLeftBgColor="#353A5A"
+            modalRightBgColor="#1F2138"
+            carouselGraphs={(() => {
+              // Calcular métricas por tier para os gráficos
+              const fornecedores = overviewData.ranking_por_receita || [];
+              const tierA = fornecedores.filter((f: any) => f.cluster_tier === 'A');
+              const tierB = fornecedores.filter((f: any) => f.cluster_tier === 'B');
+              const tierC = fornecedores.filter((f: any) => f.cluster_tier === 'C');
+              const tierD = fornecedores.filter((f: any) => f.cluster_tier === 'D' || !['A', 'B', 'C'].includes(f.cluster_tier));
+
+              const calcTierMetrics = (tier: any[]) => {
+                if (tier.length === 0) return { qtdMedia: 0, ticketMedio: 0, frequencia: 0, count: 0 };
+                return {
+                  count: tier.length,
+                  qtdMedia: tier.reduce((sum, f) => sum + (f.qtd_media_por_pedido || 0), 0) / tier.length,
+                  ticketMedio: tier.reduce((sum, f) => sum + (f.ticket_medio || 0), 0) / tier.length,
+                  frequencia: tier.reduce((sum, f) => sum + (f.frequencia_pedidos_mes || 0), 0) / tier.length,
+                };
+              };
+
+              const metricsA = calcTierMetrics(tierA);
+              const metricsB = calcTierMetrics(tierB);
+              const metricsC = calcTierMetrics(tierC);
+              const metricsD = calcTierMetrics(tierD);
+
+              return [
+                // 1. Gráfico de distribuição por tier (barras)
+                {
+                  data: [
+                    { name: 'Tier A', value: tierA.length, color: '#4CAF50' },
+                    { name: 'Tier B', value: tierB.length, color: '#FFC107' },
+                    { name: 'Tier C', value: tierC.length, color: '#FF5722' },
+                    { name: 'Tier D', value: tierD.length, color: '#9E9E9E' },
+                  ],
+                  dataKey: 'value',
+                  title: 'Distribuição de Fornecedores por Tier',
+                  description: 'Quantidade de fornecedores em cada tier de performance.',
+                  chartType: 'bar' as const,
+                  barColors: ['#4CAF50', '#FFC107', '#FF5722', '#9E9E9E'],
+                },
+                // 2. Gráfico de ticket médio comparativo
+                {
+                  data: [
+                    { name: 'Tier A', value: Math.round(metricsA.ticketMedio), color: '#4CAF50' },
+                    { name: 'Tier B', value: Math.round(metricsB.ticketMedio), color: '#FFC107' },
+                    { name: 'Tier C', value: Math.round(metricsC.ticketMedio), color: '#FF5722' },
+                    { name: 'Tier D', value: Math.round(metricsD.ticketMedio), color: '#9E9E9E' },
+                  ],
+                  dataKey: 'value',
+                  title: 'Ticket Médio por Tier (R$)',
+                  description: 'Comparativo do valor médio por pedido em cada tier.',
+                  chartType: 'bar' as const,
+                  barColors: ['#4CAF50', '#FFC107', '#FF5722', '#9E9E9E'],
+                },
+                // 3. Gráfico de quantidade média comparativo
+                {
+                  data: [
+                    { name: 'Tier A', value: Math.round(metricsA.qtdMedia * 10) / 10, color: '#4CAF50' },
+                    { name: 'Tier B', value: Math.round(metricsB.qtdMedia * 10) / 10, color: '#FFC107' },
+                    { name: 'Tier C', value: Math.round(metricsC.qtdMedia * 10) / 10, color: '#FF5722' },
+                    { name: 'Tier D', value: Math.round(metricsD.qtdMedia * 10) / 10, color: '#9E9E9E' },
+                  ],
+                  dataKey: 'value',
+                  title: 'Quantidade Média por Pedido',
+                  description: 'Comparativo da quantidade média comercializada por tier.',
+                  chartType: 'bar' as const,
+                  barColors: ['#4CAF50', '#FFC107', '#FF5722', '#9E9E9E'],
+                },
+                // 4. Gráfico de frequência comparativo
+                {
+                  data: [
+                    { name: 'Tier A', value: Math.round(metricsA.frequencia * 10) / 10, color: '#4CAF50' },
+                    { name: 'Tier B', value: Math.round(metricsB.frequencia * 10) / 10, color: '#FFC107' },
+                    { name: 'Tier C', value: Math.round(metricsC.frequencia * 10) / 10, color: '#FF5722' },
+                    { name: 'Tier D', value: Math.round(metricsD.frequencia * 10) / 10, color: '#9E9E9E' },
+                  ],
+                  dataKey: 'value',
+                  title: 'Frequência de Vendas (por mês)',
+                  description: 'Comparativo da frequência média de vendas por tier.',
+                  chartType: 'bar' as const,
+                  barColors: ['#4CAF50', '#FFC107', '#FF5722', '#9E9E9E'],
+                },
+              ];
+            })()}
           />
+
+          {/* CARD 3: ListCard - Rankings Dinâmicos */}
           <ListCard
             title={(() => {
               if (selectedMetric === 'receita') return 'Fornecedores com Maior Receita';
@@ -358,29 +544,33 @@ function FornecedoresPage() {
             items={listCardItems}
             onMiniCardClick={handleMiniCardClick}
             viewAllLink="/dashboard/fornecedores/lista"
-            cardBgColor="#B2E7FF"
+            cardBgColor="#D4F1F4"
           />
+
+          {/* CARD 4: LARGE - Distribuição Geográfica */}
           <DashboardCard
-            title="Distribuição Geográfica"
+            title="Distribuição Geográfica de Fornecedores"
             size="large"
             bgColor="white"
             mapData={{
-              center: mapCenter,
-              zoom: mapMarkers.length > 1 ? 4 : 10,
-              markers: mapMarkers.length > 0 ? mapMarkers : [{ position: [-23.55052, -46.633308] as [number, number], popupText: 'São Paulo' }]
+              center: geoClusters?.center || [-14.2350, -51.9253],
+              zoom: 4.5,
+              clusters: geoClusters?.clusters || [],
+              maxCount: geoClusters?.max_count || 1
             }}
             mainText="Principais regiões de atuação dos fornecedores."
-            modalLeftBgColor="#B2E7FF"
-            modalRightBgColor="#92DAFF"
-            modalContent={<Text>Detalhes do mapa de distribuição</Text>}
+            modalLeftBgColor="#D4F1F4"
+            modalRightBgColor="#B2E7FF"
+            modalContent={<Text>Detalhes do mapa de distribuição de fornecedores</Text>}
           />
         </Flex>
       </Flex>
+
+      {/* Modal para detalhes */}
       <FornecedorDetailsModal
         isOpen={isOpen}
         onClose={onClose}
         fornecedor={selectedItem}
-        overviewData={overviewData}
       />
     </MainLayout>
   );

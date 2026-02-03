@@ -936,11 +936,63 @@ class PostgresRepository:
                 logger.debug(f"📊 Read {len(result)} time_series from v_time_series for {chart_type}")
                 return [{"name": row.name, "total": int(row.total)} for row in result]
 
-            # If view is empty, return empty list
-            logger.debug(f"⚠️  v_time_series empty for {chart_type}")
-            return []
+            # Fallback: calculate directly from fact_sales if view is empty
+            logger.debug(f"⚠️  v_time_series empty for {chart_type}, using fallback calculation")
+            return self._calculate_time_series_fallback(client_id, chart_type)
         except Exception as e:
             logger.error(f"❌ Failed to read v_time_series {chart_type}: {e}", exc_info=True)
+            self.db_session.rollback()
+            # Try fallback on error (view might not exist)
+            try:
+                return self._calculate_time_series_fallback(client_id, chart_type)
+            except Exception:
+                return []
+
+    def _calculate_time_series_fallback(self, client_id: str, chart_type: str) -> list[dict]:
+        """Calculate time series directly from fact_sales as fallback."""
+        try:
+            # Map chart_type to appropriate SQL aggregation
+            chart_queries = {
+                'fornecedores_no_tempo': "COUNT(DISTINCT f.supplier_cnpj)",
+                'clientes_no_tempo': "COUNT(DISTINCT f.customer_cpf_cnpj)",
+                'produtos_no_tempo': "COUNT(DISTINCT f.product_id)",
+                'pedidos_no_tempo': "COUNT(DISTINCT f.order_id)",
+                'receita_no_tempo': "COALESCE(SUM(f.valor_total), 0)::BIGINT",
+                'receita_fornecedores_no_tempo': "COALESCE(SUM(f.valor_total), 0)::BIGINT",
+                'receita_clientes_no_tempo': "COALESCE(SUM(f.valor_total), 0)::BIGINT",
+                'receita_produtos_no_tempo': "COALESCE(SUM(f.valor_total), 0)::BIGINT",
+                'ticket_medio_fornecedores_no_tempo': "COALESCE(AVG(f.valor_total), 0)::BIGINT",
+                'ticket_medio_clientes_no_tempo': "COALESCE(AVG(f.valor_total), 0)::BIGINT",
+                'quantidade_fornecedores_no_tempo': "COALESCE(SUM(f.quantidade), 0)::BIGINT",
+                'quantidade_clientes_no_tempo': "COALESCE(SUM(f.quantidade), 0)::BIGINT",
+                'quantidade_produtos_no_tempo': "COALESCE(SUM(f.quantidade), 0)::BIGINT",
+            }
+            
+            aggregation = chart_queries.get(chart_type)
+            if not aggregation:
+                logger.warning(f"Unknown chart_type for fallback: {chart_type}")
+                return []
+            
+            query = text(f"""
+                SELECT 
+                    TO_CHAR(f.data_transacao, 'YYYY-MM') as name,
+                    {aggregation} as total
+                FROM analytics_v2.fact_sales f
+                WHERE f.client_id = :client_id
+                  AND f.data_transacao IS NOT NULL
+                GROUP BY TO_CHAR(f.data_transacao, 'YYYY-MM')
+                ORDER BY name ASC
+            """)
+            
+            result = self.db_session.execute(query, {"client_id": client_id}).fetchall()
+            
+            if result:
+                logger.info(f"📊 Fallback: calculated {len(result)} points for {chart_type}")
+                return [{"name": row.name, "total": int(row.total)} for row in result]
+            
+            return []
+        except Exception as e:
+            logger.error(f"❌ Fallback calculation failed for {chart_type}: {e}", exc_info=True)
             self.db_session.rollback()
             return []
 
@@ -1195,54 +1247,107 @@ class PostgresRepository:
         """
         Read supplier metrics from analytics_v2.dim_supplier.
 
+        When period != "all", filters to suppliers with activity in that period
+        by joining with fact_sales and re-aggregating metrics.
+
         The dim_supplier table has pre-aggregated metrics updated by triggers:
         - total_orders_received, total_revenue, avg_order_value
         - total_products_supplied, frequency_per_month, recency_days
         """
         try:
-            query = text("""
-                SELECT
-                    supplier_id,
-                    client_id,
-                    cnpj,
-                    name,
-                    telefone,
-                    endereco_cidade,
-                    endereco_uf,
-                    total_orders_received as total_orders,
-                    total_revenue,
-                    avg_order_value,
-                    avg_order_value as ticket_medio,
-                    total_products_supplied,
-                    frequency_per_month,
-                    frequency_per_month as frequencia_pedidos_mes,
-                    recency_days,
-                    first_transaction_date,
-                    last_transaction_date,
-                    -- Compute derived metrics
-                    0 as qtd_media_por_pedido,
-                    -- Cluster scoring
-                    CASE
-                        WHEN recency_days <= 30 THEN 100
-                        WHEN recency_days <= 90 THEN 75
-                        WHEN recency_days <= 180 THEN 50
-                        ELSE 25
-                    END as score_r,
-                    LEAST(frequency_per_month * 10, 100) as score_f,
-                    CASE
-                        WHEN total_revenue >= 100000 THEN 100
-                        WHEN total_revenue >= 50000 THEN 75
-                        WHEN total_revenue >= 10000 THEN 50
-                        ELSE 25
-                    END as score_m,
-                    created_at,
-                    updated_at
-                FROM analytics_v2.dim_supplier
-                WHERE client_id = :client_id
-                ORDER BY total_revenue DESC
-            """)
+            period_days = self._get_period_days(period)
 
-            result = self.db_session.execute(query, {"client_id": client_id})
+            if period_days is None:
+                # No period filter - return all suppliers with lifetime metrics
+                query = text("""
+                    SELECT
+                        supplier_id,
+                        client_id,
+                        cnpj,
+                        name,
+                        telefone,
+                        endereco_cidade,
+                        endereco_uf,
+                        total_orders_received as total_orders,
+                        total_revenue,
+                        avg_order_value,
+                        avg_order_value as ticket_medio,
+                        total_products_supplied,
+                        frequency_per_month,
+                        frequency_per_month as frequencia_pedidos_mes,
+                        recency_days,
+                        first_transaction_date,
+                        last_transaction_date,
+                        -- Compute derived metrics (no total_quantity in dim_supplier)
+                        0 as qtd_media_por_pedido,
+                        -- Cluster scoring
+                        CASE
+                            WHEN recency_days <= 30 THEN 100
+                            WHEN recency_days <= 90 THEN 75
+                            WHEN recency_days <= 180 THEN 50
+                            ELSE 25
+                        END as score_r,
+                        LEAST(frequency_per_month * 10, 100) as score_f,
+                        CASE
+                            WHEN total_revenue >= 100000 THEN 100
+                            WHEN total_revenue >= 50000 THEN 75
+                            WHEN total_revenue >= 10000 THEN 50
+                            ELSE 25
+                        END as score_m,
+                        created_at,
+                        updated_at
+                    FROM analytics_v2.dim_supplier
+                    WHERE client_id = :client_id
+                    ORDER BY total_revenue DESC
+                """)
+                result = self.db_session.execute(query, {"client_id": client_id})
+            else:
+                # Period filter - aggregate from fact_sales for the period
+                query = text("""
+                    SELECT
+                        s.supplier_id,
+                        s.client_id,
+                        s.cnpj,
+                        s.name,
+                        s.telefone,
+                        s.endereco_cidade,
+                        s.endereco_uf,
+                        COUNT(DISTINCT f.order_id) as total_orders,
+                        COALESCE(SUM(f.valor_total), 0) as total_revenue,
+                        COALESCE(AVG(f.valor_total), 0) as avg_order_value,
+                        COALESCE(AVG(f.valor_total), 0) as ticket_medio,
+                        COUNT(DISTINCT f.product_id) as total_products_supplied,
+                        s.frequency_per_month,
+                        s.frequency_per_month as frequencia_pedidos_mes,
+                        EXTRACT(DAY FROM NOW() - MAX(f.data_transacao))::int as recency_days,
+                        MIN(f.data_transacao) as first_transaction_date,
+                        MAX(f.data_transacao) as last_transaction_date,
+                        -- Compute derived metrics
+                        COALESCE(SUM(f.quantidade), 0) / NULLIF(COUNT(DISTINCT f.order_id), 0) as qtd_media_por_pedido,
+                        -- Cluster scoring based on period data
+                        CASE WHEN EXTRACT(DAY FROM NOW() - MAX(f.data_transacao)) <= 30 THEN 100
+                             WHEN EXTRACT(DAY FROM NOW() - MAX(f.data_transacao)) <= 90 THEN 75
+                             WHEN EXTRACT(DAY FROM NOW() - MAX(f.data_transacao)) <= 180 THEN 50
+                             ELSE 25 END as score_r,
+                        LEAST(s.frequency_per_month * 10, 100) as score_f,
+                        CASE WHEN SUM(f.valor_total) >= 100000 THEN 100
+                             WHEN SUM(f.valor_total) >= 50000 THEN 75
+                             WHEN SUM(f.valor_total) >= 10000 THEN 50
+                             ELSE 25 END as score_m,
+                        s.created_at,
+                        s.updated_at
+                    FROM analytics_v2.dim_supplier s
+                    INNER JOIN analytics_v2.fact_sales f ON s.cnpj = f.supplier_cnpj AND s.client_id::TEXT = f.client_id::TEXT
+                    WHERE s.client_id = :client_id
+                      AND f.data_transacao >= NOW() - CAST(:period_days AS INTERVAL)
+                    GROUP BY s.supplier_id, s.client_id, s.cnpj, s.name, s.telefone,
+                             s.endereco_cidade, s.endereco_uf, s.frequency_per_month,
+                             s.created_at, s.updated_at
+                    ORDER BY total_revenue DESC
+                """)
+                logger.info(f"🔍 Filtering suppliers for period: {period} ({period_days} days)")
+                result = self.db_session.execute(query, {"client_id": client_id, "period_days": f"{period_days} days"})
+
             rows = result.fetchall()
             columns = result.keys()
 
@@ -1265,6 +1370,86 @@ class PostgresRepository:
             logger.error(f"❌ Failed to get suppliers from star schema: {e}", exc_info=True)
             self.db_session.rollback()
             return []
+
+    def get_supplier_sales_details(self, client_id: str, supplier_cnpj: str) -> dict:
+        """
+        Get detailed sales data for a specific supplier from fact_sales.
+        Returns products sold, customers served, and time series data.
+        """
+        try:
+            # Get top products sold by this supplier
+            products_query = text("""
+                SELECT 
+                    p.product_name as nome,
+                    SUM(f.valor_total) as receita_total,
+                    SUM(f.quantidade) as quantidade_total,
+                    COUNT(DISTINCT f.order_id) as num_pedidos
+                FROM analytics_v2.fact_sales f
+                LEFT JOIN analytics_v2.dim_product p 
+                    ON f.product_id = p.product_id AND f.client_id::TEXT = p.client_id::TEXT
+                WHERE f.client_id = :client_id
+                  AND f.supplier_cnpj = :supplier_cnpj
+                GROUP BY p.product_name
+                ORDER BY receita_total DESC
+                LIMIT 10
+            """)
+            products_result = self.db_session.execute(
+                products_query, 
+                {"client_id": client_id, "supplier_cnpj": supplier_cnpj}
+            )
+            products = [dict(zip(products_result.keys(), row)) for row in products_result.fetchall()]
+
+            # Get top customers for this supplier
+            customers_query = text("""
+                SELECT 
+                    c.name as nome,
+                    SUM(f.valor_total) as receita_total,
+                    SUM(f.quantidade) as quantidade_total,
+                    COUNT(DISTINCT f.order_id) as num_pedidos
+                FROM analytics_v2.fact_sales f
+                LEFT JOIN analytics_v2.dim_customer c 
+                    ON f.customer_cpf_cnpj = c.cpf_cnpj AND f.client_id::TEXT = c.client_id::TEXT
+                WHERE f.client_id = :client_id
+                  AND f.supplier_cnpj = :supplier_cnpj
+                GROUP BY c.name
+                ORDER BY receita_total DESC
+                LIMIT 10
+            """)
+            customers_result = self.db_session.execute(
+                customers_query,
+                {"client_id": client_id, "supplier_cnpj": supplier_cnpj}
+            )
+            customers = [dict(zip(customers_result.keys(), row)) for row in customers_result.fetchall()]
+
+            # Get monthly revenue time series for this supplier
+            time_series_query = text("""
+                SELECT 
+                    TO_CHAR(f.data_transacao, 'YYYY-MM') as name,
+                    SUM(f.valor_total) as total
+                FROM analytics_v2.fact_sales f
+                WHERE f.client_id = :client_id
+                  AND f.supplier_cnpj = :supplier_cnpj
+                  AND f.data_transacao IS NOT NULL
+                GROUP BY TO_CHAR(f.data_transacao, 'YYYY-MM')
+                ORDER BY name
+            """)
+            time_series_result = self.db_session.execute(
+                time_series_query,
+                {"client_id": client_id, "supplier_cnpj": supplier_cnpj}
+            )
+            time_series = [dict(zip(time_series_result.keys(), row)) for row in time_series_result.fetchall()]
+
+            logger.info(f"✓ Loaded supplier details: {len(products)} products, {len(customers)} customers")
+            return {
+                "produtos_por_receita": products,
+                "clientes_por_receita": customers,
+                "receita_no_tempo": time_series,
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Failed to get supplier sales details: {e}", exc_info=True)
+            self.db_session.rollback()
+            return {"produtos_por_receita": [], "clientes_por_receita": [], "receita_no_tempo": []}
 
     def get_dim_products(self, client_id: str, period: str = "all") -> list[dict]:
         """
@@ -1483,6 +1668,52 @@ class PostgresRepository:
             self.db_session.rollback()
             return []
 
+    def get_suppliers_by_product(self, client_id: str, product_name: str, period: str = "all", limit: int = 50) -> list[dict]:
+        """Get suppliers who sell a specific product."""
+        try:
+            period_days = self._get_period_days(period)
+
+            query = text("""
+                SELECT
+                    s.supplier_id,
+                    s.nome as supplier_name,
+                    s.cnpj as supplier_cnpj,
+                    s.endereco_cidade,
+                    s.endereco_uf,
+                    SUM(f.quantidade) as quantity_sold,
+                    SUM(f.valor_total) as total_revenue,
+                    COUNT(DISTINCT f.order_id) as order_count,
+                    AVG(f.valor_unitario) as avg_unit_price,
+                    MAX(f.data_transacao) as last_sale
+                FROM analytics_v2.fact_sales f
+                JOIN analytics_v2.dim_supplier s ON f.supplier_id = s.supplier_id
+                JOIN analytics_v2.dim_product p ON f.product_id = p.product_id
+                WHERE f.client_id = :client_id
+                  AND f.data_transacao >= NOW() - INTERVAL :period_days DAY
+                  AND p.product_name = :product_name
+                GROUP BY s.supplier_id, s.nome, s.cnpj, s.endereco_cidade, s.endereco_uf
+                ORDER BY total_revenue DESC
+                LIMIT :limit
+            """)
+
+            result = self.db_session.execute(query, {
+                "client_id": client_id,
+                "product_name": product_name,
+                "limit": limit,
+                "period_days": f"{period_days} days"
+            })
+            rows = result.fetchall()
+            columns = result.keys()
+
+            suppliers = [dict(zip(columns, row)) for row in rows]
+            logger.info(f"✓ Found {len(suppliers)} suppliers for product '{product_name}'")
+            return suppliers
+
+        except Exception as e:
+            logger.error(f"❌ Failed to get suppliers by product: {e}", exc_info=True)
+            self.db_session.rollback()
+            return []
+
     def get_customer_monthly_orders(self, client_id: str, customer_cpf_cnpj: str) -> list[dict]:
         """Get monthly order history for a specific customer."""
         try:
@@ -1533,6 +1764,102 @@ class PostgresRepository:
 
         except Exception as e:
             logger.error(f"❌ Failed to get customer monthly orders: {e}", exc_info=True)
+            self.db_session.rollback()
+            return []
+
+    def get_customers_by_supplier(self, client_id: str, supplier_cnpj: str, limit: int = 100) -> list[dict]:
+        """Get customers who purchased from a specific supplier."""
+        try:
+            query = text("""
+                SELECT
+                    COALESCE(c.name, f.customer_cpf_cnpj) as nome,
+                    f.customer_cpf_cnpj,
+                    SUM(f.valor_total) as receita_total,
+                    SUM(f.quantidade) as quantidade_total,
+                    COUNT(DISTINCT f.order_id) as num_pedidos,
+                    AVG(f.valor_total) as ticket_medio
+                FROM analytics_v2.fact_sales f
+                LEFT JOIN analytics_v2.dim_customer c 
+                    ON f.customer_cpf_cnpj = c.cpf_cnpj AND f.client_id::TEXT = c.client_id::TEXT
+                WHERE f.client_id = :client_id
+                  AND f.supplier_cnpj = :supplier_cnpj
+                GROUP BY COALESCE(c.name, f.customer_cpf_cnpj), f.customer_cpf_cnpj
+                ORDER BY receita_total DESC
+                LIMIT :limit
+            """)
+
+            result = self.db_session.execute(query, {
+                "client_id": client_id,
+                "supplier_cnpj": supplier_cnpj,
+                "limit": limit
+            })
+            rows = result.fetchall()
+            columns = result.keys()
+
+            customers = []
+            for row in rows:
+                row_dict = dict(zip(columns, row))
+                customers.append({
+                    "nome": row_dict.get("nome") or "Cliente não identificado",
+                    "customer_cpf_cnpj": row_dict.get("customer_cpf_cnpj"),
+                    "receita_total": float(row_dict.get("receita_total") or 0),
+                    "quantidade_total": float(row_dict.get("quantidade_total") or 0),
+                    "num_pedidos": int(row_dict.get("num_pedidos") or 0),
+                    "ticket_medio": float(row_dict.get("ticket_medio") or 0),
+                })
+
+            logger.info(f"✓ Found {len(customers)} customers for supplier '{supplier_cnpj}'")
+            return customers
+
+        except Exception as e:
+            logger.error(f"❌ Failed to get customers by supplier: {e}", exc_info=True)
+            self.db_session.rollback()
+            return []
+
+    def get_products_by_supplier(self, client_id: str, supplier_cnpj: str, limit: int = 100) -> list[dict]:
+        """Get products sold by a specific supplier."""
+        try:
+            query = text("""
+                SELECT
+                    COALESCE(p.product_name, f.product_name) as nome,
+                    SUM(f.valor_total) as receita_total,
+                    SUM(f.quantidade) as quantidade_total,
+                    COUNT(DISTINCT f.order_id) as num_pedidos,
+                    AVG(f.preco_unitario) as valor_unitario_medio
+                FROM analytics_v2.fact_sales f
+                LEFT JOIN analytics_v2.dim_product p 
+                    ON f.product_id = p.product_id
+                WHERE f.client_id = :client_id
+                  AND f.supplier_cnpj = :supplier_cnpj
+                GROUP BY COALESCE(p.product_name, f.product_name)
+                ORDER BY receita_total DESC
+                LIMIT :limit
+            """)
+
+            result = self.db_session.execute(query, {
+                "client_id": client_id,
+                "supplier_cnpj": supplier_cnpj,
+                "limit": limit
+            })
+            rows = result.fetchall()
+            columns = result.keys()
+
+            products = []
+            for row in rows:
+                row_dict = dict(zip(columns, row))
+                products.append({
+                    "nome": row_dict.get("nome") or "Produto não identificado",
+                    "receita_total": float(row_dict.get("receita_total") or 0),
+                    "quantidade_total": float(row_dict.get("quantidade_total") or 0),
+                    "num_pedidos": int(row_dict.get("num_pedidos") or 0),
+                    "valor_unitario_medio": float(row_dict.get("valor_unitario_medio") or 0),
+                })
+
+            logger.info(f"✓ Found {len(products)} products for supplier '{supplier_cnpj}'")
+            return products
+
+        except Exception as e:
+            logger.error(f"❌ Failed to get products by supplier: {e}", exc_info=True)
             self.db_session.rollback()
             return []
 

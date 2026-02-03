@@ -121,7 +121,7 @@ function HomePage() {
                 totalLabel="TOTAL"
                 frequency={`R$ ${ordersRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                 frequencyLabel="FREQUÊNCIA"
-                color="#F9BBCB"
+                color="#92DAFF"
               />
             </Link>
             <Link to="/dashboard/produtos">

@@ -1,7 +1,8 @@
 import { Box, Text, useDisclosure, Modal, ModalOverlay, ModalContent, ModalBody, Flex, IconButton, ModalCloseButton } from '@chakra-ui/react';
-import { InfoOutlineIcon, ExternalLinkIcon, ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
+import { InfoOutlineIcon, ExternalLinkIcon } from '@chakra-ui/icons';
 import React from 'react';
 import { GraphComponent } from './GraphComponent';
+import { BarChartComponent } from './BarChartComponent';
 import { MapComponent } from './MapComponent';
 import { ModalContentLayout } from './ModalContentLayout';
 import { AccordionComponent } from './AccordionComponent';
@@ -15,6 +16,7 @@ interface DashboardCardProps {
   bgGradient?: string; // Add bgGradient prop
   // Content props
   graphData?: any;
+  barChartData?: { name: string; value: number; color?: string }[]; // Bar chart data
   scorecardValue?: string;
   scorecardLabel?: string;
   mainText?: string;
@@ -39,6 +41,8 @@ interface DashboardCardProps {
     lineColor?: string;
     title: string;
     description?: string;
+    chartType?: 'line' | 'bar';
+    barColors?: string[];
   }[];
 }
 
@@ -49,6 +53,7 @@ export const DashboardCard = ({
   bgImage,
   bgGradient, // Destructure new prop
   graphData,
+  barChartData,
   scorecardValue,
   scorecardLabel,
   mainText,
@@ -134,7 +139,16 @@ export const DashboardCard = ({
           </Flex>
 
           {/* Conditional rendering of content */}
-          {graphData && <GraphComponent data={graphData.values} dataKey="value" lineColor="#FFA500" />}
+          {graphData && !barChartData && (
+            <Box flex="1" minH="200px">
+              <GraphComponent data={graphData.values} dataKey="value" lineColor="#FFA500" axisColor={textColor === "white" ? "#ffffff" : "#333333"} />
+            </Box>
+          )}
+          {barChartData && (
+            <Box flex="1" minH="200px">
+              <BarChartComponent data={barChartData} axisColor={textColor === "white" ? "#ffffff" : "#333333"} />
+            </Box>
+          )}
           {mainText && <Text fontSize="md" mb={2}>{mainText}</Text>}
 
           {(scorecardValue || scorecardLabel) && (
@@ -156,12 +170,12 @@ export const DashboardCard = ({
               isMapModal={!!mapData} // Pass if it's a map modal
               mapData={mapData} // Pass mapData
               leftContent={
-                <Flex direction="column" height="100%">
+                <Flex direction="column" height="100%" color={textColor}>
                   <Flex justify="space-between" align="center" mb={4}>
-                    <Text textStyle="modalTitle">{title}</Text>
-                    <ModalCloseButton position="static" /> {/* Close button here */}
+                    <Text textStyle="modalTitle" color={textColor}>{title}</Text>
+                    <ModalCloseButton position="static" color={textColor} /> {/* Close button here */}
                   </Flex>
-                  <Text textStyle="modalTextInfo" mb={8}>
+                  <Text textStyle="modalTextInfo" mb={8} color={textColor}>
                     {mainText || "Informações descritivas sobre o card."}
                   </Text>
                   <AccordionComponent
@@ -174,12 +188,18 @@ export const DashboardCard = ({
                     ]}
                     width="100%" // Accordion fills available width
                     height="auto" // Accordion height adjusts to content
+                    textColor={textColor}
                   />
                 </Flex>
               }
               rightContent={
                 mapData ? (
                   <MapComponent {...mapData} height="100%" /> // Map fills right half
+                ) : carouselGraphs && carouselGraphs.length === 0 ? (
+                  // Explicitly empty carousel - show nothing or placeholder
+                  <Flex direction="column" height="100%" p={8} align="center" justify="center">
+                    <Text color="gray.500" fontSize="lg">Análise detalhada em breve</Text>
+                  </Flex>
                 ) : (
                   <Flex direction="column" height="100%" p={8}>
                     <GraphCarousel
@@ -192,6 +212,7 @@ export const DashboardCard = ({
                           description: graphDescription || "Visualização dos dados ao longo do tempo.",
                         },
                       ]}
+                      textColor={textColor}
                     />
                   </Flex>
                 )

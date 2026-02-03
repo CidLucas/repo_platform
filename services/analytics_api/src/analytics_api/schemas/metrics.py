@@ -72,18 +72,24 @@ class ProdutoRankingReceita(BaseModel):
     nome: str = Field(description="Nome do produto")
     receita_total: float = Field(description="Receita total gerada pelo produto")
     valor_unitario_medio: float = Field(description="Valor unitário médio do produto")
+    quantidade_total: float = Field(default=0, description="Quantidade total vendida")
+    cluster_tier: str = Field(default="", description="Tier de classificação do produto (A, B, C, D)")
 
 class ProdutoRankingVolume(BaseModel):
     """Ranking simplificado de produtos por volume (quantidade vendida)."""
     nome: str = Field(description="Nome do produto")
     quantidade_total: float = Field(description="Quantidade total vendida")
     valor_unitario_medio: float = Field(description="Valor unitário médio do produto")
+    receita_total: float = Field(default=0, description="Receita total gerada pelo produto")
+    cluster_tier: str = Field(default="", description="Tier de classificação do produto (A, B, C, D)")
 
 class ProdutoRankingTicket(BaseModel):
     """Ranking simplificado de produtos por ticket médio."""
     nome: str = Field(description="Nome do produto")
     ticket_medio: float = Field(description="Ticket médio do produto")
     valor_unitario_medio: float = Field(description="Valor unitário médio do produto")
+    quantidade_total: float = Field(default=0, description="Quantidade total vendida")
+    cluster_tier: str = Field(default="", description="Tier de classificação do produto (A, B, C, D)")
 
 # ---
 # NÍVEL 1: HOME
@@ -177,6 +183,7 @@ class PedidosOverviewResponse(BaseModel):
 class FornecedorDetailResponse(BaseModel):
     dados_cadastrais: CadastralData
     rankings_internos: dict[str, list[RankingItem]]
+    charts: dict[str, list[ChartDataPoint]] = {}  # Time series charts for this supplier
 
 class ClienteDetailResponse(BaseModel):
     dados_cadastrais: CadastralData

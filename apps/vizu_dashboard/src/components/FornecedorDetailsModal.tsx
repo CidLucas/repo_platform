@@ -1,18 +1,20 @@
 import { Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, Flex, Text, Box } from '@chakra-ui/react';
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ModalContentLayout } from './ModalContentLayout';
 import { GraphCarousel } from './GraphCarousel';
 import { ScorecardCard } from './ScorecardCard';
-import { FornecedorDetailResponse, FornecedoresOverviewResponse } from '../services/analyticsService';
+import { FornecedorDetailResponse } from '../services/analyticsService';
 
 interface FornecedorDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   fornecedor: FornecedorDetailResponse | null;
-  overviewData?: FornecedoresOverviewResponse | null;
 }
 
-export const FornecedorDetailsModal: React.FC<FornecedorDetailsModalProps> = ({ isOpen, onClose, fornecedor, overviewData }) => {
+export const FornecedorDetailsModal: React.FC<FornecedorDetailsModalProps> = ({ isOpen, onClose, fornecedor }) => {
+  const navigate = useNavigate();
+  
   if (!fornecedor) return null;
 
   const { dados_cadastrais, rankings_internos } = fornecedor;
@@ -38,6 +40,27 @@ export const FornecedorDetailsModal: React.FC<FornecedorDetailsModalProps> = ({ 
     : '';
 
   const topRegion = dados_cadastrais.emitter_estado || 'N/A';
+
+  // Navigation handlers - navigate to filtered lists
+  const handleProductClick = () => {
+    console.log('Fornecedor Product click handler called', { topProduct, supplierName, cnpj });
+    // Navigate to PRODUCTS page (yellow) filtered by this supplier
+    if (cnpj && supplierName && cnpj !== 'N/A') {
+      console.log('Navigating to products sold by supplier:', supplierName);
+      onClose();
+      navigate(`/dashboard/produtos/lista?view=by-supplier&supplier=${encodeURIComponent(cnpj)}&supplierName=${encodeURIComponent(supplierName)}`);
+    }
+  };
+
+  const handleClientClick = () => {
+    console.log('Fornecedor Client click handler called', { topClient, supplierName, cnpj });
+    // Navigate to CLIENTS page (pink) filtered by this supplier
+    if (cnpj && supplierName && cnpj !== 'N/A') {
+      console.log('Navigating to clients of supplier:', supplierName);
+      onClose();
+      navigate(`/dashboard/clientes/lista?view=by-supplier&supplier=${encodeURIComponent(cnpj)}&supplierName=${encodeURIComponent(supplierName)}`);
+    }
+  };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="full">
@@ -101,12 +124,14 @@ export const FornecedorDetailsModal: React.FC<FornecedorDetailsModalProps> = ({ 
                     value={topProductDisplay}
                     subtitle={topProductRevenue}
                     bgColor="#B2E7FF"
+                    onClick={topProduct ? handleProductClick : undefined}
                   />
                   <ScorecardCard
                     title="Cliente Principal"
                     value={topClientDisplay}
                     subtitle={topClientRevenue}
                     bgColor="#B2E7FF"
+                    onClick={topClient ? handleClientClick : undefined}
                   />
                   <ScorecardCard
                     title="Região de Atuação"
@@ -116,37 +141,19 @@ export const FornecedorDetailsModal: React.FC<FornecedorDetailsModalProps> = ({ 
                   />
                 </Flex>
 
-                {overviewData && (
+                {fornecedor.charts?.receita_no_tempo && fornecedor.charts.receita_no_tempo.length > 0 && (
                   <Box flex="1">
                     <Text textStyle="modalTitle" mb={4}>Análise de Performance no Tempo</Text>
                     <GraphCarousel
                       graphs={[
                         {
-                          data: overviewData.chart_receita_no_tempo?.map((d: any) => ({
+                          data: fornecedor.charts.receita_no_tempo.map((d) => ({
                             name: d.name,
                             receita: d.total || d.receita || 0
-                          })) || [],
+                          })),
                           dataKey: "receita",
                           lineColor: "#353A5A",
-                          title: "Receita Mensal dos Fornecedores",
-                        },
-                        {
-                          data: overviewData.chart_ticketmedio_no_tempo?.map((d: any) => ({
-                            name: d.name,
-                            ticket_medio: d.total || d.ticket_medio || 0
-                          })) || [],
-                          dataKey: "ticket_medio",
-                          lineColor: "#4CAF50",
-                          title: "Ticket Médio Mensal",
-                        },
-                        {
-                          data: overviewData.chart_quantidade_no_tempo?.map((d: any) => ({
-                            name: d.name,
-                            quantidade: d.total || d.quantidade || 0
-                          })) || [],
-                          dataKey: "quantidade",
-                          lineColor: "#FF9800",
-                          title: "Volume Comercializado (kg/ton)",
+                          title: "Receita Mensal do Fornecedor",
                         },
                       ]}
                     />

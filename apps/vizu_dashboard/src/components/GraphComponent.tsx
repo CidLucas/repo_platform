@@ -8,6 +8,7 @@ interface GraphComponentProps {
   lineColor?: string;
   showGrid?: boolean;
   height?: number | string;
+  axisColor?: string; // Color for axis and labels (for dark backgrounds)
 }
 
 export const GraphComponent: React.FC<GraphComponentProps> = ({
@@ -16,9 +17,14 @@ export const GraphComponent: React.FC<GraphComponentProps> = ({
   lineColor = '#FFA500',
   showGrid = false,
   height = 250,
+  axisColor = '#333', // Default dark for light backgrounds
 }) => {
+  // DEBUG: Log incoming data
+  console.log('📊 GraphComponent received:', { dataLength: data?.length, dataKey, sample: data?.[0] });
+  
   // Validate data - ensure we have valid data points
   const validData = data?.filter(item => item && item.name !== undefined && item[dataKey] !== undefined) || [];
+  console.log('📊 GraphComponent validData:', { validDataLength: validData.length, sample: validData[0] });
 
   if (validData.length === 0) {
     return (
@@ -49,7 +55,7 @@ export const GraphComponent: React.FC<GraphComponentProps> = ({
           {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />}
           <XAxis
             dataKey="name"
-            stroke="#333"
+            stroke={axisColor}
             strokeWidth={1}
             tickFormatter={(value) => {
               // Format month labels (e.g., "2023-01" -> "Jan/23")
@@ -60,13 +66,13 @@ export const GraphComponent: React.FC<GraphComponentProps> = ({
               }
               return String(value).toUpperCase();
             }}
-            tick={{ fontSize: 11, fontFamily: 'Inter' }}
+            tick={{ fontSize: 11, fontFamily: 'Inter', fill: axisColor }}
             interval="preserveStartEnd"
           />
           <YAxis
-            stroke="#666"
+            stroke={axisColor}
             tickFormatter={formatYAxis}
-            tick={{ fontSize: 10, fontFamily: 'Inter' }}
+            tick={{ fontSize: 10, fontFamily: 'Inter', fill: axisColor }}
             width={50}
           />
           <Tooltip

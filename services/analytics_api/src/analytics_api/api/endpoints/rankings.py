@@ -243,6 +243,8 @@ def get_produtos_overview_endpoint(
             nome=p.get("product_name", ""),
             receita_total=p.get("total_revenue", 0),
             valor_unitario_medio=p.get("avg_price", 0),
+            quantidade_total=p.get("total_quantity_sold", 0),
+            cluster_tier=p.get("cluster_tier", ""),
         )
         for p in sorted(products, key=lambda x: x.get("total_revenue", 0), reverse=True)[:10]
     ]
@@ -252,6 +254,8 @@ def get_produtos_overview_endpoint(
             nome=p.get("product_name", ""),
             quantidade_total=p.get("total_quantity_sold", 0),
             valor_unitario_medio=p.get("avg_price", 0),
+            receita_total=p.get("total_revenue", 0),
+            cluster_tier=p.get("cluster_tier", ""),
         )
         for p in sorted(products, key=lambda x: x.get("total_quantity_sold", 0), reverse=True)[:10]
     ]
@@ -261,6 +265,8 @@ def get_produtos_overview_endpoint(
             nome=p.get("product_name", ""),
             ticket_medio=p.get("ticket_medio", p.get("avg_price", 0)),
             valor_unitario_medio=p.get("avg_price", 0),
+            quantidade_total=p.get("total_quantity_sold", 0),
+            cluster_tier=p.get("cluster_tier", ""),
         )
         for p in sorted(products, key=lambda x: x.get("ticket_medio", x.get("avg_price", 0)), reverse=True)[:10]
     ]
@@ -497,7 +503,8 @@ def get_fornecedor_detail_gold(
     suppliers = repo.get_dim_suppliers(client_id, period="all") or []
 
     # Filter suppliers by name - may return multiple records
-    matching_suppliers = [s for s in suppliers if s.get("supplier_name") == nome_decoded]
+    # Note: dim_supplier uses 'name' field, not 'supplier_name'
+    matching_suppliers = [s for s in suppliers if s.get("name") == nome_decoded]
 
     if not matching_suppliers:
         raise HTTPException(status_code=404, detail=f"Fornecedor '{nome_decoded}' não encontrado")
@@ -507,30 +514,62 @@ def get_fornecedor_detail_gold(
         score = 0
         if supp.get("telefone"):
             score += 3
-        if supp.get("supplier_cnpj"):
+        if supp.get("cnpj"):
             score += 2
         if supp.get("endereco_cidade"):
             score += 1
         if supp.get("endereco_uf"):
             score += 1
-        if supp.get("endereco_rua"):
-            score += 1
         return score
 
     supplier = max(matching_suppliers, key=score_supplier_completeness)
 
+    # Get sales details for this supplier (products, customers, time series)
+    supplier_cnpj = supplier.get("cnpj", "")
+    sales_details = repo.get_supplier_sales_details(client_id, supplier_cnpj) if supplier_cnpj else {}
+
+    # Convert to RankingItem format
+    def to_ranking_item(item: dict) -> RankingItem:
+        return RankingItem(
+            nome=item.get("nome", ""),
+            receita_total=float(item.get("receita_total", 0) or 0),
+            quantidade_total=float(item.get("quantidade_total", 0) or 0),
+            num_pedidos_unicos=int(item.get("num_pedidos", 0) or 0),
+            primeira_venda=datetime.now(),
+            ultima_venda=datetime.now(),
+            ticket_medio=0.0,
+            qtd_media_por_pedido=0.0,
+            frequencia_pedidos_mes=0.0,
+            recencia_dias=0,
+            valor_unitario_medio=0.0,
+            cluster_score=0.0,
+            cluster_tier="",
+        )
+
+    produtos_ranking = [to_ranking_item(p) for p in sales_details.get("produtos_por_receita", [])]
+    clientes_ranking = [to_ranking_item(c) for c in sales_details.get("clientes_por_receita", [])]
+
+    # Convert time series to ChartDataPoint format
+    receita_time_series = [
+        ChartDataPoint(name=point.get("name", ""), total=float(point.get("total", 0) or 0))
+        for point in sales_details.get("receita_no_tempo", [])
+    ]
+
     return FornecedorDetailResponse(
         dados_cadastrais=CadastralData(
-            emitter_nome=supplier.get("supplier_name", ""),
-            emitter_cnpj=supplier.get("supplier_cnpj", ""),
+            emitter_nome=supplier.get("name", ""),
+            emitter_cnpj=supplier.get("cnpj", ""),
             emitter_telefone=supplier.get("telefone"),
             emitter_estado=supplier.get("endereco_uf"),
             emitter_cidade=supplier.get("endereco_cidade"),
         ),
         rankings_internos={
-            "clientes_por_receita": [],
-            "produtos_por_receita": [],
+            "clientes_por_receita": clientes_ranking,
+            "produtos_por_receita": produtos_ranking,
             "regioes_por_receita": [],
+        },
+        charts={
+            "receita_no_tempo": receita_time_series,
         }
     )
 
@@ -670,6 +709,34 @@ def get_customers_by_product(
 
 
 @router.get(
+    "/suppliers-by-product/{product_name}",
+    summary="Fornecedores que Vendem um Produto",
+    tags=["Filtros", "Análise Cruzada"]
+)
+def get_suppliers_by_product(
+    product_name: str,
+    repo: PostgresRepository = Depends(get_postgres_repository),
+    client_id: str = Depends(get_client_id),
+    limit: int = Query(100, description="Número máximo de fornecedores"),
+) -> list[dict]:
+    """
+    Retorna fornecedores que vendem um produto específico.
+
+    Para cada fornecedor retorna:
+    - supplier_id: ID do fornecedor
+    - supplier_name: Nome do fornecedor
+    - supplier_cnpj: CNPJ do fornecedor
+    - quantity_sold: Quantidade vendida deste produto
+    - total_revenue: Receita gerada com este produto
+    - order_count: Número de pedidos com este produto
+    - avg_unit_price: Preço unitário médio
+    - last_sale: Data da última venda
+    """
+    nome_decoded = unquote(product_name)
+    return repo.get_suppliers_by_product(client_id, nome_decoded, limit=limit)
+
+
+@router.get(
     "/products-by-customer/{customer_cpf_cnpj}",
     summary="Produtos Comprados por um Cliente",
     tags=["Filtros", "Análise Cruzada"]
@@ -713,3 +780,54 @@ def get_customer_monthly_orders(
     """
     cpf_decoded = unquote(customer_cpf_cnpj)
     return repo.get_customer_monthly_orders(client_id, cpf_decoded)
+
+
+@router.get(
+    "/customers-by-supplier/{supplier_cnpj}",
+    summary="Clientes que Compraram de um Fornecedor",
+    tags=["Filtros", "Análise Cruzada"]
+)
+def get_customers_by_supplier(
+    supplier_cnpj: str,
+    repo: PostgresRepository = Depends(get_postgres_repository),
+    client_id: str = Depends(get_client_id),
+    limit: int = Query(100, description="Número máximo de clientes"),
+) -> list[dict]:
+    """
+    Retorna clientes que compraram de um fornecedor específico.
+
+    Para cada cliente retorna:
+    - nome: Nome do cliente
+    - customer_cpf_cnpj: CPF/CNPJ do cliente
+    - receita_total: Total gasto com este fornecedor
+    - quantidade_total: Quantidade comprada deste fornecedor
+    - num_pedidos: Número de pedidos com este fornecedor
+    - ticket_medio: Valor médio por pedido
+    """
+    cnpj_decoded = unquote(supplier_cnpj)
+    return repo.get_customers_by_supplier(client_id, cnpj_decoded, limit)
+
+
+@router.get(
+    "/products-by-supplier/{supplier_cnpj}",
+    summary="Produtos Vendidos por um Fornecedor",
+    tags=["Filtros", "Análise Cruzada"]
+)
+def get_products_by_supplier(
+    supplier_cnpj: str,
+    repo: PostgresRepository = Depends(get_postgres_repository),
+    client_id: str = Depends(get_client_id),
+    limit: int = Query(100, description="Número máximo de produtos"),
+) -> list[dict]:
+    """
+    Retorna produtos vendidos por um fornecedor específico.
+
+    Para cada produto retorna:
+    - nome: Nome do produto
+    - receita_total: Receita total deste produto
+    - quantidade_total: Quantidade vendida
+    - num_pedidos: Número de pedidos
+    - valor_unitario_medio: Preço médio unitário
+    """
+    cnpj_decoded = unquote(supplier_cnpj)
+    return repo.get_products_by_supplier(client_id, cnpj_decoded, limit)

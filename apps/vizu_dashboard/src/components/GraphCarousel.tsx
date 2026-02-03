@@ -2,6 +2,9 @@ import { Box, Flex, IconButton, Text, Spinner } from '@chakra-ui/react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import React, { useState } from 'react';
 import { GraphComponent } from './GraphComponent';
+import { BarChartComponent } from './BarChartComponent';
+
+export type ChartType = 'line' | 'bar';
 
 interface GraphCarouselProps {
   graphs: {
@@ -10,12 +13,20 @@ interface GraphCarouselProps {
     lineColor?: string;
     title: string;
     description?: string;
+    chartType?: ChartType; // 'line' (default) or 'bar'
+    barColors?: string[]; // Colors for bar chart
   }[];
   loading?: boolean;
   height?: number | string;
+  textColor?: string; // Text color for dark backgrounds
 }
 
-export const GraphCarousel: React.FC<GraphCarouselProps> = ({ graphs, loading = false, height = 300 }) => {
+export const GraphCarousel: React.FC<GraphCarouselProps> = ({ 
+  graphs, 
+  loading = false, 
+  height = 300,
+  textColor = 'gray.800',
+}) => {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const handlePrev = () => {
@@ -45,20 +56,41 @@ export const GraphCarousel: React.FC<GraphCarouselProps> = ({ graphs, loading = 
 
   const currentGraph = graphs[currentIndex];
 
-  // Validate current graph has data
-  const hasData = currentGraph.data && currentGraph.data.length > 0;
+  // Render appropriate chart type
+  const renderChart = () => {
+    const chartHeight = typeof height === 'number' ? height - 100 : 200;
+    const axisColor = textColor === 'white' ? '#ffffff' : '#333333';
+
+    if (currentGraph.chartType === 'bar') {
+      return (
+        <BarChartComponent
+          data={currentGraph.data}
+          dataKey={currentGraph.dataKey}
+          height={chartHeight}
+          axisColor={axisColor}
+          colors={currentGraph.barColors}
+        />
+      );
+    }
+
+    // Default: line chart
+    return (
+      <GraphComponent
+        data={currentGraph.data}
+        dataKey={currentGraph.dataKey}
+        lineColor={currentGraph.lineColor}
+        height="100%"
+        showGrid={true}
+        axisColor={axisColor}
+      />
+    );
+  };
 
   return (
     <Flex direction="column" align="center" justify="space-between" height="100%" width="100%">
-      <Text textStyle="modalTitle" mb={2}>{currentGraph.title}</Text>
+      <Text textStyle="modalTitle" mb={2} color={textColor}>{currentGraph.title}</Text>
       <Box flex="1" width="100%" minHeight={typeof height === 'number' ? height - 100 : 200}>
-        <GraphComponent
-          data={currentGraph.data}
-          dataKey={currentGraph.dataKey}
-          lineColor={currentGraph.lineColor}
-          height="100%"
-          showGrid={true}
-        />
+        {renderChart()}
       </Box>
       <Flex mt={2} align="center">
         <IconButton
@@ -67,20 +99,24 @@ export const GraphCarousel: React.FC<GraphCarouselProps> = ({ graphs, loading = 
           onClick={handlePrev}
           variant="ghost"
           size="sm"
+          color={textColor}
           isDisabled={graphs.length <= 1}
         />
-        <Text mx={3} fontSize="sm" color="gray.600">{currentIndex + 1} / {graphs.length}</Text>
+        <Text mx={3} fontSize="sm" color={textColor === 'white' ? 'gray.300' : 'gray.600'}>
+          {currentIndex + 1} / {graphs.length}
+        </Text>
         <IconButton
           aria-label="Próximo gráfico"
           icon={<ChevronRightIcon boxSize={5} />}
           onClick={handleNext}
           variant="ghost"
           size="sm"
+          color={textColor}
           isDisabled={graphs.length <= 1}
         />
       </Flex>
       {currentGraph.description && (
-        <Text fontSize="sm" color="gray.600" mt={2} textAlign="center" px={4}>
+        <Text fontSize="sm" color={textColor === 'white' ? 'gray.300' : 'gray.600'} mt={2} textAlign="center" px={4}>
           {currentGraph.description}
         </Text>
       )}

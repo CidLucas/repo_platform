@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 
-class PromptCategory(str, Enum):
+class PromptCategory(Enum):
     """Categories of prompts"""
     TEXT_TO_SQL = "text_to_sql"
     CLASSIFICATION = "classification"

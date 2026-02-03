@@ -2,7 +2,7 @@
 from enum import Enum
 
 
-class TipoCliente(str, Enum):
+class TipoCliente(Enum):
     """
     Enum para os tipos de cliente Vizu.
     """
@@ -13,7 +13,7 @@ class TipoCliente(str, Enum):
     # Adicione outros tipos conforme necessário
 
 
-class TierCliente(str, Enum):
+class TierCliente(Enum):
     """
     Enum para os tiers de serviço do cliente.
 
@@ -48,7 +48,7 @@ class TierCliente(str, Enum):
         return not self.__lt__(other)
 
 
-class ToolCategory(str, Enum):
+class ToolCategory(Enum):
     """
     Categorias de ferramentas disponíveis no sistema.
     """
@@ -60,7 +60,7 @@ class ToolCategory(str, Enum):
     PUBLIC = "public"
 
 
-class TipoFonte(str, Enum):
+class TipoFonte(Enum):
     """
     Enum para os tipos de fontes de dados.
     """
@@ -70,7 +70,7 @@ class TipoFonte(str, Enum):
     # Adicione outros tipos conforme necessário
 
 
-class ContextSection(str, Enum):
+class ContextSection(Enum):
     """
     Sections of the modular client context (Context 2.0).
 

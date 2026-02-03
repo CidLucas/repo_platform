@@ -28,7 +28,7 @@ from sqlmodel import Field as SQLField
 # ============================================================================
 
 
-class ExperimentStatus(str, Enum):
+class ExperimentStatus(Enum):
     """Status of an experiment run."""
 
     PENDING = "pending"
@@ -38,7 +38,7 @@ class ExperimentStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
-class CaseOutcome(str, Enum):
+class CaseOutcome(Enum):
     """Outcome classification of a test case."""
 
     SUCCESS = "success"  # Response matched expectations
@@ -49,7 +49,7 @@ class CaseOutcome(str, Enum):
     SKIPPED = "skipped"  # Case was skipped
 
 
-class ClassificationResult(str, Enum):
+class ClassificationResult(Enum):
     """Auto-classification of response quality."""
 
     HIGH_CONFIDENCE = "high_confidence"  # Good response, save directly

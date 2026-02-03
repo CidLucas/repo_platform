@@ -119,7 +119,7 @@ clientes_vizu table (Context 2.0 - FINAL):
 ### Section Types (Enum)
 
 ```python
-class ContextSection(str, Enum):
+class ContextSection(Enum):
     # Core Identity (update: quarterly)
     COMPANY_PROFILE = "company_profile"      # Mission, vision, values
     BRAND_VOICE = "brand_voice"              # Tone, style, phrases
@@ -286,7 +286,7 @@ Updated to support modular sections:
 from enum import Enum
 
 
-class ClientTier(str, Enum):
+class ClientTier(Enum):
     """
     Client tiers control tool access and usage limits.
 
@@ -308,7 +308,7 @@ class ClientTier(str, Enum):
         return self == other or self < other
 
 
-class ContextSection(str, Enum):
+class ContextSection(Enum):
     """
     Sections of the modular client context.
 

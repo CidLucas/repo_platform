@@ -156,14 +156,14 @@ Consistência: Agentes diferentes têm visão coerente do mesmo cliente
 
 Proposta de estrutura de dados de clientes_vizu (Implicaria migraácao no Supabase e atualizaçao dos VIZU Models)
 
-class ClientTier(str, Enum):
+class ClientTier(Enum):
     """Tiers disponíveis para clientes"""
     BASIC = "BASIC"      # Até 10 agentes simples
     SME = "SME"          # Agentes + integrações básicas
     ENTERPRISE = "ENTERPRISE"  # Todos agents + customização
 
 
-class ContextSection(str, Enum):
+class ContextSection(Enum):
     """Seções do master prompt disponíveis"""
     # Core Identity
     COMPANY_PROFILE = "company_profile"

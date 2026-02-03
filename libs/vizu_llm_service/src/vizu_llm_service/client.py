@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-class ModelTier(str, Enum):
+class ModelTier(Enum):
     """Model tier - controls quality vs cost/speed."""
 
     DEFAULT = "default"  # Balanced default model
@@ -37,7 +37,7 @@ class ModelTier(str, Enum):
     POWERFUL = "powerful"  # Most capable/expensive model
 
 
-class ModelTask(str, Enum):
+class ModelTask(Enum):
     """Task type - may influence model selection."""
 
     GENERAL_AGENT = "general_agent"
@@ -46,7 +46,7 @@ class ModelTask(str, Enum):
     RAG = "rag"
 
 
-class LLMProvider(str, Enum):
+class LLMProvider(Enum):
     """LLM provider."""
 
     OLLAMA = "ollama"  # Local (container)

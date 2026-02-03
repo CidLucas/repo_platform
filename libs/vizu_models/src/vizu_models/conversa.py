@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import UUID as pgUUID
 from sqlmodel import Column, Field, Relationship, SQLModel
 
 
-class Remetente(str, Enum):
+class Remetente(Enum):
     USER = "user"
     AI = "ai"
 

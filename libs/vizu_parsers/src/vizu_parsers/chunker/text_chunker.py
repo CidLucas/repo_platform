@@ -9,7 +9,7 @@ from vizu_parsers.chunker.models import Chunk
 logger = logging.getLogger(__name__)
 
 
-class ChunkingStrategy(str, Enum):
+class ChunkingStrategy(Enum):
     """Available chunking strategies."""
     BY_SENTENCE = "by_sentence"      # Split on sentence boundaries
     BY_PARAGRAPH = "by_paragraph"    # Split on paragraph boundaries

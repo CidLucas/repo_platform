@@ -11,7 +11,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 
-class ColumnType(str, Enum):
+class ColumnType(Enum):
     """Data type for column formatting and sorting."""
 
     STRING = "string"

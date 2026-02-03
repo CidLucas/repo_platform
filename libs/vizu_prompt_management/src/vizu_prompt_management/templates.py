@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 
-class PromptCategory(str, Enum):
+class PromptCategory(Enum):
     """Categories for organizing prompts."""
 
     SYSTEM = "system"  # System prompts for agent initialization

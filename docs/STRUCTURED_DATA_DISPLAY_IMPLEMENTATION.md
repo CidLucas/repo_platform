@@ -91,7 +91,7 @@ This document outlines the implementation of enhanced SQL query results display 
 from pydantic import BaseModel, Field
 from enum import Enum
 
-class ColumnType(str, Enum):
+class ColumnType(Enum):
     STRING = "string"
     NUMBER = "number"
     DATE = "date"

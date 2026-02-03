@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 # ============================================================================
 
 
-class ElicitationType(str, Enum):
+class ElicitationType(Enum):
     """
     Tipos de elicitation suportados pelo sistema.
 

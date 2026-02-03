@@ -3,7 +3,7 @@
 from enum import Enum
 
 
-class VizuCanonicalColumn(str, Enum):
+class VizuCanonicalColumn(Enum):
     """
     Nomes Canônicos de Colunas (Schema Interno Vizu).
     O nosso sistema trabalha APENAS com estes nomes.

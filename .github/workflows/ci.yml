@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.14.11
       - name: Run ruff check
         run: |
           # Uses config from root pyproject.toml (excludes langfuse, ferramentas)

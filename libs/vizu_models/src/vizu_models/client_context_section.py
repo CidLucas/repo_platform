@@ -13,8 +13,10 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import Boolean, Integer, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID as pgUUID
-from sqlmodel import Column, Field as SQLField, SQLModel
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as pgUUID
+from sqlmodel import Column, SQLModel
+from sqlmodel import Field as SQLField
 
 from .enums import ContextSection
 

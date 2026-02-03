@@ -1,4 +1,5 @@
 import pytest
+
 from vizu_llm_service.client import sanitize_observation
 
 

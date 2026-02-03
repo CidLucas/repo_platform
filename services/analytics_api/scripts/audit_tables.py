@@ -8,8 +8,8 @@ import os
 import sys
 from urllib.parse import urlparse
 
-from sqlalchemy import create_engine, text
 import pandas as pd
+from sqlalchemy import create_engine, text
 
 
 def get_db_engine():

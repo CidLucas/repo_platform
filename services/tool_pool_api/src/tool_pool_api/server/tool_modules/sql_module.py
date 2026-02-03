@@ -33,11 +33,11 @@ from tool_pool_api.server.dependencies import (
 )
 from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
 from vizu_llm_service import ModelTier, get_model
-from vizu_observability_bootstrap.langfuse import get_langfuse_callback, is_langfuse_enabled
 
 # Context 2.0: Import ContextSection for selective injection
 from vizu_models.enums import ContextSection
 from vizu_models.vizu_client_context import VizuClientContext
+from vizu_observability_bootstrap.langfuse import get_langfuse_callback, is_langfuse_enabled
 
 from . import register_module
 
@@ -537,11 +537,11 @@ async def _executar_sql_agent_logic(
         logger.info(f"[SQL] User question: {query}")
 
         # FULL PROMPT DEBUG - Enable with LOG_LEVEL=DEBUG to inspect complete SQL generation prompt
-        logger.debug(f"=== SQL GENERATION FULL PROMPT ===")
+        logger.debug("=== SQL GENERATION FULL PROMPT ===")
         logger.debug(f"Context guidance:\n{context_guidance}")
         logger.debug(f"\nTable info:\n{table_info}")
         logger.debug(f"\nUser question: {query}")
-        logger.debug(f"=== END SQL GENERATION PROMPT ===")
+        logger.debug("=== END SQL GENERATION PROMPT ===")
 
         # Single LLM call to generate SQL
         # SECURITY: LLM should NOT see or handle client_id, UUIDs, or sensitive identifiers

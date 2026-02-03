@@ -18,8 +18,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .enums import ContextSection, TierCliente
 from .context_schemas import (
+    SECTION_SCHEMAS,
     AvailableTools,
     BrandVoice,
     CompanyProfile,
@@ -27,8 +27,8 @@ from .context_schemas import (
     DataSchema,
     Policies,
     TeamStructure,
-    SECTION_SCHEMAS,
 )
+from .enums import ContextSection, TierCliente
 
 
 class SafeClientContext(BaseModel):

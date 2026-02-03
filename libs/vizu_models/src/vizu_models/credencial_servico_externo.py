@@ -3,7 +3,8 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Column, DateTime, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID as pgUUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as pgUUID
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:

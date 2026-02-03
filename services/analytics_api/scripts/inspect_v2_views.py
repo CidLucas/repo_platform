@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 
+
 def load_env_value(key: str) -> str | None:
     p = Path('.').resolve() / '.env'
     if not p.exists():
@@ -62,7 +63,8 @@ def main():
         except Exception as e:
             print(f"Error querying {v}: {e}")
 
-    cur.close(); conn.close()
+    cur.close()
+    conn.close()
 
 if __name__ == '__main__':
     main()

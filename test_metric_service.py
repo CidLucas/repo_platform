@@ -7,11 +7,12 @@ This script:
 3. Logs each operation to identify errors, repeated code, and legacy issues
 """
 
-import sys
-import os
-from datetime import datetime, timedelta, timezone
-import pandas as pd
 import logging
+import os
+import sys
+from datetime import UTC, datetime, timedelta, timezone
+
+import pandas as pd
 
 # Add the analytics_api to path
 sys.path.insert(0, '/Users/lucascruz/Documents/GitHub/vizu-mono/services/analytics_api/src')
@@ -75,7 +76,7 @@ def create_sample_silver_data() -> pd.DataFrame:
     ]
 
     # Generate date range (last 3 months)
-    end_date = datetime.now(timezone.utc)
+    end_date = datetime.now(UTC)
     start_date = end_date - timedelta(days=90)
 
     import random
@@ -193,7 +194,7 @@ def test_metric_service():
         logger.info(f"   Creating MetricService(client_id='{client_id}', write_gold=False)")
         service = MetricService(mock_repo, client_id, write_gold=False)
 
-        logger.info(f"   ✅ MetricService initialized successfully")
+        logger.info("   ✅ MetricService initialized successfully")
         logger.info(f"   - DataFrame shape: {service.df.shape}")
         logger.info(f"   - Customers aggregated: {service.df_clientes_agg.shape}")
         logger.info(f"   - Suppliers aggregated: {service.df_fornecedores_agg.shape}")
@@ -207,7 +208,7 @@ def test_metric_service():
     logger.info("\n📍 STEP 4: Testing get_home_metrics() [Level 1]...")
     try:
         home_metrics = service.get_home_metrics()
-        logger.info(f"   ✅ Home metrics calculated successfully")
+        logger.info("   ✅ Home metrics calculated successfully")
         logger.info(f"   Scorecards: {home_metrics.scorecards}")
         logger.info(f"   Charts: {len(home_metrics.charts)} chart(s)")
     except Exception as e:
@@ -217,10 +218,10 @@ def test_metric_service():
     logger.info("\n🏭 STEP 5: Testing get_fornecedores_overview() [Level 2]...")
     try:
         fornecedores = service.get_fornecedores_overview()
-        logger.info(f"   ✅ Fornecedores overview calculated successfully")
+        logger.info("   ✅ Fornecedores overview calculated successfully")
         logger.info(f"   Total fornecedores: {fornecedores.scorecard_total_fornecedores}")
         logger.info(f"   Crescimento: {fornecedores.scorecard_crescimento_percentual}")
-        logger.info(f"   Rankings:")
+        logger.info("   Rankings:")
         logger.info(f"     - Por receita: {len(fornecedores.ranking_por_receita)} items")
         logger.info(f"     - Por ticket médio: {len(fornecedores.ranking_por_ticket_medio)} items")
     except Exception as e:
@@ -230,7 +231,7 @@ def test_metric_service():
     logger.info("\n👥 STEP 6: Testing get_clientes_overview() [Level 2]...")
     try:
         clientes = service.get_clientes_overview()
-        logger.info(f"   ✅ Clientes overview calculated successfully")
+        logger.info("   ✅ Clientes overview calculated successfully")
         logger.info(f"   Total clientes: {clientes.scorecard_total_clientes}")
         logger.info(f"   Ticket médio geral: R$ {clientes.scorecard_ticket_medio_geral:,.2f}")
         logger.info(f"   Frequência média: {clientes.scorecard_frequencia_media_geral:.2f}")
@@ -242,9 +243,9 @@ def test_metric_service():
     logger.info("\n📦 STEP 7: Testing get_produtos_overview() [Level 2]...")
     try:
         produtos = service.get_produtos_overview()
-        logger.info(f"   ✅ Produtos overview calculated successfully")
+        logger.info("   ✅ Produtos overview calculated successfully")
         logger.info(f"   Total itens únicos: {produtos.scorecard_total_itens_unicos}")
-        logger.info(f"   Rankings:")
+        logger.info("   Rankings:")
         logger.info(f"     - Por receita: {len(produtos.ranking_por_receita)} items")
         logger.info(f"     - Por volume: {len(produtos.ranking_por_volume)} items")
     except Exception as e:
@@ -254,7 +255,7 @@ def test_metric_service():
     logger.info("\n📋 STEP 8: Testing get_pedidos_overview() [Level 2]...")
     try:
         pedidos = service.get_pedidos_overview()
-        logger.info(f"   ✅ Pedidos overview calculated successfully")
+        logger.info("   ✅ Pedidos overview calculated successfully")
         logger.info(f"   Ticket médio por pedido: R$ {pedidos.scorecard_ticket_medio_por_pedido:,.2f}")
         logger.info(f"   Qtd média produtos: {pedidos.scorecard_qtd_media_produtos_por_pedido:.2f}")
         logger.info(f"   Últimos pedidos: {len(pedidos.ultimos_pedidos)} items")
@@ -265,7 +266,7 @@ def test_metric_service():
     logger.info("\n💾 STEP 9: Testing with write_gold=True...")
     try:
         service_with_write = MetricService(mock_repo, client_id, write_gold=True)
-        logger.info(f"   ✅ MetricService with write_gold=True completed")
+        logger.info("   ✅ MetricService with write_gold=True completed")
         logger.info(f"   Gold tables written: {service_with_write._gold_tables_written}")
     except Exception as e:
         logger.error(f"   ❌ Failed with write_gold=True: {e}", exc_info=True)

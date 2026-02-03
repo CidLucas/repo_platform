@@ -1,29 +1,30 @@
 # src/analytics_api/services/metric_service.py
 import logging
+from datetime import UTC
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import text
 from analytics_api.data_access.postgres_repository import PostgresRepository
-from analytics_api.services.data_quality_logger import DataQualityLogger
 from analytics_api.schemas.metrics import (
+    CadastralData,
     ChartData,
     ChartDataPoint,
-    RankingItem,
-    CadastralData,
-    HomeScorecards,
-    HomeMetricsResponse,
-    FornecedoresOverviewResponse,
-    ClientesOverviewResponse,
-    ProdutosOverviewResponse,
-    PedidosOverviewResponse,
-    PedidoItem,
-    FornecedorDetailResponse,
     ClienteDetailResponse,
-    ProdutoDetailResponse,
+    ClientesOverviewResponse,
+    FornecedorDetailResponse,
+    FornecedoresOverviewResponse,
+    HomeMetricsResponse,
+    HomeScorecards,
     PedidoDetailResponse,
+    PedidoItem,
     PedidoItemDetalhe,
+    PedidosOverviewResponse,
+    ProdutoDetailResponse,
+    ProdutosOverviewResponse,
+    RankingItem,
 )
+from analytics_api.services.data_quality_logger import DataQualityLogger
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ class MetricService:
             return
 
         # --- Pré-processamento Crítico ---
-        logger.debug(f"🔧 Starting preprocessing...")
+        logger.debug("🔧 Starting preprocessing...")
 
         # Convert data_transacao to datetime, handling errors gracefully
         if 'data_transacao' in self.df.columns:
@@ -95,7 +96,7 @@ class MetricService:
         if 'valor_unitario' in self.df.columns:
             self.df['valor_unitario'] = pd.to_numeric(self.df['valor_unitario'], errors='coerce')
 
-        logger.debug(f"✓ Preprocessing completed")
+        logger.debug("✓ Preprocessing completed")
 
         # Log which canonical columns we have
         canonical_expected = ['order_id', 'data_transacao', 'quantidade', 'valor_unitario',
@@ -119,16 +120,16 @@ class MetricService:
             dt_no_tz = self.df['data_transacao'].dt.tz_localize(None)
             self.df['ano_mes'] = dt_no_tz.dt.to_period('M').astype(str)
             self.df['ano_semana'] = dt_no_tz.dt.to_period('W').astype(str)
-            logger.debug(f"✓ Date columns processed successfully")
+            logger.debug("✓ Date columns processed successfully")
         else:
-            logger.warning(f"⚠️  data_transacao column not usable, skipping time-based features")
+            logger.warning("⚠️  data_transacao column not usable, skipping time-based features")
             self.df['ano_mes'] = ''
             self.df['ano_semana'] = ''
 
         # --- PRÉ-EXTRACT DIMENSION ENTITIES (SQL-Only Approach) ---
         # Extract unique dimension entities (names, IDs, contact info)
         # NO METRICS are computed here - SQL does ALL aggregations from fact_sales
-        logger.debug(f"🔄 Extracting dimension entities...")
+        logger.debug("🔄 Extracting dimension entities...")
 
         self.df_clientes_agg = self._get_aggregated_metrics_by_dimension(self.df, 'receiver_nome')
         logger.debug(f"  ✓ Customers extracted: {len(self.df_clientes_agg)} records")
@@ -147,10 +148,10 @@ class MetricService:
         # --- PERSIST TO ANALYTICS_V2 TABLES ---
         # Write skeleton dimension records (IDs/names only, metrics are NULL)
         # Then SQL populates ALL metrics from fact_sales (single source of truth)
-        logger.debug(f"💾 Persisting to analytics_v2...")
+        logger.debug("💾 Persisting to analytics_v2...")
         self._persist_to_analytics_v2()
 
-        logger.info(f"✅ [MetricService] Initialization complete")
+        logger.info("✅ [MetricService] Initialization complete")
 
 
     # ---
@@ -348,7 +349,7 @@ class MetricService:
                     mode_str = "UPSERTed" if self.incremental else "inserted"
                     logger.debug(f"    ✓ {mode_str} {sales_count} transactions")
                 else:
-                    logger.warning(f"    ⚠️  No transaction columns available for fact_sales")
+                    logger.warning("    ⚠️  No transaction columns available for fact_sales")
 
             fact_time = time.time()
             logger.debug(f"  ⏱️  Fact sales written in {fact_time - dim_time:.1f}s")
@@ -391,7 +392,7 @@ class MetricService:
 
             # Update last_sync_at timestamp for future incremental syncs
             from datetime import datetime, timezone
-            sync_time = datetime.now(timezone.utc)
+            sync_time = datetime.now(UTC)
             self.repository.update_last_sync_timestamp(self.client_id, sync_time)
 
             # Record sync event for audit trail
@@ -772,7 +773,7 @@ class MetricService:
         if has_dates and 'ano_mes' in self.df.columns:
             try:
                 # Group by month
-                for period, df_month in self.df.groupby('ano_mes'):
+                for _period, df_month in self.df.groupby('ano_mes'):
                     if df_month.empty:
                         continue
 
@@ -894,7 +895,7 @@ class MetricService:
         This eliminates the need to load full Silver dataframe on every module page view.
         """
         try:
-            logger.debug(f"📊 Computing and writing chart data to analytics_v2...")
+            logger.debug("📊 Computing and writing chart data to analytics_v2...")
 
             # 1. Time Series Charts
             self._write_time_series_charts()
@@ -905,7 +906,7 @@ class MetricService:
             # 3. Last Orders
             self._write_last_orders()
 
-            logger.debug(f"✅ All chart data written successfully")
+            logger.debug("✅ All chart data written successfully")
 
         except Exception as e:
             logger.error(f"❌ Failed to write chart data: {e}", exc_info=True)
@@ -1678,7 +1679,7 @@ class MetricService:
             logger.debug(f"[DEBUG] chart_cohort_clientes data: {df_cohort.to_dict('records')}")
         else:
             df_cohort = pd.DataFrame()
-            logger.warning(f"⚠️  Missing cluster_tier column in df_clientes_agg; cohort chart will be empty")
+            logger.warning("⚠️  Missing cluster_tier column in df_clientes_agg; cohort chart will be empty")
 
         # Calculate growth percentage using helper method
         crescimento_percentual = None
@@ -1772,7 +1773,11 @@ class MetricService:
             logger.debug("Failed to prefer mv_product_summary for produtos; using computed aggregation")
 
         # Convert to specific product ranking schemas (simpler than RankingItem)
-        from analytics_api.schemas.metrics import ProdutoRankingReceita, ProdutoRankingVolume, ProdutoRankingTicket
+        from analytics_api.schemas.metrics import (
+            ProdutoRankingReceita,
+            ProdutoRankingTicket,
+            ProdutoRankingVolume,
+        )
 
         ranking_por_receita = [
             ProdutoRankingReceita(

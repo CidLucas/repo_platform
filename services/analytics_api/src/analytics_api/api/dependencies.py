@@ -80,7 +80,7 @@ def _resolve_client_id_from_db(db_session: Session, external_user_id: str, email
 
 async def get_client_id(
     request: Request,
-    client_id_param: Optional[str] = Query(None, alias="client_id"),
+    client_id_param: str | None = Query(None, alias="client_id"),
     db_session: Session = Depends(get_vizu_db_session),
 ) -> str:
     """

@@ -8,8 +8,8 @@ usando similaridade de strings (difflib) para sugestões automáticas.
 import logging
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
-from typing import Any
 from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -659,12 +659,12 @@ class SchemaMatcherService:
         high_threshold = high_threshold or self.HIGH_CONFIDENCE_THRESHOLD
         medium_threshold = medium_threshold or self.MEDIUM_CONFIDENCE_THRESHOLD
 
-        logger.info(f"=" * 80)
+        logger.info("=" * 80)
         logger.info(f"[AUTO_MATCH] Starting schema matching for '{schema_type}'")
         logger.info(f"  Source columns ({len(source_columns)}): {source_columns[:10]}{'...' if len(source_columns) > 10 else ''}")
         logger.info(f"  High confidence threshold: {high_threshold}")
         logger.info(f"  Medium confidence threshold: {medium_threshold}")
-        logger.info(f"=" * 80)
+        logger.info("=" * 80)
 
         canonical_columns = self.CANONICAL_SCHEMAS[schema_type]
         result = SchemaMatchResult()
@@ -762,13 +762,13 @@ class SchemaMatcherService:
         logger.info(f"  ✓ Matched: {len(result.matched)} columns")
         logger.info(f"  ⚠ Needs review: {len(result.needs_review)} columns")
         logger.info(f"  ✗ Unmatched: {len(result.unmatched)} columns")
-        logger.info(f"\n  Matched columns:")
+        logger.info("\n  Matched columns:")
         for source, canonical in list(result.matched.items())[:20]:
             score = result.confidence_scores[source]
             logger.info(f"    '{source}' → '{canonical}' (score: {score:.2f})")
         if len(result.matched) > 20:
             logger.info(f"    ... and {len(result.matched) - 20} more")
-        logger.info(f"=" * 80)
+        logger.info("=" * 80)
 
         return result
 

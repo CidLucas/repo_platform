@@ -23,6 +23,10 @@ from tool_pool_api.server.dependencies import (
     get_context_service,
     load_context_from_token,
 )
+from tool_pool_api.server.tool_helpers import (
+    get_enabled_tools_for_context,
+    get_tier_for_context,
+)
 from vizu_db_connector.database import SessionLocal
 from vizu_llm_service.client import get_embedding_model
 from vizu_models import KnowledgeBaseConfig, PromptTemplate
@@ -32,11 +36,6 @@ from vizu_qdrant_client import get_qdrant_client
 
 # Phase 3: Use vizu_tool_registry for dynamic tool filtering
 from vizu_tool_registry import ToolRegistry
-
-from tool_pool_api.server.tool_helpers import (
-    get_enabled_tools_for_context,
-    get_tier_for_context,
-)
 
 logger = logging.getLogger(__name__)
 

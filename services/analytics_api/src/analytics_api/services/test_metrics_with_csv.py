@@ -89,7 +89,7 @@ def load_and_transform_csv() -> pd.DataFrame:
     # Convert data_transacao from Unix timestamp (ms) to datetime
     if 'data_transacao' in df.columns:
         df['data_transacao'] = pd.to_datetime(df['data_transacao'], unit='ms', errors='coerce', utc=True)
-        logger.info(f"📅 Converted data_transacao to datetime")
+        logger.info("📅 Converted data_transacao to datetime")
         logger.info(f"   Date range: {df['data_transacao'].min()} to {df['data_transacao'].max()}")
 
     # Ensure numeric columns are numeric
@@ -99,7 +99,7 @@ def load_and_transform_csv() -> pd.DataFrame:
             df[col] = pd.to_numeric(df[col], errors='coerce')
 
     # Show data quality
-    logger.info(f"\n📈 Data Quality Summary:")
+    logger.info("\n📈 Data Quality Summary:")
     for col in ['order_id', 'data_transacao', 'receiver_nome', 'emitter_nome', 'valor_total_emitter', 'quantidade']:
         if col in df.columns:
             null_pct = (df[col].isna().sum() / len(df)) * 100
@@ -141,7 +141,7 @@ def aggregate_customers(df: pd.DataFrame) -> pd.DataFrame:
 
     logger.info(f"   ✓ Aggregated {len(agg)} customers")
     logger.info(f"   Total revenue: R$ {agg['receita_total'].sum():,.2f}")
-    logger.info(f"   Top 5 customers by revenue:")
+    logger.info("   Top 5 customers by revenue:")
     for _, row in agg.head(5).iterrows():
         logger.info(f"      {row['nome'][:40]}: R$ {row['receita_total']:,.2f}")
 
@@ -175,7 +175,7 @@ def aggregate_suppliers(df: pd.DataFrame) -> pd.DataFrame:
 
     logger.info(f"   ✓ Aggregated {len(agg)} suppliers")
     logger.info(f"   Total revenue: R$ {agg['receita_total'].sum():,.2f}")
-    logger.info(f"   Top 5 suppliers by revenue:")
+    logger.info("   Top 5 suppliers by revenue:")
     for _, row in agg.head(5).iterrows():
         logger.info(f"      {row['nome'][:40]}: R$ {row['receita_total']:,.2f}")
 
@@ -209,7 +209,7 @@ def aggregate_products(df: pd.DataFrame) -> pd.DataFrame:
 
     logger.info(f"   ✓ Aggregated {len(agg)} products")
     logger.info(f"   Total revenue: R$ {agg['receita_total'].sum():,.2f}")
-    logger.info(f"   Top 5 products by revenue:")
+    logger.info("   Top 5 products by revenue:")
     for _, row in agg.head(5).iterrows():
         logger.info(f"      {row['nome'][:40]}: R$ {row['receita_total']:,.2f}")
 
@@ -237,7 +237,7 @@ def calculate_time_series(df: pd.DataFrame) -> pd.DataFrame:
 
     logger.info(f"   ✓ Generated {len(monthly)} monthly data points")
     logger.info(f"   Date range: {monthly['month'].min()} to {monthly['month'].max()}")
-    logger.info(f"\n   Last 6 months:")
+    logger.info("\n   Last 6 months:")
     for _, row in monthly.tail(6).iterrows():
         logger.info(f"      {row['month']}: {row['total_orders']:,} orders, R$ {row['total_revenue']:,.2f}")
 

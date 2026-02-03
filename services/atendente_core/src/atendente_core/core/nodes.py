@@ -474,9 +474,9 @@ async def supervisor_node(state: AgentState) -> dict:
     logger.debug(f"[SUPERVISOR] Prompt preview: {system_prompt[:500]}...")
 
     # FULL PROMPT DEBUG - Enable with LOG_LEVEL=DEBUG to inspect complete LLM input
-    logger.debug(f"=== SUPERVISOR FULL SYSTEM PROMPT ===")
+    logger.debug("=== SUPERVISOR FULL SYSTEM PROMPT ===")
     logger.debug(system_prompt)
-    logger.debug(f"=== END SUPERVISOR SYSTEM PROMPT ===")
+    logger.debug("=== END SUPERVISOR SYSTEM PROMPT ===")
 
     # Constrói a lista de mensagens com o System Message no início
     # Limita a janela de histórico enviada ao LLM para evitar que o state
@@ -500,7 +500,7 @@ async def supervisor_node(state: AgentState) -> dict:
     logger.debug(f"=== SUPERVISOR FULL MESSAGE LIST ({len(messages)} messages) ===")
     for i, msg in enumerate(messages):
         logger.debug(f"Message {i} [{type(msg).__name__}]: {str(msg.content)[:200]}...")
-    logger.debug(f"=== END SUPERVISOR MESSAGE LIST ===")
+    logger.debug("=== END SUPERVISOR MESSAGE LIST ===")
 
     # 5. Bind das Tools filtradas no Modelo
     llm = get_llm(model_override=model_override)

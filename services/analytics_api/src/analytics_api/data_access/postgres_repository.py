@@ -1,17 +1,18 @@
 # src/analytics_api/data_access/postgres_repository.py
-import logging
 import json
+import logging
 import uuid
 from datetime import datetime
 from typing import Any
 
 import numpy as np
 import pandas as pd
+from analytics_api.core.analytics_mapping import get_silver_table_name
 from psycopg2.extras import execute_values
 from sqlalchemy import text
-from analytics_api.core.analytics_mapping import get_silver_table_name
-from vizu_supabase_client.client import get_supabase_client
+
 from vizu_db_connector.database import SessionLocal
+from vizu_supabase_client.client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +81,6 @@ class PostgresRepository:
                 logger.debug("Database session closed successfully")
             except Exception as e:
                 logger.warning(f"Error closing database session: {e}")
-            except Exception as e:
-                logger.warning(f"Error closing database session: {e}")
 
     @staticmethod
     def _sanitize_numeric(value: Any, default: float = 0.0, max_value: float = 9999999999.99) -> float:
@@ -130,7 +129,7 @@ class PostgresRepository:
 
         logger.debug(f"🔍 Querying silver table: {table_name}")
         logger.debug(f"  📝 Column mapping: {len(column_mapping)} columns")
-        logger.debug(f"  Sample mappings (first 5):")
+        logger.debug("  Sample mappings (first 5):")
         for source, canonical in list(column_mapping.items())[:5]:
             logger.debug(f"    '{source}' → {canonical}")
 
@@ -142,7 +141,7 @@ class PostgresRepository:
                 if filter_timestamp:
                     logger.debug(f"  📅 Incremental mode: fetching data since {filter_timestamp}")
                 else:
-                    logger.debug(f"  📅 Incremental mode requested but no previous sync - doing full load")
+                    logger.debug("  📅 Incremental mode requested but no previous sync - doing full load")
 
             # Find the date column name in the source (before mapping)
             date_source_col = None
@@ -231,13 +230,13 @@ class PostgresRepository:
             if rename_map:
                 df.rename(columns=rename_map, inplace=True)
                 logger.debug(f"  📊 DataFrame columns (after rename): {list(df.columns)}")
-                logger.debug(f"  📈 Data types:")
+                logger.debug("  📈 Data types:")
                 for col in df.columns[:10]:
                     logger.debug(f"    {col}: {df[col].dtype}")
 
                 # Log sample values from first row
                 if not df.empty:
-                    logger.debug(f"  📍 First row sample:")
+                    logger.debug("  📍 First row sample:")
                     for col in list(df.columns)[:5]:
                         val = df[col].iloc[0]
                         logger.debug(f"    {col}: {type(val).__name__} = {str(val)[:100]}")
@@ -265,11 +264,11 @@ class PostgresRepository:
                     logger.debug(f"  ✓ Generated {len(df['order_id'].unique())} unique synthetic order_ids")
                 else:
                     df['order_id'] = df.index.astype(str)
-                    logger.warning(f"  ⚠️  Using row index as order_id")
+                    logger.warning("  ⚠️  Using row index as order_id")
 
             # DATA QUALITY CHECK
             if not df.empty:
-                logger.debug(f"[DATA QUALITY CHECK]")
+                logger.debug("[DATA QUALITY CHECK]")
                 logger.debug(f"  Total rows: {len(df)}")
 
                 quality_warnings = []
@@ -288,11 +287,11 @@ class PostgresRepository:
                         logger.debug(f"  ✓ {col}: 100% populated, {unique_vals:,} unique values")
 
                 if quality_warnings:
-                    logger.warning(f"  ⚠️  Quality Issues Detected:")
+                    logger.warning("  ⚠️  Quality Issues Detected:")
                     for warning in quality_warnings:
                         logger.warning(f"    - {warning}")
                 else:
-                    logger.debug(f"  ✓ All columns have good quality (< 50% NULL)")
+                    logger.debug("  ✓ All columns have good quality (< 50% NULL)")
 
             logger.debug(f"✅ [get_silver_dataframe] Complete - {len(df)} rows, {len(df.columns)} columns")
             return df
@@ -705,12 +704,12 @@ class PostgresRepository:
                     {"client_id": client_id}
                 )
                 self.db_session.commit()
-                logger.debug(f"  ✓ Cleared existing fact_sales")
+                logger.debug("  ✓ Cleared existing fact_sales")
             elif incremental:
-                logger.debug(f"  📝 Incremental mode: will UPSERT new records")
+                logger.debug("  📝 Incremental mode: will UPSERT new records")
 
             # OPTIMIZATION: Bulk load all dimension data once instead of querying per row
-            logger.debug(f"  Loading dimension lookup tables...")
+            logger.debug("  Loading dimension lookup tables...")
 
             # Helper to normalize cpf/cnpj for lookups (handles float vs string)
             def normalize_doc(val):
@@ -812,7 +811,7 @@ class PostgresRepository:
                 # Log first few failures for debugging
                 if failed_rows:
                     logger.warning(f"⚠️  No valid fact_sales rows to insert (all {len(invoices_data)} had missing dimensions)")
-                    logger.warning(f"  Sample failures (first 5):")
+                    logger.warning("  Sample failures (first 5):")
                     for fail in failed_rows[:5]:
                         logger.warning(f"    - order_id={fail.get('order_id')}: {fail.get('reason')}")
                 else:
@@ -1039,7 +1038,7 @@ class PostgresRepository:
                 ]
 
             # Fallback: return empty if view is empty
-            logger.debug(f"⚠️  v_last_orders empty")
+            logger.debug("⚠️  v_last_orders empty")
             return []
         except Exception as e:
             logger.error(f"❌ Failed to read v_last_orders: {e}", exc_info=True)

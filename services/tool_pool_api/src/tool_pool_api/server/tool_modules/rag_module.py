@@ -16,11 +16,10 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.dependencies import get_context_service
+from tool_pool_api.server.tool_helpers import is_tool_enabled_for_client
 from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
 from vizu_llm_service import ModelTier, get_model
 from vizu_models.vizu_client_context import VizuClientContext
-
-from tool_pool_api.server.tool_helpers import is_tool_enabled_for_client
 
 from . import register_module
 

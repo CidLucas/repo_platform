@@ -6,14 +6,14 @@ from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
 
-from data_ingestion_api.services import supabase_client
 from data_ingestion_api.schemas.connector_schemas import (
-    ConnectorStatusResponse,
     ConnectorListResponse,
-    SyncHistoryResponse,
-    StorageUsageResponse,
+    ConnectorStatusResponse,
     DashboardStatsResponse,
+    StorageUsageResponse,
+    SyncHistoryResponse,
 )
+from data_ingestion_api.services import supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ class ConnectorStatusService:
             total_configured=len(connectors),
         )
 
-    async def _get_latest_sync(self, credential_id: int) -> Optional[dict]:
+    async def _get_latest_sync(self, credential_id: int) -> dict | None:
         """Get the latest sync history record for a credential."""
         syncs = await supabase_client.select(
             table="connector_sync_history",
@@ -112,7 +112,7 @@ class ConnectorStatusService:
     async def create_sync_record(
         self,
         credential_id: int,
-        resource_type: Optional[str] = None,
+        resource_type: str | None = None,
     ) -> UUID:
         """
         Create a new sync history record (status: running).
@@ -132,9 +132,9 @@ class ConnectorStatusService:
         self,
         sync_id: UUID,
         status: str,
-        records_processed: Optional[int] = None,
-        records_inserted: Optional[int] = None,
-        error_message: Optional[str] = None,
+        records_processed: int | None = None,
+        records_inserted: int | None = None,
+        error_message: str | None = None,
     ):
         """Update sync history record with completion status."""
         data = {

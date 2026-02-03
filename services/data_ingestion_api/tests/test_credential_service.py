@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock
 
 import pytest
-
 from data_ingestion_api.schemas.schemas import (
     BigQueryCredentialCreate,
 )

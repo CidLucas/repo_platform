@@ -2,8 +2,8 @@ from analytics_api.api.endpoints import (
     auth,
     dashboard,
     deep_dive,
-    ingestion,
     indicators,
+    ingestion,
     rankings,
 )
 from fastapi import APIRouter

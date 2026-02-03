@@ -7,9 +7,9 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+
 from tool_pool_api.core.config import get_settings
 from tool_pool_api.server.dependencies import get_context_service
-
 from vizu_auth.core.exceptions import (
     AuthError,
     InvalidTokenError,

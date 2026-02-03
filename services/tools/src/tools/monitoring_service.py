@@ -69,10 +69,10 @@ class QueryExpander:
     _SPACY_MODELS = ("xx_ent_wiki_sm", "en_core_web_md")
 
     def __init__(self):
-        self._nlp: Optional[Language] = None
+        self._nlp: Language | None = None
         self._feature_docs: dict[str, Doc] = {}
 
-    def _load_spacy_model(self) -> Optional[Language]:
+    def _load_spacy_model(self) -> Language | None:
         if self._nlp is not None:
             return self._nlp
         if spacy is None:
@@ -96,10 +96,10 @@ class QueryExpander:
         self._feature_docs[feature.name] = doc
         return doc
 
-    def infer_category(self, phrase: str, seed_url: Optional[str] = None) -> Optional[str]:
+    def infer_category(self, phrase: str, seed_url: str | None = None) -> str | None:
         text_for_similarity = " ".join(filter(None, [phrase.strip(), seed_url or ""]))
         nlp = self._load_spacy_model()
-        best_match: Optional[str] = None
+        best_match: str | None = None
         best_score = 0.0
 
         if nlp and text_for_similarity:
@@ -121,7 +121,7 @@ class QueryExpander:
 
         return None
 
-    def expand_query(self, phrase: str, include_price_tags: bool = False, seed_url: Optional[str] = None) -> list[str]:
+    def expand_query(self, phrase: str, include_price_tags: bool = False, seed_url: str | None = None) -> list[str]:
         category = self.infer_category(phrase)
         if not category:
             return [phrase]
@@ -241,8 +241,8 @@ class WebMonitorService:
         self,
         task_name: str,
         user_query: str,
-        seed_url: Optional[str] = None,
-        keywords_override: Optional[list[str]] = None,
+        seed_url: str | None = None,
+        keywords_override: list[str] | None = None,
     ) -> dict[str, Any]:
         """Run a pre-configured task, using the expander + BM25 search parameters."""
         config = self._task_configs.get(task_name)
@@ -269,16 +269,16 @@ class WebMonitorService:
             source=config.source,
         )
 
-    async def monitor_feature(self, user_query: str, seed_url: Optional[str] = None) -> dict[str, Any]:
+    async def monitor_feature(self, user_query: str, seed_url: str | None = None) -> dict[str, Any]:
         return await self.monitor_task("feature", user_query, seed_url=seed_url)
 
-    async def monitor_price_tags(self, user_query: str, seed_url: Optional[str] = None) -> dict[str, Any]:
+    async def monitor_price_tags(self, user_query: str, seed_url: str | None = None) -> dict[str, Any]:
         return await self.monitor_task("price_tags", user_query, seed_url=seed_url)
 
     async def monitor_keywords(self, keywords_or_phrases: list[str]) -> dict:
         return await self.bm25_monitor(keywords_or_phrases)
 
-    async def monitor_company_web(self, company_name: str, extra_domains: Optional[list[str]] = None) -> dict:
+    async def monitor_company_web(self, company_name: str, extra_domains: list[str] | None = None) -> dict:
         domains = extra_domains or [self.domain]
         combined = []
         try:

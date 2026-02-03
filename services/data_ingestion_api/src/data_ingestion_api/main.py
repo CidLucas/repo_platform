@@ -5,11 +5,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from data_ingestion_api.api.connector_status_routes import router as connector_status_router
+from data_ingestion_api.api.etl_routes import router as etl_router
+
 # Importação dos routers da aplicação
 from data_ingestion_api.api.routes import router as credential_router
 from data_ingestion_api.api.schema_routes import router as schema_router
-from data_ingestion_api.api.etl_routes import router as etl_router
-from data_ingestion_api.api.connector_status_routes import router as connector_status_router
 
 # Tenta importar configuração de settings (padrão Vizu)
 try:

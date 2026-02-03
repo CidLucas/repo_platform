@@ -10,7 +10,7 @@ from analytics_api.api.router import api_router
 from analytics_api.core.config import settings
 
 # Configuração de observabilidade
-from vizu_observability_bootstrap import setup_telemetry, setup_structured_logging
+from vizu_observability_bootstrap import setup_structured_logging, setup_telemetry
 
 # Configuração de logging (INFO level - structured logging handles this)
 setup_structured_logging()
@@ -31,6 +31,7 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
         # Set timeouts at session level for this request
         # These are more aggressive than database defaults since API requests should be fast
         from sqlalchemy import text
+
         from vizu_db_connector.database import SessionLocal
         session = SessionLocal()
         try:

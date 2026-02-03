@@ -11,20 +11,20 @@ from analytics_api.api.dependencies import (
     get_client_id,
     get_postgres_repository,
 )
+from analytics_api.api.helpers import dict_to_ranking_item
 from analytics_api.data_access.postgres_repository import PostgresRepository
 from analytics_api.schemas.metrics import (
-    HomeMetricsResponse,
-    HomeScorecards,
-    ProdutosOverviewResponse,
-    ProdutoRankingReceita,
-    ProdutoRankingVolume,
-    ProdutoRankingTicket,
+    ChartDataPoint,
     ClientesOverviewResponse,
     FornecedoresOverviewResponse,
-    ChartDataPoint,
+    HomeMetricsResponse,
+    HomeScorecards,
+    ProdutoRankingReceita,
+    ProdutoRankingTicket,
+    ProdutoRankingVolume,
+    ProdutosOverviewResponse,
     RankingItem,
 )
-from analytics_api.api.helpers import dict_to_ranking_item
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 

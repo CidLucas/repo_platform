@@ -37,7 +37,7 @@ class PromptTemplateConfig:
         """Get optional variables as a dict with empty string defaults."""
         if isinstance(self.optional_variables, dict):
             return self.optional_variables
-        return {var: "" for var in self.optional_variables}
+        return dict.fromkeys(self.optional_variables, "")
 
 
 # Built-in templates

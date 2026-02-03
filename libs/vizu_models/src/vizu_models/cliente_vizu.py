@@ -2,8 +2,9 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Optional
 
-from sqlalchemy import Boolean, Text, DateTime, ARRAY
-from sqlalchemy.dialects.postgresql import UUID as pgUUID, JSONB
+from sqlalchemy import ARRAY, Boolean, DateTime, Text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as pgUUID
 from sqlmodel import Column, Field, Relationship, SQLModel
 
 # Importações de modelos locais com forward references resolvidas

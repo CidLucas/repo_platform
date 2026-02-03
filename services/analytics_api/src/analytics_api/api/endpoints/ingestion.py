@@ -6,11 +6,11 @@ Supports incremental mode for daily updates (only fetches new data since last sy
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from analytics_api.api.dependencies import get_postgres_repository, get_client_id
+from analytics_api.api.dependencies import get_client_id, get_postgres_repository
 from analytics_api.data_access.postgres_repository import PostgresRepository
 from analytics_api.services.metric_service import MetricService
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 router = APIRouter(prefix="/ingest", tags=["Ingest"],)
 
@@ -76,7 +76,7 @@ async def recompute_gold_metrics(
 
         # 🔄 REFRESH MATERIALIZED VIEWS after data is written
         # This ensures MVs reflect the latest data in fact_sales
-        logger.info(f"📊 Refreshing materialized views to reflect new data...")
+        logger.info("📊 Refreshing materialized views to reflect new data...")
         mv_result = repo.refresh_materialized_views()
 
         return {
@@ -122,7 +122,7 @@ async def recompute_full(
         logger.info(f"Ingest: full recompute completed for {client_id} ({rows_processed} rows)")
 
         # 🔄 REFRESH MATERIALIZED VIEWS after data is written
-        logger.info(f"📊 Refreshing materialized views to reflect new data...")
+        logger.info("📊 Refreshing materialized views to reflect new data...")
         mv_result = repo.refresh_materialized_views()
 
         return {

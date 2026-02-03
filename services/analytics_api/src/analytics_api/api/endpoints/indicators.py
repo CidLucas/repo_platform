@@ -6,11 +6,10 @@ Optimized: Single query fetches all metrics, no N+1 queries.
 import logging
 from dataclasses import asdict
 
-from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
-
 from analytics_api.api.dependencies import get_indicator_service
 from analytics_api.services.indicator_service import IndicatorService, PeriodType
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/indicators", tags=["Indicators"])

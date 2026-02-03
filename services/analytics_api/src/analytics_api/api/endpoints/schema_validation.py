@@ -3,17 +3,18 @@ Comparison and Validation Endpoints for Star Schema Migration
 Provides side-by-side comparison of old (gold) vs new (v2) schemas
 """
 
+import logging
+from typing import Any, Dict, List
+
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import text
-import logging
-from typing import Dict, Any, List
 
 router = APIRouter(prefix="/api/debug", tags=["schema-validation"])
 logger = logging.getLogger(__name__)
 
 
 @router.get("/compare/{client_id}")
-async def compare_schemas(client_id: str, db_session) -> Dict[str, Any]:
+async def compare_schemas(client_id: str, db_session) -> dict[str, Any]:
     """
     Compare old gold tables vs new v2 star schema side-by-side
     Useful for validation during migration
@@ -95,7 +96,7 @@ async def compare_schemas(client_id: str, db_session) -> Dict[str, Any]:
 
 
 @router.get("/validate/{client_id}")
-async def validate_migration(client_id: str, db_session) -> Dict[str, Any]:
+async def validate_migration(client_id: str, db_session) -> dict[str, Any]:
     """
     Validate that the migration is complete and correct
     Checks data integrity and consistency between schemas
@@ -134,7 +135,7 @@ async def validate_migration(client_id: str, db_session) -> Dict[str, Any]:
 
 
 @router.get("/metrics/{client_id}")
-async def get_schema_metrics(client_id: str, db_session) -> Dict[str, Any]:
+async def get_schema_metrics(client_id: str, db_session) -> dict[str, Any]:
     """
     Get detailed metrics about the star schema for this client
     Shows table sizes, completeness, and quality metrics
@@ -169,7 +170,7 @@ async def get_schema_metrics(client_id: str, db_session) -> Dict[str, Any]:
 
 
 
-async def _get_v2_customers_with_metrics(client_id: str, db_session) -> List[Dict]:
+async def _get_v2_customers_with_metrics(client_id: str, db_session) -> list[dict]:
     """Fetch new v2 customers with aggregated metrics"""
     try:
         result = db_session.execute(
@@ -192,40 +193,40 @@ async def _get_v2_customers_with_metrics(client_id: str, db_session) -> List[Dic
 
 
 
-async def _get_v2_time_series(client_id: str, db_session) -> List[Dict]:
+async def _get_v2_time_series(client_id: str, db_session) -> list[dict]:
     try:
         result = db_session.execute(
             text("SELECT * FROM analytics_v2.v_time_series WHERE client_id = :client_id LIMIT 10"),
             {"client_id": client_id}
         )
         return [dict(row) for row in result]
-    except:
+    except Exception:
         return []
 
 
-async def _get_gold_regional(client_id: str, db_session) -> List[Dict]:
+async def _get_gold_regional(client_id: str, db_session) -> list[dict]:
     try:
         result = db_session.execute(
             text("SELECT * FROM analytics_gold_regional WHERE client_id = :client_id"),
             {"client_id": client_id}
         )
         return [dict(row) for row in result]
-    except:
+    except Exception:
         return []
 
 
-async def _get_v2_regional(client_id: str, db_session) -> List[Dict]:
+async def _get_v2_regional(client_id: str, db_session) -> list[dict]:
     try:
         result = db_session.execute(
             text("SELECT * FROM analytics_v2.v_regional WHERE client_id = :client_id LIMIT 10"),
             {"client_id": client_id}
         )
         return [dict(row) for row in result]
-    except:
+    except Exception:
         return []
 
 
-async def _get_v2_fact_sales_summary(client_id: str, db_session) -> List[Dict]:
+async def _get_v2_fact_sales_summary(client_id: str, db_session) -> list[dict]:
     """Get summary of fact_sales transactional data"""
     try:
         result = db_session.execute(
@@ -243,11 +244,11 @@ async def _get_v2_fact_sales_summary(client_id: str, db_session) -> List[Dict]:
             {"client_id": client_id}
         )
         return [dict(row) for row in result]
-    except:
+    except Exception:
         return []
 
 
-async def _validate_customer_aggregates(client_id: str, db_session) -> Dict[str, Any]:
+async def _validate_customer_aggregates(client_id: str, db_session) -> dict[str, Any]:
     """Check if customer aggregates are properly calculated"""
     try:
         result = db_session.execute(
@@ -273,7 +274,7 @@ async def _validate_customer_aggregates(client_id: str, db_session) -> Dict[str,
         return {"valid": False, "error": str(e)}
 
 
-async def _validate_product_aggregates(client_id: str, db_session) -> Dict[str, Any]:
+async def _validate_product_aggregates(client_id: str, db_session) -> dict[str, Any]:
     """Check if product aggregates are properly calculated"""
     try:
         result = db_session.execute(
@@ -299,7 +300,7 @@ async def _validate_product_aggregates(client_id: str, db_session) -> Dict[str, 
         return {"valid": False, "error": str(e)}
 
 
-async def _validate_supplier_aggregates(client_id: str, db_session) -> Dict[str, Any]:
+async def _validate_supplier_aggregates(client_id: str, db_session) -> dict[str, Any]:
     """Check if supplier aggregates are properly calculated"""
     try:
         result = db_session.execute(
@@ -325,7 +326,7 @@ async def _validate_supplier_aggregates(client_id: str, db_session) -> Dict[str,
         return {"valid": False, "error": str(e)}
 
 
-async def _validate_fact_sales_grain(client_id: str, db_session) -> Dict[str, Any]:
+async def _validate_fact_sales_grain(client_id: str, db_session) -> dict[str, Any]:
     """Check that fact_sales has proper transactional grain"""
     try:
         result = db_session.execute(
@@ -355,7 +356,7 @@ async def _validate_fact_sales_grain(client_id: str, db_session) -> Dict[str, An
         return {"valid": False, "error": str(e)}
 
 
-async def _validate_materialized_views(client_id: str, db_session) -> Dict[str, Any]:
+async def _validate_materialized_views(client_id: str, db_session) -> dict[str, Any]:
     """Check that materialized views exist and have data"""
     try:
         views = {}
@@ -367,7 +368,7 @@ async def _validate_materialized_views(client_id: str, db_session) -> Dict[str, 
                 )
                 count = dict(result.first()).get("count", 0)
                 views[view_name] = {"exists": True, "row_count": count}
-            except:
+            except Exception:
                 views[view_name] = {"exists": False}
 
         all_exist = all(v.get("exists", False) for v in views.values())
@@ -379,7 +380,7 @@ async def _validate_materialized_views(client_id: str, db_session) -> Dict[str, 
         return {"valid": False, "error": str(e)}
 
 
-async def _validate_consistency(client_id: str, db_session) -> Dict[str, Any]:
+async def _validate_consistency(client_id: str, db_session) -> dict[str, Any]:
     """Validate that dimension aggregates match fact table sums"""
     try:
         # Check customer consistency
@@ -421,7 +422,7 @@ async def _validate_consistency(client_id: str, db_session) -> Dict[str, Any]:
         return {"valid": False, "error": str(e)}
 
 
-async def _get_table_metrics(client_id: str, table_name: str, db_session) -> Dict[str, Any]:
+async def _get_table_metrics(client_id: str, table_name: str, db_session) -> dict[str, Any]:
     """Get size and completeness metrics for a table"""
     try:
         result = db_session.execute(
@@ -434,7 +435,7 @@ async def _get_table_metrics(client_id: str, table_name: str, db_session) -> Dic
         return {"error": str(e), "status": "❌"}
 
 
-async def _get_materialized_view_metrics(view_name: str, client_id: str, db_session) -> Dict[str, Any]:
+async def _get_materialized_view_metrics(view_name: str, client_id: str, db_session) -> dict[str, Any]:
     """Get metrics for materialized views"""
     try:
         result = db_session.execute(
@@ -447,7 +448,7 @@ async def _get_materialized_view_metrics(view_name: str, client_id: str, db_sess
         return {"error": str(e), "status": "❌"}
 
 
-def _get_recommendations(checks: Dict[str, Any]) -> List[str]:
+def _get_recommendations(checks: dict[str, Any]) -> list[str]:
     """Generate recommendations based on validation results"""
     recommendations = []
 

@@ -2,19 +2,20 @@
 API routes for connector status, sync history, and dashboard statistics.
 """
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
 from uuid import UUID
 
 from data_ingestion_api.schemas.connector_schemas import (
     ConnectorListResponse,
-    SyncHistoryResponse,
+    DashboardStatsResponse,
+    FileListResponse,
     StartSyncRequest,
     StartSyncResponse,
-    FileListResponse,
-    DashboardStatsResponse,
+    SyncHistoryResponse,
 )
 from data_ingestion_api.services.connector_status_service import connector_status_service
 from data_ingestion_api.services.file_metadata_service import file_metadata_service
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from vizu_auth.fastapi.dependencies import get_auth_result
 
 logger = logging.getLogger(__name__)

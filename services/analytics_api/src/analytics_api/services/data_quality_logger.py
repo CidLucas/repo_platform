@@ -150,7 +150,7 @@ class DataQualityLogger:
         for key, value in data.items():
             if value is None:
                 stats["null_fields"].append(key)
-            elif isinstance(value, (int, float)) and value == 0:
+            elif isinstance(value, int | float) and value == 0:
                 stats["zero_fields"].append(key)
             stats["datatypes"][key] = type(value).__name__
 

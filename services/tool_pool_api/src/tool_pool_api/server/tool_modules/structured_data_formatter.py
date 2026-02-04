@@ -77,7 +77,7 @@ def infer_column_type(column_name: str, sample_values: list[Any]) -> ColumnType:
 
     if isinstance(sample, bool):
         return ColumnType.BOOLEAN
-    if isinstance(sample, (int, float, Decimal)):
+    if isinstance(sample, int | float | Decimal):
         return ColumnType.NUMBER
     if isinstance(sample, datetime):
         return ColumnType.DATETIME
@@ -136,7 +136,7 @@ def serialize_value(value: Any) -> Any:
     """
     if value is None:
         return None
-    if isinstance(value, (datetime, date)):
+    if isinstance(value, datetime | date):
         return value.isoformat()
     if isinstance(value, Decimal):
         return float(value)

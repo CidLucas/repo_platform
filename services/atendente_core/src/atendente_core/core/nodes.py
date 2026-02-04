@@ -117,7 +117,7 @@ def _calculate_numeric_stats(rows: list[dict], columns: list[str]) -> str | None
             for row in rows:
                 val = row.get(col)
                 if val is not None:
-                    if isinstance(val, (int, float)):
+                    if isinstance(val, int | float):
                         values.append(float(val))
                     elif isinstance(val, str):
                         # Try to parse numeric string

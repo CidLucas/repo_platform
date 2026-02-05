@@ -94,12 +94,23 @@ jobs:
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
+          set -e  # Exit on any error
+          
           if [ -z "$PROJECT_ID" ]; then
             echo "❌ ERROR: GCP_PROJECT_ID secret is not set"
             exit 1
           fi
 
           echo "Using project: $PROJECT_ID"
+          
+          # Verify we can access Secret Manager
+          echo "Verifying Secret Manager access..."
+          if ! gcloud secrets list --project="$PROJECT_ID" --limit=1 &>/dev/null; then
+            echo "❌ ERROR: Cannot access Secret Manager. Check service account permissions."
+            echo "Required role: roles/secretmanager.admin"
+            exit 1
+          fi
+          echo "✓ Secret Manager access verified"
 
           sync_secret() {
             local SECRET_NAME=$1
@@ -111,14 +122,22 @@ jobs:
             fi
 
             if gcloud secrets describe "$SECRET_NAME" --project="$PROJECT_ID" &>/dev/null; then
-              echo -n "$SECRET_VALUE" | gcloud secrets versions add "$SECRET_NAME" \
-                --data-file=- --project="$PROJECT_ID" &>/dev/null
-              echo "✓ Updated: $SECRET_NAME"
+              if echo -n "$SECRET_VALUE" | gcloud secrets versions add "$SECRET_NAME" \
+                --data-file=- --project="$PROJECT_ID" 2>&1; then
+                echo "✓ Updated: $SECRET_NAME"
+              else
+                echo "❌ Failed to update: $SECRET_NAME"
+                return 1
+              fi
             else
-              echo -n "$SECRET_VALUE" | gcloud secrets create "$SECRET_NAME" \
+              if echo -n "$SECRET_VALUE" | gcloud secrets create "$SECRET_NAME" \
                 --replication-policy="automatic" \
-                --data-file=- --project="$PROJECT_ID" &>/dev/null
-              echo "✓ Created: $SECRET_NAME"
+                --data-file=- --project="$PROJECT_ID" 2>&1; then
+                echo "✓ Created: $SECRET_NAME"
+              else
+                echo "❌ Failed to create: $SECRET_NAME"
+                return 1
+              fi
             fi
           }
 

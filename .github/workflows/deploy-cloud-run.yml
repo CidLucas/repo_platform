@@ -18,11 +18,11 @@ on:
         type: choice
         options:
           - all
-          - atendente_core
-          - tool_pool_api
-          - analytics_api
-          - data_ingestion_api
-          - vizu_dashboard
+          - atendente-core
+          - tool-pool-api
+          - analytics-api
+          - data-ingestion-api
+          - vizu-dashboard
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -76,7 +76,7 @@ jobs:
         id: services
         run: |
           if [ "${{ github.event.inputs.service }}" == "all" ] || [ -z "${{ github.event.inputs.service }}" ]; then
-            echo 'list=["atendente_core", "tool_pool_api", "analytics_api", "data_ingestion_api", "vizu_dashboard"]' >> $GITHUB_OUTPUT
+            echo 'list=["atendente-core", "tool-pool-api", "analytics-api", "data-ingestion-api", "vizu-dashboard"]' >> $GITHUB_OUTPUT
           else
             echo 'list=["${{ github.event.inputs.service }}"]' >> $GITHUB_OUTPUT
           fi
@@ -93,6 +93,8 @@ jobs:
       matrix:
         service: ${{ fromJson(needs.preflight.outputs.services) }}
       fail-fast: false
+    env:
+      GCP_REGION: southamerica-east1
     steps:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -124,9 +126,12 @@ jobs:
         run: |
           REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
           SERVICE="${{ matrix.service }}"
-          IMAGE="${REGISTRY}/vizu-${SERVICE}:latest"
+          # Convert service name to image name (underscores for image)
+          IMAGE_NAME=$(echo "${SERVICE}" | tr '-' '_')
+          IMAGE="${REGISTRY}/vizu-${IMAGE_NAME}:latest"
 
           echo "### 🚀 Deploying ${SERVICE}" >> $GITHUB_STEP_SUMMARY
+          echo "Image: ${IMAGE}" >> $GITHUB_STEP_SUMMARY
 
           # Verify image exists
           if ! gcloud artifacts docker images describe "${IMAGE}" --verbosity=none 2>/dev/null; then
@@ -135,103 +140,64 @@ jobs:
             exit 1
           fi
 
-          # Service-specific configuration
+          # Service-specific configuration (service names use hyphens for Cloud Run)
           case "${SERVICE}" in
-            atendente_core)
+            atendente-core)
               gcloud run deploy "${SERVICE}" \
                 --image "${IMAGE}" \
-                --region ${{ env.REGION }} \
+                --region "${GCP_REGION}" \
                 --platform managed \
                 --allow-unauthenticated \
                 --memory 2Gi --cpu 2 \
                 --concurrency 10 --timeout 3600 \
                 --max-instances 50 --min-instances 0 \
-                --port 8000 \
-                --set-env-vars "\
-ENVIRONMENT=production,\
-LOG_LEVEL=INFO,\
-LLM_PROVIDER=google,\
-LANGFUSE_HOST=https://us.cloud.langfuse.com,\
-TOOL_POOL_URL=https://vizu-tool-pool-api-858493958314.southamerica-east1.run.app,\
-CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,\
-SUPABASE_URL=${SUPABASE_URL},\
-SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},\
-SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET},\
-GOOGLE_API_KEY=${GOOGLE_API_KEY},\
-QDRANT_URL=${QDRANT_URL},\
-QDRANT_API_KEY=${QDRANT_API_KEY},\
-LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY},\
-LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}" \
+                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=google,LANGFUSE_HOST=https://us.cloud.langfuse.com,TOOL_POOL_URL=https://tool-pool-api-858493958314.southamerica-east1.run.app,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET},GOOGLE_API_KEY=${GOOGLE_API_KEY},QDRANT_URL=${QDRANT_URL},QDRANT_API_KEY=${QDRANT_API_KEY},LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY},LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}" \
                 --quiet
               ;;
 
-            tool_pool_api)
+            tool-pool-api)
               gcloud run deploy "${SERVICE}" \
                 --image "${IMAGE}" \
-                --region ${{ env.REGION }} \
+                --region "${GCP_REGION}" \
                 --platform managed \
                 --allow-unauthenticated \
                 --memory 2Gi --cpu 2 \
                 --concurrency 5 --timeout 3600 \
                 --max-instances 20 --min-instances 0 \
-                --port 8000 \
-                --set-env-vars "\
-ENVIRONMENT=production,\
-LOG_LEVEL=INFO,\
-LLM_PROVIDER=google,\
-CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,\
-SUPABASE_URL=${SUPABASE_URL},\
-SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},\
-GOOGLE_API_KEY=${GOOGLE_API_KEY},\
-QDRANT_URL=${QDRANT_URL},\
-QDRANT_API_KEY=${QDRANT_API_KEY},\
-LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY},\
-LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY},\
-MCP_AUTH_GOOGLE_CLIENT_ID=${MCP_AUTH_GOOGLE_CLIENT_ID},\
-CREDENTIALS_ENCRYPTION_KEY=${CREDENTIALS_ENCRYPTION_KEY}" \
+                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=google,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},GOOGLE_API_KEY=${GOOGLE_API_KEY},QDRANT_URL=${QDRANT_URL},QDRANT_API_KEY=${QDRANT_API_KEY},LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY},LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY},MCP_AUTH_GOOGLE_CLIENT_ID=${MCP_AUTH_GOOGLE_CLIENT_ID},CREDENTIALS_ENCRYPTION_KEY=${CREDENTIALS_ENCRYPTION_KEY}" \
                 --quiet
               ;;
 
-            analytics_api)
+            analytics-api)
               gcloud run deploy "${SERVICE}" \
                 --image "${IMAGE}" \
-                --region ${{ env.REGION }} \
+                --region "${GCP_REGION}" \
                 --platform managed \
                 --allow-unauthenticated \
                 --memory 1Gi --cpu 1 \
                 --concurrency 50 --timeout 300 \
                 --max-instances 20 --min-instances 0 \
-                --port 8000 \
-                --set-env-vars "\
-ENVIRONMENT=production,\
-CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,\
-SUPABASE_URL=${SUPABASE_URL},\
-SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}" \
+                --set-env-vars "ENVIRONMENT=production,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}" \
                 --quiet
               ;;
 
-            data_ingestion_api)
+            data-ingestion-api)
               gcloud run deploy "${SERVICE}" \
                 --image "${IMAGE}" \
-                --region ${{ env.REGION }} \
+                --region "${GCP_REGION}" \
                 --platform managed \
                 --allow-unauthenticated \
                 --memory 1Gi --cpu 1 \
                 --concurrency 50 --timeout 300 \
                 --max-instances 20 --min-instances 0 \
-                --port 8000 \
-                --set-env-vars "\
-ENVIRONMENT=production,\
-CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,\
-SUPABASE_URL=${SUPABASE_URL},\
-SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}" \
+                --set-env-vars "ENVIRONMENT=production,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}" \
                 --quiet
               ;;
 
-            vizu_dashboard)
+            vizu-dashboard)
               gcloud run deploy "${SERVICE}" \
                 --image "${IMAGE}" \
-                --region ${{ env.REGION }} \
+                --region "${GCP_REGION}" \
                 --platform managed \
                 --allow-unauthenticated \
                 --memory 256Mi --cpu 1 \
@@ -243,7 +209,7 @@ SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}" \
           esac
 
           # Get service URL
-          URL=$(gcloud run services describe "${SERVICE}" --region ${{ env.REGION }} --format 'value(status.url)')
+          URL=$(gcloud run services describe "${SERVICE}" --region "${GCP_REGION}" --format 'value(status.url)')
           echo "✅ **${SERVICE}**: ${URL}" >> $GITHUB_STEP_SUMMARY
 
   # =================================================================
@@ -253,6 +219,8 @@ SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}" \
     name: Post-Deploy Configuration
     needs: deploy
     runs-on: ubuntu-latest
+    env:
+      GCP_REGION: southamerica-east1
     steps:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -269,25 +237,25 @@ SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}" \
           echo "| Service | URL |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|-----|" >> $GITHUB_STEP_SUMMARY
 
-          # Get all service URLs
-          ATENDENTE_URL=$(gcloud run services describe atendente_core --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null || echo "not deployed")
-          TOOL_POOL_URL=$(gcloud run services describe tool_pool_api --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null || echo "not deployed")
-          ANALYTICS_URL=$(gcloud run services describe analytics_api --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null || echo "not deployed")
-          DATA_INGESTION_URL=$(gcloud run services describe data_ingestion_api --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null || echo "not deployed")
-          DASHBOARD_URL=$(gcloud run services describe vizu_dashboard --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null || echo "not deployed")
+          # Get all service URLs (using hyphenated names for Cloud Run)
+          ATENDENTE_URL=$(gcloud run services describe atendente-core --region "${GCP_REGION}" --format 'value(status.url)' 2>/dev/null || echo "not deployed")
+          TOOL_POOL_URL=$(gcloud run services describe tool-pool-api --region "${GCP_REGION}" --format 'value(status.url)' 2>/dev/null || echo "not deployed")
+          ANALYTICS_URL=$(gcloud run services describe analytics-api --region "${GCP_REGION}" --format 'value(status.url)' 2>/dev/null || echo "not deployed")
+          DATA_INGESTION_URL=$(gcloud run services describe data-ingestion-api --region "${GCP_REGION}" --format 'value(status.url)' 2>/dev/null || echo "not deployed")
+          DASHBOARD_URL=$(gcloud run services describe vizu-dashboard --region "${GCP_REGION}" --format 'value(status.url)' 2>/dev/null || echo "not deployed")
 
-          echo "| atendente_core | ${ATENDENTE_URL} |" >> $GITHUB_STEP_SUMMARY
-          echo "| tool_pool_api | ${TOOL_POOL_URL} |" >> $GITHUB_STEP_SUMMARY
-          echo "| analytics_api | ${ANALYTICS_URL} |" >> $GITHUB_STEP_SUMMARY
-          echo "| data_ingestion_api | ${DATA_INGESTION_URL} |" >> $GITHUB_STEP_SUMMARY
-          echo "| vizu_dashboard | ${DASHBOARD_URL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| atendente-core | ${ATENDENTE_URL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| tool-pool-api | ${TOOL_POOL_URL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| analytics-api | ${ANALYTICS_URL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| data-ingestion-api | ${DATA_INGESTION_URL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| vizu-dashboard | ${DASHBOARD_URL} |" >> $GITHUB_STEP_SUMMARY
 
-          # Update atendente_core with tool_pool_api URL (MCP_SERVER_URL)
+          # Update atendente-core with tool-pool-api URL (MCP_SERVER_URL)
           if [ "${TOOL_POOL_URL}" != "not deployed" ] && [ "${ATENDENTE_URL}" != "not deployed" ]; then
             echo ""
-            echo "Updating atendente_core with MCP_SERVER_URL..."
-            gcloud run services update atendente_core \
-              --region ${{ env.REGION }} \
+            echo "Updating atendente-core with MCP_SERVER_URL..."
+            gcloud run services update atendente-core \
+              --region "${GCP_REGION}" \
               --update-env-vars "MCP_SERVER_URL=${TOOL_POOL_URL}/mcp/" \
               --quiet
             echo "✅ Updated MCP_SERVER_URL"

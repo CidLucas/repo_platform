@@ -58,6 +58,13 @@ jobs:
             echo "✅ GCP_SA_KEY is configured" >> $GITHUB_STEP_SUMMARY
           fi
 
+          if [ -z "${{ secrets.SUPABASE_URL }}" ]; then
+            echo "❌ SUPABASE_URL secret is not set" >> $GITHUB_STEP_SUMMARY
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "✅ SUPABASE_URL is configured" >> $GITHUB_STEP_SUMMARY
+          fi
+
           if [ $ERRORS -gt 0 ]; then
             echo "### ❌ Preflight failed" >> $GITHUB_STEP_SUMMARY
             exit 1
@@ -75,104 +82,12 @@ jobs:
           fi
 
   # =================================================================
-  # Sync secrets to GCP Secret Manager
-  # =================================================================
-  sync-secrets:
-    name: Sync Secrets to GCP
-    needs: preflight
-    runs-on: ubuntu-latest
-    steps:
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Sync GitHub Secrets to GCP Secret Manager
-        env:
-          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-        run: |
-          set -e  # Exit on any error
-          
-          if [ -z "$PROJECT_ID" ]; then
-            echo "❌ ERROR: GCP_PROJECT_ID secret is not set"
-            exit 1
-          fi
-
-          echo "Using project: $PROJECT_ID"
-          
-          # Verify we can access Secret Manager
-          echo "Verifying Secret Manager access..."
-          if ! gcloud secrets list --project="$PROJECT_ID" --limit=1 &>/dev/null; then
-            echo "❌ ERROR: Cannot access Secret Manager. Check service account permissions."
-            echo "Required role: roles/secretmanager.admin"
-            exit 1
-          fi
-          echo "✓ Secret Manager access verified"
-
-          sync_secret() {
-            local SECRET_NAME=$1
-            local SECRET_VALUE=$2
-
-            if [ -z "$SECRET_VALUE" ]; then
-              echo "⚠️  Skipping $SECRET_NAME (not set)"
-              return 0
-            fi
-
-            if gcloud secrets describe "$SECRET_NAME" --project="$PROJECT_ID" &>/dev/null; then
-              if echo -n "$SECRET_VALUE" | gcloud secrets versions add "$SECRET_NAME" \
-                --data-file=- --project="$PROJECT_ID" 2>&1; then
-                echo "✓ Updated: $SECRET_NAME"
-              else
-                echo "❌ Failed to update: $SECRET_NAME"
-                return 1
-              fi
-            else
-              if echo -n "$SECRET_VALUE" | gcloud secrets create "$SECRET_NAME" \
-                --replication-policy="automatic" \
-                --data-file=- --project="$PROJECT_ID" 2>&1; then
-                echo "✓ Created: $SECRET_NAME"
-              else
-                echo "❌ Failed to create: $SECRET_NAME"
-                return 1
-              fi
-            fi
-          }
-
-          echo "### Syncing secrets to GCP Secret Manager"
-
-          # Core infrastructure
-          sync_secret "SUPABASE_URL" "${{ secrets.SUPABASE_URL }}"
-          sync_secret "SUPABASE_SERVICE_KEY" "${{ secrets.SUPABASE_SERVICE_KEY }}"
-          sync_secret "SUPABASE_JWT_SECRET" "${{ secrets.SUPABASE_JWT_SECRET }}"
-
-          # LLM Providers
-          sync_secret "GOOGLE_API_KEY" "${{ secrets.GOOGLE_API_KEY }}"
-          sync_secret "OPENAI_API_KEY" "${{ secrets.OPENAI_API_KEY }}"
-          sync_secret "ANTHROPIC_API_KEY" "${{ secrets.ANTHROPIC_API_KEY }}"
-
-          # Qdrant
-          sync_secret "QDRANT_URL" "${{ secrets.QDRANT_URL }}"
-          sync_secret "QDRANT_API_KEY" "${{ secrets.QDRANT_API_KEY }}"
-
-          # Observability
-          sync_secret "LANGFUSE_PUBLIC_KEY" "${{ secrets.LANGFUSE_PUBLIC_KEY }}"
-          sync_secret "LANGFUSE_SECRET_KEY" "${{ secrets.LANGFUSE_SECRET_KEY }}"
-
-          # MCP / OAuth
-          sync_secret "MCP_AUTH_GOOGLE_CLIENT_ID" "${{ secrets.MCP_AUTH_GOOGLE_CLIENT_ID }}"
-          sync_secret "CREDENTIALS_ENCRYPTION_KEY" "${{ secrets.CREDENTIALS_ENCRYPTION_KEY }}"
-
-          echo "✅ Secrets synced"
-
-  # =================================================================
-  # Deploy services to Cloud Run
+  # Deploy services to Cloud Run (secrets passed directly as env vars)
+  # No GCP Secret Manager needed - uses GitHub Secrets directly
   # =================================================================
   deploy:
     name: Deploy ${{ matrix.service }}
-    needs: [preflight, sync-secrets]
+    needs: preflight
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -188,6 +103,24 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Deploy ${{ matrix.service }}
+        env:
+          # Core infrastructure secrets (from GitHub)
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}
+          # LLM Providers
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Qdrant
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          # Observability
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          # MCP / OAuth
+          MCP_AUTH_GOOGLE_CLIENT_ID: ${{ secrets.MCP_AUTH_GOOGLE_CLIENT_ID }}
+          CREDENTIALS_ENCRYPTION_KEY: ${{ secrets.CREDENTIALS_ENCRYPTION_KEY }}
         run: |
           REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
           SERVICE="${{ matrix.service }}"
@@ -214,8 +147,21 @@ jobs:
                 --concurrency 10 --timeout 3600 \
                 --max-instances 50 --min-instances 0 \
                 --port 8000 \
-                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=google,LANGFUSE_HOST=https://us.cloud.langfuse.com,TOOL_POOL_URL=https://vizu-tool-pool-api-858493958314.southamerica-east1.run.app,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app" \
-                --set-secrets="SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,SUPABASE_JWT_SECRET=SUPABASE_JWT_SECRET:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest,QDRANT_URL=QDRANT_URL:latest,QDRANT_API_KEY=QDRANT_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest" \
+                --set-env-vars "\
+ENVIRONMENT=production,\
+LOG_LEVEL=INFO,\
+LLM_PROVIDER=google,\
+LANGFUSE_HOST=https://us.cloud.langfuse.com,\
+TOOL_POOL_URL=https://vizu-tool-pool-api-858493958314.southamerica-east1.run.app,\
+CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,\
+SUPABASE_URL=${SUPABASE_URL},\
+SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},\
+SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET},\
+GOOGLE_API_KEY=${GOOGLE_API_KEY},\
+QDRANT_URL=${QDRANT_URL},\
+QDRANT_API_KEY=${QDRANT_API_KEY},\
+LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY},\
+LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}" \
                 --quiet
               ;;
 
@@ -229,8 +175,20 @@ jobs:
                 --concurrency 5 --timeout 3600 \
                 --max-instances 20 --min-instances 0 \
                 --port 8000 \
-                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=google,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,https://vizu-atendente-core-858493958314.southamerica-east1.run.app" \
-                --set-secrets="SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest,QDRANT_URL=QDRANT_URL:latest,QDRANT_API_KEY=QDRANT_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,MCP_AUTH_GOOGLE_CLIENT_ID=MCP_AUTH_GOOGLE_CLIENT_ID:latest,CREDENTIALS_ENCRYPTION_KEY=CREDENTIALS_ENCRYPTION_KEY:latest" \
+                --set-env-vars "\
+ENVIRONMENT=production,\
+LOG_LEVEL=INFO,\
+LLM_PROVIDER=google,\
+CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,\
+SUPABASE_URL=${SUPABASE_URL},\
+SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},\
+GOOGLE_API_KEY=${GOOGLE_API_KEY},\
+QDRANT_URL=${QDRANT_URL},\
+QDRANT_API_KEY=${QDRANT_API_KEY},\
+LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY},\
+LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY},\
+MCP_AUTH_GOOGLE_CLIENT_ID=${MCP_AUTH_GOOGLE_CLIENT_ID},\
+CREDENTIALS_ENCRYPTION_KEY=${CREDENTIALS_ENCRYPTION_KEY}" \
                 --quiet
               ;;
 
@@ -244,8 +202,11 @@ jobs:
                 --concurrency 50 --timeout 300 \
                 --max-instances 20 --min-instances 0 \
                 --port 8000 \
-                --set-env-vars "ENVIRONMENT=production,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app" \
-                --set-secrets="SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest" \
+                --set-env-vars "\
+ENVIRONMENT=production,\
+CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,\
+SUPABASE_URL=${SUPABASE_URL},\
+SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}" \
                 --quiet
               ;;
 
@@ -259,8 +220,11 @@ jobs:
                 --concurrency 50 --timeout 300 \
                 --max-instances 20 --min-instances 0 \
                 --port 8000 \
-                --set-env-vars "ENVIRONMENT=production,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app" \
-                --set-secrets="SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest" \
+                --set-env-vars "\
+ENVIRONMENT=production,\
+CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,\
+SUPABASE_URL=${SUPABASE_URL},\
+SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}" \
                 --quiet
               ;;
 

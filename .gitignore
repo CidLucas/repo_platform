@@ -19,7 +19,9 @@ venv/
 *.env.local
 .env.production
 .env.prod
-
+.env.cloudrun
+.secrets.baseline
+.trivyignore
 # Ignorar arquivos de sistema do macOS
 # Arquivos de Sistema do macOS
 .DS_Store

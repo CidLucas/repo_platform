@@ -91,8 +91,15 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Sync GitHub Secrets to GCP Secret Manager
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
-          PROJECT_ID="${{ env.PROJECT_ID }}"
+          if [ -z "$PROJECT_ID" ]; then
+            echo "❌ ERROR: GCP_PROJECT_ID secret is not set"
+            exit 1
+          fi
+
+          echo "Using project: $PROJECT_ID"
 
           sync_secret() {
             local SECRET_NAME=$1
@@ -100,7 +107,7 @@ jobs:
 
             if [ -z "$SECRET_VALUE" ]; then
               echo "⚠️  Skipping $SECRET_NAME (not set)"
-              return
+              return 0
             fi
 
             if gcloud secrets describe "$SECRET_NAME" --project="$PROJECT_ID" &>/dev/null; then

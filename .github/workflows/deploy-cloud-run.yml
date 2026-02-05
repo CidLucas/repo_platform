@@ -1,5 +1,4 @@
 name: Deploy to Cloud Run
-# Trigger: 2025-12-13 - Lazy MCP initialization fix
 
 on:
   push:
@@ -8,7 +7,7 @@ on:
     paths:
       - 'services/**'
       - 'libs/**'
-      - 'docker-compose.prod.yml'
+      - 'apps/vizu_dashboard/**'
       - '.github/workflows/deploy-cloud-run.yml'
   workflow_dispatch:
     inputs:
@@ -19,67 +18,48 @@ on:
         type: choice
         options:
           - all
-          - agents-pool
-          - workers-pool
-          - dashboard
+          - atendente_core
+          - tool_pool_api
+          - analytics_api
+          - data_ingestion_api
+          - vizu_dashboard
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   REGION: southamerica-east1
   REGISTRY: southamerica-east1-docker.pkg.dev
-  GCP_SA_EMAIL: ${{ secrets.GCP_SA_EMAIL }}
 
 jobs:
   # =================================================================
-  # Pre-flight checks - validate secrets and configuration
+  # Pre-flight checks
   # =================================================================
   preflight:
     name: Preflight Checks
     runs-on: ubuntu-latest
     outputs:
       services: ${{ steps.services.outputs.list }}
-      timestamp: ${{ steps.timestamp.outputs.value }}
-      project_id: ${{ steps.validate.outputs.project_id }}
     steps:
       - name: Validate required secrets
-        id: validate
         run: |
           echo "## 🔍 Preflight Checks" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
           ERRORS=0
 
-          # Check GCP_PROJECT_ID
           if [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
-            echo "❌ **GCP_PROJECT_ID** secret is not set" >> $GITHUB_STEP_SUMMARY
+            echo "❌ GCP_PROJECT_ID secret is not set" >> $GITHUB_STEP_SUMMARY
             ERRORS=$((ERRORS + 1))
           else
             echo "✅ GCP_PROJECT_ID is configured" >> $GITHUB_STEP_SUMMARY
-            echo "project_id=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_OUTPUT
           fi
 
-          # Check GCP_SA_KEY
           if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
-            echo "❌ **GCP_SA_KEY** secret is not set" >> $GITHUB_STEP_SUMMARY
+            echo "❌ GCP_SA_KEY secret is not set" >> $GITHUB_STEP_SUMMARY
             ERRORS=$((ERRORS + 1))
           else
             echo "✅ GCP_SA_KEY is configured" >> $GITHUB_STEP_SUMMARY
           fi
 
-          # Check GCP_SA_EMAIL
-          if [ -z "${{ secrets.GCP_SA_EMAIL }}" ]; then
-            echo "⚠️ GCP_SA_EMAIL secret is not set (optional)" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "✅ GCP_SA_EMAIL is configured" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-
           if [ $ERRORS -gt 0 ]; then
-            echo "### ❌ Preflight failed with $ERRORS error(s)" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Please configure the missing secrets in:" >> $GITHUB_STEP_SUMMARY
-            echo "**Settings → Secrets and variables → Actions**" >> $GITHUB_STEP_SUMMARY
+            echo "### ❌ Preflight failed" >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
 
@@ -89,42 +69,19 @@ jobs:
         id: services
         run: |
           if [ "${{ github.event.inputs.service }}" == "all" ] || [ -z "${{ github.event.inputs.service }}" ]; then
-            echo 'list=["agents-pool", "workers-pool", "dashboard"]' >> $GITHUB_OUTPUT
+            echo 'list=["atendente_core", "tool_pool_api", "analytics_api", "data_ingestion_api", "vizu_dashboard"]' >> $GITHUB_OUTPUT
           else
             echo 'list=["${{ github.event.inputs.service }}"]' >> $GITHUB_OUTPUT
           fi
 
-      - name: Set timestamp
-        id: timestamp
-        run: echo "value=$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
-
   # =================================================================
-  # Build and Deploy
+  # Sync secrets to GCP Secret Manager
   # =================================================================
-  build-and-deploy:
-    name: Build & Deploy ${{ matrix.service }}
+  sync-secrets:
+    name: Sync Secrets to GCP
     needs: preflight
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service: ${{ fromJson(needs.preflight.outputs.services) }}
-      fail-fast: false
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Initialize job summary
-        run: |
-          echo "## 🚀 Deploy: ${{ matrix.service }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Setting | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Project** | \`${{ env.PROJECT_ID }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Region** | \`${{ env.REGION }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Registry** | \`${{ env.REGISTRY }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Commit** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -133,568 +90,68 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Enable required Google Cloud APIs
-        run: |
-          echo "Enabling required APIs..."
-          gcloud services enable vpcaccess.googleapis.com \
-            --project=${{ env.PROJECT_ID }} \
-            --quiet || true
-          echo "✓ APIs enabled"
-
       - name: Sync GitHub Secrets to GCP Secret Manager
-        id: sync-secrets
         run: |
-          set +e  # Don't exit on first error
-
           PROJECT_ID="${{ env.PROJECT_ID }}"
-          CREATED=0
-          UPDATED=0
-          MISSING=0
-          SUMMARY_FILE="${GITHUB_STEP_SUMMARY:-/tmp/step_summary.txt}"
 
-          # Function to create or update a secret
           sync_secret() {
             local SECRET_NAME=$1
             local SECRET_VALUE=$2
 
             if [ -z "$SECRET_VALUE" ]; then
-              echo "⚠️  Missing: $SECRET_NAME (not configured in GitHub)" | tee -a "$SUMMARY_FILE"
-              MISSING=$((MISSING + 1))
+              echo "⚠️  Skipping $SECRET_NAME (not set)"
               return
             fi
 
             if gcloud secrets describe "$SECRET_NAME" --project="$PROJECT_ID" &>/dev/null; then
               echo -n "$SECRET_VALUE" | gcloud secrets versions add "$SECRET_NAME" \
                 --data-file=- --project="$PROJECT_ID" &>/dev/null
-              echo "✓ Updated: $SECRET_NAME" | tee -a "$SUMMARY_FILE"
-              UPDATED=$((UPDATED + 1))
+              echo "✓ Updated: $SECRET_NAME"
             else
               echo -n "$SECRET_VALUE" | gcloud secrets create "$SECRET_NAME" \
                 --replication-policy="automatic" \
                 --data-file=- --project="$PROJECT_ID" &>/dev/null
-              echo "✓ Created: $SECRET_NAME" | tee -a "$SUMMARY_FILE"
-              CREATED=$((CREATED + 1))
+              echo "✓ Created: $SECRET_NAME"
             fi
           }
 
-          {
-            echo "### Syncing GitHub Secrets to GCP Secret Manager"
-            echo ""
-            echo "Secrets Status:"
-            echo ""
-          } | tee -a "$SUMMARY_FILE"
+          echo "### Syncing secrets to GCP Secret Manager"
 
-          # Sync standardized secrets (see ENVIRONMENT_VARIABLES_AUDIT.md for details)
-          # Critical infrastructure secrets
-          sync_secret "DATABASE_URL" "${{ secrets.DATABASE_URL }}"
-          sync_secret "REDIS_URL" "${{ secrets.REDIS_URL }}"
-          sync_secret "GCP_PROJECT_ID" "${{ secrets.GCP_PROJECT_ID }}"
-          sync_secret "GCP_SA_EMAIL" "${{ secrets.GCP_SA_EMAIL }}"
-          sync_secret "GCP_SA_KEY" "${{ secrets.GCP_SA_KEY }}"
-
-          # Supabase integration
+          # Core infrastructure
           sync_secret "SUPABASE_URL" "${{ secrets.SUPABASE_URL }}"
           sync_secret "SUPABASE_SERVICE_KEY" "${{ secrets.SUPABASE_SERVICE_KEY }}"
+          sync_secret "SUPABASE_JWT_SECRET" "${{ secrets.SUPABASE_JWT_SECRET }}"
 
-          # MCP and encryption
+          # LLM Providers
+          sync_secret "GOOGLE_API_KEY" "${{ secrets.GOOGLE_API_KEY }}"
+          sync_secret "OPENAI_API_KEY" "${{ secrets.OPENAI_API_KEY }}"
+          sync_secret "ANTHROPIC_API_KEY" "${{ secrets.ANTHROPIC_API_KEY }}"
+
+          # Qdrant
+          sync_secret "QDRANT_URL" "${{ secrets.QDRANT_URL }}"
+          sync_secret "QDRANT_API_KEY" "${{ secrets.QDRANT_API_KEY }}"
+
+          # Observability
+          sync_secret "LANGFUSE_PUBLIC_KEY" "${{ secrets.LANGFUSE_PUBLIC_KEY }}"
+          sync_secret "LANGFUSE_SECRET_KEY" "${{ secrets.LANGFUSE_SECRET_KEY }}"
+
+          # MCP / OAuth
           sync_secret "MCP_AUTH_GOOGLE_CLIENT_ID" "${{ secrets.MCP_AUTH_GOOGLE_CLIENT_ID }}"
           sync_secret "CREDENTIALS_ENCRYPTION_KEY" "${{ secrets.CREDENTIALS_ENCRYPTION_KEY }}"
 
-          # Optional observability and features
-          sync_secret "LANGFUSE_PUBLIC_KEY" "${{ secrets.LANGFUSE_PUBLIC_KEY }}"
-          sync_secret "LANGFUSE_SECRET_KEY" "${{ secrets.LANGFUSE_SECRET_KEY }}"
-          sync_secret "OLLAMA_BASE_URL" "${{ secrets.OLLAMA_BASE_URL }}"
-          sync_secret "GRAFANA_API_KEY" "${{ secrets.GRAFANA_API_KEY }}"
-
-          {
-            echo ""
-            echo "Summary:"
-            echo "- Created: $CREATED"
-            echo "- Updated: $UPDATED"
-            echo "- Missing: $MISSING"
-
-            if [ $MISSING -gt 0 ]; then
-              echo ""
-              echo "**Action Required:** Configure missing secrets in Settings → Secrets and variables → Actions"
-            fi
-          } | tee -a "$SUMMARY_FILE"
-
-          exit 0
-
-      - name: Grant Cloud Run Service Account Access to Secrets
-        run: |
-          PROJECT_ID="${{ env.PROJECT_ID }}"
-          SERVICE_ACCOUNT="${{ env.GCP_SA_EMAIL }}"
-
-          if [ -z "$SERVICE_ACCOUNT" ]; then
-            SERVICE_ACCOUNT="vizu-deployment@${PROJECT_ID}.iam.gserviceaccount.com"
-          fi
-
-          echo "Granting secret access to: $SERVICE_ACCOUNT"
-
-          # Grant access for standardized secrets only (see ENVIRONMENT_VARIABLES_AUDIT.md)
-          for SECRET in DATABASE_URL REDIS_URL GCP_PROJECT_ID GCP_SA_EMAIL GCP_SA_KEY \
-                        SUPABASE_URL SUPABASE_SERVICE_KEY \
-                        MCP_AUTH_GOOGLE_CLIENT_ID CREDENTIALS_ENCRYPTION_KEY \
-                        LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY \
-                        OLLAMA_BASE_URL GRAFANA_API_KEY; do
-            if gcloud secrets describe "$SECRET" --project="$PROJECT_ID" &>/dev/null; then
-              gcloud secrets add-iam-policy-binding "$SECRET" \
-                --member="serviceAccount:$SERVICE_ACCOUNT" \
-                --role="roles/secretmanager.secretAccessor" \
-                --project="$PROJECT_ID" &>/dev/null || true
-            fi
-          done
-
-          echo "✓ Service account permissions configured"
-
-      - name: Configure Docker for Artifact Registry
-        run: |
-          gcloud auth configure-docker ${{ env.REGISTRY }}
-
-      - name: Set image tag
-        id: image
-        run: |
-          COMMIT_SHA=$(git rev-parse --short HEAD)
-          TIMESTAMP=${{ needs.preflight.outputs.timestamp }}
-          IMAGE_TAG="${TIMESTAMP}-${COMMIT_SHA}"
-          echo "tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-          echo "sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
-
-          echo "### 🏷️ Image Tag: \`${IMAGE_TAG}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-      - name: Log in to GitHub Container Registry
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-      # =================================================================
-      # Pull from GitHub & Push to GCP: agents-pool
-      # =================================================================
-      - name: "Pull & Push: agents-pool"
-        if: matrix.service == 'agents-pool'
-        id: build-agents
-        run: |
-          echo "### 🔨 Pulling from GitHub & Pushing to GCP: agents-pool" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          COMMIT_SHA="${{ steps.image.outputs.sha }}"
-          TAG="${{ steps.image.outputs.tag }}"
-          GCP_REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
-          GITHUB_REGISTRY="ghcr.io/${{ github.repository_owner }}"
-
-          pull_and_push() {
-            local name=$1
-            local gcp_name=$2
-
-            echo "Processing ${name}..."
-            GITHUB_IMAGE="${GITHUB_REGISTRY}/vizu-${name}:latest"
-            GCP_IMAGE="${GCP_REGISTRY}/${gcp_name}:${TAG}"
-            GCP_LATEST="${GCP_REGISTRY}/${gcp_name}:latest"
-
-            if docker pull "${GITHUB_IMAGE}"; then
-              docker tag "${GITHUB_IMAGE}" "${GCP_IMAGE}"
-              docker tag "${GITHUB_IMAGE}" "${GCP_LATEST}"
-              if docker push "${GCP_IMAGE}" && docker push "${GCP_LATEST}"; then
-                echo "- ✅ **${name}**: \`${GCP_IMAGE}\`" >> $GITHUB_STEP_SUMMARY
-                return 0
-              fi
-            fi
-            echo "- ❌ **${name}**: Pull/push failed" >> $GITHUB_STEP_SUMMARY
-            return 1
-          }
-
-          FAILED=0
-
-          pull_and_push "atendente_core" "atendente-core" || FAILED=$((FAILED + 1))
-          pull_and_push "tool_pool_api" "tool-pool-api" || FAILED=$((FAILED + 1))
-          pull_and_push "vendas_agent" "vendas-agent" || FAILED=$((FAILED + 1))
-          pull_and_push "support_agent" "support-agent" || FAILED=$((FAILED + 1))
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ $FAILED -gt 0 ]; then
-            echo "❌ $FAILED service(s) failed" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
-
-          echo "✅ All agents-pool services ready in GCP" >> $GITHUB_STEP_SUMMARY
-
-      # =================================================================
-      # Pull from GitHub & Push to GCP: workers-pool
-      # =================================================================
-      - name: "Pull & Push: workers-pool"
-        if: matrix.service == 'workers-pool'
-        id: build-workers
-        run: |
-          echo "### 🔨 Pulling from GitHub & Pushing to GCP: workers-pool" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          COMMIT_SHA="${{ steps.image.outputs.sha }}"
-          TAG="${{ steps.image.outputs.tag }}"
-          GCP_REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
-          GITHUB_REGISTRY="ghcr.io/${{ github.repository_owner }}"
-
-          pull_and_push() {
-            local name=$1
-            local gcp_name=$2
-
-            echo "Processing ${name}..."
-            GITHUB_IMAGE="${GITHUB_REGISTRY}/vizu-${name}:latest"
-            GCP_IMAGE="${GCP_REGISTRY}/${gcp_name}:${TAG}"
-            GCP_LATEST="${GCP_REGISTRY}/${gcp_name}:latest"
-
-            if docker pull "${GITHUB_IMAGE}"; then
-              docker tag "${GITHUB_IMAGE}" "${GCP_IMAGE}"
-              docker tag "${GITHUB_IMAGE}" "${GCP_LATEST}"
-              if docker push "${GCP_IMAGE}" && docker push "${GCP_LATEST}"; then
-                echo "- ✅ **${name}**: \`${GCP_IMAGE}\`" >> $GITHUB_STEP_SUMMARY
-                return 0
-              fi
-            fi
-            echo "- ❌ **${name}**: Pull/push failed" >> $GITHUB_STEP_SUMMARY
-            return 1
-          }
-
-          FAILED=0
-
-          pull_and_push "data_ingestion_worker" "data-ingestion-worker" || FAILED=$((FAILED + 1))
-          pull_and_push "file_processing_worker" "file-processing-worker" || FAILED=$((FAILED + 1))
-          pull_and_push "file_upload_api" "file-upload-api" || FAILED=$((FAILED + 1))
-          pull_and_push "data_ingestion_api" "data-ingestion-api" || FAILED=$((FAILED + 1))
-          pull_and_push "analytics_api" "analytics-api" || FAILED=$((FAILED + 1))
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ $FAILED -gt 0 ]; then
-            echo "❌ $FAILED service(s) failed" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
-
-          echo "✅ All workers-pool services ready in GCP" >> $GITHUB_STEP_SUMMARY
-
-      # =================================================================
-      # Deploy: agents-pool
-      # =================================================================
-      - name: "Deploy: agents-pool"
-        if: matrix.service == 'agents-pool'
-        run: |
-          echo "### 🚢 Deploying agents-pool to Cloud Run" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          TAG="${{ steps.image.outputs.tag }}"
-          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
-
-          deploy_service() {
-            local name=$1
-            local image="${REGISTRY}/${name}:${TAG}"
-            shift
-
-            echo "Deploying ${name}..."
-            if gcloud run deploy "${name}" \
-              --image "${image}" \
-              --region ${{ env.REGION }} \
-              --platform managed \
-              --vpc-connector "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/connectors/cloudrun-connector" \
-              --vpc-egress all-traffic \
-              "$@" \
-              --quiet; then
-              URL=$(gcloud run services describe "${name}" --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null || echo "N/A")
-              echo "- ✅ **${name}**: ${URL}" >> $GITHUB_STEP_SUMMARY
-              return 0
-            fi
-            echo "- ❌ **${name}**: Deploy failed" >> $GITHUB_STEP_SUMMARY
-            return 1
-          }
-
-          FAILED=0
-
-          # atendente-core (main entry point - public)
-          deploy_service "atendente-core" \
-            --allow-unauthenticated \
-            --memory 2Gi --cpu 2 \
-            --concurrency 10 --timeout 3600 \
-            --max-instances 50 --min-instances 1 \
-            --ingress all \
-            --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,MCP_SERVER_URL=http://tool-pool-api:9000/mcp/" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,OLLAMA_BASE_URL=OLLAMA_BASE_URL:latest,LANGFUSE_HOST=LANGFUSE_HOST:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest,OTEL_EXPORTER_OTLP_ENDPOINT=OTEL_EXPORTER_OTLP_ENDPOINT:latest" || FAILED=$((FAILED + 1))
-
-          # tool-pool-api (internal)
-          deploy_service "tool-pool-api" \
-            --no-allow-unauthenticated \
-            --memory 2Gi --cpu 2 \
-            --concurrency 5 --timeout 3600 \
-            --max-instances 20 --min-instances 1 \
-            --port 9000 --ingress internal \
-            --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest,OTEL_EXPORTER_OTLP_ENDPOINT=OTEL_EXPORTER_OTLP_ENDPOINT:latest" || FAILED=$((FAILED + 1))
-
-          # vendas-agent (internal)
-          deploy_service "vendas-agent" \
-            --no-allow-unauthenticated \
-            --memory 2Gi --cpu 2 \
-            --concurrency 10 --timeout 3600 \
-            --max-instances 20 --min-instances 0 \
-            --ingress internal \
-            --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,OLLAMA_BASE_URL=OLLAMA_BASE_URL:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest" || FAILED=$((FAILED + 1))
-
-          # support-agent (internal)
-          deploy_service "support-agent" \
-            --no-allow-unauthenticated \
-            --memory 2Gi --cpu 2 \
-            --concurrency 10 --timeout 3600 \
-            --max-instances 20 --min-instances 0 \
-            --ingress internal \
-            --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest,OLLAMA_BASE_URL=OLLAMA_BASE_URL:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest" || FAILED=$((FAILED + 1))
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ $FAILED -gt 0 ]; then
-            echo "⚠️ $FAILED service(s) failed to deploy" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "✅ All agents-pool services deployed successfully" >> $GITHUB_STEP_SUMMARY
-          fi
-
-      # =================================================================
-      # Deploy: workers-pool
-      # =================================================================
-      - name: "Deploy: workers-pool"
-        if: matrix.service == 'workers-pool'
-        run: |
-          echo "### 🚢 Deploying workers-pool to Cloud Run" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          TAG="${{ steps.image.outputs.tag }}"
-          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
-
-          deploy_service() {
-            local name=$1
-            local image="${REGISTRY}/${name}:${TAG}"
-            shift
-
-            echo "Deploying ${name}..."
-            if gcloud run deploy "${name}" \
-              --image "${image}" \
-              --region ${{ env.REGION }} \
-              --platform managed \
-              --vpc-connector "projects/${{ env.PROJECT_ID }}/locations/${{ env.REGION }}/connectors/cloudrun-connector" \
-              --vpc-egress all-traffic \
-              "$@" \
-              --quiet; then
-              URL=$(gcloud run services describe "${name}" --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null || echo "N/A")
-              echo "- ✅ **${name}**: ${URL}" >> $GITHUB_STEP_SUMMARY
-              return 0
-            fi
-            echo "- ❌ **${name}**: Deploy failed" >> $GITHUB_STEP_SUMMARY
-            return 1
-          }
-
-          FAILED=0
-
-          # data-ingestion-worker (internal)
-          deploy_service "data-ingestion-worker" \
-            --no-allow-unauthenticated \
-            --memory 1Gi --cpu 2 \
-            --concurrency 50 --timeout 600 \
-            --max-instances 100 --min-instances 0 \
-            --ingress internal \
-            --set-env-vars "ENVIRONMENT=production" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest" || FAILED=$((FAILED + 1))
-
-          # file-processing-worker (internal)
-          deploy_service "file-processing-worker" \
-            --no-allow-unauthenticated \
-            --memory 2Gi --cpu 2 \
-            --concurrency 20 --timeout 1800 \
-            --max-instances 50 --min-instances 0 \
-            --ingress internal \
-            --set-env-vars "ENVIRONMENT=production" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest" || FAILED=$((FAILED + 1))
-
-          # file-upload-api (public)
-          deploy_service "file-upload-api" \
-            --allow-unauthenticated \
-            --memory 1Gi --cpu 2 \
-            --concurrency 50 --timeout 300 \
-            --max-instances 50 --min-instances 0 \
-            --ingress all \
-            --set-env-vars "ENVIRONMENT=production" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest" || FAILED=$((FAILED + 1))
-
-          # data-ingestion-api (public - enterprise data connectors)
-          deploy_service "data-ingestion-api" \
-            --allow-unauthenticated \
-            --memory 1Gi --cpu 2 \
-            --concurrency 50 --timeout 300 \
-            --max-instances 50 --min-instances 0 \
-            --ingress all \
-            --set-env-vars "ENVIRONMENT=production" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest" || FAILED=$((FAILED + 1))
-
-          # analytics-api (internal - metrics and dashboards)
-          deploy_service "analytics-api" \
-            --no-allow-unauthenticated \
-            --memory 1Gi --cpu 2 \
-            --concurrency 50 --timeout 300 \
-            --max-instances 50 --min-instances 0 \
-            --ingress internal \
-            --set-env-vars "ENVIRONMENT=production" \
-            --set-secrets="DATABASE_URL=DATABASE_URL:latest,REDIS_URL=REDIS_URL:latest" || FAILED=$((FAILED + 1))
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ $FAILED -gt 0 ]; then
-            echo "⚠️ $FAILED service(s) failed to deploy" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "✅ All workers-pool services deployed successfully" >> $GITHUB_STEP_SUMMARY
-          fi
-
-      # =================================================================
-      # Build: dashboard
-      # =================================================================
-      - name: Build dashboard (Vite)
-        if: matrix.service == 'dashboard'
-        run: |
-          export
-          export VITE_SUPABASE_URL="${{ secrets.VITE_SUPABASE_URL }}"
-          export VITE_SUPABASE_ANON_KEY="${{ secrets.VITE_SUPABASE_ANON_KEY }}"
-          export VITE_API_URL="${{ secrets.VITE_API_URL }}"
-          export VITE_ATENDENTE_CORE_URL="${{ secrets.VITE_ATENDENTE_CORE_URL }}"
-          npm install
-          npm run build
-        working-directory: apps/vizu_dashboard
-
-      # =================================================================
-      # Pull & Push: dashboard
-      # =================================================================
-      - name: "Pull & Push: dashboard"
-        if: matrix.service == 'dashboard'
-        id: build-dashboard
-        run: |
-          echo "### 🔨 Pulling from GitHub & Pushing to GCP: dashboard" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          COMMIT_SHA="${{ steps.image.outputs.sha }}"
-          TAG="${{ steps.image.outputs.tag }}"
-          GCP_REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
-          GITHUB_REGISTRY="ghcr.io/${{ github.repository_owner }}"
-
-          echo "Processing vizu_dashboard..."
-          GITHUB_IMAGE="${GITHUB_REGISTRY}/vizu-dashboard:latest"
-          GCP_IMAGE="${GCP_REGISTRY}/vizu-dashboard:${TAG}"
-          GCP_LATEST="${GCP_REGISTRY}/vizu-dashboard:latest"
-
-          if docker pull "${GITHUB_IMAGE}"; then
-            docker tag "${GITHUB_IMAGE}" "${GCP_IMAGE}"
-            docker tag "${GITHUB_IMAGE}" "${GCP_LATEST}"
-            if docker push "${GCP_IMAGE}" && docker push "${GCP_LATEST}"; then
-              echo "- ✅ **vizu_dashboard**: \`${GCP_IMAGE}\`" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "- ❌ **vizu_dashboard**: Push failed" >> $GITHUB_STEP_SUMMARY
-              exit 1
-            fi
-          else
-            echo "- ❌ **vizu_dashboard**: Pull failed (trying alternate name)" >> $GITHUB_STEP_SUMMARY
-            # Try alternate naming convention
-            GITHUB_IMAGE="${GITHUB_REGISTRY}/vizu-vizu_dashboard:latest"
-            if docker pull "${GITHUB_IMAGE}"; then
-              docker tag "${GITHUB_IMAGE}" "${GCP_IMAGE}"
-              docker tag "${GITHUB_IMAGE}" "${GCP_LATEST}"
-              if docker push "${GCP_IMAGE}" && docker push "${GCP_LATEST}"; then
-                echo "- ✅ **vizu_dashboard**: \`${GCP_IMAGE}\`" >> $GITHUB_STEP_SUMMARY
-              else
-                echo "- ❌ **vizu_dashboard**: Push failed" >> $GITHUB_STEP_SUMMARY
-                exit 1
-              fi
-            else
-              echo "- ❌ **vizu_dashboard**: Pull failed with both names" >> $GITHUB_STEP_SUMMARY
-              exit 1
-            fi
-          fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Dashboard ready in GCP" >> $GITHUB_STEP_SUMMARY
-
-      # =================================================================
-      # Deploy: dashboard
-      # =================================================================
-      - name: "Deploy: dashboard"
-        if: matrix.service == 'dashboard'
-        run: |
-          echo "### 🚢 Deploying dashboard to Cloud Run" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          TAG="${{ steps.image.outputs.tag }}"
-          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
-
-          deploy_service() {
-            local name=$1
-            local image="${REGISTRY}/${name}:${TAG}"
-            shift
-
-            echo "Deploying ${name}..."
-            if gcloud run deploy "${name}" \
-              --image "${image}" \
-              --region ${{ env.REGION }} \
-              --platform managed \
-              "$@" \
-              --quiet; then
-              URL=$(gcloud run services describe "${name}" --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null || echo "N/A")
-              echo "- ✅ **${name}**: ${URL}" >> $GITHUB_STEP_SUMMARY
-              return 0
-            fi
-            echo "- ❌ **${name}**: Deploy failed" >> $GITHUB_STEP_SUMMARY
-            return 1
-          }
-
-          FAILED=0
-
-          # vizu-dashboard (public frontend)
-          deploy_service "vizu-dashboard" \
-            --allow-unauthenticated \
-            --memory 512Mi --cpu 1 \
-            --concurrency 100 --timeout 60 \
-            --max-instances 10 --min-instances 1 \
-            --ingress all \
-            --port 80 \
-            --set-env-vars "ENVIRONMENT=production" || FAILED=$((FAILED + 1))
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ $FAILED -gt 0 ]; then
-            echo "❌ Dashboard deployment failed" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          else
-            echo "✅ Dashboard deployed successfully" >> $GITHUB_STEP_SUMMARY
-          fi
-
-      # =================================================================
-      # Final summary
-      # =================================================================
-      - name: Final status
-        if: always()
-        run: |
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "## ✅ Deployment Complete" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "## ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Check the logs above for details." >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "✅ Secrets synced"
 
   # =================================================================
-  # Post-deploy health checks
+  # Deploy services to Cloud Run
   # =================================================================
-  health-checks:
-    name: Health Checks
-    needs: build-and-deploy
+  deploy:
+    name: Deploy ${{ matrix.service }}
+    needs: [preflight, sync-secrets]
     runs-on: ubuntu-latest
-    if: success()
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.preflight.outputs.services) }}
+      fail-fast: false
     steps:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -704,37 +161,147 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Run health checks
+      - name: Deploy ${{ matrix.service }}
         run: |
-          echo "## 🏥 Health Checks" >> $GITHUB_STEP_SUMMARY
+          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
+          SERVICE="${{ matrix.service }}"
+          IMAGE="${REGISTRY}/vizu-${SERVICE}:latest"
+
+          echo "### 🚀 Deploying ${SERVICE}" >> $GITHUB_STEP_SUMMARY
+
+          # Verify image exists
+          if ! gcloud artifacts docker images describe "${IMAGE}" --verbosity=none 2>/dev/null; then
+            echo "❌ Image not found: ${IMAGE}" >> $GITHUB_STEP_SUMMARY
+            echo "Run CI workflow first to build and push images." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          # Service-specific configuration
+          case "${SERVICE}" in
+            atendente_core)
+              gcloud run deploy "${SERVICE}" \
+                --image "${IMAGE}" \
+                --region ${{ env.REGION }} \
+                --platform managed \
+                --allow-unauthenticated \
+                --memory 2Gi --cpu 2 \
+                --concurrency 10 --timeout 3600 \
+                --max-instances 50 --min-instances 0 \
+                --port 8000 \
+                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=google,LANGFUSE_HOST=https://us.cloud.langfuse.com" \
+                --set-secrets="SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,SUPABASE_JWT_SECRET=SUPABASE_JWT_SECRET:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest,QDRANT_URL=QDRANT_URL:latest,QDRANT_API_KEY=QDRANT_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest" \
+                --quiet
+              ;;
+
+            tool_pool_api)
+              gcloud run deploy "${SERVICE}" \
+                --image "${IMAGE}" \
+                --region ${{ env.REGION }} \
+                --platform managed \
+                --allow-unauthenticated \
+                --memory 2Gi --cpu 2 \
+                --concurrency 5 --timeout 3600 \
+                --max-instances 20 --min-instances 0 \
+                --port 8000 \
+                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=google" \
+                --set-secrets="SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,GOOGLE_API_KEY=GOOGLE_API_KEY:latest,QDRANT_URL=QDRANT_URL:latest,QDRANT_API_KEY=QDRANT_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,MCP_AUTH_GOOGLE_CLIENT_ID=MCP_AUTH_GOOGLE_CLIENT_ID:latest,CREDENTIALS_ENCRYPTION_KEY=CREDENTIALS_ENCRYPTION_KEY:latest" \
+                --quiet
+              ;;
+
+            analytics_api)
+              gcloud run deploy "${SERVICE}" \
+                --image "${IMAGE}" \
+                --region ${{ env.REGION }} \
+                --platform managed \
+                --allow-unauthenticated \
+                --memory 1Gi --cpu 1 \
+                --concurrency 50 --timeout 300 \
+                --max-instances 20 --min-instances 0 \
+                --port 8000 \
+                --set-env-vars "ENVIRONMENT=production" \
+                --set-secrets="SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest" \
+                --quiet
+              ;;
+
+            data_ingestion_api)
+              gcloud run deploy "${SERVICE}" \
+                --image "${IMAGE}" \
+                --region ${{ env.REGION }} \
+                --platform managed \
+                --allow-unauthenticated \
+                --memory 1Gi --cpu 1 \
+                --concurrency 50 --timeout 300 \
+                --max-instances 20 --min-instances 0 \
+                --port 8000 \
+                --set-env-vars "ENVIRONMENT=production" \
+                --set-secrets="SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest" \
+                --quiet
+              ;;
+
+            vizu_dashboard)
+              gcloud run deploy "${SERVICE}" \
+                --image "${IMAGE}" \
+                --region ${{ env.REGION }} \
+                --platform managed \
+                --allow-unauthenticated \
+                --memory 256Mi --cpu 1 \
+                --concurrency 100 --timeout 60 \
+                --max-instances 10 --min-instances 0 \
+                --port 80 \
+                --quiet
+              ;;
+          esac
+
+          # Get service URL
+          URL=$(gcloud run services describe "${SERVICE}" --region ${{ env.REGION }} --format 'value(status.url)')
+          echo "✅ **${SERVICE}**: ${URL}" >> $GITHUB_STEP_SUMMARY
+
+  # =================================================================
+  # Post-deploy: Update service URLs
+  # =================================================================
+  post-deploy:
+    name: Post-Deploy Configuration
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get service URLs and update inter-service communication
+        run: |
+          echo "### 📋 Deployed Services" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-----|" >> $GITHUB_STEP_SUMMARY
 
-          check_health() {
-            local name=$1
-            local url
+          # Get all service URLs
+          ATENDENTE_URL=$(gcloud run services describe atendente_core --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null || echo "not deployed")
+          TOOL_POOL_URL=$(gcloud run services describe tool_pool_api --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null || echo "not deployed")
+          ANALYTICS_URL=$(gcloud run services describe analytics_api --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null || echo "not deployed")
+          DATA_INGESTION_URL=$(gcloud run services describe data_ingestion_api --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null || echo "not deployed")
+          DASHBOARD_URL=$(gcloud run services describe vizu_dashboard --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null || echo "not deployed")
 
-            url=$(gcloud run services describe "${name}" --region ${{ env.REGION }} --format 'value(status.url)' 2>/dev/null)
+          echo "| atendente_core | ${ATENDENTE_URL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| tool_pool_api | ${TOOL_POOL_URL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| analytics_api | ${ANALYTICS_URL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| data_ingestion_api | ${DATA_INGESTION_URL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| vizu_dashboard | ${DASHBOARD_URL} |" >> $GITHUB_STEP_SUMMARY
 
-            if [ -z "$url" ]; then
-              echo "- ⚠️ **${name}**: Service not found" >> $GITHUB_STEP_SUMMARY
-              return 1
-            fi
-
-            if curl -sf "${url}/health" > /dev/null 2>&1; then
-              echo "- ✅ **${name}**: Healthy" >> $GITHUB_STEP_SUMMARY
-              return 0
-            else
-              echo "- ❌ **${name}**: Health check failed" >> $GITHUB_STEP_SUMMARY
-              return 1
-            fi
-          }
-
-          # Check public services
-          check_health "atendente-core" || true
-          check_health "file-upload-api" || true
+          # Update atendente_core with tool_pool_api URL (MCP_SERVER_URL)
+          if [ "${TOOL_POOL_URL}" != "not deployed" ] && [ "${ATENDENTE_URL}" != "not deployed" ]; then
+            echo ""
+            echo "Updating atendente_core with MCP_SERVER_URL..."
+            gcloud run services update atendente_core \
+              --region ${{ env.REGION }} \
+              --update-env-vars "MCP_SERVER_URL=${TOOL_POOL_URL}/mcp/" \
+              --quiet
+            echo "✅ Updated MCP_SERVER_URL"
+          fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 All Services" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          gcloud run services list --region ${{ env.REGION }} --format="table(name,status.url)" >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No services found"
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎉 Deployment Complete" >> $GITHUB_STEP_SUMMARY

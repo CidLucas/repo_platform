@@ -175,6 +175,10 @@ class MetricService:
         # Preserve CNPJ/CPF fields using 'first' aggregation (they should be the same for each name)
         if dimension_col == 'emitter_nome' and 'emitter_cnpj' in df.columns:
             agg_ops['emitter_cnpj'] = ('emitter_cnpj', 'first')
+            # Preserve supplier contact fields
+            for field in ['emitter_telefone', 'emitter_cidade', 'emitterstateuf']:
+                if field in df.columns:
+                    agg_ops[field] = (field, 'first')
         if dimension_col == 'receiver_nome' and 'receiver_cpf_cnpj' in df.columns:
             agg_ops['receiver_cpf_cnpj'] = ('receiver_cpf_cnpj', 'first')
             # Preserve contact and address fields for customers

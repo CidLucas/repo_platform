@@ -39,17 +39,19 @@ begin
   where name = v_key_name
   limit 1;
 
-  -- Delete existing if present (for updates)
+  -- Update existing or create new
   if v_existing_id is not null then
-    perform vault.delete_secret(v_existing_id);
+    -- Update existing secret
+    perform vault.update_secret(v_existing_id, p_credentials::text);
+    v_vault_key_id := v_existing_id;
+  else
+    -- Create new encrypted secret
+    select vault.create_secret(
+      p_credentials::text,
+      v_key_name,
+      'External service credential for client ' || p_client_id
+    ) into v_vault_key_id;
   end if;
-
-  -- Create new encrypted secret
-  select vault.create_secret(
-    p_credentials::text,
-    v_key_name,
-    'External service credential for client ' || p_client_id
-  ) into v_vault_key_id;
 
   return v_vault_key_id;
 end;

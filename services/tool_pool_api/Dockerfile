@@ -3,9 +3,11 @@ FROM python:3.11-slim as builder
 
 ENV POETRY_NO_INTERACTION=1
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
+ENV POETRY_HTTP_TIMEOUT=300
+ENV POETRY_REQUESTS_TIMEOUT=300
 WORKDIR /app
 
-RUN pip install poetry
+RUN pip install poetry==1.8.0
 
 # Copy only needed libs (direct + transitive dependencies)
 COPY libs/vizu_models ./libs/vizu_models
@@ -26,8 +28,7 @@ COPY libs/vizu_google_suite_client ./libs/vizu_google_suite_client
 COPY services/tool_pool_api/pyproject.toml services/tool_pool_api/poetry.lock* ./services/tool_pool_api/
 
 WORKDIR /app/services/tool_pool_api
-RUN poetry lock && poetry install --no-root
-RUN python -m pip cache purge || true
+RUN poetry install --no-root
 RUN rm -rf /root/.cache/pip /root/.cache/pypoetry || true
 
 # ----------------------------------------------------------------

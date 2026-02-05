@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from data_ingestion_api.api.connector_status_routes import router as connector_status_router
@@ -22,6 +23,15 @@ except ImportError:
     SERVICE_NAME = "Vizu Data Ingestion API"
     OTEL_EXPORTER_OTLP_ENDPOINT = None
 
+# Import database connector at module level (avoid lazy imports in middleware)
+try:
+    from vizu_db_connector.database import SessionLocal
+    DB_CONNECTOR_AVAILABLE = True
+except ImportError as e:
+    logger = logging.getLogger(__name__)
+    logger.warning(f"vizu_db_connector not available: {e}")
+    DB_CONNECTOR_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,18 +47,18 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
     """
     async def dispatch(self, request: Request, call_next):
         # Set timeouts at session level for this request
-        try:
-            from vizu_db_connector.database import SessionLocal
-            session = SessionLocal()
+        if DB_CONNECTOR_AVAILABLE:
             try:
-                # 30s statement timeout - any single query taking longer is killed
-                session.execute("SET statement_timeout = '30s'")
-                # 5min idle_in_transaction timeout - transaction idle > 5min is auto-rolled back
-                session.execute("SET idle_in_transaction_session_timeout = '5min'")
-            finally:
-                session.close()
-        except Exception as e:
-            logger.warning(f"Could not set session timeouts: {e}")
+                session = SessionLocal()
+                try:
+                    # 30s statement timeout - any single query taking longer is killed
+                    session.execute(text("SET statement_timeout = '30s'"))
+                    # 5min idle_in_transaction timeout - transaction idle > 5min is auto-rolled back
+                    session.execute(text("SET idle_in_transaction_session_timeout = '5min'"))
+                finally:
+                    session.close()
+            except Exception as e:
+                logger.warning(f"Could not set session timeouts: {e}")
 
         return await call_next(request)
 

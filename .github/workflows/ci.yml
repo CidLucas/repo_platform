@@ -116,8 +116,9 @@ jobs:
           - tool_pool_api
           - data_ingestion_api
           - analytics_api
+          - vizu_dashboard
         include:
-          - service: dashboard
+          - service: vizu_dashboard
             dockerfile_path: apps/vizu_dashboard/Dockerfile
 
     steps:

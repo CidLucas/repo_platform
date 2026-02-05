@@ -109,7 +109,7 @@ help:
 # DOCKER COMPOSE
 # =============================================================================
 
-.PHONY: up down restart logs ps build build-s compose-cloud compose-cloud-down
+.PHONY: up down restart logs ps build build-s compose-cloud compose-cloud-down cloudrun-build cloudrun-push cloudrun-push-all
 
 up:
 	@echo "🚀 Starting all services..."
@@ -146,22 +146,46 @@ build-s:
 	@echo "✅ $(SERVICE) rebuilt and started"
 
 # =============================================================================
-# CLOUD RUN - LOCAL 3-GROUP ARCHITECTURE
+# CLOUD RUN - LOCAL TEST & DEPLOYMENT
 # =============================================================================
 
+# Local test with Cloud Run compose (builds images locally)
 compose-cloud:
-	@echo "🚀 Starting 3-group Cloud Run architecture (local)..."
-	@echo "   GROUP 1: agents-pool (ports 8003-8006)"
-	@echo "   GROUP 2: workers-pool (ports 8007-8009)"
-	@echo "   GROUP 3: embedding-service (port 11435)"
+	@echo "🚀 Starting Cloud Run architecture (local test)..."
+	@if [ ! -f .env.cloudrun ]; then \
+		echo "⚠️  .env.cloudrun not found. Copy from .env.cloudrun.example"; \
+		exit 1; \
+	fi
 	$(COMPOSE) -f docker-compose.cloud-run.yml up --build -d
 	@echo "✅ Cloud Run architecture running"
-	@echo "📝 Test endpoints: curl http://localhost:8003/health"
+	@echo "📝 Test endpoints:"
+	@echo "   curl http://localhost:8003/health  (atendente_core)"
+	@echo "   curl http://localhost:8006/health  (tool_pool_api)"
+	@echo "   curl http://localhost:8004/health  (analytics_api)"
 
 compose-cloud-down:
 	@echo "🛑 Stopping Cloud Run architecture..."
 	$(COMPOSE) -f docker-compose.cloud-run.yml down
 	@echo "✅ Stopped"
+
+# Build specific service for Cloud Run
+cloudrun-build:
+	@echo "🔨 Building $(SERVICE) for Cloud Run..."
+	$(COMPOSE) -f docker-compose.cloud-run.yml build $(SERVICE)
+	@echo "✅ Built: $(SERVICE)"
+
+# Push single service to Artifact Registry
+cloudrun-push:
+	@echo "📤 Pushing $(SERVICE) to Artifact Registry..."
+	$(COMPOSE) -f docker-compose.cloud-run.yml push $(SERVICE)
+	@echo "✅ Pushed: $(SERVICE)"
+
+# Build and push all services
+cloudrun-push-all:
+	@echo "📤 Building and pushing all services to Artifact Registry..."
+	$(COMPOSE) -f docker-compose.cloud-run.yml build
+	$(COMPOSE) -f docker-compose.cloud-run.yml push
+	@echo "✅ All services pushed"
 
 # =============================================================================
 # DATABASE & MIGRATIONS

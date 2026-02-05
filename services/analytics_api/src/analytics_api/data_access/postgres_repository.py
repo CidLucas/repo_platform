@@ -536,7 +536,7 @@ class PostgresRepository:
                     supplier.get("nome"),
                     supplier.get("emitter_telefone"),
                     supplier.get("emitter_cidade"),
-                    supplier.get("emitter_uf"),
+                    supplier.get("emitter_uf") or supplier.get("emitterstateuf"),
                 )
                 for supplier in unique_suppliers
             ]
@@ -914,31 +914,31 @@ class PostgresRepository:
             return 0
 
     def write_star_time_series(self, client_id: str, chart_data: list[dict]) -> int:
-        """Skip writing - time series data is now computed from v_time_series view."""
+        """Skip writing - time series data is available from analytics_v2.mv_time_series materialized view."""
         if not chart_data:
             return 0
-        logger.debug(f"⊗ Skipping write_star_time_series for {client_id} - data available via v_time_series view ({len(chart_data)} items)")
+        logger.debug(f"⊗ Skipping write_star_time_series for {client_id} - data available via mv_time_series ({len(chart_data)} items)")
         return len(chart_data)
 
     def write_star_regional(self, client_id: str, chart_data: list[dict]) -> int:
-        """Skip writing - regional data is now computed from v_regional view."""
+        """Skip writing - regional data is available from analytics_v2.v_regional view."""
         if not chart_data:
             return 0
-        logger.debug(f"⊗ Skipping write_star_regional for {client_id} - data available via v_regional view ({len(chart_data)} items)")
+        logger.debug(f"⊗ Skipping write_star_regional for {client_id} - data available via v_regional ({len(chart_data)} items)")
         return len(chart_data)
 
     def write_star_last_orders(self, client_id: str, orders_data: list[dict]) -> int:
-        """Skip writing - last orders data is now computed from v_last_orders view."""
+        """Skip writing - last orders data is available from analytics_v2.v_last_orders view."""
         if not orders_data:
             return 0
-        logger.debug(f"⊗ Skipping write_star_last_orders for {client_id} - data available via v_last_orders view ({len(orders_data)} items)")
+        logger.debug(f"⊗ Skipping write_star_last_orders for {client_id} - data available via v_last_orders ({len(orders_data)} items)")
         return len(orders_data)
 
     def write_star_customer_products(self, client_id: str, customer_products_data: list[dict]) -> int:
-        """Skip writing - customer-product data is now computed from v_customer_products view."""
+        """Skip writing - customer-product data is available from analytics_v2.v_customer_products view."""
         if not customer_products_data:
             return 0
-        logger.debug(f"⊗ Skipping write_star_customer_products for {client_id} - data available via v_customer_products view ({len(customer_products_data)} items)")
+        logger.debug(f"⊗ Skipping write_star_customer_products for {client_id} - data available via v_customer_products ({len(customer_products_data)} items)")
         return len(customer_products_data)
 
     # ---
@@ -950,30 +950,49 @@ class PostgresRepository:
     # =====================================================
 
     def get_v2_time_series(self, client_id: str, chart_type: str) -> list[dict]:
-        """Retrieve time-series chart data from v_time_series view (computed from fact_sales)."""
+        """Retrieve time-series chart data from analytics_v2.mv_time_series materialized view."""
         try:
-            # Query v_time_series materialized view (computed from fact_sales)
+            # Map chart_type to the appropriate column in mv_time_series
+            column_mapping = {
+                'fornecedores_no_tempo': 'suppliers_distinct',
+                'clientes_no_tempo': 'customers_distinct',
+                'produtos_no_tempo': 'products_distinct',
+                'pedidos_no_tempo': 'orders_distinct',
+                'receita_no_tempo': 'revenue_sum',
+                'receita_fornecedores_no_tempo': 'revenue_sum',
+                'receita_clientes_no_tempo': 'revenue_sum',
+                'receita_produtos_no_tempo': 'revenue_sum',
+                'ticket_medio_fornecedores_no_tempo': 'revenue_avg',
+                'ticket_medio_clientes_no_tempo': 'revenue_avg',
+                'quantidade_fornecedores_no_tempo': 'quantity_sum',
+                'quantidade_clientes_no_tempo': 'quantity_sum',
+                'quantidade_produtos_no_tempo': 'quantity_sum',
+            }
+
+            column = column_mapping.get(chart_type)
+            if not column:
+                logger.warning(f"Unknown chart_type: {chart_type}, using fallback")
+                return self._calculate_time_series_fallback(client_id, chart_type)
+
             result = self.db_session.execute(
-                text("""
-                    SELECT period AS name, total
-                    FROM analytics_v2.v_time_series
-                    WHERE client_id = :client_id AND chart_type = :chart_type
+                text(f"""
+                    SELECT TO_CHAR(period_date, 'YYYY-MM') AS name, {column} AS total
+                    FROM analytics_v2.mv_time_series
+                    WHERE client_id = :client_id AND {column} IS NOT NULL
                     ORDER BY period_date ASC
                 """),
-                {"client_id": client_id, "chart_type": chart_type}
+                {"client_id": client_id}
             ).fetchall()
 
             if result:
-                logger.debug(f"📊 Read {len(result)} time_series from v_time_series for {chart_type}")
+                logger.debug(f"📊 Read {len(result)} time_series from mv_time_series for {chart_type}")
                 return [{"name": row.name, "total": int(row.total)} for row in result]
 
-            # Fallback: calculate directly from fact_sales if view is empty
-            logger.debug(f"⚠️  v_time_series empty for {chart_type}, using fallback calculation")
+            logger.debug(f"⚠️  mv_time_series empty for {chart_type}, using fallback calculation")
             return self._calculate_time_series_fallback(client_id, chart_type)
         except Exception as e:
-            logger.error(f"❌ Failed to read v_time_series {chart_type}: {e}", exc_info=True)
+            logger.error(f"❌ Failed to read mv_time_series {chart_type}: {e}", exc_info=True)
             self.db_session.rollback()
-            # Try fallback on error (view might not exist)
             try:
                 return self._calculate_time_series_fallback(client_id, chart_type)
             except Exception:
@@ -998,14 +1017,14 @@ class PostgresRepository:
                 'quantidade_clientes_no_tempo': "COALESCE(SUM(f.quantidade), 0)::BIGINT",
                 'quantidade_produtos_no_tempo': "COALESCE(SUM(f.quantidade), 0)::BIGINT",
             }
-            
+
             aggregation = chart_queries.get(chart_type)
             if not aggregation:
                 logger.warning(f"Unknown chart_type for fallback: {chart_type}")
                 return []
-            
+
             query = text(f"""
-                SELECT 
+                SELECT
                     TO_CHAR(f.data_transacao, 'YYYY-MM') as name,
                     {aggregation} as total
                 FROM analytics_v2.fact_sales f
@@ -1014,13 +1033,13 @@ class PostgresRepository:
                 GROUP BY TO_CHAR(f.data_transacao, 'YYYY-MM')
                 ORDER BY name ASC
             """)
-            
+
             result = self.db_session.execute(query, {"client_id": client_id}).fetchall()
-            
+
             if result:
                 logger.info(f"📊 Fallback: calculated {len(result)} points for {chart_type}")
                 return [{"name": row.name, "total": int(row.total)} for row in result]
-            
+
             return []
         except Exception as e:
             logger.error(f"❌ Fallback calculation failed for {chart_type}: {e}", exc_info=True)
@@ -1028,12 +1047,11 @@ class PostgresRepository:
             return []
 
     def get_v2_regional(self, client_id: str, chart_type: str) -> list[dict]:
-        """Retrieve regional breakdown from v_regional view (computed from fact_sales)."""
+        """Retrieve regional breakdown from analytics_v2.v_regional view."""
         try:
-            # Query v_regional materialized view (computed from fact_sales)
             result = self.db_session.execute(
                 text("""
-                    SELECT region_name AS name, total, contagem, percentual
+                    SELECT COALESCE(region, state) AS name, total, contagem, percentual
                     FROM analytics_v2.v_regional
                     WHERE client_id = :client_id AND chart_type = :chart_type
                     ORDER BY total DESC
@@ -1053,7 +1071,6 @@ class PostgresRepository:
                     for row in result
                 ]
 
-            # Fallback: return empty if view is empty
             logger.debug(f"⚠️  v_regional empty for {chart_type}")
             return []
         except Exception as e:
@@ -1062,9 +1079,8 @@ class PostgresRepository:
             return []
 
     def get_v2_last_orders(self, client_id: str, limit: int = 20) -> list[dict]:
-        """Retrieve last orders from v_last_orders view (computed from fact_sales)."""
+        """Retrieve last orders from analytics_v2.v_last_orders view."""
         try:
-            # Query v_last_orders materialized view (computed from fact_sales)
             result = self.db_session.execute(
                 text("""
                     SELECT order_id, data_transacao, customer_cpf_cnpj, ticket_pedido, qtd_produtos
@@ -1089,7 +1105,6 @@ class PostgresRepository:
                     for row in result
                 ]
 
-            # Fallback: return empty if view is empty
             logger.debug("⚠️  v_last_orders empty")
             return []
         except Exception as e:
@@ -1098,9 +1113,8 @@ class PostgresRepository:
             return []
 
     def get_v2_customer_products(self, client_id: str, customer_cpf_cnpj: str, limit: int = 10) -> list[dict]:
-        """Retrieve customer-product data from v_customer_products view (computed from fact_sales)."""
+        """Retrieve customer-product data from analytics_v2.v_customer_products view."""
         try:
-            # Query v_customer_products materialized view (computed from fact_sales)
             result = self.db_session.execute(
                 text("""
                     SELECT product_name, valor_total as receita_total, quantidade_total, num_purchases as num_pedidos,
@@ -1126,7 +1140,6 @@ class PostgresRepository:
                     for row in result
                 ]
 
-            # Fallback: return empty if view is empty
             logger.debug(f"⚠️  v_customer_products empty for {customer_cpf_cnpj}")
             return []
         except Exception as e:
@@ -1410,13 +1423,13 @@ class PostgresRepository:
         try:
             # Get top products sold by this supplier
             products_query = text("""
-                SELECT 
+                SELECT
                     p.product_name as nome,
                     SUM(f.valor_total) as receita_total,
                     SUM(f.quantidade) as quantidade_total,
                     COUNT(DISTINCT f.order_id) as num_pedidos
                 FROM analytics_v2.fact_sales f
-                LEFT JOIN analytics_v2.dim_product p 
+                LEFT JOIN analytics_v2.dim_product p
                     ON f.product_id = p.product_id AND f.client_id::TEXT = p.client_id::TEXT
                 WHERE f.client_id = :client_id
                   AND f.supplier_cnpj = :supplier_cnpj
@@ -1425,20 +1438,20 @@ class PostgresRepository:
                 LIMIT 10
             """)
             products_result = self.db_session.execute(
-                products_query, 
+                products_query,
                 {"client_id": client_id, "supplier_cnpj": supplier_cnpj}
             )
             products = [dict(zip(products_result.keys(), row)) for row in products_result.fetchall()]
 
             # Get top customers for this supplier
             customers_query = text("""
-                SELECT 
+                SELECT
                     c.name as nome,
                     SUM(f.valor_total) as receita_total,
                     SUM(f.quantidade) as quantidade_total,
                     COUNT(DISTINCT f.order_id) as num_pedidos
                 FROM analytics_v2.fact_sales f
-                LEFT JOIN analytics_v2.dim_customer c 
+                LEFT JOIN analytics_v2.dim_customer c
                     ON f.customer_cpf_cnpj = c.cpf_cnpj AND f.client_id::TEXT = c.client_id::TEXT
                 WHERE f.client_id = :client_id
                   AND f.supplier_cnpj = :supplier_cnpj
@@ -1454,7 +1467,7 @@ class PostgresRepository:
 
             # Get monthly revenue time series for this supplier
             time_series_query = text("""
-                SELECT 
+                SELECT
                     TO_CHAR(f.data_transacao, 'YYYY-MM') as name,
                     SUM(f.valor_total) as total
                 FROM analytics_v2.fact_sales f
@@ -1810,7 +1823,7 @@ class PostgresRepository:
                     COUNT(DISTINCT f.order_id) as num_pedidos,
                     AVG(f.valor_total) as ticket_medio
                 FROM analytics_v2.fact_sales f
-                LEFT JOIN analytics_v2.dim_customer c 
+                LEFT JOIN analytics_v2.dim_customer c
                     ON f.customer_cpf_cnpj = c.cpf_cnpj AND f.client_id::TEXT = c.client_id::TEXT
                 WHERE f.client_id = :client_id
                   AND f.supplier_cnpj = :supplier_cnpj
@@ -1858,7 +1871,7 @@ class PostgresRepository:
                     COUNT(DISTINCT f.order_id) as num_pedidos,
                     AVG(f.preco_unitario) as valor_unitario_medio
                 FROM analytics_v2.fact_sales f
-                LEFT JOIN analytics_v2.dim_product p 
+                LEFT JOIN analytics_v2.dim_product p
                     ON f.product_id = p.product_id
                 WHERE f.client_id = :client_id
                   AND f.supplier_cnpj = :supplier_cnpj

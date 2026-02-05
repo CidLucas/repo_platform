@@ -3,7 +3,8 @@ FROM python:3.11-slim AS builder
 
 ENV POETRY_NO_INTERACTION=1
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
-
+ENV POETRY_HTTP_TIMEOUT=300
+ENV POETRY_REQUESTS_TIMEOUT=300
 
 WORKDIR /app
 RUN pip install poetry==1.8.0
@@ -14,6 +15,7 @@ COPY libs/vizu_models libs/vizu_models
 COPY libs/vizu_supabase_client libs/vizu_supabase_client
 COPY libs/vizu_auth libs/vizu_auth
 COPY libs/vizu_data_connectors libs/vizu_data_connectors
+COPY libs/vizu_observability_bootstrap libs/vizu_observability_bootstrap
 
 # Copy service files
 COPY services/data_ingestion_api services/data_ingestion_api
@@ -30,7 +32,7 @@ WORKDIR /app/services/data_ingestion_api
 
 # Set PATH and PYTHONPATH
 ENV PATH="/app/services/data_ingestion_api/.venv/bin:$PATH" \
-    PYTHONPATH="/app/services/data_ingestion_api/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src:/app/libs/vizu_supabase_client/src:/app/libs/vizu_auth/src"
+    PYTHONPATH="/app/services/data_ingestion_api/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src:/app/libs/vizu_supabase_client/src:/app/libs/vizu_auth/src:/app/libs/vizu_observability_bootstrap/src:/app/libs/vizu_data_connectors/src"
 
 # Copy .venv from builder (preserves shebangs)
 COPY --from=builder /app/services/data_ingestion_api/.venv ./.venv
@@ -41,6 +43,7 @@ COPY --from=builder /app/libs/vizu_models/src /app/libs/vizu_models/src
 COPY --from=builder /app/libs/vizu_supabase_client/src /app/libs/vizu_supabase_client/src
 COPY --from=builder /app/libs/vizu_auth/src /app/libs/vizu_auth/src
 COPY --from=builder /app/libs/vizu_data_connectors/src /app/libs/vizu_data_connectors/src
+COPY --from=builder /app/libs/vizu_observability_bootstrap/src /app/libs/vizu_observability_bootstrap/src
 
 # Copy service source code
 COPY --from=builder /app/services/data_ingestion_api/src ./src

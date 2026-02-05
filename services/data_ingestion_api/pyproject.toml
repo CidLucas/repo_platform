@@ -20,7 +20,9 @@ requests = "^2.32.3"      # HTTP client for BigQuery REST
 # --- DEPENDÊNCIAS INTERNAS DO MONOREPO (LINKS PARA LIBS/) ---
 vizu_auth = {path = "../../libs/vizu_auth", develop = true}
 vizu_supabase_client = {path = "../../libs/vizu_supabase_client", develop = true}
-# REMOVED: vizu_data_connectors - using Supabase FDW instead of BigQuery SDK
+vizu-db-connector = {path = "../../libs/vizu_db_connector", develop = true}
+vizu-observability-bootstrap = {path = "../../libs/vizu_observability_bootstrap", develop = true}
+# Note: vizu-db-connector needed for Supabase pooler connection management
 # Note: google-auth + requests used only for lightweight schema discovery
 
 [tool.poetry.group.dev.dependencies]

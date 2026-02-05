@@ -1,24 +1,29 @@
 # ===============================================
-# VIZU Cloud Run Docker Compose (Local Testing)
+# VIZU Cloud Run Docker Compose
+# For Google Cloud Run deployment testing
 # ===============================================
-# This compose file mirrors the 3-service architecture
-# deployed to Google Cloud Run:
-#   1. agents-pool (atendente_core, tool_pool_api, vendas_agent, support_agent)
-#   2. workers-pool (data_ingestion_worker, file_processing_worker, file_upload_api)
-#   3. embedding-service
-#
 # Usage:
 #   docker compose -f docker-compose.cloud-run.yml up --build
 #
-# Note: Uses local build, not GHCR images.
-#       For production, images are pushed to GCP Artifact Registry.
+# Purpose:
+#   - Test Cloud Run behavior locally (PORT env var, single container)
+#   - Build images ready for Artifact Registry push
+#   - No local infrastructure (uses cloud Supabase, Qdrant)
+#
+# Deploy to Cloud Run:
+#   gcloud run deploy <service> \
+#     --image=<region>-docker.pkg.dev/<project>/vizu-mono/<service>:latest \
+#     --platform=managed \
+#     --region=<region> \
+#     --allow-unauthenticated
 # ===============================================
 
 x-common-env: &common-env
-  # Database (Supabase)
+  # Database (Supabase Cloud)
   DATABASE_URL: ${DATABASE_URL}
   SUPABASE_URL: ${SUPABASE_URL}
   SUPABASE_KEY: ${SUPABASE_KEY}
+  SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-${SUPABASE_KEY}}
   SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
   DB_MODE: supabase
 
@@ -26,25 +31,19 @@ x-common-env: &common-env
   QDRANT_URL: ${QDRANT_URL}
   QDRANT_API_KEY: ${QDRANT_API_KEY}
 
-  # Embedding service (internal)
-  EMBEDDING_SERVICE_URL: http://embedding-service:11435
+  # Embedding service (Cloud Run URL or local)
+  EMBEDDING_SERVICE_URL: ${EMBEDDING_SERVICE_URL:-http://embedding_service:11435}
 
-  # Grafana Cloud OTLP (direct export)
-  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
-  OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS}
-  OTEL_SERVICE_NAME: vizu-cloud-run
+  # OpenTelemetry (Grafana Cloud or Langfuse)
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+  OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+  OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-vizu-cloudrun}
 
-x-atendente-env: &atendente-env
+x-llm-env: &llm-env
   # LLM Provider config
   LLM_PROVIDER: ${LLM_PROVIDER:-google}
-
-  # Google AI
   GOOGLE_API_KEY: ${GOOGLE_API_KEY}
-
-  # OpenAI (backup)
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-
-  # Anthropic (backup)
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
   # Langfuse Observability
@@ -52,229 +51,149 @@ x-atendente-env: &atendente-env
   LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
   LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
 
-x-restart-policy: &restart-policy
-  restart: unless-stopped
-
-x-healthcheck-defaults: &healthcheck-defaults
-  interval: 30s
-  timeout: 10s
-  retries: 3
-  start_period: 40s
-
-x-logging: &logging
-  logging:
-    driver: "json-file"
-    options:
-      max-size: "10m"
-      max-file: "3"
+x-build-args: &build-args
+  platform: linux/amd64
 
 services:
   # =========================================
-  # GROUP 1: agents-pool
-  # Purpose: LLM agents + tool orchestration (main entry point)
-  # Components:
-  #   - atendente_core: Main LLM agent (public)
-  #   - tool_pool_api: Tool orchestration (internal)
-  #   - vendas_agent: Sales agent (internal)
-  #   - support_agent: Support agent (internal)
-  # Resources: 2GB, 10 concurrent requests, 3600s timeout
+  # CORE SERVICES
   # =========================================
-  atendente-core:
-    container_name: vizu_atendente_core
-    platform: linux/amd64
+
+  atendente_core:
+    container_name: cloudrun_atendente_core
+    <<: *build-args
     build:
       context: .
       dockerfile: ./services/atendente_core/Dockerfile
+    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/atendente-core:${IMAGE_TAG:-latest}
     env_file:
-      - .env.production
+      - .env.cloudrun
     environment:
-      <<: [*common-env, *atendente-env]
-      PYTHONPATH: /app/services/atendente_core/src
+      <<: [*common-env, *llm-env]
+      PORT: "8000"
+      PYTHONPATH: /app/src
       USE_LOCAL_DB: "false"
+      # Inter-service URLs (Cloud Run URLs in production)
+      MCP_SERVER_URL: ${MCP_SERVER_URL:-http://tool_pool_api:8000/mcp/}
+      BASE_URL: ${BASE_URL:-http://atendente_core:8000}
     ports:
       - "8003:8000"
-    <<: [*restart-policy, *logging]
-    healthcheck:
-      <<: *healthcheck-defaults
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-    depends_on:
-      tool-pool-api:
-        condition: service_healthy
-      embedding-service:
-        condition: service_healthy
 
-  tool-pool-api:
-    container_name: vizu_tool_pool_api
-    platform: linux/amd64
+  tool_pool_api:
+    container_name: cloudrun_tool_pool_api
+    <<: *build-args
     build:
       context: .
       dockerfile: ./services/tool_pool_api/Dockerfile
-      args:
-        PYTHONPATH: "/app/services/tool_pool_api/src"
+    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/tool-pool-api:${IMAGE_TAG:-latest}
     env_file:
-      - .env.production
+      - .env.cloudrun
     environment:
-      <<: [*common-env, *atendente-env]
-      PYTHONPATH: /app/services/tool_pool_api/src
-      USE_LOCAL_DB: "false"
+      <<: [*common-env, *llm-env]
+      PORT: "8000"
+      PYTHONPATH: /app/src
+      MCP_AUTH_GOOGLE_CLIENT_ID: ${MCP_AUTH_GOOGLE_CLIENT_ID:-}
+      MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV: ${MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV:-}
+      MCP_AUTH_BASE_URL: ${MCP_AUTH_BASE_URL:-}
+      CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY:-}
+      DOCKER_MCP_ENABLED: "false"
     ports:
-      - "8004:9000"
-    <<: [*restart-policy, *logging]
-    healthcheck:
-      <<: *healthcheck-defaults
-      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      - "8006:8000"
 
-  vendas-agent:
-    container_name: vizu_vendas_agent
-    platform: linux/amd64
+  analytics_api:
+    container_name: cloudrun_analytics_api
+    <<: *build-args
+    build:
+      context: .
+      dockerfile: ./services/analytics_api/Dockerfile
+    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/analytics-api:${IMAGE_TAG:-latest}
+    env_file:
+      - .env.cloudrun
+    environment:
+      <<: *common-env
+      PORT: "8000"
+      PYTHONPATH: /app/src
+    ports:
+      - "8004:8000"
+
+  data_ingestion_api:
+    container_name: cloudrun_data_ingestion_api
+    <<: *build-args
+    build:
+      context: .
+      dockerfile: ./services/data_ingestion_api/Dockerfile
+    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/data-ingestion-api:${IMAGE_TAG:-latest}
+    env_file:
+      - .env.cloudrun
+    environment:
+      <<: *common-env
+      PORT: "8000"
+      PYTHONPATH: /app/src:/app/libs
+    ports:
+      - "8008:8000"
+
+  # =========================================
+  # AGENT SERVICES
+  # =========================================
+
+  vendas_agent:
+    container_name: cloudrun_vendas_agent
+    <<: *build-args
     build:
       context: .
       dockerfile: ./services/vendas_agent/Dockerfile
-      args:
-        PYTHONPATH: "/app/src"
+    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/vendas-agent:${IMAGE_TAG:-latest}
     env_file:
-      - .env.production
+      - .env.cloudrun
     environment:
-      <<: [*common-env, *atendente-env]
+      <<: [*common-env, *llm-env]
+      PORT: "8000"
       PYTHONPATH: /app/src
-      USE_LOCAL_DB: "false"
-    ports:
-      - "8005:8000"
-    <<: [*restart-policy, *logging]
-    healthcheck:
-      <<: *healthcheck-defaults
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-
-  support-agent:
-    container_name: vizu_support_agent
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/support_agent/Dockerfile
-      args:
-        PYTHONPATH: "/app/src"
-    env_file:
-      - .env.production
-    environment:
-      <<: [*common-env, *atendente-env]
-      PYTHONPATH: /app/src
-      USE_LOCAL_DB: "false"
-    ports:
-      - "8006:8000"
-    <<: [*restart-policy, *logging]
-    healthcheck:
-      <<: *healthcheck-defaults
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-
-  # =========================================
-  # GROUP 2: workers-pool
-  # Purpose: Async data processing & file handling
-  # Components:
-  #   - data_ingestion_worker: Data ingestion from external sources (internal)
-  #   - file_processing_worker: File processing & RAG pipeline (internal)
-  #   - file_upload_api: File upload endpoint (public)
-  # Resources: 1-2GB, scales 0-100
-  # =========================================
-  data-ingestion-worker:
-    container_name: vizu_data_ingestion_worker
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/data_ingestion_worker/Dockerfile
-      args:
-        PYTHONPATH: "/app/src:/app/libs"
-    env_file:
-      - .env.production
-    environment:
-      <<: [*common-env]
-      PYTHONPATH: /app/src:/app/libs
-      USE_LOCAL_DB: "false"
-    ports:
-      - "8007:8000"
-    <<: [*restart-policy, *logging]
-    healthcheck:
-      <<: *healthcheck-defaults
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-    depends_on:
-      embedding-service:
-        condition: service_healthy
-
-  file-processing-worker:
-    container_name: vizu_file_processing_worker
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/file_processing_worker/Dockerfile
-      args:
-        PYTHONPATH: "/app/src"
-    env_file:
-      - .env.production
-    environment:
-      <<: [*common-env]
-      PYTHONPATH: /app/src
-      USE_LOCAL_DB: "false"
-    ports:
-      - "8008:8000"
-    <<: [*restart-policy, *logging]
-    healthcheck:
-      <<: *healthcheck-defaults
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-    depends_on:
-      embedding-service:
-        condition: service_healthy
-
-  file-upload-api:
-    container_name: vizu_file_upload_api
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/file_upload_api/Dockerfile
-      args:
-        PYTHONPATH: "/app/src"
-    env_file:
-      - .env.production
-    environment:
-      <<: [*common-env]
-      PYTHONPATH: /app/src
+      MCP_SERVER_URL: ${MCP_SERVER_URL:-http://tool_pool_api:8000/mcp/}
       USE_LOCAL_DB: "false"
     ports:
       - "8009:8000"
-    <<: [*restart-policy, *logging]
-    healthcheck:
-      <<: *healthcheck-defaults
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-    depends_on:
-      embedding-service:
-        condition: service_healthy
 
-  # =========================================
-  # GROUP 3: embedding-service
-  # Purpose: Shared embedding inference service
-  # Resources: 2GB, 50 concurrent requests
-  # Port: 11435 (internal)
-  # =========================================
-  embedding-service:
-    container_name: vizu_embedding_service
-    platform: linux/amd64
+  support_agent:
+    container_name: cloudrun_support_agent
+    <<: *build-args
     build:
       context: .
-      dockerfile: ./services/embedding_service/Dockerfile
-      args:
-        PYTHONPATH: "/app/src"
+      dockerfile: ./services/support_agent/Dockerfile
+    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/support-agent:${IMAGE_TAG:-latest}
     env_file:
-      - .env.production
+      - .env.cloudrun
     environment:
-      <<: [*common-env]
+      <<: [*common-env, *llm-env]
+      PORT: "8000"
       PYTHONPATH: /app/src
+      MCP_SERVER_URL: ${MCP_SERVER_URL:-http://tool_pool_api:8000/mcp/}
       USE_LOCAL_DB: "false"
     ports:
-      - "11435:11435"
-    <<: [*restart-policy, *logging]
-    healthcheck:
-      <<: *healthcheck-defaults
-      test: ["CMD", "curl", "-f", "http://localhost:11435/health"]
+      - "8010:8000"
+
+  # =========================================
+  # FRONTEND (Dashboard)
+  # =========================================
+
+  vizu_dashboard:
+    container_name: cloudrun_vizu_dashboard
+    <<: *build-args
+    build:
+      context: .
+      dockerfile: ./apps/vizu_dashboard/Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8003}
+        VITE_ATENDENTE_CORE: ${VITE_ATENDENTE_CORE:-http://localhost:8003}
+        VITE_ANALYTICS_API: ${VITE_ANALYTICS_API:-http://localhost:8004}
+    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/vizu-dashboard:${IMAGE_TAG:-latest}
+    environment:
+      PORT: "80"
+    ports:
+      - "8080:80"
 
 networks:
   default:
-    name: vizu-cloud-run
-    driver: bridge
+    name: vizu_cloudrun_network

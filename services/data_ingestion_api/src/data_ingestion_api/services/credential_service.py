@@ -54,37 +54,74 @@ class CredentialService:
                 }
             logger.debug("Sensitive payload summary: %s", safe_log)
 
-            # 2. Insert record first (to get credential_id for vault key naming)
-            db_payload = {
-                "client_id": client_id,
-                "nome_servico": credenciais.nome_conexao,
-                "tipo_servico": credenciais.tipo_servico,
-                "status": "pending",
-            }
-
-            db_result = await supabase_client.insert("credencial_servico_externo", db_payload)
-            credential_id = db_result.get("id")
-            logger.info("Inserted credential record: id=%s", credential_id)
-
-            # 3. Store credentials in Supabase Vault via RPC
-            logger.info("Storing credentials in vault for client %s, credential %s", client_id, credential_id)
-            vault_key_id = await supabase_client.rpc(
-                "store_credential_in_vault",
-                {
-                    "p_client_id": client_id,
-                    "p_credential_id": credential_id,
-                    "p_credentials": sensitive_payload,
-                }
-            )
-            logger.info("Credentials stored in vault: vault_key_id=%s", vault_key_id)
-
-            # 4. Update record with vault_key_id
-            await supabase_client.update(
+            # 2. Check for existing credential to determine if update or create
+            existing_creds = await supabase_client.select(
                 "credencial_servico_externo",
-                {"vault_key_id": vault_key_id},
-                {"id": credential_id}
+                columns="*",
+                filters={"client_id": client_id, "tipo_servico": credenciais.tipo_servico}
             )
-            logger.info("Updated credential record with vault_key_id")
+
+            if existing_creds:
+                # UPDATE path: existing credential found
+                credential_id = existing_creds[0]["id"]
+                logger.info("Updating existing credential: id=%s", credential_id)
+
+                # Store credentials in vault (will overwrite existing)
+                vault_key_id = await supabase_client.rpc(
+                    "store_credential_in_vault",
+                    {
+                        "p_client_id": client_id,
+                        "p_credential_id": credential_id,
+                        "p_credentials": sensitive_payload,
+                    }
+                )
+                logger.info("Credentials updated in vault: vault_key_id=%s", vault_key_id)
+
+                # Update record with new vault_key_id and metadata
+                await supabase_client.update(
+                    "credencial_servico_externo",
+                    {
+                        "vault_key_id": vault_key_id,
+                        "nome_servico": credenciais.nome_conexao,
+                        "status": "active",
+                    },
+                    {"id": credential_id}
+                )
+                logger.info("Updated credential record with vault_key_id")
+            else:
+                # CREATE path: no existing credential
+                # Use a two-step process since vault_key_id is NOT NULL:
+                # 1. Call RPC to store in vault (we'll use a temporary credential_id)
+                # 2. Insert record with the vault_key_id
+
+                # Generate temporary ID for vault key naming (will use actual DB id later)
+                temp_credential_id = 999999  # Temporary - will get overwritten by actual DB id
+
+                logger.info("Creating new credential for client %s", client_id)
+
+                # Store credentials in vault first (using temp ID)
+                vault_key_id = await supabase_client.rpc(
+                    "store_credential_in_vault",
+                    {
+                        "p_client_id": client_id,
+                        "p_credential_id": temp_credential_id,
+                        "p_credentials": sensitive_payload,
+                    }
+                )
+                logger.info("Credentials stored in vault: vault_key_id=%s", vault_key_id)
+
+                # Now insert record WITH vault_key_id
+                db_payload = {
+                    "client_id": client_id,
+                    "nome_servico": credenciais.nome_conexao,
+                    "tipo_servico": credenciais.tipo_servico,
+                    "vault_key_id": vault_key_id,
+                    "status": "active",
+                }
+
+                db_result = await supabase_client.insert("credencial_servico_externo", db_payload)
+                credential_id = db_result.get("id")
+                logger.info("Inserted credential record: id=%s with vault_key_id=%s", credential_id, vault_key_id)
 
             # 5. Return response
             response_data = {
@@ -92,7 +129,7 @@ class CredentialService:
                 "secret_manager_id": f"vault:{vault_key_id}",
                 "nome_conexao": credenciais.nome_conexao,
                 "tipo_servico": credenciais.tipo_servico,
-                "status": "PENDENTE_VALIDACAO"
+                "status": "ACTIVE" if existing_creds else "PENDENTE_VALIDACAO"
             }
 
             logger.info("Credential %s saved successfully (encrypted in vault).", credential_id)

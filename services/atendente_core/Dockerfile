@@ -29,7 +29,7 @@ COPY libs/vizu_twilio_client ./libs/vizu_twilio_client
 COPY services/atendente_core/pyproject.toml services/atendente_core/poetry.lock* ./services/atendente_core/
 
 WORKDIR /app/services/atendente_core
-RUN poetry lock && poetry install --no-root
+RUN poetry install --no-root
 
 # ----------------------------------------------------------------
 # Estágio 2: Final - Imagem mínima de produção
@@ -55,9 +55,6 @@ COPY libs/vizu_llm_service/src ./libs/vizu_llm_service/src
 COPY libs/vizu_hitl_service/src ./libs/vizu_hitl_service/src
 COPY libs/vizu_sql_factory/src ./libs/vizu_sql_factory/src
 COPY libs/vizu_twilio_client/src ./libs/vizu_twilio_client/src
-# Copia ferramentas de desenvolvimento (seeds, etc) - needed for batch runs
-COPY ferramentas ./ferramentas
-COPY scripts ./scripts
 
 # Copia código fonte do serviço
 COPY services/atendente_core/src ./src

@@ -503,7 +503,7 @@ services:
       - ./libs:/app/libs
     environment:
       <<: *common-env
-      PYTHONPATH: /app/src:/app/libs
+      PYTHONPATH: /app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src:/app/libs/vizu_supabase_client/src:/app/libs/vizu_auth/src:/app/libs/vizu_observability_bootstrap/src:/app/libs/vizu_data_connectors/src
     env_file:
       - ./services/data_ingestion_api/.env
     # Configure DNS servers for external connectivity (Supabase)

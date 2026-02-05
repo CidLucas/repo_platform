@@ -3,6 +3,8 @@ FROM python:3.11-slim as builder
 
 ENV POETRY_NO_INTERACTION=1
 ENV POETRY_VIRTUALENVS_IN_PROJECT=true
+ENV POETRY_HTTP_TIMEOUT=300
+ENV POETRY_REQUESTS_TIMEOUT=300
 
 WORKDIR /app
 RUN pip install poetry==1.8.0
@@ -24,7 +26,7 @@ COPY services/support_agent ./services/support_agent
 
 # Instala dependências
 WORKDIR /app/services/support_agent
-RUN poetry lock && poetry install --no-root
+RUN poetry install --no-root
 
 # Stage 2: Final - Imagem mínima de produção
 FROM python:3.11-slim

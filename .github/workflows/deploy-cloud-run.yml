@@ -110,6 +110,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           # LLM Providers
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -177,7 +178,7 @@ jobs:
                 --memory 1Gi --cpu 1 \
                 --concurrency 50 --timeout 300 \
                 --max-instances 20 --min-instances 0 \
-                --set-env-vars "ENVIRONMENT=production,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}" \
+                --set-env-vars "ENVIRONMENT=production,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},DATABASE_URL=${DATABASE_URL}" \
                 --quiet
               ;;
 
@@ -190,7 +191,7 @@ jobs:
                 --memory 1Gi --cpu 1 \
                 --concurrency 50 --timeout 300 \
                 --max-instances 20 --min-instances 0 \
-                --set-env-vars "ENVIRONMENT=production,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}" \
+                --set-env-vars "ENVIRONMENT=production,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},DATABASE_URL=${DATABASE_URL},CREDENTIALS_ENCRYPTION_KEY=${CREDENTIALS_ENCRYPTION_KEY}" \
                 --quiet
               ;;
 

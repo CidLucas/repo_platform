@@ -308,7 +308,7 @@ class PromptLoader:
                 loaded_at=datetime.utcnow(),
                 langfuse_label=label,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(f"Langfuse timeout fetching '{name}', disabling for {self._LANGFUSE_COOLDOWN_SECONDS}s")
             self._langfuse_cooldown_until = _time.time() + self._LANGFUSE_COOLDOWN_SECONDS
             return None

@@ -39,8 +39,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [clientId, setClientId] = useState<string | null>(null);
 
   useEffect(() => {
+    // Check if we're on an OAuth callback
+    // PKCE flow: code in query params (?code=...)
+    // Implicit flow: access_token in hash (#access_token=...)
+    const isOAuthCallback =
+      window.location.hash.includes('access_token') ||
+      window.location.search.includes('code=');
+
     // Verifica sessão atual
-    const getSession = async () => {
+    const initSession = async () => {
+      // If this is an OAuth callback on the login page, let LoginPage handle it
+      // The LoginPage will call exchangeCodeForSession explicitly
+      if (isOAuthCallback && window.location.pathname === '/login') {
+        console.log('🔐 OAuth callback detected on login page, letting LoginPage handle it...');
+        // Don't set isLoading to false here - wait for onAuthStateChange
+        return;
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -69,12 +84,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setIsLoading(false);
     };
 
-    getSession();
+    initSession();
 
     // Escuta mudanças de autenticação
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      console.log('🔐 Auth state changed:', _event, session ? 'has session' : 'no session');
+
+      // Clear OAuth params from URL after callback is processed
+      if (_event === 'SIGNED_IN') {
+        const hasOAuthParams = window.location.hash.includes('access_token') ||
+          window.location.search.includes('code=');
+        if (hasOAuthParams) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }
+
       setSession(session);
       setUser(session?.user ?? null);
 
@@ -125,7 +151,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/dashboard`,
+        redirectTo: `${window.location.origin}/login`,
       },
     });
     return { error };
@@ -135,7 +161,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
-        redirectTo: `${window.location.origin}/dashboard`,
+        redirectTo: `${window.location.origin}/login`,
         scopes: "email",
       },
     });
@@ -146,7 +172,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "apple",
       options: {
-        redirectTo: `${window.location.origin}/dashboard`,
+        redirectTo: `${window.location.origin}/login`,
       },
     });
     return { error };

@@ -30,12 +30,16 @@ COPY apps/vizu_dashboard/package.json apps/vizu_dashboard/package-lock.json ./
 # 2. INSTALA as dependências do projeto
 RUN npm install
 
-# 3. COPIA todo o código-fonte da aplicação (including .env for defaults)
+# 3. COPIA todo o código-fonte da aplicação
 COPY apps/vizu_dashboard/ ./
 
-# 4. EXECUTA o build de produção
+# 4. Remove .env file so build args take precedence
+# Vite prioritizes .env files over environment variables
+RUN rm -f .env .env.local .env.development .env.production
+
+# 5. EXECUTA o build de produção
 # Isso irá gerar a pasta /dist com os arquivos otimizados
-# Vite will embed the VITE_* environment variables in the bundle
+# Vite will embed the VITE_* environment variables from ENV
 RUN npm run build
 
 # -----------------------------------------------------

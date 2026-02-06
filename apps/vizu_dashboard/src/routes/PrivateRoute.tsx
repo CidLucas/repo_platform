@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from "react-router-dom";
-import { Box, Spinner, Center } from "@chakra-ui/react";
+import { Box, Spinner, Center, VStack, Text } from "@chakra-ui/react";
 import { useAuth } from "../hooks/useAuth";
 
 interface PrivateRouteProps {
@@ -12,7 +12,8 @@ const DEV_BYPASS_AUTH = import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
 /**
  * Componente para proteger rotas que requerem autenticação.
  * Usa Supabase Auth para verificar se o usuário está logado.
- * 
+ *
+ * OAuth callback handling is done by AuthContext via onAuthStateChange.
  * Em modo desenvolvimento (VITE_DEV_BYPASS_AUTH=true), permite acesso sem login.
  */
 export const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
@@ -24,13 +25,19 @@ export const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
     return <>{children}</>;
   }
 
-  // Exibe loading enquanto verifica autenticação
+  // Show loading while checking auth or processing OAuth callback
+  // AuthContext keeps isLoading=true until session is established
   if (isLoading) {
+    const isOAuthCallback = window.location.hash.includes('access_token') ||
+      window.location.search.includes('code=');
     return (
       <Center h="100vh" bg="white">
-        <Box textAlign="center">
+        <VStack spacing={4}>
           <Spinner size="xl" color="black" thickness="3px" />
-        </Box>
+          {isOAuthCallback && (
+            <Text fontSize="lg" color="gray.600">Completing sign in...</Text>
+          )}
+        </VStack>
       </Center>
     );
   }

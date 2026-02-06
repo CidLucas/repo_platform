@@ -10,7 +10,9 @@ Architecture:
 This enables prompt editing via Langfuse UI while maintaining backward compatibility.
 """
 
+import asyncio
 import logging
+import time as _time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -90,8 +92,15 @@ class PromptLoader:
         self._cache: dict[str, tuple] = {}  # (prompt, timestamp)
         self._langfuse_client = None
 
+    # Circuit breaker: skip Langfuse for this many seconds after a failure
+    _langfuse_cooldown_until: float = 0.0
+    _LANGFUSE_COOLDOWN_SECONDS: float = 300.0  # 5 minutes
+    _LANGFUSE_TIMEOUT_SECONDS: float = 2.0  # max wait per fetch
+
     def _get_langfuse_client(self):
-        """Lazily initialize Langfuse client."""
+        """Lazily initialize Langfuse client. Returns None if in cooldown."""
+        if _time.time() < self._langfuse_cooldown_until:
+            return None
         if self._langfuse_client is None:
             try:
                 from vizu_observability_bootstrap.langfuse import (
@@ -105,6 +114,7 @@ class PromptLoader:
                 logger.debug("vizu_observability_bootstrap not available")
             except Exception as e:
                 logger.warning(f"Failed to initialize Langfuse: {e}")
+                self._langfuse_cooldown_until = _time.time() + self._LANGFUSE_COOLDOWN_SECONDS
         return self._langfuse_client
 
     async def load(
@@ -276,14 +286,17 @@ class PromptLoader:
         name: str,
         label: str = "production",
     ) -> LoadedPrompt | None:
-        """Load prompt from Langfuse Prompt Management."""
+        """Load prompt from Langfuse Prompt Management with timeout and circuit breaker."""
         client = self._get_langfuse_client()
         if not client:
             return None
 
         try:
-            # Langfuse uses text prompts - fetch raw text
-            prompt_text = client.get_prompt_text(name, label=label)
+            # Run sync Langfuse call in a thread with a short timeout
+            prompt_text = await asyncio.wait_for(
+                asyncio.to_thread(client.get_prompt_text, name, None, label),
+                timeout=self._LANGFUSE_TIMEOUT_SECONDS,
+            )
             meta = client.get_last_prompt_meta()
 
             return LoadedPrompt(
@@ -295,8 +308,15 @@ class PromptLoader:
                 loaded_at=datetime.utcnow(),
                 langfuse_label=label,
             )
+        except asyncio.TimeoutError:
+            logger.warning(f"Langfuse timeout fetching '{name}', disabling for {self._LANGFUSE_COOLDOWN_SECONDS}s")
+            self._langfuse_cooldown_until = _time.time() + self._LANGFUSE_COOLDOWN_SECONDS
+            return None
         except Exception as e:
             logger.debug(f"Langfuse prompt '{name}' not found or error: {e}")
+            if "Connection refused" in str(e) or "connection" in str(e).lower():
+                self._langfuse_cooldown_until = _time.time() + self._LANGFUSE_COOLDOWN_SECONDS
+                logger.info(f"Langfuse unreachable, disabling for {self._LANGFUSE_COOLDOWN_SECONDS}s")
             return None
 
     def _db_to_loaded(self, db_prompt) -> LoadedPrompt:

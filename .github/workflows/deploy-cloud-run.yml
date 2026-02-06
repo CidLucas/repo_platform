@@ -65,6 +65,13 @@ jobs:
             echo "✅ SUPABASE_URL is configured" >> $GITHUB_STEP_SUMMARY
           fi
 
+          if [ -z "${{ secrets.VITE_SUPABASE_URL }}" ]; then
+            echo "❌ VITE_SUPABASE_URL secret is not set (required for dashboard build)" >> $GITHUB_STEP_SUMMARY
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "✅ VITE_SUPABASE_URL is configured" >> $GITHUB_STEP_SUMMARY
+          fi
+
           if [ $ERRORS -gt 0 ]; then
             echo "### ❌ Preflight failed" >> $GITHUB_STEP_SUMMARY
             exit 1

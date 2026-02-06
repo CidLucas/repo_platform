@@ -165,6 +165,10 @@ jobs:
           # Build arguments for dashboard (Vite environment variables)
           BUILD_ARGS=""
           if [[ "${{ matrix.service }}" == "vizu_dashboard" ]]; then
+            if [ -z "${{ secrets.VITE_SUPABASE_URL }}" ] || [ -z "${{ secrets.VITE_SUPABASE_ANON_KEY }}" ]; then
+              echo "❌ VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY secrets are required for dashboard build" >> $GITHUB_STEP_SUMMARY
+              exit 1
+            fi
             BUILD_ARGS="--build-arg VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }} \
               --build-arg VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }} \
               --build-arg VITE_GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \

@@ -1,5 +1,5 @@
 import { Box, Text, useDisclosure, Modal, ModalOverlay, ModalContent, ModalBody, Flex, IconButton, ModalCloseButton } from '@chakra-ui/react';
-import { InfoOutlineIcon, ExternalLinkIcon } from '@chakra-ui/icons';
+import { InfoOutlineIcon } from '@chakra-ui/icons';
 import React from 'react';
 import { GraphComponent } from './GraphComponent';
 import { BarChartComponent } from './BarChartComponent';
@@ -112,47 +112,43 @@ export const DashboardCard = ({
           color={textColor} // Apply text color
           bg="transparent" // Explicitly set background to transparent
         >
-          <Flex justify="space-between" align="center"> {/* Changed align to center again */}
-            <Text textStyle="cardHeaderTitle">{title}</Text> {/* Removed mb={2} */}
-            <Flex> {/* Group icons together */}
-              <IconButton
-                aria-label="Show info"
-                icon={<InfoOutlineIcon />} // Tooltip icon
-                size="sm"
-                variant="ghost"
-                color={textColor}
-                _hover={{ color: "gray.200" }}
-                pointerEvents="auto"
-                mr={2} // Margin right for spacing
-              />
-              <IconButton
-                aria-label="Expand card"
-                icon={<ExternalLinkIcon />} // Modal expand icon
-                size="sm"
-                onClick={onExpandClick || onOpen} // Use custom handler if provided, otherwise open internal modal
-                variant="ghost"
-                color={textColor}
-                _hover={{ color: "gray.200" }}
-                pointerEvents="auto"
-              />
-            </Flex>
+          <Flex justify="space-between" align="center" flexShrink={0}>
+            <Text textStyle="cardHeaderTitle">{title}</Text>
+            <IconButton
+              aria-label="Expand card"
+              icon={<InfoOutlineIcon />}
+              size="sm"
+              onClick={onExpandClick || onOpen}
+              variant="ghost"
+              color={textColor}
+              _hover={{ color: "gray.200" }}
+              pointerEvents="auto"
+            />
           </Flex>
 
-          {/* Conditional rendering of content */}
+          {/* Graph content - centralized vertically */}
           {graphData && !barChartData && (
-            <Box flex="1" minH="200px">
-              <GraphComponent data={graphData.values} dataKey="value" lineColor="#FFA500" axisColor={textColor === "white" ? "#ffffff" : "#333333"} />
-            </Box>
+            <Flex flex="1" align="center" justify="center" minH="200px" py={4}>
+              <Box width="100%" height="280px">
+                <GraphComponent data={graphData.values} dataKey="value" lineColor="#FFA500" axisColor={textColor === "white" ? "#ffffff" : "#333333"} height="100%" />
+              </Box>
+            </Flex>
           )}
+          
+          {/* Bar chart content - centralized vertically */}
           {barChartData && (
-            <Box flex="1" minH="200px">
-              <BarChartComponent data={barChartData} axisColor={textColor === "white" ? "#ffffff" : "#333333"} />
-            </Box>
+            <Flex flex="1" align="center" justify="center" minH="200px" py={4}>
+              <Box width="100%" height="240px">
+                <BarChartComponent data={barChartData} axisColor={textColor === "white" ? "#ffffff" : "#333333"} height="100%" />
+              </Box>
+            </Flex>
           )}
+          
           {mainText && <Text fontSize="md" mb={2}>{mainText}</Text>}
 
+          {/* Scorecard - footer */}
           {(scorecardValue || scorecardLabel) && (
-            <Box mt="auto" textAlign="right"> {/* Added textAlign="right" */}
+            <Box mt="auto" textAlign="right" flexShrink={0}>
               {scorecardLabel && <Text textStyle="homeCardStatLabel">{scorecardLabel}</Text>}
               {scorecardValue && <Text textStyle="homeCardStatNumber">{scorecardValue}</Text>}
             </Box>
@@ -165,31 +161,34 @@ export const DashboardCard = ({
         <ModalContent bg="transparent" boxShadow="none" overflow="hidden" height="100vh"> {/* Transparent background for custom layout */}
           <ModalBody p={0}> {/* No padding on ModalBody */}
             <ModalContentLayout
-              leftBgColor={!!mapData ? "transparent" : modalLeftBgColor} // Conditionally set leftBgColor
-              rightBgColor={modalRightBgColor} // Use prop
-              isMapModal={!!mapData} // Pass if it's a map modal
-              mapData={mapData} // Pass mapData
+              leftBgColor={mapData ? "transparent" : modalLeftBgColor}
+              rightBgColor={modalRightBgColor}
+              isMapModal={Boolean(mapData)}
+              mapData={mapData}
               leftContent={
                 <Flex direction="column" height="100%" color={textColor}>
-                  <Flex justify="space-between" align="center" mb={4}>
+                  <Flex justify="space-between" align="center" mb={4} flexShrink={0}>
                     <Text textStyle="modalTitle" color={textColor}>{title}</Text>
                     <ModalCloseButton position="static" color={textColor} /> {/* Close button here */}
                   </Flex>
-                  <Text textStyle="modalTextInfo" mb={8} color={textColor}>
+                  <Text textStyle="modalTextInfo" mb={4} color={textColor} flexShrink={0}>
                     {mainText || "Informações descritivas sobre o card."}
                   </Text>
-                  <AccordionComponent
-                    items={kpiItems || [
-                      { label: "KPI 1", content: <Text>Detalhes do KPI 1</Text> },
-                      { label: "KPI 2", content: <Text>Detalhes do KPI 2</Text> },
-                      { label: "KPI 3", content: <Text>Detalhes do KPI 3</Text> },
-                      { label: "KPI 4", content: <Text>Detalhes do KPI 4</Text> },
-                      { label: "KPI 5", content: <Text>Detalhes do KPI 5</Text> },
-                    ]}
-                    width="100%" // Accordion fills available width
-                    height="auto" // Accordion height adjusts to content
-                    textColor={textColor}
-                  />
+                  <Box flex="1" />
+                  <Box flexShrink={0} mt="auto">
+                    <AccordionComponent
+                      items={kpiItems || [
+                        { label: "KPI 1", content: <Text>Detalhes do KPI 1</Text> },
+                        { label: "KPI 2", content: <Text>Detalhes do KPI 2</Text> },
+                        { label: "KPI 3", content: <Text>Detalhes do KPI 3</Text> },
+                        { label: "KPI 4", content: <Text>Detalhes do KPI 4</Text> },
+                        { label: "KPI 5", content: <Text>Detalhes do KPI 5</Text> },
+                      ]}
+                      width="100%" // Accordion fills available width
+                      height="auto" // Accordion height adjusts to content
+                      textColor={textColor}
+                    />
+                  </Box>
                 </Flex>
               }
               rightContent={

@@ -341,9 +341,9 @@ async def build_dynamic_system_prompt(
     }
 
     # Use unified build_prompt which handles caching internally
-    # Langfuse prompt name: "atendente/v4" with label="production"
+    # Uses builtin prompt "atendente/system/v3" as fallback when Langfuse is unavailable
     return await build_prompt(
-        name="atendente/v4",
+        name="atendente/system/v3",
         variables=variables,
         cliente_id=cliente_id,
         context_service=context_service,

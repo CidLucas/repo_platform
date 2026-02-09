@@ -170,11 +170,18 @@ export interface ProdutoRankingTicket {
 // Corresponds to the Pydantic 'HomeScorecards'
 export interface HomeScorecards {
   receita_total: number;
+  receita_mes_atual: number;  // Receita apenas do mês corrente
   total_fornecedores: number;
   total_produtos: number;
   total_regioes: number;
   total_clientes: number;
   total_pedidos: number;
+  ticket_medio?: number;
+  crescimento_receita?: number;  // Variação % receita (último mês vs penúltimo)
+  crescimento_clientes?: number;  // Variação % clientes (último mês vs penúltimo)
+  crescimento_produtos?: number;  // Variação % produtos (último mês vs penúltimo)
+  frequencia_media_fornecedores?: number;  // Média de pedidos por fornecedor por mês
+  ultimo_mes?: string;  // Nome do último mês com dados (ex: "2026-01")
 }
 
 // Corresponds to the Pydantic 'HomeMetricsResponse'

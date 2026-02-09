@@ -53,6 +53,8 @@ async def get_home_dashboard(
 
     Reads directly from analytics_v2 star schema - NO silver data computation.
     """
+    from datetime import datetime
+
     # Get summary counts from star schema
     summary = repo.get_dashboard_summary(client_id)
 
@@ -64,9 +66,37 @@ async def get_home_dashboard(
     # Get time series data
     time_series_receita = repo.get_v2_time_series(client_id, 'receita_no_tempo')
     time_series_pedidos = repo.get_v2_time_series(client_id, 'pedidos_no_tempo')
+    time_series_clientes = repo.get_v2_time_series(client_id, 'clientes_no_tempo')
+    time_series_produtos = repo.get_v2_time_series(client_id, 'produtos_no_tempo')
 
-    # Calculate growth
+    # Calculate growth rates
     crescimento_receita = repo.calculate_growth_from_time_series(client_id, 'receita_no_tempo')
+    crescimento_clientes = repo.calculate_growth_from_time_series(client_id, 'clientes_no_tempo')
+    crescimento_produtos = repo.calculate_growth_from_time_series(client_id, 'produtos_no_tempo')
+
+    # Get receita from the LAST available month (not current calendar month)
+    receita_mes_atual = 0.0
+    ultimo_mes = ""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"📊 time_series_receita has {len(time_series_receita) if time_series_receita else 0} items")
+    if time_series_receita:
+        # Get the last item (most recent month with data)
+        last_point = time_series_receita[-1]
+        logger.info(f"📊 last_point: {last_point}")
+        receita_mes_atual = float(last_point.get('total', 0) or 0)
+        ultimo_mes = last_point.get('name', '')
+        logger.info(f"📊 receita_mes_atual = {receita_mes_atual}, ultimo_mes = {ultimo_mes}")
+
+    # Calculate total quantity sold (for products card - in tons)
+    total_quantidade = summary.get("total_quantity", 0) or 0
+    quantidade_em_toneladas = total_quantidade / 1000  # Convert to tons
+
+    # Calculate frequencia_media_fornecedores (avg orders per supplier per month)
+    total_suppliers = summary.get("total_suppliers", 0)
+    total_orders = summary.get("total_orders", 0)
+    num_months = len(time_series_receita) if time_series_receita else 1
+    frequencia_media_fornecedores = (total_orders / num_months / total_suppliers) if total_suppliers > 0 else 0.0
 
     # Build rankings
     ranking_clientes = [
@@ -105,8 +135,13 @@ async def get_home_dashboard(
             total_fornecedores=summary.get("total_suppliers", 0),
             total_produtos=summary.get("total_products", 0),
             receita_total=total_revenue,
+            receita_mes_atual=receita_mes_atual,
             ticket_medio=avg_ticket,
             crescimento_receita=crescimento_receita,
+            crescimento_clientes=crescimento_clientes,
+            crescimento_produtos=crescimento_produtos,
+            frequencia_media_fornecedores=round(frequencia_media_fornecedores, 2),
+            ultimo_mes=ultimo_mes,
         ),
         chart_receita_no_tempo=chart_receita,
         chart_pedidos_no_tempo=chart_pedidos,

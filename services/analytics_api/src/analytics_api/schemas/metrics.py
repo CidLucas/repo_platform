@@ -98,13 +98,18 @@ class ProdutoRankingTicket(BaseModel):
 class HomeScorecards(BaseModel):
     """Scorecards agregados para a Home."""
     receita_total: float
+    receita_mes_atual: float = 0.0  # Receita apenas do mês corrente
     total_fornecedores: int
     total_produtos: int
     total_clientes: int
     total_pedidos: int
     ticket_medio: float = 0.0
-    crescimento_receita: float = 0.0
+    crescimento_receita: float = 0.0  # Variação % receita (último mês vs penúltimo)
+    crescimento_clientes: float = 0.0  # Variação % clientes (último mês vs penúltimo)
+    crescimento_produtos: float = 0.0  # Variação % produtos (último mês vs penúltimo)
     total_regioes: int = 0  # Optional, computed from customer locations
+    frequencia_media_fornecedores: float = 0.0  # Média de pedidos por fornecedor por mês
+    ultimo_mes: str = ""  # Nome do último mês com dados (ex: "2026-01")
 
 
 class HomeMetricsResponse(BaseModel):

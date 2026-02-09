@@ -24,7 +24,9 @@ import {
   ModalContent,
   ModalBody,
   CloseButton,
+  IconButton,
 } from "@chakra-ui/react";
+import { ChevronLeftIcon, ChevronRightIcon } from "@chakra-ui/icons";
 import SignupModal from "../components/SignupModal";
 
 // Imagens do carrossel Hero
@@ -38,44 +40,103 @@ const heroImages = [
   "/image 501.png",
 ];
 
+// Imagens do carrossel do Software/Dashboard
+const softwareImages = [
+  "/home.png",
+  "/fontesdedados.png",
+  "/lista.png",
+  "/chat.png",
+  "/fornecedores.png",
+];
+
 // Dados dos modais para cada card
 const cardModals = [
   {
     id: "dados",
     bg: "#92daff",
     circleBg: "#77c7f0",
-    title: "Transforme qualquer dado em informação",
-    subtitle: "Com o VIZU Base, estruturamos seus dados, do diagnóstico a oportunidade em segundos",
+    title: "Transforme seus dados em informação",
+    subtitle: "Com o VIZU Analytics, estruturamos seus dados, do diagnóstico à oportunidade em segundos.",
     items: [
-      { number: "1", title: "Ingestão facilitada", description: "" },
-      { number: "2", title: "Limpeza e Normalização", description: "Com vizu data ingestion você consegue subir qualquer dado de qualquer fonte e fazemos merge, joins e normalizamos automaticamente" },
-      { number: "3", title: "Liberdade e armazenamento", description: "" },
-      { number: "4", title: "Vizualização de dados", description: "" },
+      { 
+        number: "1", 
+        title: "Estruturação Facilitada", 
+        description: "Esqueça integrações complexas. Com o Vizu Data Ingestion, você sobe dados de qualquer fonte e nós cuidamos do trabalho pesado: fazemos os merges, joins e a normalização automática para que seus dados falem a mesma língua." 
+      },
+      { 
+        number: "2", 
+        title: "Insights Automáticos", 
+        description: "Não perca tempo criando gráficos do zero. Assim que os dados são estruturados, renderizamos dashboards prontos com foco no que move o ponteiro: Produtos, Clientes, Pedidos e Fornecedores." 
+      },
+      { 
+        number: "3", 
+        title: "Agente de B.I", 
+        description: "Chega de depender de fórmulas de Excel ou SQL. Utilize nosso Agente de B.I para extrair análises profundas e fazer queries complexas usando apenas linguagem natural. É como perguntar para um analista e receber a resposta na hora." 
+      },
+      { 
+        number: "4", 
+        title: "Segurança e Autonomia", 
+        description: "Tenha infraestrutura de multinacional sem precisar de um time de TI. Cuidamos de servidores e bancos de dados com segurança de ponta via RLS (Row Level Security) e JWT, garantindo que a informação certa chegue apenas à pessoa certa." 
+      },
     ],
   },
   {
-    id: "metas",
+    id: "erp",
     bg: "#fff856",
     circleBg: "#f1e93c",
-    title: "Gere metas e insights personalizadas",
-    subtitle: "Com o VIZU Insights, tenha a visão estratégica em suas mãos, sem depender de nenhuma outra plataforma.",
+    title: "Elimine tarefas repetitivas do seu dia a dia",
+    subtitle: "Com o VIZU Platform, você não perde tempo com tarefas manuais. Use esse tempo com o que realmente importa.",
     items: [
-      { number: "1", title: "Insights automáticos", description: "" },
-      { number: "2", title: "Metas e tarefas", description: "Gere e personalize metas e tarefas para o seu negócio a partir dos insights identificados" },
-      { number: "3", title: "IA/Robô insights", description: "" },
+      { 
+        number: "1", 
+        title: "Emita notas fiscais em um clique", 
+        description: "Dê adeus aos portais governamentais lentos e ao preenchimento manual. Nossa emissão de NF-e é integrada ao seu fluxo de vendas, garantindo conformidade fiscal em segundos e reduzindo erros de digitação." 
+      },
+      { 
+        number: "2", 
+        title: "Integre seu estoque com suas vendas e seu fluxo de caixa", 
+        description: "Tenha uma visão 360º da sua operação. Quando uma venda acontece, o estoque baixa e o financeiro sobe automaticamente. Controle sua quebra de estoque e saiba exatamente quanto tem no bolso em tempo real." 
+      },
+      { 
+        number: "3", 
+        title: "Foque nas suas vendas", 
+        description: "Automatize o ciclo comercial. De agendamentos inteligentes a emissão de pedidos e cotações rápidas, removemos os atritos burocráticos para que sua equipe foque em fechar negócios, não em preencher formulários." 
+      },
+      { 
+        number: "4", 
+        title: "Agente Estratégico", 
+        description: "Muito mais que um controle de caixa, um mentor financeiro ao seu lado. Utilize nosso Agente para estabelecer metas de OKR, simular cenários de crescimento e receber alertas preditivos sobre a saúde financeira do seu negócio." 
+      },
     ],
   },
   {
-    id: "automacao",
+    id: "crm",
     bg: "#f9bbcb",
     circleBg: "#efa8ba",
-    title: "Elimine tarefas repetitivas do seu dia a dia",
-    subtitle: "Com o VIZU Automação, você não perde tempo com tarefas manuais, use esse tempo com o que realmente importa.",
+    title: "Máxima Produtividade: Onde a Estratégia encontra a Operação",
+    subtitle: "Elimine o desperdício de tempo e de dinheiro, transformando sua operação em uma estrutura enxuta, inteligente e de alto crescimento.",
     items: [
-      { number: "1", title: "Melhore sua comunicação com clientes", description: "" },
-      { number: "2", title: "Automatize seu dia a dia", description: "Automatize processos repetitivos e ganhe tempo para focar no que realmente importa para o seu negócio." },
-      { number: "3", title: "Soluções personalizadas", description: "" },
-      { number: "4", title: "Integrações sem limites", description: "" },
+      { 
+        number: "1", 
+        title: "Decisões automáticas guiadas por Dados (Data-Driven)", 
+      
+        description: "Pare de queimar neurônios com palpites. Nossa inteligência processa milhões de combinações de dados para te entregar o que realmente importa: onde investir, o que estocar e quem demitir ou promover. É a gestão baseada em fatos, disponível em segundos."
+      }, 
+      { 
+        number: "2", 
+        title: "Venda sem Esforço", 
+        description: "Réguas de Conversão Automática:A VIZU identifica o timing de recompra e reativa clientes inativos automaticamente. É receita recorrente com esforço zero."
+      },
+      { 
+        number: "3", 
+        title: "Radar de Oportunidades e Antecipação", 
+        description: "Não reaja ao mercado, antecipe-se. Identifique padrões de churn (cancelamento) antes que aconteçam ou descubra o momento exato em que um cliente está pronto para sua próxima compra."
+      },
+      { 
+        number: "4", 
+        title: "Interface Conversacional", 
+        description: "Todos os produtos e módulos da Vizu contam com Agentes para te ajudar com sua operação a partir de linguagem natural. Gere relatórios, programe promoções para seus clientes, emita notas sem esforço e muito mais. " 
+      },
     ],
   },
 ];
@@ -120,10 +181,11 @@ const LandingFinalPage: React.FC = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [softwareImageIndex, setSoftwareImageIndex] = useState(0);
   const [activeModal, setActiveModal] = useState<number | null>(null);
   const [isSignupOpen, setIsSignupOpen] = useState(false);
 
-  // Carrossel automático
+  // Carrossel automático do Hero
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentImageIndex((prev) => (prev + 1) % heroImages.length);
@@ -131,6 +193,24 @@ const LandingFinalPage: React.FC = () => {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Carrossel automático do Software
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSoftwareImageIndex((prev) => (prev + 1) % softwareImages.length);
+    }, 4000); // Troca a cada 4 segundos
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Handlers para navegação manual do carrossel de software
+  const handlePrevSoftwareImage = () => {
+    setSoftwareImageIndex((prev) => (prev === 0 ? softwareImages.length - 1 : prev - 1));
+  };
+
+  const handleNextSoftwareImage = () => {
+    setSoftwareImageIndex((prev) => (prev + 1) % softwareImages.length);
+  };
 
   return (
     <Box w="100%" minH="100vh" bg="#9dc5f6">
@@ -306,7 +386,7 @@ const LandingFinalPage: React.FC = () => {
                 >
                   Transforme qualquer dado em informação
                 </Text>
-                <Box
+                <Flex
                   position="absolute"
                   bottom={6}
                   right={6}
@@ -314,7 +394,11 @@ const LandingFinalPage: React.FC = () => {
                   borderRadius="full"
                   w="80px"
                   h="80px"
-                />
+                  align="center"
+                  justify="center"
+                >
+                  <Text fontSize="32px" fontWeight={300} color="white" opacity={0.8}>+</Text>
+                </Flex>
               </Box>
             </GridItem>
 
@@ -338,9 +422,9 @@ const LandingFinalPage: React.FC = () => {
                   color="#000"
                   lineHeight={1.2}
                 >
-                  Gere metas e insights personalizadas
+                  Elimine tarefas repetitivas do seu dia a dia
                 </Text>
-                <Box
+                <Flex
                   position="absolute"
                   bottom={6}
                   right={6}
@@ -348,7 +432,11 @@ const LandingFinalPage: React.FC = () => {
                   borderRadius="full"
                   w="80px"
                   h="80px"
-                />
+                  align="center"
+                  justify="center"
+                >
+                  <Text fontSize="32px" fontWeight={300} color="white" opacity={0.8}>+</Text>
+                </Flex>
               </Box>
             </GridItem>
 
@@ -372,9 +460,9 @@ const LandingFinalPage: React.FC = () => {
                   color="#000"
                   lineHeight={1.2}
                 >
-                  Elimine tarefas repetitivas do seu dia a dia
+                  Aumente a sua produtividade
                 </Text>
-                <Box
+                <Flex
                   position="absolute"
                   bottom={6}
                   right={6}
@@ -382,7 +470,11 @@ const LandingFinalPage: React.FC = () => {
                   borderRadius="full"
                   w="80px"
                   h="80px"
-                />
+                  align="center"
+                  justify="center"
+                >
+                  <Text fontSize="32px" fontWeight={300} color="white" opacity={0.8}>+</Text>
+                </Flex>
               </Box>
             </GridItem>
           </Grid>
@@ -470,6 +562,9 @@ const LandingFinalPage: React.FC = () => {
                 <Text fontSize="16px" color="#000" fontFamily="'IBM Plex Sans', sans-serif">
                   • 4 módulos disponíveis: Clientes, Produtos, Pedidos/Vendas, Fornecedores
                 </Text>
+                <Text fontSize="16px" color="#000" fontFamily="'IBM Plex Sans', sans-serif">
+                  • Agente de B.I
+                </Text>
               </VStack>
 
               {/* Price */}
@@ -540,22 +635,22 @@ const LandingFinalPage: React.FC = () => {
                 mb={4}
                 fontFamily="'IBM Plex Sans', sans-serif"
               >
-                Skill
+                Vizu Platform
               </Text>
 
               {/* Description */}
               <VStack align="stretch" spacing={3} flex={1} mb={6}>
                 <Text fontSize="16px" color="#000" fontFamily="'IBM Plex Sans', sans-serif">
-                  • Pacote Base
+                  • Tudo do Vizu Base +
                 </Text>
                 <Text fontSize="16px" color="#000" fontFamily="'IBM Plex Sans', sans-serif">
-                  • Metas e OKR's de negócios para aumento de produtividade
+                  • Emissão de NF-e automatizadas
                 </Text>
                 <Text fontSize="16px" color="#000" fontFamily="'IBM Plex Sans', sans-serif">
-                  • Automação de agendamento de consultas, cotações e vendas
+                  • Registro de vendas, estoque e fluxo de caixa integrados
                 </Text>
                 <Text fontSize="16px" color="#000" fontFamily="'IBM Plex Sans', sans-serif">
-                  • Query to Text: Converse com sua base de dados!
+                  • Agente Estratégico: Mentor Financeiro
                 </Text>
               </VStack>
 
@@ -627,16 +722,16 @@ const LandingFinalPage: React.FC = () => {
                 mb={4}
                 fontFamily="'IBM Plex Sans', sans-serif"
               >
-                Enterprise
+                Vizu Enterprise
               </Text>
 
               {/* Description */}
               <VStack align="stretch" spacing={3} flex={1} mb={6}>
                 <Text fontSize="16px" color="#000" fontFamily="'IBM Plex Sans', sans-serif">
-                  • Tudo do Base e do Skill
+                  • Vizu Platform +
                 </Text>
                 <Text fontSize="16px" color="#000" fontFamily="'IBM Plex Sans', sans-serif">
-                  • Desenvolvimento de agentes sob medida para automação de qualquer tarefa
+                  • Desenvolvimento de agentes sob medida
                 </Text>
               </VStack>
 
@@ -769,15 +864,76 @@ const LandingFinalPage: React.FC = () => {
           </VStack>
           <Box 
             flex={1} 
-            bg="#333"
+            bg="#1a1a2e"
             display="flex"
             alignItems="center"
             justifyContent="center"
+            position="relative"
+            overflow="hidden"
+            minH={{ base: "400px", lg: "600px" }}
           >
-            {/* Placeholder para imagem do software */}
-            <Text color="gray.500" fontSize="24px">
-              [Imagem do Software]
-            </Text>
+            {/* Software Screenshots Carousel */}
+            {softwareImages.map((img, index) => (
+              <Image
+                key={index}
+                src={img}
+                alt={`VIZU Software ${index + 1}`}
+                position="absolute"
+                maxW="90%"
+                maxH="85%"
+                objectFit="contain"
+                opacity={softwareImageIndex === index ? 1 : 0}
+                transition="opacity 0.5s ease-in-out"
+                borderRadius="12px"
+                boxShadow="0 20px 60px rgba(0,0,0,0.3)"
+              />
+            ))}
+            
+            {/* Navigation Arrows */}
+            <IconButton
+              aria-label="Previous image"
+              icon={<ChevronLeftIcon boxSize={8} />}
+              position="absolute"
+              left={4}
+              top="50%"
+              transform="translateY(-50%)"
+              bg="whiteAlpha.200"
+              color="white"
+              _hover={{ bg: "whiteAlpha.400" }}
+              borderRadius="full"
+              size="lg"
+              onClick={handlePrevSoftwareImage}
+            />
+            <IconButton
+              aria-label="Next image"
+              icon={<ChevronRightIcon boxSize={8} />}
+              position="absolute"
+              right={4}
+              top="50%"
+              transform="translateY(-50%)"
+              bg="whiteAlpha.200"
+              color="white"
+              _hover={{ bg: "whiteAlpha.400" }}
+              borderRadius="full"
+              size="lg"
+              onClick={handleNextSoftwareImage}
+            />
+            
+            {/* Dots indicator */}
+            <HStack position="absolute" bottom={6} spacing={2}>
+              {softwareImages.map((_, index) => (
+                <Box
+                  key={index}
+                  w={softwareImageIndex === index ? "24px" : "8px"}
+                  h="8px"
+                  borderRadius="full"
+                  bg={softwareImageIndex === index ? "white" : "whiteAlpha.400"}
+                  cursor="pointer"
+                  transition="all 0.3s ease"
+                  onClick={() => setSoftwareImageIndex(index)}
+                />
+              ))}
+            </HStack>
           </Box>
         </Flex>
       </Box>
@@ -824,44 +980,6 @@ const LandingFinalPage: React.FC = () => {
             />
           </Box>
         </Flex>
-      </Box>
-
-      {/* ========== TESTIMONIAL SECTION ========== */}
-      <Box bg="#92daff">
-        <Flex direction={{ base: "column", lg: "row" }} minH="600px">
-          <Box flex={1}>
-            <Image
-              src="/image 177.png"
-              alt="Depoimento"
-              w="100%"
-              h="100%"
-              objectFit="cover"
-            />
-          </Box>
-          <VStack
-            align="start"
-            flex={1}
-            p={{ base: 6, md: 12 }}
-            spacing={6}
-            justify="center"
-          >
-            <Text
-                fontSize={{ base: "24px", md: "34px" }}
-                color="#000"
-                lineHeight={1.3}
-              >
-                A VIZU encurtou a conversa — paramos de discutir relatórios e passamos a discutir ações.
-              </Text>
-              <Box>
-                <Text fontSize="15px" color="#000" fontWeight={500}>
-                  Fábio Santos
-                </Text>
-                <Text fontSize="12px" color="#000">
-                  Coordenador de Operações
-                </Text>
-              </Box>
-            </VStack>
-          </Flex>
       </Box>
 
       {/* ========== CTA SECTION ========== */}
@@ -926,28 +1044,49 @@ const LandingFinalPage: React.FC = () => {
           </Heading>
           <Accordion allowMultiple>
             {[
-              "O que acontece depois que eu me inscrevo e começo a usar a VIZU?",
-              "Preciso entender de dados para usar a VIZU?",
-              "Como a VIZU transforma meus dados em informação útil?",
-              "A plataforma ajuda a definir metas e estratégias?",
-              "Posso automatizar atividades rotineiras da minha empresa?",
-              "Quais integrações estão disponíveis?",
-              "Posso testar antes de contratar?",
-            ].map((question, index) => (
+              {
+                question: "O que acontece depois que eu me inscrevo e começo a usar a VIZU?",
+                answer: "O primeiro passo é a conexão. Nossa tecnologia faz a ingestão e a higienização dos seus dados de forma automática. Em poucos minutos, o que era uma confusão de planilhas ou sistemas antigos vira um dashboard limpo e organizado. A partir daí, você já pode acessar os módulos de Clientes, Produtos e Vendas, ou começar a emitir notas e controlar seu estoque pela Vizu Platform."
+              },
+              {
+                question: "Preciso entender de dados para usar a VIZU?",
+                answer: "Absolutamente não. Nós construímos a Vizu justamente para que você não precise ser um analista de dados. Com o nosso agente Analista de B.I , você conversa com a plataforma como se estivesse no WhatsApp: basta perguntar \"Qual foi o produto mais vendido na região Sul?\" e a IA te responde em texto claro."
+              },
+              {
+                question: "Como a VIZU transforma meus dados em informação útil?",
+                answer: "Nós não apenas \"guardamos\" dados; nós os processamos. A plataforma identifica padrões de comportamento de compra, níveis de estoque e saúde do fluxo de caixa. Ela limpa as duplicidades e organiza tudo em indicadores visuais (KPIs) que mostram exatamente onde você está ganhando ou perdendo dinheiro."
+              },
+              {
+                question: "A plataforma ajuda a definir metas e estratégias?",
+                answer: "Sim. No plano Skill, você tem acesso ao módulo de Metas e OKRs. Nele, você consegue desdobrar os objetivos do seu negócio dentro da plataforma e acompanhar o progresso em tempo real, recebendo insights automáticos que avisam se você está no caminho certo para bater a meta do mês."
+              },
+              {
+                question: "Posso automatizar atividades rotineiras da minha empresa?",
+                answer: "Com certeza. A Vizu nasceu para eliminar o \"trabalho braçal\". No Vizu ERP, a emissão de NF-e é automatizada e o registro de vendas reflete instantaneamente no seu estoque e fluxo de caixa. Além disso, oferecemos automação de agendamentos e cotações para que sua equipe foque em vender, não em preencher formulários."
+              },
+              {
+                question: "Quais integrações estão disponíveis?",
+                answer: "Nós nos conectamos com os principais meios de pagamento, marketplaces e ferramentas de gestão do mercado. Além disso, nossa estrutura de ingestão de dados é flexível para importar informações de diversos formatos, garantindo que nenhum dado valioso fique de fora da sua análise."
+              },
+              {
+                question: "Posso testar antes de contratar?",
+                answer: "Sim! Acreditamos que você precisa sentir a facilidade de ter os dados na palma da mão. Oferecemos um período de demonstração para que você explore os módulos e veja como a nossa IA transforma a sua visão sobre o seu próprio negócio."
+              },
+            ].map((item, index) => (
               <AccordionItem key={index} borderColor="#000">
                 <h3>
                   <AccordionButton py={5}>
                     <Box flex="1" textAlign="left">
                       <Text fontSize="20px" fontWeight={500}>
-                        {question}
+                        {item.question}
                       </Text>
                     </Box>
                     <AccordionIcon />
                   </AccordionButton>
                 </h3>
                 <AccordionPanel pb={4}>
-                  <Text color="gray.600">
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+                  <Text color="gray.600" lineHeight={1.7}>
+                    {item.answer}
                   </Text>
                 </AccordionPanel>
               </AccordionItem>
@@ -1062,26 +1201,29 @@ const LandingFinalPage: React.FC = () => {
             minH="100vh"
           >
             <ModalBody p={0} position="relative">
-              {/* Botão Fechar */}
-              <CloseButton
-                position="absolute"
-                top={6}
-                right={6}
-                size="lg"
-                onClick={() => setActiveModal(null)}
-                zIndex={10}
-              />
-
-              {/* Círculo decorativo */}
-              <Box
+              {/* Círculo decorativo com botão Fechar dentro */}
+              <Flex
                 position="absolute"
                 top={8}
-                right={24}
+                right={8}
                 bg={cardModals[activeModal].circleBg}
                 borderRadius="full"
                 w="96px"
                 h="96px"
-              />
+                align="center"
+                justify="center"
+                cursor="pointer"
+                onClick={() => setActiveModal(null)}
+                zIndex={10}
+                _hover={{ opacity: 0.9 }}
+                transition="opacity 0.2s"
+              >
+                <CloseButton
+                  size="lg"
+                  color="white"
+                  _hover={{ bg: "transparent" }}
+                />
+              </Flex>
 
               {/* Conteúdo do Modal */}
               <Container maxW="1200px" py={16}>
@@ -1110,47 +1252,50 @@ const LandingFinalPage: React.FC = () => {
                   {cardModals[activeModal].subtitle}
                 </Text>
 
-                {/* Lista de itens */}
-                <VStack align="stretch" spacing={0} maxW="650px">
+                {/* Lista de itens como Accordion */}
+                <Accordion allowToggle maxW="650px">
                   {cardModals[activeModal].items.map((item, idx) => (
-                    <Box
+                    <AccordionItem
                       key={idx}
-                      py={6}
+                      border="none"
                       borderTop="1px solid #000"
                       _last={{ borderBottom: "1px solid #000" }}
                     >
-                      <HStack align="start" spacing={4}>
-                        <Text
-                          fontSize="14px"
-                          fontWeight={600}
-                          color="#000"
-                          fontFamily="'Noto Looped Thai UI', sans-serif"
-                        >
-                          {item.number}
-                        </Text>
-                        <VStack align="start" spacing={2}>
+                      <AccordionButton py={6} px={0} _hover={{ bg: "transparent" }}>
+                        <HStack flex="1" align="center" spacing={4}>
+                          <Text
+                            fontSize="14px"
+                            fontWeight={600}
+                            color="#000"
+                            fontFamily="'Noto Looped Thai UI', sans-serif"
+                          >
+                            {item.number}
+                          </Text>
                           <Text
                             fontSize="18px"
                             fontWeight={600}
                             color="#101828"
                             fontFamily="'Noto Looped Thai UI', sans-serif"
+                            textAlign="left"
                           >
                             {item.title}
                           </Text>
-                          {item.description && (
-                            <Text
-                              fontSize="16px"
-                              fontWeight={500}
-                              color="#000"
-                            >
-                              {item.description}
-                            </Text>
-                          )}
-                        </VStack>
-                      </HStack>
-                    </Box>
+                        </HStack>
+                        <AccordionIcon />
+                      </AccordionButton>
+                      <AccordionPanel pb={6} pt={0} pl={8}>
+                        <Text
+                          fontSize="16px"
+                          fontWeight={400}
+                          color="#000"
+                          lineHeight={1.6}
+                        >
+                          {item.description}
+                        </Text>
+                      </AccordionPanel>
+                    </AccordionItem>
                   ))}
-                </VStack>
+                </Accordion>
 
                 {/* Indicadores de navegação */}
                 <HStack spacing={2} mt={12} justify="center">

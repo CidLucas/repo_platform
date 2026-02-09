@@ -29,8 +29,10 @@ function HomePage() {
         setMetricsData(data);
 
         const currentMonth = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date());
+        // Use receita_mes_atual if available, otherwise fallback to receita_total
+        const monthlyRevenue = data.scorecards.receita_mes_atual || data.scorecards.receita_total;
         setRevenueData({
-          value: data.scorecards.receita_total,
+          value: monthlyRevenue,
           month: currentMonth
         });
         setError(null);
@@ -77,25 +79,57 @@ function HomePage() {
   }
 
   const userName = profile?.full_name.split(' ')[0] || 'Usuário';
-  const formattedRevenue = new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  }).format(revenueData.value);
+  
+  // Format revenue as compact number (ex: R$ 91,7 mi)
+  const formatCompactCurrency = (value: number): string => {
+    if (value >= 1_000_000_000) {
+      return `R$ ${(value / 1_000_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} bi`;
+    } else if (value >= 1_000_000) {
+      return `R$ ${(value / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi`;
+    } else if (value >= 1_000) {
+      return `R$ ${(value / 1_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`;
+    }
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  };
 
-  // Extract indicator values with fallbacks
-  const ordersTotal = indicators?.orders?.total || metricsData?.scorecards.total_produtos || 0;
-  const ordersRevenue = indicators?.orders?.revenue || 0;
-  const ordersGrowth = indicators?.orders?.growth_rate
-    ? `${indicators.orders.growth_rate >= 0 ? '+' : ''}${indicators.orders.growth_rate.toFixed(1)}%`
-    : '';
+  const formattedRevenue = formatCompactCurrency(revenueData.value);
 
+  // Format growth percentage helper
+  const formatGrowth = (value: number | undefined): string => {
+    if (value === undefined || value === null) return '';
+    return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+  };
+
+  // Format large numbers as compact (ex: 361M -> "361,9 mil ton")
+  const formatCompactNumber = (value: number, unit?: string): string => {
+    const suffix = unit ? ` ${unit}` : '';
+    if (value >= 1_000_000_000) {
+      return `${(value / 1_000_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} bi${suffix}`;
+    } else if (value >= 1_000_000) {
+      return `${(value / 1_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi${suffix}`;
+    } else if (value >= 1_000) {
+      return `${(value / 1_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil${suffix}`;
+    }
+    return `${value.toLocaleString('pt-BR')}${suffix}`;
+  };
+
+  // Extract Fornecedores data from metricsData (correct source)
+  const fornecedoresTotal = metricsData?.scorecards.total_fornecedores || 0;
+  const fornecedoresFrequencia = metricsData?.scorecards.frequencia_media_fornecedores || 0;
+  const fornecedoresCrescimento = formatGrowth(metricsData?.scorecards.crescimento_receita);
+
+  // Extract Produtos data
   const productsTotal = indicators?.products?.unique_products || metricsData?.scorecards.total_produtos || 0;
-  const productsSold = indicators?.products?.total_sold || 0;
-  const productsAvgPrice = indicators?.products?.avg_price || 0;
+  // Convert to tons (divide by 1000) then format compactly
+  const productsSoldRaw = indicators?.products?.total_sold || 0;
+  const productsSoldInTons = productsSoldRaw / 1000; // Convert kg to tons
+  const productsSoldFormatted = formatCompactNumber(productsSoldInTons, 'ton');
+  const produtosCrescimento = formatGrowth(metricsData?.scorecards.crescimento_produtos);
 
+  // Extract Clientes data
   const customersTotal = indicators?.customers?.total_active || metricsData?.scorecards.total_clientes || 0;
   const customersNew = indicators?.customers?.new_customers || 0;
-  const customersLTV = indicators?.customers?.avg_lifetime_value || 0;
+  const clientesCrescimento = formatGrowth(metricsData?.scorecards.crescimento_clientes);
 
   return (
     <MainLayout>
@@ -116,10 +150,10 @@ function HomePage() {
             <Link to="/dashboard/fornecedores">
               <StatCard
                 title="FORNECEDORES"
-                percentage={ordersGrowth.toLocaleString()}
-                total={ordersTotal.toLocaleString()}
+                percentage={fornecedoresCrescimento}
+                total={fornecedoresTotal.toLocaleString()}
                 totalLabel="TOTAL"
-                frequency={`R$ ${ordersRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                frequency={`${fornecedoresFrequencia.toFixed(1)}/mês`}
                 frequencyLabel="FREQUÊNCIA"
                 color="#92DAFF"
               />
@@ -127,10 +161,10 @@ function HomePage() {
             <Link to="/dashboard/produtos">
               <StatCard
                 title="PRODUTOS"
-                percentage=""
+                percentage={produtosCrescimento}
                 total={productsTotal.toLocaleString()}
                 totalLabel="ÚNICOS"
-                frequency={productsSold.toLocaleString()}
+                frequency={productsSoldFormatted}
                 frequencyLabel="VENDIDOS"
                 color="#FFF856"
               />
@@ -138,7 +172,7 @@ function HomePage() {
             <Link to="/dashboard/clientes">
               <StatCard
                 title="CLIENTES"
-                percentage=""
+                percentage={clientesCrescimento}
                 total={customersTotal.toLocaleString()}
                 totalLabel="ATIVOS"
                 frequency={customersNew.toLocaleString()}

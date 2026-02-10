@@ -148,7 +148,7 @@ jobs:
                 --concurrency 10 --timeout 3600 \
                 --max-instances 50 --min-instances 0 \
                 --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=ollama_cloud,OLLAMA_CLOUD_BASE_URL=https://ollama.com,LANGFUSE_HOST=https://us.cloud.langfuse.com,TOOL_POOL_URL=https://tool-pool-api-858493958314.southamerica-east1.run.app,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}" \
-                --set-secrets "SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,SUPABASE_JWT_SECRET=SUPABASE_JWT_SECRET:latest,SUPABASE_JWT_JWK=SUPABASE_JWT_JWK:latest,OLLAMA_CLOUD_API_KEY=OLLAMA_CLOUD_API_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,DATABASE_URL=DATABASE_URL_PROD:latest" \
+                --set-secrets "SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,SUPABASE_JWT_SECRET=SUPABASE_JWT_SECRET:latest,SUPABASE_JWT_JWK=SUPABASE_JWT_JWK:latest,OLLAMA_CLOUD_API_KEY=OLLAMA_CLOUD_API_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,DATABASE_URL=DATABASE_URL_PROD:latest,REDIS_URL=REDIS_URL:latest" \
                 --quiet
               ;;
 

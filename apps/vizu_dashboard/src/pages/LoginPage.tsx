@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Box,
@@ -105,15 +105,23 @@ const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isProcessingOAuth, setIsProcessingOAuth] = useState(false);
+  
+  // Ref to prevent double OAuth code exchange in React StrictMode
+  const oauthProcessedRef = useRef(false);
 
   // Check for OAuth callback - PKCE flow uses code= in query params, implicit uses #access_token
   useEffect(() => {
+    // Prevent double execution in StrictMode
+    if (oauthProcessedRef.current) return;
+    
     const hash = window.location.hash;
     const search = window.location.search;
     const hasHashToken = hash && (hash.includes('access_token') || hash.includes('error'));
     const hasCodeParam = search && search.includes('code=');
 
     if (hasHashToken || hasCodeParam) {
+      // Mark as processed immediately to prevent double execution
+      oauthProcessedRef.current = true;
       setIsProcessingOAuth(true);
 
       const handleOAuthCallback = async () => {
@@ -128,6 +136,16 @@ const LoginPage: React.FC = () => {
               const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
               if (exchangeError) {
+                // Ignore "code verifier" errors - they happen when the code was already exchanged
+                if (exchangeError.message?.includes('code verifier')) {
+                  console.log('🔐 Code already exchanged, checking for existing session...');
+                  const { data: { session } } = await supabase.auth.getSession();
+                  if (session) {
+                    console.log('🔐 Session already exists, redirecting...');
+                    window.history.replaceState(null, '', window.location.pathname);
+                    return;
+                  }
+                }
                 console.error('🔐 Code exchange failed:', exchangeError);
                 setError(exchangeError.message);
                 setIsProcessingOAuth(false);

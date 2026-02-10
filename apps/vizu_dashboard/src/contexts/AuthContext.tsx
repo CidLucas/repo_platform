@@ -2,6 +2,7 @@ import React, {
   createContext,
   useState,
   useEffect,
+  useRef,
   ReactNode,
 } from "react";
 import { User, Session, AuthError } from "@supabase/supabase-js";
@@ -37,6 +38,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [clientId, setClientId] = useState<string | null>(null);
+  const clientIdFetchedRef = useRef(false);
 
   useEffect(() => {
     // Check if we're on an OAuth callback
@@ -62,21 +64,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setSession(session);
       setUser(session?.user ?? null);
 
-      // Initialize client_id on first login
-      if (session?.access_token) {
+      // Initialize client_id on first login (ref prevents duplicate calls across concurrent events)
+      if (session?.access_token && !clientIdFetchedRef.current) {
+        clientIdFetchedRef.current = true;
         try {
           const meResponse = await getMe(session.access_token);
           setClientId(meResponse.client_id);
-          // Store in localStorage for services that don't have React context access
           localStorage.setItem('vizu_client_id', meResponse.client_id);
-          console.log('✅ Cliente Vizu ID initialized:', meResponse.client_id);
+          console.log('Client ID initialized:', meResponse.client_id);
         } catch (error) {
           console.error('Failed to initialize client_id:', error);
-          // Try to recover from localStorage
+          clientIdFetchedRef.current = false;
           const storedClientId = localStorage.getItem('vizu_client_id');
           if (storedClientId) {
             setClientId(storedClientId);
-            console.log('✅ Cliente Vizu ID recovered from localStorage:', storedClientId);
+            clientIdFetchedRef.current = true;
           }
         }
       }
@@ -104,24 +106,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setSession(session);
       setUser(session?.user ?? null);
 
-      // Initialize client_id for any auth event that provides a valid session
-      // This handles SIGNED_IN, TOKEN_REFRESHED, INITIAL_SESSION, and USER_UPDATED
+      // Initialize client_id once (ref prevents duplicate calls from concurrent auth events)
       if (session?.access_token && _event !== 'SIGNED_OUT') {
-        // Only fetch if we don't already have a clientId
-        if (!clientId) {
+        if (!clientIdFetchedRef.current) {
+          clientIdFetchedRef.current = true;
           try {
             const meResponse = await getMe(session.access_token);
             setClientId(meResponse.client_id);
-            // Store in localStorage for services that don't have React context access
             localStorage.setItem('vizu_client_id', meResponse.client_id);
-            console.log(`✅ Cliente Vizu ID initialized on ${_event}:`, meResponse.client_id);
+            console.log(`Client ID initialized on ${_event}:`, meResponse.client_id);
           } catch (error) {
             console.error('Failed to initialize client_id:', error);
-            // Try to recover from localStorage
+            clientIdFetchedRef.current = false;
             const storedClientId = localStorage.getItem('vizu_client_id');
             if (storedClientId) {
               setClientId(storedClientId);
-              console.log('✅ Cliente Vizu ID recovered from localStorage:', storedClientId);
+              clientIdFetchedRef.current = true;
             }
           }
         }
@@ -129,6 +129,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
       // Clear clientId on sign out
       if (_event === 'SIGNED_OUT') {
+        clientIdFetchedRef.current = false;
         setClientId(null);
         localStorage.removeItem('vizu_client_id');
       }

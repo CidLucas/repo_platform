@@ -87,8 +87,9 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=cors_origins,
         allow_credentials=True,
-        allow_methods=["*"],  # Permite todos os métodos (GET, POST, PUT, DELETE, OPTIONS, etc.)
-        allow_headers=["*"],  # Permite todos os headers (Authorization, Content-Type, etc.)
+        allow_methods=["*"],
+        allow_headers=["*"],
+        max_age=3600,
     )
 
     # Add database timeout middleware

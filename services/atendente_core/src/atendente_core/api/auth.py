@@ -64,8 +64,8 @@ async def get_auth_result(
         return AuthResult(
             client_id=client_id,
             auth_method=AuthMethod.JWT,
-            external_user_id=claims.sub,
-            email=claims.email,
+            external_user_id=claims.sub.strip() if claims.sub else claims.sub,
+            email=claims.email.strip() if claims.email else claims.email,
             raw_claims=claims.model_dump(exclude_none=True),
         )
 

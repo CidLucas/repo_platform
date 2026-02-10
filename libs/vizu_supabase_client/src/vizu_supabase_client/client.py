@@ -45,7 +45,11 @@ class SupabaseConfig:
                 "Use the service_role key from your Supabase dashboard."
             )
 
-        return cls(url=url, service_key=service_key, anon_key=anon_key)
+        return cls(
+            url=url.strip(),
+            service_key=service_key.strip(),
+            anon_key=anon_key.strip() if anon_key else anon_key,
+        )
 
 
 # ============================================================================

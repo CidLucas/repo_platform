@@ -9,8 +9,7 @@ class LLMSettings(BaseSettings):
     Configurações para o Vizu LLM Service.
 
     Suporta múltiplos providers:
-    - Ollama Local (ollama_service container)
-    - Ollama Cloud (api.ollama.com)
+    - Ollama Cloud (ollama.com)
     - OpenAI (API)
     - Anthropic (API)
     - Google Gemini (API)
@@ -23,21 +22,15 @@ class LLMSettings(BaseSettings):
     # ========================================================================
     # PROVIDER DEFAULT
     # ========================================================================
-    # Provider padrão: ollama, ollama_cloud, openai, anthropic, google
+    # Provider padrão: ollama_cloud, openai, anthropic, google
     LLM_PROVIDER: str = Field(default="ollama_cloud")
 
     # ========================================================================
-    # OLLAMA (LOCAL)
-    # ========================================================================
-    OLLAMA_BASE_URL: str = Field(default="http://ollama_service:11434")
-
-    # ========================================================================
-    # OLLAMA CLOUD (ollama.com/cloud - via HTTP client direto)
+    # OLLAMA CLOUD (ollama.com - via HTTP client)
     # Ref: https://docs.ollama.com/cloud
     # ========================================================================
     OLLAMA_CLOUD_API_KEY: str | None = Field(default=None)
     OLLAMA_CLOUD_BASE_URL: str = Field(default="https://ollama.com")
-    OLLAMA_CLOUD_DEFAULT_MODEL: str = Field(default="llama3.2")
 
     # ========================================================================
     # EMBEDDING SERVICE

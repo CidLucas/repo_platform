@@ -30,7 +30,7 @@ class SupabaseConfig:
     def from_env(cls) -> "SupabaseConfig":
         """Load configuration from environment variables."""
         url = os.getenv("SUPABASE_URL")
-        service_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
+        service_key = os.getenv("SUPABASE_SERVICE_KEY")
         anon_key = os.getenv("SUPABASE_ANON_KEY")
 
         if not url:
@@ -41,7 +41,7 @@ class SupabaseConfig:
 
         if not service_key:
             raise ValueError(
-                "SUPABASE_SERVICE_KEY (or SUPABASE_KEY) is required. "
+                "SUPABASE_SERVICE_KEY is required. "
                 "Use the service_role key from your Supabase dashboard."
             )
 

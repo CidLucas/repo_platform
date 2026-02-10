@@ -2,8 +2,7 @@
 Vizu LLM Service: Biblioteca centralizada para roteamento e instanciação de LLMs.
 
 Suporta múltiplos providers:
-- Ollama Local (container)
-- Ollama Cloud (api.ollama.com)
+- Ollama Cloud (ollama.com)
 - OpenAI (API)
 - Anthropic (API)
 - Google Gemini (API)
@@ -11,11 +10,11 @@ Suporta múltiplos providers:
 Com integração Langfuse para observabilidade.
 
 Uso rápido:
-    # Usar Ollama local (padrão)
+    # Usar provider padrão (ollama_cloud)
     from vizu_llm_service import get_model
     model = get_model()
 
-    # Usar Ollama Cloud (precisa OLLAMA_CLOUD_API_KEY)
+    # Usar Ollama Cloud explicitamente
     from vizu_llm_service import get_model, LLMProvider
     model = get_model(provider=LLMProvider.OLLAMA_CLOUD)
 

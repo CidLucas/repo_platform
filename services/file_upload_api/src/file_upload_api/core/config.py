@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # --- Supabase Configuration ---
     # These are loaded from environment by vizu_supabase_client
     SUPABASE_URL: str | None = None
-    SUPABASE_KEY: str | None = None
+    SUPABASE_SERVICE_KEY: str | None = None
     SUPABASE_BUCKET: str = "file-uploads"
 
     class Config:

@@ -89,8 +89,9 @@ jobs:
           fi
 
   # =================================================================
-  # Deploy services to Cloud Run (secrets passed directly as env vars)
-  # No GCP Secret Manager needed - uses GitHub Secrets directly
+  # Deploy services to Cloud Run
+  # Sensitive values read from GCP Secret Manager via --set-secrets
+  # Non-sensitive config passed via --set-env-vars from GitHub Secrets
   # =================================================================
   deploy:
     name: Deploy ${{ matrix.service }}
@@ -113,24 +114,12 @@ jobs:
 
       - name: Deploy ${{ matrix.service }}
         env:
-          # Core infrastructure secrets (from GitHub)
+          # Non-sensitive config (from GitHub Secrets/Variables)
+          # Sensitive values are read from GCP Secret Manager at runtime
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          SUPABASE_JWT_SECRET: ${{ secrets.SUPABASE_JWT_SECRET }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          # LLM Providers
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Qdrant
           QDRANT_URL: ${{ secrets.QDRANT_URL }}
-          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
-          # Observability
           LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
-          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
-          # MCP / OAuth
           MCP_AUTH_GOOGLE_CLIENT_ID: ${{ secrets.MCP_AUTH_GOOGLE_CLIENT_ID }}
-          CREDENTIALS_ENCRYPTION_KEY: ${{ secrets.CREDENTIALS_ENCRYPTION_KEY }}
         run: |
           REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
           SERVICE="${{ matrix.service }}"
@@ -159,7 +148,8 @@ jobs:
                 --memory 2Gi --cpu 2 \
                 --concurrency 10 --timeout 3600 \
                 --max-instances 50 --min-instances 0 \
-                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=google,LANGFUSE_HOST=https://us.cloud.langfuse.com,TOOL_POOL_URL=https://tool-pool-api-858493958314.southamerica-east1.run.app,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET},GOOGLE_API_KEY=${GOOGLE_API_KEY},QDRANT_URL=${QDRANT_URL},QDRANT_API_KEY=${QDRANT_API_KEY},LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY},LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}" \
+                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=ollama_cloud,OLLAMA_CLOUD_BASE_URL=https://ollama.com,LANGFUSE_HOST=https://us.cloud.langfuse.com,TOOL_POOL_URL=https://tool-pool-api-858493958314.southamerica-east1.run.app,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},QDRANT_URL=${QDRANT_URL},LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}" \
+                --set-secrets "SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,SUPABASE_JWT_SECRET=SUPABASE_JWT_SECRET:latest,SUPABASE_JWT_JWK=SUPABASE_JWT_JWK:latest,OLLAMA_CLOUD_API_KEY=OLLAMA_CLOUD_API_KEY:latest,QDRANT_API_KEY=QDRANT_API_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest" \
                 --quiet
               ;;
 
@@ -172,7 +162,8 @@ jobs:
                 --memory 2Gi --cpu 2 \
                 --concurrency 5 --timeout 3600 \
                 --max-instances 20 --min-instances 0 \
-                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=google,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},GOOGLE_API_KEY=${GOOGLE_API_KEY},QDRANT_URL=${QDRANT_URL},QDRANT_API_KEY=${QDRANT_API_KEY},LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY},LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY},MCP_AUTH_GOOGLE_CLIENT_ID=${MCP_AUTH_GOOGLE_CLIENT_ID},CREDENTIALS_ENCRYPTION_KEY=${CREDENTIALS_ENCRYPTION_KEY}" \
+                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=ollama_cloud,OLLAMA_CLOUD_BASE_URL=https://ollama.com,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},QDRANT_URL=${QDRANT_URL},LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY},MCP_AUTH_GOOGLE_CLIENT_ID=${MCP_AUTH_GOOGLE_CLIENT_ID}" \
+                --set-secrets "SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,OLLAMA_CLOUD_API_KEY=OLLAMA_CLOUD_API_KEY:latest,QDRANT_API_KEY=QDRANT_API_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,CREDENTIALS_ENCRYPTION_KEY=CREDENTIALS_ENCRYPTION_KEY:latest" \
                 --quiet
               ;;
 
@@ -185,7 +176,8 @@ jobs:
                 --memory 1Gi --cpu 1 \
                 --concurrency 50 --timeout 300 \
                 --max-instances 20 --min-instances 0 \
-                --set-env-vars "ENVIRONMENT=production,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},DATABASE_URL=${DATABASE_URL}" \
+                --set-env-vars "ENVIRONMENT=production,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL}" \
+                --set-secrets "SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,SUPABASE_JWT_JWK=SUPABASE_JWT_JWK:latest,DATABASE_URL=DATABASE_URL:latest" \
                 --quiet
               ;;
 
@@ -198,7 +190,8 @@ jobs:
                 --memory 1Gi --cpu 1 \
                 --concurrency 50 --timeout 300 \
                 --max-instances 20 --min-instances 0 \
-                --set-env-vars "ENVIRONMENT=production,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY},DATABASE_URL=${DATABASE_URL},CREDENTIALS_ENCRYPTION_KEY=${CREDENTIALS_ENCRYPTION_KEY}" \
+                --set-env-vars "ENVIRONMENT=production,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL}" \
+                --set-secrets "SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,SUPABASE_JWT_JWK=SUPABASE_JWT_JWK:latest,DATABASE_URL=DATABASE_URL:latest,CREDENTIALS_ENCRYPTION_KEY=CREDENTIALS_ENCRYPTION_KEY:latest" \
                 --quiet
               ;;
 

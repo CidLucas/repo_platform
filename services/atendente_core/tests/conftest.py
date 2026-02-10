@@ -19,7 +19,7 @@ os.environ["DATABASE_URL"] = os.getenv(
     "TEST_DATABASE_URL", "postgresql://user:password@localhost:5432/vizu_db"
 )
 os.environ["LANGCHAIN_PROJECT"] = "dev-tests"
-os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
+os.environ["LLM_PROVIDER"] = "ollama_cloud"
 
 # Now we can safely import the app and other dependencies
 import fakeredis
@@ -48,7 +48,7 @@ def mock_settings_env_vars():
         "TEST_DATABASE_URL", "postgresql://user:password@localhost:5432/vizu_db"
     )
     os.environ["LANGCHAIN_PROJECT"] = "dev-tests"
-    os.environ["OLLAMA_BASE_URL"] = "http://localhost:11434"
+    os.environ["LLM_PROVIDER"] = "ollama_cloud"
     os.environ["OTEL_SDK_DISABLED"] = "true"
 
 

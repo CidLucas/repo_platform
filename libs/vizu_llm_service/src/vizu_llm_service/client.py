@@ -49,8 +49,7 @@ class ModelTask(Enum):
 class LLMProvider(Enum):
     """LLM provider."""
 
-    OLLAMA = "ollama"  # Local (container)
-    OLLAMA_CLOUD = "ollama_cloud"  # Ollama Cloud API (api.ollama.com)
+    OLLAMA_CLOUD = "ollama_cloud"  # Ollama Cloud API (ollama.com)
     OPENAI = "openai"  # OpenAI API
     ANTHROPIC = "anthropic"  # Anthropic API
     GOOGLE = "google"  # Google Gemini API
@@ -164,25 +163,6 @@ class VizuEmbeddingAPIClient(Embeddings):
 # ============================================================================
 # LLM FACTORIES
 # ============================================================================
-
-
-def _get_ollama_model(
-    model_name: str,
-    settings: LLMSettings,
-    callbacks: list[BaseCallbackHandler],
-    **kwargs,
-) -> BaseChatModel:
-    """Cria cliente Ollama (local)."""
-    from langchain_ollama import ChatOllama
-
-    logger.debug(f"Ollama Local: {settings.OLLAMA_BASE_URL} model={model_name}")
-
-    return ChatOllama(
-        base_url=settings.OLLAMA_BASE_URL,
-        model=model_name,
-        callbacks=callbacks,
-        **kwargs,
-    )
 
 
 def _get_ollama_cloud_model(
@@ -303,15 +283,10 @@ def _get_google_model(
 # ============================================================================
 
 MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
-    LLMProvider.OLLAMA: {
-        ModelTier.DEFAULT: "llama3.2:latest",
-        ModelTier.FAST: "phi3:mini",
-        ModelTier.POWERFUL: "llama3.1:70b",
-    },
     LLMProvider.OLLAMA_CLOUD: {
-        ModelTier.DEFAULT: "gpt-oss:20b",  # Rápido e eficiente
-        ModelTier.FAST: "gpt-oss:20b",  # Mais rápido
-        ModelTier.POWERFUL: "deepseek-v3.1:671b",  # Mais capaz
+        ModelTier.DEFAULT: "gpt-oss:20b",  # Balanced
+        ModelTier.FAST: "gpt-oss:20b",  # Fast/efficient
+        ModelTier.POWERFUL: "deepseek-v3.1:671b",  # Most capable
     },
     LLMProvider.OPENAI: {
         ModelTier.DEFAULT: "gpt-4o-mini",
@@ -381,7 +356,7 @@ def get_model(
 
     # Determina o modelo
     if model_name is None:
-        model_name = MODEL_MAPPINGS.get(provider, {}).get(tier, "llama3.2:latest")
+        model_name = MODEL_MAPPINGS.get(provider, {}).get(tier, "gpt-oss:20b")
 
     # Cria callbacks
     callbacks = get_base_callbacks(
@@ -393,7 +368,6 @@ def get_model(
 
     # Cria o modelo
     factory_map = {
-        LLMProvider.OLLAMA: _get_ollama_model,
         LLMProvider.OLLAMA_CLOUD: _get_ollama_cloud_model,
         LLMProvider.OPENAI: _get_openai_model,
         LLMProvider.ANTHROPIC: _get_anthropic_model,

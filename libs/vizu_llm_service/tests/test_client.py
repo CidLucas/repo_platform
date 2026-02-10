@@ -94,20 +94,24 @@ def test_get_embedding_model_factory():
 
 
 def test_get_model_factory():
-    """Verifica se a factory retorna o ChatOllama configurado corretamente."""
+    """Verifica se a factory retorna o ChatOllama configurado para Ollama Cloud."""
     settings = get_llm_settings()
-    settings.OLLAMA_BASE_URL = "http://ollama-test:11434"
+    settings.OLLAMA_CLOUD_API_KEY = "test-api-key"
+    settings.OLLAMA_CLOUD_BASE_URL = "https://ollama.com"
 
-    # Teste com Tier Default
+    # Teste com Tier Default (Ollama Cloud)
     llm = get_model(tier=ModelTier.DEFAULT)
 
     assert isinstance(llm, ChatOllama)
-    assert llm.base_url == "http://ollama-test:11434"
-    assert llm.model == "llama3.2:latest"  # Conforme definimos no client.py revisado
+    assert llm.base_url == "https://ollama.com"
+    assert llm.model == "gpt-oss:20b"  # Default model for Ollama Cloud
 
 
 def test_get_model_tier_mapping():
     """Verifica se a troca de Tier altera o modelo."""
-    llm_fast = get_model(tier=ModelTier.FAST)
-    # No código revisado, mapeamos FAST para 'phi3:mini'
-    assert llm_fast.model == "phi3:mini"
+    settings = get_llm_settings()
+    settings.OLLAMA_CLOUD_API_KEY = "test-api-key"
+
+    llm_powerful = get_model(tier=ModelTier.POWERFUL)
+    # POWERFUL maps to deepseek-v3.1:671b for Ollama Cloud
+    assert llm_powerful.model == "deepseek-v3.1:671b"

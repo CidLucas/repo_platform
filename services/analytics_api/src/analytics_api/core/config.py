@@ -24,9 +24,6 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = ""
 
-    # Supabase JWT Secret (required for JWT validation)
-    SUPABASE_JWT_SECRET: str = ""
-
     # Configuração do Pydantic V2 para ler do .env
     model_config = SettingsConfigDict(
         env_file=".env",              # Nome do ficheiro .env

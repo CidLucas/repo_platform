@@ -2,7 +2,7 @@
 x-common-env: &common-env
   # Variáveis Padronizadas Supabase (Primary Data Store)
   SUPABASE_URL: ${SUPABASE_URL}
-  SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-${SUPABASE_KEY}}  # Primary variable, fallback to legacy SUPABASE_KEY
+  SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
   SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
   SUPABASE_JWT_JWK: ${SUPABASE_JWT_JWK}
   JWT_ALGORITHM: ${JWT_ALGORITHM:-ES256}
@@ -23,15 +23,17 @@ x-common-env: &common-env
 
 x-atendente-env: &atendente-env
   REDIS_URL: redis://redis:6379/0
-  OLLAMA_BASE_URL: ${OLLAMA_CLOUD_BASE_URL:-https://ollama.com}
   LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
   TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
-  # LLM Provider - ollama, ollama_cloud, openai, anthropic, google
-  LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+  # LLM Provider - ollama_cloud, openai, anthropic, google
+  LLM_PROVIDER: ${LLM_PROVIDER:-ollama_cloud}
   # Ollama Cloud
   OLLAMA_CLOUD_API_KEY: ${OLLAMA_CLOUD_API_KEY}
   OLLAMA_CLOUD_BASE_URL: ${OLLAMA_CLOUD_BASE_URL:-https://ollama.com}
-  OLLAMA_CLOUD_DEFAULT_MODEL: ${OLLAMA_CLOUD_DEFAULT_MODEL:-gpt-oss:20b}
+  # Commercial LLM APIs (optional)
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
   # Langfuse Observability - default to local Langfuse instance
   LANGFUSE_HOST: ${LANGFUSE_HOST:-http://langfuse:3000}
   LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}

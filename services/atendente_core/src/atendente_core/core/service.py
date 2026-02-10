@@ -136,10 +136,14 @@ class AtendenteService:
             )
 
         # Determina qual modelo será usado (para retornar na resposta)
-        from vizu_llm_service import get_llm_settings
+        from vizu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
 
-        settings = get_llm_settings()
-        model_used = model_override or settings.OLLAMA_CLOUD_DEFAULT_MODEL or "default"
+        llm_settings = get_llm_settings()
+        if model_override:
+            model_used = model_override
+        else:
+            provider = LLMProvider(llm_settings.LLM_PROVIDER)
+            model_used = MODEL_MAPPINGS.get(provider, {}).get(ModelTier.DEFAULT, "default")
 
         # Persiste a conversa e a mensagem inicial
         try:

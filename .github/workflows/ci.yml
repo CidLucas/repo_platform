@@ -172,10 +172,10 @@ jobs:
             BUILD_ARGS="--build-arg VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }} \
               --build-arg VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }} \
               --build-arg VITE_GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
-              --build-arg VITE_API_URL=https://vizu-tool-pool-api-858493958314.southamerica-east1.run.app \
-              --build-arg VITE_ATENDENTE_CORE=https://vizu-atendente-core-858493958314.southamerica-east1.run.app \
-              --build-arg VITE_API_URL_ANALYTICS=https://vizu-analytics-api-858493958314.southamerica-east1.run.app \
-              --build-arg VITE_DATA_INGESTION_API_URL=https://vizu-data-ingestion-api-858493958314.southamerica-east1.run.app"
+              --build-arg VITE_API_URL=https://tool-pool-api-858493958314.southamerica-east1.run.app \
+              --build-arg VITE_ATENDENTE_CORE=https://atendente-core-858493958314.southamerica-east1.run.app \
+              --build-arg VITE_API_URL_ANALYTICS=https://analytics-api-858493958314.southamerica-east1.run.app \
+              --build-arg VITE_DATA_INGESTION_API_URL=https://data-ingestion-api-858493958314.southamerica-east1.run.app"
           fi
 
           # Build and push for linux/amd64 (Cloud Run requirement)

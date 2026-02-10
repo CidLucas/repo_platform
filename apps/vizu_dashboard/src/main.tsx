@@ -1,3 +1,4 @@
+// Dashboard v1.1.0 - Fixed Cloud Run service URLs
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'

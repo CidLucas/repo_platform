@@ -3,13 +3,36 @@ import { StatCard } from '../components/StatCard';
 import { MainLayout } from '../components/layouts/MainLayout';
 import { Link } from 'react-router-dom';
 import { useUserProfile } from '../hooks/useUserProfile';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useHomeMetrics } from '../hooks/useHomeMetrics';
 import { useIndicators } from '../hooks/useIndicators';
+import { getClientes, getFornecedores, getProdutosOverview } from '../services/analyticsService';
 
 function HomePage() {
   const profile = useUserProfile();
-  
+  const queryClient = useQueryClient();
+
+  // Prefetch list page data when HomePage loads (improves navigation speed)
+  useEffect(() => {
+    // Prefetch in background - won't show loading, just warms the cache
+    queryClient.prefetchQuery({
+      queryKey: ['clientes', 'all'],
+      queryFn: () => getClientes('all'),
+      staleTime: 5 * 60 * 1000,
+    });
+    queryClient.prefetchQuery({
+      queryKey: ['fornecedores', 'all'],
+      queryFn: () => getFornecedores('all'),
+      staleTime: 5 * 60 * 1000,
+    });
+    queryClient.prefetchQuery({
+      queryKey: ['produtos', 'all'],
+      queryFn: () => getProdutosOverview('all'),
+      staleTime: 5 * 60 * 1000,
+    });
+  }, [queryClient]);
+
   // Both hooks use React Query - they execute in parallel automatically
   const { data: metricsData, loading: metricsLoading, error: metricsError } = useHomeMetrics();
   const { data: indicators, loading: indicatorsLoading, error: indicatorsError } = useIndicators({
@@ -58,7 +81,7 @@ function HomePage() {
   }
 
   const userName = profile?.full_name.split(' ')[0] || 'Usuário';
-  
+
   // Format revenue as compact number (ex: R$ 91,7 mi)
   const formatCompactCurrency = (value: number): string => {
     if (value >= 1_000_000_000) {

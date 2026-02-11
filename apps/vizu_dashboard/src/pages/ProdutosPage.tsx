@@ -5,10 +5,11 @@ import { MainLayout } from '../components/layouts/MainLayout';
 import { DashboardCard, InsightBullet } from '../components/DashboardCard';
 import { PerformanceCard, MetricSlide } from '../components/PerformanceCard';
 import { ListCard } from '../components/ListCard';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { ProdutoDetailsModal } from '../components/ProdutoDetailsModal';
-import { getProdutosOverview, getProdutoDetails } from '../services/analyticsService';
-import type { ProdutosOverviewResponse, ProdutoDetailResponse } from '../services/analyticsService';
+import { useProdutos } from '../hooks/useListData';
+import { getProdutoDetails } from '../services/analyticsService';
+import type { ProdutoDetailResponse } from '../services/analyticsService';
 import { DEFAULT_BRAZIL_CENTER } from '../utils/regionCoordinates';
 import { useUserProfile } from '../hooks/useUserProfile';
 
@@ -28,32 +29,21 @@ const calcTierMetrics = (tier: { quantidade_total?: number; valor_unitario_medio
 function ProdutosPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedItem, setSelectedItem] = useState<ProdutoDetailResponse | null>(null);
-  const [overviewData, setOverviewData] = useState<ProdutosOverviewResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('quantidade');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const profile = useUserProfile();
   const userName = profile?.full_name.split(' ')[0] || 'Usuário';
 
-  const fetchProdutosData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await getProdutosOverview('month');
-      setOverviewData(data);
-      setLastUpdate(new Date());
-      setError(null);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar dados dos produtos.';
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Use React Query hook for main data (cached, automatic background refresh)
+  const { data: overviewData, isLoading: loading, error: queryError, refetch } = useProdutos({ period: 'month' });
+  const error = queryError?.message || localError;
 
-  useEffect(() => {
-    fetchProdutosData();
-  }, [fetchProdutosData]);
+  // Handle manual refresh (uses React Query refetch)
+  const handleRefresh = useCallback(async () => {
+    await refetch();
+    setLastUpdate(new Date());
+  }, [refetch]);
 
   const handleSlideChange = useCallback((_index: number, slideId: string) => {
     setSelectedMetric(slideId as MetricType);
@@ -68,7 +58,7 @@ function ProdutosPage() {
     } catch (err: unknown) {
       console.error("Erro ao carregar detalhes do produto:", err);
       const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar detalhes do produto.';
-      setError(errorMessage);
+      setLocalError(errorMessage);
     }
   };
 
@@ -394,7 +384,7 @@ function ProdutosPage() {
               icon={<RepeatIcon />}
               aria-label="Atualizar dados"
               size="sm"
-              onClick={fetchProdutosData}
+              onClick={handleRefresh}
               isLoading={loading}
             />
           </HStack>

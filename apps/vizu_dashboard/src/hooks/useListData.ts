@@ -8,10 +8,6 @@ import {
   getFornecedores,
   getProdutosOverview,
   getProductsForFilter,
-  ClientesOverviewResponse,
-  FornecedoresOverviewResponse,
-  ProdutosOverviewResponse,
-  ProductFilterItem,
 } from '../services/analyticsService';
 
 // ================== CLIENTES ==================
@@ -86,9 +82,39 @@ export const useClientesPageData = (period: string = 'all') => {
     clientes: clientesQuery.data ?? null,
     productsFilter: productsFilterQuery.data ?? [],
     loading: clientesQuery.isLoading || productsFilterQuery.isLoading,
-    error: clientesQuery.error || productsFilterQuery.error,
+    error: clientesQuery.error?.message || productsFilterQuery.error?.message || null,
     refetch: async () => {
       await Promise.all([clientesQuery.refetch(), productsFilterQuery.refetch()]);
     },
+  };
+};
+
+/**
+ * Combined hook for FornecedoresListPage.
+ * Uses React Query for caching and automatic background refetching.
+ */
+export const useFornecedoresPageData = (period: string = 'all') => {
+  const fornecedoresQuery = useFornecedores({ period });
+
+  return {
+    fornecedores: fornecedoresQuery.data ?? null,
+    loading: fornecedoresQuery.isLoading,
+    error: fornecedoresQuery.error?.message || null,
+    refetch: fornecedoresQuery.refetch,
+  };
+};
+
+/**
+ * Combined hook for ProdutosListPage.
+ * Uses React Query for caching and automatic background refetching.
+ */
+export const useProdutosPageData = (period: string = 'all') => {
+  const produtosQuery = useProdutos({ period });
+
+  return {
+    produtos: produtosQuery.data ?? null,
+    loading: produtosQuery.isLoading,
+    error: produtosQuery.error?.message || null,
+    refetch: produtosQuery.refetch,
   };
 };

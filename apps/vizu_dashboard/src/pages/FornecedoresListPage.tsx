@@ -3,8 +3,9 @@ import { MainLayout } from '../components/layouts/MainLayout';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { FornecedorDetailsModal } from '../components/FornecedorDetailsModal';
-import { getFornecedores, getFornecedor, getSuppliersByProduct } from '../services/analyticsService';
-import type { FornecedoresOverviewResponse, FornecedorDetailResponse, SupplierByProduct } from '../services/analyticsService';
+import { useFornecedoresPageData } from '../hooks/useListData';
+import { getFornecedor, getSuppliersByProduct } from '../services/analyticsService';
+import type { FornecedorDetailResponse, SupplierByProduct } from '../services/analyticsService';
 
 type ViewMode = 'all' | 'by-product';
 
@@ -12,11 +13,16 @@ function FornecedoresListPage() {
   const [searchParams] = useSearchParams();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedFornecedor, setSelectedFornecedor] = useState<FornecedorDetailResponse | null>(null);
-  const [overviewData, setOverviewData] = useState<FornecedoresOverviewResponse | null>(null);
+  
+  // Use React Query hook for main data (cached, automatic background refresh)
+  const { fornecedores: overviewData, loading, error: queryError } = useFornecedoresPageData();
+  
+  // Local state for filtered views and user actions
   const [suppliersByProduct, setSuppliersByProduct] = useState<SupplierByProduct[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
   const [loadingByProduct, setLoadingByProduct] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const error = queryError || localError;
+  
   const [viewMode, setViewMode] = useState<ViewMode>('all');
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [productDisplayName, setProductDisplayName] = useState<string | null>(null);
@@ -33,23 +39,6 @@ function FornecedoresListPage() {
       setProductDisplayName(productNameParam ? decodeURIComponent(productNameParam) : decodeURIComponent(productParam));
     }
   }, [searchParams]);
-
-  // Fetch all fornecedores
-  useEffect(() => {
-    const fetchFornecedoresData = async () => {
-      try {
-        setLoading(true);
-        const data = await getFornecedores();
-        setOverviewData(data);
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar fornecedores.';
-        setError(errorMessage);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchFornecedoresData();
-  }, []);
 
   // Fetch suppliers by product when in by-product mode
   useEffect(() => {
@@ -79,7 +68,7 @@ function FornecedoresListPage() {
     } catch (err: unknown) {
       console.error("Erro ao carregar detalhes do fornecedor:", err);
       const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar detalhes do fornecedor.';
-      setError(errorMessage);
+      setLocalError(errorMessage);
     }
   };
 

@@ -5,46 +5,36 @@ import { DashboardCard, InsightBullet } from '../components/DashboardCard';
 import { PerformanceCard, MetricSlide } from '../components/PerformanceCard';
 import { ListCard } from '../components/ListCard';
 import { FornecedorDetailsModal } from '../components/FornecedorDetailsModal';
-import { getFornecedores, getFornecedor } from '../services/analyticsService';
-import type { FornecedoresOverviewResponse, FornecedorDetailResponse } from '../services/analyticsService';
+import { useFornecedores } from '../hooks/useListData';
+import { getFornecedor } from '../services/analyticsService';
+import type { FornecedorDetailResponse } from '../services/analyticsService';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useGeoClusters } from '../hooks/useGeoClusters';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 
 type MetricType = 'receita' | 'quantidade' | 'ticket_medio' | 'fornecedores';
 
 function FornecedoresPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedItem, setSelectedItem] = useState<FornecedorDetailResponse | null>(null);
-  const [overviewData, setOverviewData] = useState<FornecedoresOverviewResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('receita');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const profile = useUserProfile();
   const userName = profile?.full_name.split(' ')[0] || 'Usuário';
 
+  // Use React Query hook for main data (cached, automatic background refresh)
+  const { data: overviewData, isLoading: loading, error: queryError, refetch } = useFornecedores({ period: 'month' });
+  const error = queryError?.message || localError;
+
   // Hooks para dados
   const { data: geoClusters } = useGeoClusters('state');
 
-  const fetchFornecedoresData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await getFornecedores('month');
-      setOverviewData(data);
-      setLastUpdate(new Date());
-      setError(null);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar dados dos fornecedores.';
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchFornecedoresData();
-  }, [fetchFornecedoresData]);
+  // Handle manual refresh (uses React Query refetch)
+  const handleRefresh = useCallback(async () => {
+    await refetch();
+    setLastUpdate(new Date());
+  }, [refetch]);
 
   const handleSlideChange = useCallback((_index: number, slideId: string) => {
     setSelectedMetric(slideId as MetricType);
@@ -58,7 +48,7 @@ function FornecedoresPage() {
       onOpen();
     } catch (err: any) {
       console.error("Erro ao carregar detalhes do fornecedor:", err);
-      setError(err.message || 'Erro ao carregar detalhes do fornecedor.');
+      setLocalError(err.message || 'Erro ao carregar detalhes do fornecedor.');
     }
   };
 
@@ -363,7 +353,7 @@ function FornecedoresPage() {
               icon={<RepeatIcon />}
               aria-label="Atualizar dados"
               size="sm"
-              onClick={fetchFornecedoresData}
+              onClick={handleRefresh}
               isLoading={loading}
             />
           </HStack>

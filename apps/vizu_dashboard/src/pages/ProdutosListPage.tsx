@@ -4,8 +4,9 @@ import { MainLayout } from '../components/layouts/MainLayout';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ProdutoDetailsModal } from '../components/ProdutoDetailsModal';
-import { getProdutosOverview, getProdutoDetails, getProductsByCustomer, getProductsBySupplier } from '../services/analyticsService';
-import type { ProdutosOverviewResponse, ProdutoDetailResponse, ProdutoRankingReceita, ProductByCustomer } from '../services/analyticsService';
+import { useProdutosPageData } from '../hooks/useListData';
+import { getProdutoDetails, getProductsByCustomer, getProductsBySupplier } from '../services/analyticsService';
+import type { ProdutoDetailResponse, ProdutoRankingReceita, ProductByCustomer } from '../services/analyticsService';
 
 type ViewMode = 'all' | 'by-customer' | 'by-supplier';
 
@@ -13,9 +14,13 @@ function ProdutosListPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedProduto, setSelectedProduto] = useState<ProdutoDetailResponse | null>(null);
-  const [overviewData, setOverviewData] = useState<ProdutosOverviewResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  
+  // Use React Query hook for main data (cached, automatic background refresh)
+  const { produtos: overviewData, loading, error: queryError, refetch } = useProdutosPageData();
+  
+  // Local state for filtered views and user actions
+  const [localError, setLocalError] = useState<string | null>(null);
+  const error = queryError || localError;
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   // Filter state - initialize from URL params
@@ -32,24 +37,11 @@ function ProdutosListPage() {
   const [productsByFilter, setProductsByFilter] = useState<ProductByCustomer[]>([]);
   const [loadingFiltered, setLoadingFiltered] = useState<boolean>(false);
 
-  const fetchProdutosData = async () => {
-    try {
-      setLoading(true);
-      const overviewResponse = await getProdutosOverview();
-      setOverviewData(overviewResponse);
-      setLastUpdate(new Date());
-      setError(null);
-    } catch (err: unknown) {
-      console.error('Error fetching produtos:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao carregar produtos.');
-    } finally {
-      setLoading(false);
-    }
+  // Handle manual refresh (uses React Query refetch)
+  const handleRefresh = async () => {
+    await refetch();
+    setLastUpdate(new Date());
   };
-
-  useEffect(() => {
-    fetchProdutosData();
-  }, []);
 
   // Handle URL parameters for filtering
   useEffect(() => {
@@ -111,7 +103,7 @@ function ProdutosListPage() {
       onOpen();
     } catch (err: unknown) {
       console.error("Erro ao carregar detalhes do produto:", err);
-      setError(err instanceof Error ? err.message : 'Erro ao carregar detalhes do produto.');
+      setLocalError(err instanceof Error ? err.message : 'Erro ao carregar detalhes do produto.');
     }
   };
 
@@ -177,7 +169,7 @@ function ProdutosListPage() {
                 icon={<RepeatIcon />}
                 aria-label="Atualizar dados"
                 size="xs"
-                onClick={fetchProdutosData}
+                onClick={handleRefresh}
                 isLoading={loading}
               />
             </Flex>

@@ -4,10 +4,11 @@ import { MainLayout } from '../components/layouts/MainLayout';
 import { DashboardCard, InsightBullet } from '../components/DashboardCard';
 import { PerformanceCard, MetricSlide } from '../components/PerformanceCard';
 import { ListCard } from '../components/ListCard';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { ClienteDetailsModal } from '../components/ClienteDetailsModal';
-import { getClientes, getCliente } from '../services/analyticsService';
-import type { ClientesOverviewResponse, ClienteDetailResponse } from '../services/analyticsService';
+import { useClientes } from '../hooks/useListData';
+import { getCliente } from '../services/analyticsService';
+import type { ClienteDetailResponse } from '../services/analyticsService';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useGeoClusters } from '../hooks/useGeoClusters';
 import { useMVMonthlySales, useMVCustomers } from '../hooks/useMVData';
@@ -17,13 +18,15 @@ type MetricType = 'receita' | 'ticket_medio' | 'qtd_pedidos' | 'clientes';
 function ClientesPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedItem, setSelectedItem] = useState<ClienteDetailResponse | null>(null);
-  const [overviewData, setOverviewData] = useState<ClientesOverviewResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('receita');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const profile = useUserProfile();
   const userName = profile?.full_name.split(' ')[0] || 'Usuário';
+
+  // Use React Query hook for main data (cached, automatic background refresh)
+  const { data: overviewData, isLoading: loading, error: queryError, refetch } = useClientes({ period: 'all' });
+  const error = queryError?.message || localError;
 
   // Fetch from materialized views for faster chart data
   const { chartData: mvChartData, loading: mvLoading } = useMVMonthlySales();
@@ -61,33 +64,11 @@ function ClientesPage() {
     return (overviewData?.chart_ticketmedio_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0, total: d.total ?? d.value ?? 0 }));
   }, [mvChartData, overviewData]);
 
-  const fetchClientesData = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      const overviewResponse = await getClientes();
-
-      if (Array.isArray(overviewResponse)) {
-        console.error('API returned array instead of ClientesOverviewResponse object');
-        setError('Formato de dados inválido retornado pela API');
-        return;
-      }
-
-      setOverviewData(overviewResponse);
-      setLastUpdate(new Date());
-      setError(null);
-    } catch (err: unknown) {
-      console.error('Error fetching clientes:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar dados dos clientes.';
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchClientesData();
-  }, [fetchClientesData]);
+  // Handle manual refresh (uses React Query refetch)
+  const handleRefresh = useCallback(async () => {
+    await refetch();
+    setLastUpdate(new Date());
+  }, [refetch]);
 
   const handleSlideChange = useCallback((_index: number, slideId: string) => {
     setSelectedMetric(slideId as MetricType);
@@ -97,7 +78,7 @@ function ClientesPage() {
     try {
       if (!clickedItem?.id || clickedItem.id.trim() === '') {
         console.warn('handleMiniCardClick called with empty client id', clickedItem);
-        setError('Nome de cliente inválido ao tentar carregar detalhes.');
+        setLocalError('Nome de cliente inválido ao tentar carregar detalhes.');
         return;
       }
       setSelectedItem(null);
@@ -106,7 +87,7 @@ function ClientesPage() {
       onOpen();
     } catch (err: any) {
       console.error("Erro ao carregar detalhes do cliente:", err);
-      setError(err.message || 'Erro ao carregar detalhes do cliente.');
+      setLocalError(err.message || 'Erro ao carregar detalhes do cliente.');
     }
   };
 
@@ -394,7 +375,7 @@ function ClientesPage() {
               icon={<RepeatIcon />}
               aria-label="Atualizar dados"
               size="sm"
-              onClick={fetchClientesData}
+              onClick={handleRefresh}
               isLoading={loading}
             />
           </HStack>

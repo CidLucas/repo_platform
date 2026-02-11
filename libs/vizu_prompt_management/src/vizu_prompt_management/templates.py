@@ -34,11 +34,11 @@ class PromptTemplateConfig:
 
 
 
-# Builtin fallback - Langfuse prompt "atendente/v4" takes precedence
-ATENDENTE_V4 = PromptTemplateConfig(
-    name="atendente/v4",
+# Builtin fallback - Langfuse prompt "basic" takes precedence
+ATENDENTE = PromptTemplateConfig(
+    name="basic",
     category=PromptCategory.SYSTEM,
-    description="Data Analyst agent prompt (v6 - With fallback strategies)",
+    description="Data Analyst agent prompt - builtin fallback",
     required_variables=["nome_empresa"],
     optional_variables={
         "tools_description": "",
@@ -299,7 +299,7 @@ Por favor, verifique se as informações estão corretas e tente novamente."""
 # All built-in templates in a registry for easy access
 BUILTIN_TEMPLATES: dict[str, PromptTemplateConfig] = {
     # System prompts
-    ATENDENTE_V4.name: ATENDENTE_V4,
+    ATENDENTE.name: ATENDENTE,
     # Action prompts
     CONFIRMACAO_AGENDAMENTO.name: CONFIRMACAO_AGENDAMENTO,
     ESCLARECIMENTO_PROMPT.name: ESCLARECIMENTO_PROMPT,

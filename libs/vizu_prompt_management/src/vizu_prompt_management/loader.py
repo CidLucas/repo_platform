@@ -109,7 +109,9 @@ class PromptLoader:
                 )
                 if is_langfuse_enabled():
                     self._langfuse_client = LangfusePromptClient()
-                    logger.debug("Langfuse prompt client initialized")
+                    logger.info("Langfuse prompt client initialized")
+                else:
+                    logger.warning("Langfuse not enabled (missing LANGFUSE_PUBLIC_KEY or LANGFUSE_SECRET_KEY)")
             except ImportError:
                 logger.debug("vizu_observability_bootstrap not available")
             except Exception as e:
@@ -313,7 +315,7 @@ class PromptLoader:
             self._langfuse_cooldown_until = _time.time() + self._LANGFUSE_COOLDOWN_SECONDS
             return None
         except Exception as e:
-            logger.debug(f"Langfuse prompt '{name}' not found or error: {e}")
+            logger.warning(f"Langfuse prompt '{name}' fetch failed (label={label}): {e}")
             if "Connection refused" in str(e) or "connection" in str(e).lower():
                 self._langfuse_cooldown_until = _time.time() + self._LANGFUSE_COOLDOWN_SECONDS
                 logger.info(f"Langfuse unreachable, disabling for {self._LANGFUSE_COOLDOWN_SECONDS}s")

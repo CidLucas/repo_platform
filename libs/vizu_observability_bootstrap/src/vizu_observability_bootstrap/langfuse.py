@@ -20,10 +20,9 @@ import asyncio
 import logging
 import os
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from langchain_core.callbacks.base import BaseCallbackHandler
+from langchain_core.callbacks.base import BaseCallbackHandler
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +106,7 @@ def sanitize_observation(obj: dict, max_messages: int = 6, max_str_len: int = 20
 # =============================================================================
 
 
-class SanitizingLangfuseCallback:
+class SanitizingLangfuseCallback(BaseCallbackHandler):
     """
     Wrapper around Langfuse CallbackHandler that sanitizes observations.
 
@@ -116,15 +115,15 @@ class SanitizingLangfuseCallback:
     - Removes `_internal_context` key entirely
     - Truncates large `response_metadata` objects to a small subset
 
-    Note: This is a pure wrapper (not inheriting from BaseCallbackHandler)
-    because we delegate all callback methods to the inner handler.
-    LangChain accepts callback handlers via duck typing.
+    Inherits from BaseCallbackHandler to pass isinstance() checks
+    in LangChain/Pydantic validation (required by ChatOllama and others).
     """
 
     def __init__(self, inner: Any, max_messages: int = 6):
+        super().__init__()
         self._inner = inner
         self._max_messages = max_messages
-        # Expose required properties for LangChain duck typing
+        # Expose required properties from inner handler
         self.ignore_agent = getattr(inner, "ignore_agent", False)
         self.ignore_chain = getattr(inner, "ignore_chain", False)
         self.ignore_llm = getattr(inner, "ignore_llm", False)
@@ -286,7 +285,9 @@ def get_langfuse_callback(
         # Wrap with SanitizingLangfuseCallback to strip internal contexts from traces
         sanitized_handler = SanitizingLangfuseCallback(handler, max_messages=max_messages)
 
-        logger.debug(f"Langfuse callback created - host: {settings['host']}, trace_name: {trace_name}")
+        logger.debug(
+            f"Langfuse callback created - host: {settings['host']}, trace_name: {trace_name}"
+        )
         return sanitized_handler
 
     except ImportError:
@@ -342,6 +343,7 @@ class LangfusePromptClient:
                 raise RuntimeError("Langfuse not configured - missing credentials")
 
             from langfuse import Langfuse
+
             settings = get_langfuse_settings()
             self._client = Langfuse(
                 public_key=settings["public_key"],
@@ -353,6 +355,7 @@ class LangfusePromptClient:
     def _trigger_cooldown(self) -> None:
         """Trigger circuit breaker cooldown after connection failure."""
         import time
+
         self._cooldown_until = time.time() + self._COOLDOWN_SECONDS
         logger.warning(f"Langfuse unreachable, disabling for {self._COOLDOWN_SECONDS}s")
 
@@ -399,7 +402,11 @@ class LangfusePromptClient:
 
         except Exception as e:
             error_str = str(e).lower()
-            if "connection refused" in error_str or "connection" in error_str or "timeout" in error_str:
+            if (
+                "connection refused" in error_str
+                or "connection" in error_str
+                or "timeout" in error_str
+            ):
                 self._trigger_cooldown()
             logger.warning(f"Langfuse prompt '{name}' fetch failed (label={label}): {e}")
             return None
@@ -446,7 +453,11 @@ class LangfusePromptClient:
 
         except Exception as e:
             error_str = str(e).lower()
-            if "connection refused" in error_str or "connection" in error_str or "timeout" in error_str:
+            if (
+                "connection refused" in error_str
+                or "connection" in error_str
+                or "timeout" in error_str
+            ):
                 self._trigger_cooldown()
             logger.warning(f"Langfuse template '{name}' fetch failed (label={label}): {e}")
             return None
@@ -454,6 +465,7 @@ class LangfusePromptClient:
     def is_available(self) -> bool:
         """Check if Langfuse is enabled and not in cooldown."""
         import time
+
         if time.time() < self._cooldown_until:
             return False
         return is_langfuse_enabled()
@@ -471,6 +483,7 @@ def flush_langfuse() -> None:
 
     try:
         from langfuse import get_client
+
         get_client().flush()
         logger.debug("Langfuse flush completed")
     except Exception as e:
@@ -505,6 +518,7 @@ def shutdown_langfuse() -> None:
 
     try:
         from langfuse import get_client
+
         get_client().shutdown()
         logger.debug("Langfuse shutdown completed")
     except Exception as e:

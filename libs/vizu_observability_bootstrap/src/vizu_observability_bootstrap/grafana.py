@@ -15,6 +15,7 @@ Usage:
     # Set up structured logging for Grafana Loki
     setup_grafana_logging(service_name="atendente_core")
 """
+
 import json
 import logging
 import os
@@ -33,7 +34,7 @@ def is_grafana_enabled() -> bool:
 class GrafanaLokiFormatter(logging.Formatter):
     """
     JSON formatter optimized for Grafana Loki.
-    
+
     Produces logs in a format that Loki can parse and index efficiently.
     Includes trace correlation fields when available.
     """
@@ -61,11 +62,12 @@ class GrafanaLokiFormatter(logging.Formatter):
         # Add OpenTelemetry trace context if available
         try:
             from opentelemetry import trace
+
             span = trace.get_current_span()
             if span and span.is_recording():
                 ctx = span.get_span_context()
-                log_record["trace_id"] = format(ctx.trace_id, '032x')
-                log_record["span_id"] = format(ctx.span_id, '016x')
+                log_record["trace_id"] = format(ctx.trace_id, "032x")
+                log_record["span_id"] = format(ctx.span_id, "016x")
         except ImportError:
             pass
 
@@ -80,11 +82,28 @@ class GrafanaLokiFormatter(logging.Formatter):
         # Add any extra fields from the log record
         for key, value in record.__dict__.items():
             if key not in (
-                "name", "msg", "args", "created", "filename", "funcName",
-                "levelname", "levelno", "lineno", "module", "msecs",
-                "pathname", "process", "processName", "relativeCreated",
-                "stack_info", "exc_info", "exc_text", "thread", "threadName",
-                "message", "taskName"
+                "name",
+                "msg",
+                "args",
+                "created",
+                "filename",
+                "funcName",
+                "levelname",
+                "levelno",
+                "lineno",
+                "module",
+                "msecs",
+                "pathname",
+                "process",
+                "processName",
+                "relativeCreated",
+                "stack_info",
+                "exc_info",
+                "exc_text",
+                "thread",
+                "threadName",
+                "message",
+                "taskName",
             ) and not key.startswith("_"):
                 try:
                     json.dumps(value)  # Check if serializable
@@ -126,7 +145,7 @@ def setup_grafana_logging(
 
     logger.info(
         "Grafana logging configured",
-        extra={"service": service_name, "environment": env, "level": level}
+        extra={"service": service_name, "environment": env, "level": level},
     )
 
 
@@ -199,6 +218,7 @@ def health_check() -> dict:
     # Check if tracer is working
     try:
         from opentelemetry import trace
+
         tracer = trace.get_tracer(__name__)
         status["tracer_available"] = tracer is not None
     except Exception:

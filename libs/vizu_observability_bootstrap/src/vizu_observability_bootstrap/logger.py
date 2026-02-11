@@ -25,7 +25,7 @@ def setup_structured_logging():
 
     # JSON formatter with trace context
     formatter = jsonlogger.JsonFormatter(
-        '%(asctime)s %(name)s %(levelname)s %(message)s %(trace_id)s %(span_id)s'
+        "%(asctime)s %(name)s %(levelname)s %(message)s %(trace_id)s %(span_id)s"
     )
 
     handler.setFormatter(formatter)

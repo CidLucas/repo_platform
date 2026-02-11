@@ -3,8 +3,9 @@
 Create Langfuse prompts matching vizu_prompt_management/templates.py
 Run: python scripts/create_langfuse_prompts.py
 """
-import requests
 from base64 import b64encode
+
+import requests
 
 # Auth
 PUBLIC_KEY = "pk-lf-c64e4914-b8ab-426d-a5ea-14989b564e13"
@@ -111,9 +112,9 @@ def main():
                 print(f"   {result}")
             failed += 1
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"Created: {success}, Failed: {failed}")
-    print(f"\nView prompts at: https://us.cloud.langfuse.com/prompts")
+    print("\nView prompts at: https://us.cloud.langfuse.com/prompts")
 
 
 if __name__ == "__main__":

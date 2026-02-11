@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Create analytics_v2 schema prompts in Langfuse."""
 
-import requests
 from base64 import b64encode
+
+import requests
 
 # Auth
 PUBLIC_KEY = "pk-lf-c64e4914-b8ab-426d-a5ea-14989b564e13"

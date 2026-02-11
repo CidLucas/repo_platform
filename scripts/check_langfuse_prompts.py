@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Check Langfuse prompts status."""
 
-import requests
 from base64 import b64encode
+
+import requests
 
 PUBLIC_KEY = "pk-lf-c64e4914-b8ab-426d-a5ea-14989b564e13"
 SECRET_KEY = "sk-lf-dc053e58-e9e3-4822-abfe-89421ca9c2d4"

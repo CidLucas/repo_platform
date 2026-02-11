@@ -141,35 +141,6 @@ class VariableExtractor:
         return variables
 
     @staticmethod
-    def _format_horarios(horarios: dict | None) -> str:
-        """Format business hours for display."""
-        if not horarios:
-            return "Horário não configurado."
-
-        linhas = []
-        dias_ordem = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
-
-        for dia in dias_ordem:
-            if dia in horarios:
-                info = horarios[dia]
-                if isinstance(info, dict):
-                    abertura = info.get("abertura", "")
-                    fechamento = info.get("fechamento", "")
-                    if abertura and fechamento:
-                        linhas.append(f"- {dia.capitalize()}: {abertura} às {fechamento}")
-                    else:
-                        linhas.append(f"- {dia.capitalize()}: Fechado")
-                elif isinstance(info, str):
-                    linhas.append(f"- {dia.capitalize()}: {info}")
-
-        # Add days not in standard order
-        for dia, info in horarios.items():
-            if dia.lower() not in dias_ordem:
-                linhas.append(f"- {dia.capitalize()}: {info}")
-
-        return "\n".join(linhas) if linhas else "Horário não configurado."
-
-    @staticmethod
     def build_tools_description(
         tools: list,
         tool_registry: Any | None = None,
@@ -227,16 +198,6 @@ class ContextVariableBuilder:
     def with_empresa(self, nome: str) -> "ContextVariableBuilder":
         """Set company name."""
         self._variables.nome_empresa = nome
-        return self
-
-    def with_prompt_base(self, prompt: str) -> "ContextVariableBuilder":
-        """Set personalized prompt."""
-        self._variables.prompt_personalizado = prompt
-        return self
-
-    def with_horarios(self, horarios: dict) -> "ContextVariableBuilder":
-        """Set business hours."""
-        self._variables.horario_formatado = VariableExtractor._format_horarios(horarios)
         return self
 
     def with_tools(

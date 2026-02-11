@@ -15,10 +15,7 @@ class TemplateRenderer:
     """
     Render prompt templates with variable substitution.
 
-    Supports:
-    - Jinja2 syntax ({{ variable }}, {% if %}, {% for %})
-    - Simple placeholder syntax ({variable})
-    - Safe rendering with undefined variable handling
+    Supports Jinja2 syntax: {{ variable }}, {% if %}, {% for %}
     """
 
     def __init__(
@@ -62,12 +59,12 @@ class TemplateRenderer:
         strict: bool = False,
     ) -> str:
         """
-        Render a template with variables.
+        Render a template with variables using Jinja2.
 
         Args:
-            template: Template string (Jinja2 or simple format)
+            template: Template string with Jinja2 syntax
             variables: Variables to substitute
-            strict: If True, raise error on missing variables
+            strict: If True, raise error on rendering failures
 
         Returns:
             Rendered string
@@ -75,44 +72,18 @@ class TemplateRenderer:
         if not template:
             return ""
 
-        # Try Jinja2 first
         try:
             jinja_template = self.env.from_string(template)
             return jinja_template.render(**variables)
-        except TemplateSyntaxError:
-            # Fall back to simple substitution
-            return self._simple_render(template, variables, strict)
         except Exception as e:
             if strict:
                 raise
             logger.warning(f"Template rendering error: {e}")
-            return self._simple_render(template, variables, strict)
-
-    def _simple_render(
-        self,
-        template: str,
-        variables: dict[str, Any],
-        strict: bool,
-    ) -> str:
-        """Simple {variable} substitution fallback."""
-        result = template
-
-        for key, value in variables.items():
-            # Replace {key} and {{key}}
-            result = result.replace(f"{{{{{key}}}}}", str(value))
-            result = result.replace(f"{{{key}}}", str(value))
-
-        # Handle remaining placeholders
-        if strict:
-            remaining = re.findall(r'\{(\w+)\}', result)
-            if remaining:
-                raise ValueError(f"Missing variables: {remaining}")
-
-        return result
+            return template  # Return original on error
 
     def extract_variables(self, template: str) -> set[str]:
         """
-        Extract variable names from a template.
+        Extract variable names from a Jinja2 template.
 
         Args:
             template: Template string
@@ -125,10 +96,6 @@ class TemplateRenderer:
         # Jinja2 style: {{ variable }}
         jinja_vars = re.findall(r'\{\{\s*(\w+)\s*\}\}', template)
         variables.update(jinja_vars)
-
-        # Simple style: {variable}
-        simple_vars = re.findall(r'\{(\w+)\}', template)
-        variables.update(simple_vars)
 
         # Jinja2 block variables: {% for item in items %}
         block_vars = re.findall(r'\{%\s*for\s+\w+\s+in\s+(\w+)\s*%\}', template)

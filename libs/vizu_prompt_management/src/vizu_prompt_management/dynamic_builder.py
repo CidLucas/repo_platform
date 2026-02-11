@@ -260,22 +260,6 @@ def filter_prompt_tools(prompt_base: str, available_tool_names: set[str]) -> str
     return result
 
 
-def format_horario(horarios: dict | None) -> str:
-    """
-    Format business hours dict to string.
-
-    Args:
-        horarios: Dict with day -> hours mapping
-
-    Returns:
-        Formatted string for prompt injection
-    """
-    if not horarios or not isinstance(horarios, dict):
-        return ""
-
-    return "\n".join(f"- {dia}: {h}" for dia, h in horarios.items())
-
-
 def build_tools_description(
     available_tools: list,
     tool_registry: Any | None = None,

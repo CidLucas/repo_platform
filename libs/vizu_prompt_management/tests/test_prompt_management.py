@@ -85,7 +85,7 @@ class TestRenderer:
 
     def test_simple_placeholder_render(self):
         """Test simple {placeholder} rendering falls through Jinja2.
-        
+
         Note: Simple {placeholder} syntax is passed through Jinja2 as-is
         if it's valid Jinja2 (which it is - single braces don't trigger substitution).
         Only {{variable}} or {% %} syntax triggers Jinja2 rendering.
@@ -174,23 +174,6 @@ class TestVariables:
         variables = VariableExtractor.from_dict(data)
         assert variables.nome_empresa == "Test Corp"
         assert variables.tier == "PREMIUM"
-
-    def test_format_horarios(self):
-        """Test business hours formatting."""
-        horarios = {
-            "segunda": {"abertura": "09:00", "fechamento": "18:00"},
-            "terça": {"abertura": "09:00", "fechamento": "18:00"},
-        }
-
-        formatted = VariableExtractor._format_horarios(horarios)
-        assert "Segunda" in formatted
-        assert "09:00" in formatted
-        assert "18:00" in formatted
-
-    def test_format_horarios_empty(self):
-        """Test formatting empty hours."""
-        formatted = VariableExtractor._format_horarios(None)
-        assert "não configurado" in formatted.lower()
 
 
 class TestContextVariableBuilder:

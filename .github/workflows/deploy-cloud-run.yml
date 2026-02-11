@@ -1,14 +1,12 @@
 name: Deploy to Cloud Run
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'services/**'
-      - 'libs/**'
-      - 'apps/vizu_dashboard/**'
-      - '.github/workflows/deploy-cloud-run.yml'
+  # Trigger after CI workflow completes successfully
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  # Manual trigger for ad-hoc deployments
   workflow_dispatch:
     inputs:
       service:
@@ -36,9 +34,18 @@ jobs:
   preflight:
     name: Preflight Checks
     runs-on: ubuntu-latest
+    # Skip if CI workflow failed (only applies to workflow_run trigger)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     outputs:
       services: ${{ steps.services.outputs.list }}
     steps:
+      - name: Check CI workflow result
+        if: github.event_name == 'workflow_run'
+        run: |
+          echo "## 🔗 Triggered by CI workflow" >> $GITHUB_STEP_SUMMARY
+          echo "CI Run: ${{ github.event.workflow_run.html_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "Result: ✅ ${{ github.event.workflow_run.conclusion }}" >> $GITHUB_STEP_SUMMARY
+
       - name: Validate required secrets
         run: |
           echo "## 🔍 Preflight Checks" >> $GITHUB_STEP_SUMMARY
@@ -162,7 +169,7 @@ jobs:
                 --concurrency 5 --timeout 3600 \
                 --max-instances 20 --min-instances 0 \
                 --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=ollama_cloud,OLLAMA_CLOUD_BASE_URL=https://ollama.com,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY},MCP_AUTH_GOOGLE_CLIENT_ID=${MCP_AUTH_GOOGLE_CLIENT_ID}" \
-                --set-secrets "SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,OLLAMA_CLOUD_API_KEY=OLLAMA_CLOUD_API_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,CREDENTIALS_ENCRYPTION_KEY=CREDENTIALS_ENCRYPTION_KEY:latest" \
+                --set-secrets "SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,OLLAMA_CLOUD_API_KEY=OLLAMA_CLOUD_API_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,CREDENTIALS_ENCRYPTION_KEY=CREDENTIALS_ENCRYPTION_KEY:latest,DATABASE_URL=DATABASE_URL_PROD:latest" \
                 --quiet
               ;;
 

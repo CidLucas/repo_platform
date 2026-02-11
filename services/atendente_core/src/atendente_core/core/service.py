@@ -15,12 +15,10 @@ from langchain_core.messages import AIMessage, HumanMessage
 from atendente_core.core.config import get_settings
 from atendente_core.core.hitl_integration import HitlIntegration
 from atendente_core.core.observability import get_langfuse_config
-from atendente_core.core.state import PendingElicitation
+from atendente_core.core.state import AgentState, PendingElicitation
 from atendente_core.services.mcp_client import ensure_mcp_connected
-from vizu_agent_framework.state import AgentState
 from vizu_context_service.context_service import ContextService
 from vizu_db_connector.operations import VizuDBConnector
-from vizu_models.safe_client_context import InternalClientContext
 
 logger = logging.getLogger(__name__)
 
@@ -124,24 +122,14 @@ class AtendenteService:
 
         logger.info(f"Atendendo: {client_context.nome_empresa} | Sessão: {session_id}")
 
-        # 2. Separar contexto seguro do sensível
-        # InternalClientContext mantém dados sensíveis (api_key, id) separados
-        # SafeClientContext contém apenas dados seguros para a LLM
-        internal_ctx = InternalClientContext.from_vizu_client_context(client_context)
-        safe_ctx = internal_ctx.get_safe_context()
-
-        # 3. Preparação do Estado do Grafo
-        # O system prompt é construído dinamicamente no nó supervisor via build_dynamic_system_prompt()
-        # safe_context vai para a LLM, _internal_context fica para uso interno
-        # Context 2.0: vizu_context contains all modular sections for selective injection
+        # 2. Preparação do Estado do Grafo
+        # OTIMIZAÇÃO: Contextos são buscados on-demand no supervisor_node usando cliente_id
+        # Isso evita trace bloat (vizu_context, safe_context, _internal_context não vão para o estado)
         initial_state = AgentState(
             messages=[HumanMessage(content=message_text)],
-            safe_context=safe_ctx,
-            vizu_context=client_context,  # Context 2.0: Full context with sections
-            _internal_context=internal_ctx,
             tools=[],  # Será preenchido pelo nó supervisor via MCP
             model_override=model_override,  # Modelo específico para este request
-            # PHASE 5: cliente_id para buscar prompts customizados
+            # cliente_id é usado para buscar contexto on-demand no supervisor_node
             cliente_id=client_context.id,
             # Include original user's JWT so executor can propagate to tools
             user_jwt=user_jwt,

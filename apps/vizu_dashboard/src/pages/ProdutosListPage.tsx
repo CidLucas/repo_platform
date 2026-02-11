@@ -14,10 +14,10 @@ function ProdutosListPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedProduto, setSelectedProduto] = useState<ProdutoDetailResponse | null>(null);
-  
+
   // Use React Query hook for main data (cached, automatic background refresh)
   const { produtos: overviewData, loading, error: queryError, refetch } = useProdutosPageData();
-  
+
   // Local state for filtered views and user actions
   const [localError, setLocalError] = useState<string | null>(null);
   const error = queryError || localError;
@@ -31,8 +31,8 @@ function ProdutosListPage() {
   const supplierNameParam = searchParams.get('supplierName');
 
   const [viewMode, setViewMode] = useState<ViewMode>(
-    viewParam === 'by-customer' ? 'by-customer' : 
-    viewParam === 'by-supplier' ? 'by-supplier' : 'all'
+    viewParam === 'by-customer' ? 'by-customer' :
+      viewParam === 'by-supplier' ? 'by-supplier' : 'all'
   );
   const [productsByFilter, setProductsByFilter] = useState<ProductByCustomer[]>([]);
   const [loadingFiltered, setLoadingFiltered] = useState<boolean>(false);
@@ -133,7 +133,7 @@ function ProdutosListPage() {
 
   // Use ranking_por_receita for the table
   const produtosList = overviewData.ranking_por_receita || []; // Ensure it's an array
-  
+
   // Determine which data to show based on view mode
   const showingFilteredProducts = (viewMode === 'by-customer' || viewMode === 'by-supplier') && productsByFilter.length > 0;
 
@@ -181,8 +181,8 @@ function ProdutosListPage() {
             )}
           </Box>
           {(viewMode === 'by-customer' || viewMode === 'by-supplier') ? (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               borderColor="gray.800"
               onClick={() => handleViewModeChange('all')}
             >

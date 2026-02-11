@@ -115,7 +115,7 @@ export const useIndicators = ({
     autoFetch = true,
 }: UseIndicatorsOptions = {}): UseIndicatorsReturn => {
     const metricsKey = metrics.slice().sort().join(',');
-    
+
     const { data, isLoading, error, refetch } = useQuery({
         queryKey: ['indicators', period, metricsKey, includeComparisons],
         queryFn: () => fetchIndicators(period, metrics, includeComparisons),

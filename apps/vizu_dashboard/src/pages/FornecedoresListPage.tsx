@@ -13,16 +13,16 @@ function FornecedoresListPage() {
   const [searchParams] = useSearchParams();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedFornecedor, setSelectedFornecedor] = useState<FornecedorDetailResponse | null>(null);
-  
+
   // Use React Query hook for main data (cached, automatic background refresh)
   const { fornecedores: overviewData, loading, error: queryError } = useFornecedoresPageData();
-  
+
   // Local state for filtered views and user actions
   const [suppliersByProduct, setSuppliersByProduct] = useState<SupplierByProduct[]>([]);
   const [loadingByProduct, setLoadingByProduct] = useState<boolean>(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const error = queryError || localError;
-  
+
   const [viewMode, setViewMode] = useState<ViewMode>('all');
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [productDisplayName, setProductDisplayName] = useState<string | null>(null);
@@ -143,7 +143,7 @@ function FornecedoresListPage() {
             Cadastrar Novo Fornecedor
           </Button>
         </Flex>
-        
+
         {loadingByProduct ? (
           <Flex justify="center" align="center" height="200px">
             <Spinner size="xl" />

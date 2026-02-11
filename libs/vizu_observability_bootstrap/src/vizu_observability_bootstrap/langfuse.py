@@ -229,6 +229,7 @@ def get_langfuse_callback(
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     max_messages: int = 6,
+    trace_name: str | None = None,
 ) -> BaseCallbackHandler | None:
     """
     Create a Langfuse CallbackHandler for LangChain/LangGraph tracing.
@@ -239,9 +240,10 @@ def get_langfuse_callback(
         tags: Tags for categorization
         metadata: Additional metadata (including prompt_name, prompt_version for trace linking)
         max_messages: Max messages to keep in observation (truncates older)
+        trace_name: Name for the trace (e.g., 'atendente_chat'). If None, trace will be unnamed.
 
     Returns:
-        Callback handler or None if Langfuse not configured
+        Callback handler wrapped with SanitizingLangfuseCallback, or None if Langfuse not configured
     """
     if not is_langfuse_enabled():
         logger.debug("Langfuse not enabled (missing credentials)")
@@ -267,8 +269,8 @@ def get_langfuse_callback(
             host=settings["host"],
         )
 
-        # Create handler
-        handler = CallbackHandler()
+        # Create handler with trace_name if provided
+        handler = CallbackHandler(trace_name=trace_name) if trace_name else CallbackHandler()
 
         # Set metadata if provided (prompt metadata for trace linking should be passed here)
         if metadata:
@@ -281,8 +283,11 @@ def get_langfuse_callback(
         if tags:
             handler.tags = tags
 
-        logger.debug(f"Langfuse callback created - host: {settings['host']}")
-        return handler
+        # Wrap with SanitizingLangfuseCallback to strip internal contexts from traces
+        sanitized_handler = SanitizingLangfuseCallback(handler, max_messages=max_messages)
+
+        logger.debug(f"Langfuse callback created - host: {settings['host']}, trace_name: {trace_name}")
+        return sanitized_handler
 
     except ImportError:
         logger.warning("langfuse not installed, tracing disabled")

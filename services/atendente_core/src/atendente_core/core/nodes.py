@@ -156,19 +156,19 @@ def _calculate_numeric_stats(rows: list[dict], columns: list[str]) -> str | None
 
 def sanitize_tool_for_llm(tool: BaseTool) -> BaseTool:
     """
-    Validate that tool schemas do not expose internal parameters to the LLM.
+    Remove internal parameters from tool schemas before exposing to LLM.
 
-    Tools should NOT have cliente_id or user_jwt in their schemas - these
-    should be handled via backend authentication (JWT tokens).
+    Tools should NOT have cliente_id or user_jwt visible to the LLM - these
+    are injected server-side via mcp_inject_cliente_id decorator.
 
-    If a tool exposes internal params, this logs an error but returns the tool
-    as-is to avoid breaking the system. The fix should be in the tool definition.
+    This function actively removes internal params from the tool's JSON schema
+    to prevent the LLM from seeing/generating them.
 
     Args:
         tool: Tool from MCP
 
     Returns:
-        The same tool (validation only, no modification)
+        Tool with internal params stripped from schema
     """
     INTERNAL_PARAMS = {"cliente_id", "user_jwt"}
 
@@ -186,11 +186,39 @@ def sanitize_tool_for_llm(tool: BaseTool) -> BaseTool:
         fields = set(schema.get("properties", {}).keys())
 
     exposed_params = INTERNAL_PARAMS & fields
-    if exposed_params:
-        logger.error(
-            f"[SECURITY] Tool '{tool.name}' exposes internal params {exposed_params} to LLM! "
-            f"Fix the tool definition to remove these from the signature."
-        )
+    if not exposed_params:
+        return tool  # No internal params, return as-is
+
+    # Log warning - tools should be fixed at the source
+    logger.warning(
+        f"[SECURITY] Tool '{tool.name}' exposes internal params {exposed_params} - stripping from schema"
+    )
+
+    # Strip internal params from the tool's schema
+    # For Pydantic models, we need to modify the JSON schema representation
+    try:
+        if hasattr(schema, "model_json_schema"):
+            # Pydantic v2 model - modify the generated JSON schema
+            json_schema = schema.model_json_schema()
+            if "properties" in json_schema:
+                for param in exposed_params:
+                    json_schema["properties"].pop(param, None)
+                if "required" in json_schema:
+                    json_schema["required"] = [
+                        r for r in json_schema["required"] if r not in INTERNAL_PARAMS
+                    ]
+            # Override tool's schema property to use cleaned version
+            tool._args_schema_json = json_schema
+        elif isinstance(schema, dict) and "properties" in schema:
+            # Raw dict schema
+            for param in exposed_params:
+                schema["properties"].pop(param, None)
+            if "required" in schema:
+                schema["required"] = [
+                    r for r in schema["required"] if r not in INTERNAL_PARAMS
+                ]
+    except Exception as e:
+        logger.error(f"[SECURITY] Failed to strip params from '{tool.name}': {e}")
 
     return tool
 
@@ -437,17 +465,36 @@ async def supervisor_node(state: AgentState) -> dict:
         messages = list(messages)  # Make a copy to avoid mutating state
         messages.append(HumanMessage(content=context_msg))
 
-    # 1. Obtém o contexto do cliente
-    safe_ctx = state.get("safe_context")
-    vizu_ctx = state.get("vizu_context")  # Context 2.0: Full context with sections
+    # 1. Obtém o contexto do cliente ON-DEMAND usando cliente_id
+    # OTIMIZAÇÃO: Contexto não é armazenado no state para evitar trace bloat
     model_override = state.get("model_override")
-    cliente_id = state.get("cliente_id")  # PHASE 5: para buscar prompt customizado
+    cliente_id = state.get("cliente_id")
+
+    # Fetch context on-demand using ContextService
+    context_service = get_node_context_service()
+    safe_ctx = None
+    vizu_ctx = None
+
+    if cliente_id and context_service:
+        try:
+            vizu_ctx = await context_service.get_client_context_by_id(str(cliente_id))
+            if vizu_ctx:
+                # Create SafeClientContext from VizuClientContext for tool filtering
+                from vizu_models.safe_client_context import InternalClientContext
+                internal_ctx = InternalClientContext.from_vizu_client_context(vizu_ctx)
+                safe_ctx = internal_ctx.get_safe_context()
+                logger.debug(f"[SUPERVISOR] Fetched context for cliente_id={cliente_id}: {vizu_ctx.nome_empresa}")
+            else:
+                logger.warning(f"[SUPERVISOR] No context found for cliente_id={cliente_id}")
+        except Exception as e:
+            logger.error(f"[SUPERVISOR] Failed to fetch context for cliente_id={cliente_id}: {e}")
+    else:
+        logger.warning(f"[SUPERVISOR] No cliente_id ({cliente_id}) or context_service ({context_service is not None})")
 
     # DEBUG: Log context state (demoted to DEBUG level for production)
     logger.debug(f"[SUPERVISOR] safe_context present: {safe_ctx is not None}")
     logger.debug(f"[SUPERVISOR] vizu_context present: {vizu_ctx is not None}")
     if vizu_ctx:
-        logger.debug(f"[SUPERVISOR] vizu_context type: {type(vizu_ctx).__name__}")
         logger.debug(f"[SUPERVISOR] vizu_context.nome_empresa: {getattr(vizu_ctx, 'nome_empresa', 'N/A')}")
 
     # 2. Obtém TODAS as tools do MCP

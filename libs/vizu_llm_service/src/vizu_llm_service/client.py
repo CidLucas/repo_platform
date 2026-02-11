@@ -66,6 +66,7 @@ def get_langfuse_callback(
     session_id: str | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
+    trace_name: str | None = None,
 ) -> BaseCallbackHandler | None:
     """
     Create Langfuse CallbackHandler for LLM tracing.
@@ -78,6 +79,7 @@ def get_langfuse_callback(
         session_id: Session ID for trace grouping
         tags: Tags for categorization
         metadata: Additional metadata
+        trace_name: Name for the trace (e.g., 'atendente_chat')
 
     Returns:
         CallbackHandler or None if Langfuse not configured
@@ -91,6 +93,7 @@ def get_langfuse_callback(
             session_id=session_id,
             tags=tags,
             metadata=metadata,
+            trace_name=trace_name,
         )
     except ImportError:
         logger.debug("vizu_observability_bootstrap not available, Langfuse disabled")

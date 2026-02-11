@@ -95,10 +95,10 @@ function ClientesPage() {
   const performanceSlides: MetricSlide[] = useMemo(() => {
     if (!overviewData) return [];
 
-    const formatCurrency = (value: number) => 
+    const formatCurrency = (value: number) =>
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-    
-    const formatNumber = (value: number) => 
+
+    const formatNumber = (value: number) =>
       new Intl.NumberFormat('pt-BR').format(value);
 
     // Calculate totals
@@ -208,7 +208,7 @@ function ClientesPage() {
     }
   }, [selectedMetric]);
 
-    // Calculate new customers metrics
+  // Calculate new customers metrics
   const newCustomersCount = useMemo(() => {
     if (!overviewData) return 0;
 
@@ -248,7 +248,7 @@ function ClientesPage() {
 
     // Top cliente
     const topCliente = clientes[0];
-    const topNome = topCliente?.nome 
+    const topNome = topCliente?.nome
       ? (topCliente.nome.length > 18 ? topCliente.nome.substring(0, 18) + '...' : topCliente.nome)
       : 'N/A';
 

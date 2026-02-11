@@ -42,7 +42,7 @@ async def recompute_gold_metrics(
     MetricService initializes with silver data, computes aggregations,
     and persists to analytics_v2 tables. If persistence fails, this endpoint
     will return an error (not silently succeed).
-    
+
     IMPORTANT: Invalidates all dashboard caches for this client after recompute.
     """
     try:
@@ -82,7 +82,7 @@ async def recompute_gold_metrics(
         # This ensures MVs reflect the latest data in fact_sales
         logger.info("📊 Refreshing materialized views to reflect new data...")
         mv_result = repo.refresh_materialized_views()
-        
+
         # 🗑️ INVALIDATE CACHES after recompute
         # This ensures fresh data is loaded on next request
         cache_invalidated = await cache.invalidate_pattern(f"analytics:*:{client_id}")

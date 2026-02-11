@@ -4,6 +4,19 @@ import type { StructuredData } from '../components/SimpleDataTable';
 // API Base URL - connects to analytics_api for chat
 const CHAT_API_URL = 'http://localhost:8009/api/chat';
 
+// --- Request Deduplication ---
+// Tracks in-flight requests to prevent duplicate submissions
+const inflightRequests = new Map<string, Promise<ChatResponse>>();
+const inflightStreamRequests = new Set<string>();
+
+/**
+ * Generate a deduplication key from the request
+ * Uses session_id + message hash to identify duplicate requests
+ */
+function getRequestKey(request: ChatRequest): string {
+  return `${request.session_id || 'default'}_${request.message}`;
+}
+
 // --- Type Definitions ---
 export interface ChatMessage {
   id: string;
@@ -42,25 +55,47 @@ export interface ChatStreamChunk {
 // --- Chat Service Functions ---
 
 /**
- * Send a chat message and get a response
+ * Send a chat message and get a response.
+ * Includes request deduplication to prevent duplicate submissions.
  */
 export async function sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
-  try {
-    const response = await axios.post<ChatResponse>(CHAT_API_URL, request, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      timeout: 60000, // 60 second timeout for LLM responses
-    });
-    return response.data;
-  } catch (error: any) {
-    console.error('Chat API Error:', error);
-    throw new Error(error.response?.data?.detail || 'Erro ao enviar mensagem. Tente novamente.');
+  const requestKey = getRequestKey(request);
+
+  // Check if there's already an in-flight request with the same key
+  const existingRequest = inflightRequests.get(requestKey);
+  if (existingRequest) {
+    console.debug('[ChatService] Deduplicating request:', requestKey);
+    return existingRequest;
   }
+
+  // Create the actual request promise
+  const requestPromise = (async () => {
+    try {
+      const response = await axios.post<ChatResponse>(CHAT_API_URL, request, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 60000, // 60 second timeout for LLM responses
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Chat API Error:', error);
+      throw new Error(error.response?.data?.detail || 'Erro ao enviar mensagem. Tente novamente.');
+    } finally {
+      // Remove from in-flight map once complete (success or error)
+      inflightRequests.delete(requestKey);
+    }
+  })();
+
+  // Track the in-flight request
+  inflightRequests.set(requestKey, requestPromise);
+
+  return requestPromise;
 }
 
 /**
- * Send a chat message with streaming response
+ * Send a chat message with streaming response.
+ * Includes request deduplication to prevent duplicate streams.
  */
 export async function sendChatMessageStream(
   request: ChatRequest,
@@ -68,6 +103,17 @@ export async function sendChatMessageStream(
   onComplete: () => void,
   onError: (error: Error) => void
 ): Promise<void> {
+  const requestKey = getRequestKey(request);
+
+  // Check if there's already an in-flight stream with the same key
+  if (inflightStreamRequests.has(requestKey)) {
+    console.debug('[ChatService] Ignoring duplicate stream request:', requestKey);
+    return;
+  }
+
+  // Track the in-flight stream
+  inflightStreamRequests.add(requestKey);
+
   try {
     const response = await fetch(`${CHAT_API_URL}/stream`, {
       method: 'POST',
@@ -122,6 +168,9 @@ export async function sendChatMessageStream(
   } catch (error: any) {
     console.error('Chat Stream Error:', error);
     onError(new Error(error.message || 'Erro na conexão de streaming'));
+  } finally {
+    // Remove from in-flight set once complete (success or error)
+    inflightStreamRequests.delete(requestKey);
   }
 }
 

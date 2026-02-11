@@ -87,7 +87,7 @@ function ProdutosPage() {
   const chartTicketMedioData = useMemo(() => {
     const quantidadeData = overviewData?.chart_quantidade_no_tempo || [];
     const receitaData = overviewData?.chart_receita_no_tempo || [];
-    
+
     return receitaData.map((r: { name: string; total?: number; value?: number }, idx: number) => {
       const qItem = quantidadeData[idx] as { total?: number; value?: number } | undefined;
       const quantidade = qItem?.total ?? qItem?.value ?? 1;
@@ -101,7 +101,7 @@ function ProdutosPage() {
 
   // Calculate totals and tier distribution
   const allProducts = useMemo(() => overviewData?.ranking_por_receita || [], [overviewData]);
-  
+
   const { totalReceita, totalQuantidade, avgTicket } = useMemo(() => {
     const receita = allProducts.reduce((sum: number, p) => sum + (p.receita_total || 0), 0);
     const quantidade = allProducts.reduce((sum: number, p) => sum + (p.quantidade_total || 0), 0);
@@ -119,7 +119,7 @@ function ProdutosPage() {
   // Calculate Pareto metrics
   const { paretoPercentage, paretoCount } = useMemo(() => {
     const sortedByReceita = [...allProducts].sort((a, b) => (b.receita_total || 0) - (a.receita_total || 0));
-    
+
     let cumulativeReceita = 0;
     let count = 0;
     for (const p of sortedByReceita) {
@@ -148,7 +148,7 @@ function ProdutosPage() {
 
     // Top produto
     const topProduto = allProducts[0];
-    const topNome = topProduto?.nome 
+    const topNome = topProduto?.nome
       ? (topProduto.nome.length > 18 ? topProduto.nome.substring(0, 18) + '...' : topProduto.nome)
       : 'N/A';
 
@@ -183,10 +183,10 @@ function ProdutosPage() {
   const performanceSlides: MetricSlide[] = useMemo(() => {
     if (!overviewData) return [];
 
-    const formatCurrency = (value: number) => 
+    const formatCurrency = (value: number) =>
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-    
-    const formatNumber = (value: number) => 
+
+    const formatNumber = (value: number) =>
       new Intl.NumberFormat('pt-BR').format(value);
 
     return [
@@ -256,7 +256,7 @@ function ProdutosPage() {
       const qtd = item.quantidade_total ?? 0;
       const ticketMedio = 'ticket_medio' in item ? (item.ticket_medio ?? item.valor_unitario_medio ?? 0) : (item.valor_unitario_medio ?? 0);
       const valorUnit = item.valor_unitario_medio ?? 0;
-      
+
       let primaryMetric = '';
       if (selectedMetric === 'receita') {
         primaryMetric = `Receita: R$ ${('receita_total' in item ? item.receita_total : 0).toLocaleString('pt-BR')}`;
@@ -267,9 +267,9 @@ function ProdutosPage() {
       } else if (selectedMetric === 'produtos') {
         primaryMetric = `Receita: R$ ${('receita_total' in item ? item.receita_total : 0).toLocaleString('pt-BR')}`;
       }
-      
+
       const description = `${primaryMetric} | Qtd: ${qtd.toLocaleString('pt-BR')} | Unit: R$ ${valorUnit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-      
+
       return {
         id: item.nome,
         title: item.nome,

@@ -450,7 +450,8 @@ async def _executar_sql_agent_logic(
         ctx_service = get_context_service()
     except Exception as e:
         logger.exception(f"Erro ao obter serviço de contexto: {e}")
-        raise ToolError("Erro interno no serviço de ferramentas.")
+        # Include cause in error for better debugging
+        raise ToolError(f"Erro interno no serviço de ferramentas: {type(e).__name__}: {e}")
 
     # 2. Resolver o Contexto Vizu
     # Priority: 1) cliente_id param (injected by decorator), 2) access token

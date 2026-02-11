@@ -61,21 +61,21 @@ async def get_home_dashboard(
     principal (Home) do cliente.
 
     Reads directly from analytics_v2 star schema - NO silver data computation.
-    OPTIMIZED: 
+    OPTIMIZED:
     - Cached in Redis for 5 minutes per client_id
     - DB queries parallelized using asyncio.gather()
     """
     import asyncio
     import logging
     logger = logging.getLogger(__name__)
-    
+
     # --- CHECK CACHE FIRST ---
     cache_key = CacheService.build_key("dashboard", "home", client_id)
     cached = await cache.get(cache_key)
     if cached:
         logger.info(f"🚀 Cache HIT for dashboard/home (client={client_id})")
         return HomeMetricsResponse(**cached["data"])
-    
+
     logger.info(f"📊 Cache MISS for dashboard/home (client={client_id}), computing...")
 
     # --- PARALLELIZE ALL DB QUERIES ---
@@ -101,7 +101,7 @@ async def get_home_dashboard(
         asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'clientes_no_tempo'),
         asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'produtos_no_tempo'),
     )
-    
+
     # Ensure list defaults
     customers = customers or []
     suppliers = suppliers or []
@@ -177,11 +177,11 @@ async def get_home_dashboard(
         ranking_fornecedores=ranking_fornecedores,
         ranking_produtos=ranking_produtos,
     )
-    
+
     # --- STORE IN CACHE ---
     await cache.set(cache_key, response.model_dump(), ttl=DASHBOARD_CACHE_TTL)
     logger.info(f"✅ Cached dashboard/home for client={client_id} (TTL={DASHBOARD_CACHE_TTL}s)")
-    
+
     return response
 
 
@@ -219,7 +219,7 @@ async def get_products_gold(
     OPTIMIZED: DB queries parallelized using asyncio.gather().
     """
     import asyncio
-    
+
     # Parallelize all DB queries
     products, time_series, crescimento = await asyncio.gather(
         asyncio.to_thread(repo.get_dim_products, client_id),
@@ -288,7 +288,7 @@ async def get_customers_gold(
     OPTIMIZED: DB queries parallelized using asyncio.gather().
     """
     import asyncio
-    
+
     # Parallelize all DB queries
     customers, time_series, regional, crescimento = await asyncio.gather(
         asyncio.to_thread(repo.get_dim_customers, client_id),

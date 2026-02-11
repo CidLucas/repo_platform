@@ -77,7 +77,7 @@ async def _executar_rag_cliente_logic(
         ctx_service = server_tools.get_context_service()
     except Exception as e:
         logger.exception(f"Erro ao obter serviço de contexto: {e}")
-        raise ToolError("Erro interno no serviço de ferramentas.")
+        raise ToolError(f"Erro interno no serviço de ferramentas: {type(e).__name__}: {e}")
 
     # 2. Resolver o Contexto Vizu
     # Priority: 1) cliente_id param, 2) request meta, 3) access token

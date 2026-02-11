@@ -55,7 +55,7 @@ function FornecedoresPage() {
   // Memoized calculations
   const { newSuppliersCount } = useMemo(() => {
     if (!overviewData) return { newSuppliersCount: 0 };
-    
+
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const newCount = (overviewData.ranking_por_receita || []).filter((item: any) => {
@@ -70,10 +70,10 @@ function FornecedoresPage() {
   const performanceSlides: MetricSlide[] = useMemo(() => {
     if (!overviewData) return [];
 
-    const formatCurrency = (value: number) => 
+    const formatCurrency = (value: number) =>
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-    
-    const formatNumber = (value: number) => 
+
+    const formatNumber = (value: number) =>
       new Intl.NumberFormat('pt-BR').format(value);
 
     // Calculate totals
@@ -85,8 +85,8 @@ function FornecedoresPage() {
     );
     const avgTicket = overviewData.ranking_por_receita?.length > 0
       ? (overviewData.ranking_por_receita || []).reduce(
-          (sum, item: any) => sum + (item.ticket_medio || 0), 0
-        ) / overviewData.ranking_por_receita.length
+        (sum, item: any) => sum + (item.ticket_medio || 0), 0
+      ) / overviewData.ranking_por_receita.length
       : 0;
 
     return [
@@ -228,7 +228,7 @@ function FornecedoresPage() {
 
     // Top fornecedor
     const topFornecedor = fornecedores[0];
-    const topNome = topFornecedor?.nome 
+    const topNome = topFornecedor?.nome
       ? (topFornecedor.nome.length > 18 ? topFornecedor.nome.substring(0, 18) + '...' : topFornecedor.nome)
       : 'N/A';
 

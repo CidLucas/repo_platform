@@ -52,8 +52,9 @@ class MCPConnectionManager:
         """
         Set the Authorization header for authenticated requests.
 
-        NOTE: Header changes do NOT invalidate the MCP connection.
-        The server reads headers per-request via get_http_headers().
+        Header changes invalidate the MCP connection because streamablehttp_client
+        captures headers at connection time (httpx copies them). A reconnect is
+        needed for the new header to take effect.
 
         Args:
             token: JWT or Bearer token (can include "Bearer " prefix or not)
@@ -66,18 +67,20 @@ class MCPConnectionManager:
         else:
             new_auth = None
 
-        # Check if header actually changed
+        # Skip if header unchanged (avoids unnecessary reconnection)
         current_auth = self.headers.get("Authorization")
         if current_auth == new_auth:
-            return  # No change needed
+            return
 
-        # Update header
+        # Update header and mark connection stale
         if new_auth:
             self.headers["Authorization"] = new_auth
             logger.debug(f"[MCP] Auth header updated (token: {clean_token[:20]}...)")
         elif "Authorization" in self.headers:
             del self.headers["Authorization"]
             logger.debug("[MCP] Auth header cleared")
+
+        self._connected = False
 
     def set_cliente_id(self, cliente_id: str) -> None:
         """
@@ -87,10 +90,10 @@ class MCPConnectionManager:
         calls where the caller (atendente_core) has already validated the JWT and
         resolved the cliente_id.
 
-        NOTE: Changing the header does NOT invalidate the MCP connection.
-        Streamable HTTP transport reads headers at the request level via
-        get_http_headers() on the server side, so the updated value will
-        be picked up on the next call_tool without reconnecting.
+        Header changes invalidate the MCP connection because streamablehttp_client
+        captures headers at connection time (httpx copies them). A reconnect is
+        needed for the new header to take effect. The "skip if same" check avoids
+        unnecessary reconnections when the same client sends multiple requests.
 
         Args:
             cliente_id: The resolved Vizu client UUID
@@ -98,17 +101,19 @@ class MCPConnectionManager:
         if not cliente_id:
             if "X-Cliente-Id" in self.headers:
                 del self.headers["X-Cliente-Id"]
-                logger.debug("[MCP] X-Cliente-Id header cleared")
+                self._connected = False
+                logger.debug("[MCP] X-Cliente-Id header cleared, will reconnect")
             return
 
-        # Check if header actually changed
+        # Skip if header unchanged (avoids unnecessary reconnection)
         current_cliente_id = self.headers.get("X-Cliente-Id")
         if current_cliente_id == cliente_id:
-            return  # No change needed
+            return
 
-        # Update header
+        # Update header and mark connection stale
         self.headers["X-Cliente-Id"] = cliente_id
-        logger.debug(f"[MCP] X-Cliente-Id header set: {cliente_id}")
+        self._connected = False
+        logger.debug(f"[MCP] X-Cliente-Id header set: {cliente_id}, will reconnect")
 
     @property
     def is_connected(self) -> bool:

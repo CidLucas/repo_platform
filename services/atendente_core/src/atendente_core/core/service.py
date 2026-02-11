@@ -226,7 +226,8 @@ class AtendenteService:
                 tool_errors = final_state.get("tool_errors", [])
                 confidence = final_state.get("confidence_score")  # Se disponível
 
-                await self.hitl.evaluate_and_submit(
+                # OPT-4: Fire-and-forget HITL evaluation (shouldn't block response)
+                _create_background_task(self.hitl.evaluate_and_submit(
                     user_message=message_text,
                     agent_response=agent_response,
                     client_id=client_context.id,
@@ -238,7 +239,7 @@ class AtendenteService:
                     elicitation_pending=pending_elicitation is not None,
                     response_time_seconds=response_time,
                     model_used=model_used,
-                )
+                ))
 
                 # Extract structured_data from state (populated by SQL tools)
                 structured_data = final_state.get("structured_data")

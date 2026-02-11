@@ -64,7 +64,7 @@ async def _build_atendente_system_prompt(
     try:
         # Use cached prompt loading via context_service
         content = await ctx_service.get_cached_prompt(
-            name="atendente/system/v3",
+            name="atendente/default",
             cliente_id=cliente_uuid,
             loader=loader,
             variables=variables,
@@ -73,7 +73,7 @@ async def _build_atendente_system_prompt(
     except Exception as e:
         logger.warning(f"Cache miss, loading directly: {e}")
         # Fallback to builtin
-        return loader.load_builtin("atendente/system/v3", variables).content
+        return loader.load_builtin("atendente/default", variables).content
 
 
 async def _build_text_to_sql_prompt(

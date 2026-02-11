@@ -36,7 +36,7 @@ class PromptTemplateConfig:
 
 # Builtin fallback - Langfuse prompt "basic" takes precedence
 ATENDENTE = PromptTemplateConfig(
-    name="basic",
+    name="atendente/default",
     category=PromptCategory.SYSTEM,
     description="Data Analyst agent prompt - builtin fallback",
     required_variables=["nome_empresa"],

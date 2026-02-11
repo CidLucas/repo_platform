@@ -73,7 +73,7 @@ async def build_prompt(
     - Variable substitution via TemplateRenderer
 
     Args:
-        name: Prompt template name (e.g., "atendente/system/v3", "text_to_sql/system")
+        name: Prompt template name (e.g., "atendente/default", "text_to_sql/system")
         variables: Variables for template rendering
         cliente_id: Client UUID for client-specific prompt overrides
         context_service: Optional ContextService for Redis caching
@@ -84,7 +84,7 @@ async def build_prompt(
     Example:
         # Agent system prompt
         content = await build_prompt(
-            name="atendente/system/v3",
+            name="atendente/default",
             variables={"nome_empresa": "Acme", "tools_description": "..."},
             cliente_id=cliente_uuid,
             context_service=ctx_service,

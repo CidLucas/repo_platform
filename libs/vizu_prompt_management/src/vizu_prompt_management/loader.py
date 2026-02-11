@@ -138,7 +138,7 @@ class PromptLoader:
         4. Built-in template
 
         Args:
-            name: Prompt name (e.g., "atendente/system/v3")
+            name: Prompt name (e.g., "atendente/default")
             variables: Variables for template substitution
             cliente_id: Optional client ID for client-specific DB prompts
             version: Optional specific version (skips Langfuse if set)

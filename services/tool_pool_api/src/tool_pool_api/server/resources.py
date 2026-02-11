@@ -316,7 +316,7 @@ async def _get_client_prompt(cliente_id: str | None = None) -> str:
         return (
             f"# Prompt - {context.nome_empresa}\n\n"
             "⚠️ Nenhum prompt personalizado configurado.\n\n"
-            "O agente usará o prompt do Langfuse (atendente/system/v3)."
+            "O agente usará o prompt do Langfuse (atendente/default)."
         )
 
     return f"# Prompt - {context.nome_empresa}\n\n" f"```\n{default_prompt}\n```"

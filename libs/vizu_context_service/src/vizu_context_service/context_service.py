@@ -498,7 +498,7 @@ class ContextService:
         Variables are applied after cache retrieval for freshness.
 
         Args:
-            name: Prompt template name (e.g., "atendente/system/v3")
+            name: Prompt template name (e.g., "atendente/default")
             cliente_id: Client UUID for client-specific prompts
             loader: PromptLoader instance (injected, not created inside)
             variables: Variables to render into template

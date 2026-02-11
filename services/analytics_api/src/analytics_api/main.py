@@ -47,6 +47,29 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+# --- Cache-Control Header Middleware ---
+class CacheControlMiddleware(BaseHTTPMiddleware):
+    """
+    Adds Cache-Control headers to dashboard GET endpoints.
+
+    Enables browser caching for dashboard data:
+    - private: Only browser cache, not CDN (user-specific data)
+    - max-age=300: Cache for 5 minutes
+    """
+    CACHEABLE_PATHS = ["/api/dashboard/", "/api/indicators"]
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+
+        # Only cache GET requests to dashboard endpoints
+        if request.method == "GET" and any(
+            request.url.path.startswith(path) for path in self.CACHEABLE_PATHS
+        ):
+            response.headers["Cache-Control"] = "private, max-age=300"
+
+        return response
+
+
 # --- Criação da Instância FastAPI ---
 # Esta é a variável 'app' que o Uvicorn procura
 app = FastAPI(
@@ -96,6 +119,10 @@ logger.debug(f"CORS origins configured: {origins}")
 # Add database timeout middleware
 app.add_middleware(DatabaseTimeoutMiddleware)
 logger.debug("Database timeout middleware configured (30s query, 5min idle)")
+
+# Add cache-control headers for dashboard routes
+app.add_middleware(CacheControlMiddleware)
+logger.debug("Cache-Control middleware configured (5min private cache)")
 
 # Rota de Health Check
 @app.get("/health", tags=["Infra"])

@@ -6,13 +6,17 @@ These endpoints read pre-computed metrics from the star schema.
 They do NOT trigger silver data computation (BigQuery FDW).
 
 To recompute metrics from silver data, use POST /ingest/recompute
+
+OPTIMIZATION: Responses cached in Redis for 5 minutes per client_id.
 """
 from analytics_api.api.dependencies import (
+    get_cache_service,
     get_client_id,
     get_postgres_repository,
 )
 from analytics_api.api.helpers import dict_to_ranking_item
 from analytics_api.data_access.postgres_repository import PostgresRepository
+from analytics_api.services.cache_service import CacheService
 from analytics_api.schemas.metrics import (
     ChartDataPoint,
     ClientesOverviewResponse,
@@ -26,11 +30,15 @@ from analytics_api.schemas.metrics import (
     RankingItem,
 )
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from vizu_auth.dependencies.jwt_only import get_jwt_claims
 
 router = APIRouter()
+
+# Cache TTL in seconds (5 minutes)
+DASHBOARD_CACHE_TTL = 300
 
 
 class MeResponse(BaseModel):
@@ -46,51 +54,71 @@ class MeResponse(BaseModel):
 async def get_home_dashboard(
     repo: PostgresRepository = Depends(get_postgres_repository),
     client_id: str = Depends(get_client_id),
+    cache: CacheService = Depends(get_cache_service),
 ):
     """
     Retorna os scorecards agregados e gráficos para a página
     principal (Home) do cliente.
 
     Reads directly from analytics_v2 star schema - NO silver data computation.
+    OPTIMIZED: 
+    - Cached in Redis for 5 minutes per client_id
+    - DB queries parallelized using asyncio.gather()
     """
-    from datetime import datetime
+    import asyncio
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # --- CHECK CACHE FIRST ---
+    cache_key = CacheService.build_key("dashboard", "home", client_id)
+    cached = await cache.get(cache_key)
+    if cached:
+        logger.info(f"🚀 Cache HIT for dashboard/home (client={client_id})")
+        return HomeMetricsResponse(**cached["data"])
+    
+    logger.info(f"📊 Cache MISS for dashboard/home (client={client_id}), computing...")
 
-    # Get summary counts from star schema
-    summary = repo.get_dashboard_summary(client_id)
-
-    # Get rankings from dimension tables
-    customers = repo.get_dim_customers(client_id) or []
-    suppliers = repo.get_dim_suppliers(client_id) or []
-    products = repo.get_dim_products(client_id) or []
-
-    # Get time series data
-    time_series_receita = repo.get_v2_time_series(client_id, 'receita_no_tempo')
-    time_series_pedidos = repo.get_v2_time_series(client_id, 'pedidos_no_tempo')
-    time_series_clientes = repo.get_v2_time_series(client_id, 'clientes_no_tempo')
-    time_series_produtos = repo.get_v2_time_series(client_id, 'produtos_no_tempo')
-
-    # Calculate growth rates
-    crescimento_receita = repo.calculate_growth_from_time_series(client_id, 'receita_no_tempo')
-    crescimento_clientes = repo.calculate_growth_from_time_series(client_id, 'clientes_no_tempo')
-    crescimento_produtos = repo.calculate_growth_from_time_series(client_id, 'produtos_no_tempo')
+    # --- PARALLELIZE ALL DB QUERIES ---
+    # Run all independent queries concurrently using asyncio.to_thread
+    (
+        summary,
+        customers,
+        suppliers,
+        products,
+        time_series_receita,
+        time_series_pedidos,
+        crescimento_receita,
+        crescimento_clientes,
+        crescimento_produtos,
+    ) = await asyncio.gather(
+        asyncio.to_thread(repo.get_dashboard_summary, client_id),
+        asyncio.to_thread(repo.get_dim_customers, client_id),
+        asyncio.to_thread(repo.get_dim_suppliers, client_id),
+        asyncio.to_thread(repo.get_dim_products, client_id),
+        asyncio.to_thread(repo.get_v2_time_series, client_id, 'receita_no_tempo'),
+        asyncio.to_thread(repo.get_v2_time_series, client_id, 'pedidos_no_tempo'),
+        asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'receita_no_tempo'),
+        asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'clientes_no_tempo'),
+        asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'produtos_no_tempo'),
+    )
+    
+    # Ensure list defaults
+    customers = customers or []
+    suppliers = suppliers or []
+    products = products or []
 
     # Get receita from the LAST available month (not current calendar month)
     receita_mes_atual = 0.0
     ultimo_mes = ""
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"📊 time_series_receita has {len(time_series_receita) if time_series_receita else 0} items")
+    logger.debug(f"📊 time_series_receita has {len(time_series_receita) if time_series_receita else 0} items")
     if time_series_receita:
         # Get the last item (most recent month with data)
         last_point = time_series_receita[-1]
-        logger.info(f"📊 last_point: {last_point}")
         receita_mes_atual = float(last_point.get('total', 0) or 0)
         ultimo_mes = last_point.get('name', '')
-        logger.info(f"📊 receita_mes_atual = {receita_mes_atual}, ultimo_mes = {ultimo_mes}")
 
     # Calculate total quantity sold (for products card - in tons)
     total_quantidade = summary.get("total_quantity", 0) or 0
-    quantidade_em_toneladas = total_quantidade / 1000  # Convert to tons
 
     # Calculate frequencia_media_fornecedores (avg orders per supplier per month)
     total_suppliers = summary.get("total_suppliers", 0)
@@ -128,7 +156,7 @@ async def get_home_dashboard(
     total_revenue = sum(c.get("total_revenue", 0) or 0 for c in customers)
     avg_ticket = total_revenue / summary.get("total_orders", 1) if summary.get("total_orders", 0) > 0 else 0
 
-    return HomeMetricsResponse(
+    response = HomeMetricsResponse(
         scorecards=HomeScorecards(
             total_pedidos=summary.get("total_orders", 0),
             total_clientes=summary.get("total_customers", 0),
@@ -149,6 +177,12 @@ async def get_home_dashboard(
         ranking_fornecedores=ranking_fornecedores,
         ranking_produtos=ranking_produtos,
     )
+    
+    # --- STORE IN CACHE ---
+    await cache.set(cache_key, response.model_dump(), ttl=DASHBOARD_CACHE_TTL)
+    logger.info(f"✅ Cached dashboard/home for client={client_id} (TTL={DASHBOARD_CACHE_TTL}s)")
+    
+    return response
 
 
 @router.get(
@@ -160,12 +194,13 @@ async def get_home_dashboard(
 async def get_home_dashboard_gold(
     repo: PostgresRepository = Depends(get_postgres_repository),
     client_id: str = Depends(get_client_id),
+    cache: CacheService = Depends(get_cache_service),
 ):
     """
     Alias for /home - reads from analytics_v2 star schema.
     Kept for backwards compatibility with frontend.
     """
-    return await get_home_dashboard(repo=repo, client_id=client_id)
+    return await get_home_dashboard(repo=repo, client_id=client_id, cache=cache)
 
 
 @router.get(
@@ -181,8 +216,17 @@ async def get_products_gold(
     """
     Retorna métricas agregadas de produtos do analytics_v2 star schema.
     Reads directly from dim_product - NO silver data computation.
+    OPTIMIZED: DB queries parallelized using asyncio.gather().
     """
-    products = repo.get_dim_products(client_id) or []
+    import asyncio
+    
+    # Parallelize all DB queries
+    products, time_series, crescimento = await asyncio.gather(
+        asyncio.to_thread(repo.get_dim_products, client_id),
+        asyncio.to_thread(repo.get_v2_time_series, client_id, 'produtos_no_tempo'),
+        asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'produtos_no_tempo'),
+    )
+    products = products or []
 
     # Build rankings
     ranking_por_receita = [
@@ -212,15 +256,11 @@ async def get_products_gold(
         for p in sorted(products, key=lambda x: x.get("avg_price", 0), reverse=True)[:10]
     ]
 
-    # Time series
-    time_series = repo.get_v2_time_series(client_id, 'produtos_no_tempo')
+    # Process time series (already fetched in parallel)
     chart_produtos_no_tempo = [
         ChartDataPoint(name=p.get('name', ''), total=p.get('total', 0))
         for p in time_series
     ]
-
-    # Growth
-    crescimento = repo.calculate_growth_from_time_series(client_id, 'produtos_no_tempo')
 
     return ProdutosOverviewResponse(
         scorecard_total_produtos=len(products),
@@ -245,8 +285,18 @@ async def get_customers_gold(
     """
     Retorna métricas agregadas de clientes do analytics_v2 star schema.
     Reads directly from dim_customer - NO silver data computation.
+    OPTIMIZED: DB queries parallelized using asyncio.gather().
     """
-    customers = repo.get_dim_customers(client_id) or []
+    import asyncio
+    
+    # Parallelize all DB queries
+    customers, time_series, regional, crescimento = await asyncio.gather(
+        asyncio.to_thread(repo.get_dim_customers, client_id),
+        asyncio.to_thread(repo.get_v2_time_series, client_id, 'clientes_no_tempo'),
+        asyncio.to_thread(repo.get_v2_regional, client_id, 'clientes_por_regiao'),
+        asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'clientes_no_tempo'),
+    )
+    customers = customers or []
 
     # Build rankings
     ranking_por_receita = [dict_to_ranking_item(c) for c in sorted(customers, key=lambda x: x.get("total_revenue", 0), reverse=True)[:10]]
@@ -266,22 +316,15 @@ async def get_customers_gold(
         for tier, count in sorted(by_tier.items())
     ]
 
-    # Time series
-    time_series = repo.get_v2_time_series(client_id, 'clientes_no_tempo')
+    # Process time series and regional data (already fetched in parallel)
     chart_clientes_no_tempo = [
         ChartDataPoint(name=p.get('name', ''), total=p.get('total', 0))
         for p in time_series
     ]
-
-    # Regional
-    regional = repo.get_v2_regional(client_id, 'clientes_por_regiao')
     chart_clientes_por_regiao = [
         ChartDataPoint(name=p.get('name', ''), total=p.get('total', 0), percentual=p.get('percentual', 0))
         for p in regional
     ]
-
-    # Growth
-    crescimento = repo.calculate_growth_from_time_series(client_id, 'clientes_no_tempo')
 
     return ClientesOverviewResponse(
         scorecard_total_clientes=len(customers),

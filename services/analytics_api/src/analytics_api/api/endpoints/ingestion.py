@@ -7,8 +7,9 @@ Supports incremental mode for daily updates (only fetches new data since last sy
 
 import logging
 
-from analytics_api.api.dependencies import get_client_id, get_postgres_repository
+from analytics_api.api.dependencies import get_cache_service, get_client_id, get_postgres_repository
 from analytics_api.data_access.postgres_repository import PostgresRepository
+from analytics_api.services.cache_service import CacheService
 from analytics_api.services.metric_service import MetricService
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -29,6 +30,7 @@ async def recompute_gold_metrics(
     ),
     repo: PostgresRepository = Depends(get_postgres_repository),
     client_id: str = Depends(get_client_id),
+    cache: CacheService = Depends(get_cache_service),
 ):
     """
     Recalculates and persists metrics to analytics_v2 tables.
@@ -40,6 +42,8 @@ async def recompute_gold_metrics(
     MetricService initializes with silver data, computes aggregations,
     and persists to analytics_v2 tables. If persistence fails, this endpoint
     will return an error (not silently succeed).
+    
+    IMPORTANT: Invalidates all dashboard caches for this client after recompute.
     """
     try:
         # Auto-detect mode: check if previous sync exists AND there's actual data
@@ -78,6 +82,11 @@ async def recompute_gold_metrics(
         # This ensures MVs reflect the latest data in fact_sales
         logger.info("📊 Refreshing materialized views to reflect new data...")
         mv_result = repo.refresh_materialized_views()
+        
+        # 🗑️ INVALIDATE CACHES after recompute
+        # This ensures fresh data is loaded on next request
+        cache_invalidated = await cache.invalidate_pattern(f"analytics:*:{client_id}")
+        logger.info(f"🗑️ Invalidated {cache_invalidated} cache keys for client {client_id}")
 
         return {
             "status": "success",
@@ -87,7 +96,8 @@ async def recompute_gold_metrics(
             "rows_processed": rows_processed,
             "detail": f"Metrics recomputed ({mode_str}) and persisted to analytics_v2",
             "materialized_views_refreshed": mv_result.get("status") == "success",
-            "materialized_views": mv_result.get("views_refreshed", {})
+            "materialized_views": mv_result.get("views_refreshed", {}),
+            "caches_invalidated": cache_invalidated,
         }
     except Exception as exc:
         logger.error(f"Failed to recompute metrics: {exc}", exc_info=True)

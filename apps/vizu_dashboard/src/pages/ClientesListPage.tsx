@@ -3,18 +3,15 @@ import { MainLayout } from '../components/layouts/MainLayout';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useLocation } from 'react-router-dom';
 import { ClienteDetailsModal } from '../components/ClienteDetailsModal';
+import { useClientesPageData } from '../hooks/useListData';
 import {
-  getClientes,
   getCliente,
-  getProductsForFilter,
   getCustomersByProduct,
   getProductsByCustomer,
   getCustomersBySupplier
 } from '../services/analyticsService';
 import type {
-  ClientesOverviewResponse,
   ClienteDetailResponse,
-  ProductFilterItem,
   CustomerByProduct,
   ProductByCustomer,
   CustomerBySupplier
@@ -28,9 +25,9 @@ function ClientesListPage() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const location = useLocation();
   const [selectedCliente, setSelectedCliente] = useState<ClienteDetailResponse | null>(null);
-  const [overviewData, setOverviewData] = useState<ClientesOverviewResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+
+  // Use React Query hook for initial data (cached, parallel fetching)
+  const { clientes: overviewData, productsFilter: productsList, loading, error } = useClientesPageData();
 
   // Filter state - initialize from URL params
   const viewParam = searchParams.get('view');
@@ -44,7 +41,6 @@ function ClientesListPage() {
     viewParam === 'customer' ? 'by-customer' : 
     viewParam === 'by-supplier' ? 'by-supplier' : 'all'
   );
-  const [productsList, setProductsList] = useState<ProductFilterItem[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<string>(productParam || '');
   const [selectedCustomer, setSelectedCustomer] = useState<string>(clientParam || '');
   const [customersByProduct, setCustomersByProduct] = useState<CustomerByProduct[]>([]);
@@ -52,27 +48,7 @@ function ClientesListPage() {
   const [customersBySupplier, setCustomersBySupplier] = useState<CustomerBySupplier[]>([]);
   const [loadingProducts, setLoadingProducts] = useState<boolean>(false);
 
-  // Load initial data and products list
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        setLoading(true);
-        const [clientesData, productsData] = await Promise.all([
-          getClientes(),
-          getProductsForFilter()
-        ]);
-        setOverviewData(clientesData);
-        setProductsList(productsData);
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Erro ao carregar dados.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchInitialData();
-  }, []);
-
-  // Handle URL parameters for filtering and modal opening (separate effect after data is loaded)
+  // Handle URL parameters for filtering and modal opening (after data is loaded)
   useEffect(() => {
     // Only process URL params after overview data is loaded
     if (loading || !overviewData) return;
@@ -214,12 +190,13 @@ function ClientesListPage() {
   }
 
   if (error || !overviewData) {
+    const errorMessage = error instanceof Error ? error.message : (error ? String(error) : 'Não foi possível carregar os dados.');
     return (
       <MainLayout>
         <Flex justify="center" align="center" height="100vh">
           <Alert status="error">
             <AlertIcon />
-            {error || 'Não foi possível carregar os dados.'}
+            {errorMessage}
           </Alert>
         </Flex>
       </MainLayout>

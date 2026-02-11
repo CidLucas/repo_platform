@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 
 // Types matching backend IndicatorsResponse
@@ -63,8 +63,44 @@ interface UseIndicatorsReturn {
     refetch: () => Promise<void>;
 }
 
+// API fetch function extracted for React Query
+const fetchIndicators = async (
+    period: PeriodType,
+    metrics: Array<'orders' | 'products' | 'customers'>,
+    includeComparisons: boolean
+): Promise<IndicatorsResponse> => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+
+    if (!token) {
+        throw new Error('No authentication token available');
+    }
+
+    const analyticsApiUrl = import.meta.env.VITE_API_URL_ANALYTICS || 'http://localhost:8004';
+
+    const response = await fetch(`${analyticsApiUrl}/api/indicators`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+            period,
+            metrics,
+            include_comparisons: includeComparisons,
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch indicators: ${response.statusText}`);
+    }
+
+    return response.json();
+};
+
 /**
  * Hook to fetch indicator metrics from Analytics API
+ * Uses React Query for automatic caching and background refetching
  *
  * @example
  * const { data, loading, error } = useIndicators({
@@ -78,64 +114,20 @@ export const useIndicators = ({
     includeComparisons = true,
     autoFetch = true,
 }: UseIndicatorsOptions = {}): UseIndicatorsReturn => {
-    const [data, setData] = useState<IndicatorsResponse | null>(null);
-    const [loading, setLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const fetchIndicators = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            // Get token from Supabase session
-            const { data: sessionData } = await supabase.auth.getSession();
-            const token = sessionData?.session?.access_token;
-
-            if (!token) {
-                throw new Error('No authentication token available');
-            }
-
-            const analyticsApiUrl = import.meta.env.VITE_API_URL_ANALYTICS || 'http://localhost:8004';
-
-            const response = await fetch(`${analyticsApiUrl}/api/indicators`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify({
-                    period,
-                    metrics,
-                    include_comparisons: includeComparisons,
-                }),
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch indicators: ${response.statusText}`);
-            }
-
-            const result: IndicatorsResponse = await response.json();
-            setData(result);
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-            setError(errorMessage);
-            console.error('Error fetching indicators:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        if (autoFetch) {
-            fetchIndicators();
-        }
-    }, [period, JSON.stringify(metrics), includeComparisons, autoFetch]);
+    const metricsKey = metrics.slice().sort().join(',');
+    
+    const { data, isLoading, error, refetch } = useQuery({
+        queryKey: ['indicators', period, metricsKey, includeComparisons],
+        queryFn: () => fetchIndicators(period, metrics, includeComparisons),
+        enabled: autoFetch,
+        staleTime: 5 * 60 * 1000,  // 5 minutes - indicators don't change frequently
+    });
 
     return {
-        data,
-        loading,
-        error,
-        refetch: fetchIndicators,
+        data: data ?? null,
+        loading: isLoading,
+        error: error instanceof Error ? error.message : error ? String(error) : null,
+        refetch: async () => { await refetch(); },
     };
 };
 

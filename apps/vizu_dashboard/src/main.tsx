@@ -1,12 +1,25 @@
-// Dashboard v1.1.0 - Fixed Cloud Run service URLs
+// Dashboard v1.2.0 - Added React Query for data caching
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { ChakraProvider, extendTheme } from '@chakra-ui/react'
 import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { ChatProvider } from './contexts/ChatContext';
+
+// Configure React Query with optimal caching settings
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,      // Data considered fresh for 5 minutes
+      gcTime: 30 * 60 * 1000,        // Cache kept for 30 minutes (formerly cacheTime)
+      refetchOnWindowFocus: false,   // Don't refetch on tab switch
+      retry: 2,                       // Retry failed requests twice
+    },
+  },
+});
 
 // Create a theme instance.
 const theme = extendTheme({
@@ -127,14 +140,16 @@ const theme = extendTheme({
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <ChakraProvider theme={theme}>
-        <AuthProvider>
-          <ChatProvider>
-            <App />
-          </ChatProvider>
-        </AuthProvider>
-      </ChakraProvider>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <ChakraProvider theme={theme}>
+          <AuthProvider>
+            <ChatProvider>
+              <App />
+            </ChatProvider>
+          </AuthProvider>
+        </ChakraProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   </StrictMode>,
 )

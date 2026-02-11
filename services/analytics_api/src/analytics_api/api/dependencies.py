@@ -5,6 +5,7 @@ from typing import Optional
 from analytics_api.data_access.postgres_repository import PostgresRepository
 from analytics_api.services.indicator_service import IndicatorService
 from analytics_api.services.metric_service import MetricService
+from analytics_api.services.cache_service import cache_service, CacheService
 from fastapi import Depends, HTTPException, Query, Request, status
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
@@ -33,6 +34,16 @@ def get_postgres_repository() -> Generator[PostgresRepository, None, None]:
     finally:
         repo.close()
         logger.debug("PostgresRepository session closed, connection returned to pool")
+
+
+# --- Cache Service Dependency ---
+
+def get_cache_service() -> CacheService:
+    """
+    Returns the global CacheService singleton.
+    Used for Redis caching of API responses.
+    """
+    return cache_service
 
 # --- Camada de Autenticação (Real - No More Mocks!) ---
 

@@ -48,6 +48,22 @@ from vizu_tool_registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Module-level ContextService holder for Redis-cached prompts (OPT-3).
+# Set by service.py before graph.ainvoke() so supervisor_node can access it
+# without threading non-serializable objects through LangGraph state.
+# ---------------------------------------------------------------------------
+_node_context_service: "ContextService | None" = None
+
+
+def set_node_context_service(ctx: "ContextService | None") -> None:
+    global _node_context_service
+    _node_context_service = ctx
+
+
+def get_node_context_service() -> "ContextService | None":
+    return _node_context_service
+
 
 def _create_llm_data_summary(structured_data: dict, full_output: dict) -> str:
     """
@@ -461,14 +477,17 @@ async def supervisor_node(state: AgentState) -> dict:
         # Permite continuar sem tools - o agente responderá apenas com conhecimento base
 
     # 4. PHASE 2 + 5 + Context 2.0: Constrói system prompt dinâmico com seções modulares
-    logger.debug(f"[SUPERVISOR] Building system prompt with vizu_context={vizu_ctx is not None}")
-    system_prompt = await build_dynamic_system_prompt(
-        safe_ctx, available_tools, vizu_context=vizu_ctx
-    )
-
-    # Log para debug (demoted to DEBUG level for production)
-    logger.debug(f"[SUPERVISOR] System prompt generated: {len(system_prompt)} chars")
-    logger.debug(f"[SUPERVISOR] Prompt preview: {system_prompt[:500]}...")
+    # OPT-7: Use cached prompt on subsequent supervisor calls (tools → supervisor loop)
+    cached_prompt = state.get("_cached_system_prompt")
+    if cached_prompt:
+        system_prompt = cached_prompt
+        logger.debug(f"[SUPERVISOR] Using cached system prompt ({len(system_prompt)} chars)")
+    else:
+        logger.debug(f"[SUPERVISOR] Building system prompt with vizu_context={vizu_ctx is not None}")
+        system_prompt = await build_dynamic_system_prompt(
+            safe_ctx, available_tools, context_service=get_node_context_service(), vizu_context=vizu_ctx
+        )
+        logger.debug(f"[SUPERVISOR] System prompt generated: {len(system_prompt)} chars")
 
     # FULL PROMPT DEBUG - Enable with LOG_LEVEL=DEBUG to inspect complete LLM input
     logger.debug("=== SUPERVISOR FULL SYSTEM PROMPT ===")
@@ -510,7 +529,7 @@ async def supervisor_node(state: AgentState) -> dict:
 
     # 6. Invoca o Modelo
     try:
-        response = llm.invoke(messages)
+        response = await llm.ainvoke(messages)
         # Log para debug - ver se há tool_calls
         logger.info(f"LLM response type: {type(response)}")
         if hasattr(response, "tool_calls") and response.tool_calls:
@@ -535,10 +554,10 @@ async def supervisor_node(state: AgentState) -> dict:
     # When processing tool results, we preserve it so the frontend receives the table
     if is_processing_tool_results:
         # Keep structured_data from execute_tools_node - don't override it
-        return {"messages": [response]}
+        return {"messages": [response], "_cached_system_prompt": system_prompt}
     else:
         # New user turn without tools - clear any previous structured_data
-        return {"messages": [response], "structured_data": None}
+        return {"messages": [response], "structured_data": None, "_cached_system_prompt": system_prompt}
 
 
 async def execute_tools_node(state: AgentState) -> dict:

@@ -11,7 +11,7 @@ import {
   Portal,
   useToast,
 } from '@chakra-ui/react';
-import { useState, useRef, useEffect, useContext } from 'react';
+import { useState, useRef, useEffect, useContext, useCallback } from 'react';
 import { ArrowForwardIcon, AttachmentIcon, AddIcon, ChatIcon, CloseIcon } from '@chakra-ui/icons';
 import { AuthContext } from '../contexts/AuthContext';
 import { SimpleDataTable, type StructuredData } from './SimpleDataTable';
@@ -50,6 +50,11 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const auth = useContext(AuthContext);
   const toast = useToast();
+
+  // Unique session ID per conversation — resets on "New Chat" or fresh page open
+  const [sessionId, setSessionId] = useState(
+    () => `${auth?.user?.id || 'anon'}:${Date.now()}`
+  );
 
   // Get user name from auth context - fallback to first part of email if no display name
   const userName = auth?.user?.user_metadata?.full_name ||
@@ -112,7 +117,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
           },
           body: JSON.stringify({
             message: userMessage.content,
-            session_id: auth?.user?.id || 'anonymous',
+            session_id: sessionId,
           }),
         }
       );
@@ -159,10 +164,11 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
     textareaRef.current?.focus();
   };
 
-  const handleNewChat = () => {
+  const handleNewChat = useCallback(() => {
     setMessages([]);
     setInputValue('');
-  };
+    setSessionId(`${auth?.user?.id || 'anon'}:${Date.now()}`);
+  }, [auth?.user?.id]);
 
   const hasMessages = messages.length > 0;
 

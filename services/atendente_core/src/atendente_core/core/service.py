@@ -3,8 +3,7 @@ AtendenteService - Main service for processing chat messages.
 
 Uses custom graph with Context 2.0 aware supervisor_node.
 """
-
-import logging
+import asyncioimport logging
 import time
 from typing import Any
 from uuid import UUID
@@ -44,31 +43,54 @@ class ProcessMessageResult:
         return self.pending_elicitation is not None
 
 
+# Background task set to keep references (prevents garbage collection)
+_background_tasks: set = set()
+
+
+def _create_background_task(coro):
+    """Create a fire-and-forget task that won't be garbage collected."""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
+
 class AtendenteService:
     """
     Main service for the Atendente agent.
 
-    Uses vizu_agent_framework for graph construction with Redis checkpointing.
+    Designed as a singleton — the graph and heavy dependencies are created
+    once and reused across requests.  The per-request ContextService is
+    passed into process_message() instead.
     """
 
-    def __init__(self, context_service: ContextService):
-        self.context_service = context_service
+    def __init__(self):
         self.settings = get_settings()
         self.db = VizuDBConnector()
         self.hitl = HitlIntegration()
 
         logger.info("Building agent graph with custom supervisor_node")
 
-        # Use custom graph with Context 2.0 aware supervisor_node
-        # Note: create_agent_graph() handles checkpointer setup internally
-        from .graph import create_agent_graph
-        self.graph = create_agent_graph()
+        # Singleton graph — avoids creating a new RedisSaver per request
+        from .graph import get_agent_graph
+        self.graph = get_agent_graph()
+
+    async def _persist_message(self, conversa_id: UUID, role: str, content: str) -> None:
+        """Fire-and-forget message persistence for OPT-4.
+
+        Runs in background task, logs errors but doesn't propagate them.
+        """
+        try:
+            await self.db.add_mensagem(conversa_id, role, content)
+        except Exception:
+            logger.exception(f"Background message persistence failed ({role})")
 
     async def process_message(
         self,
         session_id: str,
         message_text: str,
         client_id: UUID,
+        context_service: ContextService,
         model_override: str | None = None,
         elicitation_response: dict[str, Any] | None = None,
         user_jwt: str | None = None,
@@ -80,6 +102,7 @@ class AtendenteService:
             session_id: ID da sessão
             message_text: Mensagem do usuário
             client_id: ID do cliente (autenticado via JWT)
+            context_service: Per-request ContextService for DB/cache access
             model_override: Nome do modelo LLM a usar (opcional)
             elicitation_response: Resposta do usuário a uma elicitation pendente (opcional)
 
@@ -89,7 +112,7 @@ class AtendenteService:
         # 1. Get client context using the external_user_id from JWT
         # Note: client_id from JWT is actually external_user_id (Supabase Auth user ID)
         # We need to look up the cliente by external_user_id, not by internal id
-        client_context = await self.context_service.get_client_context_by_external_user_id(
+        client_context = await context_service.get_client_context_by_external_user_id(
             str(client_id)
         )
 
@@ -127,6 +150,8 @@ class AtendenteService:
             ended=False,
             turn_count=0,
             structured_data=None,
+            # OPT-7: Cached system prompt (populated on first supervisor call)
+            _cached_system_prompt=None,
         )
 
         # Log if we're resuming from elicitation
@@ -146,6 +171,8 @@ class AtendenteService:
             model_used = MODEL_MAPPINGS.get(provider, {}).get(ModelTier.DEFAULT, "default")
 
         # Persiste a conversa e a mensagem inicial
+        # OPT-4: create_or_get_conversa must await (need conversa_id), but add_mensagem is fire-and-forget
+        conversa_id = None
         try:
             # cliente_final_id pode ser desconhecido no momento; passamos None
             # client_id vem do contexto autenticado
@@ -154,10 +181,10 @@ class AtendenteService:
                 cliente_final_id=None,
                 client_id=str(client_context.id)
             )
-            # Armazena a mensagem do usuário
-            await self.db.add_mensagem(conversa_id, "user", message_text)
+            # Fire-and-forget: persist user message in background
+            _create_background_task(self._persist_message(conversa_id, "user", message_text))
         except Exception:
-            logger.exception("Falha ao persistir conversa/mensagem (não bloqueante)")
+            logger.exception("Falha ao criar/obter conversa (não bloqueante)")
 
         # 4. Execução do Grafo (com Memória via session_id e Observabilidade via Langfuse)
         # get_langfuse_config retorna config com callbacks do Langfuse se configurado
@@ -170,6 +197,10 @@ class AtendenteService:
         try:
             # Ensure MCP connection is established before graph execution
             await ensure_mcp_connected()
+
+            # OPT-3: Set context_service for supervisor_node to enable Redis-cached prompts
+            from atendente_core.core.nodes import set_node_context_service
+            set_node_context_service(context_service)
 
             # .ainvoke roda o grafo inteiro até chegar no END
             start_time = time.time()
@@ -195,13 +226,9 @@ class AtendenteService:
             if isinstance(last_message, AIMessage):
                 agent_response = last_message.content
 
-                # Persiste a resposta do assistente
-                try:
-                    await self.db.add_mensagem(conversa_id, "ai", agent_response)
-                except Exception:
-                    logger.exception(
-                        "Falha ao persistir mensagem do assistente (não bloqueante)"
-                    )
+                # OPT-4: Fire-and-forget persist AI response in background
+                if conversa_id:
+                    _create_background_task(self._persist_message(conversa_id, "ai", agent_response))
 
                 # PHASE 6: HITL Evaluation
                 # Avalia se esta interação deve ir para revisão humana

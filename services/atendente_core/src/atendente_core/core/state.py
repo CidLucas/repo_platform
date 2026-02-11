@@ -69,3 +69,7 @@ class AgentState(TypedDict):
     # --- STRUCTURED DATA (from SQL queries) ---
     # Rich tabular data for interactive display (sorting, filtering, export)
     structured_data: dict[str, Any] | None
+
+    # --- CACHED SYSTEM PROMPT (OPT-7) ---
+    # Avoids rebuilding the prompt on supervisor loop (tools → supervisor)
+    _cached_system_prompt: str | None

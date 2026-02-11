@@ -492,7 +492,7 @@ async def _executar_sql_agent_logic(
     # Instead of using LangChain SQL Agent (which requires ReAct/function-calling),
     # we use a single LLM call to generate SQL and execute it directly.
     try:
-        from langchain_core.messages import HumanMessage, SystemMessage
+        from langchain_core.messages import SystemMessage
         from sqlalchemy import text as sa_text
 
         from vizu_sql_factory.factory import get_shared_engine
@@ -546,140 +546,18 @@ async def _executar_sql_agent_logic(
         # Single LLM call to generate SQL
         # SECURITY: LLM should NOT see or handle client_id, UUIDs, or sensitive identifiers
         # The client_id filter is HARD-INJECTED after SQL generation
-        sql_generation_prompt = f"""You are a SQL expert. Generate the SIMPLEST query for the user's question.
-{context_guidance}
-=== SCHEMA ===
+        # Prompt loaded from Langfuse (with Redis cache) → builtin fallback
+        from vizu_prompt_management import build_prompt as _build_prompt
 
-analytics_v2.fact_sales (ALWAYS USE FOR REVENUE/QUANTITY - source of truth)
-- order_id, data_transacao (date), customer_id, supplier_id, product_id
-- quantidade, valor_unitario, valor_total
-
-analytics_v2.dim_supplier (JOIN via supplier_id)
-- supplier_id, name, cnpj
-- NOTE: endereco_cidade/endereco_uf may be NULL - use dim_customer for geography when possible
-
-analytics_v2.dim_customer (JOIN via customer_id - HAS GEOGRAPHY DATA)
-- customer_id, name, cpf_cnpj
-- endereco_cidade, endereco_uf (RELIABLE - use for city/state analysis)
-
-analytics_v2.dim_product (JOIN via product_id)
-- product_id, product_name, categoria
-
-=== CRITICAL RULES ===
-
-1. ALWAYS aggregate from fact_sales using SUM(f.valor_total)
-2. ALWAYS prefix tables: analytics_v2.fact_sales, analytics_v2.dim_supplier
-3. For city/state analysis, prefer dim_customer (has reliable address data)
-4. Output ONLY SQL - no explanations, no markdown
-5. For "top N per group" use ONE CTE with ROW_NUMBER() and window SUM()
-
-=== AGGREGATION EXAMPLES ===
-
--- Top 10 suppliers by revenue
-SELECT s.name, SUM(f.valor_total) as receita
-FROM analytics_v2.fact_sales f
-JOIN analytics_v2.dim_supplier s USING (supplier_id)
-GROUP BY s.name
-ORDER BY receita DESC LIMIT 10;
-
--- Top 10 cities by revenue (USE DIM_CUSTOMER for geography)
-SELECT c.endereco_cidade as cidade, SUM(f.valor_total) as receita
-FROM analytics_v2.fact_sales f
-JOIN analytics_v2.dim_customer c USING (customer_id)
-WHERE c.endereco_cidade IS NOT NULL
-GROUP BY c.endereco_cidade
-ORDER BY receita DESC LIMIT 10;
-
--- Revenue by state
-SELECT c.endereco_uf as estado, SUM(f.valor_total) as receita
-FROM analytics_v2.fact_sales f
-JOIN analytics_v2.dim_customer c USING (customer_id)
-WHERE c.endereco_uf IS NOT NULL
-GROUP BY c.endereco_uf
-ORDER BY receita DESC;
-
--- Monthly trend
-SELECT DATE_TRUNC('month', data_transacao) as mes, SUM(valor_total) as receita
-FROM analytics_v2.fact_sales
-WHERE data_transacao >= CURRENT_DATE - INTERVAL '12 months'
-GROUP BY 1 ORDER BY 1;
-
--- Top N suppliers per city (join both dimensions)
-WITH ranked AS (
-  SELECT
-    c.endereco_cidade as cidade,
-    s.name as fornecedor,
-    SUM(f.valor_total) as receita,
-    SUM(SUM(f.valor_total)) OVER (PARTITION BY c.endereco_cidade) as cidade_total,
-    ROW_NUMBER() OVER (PARTITION BY c.endereco_cidade ORDER BY SUM(f.valor_total) DESC) as rn
-  FROM analytics_v2.fact_sales f
-  JOIN analytics_v2.dim_supplier s USING (supplier_id)
-  JOIN analytics_v2.dim_customer c USING (customer_id)
-  WHERE c.endereco_cidade IS NOT NULL
-  GROUP BY c.endereco_cidade, s.name
-)
-SELECT cidade, fornecedor, receita
-FROM ranked WHERE rn <= 5
-ORDER BY cidade_total DESC, rn LIMIT 50;
-
--- Top N customers per state
-WITH ranked AS (
-  SELECT
-    c.endereco_uf as estado,
-    c.name as cliente,
-    SUM(f.valor_total) as receita,
-    SUM(SUM(f.valor_total)) OVER (PARTITION BY c.endereco_uf) as estado_total,
-    ROW_NUMBER() OVER (PARTITION BY c.endereco_uf ORDER BY SUM(f.valor_total) DESC) as rn
-  FROM analytics_v2.fact_sales f
-  JOIN analytics_v2.dim_customer c USING (customer_id)
-  GROUP BY c.endereco_uf, c.name
-)
-SELECT estado, cliente, receita
-FROM ranked WHERE rn <= 3
-ORDER BY estado_total DESC, rn LIMIT 30;
-
--- Top products by revenue (with product filter)
-SELECT p.product_name, SUM(f.valor_total) as receita, SUM(f.quantidade) as qtd
-FROM analytics_v2.fact_sales f
-JOIN analytics_v2.dim_product p USING (product_id)
-WHERE p.product_name ILIKE '%aluminio%'
-GROUP BY p.product_name
-ORDER BY receita DESC LIMIT 20;
-
--- Average ticket by customer
-SELECT c.name, COUNT(DISTINCT f.order_id) as pedidos, SUM(f.valor_total) as total,
-       SUM(f.valor_total) / NULLIF(COUNT(DISTINCT f.order_id), 0) as ticket_medio
-FROM analytics_v2.fact_sales f
-JOIN analytics_v2.dim_customer c USING (customer_id)
-GROUP BY c.name
-ORDER BY ticket_medio DESC LIMIT 20;
-
--- Revenue by customer city (top 10)
-SELECT c.endereco_cidade as cidade, SUM(f.valor_total) as receita
-FROM analytics_v2.fact_sales f
-JOIN analytics_v2.dim_customer c USING (customer_id)
-GROUP BY c.endereco_cidade
-ORDER BY receita DESC LIMIT 10;
-
--- Top suppliers per product category (double aggregation)
-WITH ranked AS (
-  SELECT
-    p.product_name as produto,
-    s.name as fornecedor,
-    SUM(f.valor_total) as receita,
-    ROW_NUMBER() OVER (PARTITION BY p.product_name ORDER BY SUM(f.valor_total) DESC) as rn
-  FROM analytics_v2.fact_sales f
-  JOIN analytics_v2.dim_supplier s USING (supplier_id)
-  JOIN analytics_v2.dim_product p USING (product_id)
-  GROUP BY p.product_name, s.name
-)
-SELECT produto, fornecedor, receita
-FROM ranked WHERE rn <= 3
-ORDER BY produto, rn LIMIT 60;
-
-USER QUESTION: {query}
-
-SQL:"""
+        sql_generation_prompt = await _build_prompt(
+            name="tool/sql-generation",
+            variables={
+                "query": query,
+                "context_guidance": context_guidance,
+                "table_info": table_info,
+            },
+            context_service=ctx_service,
+        )
 
         # Span: SQL Generation LLM Call
         llm_start = time.perf_counter()
@@ -693,9 +571,8 @@ SQL:"""
         except Exception:
             pass
 
-        response = llm.invoke([
-            SystemMessage(content="You are a SQL query generator. Output only valid SQL."),
-            HumanMessage(content=sql_generation_prompt)
+        response = await llm.ainvoke([
+            SystemMessage(content=sql_generation_prompt),
         ])
 
         generated_sql = response.content.strip()

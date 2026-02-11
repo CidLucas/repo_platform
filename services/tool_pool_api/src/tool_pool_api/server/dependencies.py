@@ -34,30 +34,34 @@ def _get_redis_pool() -> redis.ConnectionPool:
     """Obtém ou cria o pool de conexões Redis (singleton)."""
     global _redis_pool
     if _redis_pool is None:
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        redis_url = os.getenv("REDIS_URL")
+        if not redis_url:
+            raise RuntimeError("REDIS_URL is required but not set")
         _redis_pool = redis.ConnectionPool.from_url(redis_url, decode_responses=True)
         logger.info(f"Pool Redis criado: {redis_url}")
     return _redis_pool
 
 
+_context_service: ContextService | None = None
+
+
 def get_context_service() -> ContextService:
     """
-    Cria uma nova instância do ContextService com sessão DB e Redis.
+    Returns singleton ContextService with shared Redis pool.
 
-    O pool Redis é compartilhado entre todas as chamadas.
-    Uses Supabase mode for external_user_id lookups.
+    The ContextService is stateless beyond the Redis pool and Supabase client,
+    both of which are already singletons, so a single instance is safe to reuse.
     """
-    logger.debug("Criando nova instância de ContextService...")
-
-    # Cria cliente Redis usando o pool compartilhado
-    pool = _get_redis_pool()
-    redis_client = redis.Redis(connection_pool=pool)
-    redis_service = RedisService(redis_client=redis_client)
-
-    # Use Supabase mode for external_user_id lookups (required for JWT auth)
-    return ContextService(
-        cache_service=redis_service, use_supabase=True
-    )
+    global _context_service
+    if _context_service is None:
+        pool = _get_redis_pool()
+        redis_client = redis.Redis(connection_pool=pool)
+        redis_service = RedisService(redis_client=redis_client)
+        _context_service = ContextService(
+            cache_service=redis_service, use_supabase=True
+        )
+        logger.info("ContextService singleton created (tool_pool_api)")
+    return _context_service
 
 
 # ============================================================================

@@ -221,3 +221,18 @@ def create_agent_graph() -> StateGraph:
     agent_graph = workflow.compile(checkpointer=_CheckpointerAdapter(checkpointer))
 
     return agent_graph
+
+
+# ---------------------------------------------------------------------------
+# Singleton accessor — the graph is expensive to build (creates Redis
+# connections for the checkpointer) so we only create it once.
+# ---------------------------------------------------------------------------
+_singleton_graph = None
+
+
+def get_agent_graph():
+    """Return the module-level singleton agent graph, creating it on first call."""
+    global _singleton_graph
+    if _singleton_graph is None:
+        _singleton_graph = create_agent_graph()
+    return _singleton_graph

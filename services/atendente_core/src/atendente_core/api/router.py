@@ -23,9 +23,7 @@ from vizu_auth.core.models import AuthResult
 from vizu_context_service.context_service import ContextService
 
 # --- 1. INTEGRAÇÃO COM LIB COMPARTILHADA (O Segredo da Limpeza) ---
-# Em vez de criar conexões Redis/DB aqui, importamos a dependência pronta.
-# Isso garante que todos os microserviços usem a mesma lógica de conexão.
-from vizu_context_service.dependencies import get_context_service, get_redis_service
+from vizu_context_service.dependencies import get_redis_service
 from vizu_context_service.redis_service import RedisService
 
 # DB helpers
@@ -41,18 +39,48 @@ router = APIRouter()
 agent_graph = None
 
 
-# --- 3. INJEÇÃO DE DEPENDÊNCIA DO SERVIÇO ---
-def get_atendente_service(
-    # AQUI ESTÁ A MÁGICA:
-    # O FastAPI resolve 'get_context_service', que por sua vez resolve
-    # 'get_redis_client' e 'get_db_session' automaticamente.
-    context_service: ContextService = Depends(get_context_service),
-) -> AtendenteService:
+# --- Singleton ContextService (OPT-9) ---
+# Supabase mode doesn't use db_session, so a single instance is safe.
+_context_service: ContextService | None = None
+
+
+def get_context_service() -> ContextService:
+    """Singleton ContextService for atendente_core (Supabase mode)."""
+    global _context_service
+    if _context_service is None:
+        import redis
+
+        from atendente_core.core.config import get_settings
+        from vizu_context_service.redis_service import RedisService as _RedisService
+
+        settings = get_settings()
+        if not settings.REDIS_URL:
+            raise RuntimeError("REDIS_URL is required but not set")
+
+        pool = redis.ConnectionPool.from_url(settings.REDIS_URL, decode_responses=True)
+        redis_client = redis.Redis(connection_pool=pool)
+        redis_service = _RedisService(redis_client=redis_client)
+        _context_service = ContextService(
+            cache_service=redis_service, use_supabase=True
+        )
+        logger.info("ContextService singleton created (atendente_core)")
+    return _context_service
+
+
+# --- 3. INJEÇÃO DE DEPENDÊNCIA DO SERVIÇO (Singleton) ---
+_atendente_service: AtendenteService | None = None
+
+
+def get_atendente_service() -> AtendenteService:
     """
-    Fábrica que entrega o AtendenteService pronto para uso,
-    com banco e cache já conectados.
+    Returns the singleton AtendenteService.
+    The graph, DB connector, and HITL integration are created once and reused.
+    Per-request ContextService is passed into process_message() separately.
     """
-    return AtendenteService(context_service)
+    global _atendente_service
+    if _atendente_service is None:
+        _atendente_service = AtendenteService()
+    return _atendente_service
 
 
 # Dependency used to validate incoming Twilio webhook requests.
@@ -113,6 +141,7 @@ async def chat_endpoint(
     auth_result: AuthResult = Depends(get_auth_result),
     authorization: str | None = Header(None, alias="Authorization"),
     service: AtendenteService = Depends(get_atendente_service),
+    context_service: ContextService = Depends(get_context_service),
 ):
     """
     Endpoint principal de chat.
@@ -166,6 +195,7 @@ async def chat_endpoint(
             session_id=body.session_id,
             message_text=body.message,
             client_id=auth_result.client_id,
+            context_service=context_service,
             model_override=model_override,
             elicitation_response=elicitation_response,
             user_jwt=authorization,
@@ -223,6 +253,7 @@ async def twilio_webhook(
     Body: str = Form(...),
     To: str | None = Form(None),  # Número de destino (opcional, para multi-client)
     service: AtendenteService = Depends(get_atendente_service),
+    context_service: ContextService = Depends(get_context_service),
     db: Session = Depends(get_db_session),
 ):
     """
@@ -253,6 +284,7 @@ async def twilio_webhook(
             session_id=f"whatsapp:{phone_number}",  # Session ID baseada no número
             message_text=Body,
             client_id=str(cliente_final.client_id),
+            context_service=context_service,
         )
 
         # Resposta em XML TwiML (exigido pelo Twilio)

@@ -52,9 +52,8 @@ class MCPConnectionManager:
         """
         Set the Authorization header for authenticated requests.
 
-        NOTE: For Streamable HTTP transport, headers are set at connection time.
-        If the token changes while connected, mark the connection as needing
-        reconnection so the next call will reconnect with new headers.
+        NOTE: Header changes do NOT invalidate the MCP connection.
+        The server reads headers per-request via get_http_headers().
 
         Args:
             token: JWT or Bearer token (can include "Bearer " prefix or not)
@@ -80,12 +79,6 @@ class MCPConnectionManager:
             del self.headers["Authorization"]
             logger.debug("[MCP] Auth header cleared")
 
-        # Mark connection as stale so next call_tool will reconnect
-        # This is necessary because Streamable HTTP headers are fixed at connection time
-        if self._connected:
-            logger.debug("[MCP] Auth changed while connected, will reconnect on next call")
-            self._connected = False
-
     def set_cliente_id(self, cliente_id: str) -> None:
         """
         Set the X-Cliente-Id header for server-side client identification.
@@ -93,6 +86,11 @@ class MCPConnectionManager:
         This is the preferred authentication method for internal service-to-service
         calls where the caller (atendente_core) has already validated the JWT and
         resolved the cliente_id.
+
+        NOTE: Changing the header does NOT invalidate the MCP connection.
+        Streamable HTTP transport reads headers at the request level via
+        get_http_headers() on the server side, so the updated value will
+        be picked up on the next call_tool without reconnecting.
 
         Args:
             cliente_id: The resolved Vizu client UUID
@@ -110,12 +108,7 @@ class MCPConnectionManager:
 
         # Update header
         self.headers["X-Cliente-Id"] = cliente_id
-        logger.info(f"[MCP] X-Cliente-Id header set: {cliente_id}")
-
-        # Mark connection as stale so next call_tool will reconnect with new header
-        if self._connected:
-            logger.debug("[MCP] Cliente-Id changed while connected, will reconnect on next call")
-            self._connected = False
+        logger.debug(f"[MCP] X-Cliente-Id header set: {cliente_id}")
 
     @property
     def is_connected(self) -> bool:

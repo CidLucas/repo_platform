@@ -22,7 +22,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.prompts import Message
 
 from tool_pool_api.server.dependencies import get_context_service
-from vizu_prompt_management import get_prompt_loader
+from vizu_prompt_management import build_prompt as _build_prompt, get_prompt_loader
 
 from . import register_module
 
@@ -112,18 +112,9 @@ async def _build_text_to_sql_prompt(
         # Try builtin or return a minimal prompt
         try:
             return loader.load_builtin("text_to_sql/system/v1", variables).content
-        except Exception:
-            # Minimal fallback
-            return f"""You are a SQL expert. Generate a PostgreSQL query for:
-Question: {question}
-
-Schema:
-{schema_snapshot}
-
-Role: {role}
-Max rows: {max_rows}
-
-Generate ONLY the SQL query, no explanation."""
+        except Exception as builtin_err:
+            logger.error(f"All prompt sources failed for text_to_sql/system/v1: {builtin_err}")
+            raise
 
 
 # =============================================================================
@@ -212,18 +203,14 @@ def register_tools(mcp: FastMCP) -> list[str]:
         if len(retrieved_context) > max_context_length:
             retrieved_context = retrieved_context[:max_context_length] + "..."
 
+        ctx_service = get_context_service()
+        system_content = await _build_prompt(
+            name="tool/rag-context",
+            variables={"retrieved_context": retrieved_context},
+            context_service=ctx_service,
+        )
         return [
-            Message(
-                f"""Use the following context to answer the user's question.
-If the context doesn't contain relevant information, say so.
-
-CONTEXT:
-{retrieved_context}
-
----
-Answer based ONLY on the context above.""",
-                role="system",
-            ),
+            Message(system_content, role="system"),
             Message(user_question, role="user"),
         ]
 
@@ -240,15 +227,17 @@ Answer based ONLY on the context above.""",
         ctx: Context = None,
     ) -> Message:
         """Generate an elicitation prompt to gather missing information."""
-        prompt = f"""The user requested: "{original_request}"
-
-However, I need more information: {missing_info}
-"""
-        if options:
-            prompt += f"\nAvailable options:\n{options}"
-
-        prompt += "\n\nPlease provide the missing information to continue."
-        return Message(prompt, role="assistant")
+        ctx_service = get_context_service()
+        content = await _build_prompt(
+            name="tool/elicitation-clarify",
+            variables={
+                "original_request": original_request,
+                "missing_info": missing_info,
+                "options": options,
+            },
+            context_service=ctx_service,
+        )
+        return Message(content, role="assistant")
 
     logger.info(
         "[Prompt Module] Registered native MCP prompts: "

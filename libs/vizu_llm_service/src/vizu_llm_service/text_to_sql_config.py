@@ -213,21 +213,16 @@ class TextToSqlLLMCall:
                 logger.warning("ANTHROPIC_API_KEY not found in environment")
 
     def _build_system_prompt(self) -> str:
-        """Build system prompt with safety instructions."""
+        """Build system prompt with safety instructions.
+
+        Uses builtin template from vizu_prompt_management (sync-only, no Langfuse).
+        The Langfuse version is used via async build_prompt() in the SQL module.
+        """
         if not self.config.safety_instructions_enabled:
             return "You are a helpful SQL assistant."
 
-        return (
-            "You are a SQL query generator for a multi-tenant analytics platform. "
-            "Your task is to generate safe, valid PostgreSQL SELECT queries. "
-            "CRITICAL CONSTRAINTS:\n"
-               "1. NEVER bypass client isolation - always include client_id filter\n"
-            "2. NO DDL/DML - SELECT only\n"
-            "3. LIMIT results - max 100,000 rows\n"
-            "4. Aggregates only: COUNT, SUM, AVG, MIN, MAX\n"
-            "5. If cannot generate safe SQL, respond with: UNABLE\n"
-            "6. Return ONLY the SQL query, no explanation"
-        )
+        from vizu_prompt_management import build_prompt_sync
+        return build_prompt_sync("tool/sql-safety-system", variables={})
 
     async def invoke(
         self,

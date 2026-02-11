@@ -295,6 +295,155 @@ Por favor, verifique se as informações estão corretas e tente novamente."""
 # TOOL PROMPTS - SQL Agent
 # =============================================================================
 
+SQL_GENERATION = PromptTemplateConfig(
+    name="tool/sql-generation",
+    category=PromptCategory.SYSTEM,
+    description="SQL Generation prompt - single LLM call to convert natural language to SQL",
+    required_variables=["query"],
+    optional_variables={
+        "context_guidance": "",
+        "table_info": "",
+    },
+    content="""You are a SQL expert. Generate the SIMPLEST query for the user's question.
+{{ context_guidance }}
+=== SCHEMA ===
+
+{% if table_info %}
+{{ table_info }}
+{% else %}
+analytics_v2.fact_sales (ALWAYS USE FOR REVENUE/QUANTITY - source of truth)
+- order_id, data_transacao (date), customer_id, supplier_id, product_id
+- quantidade, valor_unitario, valor_total
+
+analytics_v2.dim_supplier (JOIN via supplier_id)
+- supplier_id, name, cnpj
+- NOTE: endereco_cidade/endereco_uf may be NULL - use dim_customer for geography when possible
+
+analytics_v2.dim_customer (JOIN via customer_id - HAS GEOGRAPHY DATA)
+- customer_id, name, cpf_cnpj
+- endereco_cidade, endereco_uf (RELIABLE - use for city/state analysis)
+
+analytics_v2.dim_product (JOIN via product_id)
+- product_id, product_name, categoria
+{% endif %}
+
+=== CRITICAL RULES ===
+
+1. ALWAYS aggregate from fact_sales using SUM(f.valor_total)
+2. ALWAYS prefix tables: analytics_v2.fact_sales, analytics_v2.dim_supplier
+3. For city/state analysis, prefer dim_customer (has reliable address data)
+4. Output ONLY SQL - no explanations, no markdown
+5. For "top N per group" use ONE CTE with ROW_NUMBER() and window SUM()
+
+=== AGGREGATION EXAMPLES ===
+
+-- Top 10 suppliers by revenue
+SELECT s.name, SUM(f.valor_total) as receita
+FROM analytics_v2.fact_sales f
+JOIN analytics_v2.dim_supplier s USING (supplier_id)
+GROUP BY s.name
+ORDER BY receita DESC LIMIT 10;
+
+-- Top 10 cities by revenue (USE DIM_CUSTOMER for geography)
+SELECT c.endereco_cidade as cidade, SUM(f.valor_total) as receita
+FROM analytics_v2.fact_sales f
+JOIN analytics_v2.dim_customer c USING (customer_id)
+WHERE c.endereco_cidade IS NOT NULL
+GROUP BY c.endereco_cidade
+ORDER BY receita DESC LIMIT 10;
+
+-- Revenue by state
+SELECT c.endereco_uf as estado, SUM(f.valor_total) as receita
+FROM analytics_v2.fact_sales f
+JOIN analytics_v2.dim_customer c USING (customer_id)
+WHERE c.endereco_uf IS NOT NULL
+GROUP BY c.endereco_uf
+ORDER BY receita DESC;
+
+-- Monthly trend
+SELECT DATE_TRUNC('month', data_transacao) as mes, SUM(valor_total) as receita
+FROM analytics_v2.fact_sales
+WHERE data_transacao >= CURRENT_DATE - INTERVAL '12 months'
+GROUP BY 1 ORDER BY 1;
+
+-- Top N suppliers per city (join both dimensions)
+WITH ranked AS (
+  SELECT
+    c.endereco_cidade as cidade,
+    s.name as fornecedor,
+    SUM(f.valor_total) as receita,
+    SUM(SUM(f.valor_total)) OVER (PARTITION BY c.endereco_cidade) as cidade_total,
+    ROW_NUMBER() OVER (PARTITION BY c.endereco_cidade ORDER BY SUM(f.valor_total) DESC) as rn
+  FROM analytics_v2.fact_sales f
+  JOIN analytics_v2.dim_supplier s USING (supplier_id)
+  JOIN analytics_v2.dim_customer c USING (customer_id)
+  WHERE c.endereco_cidade IS NOT NULL
+  GROUP BY c.endereco_cidade, s.name
+)
+SELECT cidade, fornecedor, receita
+FROM ranked WHERE rn <= 5
+ORDER BY cidade_total DESC, rn LIMIT 50;
+
+-- Top N customers per state
+WITH ranked AS (
+  SELECT
+    c.endereco_uf as estado,
+    c.name as cliente,
+    SUM(f.valor_total) as receita,
+    SUM(SUM(f.valor_total)) OVER (PARTITION BY c.endereco_uf) as estado_total,
+    ROW_NUMBER() OVER (PARTITION BY c.endereco_uf ORDER BY SUM(f.valor_total) DESC) as rn
+  FROM analytics_v2.fact_sales f
+  JOIN analytics_v2.dim_customer c USING (customer_id)
+  GROUP BY c.endereco_uf, c.name
+)
+SELECT estado, cliente, receita
+FROM ranked WHERE rn <= 3
+ORDER BY estado_total DESC, rn LIMIT 30;
+
+-- Top products by revenue (with product filter)
+SELECT p.product_name, SUM(f.valor_total) as receita, SUM(f.quantidade) as qtd
+FROM analytics_v2.fact_sales f
+JOIN analytics_v2.dim_product p USING (product_id)
+WHERE p.product_name ILIKE '%aluminio%'
+GROUP BY p.product_name
+ORDER BY receita DESC LIMIT 20;
+
+-- Average ticket by customer
+SELECT c.name, COUNT(DISTINCT f.order_id) as pedidos, SUM(f.valor_total) as total,
+       SUM(f.valor_total) / NULLIF(COUNT(DISTINCT f.order_id), 0) as ticket_medio
+FROM analytics_v2.fact_sales f
+JOIN analytics_v2.dim_customer c USING (customer_id)
+GROUP BY c.name
+ORDER BY ticket_medio DESC LIMIT 20;
+
+-- Revenue by customer city (top 10)
+SELECT c.endereco_cidade as cidade, SUM(f.valor_total) as receita
+FROM analytics_v2.fact_sales f
+JOIN analytics_v2.dim_customer c USING (customer_id)
+GROUP BY c.endereco_cidade
+ORDER BY receita DESC LIMIT 10;
+
+-- Top suppliers per product category (double aggregation)
+WITH ranked AS (
+  SELECT
+    p.product_name as produto,
+    s.name as fornecedor,
+    SUM(f.valor_total) as receita,
+    ROW_NUMBER() OVER (PARTITION BY p.product_name ORDER BY SUM(f.valor_total) DESC) as rn
+  FROM analytics_v2.fact_sales f
+  JOIN analytics_v2.dim_supplier s USING (supplier_id)
+  JOIN analytics_v2.dim_product p USING (product_id)
+  GROUP BY p.product_name, s.name
+)
+SELECT produto, fornecedor, receita
+FROM ranked WHERE rn <= 3
+ORDER BY produto, rn LIMIT 60;
+
+USER QUESTION: {{ query }}
+
+SQL:""",
+)
+
 SQL_AGENT_PREFIX = PromptTemplateConfig(
     name="tool/sql-agent-prefix",
     category=PromptCategory.SYSTEM,
@@ -356,6 +505,90 @@ RESPOSTA:"""
 
 
 # =============================================================================
+# MCP PROMPT MODULE TEMPLATES
+# =============================================================================
+
+TEXT_TO_SQL_SYSTEM = PromptTemplateConfig(
+    name="text_to_sql/system/v1",
+    category=PromptCategory.SYSTEM,
+    description="Text-to-SQL system prompt for MCP prompt module",
+    required_variables=["question", "schema_snapshot"],
+    optional_variables={
+        "role": "analyst",
+        "client_id": "",
+        "allowed_views": "",
+        "allowed_aggregates": "",
+        "max_rows": "1000",
+    },
+    content="""You are a SQL expert. Generate a PostgreSQL query for:
+Question: {{ question }}
+
+Schema:
+{{ schema_snapshot }}
+
+Role: {{ role }}
+Max rows: {{ max_rows }}
+
+{% if allowed_views %}
+Allowed views: {{ allowed_views }}
+{% endif %}
+
+{% if allowed_aggregates %}
+Allowed aggregates: {{ allowed_aggregates }}
+{% endif %}
+
+Generate ONLY the SQL query, no explanation.""",
+)
+
+RAG_CONTEXT_PROMPT = PromptTemplateConfig(
+    name="tool/rag-context",
+    category=PromptCategory.RAG,
+    description="RAG context injection prompt for MCP prompt module",
+    required_variables=["retrieved_context"],
+    content="""Use the following context to answer the user's question.
+If the context doesn't contain relevant information, say so.
+
+CONTEXT:
+{{ retrieved_context }}
+
+---
+Answer based ONLY on the context above.""",
+)
+
+ELICITATION_CLARIFY_PROMPT = PromptTemplateConfig(
+    name="tool/elicitation-clarify",
+    category=PromptCategory.ELICITATION,
+    description="Elicitation prompt for asking clarifying questions via MCP",
+    required_variables=["original_request", "missing_info"],
+    optional_variables={"options": ""},
+    content="""The user requested: "{{ original_request }}"
+
+However, I need more information: {{ missing_info }}
+
+{% if options %}
+Available options:
+{{ options }}
+{% endif %}
+
+Please provide the missing information to continue.""",
+)
+
+SQL_SAFETY_SYSTEM = PromptTemplateConfig(
+    name="tool/sql-safety-system",
+    category=PromptCategory.SYSTEM,
+    description="SQL safety constraints system prompt for TextToSqlLLMCall",
+    required_variables=[],
+    content="""You are a SQL query generator for a multi-tenant analytics platform. Your task is to generate safe, valid PostgreSQL SELECT queries. CRITICAL CONSTRAINTS:
+1. NEVER bypass client isolation - always include client_id filter
+2. NO DDL/DML - SELECT only
+3. LIMIT results - max 100,000 rows
+4. Aggregates only: COUNT, SUM, AVG, MIN, MAX
+5. If cannot generate safe SQL, respond with: UNABLE
+6. Return ONLY the SQL query, no explanation""",
+)
+
+
+# =============================================================================
 # TEMPLATE REGISTRY
 # =============================================================================
 
@@ -377,10 +610,16 @@ BUILTIN_TEMPLATES: dict[str, PromptTemplateConfig] = {
     ERROR_TOOL_FAILED.name: ERROR_TOOL_FAILED,
     ERROR_NOT_FOUND.name: ERROR_NOT_FOUND,
     # Tool prompts - SQL Agent
+    SQL_GENERATION.name: SQL_GENERATION,
     SQL_AGENT_PREFIX.name: SQL_AGENT_PREFIX,
     SQL_AGENT_SUFFIX.name: SQL_AGENT_SUFFIX,
     # Tool prompts - RAG
     RAG_TOOL_PROMPT.name: RAG_TOOL_PROMPT,
+    # MCP prompt module templates
+    TEXT_TO_SQL_SYSTEM.name: TEXT_TO_SQL_SYSTEM,
+    RAG_CONTEXT_PROMPT.name: RAG_CONTEXT_PROMPT,
+    ELICITATION_CLARIFY_PROMPT.name: ELICITATION_CLARIFY_PROMPT,
+    SQL_SAFETY_SYSTEM.name: SQL_SAFETY_SYSTEM,
 }
 
 

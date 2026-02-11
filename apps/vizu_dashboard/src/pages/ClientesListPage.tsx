@@ -27,7 +27,12 @@ function ClientesListPage() {
   const [selectedCliente, setSelectedCliente] = useState<ClienteDetailResponse | null>(null);
 
   // Use React Query hook for initial data (cached, parallel fetching)
-  const { clientes: overviewData, productsFilter: productsList, loading, error } = useClientesPageData();
+  const { clientes: overviewData, productsFilter: productsList, loading, error: queryError } = useClientesPageData();
+  
+  // Local error state for user-triggered actions (clicking rows, etc.)
+  const [localError, setLocalError] = useState<string | null>(null);
+  const setError = (msg: string) => setLocalError(msg);
+  const error = queryError || localError;
 
   // Filter state - initialize from URL params
   const viewParam = searchParams.get('view');

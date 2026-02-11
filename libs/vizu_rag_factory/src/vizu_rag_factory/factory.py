@@ -10,26 +10,16 @@ from vizu_llm_service.client import get_embedding_model
 
 # Dependências de outras libs Vizu
 from vizu_models.vizu_client_context import VizuClientContext
+from vizu_prompt_management.templates import RAG_TOOL_PROMPT
 from vizu_qdrant_client import get_qdrant_client  # Usa o singleton
 
 logger = logging.getLogger(__name__)
 
-# Template de prompt padrão para RAG
-RAG_PROMPT_TEMPLATE = """
-Você é um assistente da Vizu. Use os seguintes trechos de contexto para responder à pergunta.
-O contexto é soberano. Se você não sabe a resposta com base no contexto,
-apenas diga que não sabe. Não tente inventar uma resposta.
-
-CONTEXTO:
-{context}
-
----
-
-PERGUNTA:
-{question}
-
-RESPOSTA:
-"""
+# Use centralized prompt from vizu_prompt_management
+# Convert Jinja2 syntax {{ var }} to LangChain syntax {var}
+RAG_PROMPT_TEMPLATE = RAG_TOOL_PROMPT.content.replace("{{ context }}", "{context}").replace(
+    "{{ question }}", "{question}"
+)
 
 
 def _format_docs(docs):

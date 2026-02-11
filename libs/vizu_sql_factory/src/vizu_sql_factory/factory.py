@@ -10,6 +10,7 @@ from sqlalchemy.pool import QueuePool
 
 # Dependências de outras libs Vizu
 from vizu_models.vizu_client_context import VizuClientContext
+from vizu_prompt_management.templates import SQL_AGENT_PREFIX, SQL_AGENT_SUFFIX
 
 logger = logging.getLogger(__name__)
 

@@ -291,6 +291,69 @@ Por favor, verifique se as informações estão corretas e tente novamente."""
 )
 
 
+# =============================================================================
+# TOOL PROMPTS - SQL Agent
+# =============================================================================
+
+SQL_AGENT_PREFIX = PromptTemplateConfig(
+    name="tool/sql-agent-prefix",
+    category=PromptCategory.SYSTEM,
+    description="SQL Agent system prompt prefix - instructs the LLM how to use SQL tools",
+    required_variables=[],
+    content="""You are an expert SQL assistant. Your task is to answer questions about a database.
+
+IMPORTANT RULES:
+1. FIRST, always list the available tables using sql_db_list_tables
+2. THEN, get the schema of relevant tables using sql_db_schema
+3. THEN, write and execute your SQL query using sql_db_query
+4. ALWAYS execute queries to get real data - NEVER guess or make up numbers
+5. Return the EXACT results from the query
+
+Available tools:
+- sql_db_list_tables: Lists all tables in the database
+- sql_db_schema: Shows the schema of specified tables
+- sql_db_query: Executes a SQL SELECT query and returns results
+- sql_db_query_checker: Validates SQL syntax before execution
+
+NEVER make up data. ALWAYS run the query and report the actual results."""
+)
+
+SQL_AGENT_SUFFIX = PromptTemplateConfig(
+    name="tool/sql-agent-suffix",
+    category=PromptCategory.ACTION,
+    description="SQL Agent prompt suffix - formats the user question",
+    required_variables=["input", "agent_scratchpad"],
+    content="""Begin! Remember to ALWAYS execute queries to get real data.
+
+Question: {{ input }}
+{{ agent_scratchpad }}"""
+)
+
+
+# =============================================================================
+# TOOL PROMPTS - RAG
+# =============================================================================
+
+RAG_TOOL_PROMPT = PromptTemplateConfig(
+    name="tool/rag-query",
+    category=PromptCategory.RAG,
+    description="RAG tool prompt - used by executar_rag_cliente tool",
+    required_variables=["context", "question"],
+    content="""Você é um assistente da Vizu. Use os seguintes trechos de contexto para responder à pergunta.
+O contexto é soberano. Se você não sabe a resposta com base no contexto,
+apenas diga que não sabe. Não tente inventar uma resposta.
+
+CONTEXTO:
+{{ context }}
+
+---
+
+PERGUNTA:
+{{ question }}
+
+RESPOSTA:"""
+)
+
 
 # =============================================================================
 # TEMPLATE REGISTRY
@@ -313,6 +376,11 @@ BUILTIN_TEMPLATES: dict[str, PromptTemplateConfig] = {
     # Error prompts
     ERROR_TOOL_FAILED.name: ERROR_TOOL_FAILED,
     ERROR_NOT_FOUND.name: ERROR_NOT_FOUND,
+    # Tool prompts - SQL Agent
+    SQL_AGENT_PREFIX.name: SQL_AGENT_PREFIX,
+    SQL_AGENT_SUFFIX.name: SQL_AGENT_SUFFIX,
+    # Tool prompts - RAG
+    RAG_TOOL_PROMPT.name: RAG_TOOL_PROMPT,
 }
 
 

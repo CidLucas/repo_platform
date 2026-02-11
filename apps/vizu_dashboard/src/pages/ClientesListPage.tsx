@@ -195,7 +195,7 @@ function ClientesListPage() {
   }
 
   if (error || !overviewData) {
-    const errorMessage = error instanceof Error ? error.message : (error ? String(error) : 'Não foi possível carregar os dados.');
+    const errorMessage = error || 'Não foi possível carregar os dados.';
     return (
       <MainLayout>
         <Flex justify="center" align="center" height="100vh">

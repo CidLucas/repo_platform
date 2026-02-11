@@ -105,7 +105,7 @@ const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isProcessingOAuth, setIsProcessingOAuth] = useState(false);
-  
+
   // Ref to prevent double OAuth code exchange in React StrictMode
   const oauthProcessedRef = useRef(false);
 
@@ -113,7 +113,7 @@ const LoginPage: React.FC = () => {
   useEffect(() => {
     // Prevent double execution in StrictMode
     if (oauthProcessedRef.current) return;
-    
+
     const hash = window.location.hash;
     const search = window.location.search;
     const hasHashToken = hash && (hash.includes('access_token') || hash.includes('error'));

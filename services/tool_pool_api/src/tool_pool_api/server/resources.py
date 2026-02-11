@@ -339,31 +339,26 @@ def _get_prompt_loader() -> PromptLoader:
 
 
 async def _load_prompt(
-    name: str, cliente_id: str | None = None, langfuse_label: str = "production"
+    name: str, langfuse_label: str = "production"
 ) -> dict:
     """
     Load a prompt using the Langfuse-first strategy.
 
     Priority:
     1. Langfuse (label="production" by default)
-    2. DB client-specific override (if cliente_id provided)
-    3. DB global prompt
-    4. Builtin template
+    2. Builtin template
 
     Args:
         name: Prompt name (e.g., 'atendente/system')
-        cliente_id: Optional client ID for client-specific overrides
         langfuse_label: Langfuse label to use (default: "production")
 
     Returns:
         Dict with prompt info: {name, content, source, version, metadata}
     """
     loader = _get_prompt_loader()
-    uuid_obj = UUID(cliente_id) if cliente_id else None
 
     loaded = await loader.load(
         name=name,
-        cliente_id=uuid_obj,
         langfuse_label=langfuse_label,
     )
 
@@ -374,6 +369,7 @@ async def _load_prompt(
         "version": loaded.version,
         "metadata": loaded.metadata,
         "trace_metadata": loaded.get_trace_metadata() if hasattr(loaded, "get_trace_metadata") else None,
+        "langfuse_prompt": loaded.langfuse_prompt,  # For trace linking
     }
 
 

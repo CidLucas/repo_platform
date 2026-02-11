@@ -1,16 +1,14 @@
 """
-Text-to-SQL Integration - Phase 1 Refactored
+Text-to-SQL Integration - Simplified with Langfuse Native Support
 
 Uses vizu_prompt_management for:
-- Prompt loading and rendering
-- Context variable extraction
-- Database-backed overrides
+- Prompt loading (Langfuse as source of truth, builtin fallback)
+- Variable extraction from client context
+- Template rendering with Jinja2
 
-This module simplifies by leveraging existing infrastructure.
-
-Phase 1 Lesson Learned:
-  Always search existing libs and connecting services for features before
-  implementing. Avoid duplicate functionality across services.
+Key changes:
+- Removed client-specific prompts (context injected via variables)
+- Uses Langfuse SDK's native get_prompt() + compile()
 """
 
 import logging
@@ -29,10 +27,9 @@ class TextToSqlPrompt:
 
     Instead of reimplementing context extraction and variable substitution,
     we use the centralized library that already handles:
-    - Prompt loading (database + builtin fallback)
+    - Prompt loading (Langfuse + builtin fallback)
     - Variable extraction from client context
     - Template rendering with Jinja2
-    - Client-specific overrides
     """
 
     def __init__(self, prompt_loader: PromptLoader | None = None):
@@ -101,10 +98,10 @@ class TextToSqlPrompt:
         variables = builder.build_dict()
 
         # Load and render prompt using centralized loader
+        # Note: No cliente_id parameter - context is injected via variables
         loaded_prompt = await self.loader.load(
             "text-to-sql/v1",
             variables=variables,
-            cliente_id=UUID(client_id) if client_id else None,
         )
 
         return loaded_prompt.content

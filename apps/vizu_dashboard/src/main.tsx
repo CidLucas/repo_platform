@@ -22,24 +22,24 @@ const theme = extendTheme({
   },
   styles: {
     global: {
-            body: {
-              bg: '#F6F6F6',
-              color: 'gray.800',
-            },
-            // Global style to target the specific class name reported by the user
-            '.css-1mgfjbg': {
-              background: 'transparent !important',
-            },
-            // Global style to adjust the position of the Select component's arrow icon
-            '.chakra-select__icon-wrapper': {
-              right: '5px !important', // Adjusted right position
-            },
-            // Global style to ensure the Select wrapper provides a positioning context for its dropdown
-            '.chakra-select__wrapper': {
-              position: 'relative !important',
-            },
-          },
-        },
+      body: {
+        bg: '#F6F6F6',
+        color: 'gray.800',
+      },
+      // Global style to target the specific class name reported by the user
+      '.css-1mgfjbg': {
+        background: 'transparent !important',
+      },
+      // Global style to adjust the position of the Select component's arrow icon
+      '.chakra-select__icon-wrapper': {
+        right: '5px !important', // Adjusted right position
+      },
+      // Global style to ensure the Select wrapper provides a positioning context for its dropdown
+      '.chakra-select__wrapper': {
+        position: 'relative !important',
+      },
+    },
+  },
   textStyles: {
     pageTitle: {
       fontWeight: 400,

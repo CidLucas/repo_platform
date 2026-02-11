@@ -24,33 +24,8 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from langchain_core.callbacks.base import BaseCallbackHandler
-    from langchain_core.prompts import ChatPromptTemplate
 
 logger = logging.getLogger(__name__)
-
-# Thread-local storage for prompt metadata (auto-injected into traces)
-_prompt_metadata: dict[str, Any] = {}
-
-
-def _get_prompt_metadata() -> dict[str, Any]:
-    """Get current prompt metadata for trace injection."""
-    return _prompt_metadata.copy()
-
-
-def _set_prompt_metadata(name: str, version: int | str | None, label: str | None = None) -> None:
-    """Set prompt metadata for automatic trace injection."""
-    global _prompt_metadata
-    _prompt_metadata = {
-        "prompt_name": name,
-        "prompt_version": version,
-        "prompt_label": label,
-    }
-
-
-def _clear_prompt_metadata() -> None:
-    """Clear prompt metadata after trace creation."""
-    global _prompt_metadata
-    _prompt_metadata = {}
 
 
 # =============================================================================
@@ -258,18 +233,15 @@ def get_langfuse_callback(
     """
     Create a Langfuse CallbackHandler for LangChain/LangGraph tracing.
 
-    Automatically injects prompt metadata (name, version) if a prompt was
-    recently fetched via LangfusePromptClient.
-
     Args:
         user_id: User ID for trace grouping
         session_id: Session ID for trace grouping
         tags: Tags for categorization
-        metadata: Additional metadata
+        metadata: Additional metadata (including prompt_name, prompt_version for trace linking)
         max_messages: Max messages to keep in observation (truncates older)
 
     Returns:
-        Sanitizing callback handler or None if Langfuse not configured
+        Callback handler or None if Langfuse not configured
     """
     if not is_langfuse_enabled():
         logger.debug("Langfuse not enabled (missing credentials)")
@@ -298,11 +270,9 @@ def get_langfuse_callback(
         # Create handler
         handler = CallbackHandler()
 
-        # Merge prompt metadata with user metadata
-        final_metadata = {**_get_prompt_metadata(), **(metadata or {})}
-        if final_metadata:
-            # SDK v3 doesn't accept metadata in constructor, set via trace
-            handler.metadata = final_metadata
+        # Set metadata if provided (prompt metadata for trace linking should be passed here)
+        if metadata:
+            handler.metadata = metadata
 
         if user_id:
             handler.user_id = user_id
@@ -311,11 +281,6 @@ def get_langfuse_callback(
         if tags:
             handler.tags = tags
 
-        # Clear prompt metadata after use
-        _clear_prompt_metadata()
-
-        # Return handler directly - Pydantic v2 validation requires proper BaseCallbackHandler inheritance
-        # TODO: Implement sanitization via custom subclass that inherits from CallbackHandler
         logger.debug(f"Langfuse callback created - host: {settings['host']}")
         return handler
 
@@ -334,22 +299,39 @@ def get_langfuse_callback(
 
 class LangfusePromptClient:
     """
-    Client for fetching prompts from Langfuse Prompt Management.
+    Thin wrapper around Langfuse SDK for prompt fetching + compiling.
 
-    Automatically tracks prompt name and version for trace metadata injection.
+    Simplified from the previous implementation:
+    - Uses langfuse.get_prompt(name, label, cache_ttl_seconds) natively
+    - Uses prompt.compile(**variables) for {{variable}} substitution
+    - Returns both compiled text AND the prompt object (for trace linking)
+    - Keeps circuit breaker logic (cooldown on connection failure)
 
     Usage:
         client = LangfusePromptClient()
-        prompt = client.get_prompt("system-prompt", label="production")
-        # Now get_langfuse_callback() will auto-include prompt_name/version
+        text, prompt_obj = client.get_and_compile(
+            "atendente/default",
+            {"nome_empresa": "Acme"},
+            label="production"
+        )
+        # prompt_obj can be used for trace linking
     """
+
+    # Circuit breaker: skip Langfuse for this many seconds after a failure
+    _cooldown_until: float = 0.0
+    _COOLDOWN_SECONDS: float = 300.0  # 5 minutes
 
     def __init__(self):
         self._client: Any = None
-        self._last_prompt_meta: dict[str, Any] = {}
 
     def _ensure_client(self) -> Any:
-        """Lazily initialize Langfuse client."""
+        """Lazily initialize Langfuse client. Returns None if in cooldown."""
+        import time
+
+        if time.time() < self._cooldown_until:
+            logger.debug("Langfuse client in cooldown period")
+            return None
+
         if self._client is None:
             if not is_langfuse_enabled():
                 raise RuntimeError("Langfuse not configured - missing credentials")
@@ -363,78 +345,113 @@ class LangfusePromptClient:
             )
         return self._client
 
-    def get_prompt(
+    def _trigger_cooldown(self) -> None:
+        """Trigger circuit breaker cooldown after connection failure."""
+        import time
+        self._cooldown_until = time.time() + self._COOLDOWN_SECONDS
+        logger.warning(f"Langfuse unreachable, disabling for {self._COOLDOWN_SECONDS}s")
+
+    def get_and_compile(
         self,
         name: str,
-        version: int | None = None,
-        label: str | None = None,
-    ) -> ChatPromptTemplate:
+        variables: dict[str, Any],
+        label: str = "production",
+        cache_ttl_seconds: int = 300,
+    ) -> tuple[str, Any] | None:
         """
-        Fetch a prompt from Langfuse and convert to LangChain format.
-
-        Automatically sets prompt metadata for trace injection.
+        Fetch prompt and compile with variables using Langfuse SDK natively.
 
         Args:
             name: Prompt name in Langfuse
-            version: Specific version number (optional)
-            label: Label like "production" or "staging" (optional)
+            variables: Dict of variables for {{variable}} substitution
+            label: Label like "production" or "staging"
+            cache_ttl_seconds: TTL for Langfuse SDK's internal cache
 
         Returns:
-            ChatPromptTemplate ready for use with LangChain
+            Tuple of (compiled_text, prompt_object) or None if failed
+            The prompt_object can be used for trace linking via prompt.link()
         """
-        client = self._ensure_client()
+        try:
+            client = self._ensure_client()
+            if client is None:
+                return None
 
-        # Fetch from Langfuse
-        prompt = client.get_prompt(name, version=version, label=label)
+            # Use Langfuse SDK natively - it handles caching internally
+            prompt = client.get_prompt(
+                name,
+                label=label,
+                cache_ttl_seconds=cache_ttl_seconds,
+                type="text",
+            )
 
-        # Store metadata for auto-injection
-        actual_version = getattr(prompt, "version", version)
-        _set_prompt_metadata(name, actual_version, label)
-        self._last_prompt_meta = {
-            "prompt_name": name,
-            "prompt_version": actual_version,
-            "prompt_label": label,
-        }
+            # Use prompt.compile() for {{variable}} substitution
+            compiled = prompt.compile(**variables)
 
-        logger.debug(f"Fetched prompt '{name}' v{actual_version} (label={label})")
+            actual_version = getattr(prompt, "version", None)
+            logger.debug(f"Fetched and compiled prompt '{name}' v{actual_version} (label={label})")
 
-        # Convert to LangChain format
-        return prompt.get_langchain_prompt()
+            return compiled, prompt
 
-    def get_prompt_text(
+        except Exception as e:
+            error_str = str(e).lower()
+            if "connection refused" in error_str or "connection" in error_str or "timeout" in error_str:
+                self._trigger_cooldown()
+            logger.warning(f"Langfuse prompt '{name}' fetch failed (label={label}): {e}")
+            return None
+
+    def get_prompt_template(
         self,
         name: str,
-        version: int | None = None,
-        label: str | None = None,
-    ) -> str:
+        label: str = "production",
+        cache_ttl_seconds: int = 300,
+    ) -> tuple[str, Any] | None:
         """
-        Fetch a text prompt from Langfuse.
+        Fetch raw prompt template (without variable substitution).
+
+        Useful when you need to cache the raw template separately
+        and apply variables later.
 
         Args:
             name: Prompt name in Langfuse
-            version: Specific version number (optional)
-            label: Label like "production" or "staging" (optional)
+            label: Label like "production" or "staging"
+            cache_ttl_seconds: TTL for Langfuse SDK's internal cache
 
         Returns:
-            Raw prompt text
+            Tuple of (raw_template_text, prompt_object) or None if failed
         """
-        client = self._ensure_client()
-        prompt = client.get_prompt(name, version=version, label=label, type="text")
+        try:
+            client = self._ensure_client()
+            if client is None:
+                return None
 
-        actual_version = getattr(prompt, "version", version)
-        _set_prompt_metadata(name, actual_version, label)
-        self._last_prompt_meta = {
-            "prompt_name": name,
-            "prompt_version": actual_version,
-            "prompt_label": label,
-        }
+            prompt = client.get_prompt(
+                name,
+                label=label,
+                cache_ttl_seconds=cache_ttl_seconds,
+                type="text",
+            )
 
-        logger.debug(f"Fetched text prompt '{name}' v{actual_version}")
-        return prompt.prompt
+            # Return raw template without compilation
+            raw_text = prompt.prompt
 
-    def get_last_prompt_meta(self) -> dict[str, Any]:
-        """Get metadata from the last fetched prompt."""
-        return self._last_prompt_meta.copy()
+            actual_version = getattr(prompt, "version", None)
+            logger.debug(f"Fetched raw template '{name}' v{actual_version} (label={label})")
+
+            return raw_text, prompt
+
+        except Exception as e:
+            error_str = str(e).lower()
+            if "connection refused" in error_str or "connection" in error_str or "timeout" in error_str:
+                self._trigger_cooldown()
+            logger.warning(f"Langfuse template '{name}' fetch failed (label={label}): {e}")
+            return None
+
+    def is_available(self) -> bool:
+        """Check if Langfuse is enabled and not in cooldown."""
+        import time
+        if time.time() < self._cooldown_until:
+            return False
+        return is_langfuse_enabled()
 
 
 # =============================================================================

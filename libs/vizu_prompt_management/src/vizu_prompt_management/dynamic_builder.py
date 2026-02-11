@@ -7,19 +7,22 @@ Single entry point for building all prompt types dynamically:
 - Text-to-SQL prompts
 - Task-specific prompts (RAG, elicitation, etc.)
 
-All prompts are:
-1. Loaded from database (client-specific → global → builtin fallback)
-2. Cached in Redis via ContextService
-3. Rendered with variables via TemplateRenderer
+Architecture (simplified):
+1. Langfuse as source of truth (version control, A/B testing via labels)
+2. Builtin templates as fallback
+3. Redis caching via ContextService (optional)
+4. Variables injected from SafeContext fields via {{}} syntax
 
-This replaces hardcoded prompts and ensures consistency across the platform.
+Key changes:
+- Removed cliente_id parameter (no per-client prompts in DB)
+- Context is injected via variables (company_profile, nome_empresa, etc.)
+- Added build_prompt_full() for access to LoadedPrompt + langfuse_prompt
 """
 
 import logging
 from typing import TYPE_CHECKING, Any
-from uuid import UUID
 
-from vizu_prompt_management.loader import PromptLoader
+from vizu_prompt_management.loader import LoadedPrompt, PromptLoader
 from vizu_prompt_management.variables import VariableExtractor
 
 if TYPE_CHECKING:
@@ -60,23 +63,24 @@ def get_prompt_loader() -> PromptLoader:
 async def build_prompt(
     name: str,
     variables: dict[str, Any],
-    cliente_id: UUID | None = None,
     context_service: "ContextService | None" = None,
+    langfuse_label: str | None = None,
 ) -> str:
     """
     Build any prompt dynamically using the unified loading system.
 
     This is the single entry point for all prompt building across the platform.
     It handles:
-    - Database lookup (client-specific → global → builtin fallback)
-    - Redis caching via ContextService
-    - Variable substitution via TemplateRenderer
+    - Langfuse lookup (primary source of truth)
+    - Builtin fallback
+    - Redis caching via ContextService (if provided)
+    - Variable substitution via Langfuse's {{variable}} syntax
 
     Args:
         name: Prompt template name (e.g., "atendente/default", "text_to_sql/system")
-        variables: Variables for template rendering
-        cliente_id: Client UUID for client-specific prompt overrides
+        variables: Variables for template rendering (from SafeContext fields)
         context_service: Optional ContextService for Redis caching
+        langfuse_label: Override default Langfuse label ("production", "staging")
 
     Returns:
         Rendered prompt content
@@ -86,7 +90,6 @@ async def build_prompt(
         content = await build_prompt(
             name="atendente/default",
             variables={"nome_empresa": "Acme", "tools_description": "..."},
-            cliente_id=cliente_uuid,
             context_service=ctx_service,
         )
 
@@ -94,7 +97,6 @@ async def build_prompt(
         content = await build_prompt(
             name="text_to_sql/system/v1",
             variables={"schema_snapshot": "...", "role": "analyst"},
-            cliente_id=cliente_uuid,
         )
     """
     loader = _get_prompt_loader()
@@ -104,11 +106,11 @@ async def build_prompt(
         try:
             content = await context_service.get_cached_prompt(
                 name=name,
-                cliente_id=cliente_id,
                 loader=loader,
                 variables=variables,
+                langfuse_label=langfuse_label,
             )
-            logger.debug(f"Loaded prompt '{name}' from cache")
+            logger.debug(f"Loaded prompt '{name}' via ContextService (Redis cache)")
             return content
         except Exception as e:
             logger.warning(f"Context service prompt load failed for '{name}': {e}")
@@ -118,9 +120,9 @@ async def build_prompt(
         loaded = await loader.load(
             name=name,
             variables=variables,
-            cliente_id=cliente_id,
+            langfuse_label=langfuse_label,
         )
-        logger.debug(f"Loaded prompt '{name}' via PromptLoader")
+        logger.debug(f"Loaded prompt '{name}' directly via PromptLoader (source={loaded.source})")
         return loaded.content
     except Exception as e:
         logger.warning(f"Async load failed for '{name}': {e}, trying builtin")
@@ -132,6 +134,53 @@ async def build_prompt(
             raise
 
 
+async def build_prompt_full(
+    name: str,
+    variables: dict[str, Any],
+    context_service: "ContextService | None" = None,
+    langfuse_label: str | None = None,
+) -> LoadedPrompt:
+    """
+    Build prompt and return full LoadedPrompt object.
+
+    Use this when you need access to:
+    - langfuse_prompt object for trace linking
+    - Prompt metadata (version, source, etc.)
+
+    Args:
+        name: Prompt template name
+        variables: Variables for template rendering
+        context_service: Optional ContextService for Redis caching
+        langfuse_label: Override default Langfuse label
+
+    Returns:
+        LoadedPrompt with content and metadata
+
+    Example:
+        loaded = await build_prompt_full(
+            name="atendente/default",
+            variables={"nome_empresa": "Acme"},
+        )
+        # Use loaded.langfuse_prompt for trace linking
+        # Use loaded.get_trace_metadata() for callbacks
+    """
+    loader = _get_prompt_loader()
+
+    # Note: ContextService caching returns just the string, so we bypass it here
+    # to get the full LoadedPrompt with langfuse_prompt object
+    try:
+        loaded = await loader.load(
+            name=name,
+            variables=variables,
+            langfuse_label=langfuse_label,
+        )
+        logger.debug(f"Loaded prompt '{name}' (source={loaded.source}, version={loaded.version})")
+        return loaded
+    except Exception as e:
+        logger.warning(f"Async load failed for '{name}': {e}, trying builtin")
+        return loader.load_builtin(name, variables)
+
+
 def build_prompt_sync(
     name: str,
     variables: dict[str, Any],
@@ -139,7 +188,7 @@ def build_prompt_sync(
     """
     Synchronous version for contexts where async is not available.
 
-    Uses builtin templates only (no database lookup, no caching).
+    Uses builtin templates only (no Langfuse lookup, no caching).
     Prefer async build_prompt() whenever possible.
 
     Args:

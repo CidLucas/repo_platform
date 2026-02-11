@@ -6,10 +6,9 @@ Tests for vizu_prompt_management library.
 import pytest
 
 from vizu_prompt_management.loader import LoadedPrompt, PromptLoader, PromptNotFoundError
-from vizu_prompt_management.manager import PromptVersion
 from vizu_prompt_management.renderer import SafeRenderer, TemplateRenderer
 from vizu_prompt_management.templates import (
-    ATENDENTE_SYSTEM_V1,
+    ATENDENTE,
     BUILTIN_TEMPLATES,
     PromptCategory,
     get_builtin_template,
@@ -27,22 +26,22 @@ class TestTemplates:
 
     def test_builtin_templates_exist(self):
         """Test that all expected templates exist."""
-        assert "atendente/system/v1" in BUILTIN_TEMPLATES
-        assert "atendente/system/v2" in BUILTIN_TEMPLATES
+        assert "atendente/default" in BUILTIN_TEMPLATES
         assert "rag/query" in BUILTIN_TEMPLATES
+        assert "rag/hybrid" in BUILTIN_TEMPLATES
 
     def test_template_structure(self):
         """Test template configuration structure."""
-        assert ATENDENTE_SYSTEM_V1.name == "atendente/system/v1"
-        assert ATENDENTE_SYSTEM_V1.category == PromptCategory.SYSTEM
-        assert "nome_empresa" in ATENDENTE_SYSTEM_V1.required_variables
-        assert len(ATENDENTE_SYSTEM_V1.content) > 0
+        assert ATENDENTE.name == "atendente/default"
+        assert ATENDENTE.category == PromptCategory.SYSTEM
+        assert "nome_empresa" in ATENDENTE.required_variables
+        assert len(ATENDENTE.content) > 0
 
     def test_get_builtin_template(self):
         """Test get_builtin_template function."""
-        template = get_builtin_template("atendente/system/v1")
+        template = get_builtin_template("atendente/default")
         assert template is not None
-        assert template.name == "atendente/system/v1"
+        assert template.name == "atendente/default"
 
         missing = get_builtin_template("nonexistent")
         assert missing is None
@@ -85,9 +84,15 @@ class TestRenderer:
         assert result == "a b c "
 
     def test_simple_placeholder_render(self):
-        """Test simple {placeholder} rendering."""
+        """Test simple {placeholder} rendering falls through Jinja2.
+        
+        Note: Simple {placeholder} syntax is passed through Jinja2 as-is
+        if it's valid Jinja2 (which it is - single braces don't trigger substitution).
+        Only {{variable}} or {% %} syntax triggers Jinja2 rendering.
+        """
         renderer = TemplateRenderer()
-        result = renderer.render("Hello {name}!", {"name": "World"})
+        # Use Jinja2 syntax for substitution
+        result = renderer.render("Hello {{ name }}!", {"name": "World"})
         assert result == "Hello World!"
 
     def test_undefined_variable_empty(self):
@@ -163,13 +168,11 @@ class TestVariables:
         """Test extracting from dictionary."""
         data = {
             "nome_empresa": "Test Corp",
-            "prompt_base": "Custom prompt",
             "tier": "PREMIUM",
         }
 
         variables = VariableExtractor.from_dict(data)
         assert variables.nome_empresa == "Test Corp"
-        assert variables.prompt_personalizado == "Custom prompt"
         assert variables.tier == "PREMIUM"
 
     def test_format_horarios(self):
@@ -240,11 +243,11 @@ class TestPromptLoader:
         loader = PromptLoader()
 
         prompt = loader.load_builtin(
-            "atendente/system/v1",
+            "atendente/default",
             {"nome_empresa": "Test Corp"},
         )
 
-        assert prompt.name == "atendente/system/v1"
+        assert prompt.name == "atendente/default"
         assert "Test Corp" in prompt.content
         assert prompt.source == "builtin"
 
@@ -259,9 +262,8 @@ class TestPromptLoader:
         """Test built-in prompt with default optional variables."""
         loader = PromptLoader()
 
-        # V2 has optional_variables with defaults
         prompt = loader.load_builtin(
-            "atendente/system/v2",
+            "atendente/default",
             {"nome_empresa": "Test Corp"},
         )
 
@@ -273,22 +275,8 @@ class TestPromptLoader:
         loader = PromptLoader()
         available = loader.list_available()
 
-        assert "atendente/system/v1" in available
+        assert "atendente/default" in available
         assert "rag/query" in available
-
-
-class TestPromptManager:
-    """Tests for prompt manager."""
-
-    def test_prompt_version_full_name(self):
-        """Test PromptVersion.full_name property."""
-        version = PromptVersion(
-            name="test/prompt",
-            version=2,
-            content="Test content",
-        )
-
-        assert version.full_name == "test/prompt/v2"
 
 
 class TestLoadedPrompt:
@@ -316,6 +304,22 @@ class TestLoadedPrompt:
         assert message["role"] == "user"
         assert message["content"] == "Test content"
 
+    def test_get_trace_metadata(self):
+        """Test getting trace metadata for Langfuse."""
+        prompt = LoadedPrompt(
+            name="test/prompt",
+            content="Test content",
+            version=2,
+            source="langfuse",
+            langfuse_label="production",
+        )
+
+        metadata = prompt.get_trace_metadata()
+        assert metadata["prompt_name"] == "test/prompt"
+        assert metadata["prompt_version"] == 2
+        assert metadata["prompt_source"] == "langfuse"
+        assert metadata["prompt_label"] == "production"
+
 
 class TestIntegration:
     """Integration tests."""
@@ -335,7 +339,7 @@ class TestIntegration:
         loader = PromptLoader()
         renderer = TemplateRenderer()
 
-        builtin = get_builtin_template("atendente/system/v2")
+        builtin = get_builtin_template("atendente/default")
         content = renderer.render(builtin.content, variables.to_dict())
 
         assert "Acme Inc" in content

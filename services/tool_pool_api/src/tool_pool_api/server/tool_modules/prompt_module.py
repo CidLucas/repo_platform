@@ -17,7 +17,6 @@ Singleton patterns:
 """
 
 import logging
-from uuid import UUID
 
 from fastmcp import Context, FastMCP
 from fastmcp.prompts import Message
@@ -41,7 +40,6 @@ async def _build_atendente_system_prompt(
     horario_formatado: str = "",
     tools_description: str = "",
     agent_personality: str = "",
-    cliente_id: str | None = None,
     ctx: Context | None = None,
 ) -> str:
     """
@@ -59,13 +57,11 @@ async def _build_atendente_system_prompt(
 
     loader = get_prompt_loader()  # Shared singleton
     ctx_service = get_context_service()
-    cliente_uuid = UUID(cliente_id) if cliente_id else None
 
     try:
         # Use cached prompt loading via context_service
         content = await ctx_service.get_cached_prompt(
             name="atendente/default",
-            cliente_id=cliente_uuid,
             loader=loader,
             variables=variables,
         )
@@ -84,13 +80,12 @@ async def _build_text_to_sql_prompt(
     allowed_views: str = "",
     allowed_aggregates: str = "",
     max_rows: int = 1000,
-    cliente_id: str | None = None,
     ctx: Context | None = None,
 ) -> str:
     """
     Build the text-to-SQL system prompt.
 
-    Uses the same pattern as atendente - loading from DB with fallback to builtin.
+    Uses Langfuse as source of truth, with builtin fallback.
     """
     variables = {
         "question": question,
@@ -104,18 +99,16 @@ async def _build_text_to_sql_prompt(
 
     loader = get_prompt_loader()  # Shared singleton
     ctx_service = get_context_service()
-    cliente_uuid = UUID(cliente_id) if cliente_id else None
 
     try:
         content = await ctx_service.get_cached_prompt(
             name="text_to_sql/system/v1",
-            cliente_id=cliente_uuid,
             loader=loader,
             variables=variables,
         )
         return content
     except Exception as e:
-        logger.warning(f"Text-to-SQL prompt not in DB, using builtin: {e}")
+        logger.warning(f"Text-to-SQL prompt fetch failed, using builtin: {e}")
         # Try builtin or return a minimal prompt
         try:
             return loader.load_builtin("text_to_sql/system/v1", variables).content

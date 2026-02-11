@@ -1,13 +1,16 @@
 """
-Load prompts from Langfuse (primary) with database and built-in fallbacks.
+Simplified Prompt Loader - Langfuse as source of truth with builtin fallback.
 
-Architecture:
+Architecture (simplified from 4-tier to 2-tier):
 1. PRIMARY: Langfuse Prompt Management (label="production")
-2. FALLBACK: Client-specific database prompt
-3. FALLBACK: Global database prompt
-4. FALLBACK: Built-in template
+2. FALLBACK: Built-in template (Jinja2 support for {% if %}, {% for %})
 
-This enables prompt editing via Langfuse UI while maintaining backward compatibility.
+Key changes from previous implementation:
+- Removed database layer entirely (no more prompt_template table queries)
+- No client-specific prompts — context is injected via variables
+- Uses Langfuse SDK's native get_prompt() + compile()
+- Langfuse SDK handles its own internal caching (cache_ttl_seconds)
+- Redis caching handled at ContextService layer, not here
 """
 
 import asyncio
@@ -16,7 +19,6 @@ import time as _time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
-from uuid import UUID
 
 from vizu_prompt_management.renderer import TemplateRenderer
 from vizu_prompt_management.templates import (
@@ -34,11 +36,12 @@ class LoadedPrompt:
     name: str
     content: str
     version: int = 1
-    source: str = "builtin"  # "langfuse", "database", "builtin"
+    source: str = "builtin"  # "langfuse" or "builtin"
     category: PromptCategory | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     loaded_at: datetime | None = None
     langfuse_label: str | None = None  # For tracing
+    langfuse_prompt: Any | None = None  # Raw Langfuse prompt object for trace linking
 
     def as_system_message(self) -> dict[str, str]:
         """Return as OpenAI-style system message."""
@@ -60,18 +63,23 @@ class LoadedPrompt:
 
 class PromptLoader:
     """
-    Load prompts with Langfuse-first strategy.
+    Load prompts with Langfuse-first strategy and builtin fallback.
 
-    Priority:
+    Simplified priority:
     1. Langfuse (label="production" by default)
-    2. Client-specific database prompt
-    3. Global database prompt
-    4. Built-in template
+    2. Built-in template
+
+    Note: Redis caching is handled at the ContextService layer.
+    Langfuse SDK has its own internal cache (cache_ttl_seconds parameter).
     """
+
+    # Circuit breaker: skip Langfuse for this many seconds after a failure
+    _langfuse_cooldown_until: float = 0.0
+    _LANGFUSE_COOLDOWN_SECONDS: float = 300.0  # 5 minutes
+    _LANGFUSE_TIMEOUT_SECONDS: float = 2.0  # max wait per fetch
 
     def __init__(
         self,
-        db_session: Any | None = None,
         cache_ttl_seconds: int = 300,
         renderer: TemplateRenderer | None = None,
         langfuse_label: str = "production",
@@ -80,22 +88,14 @@ class PromptLoader:
         Initialize PromptLoader.
 
         Args:
-            db_session: SQLAlchemy session for database access
-            cache_ttl_seconds: TTL for cached prompts
-            renderer: Template renderer (creates default if None)
+            cache_ttl_seconds: TTL for Langfuse SDK's internal cache
+            renderer: Template renderer for builtin templates (creates default if None)
             langfuse_label: Default Langfuse label ("production", "staging", "latest")
         """
-        self.db_session = db_session
         self.cache_ttl_seconds = cache_ttl_seconds
         self.renderer = renderer or TemplateRenderer()
         self.langfuse_label = langfuse_label
-        self._cache: dict[str, tuple] = {}  # (prompt, timestamp)
         self._langfuse_client = None
-
-    # Circuit breaker: skip Langfuse for this many seconds after a failure
-    _langfuse_cooldown_until: float = 0.0
-    _LANGFUSE_COOLDOWN_SECONDS: float = 300.0  # 5 minutes
-    _LANGFUSE_TIMEOUT_SECONDS: float = 2.0  # max wait per fetch
 
     def _get_langfuse_client(self):
         """Lazily initialize Langfuse client. Returns None if in cooldown."""
@@ -123,192 +123,101 @@ class PromptLoader:
         self,
         name: str,
         variables: dict[str, Any] | None = None,
-        cliente_id: UUID | None = None,
-        version: int | None = None,
-        use_cache: bool = True,
         langfuse_label: str | None = None,
     ) -> LoadedPrompt:
         """
         Load and render a prompt.
 
-        Priority:
+        Simplified priority:
         1. Langfuse (if enabled and prompt exists)
-        2. Client-specific database prompt
-        3. Global database prompt
-        4. Built-in template
+        2. Built-in template
 
         Args:
             name: Prompt name (e.g., "atendente/default")
             variables: Variables for template substitution
-            cliente_id: Optional client ID for client-specific DB prompts
-            version: Optional specific version (skips Langfuse if set)
-            use_cache: Whether to use cached version
             langfuse_label: Override default Langfuse label
 
         Returns:
             LoadedPrompt with rendered content
         """
-        import time
-
         variables = variables or {}
         label = langfuse_label or self.langfuse_label
 
-        # Try cache
-        cache_key = f"{name}:{cliente_id}:{version}:{label}"
-        if use_cache and cache_key in self._cache:
-            cached_prompt, cached_time = self._cache[cache_key]
-            if time.time() - cached_time < self.cache_ttl_seconds:
-                # Re-render with new variables
-                content = self.renderer.render(cached_prompt.content, variables)
-                return LoadedPrompt(
-                    name=cached_prompt.name,
-                    content=content,
-                    version=cached_prompt.version,
-                    source=cached_prompt.source,
-                    category=cached_prompt.category,
-                    metadata=cached_prompt.metadata,
-                    loaded_at=datetime.utcnow(),
-                    langfuse_label=cached_prompt.langfuse_label,
-                )
+        # 1. Try Langfuse first
+        langfuse_result = await self._load_from_langfuse(name, variables, label)
+        if langfuse_result:
+            return langfuse_result
 
-        # 1. Try Langfuse first (only if no specific version requested)
-        if version is None:
-            langfuse_prompt = await self._load_from_langfuse(name, label)
-            if langfuse_prompt:
-                content = self.renderer.render(langfuse_prompt.content, variables)
-                loaded = LoadedPrompt(
-                    name=langfuse_prompt.name,
-                    content=content,
-                    version=langfuse_prompt.version,
-                    source="langfuse",
-                    metadata=langfuse_prompt.metadata,
-                    loaded_at=datetime.utcnow(),
-                    langfuse_label=label,
-                )
-                self._cache[cache_key] = (langfuse_prompt, time.time())
-                logger.debug(f"Loaded prompt '{name}' v{langfuse_prompt.version} from Langfuse")
-                return loaded
+        # 2. Fallback to builtin
+        return self._load_from_builtin(name, variables)
 
-        # 2. Try database (SQLAlchemy if session available, else Supabase)
-        db_prompt = None
-        if self.db_session:
-            db_prompt = await self._load_from_database(name, cliente_id, version)
-        else:
-            db_prompt = await self._load_from_supabase(name, cliente_id, version)
-
-        if db_prompt:
-            content = self.renderer.render(db_prompt.content, variables)
-            loaded = LoadedPrompt(
-                name=db_prompt.name,
-                content=content,
-                version=db_prompt.version,
-                source="database",
-                metadata=db_prompt.metadata,
-                loaded_at=datetime.utcnow(),
-            )
-            self._cache[cache_key] = (db_prompt, time.time())
-            return loaded
-
-        # Fallback to builtin
-        builtin = BUILTIN_TEMPLATES.get(name)
-        if builtin:
-            # Apply default values for optional variables
-            optional_vars = builtin.get_optional_variables_dict() if hasattr(builtin, 'get_optional_variables_dict') else (builtin.optional_variables if isinstance(builtin.optional_variables, dict) else {})
-            merged_vars = {**optional_vars, **variables}
-            content = self.renderer.render(builtin.content, merged_vars)
-            return LoadedPrompt(
-                name=builtin.name,
-                content=content,
-                version=builtin.version,
-                source="builtin",
-                category=builtin.category,
-                metadata={
-                    "description": builtin.description,
-                    "required_variables": builtin.required_variables,
-                },
-                loaded_at=datetime.utcnow(),
-            )
-
-        # Not found
-        raise PromptNotFoundError(f"Prompt not found: {name}")
-
-    async def _load_from_database(
+    async def load_raw(
         self,
         name: str,
-        cliente_id: UUID | None,
-        version: int | None,
-    ) -> LoadedPrompt | None:
-        """Load prompt from database via SQLAlchemy."""
-        if not self.db_session:
-            return None
+        langfuse_label: str | None = None,
+    ) -> LoadedPrompt:
+        """
+        Load raw prompt template WITHOUT variable substitution.
 
-        try:
-            from sqlmodel import select
+        Useful for Redis caching scenarios where you want to cache
+        the raw template and apply variables later.
 
-            from vizu_models import PromptTemplate
+        Args:
+            name: Prompt name (e.g., "atendente/default")
+            langfuse_label: Override default Langfuse label
 
-            # Try client-specific first
-            if cliente_id:
-                query = select(PromptTemplate).where(
-                    PromptTemplate.name == name,
-                    PromptTemplate.client_id == cliente_id,
-                    PromptTemplate.is_active == True,
-                )
-                if version:
-                    query = query.where(PromptTemplate.version == version)
-                else:
-                    query = query.order_by(PromptTemplate.version.desc())
+        Returns:
+            LoadedPrompt with raw (unrendered) content
+        """
+        label = langfuse_label or self.langfuse_label
 
-                result = self.db_session.exec(query).first()
-                if result:
-                    return self._db_to_loaded(result)
+        # 1. Try Langfuse first (raw template)
+        langfuse_result = await self._load_raw_from_langfuse(name, label)
+        if langfuse_result:
+            return langfuse_result
 
-            # Fallback to global
-            query = select(PromptTemplate).where(
-                PromptTemplate.name == name,
-                PromptTemplate.client_id == None,
-                PromptTemplate.is_active == True,
-            )
-            if version:
-                query = query.where(PromptTemplate.version == version)
-            else:
-                query = query.order_by(PromptTemplate.version.desc())
-
-            result = self.db_session.exec(query).first()
-            if result:
-                return self._db_to_loaded(result)
-
-        except Exception as e:
-            logger.error(f"Error loading prompt from database: {e}")
-
-        return None
+        # 2. Fallback to builtin (raw template)
+        return self._load_raw_from_builtin(name)
 
     async def _load_from_langfuse(
         self,
         name: str,
+        variables: dict[str, Any],
         label: str = "production",
     ) -> LoadedPrompt | None:
-        """Load prompt from Langfuse Prompt Management with timeout and circuit breaker."""
+        """Load and compile prompt from Langfuse with timeout and circuit breaker."""
         client = self._get_langfuse_client()
         if not client:
             return None
 
         try:
             # Run sync Langfuse call in a thread with a short timeout
-            prompt_text = await asyncio.wait_for(
-                asyncio.to_thread(client.get_prompt_text, name, None, label),
+            result = await asyncio.wait_for(
+                asyncio.to_thread(
+                    client.get_and_compile,
+                    name,
+                    variables,
+                    label,
+                    self.cache_ttl_seconds,
+                ),
                 timeout=self._LANGFUSE_TIMEOUT_SECONDS,
             )
-            meta = client.get_last_prompt_meta()
+
+            if result is None:
+                return None
+
+            compiled_text, prompt_obj = result
+            actual_version = getattr(prompt_obj, "version", 1)
 
             return LoadedPrompt(
                 name=name,
-                content=prompt_text,
-                version=meta.get("prompt_version", 1),
+                content=compiled_text,
+                version=actual_version,
                 source="langfuse",
-                metadata=meta,
+                metadata={"langfuse_prompt_id": getattr(prompt_obj, "id", None)},
                 loaded_at=datetime.utcnow(),
                 langfuse_label=label,
+                langfuse_prompt=prompt_obj,
             )
         except TimeoutError:
             logger.warning(f"Langfuse timeout fetching '{name}', disabling for {self._LANGFUSE_COOLDOWN_SECONDS}s")
@@ -321,112 +230,71 @@ class PromptLoader:
                 logger.info(f"Langfuse unreachable, disabling for {self._LANGFUSE_COOLDOWN_SECONDS}s")
             return None
 
-    def _db_to_loaded(self, db_prompt) -> LoadedPrompt:
-        """Convert database prompt to LoadedPrompt."""
-        return LoadedPrompt(
-            name=db_prompt.name,
-            content=db_prompt.content,
-            version=db_prompt.version,
-            source="database",
-            metadata={
-                "id": str(db_prompt.id) if hasattr(db_prompt, "id") else None,
-                "client_id": str(db_prompt.client_id)
-                if db_prompt.client_id
-                else None,
-            },
-        )
-
-    async def _load_from_supabase(
+    async def _load_raw_from_langfuse(
         self,
         name: str,
-        cliente_id: UUID | None,
-        version: int | None,
+        label: str = "production",
     ) -> LoadedPrompt | None:
-        """Load prompt from Supabase when no SQLAlchemy session available."""
+        """Load raw prompt template from Langfuse (without variable substitution)."""
+        client = self._get_langfuse_client()
+        if not client:
+            return None
+
         try:
-            from vizu_supabase_client import get_supabase_client
-
-            supabase = get_supabase_client()  # Singleton
-
-            # Try client-specific first
-            if cliente_id:
-                query = (
-                    supabase
-                    .table("prompt_template")
-                    .select("*")
-                    .eq("name", name)
-                    .eq("client_id", str(cliente_id))
-                    .eq("is_active", True)
-                )
-                if version:
-                    query = query.eq("version", version)
-                else:
-                    query = query.order("version", desc=True)
-
-                response = query.limit(1).execute()
-                if response.data:
-                    return self._dict_to_loaded(response.data[0])
-
-            # Fallback to global
-            query = (
-                supabase
-                .table("prompt_template")
-                .select("*")
-                .eq("name", name)
-                .is_("client_id", "null")
-                .eq("is_active", True)
+            result = await asyncio.wait_for(
+                asyncio.to_thread(
+                    client.get_prompt_template,
+                    name,
+                    label,
+                    self.cache_ttl_seconds,
+                ),
+                timeout=self._LANGFUSE_TIMEOUT_SECONDS,
             )
-            if version:
-                query = query.eq("version", version)
-            else:
-                query = query.order("version", desc=True)
 
-            response = query.limit(1).execute()
-            if response.data:
-                return self._dict_to_loaded(response.data[0])
+            if result is None:
+                return None
 
-        except ImportError:
-            logger.debug("vizu_supabase_client not available for prompt loading")
+            raw_text, prompt_obj = result
+            actual_version = getattr(prompt_obj, "version", 1)
+
+            return LoadedPrompt(
+                name=name,
+                content=raw_text,
+                version=actual_version,
+                source="langfuse",
+                metadata={"langfuse_prompt_id": getattr(prompt_obj, "id", None)},
+                loaded_at=datetime.utcnow(),
+                langfuse_label=label,
+                langfuse_prompt=prompt_obj,
+            )
+        except TimeoutError:
+            logger.warning(f"Langfuse timeout fetching raw '{name}', disabling for {self._LANGFUSE_COOLDOWN_SECONDS}s")
+            self._langfuse_cooldown_until = _time.time() + self._LANGFUSE_COOLDOWN_SECONDS
+            return None
         except Exception as e:
-            logger.warning(f"Supabase prompt load failed: {e}")
+            logger.warning(f"Langfuse raw template '{name}' fetch failed (label={label}): {e}")
+            return None
 
-        return None
-
-    def _dict_to_loaded(self, data: dict) -> LoadedPrompt:
-        """Convert Supabase dict to LoadedPrompt."""
-        return LoadedPrompt(
-            name=data.get("name", ""),
-            content=data.get("content", ""),
-            version=data.get("version", 1),
-            source="database",
-            metadata={
-                "id": data.get("id"),
-                "client_id": data.get("client_id"),
-            },
-        )
-
-    def load_builtin(
+    def _load_from_builtin(
         self,
         name: str,
-        variables: dict[str, Any] | None = None,
+        variables: dict[str, Any],
     ) -> LoadedPrompt:
-        """
-        Load a built-in prompt directly (no database lookup).
-
-        Args:
-            name: Prompt name
-            variables: Variables for substitution
-
-        Returns:
-            LoadedPrompt
-        """
-        variables = variables or {}
-
+        """Load and render from builtin templates."""
         builtin = BUILTIN_TEMPLATES.get(name)
         if not builtin:
-            raise PromptNotFoundError(f"Built-in prompt not found: {name}")
+            raise PromptNotFoundError(f"Prompt not found: {name}")
 
-        optional_vars = builtin.get_optional_variables_dict() if hasattr(builtin, 'get_optional_variables_dict') else (builtin.optional_variables if isinstance(builtin.optional_variables, dict) else {})
+        # Apply default values for optional variables
+        optional_vars = (
+            builtin.get_optional_variables_dict()
+            if hasattr(builtin, 'get_optional_variables_dict')
+            else (
+                builtin.optional_variables
+                if isinstance(getattr(builtin, 'optional_variables', None), dict)
+                else {}
+            )
+        )
         merged_vars = {**optional_vars, **variables}
         content = self.renderer.render(builtin.content, merged_vars)
 
@@ -436,58 +304,84 @@ class PromptLoader:
             version=builtin.version,
             source="builtin",
             category=builtin.category,
+            metadata={
+                "description": builtin.description,
+                "required_variables": builtin.required_variables,
+            },
             loaded_at=datetime.utcnow(),
         )
+
+    def _load_raw_from_builtin(self, name: str) -> LoadedPrompt:
+        """Load raw builtin template without variable substitution."""
+        builtin = BUILTIN_TEMPLATES.get(name)
+        if not builtin:
+            raise PromptNotFoundError(f"Prompt not found: {name}")
+
+        return LoadedPrompt(
+            name=builtin.name,
+            content=builtin.content,  # Raw content, no rendering
+            version=builtin.version,
+            source="builtin",
+            category=builtin.category,
+            metadata={
+                "description": builtin.description,
+                "required_variables": builtin.required_variables,
+            },
+            loaded_at=datetime.utcnow(),
+        )
+
+    def load_builtin(
+        self,
+        name: str,
+        variables: dict[str, Any] | None = None,
+    ) -> LoadedPrompt:
+        """
+        Load a built-in prompt directly (no Langfuse lookup).
+
+        Synchronous method for when you specifically want builtin.
+
+        Args:
+            name: Prompt name
+            variables: Variables for substitution
+
+        Returns:
+            LoadedPrompt
+        """
+        variables = variables or {}
+        return self._load_from_builtin(name, variables)
 
     def list_available(
         self,
         category: PromptCategory | None = None,
-        include_db: bool = True,
     ) -> list[str]:
         """
-        List available prompt names.
+        List available prompt names from builtin templates.
 
         Args:
             category: Filter by category
-            include_db: Include database prompts
 
         Returns:
             List of prompt names
         """
         names = set()
 
-        # Built-in
         for name, config in BUILTIN_TEMPLATES.items():
             if category is None or config.category == category:
                 names.add(name)
 
-        # Database
-        if include_db and self.db_session:
-            try:
-                from sqlmodel import select
-
-                from vizu_models import PromptTemplate
-
-                query = select(PromptTemplate.name).where(
-                    PromptTemplate.is_active == True
-                ).distinct()
-
-                for row in self.db_session.exec(query):
-                    names.add(row[0] if isinstance(row, tuple) else row)
-
-            except Exception as e:
-                logger.warning(f"Error listing database prompts: {e}")
-
         return sorted(names)
 
     def clear_cache(self, name: str | None = None) -> None:
-        """Clear prompt cache."""
+        """
+        Clear Langfuse client state (triggers re-initialization on next call).
+
+        Note: Langfuse SDK manages its own internal cache. This resets the client.
+        """
         if name:
-            keys_to_remove = [k for k in self._cache if k.startswith(name)]
-            for key in keys_to_remove:
-                del self._cache[key]
+            logger.debug(f"Cache clear requested for '{name}' - Langfuse SDK manages its own cache")
         else:
-            self._cache.clear()
+            self._langfuse_client = None
+            logger.info("Langfuse client reset - will reinitialize on next prompt fetch")
 
 
 class PromptNotFoundError(Exception):

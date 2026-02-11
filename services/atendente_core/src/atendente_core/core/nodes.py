@@ -279,7 +279,6 @@ def filter_tools_for_client(
 async def build_dynamic_system_prompt(
     safe_context: SafeClientContext | None,
     available_tools: list[BaseTool],
-    cliente_id: UUID | None = None,
     context_service: "ContextService | None" = None,
     vizu_context: VizuClientContext | None = None,
 ) -> str:
@@ -293,7 +292,6 @@ async def build_dynamic_system_prompt(
     Args:
         safe_context: Safe client context with permissions (legacy)
         available_tools: List of filtered tools for this client
-        cliente_id: Client UUID for client-specific prompts
         context_service: Optional ContextService for Redis caching
         vizu_context: Full VizuClientContext with all sections (Context 2.0)
 
@@ -345,7 +343,6 @@ async def build_dynamic_system_prompt(
     return await build_prompt(
         name="atendente/default",
         variables=variables,
-        cliente_id=cliente_id,
         context_service=context_service,
     )
 
@@ -466,7 +463,7 @@ async def supervisor_node(state: AgentState) -> dict:
     # 4. PHASE 2 + 5 + Context 2.0: Constrói system prompt dinâmico com seções modulares
     logger.debug(f"[SUPERVISOR] Building system prompt with vizu_context={vizu_ctx is not None}")
     system_prompt = await build_dynamic_system_prompt(
-        safe_ctx, available_tools, cliente_id=cliente_id, vizu_context=vizu_ctx
+        safe_ctx, available_tools, vizu_context=vizu_ctx
     )
 
     # Log para debug (demoted to DEBUG level for production)

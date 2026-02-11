@@ -487,26 +487,35 @@ class ContextService:
     async def get_cached_prompt(
         self,
         name: str,
-        cliente_id: UUID | None,
         loader: "PromptLoader",
         variables: dict,
+        langfuse_label: str | None = None,
     ) -> str:
         """
         Get prompt with Redis caching.
 
-        Caches RAW template (before variable substitution).
-        Variables are applied after cache retrieval for freshness.
+        Simplified architecture:
+        - Caches RAW template (before variable substitution) in Redis
+        - Variables are applied after cache retrieval for freshness
+        - Uses Langfuse as source of truth, builtin as fallback
+
+        Redis caching workflow:
+        1. Check Redis for cached raw template (keyed by prompt name + label)
+        2. If miss → fetch from Langfuse via loader.load_raw() → cache raw in Redis
+        3. Render variables using loader.renderer.render(cached_text, variables)
+        4. Return compiled prompt
 
         Args:
             name: Prompt template name (e.g., "atendente/default")
-            cliente_id: Client UUID for client-specific prompts
             loader: PromptLoader instance (injected, not created inside)
             variables: Variables to render into template
+            langfuse_label: Override default Langfuse label
 
         Returns:
             Rendered prompt content
         """
-        cache_key = f"prompt:{name}:{cliente_id or 'global'}"
+        label = langfuse_label or "production"
+        cache_key = f"prompt:{name}:{label}"
 
         # Check Redis cache for raw template
         try:
@@ -517,25 +526,26 @@ class ContextService:
         except Exception as e:
             logger.warning(f"Redis cache read failed for prompt: {e}")
 
-        # Load from DB via PromptLoader
+        # Load raw template from Langfuse/builtin via PromptLoader
         try:
-            loaded = await loader.load(name, variables={}, cliente_id=cliente_id)
+            loaded = await loader.load_raw(name, langfuse_label=label)
 
-            # Cache raw template
+            # Cache raw template in Redis
             try:
                 await asyncio.to_thread(
                     self.cache.set_json,
                     cache_key,
-                    {"content": loaded.content, "version": loaded.version},
+                    {"content": loaded.content, "version": loaded.version, "source": loaded.source},
                     self.CACHE_TTL_SECONDS
                 )
             except Exception as e:
                 logger.warning(f"Failed to cache prompt: {e}")
 
+            # Render with variables and return
             return loader.renderer.render(loaded.content, variables)
 
         except Exception as e:
-            logger.warning(f"PromptLoader.load failed for {name}: {e}, using builtin")
+            logger.warning(f"PromptLoader.load_raw failed for {name}: {e}, using builtin")
             loaded = loader.load_builtin(name, variables)
             return loaded.content
 
@@ -545,9 +555,9 @@ class ContextService:
         await asyncio.to_thread(self.cache.delete, cache_key)
         logger.info(f"SQL configs cache invalidated for: {cliente_id}")
 
-    async def clear_prompt_cache(self, name: str, cliente_id: UUID | None = None) -> None:
+    async def clear_prompt_cache(self, name: str, langfuse_label: str = "production") -> None:
         """Clear prompt cache for a specific prompt."""
-        cache_key = f"prompt:{name}:{cliente_id or 'global'}"
+        cache_key = f"prompt:{name}:{langfuse_label}"
         await asyncio.to_thread(self.cache.delete, cache_key)
         logger.info(f"Prompt cache invalidated for: {name}")
 

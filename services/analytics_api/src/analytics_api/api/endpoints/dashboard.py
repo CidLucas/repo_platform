@@ -16,7 +16,6 @@ from analytics_api.api.dependencies import (
 )
 from analytics_api.api.helpers import dict_to_ranking_item
 from analytics_api.data_access.postgres_repository import PostgresRepository
-from analytics_api.services.cache_service import CacheService
 from analytics_api.schemas.metrics import (
     ChartDataPoint,
     ClientesOverviewResponse,
@@ -29,6 +28,7 @@ from analytics_api.schemas.metrics import (
     ProdutosOverviewResponse,
     RankingItem,
 )
+from analytics_api.services.cache_service import CacheService
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel

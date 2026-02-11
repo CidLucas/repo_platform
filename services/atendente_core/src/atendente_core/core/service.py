@@ -3,7 +3,9 @@ AtendenteService - Main service for processing chat messages.
 
 Uses custom graph with Context 2.0 aware supervisor_node.
 """
-import asyncioimport logging
+
+import asyncio
+import logging
 import time
 from typing import Any
 from uuid import UUID

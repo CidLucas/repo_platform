@@ -2,7 +2,7 @@
 import { Box, Flex, Text, HStack, useDisclosure, Spinner, Alert, AlertIcon, IconButton } from '@chakra-ui/react';
 import { RepeatIcon } from '@chakra-ui/icons';
 import { MainLayout } from '../components/layouts/MainLayout';
-import { DashboardCard } from '../components/DashboardCard';
+import { DashboardCard, InsightBullet } from '../components/DashboardCard';
 import { PerformanceCard, MetricSlide } from '../components/PerformanceCard';
 import { ListCard } from '../components/ListCard';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -146,6 +146,48 @@ function ProdutosPage() {
   const metricsB = useMemo(() => calcTierMetrics(tierB), [tierB]);
   const metricsC = useMemo(() => calcTierMetrics(tierC), [tierC]);
   const metricsD = useMemo(() => calcTierMetrics(tierD), [tierD]);
+
+  // Insight bullets for the Insights card (4 bullets compactos para o card)
+  const insightBullets: InsightBullet[] = useMemo(() => {
+    if (!overviewData || allProducts.length === 0) return [];
+
+    const totalProdutos = allProducts.length;
+    const tierACount = tierA.length;
+    const tierAPercent = ((tierACount / totalProdutos) * 100).toFixed(1);
+    const tierAReceitaPercent = totalReceita > 0 ? ((metricsA.receita / totalReceita) * 100).toFixed(1) : '0';
+
+    // Top produto
+    const topProduto = allProducts[0];
+    const topNome = topProduto?.nome 
+      ? (topProduto.nome.length > 18 ? topProduto.nome.substring(0, 18) + '...' : topProduto.nome)
+      : 'N/A';
+
+    // Ticket médio formatado
+    const ticketFormatado = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      maximumFractionDigits: 0
+    }).format(avgTicket);
+
+    return [
+      {
+        text: `${tierACount} produtos Tier A (${tierAPercent}%) geram ${tierAReceitaPercent}% da receita`,
+        type: 'star' as const
+      },
+      {
+        text: `${paretoPercentage}% dos produtos geram 80% da receita (Pareto)`,
+        type: 'positive' as const
+      },
+      {
+        text: `Top produto: ${topNome}`,
+        type: 'star' as const
+      },
+      {
+        text: `Ticket médio: ${ticketFormatado}`,
+        type: 'neutral' as const
+      }
+    ];
+  }, [overviewData, allProducts, tierA, totalReceita, metricsA.receita, avgTicket, paretoPercentage]);
 
   // Performance card slides
   const performanceSlides: MetricSlide[] = useMemo(() => {
@@ -386,62 +428,12 @@ function ProdutosPage() {
             size="small"
             bgGradient="linear-gradient(to-br, #353A5A, #1F2138)"
             textColor="white"
-            mainText={`${paretoPercentage}% dos produtos geram 80% da receita (Pareto).`}
             scorecardValue={allProducts.length.toString()}
             scorecardLabel="Produtos Classificados"
-            barChartData={[
-              { name: 'Tier A', value: tierA.length, color: '#4CAF50' },
-              { name: 'Tier B', value: tierB.length, color: '#FFC107' },
-              { name: 'Tier C', value: tierC.length, color: '#FF5722' },
-              { name: 'Tier D', value: tierD.length, color: '#9E9E9E' },
-            ]}
-            graphTitle="Distribuição por Tier"
-            graphDescription="Quantidade de produtos por tier de performance."
-            kpiItems={[
-              {
-                label: `Tier A: ${tierA.length} produtos (${((tierA.length / Math.max(allProducts.length, 1)) * 100).toFixed(1)}%)`,
-                content: (
-                  <Box>
-                    <Text>Produtos de alta performance</Text>
-                    <Text mt={2} fontSize="sm">Quantidade Total: {metricsA.qtdTotal.toLocaleString('pt-BR')} un</Text>
-                    <Text fontSize="sm">Ticket Médio: R$ {metricsA.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
-                    <Text fontSize="sm">Receita: R$ {metricsA.receita.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
-                  </Box>
-                )
-              },
-              {
-                label: `Tier B: ${tierB.length} produtos (${((tierB.length / Math.max(allProducts.length, 1)) * 100).toFixed(1)}%)`,
-                content: (
-                  <Box>
-                    <Text>Produtos de média performance</Text>
-                    <Text mt={2} fontSize="sm">Quantidade Total: {metricsB.qtdTotal.toLocaleString('pt-BR')} un</Text>
-                    <Text fontSize="sm">Ticket Médio: R$ {metricsB.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
-                    <Text fontSize="sm">Receita: R$ {metricsB.receita.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
-                  </Box>
-                )
-              },
-              {
-                label: `Tier C: ${tierC.length} produtos (${((tierC.length / Math.max(allProducts.length, 1)) * 100).toFixed(1)}%)`,
-                content: (
-                  <Box>
-                    <Text>Produtos em desenvolvimento</Text>
-                    <Text mt={2} fontSize="sm">Quantidade Total: {metricsC.qtdTotal.toLocaleString('pt-BR')} un</Text>
-                    <Text fontSize="sm">Ticket Médio: R$ {metricsC.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
-                    <Text fontSize="sm">Receita: R$ {metricsC.receita.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</Text>
-                  </Box>
-                )
-              },
-              {
-                label: `Análise de Pareto`,
-                content: (
-                  <Box>
-                    <Text fontWeight="bold">{paretoPercentage}% dos produtos geram 80% da receita</Text>
-                    <Text mt={2} fontSize="sm">Isso significa que {paretoCount} de {allProducts.length} produtos são responsáveis pela maior parte do faturamento.</Text>
-                    <Text mt={2} fontSize="sm" color="gray.400">Foque nos produtos Tier A e B para maximizar resultados.</Text>
-                  </Box>
-                )
-              }
-            ]}
+            insightBullets={insightBullets}
+            modalLeftBgColor="#353A5A"
+            modalRightBgColor="#1F2138"
+            kpiItems={kpiItems}
             carouselGraphs={[
               {
                 data: [
@@ -496,8 +488,6 @@ function ProdutosPage() {
                 barColors: ['#4CAF50', '#FFC107', '#FF5722', '#9E9E9E'],
               },
             ]}
-            modalLeftBgColor="#353A5A"
-            modalRightBgColor="#1F2138"
           />
 
           {/* CARD 3: ListCard - Rankings Dinâmicos */}

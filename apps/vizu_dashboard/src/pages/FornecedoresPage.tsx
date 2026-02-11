@@ -1,7 +1,7 @@
 import { Box, Flex, Text, HStack, useDisclosure, Spinner, Alert, AlertIcon, IconButton } from '@chakra-ui/react';
 import { RepeatIcon } from '@chakra-ui/icons';
 import { MainLayout } from '../components/layouts/MainLayout';
-import { DashboardCard } from '../components/DashboardCard';
+import { DashboardCard, InsightBullet } from '../components/DashboardCard';
 import { PerformanceCard, MetricSlide } from '../components/PerformanceCard';
 import { ListCard } from '../components/ListCard';
 import { FornecedorDetailsModal } from '../components/FornecedorDetailsModal';
@@ -63,8 +63,8 @@ function FornecedoresPage() {
   };
 
   // Memoized calculations
-  const { newSuppliersCount, growthPercentage } = useMemo(() => {
-    if (!overviewData) return { newSuppliersCount: 0, growthPercentage: '0.0' };
+  const { newSuppliersCount } = useMemo(() => {
+    if (!overviewData) return { newSuppliersCount: 0 };
     
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -73,11 +73,7 @@ function FornecedoresPage() {
       return firstSaleDate >= thirtyDaysAgo;
     }).length;
 
-    const growth = newCount > 0 && overviewData.scorecard_total_fornecedores > 0
-      ? ((newCount / (overviewData.scorecard_total_fornecedores - newCount)) * 100).toFixed(1)
-      : '0.0';
-
-    return { newSuppliersCount: newCount, growthPercentage: growth };
+    return { newSuppliersCount: newCount };
   }, [overviewData]);
 
   // Performance card slides
@@ -214,6 +210,58 @@ function FornecedoresPage() {
     }
   }, [selectedMetric]);
 
+  // Insight bullets for the Insights card (4 bullets compactos para o card)
+  const insightBullets: InsightBullet[] = useMemo(() => {
+    if (!overviewData) return [];
+
+    const fornecedores = overviewData.ranking_por_receita || [];
+    const totalFornecedores = fornecedores.length || 1;
+
+    // Cálculos dos tiers
+    const tierA = fornecedores.filter((f: any) => f.cluster_tier === 'A');
+    const tierACount = tierA.length;
+    const tierAPercent = ((tierACount / totalFornecedores) * 100).toFixed(1);
+    const receitaTierA = tierA.reduce((sum: number, f: any) => sum + (f.receita_total || 0), 0);
+    const receitaTotal = fornecedores.reduce((sum: number, f: any) => sum + (f.receita_total || 0), 0);
+    const tierAReceitaPercent = receitaTotal > 0 ? ((receitaTierA / receitaTotal) * 100).toFixed(1) : '0';
+
+    // Frequência média
+    const freqMedia = fornecedores.reduce((sum: number, f: any) => sum + (f.frequencia_pedidos_mes || 0), 0) / totalFornecedores;
+
+    // Ticket médio
+    const ticketMedio = fornecedores.reduce((sum: number, f: any) => sum + (f.ticket_medio || 0), 0) / totalFornecedores;
+    const ticketFormatado = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      maximumFractionDigits: 0
+    }).format(ticketMedio);
+
+    // Top fornecedor
+    const topFornecedor = fornecedores[0];
+    const topNome = topFornecedor?.nome 
+      ? (topFornecedor.nome.length > 18 ? topFornecedor.nome.substring(0, 18) + '...' : topFornecedor.nome)
+      : 'N/A';
+
+    return [
+      {
+        text: `${tierACount} fornecedores Tier A (${tierAPercent}%) geram ${tierAReceitaPercent}% da receita`,
+        type: 'star' as const
+      },
+      {
+        text: `${freqMedia >= 10 ? 'Alta' : freqMedia >= 4 ? 'Média' : 'Baixa'} frequência: ${freqMedia.toFixed(1)} vendas/mês`,
+        type: freqMedia >= 4 ? 'positive' as const : 'warning' as const
+      },
+      {
+        text: `Top fornecedor: ${topNome}`,
+        type: 'star' as const
+      },
+      {
+        text: `Ticket médio: ${ticketFormatado}`,
+        type: 'neutral' as const
+      }
+    ];
+  }, [overviewData]);
+
   // KPI Items for modal
   const kpiItems = useMemo(() => {
     if (!overviewData) return [];
@@ -349,28 +397,11 @@ function FornecedoresPage() {
             size="small"
             bgGradient="linear-gradient(to-br, #353A5A, #1F2138)"
             textColor="white"
-            mainText={`Aumentamos nossa base em +${growthPercentage}% no último mês.`}
             scorecardValue={newSuppliersCount.toString()}
             scorecardLabel="Novos Cadastros"
-            barChartData={(() => {
-              const fornecedores = overviewData.ranking_por_receita || [];
-              const tierA = fornecedores.filter((f: any) => f.cluster_tier === 'A').length;
-              const tierB = fornecedores.filter((f: any) => f.cluster_tier === 'B').length;
-              const tierC = fornecedores.filter((f: any) => f.cluster_tier === 'C').length;
-              const outros = fornecedores.length - tierA - tierB - tierC;
-              
-              return [
-                { name: 'Tier A', value: tierA, color: '#4CAF50' },
-                { name: 'Tier B', value: tierB, color: '#FFC107' },
-                { name: 'Tier C', value: tierC, color: '#FF5722' },
-                ...(outros > 0 ? [{ name: 'Outros', value: outros, color: '#9E9E9E' }] : []),
-              ];
-            })()}
-            graphTitle="Distribuição por Tier"
-            graphDescription="Quantidade de fornecedores por tier de performance."
             modalLeftBgColor="#353A5A"
             modalRightBgColor="#1F2138"
-            carouselGraphs={[]}
+            insightBullets={insightBullets}
           />
 
           {/* CARD 3: ListCard - Rankings Dinâmicos */}

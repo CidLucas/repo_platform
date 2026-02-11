@@ -237,7 +237,6 @@ function PedidosPage() {
             }
             modalLeftBgColor="#FFD3E1"
             modalRightBgColor="#F9BBCB"
-            modalContent={<Text>Métricas detalhadas de pedidos no período de {orderMetrics?.period || 'mês'}</Text>}
           />
 
           {/* Card Type 1.5: Volume de Pedidos ao Longo do Tempo */}
@@ -271,7 +270,6 @@ function PedidosPage() {
             }
             modalLeftBgColor="#FFF4C7"
             modalRightBgColor="#FFE9A0"
-            modalContent={<Text>Evolução do volume de pedidos ao longo do tempo</Text>}
           />
 
           {/* Card Type 2: List of Pedidos */}
@@ -291,9 +289,8 @@ function PedidosPage() {
             size="small"
             bgColor="#FFD3E1" // Specific color for Pedidos module
             mainText="Histórico completo de todos os pedidos."
-            modalLeftBgColor="#FFD3E1" // Modal left background
-            modalRightBgColor="#F9BBCB" // Modal right background
-            modalContent={<Text>Detalhes do histórico de pedidos</Text>}
+            modalLeftBgColor="#FFD3E1"
+            modalRightBgColor="#F9BBCB"
           />
 
           {/* Card Type 4: Distribuição Geográfica (Unchanged) */}
@@ -303,9 +300,8 @@ function PedidosPage() {
             bgColor="white" // Unchanged
             mapData={{ center: [-23.55052, -46.633308], zoom: 10, markers: [{ position: [-23.55052, -46.633308], popupText: 'São Paulo' }] }}
             mainText="Principais regiões de entrega de pedidos."
-            modalLeftBgColor="#FFD3E1" // Modal left background
-            modalRightBgColor="#F9BBCB" // Modal right background
-            modalContent={<Text>Detalhes do mapa de distribuição de pedidos</Text>}
+            modalLeftBgColor="#FFD3E1"
+            modalRightBgColor="#F9BBCB"
           />
         </Flex>
       </Flex>

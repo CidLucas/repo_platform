@@ -1,13 +1,13 @@
 import { Box, Flex, Text, HStack, useDisclosure, Spinner, Alert, AlertIcon, IconButton } from '@chakra-ui/react';
 import { RepeatIcon } from '@chakra-ui/icons';
 import { MainLayout } from '../components/layouts/MainLayout';
-import { DashboardCard } from '../components/DashboardCard';
+import { DashboardCard, InsightBullet } from '../components/DashboardCard';
 import { PerformanceCard, MetricSlide } from '../components/PerformanceCard';
 import { ListCard } from '../components/ListCard';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ClienteDetailsModal } from '../components/ClienteDetailsModal';
-import { getClientes, getCliente, getCustomerIndicators } from '../services/analyticsService';
-import type { ClientesOverviewResponse, ClienteDetailResponse, CustomerMetricsResponse } from '../services/analyticsService';
+import { getClientes, getCliente } from '../services/analyticsService';
+import type { ClientesOverviewResponse, ClienteDetailResponse } from '../services/analyticsService';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useGeoClusters } from '../hooks/useGeoClusters';
 import { useMVMonthlySales, useMVCustomers } from '../hooks/useMVData';
@@ -18,7 +18,6 @@ function ClientesPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedItem, setSelectedItem] = useState<ClienteDetailResponse | null>(null);
   const [overviewData, setOverviewData] = useState<ClientesOverviewResponse | null>(null);
-  const [customerMetrics, setCustomerMetrics] = useState<CustomerMetricsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<MetricType>('receita');
@@ -66,10 +65,7 @@ function ClientesPage() {
     try {
       setLoading(true);
 
-      const [overviewResponse, metricsResponse] = await Promise.all([
-        getClientes(),
-        getCustomerIndicators('month')
-      ]);
+      const overviewResponse = await getClientes();
 
       if (Array.isArray(overviewResponse)) {
         console.error('API returned array instead of ClientesOverviewResponse object');
@@ -78,7 +74,6 @@ function ClientesPage() {
       }
 
       setOverviewData(overviewResponse);
-      setCustomerMetrics(metricsResponse);
       setLastUpdate(new Date());
       setError(null);
     } catch (err: unknown) {
@@ -232,23 +227,70 @@ function ClientesPage() {
     }
   }, [selectedMetric]);
 
-  // Calculate new customers metrics
-  const { newCustomersCount, growthPercentage } = useMemo(() => {
-    if (!overviewData) return { newCustomersCount: 0, growthPercentage: '0.0' };
+    // Calculate new customers metrics
+  const newCustomersCount = useMemo(() => {
+    if (!overviewData) return 0;
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const newCount = (overviewData.ranking_por_receita || []).filter((item: any) => {
+    return (overviewData.ranking_por_receita || []).filter((item: any) => {
       const firstSaleDate = new Date(item.primeira_venda);
       return firstSaleDate >= thirtyDaysAgo;
     }).length;
+  }, [overviewData]);
 
-    const totalCustomers = overviewData.scorecard_total_clientes || 0;
-    const growth = totalCustomers > 0
-      ? ((newCount / (totalCustomers - newCount)) * 100).toFixed(1)
-      : '0.0';
+  // Insight bullets for the Insights card (4 bullets compactos para o card)
+  const insightBullets: InsightBullet[] = useMemo(() => {
+    if (!overviewData) return [];
 
-    return { newCustomersCount: newCount, growthPercentage: growth };
+    const clientes = overviewData.ranking_por_receita || [];
+    const totalClientes = clientes.length || 1;
+
+    // Cálculos dos tiers
+    const tierA = clientes.filter((c: any) => c.cluster_tier === 'A');
+    const tierACount = tierA.length;
+    const tierAPercent = ((tierACount / totalClientes) * 100).toFixed(1);
+    const receitaTierA = tierA.reduce((sum: number, c: any) => sum + (c.receita_total || 0), 0);
+    const receitaTotal = clientes.reduce((sum: number, c: any) => sum + (c.receita_total || 0), 0);
+    const tierAReceitaPercent = receitaTotal > 0 ? ((receitaTierA / receitaTotal) * 100).toFixed(1) : '0';
+
+    // Crescimento
+    const crescimento = overviewData.scorecard_crescimento_percentual;
+
+    // Ticket médio
+    const ticketMedio = clientes.reduce((sum: number, c: any) => sum + (c.ticket_medio || 0), 0) / totalClientes;
+    const ticketFormatado = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      maximumFractionDigits: 0
+    }).format(ticketMedio);
+
+    // Top cliente
+    const topCliente = clientes[0];
+    const topNome = topCliente?.nome 
+      ? (topCliente.nome.length > 18 ? topCliente.nome.substring(0, 18) + '...' : topCliente.nome)
+      : 'N/A';
+
+    return [
+      {
+        text: `${tierACount} clientes Tier A (${tierAPercent}%) geram ${tierAReceitaPercent}% da receita`,
+        type: 'star' as const
+      },
+      {
+        text: crescimento !== null && crescimento !== undefined
+          ? `Base ${crescimento >= 0 ? 'cresceu' : 'reduziu'} ${Math.abs(crescimento).toFixed(1)}% no período`
+          : 'Analisando crescimento...',
+        type: crescimento !== null && crescimento !== undefined && crescimento >= 0 ? 'positive' as const : 'warning' as const
+      },
+      {
+        text: `Top cliente: ${topNome}`,
+        type: 'star' as const
+      },
+      {
+        text: `Ticket médio: ${ticketFormatado}`,
+        type: 'neutral' as const
+      }
+    ];
   }, [overviewData]);
 
   // KPI Items for modal
@@ -380,75 +422,18 @@ function ClientesPage() {
             kpiItems={kpiItems}
           />
 
-          {/* CARD 2: SMALL - Novos Clientes */}
+          {/* CARD 2: SMALL - Insights */}
           <DashboardCard
-            title="Novos Clientes"
+            title="Insights de Clientes"
             size="small"
             bgGradient="linear-gradient(to-br, #353A5A, #1F2138)"
             textColor="white"
-            mainText={`Aumentamos nossa base em +${growthPercentage}% no último mês.`}
             scorecardValue={newCustomersCount.toString()}
             scorecardLabel="Novos Cadastros"
-            barChartData={(() => {
-              const clientes = overviewData.ranking_por_receita || [];
-              const tierA = clientes.filter((c: any) => c.cluster_tier === 'A').length;
-              const tierB = clientes.filter((c: any) => c.cluster_tier === 'B').length;
-              const tierC = clientes.filter((c: any) => c.cluster_tier === 'C').length;
-              const outros = clientes.length - tierA - tierB - tierC;
-              
-              return [
-                { name: 'Tier A', value: tierA, color: '#4CAF50' },
-                { name: 'Tier B', value: tierB, color: '#FFC107' },
-                { name: 'Tier C', value: tierC, color: '#FF5722' },
-                ...(outros > 0 ? [{ name: 'Outros', value: outros, color: '#9E9E9E' }] : []),
-              ];
-            })()}
-            graphTitle="Distribuição por Tier"
-            graphDescription="Quantidade de clientes por tier de performance."
+            insightBullets={insightBullets}
             modalLeftBgColor="#353A5A"
             modalRightBgColor="#1F2138"
-            kpiItems={
-              customerMetrics
-                ? [
-                  {
-                    label: `Clientes Ativos: ${customerMetrics.total_active.toLocaleString('pt-BR')}`,
-                    content: (
-                      <Box>
-                        <Text>Total de clientes ativos no período de {customerMetrics.period}</Text>
-                        <Text mt={2} fontSize="sm">Clientes que realizaram pelo menos uma compra no período</Text>
-                      </Box>
-                    )
-                  },
-                  {
-                    label: `Novos Clientes: ${customerMetrics.new_customers.toLocaleString('pt-BR')}`,
-                    content: (
-                      <Box>
-                        <Text>Clientes que fizeram sua primeira compra no período de {customerMetrics.period}</Text>
-                        <Text mt={2} fontSize="sm">Representa a expansão da base de clientes</Text>
-                      </Box>
-                    )
-                  },
-                  {
-                    label: `Clientes Recorrentes: ${customerMetrics.returning_customers.toLocaleString('pt-BR')}`,
-                    content: (
-                      <Box>
-                        <Text>Clientes que retornaram para fazer novas compras no período de {customerMetrics.period}</Text>
-                        <Text mt={2} fontSize="sm">Indica a fidelização e satisfação dos clientes</Text>
-                      </Box>
-                    )
-                  },
-                  {
-                    label: `Valor Médio de Vida (LTV): R$ ${customerMetrics.avg_lifetime_value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                    content: (
-                      <Box>
-                        <Text>Valor médio total que um cliente gasta durante todo o seu relacionamento com a empresa</Text>
-                        <Text mt={2} fontSize="sm">Métrica crucial para avaliar o valor de longo prazo de cada cliente</Text>
-                      </Box>
-                    )
-                  }
-                ]
-                : undefined
-            }
+            kpiItems={kpiItems}
             carouselGraphs={[
               {
                 data: chartCustomersData,

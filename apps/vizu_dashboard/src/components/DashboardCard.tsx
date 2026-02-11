@@ -1,4 +1,4 @@
-import { Box, Text, useDisclosure, Modal, ModalOverlay, ModalContent, ModalBody, Flex, IconButton, ModalCloseButton } from '@chakra-ui/react';
+import { Box, Text, useDisclosure, Modal, ModalOverlay, ModalContent, ModalBody, Flex, IconButton, ModalCloseButton, HStack, VStack } from '@chakra-ui/react';
 import { InfoOutlineIcon } from '@chakra-ui/icons';
 import React from 'react';
 import { GraphComponent } from './GraphComponent';
@@ -7,6 +7,13 @@ import { MapComponent } from './MapComponent';
 import { ModalContentLayout } from './ModalContentLayout';
 import { AccordionComponent } from './AccordionComponent';
 import { GraphCarousel } from './GraphCarousel';
+
+// Interface for insight bullets
+export interface InsightBullet {
+  text: string;
+  type: 'positive' | 'negative' | 'neutral' | 'warning' | 'star';
+  detail?: string; // Optional detail text shown below the main text
+}
 
 interface DashboardCardProps {
   title: string;
@@ -22,8 +29,9 @@ interface DashboardCardProps {
   mainText?: string;
   mapData?: any;
   // Modal content
-  modalContent?: React.ReactNode;
   kpiItems?: { label: string; content: React.ReactNode }[]; // Dynamic KPI items
+  // Insight bullets for card (alternative to graphs)
+  insightBullets?: InsightBullet[];
   // Text color for content overlay
   textColor?: string;
   // Modal background colors
@@ -46,6 +54,33 @@ interface DashboardCardProps {
   }[];
 }
 
+// Helper component to render insight bullets (card version - compact)
+const InsightBulletItemCompact = ({ bullet }: { bullet: InsightBullet }) => {
+  const getIcon = () => {
+    switch (bullet.type) {
+      case 'positive':
+        return <Box as="span" color="green.300" fontSize="xs">▲</Box>;
+      case 'negative':
+        return <Box as="span" color="red.300" fontSize="xs">▼</Box>;
+      case 'warning':
+        return <Box as="span" color="yellow.300" fontSize="xs">⚠</Box>;
+      case 'star':
+        return <Box as="span" color="yellow.200" fontSize="xs">★</Box>;
+      default:
+        return <Box as="span" color="blue.200" fontSize="xs">●</Box>;
+    }
+  };
+
+  return (
+    <HStack spacing={2} align="flex-start">
+      <Box mt="2px">{getIcon()}</Box>
+      <Text fontSize="xs" color="whiteAlpha.900" lineHeight="1.4">
+        {bullet.text}
+      </Text>
+    </HStack>
+  );
+};
+
 export const DashboardCard = ({
   title,
   size = "small",
@@ -58,8 +93,8 @@ export const DashboardCard = ({
   scorecardLabel,
   mainText,
   mapData,
-  modalContent,
   kpiItems, // Destructure new prop
+  insightBullets, // Destructure insight bullets prop
   textColor = "gray.800", // Default text color
   modalLeftBgColor = "#C9EDFF", // Default for Fornecedores
   modalRightBgColor = "#92DAFF", // Default for Fornecedores
@@ -126,25 +161,37 @@ export const DashboardCard = ({
             />
           </Flex>
 
-          {/* Graph content - centralized vertically */}
-          {graphData && !barChartData && (
-            <Flex flex="1" align="center" justify="center" minH="200px" py={4}>
-              <Box width="100%" height="280px">
-                <GraphComponent data={graphData.values} dataKey="value" lineColor="#FFA500" axisColor={textColor === "white" ? "#ffffff" : "#333333"} height="100%" />
-              </Box>
-            </Flex>
+          {/* Insight Bullets content - replaces graph/bar chart when present */}
+          {insightBullets && insightBullets.length > 0 && !mapData ? (
+            <VStack spacing={3} align="stretch" flex="1" mt={4} mb={2}>
+              {insightBullets.slice(0, 4).map((bullet, index) => (
+                <InsightBulletItemCompact key={index} bullet={bullet} />
+              ))}
+            </VStack>
+          ) : (
+            <>
+              {/* Graph content - centralized vertically */}
+              {graphData && !barChartData && (
+                <Flex flex="1" align="center" justify="center" minH="200px" py={4}>
+                  <Box width="100%" height="280px">
+                    <GraphComponent data={graphData.values} dataKey="value" lineColor="#FFA500" axisColor={textColor === "white" ? "#ffffff" : "#333333"} height="100%" />
+                  </Box>
+                </Flex>
+              )}
+              
+              {/* Bar chart content - centralized vertically */}
+              {barChartData && !insightBullets && (
+                <Flex flex="1" align="center" justify="center" minH="200px" py={4}>
+                  <Box width="100%" height="240px">
+                    <BarChartComponent data={barChartData} axisColor={textColor === "white" ? "#ffffff" : "#333333"} height="100%" />
+                  </Box>
+                </Flex>
+              )}
+            </>
           )}
           
-          {/* Bar chart content - centralized vertically */}
-          {barChartData && (
-            <Flex flex="1" align="center" justify="center" minH="200px" py={4}>
-              <Box width="100%" height="240px">
-                <BarChartComponent data={barChartData} axisColor={textColor === "white" ? "#ffffff" : "#333333"} height="100%" />
-              </Box>
-            </Flex>
-          )}
-          
-          {mainText && <Text fontSize="md" mb={2}>{mainText}</Text>}
+          {/* Main text - only show if no insight bullets */}
+          {(!insightBullets || insightBullets.length === 0) && mainText && <Text fontSize="md" mb={2}>{mainText}</Text>}
 
           {/* Scorecard - footer */}
           {(scorecardValue || scorecardLabel) && (
@@ -194,6 +241,13 @@ export const DashboardCard = ({
               rightContent={
                 mapData ? (
                   <MapComponent {...mapData} height="100%" /> // Map fills right half
+                ) : carouselGraphs && carouselGraphs.length > 0 ? (
+                  <Flex direction="column" height="100%" p={8}>
+                    <GraphCarousel
+                      graphs={carouselGraphs}
+                      textColor={textColor}
+                    />
+                  </Flex>
                 ) : carouselGraphs && carouselGraphs.length === 0 ? (
                   // Explicitly empty carousel - show nothing or placeholder
                   <Flex direction="column" height="100%" p={8} align="center" justify="center">
@@ -202,7 +256,7 @@ export const DashboardCard = ({
                 ) : (
                   <Flex direction="column" height="100%" p={8}>
                     <GraphCarousel
-                      graphs={carouselGraphs || [
+                      graphs={[
                         {
                           data: graphData?.values || [],
                           dataKey: "value",

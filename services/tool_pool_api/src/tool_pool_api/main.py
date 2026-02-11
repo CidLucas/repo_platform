@@ -25,12 +25,14 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
     - Idle transactions holding locks
     - Frontend disconnections leaving transactions open
     """
+
     async def dispatch(self, request: Request, call_next):
         # Set timeouts at session level for this request
         try:
             from sqlalchemy import text
 
             from vizu_db_connector.database import SessionLocal
+
             session = SessionLocal()
             try:
                 session.execute(text("SET statement_timeout = '30s'"))
@@ -41,6 +43,7 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
             logger.warning(f"Could not set session timeouts: {e}")
 
         return await call_next(request)
+
 
 # Global state for MCP
 _mcp = None
@@ -54,6 +57,7 @@ def _create_mcp():
 
     logger.info("🚀 Creating MCP server...")
     from .server.mcp_server import create_mcp_server
+
     _mcp, _mcp_asgi = create_mcp_server()
     _mcp_initialized = True
     logger.info("✅ MCP server created successfully")
@@ -89,6 +93,7 @@ async def lifespan(app: FastAPI):
     # Shutdown observability
     try:
         from vizu_observability_bootstrap import shutdown_observability
+
         await shutdown_observability(timeout=5.0)
     except Exception as e:
         logger.warning(f"Observability shutdown error: {e}")
@@ -106,6 +111,7 @@ app = FastAPI(
 # Configure observability
 try:
     from vizu_observability_bootstrap import setup_observability
+
     setup_observability(app, service_name="tool_pool_api")
 except ImportError as e:
     logger.warning(f"Observability bootstrap not available: {e}")
@@ -159,6 +165,7 @@ async def server_info():
             )
 
         from .server.tools import get_available_modules
+
         modules = get_available_modules()
 
         return {
@@ -179,4 +186,6 @@ async def server_info():
 @app.on_event("startup")
 async def startup_event():
     """App startup logging."""
-    logger.debug("Tool Pool API started - endpoints: /health, /info, /mcp, /integrations, /admin/clients")
+    logger.debug(
+        "Tool Pool API started - endpoints: /health, /info, /mcp, /integrations, /admin/clients"
+    )

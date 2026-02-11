@@ -63,9 +63,7 @@ def test_e2e_flow_with_db_and_redis_cache(
 
     # --- 3. EXECUÇÃO E VERIFICAÇÃO (SEGUNDA CHAMADA - CACHE HIT) ---
     with patch("atendente_core.api.router.agent_graph") as mock_agent_graph:
-        mock_agent_graph.invoke.return_value = {
-            "messages": [MagicMock(content="Pois não?")]
-        }
+        mock_agent_graph.invoke.return_value = {"messages": [MagicMock(content="Pois não?")]}
         response2 = client.post(
             "/api/v1/incoming",
             headers={"X-Vizu-API-Key": test_api_key},

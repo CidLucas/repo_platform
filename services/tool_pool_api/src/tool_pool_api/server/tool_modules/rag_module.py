@@ -37,26 +37,26 @@ async def _executar_rag_cliente_logic(
     cliente_id: str | None = None,
 ) -> str:
     """
-   **Tool: executar_rag_cliente**
+       **Tool: executar_rag_cliente**
 
-**Purpose:** Search a company's knowledge base for information about their products, services, pricing, policies, FAQs, and business operations.
+    **Purpose:** Search a company's knowledge base for information about their products, services, pricing, policies, FAQs, and business operations.
 
-**When to use this tool:**
-- User asks questions about a company's offerings, prices, or services
-- User needs information from company documentation, manuals, or help articles
-- User asks about company policies, terms of service, or procedures
-- User requests information that should be in the company's internal knowledge base
+    **When to use this tool:**
+    - User asks questions about a company's offerings, prices, or services
+    - User needs information from company documentation, manuals, or help articles
+    - User asks about company policies, terms of service, or procedures
+    - User requests information that should be in the company's internal knowledge base
 
-**Input format:**
-- query: (string) The user's question about the business
+    **Input format:**
+    - query: (string) The user's question about the business
 
-**Examples:**
-- "What are your shipping costs to Europe?"
-- "Tell me about your premium subscription features"
-- "What's your return policy for electronics?"
-- "How do I set up two-factor authentication?"
+    **Examples:**
+    - "What are your shipping costs to Europe?"
+    - "Tell me about your premium subscription features"
+    - "What's your return policy for electronics?"
+    - "How do I set up two-factor authentication?"
 
-**IMPORTANT:** This tool accesses the specific company's knowledge base. The company context is automatically injected - do NOT ask the user for company ID.
+    **IMPORTANT:** This tool accesses the specific company's knowledge base. The company context is automatically injected - do NOT ask the user for company ID.
     """
     # 1. Obter dependências
 
@@ -109,9 +109,7 @@ async def _executar_rag_cliente_logic(
             # Fallback to JWT auth (direct API calls)
             # Uses vizu_auth for token validation from MCP request headers
             jwt_claims = server_tools.get_jwt_claims_from_mcp()
-            vizu_context = await server_tools.load_context_from_jwt_claims(
-                ctx_service, jwt_claims
-            )
+            vizu_context = await server_tools.load_context_from_jwt_claims(ctx_service, jwt_claims)
 
     except ToolError as e:
         logger.warning(f"[RAG] Falha na autorização: {e}")
@@ -170,9 +168,6 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Parameter: query (the user's question in natural language)."
         ),
     )(mcp_inject_cliente_id(get_context_service)(_executar_rag_cliente_logic))
-
-    logger.info("[RAG Module] Tool registered: executar_rag_cliente")
-    return ["executar_rag_cliente"]
 
     logger.info("[RAG Module] Tool registered: executar_rag_cliente")
     return ["executar_rag_cliente"]

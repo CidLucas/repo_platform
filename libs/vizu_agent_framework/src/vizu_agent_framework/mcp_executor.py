@@ -55,6 +55,7 @@ class MCPToolExecutor:
     ):
         """Initialize executor (deprecated)."""
         import warnings
+
         warnings.warn(
             "MCPToolExecutor is deprecated. Use MCPConnectionManager instead.",
             DeprecationWarning,
@@ -69,6 +70,7 @@ class MCPToolExecutor:
         """Get or create MCP manager (lazy)."""
         if self._mcp_manager is None:
             from vizu_agent_framework.mcp_client import MCPConnectionManager
+
             self._mcp_manager = MCPConnectionManager(url=self.mcp_url)
             try:
                 await self._mcp_manager.connect()
@@ -84,6 +86,7 @@ class MCPToolExecutor:
     ) -> ToolResult:
         """Execute a tool via MCP."""
         import time
+
         start_time = time.time()
 
         try:

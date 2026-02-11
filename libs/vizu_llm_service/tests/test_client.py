@@ -28,9 +28,7 @@ class TestVizuEmbeddingAPIClient:
         mock_response = MagicMock()
         mock_response.status_code = 200
         # Simula a resposta da API: lista de vetores
-        mock_response.json.return_value = {
-            "embeddings": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
-        }
+        mock_response.json.return_value = {"embeddings": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]}
         mock_post.return_value = mock_response
 
         texts = ["texto 1", "texto 2"]

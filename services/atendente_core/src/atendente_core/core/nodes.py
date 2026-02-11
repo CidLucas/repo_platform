@@ -96,10 +96,7 @@ def _create_llm_data_summary(structured_data: dict, full_output: dict) -> str:
     # Add 3 sample rows for context
     if rows:
         sample_rows = rows[:3]
-        sample_text = "\n".join([
-            f"  Exemplo {i+1}: {row}"
-            for i, row in enumerate(sample_rows)
-        ])
+        sample_text = "\n".join([f"  Exemplo {i+1}: {row}" for i, row in enumerate(sample_rows)])
         summary_parts.append(f"\nPrimeiros 3 registros:\n{sample_text}")
 
     # Try to add aggregated stats for numeric columns
@@ -110,7 +107,9 @@ def _create_llm_data_summary(structured_data: dict, full_output: dict) -> str:
 
     # Add truncation note
     if total_rows > 3:
-        summary_parts.append(f"\n(Mostrando 3 de {total_rows}. Dados completos exibidos na tabela para o usuário.)")
+        summary_parts.append(
+            f"\n(Mostrando 3 de {total_rows}. Dados completos exibidos na tabela para o usuário.)"
+        )
 
     return "\n".join(summary_parts)
 
@@ -214,9 +213,7 @@ def sanitize_tool_for_llm(tool: BaseTool) -> BaseTool:
             for param in exposed_params:
                 schema["properties"].pop(param, None)
             if "required" in schema:
-                schema["required"] = [
-                    r for r in schema["required"] if r not in INTERNAL_PARAMS
-                ]
+                schema["required"] = [r for r in schema["required"] if r not in INTERNAL_PARAMS]
     except Exception as e:
         logger.error(f"[SECURITY] Failed to strip params from '{tool.name}': {e}")
 
@@ -353,13 +350,15 @@ async def build_dynamic_system_prompt(
         logger.info("[PROMPT_BUILD] vizu_context available, converting to safe context")
         # Convert to SafeClientContext for LLM-safe exposure
         llm_safe_context = vizu_context.to_safe_context()
-        logger.info(f"[PROMPT_BUILD] Safe context loaded_sections: {llm_safe_context.loaded_sections}")
+        logger.info(
+            f"[PROMPT_BUILD] Safe context loaded_sections: {llm_safe_context.loaded_sections}"
+        )
 
         # Define which sections the respond node needs
         # SIMPLIFIED: Only essential sections for data analyst role
         respond_sections = [
             ContextSection.COMPANY_PROFILE,  # Basic company context
-            ContextSection.DATA_SCHEMA,      # Schema for SQL queries
+            ContextSection.DATA_SCHEMA,  # Schema for SQL queries
         ]
         logger.info(f"[PROMPT_BUILD] Requesting sections: {[s.value for s in respond_sections]}")
 
@@ -368,13 +367,19 @@ async def build_dynamic_system_prompt(
             sections=respond_sections,
             include_header=False,  # Header included separately
         )
-        logger.info(f"[PROMPT_BUILD] Context 2.0: Compiled {len(respond_sections)} sections ({len(context_sections_text)} chars)")
+        logger.info(
+            f"[PROMPT_BUILD] Context 2.0: Compiled {len(respond_sections)} sections ({len(context_sections_text)} chars)"
+        )
         if context_sections_text:
             logger.info(f"[PROMPT_BUILD] Sections preview: {context_sections_text[:300]}...")
         else:
-            logger.warning("[PROMPT_BUILD] No context sections compiled! Check if sections are loaded in DB")
+            logger.warning(
+                "[PROMPT_BUILD] No context sections compiled! Check if sections are loaded in DB"
+            )
     else:
-        logger.warning("[PROMPT_BUILD] No vizu_context provided - prompt will rely on Langfuse template")
+        logger.warning(
+            "[PROMPT_BUILD] No vizu_context provided - prompt will rely on Langfuse template"
+        )
 
     variables = {
         "nome_empresa": nome_empresa,
@@ -477,25 +482,32 @@ async def supervisor_node(state: AgentState) -> dict:
 
     if cliente_id and context_service:
         try:
-            vizu_ctx = await context_service.get_client_context_by_id(str(cliente_id))
+            vizu_ctx = await context_service.get_client_context_by_id(cliente_id)
             if vizu_ctx:
                 # Create SafeClientContext from VizuClientContext for tool filtering
                 from vizu_models.safe_client_context import InternalClientContext
+
                 internal_ctx = InternalClientContext.from_vizu_client_context(vizu_ctx)
                 safe_ctx = internal_ctx.get_safe_context()
-                logger.debug(f"[SUPERVISOR] Fetched context for cliente_id={cliente_id}: {vizu_ctx.nome_empresa}")
+                logger.debug(
+                    f"[SUPERVISOR] Fetched context for cliente_id={cliente_id}: {vizu_ctx.nome_empresa}"
+                )
             else:
                 logger.warning(f"[SUPERVISOR] No context found for cliente_id={cliente_id}")
         except Exception as e:
             logger.error(f"[SUPERVISOR] Failed to fetch context for cliente_id={cliente_id}: {e}")
     else:
-        logger.warning(f"[SUPERVISOR] No cliente_id ({cliente_id}) or context_service ({context_service is not None})")
+        logger.warning(
+            f"[SUPERVISOR] No cliente_id ({cliente_id}) or context_service ({context_service is not None})"
+        )
 
     # DEBUG: Log context state (demoted to DEBUG level for production)
     logger.debug(f"[SUPERVISOR] safe_context present: {safe_ctx is not None}")
     logger.debug(f"[SUPERVISOR] vizu_context present: {vizu_ctx is not None}")
     if vizu_ctx:
-        logger.debug(f"[SUPERVISOR] vizu_context.nome_empresa: {getattr(vizu_ctx, 'nome_empresa', 'N/A')}")
+        logger.debug(
+            f"[SUPERVISOR] vizu_context.nome_empresa: {getattr(vizu_ctx, 'nome_empresa', 'N/A')}"
+        )
 
     # 2. Obtém TODAS as tools do MCP
     all_tools = mcp_manager.tools
@@ -530,9 +542,14 @@ async def supervisor_node(state: AgentState) -> dict:
         system_prompt = cached_prompt
         logger.debug(f"[SUPERVISOR] Using cached system prompt ({len(system_prompt)} chars)")
     else:
-        logger.debug(f"[SUPERVISOR] Building system prompt with vizu_context={vizu_ctx is not None}")
+        logger.debug(
+            f"[SUPERVISOR] Building system prompt with vizu_context={vizu_ctx is not None}"
+        )
         system_prompt = await build_dynamic_system_prompt(
-            safe_ctx, available_tools, context_service=get_node_context_service(), vizu_context=vizu_ctx
+            safe_ctx,
+            available_tools,
+            context_service=get_node_context_service(),
+            vizu_context=vizu_ctx,
         )
         logger.debug(f"[SUPERVISOR] System prompt generated: {len(system_prompt)} chars")
 
@@ -591,9 +608,7 @@ async def supervisor_node(state: AgentState) -> dict:
         logger.error(f"Erro ao invocar LLM: {e}")
         return {
             "messages": [
-                AIMessage(
-                    content="Ocorreu um erro interno ao processar sua solicitação."
-                )
+                AIMessage(content="Ocorreu um erro interno ao processar sua solicitação.")
             ],
         }
 
@@ -604,7 +619,11 @@ async def supervisor_node(state: AgentState) -> dict:
         return {"messages": [response], "_cached_system_prompt": system_prompt}
     else:
         # New user turn without tools - clear any previous structured_data
-        return {"messages": [response], "structured_data": None, "_cached_system_prompt": system_prompt}
+        return {
+            "messages": [response],
+            "structured_data": None,
+            "_cached_system_prompt": system_prompt,
+        }
 
 
 async def execute_tools_node(state: AgentState) -> dict:
@@ -676,14 +695,8 @@ async def execute_tools_node(state: AgentState) -> dict:
                     args_to_pass.pop(internal_param)
 
             # Injeta elicitation response se aplicável
-            if (
-                elicitation_response
-                and pending
-                and pending.get("tool_name") == tool_name
-            ):
-                args_to_pass["_elicitation_response"] = elicitation_response.get(
-                    "response"
-                )
+            if elicitation_response and pending and pending.get("tool_name") == tool_name:
+                args_to_pass["_elicitation_response"] = elicitation_response.get("response")
 
             # Executa a ferramenta via MCP (auth via JWT in connection headers)
             output = await mcp_manager.call_tool(tool_name, args_to_pass)
@@ -692,18 +705,16 @@ async def execute_tools_node(state: AgentState) -> dict:
             if hasattr(output, "content") and output.content:
                 # MCP returns CallToolResult with content list
                 output = "\n".join(
-                    item.text if hasattr(item, "text") else str(item)
-                    for item in output.content
+                    item.text if hasattr(item, "text") else str(item) for item in output.content
                 )
 
-            logger.info(
-                f"Tool '{tool_name}' resultado (primeiros 300 chars): {str(output)[:300]}"
-            )
+            logger.info(f"Tool '{tool_name}' resultado (primeiros 300 chars): {str(output)[:300]}")
 
             # Extract structured_data BEFORE truncating (it may be large)
             # Frontend gets 20 rows max, LLM gets summary + 3 sample rows
             try:
                 import json
+
                 parsed_output = json.loads(output) if isinstance(output, str) else output
                 if isinstance(parsed_output, dict) and parsed_output.get("structured_data"):
                     full_data = parsed_output["structured_data"]
@@ -718,7 +729,9 @@ async def execute_tools_node(state: AgentState) -> dict:
                             frontend_data["truncated"] = True
                             frontend_data["total_rows"] = len(full_data["rows"])
                         extracted_structured_data = frontend_data
-                        logger.info(f"[Tools] Extracted structured_data from '{tool_name}': {len(full_data.get('rows', []))} total rows, {len(frontend_data.get('rows', []))} for frontend")
+                        logger.info(
+                            f"[Tools] Extracted structured_data from '{tool_name}': {len(full_data.get('rows', []))} total rows, {len(frontend_data.get('rows', []))} for frontend"
+                        )
 
                     # Create LLM-friendly summary (aggregated + 3 sample rows)
                     llm_summary = _create_llm_data_summary(full_data, parsed_output)
@@ -734,12 +747,15 @@ async def execute_tools_node(state: AgentState) -> dict:
             MAX_TOOL_OUTPUT_CHARS = 8000  # ~2000 tokens
             output_str = str(output)
             if len(output_str) > MAX_TOOL_OUTPUT_CHARS:
-                output_str = output_str[:MAX_TOOL_OUTPUT_CHARS] + "\n\n[Output truncated. Full data available via cache_ref_id.]"
-                logger.info(f"Tool '{tool_name}' output truncated from {len(str(output))} to {MAX_TOOL_OUTPUT_CHARS} chars")
+                output_str = (
+                    output_str[:MAX_TOOL_OUTPUT_CHARS]
+                    + "\n\n[Output truncated. Full data available via cache_ref_id.]"
+                )
+                logger.info(
+                    f"Tool '{tool_name}' output truncated from {len(str(output))} to {MAX_TOOL_OUTPUT_CHARS} chars"
+                )
 
-            return ToolMessage(
-                content=output_str, tool_call_id=tool_call_id, name=tool_name
-            )
+            return ToolMessage(content=output_str, tool_call_id=tool_call_id, name=tool_name)
 
         except (ClosedResourceError, BrokenResourceError) as stream_err:
             # MCP stream died - reconnect and retry once
@@ -753,22 +769,16 @@ async def execute_tools_node(state: AgentState) -> dict:
                     # Refresh tool map after reconnection
                     tool_map = {t.name: t for t in mcp_manager.tools}
                     # Retry without allowing another reconnect attempt
-                    return await execute_single_tool(
-                        tool_call, retry_on_stream_error=False
-                    )
+                    return await execute_single_tool(tool_call, retry_on_stream_error=False)
                 except Exception as reconnect_err:
-                    logger.exception(
-                        f"Failed to reconnect MCP after stream error: {reconnect_err}"
-                    )
+                    logger.exception(f"Failed to reconnect MCP after stream error: {reconnect_err}")
                     return ToolMessage(
                         content=f"Erro de conexão com serviço de ferramentas: {str(stream_err)}",
                         tool_call_id=tool_call_id,
                         name=tool_name,
                     )
             else:
-                logger.exception(
-                    f"MCP stream error on retry for '{tool_name}': {stream_err}"
-                )
+                logger.exception(f"MCP stream error on retry for '{tool_name}': {stream_err}")
                 return ToolMessage(
                     content=f"Erro de conexão persistente com serviço de ferramentas: {str(stream_err)}",
                     tool_call_id=tool_call_id,
@@ -808,14 +818,14 @@ async def execute_tools_node(state: AgentState) -> dict:
     # Use structured_data extracted before truncation (already limited to 20 rows for frontend)
     if extracted_structured_data:
         return_dict["structured_data"] = extracted_structured_data
-        logger.info(f"[Tools] Passing structured_data to frontend: {len(extracted_structured_data.get('rows', []))} rows")
+        logger.info(
+            f"[Tools] Passing structured_data to frontend: {len(extracted_structured_data.get('rows', []))} rows"
+        )
 
     # PHASE 3: If we have pending elicitation, add it to state
     if pending_elicitation:
         return_dict["pending_elicitation"] = pending_elicitation
-        logger.info(
-            f"Setting pending_elicitation: {pending_elicitation.get('elicitation_id')}"
-        )
+        logger.info(f"Setting pending_elicitation: {pending_elicitation.get('elicitation_id')}")
     else:
         # Clear any previous elicitation state
         return_dict["pending_elicitation"] = None

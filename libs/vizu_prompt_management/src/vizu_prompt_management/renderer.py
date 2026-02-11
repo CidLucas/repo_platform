@@ -38,12 +38,15 @@ class TemplateRenderer:
         # Configure Jinja2 environment
         if undefined_behavior == "empty":
             from jinja2 import Undefined
+
             undefined_class = Undefined
         elif undefined_behavior == "keep":
             from jinja2 import DebugUndefined
+
             undefined_class = DebugUndefined
         else:
             from jinja2 import StrictUndefined
+
             undefined_class = StrictUndefined
 
         self.env = Environment(
@@ -94,15 +97,15 @@ class TemplateRenderer:
         variables = set()
 
         # Jinja2 style: {{ variable }}
-        jinja_vars = re.findall(r'\{\{\s*(\w+)\s*\}\}', template)
+        jinja_vars = re.findall(r"\{\{\s*(\w+)\s*\}\}", template)
         variables.update(jinja_vars)
 
         # Jinja2 block variables: {% for item in items %}
-        block_vars = re.findall(r'\{%\s*for\s+\w+\s+in\s+(\w+)\s*%\}', template)
+        block_vars = re.findall(r"\{%\s*for\s+\w+\s+in\s+(\w+)\s*%\}", template)
         variables.update(block_vars)
 
         # Jinja2 if conditions: {% if variable %}
-        if_vars = re.findall(r'\{%\s*if\s+(\w+)\s*%\}', template)
+        if_vars = re.findall(r"\{%\s*if\s+(\w+)\s*%\}", template)
         variables.update(if_vars)
 
         return variables
@@ -125,8 +128,8 @@ class TemplateRenderer:
             errors.append(f"Jinja2 syntax error: {e}")
 
         # Check for unclosed braces
-        open_braces = template.count('{') - template.count('{{')
-        close_braces = template.count('}') - template.count('}}')
+        open_braces = template.count("{") - template.count("{{")
+        close_braces = template.count("}") - template.count("}}")
 
         if open_braces != close_braces:
             errors.append("Mismatched braces in template")
@@ -175,7 +178,7 @@ class SafeRenderer(TemplateRenderer):
         # Check output size
         if len(result) > self.max_output_size:
             logger.warning(f"Output truncated from {len(result)} to {self.max_output_size}")
-            result = result[:self.max_output_size] + "..."
+            result = result[: self.max_output_size] + "..."
 
         return result
 

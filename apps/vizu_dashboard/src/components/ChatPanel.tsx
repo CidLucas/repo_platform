@@ -137,7 +137,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
           structuredData,
         },
       ]);
-    } catch (err: any) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         {

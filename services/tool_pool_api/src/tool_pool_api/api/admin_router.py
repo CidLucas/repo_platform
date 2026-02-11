@@ -4,6 +4,7 @@ Admin API Router for Client Management.
 Provides CRUD endpoints for managing cliente_vizu records.
 Protected by JWT authentication - requires ADMIN tier.
 """
+
 import logging
 from uuid import UUID
 
@@ -26,6 +27,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 class AdminAuthResult(BaseModel):
     """Result of admin authentication."""
+
     client_id: UUID
     email: str | None = None
     tier: str
@@ -116,40 +118,36 @@ async def verify_admin_access(
 # REQUEST/RESPONSE MODELS
 # =============================================================================
 
+
 class ClientCreateRequest(BaseModel):
     """Request model for creating a new client."""
+
     nome_empresa: str = Field(..., min_length=1, max_length=255)
     tipo_cliente: str | None = Field(default="standard")
     tier: str | None = Field(
-        default="BASIC",
-        description="Client tier: FREE, BASIC, SME, PREMIUM, ENTERPRISE"
+        default="BASIC", description="Client tier: FREE, BASIC, SME, PREMIUM, ENTERPRISE"
     )
-    enabled_tools: list[str] | None = Field(
-        default=None,
-        description="List of enabled tool names"
-    )
+    enabled_tools: list[str] | None = Field(default=None, description="List of enabled tool names")
     external_user_id: str | None = Field(
-        default=None,
-        description="External user ID from OAuth provider"
+        default=None, description="External user ID from OAuth provider"
     )
     # Context 2.0 sections (optional)
     available_tools: dict | None = Field(
         default=None,
-        description="Tool configuration including rag_collection and default_system_prompt"
+        description="Tool configuration including rag_collection and default_system_prompt",
     )
     team_structure: dict | None = Field(
-        default=None,
-        description="Team info including business_hours"
+        default=None, description="Team info including business_hours"
     )
 
 
 class ClientUpdateRequest(BaseModel):
     """Request model for updating a client. All fields optional."""
+
     nome_empresa: str | None = Field(default=None, max_length=255)
     tipo_cliente: str | None = None
     tier: str | None = Field(
-        default=None,
-        description="Client tier: FREE, BASIC, SME, PREMIUM, ENTERPRISE"
+        default=None, description="Client tier: FREE, BASIC, SME, PREMIUM, ENTERPRISE"
     )
     enabled_tools: list[str] | None = None
     external_user_id: str | None = None
@@ -160,6 +158,7 @@ class ClientUpdateRequest(BaseModel):
 
 class ClientResponse(BaseModel):
     """Response model for client data."""
+
     id: UUID
     nome_empresa: str
     tipo_cliente: str | None = None
@@ -178,6 +177,7 @@ class ClientResponse(BaseModel):
 
 class ClientListResponse(BaseModel):
     """Response model for listing clients."""
+
     clients: list[ClientResponse]
     total: int
     limit: int
@@ -186,12 +186,14 @@ class ClientListResponse(BaseModel):
 
 class ToolValidationResult(BaseModel):
     """Result of tool validation."""
+
     is_valid: bool
     errors: list[str] = []
 
 
 class AvailableToolsResponse(BaseModel):
     """Response showing available tools for a tier."""
+
     tier: str
     tools: list[dict]
 
@@ -200,9 +202,9 @@ class AvailableToolsResponse(BaseModel):
 # HELPER FUNCTIONS
 # =============================================================================
 
+
 def _validate_tools_for_tier(
-    enabled_tools: list[str] | None,
-    tier: str | None
+    enabled_tools: list[str] | None, tier: str | None
 ) -> tuple[bool, list[str]]:
     """Validate that enabled tools are compatible with the tier."""
     if not enabled_tools:
@@ -232,6 +234,7 @@ def _dict_to_response(data: dict) -> ClientResponse:
 # ENDPOINTS
 # =============================================================================
 
+
 @router.post(
     "",
     response_model=ClientResponse,
@@ -249,10 +252,7 @@ async def create_client(
     The enabled_tools list will be validated against the specified tier.
     """
     # Validate tools against tier
-    is_valid, errors = _validate_tools_for_tier(
-        payload.enabled_tools,
-        payload.tier
-    )
+    is_valid, errors = _validate_tools_for_tier(payload.enabled_tools, payload.tier)
 
     if not is_valid:
         raise HTTPException(
@@ -357,10 +357,7 @@ async def update_client(
 
     # If tools aren't being updated, skip validation
     if tools_to_validate is not None:
-        is_valid, errors = _validate_tools_for_tier(
-            tools_to_validate,
-            tier_for_validation
-        )
+        is_valid, errors = _validate_tools_for_tier(tools_to_validate, tier_for_validation)
 
         if not is_valid:
             raise HTTPException(
@@ -428,6 +425,7 @@ async def delete_client(
 # =============================================================================
 # TOOL VALIDATION ENDPOINTS
 # =============================================================================
+
 
 @router.post(
     "/validate-tools",

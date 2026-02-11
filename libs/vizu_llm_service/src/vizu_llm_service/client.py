@@ -88,6 +88,7 @@ def get_langfuse_callback(
         from vizu_observability_bootstrap.langfuse import (
             get_langfuse_callback as _get_callback,
         )
+
         return _get_callback(
             user_id=user_id,
             session_id=session_id,
@@ -218,9 +219,7 @@ def _get_openai_model(
     try:
         from langchain_openai import ChatOpenAI
     except ImportError:
-        raise ImportError(
-            "langchain-openai não instalado. Rode: pip install langchain-openai"
-        )
+        raise ImportError("langchain-openai não instalado. Rode: pip install langchain-openai")
 
     api_key = settings.OPENAI_API_KEY
     if not api_key:
@@ -251,9 +250,7 @@ def _get_anthropic_model(
 
     logger.debug(f"Anthropic: model={model_name}")
 
-    return ChatAnthropic(
-        model=model_name, api_key=api_key, callbacks=callbacks, **kwargs
-    )
+    return ChatAnthropic(model=model_name, api_key=api_key, callbacks=callbacks, **kwargs)
 
 
 def _get_google_model(
@@ -400,6 +397,7 @@ def flush_langfuse():
     """Force flush Langfuse events."""
     try:
         from vizu_observability_bootstrap.langfuse import flush_langfuse as _flush
+
         _flush()
     except ImportError:
         logger.debug("vizu_observability_bootstrap not available")
@@ -409,6 +407,7 @@ def shutdown_langfuse():
     """Shutdown Langfuse client."""
     try:
         from vizu_observability_bootstrap.langfuse import shutdown_langfuse as _shutdown
+
         _shutdown()
     except ImportError:
         logger.debug("vizu_observability_bootstrap not available")

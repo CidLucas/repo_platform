@@ -57,9 +57,7 @@ def get_context_service() -> ContextService:
         pool = _get_redis_pool()
         redis_client = redis.Redis(connection_pool=pool)
         redis_service = RedisService(redis_client=redis_client)
-        _context_service = ContextService(
-            cache_service=redis_service, use_supabase=True
-        )
+        _context_service = ContextService(cache_service=redis_service, use_supabase=True)
         logger.info("ContextService singleton created (tool_pool_api)")
     return _context_service
 
@@ -106,9 +104,7 @@ async def load_context_from_token(
         )
 
         if not vizu_context:
-            logger.error(
-                f"Contexto Vizu não encontrado para external_user_id: {external_user_id}"
-            )
+            logger.error(f"Contexto Vizu não encontrado para external_user_id: {external_user_id}")
             raise ToolError(
                 f"Nenhum cliente Vizu associado a este usuário. (ID: {external_user_id})"
             )
@@ -137,15 +133,11 @@ def _get_google_secret(secret_id: str) -> str | None:
     # Fallback para desenvolvimento
     dev_secret = os.getenv("MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV")
     if dev_secret:
-        logger.debug(
-            "Usando Google Client Secret do .env (MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV)"
-        )
+        logger.debug("Usando Google Client Secret do .env (MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV)")
         return dev_secret
 
     if not secret_id:
-        logger.warning(
-            "Nenhum ID de secret nem segredo de dev fornecidos para Google Auth."
-        )
+        logger.warning("Nenhum ID de secret nem segredo de dev fornecidos para Google Auth.")
         return None
 
     # TODO: Implementar busca no Google Secret Manager
@@ -162,9 +154,7 @@ def get_auth_provider() -> GoogleProvider | None:
 
     google_secret = _get_google_secret(settings.MCP_AUTH_GOOGLE_CLIENT_SECRET_ID)
 
-    if not all(
-        [settings.MCP_AUTH_GOOGLE_CLIENT_ID, google_secret, settings.MCP_AUTH_BASE_URL]
-    ):
+    if not all([settings.MCP_AUTH_GOOGLE_CLIENT_ID, google_secret, settings.MCP_AUTH_BASE_URL]):
         logger.warning(
             "Autenticação Google desabilitada. Faltam configs: "
             "MCP_AUTH_GOOGLE_CLIENT_ID, MCP_AUTH_GOOGLE_CLIENT_SECRET, MCP_AUTH_BASE_URL"
@@ -173,9 +163,7 @@ def get_auth_provider() -> GoogleProvider | None:
 
     try:
         scopes = [
-            scope.strip()
-            for scope in settings.MCP_AUTH_REQUIRED_SCOPES.split(",")
-            if scope.strip()
+            scope.strip() for scope in settings.MCP_AUTH_REQUIRED_SCOPES.split(",") if scope.strip()
         ]
         if not scopes:
             scopes = ["email", "profile"]

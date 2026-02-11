@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # For Cloud Run: Set to https://tool-pool-api-<PROJECT_ID>.southamerica-east1.run.app/mcp/
 MCP_URL = os.getenv(
     "MCP_SERVER_URL",
-    "http://tool_pool_api:8000/mcp/"  # Default for docker-compose (service name with underscore)
+    "http://tool_pool_api:8000/mcp/",  # Default for docker-compose (service name with underscore)
 )
 
 logger.info(f"Initializing MCP manager with URL: {MCP_URL}")
@@ -90,4 +90,3 @@ async def ensure_mcp_connected() -> bool:
                     return False
 
         return False
-

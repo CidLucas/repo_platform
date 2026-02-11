@@ -32,8 +32,6 @@ class PromptTemplateConfig:
     version: int = 1
 
 
-
-
 # Builtin fallback - Langfuse prompt "basic" takes precedence
 ATENDENTE = PromptTemplateConfig(
     name="atendente/default",
@@ -120,7 +118,7 @@ Seu texto deve ser um **resumo de 2-3 frases** bem formatado:
 - Moeda: **R$ 1.234,56** ou **R$ 2,5M** (negrito para destaque)
 - Percentuais: **78%** (não 0.78)
 - Nunca exponha IDs técnicos
-"""
+""",
 )
 
 
@@ -142,7 +140,7 @@ CONFIRMACAO_AGENDAMENTO = PromptTemplateConfig(
 
 Por favor, confirme os dados acima com o cliente antes de finalizar.
 Pergunte se está tudo correto e se deseja prosseguir.
-"""
+""",
 )
 
 ESCLARECIMENTO_PROMPT = PromptTemplateConfig(
@@ -158,7 +156,7 @@ ESCLARECIMENTO_PROMPT = PromptTemplateConfig(
 {{ opcoes }}
 
 Peça gentilmente ao cliente para especificar qual das opções ele deseja.
-"""
+""",
 )
 
 
@@ -183,7 +181,7 @@ CONTEXTO:
 PERGUNTA:
 {{ question }}
 
-RESPOSTA:"""
+RESPOSTA:""",
 )
 
 RAG_HYBRID_PROMPT = PromptTemplateConfig(
@@ -209,7 +207,7 @@ Instruções:
 2. Se houver contradição, mencione ambas as versões
 3. Diga "não sei" se não encontrar resposta no contexto
 
-RESPOSTA:"""
+RESPOSTA:""",
 )
 
 
@@ -230,7 +228,7 @@ Por favor, escolha uma das opções abaixo:
 {{ loop.index }}. {{ option.label }}{% if option.description %} - {{ option.description }}{% endif %}
 
 {% endfor %}
-Digite o número da opção desejada:"""
+Digite o número da opção desejada:""",
 )
 
 ELICITATION_CONFIRMATION_PROMPT = PromptTemplateConfig(
@@ -244,7 +242,7 @@ ELICITATION_CONFIRMATION_PROMPT = PromptTemplateConfig(
 
 {{ details }}
 
-Você confirma esta ação? (sim/não)"""
+Você confirma esta ação? (sim/não)""",
 )
 
 ELICITATION_FREEFORM_PROMPT = PromptTemplateConfig(
@@ -259,7 +257,7 @@ ELICITATION_FREEFORM_PROMPT = PromptTemplateConfig(
 Dica: {{ hint }}
 {% endif %}
 
-Por favor, digite sua resposta:"""
+Por favor, digite sua resposta:""",
 )
 
 
@@ -277,7 +275,7 @@ ERROR_TOOL_FAILED = PromptTemplateConfig(
 
 Erro: {{ error_message }}
 
-Por favor, tente novamente ou entre em contato com o suporte se o problema persistir."""
+Por favor, tente novamente ou entre em contato com o suporte se o problema persistir.""",
 )
 
 ERROR_NOT_FOUND = PromptTemplateConfig(
@@ -287,7 +285,7 @@ ERROR_NOT_FOUND = PromptTemplateConfig(
     required_variables=["resource_type"],
     content="""Desculpe, não foi possível encontrar {{ resource_type }}.
 
-Por favor, verifique se as informações estão corretas e tente novamente."""
+Por favor, verifique se as informações estão corretas e tente novamente.""",
 )
 
 
@@ -464,7 +462,7 @@ Available tools:
 - sql_db_query: Executes a SQL SELECT query and returns results
 - sql_db_query_checker: Validates SQL syntax before execution
 
-NEVER make up data. ALWAYS run the query and report the actual results."""
+NEVER make up data. ALWAYS run the query and report the actual results.""",
 )
 
 SQL_AGENT_SUFFIX = PromptTemplateConfig(
@@ -475,7 +473,7 @@ SQL_AGENT_SUFFIX = PromptTemplateConfig(
     content="""Begin! Remember to ALWAYS execute queries to get real data.
 
 Question: {{ input }}
-{{ agent_scratchpad }}"""
+{{ agent_scratchpad }}""",
 )
 
 
@@ -500,7 +498,7 @@ CONTEXTO:
 PERGUNTA:
 {{ question }}
 
-RESPOSTA:"""
+RESPOSTA:""",
 )
 
 
@@ -621,7 +619,6 @@ BUILTIN_TEMPLATES: dict[str, PromptTemplateConfig] = {
     ELICITATION_CLARIFY_PROMPT.name: ELICITATION_CLARIFY_PROMPT,
     SQL_SAFETY_SYSTEM.name: SQL_SAFETY_SYSTEM,
 }
-
 
 
 def get_builtin_template(name: str) -> PromptTemplateConfig | None:

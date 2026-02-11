@@ -88,9 +88,7 @@ class TextToSqlPrompt:
                 "allowed_aggregates",
                 ", ".join(role_config.get("allowed_aggregates", ["COUNT", "SUM", "AVG"])),
             )
-            builder.with_custom(
-                "max_rows_limit", role_config.get("max_rows", 1000)
-            )
+            builder.with_custom("max_rows_limit", role_config.get("max_rows", 1000))
             builder.with_custom(
                 "max_execution_time_seconds", role_config.get("max_execution_time_seconds", 30)
             )

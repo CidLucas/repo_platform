@@ -230,7 +230,7 @@ def filter_prompt_tools(prompt_base: str, available_tool_names: set[str]) -> str
     # Active SQL tool
     sql_tools = {"executar_sql_agent"}
 
-    lines = prompt_base.split('\n')
+    lines = prompt_base.split("\n")
     filtered_lines = []
     skip_until_next_section = False
 
@@ -246,13 +246,13 @@ def filter_prompt_tools(prompt_base: str, available_tool_names: set[str]) -> str
             continue
 
         # Reset skip flag on new section headers
-        if line.strip().startswith('###') or line.strip().startswith('##'):
+        if line.strip().startswith("###") or line.strip().startswith("##"):
             skip_until_next_section = False
 
         if not skip_until_next_section:
             filtered_lines.append(line)
 
-    result = '\n'.join(filtered_lines)
+    result = "\n".join(filtered_lines)
 
     if result != prompt_base:
         logger.debug("Filtered unavailable/deprecated tools from prompt_base")

@@ -198,10 +198,12 @@ class AgentBuilder:
         Returns:
             Self for chaining
         """
-        self._edges.append(EdgeDefinition(
-            from_node=from_node,
-            to_node=to_node,
-        ))
+        self._edges.append(
+            EdgeDefinition(
+                from_node=from_node,
+                to_node=to_node,
+            )
+        )
         return self
 
     def add_conditional_edge(
@@ -221,13 +223,15 @@ class AgentBuilder:
         Returns:
             Self for chaining
         """
-        self._edges.append(EdgeDefinition(
-            from_node=from_node,
-            to_node="",  # Not used for conditional
-            is_conditional=True,
-            router=router,
-            routes=routes,
-        ))
+        self._edges.append(
+            EdgeDefinition(
+                from_node=from_node,
+                to_node="",  # Not used for conditional
+                is_conditional=True,
+                router=router,
+                routes=routes,
+            )
+        )
         return self
 
     def use_default_graph(self) -> "AgentBuilder":
@@ -428,6 +432,7 @@ class AgentBuilder:
                     result_text = last_tool_result.get("result", "")
                     if isinstance(result_text, dict):
                         import json
+
                         result_text = json.dumps(result_text, ensure_ascii=False, indent=2)
                     fallback_response = f"Resultado: {result_text}"
                 else:
@@ -465,7 +470,9 @@ class AgentBuilder:
             except Exception as e:
                 logger.exception("LLM invocation failed")
                 return {
-                    "messages": [AIMessage(content="Desculpe, ocorreu um erro ao processar sua solicitação.")],
+                    "messages": [
+                        AIMessage(content="Desculpe, ocorreu um erro ao processar sua solicitação.")
+                    ],
                     "error": str(e),
                     "last_tool_result": None,
                     "ended": True,

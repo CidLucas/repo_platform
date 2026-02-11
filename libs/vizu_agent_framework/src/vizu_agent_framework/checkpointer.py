@@ -53,15 +53,17 @@ class RedisCheckpointer(BaseCheckpointSaver):
 
     def _serialize(self, checkpoint: Checkpoint) -> str:
         """Serialize checkpoint to JSON."""
-        return json.dumps({
-            "v": checkpoint["v"],
-            "ts": checkpoint["ts"],
-            "id": checkpoint["id"],
-            "channel_values": self._serialize_channel_values(checkpoint["channel_values"]),
-            "channel_versions": checkpoint["channel_versions"],
-            "versions_seen": checkpoint["versions_seen"],
-            "pending_sends": checkpoint.get("pending_sends", []),
-        })
+        return json.dumps(
+            {
+                "v": checkpoint["v"],
+                "ts": checkpoint["ts"],
+                "id": checkpoint["id"],
+                "channel_values": self._serialize_channel_values(checkpoint["channel_values"]),
+                "channel_versions": checkpoint["channel_versions"],
+                "versions_seen": checkpoint["versions_seen"],
+                "pending_sends": checkpoint.get("pending_sends", []),
+            }
+        )
 
     def _serialize_channel_values(self, values: dict[str, Any]) -> dict[str, Any]:
         """Serialize channel values (handle messages and other non-JSON types)."""
@@ -74,7 +76,7 @@ class RedisCheckpointer(BaseCheckpointSaver):
                 serialized[key] = [
                     {
                         "type": type(msg).__name__,
-                        "content": msg.content if hasattr(msg, 'content') else str(msg),
+                        "content": msg.content if hasattr(msg, "content") else str(msg),
                         "additional_kwargs": getattr(msg, "additional_kwargs", {}),
                     }
                     for msg in value
@@ -83,19 +85,15 @@ class RedisCheckpointer(BaseCheckpointSaver):
                 # Single message
                 serialized[key] = {
                     "type": type(value).__name__,
-                    "content": value.content if hasattr(value, 'content') else str(value),
+                    "content": value.content if hasattr(value, "content") else str(value),
                     "additional_kwargs": getattr(value, "additional_kwargs", {}),
                 }
             elif isinstance(value, list):
                 # Handle lists that might contain messages
-                serialized[key] = [
-                    self._serialize_value(item) for item in value
-                ]
+                serialized[key] = [self._serialize_value(item) for item in value]
             elif isinstance(value, dict):
                 # Recursively serialize dicts
-                serialized[key] = {
-                    k: self._serialize_value(v) for k, v in value.items()
-                }
+                serialized[key] = {k: self._serialize_value(v) for k, v in value.items()}
             else:
                 serialized[key] = self._serialize_value(value)
         return serialized
@@ -110,7 +108,7 @@ class RedisCheckpointer(BaseCheckpointSaver):
             return {
                 "__type__": "message",
                 "type": type(value).__name__,
-                "content": value.content if hasattr(value, 'content') else str(value),
+                "content": value.content if hasattr(value, "content") else str(value),
                 "additional_kwargs": getattr(value, "additional_kwargs", {}),
             }
         elif isinstance(value, UUID):
@@ -119,7 +117,7 @@ class RedisCheckpointer(BaseCheckpointSaver):
             return {k: self._serialize_value(v) for k, v in value.items()}
         elif isinstance(value, list):
             return [self._serialize_value(v) for v in value]
-        elif hasattr(value, '__dict__'):
+        elif hasattr(value, "__dict__"):
             # Try to serialize objects with __dict__
             try:
                 return {"__type__": "object", "class": type(value).__name__, "data": str(value)}
@@ -157,10 +155,12 @@ class RedisCheckpointer(BaseCheckpointSaver):
                 messages = []
                 for msg_data in value:
                     msg_type = MESSAGE_TYPES.get(msg_data["type"], HumanMessage)
-                    messages.append(msg_type(
-                        content=msg_data["content"],
-                        additional_kwargs=msg_data.get("additional_kwargs", {}),
-                    ))
+                    messages.append(
+                        msg_type(
+                            content=msg_data["content"],
+                            additional_kwargs=msg_data.get("additional_kwargs", {}),
+                        )
+                    )
                 deserialized[key] = messages
             else:
                 deserialized[key] = value

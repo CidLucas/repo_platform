@@ -74,11 +74,7 @@ class TestTextToSqlPrompt:
             client_id="550e8400-e29b-41d4-a716-446655440000",
             role="analyst",
             schema_snapshot={
-                "tables": {
-                    "customers_view": {
-                        "columns": ["id", "name", "client_id"]
-                    }
-                }
+                "tables": {"customers_view": {"columns": ["id", "name", "client_id"]}}
             },
             role_config={
                 "allowed_views": ["customers_view"],
@@ -111,13 +107,7 @@ class TestTextToSqlPrompt:
         result = await prompt_obj.build_from_context(
             question="List all active customers",
             context=mock_context,
-            schema_snapshot={
-                "tables": {
-                    "customers_view": {
-                        "columns": ["id", "name", "status"]
-                    }
-                }
-            },
+            schema_snapshot={"tables": {"customers_view": {"columns": ["id", "name", "status"]}}},
         )
 
         # Verify loader was called
@@ -141,7 +131,7 @@ class TestTextToSqlPrompt:
         exemplars = [
             {
                 "question": "Count of records",
-                "sql": "SELECT COUNT(*) FROM table WHERE client_id = :client_id"
+                "sql": "SELECT COUNT(*) FROM table WHERE client_id = :client_id",
             }
         ]
 
@@ -319,10 +309,7 @@ class TestTextToSqlPromptEdgeCases:
         # Create large schema
         large_schema = {
             "tables": {
-                f"table_{i}": {
-                    "columns": [f"col_{j}" for j in range(10)]
-                }
-                for i in range(50)
+                f"table_{i}": {"columns": [f"col_{j}" for j in range(10)]} for i in range(50)
             }
         }
 

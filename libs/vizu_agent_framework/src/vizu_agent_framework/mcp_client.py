@@ -32,7 +32,9 @@ class MCPConnectionManager:
     Supports auth headers for authenticated tool calls.
     """
 
-    def __init__(self, url: str = "http://tool_pool_api:9000/mcp/", headers: dict[str, str] | None = None):
+    def __init__(
+        self, url: str = "http://tool_pool_api:9000/mcp/", headers: dict[str, str] | None = None
+    ):
         """
         Initialize MCP connection manager.
 
@@ -144,9 +146,13 @@ class MCPConnectionManager:
 
                 # Conecta via Streamable HTTP (transporte moderno)
                 # Pass headers for authentication if configured
-                logger.info(f"[MCP] Connecting with headers: {list(self.headers.keys()) if self.headers else 'None'}")
+                logger.info(
+                    f"[MCP] Connecting with headers: {list(self.headers.keys()) if self.headers else 'None'}"
+                )
                 read, write, _ = await self._exit_stack.enter_async_context(
-                    streamablehttp_client(url=self.url, headers=self.headers if self.headers else None)
+                    streamablehttp_client(
+                        url=self.url, headers=self.headers if self.headers else None
+                    )
                 )
 
                 self._session = await self._exit_stack.enter_async_context(
@@ -159,9 +165,7 @@ class MCPConnectionManager:
                 self.tools = await load_mcp_tools(self._session)
                 self._connected = True
 
-                logger.debug(
-                    f"MCP connected, tools: {[t.name for t in self.tools]}"
-                )
+                logger.debug(f"MCP connected, tools: {[t.name for t in self.tools]}")
                 return
 
             except Exception as e:

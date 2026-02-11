@@ -112,8 +112,7 @@ async def _get_enriched_schema_context(
 
             # Sort: primary tables first, then by name
             sorted_configs = sorted(
-                configs,
-                key=lambda c: (not c.get("is_primary", False), c.get("table_name", ""))
+                configs, key=lambda c: (not c.get("is_primary", False), c.get("table_name", ""))
             )
 
             for config in sorted_configs:
@@ -164,7 +163,9 @@ async def _get_enriched_schema_context(
             return "\n".join(schema_parts)
 
     except Exception as e:
-        logger.warning(f"Error loading SqlTableConfig from Supabase: {e}, falling back to raw schema")
+        logger.warning(
+            f"Error loading SqlTableConfig from Supabase: {e}, falling back to raw schema"
+        )
 
     # Fallback: raw SQLDatabase schema - PRODUCTION SCHEMA ONLY
     # Focus on analytics_v2 star schema, exclude legacy analytics_silver and analytics_gold
@@ -186,8 +187,9 @@ async def _get_enriched_schema_context(
 
         # SECURITY: Remove any mention of client_id from schema - LLM must not know about it
         import re
-        schema_info = re.sub(r'[,\s]*client_id[^\n,]*[,]?', '', schema_info, flags=re.IGNORECASE)
-        schema_info = re.sub(r'\n\s*\n', '\n', schema_info)  # Clean up empty lines
+
+        schema_info = re.sub(r"[,\s]*client_id[^\n,]*[,]?", "", schema_info, flags=re.IGNORECASE)
+        schema_info = re.sub(r"\n\s*\n", "\n", schema_info)  # Clean up empty lines
 
         # Add guidance about the star schema
         schema_info = f"""
@@ -267,7 +269,9 @@ def _build_context_guidance(vizu_context: VizuClientContext) -> str:
         industry = company.get("industry", "")
         business_type = company.get("business_archetype", "")
         if industry or business_type:
-            guidance_parts.append(f"BUSINESS CONTEXT: {industry or ''} {business_type or ''}".strip())
+            guidance_parts.append(
+                f"BUSINESS CONTEXT: {industry or ''} {business_type or ''}".strip()
+            )
 
     # Extract data schema guidance
     data_schema = vizu_context.data_schema
@@ -321,16 +325,25 @@ def _validate_sql_for_production_schema(sql: str) -> tuple[bool, str]:
     legacy_patterns = ["analytics_silver", "analytics_gold"]
     for pattern in legacy_patterns:
         if pattern in sql_lower:
-            return False, f"Query references legacy table '{pattern}'. Use analytics_v2 schema instead."
+            return (
+                False,
+                f"Query references legacy table '{pattern}'. Use analytics_v2 schema instead.",
+            )
 
     # Check 2: Must reference analytics_v2
     if "analytics_v2" not in sql_lower:
-        return False, "Query does not reference analytics_v2 schema. All queries must use production schema."
+        return (
+            False,
+            "Query does not reference analytics_v2 schema. All queries must use production schema.",
+        )
 
     # Check 3: Reject if LLM tried to add client_id filter (it shouldn't)
     # This ensures the LLM isn't trying to manipulate security filters
     if "client_id" in sql_lower:
-        return False, "Query contains client_id reference. Security filters are applied automatically - do not include them."
+        return (
+            False,
+            "Query contains client_id reference. Security filters are applied automatically - do not include them.",
+        )
 
     return True, ""
 
@@ -366,7 +379,7 @@ def _inject_client_id_filter(sql: str, client_id: str) -> str:
     sql_clean = sql.strip().rstrip(";")
 
     # Tables in analytics_v2 schema that need client_id filtering
-    FILTERED_TABLES = ['fact_sales', 'dim_customer', 'dim_supplier', 'dim_product']
+    FILTERED_TABLES = ["fact_sales", "dim_customer", "dim_supplier", "dim_product"]
 
     # Pattern: analytics_v2.table_name followed by optional alias
     # Captures: (table_name) and optionally (alias)
@@ -374,7 +387,7 @@ def _inject_client_id_filter(sql: str, client_id: str) -> str:
     for table in FILTERED_TABLES:
         # Pattern matches: analytics_v2.table_name [AS] alias
         # We need to handle cases with and without alias
-        pattern = rf'analytics_v2\.{table}(\s+(?:AS\s+)?(\w+))?'
+        pattern = rf"analytics_v2\.{table}(\s+(?:AS\s+)?(\w+))?"
 
         def replace_with_subquery(match):
             full_match = match.group(0)
@@ -435,6 +448,7 @@ async def _executar_sql_agent_logic(
     try:
         if is_langfuse_enabled():
             from langfuse import Langfuse
+
             langfuse = Langfuse()
             langfuse_trace = langfuse.trace(
                 name="executar_sql_agent",
@@ -572,9 +586,11 @@ async def _executar_sql_agent_logic(
         except Exception:
             pass
 
-        response = await llm.ainvoke([
-            SystemMessage(content=sql_generation_prompt),
-        ])
+        response = await llm.ainvoke(
+            [
+                SystemMessage(content=sql_generation_prompt),
+            ]
+        )
 
         generated_sql = response.content.strip()
 
@@ -599,12 +615,18 @@ async def _executar_sql_agent_logic(
         # Check if query is a valid SELECT or CTE (WITH...SELECT)
         if not (sql_upper.startswith("SELECT") or sql_upper.startswith("WITH")):
             logger.error(f"[SQL] Invalid SQL (must start with SELECT or WITH): {generated_sql}")
-            return {"output": "Error: Only SELECT queries (including CTEs with WITH) are allowed.", "sql": generated_sql}
+            return {
+                "output": "Error: Only SELECT queries (including CTEs with WITH) are allowed.",
+                "sql": generated_sql,
+            }
 
         # Must end with SELECT for CTEs
         if sql_upper.startswith("WITH") and "SELECT" not in sql_upper:
             logger.error(f"[SQL] Invalid CTE (no SELECT clause): {generated_sql}")
-            return {"output": "Error: WITH clauses must end with a SELECT statement.", "sql": generated_sql}
+            return {
+                "output": "Error: WITH clauses must end with a SELECT statement.",
+                "sql": generated_sql,
+            }
 
         forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "TRUNCATE"]
         for word in forbidden:
@@ -618,11 +640,7 @@ async def _executar_sql_agent_logic(
         if not is_valid:
             logger.warning(f"[SQL] Production schema validation failed: {error_msg}")
             logger.warning(f"[SQL] Generated SQL: {generated_sql}")
-            return {
-                "output": f"Error: {error_msg}",
-                "sql": generated_sql,
-                "success": False
-            }
+            return {"output": f"Error: {error_msg}", "sql": generated_sql, "success": False}
 
         # SECURITY: HARD-INJECT client_id filter - LLM never sees this value
         client_id_str = str(real_client_id)
@@ -663,7 +681,13 @@ async def _executar_sql_agent_logic(
                 if not results:
                     # End spans on empty result
                     if exec_span:
-                        exec_span.end(output={"row_count": 0, "duration_ms": (time.perf_counter() - exec_start) * 1000}, level="DEFAULT")
+                        exec_span.end(
+                            output={
+                                "row_count": 0,
+                                "duration_ms": (time.perf_counter() - exec_start) * 1000,
+                            },
+                            level="DEFAULT",
+                        )
                     if langfuse_trace:
                         langfuse_trace.update(output={"success": True, "row_count": 0})
                     return {
@@ -689,7 +713,9 @@ async def _executar_sql_agent_logic(
                 # Keep text result for backward compatibility / text-based clients
                 result = str(rows_as_dicts[:20])  # Limit text output
 
-                logger.info(f"[SQL] Query result: {len(rows_as_dicts)} rows, structured_data generated")
+                logger.info(
+                    f"[SQL] Query result: {len(rows_as_dicts)} rows, structured_data generated"
+                )
 
                 # Store full data in Redis cache to avoid context bloat
                 # The cache ref_id allows retrieval for exports without
@@ -716,7 +742,9 @@ async def _executar_sql_agent_logic(
                             "query_preview": title_query,
                         },
                     )
-                    logger.info(f"[SQL] Full data cached: ref_id={cache_ref_id}, rows={len(rows_as_dicts)}")
+                    logger.info(
+                        f"[SQL] Full data cached: ref_id={cache_ref_id}, rows={len(rows_as_dicts)}"
+                    )
                 except Exception as cache_err:
                     logger.warning(f"[SQL] Cache store failed (non-fatal): {cache_err}")
                     cache_ref_id = None
@@ -732,7 +760,11 @@ async def _executar_sql_agent_logic(
                 # Update trace with final output
                 if langfuse_trace:
                     langfuse_trace.update(
-                        output={"success": True, "row_count": len(rows_as_dicts), "cache_ref_id": cache_ref_id},
+                        output={
+                            "success": True,
+                            "row_count": len(rows_as_dicts),
+                            "cache_ref_id": cache_ref_id,
+                        },
                     )
 
                 # Return dict - MCP handles JSON serialization

@@ -4,7 +4,6 @@ Tests for Text-to-SQL LLM Configuration
 Phase 1.3: Tests for LLM parameters and call wrapper
 """
 
-
 import pytest
 
 from vizu_llm_service.text_to_sql_config import (
@@ -127,6 +126,7 @@ def test_config_to_dict():
 def test_config_logging_warnings(caplog):
     """Test that config logs warnings for unusual values."""
     import logging
+
     caplog.set_level(logging.WARNING)
 
     # Very low timeout
@@ -390,6 +390,7 @@ def test_singleton_instance():
     """Test singleton instance caching."""
     # Reset singleton
     import vizu_llm_service.text_to_sql_config as tsc
+
     tsc._llm_call = None
 
     call1 = get_llm_call()
@@ -401,6 +402,7 @@ def test_singleton_instance():
 def test_singleton_with_config_override():
     """Test singleton with config override."""
     import vizu_llm_service.text_to_sql_config as tsc
+
     tsc._llm_call = None
 
     config1 = TextToSqlLLMConfig.default_gpt4_turbo()
@@ -459,9 +461,7 @@ def test_config_with_empty_stop_tokens():
 
 def test_config_with_custom_stop_tokens():
     """Test config with custom stop tokens."""
-    config = TextToSqlLLMConfig(
-        stop_tokens=["END", "STOP", "---"]
-    )
+    config = TextToSqlLLMConfig(stop_tokens=["END", "STOP", "---"])
 
     assert config.stop_tokens == ["END", "STOP", "---"]
 
@@ -499,7 +499,7 @@ def test_config_retry_backoff_calculation():
     delays = []
     for i in range(5):
         delay = min(
-            config.initial_retry_delay_ms * (config.retry_multiplier ** i),
+            config.initial_retry_delay_ms * (config.retry_multiplier**i),
             config.max_retry_delay_ms,
         )
         delays.append(delay)
@@ -517,6 +517,7 @@ def test_config_retry_backoff_calculation():
 async def test_invoke_logs_attempt(llm_call, prompt, caplog):
     """Test that invocation logs attempt info."""
     import logging
+
     caplog.set_level(logging.INFO)
 
     response = await llm_call.invoke(prompt)
@@ -529,6 +530,7 @@ async def test_invoke_logs_attempt(llm_call, prompt, caplog):
 async def test_invoke_logs_success(llm_call, prompt, caplog):
     """Test that successful invocation is logged."""
     import logging
+
     caplog.set_level(logging.INFO)
 
     response = await llm_call.invoke(prompt)

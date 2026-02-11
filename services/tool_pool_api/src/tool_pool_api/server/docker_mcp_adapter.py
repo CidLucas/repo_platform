@@ -100,11 +100,7 @@ class DockerMCPAdapter:
 
         return self.registered_integrations
 
-    async def _register_docker_mcp_tool(
-        self,
-        mcp_server: Any,
-        tool_metadata: Any
-    ) -> None:
+    async def _register_docker_mcp_tool(self, mcp_server: Any, tool_metadata: Any) -> None:
         """
         Register a single Docker MCP tool with FastMCP.
 
@@ -116,10 +112,7 @@ class DockerMCPAdapter:
         integration = tool_metadata.docker_mcp_integration
         tool_name = tool_metadata.name
 
-        async def docker_mcp_wrapper(
-            cliente_id: str = "",
-            **kwargs
-        ) -> dict[str, Any]:
+        async def docker_mcp_wrapper(cliente_id: str = "", **kwargs) -> dict[str, Any]:
             """
             Wrapper that calls the Docker MCP container.
 
@@ -146,7 +139,7 @@ class DockerMCPAdapter:
         # Register with FastMCP
         # Note: The actual registration depends on FastMCP API
         # This is a placeholder that should work with mcp.tool() decorator
-        if hasattr(mcp_server, 'tool'):
+        if hasattr(mcp_server, "tool"):
             decorated = mcp_server.tool(
                 name=tool_name,
                 description=tool_metadata.description or f"Docker MCP: {tool_name}",
@@ -166,10 +159,7 @@ class DockerMCPAdapter:
 
     def get_available_tools(self) -> list[str]:
         """Get list of successfully registered Docker MCP tools."""
-        return [
-            name for name, success in self.registered_integrations.items()
-            if success
-        ]
+        return [name for name, success in self.registered_integrations.items() if success]
 
 
 # Singleton instance for use across the application

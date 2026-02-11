@@ -73,6 +73,7 @@ class AtendenteService:
 
         # Singleton graph — avoids creating a new RedisSaver per request
         from .graph import get_agent_graph
+
         self.graph = get_agent_graph()
 
     async def _persist_message(self, conversa_id: UUID, role: str, content: str) -> None:
@@ -146,9 +147,7 @@ class AtendenteService:
 
         # Log if we're resuming from elicitation
         if elicitation_response:
-            logger.info(
-                f"Resuming from elicitation: {elicitation_response.get('elicitation_id')}"
-            )
+            logger.info(f"Resuming from elicitation: {elicitation_response.get('elicitation_id')}")
 
         # Determina qual modelo será usado (para retornar na resposta)
         from vizu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
@@ -167,9 +166,7 @@ class AtendenteService:
             # cliente_final_id pode ser desconhecido no momento; passamos None
             # client_id vem do contexto autenticado
             conversa_id = await self.db.create_or_get_conversa(
-                session_id,
-                cliente_final_id=None,
-                client_id=str(client_context.id)
+                session_id, cliente_final_id=None, client_id=str(client_context.id)
             )
             # Fire-and-forget: persist user message in background
             _create_background_task(self._persist_message(conversa_id, "user", message_text))
@@ -181,7 +178,7 @@ class AtendenteService:
         config = get_langfuse_config(
             session_id=session_id,
             cliente_id=str(client_context.id),
-            tags=["atendente", safe_ctx.nome_empresa],
+            tags=["atendente", client_context.nome_empresa],
         )
 
         try:
@@ -190,6 +187,7 @@ class AtendenteService:
 
             # OPT-3: Set context_service for supervisor_node to enable Redis-cached prompts
             from atendente_core.core.nodes import set_node_context_service
+
             set_node_context_service(context_service)
 
             # .ainvoke roda o grafo inteiro até chegar no END
@@ -199,7 +197,11 @@ class AtendenteService:
             # persisting entire conversation in the state (reduces span size
             # and memory bloat). Uses same window size as the node.
             history_window = getattr(self.settings, "SESSION_HISTORY_WINDOW", 6)
-            if final_state and "messages" in final_state and isinstance(final_state["messages"], list):
+            if (
+                final_state
+                and "messages" in final_state
+                and isinstance(final_state["messages"], list)
+            ):
                 final_state["messages"] = final_state["messages"][-history_window:]
             response_time = time.time() - start_time
 
@@ -209,16 +211,16 @@ class AtendenteService:
             # PHASE 3: Check for pending elicitation
             pending_elicitation = final_state.get("pending_elicitation")
             if pending_elicitation:
-                logger.info(
-                    f"Elicitation pending: {pending_elicitation.get('elicitation_id')}"
-                )
+                logger.info(f"Elicitation pending: {pending_elicitation.get('elicitation_id')}")
 
             if isinstance(last_message, AIMessage):
                 agent_response = last_message.content
 
                 # OPT-4: Fire-and-forget persist AI response in background
                 if conversa_id:
-                    _create_background_task(self._persist_message(conversa_id, "ai", agent_response))
+                    _create_background_task(
+                        self._persist_message(conversa_id, "ai", agent_response)
+                    )
 
                 # PHASE 6: HITL Evaluation
                 # Avalia se esta interação deve ir para revisão humana
@@ -227,19 +229,21 @@ class AtendenteService:
                 confidence = final_state.get("confidence_score")  # Se disponível
 
                 # OPT-4: Fire-and-forget HITL evaluation (shouldn't block response)
-                _create_background_task(self.hitl.evaluate_and_submit(
-                    user_message=message_text,
-                    agent_response=agent_response,
-                    client_id=client_context.id,
-                    session_id=session_id,
-                    trace_id=config.get("metadata", {}).get("trace_id"),
-                    tools_called=tools_called,
-                    tool_errors=tool_errors,
-                    confidence_score=confidence,
-                    elicitation_pending=pending_elicitation is not None,
-                    response_time_seconds=response_time,
-                    model_used=model_used,
-                ))
+                _create_background_task(
+                    self.hitl.evaluate_and_submit(
+                        user_message=message_text,
+                        agent_response=agent_response,
+                        client_id=client_context.id,
+                        session_id=session_id,
+                        trace_id=config.get("metadata", {}).get("trace_id"),
+                        tools_called=tools_called,
+                        tool_errors=tool_errors,
+                        confidence_score=confidence,
+                        elicitation_pending=pending_elicitation is not None,
+                        response_time_seconds=response_time,
+                        model_used=model_used,
+                    )
+                )
 
                 # Extract structured_data from state (populated by SQL tools)
                 structured_data = final_state.get("structured_data")
@@ -258,8 +262,6 @@ class AtendenteService:
             )
 
         except Exception as e:
-            logger.exception(
-                f"Erro crítico ao processar mensagem na sessão {session_id}"
-            )
+            logger.exception(f"Erro crítico ao processar mensagem na sessão {session_id}")
             # Re-lançamos para o Router tratar e retornar 500
             raise e

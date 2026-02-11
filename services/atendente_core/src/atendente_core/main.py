@@ -23,12 +23,14 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
     - Idle transactions holding locks
     - Frontend disconnections leaving transactions open
     """
+
     async def dispatch(self, request: Request, call_next):
         # Set timeouts at session level for this request
         try:
             from sqlalchemy import text
 
             from vizu_db_connector.database import SessionLocal
+
             session = SessionLocal()
             try:
                 session.execute(text("SET statement_timeout = '30s'"))
@@ -54,6 +56,7 @@ async def check_database() -> bool:
     """Check database connectivity via Supabase REST API."""
     try:
         from vizu_supabase_client import get_supabase_client
+
         client = get_supabase_client()
         # Simple health check: query clientes_vizu with limit 1
         response = client.table("clientes_vizu").select("client_id").limit(1).execute()
@@ -79,6 +82,7 @@ async def lifespan(app: FastAPI):
     # Flush observability data
     try:
         from vizu_observability_bootstrap import shutdown_observability
+
         await shutdown_observability(timeout=5.0)
     except Exception as e:
         logger.warning(f"Observability shutdown error: {e}")
@@ -147,7 +151,7 @@ try:
         checks={
             "database": check_database,
             "mcp_tools": check_mcp_connection,
-        }
+        },
     )
     app.include_router(health_router)
     logger.debug("Health router configured with database and MCP checks")

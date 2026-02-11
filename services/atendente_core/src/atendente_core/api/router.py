@@ -60,9 +60,7 @@ def get_context_service() -> ContextService:
         pool = redis.ConnectionPool.from_url(settings.REDIS_URL, decode_responses=True)
         redis_client = redis.Redis(connection_pool=pool)
         redis_service = _RedisService(redis_client=redis_client)
-        _context_service = ContextService(
-            cache_service=redis_service, use_supabase=True
-        )
+        _context_service = ContextService(cache_service=redis_service, use_supabase=True)
         logger.info("ContextService singleton created (atendente_core)")
     return _context_service
 
@@ -266,10 +264,13 @@ async def twilio_webhook(
         logger.info(f"Recebido Webhook Twilio de {From} para {To}: {Body}")
 
         # Normaliza o número de telefone (remove espaços, caracteres especiais)
-        phone_number = From.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        phone_number = (
+            From.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        )
 
         # Busca o cliente_vizu através do número de telefone
         from vizu_models import ClienteFinal
+
         statement = select(ClienteFinal).where(ClienteFinal.id_externo == phone_number)
         cliente_final = db.execute(statement).scalars().first()
 
@@ -402,9 +403,7 @@ async def get_client_context(
         )
     except Exception as e:
         logger.error(f"Erro ao obter contexto do cliente: {e}")
-        raise HTTPException(
-            status_code=500, detail="Erro ao carregar contexto do cliente"
-        )
+        raise HTTPException(status_code=500, detail="Erro ao carregar contexto do cliente")
 
     if not client_context:
         raise HTTPException(status_code=404, detail="Cliente não encontrado")

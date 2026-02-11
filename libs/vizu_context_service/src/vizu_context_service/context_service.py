@@ -116,9 +116,7 @@ class ContextService:
             # Legacy SQLAlchemy mode
             try:
                 self.db.execute(
-                    text(
-                        "SELECT set_config('app.current_cliente_id', :cliente_id, false)"
-                    ),
+                    text("SELECT set_config('app.current_cliente_id', :cliente_id, false)"),
                     {"cliente_id": str(cliente_id)},
                 )
                 logger.debug(f"RLS context set via SQLAlchemy for: {cliente_id}")
@@ -130,6 +128,7 @@ class ContextService:
 
         Context 2.0: Now includes all modular context sections.
         """
+
         def _normalize_enabled_tools(raw):
             if not raw:
                 return []
@@ -167,7 +166,6 @@ class ContextService:
             cpf_cnpj=data.get("cpf_cnpj"),
             tipo_cliente=data["tipo_cliente"],
             tier=data["tier"],
-
             # Context 2.0 sections
             company_profile=data.get("company_profile"),
             brand_voice=data.get("brand_voice"),
@@ -176,7 +174,6 @@ class ContextService:
             policies=data.get("policies"),
             data_schema=data.get("data_schema"),
             available_tools=data.get("available_tools"),
-
             # Tool configuration
             enabled_tools=enabled_tools,
             credenciais=[],
@@ -206,7 +203,6 @@ class ContextService:
             cpf_cnpj=getattr(cliente_db, "cpf_cnpj", None),
             tipo_cliente=cliente_db.tipo_cliente,
             tier=cliente_db.tier,
-
             # Context 2.0 sections
             company_profile=getattr(cliente_db, "company_profile", None),
             brand_voice=getattr(cliente_db, "brand_voice", None),
@@ -215,7 +211,6 @@ class ContextService:
             policies=getattr(cliente_db, "policies", None),
             data_schema=getattr(cliente_db, "data_schema", None),
             available_tools=getattr(cliente_db, "available_tools", None),
-
             # Tool configuration
             enabled_tools=deduped,
             credenciais=[],
@@ -268,7 +263,7 @@ class ContextService:
                 existing_data = context.data_schema.copy()
                 existing_data["table_schemas"] = table_schemas
                 context.data_schema = DataSchema.model_validate(existing_data)
-            elif context.data_schema and hasattr(context.data_schema, 'model_copy'):
+            elif context.data_schema and hasattr(context.data_schema, "model_copy"):
                 # Existing data_schema is already a Pydantic model
                 context.data_schema = context.data_schema.model_copy(
                     update={"table_schemas": table_schemas}
@@ -280,7 +275,9 @@ class ContextService:
                     available_tables=[ts.table_name for ts in table_schemas],
                 )
 
-            logger.info(f"Enriched data_schema with {len(table_schemas)} table schemas for {cliente_id}")
+            logger.info(
+                f"Enriched data_schema with {len(table_schemas)} table schemas for {cliente_id}"
+            )
             return context
 
         except Exception as e:
@@ -305,22 +302,17 @@ class ContextService:
             VizuClientContext or None if not found
         """
         if not self._use_supabase:
-            logger.error(
-                "get_client_context_by_external_user_id requires Supabase backend"
-            )
+            logger.error("get_client_context_by_external_user_id requires Supabase backend")
             return None
 
         try:
             # Look up cliente by external_user_id
             cliente_data = await asyncio.to_thread(
-                self._supabase_crud.get_cliente_vizu_by_external_user_id,
-                str(external_user_id)
+                self._supabase_crud.get_cliente_vizu_by_external_user_id, str(external_user_id)
             )
 
             if not cliente_data:
-                logger.warning(
-                    f"Cliente não encontrado para external_user_id={external_user_id}"
-                )
+                logger.warning(f"Cliente não encontrado para external_user_id={external_user_id}")
                 return None
 
             # Extract the internal client ID (column name is client_id, not id)
@@ -335,13 +327,11 @@ class ContextService:
         except Exception as e:
             logger.error(
                 f"Erro ao buscar contexto por external_user_id={external_user_id}: {e}",
-                exc_info=True
+                exc_info=True,
             )
             return None
 
-    async def get_client_context_by_id(
-        self, cliente_id: UUID
-    ) -> VizuClientContext | None:
+    async def get_client_context_by_id(self, cliente_id: UUID) -> VizuClientContext | None:
         """
         Recupera o contexto completo (Cliente + Configurações), usando Cache Redis.
         Também configura o contexto RLS para garantir isolamento de dados.
@@ -361,9 +351,7 @@ class ContextService:
                 try:
                     return VizuClientContext.model_validate(cached_data)
                 except Exception as e:
-                    logger.warning(
-                        f"Cache corrompido para {cliente_id}, invalidando... Erro: {e}"
-                    )
+                    logger.warning(f"Cache corrompido para {cliente_id}, invalidando... Erro: {e}")
                     await self.clear_context_cache(cliente_id)
         except Exception as e:
             logger.warning(f"Falha ao ler cache Redis: {e}")
@@ -376,9 +364,7 @@ class ContextService:
                     self._supabase_crud.get_cliente_vizu_by_id, cliente_id
                 )
                 if not cliente_data:
-                    logger.warning(
-                        f"Cliente {cliente_id} não encontrado no banco (Supabase)."
-                    )
+                    logger.warning(f"Cliente {cliente_id} não encontrado no banco (Supabase).")
                     return None
                 client_context = self._build_context_from_dict(cliente_data)
 
@@ -392,9 +378,7 @@ class ContextService:
                     sqlalchemy_crud.get_cliente_vizu_by_id, self.db, cliente_id
                 )
                 if not cliente_db:
-                    logger.warning(
-                        f"Cliente {cliente_id} não encontrado no banco (SQLAlchemy)."
-                    )
+                    logger.warning(f"Cliente {cliente_id} não encontrado no banco (SQLAlchemy).")
                     return None
                 client_context = self._build_context_from_orm(cliente_db)
 
@@ -409,9 +393,7 @@ class ContextService:
             return client_context
 
         except Exception as e:
-            logger.error(
-                f"Erro crítico ao montar contexto para {cliente_id}: {e}", exc_info=True
-            )
+            logger.error(f"Erro crítico ao montar contexto para {cliente_id}: {e}", exc_info=True)
             return None
 
     async def clear_context_cache(self, cliente_id: UUID) -> None:
@@ -455,8 +437,7 @@ class ContextService:
             try:
                 supabase = get_supabase_client()  # Singleton
                 response = (
-                    supabase
-                    .table("sql_table_config")
+                    supabase.table("sql_table_config")
                     .select("*")
                     .eq("client_id", str(cliente_id))
                     .eq("is_active", True)
@@ -474,10 +455,7 @@ class ContextService:
         if configs:
             try:
                 await asyncio.to_thread(
-                    self.cache.set_json,
-                    cache_key,
-                    configs,
-                    self.CACHE_TTL_SECONDS
+                    self.cache.set_json, cache_key, configs, self.CACHE_TTL_SECONDS
                 )
             except Exception as e:
                 logger.warning(f"Failed to cache SQL configs: {e}")
@@ -536,7 +514,7 @@ class ContextService:
                     self.cache.set_json,
                     cache_key,
                     {"content": loaded.content, "version": loaded.version, "source": loaded.source},
-                    self.CACHE_TTL_SECONDS
+                    self.CACHE_TTL_SECONDS,
                 )
             except Exception as e:
                 logger.warning(f"Failed to cache prompt: {e}")
@@ -666,9 +644,7 @@ class ContextService:
         """
         enc_access = await asyncio.to_thread(self._encrypt, access_token)
         enc_refresh = (
-            await asyncio.to_thread(self._encrypt, refresh_token)
-            if refresh_token
-            else None
+            await asyncio.to_thread(self._encrypt, refresh_token) if refresh_token else None
         )
 
         if self._use_supabase:
@@ -706,9 +682,7 @@ class ContextService:
     class _IntegrationTokenWrapper:
         """Simple wrapper around DB row to expose helper methods used by tools."""
 
-        def __init__(
-            self, row, decrypt_fn, context_service=None, cliente_id=None, provider=None
-        ):
+        def __init__(self, row, decrypt_fn, context_service=None, cliente_id=None, provider=None):
             # row may be a SQLAlchemy Row or dict-like
             self._row = row
             self._decrypt = decrypt_fn
@@ -813,9 +787,7 @@ class ContextService:
             # Get the OAuth config to get client_id/secret
             cfg_row = await self.get_integration_config(client_id, "google")
             if not cfg_row:
-                logger.error(
-                    f"[Token Refresh] No Google config found for cliente {client_id}"
-                )
+                logger.error(f"[Token Refresh] No Google config found for cliente {client_id}")
                 return None
 
             client_id = self._decrypt(
@@ -829,15 +801,9 @@ class ContextService:
                 else cfg_row.client_secret_encrypted
             )
             redirect_uri = (
-                cfg_row.get("redirect_uri")
-                if isinstance(cfg_row, dict)
-                else cfg_row.redirect_uri
+                cfg_row.get("redirect_uri") if isinstance(cfg_row, dict) else cfg_row.redirect_uri
             )
-            scopes = (
-                cfg_row.get("scopes")
-                if isinstance(cfg_row, dict)
-                else cfg_row.scopes
-            )
+            scopes = cfg_row.get("scopes") if isinstance(cfg_row, dict) else cfg_row.scopes
 
             # Use OAuthManager to refresh
             from datetime import timedelta
@@ -856,17 +822,14 @@ class ContextService:
             new_tokens = await manager.refresh(oauth_config, refresh_token)
 
             # Calculate new expiry
-            expires_at = datetime.now(UTC) + timedelta(
-                seconds=new_tokens.expires_in or 3600
-            )
+            expires_at = datetime.now(UTC) + timedelta(seconds=new_tokens.expires_in or 3600)
 
             # Save the new tokens
             await self.save_integration_tokens(
                 client_id=client_id,
                 provider="google",
                 access_token=new_tokens.access_token,
-                refresh_token=new_tokens.refresh_token
-                or refresh_token,  # Keep old if not returned
+                refresh_token=new_tokens.refresh_token or refresh_token,  # Keep old if not returned
                 token_type=new_tokens.token_type,
                 expires_at=expires_at,
                 scopes=new_tokens.scope.split() if new_tokens.scope else scopes,
@@ -886,9 +849,7 @@ class ContextService:
             )
 
         except Exception as e:
-            logger.error(
-                f"[Token Refresh] Failed to refresh Google token: {e}", exc_info=True
-            )
+            logger.error(f"[Token Refresh] Failed to refresh Google token: {e}", exc_info=True)
             return None
 
     async def get_integration_tokens(
@@ -937,11 +898,7 @@ class ContextService:
         )
 
         # Auto-refresh if token is expired or expiring soon
-        if (
-            auto_refresh
-            and provider == "google"
-            and wrapper.is_expiring_soon(margin_seconds=300)
-        ):
+        if auto_refresh and provider == "google" and wrapper.is_expiring_soon(margin_seconds=300):
             tokens = wrapper.get_decrypted_tokens()
             refresh_token = tokens.get("refresh_token")
             current_account_email = tokens.get("account_email")
@@ -962,9 +919,7 @@ class ContextService:
                         "[Token Refresh] Refresh failed, returning possibly expired token"
                     )
             else:
-                logger.warning(
-                    f"[Token Refresh] No refresh token available for {client_id}"
-                )
+                logger.warning(f"[Token Refresh] No refresh token available for {client_id}")
 
         return wrapper
 

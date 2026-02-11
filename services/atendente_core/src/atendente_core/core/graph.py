@@ -153,9 +153,7 @@ def create_agent_graph() -> StateGraph:
     # saver object to `compile`. We call __enter__() directly because the
     # application is long-lived; the underlying library should manage
     # connection lifecycle, but if needed we could hook shutdown cleanup.
-    if hasattr(checkpointer, "__enter__") and not hasattr(
-        checkpointer, "get_next_version"
-    ):
+    if hasattr(checkpointer, "__enter__") and not hasattr(checkpointer, "get_next_version"):
         try:
             checkpointer = checkpointer.__enter__()
         except Exception:

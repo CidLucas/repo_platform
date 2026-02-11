@@ -49,8 +49,14 @@ def infer_column_type(column_name: str, sample_values: list[Any]) -> ColumnType:
 
     # Currency detection by name
     currency_patterns = [
-        "valor", "preco", "price", "revenue", "total_revenue",
-        "avg_order_value", "faturamento", "receita"
+        "valor",
+        "preco",
+        "price",
+        "revenue",
+        "total_revenue",
+        "avg_order_value",
+        "faturamento",
+        "receita",
     ]
     if any(p in name_lower for p in currency_patterns):
         return ColumnType.CURRENCY
@@ -62,8 +68,15 @@ def infer_column_type(column_name: str, sample_values: list[Any]) -> ColumnType:
 
     # Number detection by name
     number_patterns = [
-        "quantidade", "qty", "count", "total_", "num_", "_count",
-        "rank", "position", "order"
+        "quantidade",
+        "qty",
+        "count",
+        "total_",
+        "num_",
+        "_count",
+        "rank",
+        "position",
+        "order",
     ]
     if any(p in name_lower for p in number_patterns):
         return ColumnType.NUMBER
@@ -177,13 +190,15 @@ def format_sql_result(
         sample_values = [row.get(col_name) for row in rows[:10]]
         col_type = infer_column_type(col_name, sample_values)
 
-        column_defs.append(StructuredDataColumn(
-            key=col_name,
-            label=humanize_column_name(col_name),
-            type=col_type,
-            sortable=True,
-            filterable=True,
-        ))
+        column_defs.append(
+            StructuredDataColumn(
+                key=col_name,
+                label=humanize_column_name(col_name),
+                type=col_type,
+                sortable=True,
+                filterable=True,
+            )
+        )
 
     # Serialize rows (handle non-JSON-serializable types)
     serialized_rows = []
@@ -241,8 +256,7 @@ def to_csv(data: StructuredDataResponse, all_rows: list[dict[str, Any]] | None =
 
 
 def to_sheets_format(
-    data: StructuredDataResponse,
-    all_rows: list[dict[str, Any]] | None = None
+    data: StructuredDataResponse, all_rows: list[dict[str, Any]] | None = None
 ) -> list[list[Any]]:
     """
     Convert structured data to Google Sheets format (list of rows).

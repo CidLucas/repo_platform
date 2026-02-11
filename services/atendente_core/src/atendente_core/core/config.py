@@ -22,9 +22,7 @@ class Settings(BaseSettings):
     # Credenciais e chaves de API
     LANGCHAIN_API_KEY: str | None = None  # Opcional, para LangSmith
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 @lru_cache

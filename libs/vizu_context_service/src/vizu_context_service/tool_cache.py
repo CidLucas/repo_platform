@@ -249,12 +249,14 @@ class ToolResultCache:
                 if data:
                     entry = json.loads(data)
                     # Return summary info, not full result
-                    results.append({
-                        "ref_id": entry.get("ref_id"),
-                        "tool_name": entry.get("tool_name"),
-                        "summary": entry.get("summary"),
-                        "cached_at": entry.get("cached_at"),
-                    })
+                    results.append(
+                        {
+                            "ref_id": entry.get("ref_id"),
+                            "tool_name": entry.get("tool_name"),
+                            "summary": entry.get("summary"),
+                            "cached_at": entry.get("cached_at"),
+                        }
+                    )
             return results
         except Exception as e:
             logger.warning(f"Tool cache list error: {e}")
@@ -279,16 +281,24 @@ class ToolResultCache:
                 # Generic dict summary
                 output = result.get("output", result.get("result", str(result)))
                 if isinstance(output, str):
-                    return output[:MAX_SUMMARY_LENGTH] + ("..." if len(output) > MAX_SUMMARY_LENGTH else "")
+                    return output[:MAX_SUMMARY_LENGTH] + (
+                        "..." if len(output) > MAX_SUMMARY_LENGTH else ""
+                    )
                 return str(output)[:MAX_SUMMARY_LENGTH]
 
             # String result
             if isinstance(result, str):
-                return result[:MAX_SUMMARY_LENGTH] + ("..." if len(result) > MAX_SUMMARY_LENGTH else "")
+                return result[:MAX_SUMMARY_LENGTH] + (
+                    "..." if len(result) > MAX_SUMMARY_LENGTH else ""
+                )
 
             # List result
             if isinstance(result, list):
-                return f"List with {len(result)} items. First: {str(result[0])[:100]}..." if result else "Empty list"
+                return (
+                    f"List with {len(result)} items. First: {str(result[0])[:100]}..."
+                    if result
+                    else "Empty list"
+                )
 
             return str(result)[:MAX_SUMMARY_LENGTH]
 

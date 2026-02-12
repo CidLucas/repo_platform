@@ -532,7 +532,7 @@ async def _executar_sql_agent_logic(
                 output={"schema_chars": len(table_info), "guidance_chars": len(context_guidance)},
                 level="DEFAULT",
             )
-        logger.debug(f"[SQL] Schema loaded in {(time.perf_counter() - schema_start)*1000:.1f}ms")
+        logger.debug(f"[SQL] Schema loaded in {(time.perf_counter() - schema_start) * 1000:.1f}ms")
 
         logger.info(f"[SQL] Schema context length: {len(table_info)} chars")
         logger.info(f"[SQL] Context guidance length: {len(context_guidance)} chars")
@@ -573,9 +573,16 @@ async def _executar_sql_agent_logic(
         except Exception:
             pass
 
+        # Use both SystemMessage (with schema/rules) and HumanMessage (explicit query)
+        # This improves instruction-following for open-source models
+        from langchain_core.messages import HumanMessage
+
         response = await llm.ainvoke(
             [
                 SystemMessage(content=sql_generation_prompt),
+                HumanMessage(
+                    content=f"Generate SQL for: {query}\n\nRespond with ONLY the SQL query, no explanations."
+                ),
             ]
         )
 

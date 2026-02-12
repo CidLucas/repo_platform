@@ -33,6 +33,30 @@ logger = logging.getLogger(__name__)
 
 # Cache settings after first successful load (avoids repeated env lookups)
 _langfuse_settings: dict[str, Any] | None = None
+_langfuse_available: bool | None = None  # Cache langfuse availability check
+
+
+def _check_langfuse_availability() -> bool:
+    """Check if langfuse.langchain is available. Logs diagnostic info once."""
+    global _langfuse_available
+    if _langfuse_available is not None:
+        return _langfuse_available
+
+    try:
+        import langfuse
+
+        langfuse_version = getattr(langfuse, "__version__", "unknown")
+        logger.debug(f"langfuse package version: {langfuse_version}")
+
+        from langfuse.langchain import CallbackHandler
+
+        _langfuse_available = True
+        logger.debug("langfuse.langchain.CallbackHandler import successful")
+        return True
+    except ImportError as e:
+        _langfuse_available = False
+        logger.warning(f"langfuse.langchain import check failed: {e}")
+        return False
 
 
 def get_langfuse_settings() -> dict[str, Any]:
@@ -275,6 +299,10 @@ def get_langfuse_callback(
         logger.debug("Langfuse not enabled (missing credentials)")
         return None
 
+    # Check if langfuse.langchain is available (with diagnostic logging)
+    if not _check_langfuse_availability():
+        return None
+
     try:
         from langfuse.langchain import CallbackHandler
 
@@ -286,8 +314,8 @@ def get_langfuse_callback(
         logger.debug(f"Langfuse callback created - host: {settings['host']}")
         return sanitized_handler
 
-    except ImportError:
-        logger.warning("langfuse not installed, tracing disabled")
+    except ImportError as e:
+        logger.warning(f"langfuse.langchain import failed, tracing disabled: {e}")
         return None
     except Exception as e:
         logger.warning(f"Failed to create Langfuse callback: {e}")

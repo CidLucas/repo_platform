@@ -332,6 +332,7 @@ analytics_v2.dim_product (JOIN via product_id)
 3. For city/state analysis, prefer dim_customer (has reliable address data)
 4. Output ONLY SQL - no explanations, no markdown
 5. For "top N per group" use ONE CTE with ROW_NUMBER() and window SUM()
+6. NEVER include client_id, tenant filters, or WHERE client_id = X - security filtering is applied automatically AFTER your query
 
 === AGGREGATION EXAMPLES ===
 

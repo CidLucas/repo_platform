@@ -583,7 +583,15 @@ async def _executar_sql_agent_logic(
                 HumanMessage(
                     content=f"Generate SQL for: {query}\n\nRespond with ONLY the SQL query, no explanations."
                 ),
-            ]
+            ],
+            config={
+                "metadata": {
+                    "langfuse_session_id": str(real_client_id),
+                    "langfuse_user_id": str(real_client_id),
+                    "langfuse_tags": ["sql_generation", "tool_pool"],
+                },
+                "run_name": "sql_generation",
+            },
         )
 
         generated_sql = response.content.strip()
@@ -761,6 +769,11 @@ async def _executar_sql_agent_logic(
                         },
                     )
 
+                # Flush Langfuse traces before returning
+                from vizu_observability_bootstrap.langfuse import flush_langfuse_async
+
+                await flush_langfuse_async()
+
                 # Return dict - MCP handles JSON serialization
                 # Use model_dump(mode='json') to ensure all values are JSON-serializable
                 return {
@@ -777,6 +790,12 @@ async def _executar_sql_agent_logic(
                 exec_span.end(output={"error": str(exec_error)}, level="ERROR")
             if langfuse_trace:
                 langfuse_trace.update(output={"success": False, "error": str(exec_error)})
+
+            # Flush Langfuse traces before returning error
+            from vizu_observability_bootstrap.langfuse import flush_langfuse_async
+
+            await flush_langfuse_async()
+
             return {
                 "output": f"SQL execution error: {str(exec_error)}",
                 "sql": final_sql,
@@ -788,6 +807,12 @@ async def _executar_sql_agent_logic(
         logger.exception(f"[SQL] Erro ao executar para {real_client_id}: {e}")
         if langfuse_trace:
             langfuse_trace.update(output={"success": False, "error": str(e)})
+
+        # Flush Langfuse traces before raising error
+        from vizu_observability_bootstrap.langfuse import flush_langfuse_async
+
+        await flush_langfuse_async()
+
         raise ToolError(f"Erro ao processar a consulta SQL: {e}")
 
 

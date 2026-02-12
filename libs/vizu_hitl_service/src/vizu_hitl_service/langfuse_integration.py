@@ -40,7 +40,7 @@ class LangfuseDatasetManager:
         self._client = None
         self._public_key = public_key or os.getenv("LANGFUSE_PUBLIC_KEY")
         self._secret_key = secret_key or os.getenv("LANGFUSE_SECRET_KEY")
-        self._host = host or os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+        self._host = host or os.getenv("LANGFUSE_HOST", "https://us.cloud.langfuse.com")
         self._enabled = bool(self._public_key and self._secret_key)
 
     @property

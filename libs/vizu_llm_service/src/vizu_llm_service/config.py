@@ -38,7 +38,7 @@ class LLMSettings(BaseSettings):
     # ========================================================================
     # LANGFUSE (OBSERVABILITY)
     # ========================================================================
-    LANGFUSE_HOST: str | None = Field(default="https://cloud.langfuse.com")
+    LANGFUSE_HOST: str | None = Field(default="https://us.cloud.langfuse.com")
     LANGFUSE_PUBLIC_KEY: str | None = Field(default=None)
     LANGFUSE_SECRET_KEY: str | None = Field(default=None)
 

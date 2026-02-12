@@ -19,7 +19,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from functools import lru_cache
 from typing import Any
 
 from langchain_core.callbacks.base import BaseCallbackHandler
@@ -32,21 +31,53 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
-@lru_cache
+# Cache settings after first successful load (avoids repeated env lookups)
+_langfuse_settings: dict[str, Any] | None = None
+
+
 def get_langfuse_settings() -> dict[str, Any]:
     """
     Get Langfuse configuration from environment.
 
+    Note: Does NOT use @lru_cache to avoid caching empty values if called
+    before Cloud Run injects secrets. Instead uses module-level cache that
+    only caches after getting non-empty values.
+
     Environment variables:
-    - LANGFUSE_HOST: Langfuse server URL (default: https://cloud.langfuse.com)
+    - LANGFUSE_HOST: Langfuse server URL (default: https://us.cloud.langfuse.com)
     - LANGFUSE_PUBLIC_KEY: Public API key (pk-lf-...)
     - LANGFUSE_SECRET_KEY: Secret API key (sk-lf-...)
     """
-    return {
-        "host": os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com"),
-        "public_key": os.environ.get("LANGFUSE_PUBLIC_KEY"),
-        "secret_key": os.environ.get("LANGFUSE_SECRET_KEY"),
+    global _langfuse_settings
+
+    # Return cached settings if we already have valid credentials
+    if _langfuse_settings is not None and _langfuse_settings.get("public_key"):
+        return _langfuse_settings
+
+    # Fresh load from environment
+    host = os.environ.get("LANGFUSE_HOST", "https://us.cloud.langfuse.com")
+    public_key = os.environ.get("LANGFUSE_PUBLIC_KEY")
+    secret_key = os.environ.get("LANGFUSE_SECRET_KEY")
+
+    settings = {
+        "host": host,
+        "public_key": public_key,
+        "secret_key": secret_key,
     }
+
+    # Log at first load (helps debug deployment issues)
+    if _langfuse_settings is None:
+        logger.info(
+            f"Langfuse config: host={host}, "
+            f"public_key={'set' if public_key else 'MISSING'}, "
+            f"secret_key={'set' if secret_key else 'MISSING'}"
+        )
+
+    # Only cache if we have valid credentials (avoids caching empty values)
+    if public_key and secret_key:
+        _langfuse_settings = settings
+
+    return settings
 
 
 def is_langfuse_enabled() -> bool:

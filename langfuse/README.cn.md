@@ -5,13 +5,13 @@
     <h3>
     <a href="https://langfuse.com/cn">
         <strong>🇨🇳 🤝 🪢</strong>
-      </a> · 
-      <a href="https://cloud.langfuse.com">
+      </a> ·
+      <a href="https://us.cloud.langfuse.com">
         <strong>Langfuse Cloud</strong>
-      </a> · 
+      </a> ·
       <a href="https://langfuse.com/docs/deployment/self-host">
         <strong>自托管</strong>
-      </a> · 
+      </a> ·
       <a href="https://langfuse.com/demo">
         <strong>演示</strong>
       </a>
@@ -110,7 +110,7 @@ Langfuse 是一个 **开源 LLM 工程** 平台。它帮助团队协作 **开发
 由 Langfuse 团队管理的部署，提供慷慨的免费额度（爱好者计划），无需信用卡。
 
 <div align="center">
-  <a href="https://cloud.langfuse.com" target="_blank">
+  <a href="https://us.cloud.langfuse.com" target="_blank">
     <img alt="注册 Langfuse Cloud" src="https://img.shields.io/badge/»%20Sign%20up%20for%20Langfuse%20Cloud-8A2BE2?&color=orange">
   </a>
 </div>
@@ -185,7 +185,7 @@ Langfuse 是一个 **开源 LLM 工程** 平台。它帮助团队协作 **开发
 
 ### 1️⃣ 创建新项目
 
-1. [创建 Langfuse 账户](https://cloud.langfuse.com/auth/sign-up) 或 [自托管](https://langfuse.com/self-hosting)
+1. [创建 Langfuse 账户](https://us.cloud.langfuse.com/auth/sign-up) 或 [自托管](https://langfuse.com/self-hosting)
 2. 创建一个新项目
 3. 在项目设置中创建新的 API 凭证
 
@@ -207,7 +207,7 @@ pip install langfuse openai
 ```bash:.env
 LANGFUSE_SECRET_KEY="sk-lf-..."
 LANGFUSE_PUBLIC_KEY="pk-lf-..."
-LANGFUSE_BASE_URL="https://cloud.langfuse.com" # 🇪🇺 欧盟区域
+LANGFUSE_BASE_URL="https://us.cloud.langfuse.com" # 🇪🇺 欧盟区域
 # LANGFUSE_BASE_URL="https://us.cloud.langfuse.com" # 🇺🇸 美洲区域
 ```
 
@@ -237,7 +237,7 @@ main()
 
 ![示例追踪记录](https://langfuse.com/images/docs/github-readme/github-example-trace.png)
 
-_[Langfuse 中的公共示例追踪](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/2cec01e3-3dc2-472f-afcf-3b968cf0c1f4?timestamp=2025-02-10T14%3A27%3A30.275Z&observation=cb5ff844-07ef-41e6-b8e2-6c64344bc13b)_
+_[Langfuse 中的公共示例追踪](https://us.cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/2cec01e3-3dc2-472f-afcf-3b968cf0c1f4?timestamp=2025-02-10T14%3A27%3A30.275Z&observation=cb5ff844-07ef-41e6-b8e2-6c64344bc13b)_
 
 > [!提示]
 >

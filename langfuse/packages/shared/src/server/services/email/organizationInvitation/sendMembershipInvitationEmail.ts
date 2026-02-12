@@ -7,7 +7,7 @@ import { logger } from "../../../logger";
 
 const langfuseUrls = {
   US: "https://us.cloud.langfuse.com",
-  EU: "https://cloud.langfuse.com",
+  EU: "https://us.cloud.langfuse.com",
   STAGING: "https://staging.langfuse.com",
   HIPAA: "https://hipaa.cloud.langfuse.com",
 };
@@ -48,9 +48,9 @@ export const sendMembershipInvitationEmail = async ({
 
   const getAuthURL = () =>
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "US" ||
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU" ||
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA" ||
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU" ||
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA" ||
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
       ? langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]
       : env.NEXTAUTH_URL;
 

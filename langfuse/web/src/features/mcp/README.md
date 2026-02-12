@@ -141,7 +141,7 @@ This outputs your BasicAuth token (e.g., `cGstbGYt...`).
 
 **Langfuse Cloud:**
 
-- **EU Region:** `https://cloud.langfuse.com`
+- **EU Region:** `https://us.cloud.langfuse.com`
 - **US Region:** `https://us.langfuse.com`
 - **HIPAA:** `https://hipaa.langfuse.com`
 
@@ -161,7 +161,7 @@ Register the Langfuse MCP server:
 
 ```bash
 # Langfuse Cloud (EU)
-claude mcp add --transport http langfuse https://cloud.langfuse.com/api/public/mcp \
+claude mcp add --transport http langfuse https://us.cloud.langfuse.com/api/public/mcp \
     --header "Authorization: Basic {your-base64-token}"
 
 # Langfuse Cloud (US)
@@ -188,7 +188,7 @@ Add to your Cursor MCP settings:
   "mcp": {
     "servers": {
       "langfuse": {
-        "url": "https://cloud.langfuse.com/api/public/mcp",
+        "url": "https://us.cloud.langfuse.com/api/public/mcp",
         "headers": {
           "Authorization": "Basic {your-base64-token}"
         }
@@ -198,4 +198,4 @@ Add to your Cursor MCP settings:
 }
 ```
 
-Replace `https://cloud.langfuse.com` with your Langfuse URL (see [Choose Your Langfuse URL](#2-choose-your-langfuse-url)).
+Replace `https://us.cloud.langfuse.com` with your Langfuse URL (see [Choose Your Langfuse URL](#2-choose-your-langfuse-url)).

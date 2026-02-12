@@ -17,7 +17,7 @@ class Settings:
     # Langfuse
     LANGFUSE_SECRET_KEY: str = os.getenv("LANGFUSE_SECRET_KEY", "")
     LANGFUSE_PUBLIC_KEY: str = os.getenv("LANGFUSE_PUBLIC_KEY", "")
-    LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+    LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST", "https://us.cloud.langfuse.com")
 
     # Dashboard
     PAGE_SIZE: int = int(os.getenv("HITL_PAGE_SIZE", "20"))

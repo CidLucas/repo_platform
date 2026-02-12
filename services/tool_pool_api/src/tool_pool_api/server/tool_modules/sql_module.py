@@ -441,23 +441,10 @@ async def _executar_sql_agent_logic(
     Returns:
         Dict with SQL query results
     """
-    # Initialize Langfuse trace for this tool execution
-    langfuse_trace = None
-    trace_spans = {}  # Track spans for nested operations
-
-    try:
-        if is_langfuse_enabled():
-            from langfuse import Langfuse
-
-            langfuse = Langfuse()
-            langfuse_trace = langfuse.trace(
-                name="executar_sql_agent",
-                input={"query": query, "cliente_id": cliente_id},
-                tags=["tool_pool", "sql_module"],
-            )
-            logger.debug("[SQL] Langfuse trace started")
-    except Exception as lf_err:
-        logger.warning(f"[SQL] Langfuse trace init failed (non-fatal): {lf_err}")
+    # Langfuse tracing is handled by the CallbackHandler in atendente_core.
+    # Direct trace creation is not needed here - the tool execution is already
+    # traced via the LangChain callback system.
+    langfuse_trace = None  # Kept for backward compatibility with span logging
 
     # 1. Obter dependências
     try:

@@ -117,19 +117,20 @@ class SanitizingLangfuseCallback(BaseCallbackHandler):
 
     Inherits from BaseCallbackHandler to pass isinstance() checks
     in LangChain/Pydantic validation (required by ChatOllama and others).
+
+    Note: Properties like ignore_agent, ignore_chain, etc. are delegated
+    to the inner handler via __getattr__ to avoid conflicts with
+    BaseCallbackHandler's property definitions.
     """
 
+    # Store our own attributes to avoid __getattr__ recursion
+    __slots__ = ("_inner", "_max_messages")
+
     def __init__(self, inner: Any, max_messages: int = 6):
-        super().__init__()
-        self._inner = inner
-        self._max_messages = max_messages
-        # Expose required properties from inner handler
-        self.ignore_agent = getattr(inner, "ignore_agent", False)
-        self.ignore_chain = getattr(inner, "ignore_chain", False)
-        self.ignore_llm = getattr(inner, "ignore_llm", False)
-        self.ignore_retriever = getattr(inner, "ignore_retriever", False)
-        self.ignore_retry = getattr(inner, "ignore_retry", False)
-        self.raise_error = getattr(inner, "raise_error", False)
+        # Don't call super().__init__() - it may set conflicting properties
+        # We delegate all BaseCallbackHandler behavior to inner handler
+        object.__setattr__(self, "_inner", inner)
+        object.__setattr__(self, "_max_messages", max_messages)
 
     def _sanitize_obj(self, obj: Any) -> Any:
         try:

@@ -296,32 +296,25 @@ def with_logging(node_name: str):
     return decorator
 
 
-def with_tracing(trace_name: str):
+def with_tracing(_trace_name: str):
     """
     Decorator to add Langfuse tracing to a node function.
+
+    Note: In Langfuse SDK v3, tracing is handled via CallbackHandler
+    configured in the LLM. This decorator is kept for backward compatibility
+    but won't create traces if Langfuse SDK v3 is installed.
+
+    Args:
+        _trace_name: Unused in v3, kept for API compatibility
     """
 
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(state: AgentState) -> dict[str, Any]:
-            # Import here to avoid circular dependency
-            try:
-                from langfuse import Langfuse
-
-                langfuse = Langfuse()
-                trace = langfuse.trace(
-                    name=trace_name,
-                    session_id=state.get("session_id"),
-                    metadata={
-                        "agent_name": state.get("agent_name"),
-                        "turn_count": state.get("turn_count"),
-                    },
-                )
-                result = await func(state)
-                trace.update(output=result)
-                return result
-            except ImportError:
-                return await func(state)
+            # Langfuse SDK v3 no longer supports direct trace creation via Langfuse().trace()
+            # Tracing is now handled via CallbackHandler in the LLM configuration.
+            # This decorator simply passes through to the wrapped function.
+            return await func(state)
 
         return wrapper
 

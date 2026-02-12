@@ -239,6 +239,73 @@ class SanitizingLangfuseCallback(BaseCallbackHandler):
         except Exception:
             return None
 
+    # ------------------------------------------------------------------
+    # Methods below delegate directly to the inner handler WITHOUT
+    # sanitization.  They MUST be listed explicitly because
+    # BaseCallbackHandler already defines no-op versions, which
+    # prevents __getattr__ from ever being called for them.
+    # ------------------------------------------------------------------
+
+    def on_llm_start(self, serialized: Any, prompts: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_llm_start(serialized, prompts, **kwargs)
+        except Exception:
+            return None
+
+    def on_chat_model_start(self, serialized: Any, messages: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_chat_model_start(serialized, messages, **kwargs)
+        except Exception:
+            return None
+
+    def on_tool_start(self, serialized: Any, input_str: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_tool_start(serialized, input_str, **kwargs)
+        except Exception:
+            return None
+
+    def on_retriever_start(self, serialized: Any, query: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_retriever_start(serialized, query, **kwargs)
+        except Exception:
+            return None
+
+    def on_retriever_end(self, documents: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_retriever_end(documents, **kwargs)
+        except Exception:
+            return None
+
+    def on_chain_error(self, error: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_chain_error(error, **kwargs)
+        except Exception:
+            return None
+
+    def on_llm_error(self, error: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_llm_error(error, **kwargs)
+        except Exception:
+            return None
+
+    def on_tool_error(self, error: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_tool_error(error, **kwargs)
+        except Exception:
+            return None
+
+    def on_retriever_error(self, error: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_retriever_error(error, **kwargs)
+        except Exception:
+            return None
+
+    def on_retry(self, retry_state: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_retry(retry_state, **kwargs)
+        except Exception:
+            return None
+
     def _sanitize_tool_output(self, output: Any, max_len: int = 4000) -> Any:
         """Sanitize tool output to prevent trace bloat."""
         import json

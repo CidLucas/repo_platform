@@ -37,8 +37,6 @@ from vizu_llm_service import ModelTier, get_model
 # Context 2.0: Import ContextSection for selective injection
 from vizu_models.enums import ContextSection
 from vizu_models.vizu_client_context import VizuClientContext
-from vizu_observability_bootstrap.langfuse import get_langfuse_callback, is_langfuse_enabled
-
 from . import register_module
 
 logger = logging.getLogger(__name__)
@@ -441,11 +439,6 @@ async def _executar_sql_agent_logic(
     Returns:
         Dict with SQL query results
     """
-    # Langfuse tracing is handled by the CallbackHandler in atendente_core.
-    # Direct trace creation is not needed here - the tool execution is already
-    # traced via the LangChain callback system.
-    langfuse_trace = None  # Kept for backward compatibility with span logging
-
     # 1. Obter dependências
     try:
         ctx_service = get_context_service()
@@ -506,17 +499,7 @@ async def _executar_sql_agent_logic(
             tags=["tool_pool", "sql_module"],
         )
 
-        # Span: Schema Loading
         schema_start = time.perf_counter()
-        schema_span = None
-        try:
-            if langfuse_trace:
-                schema_span = langfuse_trace.span(
-                    name="load_schema_context",
-                    input={"cliente_id": str(real_client_id)},
-                )
-        except Exception:
-            pass
 
         # Get enriched schema context (uses Redis-cached SqlTableConfig)
         engine = get_shared_engine()
@@ -527,11 +510,6 @@ async def _executar_sql_agent_logic(
         # Context 2.0: Get client-specific guidance from context sections
         context_guidance = _build_context_guidance(vizu_context)
 
-        if schema_span:
-            schema_span.end(
-                output={"schema_chars": len(table_info), "guidance_chars": len(context_guidance)},
-                level="DEFAULT",
-            )
         logger.debug(f"[SQL] Schema loaded in {(time.perf_counter() - schema_start) * 1000:.1f}ms")
 
         logger.info(f"[SQL] Schema context length: {len(table_info)} chars")
@@ -561,17 +539,7 @@ async def _executar_sql_agent_logic(
             context_service=ctx_service,
         )
 
-        # Span: SQL Generation LLM Call
         llm_start = time.perf_counter()
-        llm_span = None
-        try:
-            if langfuse_trace:
-                llm_span = langfuse_trace.span(
-                    name="llm_sql_generation",
-                    input={"query": query, "prompt_length": len(sql_generation_prompt)},
-                )
-        except Exception:
-            pass
 
         # Use both SystemMessage (with schema/rules) and HumanMessage (explicit query)
         # This improves instruction-following for open-source models
@@ -586,6 +554,7 @@ async def _executar_sql_agent_logic(
             ],
             config={
                 "metadata": {
+                    "langfuse_trace_name": "sql_generation",
                     "langfuse_session_id": str(real_client_id),
                     "langfuse_user_id": str(real_client_id),
                     "langfuse_tags": ["sql_generation", "tool_pool"],
@@ -596,13 +565,7 @@ async def _executar_sql_agent_logic(
 
         generated_sql = response.content.strip()
 
-        # End LLM span
         llm_duration = (time.perf_counter() - llm_start) * 1000
-        if llm_span:
-            llm_span.end(
-                output={"generated_sql": generated_sql[:500], "duration_ms": llm_duration},
-                level="DEFAULT",
-            )
         logger.info(f"[SQL] LLM generated SQL in {llm_duration:.1f}ms")
 
         # Clean up the SQL (remove markdown code blocks if present)
@@ -652,17 +615,7 @@ async def _executar_sql_agent_logic(
         # Execute the SQL directly with RLS context (defense in depth)
         # SECURITY: RLS policies on analytics_v2 tables provide additional enforcement
 
-        # Span: SQL Execution
         exec_start = time.perf_counter()
-        exec_span = None
-        try:
-            if langfuse_trace:
-                exec_span = langfuse_trace.span(
-                    name="sql_execution",
-                    input={"sql_preview": final_sql[:200]},
-                )
-        except Exception:
-            pass
 
         try:
             from .structured_data_formatter import format_sql_result
@@ -681,17 +634,6 @@ async def _executar_sql_agent_logic(
                 results = cursor.fetchall()
 
                 if not results:
-                    # End spans on empty result
-                    if exec_span:
-                        exec_span.end(
-                            output={
-                                "row_count": 0,
-                                "duration_ms": (time.perf_counter() - exec_start) * 1000,
-                            },
-                            level="DEFAULT",
-                        )
-                    if langfuse_trace:
-                        langfuse_trace.update(output={"success": True, "row_count": 0})
                     return {
                         "output": "Nenhum resultado encontrado.",
                         "sql": final_sql,
@@ -751,23 +693,8 @@ async def _executar_sql_agent_logic(
                     logger.warning(f"[SQL] Cache store failed (non-fatal): {cache_err}")
                     cache_ref_id = None
 
-                # End execution span on success
                 exec_duration = (time.perf_counter() - exec_start) * 1000
-                if exec_span:
-                    exec_span.end(
-                        output={"row_count": len(rows_as_dicts), "duration_ms": exec_duration},
-                        level="DEFAULT",
-                    )
-
-                # Update trace with final output
-                if langfuse_trace:
-                    langfuse_trace.update(
-                        output={
-                            "success": True,
-                            "row_count": len(rows_as_dicts),
-                            "cache_ref_id": cache_ref_id,
-                        },
-                    )
+                logger.debug(f"[SQL] Query executed in {exec_duration:.1f}ms")
 
                 # Flush Langfuse traces before returning
                 from vizu_observability_bootstrap.langfuse import flush_langfuse_async
@@ -786,10 +713,6 @@ async def _executar_sql_agent_logic(
                 }
         except Exception as exec_error:
             logger.error(f"[SQL] Execution error: {exec_error}")
-            if exec_span:
-                exec_span.end(output={"error": str(exec_error)}, level="ERROR")
-            if langfuse_trace:
-                langfuse_trace.update(output={"success": False, "error": str(exec_error)})
 
             # Flush Langfuse traces before returning error
             from vizu_observability_bootstrap.langfuse import flush_langfuse_async
@@ -805,8 +728,6 @@ async def _executar_sql_agent_logic(
 
     except Exception as e:
         logger.exception(f"[SQL] Erro ao executar para {real_client_id}: {e}")
-        if langfuse_trace:
-            langfuse_trace.update(output={"success": False, "error": str(e)})
 
         # Flush Langfuse traces before raising error
         from vizu_observability_bootstrap.langfuse import flush_langfuse_async

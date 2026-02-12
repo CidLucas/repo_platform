@@ -78,6 +78,7 @@ def get_langfuse_config(
     # Build metadata with Langfuse special keys (SDK v3)
     # trace_name is passed as a tag for filtering in Langfuse UI
     trace_metadata = {
+        "langfuse_trace_name": trace_name,
         "langfuse_session_id": session_id,
         "langfuse_user_id": effective_user_id,
         "langfuse_tags": (tags or []) + [trace_name],

@@ -41,10 +41,10 @@ processors:
     error_mode: ignore
     traces:
       span:
-        # Exclude spans that are NOT from atendente-api service
+        # Exclude spans that are NOT from atendente-core service
         # OR are not related to /chat endpoint
         # We use negative logic: drop if NOT matching our criteria
-        - 'resource.attributes["service.name"] != "atendente-api"'
+        - 'resource.attributes["service.name"] != "atendente-core"'
         - 'attributes["http.target"] != nil and not IsMatch(attributes["http.target"], "/chat.*")'
         - 'attributes["http.route"] != nil and attributes["http.route"] != "/chat"'
 

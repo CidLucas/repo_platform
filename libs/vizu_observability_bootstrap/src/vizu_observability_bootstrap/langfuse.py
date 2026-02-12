@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 # Cache settings after first successful load (avoids repeated env lookups)
 _langfuse_settings: dict[str, Any] | None = None
 _langfuse_available: bool | None = None  # Cache langfuse availability check
+_langfuse_callback_singleton: BaseCallbackHandler | None = None  # Singleton callback handler
 
 
 def _check_langfuse_availability() -> bool:
@@ -282,7 +283,11 @@ def get_langfuse_callback(
     max_messages: int = 6,
 ) -> BaseCallbackHandler | None:
     """
-    Create a Langfuse CallbackHandler for LangChain/LangGraph tracing.
+    Get a SINGLETON Langfuse CallbackHandler for LangChain/LangGraph tracing.
+
+    Returns the same handler instance across all calls to avoid creating
+    multiple traces per request. Each CallbackHandler manages its own trace
+    lifecycle, so multiple handlers = multiple traces = duplicates.
 
     Langfuse SDK v3 reads trace attributes (session_id, user_id, tags)
     from config["metadata"] during invoke(), not from constructor args.
@@ -295,6 +300,12 @@ def get_langfuse_callback(
     Returns:
         Callback handler wrapped with SanitizingLangfuseCallback, or None if not configured
     """
+    global _langfuse_callback_singleton
+
+    # Return cached singleton if available
+    if _langfuse_callback_singleton is not None:
+        return _langfuse_callback_singleton
+
     if not is_langfuse_enabled():
         logger.debug("Langfuse not enabled (missing credentials)")
         return None
@@ -310,8 +321,11 @@ def get_langfuse_callback(
 
         sanitized_handler = SanitizingLangfuseCallback(handler, max_messages=max_messages)
 
+        # Cache as singleton
+        _langfuse_callback_singleton = sanitized_handler
+
         settings = get_langfuse_settings()
-        logger.debug(f"Langfuse callback created - host: {settings['host']}")
+        logger.info(f"Langfuse callback singleton created - host: {settings['host']}")
         return sanitized_handler
 
     except ImportError as e:
@@ -537,6 +551,8 @@ async def flush_langfuse_async(timeout: float = 5.0) -> None:
 
 def shutdown_langfuse() -> None:
     """Shutdown Langfuse client (synchronous)."""
+    global _langfuse_callback_singleton
+    
     if not is_langfuse_enabled():
         return
 
@@ -544,6 +560,7 @@ def shutdown_langfuse() -> None:
         from langfuse import get_client
 
         get_client().shutdown()
+        _langfuse_callback_singleton = None  # Clear singleton on shutdown
         logger.debug("Langfuse shutdown completed")
     except Exception as e:
         logger.warning(f"Langfuse shutdown failed: {e}")

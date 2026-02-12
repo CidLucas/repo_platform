@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     """
 
     # Nome do serviço para observabilidade
-    SERVICE_NAME: str = "atendente-api"
+    SERVICE_NAME: str = "atendente-core"
 
     # Endpoints de serviços dependentes
     OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://localhost:4317"

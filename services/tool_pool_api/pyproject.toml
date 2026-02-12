@@ -18,6 +18,7 @@ anyio = "^4.1.1"
 redis = "^5.0.0"
 httpx = "^0.28.1"
 langfuse = "^3.0.0"
+langchain = "^0.3.0"  # Required for langfuse.langchain integration
 
 # --- Internal libs (only direct dependencies) ---
 vizu-models = { path = "../../libs/vizu_models", develop = true }

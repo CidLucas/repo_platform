@@ -134,26 +134,30 @@ class PromptLoader:
         name: str,
         variables: dict[str, Any] | None = None,
         langfuse_label: str | None = None,
+        allow_fallback: bool = False,
     ) -> LoadedPrompt:
         """
         Load and render a prompt.
 
-        Simplified priority:
-        1. Langfuse (if enabled and prompt exists)
-        2. Built-in template
+        Langfuse is the source of truth. Fallback to builtin only if explicitly allowed.
 
         Args:
             name: Prompt name (e.g., "atendente/default")
             variables: Variables for template substitution
             langfuse_label: Override default Langfuse label
+            allow_fallback: If True, fall back to builtin when Langfuse unavailable.
+                           Default False - raises error if Langfuse prompt not found.
 
         Returns:
             LoadedPrompt with rendered content
+
+        Raises:
+            PromptNotFoundError: If prompt not in Langfuse and allow_fallback=False
         """
         variables = variables or {}
         label = langfuse_label or self.langfuse_label
 
-        # 1. Try Langfuse first
+        # 1. Try Langfuse (mandatory in production)
         langfuse_result = await self._load_from_langfuse(name, variables, label)
         if langfuse_result:
             logger.info(
@@ -161,7 +165,18 @@ class PromptLoader:
             )
             return langfuse_result
 
-        # 2. Fallback to builtin
+        # 2. Langfuse failed - check if fallback allowed
+        if not allow_fallback:
+            logger.error(
+                f"[PROMPT] CRITICAL: Prompt '{name}' not found in Langfuse (label={label}). "
+                "Ensure prompt exists in Langfuse with correct name and label."
+            )
+            raise PromptNotFoundError(
+                f"Prompt '{name}' not found in Langfuse (label={label}). "
+                "Builtin fallback disabled - add prompt to Langfuse."
+            )
+
+        # 3. Fallback to builtin (only if explicitly allowed)
         logger.warning(
             f"[PROMPT] Falling back to builtin for '{name}' - Langfuse unavailable or prompt not found"
         )

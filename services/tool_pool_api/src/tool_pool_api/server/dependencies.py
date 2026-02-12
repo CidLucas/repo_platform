@@ -34,11 +34,11 @@ def _get_redis_pool() -> redis.ConnectionPool:
     """Obtém ou cria o pool de conexões Redis (singleton)."""
     global _redis_pool
     if _redis_pool is None:
-        redis_url = os.getenv("REDIS_URL")
+        redis_url = get_settings().REDIS_URL
         if not redis_url:
             raise RuntimeError("REDIS_URL is required but not set")
         _redis_pool = redis.ConnectionPool.from_url(redis_url, decode_responses=True)
-        logger.info(f"Pool Redis criado: {redis_url}")
+        logger.info(f"Pool Redis criado: {redis_url[:30]}...")
     return _redis_pool
 
 

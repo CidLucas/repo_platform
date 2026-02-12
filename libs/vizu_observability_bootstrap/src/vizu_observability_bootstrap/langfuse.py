@@ -223,71 +223,35 @@ class SanitizingLangfuseCallback(BaseCallbackHandler):
 
 
 def get_langfuse_callback(
-    user_id: str | None = None,
-    session_id: str | None = None,
-    tags: list[str] | None = None,
-    metadata: dict[str, Any] | None = None,
     max_messages: int = 6,
-    trace_name: str | None = None,
 ) -> BaseCallbackHandler | None:
     """
     Create a Langfuse CallbackHandler for LangChain/LangGraph tracing.
 
+    Langfuse SDK v3 reads trace attributes (session_id, user_id, tags)
+    from config["metadata"] during invoke(), not from constructor args.
+    Pass langfuse_session_id, langfuse_user_id, langfuse_tags in the
+    config metadata dict when calling graph.ainvoke() or chain.invoke().
+
     Args:
-        user_id: User ID for trace grouping
-        session_id: Session ID for trace grouping
-        tags: Tags for categorization
-        metadata: Additional metadata (including prompt_name, prompt_version for trace linking)
         max_messages: Max messages to keep in observation (truncates older)
-        trace_name: Name for the trace (e.g., 'atendente_chat'). If None, trace will be unnamed.
 
     Returns:
-        Callback handler wrapped with SanitizingLangfuseCallback, or None if Langfuse not configured
+        Callback handler wrapped with SanitizingLangfuseCallback, or None if not configured
     """
     if not is_langfuse_enabled():
         logger.debug("Langfuse not enabled (missing credentials)")
         return None
 
     try:
-        # Import CallbackHandler - path differs between v2 and v3
-        try:
-            # v3: langfuse.langchain.CallbackHandler
-            from langfuse.langchain import CallbackHandler
-        except ImportError:
-            # v2: langfuse.callback.CallbackHandler
-            from langfuse.callback import CallbackHandler
+        from langfuse.langchain import CallbackHandler
 
-        from langfuse import Langfuse
+        handler = CallbackHandler()
 
-        settings = get_langfuse_settings()
-
-        # Initialize Langfuse client (singleton)
-        Langfuse(
-            public_key=settings["public_key"],
-            secret_key=settings["secret_key"],
-            host=settings["host"],
-        )
-
-        # Create handler with trace_name if provided
-        handler = CallbackHandler(trace_name=trace_name) if trace_name else CallbackHandler()
-
-        # Set metadata if provided (prompt metadata for trace linking should be passed here)
-        if metadata:
-            handler.metadata = metadata
-
-        if user_id:
-            handler.user_id = user_id
-        if session_id:
-            handler.session_id = session_id
-        if tags:
-            handler.tags = tags
-
-        # Wrap with SanitizingLangfuseCallback to strip internal contexts from traces
         sanitized_handler = SanitizingLangfuseCallback(handler, max_messages=max_messages)
 
-        logger.debug(
-            f"Langfuse callback created - host: {settings['host']}, trace_name: {trace_name}"
-        )
+        settings = get_langfuse_settings()
+        logger.debug(f"Langfuse callback created - host: {settings['host']}")
         return sanitized_handler
 
     except ImportError:

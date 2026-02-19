@@ -44,14 +44,14 @@ async def ensure_mcp_connected() -> bool:
     """
     global _mcp_connected
 
-    # Fast path: already connected
-    if _mcp_connected:
+    # Fast path: already connected (check both module flag AND instance state)
+    if _mcp_connected and mcp_manager.is_connected:
         return True
 
     # Acquire lock to prevent concurrent connection attempts
     async with _mcp_connection_lock:
         # Double-check after acquiring lock
-        if _mcp_connected:
+        if _mcp_connected and mcp_manager.is_connected:
             return True
 
         for attempt in range(MAX_RETRIES):

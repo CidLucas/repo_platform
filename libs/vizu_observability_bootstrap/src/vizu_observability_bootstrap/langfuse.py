@@ -619,7 +619,7 @@ async def flush_langfuse_async(timeout: float = 5.0) -> None:
 def shutdown_langfuse() -> None:
     """Shutdown Langfuse client (synchronous)."""
     global _langfuse_callback_singleton
-    
+
     if not is_langfuse_enabled():
         return
 

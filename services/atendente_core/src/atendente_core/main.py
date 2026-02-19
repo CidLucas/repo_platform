@@ -72,7 +72,15 @@ async def lifespan(app: FastAPI):
 
     # --- STARTUP ---
     logger.info("Starting Vizu Atendente Core...")
-    logger.debug("MCP connection deferred (lazy initialization)")
+
+    # Pre-warm MCP connection on startup (eliminates cold-start latency on first request)
+    try:
+        from atendente_core.services.mcp_client import ensure_mcp_connected
+
+        await ensure_mcp_connected()
+        logger.info("MCP pre-warmed on startup")
+    except Exception as e:
+        logger.warning(f"MCP pre-warm failed (will retry on first request): {e}")
 
     yield
 

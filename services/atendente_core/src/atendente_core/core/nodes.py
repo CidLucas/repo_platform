@@ -59,10 +59,24 @@ _node_context_service: "ContextService | None" = None
 def set_node_context_service(ctx: "ContextService | None") -> None:
     global _node_context_service
     _node_context_service = ctx
+    _clear_supervisor_context_cache()
 
 
 def get_node_context_service() -> "ContextService | None":
     return _node_context_service
+
+
+# ---------------------------------------------------------------------------
+# Per-request context cache for supervisor_node (avoids re-fetching context
+# from Redis/DB on every supervisor call within the same request).
+# Cleared when a new request sets the context_service via set_node_context_service.
+# ---------------------------------------------------------------------------
+_supervisor_context_cache: dict[UUID, tuple] = {}
+
+
+def _clear_supervisor_context_cache() -> None:
+    global _supervisor_context_cache
+    _supervisor_context_cache = {}
 
 
 def _create_llm_data_summary(structured_data: dict, full_output: dict) -> str:
@@ -387,10 +401,21 @@ async def build_dynamic_system_prompt(
         "context_sections": context_sections_text,
     }
 
+    # Select prompt based on available tools:
+    # - If execute_sql is available → use sql-direct prompt (schema embedded, supervisor generates SQL)
+    # - Otherwise → use default prompt (tool generates SQL)
+    available_tool_names = {t.name for t in available_tools}
+    if "execute_sql" in available_tool_names:
+        prompt_name = "atendente/sql-direct"
+        logger.info("[PROMPT_BUILD] Using sql-direct prompt (supervisor generates SQL)")
+    else:
+        prompt_name = "atendente/default"
+        logger.info("[PROMPT_BUILD] Using default prompt (tool generates SQL)")
+
     # Use unified build_prompt which handles caching internally
-    # Fetches prompt "atendente/default" from Langfuse, with builtin fallback
+    # Fetches prompt from Langfuse, with builtin fallback
     return await build_prompt(
-        name="atendente/default",
+        name=prompt_name,
         variables=variables,
         context_service=context_service,
     )
@@ -475,20 +500,23 @@ async def supervisor_node(state: AgentState) -> dict:
     model_override = state.get("model_override")
     cliente_id = state.get("cliente_id")
 
-    # Fetch context on-demand using ContextService
+    # Fetch context on-demand using ContextService (cached per-request)
     context_service = get_node_context_service()
     safe_ctx = None
     vizu_ctx = None
 
-    if cliente_id and context_service:
+    if cliente_id and cliente_id in _supervisor_context_cache:
+        vizu_ctx, safe_ctx = _supervisor_context_cache[cliente_id]
+        logger.debug(f"[SUPERVISOR] Using cached context for cliente_id={cliente_id}")
+    elif cliente_id and context_service:
         try:
             vizu_ctx = await context_service.get_client_context_by_id(cliente_id)
             if vizu_ctx:
-                # Create SafeClientContext from VizuClientContext for tool filtering
                 from vizu_models.safe_client_context import InternalClientContext
 
                 internal_ctx = InternalClientContext.from_vizu_client_context(vizu_ctx)
                 safe_ctx = internal_ctx.get_safe_context()
+                _supervisor_context_cache[cliente_id] = (vizu_ctx, safe_ctx)
                 logger.debug(
                     f"[SUPERVISOR] Fetched context for cliente_id={cliente_id}: {vizu_ctx.nome_empresa}"
                 )
@@ -509,31 +537,38 @@ async def supervisor_node(state: AgentState) -> dict:
             f"[SUPERVISOR] vizu_context.nome_empresa: {getattr(vizu_ctx, 'nome_empresa', 'N/A')}"
         )
 
-    # 2. Obtém TODAS as tools do MCP
-    all_tools = mcp_manager.tools
+    # 2+3. Get tools (use cached on subsequent supervisor calls within same request)
+    cached_tools = state.get("_cached_tools")
+    if cached_tools:
+        validated_tools = cached_tools
+        available_tools = cached_tools
+        logger.debug(f"[SUPERVISOR] Using cached tools ({len(cached_tools)})")
+    else:
+        all_tools = mcp_manager.tools
 
-    if not all_tools:
-        logger.warning("Nenhuma ferramenta MCP disponível no momento.")
-        return {
-            "messages": [
-                AIMessage(
-                    content="Sinto muito, minhas ferramentas de busca estão temporariamente indisponíveis."
-                )
-            ],
-            "structured_data": None,
-        }
+        if not all_tools:
+            logger.warning("Nenhuma ferramenta MCP disponível no momento.")
+            return {
+                "messages": [
+                    AIMessage(
+                        content="Sinto muito, minhas ferramentas de busca estão temporariamente indisponíveis."
+                    )
+                ],
+                "structured_data": None,
+            }
 
-    # 3. PHASE 2: Filtra tools baseado nas permissões do cliente
-    available_tools = filter_tools_for_client(all_tools, safe_ctx)
+        available_tools = filter_tools_for_client(all_tools, safe_ctx)
 
-    logger.debug(f"[SUPERVISOR] Available tools count: {len(available_tools)}")
-    logger.debug(f"[SUPERVISOR] Tool names: {[t.name for t in available_tools[:5]]}...")  # First 5
+        logger.debug(f"[SUPERVISOR] Available tools count: {len(available_tools)}")
+        logger.debug(f"[SUPERVISOR] Tool names: {[t.name for t in available_tools[:5]]}...")
 
-    if not available_tools:
-        logger.warning(
-            f"Cliente {safe_ctx.nome_empresa if safe_ctx else 'desconhecido'} não tem tools habilitadas"
-        )
-        # Permite continuar sem tools - o agente responderá apenas com conhecimento base
+        if not available_tools:
+            logger.warning(
+                f"Cliente {safe_ctx.nome_empresa if safe_ctx else 'desconhecido'} não tem tools habilitadas"
+            )
+
+        # Sanitize once and cache
+        validated_tools = sanitize_tools_for_llm(available_tools) if available_tools else []
 
     # 4. PHASE 2 + 5 + Context 2.0: Constrói system prompt dinâmico com seções modulares
     # OPT-7: Use cached prompt on subsequent supervisor calls (tools → supervisor loop)
@@ -585,9 +620,7 @@ async def supervisor_node(state: AgentState) -> dict:
     # 5. Bind das Tools filtradas no Modelo
     llm = get_llm(model_override=model_override)
 
-    if available_tools:
-        # Validate tools don't expose internal params (logs error if they do)
-        validated_tools = sanitize_tools_for_llm(available_tools)
+    if validated_tools:
         llm = llm.bind_tools(validated_tools)
         logger.debug(f"Bound {len(validated_tools)} tools to LLM")
 
@@ -616,13 +649,18 @@ async def supervisor_node(state: AgentState) -> dict:
     # When processing tool results, we preserve it so the frontend receives the table
     if is_processing_tool_results:
         # Keep structured_data from execute_tools_node - don't override it
-        return {"messages": [response], "_cached_system_prompt": system_prompt}
+        return {
+            "messages": [response],
+            "_cached_system_prompt": system_prompt,
+            "_cached_tools": validated_tools,
+        }
     else:
         # New user turn without tools - clear any previous structured_data
         return {
             "messages": [response],
             "structured_data": None,
             "_cached_system_prompt": system_prompt,
+            "_cached_tools": validated_tools,
         }
 
 
@@ -652,14 +690,10 @@ async def execute_tools_node(state: AgentState) -> dict:
     elicitation_response = state.get("elicitation_response")
     pending = state.get("pending_elicitation")
 
-    # Pass cliente_id to MCP via X-Cliente-Id header
-    # JWT was already validated in atendente_core, cliente_id is resolved
-    # This is more efficient than passing JWT (no duplicate validation/lookup)
+    # X-Cliente-Id header is set in service.py before ensure_mcp_connected(),
+    # so no need to set it again here (avoids triggering reconnection)
     cliente_id = state.get("cliente_id")
-    if cliente_id:
-        mcp_manager.set_cliente_id(str(cliente_id))
-        logger.debug(f"[Tools] Set X-Cliente-Id header: {cliente_id}")
-    else:
+    if not cliente_id:
         logger.warning("[Tools] No cliente_id in state! Tools may fail auth.")
 
     # Variable to capture structured_data from tool results (before truncation)
@@ -744,7 +778,7 @@ async def execute_tools_node(state: AgentState) -> dict:
 
             # Truncate tool output to prevent context bloat
             # Full data is already cached in Redis (via ToolResultCache in sql_module)
-            MAX_TOOL_OUTPUT_CHARS = 8000  # ~2000 tokens
+            MAX_TOOL_OUTPUT_CHARS = 4000  # ~1000 tokens (LLM gets summary, full data cached in Redis)
             output_str = str(output)
             if len(output_str) > MAX_TOOL_OUTPUT_CHARS:
                 output_str = (

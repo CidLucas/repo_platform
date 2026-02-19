@@ -143,6 +143,7 @@ class AtendenteService:
             structured_data=None,
             # OPT-7: Cached system prompt (populated on first supervisor call)
             _cached_system_prompt=None,
+            _cached_tools=None,
         )
 
         # Log if we're resuming from elicitation
@@ -159,20 +160,6 @@ class AtendenteService:
             provider = LLMProvider(llm_settings.LLM_PROVIDER)
             model_used = MODEL_MAPPINGS.get(provider, {}).get(ModelTier.DEFAULT, "default")
 
-        # Persiste a conversa e a mensagem inicial
-        # OPT-4: create_or_get_conversa must await (need conversa_id), but add_mensagem is fire-and-forget
-        conversa_id = None
-        try:
-            # cliente_final_id pode ser desconhecido no momento; passamos None
-            # client_id vem do contexto autenticado
-            conversa_id = await self.db.create_or_get_conversa(
-                session_id, cliente_final_id=None, client_id=str(client_context.id)
-            )
-            # Fire-and-forget: persist user message in background
-            _create_background_task(self._persist_message(conversa_id, "user", message_text))
-        except Exception:
-            logger.exception("Falha ao criar/obter conversa (não bloqueante)")
-
         # 4. Execução do Grafo (com Memória via session_id e Observabilidade via Langfuse)
         # get_langfuse_config retorna config com callbacks do Langfuse se configurado
         config = get_langfuse_config(
@@ -182,8 +169,27 @@ class AtendenteService:
         )
 
         try:
-            # Ensure MCP connection is established before graph execution
+            # Set cliente_id BEFORE connecting so X-Cliente-Id header is correct
+            # from the start (avoids reconnection in execute_tools_node)
+            from atendente_core.services.mcp_client import mcp_manager
+
+            mcp_manager.set_cliente_id(str(client_context.id))
+
+            # Parallelize conversa creation + MCP connection (independent operations)
+            async def _get_conversa():
+                try:
+                    cid = await self.db.create_or_get_conversa(
+                        session_id, cliente_final_id=None, client_id=str(client_context.id)
+                    )
+                    _create_background_task(self._persist_message(cid, "user", message_text))
+                    return cid
+                except Exception:
+                    logger.exception("Falha ao criar/obter conversa (não bloqueante)")
+                    return None
+
+            conversa_task = asyncio.create_task(_get_conversa())
             await ensure_mcp_connected()
+            conversa_id = await conversa_task
 
             # OPT-3: Set context_service for supervisor_node to enable Redis-cached prompts
             from atendente_core.core.nodes import set_node_context_service

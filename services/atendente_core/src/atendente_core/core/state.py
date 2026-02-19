@@ -69,3 +69,7 @@ class AgentState(TypedDict):
     # --- CACHED SYSTEM PROMPT (OPT-7) ---
     # Avoids rebuilding the prompt on supervisor loop (tools → supervisor)
     _cached_system_prompt: str | None
+
+    # --- CACHED TOOLS (OPT) ---
+    # Avoids re-filtering and re-sanitizing tools on subsequent supervisor calls
+    _cached_tools: list | None

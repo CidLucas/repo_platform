@@ -742,7 +742,7 @@ FROM ranked WHERE rn <= 5
 ORDER BY cidade, rn LIMIT 50;
 
 -- Average ticket by customer
-SELECT c.name, COUNT(DISTINCT f.order_id) as pedidos, 
+SELECT c.name, COUNT(DISTINCT f.order_id) as pedidos,
        SUM(f.valor_total) as total,
        SUM(f.valor_total) / NULLIF(COUNT(DISTINCT f.order_id), 0) as ticket_medio
 FROM analytics_v2.fact_sales f
@@ -786,7 +786,7 @@ ORDER BY receita DESC LIMIT 20;
 Your text should be a **2-3 sentence summary**:
 
 1. **Overview** - total, average, or main metric
-2. **Highlight** - who leads or relevant anomaly  
+2. **Highlight** - who leads or relevant anomaly
 3. **Next step** - follow-up question (optional)
 
 **✅ GOOD:**

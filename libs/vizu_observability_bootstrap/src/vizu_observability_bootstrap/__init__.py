@@ -284,6 +284,7 @@ def setup_observability(
     export_logs: bool = True,
     export_metrics: bool = True,
     log_min_level: int = logging.WARNING,
+    excluded_urls: list[str] | None = None,
 ) -> None:
     """
     Unified observability setup for Vizu services.
@@ -302,6 +303,7 @@ def setup_observability(
         export_logs: Export logs via OTLP (WARN+ only)
         export_metrics: Export metrics via OTLP
         log_min_level: Minimum log level to export (default: WARNING)
+        excluded_urls: URL patterns to exclude from tracing (e.g., ["/mcp", "/health"])
 
     Environment variables:
         OTEL_EXPORTER_OTLP_ENDPOINT: OTLP gateway URL
@@ -323,10 +325,17 @@ def setup_observability(
     traces_exporter = os.environ.get("OTEL_TRACES_EXPORTER", "").lower()
     traces_disabled = traces_exporter == "none"
 
+    # Default excluded URLs (MCP SSE creates noisy empty traces, health checks are noisy)
+    default_excluded = ["/mcp", "/health", "/ready", "/live"]
+    all_excluded = (excluded_urls or []) + default_excluded
+
+    # Build exclusion pattern for OTEL (comma-separated URL patterns)
+    exclude_pattern = ",".join(all_excluded) if all_excluded else None
+
     # OTLP Traces
     if otlp and not traces_disabled:
         _setup_tracer(resource, otlp_endpoint, headers)
-        FastAPIInstrumentor.instrument_app(app)
+        FastAPIInstrumentor.instrument_app(app, excluded_urls=exclude_pattern)
 
         if export_metrics:
             _setup_metrics(resource, otlp_endpoint, headers)

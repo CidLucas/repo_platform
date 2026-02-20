@@ -5,8 +5,10 @@ Uses custom graph with Context 2.0 aware supervisor_node.
 """
 
 import asyncio
+import json
 import logging
 import time
+from collections.abc import AsyncIterator
 from typing import Any
 from uuid import UUID
 
@@ -271,3 +273,145 @@ class AtendenteService:
             logger.exception(f"Erro crítico ao processar mensagem na sessão {session_id}")
             # Re-lançamos para o Router tratar e retornar 500
             raise e
+
+    async def process_message_stream(
+        self,
+        session_id: str,
+        message_text: str,
+        client_id: UUID,
+        context_service: ContextService,
+        model_override: str | None = None,
+        user_jwt: str | None = None,
+    ) -> AsyncIterator[str]:
+        """
+        Stream the agent's response as Server-Sent Events (SSE).
+
+        Yields SSE-formatted events:
+        - {"event": "token", "data": "..."}  - LLM token
+        - {"event": "tool_start", "data": {"name": "...", "args": {...}}}
+        - {"event": "tool_end", "data": {"name": "...", "output": "..."}}
+        - {"event": "done", "data": {"response": "...", "model": "..."}}
+        - {"event": "error", "data": {"message": "..."}}
+
+        Args:
+            session_id: Session ID for conversation continuity
+            message_text: User's message
+            client_id: Client UUID (from JWT)
+            context_service: Per-request context service
+            model_override: Optional model override
+            user_jwt: User's JWT for tool propagation
+        """
+        # Get client context
+        client_context = await context_service.get_client_context_by_external_user_id(
+            str(client_id)
+        )
+
+        if not client_context:
+            yield f"data: {json.dumps({'event': 'error', 'data': {'message': 'Cliente não encontrado'}})}\n\n"
+            return
+
+        logger.info(f"[Stream] Atendendo: {client_context.nome_empresa} | Sessão: {session_id}")
+
+        # Build initial state (same as process_message)
+        initial_state = AgentState(
+            messages=[HumanMessage(content=message_text)],
+            tools=[],
+            model_override=model_override,
+            cliente_id=client_context.id,
+            user_jwt=user_jwt,
+            pending_elicitation=None,
+            elicitation_response=None,
+            ended=False,
+            turn_count=0,
+            structured_data=None,
+            _cached_system_prompt=None,
+            _cached_tools=None,
+        )
+
+        # Model info for response
+        from vizu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
+
+        llm_settings = get_llm_settings()
+        if model_override:
+            model_used = model_override
+        else:
+            provider = LLMProvider(llm_settings.LLM_PROVIDER)
+            model_used = MODEL_MAPPINGS.get(provider, {}).get(ModelTier.DEFAULT, "default")
+
+        # Config with Langfuse callbacks
+        from atendente_core.core.observability import get_langfuse_config
+
+        config = get_langfuse_config(
+            session_id=session_id,
+            cliente_id=str(client_context.id),
+            tags=["atendente", "streaming", client_context.nome_empresa],
+        )
+
+        try:
+            # Setup MCP and context
+            from atendente_core.services.mcp_client import ensure_mcp_connected, mcp_manager
+
+            mcp_manager.set_cliente_id(str(client_context.id))
+
+            # Parallel setup: conversa + MCP
+            async def _get_conversa():
+                try:
+                    cid = await self.db.create_or_get_conversa(
+                        session_id, cliente_final_id=None, client_id=str(client_context.id)
+                    )
+                    _create_background_task(self._persist_message(cid, "user", message_text))
+                    return cid
+                except Exception:
+                    logger.exception("Falha ao criar/obter conversa (não bloqueante)")
+                    return None
+
+            conversa_task = asyncio.create_task(_get_conversa())
+            await ensure_mcp_connected()
+            conversa_id = await conversa_task
+
+            # Set context service for nodes
+            from atendente_core.core.nodes import set_node_context_service
+
+            set_node_context_service(context_service)
+
+            # Accumulated response for final message
+            accumulated_response = ""
+
+            # Stream events using LangGraph's astream_events v2
+            async for event in self.graph.astream_events(initial_state, config, version="v2"):
+                event_kind = event.get("event")
+                event_data = event.get("data", {})
+
+                # LLM token streaming
+                if event_kind == "on_chat_model_stream":
+                    chunk = event_data.get("chunk")
+                    if chunk and hasattr(chunk, "content") and chunk.content:
+                        token = chunk.content
+                        accumulated_response += token
+                        yield f"data: {json.dumps({'event': 'token', 'data': token})}\n\n"
+
+                # Tool invocation start
+                elif event_kind == "on_tool_start":
+                    tool_name = event_data.get("name", "unknown")
+                    tool_input = event_data.get("input", {})
+                    yield f"data: {json.dumps({'event': 'tool_start', 'data': {'name': tool_name, 'args': tool_input}})}\n\n"
+
+                # Tool invocation end
+                elif event_kind == "on_tool_end":
+                    tool_name = event_data.get("name", "unknown")
+                    # Truncate long outputs
+                    output = str(event_data.get("output", ""))[:500]
+                    yield f"data: {json.dumps({'event': 'tool_end', 'data': {'name': tool_name, 'output': output}})}\n\n"
+
+            # Final response
+            yield f"data: {json.dumps({'event': 'done', 'data': {'response': accumulated_response, 'model': model_used}})}\n\n"
+
+            # Persist AI response in background
+            if conversa_id and accumulated_response:
+                _create_background_task(
+                    self._persist_message(conversa_id, "ai", accumulated_response)
+                )
+
+        except Exception as e:
+            logger.exception(f"[Stream] Erro ao processar mensagem na sessão {session_id}")
+            yield f"data: {json.dumps({'event': 'error', 'data': {'message': str(e)}})}\n\n"

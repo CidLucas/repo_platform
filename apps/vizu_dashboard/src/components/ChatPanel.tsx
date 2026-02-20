@@ -16,6 +16,7 @@ import { ArrowForwardIcon, AttachmentIcon, AddIcon, ChatIcon, CloseIcon } from '
 import { AuthContext } from '../contexts/AuthContext';
 import { SimpleDataTable, type StructuredData } from './SimpleDataTable';
 import { MarkdownMessage } from './MarkdownMessage';
+import { sendChatMessageStream, type StreamDoneData } from '../services/chatService';
 
 interface Message {
   id: string;
@@ -104,52 +105,94 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
     setInputValue('');
     setIsLoading(true);
 
-    // Integração com o backend atendente_core
-    try {
-      const token = auth?.session?.access_token;
-      const response = await fetch(
-        `${import.meta.env.VITE_ATENDENTE_CORE}/chat`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            message: userMessage.content,
-            session_id: sessionId,
-          }),
-        }
-      );
-      if (!response.ok) throw new Error('Erro ao se comunicar com o atendente');
-      const data = await response.json();
+    // Create placeholder message for streaming response
+    const assistantMessageId = Date.now().toString() + '-assistant';
+    let streamedContent = '';
 
-      // Check for structured data in the response
-      const structuredData = data.structured_data as StructuredData | undefined;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: assistantMessageId,
+        content: '',
+        sender: 'assistant',
+        timestamp: new Date(),
+      },
+    ]);
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString() + '-assistant',
-          content: data.response || (structuredData ? '' : 'Sem resposta do atendente.'),
-          sender: 'assistant',
-          timestamp: new Date(),
-          structuredData,
+    // Stream response from atendente_core
+    const token = auth?.session?.access_token;
+
+    await sendChatMessageStream(
+      {
+        message: userMessage.content,
+        session_id: sessionId,
+      },
+      {
+        onToken: (token: string) => {
+          streamedContent += token;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, content: streamedContent }
+                : msg
+            )
+          );
         },
-      ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString() + '-error',
-          content: 'Erro ao se comunicar com o atendente. Tente novamente.',
-          sender: 'assistant',
-          timestamp: new Date(),
+        onToolStart: (tool) => {
+          // Show tool activity indicator
+          const toolLabel = tool.name === 'execute_sql' ? 'Consultando banco de dados...' :
+                           tool.name === 'executar_rag_cliente' ? 'Pesquisando na base de conhecimento...' :
+                           `Executando ${tool.name}...`;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, content: `_${toolLabel}_\n\n${streamedContent}` }
+                : msg
+            )
+          );
         },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
+        onToolEnd: () => {
+          // Remove tool indicator, keep just streamed content
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, content: streamedContent }
+                : msg
+            )
+          );
+        },
+        onComplete: (data: StreamDoneData) => {
+          // Final update with structured data if present
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? {
+                    ...msg,
+                    content: data.response || streamedContent || 'Sem resposta do atendente.',
+                    structuredData: data.structured_data,
+                  }
+                : msg
+            )
+          );
+          setIsLoading(false);
+        },
+        onError: (error: Error) => {
+          console.error('Stream error:', error);
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMessageId
+                ? { ...msg, content: 'Erro ao se comunicar com o atendente. Tente novamente.' }
+                : msg
+            )
+          );
+          setIsLoading(false);
+        },
+      },
+      token
+    );
+
+    // Fallback: ensure loading is false even if callbacks don't fire
+    setIsLoading(false);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

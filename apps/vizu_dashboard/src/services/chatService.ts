@@ -1,8 +1,9 @@
 import axios from 'axios';
 import type { StructuredData } from '../components/SimpleDataTable';
 
-// API Base URL - connects to analytics_api for chat
-const CHAT_API_URL = 'http://localhost:8009/api/chat';
+// API Base URL - connects to atendente_core for chat
+// Uses VITE_ATENDENTE_CORE if set, otherwise falls back to localhost
+const CHAT_API_URL = import.meta.env.VITE_ATENDENTE_CORE || 'http://localhost:8003';
 
 // --- Request Deduplication ---
 // Tracks in-flight requests to prevent duplicate submissions
@@ -47,18 +48,53 @@ export interface ChatResponse {
   }[];
 }
 
-export interface ChatStreamChunk {
-  content: string;
-  done: boolean;
+// --- SSE Event Types ---
+export type StreamEventType = 'token' | 'tool_start' | 'tool_end' | 'done' | 'error';
+
+export interface StreamEvent {
+  event: StreamEventType;
+  data: string | StreamToolEvent | StreamDoneData | StreamErrorData;
+}
+
+export interface StreamToolEvent {
+  name: string;
+  args?: Record<string, unknown>;
+  output?: string;
+}
+
+export interface StreamDoneData {
+  response: string;
+  model: string;
+  structured_data?: StructuredData;
+}
+
+export interface StreamErrorData {
+  message: string;
+}
+
+export interface ChatStreamCallbacks {
+  /** Called for each LLM token */
+  onToken?: (token: string) => void;
+  /** Called when a tool starts executing */
+  onToolStart?: (tool: { name: string; args?: Record<string, unknown> }) => void;
+  /** Called when a tool finishes */
+  onToolEnd?: (tool: { name: string; output?: string }) => void;
+  /** Called when streaming completes */
+  onComplete?: (data: StreamDoneData) => void;
+  /** Called on error */
+  onError?: (error: Error) => void;
 }
 
 // --- Chat Service Functions ---
 
 /**
- * Send a chat message and get a response.
+ * Send a chat message and get a response (blocking).
  * Includes request deduplication to prevent duplicate submissions.
  */
-export async function sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
+export async function sendChatMessage(
+  request: ChatRequest,
+  authToken?: string
+): Promise<ChatResponse> {
   const requestKey = getRequestKey(request);
 
   // Check if there's already an in-flight request with the same key
@@ -71,16 +107,18 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
   // Create the actual request promise
   const requestPromise = (async () => {
     try {
-      const response = await axios.post<ChatResponse>(CHAT_API_URL, request, {
+      const response = await axios.post<ChatResponse>(`${CHAT_API_URL}/chat`, request, {
         headers: {
           'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
         timeout: 60000, // 60 second timeout for LLM responses
       });
       return response.data;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Chat API Error:', error);
-      throw new Error(error.response?.data?.detail || 'Erro ao enviar mensagem. Tente novamente.');
+      const axiosError = error as { response?: { data?: { detail?: string } } };
+      throw new Error(axiosError.response?.data?.detail || 'Erro ao enviar mensagem. Tente novamente.');
     } finally {
       // Remove from in-flight map once complete (success or error)
       inflightRequests.delete(requestKey);
@@ -94,14 +132,14 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
 }
 
 /**
- * Send a chat message with streaming response.
+ * Send a chat message with streaming response (Server-Sent Events).
+ * Streams tokens as they arrive for better perceived latency.
  * Includes request deduplication to prevent duplicate streams.
  */
 export async function sendChatMessageStream(
   request: ChatRequest,
-  onChunk: (chunk: string) => void,
-  onComplete: () => void,
-  onError: (error: Error) => void
+  callbacks: ChatStreamCallbacks,
+  authToken?: string
 ): Promise<void> {
   const requestKey = getRequestKey(request);
 
@@ -115,10 +153,11 @@ export async function sendChatMessageStream(
   inflightStreamRequests.add(requestKey);
 
   try {
-    const response = await fetch(`${CHAT_API_URL}/stream`, {
+    const response = await fetch(`${CHAT_API_URL}/chat/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       },
       body: JSON.stringify(request),
     });
@@ -133,41 +172,62 @@ export async function sendChatMessageStream(
     }
 
     const decoder = new TextDecoder();
+    let buffer = '';
 
     while (true) {
       const { done, value } = await reader.read();
 
       if (done) {
-        onComplete();
         break;
       }
 
-      const chunk = decoder.decode(value, { stream: true });
+      buffer += decoder.decode(value, { stream: true });
 
-      // Parse SSE format
-      const lines = chunk.split('\n');
+      // Parse SSE format - each event is "data: {...}\n\n"
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
       for (const line of lines) {
         if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          if (data === '[DONE]') {
-            onComplete();
-            return;
-          }
+          const data = line.slice(6).trim();
+          if (!data) continue;
+
           try {
-            const parsed = JSON.parse(data);
-            if (parsed.content) {
-              onChunk(parsed.content);
+            const parsed = JSON.parse(data) as StreamEvent;
+            const eventType = parsed.event;
+            const eventData = parsed.data;
+
+            switch (eventType) {
+              case 'token':
+                callbacks.onToken?.(eventData as string);
+                break;
+
+              case 'tool_start':
+                callbacks.onToolStart?.(eventData as StreamToolEvent);
+                break;
+
+              case 'tool_end':
+                callbacks.onToolEnd?.(eventData as StreamToolEvent);
+                break;
+
+              case 'done':
+                callbacks.onComplete?.(eventData as StreamDoneData);
+                return; // Exit on done
+
+              case 'error':
+                throw new Error((eventData as StreamErrorData).message);
             }
-          } catch {
-            // If not JSON, treat as plain text
-            onChunk(data);
+          } catch (parseError) {
+            // If not valid JSON, log and continue
+            console.warn('[ChatService] Failed to parse SSE event:', data, parseError);
           }
         }
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Chat Stream Error:', error);
-    onError(new Error(error.message || 'Erro na conexão de streaming'));
+    const err = error instanceof Error ? error : new Error('Erro na conexão de streaming');
+    callbacks.onError?.(err);
   } finally {
     // Remove from in-flight set once complete (success or error)
     inflightStreamRequests.delete(requestKey);

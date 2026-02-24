@@ -28,21 +28,27 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
     - Frontend disconnections leaving transactions open
     """
     async def dispatch(self, request: Request, call_next):
-        # Set timeouts at session level for this request
-        # These are more aggressive than database defaults since API requests should be fast
-        from sqlalchemy import text
+        # Skip for OPTIONS preflight requests (no DB needed)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        
+        # Skip for health checks
+        if request.url.path == "/health":
+            return await call_next(request)
 
-        from vizu_db_connector.database import SessionLocal
-        session = SessionLocal()
+        # Try to set session timeouts, but don't fail the request if DB is unavailable
         try:
-            # 30s statement timeout - any single query taking longer is killed
-            session.execute(text("SET statement_timeout = '30s'"))
-            # 5min idle_in_transaction timeout - transaction idle > 5min is auto-rolled back
-            session.execute(text("SET idle_in_transaction_session_timeout = '5min'"))
-            session.close()
+            from sqlalchemy import text
+            from vizu_db_connector.database import SessionLocal
+            session = SessionLocal()
+            try:
+                session.execute(text("SET statement_timeout = '30s'"))
+                session.execute(text("SET idle_in_transaction_session_timeout = '5min'"))
+            finally:
+                session.close()
         except Exception as e:
-            logger.warning(f"Could not set session timeouts: {e}")
-            session.close()
+            # Log but continue - don't crash the request
+            logger.warning(f"Could not set session timeouts (non-fatal): {e}")
 
         return await call_next(request)
 
@@ -82,7 +88,33 @@ app = FastAPI(
 # Setup telemetry after app creation
 setup_telemetry(app=app, service_name="analytics-api")
 
-# --- CORS Configuration (MUST be added BEFORE routes) ---
+# --- Exception Handlers ---
+# Ensures all errors return proper JSON responses (CORS headers added by middleware)
+from vizu_auth.core.exceptions import AuthError
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(AuthError)
+async def auth_error_handler(request, exc: AuthError):
+    """Convert AuthError to HTTPException with proper CORS handling."""
+    logger.warning(f"Auth error: {exc.message} (code={exc.code})")
+    return JSONResponse(
+        status_code=401,
+        content={"detail": exc.message, "code": exc.code},
+    )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch-all for unhandled exceptions - ensures JSON response with logging."""
+    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {type(exc).__name__}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error", "error_type": type(exc).__name__},
+    )
+        status_code=401,
+        content={"detail": exc.message, "code": exc.code},
+    )
+
+# --- CORS Configuration ---
 # Get allowed origins from environment variable or use defaults
 allowed_origins_env = os.getenv("CORS_ORIGINS", "")
 if allowed_origins_env:
@@ -111,6 +143,16 @@ else:
         "https://haruewffnubdgyofftut.supabase.co",
     ]
 
+# --- Middleware Stack ---
+# IMPORTANT: Middleware is processed in REVERSE order of addition.
+# Add CORS LAST so it's the OUTERMOST layer (wraps all responses including errors)
+app.add_middleware(DatabaseTimeoutMiddleware)
+logger.debug("Database timeout middleware configured (30s query, 5min idle)")
+
+app.add_middleware(CacheControlMiddleware)
+logger.debug("Cache-Control middleware configured (5min private cache)")
+
+# CORS MUST be added LAST to be outermost (process first on request, last on response)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -119,15 +161,7 @@ app.add_middleware(
     allow_headers=["*"],
     max_age=3600,
 )
-logger.debug(f"CORS origins configured: {origins}")
-
-# Add database timeout middleware
-app.add_middleware(DatabaseTimeoutMiddleware)
-logger.debug("Database timeout middleware configured (30s query, 5min idle)")
-
-# Add cache-control headers for dashboard routes
-app.add_middleware(CacheControlMiddleware)
-logger.debug("Cache-Control middleware configured (5min private cache)")
+logger.debug(f"CORS origins configured (outermost middleware): {origins}")
 
 # Rota de Health Check
 @app.get("/health", tags=["Infra"])

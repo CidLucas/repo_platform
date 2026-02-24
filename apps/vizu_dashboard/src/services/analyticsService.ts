@@ -329,6 +329,13 @@ axiosInstance.interceptors.request.use(
       config.headers['X-Client-ID'] = clientId;
     }
 
+    // Debug logging in production to diagnose auth issues
+    console.log(`📡 API Request: ${config.method?.toUpperCase()} ${config.url}`, {
+      hasToken: !!token,
+      hasClientId: !!clientId,
+      clientId: clientId || '(not set)',
+    });
+
     return config;
   },
   (error) => Promise.reject(error)

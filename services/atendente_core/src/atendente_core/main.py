@@ -25,12 +25,18 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next):
-        # Set timeouts at session level for this request
+        # Skip for OPTIONS preflight requests (no DB needed)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        
+        # Skip for health checks
+        if request.url.path == "/health":
+            return await call_next(request)
+
+        # Try to set session timeouts, but don't fail the request if DB is unavailable
         try:
             from sqlalchemy import text
-
             from vizu_db_connector.database import SessionLocal
-
             session = SessionLocal()
             try:
                 session.execute(text("SET statement_timeout = '30s'"))
@@ -38,7 +44,7 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
             finally:
                 session.close()
         except Exception as e:
-            logger.warning(f"Could not set session timeouts: {e}")
+            logger.warning(f"Could not set session timeouts (non-fatal): {e}")
 
         return await call_next(request)
 
@@ -138,6 +144,13 @@ else:
         "http://127.0.0.1:8080",
     ]
 
+# --- Middleware Stack ---
+# IMPORTANT: Middleware is processed in REVERSE order of addition.
+# Add CORS LAST so it's the OUTERMOST layer (wraps all responses including errors)
+app.add_middleware(DatabaseTimeoutMiddleware)
+logger.debug("Database timeout middleware configured (30s query, 5min idle)")
+
+# CORS MUST be added LAST to be outermost (process first on request, last on response)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -146,11 +159,7 @@ app.add_middleware(
     allow_headers=["*"],
     max_age=3600,
 )
-logger.info(f"CORS configurado para: {origins}")
-
-# Add database timeout middleware
-app.add_middleware(DatabaseTimeoutMiddleware)
-logger.debug("Database timeout middleware configured (30s query, 5min idle)")
+logger.info(f"CORS configured (outermost middleware): {origins}")
 
 # Configure observability (OTLP + Langfuse)
 try:

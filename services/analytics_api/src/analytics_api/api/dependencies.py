@@ -139,10 +139,16 @@ async def get_client_id(
                     return actual_client_id
 
         except Exception as e:
-            logger.warning(f"Failed to decode JWT or resolve client_id: {e}")
+            # Log full error details to help debug JWT issues in production
+            logger.error(f"JWT decode/resolve failed: {type(e).__name__}: {e}", exc_info=True)
 
     # No client_id found - this is an error
-    logger.error("No client_id found in query params, headers, or JWT token")
+    logger.error(
+        f"No client_id found. "
+        f"Query param: {client_id_param}, "
+        f"X-Client-ID header: {request.headers.get('X-Client-ID')}, "
+        f"Authorization header present: {bool(auth_header)}"
+    )
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Client ID required. Provide via ?client_id=, X-Client-ID header, or Authorization Bearer token."

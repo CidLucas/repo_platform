@@ -20,6 +20,7 @@ Natural language to SQL tool for client data queries.
 """
 
 import logging
+import re
 import time
 from uuid import UUID
 
@@ -33,10 +34,9 @@ from tool_pool_api.server.dependencies import (
 )
 from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
 from vizu_llm_service import ModelTier, get_model
-
-# Context 2.0: Import ContextSection for selective injection
 from vizu_models.enums import ContextSection
 from vizu_models.vizu_client_context import VizuClientContext
+
 from . import register_module
 
 logger = logging.getLogger(__name__)
@@ -45,8 +45,6 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # HELPERS
 # =============================================================================
-
-import re
 
 
 def _strip_markdown_code_block(text: str) -> str:
@@ -859,6 +857,7 @@ async def _execute_sql_logic(
         from sqlalchemy import text as sa_text
 
         from vizu_sql_factory.factory import get_shared_engine
+
         from .structured_data_formatter import format_sql_result
 
         engine = get_shared_engine()

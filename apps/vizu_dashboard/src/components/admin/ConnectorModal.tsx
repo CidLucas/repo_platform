@@ -207,7 +207,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
 
       // Fetch source columns from BigQuery foreign table for mapping
       let columnsToMap: string[] = sourceColumns;
-      
+
       if (connector.id === 'bigquery' && columnsToMap.length === 0) {
         // Try to get columns from client_data_sources
         const { data: dataSource } = await supabase
@@ -215,7 +215,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
           .select('source_columns')
           .eq('credential_id', parseInt(response.id_credencial))
           .single();
-        
+
         if (dataSource?.source_columns) {
           columnsToMap = Array.isArray(dataSource.source_columns)
             ? dataSource.source_columns

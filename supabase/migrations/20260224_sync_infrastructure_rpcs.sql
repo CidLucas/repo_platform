@@ -10,7 +10,7 @@ BEGIN;
 -- PHASE 1: Add watermark columns to connector_sync_history
 -- =============================================================================
 
-ALTER TABLE public.connector_sync_history 
+ALTER TABLE public.connector_sync_history
 ADD COLUMN IF NOT EXISTS last_watermark_value TIMESTAMPTZ,
 ADD COLUMN IF NOT EXISTS watermark_column TEXT DEFAULT 'updated_at',
 ADD COLUMN IF NOT EXISTS sync_mode TEXT DEFAULT 'full'; -- 'full' or 'incremental'
@@ -49,7 +49,7 @@ DECLARE
     v_start_time TIMESTAMPTZ := now();
 BEGIN
     -- 1. Get data source configuration
-    SELECT 
+    SELECT
         cds.id,
         cds.storage_location,
         cds.column_mapping,
@@ -59,19 +59,19 @@ BEGIN
     WHERE cds.client_id = p_client_id::text
       AND cds.credential_id = p_credential_id
     LIMIT 1;
-    
+
     IF v_data_source IS NULL THEN
         RETURN jsonb_build_object(
             'success', false,
             'error', 'Data source not found for client_id and credential_id'
         );
     END IF;
-    
+
     v_foreign_table := v_data_source.storage_location;
     v_column_mapping := v_data_source.column_mapping;
-    
+
     -- 2. Get last sync watermark
-    SELECT 
+    SELECT
         last_watermark_value,
         COALESCE(watermark_column, 'updated_at')
     INTO v_last_watermark, v_watermark_column
@@ -81,7 +81,7 @@ BEGIN
       AND status = 'completed'
     ORDER BY sync_completed_at DESC
     LIMIT 1;
-    
+
     -- Determine sync mode
     IF p_force_full_sync OR v_last_watermark IS NULL THEN
         v_sync_mode := 'full';
@@ -90,7 +90,7 @@ BEGIN
         v_sync_mode := 'incremental';
         v_where_clause := format('%I > %L', v_watermark_column, v_last_watermark);
     END IF;
-    
+
     -- 3. Create sync history record
     INSERT INTO public.connector_sync_history (
         client_id,
@@ -114,15 +114,15 @@ BEGIN
         v_data_source.id
     )
     RETURNING id INTO v_sync_id;
-    
+
     -- 4. Set client context for RLS
     PERFORM set_config('app.current_cliente_id', p_client_id::text, true);
-    
+
     -- 5. Clear existing data if full sync
     IF v_sync_mode = 'full' THEN
         DELETE FROM analytics_v2.vendas WHERE client_id = p_client_id::text;
     END IF;
-    
+
     -- 6. Extract data from BigQuery via FDW
     v_extract_result := public.extract_bigquery_data(
         p_foreign_table := v_foreign_table,
@@ -131,7 +131,7 @@ BEGIN
         p_where_clause := v_where_clause,
         p_limit := NULL
     );
-    
+
     IF NOT (v_extract_result->>'success')::boolean THEN
         -- Update sync history with error
         UPDATE public.connector_sync_history
@@ -141,16 +141,16 @@ BEGIN
             error_message = v_extract_result->>'error',
             error_details = v_extract_result
         WHERE id = v_sync_id;
-        
+
         RETURN v_extract_result;
     END IF;
-    
+
     v_rows_inserted := (v_extract_result->>'rows_inserted')::integer;
-    
+
     -- 7. Get new watermark (max value from inserted records)
     EXECUTE format(
         'SELECT max(%I) FROM analytics_v2.vendas WHERE client_id = $1',
-        CASE v_watermark_column 
+        CASE v_watermark_column
             WHEN 'updated_at' THEN 'atualizado_em'
             WHEN 'created_at' THEN 'criado_em'
             ELSE 'atualizado_em'
@@ -158,10 +158,10 @@ BEGIN
     )
     INTO v_new_watermark
     USING p_client_id::text;
-    
+
     -- 8. Refresh dimension aggregates
     v_aggregate_result := analytics_v2.atualizar_agregados(p_client_id);
-    
+
     -- 9. Update sync history with success
     UPDATE public.connector_sync_history
     SET status = 'completed',
@@ -172,13 +172,13 @@ BEGIN
         progress_percent = 100,
         last_watermark_value = COALESCE(v_new_watermark, v_last_watermark)
     WHERE id = v_sync_id;
-    
+
     -- 10. Update data source last_synced_at
     UPDATE public.client_data_sources
     SET last_synced_at = now(),
         sync_status = 'completed'
     WHERE id = v_data_source.id;
-    
+
     RETURN jsonb_build_object(
         'success', true,
         'sync_id', v_sync_id,
@@ -199,7 +199,7 @@ EXCEPTION
             error_message = SQLERRM,
             error_details = jsonb_build_object('sqlstate', SQLSTATE, 'message', SQLERRM)
         WHERE id = v_sync_id;
-        
+
         RETURN jsonb_build_object(
             'success', false,
             'error', SQLERRM,
@@ -232,7 +232,7 @@ BEGIN
     -- UPDATE CLIENTES (customers) dimension from vendas
     -- ==========================================================================
     WITH vendas_por_cliente AS (
-        SELECT 
+        SELECT
             cliente_cpf_cnpj AS cpf_cnpj,
             client_id,
             COUNT(DISTINCT pedido_id) AS total_pedidos,
@@ -249,7 +249,7 @@ BEGIN
         GROUP BY cliente_cpf_cnpj, client_id
     ),
     meses_ativos AS (
-        SELECT 
+        SELECT
             cliente_cpf_cnpj AS cpf_cnpj,
             COUNT(DISTINCT date_trunc('month', data_transacao)) AS meses
         FROM analytics_v2.vendas
@@ -258,7 +258,7 @@ BEGIN
         GROUP BY cliente_cpf_cnpj
     )
     UPDATE analytics_v2.clientes c
-    SET 
+    SET
         total_pedidos = vpc.total_pedidos,
         receita_total = vpc.receita_total,
         ticket_medio = vpc.ticket_medio,
@@ -273,14 +273,14 @@ BEGIN
     LEFT JOIN meses_ativos ma ON vpc.cpf_cnpj = ma.cpf_cnpj
     WHERE c.cpf_cnpj = vpc.cpf_cnpj
       AND c.client_id = vpc.client_id;
-    
+
     GET DIAGNOSTICS v_clientes_updated = ROW_COUNT;
-    
+
     -- ==========================================================================
     -- UPDATE FORNECEDORES (suppliers) dimension from vendas
     -- ==========================================================================
     WITH vendas_por_fornecedor AS (
-        SELECT 
+        SELECT
             fornecedor_cnpj AS cnpj,
             client_id,
             COUNT(DISTINCT pedido_id) AS total_pedidos_recebidos,
@@ -296,7 +296,7 @@ BEGIN
         GROUP BY fornecedor_cnpj, client_id
     ),
     meses_ativos_fornecedor AS (
-        SELECT 
+        SELECT
             fornecedor_cnpj AS cnpj,
             COUNT(DISTINCT date_trunc('month', data_transacao)) AS meses
         FROM analytics_v2.vendas
@@ -305,7 +305,7 @@ BEGIN
         GROUP BY fornecedor_cnpj
     )
     UPDATE analytics_v2.fornecedores f
-    SET 
+    SET
         total_pedidos_recebidos = vpf.total_pedidos_recebidos,
         receita_total = vpf.receita_total,
         ticket_medio = vpf.ticket_medio,
@@ -319,14 +319,14 @@ BEGIN
     LEFT JOIN meses_ativos_fornecedor maf ON vpf.cnpj = maf.cnpj
     WHERE f.cnpj = vpf.cnpj
       AND f.client_id = vpf.client_id;
-    
+
     GET DIAGNOSTICS v_fornecedores_updated = ROW_COUNT;
-    
+
     -- ==========================================================================
     -- UPDATE PRODUTOS dimension from vendas
     -- ==========================================================================
     WITH vendas_por_produto AS (
-        SELECT 
+        SELECT
             produto_id,
             client_id,
             SUM(quantidade) AS quantidade_total_vendida,
@@ -342,7 +342,7 @@ BEGIN
         GROUP BY produto_id, client_id
     ),
     meses_ativos_produto AS (
-        SELECT 
+        SELECT
             produto_id,
             COUNT(DISTINCT date_trunc('month', data_transacao)) AS meses
         FROM analytics_v2.vendas
@@ -351,7 +351,7 @@ BEGIN
         GROUP BY produto_id
     )
     UPDATE analytics_v2.produtos p
-    SET 
+    SET
         quantidade_total_vendida = vpp.quantidade_total_vendida,
         receita_total = vpp.receita_total,
         preco_medio = vpp.preco_medio,
@@ -365,9 +365,9 @@ BEGIN
     LEFT JOIN meses_ativos_produto map ON vpp.produto_id = map.produto_id
     WHERE p.produto_id = vpp.produto_id
       AND p.client_id = vpp.client_id;
-    
+
     GET DIAGNOSTICS v_produtos_updated = ROW_COUNT;
-    
+
     RETURN jsonb_build_object(
         'success', true,
         'clientes_updated', v_clientes_updated,
@@ -403,23 +403,23 @@ BEGIN
         VALUES (NEW.cliente_id, NEW.client_id, NEW.cliente_cpf_cnpj, COALESCE(NEW.cliente_cpf_cnpj, 'Desconhecido'))
         ON CONFLICT (client_id, cpf_cnpj) DO NOTHING;
     END IF;
-    
+
     -- Auto-insert new fornecedor if not exists
     IF NEW.fornecedor_cnpj IS NOT NULL THEN
         INSERT INTO analytics_v2.fornecedores (fornecedor_id, client_id, cnpj, nome)
         VALUES (NEW.fornecedor_id, NEW.client_id, NEW.fornecedor_cnpj, COALESCE(NEW.fornecedor_cnpj, 'Desconhecido'))
         ON CONFLICT (client_id, cnpj) DO NOTHING;
     END IF;
-    
+
     RETURN NEW;
 END;
 $function$;
 
 -- Create unique constraints for ON CONFLICT to work
-CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_client_cpf_cnpj 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clientes_client_cpf_cnpj
     ON analytics_v2.clientes(client_id, cpf_cnpj);
-    
-CREATE UNIQUE INDEX IF NOT EXISTS idx_fornecedores_client_cnpj 
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_fornecedores_client_cnpj
     ON analytics_v2.fornecedores(client_id, cnpj);
 
 -- Create trigger

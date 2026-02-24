@@ -43,7 +43,7 @@ DROP POLICY IF EXISTS fact_sales_client_isolation ON analytics_v2.fact_sales;
 -- dim_customer → clientes
 ALTER TABLE analytics_v2.dim_customer RENAME TO clientes;
 
--- dim_supplier → fornecedores  
+-- dim_supplier → fornecedores
 ALTER TABLE analytics_v2.dim_supplier RENAME TO fornecedores;
 
 -- dim_product → produtos
@@ -187,7 +187,7 @@ INSERT INTO analytics_v2.compras (
     criado_em,
     atualizado_em
 )
-SELECT 
+SELECT
     poi.client_id,
     poi.purchase_order_id,
     po.supplier_id,
@@ -342,8 +342,8 @@ GROUP BY v.client_id, v.cliente_cpf_cnpj, c.nome, p.nome;
 CREATE OR REPLACE VIEW analytics_v2.v_distribuicao_regional AS
 WITH estado_para_regiao AS (
     SELECT mapping.sigla_estado, mapping.nome_regiao
-    FROM (VALUES 
-        ('AC','Norte'), ('AM','Norte'), ('AP','Norte'), ('PA','Norte'), 
+    FROM (VALUES
+        ('AC','Norte'), ('AM','Norte'), ('AP','Norte'), ('PA','Norte'),
         ('RO','Norte'), ('RR','Norte'), ('TO','Norte'),
         ('AL','Nordeste'), ('BA','Nordeste'), ('CE','Nordeste'), ('MA','Nordeste'),
         ('PB','Nordeste'), ('PE','Nordeste'), ('PI','Nordeste'), ('RN','Nordeste'), ('SE','Nordeste'),
@@ -373,28 +373,28 @@ SELECT tr.client_id,
     tr.estado,
     tr.regiao,
     tr.total,
-    CASE WHEN tc.total_geral > 0 
-        THEN (tr.total::numeric / tc.total_geral) * 100 
-        ELSE 0 
+    CASE WHEN tc.total_geral > 0
+        THEN (tr.total::numeric / tc.total_geral) * 100
+        ELSE 0
     END AS percentual
 FROM totais_regionais tr
 JOIN totais_cliente tc ON tr.client_id = tc.client_id;
 
 -- Dashboard summary view
 CREATE OR REPLACE VIEW analytics_v2.v_resumo_dashboard AS
-SELECT 
+SELECT
     current_setting('app.current_cliente_id', true) AS client_id,
-    (SELECT count(*) FROM analytics_v2.clientes 
+    (SELECT count(*) FROM analytics_v2.clientes
      WHERE client_id = current_setting('app.current_cliente_id', true)) AS total_clientes,
-    (SELECT count(*) FROM analytics_v2.fornecedores 
+    (SELECT count(*) FROM analytics_v2.fornecedores
      WHERE client_id = current_setting('app.current_cliente_id', true)) AS total_fornecedores,
-    (SELECT count(*) FROM analytics_v2.produtos 
+    (SELECT count(*) FROM analytics_v2.produtos
      WHERE client_id = current_setting('app.current_cliente_id', true)) AS total_produtos,
-    (SELECT count(DISTINCT pedido_id) FROM analytics_v2.vendas 
+    (SELECT count(DISTINCT pedido_id) FROM analytics_v2.vendas
      WHERE client_id = current_setting('app.current_cliente_id', true)) AS total_pedidos,
-    (SELECT COALESCE(sum(valor_total), 0) FROM analytics_v2.vendas 
+    (SELECT COALESCE(sum(valor_total), 0) FROM analytics_v2.vendas
      WHERE client_id = current_setting('app.current_cliente_id', true)) AS receita_total,
-    (SELECT COALESCE(avg(valor_total), 0) FROM analytics_v2.vendas 
+    (SELECT COALESCE(avg(valor_total), 0) FROM analytics_v2.vendas
      WHERE client_id = current_setting('app.current_cliente_id', true)) AS ticket_medio,
     now() AS gerado_em;
 

@@ -89,7 +89,7 @@ if allowed_origins_env:
     # Production: Use environment variable (comma-separated list)
     origins = [origin.strip() for origin in allowed_origins_env.split(",")]
 else:
-    # Development: Allow common local ports
+    # Development/Default: Allow common local ports + Cloud Run patterns
     origins = [
         "http://localhost:3000",
         "http://localhost:3001",  # vizu_dashboard port
@@ -104,6 +104,11 @@ else:
         "http://127.0.0.1:5176",
         "http://localhost:8080",  # Dashboard Docker port
         "http://127.0.0.1:8080",
+        # Cloud Run dashboard URLs (production)
+        "https://vizu-dashboard-858493958314.southamerica-east1.run.app",
+        "https://vizu-dashboard-858493958314.us-central1.run.app",
+        # Supabase Edge Functions (if needed)
+        "https://haruewffnubdgyofftut.supabase.co",
     ]
 
 app.add_middleware(

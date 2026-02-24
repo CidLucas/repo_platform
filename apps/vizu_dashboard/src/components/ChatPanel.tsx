@@ -141,8 +141,8 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
         onToolStart: (tool) => {
           // Show tool activity indicator
           const toolLabel = tool.name === 'execute_sql' ? 'Consultando banco de dados...' :
-                           tool.name === 'executar_rag_cliente' ? 'Pesquisando na base de conhecimento...' :
-                           `Executando ${tool.name}...`;
+            tool.name === 'executar_rag_cliente' ? 'Pesquisando na base de conhecimento...' :
+              `Executando ${tool.name}...`;
           setMessages((prev) =>
             prev.map((msg) =>
               msg.id === assistantMessageId
@@ -167,10 +167,10 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
             prev.map((msg) =>
               msg.id === assistantMessageId
                 ? {
-                    ...msg,
-                    content: data.response || streamedContent || 'Sem resposta do atendente.',
-                    structuredData: data.structured_data,
-                  }
+                  ...msg,
+                  content: data.response || streamedContent || 'Sem resposta do atendente.',
+                  structuredData: data.structured_data,
+                }
                 : msg
             )
           );

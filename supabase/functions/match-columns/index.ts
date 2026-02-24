@@ -33,14 +33,14 @@ interface SchemaMatchResult {
     detected_context?: string; // The inferred entity context (customer/supplier/product/neutral)
 }
 
-type SchemaType = "invoices" | "vendas" | "products" | "orders" | "customers" | "inventory" | "categories";
+type SchemaType = "invoices" | "fcx_vendas" | "dim_produtos" | "fcx_orders" | "dim_clientes" | "dim_inventory" | "fcx_categorias";
 
 // =============================================================================
 // Canonical Schemas (Portuguese-aligned with analytics_v2 tables)
 // =============================================================================
 
 const CANONICAL_SCHEMAS: Record<SchemaType, string[]> = {
-    // Main schema for BigQuery invoice data → analytics_v2.vendas
+    // Main schema for BigQuery invoice data → analytics_v2.fcx_vendas
     invoices: [
         "pedido_id",
         "data_transacao",
@@ -64,8 +64,8 @@ const CANONICAL_SCHEMAS: Record<SchemaType, string[]> = {
         "valor_total",
         "status",
     ],
-    // Alias for invoices (same as vendas table)
-    vendas: [
+    // Sales transactions → analytics_v2.fcx_vendas
+    fcx_vendas: [
         "venda_id",
         "pedido_id",
         "cliente_id",
@@ -81,7 +81,8 @@ const CANONICAL_SCHEMAS: Record<SchemaType, string[]> = {
         "hora_id",
         "sequencia_item",
     ],
-    products: [
+    // Products dimension → analytics_v2.dim_produtos
+    dim_produtos: [
         "produto_id",
         "nome",
         "descricao",
@@ -106,7 +107,8 @@ const CANONICAL_SCHEMAS: Record<SchemaType, string[]> = {
         "criado_em",
         "atualizado_em",
     ],
-    orders: [
+    // Orders → analytics_v2.fcx_purchase_orders
+    fcx_orders: [
         "pedido_id",
         "numero_pedido",
         "data_pedido",
@@ -132,7 +134,8 @@ const CANONICAL_SCHEMAS: Record<SchemaType, string[]> = {
         "tags",
         "origem",
     ],
-    customers: [
+    // Customers dimension → analytics_v2.dim_clientes
+    dim_clientes: [
         "cliente_id",
         "email",
         "nome",
@@ -154,30 +157,29 @@ const CANONICAL_SCHEMAS: Record<SchemaType, string[]> = {
         "atualizado_em",
         "ultima_compra",
     ],
-    inventory: [
-        "estoque_id",
+    // Inventory dimension → analytics_v2.dim_inventory
+    dim_inventory: [
+        "inventory_id",
         "produto_id",
         "sku",
-        "variante_id",
-        "localizacao_id",
-        "nome_localizacao",
-        "quantidade",
-        "disponivel",
-        "reservado",
-        "a_receber",
-        "atualizado_em",
+        "warehouse_code",
+        "quantity_on_hand",
+        "quantity_reserved",
+        "quantity_available",
+        "reorder_point",
+        "reorder_quantity",
+        "unit_cost",
+        "last_counted_at",
+        "created_at",
+        "updated_at",
     ],
-    categories: [
-        "categoria_id",
+    // Categories for financial entries → analytics_v2.fcx_categorias
+    fcx_categorias: [
+        "id",
         "nome",
-        "slug",
-        "descricao",
-        "categoria_pai_id",
-        "imagem_url",
-        "posicao",
-        "ativo",
-        "criado_em",
-        "atualizado_em",
+        "tipo",
+        "grupo",
+        "created_at",
     ],
 };
 
@@ -277,7 +279,7 @@ const MEDIUM_CONFIDENCE_THRESHOLD = 0.70;
 // Schema-type based defaults for ambiguous columns
 // When a bare column like "cnpj" appears, use schema context to disambiguate
 const SCHEMA_CONTEXT_DEFAULTS: Record<SchemaType, Record<string, string>> = {
-    customers: {
+    dim_clientes: {
         cnpj: "cliente_cpf_cnpj",
         cpf: "cliente_cpf_cnpj",
         cpf_cnpj: "cliente_cpf_cnpj",
@@ -308,7 +310,7 @@ const SCHEMA_CONTEXT_DEFAULTS: Record<SchemaType, Record<string, string>> = {
         valor: "valor_total",
         total: "valor_total",
     },
-    vendas: {
+    fcx_vendas: {
         cnpj: "cliente_cpf_cnpj",
         cpf: "cliente_cpf_cnpj",
         cpf_cnpj: "cliente_cpf_cnpj",
@@ -317,7 +319,7 @@ const SCHEMA_CONTEXT_DEFAULTS: Record<SchemaType, Record<string, string>> = {
         data: "data_transacao",
         valor: "valor_total",
     },
-    products: {
+    dim_produtos: {
         nome: "nome",
         descricao: "descricao",
         preco: "preco",
@@ -325,7 +327,7 @@ const SCHEMA_CONTEXT_DEFAULTS: Record<SchemaType, Record<string, string>> = {
         quantidade: "quantidade_estoque",
         codigo: "sku",
     },
-    orders: {
+    fcx_orders: {
         cnpj: "cliente_cpf_cnpj",
         cpf: "cliente_cpf_cnpj",
         telefone: "telefone",
@@ -334,12 +336,14 @@ const SCHEMA_CONTEXT_DEFAULTS: Record<SchemaType, Record<string, string>> = {
         valor: "valor_total",
         total: "valor_total",
     },
-    inventory: {
-        quantidade: "quantidade",
+    dim_inventory: {
+        quantidade: "quantity_on_hand",
         codigo: "sku",
+        estoque: "quantity_on_hand",
     },
-    categories: {
+    fcx_categorias: {
         nome: "nome",
+        categoria: "nome",
     },
 };
 
@@ -832,7 +836,7 @@ serve(async (req) => {
         const body = await req.json();
         const { source_columns, schema_type = "invoices" } = body as {
             source_columns: string[];
-            schema_type?: SchemaType;
+            schema_type?: string;
         };
 
         if (!source_columns || !Array.isArray(source_columns)) {
@@ -842,13 +846,28 @@ serve(async (req) => {
             );
         }
 
+        // Backwards compatibility: map legacy schema names to new names
+        const LEGACY_SCHEMA_ALIASES: Record<string, SchemaType> = {
+            vendas: "fcx_vendas",
+            products: "dim_produtos",
+            orders: "fcx_orders",
+            customers: "dim_clientes",
+            inventory: "dim_inventory",
+            categories: "fcx_categorias",
+        };
+
         const validSchemaTypes = Object.keys(CANONICAL_SCHEMAS);
-        const normalizedSchemaType = (schema_type.toLowerCase() as SchemaType) || "invoices";
+        const inputType = schema_type.toLowerCase();
+        const normalizedSchemaType: SchemaType =
+            (LEGACY_SCHEMA_ALIASES[inputType] as SchemaType) ||
+            (inputType as SchemaType) ||
+            "invoices";
 
         if (!validSchemaTypes.includes(normalizedSchemaType)) {
+            const legacyNames = Object.keys(LEGACY_SCHEMA_ALIASES);
             return new Response(
                 JSON.stringify({
-                    error: `Invalid schema_type. Must be one of: ${validSchemaTypes.join(", ")}`,
+                    error: `Invalid schema_type. Must be one of: ${validSchemaTypes.join(", ")} (legacy aliases: ${legacyNames.join(", ")})`,
                 }),
                 { status: 400, headers: { "Content-Type": "application/json" } }
             );

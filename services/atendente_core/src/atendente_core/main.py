@@ -35,8 +35,9 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
 
         # Try to set session timeouts, but don't fail the request if DB is unavailable
         try:
-            from sqlalchemy import text
-            from vizu_db_connector.database import SessionLocal
+            from sqlalchemy import text  # noqa: I001
+            from vizu_db_connector.database import SessionLocal  # noqa: I001
+
             session = SessionLocal()
             try:
                 session.execute(text("SET statement_timeout = '30s'"))

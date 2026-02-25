@@ -39,6 +39,7 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
         # Try to set session timeouts, but don't fail the request if DB is unavailable
         try:
             from sqlalchemy import text
+
             from vizu_db_connector.database import SessionLocal
             session = SessionLocal()
             try:
@@ -90,8 +91,10 @@ setup_telemetry(app=app, service_name="analytics-api")
 
 # --- Exception Handlers ---
 # Ensures all errors return proper JSON responses (CORS headers added by middleware)
-from vizu_auth.core.exceptions import AuthError
 from fastapi.responses import JSONResponse
+
+from vizu_auth.core.exceptions import AuthError
+
 
 @app.exception_handler(AuthError)
 async def auth_error_handler(request, exc: AuthError):
@@ -110,9 +113,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": "Internal server error", "error_type": type(exc).__name__},
     )
-        status_code=401,
-        content={"detail": exc.message, "code": exc.code},
-    )
+
 
 # --- CORS Configuration ---
 # Get allowed origins from environment variable or use defaults

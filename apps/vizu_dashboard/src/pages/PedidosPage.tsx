@@ -6,7 +6,7 @@ import { ListCard } from '../components/ListCard';
 import React, { useState, useEffect } from 'react'; // Added useEffect
 import { PedidoDetailsModal } from '../components/PedidoDetailsModal';
 import { getPedidosOverview, getPedidoDetails, getOrderIndicators } from '../services/analyticsService';
-import type { PedidosOverviewResponse, PedidoDetailResponse, PedidoItem, OrderMetricsResponse } from '../services/analyticsService';
+import type { PedidosOverviewResponse, PedidoDetailResponse, PedidoItem, OrderMetricsResponse, ChartDataPoint } from '../services/analyticsService';
 
 type PeriodType = 'week' | 'month' | 'quarter' | 'year';
 
@@ -171,8 +171,8 @@ function PedidosPage() {
             title="Métricas de Pedidos"
             size="large"
             bgColor="#FFD3E1"
-            graphData={{
-              values: orderMetrics
+            graphData={
+              orderMetrics
                 ? [
                   { name: 'Total Pedidos', value: orderMetrics.total },
                   { name: 'Receita', value: Math.round(orderMetrics.revenue / 1000) }, // Convert to thousands for readability
@@ -180,7 +180,7 @@ function PedidosPage() {
                   { name: 'Crescimento %', value: Math.round(orderMetrics.growth_rate || 0) }
                 ]
                 : []
-            }}
+            }
             scorecardValue={orderMetrics ? `R$ ${(orderMetrics.revenue / 1000).toFixed(1)}K` : 'R$ 0'}
             scorecardLabel="Total Vendido"
             kpiItems={
@@ -247,14 +247,14 @@ function PedidosPage() {
             title="Volume de Pedidos"
             size="large"
             bgColor="#FFF4C7"
-            graphData={{
-              values: overviewData?.chart_pedidos_no_tempo
+            graphData={
+              overviewData?.chart_pedidos_no_tempo
                 ? overviewData.chart_pedidos_no_tempo.map((d: ChartDataPoint) => ({
                   name: d.name,
                   value: (d.total_cumulativo as number) || 0
                 }))
                 : []
-            }}
+            }
             scorecardValue={orderMetrics ? `${orderMetrics.total}` : '0'}
             scorecardLabel="Total de Pedidos"
             kpiItems={

@@ -22,15 +22,18 @@ interface ChartDataPoint {
   [key: string]: string | number | undefined;
 }
 
-interface MapMarker {
-  position: [number, number];
-  popupText: string;
+interface GeoCluster {
+  location: string;
+  count: number;
+  total_revenue: number;
+  coordinates: [number, number];
 }
 
 interface MapDataConfig {
   center: [number, number];
   zoom: number;
-  markers: MapMarker[];
+  clusters?: GeoCluster[];
+  maxCount?: number;
 }
 
 interface DashboardCardProps {

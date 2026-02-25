@@ -5,16 +5,17 @@ import { ModalContentLayout } from './ModalContentLayout';
 import { ScorecardCard } from './ScorecardCard';
 import { ExpandableScorecardCard } from './ExpandableScorecardCard';
 import { TierBadge } from './TierBadge';
-import { ClienteDetailResponse, getCustomerMonthlyOrders, MonthlyOrderData } from '../services/analyticsService';
+import { ClienteDetailResponse, getCustomerMonthlyOrders, MonthlyOrderData, ClientesOverviewResponse } from '../services/analyticsService';
 
 interface ClienteDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   cliente: ClienteDetailResponse | null;
-  // overviewData prop kept for API compatibility but currently unused
+  overviewData?: ClientesOverviewResponse;
 }
 
-export const ClienteDetailsModal: React.FC<ClienteDetailsModalProps> = ({ isOpen, onClose, cliente }) => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- overviewData kept for API compatibility
+export const ClienteDetailsModal: React.FC<ClienteDetailsModalProps> = ({ isOpen, onClose, cliente, overviewData: _overviewData }) => {
   const navigate = useNavigate();
   const [monthlyOrders, setMonthlyOrders] = useState<MonthlyOrderData[]>([]);
   const [loadingGraph, setLoadingGraph] = useState<boolean>(false);

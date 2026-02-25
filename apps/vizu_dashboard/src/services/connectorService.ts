@@ -118,6 +118,39 @@ async function buildAuthHeaders(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+/**
+ * Resolve client_id from Supabase auth session.
+ * Falls back to clientes_vizu table lookup by user email.
+ */
+async function resolveClientIdFromSupabase(): Promise<string | null> {
+  const { data: { user }, error } = await supabase.auth.getUser();
+  
+  if (error || !user) {
+    console.warn('Failed to get user from Supabase auth:', error);
+    return null;
+  }
+
+  // Check if client_id is in app_metadata
+  const clientId = user.app_metadata?.client_id;
+  if (clientId) {
+    return clientId;
+  }
+
+  // Fallback: look up in clientes_vizu table by user email
+  const { data: cliente, error: clienteError } = await supabase
+    .from('clientes_vizu')
+    .select('client_id')
+    .eq('email_admin', user.email)
+    .single();
+
+  if (clienteError || !cliente) {
+    console.warn('Failed to find client_id in clientes_vizu:', clienteError);
+    return null;
+  }
+
+  return cliente.client_id;
+}
+
 // Funções da API
 
 /**
@@ -186,27 +219,20 @@ export async function testConnection(
 export async function createCredential(
   request: CreateCredentialRequest
 ): Promise<CredentialResponse> {
-  // Use provided client_id, fallback to localStorage, then fetch from /me if needed
+  // Use provided client_id, fallback to localStorage, then fetch from Supabase
   let resolvedClientId = request.client_id || localStorage.getItem('vizu_client_id') || '';
 
   if (!resolvedClientId) {
-    // Last resort: fetch from /me endpoint (NOT Supabase user ID - that's different!)
-    const token = await getAuthToken();
-    if (token) {
-      const ANALYTICS_API_URL = import.meta.env.VITE_API_URL_ANALYTICS || 'http://localhost:8004';
-      const meResponse = await fetch(`${ANALYTICS_API_URL}/api/dashboard/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (meResponse.ok) {
-        const meData = await meResponse.json();
-        resolvedClientId = meData.client_id;
-        localStorage.setItem('vizu_client_id', resolvedClientId);
-      }
+    // Last resort: resolve from Supabase auth
+    const clientIdFromSupabase = await resolveClientIdFromSupabase();
+    if (clientIdFromSupabase) {
+      resolvedClientId = clientIdFromSupabase;
+      localStorage.setItem('vizu_client_id', resolvedClientId);
     }
   }
 
   if (!resolvedClientId) {
-    throw new Error('client_id is required; could not resolve from context, localStorage, or /me endpoint');
+    throw new Error('client_id is required; could not resolve from context, localStorage, or Supabase');
   }
 
   const tipoServicoUpper = (request.tipo_servico || '').toUpperCase();
@@ -334,27 +360,20 @@ export async function startSync(
   clienteVizuId: string,
   resourceType: string = 'invoices'
 ): Promise<{ status: string; message: string; rows_processed?: number }> {
-  // Use provided client_id, fallback to localStorage, then fetch from /me if needed
+  // Use provided client_id, fallback to localStorage, then fetch from Supabase
   let resolvedClientId = clienteVizuId || localStorage.getItem('vizu_client_id') || '';
 
   if (!resolvedClientId) {
-    // Last resort: fetch from /me endpoint
-    const token = await getAuthToken();
-    if (token) {
-      const ANALYTICS_API_URL = import.meta.env.VITE_API_URL_ANALYTICS || 'http://localhost:8004';
-      const meResponse = await fetch(`${ANALYTICS_API_URL}/api/dashboard/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (meResponse.ok) {
-        const meData = await meResponse.json();
-        resolvedClientId = meData.client_id;
-        localStorage.setItem('vizu_client_id', resolvedClientId);
-      }
+    // Last resort: resolve from Supabase auth
+    const clientIdFromSupabase = await resolveClientIdFromSupabase();
+    if (clientIdFromSupabase) {
+      resolvedClientId = clientIdFromSupabase;
+      localStorage.setItem('vizu_client_id', resolvedClientId);
     }
   }
 
   if (!resolvedClientId) {
-    throw new Error('client_id is required; could not resolve from context, localStorage, or /me endpoint');
+    throw new Error('client_id is required; could not resolve from context, localStorage, or Supabase');
   }
 
   const response = await fetch(`${API_BASE_URL}/etl/run`, {

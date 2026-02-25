@@ -63,39 +63,110 @@ interface UseIndicatorsReturn {
     refetch: () => Promise<void>;
 }
 
-// API fetch function extracted for React Query
+// API fetch function extracted for React Query - now uses Supabase directly
 const fetchIndicators = async (
     period: PeriodType,
     metrics: Array<'orders' | 'products' | 'customers'>,
-    includeComparisons: boolean
+    _includeComparisons: boolean
 ): Promise<IndicatorsResponse> => {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData?.session?.access_token;
+    const ANALYTICS_SCHEMA = 'analytics_v2';
+    const generatedAt = new Date().toISOString();
 
-    if (!token) {
-        throw new Error('No authentication token available');
+    let orders: OrderMetrics | null = null;
+    let products: ProductMetrics | null = null;
+    let customers: CustomerMetrics | null = null;
+
+    // Calculate period filter
+    const getPeriodDays = (): number | null => {
+        switch (period) {
+            case 'today': return 1;
+            case 'yesterday': return 2;
+            case 'week': return 7;
+            case 'month': return 30;
+            case 'quarter': return 90;
+            case 'year': return 365;
+            default: return null;
+        }
+    };
+
+    const periodDays = getPeriodDays();
+
+    // Fetch orders metrics
+    if (metrics.includes('orders')) {
+        const { data: resumo, error } = await supabase
+            .schema(ANALYTICS_SCHEMA)
+            .from('v_resumo_dashboard')
+            .select('total_pedidos, receita_total, ticket_medio')
+            .single();
+
+        if (!error && resumo) {
+            orders = {
+                total: Number(resumo.total_pedidos) || 0,
+                revenue: Number(resumo.receita_total) || 0,
+                avg_order_value: Number(resumo.ticket_medio) || 0,
+                growth_rate: null,
+                by_status: { completed: Number(resumo.total_pedidos) || 0 },
+                period,
+            };
+        }
     }
 
-    const analyticsApiUrl = import.meta.env.VITE_API_URL_ANALYTICS || 'http://localhost:8004';
+    // Fetch product metrics
+    if (metrics.includes('products')) {
+        const { data: produtos, error } = await supabase
+            .schema(ANALYTICS_SCHEMA)
+            .from('dim_produtos')
+            .select('quantidade_total_vendida, total_pedidos, preco_medio');
 
-    const response = await fetch(`${analyticsApiUrl}/api/indicators`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-            period,
-            metrics,
-            include_comparisons: includeComparisons,
-        }),
-    });
+        if (!error && produtos) {
+            const totalSold = produtos.reduce((sum, p) => sum + Number(p.quantidade_total_vendida || 0), 0);
+            const avgPrice = produtos.length > 0
+                ? produtos.reduce((sum, p) => sum + Number(p.preco_medio || 0), 0) / produtos.length
+                : 0;
 
-    if (!response.ok) {
-        throw new Error(`Failed to fetch indicators: ${response.statusText}`);
+            products = {
+                total_sold: totalSold,
+                unique_products: produtos.length,
+                top_sellers: [],
+                low_stock_alerts: 0,
+                avg_price: avgPrice,
+                period,
+            };
+        }
     }
 
-    return response.json();
+    // Fetch customer metrics
+    if (metrics.includes('customers')) {
+        const { data: clientes, error } = await supabase
+            .schema(ANALYTICS_SCHEMA)
+            .from('dim_clientes')
+            .select('total_pedidos, receita_total, dias_recencia');
+
+        if (!error && clientes) {
+            const totalActive = clientes.filter(c => Number(c.dias_recencia) <= 90).length;
+            const newCustomers = clientes.filter(c => Number(c.total_pedidos) === 1).length;
+            const avgLifetimeValue = clientes.length > 0
+                ? clientes.reduce((sum, c) => sum + Number(c.receita_total || 0), 0) / clientes.length
+                : 0;
+
+            customers = {
+                total_active: totalActive,
+                new_customers: newCustomers,
+                returning_customers: totalActive - newCustomers,
+                avg_lifetime_value: avgLifetimeValue,
+                period,
+            };
+        }
+    }
+
+    return {
+        orders,
+        products,
+        customers,
+        cached: false,
+        generated_at: generatedAt,
+        ttl: null,
+    };
 };
 
 /**

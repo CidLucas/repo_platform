@@ -140,7 +140,7 @@ async function resolveClientIdFromSupabase(): Promise<string | null> {
   const { data: cliente, error: clienteError } = await supabase
     .from('clientes_vizu')
     .select('client_id')
-    .eq('email_admin', user.email)
+    .eq('email', user.email)
     .single();
 
   if (clienteError || !cliente) {

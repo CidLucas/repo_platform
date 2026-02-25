@@ -59,8 +59,6 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          - data_ingestion_api
-          - analytics_api
           - atendente_core
           - tool_pool_api
     steps:
@@ -114,8 +112,6 @@ jobs:
         service:
           - atendente_core
           - tool_pool_api
-          - data_ingestion_api
-          - analytics_api
           - vizu_dashboard
         include:
           - service: vizu_dashboard
@@ -173,9 +169,7 @@ jobs:
               --build-arg VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }} \
               --build-arg VITE_GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
               --build-arg VITE_API_URL=https://tool-pool-api-858493958314.southamerica-east1.run.app \
-              --build-arg VITE_ATENDENTE_CORE=https://atendente-core-858493958314.southamerica-east1.run.app \
-              --build-arg VITE_API_URL_ANALYTICS=https://analytics-api-858493958314.southamerica-east1.run.app \
-              --build-arg VITE_DATA_INGESTION_API_URL=https://data-ingestion-api-858493958314.southamerica-east1.run.app"
+              --build-arg VITE_ATENDENTE_CORE=https://atendente-core-858493958314.southamerica-east1.run.app"
           fi
 
           # Build and push for linux/amd64 (Cloud Run requirement)

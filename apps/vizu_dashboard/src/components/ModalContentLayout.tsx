@@ -2,13 +2,24 @@ import { Box, Flex } from '@chakra-ui/react';
 import React from 'react';
 import { MapComponent } from './MapComponent';
 
+interface MapMarker {
+  position: [number, number];
+  popupText: string;
+}
+
+interface MapDataConfig {
+  center: [number, number];
+  zoom: number;
+  markers: MapMarker[];
+}
+
 interface ModalContentLayoutProps {
   leftContent: React.ReactNode;
   rightContent: React.ReactNode;
   leftBgColor?: string;
   rightBgColor?: string;
   isMapModal?: boolean;
-  mapData?: any;
+  mapData?: MapDataConfig;
 }
 
 export const ModalContentLayout: React.FC<ModalContentLayoutProps> = ({

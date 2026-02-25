@@ -33,7 +33,7 @@ interface SchemaMatchResult {
     detected_context?: string; // The inferred entity context (customer/supplier/product/neutral)
 }
 
-type SchemaType = "invoices" | "fcx_vendas" | "dim_produtos" | "fcx_orders" | "dim_clientes" | "dim_inventory" | "fcx_categorias";
+type SchemaType = "invoices" | "fcx_vendas" | "fato_transacoes" | "dim_produtos" | "fcx_orders" | "dim_clientes" | "dim_inventory" | "fcx_categorias";
 
 // =============================================================================
 // Canonical Schemas (Portuguese-aligned with analytics_v2 tables)
@@ -172,6 +172,25 @@ const CANONICAL_SCHEMAS: Record<SchemaType, string[]> = {
         "last_counted_at",
         "created_at",
         "updated_at",
+    ],
+    // Normalized fact table → analytics_v2.fato_transacoes (FK-based, no denormalized fields)
+    fato_transacoes: [
+        "documento",
+        "data_competencia_id",
+        "data_vencimento_id",
+        "data_efetiva_id",
+        "tipo_id",
+        "categoria_id",
+        "cliente_id",
+        "fornecedor_id",
+        "produto_id",
+        "parcela",
+        "quantidade",
+        "valor_unitario",
+        "valor",
+        "status",
+        "origem_tabela",
+        "origem_id",
     ],
     // Categories for financial entries → analytics_v2.fcx_categorias
     fcx_categorias: [
@@ -340,6 +359,14 @@ const SCHEMA_CONTEXT_DEFAULTS: Record<SchemaType, Record<string, string>> = {
         quantidade: "quantity_on_hand",
         codigo: "sku",
         estoque: "quantity_on_hand",
+    },
+    fato_transacoes: {
+        valor: "valor",
+        total: "valor",
+        quantidade: "quantidade",
+        codigo: "documento",
+        data: "data_competencia_id",
+        status: "status",
     },
     fcx_categorias: {
         nome: "nome",

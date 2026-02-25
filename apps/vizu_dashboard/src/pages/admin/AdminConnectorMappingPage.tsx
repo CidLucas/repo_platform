@@ -44,27 +44,37 @@ import {
     useColumnMatching,
     buildFinalColumnMapping,
     type SchemaMatchResult,
-    type SchemaType
 } from '../../hooks/useColumnMatching';
 import { supabase } from '../../lib/supabase';
 
-// Canonical columns for display (Portuguese names matching analytics_v2.vendas)
+// Canonical columns for display (Portuguese names matching fato_transacoes pipeline)
+// These are the mappable canonical columns that the sync function knows how to route
 const CANONICAL_COLUMNS: Record<string, string> = {
-    venda_id: 'ID da Venda',
-    pedido_id: 'ID do Pedido',
-    cliente_id: 'ID do Cliente',
-    fornecedor_id: 'ID do Fornecedor',
-    produto_id: 'ID do Produto',
+    // Transaction fields (-> fato_transacoes)
+    pedido_id: 'ID do Pedido (documento)',
     data_transacao: 'Data da Transação',
     quantidade: 'Quantidade',
     valor_unitario: 'Valor Unitário',
     valor_total: 'Valor Total',
-    cliente_cpf_cnpj: 'CPF/CNPJ do Cliente',
-    fornecedor_cnpj: 'CNPJ do Fornecedor',
-    cliente_nome: 'Nome do Cliente',
-    fornecedor_nome: 'Nome do Fornecedor',
-    produto_descricao: 'Descrição do Produto',
     status: 'Status',
+    // Customer fields (-> dim_clientes)
+    cliente_cpf_cnpj: 'CPF/CNPJ do Cliente',
+    cliente_nome: 'Nome do Cliente',
+    cliente_telefone: 'Telefone do Cliente',
+    cliente_rua: 'Rua do Cliente',
+    cliente_numero: 'Número do Cliente',
+    cliente_bairro: 'Bairro do Cliente',
+    cliente_cidade: 'Cidade do Cliente',
+    cliente_uf: 'UF do Cliente',
+    cliente_cep: 'CEP do Cliente',
+    // Supplier fields (-> dim_fornecedores)
+    fornecedor_cnpj: 'CNPJ do Fornecedor',
+    fornecedor_nome: 'Nome do Fornecedor',
+    fornecedor_telefone: 'Telefone do Fornecedor',
+    fornecedor_cidade: 'Cidade do Fornecedor',
+    fornecedor_uf: 'UF do Fornecedor',
+    // Product fields (-> dim_produtos)
+    produto_descricao: 'Descrição do Produto',
 };
 
 // All possible canonical columns for dropdown

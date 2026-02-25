@@ -1,19 +1,21 @@
-import { Box, Flex, Text, Link as ChakraLink } from '@chakra-ui/react';
+import { Flex, Text, Link as ChakraLink } from '@chakra-ui/react';
 import React from 'react';
 import { MiniCard } from './MiniCard';
 import { Link as ReactRouterLink } from 'react-router-dom';
 
+interface ListCardItem {
+  id: string;
+  title: string;
+  description: string;
+  status?: string;
+}
+
 interface ListCardProps {
   title: string;
-  items: {
-    id: string;
-    title: string;
-    description: string;
-    status?: string;
-  }[];
-  onMiniCardClick: (item: any) => void; // Function to open modal with item data
-  viewAllLink: string; // Link to the full list page
-  cardBgColor?: string; // New prop for MiniCard background color
+  items: ListCardItem[];
+  onMiniCardClick: (item: ListCardItem) => void;
+  viewAllLink: string;
+  cardBgColor?: string;
 }
 
 export const ListCard: React.FC<ListCardProps> = ({ title, items, onMiniCardClick, viewAllLink, cardBgColor }) => {

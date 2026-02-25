@@ -130,43 +130,8 @@ services:
       <<: *healthcheck-defaults
       test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
 
-  analytics_api:
-    container_name: vizu_analytics_api
-    platform: linux/amd64
-    image: ${USE_GHCR:+ghcr.io/${GHCR_OWNER:-vizubr}/vizu-analytics_api:${IMAGE_TAG:-latest}}
-    build:
-      context: .
-      dockerfile: ./services/analytics_api/Dockerfile
-    env_file:
-      - .env.production
-    environment:
-      <<: *common-env
-      PYTHONPATH: /app/src
-    ports:
-      - "127.0.0.1:8004:8000"
-    <<: [*restart-policy, *logging]
-    healthcheck:
-      <<: *healthcheck-defaults
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-
-  data_ingestion_api:
-    container_name: vizu_data_ingestion_api
-    platform: linux/amd64
-    image: ${USE_GHCR:+ghcr.io/${GHCR_OWNER:-vizubr}/vizu-data_ingestion_api:${IMAGE_TAG:-latest}}
-    build:
-      context: .
-      dockerfile: ./services/data_ingestion_api/Dockerfile
-    env_file:
-      - .env.production
-    environment:
-      <<: *common-env
-      PYTHONPATH: /app/src:/app/libs
-    ports:
-      - "127.0.0.1:8008:8000"
-    <<: [*restart-policy, *logging]
-    healthcheck:
-      <<: *healthcheck-defaults
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  # NOTE: analytics_api and data_ingestion_api REMOVED (deprecated)
+  # All functionality now handled via Supabase PostgREST + RPCs
 
   # =========================================
   # AGENT SERVICES

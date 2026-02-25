@@ -8,7 +8,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { ClienteDetailsModal } from '../components/ClienteDetailsModal';
 import { useClientes } from '../hooks/useListData';
 import { getCliente } from '../services/analyticsService';
-import type { ClienteDetailResponse } from '../services/analyticsService';
+import type { ClienteDetailResponse, ChartDataPoint, RankingItem } from '../services/analyticsService';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useGeoClusters } from '../hooks/useGeoClusters';
 import { useMVMonthlySales, useMVCustomers } from '../hooks/useMVData';
@@ -29,39 +29,40 @@ function ClientesPage() {
   const error = queryError?.message || localError;
 
   // Fetch from materialized views for faster chart data
-  const { chartData: mvChartData, loading: mvLoading } = useMVMonthlySales();
-  const { data: mvCustomers } = useMVCustomers();
+  const { chartData: mvChartData } = useMVMonthlySales();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- reserved for future customer MV integration
+  const { data: _mvCustomers } = useMVCustomers();
 
   // Fetch geographic clusters for map visualization
-  const { data: geoClusters, loading: loadingGeoClusters } = useGeoClusters('state');
+  const { data: geoClusters } = useGeoClusters('state');
 
   // Memoize chart data from MV (falls back to empty if MV not available)
   const chartRevenueData = useMemo(() => {
     if (mvChartData && mvChartData.length > 0) {
       return mvChartData.map(d => ({ name: d.name, value: d.revenue, total: d.revenue }));
     }
-    return (overviewData?.chart_receita_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0, total: d.total ?? d.value ?? 0 }));
+    return (overviewData?.chart_receita_no_tempo || []).map((d: ChartDataPoint) => ({ name: d.name, value: (d.total ?? d.value ?? 0) as number, total: (d.total ?? d.value ?? 0) as number }));
   }, [mvChartData, overviewData]);
 
   const chartOrdersData = useMemo(() => {
     if (mvChartData && mvChartData.length > 0) {
       return mvChartData.map(d => ({ name: d.name, value: d.orders, total: d.orders }));
     }
-    return (overviewData?.chart_clientes_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0, total: d.total ?? d.value ?? 0 }));
+    return (overviewData?.chart_clientes_no_tempo || []).map((d: ChartDataPoint) => ({ name: d.name, value: (d.total ?? d.value ?? 0) as number, total: (d.total ?? d.value ?? 0) as number }));
   }, [mvChartData, overviewData]);
 
   const chartCustomersData = useMemo(() => {
     if (mvChartData && mvChartData.length > 0) {
       return mvChartData.map(d => ({ name: d.name, value: d.customers, total: d.customers }));
     }
-    return (overviewData?.chart_clientes_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0, total: d.total ?? d.value ?? 0 }));
+    return (overviewData?.chart_clientes_no_tempo || []).map((d: ChartDataPoint) => ({ name: d.name, value: (d.total ?? d.value ?? 0) as number, total: (d.total ?? d.value ?? 0) as number }));
   }, [mvChartData, overviewData]);
 
   const chartAvgOrderData = useMemo(() => {
     if (mvChartData && mvChartData.length > 0) {
       return mvChartData.map(d => ({ name: d.name, value: d.avgOrderValue, total: d.avgOrderValue }));
     }
-    return (overviewData?.chart_ticketmedio_no_tempo || []).map((d: any) => ({ name: d.name, value: d.total ?? d.value ?? 0, total: d.total ?? d.value ?? 0 }));
+    return (overviewData?.chart_ticketmedio_no_tempo || []).map((d: ChartDataPoint) => ({ name: d.name, value: (d.total ?? d.value ?? 0) as number, total: (d.total ?? d.value ?? 0) as number }));
   }, [mvChartData, overviewData]);
 
   // Handle manual refresh (uses React Query refetch)
@@ -85,9 +86,10 @@ function ClientesPage() {
       const details = await getCliente(clickedItem.id);
       setSelectedItem(details);
       onOpen();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Erro ao carregar detalhes do cliente.';
       console.error("Erro ao carregar detalhes do cliente:", err);
-      setLocalError(err.message || 'Erro ao carregar detalhes do cliente.');
+      setLocalError(errorMsg);
     }
   };
 
@@ -103,10 +105,10 @@ function ClientesPage() {
 
     // Calculate totals
     const clientes = overviewData.ranking_por_receita || [];
-    const totalReceita = clientes.reduce((sum, c: any) => sum + (c.receita_total || c.lifetime_value || 0), 0);
-    const totalPedidos = clientes.reduce((sum, c: any) => sum + (c.num_pedidos_unicos || c.total_orders || 0), 0);
+    const totalReceita = clientes.reduce((sum, c: RankingItem) => sum + (c.receita_total || 0), 0);
+    const totalPedidos = clientes.reduce((sum, c: RankingItem) => sum + (c.num_pedidos_unicos || 0), 0);
     const avgTicket = clientes.length > 0
-      ? clientes.reduce((sum, c: any) => sum + (c.ticket_medio || c.avg_order_value || 0), 0) / clientes.length
+      ? clientes.reduce((sum, c: RankingItem) => sum + (c.ticket_medio || 0), 0) / clientes.length
       : 0;
 
     return [
@@ -172,16 +174,16 @@ function ClientesPage() {
       }
     };
 
-    return getRankingData().map((item: any) => {
+    return getRankingData().map((item: RankingItem) => {
       let description = '';
       if (selectedMetric === 'receita') {
-        description = `Receita: R$ ${(item.receita_total ?? item.lifetime_value ?? 0).toLocaleString('pt-BR')}`;
+        description = `Receita: R$ ${(item.receita_total ?? 0).toLocaleString('pt-BR')}`;
       } else if (selectedMetric === 'ticket_medio') {
-        description = `Ticket Médio: R$ ${(item.ticket_medio ?? item.avg_order_value ?? 0).toLocaleString('pt-BR')}`;
+        description = `Ticket Médio: R$ ${(item.ticket_medio ?? 0).toLocaleString('pt-BR')}`;
       } else if (selectedMetric === 'qtd_pedidos') {
-        description = `Qtd Pedidos: ${(item.num_pedidos_unicos ?? item.total_orders ?? 0).toLocaleString('pt-BR')}`;
+        description = `Qtd Pedidos: ${(item.num_pedidos_unicos ?? 0).toLocaleString('pt-BR')}`;
       } else if (selectedMetric === 'clientes') {
-        description = `Receita: R$ ${(item.receita_total ?? item.lifetime_value ?? 0).toLocaleString('pt-BR')}`;
+        description = `Receita: R$ ${(item.receita_total ?? 0).toLocaleString('pt-BR')}`;
       }
       return {
         id: item.nome,
@@ -214,7 +216,7 @@ function ClientesPage() {
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    return (overviewData.ranking_por_receita || []).filter((item: any) => {
+    return (overviewData.ranking_por_receita || []).filter((item: RankingItem) => {
       const firstSaleDate = new Date(item.primeira_venda);
       return firstSaleDate >= thirtyDaysAgo;
     }).length;
@@ -228,18 +230,18 @@ function ClientesPage() {
     const totalClientes = clientes.length || 1;
 
     // Cálculos dos tiers
-    const tierA = clientes.filter((c: any) => c.cluster_tier === 'A');
+    const tierA = clientes.filter((c: RankingItem) => c.cluster_tier === 'A');
     const tierACount = tierA.length;
     const tierAPercent = ((tierACount / totalClientes) * 100).toFixed(1);
-    const receitaTierA = tierA.reduce((sum: number, c: any) => sum + (c.receita_total || 0), 0);
-    const receitaTotal = clientes.reduce((sum: number, c: any) => sum + (c.receita_total || 0), 0);
+    const receitaTierA = tierA.reduce((sum: number, c: RankingItem) => sum + (c.receita_total || 0), 0);
+    const receitaTotal = clientes.reduce((sum: number, c: RankingItem) => sum + (c.receita_total || 0), 0);
     const tierAReceitaPercent = receitaTotal > 0 ? ((receitaTierA / receitaTotal) * 100).toFixed(1) : '0';
 
     // Crescimento
     const crescimento = overviewData.scorecard_crescimento_percentual;
 
     // Ticket médio
-    const ticketMedio = clientes.reduce((sum: number, c: any) => sum + (c.ticket_medio || 0), 0) / totalClientes;
+    const ticketMedio = clientes.reduce((sum: number, c: RankingItem) => sum + (c.ticket_medio || 0), 0) / totalClientes;
     const ticketFormatado = new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
@@ -281,10 +283,10 @@ function ClientesPage() {
     const clientes = overviewData.ranking_por_receita || [];
     const totalClientes = clientes.length || 1;
 
-    const mediaReceitaPorCliente = clientes.reduce((sum, c: any) => sum + (c.receita_total || 0), 0) / totalClientes;
-    const mediaFrequenciaPorCliente = clientes.reduce((sum, c: any) => sum + (c.frequencia_pedidos_mes || 0), 0) / totalClientes;
-    const mediaTicketMedioPorCliente = clientes.reduce((sum, c: any) => sum + (c.ticket_medio || 0), 0) / totalClientes;
-    const mediaPedidosPorCliente = clientes.reduce((sum, c: any) => sum + (c.num_pedidos_unicos || 0), 0) / totalClientes;
+    const mediaReceitaPorCliente = clientes.reduce((sum, c: RankingItem) => sum + (c.receita_total || 0), 0) / totalClientes;
+    const mediaFrequenciaPorCliente = clientes.reduce((sum, c: RankingItem) => sum + (c.frequencia_pedidos_mes || 0), 0) / totalClientes;
+    const mediaTicketMedioPorCliente = clientes.reduce((sum, c: RankingItem) => sum + (c.ticket_medio || 0), 0) / totalClientes;
+    const mediaPedidosPorCliente = clientes.reduce((sum, c: RankingItem) => sum + (c.num_pedidos_unicos || 0), 0) / totalClientes;
 
     return [
       {

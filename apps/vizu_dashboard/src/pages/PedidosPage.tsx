@@ -1,4 +1,4 @@
-import { Box, Flex, Text, Heading, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon, IconButton } from '@chakra-ui/react';
+import { Box, Flex, Text, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon, IconButton } from '@chakra-ui/react';
 import { RepeatIcon } from '@chakra-ui/icons';
 import { MainLayout } from '../components/layouts/MainLayout';
 import { DashboardCard } from '../components/DashboardCard';
@@ -34,9 +34,10 @@ function PedidosPage() {
       setOrderMetrics(metricsResponse);
       setLastUpdate(new Date());
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching pedidos:', err);
-      setError(err.message || 'Erro ao carregar pedidos.');
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar pedidos.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -44,6 +45,7 @@ function PedidosPage() {
 
   useEffect(() => {
     fetchPedidosData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchPedidosData depends on selectedPeriod which is already in deps
   }, [selectedPeriod]);
 
   const handlePeriodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -57,9 +59,10 @@ function PedidosPage() {
       const details = await getPedidoDetails(item.order_id);
       setSelectedItem(details);
       onOpen();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao carregar detalhes do pedido:", err);
-      setError(err.message || 'Erro ao carregar detalhes do pedido.');
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar detalhes do pedido.';
+      setError(errorMessage);
     }
   };
 
@@ -246,9 +249,9 @@ function PedidosPage() {
             bgColor="#FFF4C7"
             graphData={{
               values: overviewData?.chart_pedidos_no_tempo
-                ? overviewData.chart_pedidos_no_tempo.map((d: any) => ({
+                ? overviewData.chart_pedidos_no_tempo.map((d: ChartDataPoint) => ({
                   name: d.name,
-                  value: d.total_cumulativo || 0
+                  value: (d.total_cumulativo as number) || 0
                 }))
                 : []
             }}

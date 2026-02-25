@@ -80,7 +80,7 @@ export interface CustomerMetricsResponse {
 export interface ProductMetricsResponse {
   total_sold: number;
   unique_products: number;
-  top_sellers: any[];
+  top_sellers: { name: string; quantity: number; revenue: number }[];
   low_stock_alerts: number;
   avg_price: number;
   period: string;
@@ -98,7 +98,7 @@ export interface OrderMetricsResponse {
   revenue: number;
   avg_order_value: number;
   growth_rate: number | null;
-  by_status: Record<string, any>;
+  by_status: Record<string, number>;
   period: string;
   comparisons?: {
     vs_7_days: number | null;
@@ -137,7 +137,8 @@ export interface RankingItem {
 // Corresponds to the Pydantic 'ChartDataPoint'
 export interface ChartDataPoint {
   name: string;
-  [key: string]: any; // Allows for other properties like 'total', 'percentual', etc.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any; // Dynamic chart properties like 'total', 'percentual', 'value', etc.
 }
 
 // Corresponds to the Pydantic 'ChartData'
@@ -315,7 +316,7 @@ export const getPedidosOverview = async (): Promise<PedidosOverviewResponse> => 
     .select('*')
     .order('ordem', { ascending: true })
     .limit(50);
-  
+
   throwIfError(pedidos, pedidosError);
 
   // Get series temporal for chart_pedidos_no_tempo
@@ -326,7 +327,7 @@ export const getPedidosOverview = async (): Promise<PedidosOverviewResponse> => 
     .eq('tipo_grafico', 'pedidos')
     .eq('dimensao', 'total')
     .order('data_periodo', { ascending: true });
-  
+
   throwIfError(series, seriesError);
 
   // Get regional distribution for ranking
@@ -337,10 +338,11 @@ export const getPedidosOverview = async (): Promise<PedidosOverviewResponse> => 
     .eq('tipo_grafico', 'pedidos')
     .eq('dimensao', 'regiao')
     .order('total', { ascending: false });
-  
+
   throwIfError(regional, regionalError);
 
   // Get scorecards from dim_clientes aggregations
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { data: resumo, error: resumoError } = await supabase
     .schema(ANALYTICS_SCHEMA)
     .from('v_resumo_dashboard')
@@ -356,7 +358,7 @@ export const getPedidosOverview = async (): Promise<PedidosOverviewResponse> => 
 
   return {
     scorecard_ticket_medio_por_pedido: ticketMedio,
-    scorecard_qtd_media_produtos_por_pedido: 0, // Would need aggregation from fcx_vendas
+    scorecard_qtd_media_produtos_por_pedido: 0, // Would need aggregation from fato_transacoes
     scorecard_taxa_recorrencia_clientes_perc: 0, // Would need calculation
     scorecard_recencia_media_entre_pedidos_dias: 0, // Would need calculation
     chart_pedidos_no_tempo: (series || []).map(s => ({
@@ -380,31 +382,29 @@ export const getPedidosOverview = async (): Promise<PedidosOverviewResponse> => 
 
 // Pedido API call (details)
 export const getPedidoDetails = async (order_id: string): Promise<PedidoDetailResponse> => {
-  // Get pedido info from fcx_vendas
-  const { data: vendas, error } = await supabase
+  const { data: transacoes, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
-    .from('fcx_vendas')
+    .from('fato_transacoes')
     .select(`
-      pedido_id,
-      valor_total,
+      documento,
+      valor,
       quantidade,
-      data_transacao,
-      cliente_cpf_cnpj,
-      dim_clientes!inner(nome, cpf_cnpj, telefone, endereco_uf, endereco_cidade),
-      dim_produtos(nome)
+      valor_unitario,
+      dim_clientes(nome, cpf_cnpj, telefone, endereco_uf, endereco_cidade),
+      dim_produtos(nome),
+      dim_datas!data_competencia_id(data)
     `)
-    .eq('pedido_id', order_id);
+    .eq('documento', order_id);
 
-  throwIfError(vendas, error);
+  throwIfError(transacoes, error);
 
-  const firstItem = vendas?.[0];
-  // Supabase returns nested object for !inner joins
+  const firstItem = transacoes?.[0];
   const cliente = firstItem?.dim_clientes as unknown as Record<string, string> | null;
 
   return {
     order_id,
     status_pedido: 'completed',
-    total_pedido: vendas?.reduce((sum, v) => sum + Number(v.valor_total || 0), 0) || 0,
+    total_pedido: transacoes?.reduce((sum, v) => sum + Number(v.valor || 0), 0) || 0,
     dados_cliente: {
       receiver_nome: cliente?.nome,
       receiver_cnpj: cliente?.cpf_cnpj,
@@ -412,16 +412,17 @@ export const getPedidoDetails = async (order_id: string): Promise<PedidoDetailRe
       receiver_estado: cliente?.endereco_uf,
       receiver_cidade: cliente?.endereco_cidade,
     },
-    itens_pedido: (vendas || []).map(v => ({
+    itens_pedido: (transacoes || []).map(v => ({
       raw_product_description: (v.dim_produtos as unknown as Record<string, string> | null)?.nome || 'N/A',
       quantidade: Number(v.quantidade) || 0,
-      valor_unitario: Number(v.valor_total) / Number(v.quantidade) || 0,
-      valor_total_emitter: Number(v.valor_total) || 0,
+      valor_unitario: Number(v.valor_unitario) || (Number(v.valor) / Number(v.quantidade)) || 0,
+      valor_total_emitter: Number(v.valor) || 0,
     })),
   };
 };
 
 // Fornecedores API calls (overview)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getFornecedores = async (_period: string = 'all'): Promise<FornecedoresOverviewResponse> => {
   // Get fornecedores from dim_fornecedores
   const { data: fornecedores, error } = await supabase
@@ -516,6 +517,7 @@ export const getFornecedor = async (nome_fornecedor: string): Promise<Fornecedor
 };
 
 // Clientes API calls (overview)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getClientes = async (_period: string = 'all'): Promise<ClientesOverviewResponse> => {
   // Get clientes from dim_clientes
   const { data: clientes, error } = await supabase
@@ -626,6 +628,7 @@ export const getCliente = async (nome_cliente: string): Promise<ClienteDetailRes
 };
 
 // Produtos API calls (overview)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getProdutosOverview = async (_period: string = 'all'): Promise<ProdutosOverviewResponse> => {
   const { data: produtos, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
@@ -763,6 +766,7 @@ export const getHomeMetrics = async (): Promise<HomeMetricsResponse> => {
 };
 
 // Customer Indicators (from IndicatorService)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getCustomerIndicators = async (period: string = 'month', _includeComparisons: boolean = false): Promise<CustomerMetricsResponse> => {
   const { data: clientes, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
@@ -789,6 +793,7 @@ export const getCustomerIndicators = async (period: string = 'month', _includeCo
 };
 
 // Product Indicators (from IndicatorService)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getProductIndicators = async (period: string = 'month', _includeComparisons: boolean = false): Promise<ProductMetricsResponse> => {
   const { data: produtos, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
@@ -814,6 +819,7 @@ export const getProductIndicators = async (period: string = 'month', _includeCom
 };
 
 // Order Indicators (from IndicatorService)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getOrderIndicators = async (period: string = 'month', _includeComparisons: boolean = false): Promise<OrderMetricsResponse> => {
   const { data: resumo, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
@@ -860,7 +866,7 @@ export const getGeoClusters = async (groupBy: 'state' | 'city' | 'cep' = 'state'
 
   // Aggregate by location
   const grouped = (clientes || []).reduce((acc, c) => {
-    const loc = groupBy === 'state' 
+    const loc = groupBy === 'state'
       ? String(c.endereco_uf || 'N/A')
       : groupBy === 'city'
         ? String(c.endereco_cidade || 'N/A')
@@ -966,26 +972,24 @@ export const getCustomersForFilter = async (): Promise<CustomerFilterItem[]> => 
 
 // Get customers who bought a specific product
 export const getCustomersByProduct = async (productName: string, limit: number = 100): Promise<CustomerByProduct[]> => {
-  // Query vendas joined with cliente and produto
-  const { data: vendas, error } = await supabase
+  const { data: transacoes, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
-    .from('fcx_vendas')
+    .from('fato_transacoes')
     .select(`
-      valor_total,
+      valor,
       quantidade,
-      cliente_cpf_cnpj,
-      dim_clientes!inner(nome, receita_total),
+      dim_clientes!inner(cpf_cnpj, nome, receita_total),
       dim_produtos!inner(nome)
     `)
     .eq('dim_produtos.nome', productName)
-    .limit(limit * 10); // Get more to aggregate
+    .limit(limit * 10);
 
   if (error) console.warn('Error fetching customers by product:', error);
 
   // Aggregate by customer
-  const byCustomer = (vendas || []).reduce((acc, v) => {
-    const cpf = v.cliente_cpf_cnpj || '';
+  const byCustomer = (transacoes || []).reduce((acc, v) => {
     const cliente = v.dim_clientes as unknown as Record<string, unknown> | null;
+    const cpf = String(cliente?.cpf_cnpj || '');
     if (!acc[cpf]) {
       acc[cpf] = {
         customer_cpf_cnpj: cpf,
@@ -997,7 +1001,7 @@ export const getCustomersByProduct = async (productName: string, limit: number =
         percentual_do_total: 0,
       };
     }
-    acc[cpf].produto_receita += Number(v.valor_total) || 0;
+    acc[cpf].produto_receita += Number(v.valor) || 0;
     acc[cpf].produto_quantidade += Number(v.quantidade) || 0;
     acc[cpf].produto_pedidos++;
     return acc;
@@ -1015,22 +1019,32 @@ export const getCustomersByProduct = async (productName: string, limit: number =
 
 // Get products bought by a specific customer
 export const getProductsByCustomer = async (customerCpfCnpj: string, limit: number = 100): Promise<ProductByCustomer[]> => {
-  const { data: vendas, error } = await supabase
+  // Resolve cpf_cnpj -> cliente_id first
+  const { data: customer } = await supabase
     .schema(ANALYTICS_SCHEMA)
-    .from('fcx_vendas')
+    .from('dim_clientes')
+    .select('cliente_id')
+    .eq('cpf_cnpj', customerCpfCnpj)
+    .single();
+
+  if (!customer) return [];
+
+  const { data: transacoes, error } = await supabase
+    .schema(ANALYTICS_SCHEMA)
+    .from('fato_transacoes')
     .select(`
-      valor_total,
+      valor,
       quantidade,
       valor_unitario,
       dim_produtos!inner(nome)
     `)
-    .eq('cliente_cpf_cnpj', customerCpfCnpj)
+    .eq('cliente_id', customer.cliente_id)
     .limit(limit * 10);
 
   if (error) console.warn('Error fetching products by customer:', error);
 
   // Aggregate by product
-  const byProduct = (vendas || []).reduce((acc, v) => {
+  const byProduct = (transacoes || []).reduce((acc, v) => {
     const produto = v.dim_produtos as unknown as Record<string, string> | null;
     const nome = produto?.nome || '';
     if (!acc[nome]) {
@@ -1042,7 +1056,7 @@ export const getProductsByCustomer = async (customerCpfCnpj: string, limit: numb
         valor_unitario_medio: 0,
       };
     }
-    acc[nome].receita_total += Number(v.valor_total) || 0;
+    acc[nome].receita_total += Number(v.valor) || 0;
     acc[nome].quantidade_total += Number(v.quantidade) || 0;
     acc[nome].num_pedidos++;
     return acc;
@@ -1060,20 +1074,35 @@ export const getProductsByCustomer = async (customerCpfCnpj: string, limit: numb
 
 // Get monthly orders for a specific customer (time series)
 export const getCustomerMonthlyOrders = async (customerCpfCnpj: string): Promise<MonthlyOrderData[]> => {
-  const { data: vendas, error } = await supabase
+  // Resolve cpf_cnpj -> cliente_id first
+  const { data: customer } = await supabase
     .schema(ANALYTICS_SCHEMA)
-    .from('fcx_vendas')
-    .select('data_transacao, pedido_id')
-    .eq('cliente_cpf_cnpj', customerCpfCnpj);
+    .from('dim_clientes')
+    .select('cliente_id')
+    .eq('cpf_cnpj', customerCpfCnpj)
+    .single();
+
+  if (!customer) return [];
+
+  const { data: transacoes, error } = await supabase
+    .schema(ANALYTICS_SCHEMA)
+    .from('fato_transacoes')
+    .select(`
+      documento,
+      dim_datas!data_competencia_id(data)
+    `)
+    .eq('cliente_id', customer.cliente_id);
 
   if (error) console.warn('Error fetching customer monthly orders:', error);
 
   // Aggregate by month
-  const byMonth = (vendas || []).reduce((acc, v) => {
-    const date = new Date(v.data_transacao);
+  const byMonth = (transacoes || []).reduce((acc, v) => {
+    const dimData = v.dim_datas as unknown as Record<string, string> | null;
+    if (!dimData?.data) return acc;
+    const date = new Date(dimData.data);
     const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     if (!acc[month]) acc[month] = new Set<string>();
-    acc[month].add(v.pedido_id);
+    acc[month].add(v.documento);
     return acc;
   }, {} as Record<string, Set<string>>);
 
@@ -1094,24 +1123,33 @@ export interface CustomerBySupplier {
 
 // Get customers who bought from a specific supplier
 export const getCustomersBySupplier = async (supplierCnpj: string, limit: number = 100): Promise<CustomerBySupplier[]> => {
-  const { data: vendas, error } = await supabase
+  // Resolve cnpj -> fornecedor_id first
+  const { data: supplier } = await supabase
     .schema(ANALYTICS_SCHEMA)
-    .from('fcx_vendas')
+    .from('dim_fornecedores')
+    .select('fornecedor_id')
+    .eq('cnpj', supplierCnpj)
+    .single();
+
+  if (!supplier) return [];
+
+  const { data: transacoes, error } = await supabase
+    .schema(ANALYTICS_SCHEMA)
+    .from('fato_transacoes')
     .select(`
-      valor_total,
+      valor,
       quantidade,
-      cliente_cpf_cnpj,
-      dim_clientes!inner(nome)
+      dim_clientes!inner(cpf_cnpj, nome)
     `)
-    .eq('fornecedor_cnpj', supplierCnpj)
+    .eq('fornecedor_id', supplier.fornecedor_id)
     .limit(limit * 10);
 
   if (error) console.warn('Error fetching customers by supplier:', error);
 
   // Aggregate by customer
-  const byCustomer = (vendas || []).reduce((acc, v) => {
-    const cpf = v.cliente_cpf_cnpj || '';
+  const byCustomer = (transacoes || []).reduce((acc, v) => {
     const cliente = v.dim_clientes as unknown as Record<string, string> | null;
+    const cpf = String(cliente?.cpf_cnpj || '');
     if (!acc[cpf]) {
       acc[cpf] = {
         nome: cliente?.nome || '',
@@ -1122,7 +1160,7 @@ export const getCustomersBySupplier = async (supplierCnpj: string, limit: number
         ticket_medio: 0,
       };
     }
-    acc[cpf].receita_total += Number(v.valor_total) || 0;
+    acc[cpf].receita_total += Number(v.valor) || 0;
     acc[cpf].quantidade_total += Number(v.quantidade) || 0;
     acc[cpf].num_pedidos++;
     return acc;
@@ -1138,22 +1176,32 @@ export const getCustomersBySupplier = async (supplierCnpj: string, limit: number
 
 // Get products sold by a specific supplier
 export const getProductsBySupplier = async (supplierCnpj: string, limit: number = 100): Promise<ProductByCustomer[]> => {
-  const { data: vendas, error } = await supabase
+  // Resolve cnpj -> fornecedor_id first
+  const { data: supplier } = await supabase
     .schema(ANALYTICS_SCHEMA)
-    .from('fcx_vendas')
+    .from('dim_fornecedores')
+    .select('fornecedor_id')
+    .eq('cnpj', supplierCnpj)
+    .single();
+
+  if (!supplier) return [];
+
+  const { data: transacoes, error } = await supabase
+    .schema(ANALYTICS_SCHEMA)
+    .from('fato_transacoes')
     .select(`
-      valor_total,
+      valor,
       quantidade,
       valor_unitario,
       dim_produtos!inner(nome)
     `)
-    .eq('fornecedor_cnpj', supplierCnpj)
+    .eq('fornecedor_id', supplier.fornecedor_id)
     .limit(limit * 10);
 
   if (error) console.warn('Error fetching products by supplier:', error);
 
   // Aggregate by product
-  const byProduct = (vendas || []).reduce((acc, v) => {
+  const byProduct = (transacoes || []).reduce((acc, v) => {
     const produto = v.dim_produtos as unknown as Record<string, string> | null;
     const nome = produto?.nome || '';
     if (!acc[nome]) {
@@ -1165,9 +1213,9 @@ export const getProductsBySupplier = async (supplierCnpj: string, limit: number 
         valor_unitario_medio: 0,
       };
     }
-    acc[nome].receita_total += Number(v.valor_total) || 0;
+    acc[nome].receita_total += Number(v.valor) || 0;
     acc[nome].quantidade_total += Number(v.quantidade) || 0;
-    acc[nome].num_pedidos++;
+    acc[nome].num_pedidos++
     return acc;
   }, {} as Record<string, ProductByCustomer>);
 
@@ -1197,17 +1245,16 @@ export interface SupplierByProduct {
 
 // Get suppliers who sell a specific product
 export const getSuppliersByProduct = async (productName: string, limit: number = 100): Promise<SupplierByProduct[]> => {
-  const { data: vendas, error } = await supabase
+  const { data: transacoes, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
-    .from('fcx_vendas')
+    .from('fato_transacoes')
     .select(`
-      valor_total,
+      valor,
       quantidade,
       valor_unitario,
-      data_transacao,
-      fornecedor_cnpj,
       dim_fornecedores!inner(fornecedor_id, nome, cnpj, endereco_cidade, endereco_uf),
-      dim_produtos!inner(nome)
+      dim_produtos!inner(nome),
+      dim_datas!data_competencia_id(data)
     `)
     .eq('dim_produtos.nome', productName)
     .limit(limit * 10);
@@ -1215,9 +1262,9 @@ export const getSuppliersByProduct = async (productName: string, limit: number =
   if (error) console.warn('Error fetching suppliers by product:', error);
 
   // Aggregate by supplier
-  const bySupplier = (vendas || []).reduce((acc, v) => {
+  const bySupplier = (transacoes || []).reduce((acc, v) => {
     const fornecedor = v.dim_fornecedores as unknown as Record<string, unknown> | null;
-    const cnpj = String(fornecedor?.cnpj || v.fornecedor_cnpj || '');
+    const cnpj = String(fornecedor?.cnpj || '');
     if (!acc[cnpj]) {
       acc[cnpj] = {
         supplier_id: String(fornecedor?.fornecedor_id || ''),
@@ -1233,10 +1280,11 @@ export const getSuppliersByProduct = async (productName: string, limit: number =
       };
     }
     acc[cnpj].quantity_sold += Number(v.quantidade) || 0;
-    acc[cnpj].total_revenue += Number(v.valor_total) || 0;
+    acc[cnpj].total_revenue += Number(v.valor) || 0;
     acc[cnpj].order_count++;
-    const date = v.data_transacao as string;
-    if (!acc[cnpj].last_sale || date > acc[cnpj].last_sale!) {
+    const dimData = v.dim_datas as unknown as Record<string, string> | null;
+    const date = dimData?.data || null;
+    if (date && (!acc[cnpj].last_sale || date > acc[cnpj].last_sale!)) {
       acc[cnpj].last_sale = date;
     }
     return acc;
@@ -1258,17 +1306,18 @@ export interface MeResponse {
 }
 
 // Get client_id from the authenticated user's custom claims or clientes_vizu table
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getMe = async (_token: string): Promise<MeResponse> => {
   // Get current user from Supabase auth
   const { data: { user }, error } = await supabase.auth.getUser();
-  
+
   if (error || !user) {
     throw new Error('User not authenticated');
   }
 
   // The client_id should be in app_metadata or we need to look it up
   const clientId = user.app_metadata?.client_id;
-  
+
   if (clientId) {
     return { client_id: clientId };
   }

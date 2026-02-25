@@ -161,7 +161,6 @@ compose-cloud:
 	@echo "📝 Test endpoints:"
 	@echo "   curl http://localhost:8003/health  (atendente_core)"
 	@echo "   curl http://localhost:8006/health  (tool_pool_api)"
-	@echo "   curl http://localhost:8004/health  (analytics_api)"
 
 compose-cloud-down:
 	@echo "🛑 Stopping Cloud Run architecture..."

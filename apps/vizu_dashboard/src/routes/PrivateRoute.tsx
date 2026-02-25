@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from "react-router-dom";
-import { Box, Spinner, Center, VStack, Text } from "@chakra-ui/react";
+import { Spinner, Center, VStack, Text } from "@chakra-ui/react";
 import { useAuth } from "../hooks/useAuth";
 
 interface PrivateRouteProps {

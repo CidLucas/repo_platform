@@ -142,6 +142,7 @@ const cardModals = [
 ];
 
 // Logo VIZU em SVG
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- SVG component available for alternative layouts
 const VizuLogo: React.FC<{ color?: string; height?: string }> = ({ 
   color = "#000", 
   height = "28px" 

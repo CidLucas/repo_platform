@@ -15,36 +15,46 @@ export interface InsightBullet {
   detail?: string; // Optional detail text shown below the main text
 }
 
+interface ChartDataPoint {
+  name?: string;
+  value?: number;
+  data?: string;
+  [key: string]: string | number | undefined;
+}
+
+interface MapMarker {
+  position: [number, number];
+  popupText: string;
+}
+
+interface MapDataConfig {
+  center: [number, number];
+  zoom: number;
+  markers: MapMarker[];
+}
+
 interface DashboardCardProps {
   title: string;
   size?: "small" | "large";
   bgColor?: string;
   bgImage?: string;
-  bgGradient?: string; // Add bgGradient prop
-  // Content props
-  graphData?: any;
-  barChartData?: { name: string; value: number; color?: string }[]; // Bar chart data
+  bgGradient?: string;
+  graphData?: ChartDataPoint[];
+  barChartData?: { name: string; value: number; color?: string }[];
   scorecardValue?: string;
   scorecardLabel?: string;
   mainText?: string;
-  mapData?: any;
-  // Modal content
-  kpiItems?: { label: string; content: React.ReactNode }[]; // Dynamic KPI items
-  // Insight bullets for card (alternative to graphs)
+  mapData?: MapDataConfig;
+  kpiItems?: { label: string; content: React.ReactNode }[];
   insightBullets?: InsightBullet[];
-  // Text color for content overlay
   textColor?: string;
-  // Modal background colors
   modalLeftBgColor?: string;
   modalRightBgColor?: string;
-  // Graph modal labels
   graphTitle?: string;
   graphDescription?: string;
-  // Custom expand click handler (overrides default modal)
   onExpandClick?: () => void;
-  // Carousel graphs for modal (multiple graphs)
   carouselGraphs?: {
-    data: any[];
+    data: ChartDataPoint[];
     dataKey: string;
     lineColor?: string;
     title: string;

@@ -6,19 +6,26 @@ import { BarChartComponent } from './BarChartComponent';
 
 export type ChartType = 'line' | 'bar';
 
+interface ChartDataPoint {
+  name?: string;
+  value?: number;
+  data?: string;
+  [key: string]: string | number | undefined;
+}
+
 interface GraphCarouselProps {
   graphs: {
-    data: any[];
+    data: ChartDataPoint[];
     dataKey: string;
     lineColor?: string;
     title: string;
     description?: string;
-    chartType?: ChartType; // 'line' (default) or 'bar'
-    barColors?: string[]; // Colors for bar chart
+    chartType?: ChartType;
+    barColors?: string[];
   }[];
   loading?: boolean;
   height?: number | string;
-  textColor?: string; // Text color for dark backgrounds
+  textColor?: string;
 }
 
 export const GraphCarousel: React.FC<GraphCarouselProps> = ({ 

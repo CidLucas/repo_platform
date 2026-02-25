@@ -464,58 +464,8 @@ services:
 
 
 
-  analytics_api:
-    container_name: analytics_api
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/analytics_api/Dockerfile
-    ports:
-      - "8004:8000"
-    volumes:
-      - ./services/analytics_api/src:/app/src
-      - ./libs:/app/libs
-    environment:
-      <<: *common-env
-      PYTHONPATH: /app/src
-      # Analytics API uses Supabase REST API (via common-env)
-      # No DATABASE_URL override needed - uses SUPABASE_URL + SUPABASE_SERVICE_KEY
-    # Configure DNS servers for external connectivity (Supabase)
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-      - 1.1.1.1
-    # Note: Works with Supabase (production) and local postgres (testing)
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  data_ingestion_api:
-    container_name: vizu_data_ingestion_api
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/data_ingestion_api/Dockerfile
-    ports:
-      - "8008:8000"
-    volumes:
-      - ./services/data_ingestion_api/src:/app/src
-      - ./libs:/app/libs
-    environment:
-      <<: *common-env
-      PYTHONPATH: /app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src:/app/libs/vizu_supabase_client/src:/app/libs/vizu_auth/src:/app/libs/vizu_observability_bootstrap/src:/app/libs/vizu_data_connectors/src
-    env_file:
-      - ./services/data_ingestion_api/.env
-    # Configure DNS servers for external connectivity (Supabase)
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-      - 1.1.1.1
-    # Note: postgres dependency is optional - use --profile local for local DB
-
-
+  # NOTE: analytics_api and data_ingestion_api REMOVED (deprecated)
+  # All functionality now handled via Supabase PostgREST + RPCs
 
   tool_pool_api:
     container_name: vizu_tool_pool_api
@@ -561,8 +511,6 @@ services:
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8003}
         VITE_ATENDENTE_CORE: ${VITE_ATENDENTE_CORE:-http://localhost:8003}
-        VITE_API_URL_ANALYTICS: ${VITE_API_URL_ANALYTICS:-http://localhost:8004}
-        VITE_DATA_INGESTION_API_URL: ${VITE_DATA_INGESTION_API_URL:-http://localhost:8008}
         VITE_TOOL_POOL_API_URL: ${VITE_TOOL_POOL_API_URL:-http://localhost:8006}
     ports:
       - "8080:8080"

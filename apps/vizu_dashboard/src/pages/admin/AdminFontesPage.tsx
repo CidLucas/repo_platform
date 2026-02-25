@@ -25,7 +25,6 @@ import {
   FiPlus,
   FiDatabase,
   FiShoppingCart,
-  FiCloud,
   FiFileText,
   FiCheck,
   FiClock,
@@ -36,8 +35,6 @@ import {
   SiGooglebigquery,
   SiPostgresql,
   SiMysql,
-  SiRedis,
-  SiMongodb
 } from 'react-icons/si';
 import ConnectorModal from '../../components/admin/ConnectorModal';
 import { useConnectorStatus } from '../../hooks/useConnectorStatus';

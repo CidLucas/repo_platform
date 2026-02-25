@@ -19,7 +19,8 @@ export const BarChartComponent: React.FC<BarChartComponentProps> = ({
   dataKey = 'value',
   height = 200,
   axisColor = '#333',
-  showLabels = true,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- reserved for future use
+  showLabels: _showLabels = true,
   colors = DEFAULT_COLORS,
 }) => {
   // Validate data

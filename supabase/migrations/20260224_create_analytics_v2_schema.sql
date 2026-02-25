@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS analytics_v2.dim_customer (
     endereco_cidade VARCHAR(100),
     endereco_uf VARCHAR(2),
     endereco_cep VARCHAR(10),
-    
+
     -- Aggregated metrics
     total_orders INTEGER DEFAULT 0,
     total_revenue DECIMAL(15,2) DEFAULT 0,
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS analytics_v2.dim_customer (
     recency_days INTEGER DEFAULT 0,
     lifetime_start_date DATE,
     lifetime_end_date DATE,
-    
+
     -- Metadata
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS analytics_v2.dim_supplier (
     client_id UUID NOT NULL,
     cnpj VARCHAR(20),
     name VARCHAR(255),
-    
+
     -- Aggregated metrics
     total_orders_received INTEGER DEFAULT 0,
     total_revenue DECIMAL(15,2) DEFAULT 0,
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS analytics_v2.dim_supplier (
     recency_days INTEGER DEFAULT 0,
     first_transaction_date DATE,
     last_transaction_date DATE,
-    
+
     -- Metadata
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS analytics_v2.dim_product (
     product_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     client_id UUID NOT NULL,
     product_name VARCHAR(500),
-    
+
     -- Aggregated metrics
     total_quantity_sold DECIMAL(15,2) DEFAULT 0,
     total_revenue DECIMAL(15,2) DEFAULT 0,
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS analytics_v2.dim_product (
     last_sale_date DATE,
     cluster_score DECIMAL(5,2),
     cluster_tier VARCHAR(50),
-    
+
     -- Metadata
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()

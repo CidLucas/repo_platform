@@ -2,6 +2,13 @@ import { Box, Text, Flex, Accordion, AccordionItem, AccordionButton, AccordionPa
 import React from 'react';
 import { GraphComponent } from './GraphComponent';
 
+interface ChartDataPoint {
+  name?: string;
+  value?: number;
+  data?: string;
+  [key: string]: string | number | undefined;
+}
+
 interface ExpandableScorecardCardProps {
   title: string;
   value: string | number;
@@ -10,8 +17,7 @@ interface ExpandableScorecardCardProps {
   width?: string;
   height?: string;
   onClick?: () => void;
-  // Graph data props
-  graphData?: any[];
+  graphData?: ChartDataPoint[];
   graphDataKey?: string;
   graphLineColor?: string;
   isLoading?: boolean;

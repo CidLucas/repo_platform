@@ -241,7 +241,7 @@ export async function getChatHistory(sessionId: string): Promise<ChatMessage[]> 
   try {
     const response = await axios.get<ChatMessage[]>(`${CHAT_API_URL}/history/${sessionId}`);
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Chat History Error:', error);
     return [];
   }

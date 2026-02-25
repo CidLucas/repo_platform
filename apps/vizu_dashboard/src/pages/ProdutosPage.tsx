@@ -117,7 +117,8 @@ function ProdutosPage() {
   }), [allProducts]);
 
   // Calculate Pareto metrics
-  const { paretoPercentage, paretoCount } = useMemo(() => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- paretoCount may be used in future Pareto chart
+  const { paretoPercentage, paretoCount: _paretoCount } = useMemo(() => {
     const sortedByReceita = [...allProducts].sort((a, b) => (b.receita_total || 0) - (a.receita_total || 0));
 
     let cumulativeReceita = 0;

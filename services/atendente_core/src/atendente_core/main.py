@@ -28,7 +28,7 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
         # Skip for OPTIONS preflight requests (no DB needed)
         if request.method == "OPTIONS":
             return await call_next(request)
-        
+
         # Skip for health checks
         if request.url.path == "/health":
             return await call_next(request)

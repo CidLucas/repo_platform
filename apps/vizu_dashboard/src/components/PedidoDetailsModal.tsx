@@ -2,15 +2,38 @@ import { Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, Flex, T
 import React from 'react';
 import { ModalContentLayout } from './ModalContentLayout';
 import { MapComponent } from './MapComponent';
+import type { PedidoDetailResponse } from '../services/analyticsService';
+import type { MapData } from '../types';
 
 interface PedidoDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  pedido: any; // The selected order data
+  pedido: PedidoDetailResponse | null;
+  mapData?: MapData;
 }
 
-export const PedidoDetailsModal: React.FC<PedidoDetailsModalProps> = ({ isOpen, onClose, pedido }) => {
-  if (!pedido) return null; // Don't render if no pedido is selected
+/** Format currency in BRL */
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value);
+};
+
+export const PedidoDetailsModal: React.FC<PedidoDetailsModalProps> = ({ isOpen, onClose, pedido, mapData }) => {
+  if (!pedido) return null;
+
+  // Derive display values from PedidoDetailResponse
+  const clientName = pedido.dados_cliente?.name || pedido.dados_cliente?.cnpj || 'N/A';
+  const quantidadeItens = pedido.itens_pedido?.reduce((acc, item) => acc + item.quantidade, 0) || 0;
+  const valorTotal = formatCurrency(pedido.total_pedido || 0);
+  // Calculate average unit price from items
+  const valorUnitarioMedio = pedido.itens_pedido?.length > 0
+    ? formatCurrency(pedido.total_pedido / quantidadeItens)
+    : 'N/A';
+  const enderecoEntrega = pedido.dados_cliente?.endereco || 'N/A';
+  const cnpjFaturamento = pedido.dados_cliente?.cnpj || 'N/A';
+  const descricaoProdutos = pedido.itens_pedido?.map(item => item.descricao_produto).join(', ') || 'N/A';
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="full">
@@ -18,17 +41,17 @@ export const PedidoDetailsModal: React.FC<PedidoDetailsModalProps> = ({ isOpen, 
       <ModalContent bg="transparent" boxShadow="none" overflow="hidden" height="100vh">
         <ModalBody p={0}>
           <ModalContentLayout
-            leftBgColor={!!pedido.mapData ? "transparent" : "#FFD3E1"} // Conditionally set leftBgColor
-            rightBgColor={!!pedido.mapData ? "#F9BBCB" : "#F9BBCB"} // Use prop
-            isMapModal={!!pedido.mapData} // Pass if it's a map modal
-            mapData={pedido.mapData} // Pass mapData
+            leftBgColor={mapData ? "transparent" : "#FFD3E1"}
+            rightBgColor="#F9BBCB"
+            isMapModal={Boolean(mapData)}
+            mapData={mapData}
             leftContent={
               <Flex direction="column" height="100%">
-                <Text textStyle="modalFinancialInfo" textTransform="uppercase" mb={0}>{pedido.clientName || "N/A"}</Text> {/* Client Name - mb reduced */}
+                <Text textStyle="modalFinancialInfo" textTransform="uppercase" mb={0}>{clientName}</Text>
                 <Flex justify="space-between" align="center" mb={4}>
-                  <Text textStyle="modalTitle" fontSize="24px" fontWeight="semibold">Pedido #{pedido.id}</Text> {/* Adjusted font size and semibold */}
+                  <Text textStyle="modalTitle" fontSize="24px" fontWeight="semibold">Pedido #{pedido.order_id}</Text>
                   <Box
-                    bg={pedido.status === "Concluído" ? "green.500" : pedido.status === "Pendente" ? "orange.500" : "gray.500"}
+                    bg={pedido.status_pedido === "Concluído" ? "green.500" : pedido.status_pedido === "Pendente" ? "orange.500" : "gray.500"}
                     color="white"
                     width="69px"
                     height="20px"
@@ -36,91 +59,87 @@ export const PedidoDetailsModal: React.FC<PedidoDetailsModalProps> = ({ isOpen, 
                     py="0"
                     borderRadius="md"
                     textTransform="uppercase"
-                    fontSize="10px" // Custom font size
+                    fontSize="10px"
                     fontWeight="semibold"
                     display="flex"
                     justifyContent="center"
                     alignItems="center"
                   >
-                    {pedido.status || "N/A"}
+                    {pedido.status_pedido || "N/A"}
                   </Box>
                 </Flex>
-                <Flex flex="1" alignItems="center" justifyContent="center"> {/* Wrapper to center financial list */}
-                  {/* Financial Information List */}
+                <Flex flex="1" alignItems="center" justifyContent="center">
                   <Flex direction="column" width="100%">
                     <Flex justify="space-between" align="center" py={3}>
                       <Text textStyle="modalFinancialInfo" fontWeight="semibold">QUANTIDADE</Text>
-                      <Text textStyle="modalFinancialInfo">{pedido.quantidadeItens || "N/A"}</Text>
+                      <Text textStyle="modalFinancialInfo">{quantidadeItens}</Text>
                     </Flex>
-                    <Box borderBottom="1px solid black" width="100%" /> {/* Separator */}
+                    <Box borderBottom="1px solid black" width="100%" />
 
                     <Flex justify="space-between" align="center" py={3}>
                       <Text textStyle="modalFinancialInfo" fontWeight="semibold">VALOR UNITÁRIO</Text>
-                      <Text textStyle="modalFinancialInfo">{pedido.valorUnitario || "N/A"}</Text>
+                      <Text textStyle="modalFinancialInfo">{valorUnitarioMedio}</Text>
                     </Flex>
-                    <Box borderBottom="1px solid black" width="100%" /> {/* Separator */}
+                    <Box borderBottom="1px solid black" width="100%" />
 
                     <Flex justify="space-between" align="center" py={3}>
                       <Text textStyle="modalFinancialInfo" fontWeight="semibold">FRETE</Text>
-                      <Text textStyle="modalFinancialInfo">{pedido.frete || "N/A"}</Text>
+                      <Text textStyle="modalFinancialInfo">N/A</Text>
                     </Flex>
-                    <Box borderBottom="1px solid black" width="100%" /> {/* Separator */}
+                    <Box borderBottom="1px solid black" width="100%" />
 
                     <Flex justify="space-between" align="center" py={3}>
                       <Text textStyle="modalFinancialInfo" fontWeight="semibold">VALOR TOTAL</Text>
-                      <Text textStyle="modalFinancialInfo">{pedido.valorTotal || "N/A"}</Text>
+                      <Text textStyle="modalFinancialInfo">{valorTotal}</Text>
                     </Flex>
                   </Flex>
                 </Flex>
               </Flex>
             }
             rightContent={
-              pedido.mapData ? (
-                <MapComponent {...pedido.mapData} height="100%" />
+              mapData ? (
+                <MapComponent {...mapData} height="100%" />
               ) : (
                 <Flex direction="column" height="100%" p={8}>
-                  <Flex justify="space-between" align="center" mb={4}> {/* New Flex for right half header */}
-                    <Text textStyle="modalTitle" textTransform="uppercase" fontWeight="semibold">DETALHE DO PEDIDO</Text> {/* New title */}
-                    <ModalCloseButton position="static" onClick={onClose} /> {/* Close button here */}
+                  <Flex justify="space-between" align="center" mb={4}>
+                    <Text textStyle="modalTitle" textTransform="uppercase" fontWeight="semibold">DETALHE DO PEDIDO</Text>
+                    <ModalCloseButton position="static" onClick={onClose} />
                   </Flex>
-                  <Flex direction="column" gap={4}> {/* Container for descriptive cards */}
-                    {/* Endereço da Entrega Card */}
+                  <Flex direction="column" gap={4}>
                     <Box
-                      width="100%" // Fill available width
+                      width="100%"
                       height="140px"
                       borderRadius="24px"
-                      bg="#FFD3E1" // Lighter pink background
+                      bg="#FFD3E1"
                       p={4}
                       boxShadow="md"
                     >
-                      <Text textTransform="uppercase" fontSize="md">Endereço da Entrega</Text> {/* Uppercase, not bold */}
-                      <Text fontSize="sm" color="gray.600" noOfLines={2}>{pedido.enderecoEntrega || "N/A"}</Text>
+                      <Text textTransform="uppercase" fontSize="md">Endereço da Entrega</Text>
+                      <Text fontSize="sm" color="gray.600" noOfLines={2}>{enderecoEntrega}</Text>
                     </Box>
 
-                    {/* CNPJ de Faturamento Card */}
                     <Box
-                      width="100%" // Fill available width
+                      width="100%"
                       height="140px"
                       borderRadius="24px"
-                      bg="#FFD3E1" // Lighter pink background
+                      bg="#FFD3E1"
                       p={4}
                       boxShadow="md"
                     >
-                      <Text textTransform="uppercase" fontSize="md">CNPJ de Faturamento</Text> {/* Uppercase, not bold */}
-                      <Text fontSize="sm" color="gray.600" noOfLines={2}>{pedido.cnpjFaturamento || "N/A"}</Text>
+                      <Text textTransform="uppercase" fontSize="md">CNPJ de Faturamento</Text>
+                      <Text fontSize="sm" color="gray.600" noOfLines={2}>{cnpjFaturamento}</Text>
                     </Box>
 
-                    {/* Descrição dos Produtos Card */}
                     <Box
-                      width="100%" // Fill available width
+                      width="100%"
                       height="140px"
                       borderRadius="24px"
-                      bg="#FFD3E1" // Lighter pink background
+                      bg="#FFD3E1"
                       p={4}
                       boxShadow="md"
                     >
-                      <Text textTransform="uppercase" fontSize="md">Descrição dos Produtos</Text> {/* Uppercase, not bold */}
-                      <Text fontSize="sm" color="gray.600" noOfLines={2}>{pedido.descricaoProdutos || "N/A"}</Text>
+                      <Text textTransform="uppercase" fontSize="md">Descrição dos Produtos</Text>
+                      <Text fontSize="sm" color="gray.600" noOfLines={2}>{descricaoProdutos}</Text>
                     </Box>
                   </Flex>
                 </Flex>

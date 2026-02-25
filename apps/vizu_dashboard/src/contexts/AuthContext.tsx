@@ -29,6 +29,7 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- Context exports are intentional
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({

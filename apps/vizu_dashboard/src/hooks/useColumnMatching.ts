@@ -7,7 +7,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 
-export type SchemaType = 'invoices' | 'vendas' | 'products' | 'orders' | 'customers' | 'inventory' | 'categories';
+export type SchemaType = 'invoices' | 'vendas' | 'products' | 'orders' | 'customers' | 'inventory' | 'categories' | 'fato_transacoes';
 
 export interface MatchCandidate {
     canonical: string;

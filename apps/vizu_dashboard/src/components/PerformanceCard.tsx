@@ -8,33 +8,36 @@ import { GraphCarousel } from './GraphCarousel';
 
 export type PeriodType = 'week' | 'month' | 'quarter' | 'year';
 
+interface ChartDataPoint {
+  name?: string;
+  value?: number;
+  data?: string;
+  [key: string]: string | number | undefined;
+}
+
 export interface MetricSlide {
   id: string;
-  title: string;           // Título do gráfico (ex: "Receita no Tempo")
-  data: any[];             // Dados do gráfico
-  dataKey: string;         // Chave dos dados (ex: "value")
-  lineColor?: string;      // Cor da linha do gráfico
-  metricLabel: string;     // Label da métrica (ex: "RECEITA TOTAL")
-  metricValue: string;     // Valor formatado da métrica (ex: "R$ 1.234.567,00")
-  rankingKey?: string;     // Chave do ranking associado (ex: "ranking_por_receita")
+  title: string;
+  data: ChartDataPoint[];
+  dataKey: string;
+  lineColor?: string;
+  metricLabel: string;
+  metricValue: string;
+  rankingKey?: string;
 }
 
 interface PerformanceCardProps {
   title: string;
   bgColor?: string;
   textColor?: string;
-  // Slides do carrossel
   slides: MetricSlide[];
-  // Callback quando muda o slide (para filtrar ListCard)
   onSlideChange?: (slideIndex: number, slideId: string) => void;
-  // Conteúdo do modal
   modalLeftBgColor?: string;
   modalRightBgColor?: string;
   mainText?: string;
   kpiItems?: { label: string; content: React.ReactNode }[];
-  // Gráficos do carrossel no modal
   carouselGraphs?: {
-    data: any[];
+    data: ChartDataPoint[];
     dataKey: string;
     lineColor?: string;
     title: string;
@@ -42,7 +45,6 @@ interface PerformanceCardProps {
     chartType?: 'line' | 'bar';
     barColors?: string[];
   }[];
-  // Number of months to show in charts (default: 12)
   chartMonths?: number;
 }
 

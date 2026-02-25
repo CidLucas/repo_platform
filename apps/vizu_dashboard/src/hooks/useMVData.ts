@@ -26,9 +26,10 @@ export function useMVCustomers() {
       setError(null);
       const response = await getMVCustomers();
       setData(response);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching MV customers:', err);
-      setError(err.message || 'Failed to load customer data');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load customer data';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -53,9 +54,10 @@ export function useMVProducts() {
       setError(null);
       const response = await getMVProducts();
       setData(response);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching MV products:', err);
-      setError(err.message || 'Failed to load product data');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load product data';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -80,9 +82,10 @@ export function useMVMonthlySales() {
       setError(null);
       const response = await getMVMonthlySales();
       setData(response);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching MV monthly sales:', err);
-      setError(err.message || 'Failed to load monthly sales data');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load monthly sales data';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -118,9 +121,10 @@ export function useMVDashboardSummary() {
       setError(null);
       const response = await getMVDashboardSummary();
       setData(response);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching MV dashboard summary:', err);
-      setError(err.message || 'Failed to load dashboard summary');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load dashboard summary';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

@@ -54,7 +54,6 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
-  const [sourceColumns, setSourceColumns] = useState<string[]>([]);
   const toast = useToast();
   const auth = useContext(AuthContext);
   const navigate = useNavigate();
@@ -152,7 +151,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
           api_key: formData.api_key || '',
           application_key: formData.application_key,
         };
-      case 'bigquery':
+      case 'bigquery': {
         const serviceAccountJson = formData.service_account_json
           ? JSON.parse(formData.service_account_json)
           : {};
@@ -167,6 +166,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
           location: formData.location || 'southamerica-east1',
           service_account_json: serviceAccountJson,
         };
+      }
       case 'postgresql':
       case 'mysql':
         return {
@@ -206,7 +206,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
       });
 
       // Fetch source columns from BigQuery foreign table for mapping
-      let columnsToMap: string[] = sourceColumns;
+      let columnsToMap: string[] = [];
 
       if (connector.id === 'bigquery' && columnsToMap.length === 0) {
         // Try to get columns from client_data_sources

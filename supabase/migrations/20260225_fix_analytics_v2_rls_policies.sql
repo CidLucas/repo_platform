@@ -20,11 +20,11 @@ $$;
 
 -- dim_clientes
 DROP POLICY IF EXISTS clientes_client_isolation ON analytics_v2.dim_clientes;
-CREATE POLICY clientes_client_isolation ON analytics_v2.dim_clientes 
-  FOR ALL 
+CREATE POLICY clientes_client_isolation ON analytics_v2.dim_clientes
+  FOR ALL
   USING (client_id = public.get_my_client_id());
 
--- dim_fornecedores  
+-- dim_fornecedores
 DROP POLICY IF EXISTS fornecedores_client_isolation ON analytics_v2.dim_fornecedores;
 CREATE POLICY fornecedores_client_isolation ON analytics_v2.dim_fornecedores
   FOR ALL
@@ -90,7 +90,7 @@ CREATE POLICY erp_webhook_events_tenant_isolation ON analytics_v2.reg_webhook_ev
 
 -- 5. Update v_resumo_dashboard view to use the function
 CREATE OR REPLACE VIEW analytics_v2.v_resumo_dashboard AS
-SELECT 
+SELECT
     public.get_my_client_id() AS client_id,
     (SELECT count(*) FROM analytics_v2.dim_clientes WHERE client_id = public.get_my_client_id()) AS total_clientes,
     (SELECT count(*) FROM analytics_v2.dim_fornecedores WHERE client_id = public.get_my_client_id()) AS total_fornecedores,

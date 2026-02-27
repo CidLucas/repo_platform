@@ -266,7 +266,7 @@ export const formatOrderKPIs = (orders: OrderMetrics | null) => {
                 </div>
             ),
         },
-            by_status: {
+        by_status: {
             label: 'Por Status',
             format: (value) => {
                 // value may be a number when data is malformed; guard against it

@@ -1325,22 +1325,53 @@ export const getMe = async (_token: string): Promise<MeResponse> => {
     throw new Error('User not authenticated');
   }
 
-  // The client_id should be in app_metadata or we need to look it up
+  // Prefer JWT/app metadata claim when available
   const clientId = user.app_metadata?.client_id;
 
   if (clientId) {
     return { client_id: clientId };
   }
 
-  // Fallback: look up in clientes_vizu table by user email
+  // Fallback to user_metadata for social providers/custom onboarding flows
+  const userMetadataClientId = user.user_metadata?.client_id;
+  if (userMetadataClientId) {
+    return { client_id: userMetadataClientId };
+  }
+
+  // Fallback 1: look up by auth user id if mapped
+  const { data: byExternalUserId, error: byExternalUserIdError } = await supabase
+    .from('clientes_vizu')
+    .select('client_id')
+    .eq('external_user_id', user.id)
+    .maybeSingle();
+
+  if (byExternalUserIdError) {
+    throw new Error(`Failed to resolve client by external_user_id: ${byExternalUserIdError.message}`);
+  }
+
+  if (byExternalUserId?.client_id) {
+    return { client_id: byExternalUserId.client_id };
+  }
+
+  // Fallback 2: look up by email (case-insensitive)
+  const normalizedEmail = (user.email ?? '').trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    throw new Error('Client not found for user (missing email and client metadata)');
+  }
+
   const { data: cliente, error: clienteError } = await supabase
     .from('clientes_vizu')
     .select('client_id')
-    .eq('email', user.email)
-    .single();
+    .ilike('email', normalizedEmail)
+    .maybeSingle();
 
-  if (clienteError || !cliente) {
-    throw new Error('Client not found for user');
+  if (clienteError) {
+    throw new Error(`Failed to resolve client by email: ${clienteError.message}`);
+  }
+
+  if (!cliente?.client_id) {
+    throw new Error(`Client not found for user: ${normalizedEmail}`);
   }
 
   return { client_id: cliente.client_id };

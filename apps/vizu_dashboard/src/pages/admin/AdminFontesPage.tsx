@@ -244,9 +244,9 @@ const ConnectorCard = ({ connector, onConnect }: ConnectorCardProps) => {
           align="center"
           justify="center"
         >
-          <Icon 
-            as={connector.icon} 
-            boxSize={6} 
+          <Icon
+            as={connector.icon}
+            boxSize={6}
             color={connector.iconColor}
           />
         </Flex>
@@ -296,11 +296,11 @@ const ConnectorCard = ({ connector, onConnect }: ConnectorCardProps) => {
           onClick={() => onConnect(connector)}
           leftIcon={connector.status === 'not_configured' ? <FiPlus /> : undefined}
         >
-          {connector.status === 'connected' 
-            ? 'Gerenciar' 
+          {connector.status === 'connected'
+            ? 'Gerenciar'
             : connector.status === 'error'
-            ? 'Reconectar'
-            : 'Conectar'}
+              ? 'Reconectar'
+              : 'Conectar'}
         </Button>
       </VStack>
     </Box>
@@ -349,7 +349,7 @@ function AdminFontesPage() {
   // Filtra conectores
   const filteredConnectors = allConnectors.filter((connector) => {
     const matchesSearch = connector.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         connector.description.toLowerCase().includes(searchTerm.toLowerCase());
+      connector.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || connector.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -411,7 +411,7 @@ function AdminFontesPage() {
             </Text>
           </HStack>
           <Text fontSize="14px" color="gray.500">
-            Conecte suas fontes de dados para começar a analisar. 
+            Conecte suas fontes de dados para começar a analisar.
             <Text as="span" fontWeight="medium" color="gray.700">
               {' '}{connectedCount} de {totalCount} conectadas
             </Text>
@@ -433,15 +433,15 @@ function AdminFontesPage() {
             />
           </InputGroup>
 
-          <Tabs 
-            variant="soft-rounded" 
+          <Tabs
+            variant="soft-rounded"
             colorScheme="gray"
             index={categories.findIndex(c => c.id === selectedCategory)}
             onChange={(index) => setSelectedCategory(categories[index].id as ConnectorCategory)}
           >
             <TabList>
               {categories.map((cat) => (
-                <Tab 
+                <Tab
                   key={cat.id}
                   fontSize="13px"
                   fontWeight="normal"
@@ -458,8 +458,8 @@ function AdminFontesPage() {
         {/* Grid de Conectores */}
         <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={5}>
           {filteredConnectors.map((connector) => (
-            <ConnectorCard 
-              key={connector.id} 
+            <ConnectorCard
+              key={connector.id}
               connector={connector}
               onConnect={handleConnectClick}
             />
@@ -468,8 +468,8 @@ function AdminFontesPage() {
 
         {/* Empty State */}
         {filteredConnectors.length === 0 && (
-          <Box 
-            textAlign="center" 
+          <Box
+            textAlign="center"
             py={16}
             bg="gray.50"
             borderRadius="16px"

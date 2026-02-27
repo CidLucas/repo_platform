@@ -191,7 +191,7 @@ export const DashboardCard = ({
                   </Box>
                 </Flex>
               )}
-              
+
               {/* Bar chart content - centralized vertically */}
               {barChartData && !insightBullets && (
                 <Flex flex="1" align="center" justify="center" minH="200px" py={4}>
@@ -202,7 +202,7 @@ export const DashboardCard = ({
               )}
             </>
           )}
-          
+
           {/* Main text - only show if no insight bullets */}
           {(!insightBullets || insightBullets.length === 0) && mainText && <Text fontSize="md" mb={2}>{mainText}</Text>}
 

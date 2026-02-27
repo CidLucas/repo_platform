@@ -27,7 +27,7 @@ export const GraphComponent: React.FC<GraphComponentProps> = ({
 }) => {
   // DEBUG: Log incoming data
   console.log('📊 GraphComponent received:', { dataLength: data?.length, dataKey, sample: data?.[0] });
-  
+
   // Validate data - ensure we have valid data points
   const validData = data?.filter(item => item && item.name !== undefined && item[dataKey] !== undefined) || [];
   console.log('📊 GraphComponent validData:', { validDataLength: validData.length, sample: validData[0] });

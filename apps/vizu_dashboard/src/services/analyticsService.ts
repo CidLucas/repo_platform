@@ -391,7 +391,7 @@ export const getPedidoDetails = async (order_id: string): Promise<PedidoDetailRe
       quantidade,
       valor_unitario,
       dim_clientes(nome, cpf_cnpj, telefone, endereco_uf, endereco_cidade),
-      dim_produtos(nome),
+      dim_inventory!inventory_id(nome),
       dim_datas!data_competencia_id(data)
     `)
     .eq('documento', order_id);
@@ -413,7 +413,7 @@ export const getPedidoDetails = async (order_id: string): Promise<PedidoDetailRe
       receiver_cidade: cliente?.endereco_cidade,
     },
     itens_pedido: (transacoes || []).map(v => ({
-      raw_product_description: (v.dim_produtos as unknown as Record<string, string> | null)?.nome || 'N/A',
+      raw_product_description: (v.dim_inventory as unknown as Record<string, string> | null)?.nome || 'N/A',
       quantidade: Number(v.quantidade) || 0,
       valor_unitario: Number(v.valor_unitario) || (Number(v.valor) / Number(v.quantidade)) || 0,
       valor_total_emitter: Number(v.valor) || 0,
@@ -632,7 +632,7 @@ export const getCliente = async (nome_cliente: string): Promise<ClienteDetailRes
 export const getProdutosOverview = async (_period: string = 'all'): Promise<ProdutosOverviewResponse> => {
   const { data: produtos, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
-    .from('dim_produtos')
+    .from('dim_inventory')
     .select('*')
     .order('receita_total', { ascending: false });
 
@@ -685,7 +685,7 @@ export const getProdutosOverview = async (_period: string = 'all'): Promise<Prod
 export const getProdutoDetails = async (nome_produto: string): Promise<ProdutoDetailResponse> => {
   const { data: produto, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
-    .from('dim_produtos')
+    .from('dim_inventory')
     .select('*')
     .eq('nome', nome_produto)
     .single();
@@ -730,14 +730,16 @@ export const getHomeMetrics = async (): Promise<HomeMetricsResponse> => {
     .select('*')
     .single();
 
-  if (error) console.warn('Error fetching resumo:', error);
+  if (error) console.error('[Dashboard] v_resumo_dashboard FAILED:', error.code, error.message, error.details, error.hint);
 
   // Get series temporal for charts
-  const { data: series } = await supabase
+  const { data: series, error: seriesError } = await supabase
     .schema(ANALYTICS_SCHEMA)
     .from('v_series_temporal')
     .select('*')
     .order('data_periodo', { ascending: true });
+
+  if (seriesError) console.error('[Dashboard] v_series_temporal FAILED:', seriesError.code, seriesError.message, seriesError.details, seriesError.hint);
 
   const dashboard = resumo || {};
 
@@ -797,7 +799,7 @@ export const getCustomerIndicators = async (period: string = 'month', _includeCo
 export const getProductIndicators = async (period: string = 'month', _includeComparisons: boolean = false): Promise<ProductMetricsResponse> => {
   const { data: produtos, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
-    .from('dim_produtos')
+    .from('dim_inventory')
     .select('quantidade_total_vendida, total_pedidos, preco_medio');
 
   if (error) console.warn('Error fetching product indicators:', error);
@@ -939,7 +941,7 @@ export interface MonthlyOrderData {
 export const getProductsForFilter = async (): Promise<ProductFilterItem[]> => {
   const { data: produtos, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
-    .from('dim_produtos')
+    .from('dim_inventory')
     .select('nome, receita_total, total_pedidos')
     .order('receita_total', { ascending: false });
 
@@ -979,9 +981,9 @@ export const getCustomersByProduct = async (productName: string, limit: number =
       valor,
       quantidade,
       dim_clientes!inner(cpf_cnpj, nome, receita_total),
-      dim_produtos!inner(nome)
+      dim_inventory!inner(nome)
     `)
-    .eq('dim_produtos.nome', productName)
+    .eq('dim_inventory.nome', productName)
     .limit(limit * 10);
 
   if (error) console.warn('Error fetching customers by product:', error);
@@ -1036,7 +1038,7 @@ export const getProductsByCustomer = async (customerCpfCnpj: string, limit: numb
       valor,
       quantidade,
       valor_unitario,
-      dim_produtos!inner(nome)
+      dim_inventory!inner(nome)
     `)
     .eq('cliente_id', customer.cliente_id)
     .limit(limit * 10);
@@ -1045,7 +1047,7 @@ export const getProductsByCustomer = async (customerCpfCnpj: string, limit: numb
 
   // Aggregate by product
   const byProduct = (transacoes || []).reduce((acc, v) => {
-    const produto = v.dim_produtos as unknown as Record<string, string> | null;
+    const produto = v.dim_inventory as unknown as Record<string, string> | null;
     const nome = produto?.nome || '';
     if (!acc[nome]) {
       acc[nome] = {
@@ -1193,7 +1195,7 @@ export const getProductsBySupplier = async (supplierCnpj: string, limit: number 
       valor,
       quantidade,
       valor_unitario,
-      dim_produtos!inner(nome)
+      dim_inventory!inner(nome)
     `)
     .eq('fornecedor_id', supplier.fornecedor_id)
     .limit(limit * 10);
@@ -1202,7 +1204,7 @@ export const getProductsBySupplier = async (supplierCnpj: string, limit: number 
 
   // Aggregate by product
   const byProduct = (transacoes || []).reduce((acc, v) => {
-    const produto = v.dim_produtos as unknown as Record<string, string> | null;
+    const produto = v.dim_inventory as unknown as Record<string, string> | null;
     const nome = produto?.nome || '';
     if (!acc[nome]) {
       acc[nome] = {
@@ -1253,10 +1255,10 @@ export const getSuppliersByProduct = async (productName: string, limit: number =
       quantidade,
       valor_unitario,
       dim_fornecedores!inner(fornecedor_id, nome, cnpj, endereco_cidade, endereco_uf),
-      dim_produtos!inner(nome),
+      dim_inventory!inner(nome),
       dim_datas!data_competencia_id(data)
     `)
-    .eq('dim_produtos.nome', productName)
+    .eq('dim_inventory.nome', productName)
     .limit(limit * 10);
 
   if (error) console.warn('Error fetching suppliers by product:', error);
@@ -1434,11 +1436,11 @@ export const getMVCustomers = async (): Promise<MVCustomersResponse> => {
   return { customers, total: customers.length };
 };
 
-// Get product summary from dim_produtos
+// Get product summary from dim_inventory
 export const getMVProducts = async (): Promise<MVProductsResponse> => {
   const { data: produtos, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
-    .from('dim_produtos')
+    .from('dim_inventory')
     .select('*')
     .order('receita_total', { ascending: false })
     .limit(100);
@@ -1446,7 +1448,7 @@ export const getMVProducts = async (): Promise<MVProductsResponse> => {
   if (error) console.warn('Error fetching MV products:', error);
 
   const products: MVProductSummary[] = (produtos || []).map(p => ({
-    product_id: p.produto_id,
+    product_id: p.inventory_id,
     product_name: p.nome,
     times_sold: p.total_pedidos || 0,
     total_quantity_sold: Number(p.quantidade_total_vendida) || 0,

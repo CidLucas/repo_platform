@@ -74,9 +74,9 @@ export const BarChartComponent: React.FC<BarChartComponentProps> = ({
           />
           <Bar dataKey={dataKey} radius={[4, 4, 0, 0]}>
             {validData.map((entry, index) => (
-              <Cell 
-                key={`cell-${index}`} 
-                fill={entry.color || colors[index % colors.length]} 
+              <Cell
+                key={`cell-${index}`}
+                fill={entry.color || colors[index % colors.length]}
               />
             ))}
           </Bar>

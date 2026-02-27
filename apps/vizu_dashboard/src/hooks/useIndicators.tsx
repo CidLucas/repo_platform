@@ -101,6 +101,10 @@ const fetchIndicators = async (
             .select('total_pedidos, receita_total, ticket_medio')
             .single();
 
+        if (error) {
+            console.error('[Indicators] v_resumo_dashboard FAILED:', error.code, error.message, error.details, error.hint);
+        }
+
         if (!error && resumo) {
             orders = {
                 total: Number(resumo.total_pedidos) || 0,
@@ -117,8 +121,12 @@ const fetchIndicators = async (
     if (metrics.includes('products')) {
         const { data: produtos, error } = await supabase
             .schema(ANALYTICS_SCHEMA)
-            .from('dim_produtos')
+            .from('dim_inventory')
             .select('quantidade_total_vendida, total_pedidos, preco_medio');
+
+        if (error) {
+            console.error('[Indicators] dim_inventory FAILED:', error.code, error.message, error.details, error.hint);
+        }
 
         if (!error && produtos) {
             const totalSold = produtos.reduce((sum, p) => sum + Number(p.quantidade_total_vendida || 0), 0);
@@ -143,6 +151,10 @@ const fetchIndicators = async (
             .schema(ANALYTICS_SCHEMA)
             .from('dim_clientes')
             .select('total_pedidos, receita_total, dias_recencia');
+
+        if (error) {
+            console.error('[Indicators] dim_clientes FAILED:', error.code, error.message, error.details, error.hint);
+        }
 
         if (!error && clientes) {
             const totalActive = clientes.filter(c => Number(c.dias_recencia) <= 90).length;

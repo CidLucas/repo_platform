@@ -166,10 +166,10 @@ export const PerformanceCard: React.FC<PerformanceCardProps> = ({
                 isDisabled={filteredSlides.length <= 1}
                 _hover={{ bg: 'rgba(0,0,0,0.05)' }}
               />
-              <Text 
-                fontSize="sm" 
-                fontWeight="600" 
-                color={textColor} 
+              <Text
+                fontSize="sm"
+                fontWeight="600"
+                color={textColor}
                 mx={4}
                 minW="200px"
                 textAlign="center"
@@ -243,15 +243,15 @@ export const PerformanceCard: React.FC<PerformanceCardProps> = ({
                     <Text textStyle="modalTitle" color={textColor}>{title}</Text>
                     <ModalCloseButton position="static" color={textColor} />
                   </Flex>
-                  
+
                   {/* Main text */}
                   <Text textStyle="modalTextInfo" mb={4} color={textColor} flexShrink={0}>
                     {mainText || "Análise detalhada de performance."}
                   </Text>
-                  
+
                   {/* Spacer to push accordion to bottom */}
                   <Box flex="1" />
-                  
+
                   {/* Accordion at the bottom */}
                   <Box flexShrink={0} mt="auto">
                     <AccordionComponent

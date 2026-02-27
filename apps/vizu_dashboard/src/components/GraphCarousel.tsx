@@ -28,9 +28,9 @@ interface GraphCarouselProps {
   textColor?: string;
 }
 
-export const GraphCarousel: React.FC<GraphCarouselProps> = ({ 
-  graphs, 
-  loading = false, 
+export const GraphCarousel: React.FC<GraphCarouselProps> = ({
+  graphs,
+  loading = false,
   height = 300,
   textColor = 'gray.800',
 }) => {

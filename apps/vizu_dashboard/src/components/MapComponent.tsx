@@ -1,8 +1,9 @@
 import React from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, CircleMarker, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { useEffect } from 'react';
+import type { GeoCluster, MapMarker, MapComponentProps } from '../types';
 
 // Fix for default icon issue with Webpack/Vite
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -12,20 +13,6 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
 });
-
-interface GeoCluster {
-  location: string;
-  count: number;
-  total_revenue: number;
-  coordinates: [number, number];
-}
-
-interface MapComponentProps {
-  center?: [number, number];
-  zoom?: number;
-  clusters?: GeoCluster[];
-  maxCount?: number;
-}
 
 // Component to handle map centering after initial render
 const MapCenterController: React.FC<{ center: [number, number]; zoom: number }> = ({ center, zoom }) => {
@@ -42,7 +29,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   center = [-14.2350, -51.9253], // Default to Brazil center
   zoom = 7,
   clusters = [],
+  markers = [],
   maxCount = 1,
+  height = '100%',
 }) => {
   // Calculate circle radius based on count (proportional to square root for better visual)
   const getRadius = (count: number): number => {
@@ -76,7 +65,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     <MapContainer
       center={center}
       zoom={zoom}
-      style={{ height: '100%', width: '100%' }}
+      style={{ height, width: '100%' }}
       scrollWheelZoom={true}
     >
       <TileLayer
@@ -88,7 +77,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
       {clusters.map((cluster, index) => (
         <CircleMarker
-          key={index}
+          key={`cluster-${index}`}
           center={cluster.coordinates}
           radius={getRadius(cluster.count)}
           pathOptions={{
@@ -117,6 +106,11 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             </div>
           </Popup>
         </CircleMarker>
+      ))}
+      {markers.map((marker, index) => (
+        <Marker key={`marker-${index}`} position={marker.position}>
+          <Popup>{marker.popupText}</Popup>
+        </Marker>
       ))}
     </MapContainer>
   );

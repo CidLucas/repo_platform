@@ -1,13 +1,7 @@
 import { Box, Text, Flex, Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon } from '@chakra-ui/react';
 import React from 'react';
 import { GraphComponent } from './GraphComponent';
-
-interface ChartDataPoint {
-  name?: string;
-  value?: number;
-  data?: string;
-  [key: string]: string | number | undefined;
-}
+import type { ChartDataPoint } from '../types';
 
 interface ExpandableScorecardCardProps {
   title: string;

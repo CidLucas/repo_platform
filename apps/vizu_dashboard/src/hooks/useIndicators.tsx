@@ -227,7 +227,7 @@ export const formatOrderKPIs = (orders: OrderMetrics | null) => {
     const kpis: Array<{ label: string; content: React.ReactNode }> = [];
 
     // Map of field keys to display formatters
-    const fieldMap: Record<string, { label: string; format: (value: number) => React.ReactNode }> = {
+    const fieldMap: Record<string, { label: string; format: (value: any) => React.ReactNode }> = {
         total: {
             label: 'Total',
             format: (value) => (
@@ -266,17 +266,23 @@ export const formatOrderKPIs = (orders: OrderMetrics | null) => {
                 </div>
             ),
         },
-        by_status: {
+            by_status: {
             label: 'Por Status',
-            format: (value) => (
-                <div>
-                    {Object.entries(value as Record<string, number>).map(([status, count]) => (
-                        <p key={status} style={{ marginBottom: '4px' }}>
-                            <strong>{status}:</strong> {count}
-                        </p>
-                    ))}
-                </div>
-            ),
+            format: (value) => {
+                // value may be a number when data is malformed; guard against it
+                if (typeof value !== 'object' || value === null) {
+                    return <div>{String(value)}</div>;
+                }
+                return (
+                    <div>
+                        {Object.entries(value as Record<string, number>).map(([status, count]) => (
+                            <p key={status} style={{ marginBottom: '4px' }}>
+                                <strong>{status}:</strong> {count}
+                            </p>
+                        ))}
+                    </div>
+                );
+            },
         },
     };
 
@@ -303,7 +309,7 @@ export const formatProductKPIs = (products: ProductMetrics | null) => {
 
     type ProductValue = number | Array<{ name: string; quantity: number; revenue: number }>;
     // Map of field keys to display formatters
-    const fieldMap: Record<string, { label: string; format: (value: ProductValue) => React.ReactNode }> = {
+    const fieldMap: Record<string, { label: string; format: (value: any) => React.ReactNode }> = {
         total_sold: {
             label: 'Vendidos',
             format: (value) => (
@@ -344,13 +350,16 @@ export const formatProductKPIs = (products: ProductMetrics | null) => {
         },
         low_stock_alerts: {
             label: 'Alertas Estoque',
-            format: (value) => (
-                <div>
-                    <p style={{ fontSize: '24px', fontWeight: 'bold', color: value > 0 ? 'red' : 'green' }}>
-                        {value}
-                    </p>
-                </div>
-            ),
+            format: (value) => {
+                const num = Number(value) || 0;
+                return (
+                    <div>
+                        <p style={{ fontSize: '24px', fontWeight: 'bold', color: num > 0 ? 'red' : 'green' }}>
+                            {num}
+                        </p>
+                    </div>
+                );
+            },
         },
     };
 
@@ -377,7 +386,7 @@ export const formatCustomerKPIs = (customers: CustomerMetrics | null) => {
     const kpis: Array<{ label: string; content: React.ReactNode }> = [];
 
     // Map of field keys to display formatters
-    const fieldMap: Record<string, { label: string; format: (value: number) => React.ReactNode }> = {
+    const fieldMap: Record<string, { label: string; format: (value: any) => React.ReactNode }> = {
         total_active: {
             label: 'Ativos',
             format: (value) => (

@@ -1,12 +1,7 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { Box, Text } from '@chakra-ui/react';
-
-interface ChartDataPoint {
-  name?: string;
-  data?: string;
-  [key: string]: string | number | undefined;
-}
+import type { ChartDataPoint } from '../types';
 
 interface GraphComponentProps {
   data: ChartDataPoint[];

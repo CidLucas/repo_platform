@@ -9,9 +9,13 @@
 /** Standard data point for line and bar charts */
 export interface ChartDataPoint {
     name: string;
-    value: number;
+    value?: number;   // optional because some payloads use other keys (total, pedidos, etc.)
     color?: string;
+    [key: string]: any;
 }
+
+/** A simple alias for the two allowed chart types used throughout the UI */
+export type ChartType = 'line' | 'bar';
 
 /** Time series data point with date */
 export interface TimeSeriesDataPoint {
@@ -39,10 +43,33 @@ export interface MapMarker {
     popupText: string;
 }
 
+export interface GeoCluster {
+    location: string;
+    count: number;
+    total_revenue: number;
+    coordinates: [number, number];
+}
+
+/**
+ * General shape provided to components when they need to render a map.  Any
+ * combination of markers or clusters is allowed; the component will decide
+ * which one to draw.  Additional optional metadata (maxCount) is used to
+ * scale circles for cluster maps.
+ */
 export interface MapData {
     center: [number, number];
     zoom: number;
-    markers: MapMarker[];
+    markers?: MapMarker[];
+    clusters?: GeoCluster[];
+    maxCount?: number;
+}
+
+/**
+ * Props accepted by the Leaflet wrapper.  Height is allowed so the caller can
+ * override the container style without wrapping an extra `<Box>`.
+ */
+export interface MapComponentProps extends Partial<MapData> {
+    height?: string | number;
 }
 
 // =============================================================================

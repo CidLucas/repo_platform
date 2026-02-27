@@ -7,33 +7,13 @@ import { MapComponent } from './MapComponent';
 import { ModalContentLayout } from './ModalContentLayout';
 import { AccordionComponent } from './AccordionComponent';
 import { GraphCarousel } from './GraphCarousel';
+import type { ChartDataPoint, MapData, GeoCluster } from '../types';
 
 // Interface for insight bullets
 export interface InsightBullet {
   text: string;
   type: 'positive' | 'negative' | 'neutral' | 'warning' | 'star';
   detail?: string; // Optional detail text shown below the main text
-}
-
-interface ChartDataPoint {
-  name?: string;
-  value?: number;
-  data?: string;
-  [key: string]: string | number | undefined;
-}
-
-interface GeoCluster {
-  location: string;
-  count: number;
-  total_revenue: number;
-  coordinates: [number, number];
-}
-
-interface MapDataConfig {
-  center: [number, number];
-  zoom: number;
-  clusters?: GeoCluster[];
-  maxCount?: number;
 }
 
 interface DashboardCardProps {
@@ -47,7 +27,7 @@ interface DashboardCardProps {
   scorecardValue?: string;
   scorecardLabel?: string;
   mainText?: string;
-  mapData?: MapDataConfig;
+  mapData?: MapData;
   kpiItems?: { label: string; content: React.ReactNode }[];
   insightBullets?: InsightBullet[];
   textColor?: string;
@@ -187,7 +167,7 @@ export const DashboardCard = ({
               {graphData && !barChartData && (
                 <Flex flex="1" align="center" justify="center" minH="200px" py={4}>
                   <Box width="100%" height="280px">
-                    <GraphComponent data={graphData.values} dataKey="value" lineColor="#FFA500" axisColor={textColor === "white" ? "#ffffff" : "#333333"} height="100%" />
+                    <GraphComponent data={graphData} dataKey="value" lineColor="#FFA500" axisColor={textColor === "white" ? "#ffffff" : "#333333"} height="100%" />
                   </Box>
                 </Flex>
               )}
@@ -271,7 +251,7 @@ export const DashboardCard = ({
                     <GraphCarousel
                       graphs={[
                         {
-                          data: graphData?.values || [],
+                          data: graphData || [],
                           dataKey: "value",
                           lineColor: "white",
                           title: graphTitle || title,

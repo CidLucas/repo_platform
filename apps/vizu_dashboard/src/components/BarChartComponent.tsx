@@ -3,7 +3,9 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { Box, Text } from '@chakra-ui/react';
 
 interface BarChartComponentProps {
-  data: { name: string; value: number; color?: string }[];
+  // Accept optional values since upstream data may not always include value;
+  // runtime filtering removes undefined entries.
+  data: { name: string; value?: number; color?: string }[];
   dataKey?: string;
   height?: number | string;
   axisColor?: string;

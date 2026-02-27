@@ -45,6 +45,7 @@ export interface PedidoItem {
 // Corresponds to the Pydantic 'PedidoItemDetalhe' (used in PedidoDetailResponse)
 export interface PedidoItemDetalhe {
   raw_product_description: string;
+  descricao_produto?: string; // some responses use this key instead
   quantidade: number;
   valor_unitario: number;
   valor_total_emitter: number;
@@ -215,8 +216,15 @@ export interface FornecedoresOverviewResponse {
   ranking_produtos_mais_vendidos: ProdutoRankingReceita[];
 }
 
-// Corresponds to the Pydantic 'CadastralData'
+// Corresponds to the Pydantic 'CadastralData'.  In practice the
+// object can carry a variety of attributes depending on the endpoint –
+// clients use the same type for orders, suppliers, etc.  We therefore
+// include the fields our UI actually reads (name/cnpj/endereco) as
+// optional in addition to the generic emitter/receiver properties.
 export interface CadastralData {
+  name?: string;
+  cnpj?: string;
+  endereco?: string;
   emitter_nome?: string;
   emitter_cnpj?: string;
   emitter_telefone?: string;

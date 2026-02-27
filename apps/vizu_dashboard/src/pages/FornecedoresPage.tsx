@@ -7,7 +7,8 @@ import { ListCard } from '../components/ListCard';
 import { FornecedorDetailsModal } from '../components/FornecedorDetailsModal';
 import { useFornecedores } from '../hooks/useListData';
 import { getFornecedor } from '../services/analyticsService';
-import type { FornecedorDetailResponse, RankingItem, ChartDataPoint } from '../services/analyticsService';
+import type { FornecedorDetailResponse, RankingItem } from '../services/analyticsService';
+import type { ChartDataPoint, MapData } from '../types';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useGeoClusters } from '../hooks/useGeoClusters';
 import React, { useState, useMemo, useCallback } from 'react';
@@ -94,8 +95,8 @@ function FornecedoresPage() {
       {
         id: 'receita',
         title: 'Receita no Tempo',
-        data: (overviewData.chart_receita_no_tempo || []).map((d: ChartDataPoint) => ({
-          name: d.name,
+        data: (overviewData.chart_receita_no_tempo || []).map(d => ({
+          name: d.name || '',
           value: (d.total ?? d.value ?? 0) as number
         })),
         dataKey: 'value',
@@ -107,8 +108,8 @@ function FornecedoresPage() {
       {
         id: 'ticket_medio',
         title: 'Ticket Médio no Tempo',
-        data: (overviewData.chart_ticketmedio_no_tempo || []).map((d: ChartDataPoint) => ({
-          name: d.name,
+        data: (overviewData.chart_ticketmedio_no_tempo || []).map(d => ({
+          name: d.name || '',
           value: (d.total ?? d.value ?? 0) as number
         })),
         dataKey: 'value',
@@ -414,7 +415,7 @@ function FornecedoresPage() {
               zoom: 4.5,
               clusters: geoClusters?.clusters || [],
               maxCount: geoClusters?.max_count || 1
-            }}
+            } as MapData}
             mainText="Principais regiões de atuação dos fornecedores."
             modalLeftBgColor="#D4F1F4"
             modalRightBgColor="#B2E7FF"

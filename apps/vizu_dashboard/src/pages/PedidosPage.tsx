@@ -6,7 +6,9 @@ import { ListCard } from '../components/ListCard';
 import React, { useState, useEffect } from 'react'; // Added useEffect
 import { PedidoDetailsModal } from '../components/PedidoDetailsModal';
 import { getPedidosOverview, getPedidoDetails, getOrderIndicators } from '../services/analyticsService';
-import type { PedidosOverviewResponse, PedidoDetailResponse, PedidoItem, OrderMetricsResponse, ChartDataPoint } from '../services/analyticsService';
+import type { PedidosOverviewResponse, PedidoDetailResponse, PedidoItem, OrderMetricsResponse } from '../services/analyticsService';
+import type { ChartDataPoint } from '../types';
+import type { MapData } from '../types';
 
 type PeriodType = 'week' | 'month' | 'quarter' | 'year';
 
@@ -301,7 +303,7 @@ function PedidosPage() {
             title="Distribuição Geográfica"
             size="large"
             bgColor="white" // Unchanged
-            mapData={{ center: [-23.55052, -46.633308], zoom: 10, markers: [{ position: [-23.55052, -46.633308], popupText: 'São Paulo' }] }}
+            mapData={{ center: [-23.55052, -46.633308], zoom: 10, markers: [{ position: [-23.55052, -46.633308], popupText: 'São Paulo' }] } as MapData}
             mainText="Principais regiões de entrega de pedidos."
             modalLeftBgColor="#FFD3E1"
             modalRightBgColor="#F9BBCB"

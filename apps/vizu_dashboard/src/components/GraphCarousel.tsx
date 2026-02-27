@@ -3,15 +3,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import React, { useState } from 'react';
 import { GraphComponent } from './GraphComponent';
 import { BarChartComponent } from './BarChartComponent';
-
-export type ChartType = 'line' | 'bar';
-
-interface ChartDataPoint {
-  name?: string;
-  value?: number;
-  data?: string;
-  [key: string]: string | number | undefined;
-}
+import type { ChartDataPoint, ChartType } from '../types';
 
 interface GraphCarouselProps {
   graphs: {

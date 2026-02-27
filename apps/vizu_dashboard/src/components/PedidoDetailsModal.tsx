@@ -33,7 +33,11 @@ export const PedidoDetailsModal: React.FC<PedidoDetailsModalProps> = ({ isOpen, 
     : 'N/A';
   const enderecoEntrega = pedido.dados_cliente?.endereco || 'N/A';
   const cnpjFaturamento = pedido.dados_cliente?.cnpj || 'N/A';
-  const descricaoProdutos = pedido.itens_pedido?.map(item => item.descricao_produto).join(', ') || 'N/A';
+  const descricaoProdutos =
+    pedido.itens_pedido
+      ?.map(item => item.descricao_produto || item.raw_product_description)
+      .join(', ') ||
+    'N/A';
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="full">

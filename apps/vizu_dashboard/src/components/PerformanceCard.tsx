@@ -5,15 +5,9 @@ import { GraphComponent } from './GraphComponent';
 import { ModalContentLayout } from './ModalContentLayout';
 import { AccordionComponent } from './AccordionComponent';
 import { GraphCarousel } from './GraphCarousel';
+import type { ChartDataPoint } from '../types';
 
 export type PeriodType = 'week' | 'month' | 'quarter' | 'year';
-
-interface ChartDataPoint {
-  name?: string;
-  value?: number;
-  data?: string;
-  [key: string]: string | number | undefined;
-}
 
 export interface MetricSlide {
   id: string;

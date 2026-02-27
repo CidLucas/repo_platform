@@ -8,7 +8,8 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { ClienteDetailsModal } from '../components/ClienteDetailsModal';
 import { useClientes } from '../hooks/useListData';
 import { getCliente } from '../services/analyticsService';
-import type { ClienteDetailResponse, ChartDataPoint, RankingItem } from '../services/analyticsService';
+import type { ClienteDetailResponse, RankingItem } from '../services/analyticsService';
+import type { ChartDataPoint, MapData } from '../types';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useGeoClusters } from '../hooks/useGeoClusters';
 import { useMVMonthlySales, useMVCustomers } from '../hooks/useMVData';
@@ -41,28 +42,44 @@ function ClientesPage() {
     if (mvChartData && mvChartData.length > 0) {
       return mvChartData.map(d => ({ name: d.name, value: d.revenue, total: d.revenue }));
     }
-    return (overviewData?.chart_receita_no_tempo || []).map((d: ChartDataPoint) => ({ name: d.name, value: (d.total ?? d.value ?? 0) as number, total: (d.total ?? d.value ?? 0) as number }));
+    return (overviewData?.chart_receita_no_tempo || []).map(d => ({
+      name: d.name || '',
+      value: (d.total ?? d.value ?? 0) as number,
+      total: (d.total ?? d.value ?? 0) as number,
+    }));
   }, [mvChartData, overviewData]);
 
   const chartOrdersData = useMemo(() => {
     if (mvChartData && mvChartData.length > 0) {
       return mvChartData.map(d => ({ name: d.name, value: d.orders, total: d.orders }));
     }
-    return (overviewData?.chart_clientes_no_tempo || []).map((d: ChartDataPoint) => ({ name: d.name, value: (d.total ?? d.value ?? 0) as number, total: (d.total ?? d.value ?? 0) as number }));
+    return (overviewData?.chart_clientes_no_tempo || []).map(d => ({
+      name: d.name || '',
+      value: (d.total ?? d.value ?? 0) as number,
+      total: (d.total ?? d.value ?? 0) as number,
+    }));
   }, [mvChartData, overviewData]);
 
   const chartCustomersData = useMemo(() => {
     if (mvChartData && mvChartData.length > 0) {
       return mvChartData.map(d => ({ name: d.name, value: d.customers, total: d.customers }));
     }
-    return (overviewData?.chart_clientes_no_tempo || []).map((d: ChartDataPoint) => ({ name: d.name, value: (d.total ?? d.value ?? 0) as number, total: (d.total ?? d.value ?? 0) as number }));
+    return (overviewData?.chart_clientes_no_tempo || []).map(d => ({
+      name: d.name || '',
+      value: (d.total ?? d.value ?? 0) as number,
+      total: (d.total ?? d.value ?? 0) as number,
+    }));
   }, [mvChartData, overviewData]);
 
   const chartAvgOrderData = useMemo(() => {
     if (mvChartData && mvChartData.length > 0) {
       return mvChartData.map(d => ({ name: d.name, value: d.avgOrderValue, total: d.avgOrderValue }));
     }
-    return (overviewData?.chart_ticketmedio_no_tempo || []).map((d: ChartDataPoint) => ({ name: d.name, value: (d.total ?? d.value ?? 0) as number, total: (d.total ?? d.value ?? 0) as number }));
+    return (overviewData?.chart_ticketmedio_no_tempo || []).map(d => ({
+      name: d.name || '',
+      value: (d.total ?? d.value ?? 0) as number,
+      total: (d.total ?? d.value ?? 0) as number,
+    }));
   }, [mvChartData, overviewData]);
 
   // Handle manual refresh (uses React Query refetch)
@@ -468,7 +485,7 @@ function ClientesPage() {
               zoom: 4.5,
               clusters: geoClusters?.clusters || [],
               maxCount: geoClusters?.max_count || 1
-            }}
+            } as MapData}
             mainText="Principais regiões de atuação dos clientes."
             modalLeftBgColor="#FFD1DC"
             modalRightBgColor="#FFB6C1"

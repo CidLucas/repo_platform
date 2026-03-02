@@ -258,7 +258,7 @@ export async function createCredential(
                 table_name: bqCreds.table_name,
                 secret_manager_id: result.vault_key_id,
             })
-            .select('id_credencial, secret_manager_id, nome_conexao, tipo_servico, status')
+            .select('id, secret_manager_id, nome_conexao, tipo_servico, status')
             .single();
 
         if (credError) {
@@ -268,7 +268,7 @@ export async function createCredential(
         }
 
         return {
-            id_credencial: String(credencial.id_credencial),
+            id_credencial: String(credencial.id),
             secret_manager_id: credencial.secret_manager_id || '',
             nome_conexao: credencial.nome_conexao,
             tipo_servico: credencial.tipo_servico,
@@ -287,7 +287,7 @@ export async function createCredential(
             status: 'pending',
             credentials_json: request.credentials,
         })
-        .select('id_credencial, secret_manager_id, nome_conexao, tipo_servico, status')
+        .select('id, secret_manager_id, nome_conexao, tipo_servico, status')
         .single();
 
     if (credError) {
@@ -295,7 +295,7 @@ export async function createCredential(
     }
 
     return {
-        id_credencial: String(credencial.id_credencial),
+        id_credencial: String(credencial.id),
         secret_manager_id: credencial.secret_manager_id || '',
         nome_conexao: credencial.nome_conexao,
         tipo_servico: credencial.tipo_servico,
@@ -312,7 +312,7 @@ export async function listConnections(clienteVizuId: string): Promise<ConnectorS
     const { data: credenciais, error } = await supabase
         .from('credencial_servico_externo')
         .select(`
-      id_credencial,
+      id,
       nome_conexao,
       tipo_servico,
       status,
@@ -327,7 +327,7 @@ export async function listConnections(clienteVizuId: string): Promise<ConnectorS
     }
 
     // Get latest sync info for each credential
-    const credentialIds = (credenciais || []).map(c => c.id_credencial);
+    const credentialIds = (credenciais || []).map(c => c.id);
 
     const { data: syncHistory } = await supabase
         .from('connector_sync_history')
@@ -345,7 +345,7 @@ export async function listConnections(clienteVizuId: string): Promise<ConnectorS
     }
 
     return (credenciais || []).map(c => {
-        const latestSync = latestSyncMap.get(c.id_credencial);
+        const latestSync = latestSyncMap.get(c.id);
         let connectorStatus: ConnectorStatus['status'] = 'pending';
 
         if (c.status === 'active') {
@@ -355,7 +355,7 @@ export async function listConnections(clienteVizuId: string): Promise<ConnectorS
         }
 
         return {
-            id: String(c.id_credencial),
+            id: String(c.id),
             platform: c.tipo_servico?.toLowerCase() as ConnectorPlatform,
             nome_conexao: c.nome_conexao,
             status: connectorStatus,
@@ -493,7 +493,7 @@ export async function deleteConnection(credentialId: string): Promise<void> {
     const { data: credencial, error: fetchError } = await supabase
         .from('credencial_servico_externo')
         .select('client_id, tipo_servico')
-        .eq('id_credencial', parseInt(credentialId, 10))
+        .eq('id', parseInt(credentialId, 10))
         .single();
 
     if (fetchError) {
@@ -521,7 +521,7 @@ export async function deleteConnection(credentialId: string): Promise<void> {
     const { error: deleteError } = await supabase
         .from('credencial_servico_externo')
         .delete()
-        .eq('id_credencial', parseInt(credentialId, 10));
+        .eq('id', parseInt(credentialId, 10));
 
     if (deleteError) {
         throw new Error(deleteError.message || 'Falha ao deletar conexão');

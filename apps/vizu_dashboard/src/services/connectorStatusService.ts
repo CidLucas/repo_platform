@@ -146,9 +146,10 @@ export async function getConnectorStatus(
     const resolvedClientId = await resolveClientId(clienteVizuId);
 
     // Get all credentials for the client
+    // Note: The table uses 'id' as primary key (not 'id_credencial')
     const { data: credenciais, error: credError } = await supabase
         .from('credencial_servico_externo')
-        .select('id_credencial, nome_conexao, tipo_servico, status, created_at, updated_at')
+        .select('id, nome_conexao, tipo_servico, status, created_at, updated_at')
         .eq('client_id', resolvedClientId)
         .order('created_at', { ascending: false });
 
@@ -157,7 +158,7 @@ export async function getConnectorStatus(
     }
 
     const credentials = credenciais || [];
-    const credentialIds = credentials.map(c => c.id_credencial);
+    const credentialIds = credentials.map(c => c.id);
 
     // Get latest sync info for each credential
     const { data: syncHistory } = await supabase
@@ -177,10 +178,10 @@ export async function getConnectorStatus(
 
     // Map to response format
     const connectors: ConnectorStatusResponse[] = credentials.map(c => {
-        const latestSync = latestSyncMap.get(c.id_credencial);
+        const latestSync = latestSyncMap.get(c.id);
 
         return {
-            credential_id: c.id_credencial,
+            credential_id: c.id,
             nome_conexao: c.nome_conexao || '',
             tipo_servico: c.tipo_servico || '',
             status: c.status as ConnectorStatus,
@@ -354,7 +355,7 @@ export async function getDashboardStats(
     // Get connector counts
     const { data: credenciais, error: credError } = await supabase
         .from('credencial_servico_externo')
-        .select('id_credencial, status')
+        .select('id, status')
         .eq('client_id', resolvedClientId);
 
     if (credError) {
@@ -438,7 +439,7 @@ export async function startSyncJob(
     const { data: credencial, error: credError } = await supabase
         .from('credencial_servico_externo')
         .select('client_id')
-        .eq('id_credencial', credentialId)
+        .eq('id', credentialId)
         .single();
 
     if (credError || !credencial) {

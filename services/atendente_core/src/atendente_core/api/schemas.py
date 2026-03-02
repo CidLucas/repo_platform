@@ -9,7 +9,6 @@ Hierarquia:
 - Este arquivo: Extensões específicas do atendente
 """
 
-
 from pydantic import BaseModel, Field
 
 # Importa tipos compartilhados de vizu_models

@@ -62,6 +62,18 @@ class ToolRegistry:
             requires_confirmation=False,
             tags=["sql", "database", "analytics"],
         ),
+        "execute_sql": ToolMetadata(
+            name="execute_sql",
+            category=ToolCategory.SQL,
+            description=(
+                "Executes a pre-generated SQL query on analytics database. "
+                "Use when supervisor LLM generates SQL directly. "
+                "Parameters: sql (the query). client_id is auto-injected."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            tags=["sql", "database", "analytics", "direct-sql"],
+        ),
         "agendar_consulta": ToolMetadata(
             name="agendar_consulta",
             category=ToolCategory.SCHEDULING,

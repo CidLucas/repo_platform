@@ -1,5 +1,13 @@
 # Vizu Data Ingestion API
 
+> [!WARNING]
+> **DEPRECATED** - This service is deprecated as of February 2026.
+> Data ingestion has been migrated to Supabase FDW (Foreign Data Wrapper) + RPCs.
+> The dashboard now calls `sincronizar_dados_cliente` RPC directly via Supabase client.
+> BigQuery connections use `create_bigquery_server` and `create_bigquery_foreign_table` RPCs.
+> See `apps/vizu_dashboard/src/services/connectorService.ts` for the new implementation.
+> This service remains for reference only and will be removed in a future release.
+
 This microservice provides an API for ingesting data from various enterprise sources into the Vizu application.
 
 ## Overview

@@ -47,6 +47,9 @@ x-llm-env: &llm-env
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
+  # Redis (for caching)
+  REDIS_URL: ${REDIS_URL}
+
   # Langfuse Observability
   LANGFUSE_HOST: ${LANGFUSE_HOST:-https://us.cloud.langfuse.com}
   LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
@@ -101,37 +104,8 @@ services:
     ports:
       - "8006:8000"
 
-  analytics_api:
-    container_name: cloudrun_analytics_api
-    <<: *build-args
-    build:
-      context: .
-      dockerfile: ./services/analytics_api/Dockerfile
-    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/analytics-api:${IMAGE_TAG:-latest}
-    env_file:
-      - .env.cloudrun
-    environment:
-      <<: *common-env
-      PORT: "8000"
-      PYTHONPATH: /app/src
-    ports:
-      - "8004:8000"
-
-  data_ingestion_api:
-    container_name: cloudrun_data_ingestion_api
-    <<: *build-args
-    build:
-      context: .
-      dockerfile: ./services/data_ingestion_api/Dockerfile
-    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/data-ingestion-api:${IMAGE_TAG:-latest}
-    env_file:
-      - .env.cloudrun
-    environment:
-      <<: *common-env
-      PORT: "8000"
-      PYTHONPATH: /app/src:/app/libs
-    ports:
-      - "8008:8000"
+  # NOTE: analytics_api and data_ingestion_api REMOVED (deprecated)
+  # All functionality now handled via Supabase PostgREST + RPCs
 
   # =========================================
   # AGENT SERVICES
@@ -188,7 +162,6 @@ services:
         VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8003}
         VITE_ATENDENTE_CORE: ${VITE_ATENDENTE_CORE:-http://localhost:8003}
-        VITE_ANALYTICS_API: ${VITE_ANALYTICS_API:-http://localhost:8004}
     image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/vizu-dashboard:${IMAGE_TAG:-latest}
     environment:
       PORT: "80"

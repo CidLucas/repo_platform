@@ -61,23 +61,14 @@ class LLMProvider(Enum):
 
 
 def get_langfuse_callback(
-    settings: LLMSettings | None = None,
-    user_id: str | None = None,
-    session_id: str | None = None,
-    tags: list[str] | None = None,
-    metadata: dict[str, Any] | None = None,
+    **_kwargs: Any,
 ) -> BaseCallbackHandler | None:
     """
     Create Langfuse CallbackHandler for LLM tracing.
 
     Delegates to vizu_observability_bootstrap.langfuse module.
-
-    Args:
-        settings: LLMSettings (optional, for backwards compatibility)
-        user_id: User ID for trace grouping
-        session_id: Session ID for trace grouping
-        tags: Tags for categorization
-        metadata: Additional metadata
+    Langfuse SDK v3 reads trace attributes from config["metadata"]
+    at invoke time, not from constructor args.
 
     Returns:
         CallbackHandler or None if Langfuse not configured
@@ -86,32 +77,22 @@ def get_langfuse_callback(
         from vizu_observability_bootstrap.langfuse import (
             get_langfuse_callback as _get_callback,
         )
-        return _get_callback(
-            user_id=user_id,
-            session_id=session_id,
-            tags=tags,
-            metadata=metadata,
-        )
+
+        return _get_callback()
     except ImportError:
         logger.debug("vizu_observability_bootstrap not available, Langfuse disabled")
         return None
 
 
-def get_base_callbacks(
-    settings: LLMSettings | None = None,
-    user_id: str | None = None,
-    session_id: str | None = None,
-    tags: list[str] | None = None,
-) -> list[BaseCallbackHandler]:
-    """Return list of default callbacks (Langfuse, etc)."""
+def get_base_callbacks() -> list[BaseCallbackHandler]:
+    """Return list of default callbacks (Langfuse, etc).
+
+    Langfuse SDK v3 reads trace attributes from config["metadata"]
+    at invoke time, so no parameters needed here.
+    """
     callbacks = []
 
-    lf = get_langfuse_callback(
-        settings=settings,
-        user_id=user_id,
-        session_id=session_id,
-        tags=tags,
-    )
+    lf = get_langfuse_callback()
     if lf:
         callbacks.append(lf)
 
@@ -215,9 +196,7 @@ def _get_openai_model(
     try:
         from langchain_openai import ChatOpenAI
     except ImportError:
-        raise ImportError(
-            "langchain-openai não instalado. Rode: pip install langchain-openai"
-        )
+        raise ImportError("langchain-openai não instalado. Rode: pip install langchain-openai")
 
     api_key = settings.OPENAI_API_KEY
     if not api_key:
@@ -248,9 +227,7 @@ def _get_anthropic_model(
 
     logger.debug(f"Anthropic: model={model_name}")
 
-    return ChatAnthropic(
-        model=model_name, api_key=api_key, callbacks=callbacks, **kwargs
-    )
+    return ChatAnthropic(model=model_name, api_key=api_key, callbacks=callbacks, **kwargs)
 
 
 def _get_google_model(
@@ -358,13 +335,8 @@ def get_model(
     if model_name is None:
         model_name = MODEL_MAPPINGS.get(provider, {}).get(tier, "gpt-oss:20b")
 
-    # Cria callbacks
-    callbacks = get_base_callbacks(
-        settings=settings,
-        user_id=user_id,
-        session_id=session_id,
-        tags=tags,
-    )
+    # Cria callbacks (Langfuse reads trace attrs from config["metadata"] at invoke time)
+    callbacks = get_base_callbacks()
 
     # Cria o modelo
     factory_map = {
@@ -397,6 +369,7 @@ def flush_langfuse():
     """Force flush Langfuse events."""
     try:
         from vizu_observability_bootstrap.langfuse import flush_langfuse as _flush
+
         _flush()
     except ImportError:
         logger.debug("vizu_observability_bootstrap not available")
@@ -406,6 +379,7 @@ def shutdown_langfuse():
     """Shutdown Langfuse client."""
     try:
         from vizu_observability_bootstrap.langfuse import shutdown_langfuse as _shutdown
+
         _shutdown()
     except ImportError:
         logger.debug("vizu_observability_bootstrap not available")

@@ -75,7 +75,7 @@ class PromptLoader:
 
     # Circuit breaker: skip Langfuse for this many seconds after a failure
     _langfuse_cooldown_until: float = 0.0
-    _LANGFUSE_COOLDOWN_SECONDS: float = 300.0  # 5 minutes
+    _LANGFUSE_COOLDOWN_SECONDS: float = 60.0  # 1 minute (reduced from 5 for faster recovery)
     _LANGFUSE_TIMEOUT_SECONDS: float = 2.0  # max wait per fetch
 
     def __init__(
@@ -100,6 +100,10 @@ class PromptLoader:
     def _get_langfuse_client(self):
         """Lazily initialize Langfuse client. Returns None if in cooldown."""
         if _time.time() < self._langfuse_cooldown_until:
+            remaining = int(self._langfuse_cooldown_until - _time.time())
+            logger.debug(
+                f"[PROMPT] Langfuse circuit breaker active, {remaining}s remaining until retry"
+            )
             return None
         if self._langfuse_client is None:
             try:
@@ -107,16 +111,22 @@ class PromptLoader:
                     LangfusePromptClient,
                     is_langfuse_enabled,
                 )
+
                 if is_langfuse_enabled():
                     self._langfuse_client = LangfusePromptClient()
-                    logger.info("Langfuse prompt client initialized")
+                    logger.info("[PROMPT] Langfuse prompt client initialized successfully")
                 else:
-                    logger.warning("Langfuse not enabled (missing LANGFUSE_PUBLIC_KEY or LANGFUSE_SECRET_KEY)")
+                    logger.warning(
+                        "[PROMPT] Langfuse not enabled (missing LANGFUSE_PUBLIC_KEY or LANGFUSE_SECRET_KEY)"
+                    )
             except ImportError:
-                logger.debug("vizu_observability_bootstrap not available")
+                logger.debug("[PROMPT] vizu_observability_bootstrap not available")
             except Exception as e:
-                logger.warning(f"Failed to initialize Langfuse: {e}")
+                logger.warning(f"[PROMPT] Failed to initialize Langfuse: {e}")
                 self._langfuse_cooldown_until = _time.time() + self._LANGFUSE_COOLDOWN_SECONDS
+                logger.warning(
+                    f"[PROMPT] Circuit breaker activated for {self._LANGFUSE_COOLDOWN_SECONDS}s"
+                )
         return self._langfuse_client
 
     async def load(
@@ -124,31 +134,52 @@ class PromptLoader:
         name: str,
         variables: dict[str, Any] | None = None,
         langfuse_label: str | None = None,
+        allow_fallback: bool = False,
     ) -> LoadedPrompt:
         """
         Load and render a prompt.
 
-        Simplified priority:
-        1. Langfuse (if enabled and prompt exists)
-        2. Built-in template
+        Langfuse is the source of truth. Fallback to builtin only if explicitly allowed.
 
         Args:
             name: Prompt name (e.g., "atendente/default")
             variables: Variables for template substitution
             langfuse_label: Override default Langfuse label
+            allow_fallback: If True, fall back to builtin when Langfuse unavailable.
+                           Default False - raises error if Langfuse prompt not found.
 
         Returns:
             LoadedPrompt with rendered content
+
+        Raises:
+            PromptNotFoundError: If prompt not in Langfuse and allow_fallback=False
         """
         variables = variables or {}
         label = langfuse_label or self.langfuse_label
 
-        # 1. Try Langfuse first
+        # 1. Try Langfuse (mandatory in production)
         langfuse_result = await self._load_from_langfuse(name, variables, label)
         if langfuse_result:
+            logger.info(
+                f"[PROMPT] Loaded '{name}' from Langfuse (version={langfuse_result.version}, label={label})"
+            )
             return langfuse_result
 
-        # 2. Fallback to builtin
+        # 2. Langfuse failed - check if fallback allowed
+        if not allow_fallback:
+            logger.error(
+                f"[PROMPT] CRITICAL: Prompt '{name}' not found in Langfuse (label={label}). "
+                "Ensure prompt exists in Langfuse with correct name and label."
+            )
+            raise PromptNotFoundError(
+                f"Prompt '{name}' not found in Langfuse (label={label}). "
+                "Builtin fallback disabled - add prompt to Langfuse."
+            )
+
+        # 3. Fallback to builtin (only if explicitly allowed)
+        logger.warning(
+            f"[PROMPT] Falling back to builtin for '{name}' - Langfuse unavailable or prompt not found"
+        )
         return self._load_from_builtin(name, variables)
 
     async def load_raw(
@@ -220,14 +251,18 @@ class PromptLoader:
                 langfuse_prompt=prompt_obj,
             )
         except TimeoutError:
-            logger.warning(f"Langfuse timeout fetching '{name}', disabling for {self._LANGFUSE_COOLDOWN_SECONDS}s")
+            logger.warning(
+                f"Langfuse timeout fetching '{name}', disabling for {self._LANGFUSE_COOLDOWN_SECONDS}s"
+            )
             self._langfuse_cooldown_until = _time.time() + self._LANGFUSE_COOLDOWN_SECONDS
             return None
         except Exception as e:
             logger.warning(f"Langfuse prompt '{name}' fetch failed (label={label}): {e}")
             if "Connection refused" in str(e) or "connection" in str(e).lower():
                 self._langfuse_cooldown_until = _time.time() + self._LANGFUSE_COOLDOWN_SECONDS
-                logger.info(f"Langfuse unreachable, disabling for {self._LANGFUSE_COOLDOWN_SECONDS}s")
+                logger.info(
+                    f"Langfuse unreachable, disabling for {self._LANGFUSE_COOLDOWN_SECONDS}s"
+                )
             return None
 
     async def _load_raw_from_langfuse(
@@ -268,7 +303,9 @@ class PromptLoader:
                 langfuse_prompt=prompt_obj,
             )
         except TimeoutError:
-            logger.warning(f"Langfuse timeout fetching raw '{name}', disabling for {self._LANGFUSE_COOLDOWN_SECONDS}s")
+            logger.warning(
+                f"Langfuse timeout fetching raw '{name}', disabling for {self._LANGFUSE_COOLDOWN_SECONDS}s"
+            )
             self._langfuse_cooldown_until = _time.time() + self._LANGFUSE_COOLDOWN_SECONDS
             return None
         except Exception as e:
@@ -288,10 +325,10 @@ class PromptLoader:
         # Apply default values for optional variables
         optional_vars = (
             builtin.get_optional_variables_dict()
-            if hasattr(builtin, 'get_optional_variables_dict')
+            if hasattr(builtin, "get_optional_variables_dict")
             else (
                 builtin.optional_variables
-                if isinstance(getattr(builtin, 'optional_variables', None), dict)
+                if isinstance(getattr(builtin, "optional_variables", None), dict)
                 else {}
             )
         )
@@ -386,4 +423,5 @@ class PromptLoader:
 
 class PromptNotFoundError(Exception):
     """Prompt not found error."""
+
     pass

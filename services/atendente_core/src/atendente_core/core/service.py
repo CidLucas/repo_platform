@@ -5,8 +5,10 @@ Uses custom graph with Context 2.0 aware supervisor_node.
 """
 
 import asyncio
+import json
 import logging
 import time
+from collections.abc import AsyncIterator
 from typing import Any
 from uuid import UUID
 
@@ -15,12 +17,10 @@ from langchain_core.messages import AIMessage, HumanMessage
 from atendente_core.core.config import get_settings
 from atendente_core.core.hitl_integration import HitlIntegration
 from atendente_core.core.observability import get_langfuse_config
-from atendente_core.core.state import PendingElicitation
+from atendente_core.core.state import AgentState, PendingElicitation
 from atendente_core.services.mcp_client import ensure_mcp_connected
-from vizu_agent_framework.state import AgentState
 from vizu_context_service.context_service import ContextService
 from vizu_db_connector.operations import VizuDBConnector
-from vizu_models.safe_client_context import InternalClientContext
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +75,7 @@ class AtendenteService:
 
         # Singleton graph — avoids creating a new RedisSaver per request
         from .graph import get_agent_graph
+
         self.graph = get_agent_graph()
 
     async def _persist_message(self, conversa_id: UUID, role: str, content: str) -> None:
@@ -124,24 +125,14 @@ class AtendenteService:
 
         logger.info(f"Atendendo: {client_context.nome_empresa} | Sessão: {session_id}")
 
-        # 2. Separar contexto seguro do sensível
-        # InternalClientContext mantém dados sensíveis (api_key, id) separados
-        # SafeClientContext contém apenas dados seguros para a LLM
-        internal_ctx = InternalClientContext.from_vizu_client_context(client_context)
-        safe_ctx = internal_ctx.get_safe_context()
-
-        # 3. Preparação do Estado do Grafo
-        # O system prompt é construído dinamicamente no nó supervisor via build_dynamic_system_prompt()
-        # safe_context vai para a LLM, _internal_context fica para uso interno
-        # Context 2.0: vizu_context contains all modular sections for selective injection
+        # 2. Preparação do Estado do Grafo
+        # OTIMIZAÇÃO: Contextos são buscados on-demand no supervisor_node usando cliente_id
+        # Isso evita trace bloat (vizu_context, safe_context, _internal_context não vão para o estado)
         initial_state = AgentState(
             messages=[HumanMessage(content=message_text)],
-            safe_context=safe_ctx,
-            vizu_context=client_context,  # Context 2.0: Full context with sections
-            _internal_context=internal_ctx,
             tools=[],  # Será preenchido pelo nó supervisor via MCP
             model_override=model_override,  # Modelo específico para este request
-            # PHASE 5: cliente_id para buscar prompts customizados
+            # cliente_id é usado para buscar contexto on-demand no supervisor_node
             cliente_id=client_context.id,
             # Include original user's JWT so executor can propagate to tools
             user_jwt=user_jwt,
@@ -154,13 +145,12 @@ class AtendenteService:
             structured_data=None,
             # OPT-7: Cached system prompt (populated on first supervisor call)
             _cached_system_prompt=None,
+            _cached_tools=None,
         )
 
         # Log if we're resuming from elicitation
         if elicitation_response:
-            logger.info(
-                f"Resuming from elicitation: {elicitation_response.get('elicitation_id')}"
-            )
+            logger.info(f"Resuming from elicitation: {elicitation_response.get('elicitation_id')}")
 
         # Determina qual modelo será usado (para retornar na resposta)
         from vizu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
@@ -172,36 +162,40 @@ class AtendenteService:
             provider = LLMProvider(llm_settings.LLM_PROVIDER)
             model_used = MODEL_MAPPINGS.get(provider, {}).get(ModelTier.DEFAULT, "default")
 
-        # Persiste a conversa e a mensagem inicial
-        # OPT-4: create_or_get_conversa must await (need conversa_id), but add_mensagem is fire-and-forget
-        conversa_id = None
-        try:
-            # cliente_final_id pode ser desconhecido no momento; passamos None
-            # client_id vem do contexto autenticado
-            conversa_id = await self.db.create_or_get_conversa(
-                session_id,
-                cliente_final_id=None,
-                client_id=str(client_context.id)
-            )
-            # Fire-and-forget: persist user message in background
-            _create_background_task(self._persist_message(conversa_id, "user", message_text))
-        except Exception:
-            logger.exception("Falha ao criar/obter conversa (não bloqueante)")
-
         # 4. Execução do Grafo (com Memória via session_id e Observabilidade via Langfuse)
         # get_langfuse_config retorna config com callbacks do Langfuse se configurado
         config = get_langfuse_config(
             session_id=session_id,
             cliente_id=str(client_context.id),
-            tags=["atendente", safe_ctx.nome_empresa],
+            tags=["atendente", client_context.nome_empresa],
         )
 
         try:
-            # Ensure MCP connection is established before graph execution
+            # Set cliente_id BEFORE connecting so X-Cliente-Id header is correct
+            # from the start (avoids reconnection in execute_tools_node)
+            from atendente_core.services.mcp_client import mcp_manager
+
+            mcp_manager.set_cliente_id(str(client_context.id))
+
+            # Parallelize conversa creation + MCP connection (independent operations)
+            async def _get_conversa():
+                try:
+                    cid = await self.db.create_or_get_conversa(
+                        session_id, cliente_final_id=None, client_id=str(client_context.id)
+                    )
+                    _create_background_task(self._persist_message(cid, "user", message_text))
+                    return cid
+                except Exception:
+                    logger.exception("Falha ao criar/obter conversa (não bloqueante)")
+                    return None
+
+            conversa_task = asyncio.create_task(_get_conversa())
             await ensure_mcp_connected()
+            conversa_id = await conversa_task
 
             # OPT-3: Set context_service for supervisor_node to enable Redis-cached prompts
             from atendente_core.core.nodes import set_node_context_service
+
             set_node_context_service(context_service)
 
             # .ainvoke roda o grafo inteiro até chegar no END
@@ -211,7 +205,11 @@ class AtendenteService:
             # persisting entire conversation in the state (reduces span size
             # and memory bloat). Uses same window size as the node.
             history_window = getattr(self.settings, "SESSION_HISTORY_WINDOW", 6)
-            if final_state and "messages" in final_state and isinstance(final_state["messages"], list):
+            if (
+                final_state
+                and "messages" in final_state
+                and isinstance(final_state["messages"], list)
+            ):
                 final_state["messages"] = final_state["messages"][-history_window:]
             response_time = time.time() - start_time
 
@@ -221,16 +219,16 @@ class AtendenteService:
             # PHASE 3: Check for pending elicitation
             pending_elicitation = final_state.get("pending_elicitation")
             if pending_elicitation:
-                logger.info(
-                    f"Elicitation pending: {pending_elicitation.get('elicitation_id')}"
-                )
+                logger.info(f"Elicitation pending: {pending_elicitation.get('elicitation_id')}")
 
             if isinstance(last_message, AIMessage):
                 agent_response = last_message.content
 
                 # OPT-4: Fire-and-forget persist AI response in background
                 if conversa_id:
-                    _create_background_task(self._persist_message(conversa_id, "ai", agent_response))
+                    _create_background_task(
+                        self._persist_message(conversa_id, "ai", agent_response)
+                    )
 
                 # PHASE 6: HITL Evaluation
                 # Avalia se esta interação deve ir para revisão humana
@@ -238,18 +236,21 @@ class AtendenteService:
                 tool_errors = final_state.get("tool_errors", [])
                 confidence = final_state.get("confidence_score")  # Se disponível
 
-                await self.hitl.evaluate_and_submit(
-                    user_message=message_text,
-                    agent_response=agent_response,
-                    client_id=client_context.id,
-                    session_id=session_id,
-                    trace_id=config.get("metadata", {}).get("trace_id"),
-                    tools_called=tools_called,
-                    tool_errors=tool_errors,
-                    confidence_score=confidence,
-                    elicitation_pending=pending_elicitation is not None,
-                    response_time_seconds=response_time,
-                    model_used=model_used,
+                # OPT-4: Fire-and-forget HITL evaluation (shouldn't block response)
+                _create_background_task(
+                    self.hitl.evaluate_and_submit(
+                        user_message=message_text,
+                        agent_response=agent_response,
+                        client_id=client_context.id,
+                        session_id=session_id,
+                        trace_id=config.get("metadata", {}).get("trace_id"),
+                        tools_called=tools_called,
+                        tool_errors=tool_errors,
+                        confidence_score=confidence,
+                        elicitation_pending=pending_elicitation is not None,
+                        response_time_seconds=response_time,
+                        model_used=model_used,
+                    )
                 )
 
                 # Extract structured_data from state (populated by SQL tools)
@@ -269,8 +270,148 @@ class AtendenteService:
             )
 
         except Exception as e:
-            logger.exception(
-                f"Erro crítico ao processar mensagem na sessão {session_id}"
-            )
+            logger.exception(f"Erro crítico ao processar mensagem na sessão {session_id}")
             # Re-lançamos para o Router tratar e retornar 500
             raise e
+
+    async def process_message_stream(
+        self,
+        session_id: str,
+        message_text: str,
+        client_id: UUID,
+        context_service: ContextService,
+        model_override: str | None = None,
+        user_jwt: str | None = None,
+    ) -> AsyncIterator[str]:
+        """
+        Stream the agent's response as Server-Sent Events (SSE).
+
+        Yields SSE-formatted events:
+        - {"event": "token", "data": "..."}  - LLM token
+        - {"event": "tool_start", "data": {"name": "...", "args": {...}}}
+        - {"event": "tool_end", "data": {"name": "...", "output": "..."}}
+        - {"event": "done", "data": {"response": "...", "model": "..."}}
+        - {"event": "error", "data": {"message": "..."}}
+
+        Args:
+            session_id: Session ID for conversation continuity
+            message_text: User's message
+            client_id: Client UUID (from JWT)
+            context_service: Per-request context service
+            model_override: Optional model override
+            user_jwt: User's JWT for tool propagation
+        """
+        # Get client context
+        client_context = await context_service.get_client_context_by_external_user_id(
+            str(client_id)
+        )
+
+        if not client_context:
+            yield f"data: {json.dumps({'event': 'error', 'data': {'message': 'Cliente não encontrado'}})}\n\n"
+            return
+
+        logger.info(f"[Stream] Atendendo: {client_context.nome_empresa} | Sessão: {session_id}")
+
+        # Build initial state (same as process_message)
+        initial_state = AgentState(
+            messages=[HumanMessage(content=message_text)],
+            tools=[],
+            model_override=model_override,
+            cliente_id=client_context.id,
+            user_jwt=user_jwt,
+            pending_elicitation=None,
+            elicitation_response=None,
+            ended=False,
+            turn_count=0,
+            structured_data=None,
+            _cached_system_prompt=None,
+            _cached_tools=None,
+        )
+
+        # Model info for response
+        from vizu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
+
+        llm_settings = get_llm_settings()
+        if model_override:
+            model_used = model_override
+        else:
+            provider = LLMProvider(llm_settings.LLM_PROVIDER)
+            model_used = MODEL_MAPPINGS.get(provider, {}).get(ModelTier.DEFAULT, "default")
+
+        # Config with Langfuse callbacks
+        from atendente_core.core.observability import get_langfuse_config
+
+        config = get_langfuse_config(
+            session_id=session_id,
+            cliente_id=str(client_context.id),
+            tags=["atendente", "streaming", client_context.nome_empresa],
+        )
+
+        try:
+            # Setup MCP and context
+            from atendente_core.services.mcp_client import ensure_mcp_connected, mcp_manager
+
+            mcp_manager.set_cliente_id(str(client_context.id))
+
+            # Parallel setup: conversa + MCP
+            async def _get_conversa():
+                try:
+                    cid = await self.db.create_or_get_conversa(
+                        session_id, cliente_final_id=None, client_id=str(client_context.id)
+                    )
+                    _create_background_task(self._persist_message(cid, "user", message_text))
+                    return cid
+                except Exception:
+                    logger.exception("Falha ao criar/obter conversa (não bloqueante)")
+                    return None
+
+            conversa_task = asyncio.create_task(_get_conversa())
+            await ensure_mcp_connected()
+            conversa_id = await conversa_task
+
+            # Set context service for nodes
+            from atendente_core.core.nodes import set_node_context_service
+
+            set_node_context_service(context_service)
+
+            # Accumulated response for final message
+            accumulated_response = ""
+
+            # Stream events using LangGraph's astream_events v2
+            async for event in self.graph.astream_events(initial_state, config, version="v2"):
+                event_kind = event.get("event")
+                event_data = event.get("data", {})
+
+                # LLM token streaming
+                if event_kind == "on_chat_model_stream":
+                    chunk = event_data.get("chunk")
+                    if chunk and hasattr(chunk, "content") and chunk.content:
+                        token = chunk.content
+                        accumulated_response += token
+                        yield f"data: {json.dumps({'event': 'token', 'data': token})}\n\n"
+
+                # Tool invocation start
+                elif event_kind == "on_tool_start":
+                    tool_name = event_data.get("name", "unknown")
+                    tool_input = event_data.get("input", {})
+                    yield f"data: {json.dumps({'event': 'tool_start', 'data': {'name': tool_name, 'args': tool_input}})}\n\n"
+
+                # Tool invocation end
+                elif event_kind == "on_tool_end":
+                    tool_name = event_data.get("name", "unknown")
+                    # Truncate long outputs
+                    output = str(event_data.get("output", ""))[:500]
+                    yield f"data: {json.dumps({'event': 'tool_end', 'data': {'name': tool_name, 'output': output}})}\n\n"
+
+            # Final response
+            yield f"data: {json.dumps({'event': 'done', 'data': {'response': accumulated_response, 'model': model_used}})}\n\n"
+
+            # Persist AI response in background
+            if conversa_id and accumulated_response:
+                _create_background_task(
+                    self._persist_message(conversa_id, "ai", accumulated_response)
+                )
+
+        except Exception as e:
+            logger.exception(f"[Stream] Erro ao processar mensagem na sessão {session_id}")
+            yield f"data: {json.dumps({'event': 'error', 'data': {'message': str(e)}})}\n\n"

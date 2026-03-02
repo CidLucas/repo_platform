@@ -2,7 +2,6 @@
 Tests for vizu_prompt_management library.
 """
 
-
 import pytest
 
 from vizu_prompt_management.loader import LoadedPrompt, PromptLoader, PromptNotFoundError
@@ -196,11 +195,7 @@ class TestContextVariableBuilder:
 
     def test_builder_with_tools(self):
         """Test builder with tools."""
-        variables = (
-            ContextVariableBuilder()
-            .with_tools(["tool1", "tool2"])
-            .build()
-        )
+        variables = ContextVariableBuilder().with_tools(["tool1", "tool2"]).build()
 
         assert "tool1" in variables.enabled_tools
         assert "tool2" in variables.enabled_tools
@@ -208,11 +203,7 @@ class TestContextVariableBuilder:
 
     def test_builder_build_dict(self):
         """Test builder build_dict()."""
-        result = (
-            ContextVariableBuilder()
-            .with_empresa("Test Corp")
-            .build_dict()
-        )
+        result = ContextVariableBuilder().with_empresa("Test Corp").build_dict()
 
         assert isinstance(result, dict)
         assert result["nome_empresa"] == "Test Corp"

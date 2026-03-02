@@ -90,7 +90,7 @@ function ProdutosPage() {
   const chartTicketMedioData = useMemo(() => {
     const quantidadeData = overviewData?.chart_quantidade_no_tempo || [];
     const receitaData = overviewData?.chart_receita_no_tempo || [];
-    
+
     return receitaData.map((r: { name: string; total?: number; value?: number }, idx: number) => {
       const qItem = quantidadeData[idx] as { total?: number; value?: number } | undefined;
       const quantidade = qItem?.total ?? qItem?.value ?? 1;
@@ -239,10 +239,10 @@ function ProdutosPage() {
   const performanceSlides: MetricSlide[] = useMemo(() => {
     if (!overviewData) return [];
 
-    const formatCurrency = (value: number) => 
+    const formatCurrency = (value: number) =>
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-    
-    const formatNumber = (value: number) => 
+
+    const formatNumber = (value: number) =>
       new Intl.NumberFormat('pt-BR').format(value);
 
     return [
@@ -333,9 +333,9 @@ function ProdutosPage() {
       } else if (selectedMetric === 'produtos') {
         primaryMetric = `Receita: R$ ${receita.toLocaleString('pt-BR')}`;
       }
-      
+
       const description = `${primaryMetric} | Qtd: ${qtd.toLocaleString('pt-BR')} | Unit: R$ ${valorUnit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-      
+
       return {
         id: item.nome,
         title: item.nome,

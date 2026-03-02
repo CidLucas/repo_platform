@@ -11,7 +11,7 @@ interface UseHomeMetricsReturn {
 /**
  * Hook to fetch home dashboard metrics with React Query caching.
  * Data is cached for 5 minutes and stale-while-revalidate pattern is used.
- * 
+ *
  * @example
  * const { data, loading, error } = useHomeMetrics();
  */

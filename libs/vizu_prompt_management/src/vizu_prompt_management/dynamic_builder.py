@@ -9,7 +9,7 @@ Single entry point for building all prompt types dynamically:
 
 Architecture (simplified):
 1. Langfuse as source of truth (version control, A/B testing via labels)
-2. Builtin templates as fallback
+2. Builtin templates as fallback (ONLY if PROMPT_ALLOW_FALLBACK=true)
 3. Redis caching via ContextService (optional)
 4. Variables injected from SafeContext fields via {{}} syntax
 
@@ -17,9 +17,11 @@ Key changes:
 - Removed cliente_id parameter (no per-client prompts in DB)
 - Context is injected via variables (company_profile, nome_empresa, etc.)
 - Added build_prompt_full() for access to LoadedPrompt + langfuse_prompt
+- Builtin fallback disabled by default (set PROMPT_ALLOW_FALLBACK=true to enable)
 """
 
 import logging
+import os
 from typing import TYPE_CHECKING, Any
 
 from vizu_prompt_management.loader import LoadedPrompt, PromptLoader
@@ -29,6 +31,9 @@ if TYPE_CHECKING:
     from vizu_context_service import ContextService
 
 logger = logging.getLogger(__name__)
+
+# Environment flag to allow builtin fallback (default: False in production)
+PROMPT_ALLOW_FALLBACK = os.environ.get("PROMPT_ALLOW_FALLBACK", "false").lower() == "true"
 
 # =============================================================================
 # SINGLETON PROMPT LOADER
@@ -115,23 +120,15 @@ async def build_prompt(
         except Exception as e:
             logger.warning(f"Context service prompt load failed for '{name}': {e}")
 
-    # Direct load (no Redis cache)
-    try:
-        loaded = await loader.load(
-            name=name,
-            variables=variables,
-            langfuse_label=langfuse_label,
-        )
-        logger.debug(f"Loaded prompt '{name}' directly via PromptLoader (source={loaded.source})")
-        return loaded.content
-    except Exception as e:
-        logger.warning(f"Async load failed for '{name}': {e}, trying builtin")
-        # Final fallback: builtin template
-        try:
-            return loader.load_builtin(name, variables).content
-        except Exception as builtin_err:
-            logger.error(f"Builtin fallback also failed for '{name}': {builtin_err}")
-            raise
+    # Direct load (Langfuse is mandatory unless PROMPT_ALLOW_FALLBACK=true)
+    loaded = await loader.load(
+        name=name,
+        variables=variables,
+        langfuse_label=langfuse_label,
+        allow_fallback=PROMPT_ALLOW_FALLBACK,
+    )
+    logger.debug(f"Loaded prompt '{name}' directly via PromptLoader (source={loaded.source})")
+    return loaded.content
 
 
 async def build_prompt_full(
@@ -166,19 +163,15 @@ async def build_prompt_full(
     """
     loader = _get_prompt_loader()
 
-    # Note: ContextService caching returns just the string, so we bypass it here
-    # to get the full LoadedPrompt with langfuse_prompt object
-    try:
-        loaded = await loader.load(
-            name=name,
-            variables=variables,
-            langfuse_label=langfuse_label,
-        )
-        logger.debug(f"Loaded prompt '{name}' (source={loaded.source}, version={loaded.version})")
-        return loaded
-    except Exception as e:
-        logger.warning(f"Async load failed for '{name}': {e}, trying builtin")
-        return loader.load_builtin(name, variables)
+    # Direct load (Langfuse is mandatory unless PROMPT_ALLOW_FALLBACK=true)
+    loaded = await loader.load(
+        name=name,
+        variables=variables,
+        langfuse_label=langfuse_label,
+        allow_fallback=PROMPT_ALLOW_FALLBACK,
+    )
+    logger.debug(f"Loaded prompt '{name}' (source={loaded.source}, version={loaded.version})")
+    return loaded
 
 
 def build_prompt_sync(
@@ -230,7 +223,7 @@ def filter_prompt_tools(prompt_base: str, available_tool_names: set[str]) -> str
     # Active SQL tool
     sql_tools = {"executar_sql_agent"}
 
-    lines = prompt_base.split('\n')
+    lines = prompt_base.split("\n")
     filtered_lines = []
     skip_until_next_section = False
 
@@ -246,13 +239,13 @@ def filter_prompt_tools(prompt_base: str, available_tool_names: set[str]) -> str
             continue
 
         # Reset skip flag on new section headers
-        if line.strip().startswith('###') or line.strip().startswith('##'):
+        if line.strip().startswith("###") or line.strip().startswith("##"):
             skip_until_next_section = False
 
         if not skip_until_next_section:
             filtered_lines.append(line)
 
-    result = '\n'.join(filtered_lines)
+    result = "\n".join(filtered_lines)
 
     if result != prompt_base:
         logger.debug("Filtered unavailable/deprecated tools from prompt_base")

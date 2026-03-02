@@ -19,11 +19,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from functools import lru_cache
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from langchain_core.callbacks.base import BaseCallbackHandler
+from langchain_core.callbacks.base import BaseCallbackHandler
 
 logger = logging.getLogger(__name__)
 
@@ -33,21 +31,78 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
-@lru_cache
+# Cache settings after first successful load (avoids repeated env lookups)
+_langfuse_settings: dict[str, Any] | None = None
+_langfuse_available: bool | None = None  # Cache langfuse availability check
+_langfuse_callback_singleton: BaseCallbackHandler | None = None  # Singleton callback handler
+
+
+def _check_langfuse_availability() -> bool:
+    """Check if langfuse.langchain is available. Logs diagnostic info once."""
+    global _langfuse_available
+    if _langfuse_available is not None:
+        return _langfuse_available
+
+    try:
+        import langfuse
+
+        langfuse_version = getattr(langfuse, "__version__", "unknown")
+        logger.debug(f"langfuse package version: {langfuse_version}")
+
+        from langfuse.langchain import CallbackHandler
+
+        _langfuse_available = True
+        logger.debug("langfuse.langchain.CallbackHandler import successful")
+        return True
+    except ImportError as e:
+        _langfuse_available = False
+        logger.warning(f"langfuse.langchain import check failed: {e}")
+        return False
+
+
 def get_langfuse_settings() -> dict[str, Any]:
     """
     Get Langfuse configuration from environment.
 
+    Note: Does NOT use @lru_cache to avoid caching empty values if called
+    before Cloud Run injects secrets. Instead uses module-level cache that
+    only caches after getting non-empty values.
+
     Environment variables:
-    - LANGFUSE_HOST: Langfuse server URL (default: https://cloud.langfuse.com)
+    - LANGFUSE_HOST: Langfuse server URL (default: https://us.cloud.langfuse.com)
     - LANGFUSE_PUBLIC_KEY: Public API key (pk-lf-...)
     - LANGFUSE_SECRET_KEY: Secret API key (sk-lf-...)
     """
-    return {
-        "host": os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com"),
-        "public_key": os.environ.get("LANGFUSE_PUBLIC_KEY"),
-        "secret_key": os.environ.get("LANGFUSE_SECRET_KEY"),
+    global _langfuse_settings
+
+    # Return cached settings if we already have valid credentials
+    if _langfuse_settings is not None and _langfuse_settings.get("public_key"):
+        return _langfuse_settings
+
+    # Fresh load from environment
+    host = os.environ.get("LANGFUSE_HOST", "https://us.cloud.langfuse.com")
+    public_key = os.environ.get("LANGFUSE_PUBLIC_KEY")
+    secret_key = os.environ.get("LANGFUSE_SECRET_KEY")
+
+    settings = {
+        "host": host,
+        "public_key": public_key,
+        "secret_key": secret_key,
     }
+
+    # Log at first load (helps debug deployment issues)
+    if _langfuse_settings is None:
+        logger.info(
+            f"Langfuse config: host={host}, "
+            f"public_key={'set' if public_key else 'MISSING'}, "
+            f"secret_key={'set' if secret_key else 'MISSING'}"
+        )
+
+    # Only cache if we have valid credentials (avoids caching empty values)
+    if public_key and secret_key:
+        _langfuse_settings = settings
+
+    return settings
 
 
 def is_langfuse_enabled() -> bool:
@@ -107,7 +162,7 @@ def sanitize_observation(obj: dict, max_messages: int = 6, max_str_len: int = 20
 # =============================================================================
 
 
-class SanitizingLangfuseCallback:
+class SanitizingLangfuseCallback(BaseCallbackHandler):
     """
     Wrapper around Langfuse CallbackHandler that sanitizes observations.
 
@@ -116,21 +171,22 @@ class SanitizingLangfuseCallback:
     - Removes `_internal_context` key entirely
     - Truncates large `response_metadata` objects to a small subset
 
-    Note: This is a pure wrapper (not inheriting from BaseCallbackHandler)
-    because we delegate all callback methods to the inner handler.
-    LangChain accepts callback handlers via duck typing.
+    Inherits from BaseCallbackHandler to pass isinstance() checks
+    in LangChain/Pydantic validation (required by ChatOllama and others).
+
+    Note: Properties like ignore_agent, ignore_chain, etc. are delegated
+    to the inner handler via __getattr__ to avoid conflicts with
+    BaseCallbackHandler's property definitions.
     """
 
+    # Store our own attributes to avoid __getattr__ recursion
+    __slots__ = ("_inner", "_max_messages")
+
     def __init__(self, inner: Any, max_messages: int = 6):
-        self._inner = inner
-        self._max_messages = max_messages
-        # Expose required properties for LangChain duck typing
-        self.ignore_agent = getattr(inner, "ignore_agent", False)
-        self.ignore_chain = getattr(inner, "ignore_chain", False)
-        self.ignore_llm = getattr(inner, "ignore_llm", False)
-        self.ignore_retriever = getattr(inner, "ignore_retriever", False)
-        self.ignore_retry = getattr(inner, "ignore_retry", False)
-        self.raise_error = getattr(inner, "raise_error", False)
+        # Don't call super().__init__() - it may set conflicting properties
+        # We delegate all BaseCallbackHandler behavior to inner handler
+        object.__setattr__(self, "_inner", inner)
+        object.__setattr__(self, "_max_messages", max_messages)
 
     def _sanitize_obj(self, obj: Any) -> Any:
         try:
@@ -183,6 +239,73 @@ class SanitizingLangfuseCallback:
         except Exception:
             return None
 
+    # ------------------------------------------------------------------
+    # Methods below delegate directly to the inner handler WITHOUT
+    # sanitization.  They MUST be listed explicitly because
+    # BaseCallbackHandler already defines no-op versions, which
+    # prevents __getattr__ from ever being called for them.
+    # ------------------------------------------------------------------
+
+    def on_llm_start(self, serialized: Any, prompts: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_llm_start(serialized, prompts, **kwargs)
+        except Exception:
+            return None
+
+    def on_chat_model_start(self, serialized: Any, messages: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_chat_model_start(serialized, messages, **kwargs)
+        except Exception:
+            return None
+
+    def on_tool_start(self, serialized: Any, input_str: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_tool_start(serialized, input_str, **kwargs)
+        except Exception:
+            return None
+
+    def on_retriever_start(self, serialized: Any, query: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_retriever_start(serialized, query, **kwargs)
+        except Exception:
+            return None
+
+    def on_retriever_end(self, documents: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_retriever_end(documents, **kwargs)
+        except Exception:
+            return None
+
+    def on_chain_error(self, error: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_chain_error(error, **kwargs)
+        except Exception:
+            return None
+
+    def on_llm_error(self, error: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_llm_error(error, **kwargs)
+        except Exception:
+            return None
+
+    def on_tool_error(self, error: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_tool_error(error, **kwargs)
+        except Exception:
+            return None
+
+    def on_retriever_error(self, error: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_retriever_error(error, **kwargs)
+        except Exception:
+            return None
+
+    def on_retry(self, retry_state: Any, **kwargs: Any) -> Any:
+        try:
+            return self._inner.on_retry(retry_state, **kwargs)
+        except Exception:
+            return None
+
     def _sanitize_tool_output(self, output: Any, max_len: int = 4000) -> Any:
         """Sanitize tool output to prevent trace bloat."""
         import json
@@ -224,68 +347,56 @@ class SanitizingLangfuseCallback:
 
 
 def get_langfuse_callback(
-    user_id: str | None = None,
-    session_id: str | None = None,
-    tags: list[str] | None = None,
-    metadata: dict[str, Any] | None = None,
     max_messages: int = 6,
 ) -> BaseCallbackHandler | None:
     """
-    Create a Langfuse CallbackHandler for LangChain/LangGraph tracing.
+    Get a SINGLETON Langfuse CallbackHandler for LangChain/LangGraph tracing.
+
+    Returns the same handler instance across all calls to avoid creating
+    multiple traces per request. Each CallbackHandler manages its own trace
+    lifecycle, so multiple handlers = multiple traces = duplicates.
+
+    Langfuse SDK v3 reads trace attributes (session_id, user_id, tags)
+    from config["metadata"] during invoke(), not from constructor args.
+    Pass langfuse_session_id, langfuse_user_id, langfuse_tags in the
+    config metadata dict when calling graph.ainvoke() or chain.invoke().
 
     Args:
-        user_id: User ID for trace grouping
-        session_id: Session ID for trace grouping
-        tags: Tags for categorization
-        metadata: Additional metadata (including prompt_name, prompt_version for trace linking)
         max_messages: Max messages to keep in observation (truncates older)
 
     Returns:
-        Callback handler or None if Langfuse not configured
+        Callback handler wrapped with SanitizingLangfuseCallback, or None if not configured
     """
+    global _langfuse_callback_singleton
+
+    # Return cached singleton if available
+    if _langfuse_callback_singleton is not None:
+        return _langfuse_callback_singleton
+
     if not is_langfuse_enabled():
         logger.debug("Langfuse not enabled (missing credentials)")
         return None
 
+    # Check if langfuse.langchain is available (with diagnostic logging)
+    if not _check_langfuse_availability():
+        return None
+
     try:
-        # Import CallbackHandler - path differs between v2 and v3
-        try:
-            # v3: langfuse.langchain.CallbackHandler
-            from langfuse.langchain import CallbackHandler
-        except ImportError:
-            # v2: langfuse.callback.CallbackHandler
-            from langfuse.callback import CallbackHandler
+        from langfuse.langchain import CallbackHandler
 
-        from langfuse import Langfuse
-
-        settings = get_langfuse_settings()
-
-        # Initialize Langfuse client (singleton)
-        Langfuse(
-            public_key=settings["public_key"],
-            secret_key=settings["secret_key"],
-            host=settings["host"],
-        )
-
-        # Create handler
         handler = CallbackHandler()
 
-        # Set metadata if provided (prompt metadata for trace linking should be passed here)
-        if metadata:
-            handler.metadata = metadata
+        sanitized_handler = SanitizingLangfuseCallback(handler, max_messages=max_messages)
 
-        if user_id:
-            handler.user_id = user_id
-        if session_id:
-            handler.session_id = session_id
-        if tags:
-            handler.tags = tags
+        # Cache as singleton
+        _langfuse_callback_singleton = sanitized_handler
 
-        logger.debug(f"Langfuse callback created - host: {settings['host']}")
-        return handler
+        settings = get_langfuse_settings()
+        logger.info(f"Langfuse callback singleton created - host: {settings['host']}")
+        return sanitized_handler
 
-    except ImportError:
-        logger.warning("langfuse not installed, tracing disabled")
+    except ImportError as e:
+        logger.warning(f"langfuse.langchain import failed, tracing disabled: {e}")
         return None
     except Exception as e:
         logger.warning(f"Failed to create Langfuse callback: {e}")
@@ -337,6 +448,7 @@ class LangfusePromptClient:
                 raise RuntimeError("Langfuse not configured - missing credentials")
 
             from langfuse import Langfuse
+
             settings = get_langfuse_settings()
             self._client = Langfuse(
                 public_key=settings["public_key"],
@@ -348,6 +460,7 @@ class LangfusePromptClient:
     def _trigger_cooldown(self) -> None:
         """Trigger circuit breaker cooldown after connection failure."""
         import time
+
         self._cooldown_until = time.time() + self._COOLDOWN_SECONDS
         logger.warning(f"Langfuse unreachable, disabling for {self._COOLDOWN_SECONDS}s")
 
@@ -394,7 +507,11 @@ class LangfusePromptClient:
 
         except Exception as e:
             error_str = str(e).lower()
-            if "connection refused" in error_str or "connection" in error_str or "timeout" in error_str:
+            if (
+                "connection refused" in error_str
+                or "connection" in error_str
+                or "timeout" in error_str
+            ):
                 self._trigger_cooldown()
             logger.warning(f"Langfuse prompt '{name}' fetch failed (label={label}): {e}")
             return None
@@ -441,7 +558,11 @@ class LangfusePromptClient:
 
         except Exception as e:
             error_str = str(e).lower()
-            if "connection refused" in error_str or "connection" in error_str or "timeout" in error_str:
+            if (
+                "connection refused" in error_str
+                or "connection" in error_str
+                or "timeout" in error_str
+            ):
                 self._trigger_cooldown()
             logger.warning(f"Langfuse template '{name}' fetch failed (label={label}): {e}")
             return None
@@ -449,6 +570,7 @@ class LangfusePromptClient:
     def is_available(self) -> bool:
         """Check if Langfuse is enabled and not in cooldown."""
         import time
+
         if time.time() < self._cooldown_until:
             return False
         return is_langfuse_enabled()
@@ -466,6 +588,7 @@ def flush_langfuse() -> None:
 
     try:
         from langfuse import get_client
+
         get_client().flush()
         logger.debug("Langfuse flush completed")
     except Exception as e:
@@ -495,12 +618,16 @@ async def flush_langfuse_async(timeout: float = 5.0) -> None:
 
 def shutdown_langfuse() -> None:
     """Shutdown Langfuse client (synchronous)."""
+    global _langfuse_callback_singleton
+
     if not is_langfuse_enabled():
         return
 
     try:
         from langfuse import get_client
+
         get_client().shutdown()
+        _langfuse_callback_singleton = None  # Clear singleton on shutdown
         logger.debug("Langfuse shutdown completed")
     except Exception as e:
         logger.warning(f"Langfuse shutdown failed: {e}")

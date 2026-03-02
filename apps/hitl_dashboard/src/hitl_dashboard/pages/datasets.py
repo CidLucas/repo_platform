@@ -18,7 +18,7 @@ class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
     LANGFUSE_SECRET_KEY: str = os.getenv("LANGFUSE_SECRET_KEY", "")
     LANGFUSE_PUBLIC_KEY: str = os.getenv("LANGFUSE_PUBLIC_KEY", "")
-    LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+    LANGFUSE_HOST: str = os.getenv("LANGFUSE_HOST", "https://us.cloud.langfuse.com")
     PAGE_SIZE: int = int(os.getenv("HITL_PAGE_SIZE", "20"))
     REFRESH_INTERVAL: int = int(os.getenv("HITL_REFRESH_INTERVAL", "30"))
 

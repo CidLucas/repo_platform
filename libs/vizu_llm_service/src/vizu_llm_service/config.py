@@ -15,9 +15,7 @@ class LLMSettings(BaseSettings):
     - Google Gemini (API)
     """
 
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # ========================================================================
     # PROVIDER DEFAULT
@@ -40,7 +38,7 @@ class LLMSettings(BaseSettings):
     # ========================================================================
     # LANGFUSE (OBSERVABILITY)
     # ========================================================================
-    LANGFUSE_HOST: str | None = Field(default="https://cloud.langfuse.com")
+    LANGFUSE_HOST: str | None = Field(default="https://us.cloud.langfuse.com")
     LANGFUSE_PUBLIC_KEY: str | None = Field(default=None)
     LANGFUSE_SECRET_KEY: str | None = Field(default=None)
 

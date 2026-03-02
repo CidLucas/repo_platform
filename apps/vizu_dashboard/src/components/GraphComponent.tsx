@@ -1,14 +1,15 @@
 import React from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { Box, Text } from '@chakra-ui/react';
+import type { ChartDataPoint } from '../types';
 
 interface GraphComponentProps {
-  data: any[];
+  data: ChartDataPoint[];
   dataKey: string;
   lineColor?: string;
   showGrid?: boolean;
   height?: number | string;
-  axisColor?: string; // Color for axis and labels (for dark backgrounds)
+  axisColor?: string;
 }
 
 export const GraphComponent: React.FC<GraphComponentProps> = ({
@@ -21,7 +22,7 @@ export const GraphComponent: React.FC<GraphComponentProps> = ({
 }) => {
   // DEBUG: Log incoming data
   console.log('📊 GraphComponent received:', { dataLength: data?.length, dataKey, sample: data?.[0] });
-  
+
   // Validate data - ensure we have valid data points
   const validData = data?.filter(item => item && item.name !== undefined && item[dataKey] !== undefined) || [];
   console.log('📊 GraphComponent validData:', { validDataLength: validData.length, sample: validData[0] });

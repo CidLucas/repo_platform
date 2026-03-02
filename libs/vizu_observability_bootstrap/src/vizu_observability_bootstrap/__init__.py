@@ -134,6 +134,7 @@ def _setup_tracer(
                 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
                     OTLPSpanExporter as HTTPSpanExporter,
                 )
+
                 exporter = HTTPSpanExporter(
                     endpoint=f"{otlp_endpoint}/v1/traces",
                     headers=headers,
@@ -148,6 +149,7 @@ def _setup_tracer(
                 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
                     OTLPSpanExporter as GRPCSpanExporter,
                 )
+
                 exporter = GRPCSpanExporter(endpoint=otlp_endpoint)
                 logger.debug(f"OTLP gRPC trace exporter: {otlp_endpoint}")
             except ImportError:
@@ -186,6 +188,7 @@ def _setup_metrics(
             from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
                 OTLPMetricExporter as HTTPMetricExporter,
             )
+
             exporter = HTTPMetricExporter(
                 endpoint=f"{otlp_endpoint}/v1/metrics",
                 headers=headers,
@@ -194,6 +197,7 @@ def _setup_metrics(
             from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
                 OTLPMetricExporter as GRPCMetricExporter,
             )
+
             exporter = GRPCMetricExporter(endpoint=otlp_endpoint)
 
         reader = PeriodicExportingMetricReader(exporter, export_interval_millis=60000)
@@ -239,6 +243,7 @@ def _setup_logs(
             from opentelemetry.exporter.otlp.proto.http._log_exporter import (
                 OTLPLogExporter as HTTPLogExporter,
             )
+
             exporter = HTTPLogExporter(
                 endpoint=f"{otlp_endpoint}/v1/logs",
                 headers=headers,
@@ -247,6 +252,7 @@ def _setup_logs(
             from opentelemetry.exporter.otlp.proto.grpc._log_exporter import (
                 OTLPLogExporter as GRPCLogExporter,
             )
+
             exporter = GRPCLogExporter(endpoint=otlp_endpoint)
 
         logger_provider = LoggerProvider(resource=resource)
@@ -278,6 +284,7 @@ def setup_observability(
     export_logs: bool = True,
     export_metrics: bool = True,
     log_min_level: int = logging.WARNING,
+    excluded_urls: list[str] | None = None,
 ) -> None:
     """
     Unified observability setup for Vizu services.
@@ -296,6 +303,7 @@ def setup_observability(
         export_logs: Export logs via OTLP (WARN+ only)
         export_metrics: Export metrics via OTLP
         log_min_level: Minimum log level to export (default: WARNING)
+        excluded_urls: URL patterns to exclude from tracing (e.g., ["/mcp", "/health"])
 
     Environment variables:
         OTEL_EXPORTER_OTLP_ENDPOINT: OTLP gateway URL
@@ -308,9 +316,8 @@ def setup_observability(
     setup_structured_logging()
 
     resource = Resource(attributes={"service.name": service_name})
-    otlp_endpoint = (
-        os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
-        or os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+    otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") or os.environ.get(
+        "OTEL_EXPORTER_OTLP_ENDPOINT"
     )
     headers = _parse_otlp_headers(os.environ.get("OTEL_EXPORTER_OTLP_HEADERS", ""))
 
@@ -318,10 +325,17 @@ def setup_observability(
     traces_exporter = os.environ.get("OTEL_TRACES_EXPORTER", "").lower()
     traces_disabled = traces_exporter == "none"
 
+    # Default excluded URLs (MCP SSE creates noisy empty traces, health checks are noisy)
+    default_excluded = ["/mcp", "/health", "/ready", "/live"]
+    all_excluded = (excluded_urls or []) + default_excluded
+
+    # Build exclusion pattern for OTEL (comma-separated URL patterns)
+    exclude_pattern = ",".join(all_excluded) if all_excluded else None
+
     # OTLP Traces
     if otlp and not traces_disabled:
         _setup_tracer(resource, otlp_endpoint, headers)
-        FastAPIInstrumentor.instrument_app(app)
+        FastAPIInstrumentor.instrument_app(app, excluded_urls=exclude_pattern)
 
         if export_metrics:
             _setup_metrics(resource, otlp_endpoint, headers)
@@ -340,6 +354,7 @@ def setup_observability(
     if langfuse:
         if is_langfuse_enabled():
             from .langfuse import get_langfuse_settings
+
             settings = get_langfuse_settings()
             logger.debug(f"Langfuse enabled: {settings['host']}")
         else:

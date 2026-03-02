@@ -1,6 +1,7 @@
 import { Box, Flex } from '@chakra-ui/react';
 import React from 'react';
 import { MapComponent } from './MapComponent';
+import type { MapData } from '../types';
 
 interface ModalContentLayoutProps {
   leftContent: React.ReactNode;
@@ -8,7 +9,7 @@ interface ModalContentLayoutProps {
   leftBgColor?: string;
   rightBgColor?: string;
   isMapModal?: boolean;
-  mapData?: any;
+  mapData?: MapData;
 }
 
 export const ModalContentLayout: React.FC<ModalContentLayoutProps> = ({

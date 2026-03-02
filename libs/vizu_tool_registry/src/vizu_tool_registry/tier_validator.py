@@ -50,6 +50,7 @@ class TierValidator:
             "included_tools": [
                 "executar_rag_cliente",
                 "executar_sql_agent",
+                "execute_sql",
                 "agendar_consulta",
             ],
             "max_queries_per_day": 1000,
@@ -61,6 +62,7 @@ class TierValidator:
             "included_tools": [
                 "executar_rag_cliente",
                 "executar_sql_agent",
+                "execute_sql",
                 "agendar_consulta",
                 "google_calendar_list_events",
                 "google_calendar_create_event",
@@ -78,6 +80,7 @@ class TierValidator:
             "included_tools": [
                 "executar_rag_cliente",
                 "executar_sql_agent",
+                "execute_sql",
                 "agendar_consulta",
                 "google_calendar_list_events",
                 "google_calendar_create_event",

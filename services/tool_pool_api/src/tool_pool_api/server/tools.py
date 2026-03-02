@@ -64,9 +64,7 @@ def get_available_modules() -> dict:
 
 
 # Namespace package normalization for tests importing via the `src.` prefix.
-sys.modules.setdefault(
-    "src.tool_pool_api.server.tools", sys.modules[__name__]
-)
+sys.modules.setdefault("src.tool_pool_api.server.tools", sys.modules[__name__])
 
 # =============================================================================
 # BACKWARD COMPATIBILITY

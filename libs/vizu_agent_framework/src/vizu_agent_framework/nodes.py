@@ -31,9 +31,11 @@ class NodeRegistry:
             async def validate_order(state: AgentState) -> dict:
                 ...
         """
+
         def decorator(func: Callable):
             cls._registry[name] = func
             return func
+
         return decorator
 
     @classmethod
@@ -61,7 +63,9 @@ async def init_node(state: AgentState) -> dict[str, Any]:
     - Validates required fields
     - Sets up initial context
     """
-    logger.debug(f"init_node: session={state.get('session_id')}, messages={len(state.get('messages', []))}")
+    logger.debug(
+        f"init_node: session={state.get('session_id')}, messages={len(state.get('messages', []))}"
+    )
 
     turn_count = state.get("turn_count", 0) + 1
     max_turns = state.get("max_turns", 20)
@@ -89,7 +93,9 @@ async def elicit_node(state: AgentState) -> dict[str, Any]:
     - Processes elicitation responses
     - Triggers new elicitations based on strategy
     """
-    logger.debug(f"elicit_node: session={state.get('session_id')}, pending={state.get('pending_elicitation')}")
+    logger.debug(
+        f"elicit_node: session={state.get('session_id')}, pending={state.get('pending_elicitation')}"
+    )
 
     pending = state.get("pending_elicitation")
     response = state.get("elicitation_response")
@@ -98,10 +104,12 @@ async def elicit_node(state: AgentState) -> dict[str, Any]:
     if pending and response is not None:
         # Process the response
         elicitation_history = state.get("elicitation_history", [])
-        elicitation_history.append({
-            "elicitation": pending,
-            "response": response,
-        })
+        elicitation_history.append(
+            {
+                "elicitation": pending,
+                "response": response,
+            }
+        )
 
         return {
             "pending_elicitation": None,
@@ -172,7 +180,9 @@ async def respond_node(state: AgentState) -> dict[str, Any]:
 
     # Note: Actual LLM call happens via LLM client
     # This is a placeholder that will be replaced by AgentBuilder
-    logger.debug(f"Generating response with {len(messages)} messages, tool_result={last_tool_result is not None}")
+    logger.debug(
+        f"Generating response with {len(messages)} messages, tool_result={last_tool_result is not None}"
+    )
 
     return {
         "last_tool_result": None,  # Clear after processing
@@ -267,6 +277,7 @@ def with_logging(node_name: str):
     """
     Decorator to add logging to a node function.
     """
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(state: AgentState) -> dict[str, Any]:
@@ -279,46 +290,47 @@ def with_logging(node_name: str):
             except Exception as e:
                 logger.error(f"[{node_name}] Error: {e}")
                 return {"error": str(e)}
+
         return wrapper
+
     return decorator
 
 
-def with_tracing(trace_name: str):
+def with_tracing(_trace_name: str):
     """
     Decorator to add Langfuse tracing to a node function.
+
+    Note: In Langfuse SDK v3, tracing is handled via CallbackHandler
+    configured in the LLM. This decorator is kept for backward compatibility
+    but won't create traces if Langfuse SDK v3 is installed.
+
+    Args:
+        _trace_name: Unused in v3, kept for API compatibility
     """
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(state: AgentState) -> dict[str, Any]:
-            # Import here to avoid circular dependency
-            try:
-                from langfuse import Langfuse
-                langfuse = Langfuse()
-                trace = langfuse.trace(
-                    name=trace_name,
-                    session_id=state.get("session_id"),
-                    metadata={
-                        "agent_name": state.get("agent_name"),
-                        "turn_count": state.get("turn_count"),
-                    },
-                )
-                result = await func(state)
-                trace.update(output=result)
-                return result
-            except ImportError:
-                return await func(state)
+            # Langfuse SDK v3 no longer supports direct trace creation via Langfuse().trace()
+            # Tracing is now handled via CallbackHandler in the LLM configuration.
+            # This decorator simply passes through to the wrapped function.
+            return await func(state)
+
         return wrapper
+
     return decorator
 
 
 # Register built-in nodes
-NodeRegistry._registry.update({
-    "init": init_node,
-    "elicit": elicit_node,
-    "execute_tool": execute_tool_node,
-    "respond": respond_node,
-    "end": end_node,
-    "error_recovery": error_recovery_node,
-    "context_enrichment": context_enrichment_node,
-    "rate_limit": rate_limit_node,
-})
+NodeRegistry._registry.update(
+    {
+        "init": init_node,
+        "elicit": elicit_node,
+        "execute_tool": execute_tool_node,
+        "respond": respond_node,
+        "end": end_node,
+        "error_recovery": error_recovery_node,
+        "context_enrichment": context_enrichment_node,
+        "rate_limit": rate_limit_node,
+    }
+)

@@ -90,7 +90,11 @@ class HitlIntegration:
             try:
                 from vizu_hitl_service import HitlQueue, HitlService
 
-                redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+                redis_url = os.getenv("REDIS_URL")
+                if not redis_url:
+                    logger.warning("REDIS_URL not set, HITL disabled")
+                    self._enabled = False
+                    return None
                 self._queue = HitlQueue.from_url(redis_url)
                 self._service = HitlService(self._queue, self._default_config)
                 logger.info("HITL Service initialized")

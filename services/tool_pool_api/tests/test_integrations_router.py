@@ -72,9 +72,7 @@ class FakeContext:
         }
         return self.saved_tokens
 
-    async def get_integration_tokens(
-        self, client_id, provider, auto_refresh=True
-    ):
+    async def get_integration_tokens(self, client_id, provider, auto_refresh=True):
         if not self.saved_tokens:
             return None
 
@@ -90,12 +88,8 @@ class FakeContext:
 
             def get_decrypted_tokens(self):
                 return {
-                    "access_token": self._row.get("access_token_encrypted").replace(
-                        "enc:", ""
-                    ),
-                    "refresh_token": self._row.get("refresh_token_encrypted").replace(
-                        "enc:", ""
-                    ),
+                    "access_token": self._row.get("access_token_encrypted").replace("enc:", ""),
+                    "refresh_token": self._row.get("refresh_token_encrypted").replace("enc:", ""),
                     "token_type": self._row.get("token_type"),
                     "expires_at": self._row.get("expires_at"),
                     "scopes": self._row.get("scopes"),
@@ -165,9 +159,7 @@ def client(app, monkeypatch):
             },
         )()
 
-    monkeypatch.setattr(
-        OAuthManager, "get_authorization_url", fake_get_authorization_url
-    )
+    monkeypatch.setattr(OAuthManager, "get_authorization_url", fake_get_authorization_url)
     monkeypatch.setattr(OAuthManager, "exchange_code", fake_exchange_code)
 
     return TestClient(app)

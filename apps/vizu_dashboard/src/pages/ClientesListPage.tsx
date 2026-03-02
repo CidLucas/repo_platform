@@ -28,7 +28,7 @@ function ClientesListPage() {
 
   // Use React Query hook for initial data (cached, parallel fetching)
   const { clientes: overviewData, productsFilter: productsList, loading, error: queryError } = useClientesPageData();
-  
+
   // Local error state for user-triggered actions (clicking rows, etc.)
   const [localError, setLocalError] = useState<string | null>(null);
   const setError = (msg: string) => setLocalError(msg);
@@ -42,9 +42,9 @@ function ClientesListPage() {
   const supplierNameParam = searchParams.get('supplierName');
 
   const [viewMode, setViewMode] = useState<ViewMode>(
-    viewParam === 'product' ? 'by-product' : 
-    viewParam === 'customer' ? 'by-customer' : 
-    viewParam === 'by-supplier' ? 'by-supplier' : 'all'
+    viewParam === 'product' ? 'by-product' :
+      viewParam === 'customer' ? 'by-customer' :
+        viewParam === 'by-supplier' ? 'by-supplier' : 'all'
   );
   const [selectedProduct, setSelectedProduct] = useState<string>(productParam || '');
   const [selectedCustomer, setSelectedCustomer] = useState<string>(clientParam || '');
@@ -262,8 +262,8 @@ function ClientesListPage() {
             )}
           </Box>
           {(viewMode === 'by-supplier') ? (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               borderColor="gray.800"
               onClick={() => handleViewModeChange('all')}
             >

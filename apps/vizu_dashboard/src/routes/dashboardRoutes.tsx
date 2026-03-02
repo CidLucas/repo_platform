@@ -11,6 +11,7 @@ import PedidosPage from "../pages/PedidosPage";
 import AdminHomePage from "../pages/admin/AdminHomePage";
 import AdminFontesPage from "../pages/admin/AdminFontesPage";
 import AdminFontesDetalhesPage from "../pages/admin/AdminFontesDetalhesPage";
+import AdminConnectorMappingPage from "../pages/admin/AdminConnectorMappingPage";
 import AdminPlanosPage from "../pages/admin/AdminPlanosPage";
 import AdminChatPage from "../pages/admin/AdminChatPage";
 import AdminAjudaPage from "../pages/admin/AdminAjudaPage";
@@ -87,6 +88,10 @@ export const dashboardRoutes: RouteConfig[] = [
   {
     path: "/dashboard/admin/fontes/:id",
     element: <AdminFontesDetalhesPage />,
+  },
+  {
+    path: "/dashboard/admin/connectors/:credentialId/mapping",
+    element: <AdminConnectorMappingPage />,
   },
   {
     path: "/dashboard/admin/planos",

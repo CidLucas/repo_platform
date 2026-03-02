@@ -1,4 +1,5 @@
 import { useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Modal,
   ModalOverlay,
@@ -27,6 +28,7 @@ import {
 import { FiCheck } from 'react-icons/fi';
 import * as connectorService from '../../services/connectorService';
 import { AuthContext } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 interface ConnectorConfig {
   id: string;
@@ -54,6 +56,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const toast = useToast();
   const auth = useContext(AuthContext);
+  const navigate = useNavigate();
 
   // Get real client_id from auth context (from /me endpoint, not Supabase user ID)
   const clienteVizuId = auth?.clientId || '';
@@ -148,7 +151,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
           api_key: formData.api_key || '',
           application_key: formData.application_key,
         };
-      case 'bigquery':
+      case 'bigquery': {
         const serviceAccountJson = formData.service_account_json
           ? JSON.parse(formData.service_account_json)
           : {};
@@ -163,6 +166,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
           location: formData.location || 'southamerica-east1',
           service_account_json: serviceAccountJson,
         };
+      }
       case 'postgresql':
       case 'mysql':
         return {
@@ -201,29 +205,38 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
         credentials,
       });
 
-      // Inicia sincronização automática após criar credencial
-      try {
-        if (!formData.table_name) {
-          throw new Error('Table name is required for BigQuery connector');
+      // Fetch source columns from BigQuery foreign table for mapping
+      let columnsToMap: string[] = [];
+
+      if (connector.id === 'bigquery' && columnsToMap.length === 0) {
+        // Try to get columns from client_data_sources
+        const { data: dataSource } = await supabase
+          .from('client_data_sources')
+          .select('source_columns')
+          .eq('credential_id', parseInt(response.id_credencial))
+          .single();
+
+        if (dataSource?.source_columns) {
+          columnsToMap = Array.isArray(dataSource.source_columns)
+            ? dataSource.source_columns
+            : Object.keys(dataSource.source_columns);
         }
-        await connectorService.startSync(
-          response.id_credencial,
-          clienteVizuId,
-          formData.table_name  // Use ONLY user-provided table name, no fallback
-        );
-      } catch (syncError) {
-        console.warn('Falha ao iniciar sincronização automática:', syncError);
-        // Não falha a operação inteira se apenas a sync falhar
       }
 
       toast({
         title: 'Conector configurado!',
-        description: 'A sincronização de dados foi iniciada.',
+        description: 'Redirecionando para mapeamento de colunas...',
         status: 'success',
-        duration: 5000,
+        duration: 3000,
       });
 
       onClose();
+
+      // Navigate to column mapping page
+      const columnsParam = columnsToMap.length > 0
+        ? `?columns=${encodeURIComponent(JSON.stringify(columnsToMap))}`
+        : '';
+      navigate(`/dashboard/admin/connectors/${response.id_credencial}/mapping${columnsParam}`);
     } catch (error) {
       toast({
         title: 'Erro ao configurar conector',

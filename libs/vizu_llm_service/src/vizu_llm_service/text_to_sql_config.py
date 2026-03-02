@@ -37,12 +37,14 @@ logger = logging.getLogger(__name__)
 
 class LLMProvider(Enum):
     """Supported LLM providers."""
+
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
 
 
 class LLMModel(Enum):
     """Supported LLM models."""
+
     GPT4_TURBO = "gpt-4-turbo"
     GPT4_TURBO_VISION = "gpt-4-turbo-preview"
     CLAUDE_3_SONNET = "claude-3-sonnet-20240229"
@@ -152,12 +154,15 @@ class TextToSqlLLMConfig:
 @dataclass
 class TextToSqlLLMResponse:
     """Response from LLM call."""
+
     success: bool  # Whether call succeeded
     sql: str | None = None  # Generated SQL (null if failed)
     raw_response: str | None = None  # Full LLM response before parsing
     error: str | None = None  # Error message if failed
     error_code: str | None = None  # Error code for categorization
-    usage: dict[str, int] | None = None  # Token usage {prompt_tokens, completion_tokens, total_tokens}
+    usage: dict[str, int] | None = (
+        None  # Token usage {prompt_tokens, completion_tokens, total_tokens}
+    )
     latency_ms: float = 0.0  # Total time taken
     retry_count: int = 0  # Number of retries used
     stop_reason: str | None = None  # Why LLM stopped (stop_sequence, max_tokens, etc.)
@@ -222,6 +227,7 @@ class TextToSqlLLMCall:
             return "You are a helpful SQL assistant."
 
         from vizu_prompt_management import build_prompt_sync
+
         return build_prompt_sync("tool/sql-safety-system", variables={})
 
     async def invoke(
@@ -284,7 +290,8 @@ class TextToSqlLLMCall:
 
                 # Calculate exponential backoff
                 delay_ms = min(
-                    self.config.initial_retry_delay_ms * (self.config.retry_multiplier ** retry_count),
+                    self.config.initial_retry_delay_ms
+                    * (self.config.retry_multiplier**retry_count),
                     self.config.max_retry_delay_ms,
                 )
                 delay_sec = delay_ms / 1000.0
@@ -337,7 +344,7 @@ class TextToSqlLLMCall:
         mock_sql = (
             "SELECT COUNT(*) AS total_records "
             "FROM customers_view "
-               "WHERE client_id = '{client_id}' "
+            "WHERE client_id = '{client_id}' "
             "LIMIT 100"
         )
 

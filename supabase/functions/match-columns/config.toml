@@ -1,0 +1,6 @@
+# Edge Function configuration
+# Setting verify_jwt = false allows unauthenticated access
+# This is appropriate for this function as it's called from the frontend
+# which sends the anon key in the Authorization header
+
+verify_jwt = false

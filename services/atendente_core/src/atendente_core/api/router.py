@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, Form, Header, HTTPException, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from vizu_twilio_client.webhook import create_twiml_response
@@ -60,9 +61,7 @@ def get_context_service() -> ContextService:
         pool = redis.ConnectionPool.from_url(settings.REDIS_URL, decode_responses=True)
         redis_client = redis.Redis(connection_pool=pool)
         redis_service = _RedisService(redis_client=redis_client)
-        _context_service = ContextService(
-            cache_service=redis_service, use_supabase=True
-        )
+        _context_service = ContextService(cache_service=redis_service, use_supabase=True)
         logger.info("ContextService singleton created (atendente_core)")
     return _context_service
 
@@ -244,6 +243,70 @@ async def chat_endpoint(
 
 
 # ============================================================================
+# ENDPOINT 1.1: CHAT STREAMING (Server-Sent Events)
+# ============================================================================
+@router.post("/chat/stream")
+async def chat_stream_endpoint(
+    body: ChatRequest,
+    x_llm_model: str | None = Header(None, alias="X-LLM-Model"),
+    auth_result: AuthResult = Depends(get_auth_result),
+    authorization: str | None = Header(None, alias="Authorization"),
+    service: AtendenteService = Depends(get_atendente_service),
+    context_service: ContextService = Depends(get_context_service),
+) -> StreamingResponse:
+    """
+    Streaming chat endpoint using Server-Sent Events (SSE).
+
+    Returns a stream of events as the agent processes the request:
+    - `token`: LLM token being generated
+    - `tool_start`: Tool invocation started (with name and args)
+    - `tool_end`: Tool invocation completed (with output preview)
+    - `done`: Final response with complete text and model used
+    - `error`: Error occurred during processing
+
+    Example SSE event:
+    ```
+    data: {"event": "token", "data": "Hello"}
+
+    data: {"event": "tool_start", "data": {"name": "execute_sql", "args": {...}}}
+
+    data: {"event": "done", "data": {"response": "...", "model": "gpt-4o"}}
+    ```
+
+    Note: This endpoint does not support elicitation. For human-in-the-loop
+    workflows, use the regular /chat endpoint.
+    """
+    model_override = body.model or x_llm_model
+
+    async def event_generator():
+        try:
+            async for event in service.process_message_stream(
+                session_id=body.session_id,
+                message_text=body.message,
+                client_id=auth_result.client_id,
+                context_service=context_service,
+                model_override=model_override,
+                user_jwt=authorization,
+            ):
+                yield event
+        except Exception as e:
+            import json
+
+            logger.error(f"Erro no stream /chat/stream: {e}", exc_info=True)
+            yield f"data: {json.dumps({'event': 'error', 'data': {'message': 'Erro interno no processamento'}})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
+    )
+
+
+# ============================================================================
 # ENDPOINT 2: WEBHOOK TWILIO (Para WhatsApp)
 # ============================================================================
 @router.post("/webhook/twilio")
@@ -266,10 +329,13 @@ async def twilio_webhook(
         logger.info(f"Recebido Webhook Twilio de {From} para {To}: {Body}")
 
         # Normaliza o número de telefone (remove espaços, caracteres especiais)
-        phone_number = From.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        phone_number = (
+            From.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        )
 
         # Busca o cliente_vizu através do número de telefone
         from vizu_models import ClienteFinal
+
         statement = select(ClienteFinal).where(ClienteFinal.id_externo == phone_number)
         cliente_final = db.execute(statement).scalars().first()
 
@@ -402,9 +468,7 @@ async def get_client_context(
         )
     except Exception as e:
         logger.error(f"Erro ao obter contexto do cliente: {e}")
-        raise HTTPException(
-            status_code=500, detail="Erro ao carregar contexto do cliente"
-        )
+        raise HTTPException(status_code=500, detail="Erro ao carregar contexto do cliente")
 
     if not client_context:
         raise HTTPException(status_code=404, detail="Cliente não encontrado")

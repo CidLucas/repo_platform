@@ -1,6 +1,7 @@
 import { Box, Text, Flex, Accordion, AccordionItem, AccordionButton, AccordionPanel, AccordionIcon } from '@chakra-ui/react';
 import React from 'react';
 import { GraphComponent } from './GraphComponent';
+import type { ChartDataPoint } from '../types';
 
 interface ExpandableScorecardCardProps {
   title: string;
@@ -10,8 +11,7 @@ interface ExpandableScorecardCardProps {
   width?: string;
   height?: string;
   onClick?: () => void;
-  // Graph data props
-  graphData?: any[];
+  graphData?: ChartDataPoint[];
   graphDataKey?: string;
   graphLineColor?: string;
   isLoading?: boolean;

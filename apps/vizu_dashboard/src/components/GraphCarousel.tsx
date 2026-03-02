@@ -3,12 +3,11 @@ import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import React, { useState } from 'react';
 import { GraphComponent } from './GraphComponent';
 import { BarChartComponent } from './BarChartComponent';
-
-export type ChartType = 'line' | 'bar';
+import type { ChartDataPoint, ChartType } from '../types';
 
 interface GraphCarouselProps {
   graphs: {
-    data: any[];
+    data: ChartDataPoint[];
     dataKey: string;
     lineColor?: string;
     title: string;
@@ -19,12 +18,12 @@ interface GraphCarouselProps {
   }[];
   loading?: boolean;
   height?: number | string;
-  textColor?: string; // Text color for dark backgrounds
+  textColor?: string;
 }
 
-export const GraphCarousel: React.FC<GraphCarouselProps> = ({ 
-  graphs, 
-  loading = false, 
+export const GraphCarousel: React.FC<GraphCarouselProps> = ({
+  graphs,
+  loading = false,
   height = 300,
   textColor = 'gray.800',
 }) => {

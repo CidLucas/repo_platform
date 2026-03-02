@@ -310,6 +310,7 @@ class TestNodeRegistry:
 
     def test_register_custom_node(self):
         """Test registering custom node."""
+
         @NodeRegistry.register("custom_test")
         async def custom_node(state):
             return {"custom": True}
@@ -338,9 +339,9 @@ class TestMCPToolExecutor:
         """Test successful tool execution."""
         from vizu_agent_framework.mcp_executor import MockMCPToolExecutor
 
-        executor = MockMCPToolExecutor({
-            "test_tool": {"success": True, "result": {"data": "value"}}
-        })
+        executor = MockMCPToolExecutor(
+            {"test_tool": {"success": True, "result": {"data": "value"}}}
+        )
 
         result = await executor.execute(
             tool_name="test_tool",
@@ -356,9 +357,7 @@ class TestMCPToolExecutor:
         """Test failed tool execution."""
         from vizu_agent_framework.mcp_executor import MockMCPToolExecutor
 
-        executor = MockMCPToolExecutor({
-            "failing_tool": {"success": False, "error": "Tool failed"}
-        })
+        executor = MockMCPToolExecutor({"failing_tool": {"success": False, "error": "Tool failed"}})
 
         result = await executor.execute(
             tool_name="failing_tool",
@@ -374,10 +373,12 @@ class TestMCPToolExecutor:
         """Test parallel tool execution."""
         from vizu_agent_framework.mcp_executor import MockMCPToolExecutor
 
-        executor = MockMCPToolExecutor({
-            "tool_a": {"success": True, "result": "A"},
-            "tool_b": {"success": True, "result": "B"},
-        })
+        executor = MockMCPToolExecutor(
+            {
+                "tool_a": {"success": True, "result": "A"},
+                "tool_b": {"success": True, "result": "B"},
+            }
+        )
 
         results = await executor.execute_parallel(
             tool_calls=[
@@ -397,6 +398,7 @@ class TestMCPToolExecutor:
         executor = MockMCPToolExecutor()
 
         import asyncio
+
         asyncio.run(executor.execute("tool", {"arg": 1}, {}))
         asyncio.run(executor.execute("tool", {"arg": 2}, {}))
 
@@ -528,14 +530,18 @@ class TestRedisCheckpointer:
         mock_redis.set.assert_called_once()
 
         # Setup get response
-        mock_redis.get = AsyncMock(return_value=json.dumps({
-            "v": 1,
-            "ts": "2025-01-01T00:00:00",
-            "id": "cp-1",
-            "channel_values": {"messages": []},
-            "channel_versions": {},
-            "versions_seen": {},
-        }))
+        mock_redis.get = AsyncMock(
+            return_value=json.dumps(
+                {
+                    "v": 1,
+                    "ts": "2025-01-01T00:00:00",
+                    "id": "cp-1",
+                    "channel_values": {"messages": []},
+                    "channel_versions": {},
+                    "versions_seen": {},
+                }
+            )
+        )
 
         # Get checkpoint
         result = await checkpointer.aget_tuple(config)

@@ -7,6 +7,7 @@ import { MapComponent } from './MapComponent';
 import { ModalContentLayout } from './ModalContentLayout';
 import { AccordionComponent } from './AccordionComponent';
 import { GraphCarousel } from './GraphCarousel';
+import type { ChartDataPoint, MapData, GeoCluster } from '../types';
 
 // Interface for insight bullets
 export interface InsightBullet {
@@ -20,31 +21,23 @@ interface DashboardCardProps {
   size?: "small" | "large";
   bgColor?: string;
   bgImage?: string;
-  bgGradient?: string; // Add bgGradient prop
-  // Content props
-  graphData?: any;
-  barChartData?: { name: string; value: number; color?: string }[]; // Bar chart data
+  bgGradient?: string;
+  graphData?: ChartDataPoint[];
+  barChartData?: { name: string; value: number; color?: string }[];
   scorecardValue?: string;
   scorecardLabel?: string;
   mainText?: string;
-  mapData?: any;
-  // Modal content
-  kpiItems?: { label: string; content: React.ReactNode }[]; // Dynamic KPI items
-  // Insight bullets for card (alternative to graphs)
+  mapData?: MapData;
+  kpiItems?: { label: string; content: React.ReactNode }[];
   insightBullets?: InsightBullet[];
-  // Text color for content overlay
   textColor?: string;
-  // Modal background colors
   modalLeftBgColor?: string;
   modalRightBgColor?: string;
-  // Graph modal labels
   graphTitle?: string;
   graphDescription?: string;
-  // Custom expand click handler (overrides default modal)
   onExpandClick?: () => void;
-  // Carousel graphs for modal (multiple graphs)
   carouselGraphs?: {
-    data: any[];
+    data: ChartDataPoint[];
     dataKey: string;
     lineColor?: string;
     title: string;
@@ -199,11 +192,11 @@ export const DashboardCard = ({
               {graphData && !barChartData && (
                 <Flex flex="1" align="center" justify="center" minH="200px" py={4}>
                   <Box width="100%" height="280px">
-                    <GraphComponent data={graphData.values} dataKey="value" lineColor="#FFA500" axisColor={textColor === "white" ? "#ffffff" : "#333333"} height="100%" />
+                    <GraphComponent data={graphData} dataKey="value" lineColor="#FFA500" axisColor={textColor === "white" ? "#ffffff" : "#333333"} height="100%" />
                   </Box>
                 </Flex>
               )}
-              
+
               {/* Bar chart content - centralized vertically */}
               {barChartData && !insightBullets && (
                 <Flex flex="1" align="center" justify="center" minH="200px" py={4}>
@@ -214,7 +207,7 @@ export const DashboardCard = ({
               )}
             </>
           )}
-          
+
           {/* Main text - only show if no insight bullets */}
           {(!insightBullets || insightBullets.length === 0) && mainText && <Text fontSize="md" mb={2}>{mainText}</Text>}
 
@@ -283,7 +276,7 @@ export const DashboardCard = ({
                     <GraphCarousel
                       graphs={[
                         {
-                          data: graphData?.values || [],
+                          data: graphData || [],
                           dataKey: "value",
                           lineColor: "white",
                           title: graphTitle || title,

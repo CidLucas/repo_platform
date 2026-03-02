@@ -58,25 +58,25 @@ const cardModals = [
     title: "Transforme seus dados em informação",
     subtitle: "Com o VIZU Analytics, estruturamos seus dados, do diagnóstico à oportunidade em segundos.",
     items: [
-      { 
-        number: "1", 
-        title: "Estruturação Facilitada", 
-        description: "Esqueça integrações complexas. Com o Vizu Data Ingestion, você sobe dados de qualquer fonte e nós cuidamos do trabalho pesado: fazemos os merges, joins e a normalização automática para que seus dados falem a mesma língua." 
+      {
+        number: "1",
+        title: "Estruturação Facilitada",
+        description: "Esqueça integrações complexas. Com o Vizu Data Ingestion, você sobe dados de qualquer fonte e nós cuidamos do trabalho pesado: fazemos os merges, joins e a normalização automática para que seus dados falem a mesma língua."
       },
-      { 
-        number: "2", 
-        title: "Insights Automáticos", 
-        description: "Não perca tempo criando gráficos do zero. Assim que os dados são estruturados, renderizamos dashboards prontos com foco no que move o ponteiro: Produtos, Clientes, Pedidos e Fornecedores." 
+      {
+        number: "2",
+        title: "Insights Automáticos",
+        description: "Não perca tempo criando gráficos do zero. Assim que os dados são estruturados, renderizamos dashboards prontos com foco no que move o ponteiro: Produtos, Clientes, Pedidos e Fornecedores."
       },
-      { 
-        number: "3", 
-        title: "Agente de B.I", 
-        description: "Chega de depender de fórmulas de Excel ou SQL. Utilize nosso Agente de B.I para extrair análises profundas e fazer queries complexas usando apenas linguagem natural. É como perguntar para um analista e receber a resposta na hora." 
+      {
+        number: "3",
+        title: "Agente de B.I",
+        description: "Chega de depender de fórmulas de Excel ou SQL. Utilize nosso Agente de B.I para extrair análises profundas e fazer queries complexas usando apenas linguagem natural. É como perguntar para um analista e receber a resposta na hora."
       },
-      { 
-        number: "4", 
-        title: "Segurança e Autonomia", 
-        description: "Tenha infraestrutura de multinacional sem precisar de um time de TI. Cuidamos de servidores e bancos de dados com segurança de ponta via RLS (Row Level Security) e JWT, garantindo que a informação certa chegue apenas à pessoa certa." 
+      {
+        number: "4",
+        title: "Segurança e Autonomia",
+        description: "Tenha infraestrutura de multinacional sem precisar de um time de TI. Cuidamos de servidores e bancos de dados com segurança de ponta via RLS (Row Level Security) e JWT, garantindo que a informação certa chegue apenas à pessoa certa."
       },
     ],
   },
@@ -87,25 +87,25 @@ const cardModals = [
     title: "Elimine tarefas repetitivas do seu dia a dia",
     subtitle: "Com o VIZU Platform, você não perde tempo com tarefas manuais. Use esse tempo com o que realmente importa.",
     items: [
-      { 
-        number: "1", 
-        title: "Emita notas fiscais em um clique", 
-        description: "Dê adeus aos portais governamentais lentos e ao preenchimento manual. Nossa emissão de NF-e é integrada ao seu fluxo de vendas, garantindo conformidade fiscal em segundos e reduzindo erros de digitação." 
+      {
+        number: "1",
+        title: "Emita notas fiscais em um clique",
+        description: "Dê adeus aos portais governamentais lentos e ao preenchimento manual. Nossa emissão de NF-e é integrada ao seu fluxo de vendas, garantindo conformidade fiscal em segundos e reduzindo erros de digitação."
       },
-      { 
-        number: "2", 
-        title: "Integre seu estoque com suas vendas e seu fluxo de caixa", 
-        description: "Tenha uma visão 360º da sua operação. Quando uma venda acontece, o estoque baixa e o financeiro sobe automaticamente. Controle sua quebra de estoque e saiba exatamente quanto tem no bolso em tempo real." 
+      {
+        number: "2",
+        title: "Integre seu estoque com suas vendas e seu fluxo de caixa",
+        description: "Tenha uma visão 360º da sua operação. Quando uma venda acontece, o estoque baixa e o financeiro sobe automaticamente. Controle sua quebra de estoque e saiba exatamente quanto tem no bolso em tempo real."
       },
-      { 
-        number: "3", 
-        title: "Foque nas suas vendas", 
-        description: "Automatize o ciclo comercial. De agendamentos inteligentes a emissão de pedidos e cotações rápidas, removemos os atritos burocráticos para que sua equipe foque em fechar negócios, não em preencher formulários." 
+      {
+        number: "3",
+        title: "Foque nas suas vendas",
+        description: "Automatize o ciclo comercial. De agendamentos inteligentes a emissão de pedidos e cotações rápidas, removemos os atritos burocráticos para que sua equipe foque em fechar negócios, não em preencher formulários."
       },
-      { 
-        number: "4", 
-        title: "Agente Estratégico", 
-        description: "Muito mais que um controle de caixa, um mentor financeiro ao seu lado. Utilize nosso Agente para estabelecer metas de OKR, simular cenários de crescimento e receber alertas preditivos sobre a saúde financeira do seu negócio." 
+      {
+        number: "4",
+        title: "Agente Estratégico",
+        description: "Muito mais que um controle de caixa, um mentor financeiro ao seu lado. Utilize nosso Agente para estabelecer metas de OKR, simular cenários de crescimento e receber alertas preditivos sobre a saúde financeira do seu negócio."
       },
     ],
   },
@@ -116,61 +116,62 @@ const cardModals = [
     title: "Máxima Produtividade: Onde a Estratégia encontra a Operação",
     subtitle: "Elimine o desperdício de tempo e de dinheiro, transformando sua operação em uma estrutura enxuta, inteligente e de alto crescimento.",
     items: [
-      { 
-        number: "1", 
-        title: "Decisões automáticas guiadas por Dados (Data-Driven)", 
-      
+      {
+        number: "1",
+        title: "Decisões automáticas guiadas por Dados (Data-Driven)",
+
         description: "Pare de queimar neurônios com palpites. Nossa inteligência processa milhões de combinações de dados para te entregar o que realmente importa: onde investir, o que estocar e quem demitir ou promover. É a gestão baseada em fatos, disponível em segundos."
-      }, 
-      { 
-        number: "2", 
-        title: "Venda sem Esforço", 
+      },
+      {
+        number: "2",
+        title: "Venda sem Esforço",
         description: "Réguas de Conversão Automática:A VIZU identifica o timing de recompra e reativa clientes inativos automaticamente. É receita recorrente com esforço zero."
       },
-      { 
-        number: "3", 
-        title: "Radar de Oportunidades e Antecipação", 
+      {
+        number: "3",
+        title: "Radar de Oportunidades e Antecipação",
         description: "Não reaja ao mercado, antecipe-se. Identifique padrões de churn (cancelamento) antes que aconteçam ou descubra o momento exato em que um cliente está pronto para sua próxima compra."
       },
-      { 
-        number: "4", 
-        title: "Interface Conversacional", 
-        description: "Todos os produtos e módulos da Vizu contam com Agentes para te ajudar com sua operação a partir de linguagem natural. Gere relatórios, programe promoções para seus clientes, emita notas sem esforço e muito mais. " 
+      {
+        number: "4",
+        title: "Interface Conversacional",
+        description: "Todos os produtos e módulos da Vizu contam com Agentes para te ajudar com sua operação a partir de linguagem natural. Gere relatórios, programe promoções para seus clientes, emita notas sem esforço e muito mais. "
       },
     ],
   },
 ];
 
 // Logo VIZU em SVG
-const VizuLogo: React.FC<{ color?: string; height?: string }> = ({ 
-  color = "#000", 
-  height = "28px" 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- SVG component available for alternative layouts
+const VizuLogo: React.FC<{ color?: string; height?: string }> = ({
+  color = "#000",
+  height = "28px"
 }) => (
-  <svg 
-    height={height} 
-    viewBox="0 0 82 29" 
-    fill="none" 
+  <svg
+    height={height}
+    viewBox="0 0 82 29"
+    fill="none"
     xmlns="http://www.w3.org/2000/svg"
   >
     {/* Símbolo V estilizado com ponto */}
-    <path 
-      d="M14.09 0C11.19 0 8.53 1.53 7.03 4.01L0 16.03C-0.42 16.76 0.11 17.67 0.95 17.67H6.16C7.24 17.67 8.24 17.1 8.77 16.18L14.09 6.89L19.41 16.18C19.94 17.1 20.94 17.67 22.02 17.67H27.23C28.07 17.67 28.6 16.76 28.18 16.03L21.15 4.01C19.65 1.53 16.99 0 14.09 0Z" 
+    <path
+      d="M14.09 0C11.19 0 8.53 1.53 7.03 4.01L0 16.03C-0.42 16.76 0.11 17.67 0.95 17.67H6.16C7.24 17.67 8.24 17.1 8.77 16.18L14.09 6.89L19.41 16.18C19.94 17.1 20.94 17.67 22.02 17.67H27.23C28.07 17.67 28.6 16.76 28.18 16.03L21.15 4.01C19.65 1.53 16.99 0 14.09 0Z"
       fill={color}
     />
-    <circle cx="14.09" cy="24.81" r="4" fill={color}/>
+    <circle cx="14.09" cy="24.81" r="4" fill={color} />
     {/* I */}
-    <path 
-      d="M34.07 5.76H40.72V28.44H34.07V5.76Z" 
+    <path
+      d="M34.07 5.76H40.72V28.44H34.07V5.76Z"
       fill={color}
     />
     {/* Z */}
-    <path 
-      d="M44.91 5.76H66.12V10.76L52.12 22.44H66.52V28.44H43.91V23.44L58.31 11.76H44.91V5.76Z" 
+    <path
+      d="M44.91 5.76H66.12V10.76L52.12 22.44H66.52V28.44H43.91V23.44L58.31 11.76H44.91V5.76Z"
       fill={color}
     />
     {/* U */}
-    <path 
-      d="M69.52 5.76H76.17V19.44C76.17 21.64 77.17 22.84 79.17 22.84C81.17 22.84 82.17 21.64 82.17 19.44V5.76H88.82V19.84C88.82 25.84 85.02 28.84 79.17 28.84C73.32 28.84 69.52 25.84 69.52 19.84V5.76Z" 
+    <path
+      d="M69.52 5.76H76.17V19.44C76.17 21.64 77.17 22.84 79.17 22.84C81.17 22.84 82.17 21.64 82.17 19.44V5.76H88.82V19.84C88.82 25.84 85.02 28.84 79.17 28.84C73.32 28.84 69.52 25.84 69.52 19.84V5.76Z"
       fill={color}
     />
   </svg>
@@ -496,7 +497,7 @@ const LandingFinalPage: React.FC = () => {
           >
             Visão Estratégica Sem Surpresas.
           </Heading>
-          
+
           {/* Subtitle */}
           <Text
             fontSize={{ base: "16px", md: "20px" }}
@@ -780,10 +781,10 @@ const LandingFinalPage: React.FC = () => {
       <Box bg="white">
         <Flex direction={{ base: "column", lg: "row" }} align="stretch" minH={{ base: "auto", lg: "600px" }}>
           {/* Left Content - Vermelho */}
-          <Box 
-            flex={1} 
-            bg="#ff562c" 
-            p={{ base: 6, md: 12 }} 
+          <Box
+            flex={1}
+            bg="#ff562c"
+            p={{ base: 6, md: 12 }}
             display="flex"
             flexDirection="column"
             justifyContent="space-between"
@@ -808,8 +809,8 @@ const LandingFinalPage: React.FC = () => {
           </Box>
 
           {/* Right Image - Azul com imagem de fundo */}
-          <Box 
-            flex={1} 
+          <Box
+            flex={1}
             position="relative"
             bgImage="url('/image 316.png')"
             bgSize="cover"
@@ -862,8 +863,8 @@ const LandingFinalPage: React.FC = () => {
               Quero testar
             </Button>
           </VStack>
-          <Box 
-            flex={1} 
+          <Box
+            flex={1}
             bg="#1a1a2e"
             display="flex"
             alignItems="center"
@@ -888,7 +889,7 @@ const LandingFinalPage: React.FC = () => {
                 boxShadow="0 20px 60px rgba(0,0,0,0.3)"
               />
             ))}
-            
+
             {/* Navigation Arrows */}
             <IconButton
               aria-label="Previous image"
@@ -918,7 +919,7 @@ const LandingFinalPage: React.FC = () => {
               size="lg"
               onClick={handleNextSoftwareImage}
             />
-            
+
             {/* Dots indicator */}
             <HStack position="absolute" bottom={6} spacing={2}>
               {softwareImages.map((_, index) => (
@@ -1187,16 +1188,16 @@ const LandingFinalPage: React.FC = () => {
 
       {/* ========== MODAIS DOS CARDS ========== */}
       {activeModal !== null && (
-        <Modal 
-          isOpen={activeModal !== null} 
+        <Modal
+          isOpen={activeModal !== null}
           onClose={() => setActiveModal(null)}
           size="full"
           motionPreset="slideInBottom"
         >
           <ModalOverlay bg="blackAlpha.600" />
-          <ModalContent 
-            bg={cardModals[activeModal].bg} 
-            m={0} 
+          <ModalContent
+            bg={cardModals[activeModal].bg}
+            m={0}
             borderRadius={0}
             minH="100vh"
           >

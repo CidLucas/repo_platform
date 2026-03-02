@@ -35,6 +35,10 @@ help:
 	@echo "╚═══════════════════════════════════════════════════════════════════╝"
 	@echo ""
 	@echo "📦 DOCKER COMPOSE"
+	@echo "   make dev             Start core dev stack (dashboard + atendente + tools)"
+	@echo "   make dev-down        Stop dev stack"
+	@echo "   make dev-logs        Tail dev stack logs"
+	@echo "   make dev-rebuild     Rebuild dev services (after dependency changes)"
 	@echo "   make up              Build and start all services"
 	@echo "   make down            Stop and remove containers"
 	@echo "   make restart         Restart SERVICE=<name> (default: atendente_core)"
@@ -109,7 +113,43 @@ help:
 # DOCKER COMPOSE
 # =============================================================================
 
-.PHONY: up down restart logs ps build build-s compose-cloud compose-cloud-down cloudrun-build cloudrun-push cloudrun-push-all
+.PHONY: dev dev-down dev-logs dev-rebuild up down restart logs ps build build-s compose-cloud compose-cloud-down cloudrun-build cloudrun-push cloudrun-push-all
+
+# Core development stack - minimal services for fast iteration
+dev:
+	@echo "🚀 Starting core dev stack..."
+	@echo "   ✓ vizu_dashboard (frontend)"
+	@echo "   ✓ atendente_core (main backend)"
+	@echo "   ✓ tool_pool_api (MCP tools)"
+	@echo "   ✓ redis + qdrant (dependencies)"
+	@echo ""
+	@echo "💡 Uses remote Supabase (no local DB)"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	$(COMPOSE) up --build -d redis qdrant_db tool_pool_api atendente_core vizu_dashboard
+	@echo ""
+	@echo "✅ Dev stack ready!"
+	@echo ""
+	@echo "📋 Services:"
+	@echo "   🎨 Dashboard:      http://localhost:8080"
+	@echo "   🤖 Atendente:      http://localhost:8003"
+	@echo "   🔧 Tool Pool:      http://localhost:8006"
+	@echo ""
+	@echo "📊 View logs:         make dev-logs"
+	@echo "🛑 Stop stack:        make dev-down"
+	@echo ""
+
+dev-down:
+	@echo "🛑 Stopping dev stack..."
+	$(COMPOSE) stop vizu_dashboard atendente_core tool_pool_api qdrant_db redis
+	@echo "✅ Dev stack stopped (containers preserved, use 'make down' to remove)"
+
+dev-logs:
+	$(COMPOSE) logs -f --tail=100 vizu_dashboard atendente_core tool_pool_api redis qdrant_db
+
+dev-rebuild:
+	@echo "🔨 Rebuilding dev services (no cache)..."
+	$(COMPOSE) build --no-cache vizu_dashboard atendente_core tool_pool_api
+	@echo "✅ Rebuild complete. Run 'make dev' to start."
 
 up:
 	@echo "🚀 Starting all services..."
@@ -161,7 +201,6 @@ compose-cloud:
 	@echo "📝 Test endpoints:"
 	@echo "   curl http://localhost:8003/health  (atendente_core)"
 	@echo "   curl http://localhost:8006/health  (tool_pool_api)"
-	@echo "   curl http://localhost:8004/health  (analytics_api)"
 
 compose-cloud-down:
 	@echo "🛑 Stopping Cloud Run architecture..."

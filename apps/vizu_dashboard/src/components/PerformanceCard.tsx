@@ -5,36 +5,33 @@ import { GraphComponent } from './GraphComponent';
 import { ModalContentLayout } from './ModalContentLayout';
 import { AccordionComponent } from './AccordionComponent';
 import { GraphCarousel } from './GraphCarousel';
+import type { ChartDataPoint } from '../types';
 
 export type PeriodType = 'week' | 'month' | 'quarter' | 'year';
 
 export interface MetricSlide {
   id: string;
-  title: string;           // Título do gráfico (ex: "Receita no Tempo")
-  data: any[];             // Dados do gráfico
-  dataKey: string;         // Chave dos dados (ex: "value")
-  lineColor?: string;      // Cor da linha do gráfico
-  metricLabel: string;     // Label da métrica (ex: "RECEITA TOTAL")
-  metricValue: string;     // Valor formatado da métrica (ex: "R$ 1.234.567,00")
-  rankingKey?: string;     // Chave do ranking associado (ex: "ranking_por_receita")
+  title: string;
+  data: ChartDataPoint[];
+  dataKey: string;
+  lineColor?: string;
+  metricLabel: string;
+  metricValue: string;
+  rankingKey?: string;
 }
 
 interface PerformanceCardProps {
   title: string;
   bgColor?: string;
   textColor?: string;
-  // Slides do carrossel
   slides: MetricSlide[];
-  // Callback quando muda o slide (para filtrar ListCard)
   onSlideChange?: (slideIndex: number, slideId: string) => void;
-  // Conteúdo do modal
   modalLeftBgColor?: string;
   modalRightBgColor?: string;
   mainText?: string;
   kpiItems?: { label: string; content: React.ReactNode }[];
-  // Gráficos do carrossel no modal
   carouselGraphs?: {
-    data: any[];
+    data: ChartDataPoint[];
     dataKey: string;
     lineColor?: string;
     title: string;
@@ -42,7 +39,6 @@ interface PerformanceCardProps {
     chartType?: 'line' | 'bar';
     barColors?: string[];
   }[];
-  // Number of months to show in charts (default: 12)
   chartMonths?: number;
 }
 
@@ -164,10 +160,10 @@ export const PerformanceCard: React.FC<PerformanceCardProps> = ({
                 isDisabled={filteredSlides.length <= 1}
                 _hover={{ bg: 'rgba(0,0,0,0.05)' }}
               />
-              <Text 
-                fontSize="sm" 
-                fontWeight="600" 
-                color={textColor} 
+              <Text
+                fontSize="sm"
+                fontWeight="600"
+                color={textColor}
                 mx={4}
                 minW="200px"
                 textAlign="center"
@@ -241,15 +237,15 @@ export const PerformanceCard: React.FC<PerformanceCardProps> = ({
                     <Text textStyle="modalTitle" color={textColor}>{title}</Text>
                     <ModalCloseButton position="static" color={textColor} />
                   </Flex>
-                  
+
                   {/* Main text */}
                   <Text textStyle="modalTextInfo" mb={4} color={textColor} flexShrink={0}>
                     {mainText || "Análise detalhada de performance."}
                   </Text>
-                  
+
                   {/* Spacer to push accordion to bottom */}
                   <Box flex="1" />
-                  
+
                   {/* Accordion at the bottom */}
                   <Box flexShrink={0} mt="auto">
                     <AccordionComponent

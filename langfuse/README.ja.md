@@ -5,13 +5,13 @@
       <h3>
           <a href="https://langfuse.com/jp">
             <strong>🇯🇵 🤝 🪢</strong>
-         </a> · 
-         <a href="https://cloud.langfuse.com">
+         </a> ·
+         <a href="https://us.cloud.langfuse.com">
             <strong>Langfuse Cloud</strong>
-         </a> · 
+         </a> ·
          <a href="https://langfuse.com/docs/deployment/self-host">
             <strong>セルフホスティング</strong>
-         </a> · 
+         </a> ·
          <a href="https://langfuse.com/demo">
             <strong>デモ</strong>
          </a>
@@ -69,8 +69,8 @@
   <a href="./README.kr.md"><img alt="README in Korean" src="https://img.shields.io/badge/한국어-d9d9d9"></a>
 </p>
 
-Langfuseは**オープンソースのLLMエンジニアリング**プラットフォームです。  
-チームが共同でAIアプリケーションを**開発、監視、評価**、および**デバッグ**するのを支援します。  
+Langfuseは**オープンソースのLLMエンジニアリング**プラットフォームです。
+チームが共同でAIアプリケーションを**開発、監視、評価**、および**デバッグ**するのを支援します。
 Langfuseは**数分でセルフホスト可能**で、**多くの実績を持つ**システムです。
 
 [![Langfuse Overview Video](https://github.com/user-attachments/assets/3926b288-ff61-4b95-8aa1-45d041c70866)](https://langfuse.com/watch-demo)
@@ -79,29 +79,29 @@ Langfuseは**数分でセルフホスト可能**で、**多くの実績を持つ
 
 ![Langfuse Overview](https://langfuse.com/images/docs/github-readme/github-feature-overview.png)
 
-- **[LLMアプリケーションの可観測性](https://langfuse.com/docs/tracing):**  
-  アプリケーションにインストゥルメンテーションを導入し、Langfuseへトレースを取り込むことで、LLM呼び出しやリトリーバル、埋め込み、エージェントアクションなどの関連ロジックを追跡できます。  
-  複雑なログやユーザーセッションを解析・デバッグできます。  
+- **[LLMアプリケーションの可観測性](https://langfuse.com/docs/tracing):**
+  アプリケーションにインストゥルメンテーションを導入し、Langfuseへトレースを取り込むことで、LLM呼び出しやリトリーバル、埋め込み、エージェントアクションなどの関連ロジックを追跡できます。
+  複雑なログやユーザーセッションを解析・デバッグできます。
   インタラクティブな[デモ](https://langfuse.com/docs/demo)で動作を確認してください。
 
-- **[プロンプト管理](https://langfuse.com/docs/prompt-management/get-started):**  
-  プロンプトを一元管理し、バージョン管理しながら共同で改善を行えます。  
+- **[プロンプト管理](https://langfuse.com/docs/prompt-management/get-started):**
+  プロンプトを一元管理し、バージョン管理しながら共同で改善を行えます。
   サーバーおよびクライアント側で強力なキャッシングを行うため、アプリケーションのレイテンシを増やすことなくプロンプトの改良が可能です。
 
-- **[評価](https://langfuse.com/docs/evaluation/overview):**  
-  評価はLLMアプリケーション開発ワークフローの要であり、Langfuseは多様なニーズに対応します。  
+- **[評価](https://langfuse.com/docs/evaluation/overview):**
+  評価はLLMアプリケーション開発ワークフローの要であり、Langfuseは多様なニーズに対応します。
   LLMを判定者として用いる方法、ユーザーフィードバックの収集、手動によるラベリング、API/SDKを通じたカスタム評価パイプラインをサポートします。
 
-- **[データセット](https://langfuse.com/docs/evaluation/dataset-runs/datasets):**  
-  LLMアプリケーション評価用のテストセットやベンチマークを構築できます。  
+- **[データセット](https://langfuse.com/docs/evaluation/dataset-runs/datasets):**
+  LLMアプリケーション評価用のテストセットやベンチマークを構築できます。
   継続的な改善、事前デプロイテスト、構造化された実験、柔軟な評価、さらにLangChainやLlamaIndexなどとのシームレスな統合をサポートします。
 
-- **[LLMプレイグラウンド](https://langfuse.com/docs/playground):**  
-  プロンプトやモデル設定のテスト・反復作業を支援するツールで、フィードバックループを短縮し開発を加速します。  
+- **[LLMプレイグラウンド](https://langfuse.com/docs/playground):**
+  プロンプトやモデル設定のテスト・反復作業を支援するツールで、フィードバックループを短縮し開発を加速します。
   トレースで不具合が見つかった場合、直接プレイグラウンドへ飛び、迅速に改善できます。
 
-- **[包括的なAPI](https://langfuse.com/docs/api):**  
-  LangfuseはAPIを通じて提供されるビルディングブロックを用い、カスタムLLMOpsワークフローの基盤として頻繁に利用されます。  
+- **[包括的なAPI](https://langfuse.com/docs/api):**
+  LangfuseはAPIを通じて提供されるビルディングブロックを用い、カスタムLLMOpsワークフローの基盤として頻繁に利用されます。
   OpenAPI仕様、Postmanコレクション、PythonやJS/TS向けの型付きSDKが利用可能です。
 
 ## 📦 Langfuseのデプロイ
@@ -113,7 +113,7 @@ Langfuseは**数分でセルフホスト可能**で、**多くの実績を持つ
 Langfuseチームによるマネージドデプロイメント。充実した無料プラン（ホビープラン）で、クレジットカード不要です。
 
 <div align="center">
-    <a href="https://cloud.langfuse.com" target="_blank">
+    <a href="https://us.cloud.langfuse.com" target="_blank">
         <img alt="Static Badge" src="https://img.shields.io/badge/»%20Sign%20up%20for%20Langfuse%20Cloud-8A2BE2?&color=orange">
     </a>
 </div>
@@ -122,7 +122,7 @@ Langfuseチームによるマネージドデプロイメント。充実した無
 
 自身のインフラ上でLangfuseを実行できます:
 
-- **[Local (docker compose)](https://langfuse.com/self-hosting/local):**  
+- **[Local (docker compose)](https://langfuse.com/self-hosting/local):**
   Docker Composeを使用して、たった5分で自分のマシン上でLangfuseを実行できます.
 
   ```bash
@@ -134,11 +134,11 @@ Langfuseチームによるマネージドデプロイメント。充実した無
   docker compose up
   ```
 
-- **[Kubernetes (Helm)](https://langfuse.com/self-hosting/kubernetes-helm):**  
-  Helmを使用してKubernetesクラスター上でLangfuseを実行します。  
+- **[Kubernetes (Helm)](https://langfuse.com/self-hosting/kubernetes-helm):**
+  Helmを使用してKubernetesクラスター上でLangfuseを実行します。
   こちらが推奨される本番環境でのデプロイ方法です。
 
-- **[VM](https://langfuse.com/self-hosting/docker-compose):**  
+- **[VM](https://langfuse.com/self-hosting/docker-compose):**
   Docker Composeを使用して、単一の仮想マシン上でLangfuseを実行します。
 
 - Terraform テンプレート: [AWS](https://langfuse.com/self-hosting/aws), [Azure](https://langfuse.com/self-hosting/azure), [GCP](https://langfuse.com/self-hosting/gcp)
@@ -188,18 +188,18 @@ Langfuseチームによるマネージドデプロイメント。充実した無
 
 ## 🚀 クイックスタート
 
-アプリケーションにインストゥルメンテーションを導入し、LLM呼び出しやリトリーバル、埋め込み、エージェントアクションなどの動作をLangfuseに記録しましょう。  
+アプリケーションにインストゥルメンテーションを導入し、LLM呼び出しやリトリーバル、埋め込み、エージェントアクションなどの動作をLangfuseに記録しましょう。
 複雑なログやユーザーセッションの解析・デバッグが可能になります。
 
 ### 1️⃣ 新規プロジェクトの作成
 
-1. [Langfuseアカウント作成](https://cloud.langfuse.com/auth/sign-up) または [セルフホスト](https://langfuse.com/self-hosting)
+1. [Langfuseアカウント作成](https://us.cloud.langfuse.com/auth/sign-up) または [セルフホスト](https://langfuse.com/self-hosting)
 2. 新規プロジェクトを作成
 3. プロジェクト設定で新しいAPIクレデンシャルを作成
 
 ### 2️⃣ 初めてのLLM呼び出しのログ記録
 
-[`@observe()` デコレーター](https://langfuse.com/docs/sdk/python/decorators)を利用することで、任意のPython製LLMアプリケーションのトレースが簡単に行えます。  
+[`@observe()` デコレーター](https://langfuse.com/docs/sdk/python/decorators)を利用することで、任意のPython製LLMアプリケーションのトレースが簡単に行えます。
 このクイックスタートでは、Langfuseの[OpenAI統合](https://langfuse.com/integrations/model-providers/openai-py)を使用して、全てのモデルパラメータを自動で取得します。
 
 > [!TIP]
@@ -212,7 +212,7 @@ pip install langfuse openai
 ```bash filename=".env"
 LANGFUSE_SECRET_KEY="sk-lf-..."
 LANGFUSE_PUBLIC_KEY="pk-lf-..."
-LANGFUSE_BASE_URL="https://cloud.langfuse.com" # 🇪🇺 EUリージョン
+LANGFUSE_BASE_URL="https://us.cloud.langfuse.com" # 🇪🇺 EUリージョン
 # LANGFUSE_BASE_URL="https://us.cloud.langfuse.com" # 🇺🇸 USリージョン
 ```
 
@@ -240,7 +240,7 @@ Langfuse上で、LLM呼び出しおよびその他のアプリケーションロ
 
 ![Example trace in Langfuse](https://langfuse.com/images/docs/github-readme/github-example-trace.png)
 
-_[Langfuseの公開トレース例](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/2cec01e3-3dc2-472f-afcf-3b968cf0c1f4?timestamp=2025-02-10T14%3A27%3A30.275Z&observation=cb5ff844-07ef-41e6-b8e2-6c64344bc13b)_
+_[Langfuseの公開トレース例](https://us.cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/2cec01e3-3dc2-472f-afcf-3b968cf0c1f4?timestamp=2025-02-10T14%3A27%3A30.275Z&observation=cb5ff844-07ef-41e6-b8e2-6c64344bc13b)_
 
 > [!TIP]
 >
@@ -261,7 +261,7 @@ _[Langfuseの公開トレース例](https://cloud.langfuse.com/project/cloramnkj
 
 サポートチャネル:
 
-- **GitHub Discussionsの[パブリックQ&A](https://github.com/orgs/langfuse/discussions/categories/support)で質問してください。**  
+- **GitHub Discussionsの[パブリックQ&A](https://github.com/orgs/langfuse/discussions/categories/support)で質問してください。**
   質問には、コードスニペット、スクリーンショット、背景情報など、できるだけ詳細な情報を含めるとスムーズな対応が可能です。
 - GitHub Discussionsで[機能リクエスト](https://github.com/orgs/langfuse/discussions/categories/ideas)を投稿してください。
 - GitHub Issuesにて[バグ報告](https://github.com/langfuse/langfuse/issues)を行ってください。
@@ -277,7 +277,7 @@ _[Langfuseの公開トレース例](https://cloud.langfuse.com/project/cloramnkj
 
 ## 🥇 ライセンス
 
-このリポジトリは、`ee`フォルダを除き、MITライセンスの下で公開されています。  
+このリポジトリは、`ee`フォルダを除き、MITライセンスの下で公開されています。
 詳細は[LICENSE](LICENSE)および[オープンソースに関するドキュメント](https://langfuse.com/docs/open-source)をご確認ください。
 
 ## ⭐️ スターの履歴
@@ -343,7 +343,7 @@ Langfuseを利用している主要なオープンソースPythonプロジェク
 
 ## 🔒 セキュリティとプライバシー
 
-データのセキュリティとプライバシーは非常に重要です。  
+データのセキュリティとプライバシーは非常に重要です。
 詳細につきましては、[セキュリティとプライバシー](https://langfuse.com/security)ページをご参照ください。
 
 ### テレメトリー
@@ -353,7 +353,7 @@ Langfuseを利用している主要なオープンソースPythonプロジェク
 1. Langfuseの利用状況を把握し、最も重要な機能の改善に役立てる
 2. 内部および外部（例：資金調達）のレポートのために全体の利用状況を追跡する
 
-収集されたデータは第三者と共有されず、機微な情報は一切含まれていません。  
+収集されたデータは第三者と共有されず、機微な情報は一切含まれていません。
 当社はこの点について極力透明性を保っており、収集される具体的なデータの詳細は[こちら](/web/src/features/telemetry/index.ts)で確認できます。
 
 `TELEMETRY_ENABLED=false` を設定することで、テレメトリーの報告をオプトアウトできます.

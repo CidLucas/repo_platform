@@ -1,4 +1,4 @@
-import { Box, Flex, Text, Heading, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon, IconButton } from '@chakra-ui/react';
+import { Box, Flex, Text, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon, IconButton } from '@chakra-ui/react';
 import { RepeatIcon } from '@chakra-ui/icons';
 import { MainLayout } from '../components/layouts/MainLayout';
 import { DashboardCard } from '../components/DashboardCard';
@@ -7,6 +7,8 @@ import React, { useState, useEffect } from 'react'; // Added useEffect
 import { PedidoDetailsModal } from '../components/PedidoDetailsModal';
 import { getPedidosOverview, getPedidoDetails, getOrderIndicators } from '../services/analyticsService';
 import type { PedidosOverviewResponse, PedidoDetailResponse, PedidoItem, OrderMetricsResponse } from '../services/analyticsService';
+import type { ChartDataPoint } from '../types';
+import type { MapData } from '../types';
 
 type PeriodType = 'week' | 'month' | 'quarter' | 'year';
 
@@ -34,9 +36,10 @@ function PedidosPage() {
       setOrderMetrics(metricsResponse);
       setLastUpdate(new Date());
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching pedidos:', err);
-      setError(err.message || 'Erro ao carregar pedidos.');
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar pedidos.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -44,6 +47,7 @@ function PedidosPage() {
 
   useEffect(() => {
     fetchPedidosData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchPedidosData depends on selectedPeriod which is already in deps
   }, [selectedPeriod]);
 
   const handlePeriodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -57,9 +61,10 @@ function PedidosPage() {
       const details = await getPedidoDetails(item.order_id);
       setSelectedItem(details);
       onOpen();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao carregar detalhes do pedido:", err);
-      setError(err.message || 'Erro ao carregar detalhes do pedido.');
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar detalhes do pedido.';
+      setError(errorMessage);
     }
   };
 
@@ -168,8 +173,8 @@ function PedidosPage() {
             title="Métricas de Pedidos"
             size="large"
             bgColor="#FFD3E1"
-            graphData={{
-              values: orderMetrics
+            graphData={
+              orderMetrics
                 ? [
                   { name: 'Total Pedidos', value: orderMetrics.total },
                   { name: 'Receita', value: Math.round(orderMetrics.revenue / 1000) }, // Convert to thousands for readability
@@ -177,7 +182,7 @@ function PedidosPage() {
                   { name: 'Crescimento %', value: Math.round(orderMetrics.growth_rate || 0) }
                 ]
                 : []
-            }}
+            }
             scorecardValue={orderMetrics ? `R$ ${(orderMetrics.revenue / 1000).toFixed(1)}K` : 'R$ 0'}
             scorecardLabel="Total Vendido"
             kpiItems={
@@ -244,14 +249,14 @@ function PedidosPage() {
             title="Volume de Pedidos"
             size="large"
             bgColor="#FFF4C7"
-            graphData={{
-              values: overviewData?.chart_pedidos_no_tempo
-                ? overviewData.chart_pedidos_no_tempo.map((d: any) => ({
+            graphData={
+              overviewData?.chart_pedidos_no_tempo
+                ? overviewData.chart_pedidos_no_tempo.map((d: ChartDataPoint) => ({
                   name: d.name,
-                  value: d.total_cumulativo || 0
+                  value: (d.total_cumulativo as number) || 0
                 }))
                 : []
-            }}
+            }
             scorecardValue={orderMetrics ? `${orderMetrics.total}` : '0'}
             scorecardLabel="Total de Pedidos"
             kpiItems={
@@ -298,7 +303,7 @@ function PedidosPage() {
             title="Distribuição Geográfica"
             size="large"
             bgColor="white" // Unchanged
-            mapData={{ center: [-23.55052, -46.633308], zoom: 10, markers: [{ position: [-23.55052, -46.633308], popupText: 'São Paulo' }] }}
+            mapData={{ center: [-23.55052, -46.633308], zoom: 10, markers: [{ position: [-23.55052, -46.633308], popupText: 'São Paulo' }] } as MapData}
             mainText="Principais regiões de entrega de pedidos."
             modalLeftBgColor="#FFD3E1"
             modalRightBgColor="#F9BBCB"

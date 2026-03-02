@@ -33,6 +33,9 @@ def get_langfuse_callback() -> Any | None:
     """
     Get a Langfuse CallbackHandler for LangChain/LangGraph.
 
+    Langfuse SDK v3 reads trace attributes (session_id, user_id, tags)
+    from config["metadata"] at invoke time, not from constructor args.
+
     Delegates to vizu_llm_service.get_langfuse_callback().
     """
     return _get_langfuse_callback()
@@ -43,13 +46,14 @@ def get_langfuse_config(
     user_id: str | None = None,
     cliente_id: str | None = None,
     tags: list[str] | None = None,
+    trace_name: str = "atendente_chat",
 ) -> dict[str, Any]:
     """
     Get a LangChain/LangGraph config dict with Langfuse callback.
 
     This function builds the config dict with:
     - thread_id for LangGraph memory (checkpointing)
-    - Langfuse callback for tracing
+    - Langfuse callback for tracing (with trace_name for identification)
     - Metadata with Langfuse-specific keys
 
     Args:
@@ -57,6 +61,7 @@ def get_langfuse_config(
         user_id: User ID for attribution
         cliente_id: Vizu client ID for multi-client filtering
         tags: Optional tags for filtering
+        trace_name: Name for the trace in Langfuse (default: 'atendente_chat')
 
     Returns:
         Config dict ready to pass to graph.invoke() or graph.ainvoke()
@@ -71,10 +76,12 @@ def get_langfuse_config(
     effective_user_id = user_id or cliente_id
 
     # Build metadata with Langfuse special keys (SDK v3)
+    # trace_name is passed as a tag for filtering in Langfuse UI
     trace_metadata = {
+        "langfuse_trace_name": trace_name,
         "langfuse_session_id": session_id,
         "langfuse_user_id": effective_user_id,
-        "langfuse_tags": tags or ["atendente"],
+        "langfuse_tags": (tags or []) + [trace_name],
         "cliente_id": cliente_id,
     }
 
@@ -84,7 +91,7 @@ def get_langfuse_config(
         config["callbacks"] = [callback]
         config["metadata"] = trace_metadata
         logger.debug(
-            f"Langfuse config created for session={session_id}, cliente={cliente_id}"
+            f"Langfuse config created for session={session_id}, cliente={cliente_id}, trace={trace_name}"
         )
 
     return config

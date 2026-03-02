@@ -29,6 +29,7 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- Context exports are intentional
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
@@ -39,6 +40,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [clientId, setClientId] = useState<string | null>(null);
   const clientIdFetchedRef = useRef(false);
+
+  const initializeClientId = async (accessToken: string) => {
+    if (clientIdFetchedRef.current) {
+      return;
+    }
+
+    clientIdFetchedRef.current = true;
+
+    try {
+      const meResponse = await Promise.race([
+        getMe(accessToken),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('getMe timeout')), 5000);
+        }),
+      ]);
+
+      setClientId(meResponse.client_id);
+      localStorage.setItem('vizu_client_id', meResponse.client_id);
+      console.log('Client ID initialized:', meResponse.client_id);
+    } catch (error) {
+      console.error('Failed to initialize client_id:', error);
+      clientIdFetchedRef.current = false;
+      const storedClientId = localStorage.getItem('vizu_client_id');
+      if (storedClientId) {
+        setClientId(storedClientId);
+        clientIdFetchedRef.current = true;
+      }
+    }
+  };
 
   useEffect(() => {
     // Check if we're on an OAuth callback
@@ -64,26 +94,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setSession(session);
       setUser(session?.user ?? null);
 
-      // Initialize client_id on first login (ref prevents duplicate calls across concurrent events)
-      if (session?.access_token && !clientIdFetchedRef.current) {
-        clientIdFetchedRef.current = true;
-        try {
-          const meResponse = await getMe(session.access_token);
-          setClientId(meResponse.client_id);
-          localStorage.setItem('vizu_client_id', meResponse.client_id);
-          console.log('Client ID initialized:', meResponse.client_id);
-        } catch (error) {
-          console.error('Failed to initialize client_id:', error);
-          clientIdFetchedRef.current = false;
-          const storedClientId = localStorage.getItem('vizu_client_id');
-          if (storedClientId) {
-            setClientId(storedClientId);
-            clientIdFetchedRef.current = true;
-          }
-        }
-      }
-
+      // Never block app routing on client_id fetch
       setIsLoading(false);
+
+      // Initialize client_id in background (non-blocking)
+      if (session?.access_token && !clientIdFetchedRef.current) {
+        void initializeClientId(session.access_token);
+      }
     };
 
     initSession();
@@ -106,24 +123,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setSession(session);
       setUser(session?.user ?? null);
 
-      // Initialize client_id once (ref prevents duplicate calls from concurrent auth events)
+      // Unblock protected routes immediately after auth state is known
+      setIsLoading(false);
+
+      // Initialize client_id in background (non-blocking)
       if (session?.access_token && _event !== 'SIGNED_OUT') {
         if (!clientIdFetchedRef.current) {
-          clientIdFetchedRef.current = true;
-          try {
-            const meResponse = await getMe(session.access_token);
-            setClientId(meResponse.client_id);
-            localStorage.setItem('vizu_client_id', meResponse.client_id);
-            console.log(`Client ID initialized on ${_event}:`, meResponse.client_id);
-          } catch (error) {
-            console.error('Failed to initialize client_id:', error);
-            clientIdFetchedRef.current = false;
-            const storedClientId = localStorage.getItem('vizu_client_id');
-            if (storedClientId) {
-              setClientId(storedClientId);
-              clientIdFetchedRef.current = true;
-            }
-          }
+          void initializeClientId(session.access_token);
         }
       }
 
@@ -133,8 +139,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         setClientId(null);
         localStorage.removeItem('vizu_client_id');
       }
-
-      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();

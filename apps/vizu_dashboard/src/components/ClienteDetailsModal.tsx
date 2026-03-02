@@ -2,20 +2,20 @@ import { Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton, Flex, T
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ModalContentLayout } from './ModalContentLayout';
-import { GraphCarousel } from './GraphCarousel';
 import { ScorecardCard } from './ScorecardCard';
 import { ExpandableScorecardCard } from './ExpandableScorecardCard';
 import { TierBadge } from './TierBadge';
-import { ClienteDetailResponse, ClientesOverviewResponse, getCustomerMonthlyOrders, MonthlyOrderData } from '../services/analyticsService';
+import { ClienteDetailResponse, getCustomerMonthlyOrders, MonthlyOrderData, ClientesOverviewResponse } from '../services/analyticsService';
 
 interface ClienteDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   cliente: ClienteDetailResponse | null;
-  overviewData?: ClientesOverviewResponse | null;
+  overviewData?: ClientesOverviewResponse;
 }
 
-export const ClienteDetailsModal: React.FC<ClienteDetailsModalProps> = ({ isOpen, onClose, cliente, overviewData }) => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- overviewData kept for API compatibility
+export const ClienteDetailsModal: React.FC<ClienteDetailsModalProps> = ({ isOpen, onClose, cliente, overviewData: _overviewData }) => {
   const navigate = useNavigate();
   const [monthlyOrders, setMonthlyOrders] = useState<MonthlyOrderData[]>([]);
   const [loadingGraph, setLoadingGraph] = useState<boolean>(false);

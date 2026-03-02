@@ -26,9 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/integrations", tags=["Integrations"])
 
 
-def _extract_oauth_config(
-    cfg_row, context: ContextService
-) -> tuple[str, str, str, list[str]]:
+def _extract_oauth_config(cfg_row, context: ContextService) -> tuple[str, str, str, list[str]]:
     """
     Extract and decrypt OAuth config from database row.
 
@@ -53,9 +51,8 @@ def _extract_oauth_config(
         scopes = _get("scopes")
         return client_id, client_secret, redirect_uri, scopes
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to read integration config: {e}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to read integration config: {e}")
+
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -150,9 +147,7 @@ async def configure_google_integration(
     final_client_secret = payload.client_secret if payload else client_secret
 
     if not final_client_id or not final_client_secret:
-        raise HTTPException(
-            status_code=400, detail="client_id and client_secret are required"
-        )
+        raise HTTPException(status_code=400, detail="client_id and client_secret are required")
 
     # Persist encrypted config via ContextService
     await context.save_integration_config(
@@ -219,17 +214,11 @@ async def google_auth_callback(
     context: ContextService = Depends(get_context_service),
 ):
     # Validate state
-    client_id_str = await asyncio.to_thread(
-        context.cache.client.get, f"oauth_state:{state}"
-    )
+    client_id_str = await asyncio.to_thread(context.cache.client.get, f"oauth_state:{state}")
     if not client_id_str:
         raise HTTPException(status_code=400, detail="Invalid or expired state")
 
-    client_id = UUID(
-        client_id_str.decode()
-        if isinstance(client_id_str, bytes)
-        else client_id_str
-    )
+    client_id = UUID(client_id_str.decode() if isinstance(client_id_str, bytes) else client_id_str)
 
     # Remove state
     await asyncio.to_thread(context.cache.client.delete, f"oauth_state:{state}")
@@ -269,9 +258,7 @@ async def google_auth_callback(
             if resp.status_code == 200:
                 user_info = resp.json()
                 account_email = user_info.get("email")
-                account_name = (
-                    user_info.get("name") or user_info.get("email", "").split("@")[0]
-                )
+                account_name = user_info.get("name") or user_info.get("email", "").split("@")[0]
     except Exception as e:
         # If we can't get user info, use a fallback
         logger.warning(f"Failed to get Google user info: {e}")
@@ -279,9 +266,7 @@ async def google_auth_callback(
         account_name = "Google Account"
 
     # Check if this is the first account (make it default)
-    existing_accounts = await context.list_integration_accounts(
-        client_id, "google"
-    )
+    existing_accounts = await context.list_integration_accounts(client_id, "google")
     is_default = len(existing_accounts) == 0
 
     # Persist tokens with account info
@@ -327,9 +312,7 @@ async def set_default_google_account(
     context: ContextService = Depends(get_context_service),
 ):
     """Set a specific Google account as the default."""
-    success = await context.set_default_account(
-        auth.client_id, "google", payload.account_email
-    )
+    success = await context.set_default_account(auth.client_id, "google", payload.account_email)
     if not success:
         raise HTTPException(status_code=404, detail="Account not found")
     return {"status": "ok", "default_account": payload.account_email}
@@ -363,9 +346,7 @@ async def revoke_google_auth(
                 await manager.revoke(tokens.get_decrypted_tokens()["access_token"])
             except Exception as e:
                 logger.warning(f"Failed to revoke Google token: {e}")
-        await context.revoke_integration(
-            auth.client_id, "google", account_email=target_email
-        )
+        await context.revoke_integration(auth.client_id, "google", account_email=target_email)
         return {
             "status": "revoked",
             "provider": "google",
@@ -373,9 +354,7 @@ async def revoke_google_auth(
         }
     else:
         # Revoke all accounts
-        accounts = await context.list_integration_accounts(
-            auth.client_id, "google"
-        )
+        accounts = await context.list_integration_accounts(auth.client_id, "google")
         for account in accounts:
             try:
                 tokens = await context.get_integration_tokens(
@@ -395,9 +374,7 @@ async def revoke_google_auth(
 
 @router.get("/google/status")
 async def get_google_status(
-    account_email: str | None = Query(
-        None, description="Specific account to check status for"
-    ),
+    account_email: str | None = Query(None, description="Specific account to check status for"),
     auth: AuthResult = Depends(_get_auth_result),
     context: ContextService = Depends(get_context_service),
 ):
@@ -425,9 +402,7 @@ async def get_google_status(
         }
     else:
         # Overall status with all accounts
-        accounts = await context.list_integration_accounts(
-            auth.client_id, "google"
-        )
+        accounts = await context.list_integration_accounts(auth.client_id, "google")
         default_tokens = await context.get_integration_tokens(
             auth.client_id, "google", auto_refresh=False
         )
@@ -441,8 +416,6 @@ async def get_google_status(
             if isinstance(config, dict)
             else (getattr(config, "scopes", None) if config else []),
             "accounts": accounts,
-            "default_account": default_tokens._get("account_email")
-            if default_tokens
-            else None,
+            "default_account": default_tokens._get("account_email") if default_tokens else None,
             "expires_at": default_tokens._get("expires_at") if default_tokens else None,
         }

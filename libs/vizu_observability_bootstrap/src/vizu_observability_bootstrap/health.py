@@ -17,6 +17,7 @@ Usage:
         }
     ))
 """
+
 import asyncio
 import logging
 import os
@@ -33,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 class HealthStatus(BaseModel):
     """Health check response model."""
+
     status: str  # "healthy", "degraded", "unhealthy"
     service: str
     version: str
@@ -44,6 +46,7 @@ class HealthStatus(BaseModel):
 
 class ReadinessStatus(BaseModel):
     """Readiness check response model."""
+
     ready: bool
     checks: dict[str, bool]
 
@@ -89,10 +92,7 @@ def create_health_router(
         for check_name, check_func in _checks.items():
             start = time.time()
             try:
-                result = await asyncio.wait_for(
-                    check_func(),
-                    timeout=timeout_seconds
-                )
+                result = await asyncio.wait_for(check_func(), timeout=timeout_seconds)
                 duration = time.time() - start
                 check_results[check_name] = {
                     "status": "ok" if result else "fail",
@@ -138,10 +138,7 @@ def create_health_router(
 
         for check_name, check_func in _checks.items():
             try:
-                result = await asyncio.wait_for(
-                    check_func(),
-                    timeout=timeout_seconds
-                )
+                result = await asyncio.wait_for(check_func(), timeout=timeout_seconds)
                 check_results[check_name] = result
                 if not result:
                     all_ready = False
@@ -187,6 +184,7 @@ def create_health_router(
 # Common health check functions
 # =============================================================================
 
+
 async def check_database_url(database_url: str | None = None) -> bool:
     """
     Check database connectivity.
@@ -200,6 +198,7 @@ async def check_database_url(database_url: str | None = None) -> bool:
 
     try:
         import asyncpg
+
         conn = await asyncpg.connect(url, timeout=5)
         await conn.execute("SELECT 1")
         await conn.close()
@@ -208,6 +207,7 @@ async def check_database_url(database_url: str | None = None) -> bool:
         # Try sync fallback
         try:
             import psycopg2
+
             conn = psycopg2.connect(url, connect_timeout=5)
             cur = conn.cursor()
             cur.execute("SELECT 1")
@@ -234,6 +234,7 @@ async def check_redis_url(redis_url: str | None = None) -> bool:
 
     try:
         import redis.asyncio as redis
+
         client = redis.from_url(url, socket_timeout=5)
         await client.ping()
         await client.close()
@@ -241,6 +242,7 @@ async def check_redis_url(redis_url: str | None = None) -> bool:
     except ImportError:
         try:
             import redis as sync_redis
+
             client = sync_redis.from_url(url, socket_timeout=5)
             client.ping()
             client.close()
@@ -262,6 +264,7 @@ async def check_qdrant_url(qdrant_url: str | None = None) -> bool:
 
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=5) as client:
             response = await client.get(f"{url}/healthz")
             return response.status_code == 200
@@ -276,6 +279,7 @@ async def check_http_endpoint(url: str, expected_status: int = 200) -> bool:
     """
     try:
         import httpx
+
         async with httpx.AsyncClient(timeout=5) as client:
             response = await client.get(url)
             return response.status_code == expected_status

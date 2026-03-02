@@ -146,9 +146,7 @@ async def _get_knowledge_summary(cliente_id: str | None = None) -> str:
         )
 
 
-async def _search_knowledge(
-    query: str, cliente_id: str | None = None, limit: int = 5
-) -> str:
+async def _search_knowledge(query: str, cliente_id: str | None = None, limit: int = 5) -> str:
     """
     Busca documentos na base de conhecimento (read-only, sem LLM).
 
@@ -290,7 +288,9 @@ async def _get_client_config(cliente_id: str | None = None) -> str:
         result += "\n"
 
     # Show RAG collection from available_tools config
-    rag_collection = context.available_tools.get("rag_collection") if context.available_tools else None
+    rag_collection = (
+        context.available_tools.get("rag_collection") if context.available_tools else None
+    )
     if rag_collection:
         result += "## Base de Conhecimento\n"
         result += f"- **Coleção RAG:** `{rag_collection}`\n\n"
@@ -308,8 +308,7 @@ async def _get_client_prompt(cliente_id: str | None = None) -> str:
     context = await _resolve_client_context(cliente_id)
 
     default_prompt = (
-        context.available_tools.get("default_system_prompt")
-        if context.available_tools else None
+        context.available_tools.get("default_system_prompt") if context.available_tools else None
     )
 
     if not default_prompt:
@@ -338,9 +337,7 @@ def _get_prompt_loader() -> PromptLoader:
     return _prompt_loader
 
 
-async def _load_prompt(
-    name: str, langfuse_label: str = "production"
-) -> dict:
+async def _load_prompt(name: str, langfuse_label: str = "production") -> dict:
     """
     Load a prompt using the Langfuse-first strategy.
 
@@ -368,7 +365,9 @@ async def _load_prompt(
         "source": loaded.source,
         "version": loaded.version,
         "metadata": loaded.metadata,
-        "trace_metadata": loaded.get_trace_metadata() if hasattr(loaded, "get_trace_metadata") else None,
+        "trace_metadata": loaded.get_trace_metadata()
+        if hasattr(loaded, "get_trace_metadata")
+        else None,
         "langfuse_prompt": loaded.langfuse_prompt,  # For trace linking
     }
 
@@ -443,8 +442,7 @@ def _list_prompt_templates(cliente_id: str | None = None) -> list[PromptTemplate
                 uuid_obj = UUID(cliente_id)
                 # Inclui prompts do cliente também
                 query = query.where(
-                    (PromptTemplate.client_id == None)
-                    | (PromptTemplate.client_id == uuid_obj)
+                    (PromptTemplate.client_id == None) | (PromptTemplate.client_id == uuid_obj)
                 )
             except ValueError:
                 query = query.where(PromptTemplate.client_id == None)
@@ -724,12 +722,12 @@ def register_resources(mcp: FastMCP) -> None:
             result = f"# {prompt_info['name']}\n\n"
             result += f"**Fonte:** {prompt_info['source']}\n"
 
-            if prompt_info.get('version'):
+            if prompt_info.get("version"):
                 result += f"**Versão:** {prompt_info['version']}\n"
 
-            if prompt_info.get('trace_metadata'):
-                trace = prompt_info['trace_metadata']
-                if trace.get('langfuse_prompt_version'):
+            if prompt_info.get("trace_metadata"):
+                trace = prompt_info["trace_metadata"]
+                if trace.get("langfuse_prompt_version"):
                     result += f"**Langfuse Version:** {trace['langfuse_prompt_version']}\n"
 
             result += "\n## Conteúdo\n\n"
@@ -758,16 +756,11 @@ def register_resources(mcp: FastMCP) -> None:
         template = _get_prompt_template(prompt_name, version=version_int)
 
         if not template:
-            return (
-                f"# Prompt não encontrado\n\n`{prompt_name}` v{version_int} não existe."
-            )
+            return f"# Prompt não encontrado\n\n`{prompt_name}` v{version_int} não existe."
 
         result = f"# {template.name} (v{template.version})\n\n"
         result += f"```\n{template.content}\n```\n"
 
         return result
 
-    logger.info(
-        "MCP Resources registrados: "
-        "knowledge://*, config://*, prompts://*, tools://*"
-    )
+    logger.info("MCP Resources registrados: " "knowledge://*, config://*, prompts://*, tools://*")

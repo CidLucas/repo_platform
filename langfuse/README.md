@@ -6,12 +6,12 @@
         <a href="https://langfuse.com/blog/2025-06-04-open-sourcing-langfuse-product">
             <strong>Langfuse Is Doubling Down On Open Source</strong>
          </a> <br> <br>
-         <a href="https://cloud.langfuse.com">
+         <a href="https://us.cloud.langfuse.com">
             <strong>Langfuse Cloud</strong>
-         </a> · 
+         </a> ·
          <a href="https://langfuse.com/docs/deployment/self-host">
             <strong>Self Host</strong>
-         </a> · 
+         </a> ·
          <a href="https://langfuse.com/demo">
             <strong>Demo</strong>
          </a>
@@ -101,7 +101,7 @@ Langfuse is an **open source LLM engineering** platform. It helps teams collabor
 Managed deployment by the Langfuse team, generous free-tier, no credit card required.
 
 <div align="center">
-    <a href="https://cloud.langfuse.com" target="_blank">
+    <a href="https://us.cloud.langfuse.com" target="_blank">
         <img alt="Static Badge" src="https://img.shields.io/badge/»%20Sign%20up%20for%20Langfuse%20Cloud-8A2BE2?&color=orange">
     </a>
 </div>
@@ -173,7 +173,7 @@ Instrument your app and start ingesting traces to Langfuse, thereby tracking LLM
 
 ### 1️⃣ Create new project
 
-1.  [Create Langfuse account](https://cloud.langfuse.com/auth/sign-up) or [self-host](https://langfuse.com/self-hosting)
+1.  [Create Langfuse account](https://us.cloud.langfuse.com/auth/sign-up) or [self-host](https://langfuse.com/self-hosting)
 2.  Create a new project
 3.  Create new API credentials in the project settings
 
@@ -191,7 +191,7 @@ pip install langfuse openai
 ```bash filename=".env"
 LANGFUSE_SECRET_KEY="sk-lf-..."
 LANGFUSE_PUBLIC_KEY="pk-lf-..."
-LANGFUSE_BASE_URL="https://cloud.langfuse.com" # 🇪🇺 EU region
+LANGFUSE_BASE_URL="https://us.cloud.langfuse.com" # 🇪🇺 EU region
 # LANGFUSE_BASE_URL="https://us.cloud.langfuse.com" # 🇺🇸 US region
 ```
 
@@ -219,7 +219,7 @@ See your language model calls and other application logic in Langfuse.
 
 <img width="1787" height="674" alt="Example trace in Langfuse" src="https://github.com/user-attachments/assets/f796eb78-dfb5-4570-b236-bdb4b67d4d55" />
 
-_[Public example trace in Langfuse](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/2cec01e3-3dc2-472f-afcf-3b968cf0c1f4?timestamp=2025-02-10T14%3A27%3A30.275Z&observation=cb5ff844-07ef-41e6-b8e2-6c64344bc13b)_
+_[Public example trace in Langfuse](https://us.cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/2cec01e3-3dc2-472f-afcf-3b968cf0c1f4?timestamp=2025-02-10T14%3A27%3A30.275Z&observation=cb5ff844-07ef-41e6-b8e2-6c64344bc13b)_
 
 > [!TIP]
 >

@@ -47,6 +47,7 @@ from .token_budget import (
     truncate_messages,
 )
 
+
 # text_to_sql imports are lazy to avoid pulling in vizu_sql_factory/vizu_prompt_management
 # for services that don't need them (e.g., file_processing_worker)
 def __getattr__(name):
@@ -68,10 +69,12 @@ def __getattr__(name):
     # in services that don't need prompt management
     if name == "LangfusePromptClient":
         from vizu_observability_bootstrap.langfuse import LangfusePromptClient
+
         return LangfusePromptClient
 
     if name in _text_to_sql_symbols:
         from .text_to_sql import TextToSqlPrompt, get_text_to_sql_prompt
+
         return locals()[name]
 
     if name in _text_to_sql_config_symbols:
@@ -83,9 +86,11 @@ def __getattr__(name):
             get_llm_call,
             LLMProvider as ConfigLLMProvider,
         )
+
         return locals()[name]
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     # Main API

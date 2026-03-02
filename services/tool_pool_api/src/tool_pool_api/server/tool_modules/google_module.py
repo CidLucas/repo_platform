@@ -25,9 +25,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 
-async def _get_google_tokens(
-    cliente_id: str, account_email: str | None = None
-) -> dict:
+async def _get_google_tokens(cliente_id: str, account_email: str | None = None) -> dict:
     """Helper to retrieve and validate Google tokens for a cliente.
 
     Args:
@@ -346,7 +344,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
     mcp.tool(
         name="query_calendar",
         description=(
-           """ **Purpose:** Query Google Calendar events within a time range.
+            """ **Purpose:** Query Google Calendar events within a time range.
 
 **When to use this tool:**
 - User asks about their schedule or appointments
@@ -461,9 +459,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         """
         if not cliente_id:
             raise ValueError("cliente_id is required")
-        return await _create_spreadsheet_with_data_logic(
-            title, values, cliente_id, account_email
-        )
+        return await _create_spreadsheet_with_data_logic(title, values, cliente_id, account_email)
 
     mcp.tool(
         name="create_spreadsheet_with_data",
@@ -487,4 +483,3 @@ def register_tools(mcp: FastMCP) -> list[str]:
         "export_to_sheet",
         "create_spreadsheet_with_data",
     ]
-

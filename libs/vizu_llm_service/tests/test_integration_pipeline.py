@@ -72,10 +72,7 @@ def role_config():
     """Create realistic role configuration."""
     return {
         "allowed_views": ["customers_view", "orders_view"],
-        "allowed_columns": [
-            "id", "name", "email", "status", "created_at",
-            "customer_id", "amount"
-        ],
+        "allowed_columns": ["id", "name", "email", "status", "created_at", "customer_id", "amount"],
         "allowed_aggregates": ["COUNT", "SUM", "AVG", "MIN", "MAX"],
         "max_rows_limit": 10000,
         "mandatory_filters": ["client_id = :client_id"],
@@ -112,7 +109,9 @@ class TestTextToSqlPipeline:
     """Test complete text-to-SQL pipeline."""
 
     @pytest.mark.asyncio
-    async def test_end_to_end_pipeline(self, mock_prompt_loader, mock_context, realistic_schema, role_config):
+    async def test_end_to_end_pipeline(
+        self, mock_prompt_loader, mock_context, realistic_schema, role_config
+    ):
         """Test complete pipeline: prompt assembly → LLM call → response."""
         # Step 1: Build prompt
         prompt_builder = TextToSqlPrompt(prompt_loader=mock_prompt_loader)
@@ -149,17 +148,19 @@ class TestTextToSqlPipeline:
         assert response.latency_ms > 0
 
     @pytest.mark.asyncio
-    async def test_pipeline_with_exemplars(self, mock_prompt_loader, mock_context, realistic_schema, role_config):
+    async def test_pipeline_with_exemplars(
+        self, mock_prompt_loader, mock_context, realistic_schema, role_config
+    ):
         """Test pipeline with few-shot exemplars."""
         exemplars = [
             {
                 "question": "Count of records",
-                "sql": "SELECT COUNT(*) as count FROM customers_view WHERE client_id = :client_id LIMIT 100"
+                "sql": "SELECT COUNT(*) as count FROM customers_view WHERE client_id = :client_id LIMIT 100",
             },
             {
                 "question": "Sum of amounts",
-                "sql": "SELECT SUM(amount) as total FROM orders_view WHERE client_id = :client_id AND status = 'completed' LIMIT 100"
-            }
+                "sql": "SELECT SUM(amount) as total FROM orders_view WHERE client_id = :client_id AND status = 'completed' LIMIT 100",
+            },
         ]
 
         prompt_builder = TextToSqlPrompt(prompt_loader=mock_prompt_loader)
@@ -183,7 +184,9 @@ class TestTextToSqlPipeline:
         assert response.sql is not None
 
     @pytest.mark.asyncio
-    async def test_pipeline_error_handling(self, mock_prompt_loader, mock_context, realistic_schema):
+    async def test_pipeline_error_handling(
+        self, mock_prompt_loader, mock_context, realistic_schema
+    ):
         """Test pipeline handles impossible questions gracefully."""
         prompt_builder = TextToSqlPrompt(prompt_loader=mock_prompt_loader)
 
@@ -224,7 +227,9 @@ class TestTextToSqlPipeline:
         assert response.retry_count >= 0
 
     @pytest.mark.asyncio
-    async def test_pipeline_with_singleton_factories(self, mock_prompt_loader, mock_context, realistic_schema, role_config):
+    async def test_pipeline_with_singleton_factories(
+        self, mock_prompt_loader, mock_context, realistic_schema, role_config
+    ):
         """Test pipeline using singleton factory functions."""
         # Get singleton instances
         prompt_builder = get_text_to_sql_prompt()
@@ -255,7 +260,9 @@ class TestPipelineSecurityValidation:
     """Test security aspects of the pipeline."""
 
     @pytest.mark.asyncio
-    async def test_pipeline_includes_tenant_isolation(self, mock_prompt_loader, mock_context, realistic_schema):
+    async def test_pipeline_includes_tenant_isolation(
+        self, mock_prompt_loader, mock_context, realistic_schema
+    ):
         """Test that pipeline enforces tenant isolation."""
         prompt_builder = TextToSqlPrompt(prompt_loader=mock_prompt_loader)
 
@@ -269,7 +276,9 @@ class TestPipelineSecurityValidation:
         assert str(mock_context.cliente_id) in assembled_prompt or "client_id" in assembled_prompt
 
     @pytest.mark.asyncio
-    async def test_pipeline_enforces_role_based_access(self, mock_prompt_loader, mock_context, realistic_schema, role_config):
+    async def test_pipeline_enforces_role_based_access(
+        self, mock_prompt_loader, mock_context, realistic_schema, role_config
+    ):
         """Test that pipeline enforces role-based column access."""
         prompt_builder = TextToSqlPrompt(prompt_loader=mock_prompt_loader)
 
@@ -288,7 +297,9 @@ class TestPipelineSecurityValidation:
             assert col in assembled_prompt or col.lower() in assembled_prompt.lower()
 
     @pytest.mark.asyncio
-    async def test_pipeline_validates_result_limits(self, mock_prompt_loader, mock_context, realistic_schema, role_config):
+    async def test_pipeline_validates_result_limits(
+        self, mock_prompt_loader, mock_context, realistic_schema, role_config
+    ):
         """Test that pipeline enforces result row limits."""
         max_rows = role_config["max_rows_limit"]
 
@@ -329,16 +340,15 @@ class TestPipelinePerformance:
         assert response.latency_ms < 1000  # Should be < 1 second
 
     @pytest.mark.asyncio
-    async def test_pipeline_handles_large_schema(self, mock_prompt_loader, mock_context, role_config):
+    async def test_pipeline_handles_large_schema(
+        self, mock_prompt_loader, mock_context, role_config
+    ):
         """Test pipeline can handle large schema without issues."""
         # Create large schema
         large_schema = {
             "tables": {
                 f"table_{i}": {
-                    "columns": {
-                        f"col_{j}": {"type": "text", "nullable": True}
-                        for j in range(20)
-                    }
+                    "columns": {f"col_{j}": {"type": "text", "nullable": True} for j in range(20)}
                 }
                 for i in range(100)
             }
@@ -361,7 +371,9 @@ class TestPipelineIntegrationWithComponents:
     """Test pipeline integration with individual components."""
 
     @pytest.mark.asyncio
-    async def test_prompt_uses_vizu_prompt_management(self, mock_prompt_loader, mock_context, realistic_schema):
+    async def test_prompt_uses_vizu_prompt_management(
+        self, mock_prompt_loader, mock_context, realistic_schema
+    ):
         """Test that TextToSqlPrompt properly uses vizu_prompt_management."""
         prompt_builder = TextToSqlPrompt(prompt_loader=mock_prompt_loader)
 
@@ -432,7 +444,9 @@ class TestPipelineRegressions:
         assert assembled_prompt is not None
 
     @pytest.mark.asyncio
-    async def test_pipeline_handles_missing_role_config(self, mock_prompt_loader, mock_context, realistic_schema):
+    async def test_pipeline_handles_missing_role_config(
+        self, mock_prompt_loader, mock_context, realistic_schema
+    ):
         """Test pipeline works without role config."""
         prompt_builder = TextToSqlPrompt(prompt_loader=mock_prompt_loader)
 
@@ -447,7 +461,9 @@ class TestPipelineRegressions:
         assert assembled_prompt is not None
 
     @pytest.mark.asyncio
-    async def test_pipeline_handles_special_characters(self, mock_prompt_loader, mock_context, realistic_schema):
+    async def test_pipeline_handles_special_characters(
+        self, mock_prompt_loader, mock_context, realistic_schema
+    ):
         """Test pipeline handles special characters in questions."""
         prompt_builder = TextToSqlPrompt(prompt_loader=mock_prompt_loader)
 

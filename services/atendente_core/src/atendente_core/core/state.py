@@ -6,13 +6,6 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
-# --- IMPORT CORRIGIDO ---
-# Importamos os modelos de contexto seguros da lib compartilhada
-from vizu_models.safe_client_context import InternalClientContext, SafeClientContext
-
-# Context 2.0: Full client context with all sections
-from vizu_models.vizu_client_context import VizuClientContext
-
 
 class PendingElicitation(TypedDict):
     """
@@ -36,29 +29,28 @@ class AgentState(TypedDict):
     Estado do agente LangGraph.
 
     SEGURANÇA: O estado pode ser serializado e logado. Apenas dados
-    seguros devem estar aqui. Dados sensíveis (api_key, cliente_id)
-    ficam no InternalClientContext que não é passado para a LLM.
+    mínimos devem estar aqui para evitar trace bloat.
+
+    OTIMIZAÇÃO: Contextos (vizu_context, safe_context, _internal_context)
+    são buscados on-demand no supervisor_node usando cliente_id.
+    Isso reduz o tamanho do estado serializado em traces.
 
     MEMÓRIA: O campo `messages` usa add_messages como reducer,
     que acumula mensagens entre invocações da mesma thread_id.
     """
 
     messages: Annotated[list[BaseMessage], add_messages]
-    # Contexto seguro para a LLM (sem dados sensíveis)
-    safe_context: SafeClientContext | None
-    # Context 2.0: Full client context with all modular sections
-    # Used for selective context injection in build_dynamic_system_prompt
-    vizu_context: VizuClientContext | None
-    # Contexto interno para operações do servidor (injeção de cliente_id em tools)
-    # Este campo NÃO deve ser incluído em prompts
-    _internal_context: InternalClientContext | None
     tools: list
     # Override do modelo LLM para este request específico
     model_override: str | None
 
     # --- PHASE 5: Prompt Management ---
-    # ID do cliente para buscar prompts customizados do banco
+    # ID do cliente para buscar contexto e prompts customizados on-demand
     cliente_id: UUID | None
+
+    # --- AUTH ---
+    # JWT token for tool auth propagation
+    user_jwt: str | None
 
     # --- ELICITATION FIELDS ---
     # Elicitation pendente aguardando resposta do usuário
@@ -70,6 +62,14 @@ class AgentState(TypedDict):
     # Rich tabular data for interactive display (sorting, filtering, export)
     structured_data: dict[str, Any] | None
 
+    # --- CONVERSATION CONTROL ---
+    ended: bool  # Whether conversation has ended
+    turn_count: int  # Current turn number
+
     # --- CACHED SYSTEM PROMPT (OPT-7) ---
     # Avoids rebuilding the prompt on supervisor loop (tools → supervisor)
     _cached_system_prompt: str | None
+
+    # --- CACHED TOOLS (OPT) ---
+    # Avoids re-filtering and re-sanitizing tools on subsequent supervisor calls
+    _cached_tools: list | None

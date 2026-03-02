@@ -75,9 +75,7 @@ def test_client_db_session(db_engine):
     Gerencia a sessão e a transação do banco de dados para cada teste,
     garantindo que a aplicação use a mesma sessão.
     """
-    TestingSessionLocal = sessionmaker(
-        autocommit=False, autoflush=False, bind=db_engine
-    )
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
     connection = db_engine.connect()
     transaction = connection.begin()
     db = TestingSessionLocal(bind=connection)

@@ -20,6 +20,7 @@ Natural language to SQL tool for client data queries.
 """
 
 import logging
+import re
 import time
 from uuid import UUID
 
@@ -33,11 +34,8 @@ from tool_pool_api.server.dependencies import (
 )
 from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
 from vizu_llm_service import ModelTier, get_model
-
-# Context 2.0: Import ContextSection for selective injection
 from vizu_models.enums import ContextSection
 from vizu_models.vizu_client_context import VizuClientContext
-from vizu_observability_bootstrap.langfuse import get_langfuse_callback, is_langfuse_enabled
 
 from . import register_module
 
@@ -47,8 +45,6 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # HELPERS
 # =============================================================================
-
-import re
 
 
 def _strip_markdown_code_block(text: str) -> str:
@@ -112,8 +108,7 @@ async def _get_enriched_schema_context(
 
             # Sort: primary tables first, then by name
             sorted_configs = sorted(
-                configs,
-                key=lambda c: (not c.get("is_primary", False), c.get("table_name", ""))
+                configs, key=lambda c: (not c.get("is_primary", False), c.get("table_name", ""))
             )
 
             for config in sorted_configs:
@@ -164,7 +159,9 @@ async def _get_enriched_schema_context(
             return "\n".join(schema_parts)
 
     except Exception as e:
-        logger.warning(f"Error loading SqlTableConfig from Supabase: {e}, falling back to raw schema")
+        logger.warning(
+            f"Error loading SqlTableConfig from Supabase: {e}, falling back to raw schema"
+        )
 
     # Fallback: raw SQLDatabase schema - PRODUCTION SCHEMA ONLY
     # Focus on analytics_v2 star schema, exclude legacy analytics_silver and analytics_gold
@@ -186,8 +183,9 @@ async def _get_enriched_schema_context(
 
         # SECURITY: Remove any mention of client_id from schema - LLM must not know about it
         import re
-        schema_info = re.sub(r'[,\s]*client_id[^\n,]*[,]?', '', schema_info, flags=re.IGNORECASE)
-        schema_info = re.sub(r'\n\s*\n', '\n', schema_info)  # Clean up empty lines
+
+        schema_info = re.sub(r"[,\s]*client_id[^\n,]*[,]?", "", schema_info, flags=re.IGNORECASE)
+        schema_info = re.sub(r"\n\s*\n", "\n", schema_info)  # Clean up empty lines
 
         # Add guidance about the star schema
         schema_info = f"""
@@ -267,7 +265,9 @@ def _build_context_guidance(vizu_context: VizuClientContext) -> str:
         industry = company.get("industry", "")
         business_type = company.get("business_archetype", "")
         if industry or business_type:
-            guidance_parts.append(f"BUSINESS CONTEXT: {industry or ''} {business_type or ''}".strip())
+            guidance_parts.append(
+                f"BUSINESS CONTEXT: {industry or ''} {business_type or ''}".strip()
+            )
 
     # Extract data schema guidance
     data_schema = vizu_context.data_schema
@@ -321,16 +321,25 @@ def _validate_sql_for_production_schema(sql: str) -> tuple[bool, str]:
     legacy_patterns = ["analytics_silver", "analytics_gold"]
     for pattern in legacy_patterns:
         if pattern in sql_lower:
-            return False, f"Query references legacy table '{pattern}'. Use analytics_v2 schema instead."
+            return (
+                False,
+                f"Query references legacy table '{pattern}'. Use analytics_v2 schema instead.",
+            )
 
     # Check 2: Must reference analytics_v2
     if "analytics_v2" not in sql_lower:
-        return False, "Query does not reference analytics_v2 schema. All queries must use production schema."
+        return (
+            False,
+            "Query does not reference analytics_v2 schema. All queries must use production schema.",
+        )
 
     # Check 3: Reject if LLM tried to add client_id filter (it shouldn't)
     # This ensures the LLM isn't trying to manipulate security filters
     if "client_id" in sql_lower:
-        return False, "Query contains client_id reference. Security filters are applied automatically - do not include them."
+        return (
+            False,
+            "Query contains client_id reference. Security filters are applied automatically - do not include them.",
+        )
 
     return True, ""
 
@@ -366,7 +375,7 @@ def _inject_client_id_filter(sql: str, client_id: str) -> str:
     sql_clean = sql.strip().rstrip(";")
 
     # Tables in analytics_v2 schema that need client_id filtering
-    FILTERED_TABLES = ['fact_sales', 'dim_customer', 'dim_supplier', 'dim_product']
+    FILTERED_TABLES = ["fact_sales", "dim_customer", "dim_supplier", "dim_product"]
 
     # Pattern: analytics_v2.table_name followed by optional alias
     # Captures: (table_name) and optionally (alias)
@@ -374,7 +383,7 @@ def _inject_client_id_filter(sql: str, client_id: str) -> str:
     for table in FILTERED_TABLES:
         # Pattern matches: analytics_v2.table_name [AS] alias
         # We need to handle cases with and without alias
-        pattern = rf'analytics_v2\.{table}(\s+(?:AS\s+)?(\w+))?'
+        pattern = rf"analytics_v2\.{table}(\s+(?:AS\s+)?(\w+))?"
 
         def replace_with_subquery(match):
             full_match = match.group(0)
@@ -428,29 +437,13 @@ async def _executar_sql_agent_logic(
     Returns:
         Dict with SQL query results
     """
-    # Initialize Langfuse trace for this tool execution
-    langfuse_trace = None
-    trace_spans = {}  # Track spans for nested operations
-
-    try:
-        if is_langfuse_enabled():
-            from langfuse import Langfuse
-            langfuse = Langfuse()
-            langfuse_trace = langfuse.trace(
-                name="executar_sql_agent",
-                input={"query": query, "cliente_id": cliente_id},
-                tags=["tool_pool", "sql_module"],
-            )
-            logger.debug("[SQL] Langfuse trace started")
-    except Exception as lf_err:
-        logger.warning(f"[SQL] Langfuse trace init failed (non-fatal): {lf_err}")
-
     # 1. Obter dependências
     try:
         ctx_service = get_context_service()
     except Exception as e:
         logger.exception(f"Erro ao obter serviço de contexto: {e}")
-        raise ToolError("Erro interno no serviço de ferramentas.")
+        # Include cause in error for better debugging
+        raise ToolError(f"Erro interno no serviço de ferramentas: {type(e).__name__}: {e}")
 
     # 2. Resolver o Contexto Vizu
     # Priority: 1) cliente_id param (injected by decorator), 2) access token
@@ -504,17 +497,7 @@ async def _executar_sql_agent_logic(
             tags=["tool_pool", "sql_module"],
         )
 
-        # Span: Schema Loading
         schema_start = time.perf_counter()
-        schema_span = None
-        try:
-            if langfuse_trace:
-                schema_span = langfuse_trace.span(
-                    name="load_schema_context",
-                    input={"cliente_id": str(real_client_id)},
-                )
-        except Exception:
-            pass
 
         # Get enriched schema context (uses Redis-cached SqlTableConfig)
         engine = get_shared_engine()
@@ -525,12 +508,7 @@ async def _executar_sql_agent_logic(
         # Context 2.0: Get client-specific guidance from context sections
         context_guidance = _build_context_guidance(vizu_context)
 
-        if schema_span:
-            schema_span.end(
-                output={"schema_chars": len(table_info), "guidance_chars": len(context_guidance)},
-                level="DEFAULT",
-            )
-        logger.debug(f"[SQL] Schema loaded in {(time.perf_counter() - schema_start)*1000:.1f}ms")
+        logger.debug(f"[SQL] Schema loaded in {(time.perf_counter() - schema_start) * 1000:.1f}ms")
 
         logger.info(f"[SQL] Schema context length: {len(table_info)} chars")
         logger.info(f"[SQL] Context guidance length: {len(context_guidance)} chars")
@@ -559,31 +537,33 @@ async def _executar_sql_agent_logic(
             context_service=ctx_service,
         )
 
-        # Span: SQL Generation LLM Call
         llm_start = time.perf_counter()
-        llm_span = None
-        try:
-            if langfuse_trace:
-                llm_span = langfuse_trace.span(
-                    name="llm_sql_generation",
-                    input={"query": query, "prompt_length": len(sql_generation_prompt)},
-                )
-        except Exception:
-            pass
 
-        response = await llm.ainvoke([
-            SystemMessage(content=sql_generation_prompt),
-        ])
+        # Use both SystemMessage (with schema/rules) and HumanMessage (explicit query)
+        # This improves instruction-following for open-source models
+        from langchain_core.messages import HumanMessage
+
+        response = await llm.ainvoke(
+            [
+                SystemMessage(content=sql_generation_prompt),
+                HumanMessage(
+                    content=f"Generate SQL for: {query}\n\nRespond with ONLY the SQL query, no explanations."
+                ),
+            ],
+            config={
+                "metadata": {
+                    "langfuse_trace_name": "sql_generation",
+                    "langfuse_session_id": str(real_client_id),
+                    "langfuse_user_id": str(real_client_id),
+                    "langfuse_tags": ["sql_generation", "tool_pool"],
+                },
+                "run_name": "sql_generation",
+            },
+        )
 
         generated_sql = response.content.strip()
 
-        # End LLM span
         llm_duration = (time.perf_counter() - llm_start) * 1000
-        if llm_span:
-            llm_span.end(
-                output={"generated_sql": generated_sql[:500], "duration_ms": llm_duration},
-                level="DEFAULT",
-            )
         logger.info(f"[SQL] LLM generated SQL in {llm_duration:.1f}ms")
 
         # Clean up the SQL (remove markdown code blocks if present)
@@ -598,12 +578,18 @@ async def _executar_sql_agent_logic(
         # Check if query is a valid SELECT or CTE (WITH...SELECT)
         if not (sql_upper.startswith("SELECT") or sql_upper.startswith("WITH")):
             logger.error(f"[SQL] Invalid SQL (must start with SELECT or WITH): {generated_sql}")
-            return {"output": "Error: Only SELECT queries (including CTEs with WITH) are allowed.", "sql": generated_sql}
+            return {
+                "output": "Error: Only SELECT queries (including CTEs with WITH) are allowed.",
+                "sql": generated_sql,
+            }
 
         # Must end with SELECT for CTEs
         if sql_upper.startswith("WITH") and "SELECT" not in sql_upper:
             logger.error(f"[SQL] Invalid CTE (no SELECT clause): {generated_sql}")
-            return {"output": "Error: WITH clauses must end with a SELECT statement.", "sql": generated_sql}
+            return {
+                "output": "Error: WITH clauses must end with a SELECT statement.",
+                "sql": generated_sql,
+            }
 
         forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "TRUNCATE"]
         for word in forbidden:
@@ -617,11 +603,7 @@ async def _executar_sql_agent_logic(
         if not is_valid:
             logger.warning(f"[SQL] Production schema validation failed: {error_msg}")
             logger.warning(f"[SQL] Generated SQL: {generated_sql}")
-            return {
-                "output": f"Error: {error_msg}",
-                "sql": generated_sql,
-                "success": False
-            }
+            return {"output": f"Error: {error_msg}", "sql": generated_sql, "success": False}
 
         # SECURITY: HARD-INJECT client_id filter - LLM never sees this value
         client_id_str = str(real_client_id)
@@ -631,17 +613,7 @@ async def _executar_sql_agent_logic(
         # Execute the SQL directly with RLS context (defense in depth)
         # SECURITY: RLS policies on analytics_v2 tables provide additional enforcement
 
-        # Span: SQL Execution
         exec_start = time.perf_counter()
-        exec_span = None
-        try:
-            if langfuse_trace:
-                exec_span = langfuse_trace.span(
-                    name="sql_execution",
-                    input={"sql_preview": final_sql[:200]},
-                )
-        except Exception:
-            pass
 
         try:
             from .structured_data_formatter import format_sql_result
@@ -660,11 +632,6 @@ async def _executar_sql_agent_logic(
                 results = cursor.fetchall()
 
                 if not results:
-                    # End spans on empty result
-                    if exec_span:
-                        exec_span.end(output={"row_count": 0, "duration_ms": (time.perf_counter() - exec_start) * 1000}, level="DEFAULT")
-                    if langfuse_trace:
-                        langfuse_trace.update(output={"success": True, "row_count": 0})
                     return {
                         "output": "Nenhum resultado encontrado.",
                         "sql": final_sql,
@@ -688,7 +655,9 @@ async def _executar_sql_agent_logic(
                 # Keep text result for backward compatibility / text-based clients
                 result = str(rows_as_dicts[:20])  # Limit text output
 
-                logger.info(f"[SQL] Query result: {len(rows_as_dicts)} rows, structured_data generated")
+                logger.info(
+                    f"[SQL] Query result: {len(rows_as_dicts)} rows, structured_data generated"
+                )
 
                 # Store full data in Redis cache to avoid context bloat
                 # The cache ref_id allows retrieval for exports without
@@ -715,24 +684,20 @@ async def _executar_sql_agent_logic(
                             "query_preview": title_query,
                         },
                     )
-                    logger.info(f"[SQL] Full data cached: ref_id={cache_ref_id}, rows={len(rows_as_dicts)}")
+                    logger.info(
+                        f"[SQL] Full data cached: ref_id={cache_ref_id}, rows={len(rows_as_dicts)}"
+                    )
                 except Exception as cache_err:
                     logger.warning(f"[SQL] Cache store failed (non-fatal): {cache_err}")
                     cache_ref_id = None
 
-                # End execution span on success
                 exec_duration = (time.perf_counter() - exec_start) * 1000
-                if exec_span:
-                    exec_span.end(
-                        output={"row_count": len(rows_as_dicts), "duration_ms": exec_duration},
-                        level="DEFAULT",
-                    )
+                logger.debug(f"[SQL] Query executed in {exec_duration:.1f}ms")
 
-                # Update trace with final output
-                if langfuse_trace:
-                    langfuse_trace.update(
-                        output={"success": True, "row_count": len(rows_as_dicts), "cache_ref_id": cache_ref_id},
-                    )
+                # Flush Langfuse traces before returning
+                from vizu_observability_bootstrap.langfuse import flush_langfuse_async
+
+                await flush_langfuse_async()
 
                 # Return dict - MCP handles JSON serialization
                 # Use model_dump(mode='json') to ensure all values are JSON-serializable
@@ -746,10 +711,12 @@ async def _executar_sql_agent_logic(
                 }
         except Exception as exec_error:
             logger.error(f"[SQL] Execution error: {exec_error}")
-            if exec_span:
-                exec_span.end(output={"error": str(exec_error)}, level="ERROR")
-            if langfuse_trace:
-                langfuse_trace.update(output={"success": False, "error": str(exec_error)})
+
+            # Flush Langfuse traces before returning error
+            from vizu_observability_bootstrap.langfuse import flush_langfuse_async
+
+            await flush_langfuse_async()
+
             return {
                 "output": f"SQL execution error: {str(exec_error)}",
                 "sql": final_sql,
@@ -759,9 +726,219 @@ async def _executar_sql_agent_logic(
 
     except Exception as e:
         logger.exception(f"[SQL] Erro ao executar para {real_client_id}: {e}")
-        if langfuse_trace:
-            langfuse_trace.update(output={"success": False, "error": str(e)})
+
+        # Flush Langfuse traces before raising error
+        from vizu_observability_bootstrap.langfuse import flush_langfuse_async
+
+        await flush_langfuse_async()
+
         raise ToolError(f"Erro ao processar a consulta SQL: {e}")
+
+
+# =============================================================================
+# EXECUTE_SQL - Lightweight tool for pre-generated SQL
+# =============================================================================
+
+
+async def _execute_sql_logic(
+    sql: str,
+    ctx: Context,
+    cliente_id: str | None = None,
+) -> dict:
+    """
+    Execute pre-generated SQL query against the database.
+
+    This is a LIGHTWEIGHT tool that expects valid SQL from the supervisor LLM.
+    It performs:
+    1. Validation (SELECT only, analytics_v2 schema, no client_id)
+    2. Security injection (client_id filter via subquery substitution)
+    3. Execution with RLS context
+    4. Result formatting with structured_data
+
+    NO LLM CALL - This tool is pure validation + execution.
+
+    Args:
+        sql: Pre-generated SQL query from supervisor
+        ctx: MCP context
+        cliente_id: Client ID (injected by middleware)
+
+    Returns:
+        Dict with SQL query results and structured_data
+    """
+    # 1. Get context service
+    try:
+        ctx_service = get_context_service()
+    except Exception as e:
+        logger.exception(f"[execute_sql] Context service error: {e}")
+        raise ToolError(f"Internal error: {type(e).__name__}: {e}")
+
+    # 2. Resolve client context
+    vizu_context: VizuClientContext | None = None
+
+    try:
+        if cliente_id:
+            logger.info(f"[execute_sql] Using injected cliente_id: {cliente_id}")
+            try:
+                uuid_obj = UUID(cliente_id)
+            except ValueError:
+                raise ToolError(f"Invalid client ID: {cliente_id}")
+
+            vizu_context = await ctx_service.get_client_context_by_id(uuid_obj)
+
+            if not vizu_context:
+                raise ToolError(f"Context not found for ID: {cliente_id}")
+        else:
+            # Fallback to FastMCP access token
+            access_token: AccessToken | None = get_access_token()
+            vizu_context = await load_context_from_token(ctx_service, access_token)
+
+    except ToolError:
+        raise
+    except Exception as e:
+        logger.exception(f"[execute_sql] Unexpected context error: {e}")
+        raise ToolError("Internal error loading client context.")
+
+    real_client_id = vizu_context.id
+    logger.info(f"[execute_sql] Executing for client {real_client_id}")
+
+    # 3. Tool access validation
+    if not is_tool_enabled_for_client("execute_sql", vizu_context):
+        # Fallback: check if executar_sql_agent is enabled (same tier)
+        if not is_tool_enabled_for_client("executar_sql_agent", vizu_context):
+            logger.warning(f"[execute_sql] Tool disabled for {real_client_id}")
+            raise ToolError("SQL tools are not enabled for this client.")
+
+    # 4. SQL Validation (NO LLM - just validation)
+    sql_clean = sql.strip()
+
+    # Remove markdown code blocks if present
+    sql_clean = _strip_markdown_code_block(sql_clean)
+    sql_clean = sql_clean.strip().rstrip(";") + ";"
+
+    sql_upper = sql_clean.upper()
+
+    # Must be SELECT or WITH (CTE)
+    if not (sql_upper.startswith("SELECT") or sql_upper.startswith("WITH")):
+        logger.error(f"[execute_sql] Invalid SQL (must start with SELECT/WITH): {sql_clean[:100]}")
+        return {
+            "output": "Error: Only SELECT queries are allowed.",
+            "sql": sql_clean,
+            "success": False,
+        }
+
+    # Forbidden keywords
+    forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "TRUNCATE"]
+    for word in forbidden:
+        if word in sql_upper:
+            logger.error(f"[execute_sql] Forbidden keyword '{word}' in SQL")
+            return {
+                "output": f"Error: {word} queries are not allowed.",
+                "sql": sql_clean,
+                "success": False,
+            }
+
+    # Production schema validation
+    is_valid, error_msg = _validate_sql_for_production_schema(sql_clean)
+    if not is_valid:
+        logger.warning(f"[execute_sql] Schema validation failed: {error_msg}")
+        return {
+            "output": f"Error: {error_msg}",
+            "sql": sql_clean,
+            "success": False,
+        }
+
+    # 5. Security: Inject client_id filter
+    client_id_str = str(real_client_id)
+    final_sql = _inject_client_id_filter(sql_clean, client_id_str)
+    logger.info(f"[execute_sql] Final SQL (with client_id injected): {final_sql[:200]}...")
+
+    # 6. Execute query
+    try:
+        from sqlalchemy import text as sa_text
+
+        from vizu_sql_factory.factory import get_shared_engine
+
+        from .structured_data_formatter import format_sql_result
+
+        engine = get_shared_engine()
+        exec_start = time.perf_counter()
+
+        with engine.connect() as conn:
+            # Set RLS context
+            conn.execute(
+                sa_text("SELECT set_config('app.current_cliente_id', :cliente_id, true)"),
+                {"cliente_id": client_id_str},
+            )
+
+            # Execute query
+            cursor = conn.execute(sa_text(final_sql))
+            results = cursor.fetchall()
+
+            if not results:
+                return {
+                    "output": "No results found.",
+                    "sql": final_sql,
+                    "success": True,
+                    "structured_data": None,
+                    "row_count": 0,
+                }
+
+            columns = list(cursor.keys())
+            rows_as_dicts = [dict(zip(columns, row)) for row in results]
+
+            # Create structured data for frontend
+            title_query = sql[:60] + "..." if len(sql) > 60 else sql
+            structured_data = format_sql_result(
+                columns=columns,
+                rows=rows_as_dicts,
+                sql_query=final_sql,
+                title=f"Result: {title_query}",
+            )
+
+            exec_duration = (time.perf_counter() - exec_start) * 1000
+            logger.info(f"[execute_sql] Query executed in {exec_duration:.1f}ms, {len(rows_as_dicts)} rows")
+
+            # Cache full result for exports
+            try:
+                from vizu_context_service.tool_cache import get_tool_cache
+
+                cache = get_tool_cache()
+                session_id = ctx.request_context.lifespan_context.get("session_id", "default")
+
+                cache_ref_id = cache.store(
+                    session_id=session_id,
+                    tool_name="execute_sql",
+                    args={"sql": sql[:500], "cliente_id": client_id_str},
+                    result={
+                        "all_rows": rows_as_dicts,
+                        "columns": columns,
+                        "sql": final_sql,
+                        "row_count": len(rows_as_dicts),
+                    },
+                    metadata={"cliente_id": client_id_str},
+                )
+                logger.info(f"[execute_sql] Cached: ref_id={cache_ref_id}, rows={len(rows_as_dicts)}")
+            except Exception as cache_err:
+                logger.warning(f"[execute_sql] Cache failed (non-fatal): {cache_err}")
+                cache_ref_id = None
+
+            return {
+                "output": f"{len(rows_as_dicts)} records found",
+                "sql": final_sql,
+                "success": True,
+                "structured_data": structured_data.model_dump(mode="json"),
+                "row_count": len(rows_as_dicts),
+                "cache_ref_id": cache_ref_id,
+            }
+
+    except Exception as exec_error:
+        logger.error(f"[execute_sql] Execution error: {exec_error}")
+        return {
+            "output": f"SQL execution error: {str(exec_error)}",
+            "sql": final_sql,
+            "success": False,
+            "structured_data": None,
+        }
 
 
 # =============================================================================
@@ -790,5 +967,22 @@ def register_tools(mcp: FastMCP) -> list[str]:
         ),
     )(mcp_inject_cliente_id(get_context_service)(_executar_sql_agent_logic))
 
-    logger.info("[SQL Module] Tool registered: executar_sql_agent")
-    return ["executar_sql_agent"]
+    # Register execute_sql - lightweight tool for pre-generated SQL
+    # Supervisor generates SQL directly, this tool only validates + executes
+    mcp.tool(
+        name="execute_sql",
+        description=(
+            "Execute a pre-generated SQL query against the analytics database. "
+            "\n\n"
+            "⚠️ IMPORTANT: Pass a valid PostgreSQL SELECT query. "
+            "Must use analytics_v2 schema tables (fact_sales, dim_customer, dim_supplier, dim_product). "
+            "Do NOT include client_id filters - they are injected automatically for security."
+            "\n\n"
+            "PARAMETER 'sql': The SQL query to execute (e.g., 'SELECT s.name, SUM(f.valor_total) as receita FROM analytics_v2.fact_sales f JOIN analytics_v2.dim_supplier s USING (supplier_id) GROUP BY s.name ORDER BY receita DESC LIMIT 10')."
+            "\n\n"
+            "USE THIS when you have generated the SQL yourself based on the schema in your system prompt."
+        ),
+    )(mcp_inject_cliente_id(get_context_service)(_execute_sql_logic))
+
+    logger.info("[SQL Module] Tools registered: executar_sql_agent, execute_sql")
+    return ["executar_sql_agent", "execute_sql"]

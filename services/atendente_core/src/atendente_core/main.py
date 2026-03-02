@@ -23,12 +23,21 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
     - Idle transactions holding locks
     - Frontend disconnections leaving transactions open
     """
-    async def dispatch(self, request: Request, call_next):
-        # Set timeouts at session level for this request
-        try:
-            from sqlalchemy import text
 
-            from vizu_db_connector.database import SessionLocal
+    async def dispatch(self, request: Request, call_next):
+        # Skip for OPTIONS preflight requests (no DB needed)
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
+        # Skip for health checks
+        if request.url.path == "/health":
+            return await call_next(request)
+
+        # Try to set session timeouts, but don't fail the request if DB is unavailable
+        try:
+            from sqlalchemy import text  # noqa: I001
+            from vizu_db_connector.database import SessionLocal  # noqa: I001
+
             session = SessionLocal()
             try:
                 session.execute(text("SET statement_timeout = '30s'"))
@@ -36,7 +45,7 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
             finally:
                 session.close()
         except Exception as e:
-            logger.warning(f"Could not set session timeouts: {e}")
+            logger.warning(f"Could not set session timeouts (non-fatal): {e}")
 
         return await call_next(request)
 
@@ -54,6 +63,7 @@ async def check_database() -> bool:
     """Check database connectivity via Supabase REST API."""
     try:
         from vizu_supabase_client import get_supabase_client
+
         client = get_supabase_client()
         # Simple health check: query clientes_vizu with limit 1
         response = client.table("clientes_vizu").select("client_id").limit(1).execute()
@@ -69,7 +79,21 @@ async def lifespan(app: FastAPI):
 
     # --- STARTUP ---
     logger.info("Starting Vizu Atendente Core...")
-    logger.debug("MCP connection deferred (lazy initialization)")
+
+    # Pre-warm MCP connection in background (non-blocking to avoid Cloud Run startup timeout)
+    # First request may have latency if MCP isn't ready yet, but server starts immediately
+    import asyncio
+
+    async def _prewarm_mcp():
+        try:
+            from atendente_core.services.mcp_client import ensure_mcp_connected
+
+            await ensure_mcp_connected()
+            logger.info("MCP pre-warmed in background")
+        except Exception as e:
+            logger.warning(f"MCP pre-warm failed (will retry on first request): {e}")
+
+    asyncio.create_task(_prewarm_mcp())
 
     yield
 
@@ -79,6 +103,7 @@ async def lifespan(app: FastAPI):
     # Flush observability data
     try:
         from vizu_observability_bootstrap import shutdown_observability
+
         await shutdown_observability(timeout=5.0)
     except Exception as e:
         logger.warning(f"Observability shutdown error: {e}")
@@ -120,6 +145,13 @@ else:
         "http://127.0.0.1:8080",
     ]
 
+# --- Middleware Stack ---
+# IMPORTANT: Middleware is processed in REVERSE order of addition.
+# Add CORS LAST so it's the OUTERMOST layer (wraps all responses including errors)
+app.add_middleware(DatabaseTimeoutMiddleware)
+logger.debug("Database timeout middleware configured (30s query, 5min idle)")
+
+# CORS MUST be added LAST to be outermost (process first on request, last on response)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -128,11 +160,7 @@ app.add_middleware(
     allow_headers=["*"],
     max_age=3600,
 )
-logger.info(f"CORS configurado para: {origins}")
-
-# Add database timeout middleware
-app.add_middleware(DatabaseTimeoutMiddleware)
-logger.debug("Database timeout middleware configured (30s query, 5min idle)")
+logger.info(f"CORS configured (outermost middleware): {origins}")
 
 # Configure observability (OTLP + Langfuse)
 try:
@@ -147,7 +175,7 @@ try:
         checks={
             "database": check_database,
             "mcp_tools": check_mcp_connection,
-        }
+        },
     )
     app.include_router(health_router)
     logger.debug("Health router configured with database and MCP checks")

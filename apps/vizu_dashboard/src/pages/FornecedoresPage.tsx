@@ -7,7 +7,8 @@ import { ListCard } from '../components/ListCard';
 import { FornecedorDetailsModal } from '../components/FornecedorDetailsModal';
 import { useFornecedores } from '../hooks/useListData';
 import { getFornecedor } from '../services/analyticsService';
-import type { FornecedorDetailResponse } from '../services/analyticsService';
+import type { FornecedorDetailResponse, RankingItem } from '../services/analyticsService';
+import type { ChartDataPoint, MapData } from '../types';
 import { useUserProfile } from '../hooks/useUserProfile';
 import { useGeoClusters } from '../hooks/useGeoClusters';
 import React, { useState, useMemo, useCallback } from 'react';
@@ -46,19 +47,20 @@ function FornecedoresPage() {
       const details = await getFornecedor(clickedItem.id);
       setSelectedItem(details);
       onOpen();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erro ao carregar detalhes do fornecedor:", err);
-      setLocalError(err.message || 'Erro ao carregar detalhes do fornecedor.');
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar detalhes do fornecedor.';
+      setLocalError(errorMessage);
     }
   };
 
   // Memoized calculations
   const { newSuppliersCount } = useMemo(() => {
     if (!overviewData) return { newSuppliersCount: 0 };
-    
+
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const newCount = (overviewData.ranking_por_receita || []).filter((item: any) => {
+    const newCount = (overviewData.ranking_por_receita || []).filter((item: RankingItem) => {
       const firstSaleDate = new Date(item.primeira_venda);
       return firstSaleDate >= thirtyDaysAgo;
     }).length;
@@ -70,21 +72,21 @@ function FornecedoresPage() {
   const performanceSlides: MetricSlide[] = useMemo(() => {
     if (!overviewData) return [];
 
-    const formatCurrency = (value: number) => 
+    const formatCurrency = (value: number) =>
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-    
-    const formatNumber = (value: number) => 
+
+    const formatNumber = (value: number) =>
       new Intl.NumberFormat('pt-BR').format(value);
 
     // Calculate totals
     const totalReceita = (overviewData.ranking_por_receita || []).reduce(
-      (sum, item: any) => sum + (item.receita_total || 0), 0
+      (sum, item: RankingItem) => sum + (item.receita_total || 0), 0
     );
     const totalQuantidade = (overviewData.ranking_por_receita || []).reduce(
-      (sum, item: any) => sum + (item.quantidade_total || 0), 0
+      (sum, item: RankingItem) => sum + (item.quantidade_total || 0), 0
     );
     const totalPedidos = (overviewData.ranking_por_receita || []).reduce(
-      (sum, item: any) => sum + (item.total_pedidos || item.num_pedidos_unicos || 0), 0
+      (sum, item: RankingItem) => sum + (item.num_pedidos_unicos || 0), 0
     );
     // Ticket Médio = receita_total / total_pedidos (valor médio por pedido)
     const avgTicket = totalPedidos > 0 ? totalReceita / totalPedidos : 0;
@@ -93,9 +95,9 @@ function FornecedoresPage() {
       {
         id: 'receita',
         title: 'Receita no Tempo',
-        data: (overviewData.chart_receita_no_tempo || []).map((d: any) => ({
-          name: d.name,
-          value: d.total ?? d.value ?? 0
+        data: (overviewData.chart_receita_no_tempo || []).map(d => ({
+          name: d.name || '',
+          value: (d.total ?? d.value ?? 0) as number
         })),
         dataKey: 'value',
         lineColor: '#82ca9d',
@@ -106,9 +108,9 @@ function FornecedoresPage() {
       {
         id: 'ticket_medio',
         title: 'Ticket Médio no Tempo',
-        data: (overviewData.chart_ticketmedio_no_tempo || []).map((d: any) => ({
-          name: d.name,
-          value: d.total ?? d.value ?? 0
+        data: (overviewData.chart_ticketmedio_no_tempo || []).map(d => ({
+          name: d.name || '',
+          value: (d.total ?? d.value ?? 0) as number
         })),
         dataKey: 'value',
         lineColor: '#ffc658',
@@ -119,9 +121,9 @@ function FornecedoresPage() {
       {
         id: 'quantidade',
         title: 'Quantidade no Tempo',
-        data: (overviewData.chart_quantidade_no_tempo || []).map((d: any) => ({
+        data: (overviewData.chart_quantidade_no_tempo || []).map((d: ChartDataPoint) => ({
           name: d.name,
-          value: d.total ?? d.value ?? 0
+          value: (d.total ?? d.value ?? 0) as number
         })),
         dataKey: 'value',
         lineColor: '#8884d8',
@@ -132,9 +134,9 @@ function FornecedoresPage() {
       {
         id: 'fornecedores',
         title: 'Fornecedores Únicos no Tempo',
-        data: (overviewData.chart_fornecedores_no_tempo || []).map((d: any) => ({
+        data: (overviewData.chart_fornecedores_no_tempo || []).map((d: ChartDataPoint) => ({
           name: d.name,
-          value: d.total ?? d.value ?? 0
+          value: (d.total ?? d.value ?? 0) as number
         })),
         dataKey: 'value',
         lineColor: '#ff7300',
@@ -164,16 +166,16 @@ function FornecedoresPage() {
       }
     };
 
-    return getRankingData().map((item: any) => {
+    return getRankingData().map((item: RankingItem) => {
       let description = '';
       if (selectedMetric === 'receita') {
         description = `Receita: R$ ${(item.receita_total ?? 0).toLocaleString('pt-BR')}`;
       } else if (selectedMetric === 'quantidade') {
-        description = `Qtd Média: ${(item.qtd_media_por_pedido ?? item.qtd_media ?? 0).toLocaleString('pt-BR')}`;
+        description = `Qtd Média: ${(item.qtd_media_por_pedido ?? 0).toLocaleString('pt-BR')}`;
       } else if (selectedMetric === 'ticket_medio') {
-        description = `Ticket Médio: R$ ${(item.ticket_medio ?? item.avg_order_value ?? 0).toLocaleString('pt-BR')}`;
+        description = `Ticket Médio: R$ ${(item.ticket_medio ?? 0).toLocaleString('pt-BR')}`;
       } else if (selectedMetric === 'fornecedores') {
-        description = `Frequência: ${(item.frequencia_pedidos_mes ?? item.frequencia ?? 0).toFixed(1)} vendas/mês`;
+        description = `Frequência: ${(item.frequencia_pedidos_mes ?? 0).toFixed(1)} vendas/mês`;
       }
       return {
         id: item.nome,
@@ -208,19 +210,19 @@ function FornecedoresPage() {
     const totalFornecedores = fornecedores.length || 1;
 
     // Cálculos dos tiers
-    const tierA = fornecedores.filter((f: any) => f.cluster_tier === 'A');
+    const tierA = fornecedores.filter((f: RankingItem) => f.cluster_tier === 'A');
     const tierACount = tierA.length;
     const tierAPercent = ((tierACount / totalFornecedores) * 100).toFixed(1);
-    const receitaTierA = tierA.reduce((sum: number, f: any) => sum + (f.receita_total || 0), 0);
-    const receitaTotal = fornecedores.reduce((sum: number, f: any) => sum + (f.receita_total || 0), 0);
+    const receitaTierA = tierA.reduce((sum: number, f: RankingItem) => sum + (f.receita_total || 0), 0);
+    const receitaTotal = fornecedores.reduce((sum: number, f: RankingItem) => sum + (f.receita_total || 0), 0);
     const tierAReceitaPercent = receitaTotal > 0 ? ((receitaTierA / receitaTotal) * 100).toFixed(1) : '0';
 
     // Frequência média
-    const freqMedia = fornecedores.reduce((sum: number, f: any) => sum + (f.frequencia_pedidos_mes || 0), 0) / totalFornecedores;
+    const freqMedia = fornecedores.reduce((sum: number, f: RankingItem) => sum + (f.frequencia_pedidos_mes || 0), 0) / totalFornecedores;
 
     // Ticket médio = receita_total / total_pedidos
-    const receitaTotalGeral = fornecedores.reduce((sum: number, f: any) => sum + (f.receita_total || f.total_revenue || 0), 0);
-    const totalPedidosGeral = fornecedores.reduce((sum: number, f: any) => sum + (f.total_pedidos || f.total_orders || 0), 0);
+    const receitaTotalGeral = fornecedores.reduce((sum: number, f: RankingItem) => sum + (f.receita_total || 0), 0);
+    const totalPedidosGeral = fornecedores.reduce((sum: number, f: RankingItem) => sum + (f.num_pedidos_unicos || 0), 0);
     const ticketMedio = totalPedidosGeral > 0 ? receitaTotalGeral / totalPedidosGeral : 0;
     const ticketFormatado = new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -230,7 +232,7 @@ function FornecedoresPage() {
 
     // Top fornecedor
     const topFornecedor = fornecedores[0];
-    const topNome = topFornecedor?.nome 
+    const topNome = topFornecedor?.nome
       ? (topFornecedor.nome.length > 18 ? topFornecedor.nome.substring(0, 18) + '...' : topFornecedor.nome)
       : 'N/A';
 
@@ -261,10 +263,10 @@ function FornecedoresPage() {
     const fornecedores = overviewData.ranking_por_receita || [];
     const totalFornecedores = fornecedores.length || 1;
 
-    const mediaReceitaPorFornecedor = fornecedores.reduce((sum, f: any) => sum + (f.receita_total || 0), 0) / totalFornecedores;
-    const mediaFrequenciaPorFornecedor = fornecedores.reduce((sum, f: any) => sum + (f.frequencia_pedidos_mes || 0), 0) / totalFornecedores;
-    const mediaTicketMedioPorFornecedor = fornecedores.reduce((sum, f: any) => sum + (f.ticket_medio || 0), 0) / totalFornecedores;
-    const mediaQtdPorFornecedor = fornecedores.reduce((sum, f: any) => sum + (f.qtd_media_por_pedido || 0), 0) / totalFornecedores;
+    const mediaReceitaPorFornecedor = fornecedores.reduce((sum, f: RankingItem) => sum + (f.receita_total || 0), 0) / totalFornecedores;
+    const mediaFrequenciaPorFornecedor = fornecedores.reduce((sum, f: RankingItem) => sum + (f.frequencia_pedidos_mes || 0), 0) / totalFornecedores;
+    const mediaTicketMedioPorFornecedor = fornecedores.reduce((sum, f: RankingItem) => sum + (f.ticket_medio || 0), 0) / totalFornecedores;
+    const mediaQtdPorFornecedor = fornecedores.reduce((sum, f: RankingItem) => sum + (f.qtd_media_por_pedido || 0), 0) / totalFornecedores;
 
     return [
       {
@@ -415,7 +417,7 @@ function FornecedoresPage() {
               zoom: 4.5,
               clusters: geoClusters?.clusters || [],
               maxCount: geoClusters?.max_count || 1
-            }}
+            } as MapData}
             mainText="Principais regiões de atuação dos fornecedores."
             modalLeftBgColor="#D4F1F4"
             modalRightBgColor="#B2E7FF"

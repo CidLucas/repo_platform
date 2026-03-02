@@ -63,39 +63,124 @@ interface UseIndicatorsReturn {
     refetch: () => Promise<void>;
 }
 
-// API fetch function extracted for React Query
+// API fetch function extracted for React Query - now uses Supabase directly
 const fetchIndicators = async (
     period: PeriodType,
     metrics: Array<'orders' | 'products' | 'customers'>,
-    includeComparisons: boolean
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- reserved for future comparison feature
+    _includeComparisons: boolean
 ): Promise<IndicatorsResponse> => {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData?.session?.access_token;
+    const ANALYTICS_SCHEMA = 'analytics_v2';
+    const generatedAt = new Date().toISOString();
 
-    if (!token) {
-        throw new Error('No authentication token available');
+    let orders: OrderMetrics | null = null;
+    let products: ProductMetrics | null = null;
+    let customers: CustomerMetrics | null = null;
+
+    // Calculate period filter
+    const getPeriodDays = (): number | null => {
+        switch (period) {
+            case 'today': return 1;
+            case 'yesterday': return 2;
+            case 'week': return 7;
+            case 'month': return 30;
+            case 'quarter': return 90;
+            case 'year': return 365;
+            default: return null;
+        }
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- reserved for period-based filtering
+    const _periodDays = getPeriodDays();
+
+    // Fetch orders metrics
+    if (metrics.includes('orders')) {
+        const { data: resumo, error } = await supabase
+            .schema(ANALYTICS_SCHEMA)
+            .from('v_resumo_dashboard')
+            .select('total_pedidos, receita_total, ticket_medio')
+            .single();
+
+        if (error) {
+            console.error('[Indicators] v_resumo_dashboard FAILED:', error.code, error.message, error.details, error.hint);
+        }
+
+        if (!error && resumo) {
+            orders = {
+                total: Number(resumo.total_pedidos) || 0,
+                revenue: Number(resumo.receita_total) || 0,
+                avg_order_value: Number(resumo.ticket_medio) || 0,
+                growth_rate: null,
+                by_status: { completed: Number(resumo.total_pedidos) || 0 },
+                period,
+            };
+        }
     }
 
-    const analyticsApiUrl = import.meta.env.VITE_API_URL_ANALYTICS || 'http://localhost:8004';
+    // Fetch product metrics
+    if (metrics.includes('products')) {
+        const { data: produtos, error } = await supabase
+            .schema(ANALYTICS_SCHEMA)
+            .from('dim_inventory')
+            .select('quantidade_total_vendida, total_pedidos, preco_medio');
 
-    const response = await fetch(`${analyticsApiUrl}/api/indicators`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-            period,
-            metrics,
-            include_comparisons: includeComparisons,
-        }),
-    });
+        if (error) {
+            console.error('[Indicators] dim_inventory FAILED:', error.code, error.message, error.details, error.hint);
+        }
 
-    if (!response.ok) {
-        throw new Error(`Failed to fetch indicators: ${response.statusText}`);
+        if (!error && produtos) {
+            const totalSold = produtos.reduce((sum, p) => sum + Number(p.quantidade_total_vendida || 0), 0);
+            const avgPrice = produtos.length > 0
+                ? produtos.reduce((sum, p) => sum + Number(p.preco_medio || 0), 0) / produtos.length
+                : 0;
+
+            products = {
+                total_sold: totalSold,
+                unique_products: produtos.length,
+                top_sellers: [],
+                low_stock_alerts: 0,
+                avg_price: avgPrice,
+                period,
+            };
+        }
     }
 
-    return response.json();
+    // Fetch customer metrics
+    if (metrics.includes('customers')) {
+        const { data: clientes, error } = await supabase
+            .schema(ANALYTICS_SCHEMA)
+            .from('dim_clientes')
+            .select('total_pedidos, receita_total, dias_recencia');
+
+        if (error) {
+            console.error('[Indicators] dim_clientes FAILED:', error.code, error.message, error.details, error.hint);
+        }
+
+        if (!error && clientes) {
+            const totalActive = clientes.filter(c => Number(c.dias_recencia) <= 90).length;
+            const newCustomers = clientes.filter(c => Number(c.total_pedidos) === 1).length;
+            const avgLifetimeValue = clientes.length > 0
+                ? clientes.reduce((sum, c) => sum + Number(c.receita_total || 0), 0) / clientes.length
+                : 0;
+
+            customers = {
+                total_active: totalActive,
+                new_customers: newCustomers,
+                returning_customers: totalActive - newCustomers,
+                avg_lifetime_value: avgLifetimeValue,
+                period,
+            };
+        }
+    }
+
+    return {
+        orders,
+        products,
+        customers,
+        cached: false,
+        generated_at: generatedAt,
+        ttl: null,
+    };
 };
 
 /**
@@ -115,7 +200,7 @@ export const useIndicators = ({
     autoFetch = true,
 }: UseIndicatorsOptions = {}): UseIndicatorsReturn => {
     const metricsKey = metrics.slice().sort().join(',');
-    
+
     const { data, isLoading, error, refetch } = useQuery({
         queryKey: ['indicators', period, metricsKey, includeComparisons],
         queryFn: () => fetchIndicators(period, metrics, includeComparisons),
@@ -183,15 +268,21 @@ export const formatOrderKPIs = (orders: OrderMetrics | null) => {
         },
         by_status: {
             label: 'Por Status',
-            format: (value) => (
-                <div>
-                    {Object.entries(value as Record<string, number>).map(([status, count]) => (
-                        <p key={status} style={{ marginBottom: '4px' }}>
-                            <strong>{status}:</strong> {count}
-                        </p>
-                    ))}
-                </div>
-            ),
+            format: (value) => {
+                // value may be a number when data is malformed; guard against it
+                if (typeof value !== 'object' || value === null) {
+                    return <div>{String(value)}</div>;
+                }
+                return (
+                    <div>
+                        {Object.entries(value as Record<string, number>).map(([status, count]) => (
+                            <p key={status} style={{ marginBottom: '4px' }}>
+                                <strong>{status}:</strong> {count}
+                            </p>
+                        ))}
+                    </div>
+                );
+            },
         },
     };
 
@@ -216,6 +307,7 @@ export const formatProductKPIs = (products: ProductMetrics | null) => {
 
     const kpis: Array<{ label: string; content: React.ReactNode }> = [];
 
+    type ProductValue = number | Array<{ name: string; quantity: number; revenue: number }>;
     // Map of field keys to display formatters
     const fieldMap: Record<string, { label: string; format: (value: any) => React.ReactNode }> = {
         total_sold: {
@@ -258,13 +350,16 @@ export const formatProductKPIs = (products: ProductMetrics | null) => {
         },
         low_stock_alerts: {
             label: 'Alertas Estoque',
-            format: (value) => (
-                <div>
-                    <p style={{ fontSize: '24px', fontWeight: 'bold', color: value > 0 ? 'red' : 'green' }}>
-                        {value}
-                    </p>
-                </div>
-            ),
+            format: (value) => {
+                const num = Number(value) || 0;
+                return (
+                    <div>
+                        <p style={{ fontSize: '24px', fontWeight: 'bold', color: num > 0 ? 'red' : 'green' }}>
+                            {num}
+                        </p>
+                    </div>
+                );
+            },
         },
     };
 

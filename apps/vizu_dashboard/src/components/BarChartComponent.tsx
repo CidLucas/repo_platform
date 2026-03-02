@@ -7,8 +7,8 @@ interface BarChartComponentProps {
   dataKey?: string;
   height?: number | string;
   axisColor?: string;
-  showLabels?: boolean;
   colors?: string[]; // Array of colors for each bar
+  valueLabel?: string; // Custom label for tooltip (e.g., "Produtos", "Clientes", "Fornecedores")
 }
 
 // Default tier colors
@@ -19,8 +19,8 @@ export const BarChartComponent: React.FC<BarChartComponentProps> = ({
   dataKey = 'value',
   height = 200,
   axisColor = '#333',
-  showLabels = true,
   colors = DEFAULT_COLORS,
+  valueLabel = 'Valor',
 }) => {
   // Validate data
   const validData = data?.filter(item => item && item.name !== undefined && item[dataKey as keyof typeof item] !== undefined) || [];
@@ -69,7 +69,7 @@ export const BarChartComponent: React.FC<BarChartComponentProps> = ({
             }}
             itemStyle={{ color: 'white' }}
             labelStyle={{ color: 'white', fontWeight: 'bold', marginBottom: '4px' }}
-            formatter={(value: number) => [formatTooltipValue(value), 'Fornecedores']}
+            formatter={(value: number) => [formatTooltipValue(value), valueLabel]}
           />
           <Bar dataKey={dataKey} radius={[4, 4, 0, 0]}>
             {validData.map((entry, index) => (

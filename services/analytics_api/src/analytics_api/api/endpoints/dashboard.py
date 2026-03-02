@@ -63,7 +63,7 @@ async def get_home_dashboard(
     Reads directly from analytics_v2 star schema - NO silver data computation.
     OPTIMIZED: 
     - Cached in Redis for 5 minutes per client_id
-    - DB queries parallelized using asyncio.gather()
+    - Graceful degradation when tables don't exist (returns empty data)
     """
     import asyncio
     import logging
@@ -78,29 +78,64 @@ async def get_home_dashboard(
     
     logger.info(f"📊 Cache MISS for dashboard/home (client={client_id}), computing...")
 
-    # --- PARALLELIZE ALL DB QUERIES ---
-    # Run all independent queries concurrently using asyncio.to_thread
-    (
-        summary,
-        customers,
-        suppliers,
-        products,
-        time_series_receita,
-        time_series_pedidos,
-        crescimento_receita,
-        crescimento_clientes,
-        crescimento_produtos,
-    ) = await asyncio.gather(
-        asyncio.to_thread(repo.get_dashboard_summary, client_id),
-        asyncio.to_thread(repo.get_dim_customers, client_id),
-        asyncio.to_thread(repo.get_dim_suppliers, client_id),
-        asyncio.to_thread(repo.get_dim_products, client_id),
-        asyncio.to_thread(repo.get_v2_time_series, client_id, 'receita_no_tempo'),
-        asyncio.to_thread(repo.get_v2_time_series, client_id, 'pedidos_no_tempo'),
-        asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'receita_no_tempo'),
-        asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'clientes_no_tempo'),
-        asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'produtos_no_tempo'),
-    )
+    # --- RUN DB QUERIES SEQUENTIALLY ---
+    # IMPORTANT: Cannot parallelize with asyncio.gather() because all queries 
+    # share the same SQLAlchemy session. If one query fails (e.g., table doesn't exist),
+    # the transaction is aborted and subsequent queries fail with InFailedSqlTransaction.
+    # Running sequentially allows proper error handling per query.
+    try:
+        summary = await asyncio.to_thread(repo.get_dashboard_summary, client_id)
+    except Exception as e:
+        logger.warning(f"get_dashboard_summary failed: {e}")
+        summary = {}
+    
+    try:
+        customers = await asyncio.to_thread(repo.get_dim_customers, client_id)
+    except Exception as e:
+        logger.warning(f"get_dim_customers failed: {e}")
+        customers = []
+    
+    try:
+        suppliers = await asyncio.to_thread(repo.get_dim_suppliers, client_id)
+    except Exception as e:
+        logger.warning(f"get_dim_suppliers failed: {e}")
+        suppliers = []
+    
+    try:
+        products = await asyncio.to_thread(repo.get_dim_products, client_id)
+    except Exception as e:
+        logger.warning(f"get_dim_products failed: {e}")
+        products = []
+    
+    try:
+        time_series_receita = await asyncio.to_thread(repo.get_v2_time_series, client_id, 'receita_no_tempo')
+    except Exception as e:
+        logger.warning(f"get_v2_time_series (receita) failed: {e}")
+        time_series_receita = []
+    
+    try:
+        time_series_pedidos = await asyncio.to_thread(repo.get_v2_time_series, client_id, 'pedidos_no_tempo')
+    except Exception as e:
+        logger.warning(f"get_v2_time_series (pedidos) failed: {e}")
+        time_series_pedidos = []
+    
+    try:
+        crescimento_receita = await asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'receita_no_tempo')
+    except Exception as e:
+        logger.warning(f"calculate_growth (receita) failed: {e}")
+        crescimento_receita = 0.0
+    
+    try:
+        crescimento_clientes = await asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'clientes_no_tempo')
+    except Exception as e:
+        logger.warning(f"calculate_growth (clientes) failed: {e}")
+        crescimento_clientes = 0.0
+    
+    try:
+        crescimento_produtos = await asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'produtos_no_tempo')
+    except Exception as e:
+        logger.warning(f"calculate_growth (produtos) failed: {e}")
+        crescimento_produtos = 0.0
     
     # Ensure list defaults
     customers = customers or []
@@ -216,24 +251,54 @@ async def get_products_gold(
     """
     Retorna métricas agregadas de produtos do analytics_v2 star schema.
     Reads directly from dim_product - NO silver data computation.
-    OPTIMIZED: DB queries parallelized using asyncio.gather().
+    NOTE: Queries run sequentially to avoid SQLAlchemy session conflicts.
     """
     import asyncio
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # Parallelize all DB queries
-    products, time_series, crescimento = await asyncio.gather(
-        asyncio.to_thread(repo.get_dim_products, client_id),
-        asyncio.to_thread(repo.get_v2_time_series, client_id, 'produtos_no_tempo'),
-        asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'produtos_no_tempo'),
-    )
+    # Run queries sequentially to avoid session conflicts
+    try:
+        products = await asyncio.to_thread(repo.get_dim_products, client_id)
+    except Exception as e:
+        logger.warning(f"get_dim_products failed: {e}")
+        products = []
+    
+    try:
+        time_series_produtos = await asyncio.to_thread(repo.get_v2_time_series, client_id, 'produtos_no_tempo')
+    except Exception as e:
+        logger.warning(f"get_v2_time_series (produtos) failed: {e}")
+        time_series_produtos = []
+    
+    try:
+        time_series_receita = await asyncio.to_thread(repo.get_v2_time_series, client_id, 'receita_produtos_no_tempo')
+    except Exception as e:
+        logger.warning(f"get_v2_time_series (receita_produtos) failed: {e}")
+        time_series_receita = []
+    
+    try:
+        time_series_quantidade = await asyncio.to_thread(repo.get_v2_time_series, client_id, 'quantidade_produtos_no_tempo')
+    except Exception as e:
+        logger.warning(f"get_v2_time_series (quantidade_produtos) failed: {e}")
+        time_series_quantidade = []
+    
+    try:
+        crescimento = await asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'produtos_no_tempo')
+    except Exception as e:
+        logger.warning(f"calculate_growth (produtos) failed: {e}")
+        crescimento = 0.0
+    
     products = products or []
 
-    # Build rankings
+    # Build rankings - include all required fields
     ranking_por_receita = [
         ProdutoRankingReceita(
             nome=p.get("product_name", ""),
             receita_total=p.get("total_revenue", 0),
             valor_unitario_medio=p.get("avg_price", 0),
+            quantidade_total=p.get("total_quantity_sold", 0),
+            num_pedidos=p.get("number_of_orders", 0),
+            cluster_tier=p.get("cluster_tier", ""),
         )
         for p in sorted(products, key=lambda x: x.get("total_revenue", 0), reverse=True)[:10]
     ]
@@ -242,16 +307,22 @@ async def get_products_gold(
         ProdutoRankingVolume(
             nome=p.get("product_name", ""),
             quantidade_total=p.get("total_quantity_sold", 0),
+            valor_unitario_medio=p.get("avg_price", 0),
+            receita_total=p.get("total_revenue", 0),
             num_pedidos=p.get("number_of_orders", 0),
+            cluster_tier=p.get("cluster_tier", ""),
         )
         for p in sorted(products, key=lambda x: x.get("total_quantity_sold", 0), reverse=True)[:10]
     ]
 
-    ranking_por_ticket = [
+    ranking_por_ticket_medio = [
         ProdutoRankingTicket(
             nome=p.get("product_name", ""),
             ticket_medio=p.get("avg_price", 0),
+            valor_unitario_medio=p.get("avg_price", 0),
+            quantidade_total=p.get("total_quantity_sold", 0),
             num_pedidos=p.get("number_of_orders", 0),
+            cluster_tier=p.get("cluster_tier", ""),
         )
         for p in sorted(products, key=lambda x: x.get("avg_price", 0), reverse=True)[:10]
     ]
@@ -259,16 +330,35 @@ async def get_products_gold(
     # Process time series (already fetched in parallel)
     chart_produtos_no_tempo = [
         ChartDataPoint(name=p.get('name', ''), total=p.get('total', 0))
-        for p in time_series
+        for p in time_series_produtos
+    ]
+    
+    chart_receita_no_tempo = [
+        ChartDataPoint(name=p.get('name', ''), total=p.get('total', 0))
+        for p in time_series_receita
+    ]
+    
+    chart_quantidade_no_tempo = [
+        ChartDataPoint(name=p.get('name', ''), total=p.get('total', 0))
+        for p in time_series_quantidade
     ]
 
+    # Calculate scorecards from ALL products (not just top 10)
+    scorecard_receita_total = sum(p.get("total_revenue", 0) or 0 for p in products)
+    scorecard_quantidade_total = sum(p.get("total_quantity_sold", 0) or 0 for p in products)
+    scorecard_ticket_medio = scorecard_receita_total / scorecard_quantidade_total if scorecard_quantidade_total > 0 else 0
+
     return ProdutosOverviewResponse(
-        scorecard_total_produtos=len(products),
-        scorecard_crescimento_percentual=crescimento,
+        scorecard_total_itens_unicos=len(products),
+        scorecard_receita_total=scorecard_receita_total,
+        scorecard_quantidade_total=scorecard_quantidade_total,
+        scorecard_ticket_medio=scorecard_ticket_medio,
         chart_produtos_no_tempo=chart_produtos_no_tempo,
+        chart_receita_no_tempo=chart_receita_no_tempo,
+        chart_quantidade_no_tempo=chart_quantidade_no_tempo,
         ranking_por_receita=ranking_por_receita,
         ranking_por_volume=ranking_por_volume,
-        ranking_por_ticket=ranking_por_ticket,
+        ranking_por_ticket_medio=ranking_por_ticket_medio,
     )
 
 
@@ -285,17 +375,37 @@ async def get_customers_gold(
     """
     Retorna métricas agregadas de clientes do analytics_v2 star schema.
     Reads directly from dim_customer - NO silver data computation.
-    OPTIMIZED: DB queries parallelized using asyncio.gather().
+    NOTE: Queries run sequentially to avoid SQLAlchemy session conflicts.
     """
     import asyncio
+    import logging
+    logger = logging.getLogger(__name__)
     
-    # Parallelize all DB queries
-    customers, time_series, regional, crescimento = await asyncio.gather(
-        asyncio.to_thread(repo.get_dim_customers, client_id),
-        asyncio.to_thread(repo.get_v2_time_series, client_id, 'clientes_no_tempo'),
-        asyncio.to_thread(repo.get_v2_regional, client_id, 'clientes_por_regiao'),
-        asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'clientes_no_tempo'),
-    )
+    # Run queries sequentially to avoid session conflicts
+    try:
+        customers = await asyncio.to_thread(repo.get_dim_customers, client_id)
+    except Exception as e:
+        logger.warning(f"get_dim_customers failed: {e}")
+        customers = []
+    
+    try:
+        time_series = await asyncio.to_thread(repo.get_v2_time_series, client_id, 'clientes_no_tempo')
+    except Exception as e:
+        logger.warning(f"get_v2_time_series (clientes) failed: {e}")
+        time_series = []
+    
+    try:
+        regional = await asyncio.to_thread(repo.get_v2_regional, client_id, 'clientes_por_regiao')
+    except Exception as e:
+        logger.warning(f"get_v2_regional failed: {e}")
+        regional = []
+    
+    try:
+        crescimento = await asyncio.to_thread(repo.calculate_growth_from_time_series, client_id, 'clientes_no_tempo')
+    except Exception as e:
+        logger.warning(f"calculate_growth (clientes) failed: {e}")
+        crescimento = 0.0
+    
     customers = customers or []
 
     # Build rankings

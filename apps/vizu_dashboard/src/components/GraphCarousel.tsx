@@ -15,6 +15,7 @@ interface GraphCarouselProps {
     description?: string;
     chartType?: ChartType; // 'line' (default) or 'bar'
     barColors?: string[]; // Colors for bar chart
+    valueLabel?: string; // Custom label for tooltip (e.g., "Produtos", "Clientes", "Fornecedores")
   }[];
   loading?: boolean;
   height?: number | string;
@@ -69,6 +70,7 @@ export const GraphCarousel: React.FC<GraphCarouselProps> = ({
           height={chartHeight}
           axisColor={axisColor}
           colors={currentGraph.barColors}
+          valueLabel={currentGraph.valueLabel}
         />
       );
     }

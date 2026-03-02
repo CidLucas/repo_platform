@@ -146,6 +146,7 @@ export interface ProdutoRankingReceita {
   receita_total: number;
   valor_unitario_medio: number;
   quantidade_total: number;
+  num_pedidos?: number;
   cluster_tier: string;
 }
 
@@ -155,6 +156,7 @@ export interface ProdutoRankingVolume {
   quantidade_total: number;
   valor_unitario_medio: number;
   receita_total: number;
+  num_pedidos?: number;
   cluster_tier: string;
 }
 
@@ -164,6 +166,7 @@ export interface ProdutoRankingTicket {
   ticket_medio: number;
   valor_unitario_medio: number;
   quantidade_total: number;
+  num_pedidos?: number;
   cluster_tier: string;
 }
 
@@ -264,6 +267,37 @@ export interface ClienteDetailResponse {
 // Corresponds to the Pydantic 'ProdutosOverviewResponse'
 export interface ProdutosOverviewResponse {
   scorecard_total_itens_unicos: number;
+  scorecard_receita_total?: number;  // Total revenue from ALL products
+  scorecard_quantidade_total?: number;  // Total quantity from ALL products
+  scorecard_ticket_medio?: number;  // Avg ticket (receita/quantidade)
+  scorecard_crescimento_percentual?: number;  // Growth % vs previous month
+  // Tier counts (from ALL products)
+  scorecard_tier_a_count?: number;
+  scorecard_tier_b_count?: number;
+  scorecard_tier_c_count?: number;
+  scorecard_tier_d_count?: number;
+  // Tier receita (from ALL products)
+  scorecard_tier_a_receita?: number;
+  scorecard_tier_b_receita?: number;
+  scorecard_tier_c_receita?: number;
+  scorecard_tier_d_receita?: number;
+  // Tier quantidade (from ALL products)
+  scorecard_tier_a_quantidade?: number;
+  scorecard_tier_b_quantidade?: number;
+  scorecard_tier_c_quantidade?: number;
+  scorecard_tier_d_quantidade?: number;
+  // Tier ticket médio (from ALL products)
+  scorecard_tier_a_ticket_medio?: number;
+  scorecard_tier_b_ticket_medio?: number;
+  scorecard_tier_c_ticket_medio?: number;
+  scorecard_tier_d_ticket_medio?: number;
+  // Price variation
+  scorecard_variacao_preco_percentual?: number;  // Avg unit price change vs previous month
+  // Top price variation product
+  top_variacao_produto_nome?: string | null;  // Product with highest price variation
+  top_variacao_produto_percentual?: number;  // Variation % of that product
+  top_variacao_produto_direcao?: string;  // 'up', 'down', or 'stable'
+  // Charts
   chart_produtos_no_tempo: ChartDataPoint[];
   chart_receita_no_tempo: ChartDataPoint[]; // Monthly revenue from products
   chart_quantidade_no_tempo: ChartDataPoint[]; // Monthly volume of products sold

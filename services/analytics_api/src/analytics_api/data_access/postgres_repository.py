@@ -1577,6 +1577,253 @@ class PostgresRepository:
             self.db_session.rollback()
             return []
 
+    def get_product_tier_metrics_from_sales(self, client_id: str, period_months: int = 1) -> dict:
+        """
+        Calculate tier metrics from products that actually SOLD in the period.
+        This uses fact_sales joined with dim_product to get only active products.
+
+        Args:
+            client_id: The client UUID
+            period_months: Number of months to look back (default 1 = current month only)
+
+        Returns:
+            Dict with tier counts, receita, quantidade, and ticket_medio for each tier (A, B, C, D).
+        """
+        try:
+            query = text("""
+                WITH product_sales AS (
+                    SELECT
+                        COALESCE(p.cluster_tier, 'D') as cluster_tier,
+                        COUNT(DISTINCT f.product_id) as product_count,
+                        SUM(f.valor_total) as total_receita,
+                        SUM(f.quantidade) as total_quantidade
+                    FROM analytics_v2.fact_sales f
+                    JOIN analytics_v2.dim_product p
+                        ON f.product_id = p.product_id
+                        AND f.client_id = p.client_id
+                    WHERE f.client_id = :client_id
+                      AND f.data_transacao >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL :period_interval
+                      AND f.data_transacao < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+                    GROUP BY p.cluster_tier
+                )
+                SELECT
+                    cluster_tier as tier,
+                    product_count,
+                    total_receita,
+                    total_quantidade,
+                    CASE WHEN total_quantidade > 0 THEN total_receita / total_quantidade ELSE 0 END as ticket_medio
+                FROM product_sales
+                ORDER BY tier
+            """)
+
+            period_interval = f"{period_months} months"
+            result = self.db_session.execute(query, {"client_id": client_id, "period_interval": period_interval})
+            rows = result.fetchall()
+
+            # Initialize with zeros for all tiers
+            metrics = {
+                'tier_a_count': 0, 'tier_b_count': 0, 'tier_c_count': 0, 'tier_d_count': 0,
+                'tier_a_receita': 0.0, 'tier_b_receita': 0.0, 'tier_c_receita': 0.0, 'tier_d_receita': 0.0,
+                'tier_a_quantidade': 0.0, 'tier_b_quantidade': 0.0, 'tier_c_quantidade': 0.0, 'tier_d_quantidade': 0.0,
+                'tier_a_ticket_medio': 0.0, 'tier_b_ticket_medio': 0.0, 'tier_c_ticket_medio': 0.0, 'tier_d_ticket_medio': 0.0,
+            }
+
+            for row in rows:
+                tier = (row[0] or 'D').upper()
+                tier_key = tier.lower() if tier in ['A', 'B', 'C', 'D'] else 'd'
+
+                metrics[f'tier_{tier_key}_count'] = int(row[1] or 0)
+                metrics[f'tier_{tier_key}_receita'] = float(row[2] or 0)
+                metrics[f'tier_{tier_key}_quantidade'] = float(row[3] or 0)
+                metrics[f'tier_{tier_key}_ticket_medio'] = float(row[4] or 0)
+
+            total_products = sum([metrics[f'tier_{t}_count'] for t in ['a', 'b', 'c', 'd']])
+            logger.debug(f"✓ Loaded tier metrics for {total_products} products sold in last {period_months} month(s)")
+            return metrics
+
+        except Exception as e:
+            logger.error(f"❌ Failed to get product tier metrics from sales: {e}", exc_info=True)
+            self.db_session.rollback()
+            return {
+                'tier_a_count': 0, 'tier_b_count': 0, 'tier_c_count': 0, 'tier_d_count': 0,
+                'tier_a_receita': 0.0, 'tier_b_receita': 0.0, 'tier_c_receita': 0.0, 'tier_d_receita': 0.0,
+                'tier_a_quantidade': 0.0, 'tier_b_quantidade': 0.0, 'tier_c_quantidade': 0.0, 'tier_d_quantidade': 0.0,
+                'tier_a_ticket_medio': 0.0, 'tier_b_ticket_medio': 0.0, 'tier_c_ticket_medio': 0.0, 'tier_d_ticket_medio': 0.0,
+            }
+
+    def get_price_variation(self, client_id: str) -> dict:
+        """
+        Calculate the average unit price variation between the current month and previous month.
+
+        Returns:
+            Dict with:
+            - current_price: Average unit price for current month
+            - previous_price: Average unit price for previous month
+            - variation_percent: Percentage change ((current - previous) / previous * 100)
+            - variation_direction: 'up', 'down', or 'stable'
+        """
+        try:
+            query = text("""
+                WITH monthly_prices AS (
+                    SELECT
+                        DATE_TRUNC('month', data_transacao) as month,
+                        SUM(valor_total) / NULLIF(SUM(quantidade), 0) as avg_unit_price
+                    FROM analytics_v2.fact_sales
+                    WHERE client_id = :client_id
+                      AND data_transacao >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '2 months'
+                      AND data_transacao < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+                    GROUP BY DATE_TRUNC('month', data_transacao)
+                    ORDER BY month DESC
+                    LIMIT 2
+                )
+                SELECT
+                    month,
+                    avg_unit_price
+                FROM monthly_prices
+                ORDER BY month DESC
+            """)
+
+            result = self.db_session.execute(query, {"client_id": client_id})
+            rows = result.fetchall()
+
+            # Default values
+            response = {
+                'current_price': 0.0,
+                'previous_price': 0.0,
+                'variation_percent': 0.0,
+                'variation_direction': 'stable'
+            }
+
+            if len(rows) >= 1:
+                response['current_price'] = float(rows[0][1] or 0)
+
+            if len(rows) >= 2:
+                response['previous_price'] = float(rows[1][1] or 0)
+
+                # Calculate variation
+                if response['previous_price'] > 0:
+                    variation = ((response['current_price'] - response['previous_price']) / response['previous_price']) * 100
+                    response['variation_percent'] = round(variation, 2)
+
+                    if variation > 0.5:
+                        response['variation_direction'] = 'up'
+                    elif variation < -0.5:
+                        response['variation_direction'] = 'down'
+                    else:
+                        response['variation_direction'] = 'stable'
+
+            logger.debug(f"✓ Price variation: {response['variation_percent']}% ({response['variation_direction']})")
+            return response
+
+        except Exception as e:
+            logger.error(f"❌ Failed to get price variation: {e}", exc_info=True)
+            self.db_session.rollback()
+            return {
+                'current_price': 0.0,
+                'previous_price': 0.0,
+                'variation_percent': 0.0,
+                'variation_direction': 'stable'
+            }
+
+    def get_top_price_variation_product(self, client_id: str) -> dict:
+        """
+        Find the product with the highest price variation (up or down) between the last two months with data.
+
+        Returns:
+            Dict with:
+            - product_name: Name of the product with highest variation
+            - variation_percent: Percentage change
+            - variation_direction: 'up' or 'down'
+            - current_price: Current month avg unit price
+            - previous_price: Previous month avg unit price
+        """
+        try:
+            query = text("""
+                WITH last_two_months AS (
+                    -- Find the last 2 months with actual data
+                    SELECT DISTINCT DATE_TRUNC('month', data_transacao) as month
+                    FROM analytics_v2.fact_sales
+                    WHERE client_id = :client_id
+                      AND data_transacao IS NOT NULL
+                    ORDER BY month DESC
+                    LIMIT 2
+                ),
+                monthly_product_prices AS (
+                    SELECT
+                        p.product_name,
+                        DATE_TRUNC('month', f.data_transacao) as month,
+                        SUM(f.valor_total) / NULLIF(SUM(f.quantidade), 0) as avg_unit_price,
+                        SUM(f.quantidade) as total_quantity
+                    FROM analytics_v2.fact_sales f
+                    JOIN analytics_v2.dim_product p ON f.product_id = p.product_id AND f.client_id = p.client_id
+                    WHERE f.client_id = :client_id
+                      AND DATE_TRUNC('month', f.data_transacao) IN (SELECT month FROM last_two_months)
+                    GROUP BY p.product_name, DATE_TRUNC('month', f.data_transacao)
+                    HAVING SUM(f.quantidade) > 10  -- Filter out products with minimal sales
+                ),
+                price_comparison AS (
+                    SELECT
+                        curr.product_name,
+                        curr.avg_unit_price as current_price,
+                        prev.avg_unit_price as previous_price,
+                        CASE 
+                            WHEN prev.avg_unit_price > 0 
+                            THEN ((curr.avg_unit_price - prev.avg_unit_price) / prev.avg_unit_price) * 100
+                            ELSE 0
+                        END as variation_percent
+                    FROM monthly_product_prices curr
+                    JOIN monthly_product_prices prev 
+                        ON curr.product_name = prev.product_name
+                        AND curr.month > prev.month
+                    WHERE curr.avg_unit_price IS NOT NULL 
+                      AND prev.avg_unit_price IS NOT NULL
+                      AND prev.avg_unit_price > 0
+                )
+                SELECT 
+                    product_name,
+                    current_price,
+                    previous_price,
+                    variation_percent,
+                    ABS(variation_percent) as abs_variation
+                FROM price_comparison
+                WHERE ABS(variation_percent) > 1  -- Ignore minimal variations
+                ORDER BY abs_variation DESC
+                LIMIT 1
+            """)
+
+            result = self.db_session.execute(query, {"client_id": client_id})
+            row = result.fetchone()
+
+            if row:
+                variation = float(row[3])
+                return {
+                    'product_name': row[0],
+                    'current_price': float(row[1] or 0),
+                    'previous_price': float(row[2] or 0),
+                    'variation_percent': round(variation, 1),
+                    'variation_direction': 'up' if variation > 0 else 'down'
+                }
+
+            logger.debug("⚠️ No product price variation found")
+            return {
+                'product_name': None,
+                'current_price': 0.0,
+                'previous_price': 0.0,
+                'variation_percent': 0.0,
+                'variation_direction': 'stable'
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Failed to get top price variation product: {e}", exc_info=True)
+            self.db_session.rollback()
+            return {
+                'product_name': None,
+                'current_price': 0.0,
+                'previous_price': 0.0,
+                'variation_percent': 0.0,
+                'variation_direction': 'stable'
+            }
+
     def get_fact_sales_aggregated(self, client_id: str, period: str = "all") -> list[dict]:
         """
         Read order metrics from analytics_v2.fact_sales aggregated by order_id.

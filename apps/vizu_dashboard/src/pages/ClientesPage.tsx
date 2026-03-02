@@ -105,9 +105,8 @@ function ClientesPage() {
     const clientes = overviewData.ranking_por_receita || [];
     const totalReceita = clientes.reduce((sum, c: any) => sum + (c.receita_total || c.lifetime_value || 0), 0);
     const totalPedidos = clientes.reduce((sum, c: any) => sum + (c.num_pedidos_unicos || c.total_orders || 0), 0);
-    const avgTicket = clientes.length > 0
-      ? clientes.reduce((sum, c: any) => sum + (c.ticket_medio || c.avg_order_value || 0), 0) / clientes.length
-      : 0;
+    // Ticket Médio = receita_total / total_pedidos (valor médio por pedido)
+    const avgTicket = totalPedidos > 0 ? totalReceita / totalPedidos : 0;
 
     return [
       {
@@ -238,8 +237,10 @@ function ClientesPage() {
     // Crescimento
     const crescimento = overviewData.scorecard_crescimento_percentual;
 
-    // Ticket médio
-    const ticketMedio = clientes.reduce((sum: number, c: any) => sum + (c.ticket_medio || 0), 0) / totalClientes;
+    // Ticket médio = receita_total / total_pedidos
+    const receitaTotalGeral = clientes.reduce((sum: number, c: any) => sum + (c.receita_total || 0), 0);
+    const totalPedidosGeral = clientes.reduce((sum: number, c: any) => sum + (c.num_pedidos_unicos || 0), 0);
+    const ticketMedio = totalPedidosGeral > 0 ? receitaTotalGeral / totalPedidosGeral : 0;
     const ticketFormatado = new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',

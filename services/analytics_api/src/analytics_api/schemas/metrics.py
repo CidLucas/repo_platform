@@ -73,6 +73,7 @@ class ProdutoRankingReceita(BaseModel):
     receita_total: float = Field(description="Receita total gerada pelo produto")
     valor_unitario_medio: float = Field(description="Valor unitário médio do produto")
     quantidade_total: float = Field(default=0, description="Quantidade total vendida")
+    num_pedidos: int = Field(default=0, description="Número de pedidos contendo o produto")
     cluster_tier: str = Field(default="", description="Tier de classificação do produto (A, B, C, D)")
 
 class ProdutoRankingVolume(BaseModel):
@@ -81,6 +82,7 @@ class ProdutoRankingVolume(BaseModel):
     quantidade_total: float = Field(description="Quantidade total vendida")
     valor_unitario_medio: float = Field(description="Valor unitário médio do produto")
     receita_total: float = Field(default=0, description="Receita total gerada pelo produto")
+    num_pedidos: int = Field(default=0, description="Número de pedidos contendo o produto")
     cluster_tier: str = Field(default="", description="Tier de classificação do produto (A, B, C, D)")
 
 class ProdutoRankingTicket(BaseModel):
@@ -89,6 +91,7 @@ class ProdutoRankingTicket(BaseModel):
     ticket_medio: float = Field(description="Ticket médio do produto")
     valor_unitario_medio: float = Field(description="Valor unitário médio do produto")
     quantidade_total: float = Field(default=0, description="Quantidade total vendida")
+    num_pedidos: int = Field(default=0, description="Número de pedidos contendo o produto")
     cluster_tier: str = Field(default="", description="Tier de classificação do produto (A, B, C, D)")
 
 # ---
@@ -158,6 +161,37 @@ class ClientesOverviewResponse(BaseModel):
 
 class ProdutosOverviewResponse(BaseModel):
     scorecard_total_itens_unicos: int
+    scorecard_receita_total: float = Field(default=0, description="Receita total de todos os produtos")
+    scorecard_quantidade_total: float = Field(default=0, description="Quantidade total vendida de todos os produtos")
+    scorecard_ticket_medio: float = Field(default=0, description="Ticket médio (receita/quantidade)")
+    scorecard_crescimento_percentual: float = Field(default=0, description="Crescimento % vs mês anterior")
+    # Tier counts (from ALL products)
+    scorecard_tier_a_count: int = Field(default=0, description="Quantidade de produtos Tier A")
+    scorecard_tier_b_count: int = Field(default=0, description="Quantidade de produtos Tier B")
+    scorecard_tier_c_count: int = Field(default=0, description="Quantidade de produtos Tier C")
+    scorecard_tier_d_count: int = Field(default=0, description="Quantidade de produtos Tier D")
+    # Tier receita (from ALL products)
+    scorecard_tier_a_receita: float = Field(default=0, description="Receita do Tier A")
+    scorecard_tier_b_receita: float = Field(default=0, description="Receita do Tier B")
+    scorecard_tier_c_receita: float = Field(default=0, description="Receita do Tier C")
+    scorecard_tier_d_receita: float = Field(default=0, description="Receita do Tier D")
+    # Tier quantidade (from ALL products)
+    scorecard_tier_a_quantidade: float = Field(default=0, description="Quantidade vendida Tier A")
+    scorecard_tier_b_quantidade: float = Field(default=0, description="Quantidade vendida Tier B")
+    scorecard_tier_c_quantidade: float = Field(default=0, description="Quantidade vendida Tier C")
+    scorecard_tier_d_quantidade: float = Field(default=0, description="Quantidade vendida Tier D")
+    # Tier ticket médio (from ALL products)
+    scorecard_tier_a_ticket_medio: float = Field(default=0, description="Ticket médio Tier A")
+    scorecard_tier_b_ticket_medio: float = Field(default=0, description="Ticket médio Tier B")
+    scorecard_tier_c_ticket_medio: float = Field(default=0, description="Ticket médio Tier C")
+    scorecard_tier_d_ticket_medio: float = Field(default=0, description="Ticket médio Tier D")
+    # Price variation
+    scorecard_variacao_preco_percentual: float = Field(default=0, description="Variação % do preço médio vs mês anterior")
+    # Top price variation product
+    top_variacao_produto_nome: str | None = Field(default=None, description="Nome do produto com maior variação de preço")
+    top_variacao_produto_percentual: float = Field(default=0, description="Variação % do produto com maior variação")
+    top_variacao_produto_direcao: str = Field(default="stable", description="Direção da variação: up, down, stable")
+    # Charts
     chart_produtos_no_tempo: list[ChartDataPoint]  # Time series (monthly unique products)
     chart_receita_no_tempo: list[ChartDataPoint]  # Monthly revenue from products
     chart_quantidade_no_tempo: list[ChartDataPoint]  # Monthly volume of products sold

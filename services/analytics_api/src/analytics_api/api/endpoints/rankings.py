@@ -110,8 +110,14 @@ def get_fornecedores_overview_endpoint(
         for point in quantidade_time_data
     ]
 
+    # Calculate scorecards from the LAST point of time series (most recent month)
+    # This ensures consistency between the graph and the scorecard
+    scorecard_total_fornecedores = chart_fornecedores_no_tempo[-1].total if chart_fornecedores_no_tempo else len(suppliers)
+    scorecard_receita_total = chart_receita_no_tempo[-1].total if chart_receita_no_tempo else 0
+    scorecard_quantidade_total = chart_quantidade_no_tempo[-1].total if chart_quantidade_no_tempo else 0
+
     return FornecedoresOverviewResponse(
-        scorecard_total_fornecedores=len(suppliers),
+        scorecard_total_fornecedores=scorecard_total_fornecedores,
         scorecard_crescimento_percentual=crescimento_percentual,
         chart_fornecedores_no_tempo=chart_fornecedores_no_tempo,
         chart_receita_no_tempo=chart_receita_no_tempo,
@@ -206,8 +212,14 @@ def get_clientes_overview_endpoint(
         for point in quantidade_time_data
     ]
 
+    # Calculate scorecards from the LAST point of time series (most recent month)
+    # This ensures consistency between the graph and the scorecard
+    scorecard_total_clientes = chart_clientes_no_tempo[-1].total if chart_clientes_no_tempo else len(customers)
+    scorecard_receita_total = chart_receita_no_tempo[-1].total if chart_receita_no_tempo else 0
+    scorecard_quantidade_total = chart_quantidade_no_tempo[-1].total if chart_quantidade_no_tempo else 0
+
     return ClientesOverviewResponse(
-        scorecard_total_clientes=len(customers),
+        scorecard_total_clientes=scorecard_total_clientes,
         scorecard_ticket_medio_geral=float(ticket_medio_geral),
         scorecard_frequencia_media_geral=float(freq_media_geral),
         scorecard_crescimento_percentual=crescimento_percentual,
@@ -245,6 +257,7 @@ def get_produtos_overview_endpoint(
             receita_total=p.get("total_revenue", 0),
             valor_unitario_medio=p.get("avg_price", 0),
             quantidade_total=p.get("total_quantity_sold", 0),
+            num_pedidos=p.get("number_of_orders", 0),
             cluster_tier=p.get("cluster_tier", ""),
         )
         for p in sorted(products, key=lambda x: x.get("total_revenue", 0), reverse=True)[:10]
@@ -256,6 +269,7 @@ def get_produtos_overview_endpoint(
             quantidade_total=p.get("total_quantity_sold", 0),
             valor_unitario_medio=p.get("avg_price", 0),
             receita_total=p.get("total_revenue", 0),
+            num_pedidos=p.get("number_of_orders", 0),
             cluster_tier=p.get("cluster_tier", ""),
         )
         for p in sorted(products, key=lambda x: x.get("total_quantity_sold", 0), reverse=True)[:10]
@@ -267,6 +281,7 @@ def get_produtos_overview_endpoint(
             ticket_medio=p.get("ticket_medio", p.get("avg_price", 0)),
             valor_unitario_medio=p.get("avg_price", 0),
             quantidade_total=p.get("total_quantity_sold", 0),
+            num_pedidos=p.get("number_of_orders", 0),
             cluster_tier=p.get("cluster_tier", ""),
         )
         for p in sorted(products, key=lambda x: x.get("ticket_medio", x.get("avg_price", 0)), reverse=True)[:10]
@@ -282,6 +297,9 @@ def get_produtos_overview_endpoint(
             ChartDataPoint(name=point['name'], total=point['total'], total_cumulativo=cumulative_sum)
         )
 
+    # Calculate growth percentage from time series data
+    crescimento_percentual = repo.calculate_growth_from_time_series(client_id, 'produtos_no_tempo')
+
     # NEW: Get time-series for receita and quantidade from produtos
     receita_time_data = repo.get_v2_time_series(client_id, 'receita_produtos_no_tempo')
     chart_receita_no_tempo = [
@@ -295,8 +313,81 @@ def get_produtos_overview_endpoint(
         for point in quantidade_time_data
     ]
 
+    # Calculate scorecards from the LAST point of time series (most recent month)
+    # This ensures consistency between the graph and the scorecard
+    scorecard_total_produtos = chart_produtos_no_tempo[-1].total if chart_produtos_no_tempo else len(products)
+    scorecard_receita_total = chart_receita_no_tempo[-1].total if chart_receita_no_tempo else sum(p.get("total_revenue", 0) or 0 for p in products)
+    scorecard_quantidade_total = chart_quantidade_no_tempo[-1].total if chart_quantidade_no_tempo else sum(p.get("total_quantity_sold", 0) or 0 for p in products)
+    scorecard_ticket_medio = scorecard_receita_total / scorecard_quantidade_total if scorecard_quantidade_total > 0 else 0
+
+    # Get tier metrics from products that SOLD in the period (not all registered products)
+    # This ensures tier distribution matches the scorecard_total_produtos from time series
+    tier_metrics = repo.get_product_tier_metrics_from_sales(client_id, period_months=1)
+    
+    # Tier counts (from products that actually sold)
+    scorecard_tier_a_count = tier_metrics['tier_a_count']
+    scorecard_tier_b_count = tier_metrics['tier_b_count']
+    scorecard_tier_c_count = tier_metrics['tier_c_count']
+    scorecard_tier_d_count = tier_metrics['tier_d_count']
+    
+    # Tier receita (from products that actually sold)
+    scorecard_tier_a_receita = tier_metrics['tier_a_receita']
+    scorecard_tier_b_receita = tier_metrics['tier_b_receita']
+    scorecard_tier_c_receita = tier_metrics['tier_c_receita']
+    scorecard_tier_d_receita = tier_metrics['tier_d_receita']
+    
+    # Tier quantidade (from products that actually sold)
+    scorecard_tier_a_quantidade = tier_metrics['tier_a_quantidade']
+    scorecard_tier_b_quantidade = tier_metrics['tier_b_quantidade']
+    scorecard_tier_c_quantidade = tier_metrics['tier_c_quantidade']
+    scorecard_tier_d_quantidade = tier_metrics['tier_d_quantidade']
+    
+    # Tier ticket médio (from products that actually sold)
+    scorecard_tier_a_ticket_medio = tier_metrics['tier_a_ticket_medio']
+    scorecard_tier_b_ticket_medio = tier_metrics['tier_b_ticket_medio']
+    scorecard_tier_c_ticket_medio = tier_metrics['tier_c_ticket_medio']
+    scorecard_tier_d_ticket_medio = tier_metrics['tier_d_ticket_medio']
+
+    # Get price variation (avg unit price change vs previous month)
+    price_variation_data = repo.get_price_variation(client_id)
+    scorecard_variacao_preco_percentual = price_variation_data['variation_percent']
+
+    # Get product with highest price variation
+    top_variation_data = repo.get_top_price_variation_product(client_id)
+
     return ProdutosOverviewResponse(
-        scorecard_total_itens_unicos=len(products),
+        scorecard_total_itens_unicos=scorecard_total_produtos,
+        scorecard_receita_total=scorecard_receita_total,
+        scorecard_quantidade_total=scorecard_quantidade_total,
+        scorecard_ticket_medio=scorecard_ticket_medio,
+        scorecard_crescimento_percentual=crescimento_percentual,
+        # Tier counts
+        scorecard_tier_a_count=scorecard_tier_a_count,
+        scorecard_tier_b_count=scorecard_tier_b_count,
+        scorecard_tier_c_count=scorecard_tier_c_count,
+        scorecard_tier_d_count=scorecard_tier_d_count,
+        # Tier receita
+        scorecard_tier_a_receita=scorecard_tier_a_receita,
+        scorecard_tier_b_receita=scorecard_tier_b_receita,
+        scorecard_tier_c_receita=scorecard_tier_c_receita,
+        scorecard_tier_d_receita=scorecard_tier_d_receita,
+        # Tier quantidade
+        scorecard_tier_a_quantidade=scorecard_tier_a_quantidade,
+        scorecard_tier_b_quantidade=scorecard_tier_b_quantidade,
+        scorecard_tier_c_quantidade=scorecard_tier_c_quantidade,
+        scorecard_tier_d_quantidade=scorecard_tier_d_quantidade,
+        # Tier ticket médio
+        scorecard_tier_a_ticket_medio=scorecard_tier_a_ticket_medio,
+        scorecard_tier_b_ticket_medio=scorecard_tier_b_ticket_medio,
+        scorecard_tier_c_ticket_medio=scorecard_tier_c_ticket_medio,
+        scorecard_tier_d_ticket_medio=scorecard_tier_d_ticket_medio,
+        # Price variation
+        scorecard_variacao_preco_percentual=scorecard_variacao_preco_percentual,
+        # Top price variation product
+        top_variacao_produto_nome=top_variation_data['product_name'],
+        top_variacao_produto_percentual=top_variation_data['variation_percent'],
+        top_variacao_produto_direcao=top_variation_data['variation_direction'],
+        # Charts and rankings
         chart_produtos_no_tempo=chart_produtos_no_tempo,
         chart_receita_no_tempo=chart_receita_no_tempo,
         chart_quantidade_no_tempo=chart_quantidade_no_tempo,

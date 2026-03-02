@@ -83,11 +83,11 @@ function FornecedoresPage() {
     const totalQuantidade = (overviewData.ranking_por_receita || []).reduce(
       (sum, item: any) => sum + (item.quantidade_total || 0), 0
     );
-    const avgTicket = overviewData.ranking_por_receita?.length > 0
-      ? (overviewData.ranking_por_receita || []).reduce(
-          (sum, item: any) => sum + (item.ticket_medio || 0), 0
-        ) / overviewData.ranking_por_receita.length
-      : 0;
+    const totalPedidos = (overviewData.ranking_por_receita || []).reduce(
+      (sum, item: any) => sum + (item.total_pedidos || item.num_pedidos_unicos || 0), 0
+    );
+    // Ticket Médio = receita_total / total_pedidos (valor médio por pedido)
+    const avgTicket = totalPedidos > 0 ? totalReceita / totalPedidos : 0;
 
     return [
       {
@@ -218,8 +218,10 @@ function FornecedoresPage() {
     // Frequência média
     const freqMedia = fornecedores.reduce((sum: number, f: any) => sum + (f.frequencia_pedidos_mes || 0), 0) / totalFornecedores;
 
-    // Ticket médio
-    const ticketMedio = fornecedores.reduce((sum: number, f: any) => sum + (f.ticket_medio || 0), 0) / totalFornecedores;
+    // Ticket médio = receita_total / total_pedidos
+    const receitaTotalGeral = fornecedores.reduce((sum: number, f: any) => sum + (f.receita_total || f.total_revenue || 0), 0);
+    const totalPedidosGeral = fornecedores.reduce((sum: number, f: any) => sum + (f.total_pedidos || f.total_orders || 0), 0);
+    const ticketMedio = totalPedidosGeral > 0 ? receitaTotalGeral / totalPedidosGeral : 0;
     const ticketFormatado = new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',

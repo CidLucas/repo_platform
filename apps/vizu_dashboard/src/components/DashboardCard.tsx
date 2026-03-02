@@ -51,30 +51,55 @@ interface DashboardCardProps {
     description?: string;
     chartType?: 'line' | 'bar';
     barColors?: string[];
+    valueLabel?: string; // Custom label for tooltip (e.g., "Produtos", "Clientes", "Fornecedores")
   }[];
 }
 
-// Helper component to render insight bullets (card version - compact)
+// Helper component to render insight bullets (card version - improved design)
 const InsightBulletItemCompact = ({ bullet }: { bullet: InsightBullet }) => {
-  const getIcon = () => {
+  const getIconAndColor = () => {
     switch (bullet.type) {
       case 'positive':
-        return <Box as="span" color="green.300" fontSize="xs">▲</Box>;
+        return { icon: '▲', color: 'green.400', bgColor: 'green.900' };
       case 'negative':
-        return <Box as="span" color="red.300" fontSize="xs">▼</Box>;
+        return { icon: '▼', color: 'red.400', bgColor: 'red.900' };
       case 'warning':
-        return <Box as="span" color="yellow.300" fontSize="xs">⚠</Box>;
+        return { icon: '⚠', color: 'yellow.400', bgColor: 'yellow.900' };
       case 'star':
-        return <Box as="span" color="yellow.200" fontSize="xs">★</Box>;
+        return { icon: '★', color: 'yellow.300', bgColor: 'yellow.900' };
       default:
-        return <Box as="span" color="blue.200" fontSize="xs">●</Box>;
+        return { icon: '●', color: 'blue.300', bgColor: 'blue.900' };
     }
   };
 
+  const { icon, color, bgColor } = getIconAndColor();
+
   return (
-    <HStack spacing={2} align="flex-start">
-      <Box mt="2px">{getIcon()}</Box>
-      <Text fontSize="xs" color="whiteAlpha.900" lineHeight="1.4">
+    <HStack 
+      spacing={3} 
+      align="center"
+      p={3}
+      bg="whiteAlpha.50"
+      borderRadius="lg"
+      borderLeft="3px solid"
+      borderLeftColor={color}
+      _hover={{ bg: 'whiteAlpha.100' }}
+      transition="all 0.2s"
+    >
+      <Flex
+        align="center"
+        justify="center"
+        w="28px"
+        h="28px"
+        borderRadius="full"
+        bg={bgColor}
+        flexShrink={0}
+      >
+        <Box as="span" color={color} fontSize="sm" fontWeight="bold">
+          {icon}
+        </Box>
+      </Flex>
+      <Text fontSize="sm" color="whiteAlpha.900" fontWeight="medium" lineHeight="1.4">
         {bullet.text}
       </Text>
     </HStack>
@@ -163,7 +188,7 @@ export const DashboardCard = ({
 
           {/* Insight Bullets content - replaces graph/bar chart when present */}
           {insightBullets && insightBullets.length > 0 && !mapData ? (
-            <VStack spacing={3} align="stretch" flex="1" mt={4} mb={2}>
+            <VStack spacing={2} align="stretch" flex="1" mt={4} mb={2} justify="center">
               {insightBullets.slice(0, 4).map((bullet, index) => (
                 <InsightBulletItemCompact key={index} bullet={bullet} />
               ))}

@@ -87,7 +87,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
       if (connector.id === 'bigquery') {
         payload = {
           client_id: clienteVizuId,
-          nome_conexao: formData.nome_conexao || `${connector.name} - Teste`,
+          nome_servico: formData.nome_servico || `${connector.name} - Teste`,
           tipo_servico: 'BIGQUERY',
           ...credentials,
         };
@@ -200,43 +200,66 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
 
       const response = await connectorService.createCredential({
         client_id: clienteVizuId,
-        nome_conexao: formData.nome_conexao || `${connector.name} - Produção`,
+        nome_servico: formData.nome_servico || `${connector.name} - Produção`,
         tipo_servico: tipoServico,
         credentials,
       });
 
-      // Fetch source columns from BigQuery foreign table for mapping
-      let columnsToMap: string[] = [];
+      // For BigQuery: Trigger column discovery immediately
+      if (connector.id === 'bigquery') {
+        toast({
+          title: 'Credencial criada!',
+          description: 'Descobrindo esquema das tabelas...',
+          status: 'info',
+          duration: null, // Keep showing
+          isClosable: false,
+          id: 'discovery-toast',
+        });
 
-      if (connector.id === 'bigquery' && columnsToMap.length === 0) {
-        // Try to get columns from client_data_sources
-        const { data: dataSource } = await supabase
-          .from('client_data_sources')
-          .select('source_columns')
-          .eq('credential_id', parseInt(response.id_credencial))
-          .single();
+        try {
+          // Call the discovery RPC function
+          const { data: discoveryResult, error: discoveryError } = await supabase.rpc('trigger_column_discovery', {
+            p_credential_id: parseInt(response.id),
+          });
 
-        if (dataSource?.source_columns) {
-          columnsToMap = Array.isArray(dataSource.source_columns)
-            ? dataSource.source_columns
-            : Object.keys(dataSource.source_columns);
+          if (discoveryError) {
+            throw discoveryError;
+          }
+
+          if (discoveryResult?.success) {
+            toast.close('discovery-toast');
+            toast({
+              title: 'Esquema descoberto!',
+              description: `${discoveryResult.column_count} colunas encontradas. Redirecionando...`,
+              status: 'success',
+              duration: 2000,
+            });
+          } else {
+            toast.close('discovery-toast');
+            toast({
+              title: 'Erro ao descobrir esquema',
+              description: discoveryResult?.error || 'Verifique as credenciais e tente novamente.',
+              status: 'error',
+              duration: 5000,
+            });
+            // Continue anyway - user can configure manually
+          }
+        } catch (discError) {
+          console.error('Discovery error:', discError);
+          toast.close('discovery-toast');
+          toast({
+            title: 'Erro ao descobrir esquema',
+            description: 'Você pode configurar manualmente na próxima tela.',
+            status: 'warning',
+            duration: 5000,
+          });
         }
       }
 
-      toast({
-        title: 'Conector configurado!',
-        description: 'Redirecionando para mapeamento de colunas...',
-        status: 'success',
-        duration: 3000,
-      });
-
       onClose();
 
-      // Navigate to column mapping page
-      const columnsParam = columnsToMap.length > 0
-        ? `?columns=${encodeURIComponent(JSON.stringify(columnsToMap))}`
-        : '';
-      navigate(`/dashboard/admin/connectors/${response.id_credencial}/mapping${columnsParam}`);
+      // Navigate to column mapping page (columns will be fetched from client_data_sources)
+      navigate(`/dashboard/admin/connectors/${response.id}/mapping`);
     } catch (error) {
       toast({
         title: 'Erro ao configurar conector',
@@ -533,8 +556,8 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
               <FormLabel fontSize="sm">Nome da Conexão</FormLabel>
               <Input
                 placeholder={`${connector.name} - Produção`}
-                value={formData.nome_conexao || ''}
-                onChange={(e) => handleInputChange('nome_conexao', e.target.value)}
+                value={formData.nome_servico || ''}
+                onChange={(e) => handleInputChange('nome_servico', e.target.value)}
               />
             </FormControl>
 

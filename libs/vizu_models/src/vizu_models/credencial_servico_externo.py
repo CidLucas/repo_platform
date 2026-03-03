@@ -39,9 +39,11 @@ class CredencialServicoExterno(CredencialServicoExternoBase, table=True):
         sa_column=Column(Text, nullable=True, server_default="'pending'::text")
     )
 
-    credenciais_cifradas: str | None = Field(
-        default=None,
-        sa_column=Column(Text, nullable=True)
+    vault_key_id: uuid.UUID = Field(
+        sa_column=Column(
+            pgUUID(as_uuid=True),
+            nullable=False
+        )
     )
 
     connection_metadata: dict | None = Field(
@@ -70,7 +72,7 @@ class CredencialServicoExterno(CredencialServicoExternoBase, table=True):
 class CredencialServicoExternoCreate(CredencialServicoExternoBase):
     client_id: uuid.UUID
     tipo_servico: str | None = None
-    credenciais_cifradas: str | None = None
+    vault_key_id: uuid.UUID | None = None
     connection_metadata: dict | None = None
 
 

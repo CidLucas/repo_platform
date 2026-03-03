@@ -6,6 +6,32 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { compareTwoStrings } from "https://esm.sh/string-similarity@4.0.4";
 
 // =============================================================================
+// Structured Logging Utility
+// =============================================================================
+
+function logInfo(message: string, details?: Record<string, unknown>) {
+    console.log(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: "INFO",
+        function: "match-columns",
+        message,
+        ...details,
+    }));
+}
+
+function logError(message: string, error?: unknown, details?: Record<string, unknown>) {
+    console.error(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: "ERROR",
+        function: "match-columns",
+        message,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        ...details,
+    }));
+}
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -33,135 +59,131 @@ interface SchemaMatchResult {
     detected_context?: string; // The inferred entity context (customer/supplier/product/neutral)
 }
 
-type SchemaType = "invoices" | "fcx_vendas" | "fato_transacoes" | "dim_produtos" | "fcx_orders" | "dim_clientes" | "dim_inventory" | "fcx_categorias";
+type SchemaType = "invoices" | "fato_transacoes" | "dim_clientes" | "dim_inventory" | "dim_categoria";
 
 // =============================================================================
 // Canonical Schemas (Portuguese-aligned with analytics_v2 tables)
 // =============================================================================
 
 const CANONICAL_SCHEMAS: Record<SchemaType, string[]> = {
-    // Main schema for BigQuery invoice data → analytics_v2.fcx_vendas
+    // Main schema for BigQuery invoice data → analytics_v2 multi-table ETL
+    // Each canonical name must be UNIQUE so dedup works (one source → one target)
     invoices: [
-        "pedido_id",
-        "data_transacao",
-        "fornecedor_nome",
-        "fornecedor_cnpj",
-        "fornecedor_telefone",
-        "fornecedor_uf",
-        "fornecedor_cidade",
-        "cliente_nome",
-        "cliente_cpf_cnpj",
-        "cliente_telefone",
-        "cliente_rua",
-        "cliente_numero",
-        "cliente_bairro",
-        "cliente_cidade",
-        "cliente_uf",
-        "cliente_cep",
-        "produto_descricao",
-        "quantidade",
-        "valor_unitario",
-        "valor_total",
-        "status",
+        // === fato_transacoes (scalar columns via column_mapping) ===
+        "documento",            // id_operatorinvoice → internal operation ID
+        "nf_numero",            // product_nf → NF-e number
+        "data_competencia_id",  // emittedat_operatorinvoice → emission date (YYYYMMDD)
+        "quantidade",           // quantitytraded_product
+        "quantidade_kg",        // quantitytradedkg_product
+        "valor_unitario",       // unitprice_product
+        "valor_unitario_kg",    // unitpricekg_product
+        "valor",                // totalprice_product → product line total
+        "valor_nf",             // price_operatorinvoice → invoice total with taxes
+        "status",               // status_operatorinvoice
+        "movement_type",        // natop_operatorinvoice → NATOP
+        "danfe",                // danfe → DANFE access key
+        "data_criacao_origem",  // createdat_operatorinvoice → source creation date
+        "is_blocked",           // isblocked_operatorinvoice
+        "volume",               // volume_operatorinvoice
+        "volume_validado",      // validvolume_operatorinvoice
+        "valor_validado",       // validprice_operatorinvoice
+        "id_credito",           // id_invoicecredit → credit note ID
+        "data_credito",         // createdat_invoicecredit → credit note date
+        "status_produto",       // status_product → product-level status
+        "data_criacao_produto", // createdat_product → product creation date
+        "was_purchased",        // was_purchased
+        "was_compensation",     // was_compensation
+        "compensations_ids",    // compensations_ids
+        "purchase_order_ids",   // purchaseordersids
+        "purchase_order_codes", // purchaseorders_codes
+        "in_offer",             // invoice_in_offer
+        "has_credit",           // has_invoice_credit
+        "product_invalidations", // product_invalidations
+        "cpl_adicional",        // aditional_cpl_operatorinvoice
+        "fisco_adicional",      // aditional_fisco_operatorinvoice
+        "danfe_materials",      // danfe_materials
+        "filial_id",            // id_subsidiary
+        "filial_cnpj",          // cnpj_subsidiary
+
+        // === dim_fornecedores (auto-handled by ETL, mapping is informational) ===
+        "fornecedor_cnpj",       // emitterlegaldoc
+        "fornecedor_nome",       // emitterlegalname
+        "fornecedor_nome_fantasia", // emitterfantasyname
+        "fornecedor_telefone",   // emitterphone
+        "fornecedor_cnae",       // emittercnae
+        "fornecedor_rua",        // emitterstreet
+        "fornecedor_numero",     // emitternumber
+        "fornecedor_bairro",     // emitterneighborhood
+        "fornecedor_cidade",     // emittercity
+        "fornecedor_uf",         // emitterstateuf
+        "fornecedor_cep",        // emitterzipcode
+        "fornecedor_company_id", // companyid
+
+        // === dim_clientes (auto-handled by ETL, mapping is informational) ===
+        "cliente_cpf_cnpj",      // receiverlegaldoc
+        "cliente_nome",          // receiverlegalname
+        "cliente_nome_fantasia", // receiverfantasyname
+        "cliente_telefone",      // receiverphone
+        "cliente_cnae",          // receivercnae
+        "cliente_rua",           // receiverstreet
+        "cliente_numero",        // receivernumber
+        "cliente_bairro",        // receiverneighborhood
+        "cliente_cidade",        // receivercity
+        "cliente_uf",            // receiverstateuf
+        "cliente_cep",           // receiverzipcode
+
+        // === dim_inventory (auto-handled by ETL, mapping is informational) ===
+        "produto_id_externo",    // id_product → external product ID
+        "produto_descricao",     // description_product
+        "produto_ncm",           // ncm → fiscal classification
+        "produto_unidade",       // commercialunit_product
+
+        // === dim_tipo_transacao (auto-handled by ETL, mapping is informational) ===
+        "tipo_cfop",             // cfop
+
+        // === dim_categoria (auto-handled by ETL, mapping is informational) ===
+        "categoria_material",    // material
+
     ],
-    // Sales transactions → analytics_v2.fcx_vendas
-    fcx_vendas: [
-        "venda_id",
-        "pedido_id",
-        "cliente_id",
-        "fornecedor_id",
-        "produto_id",
-        "data_transacao",
-        "quantidade",
-        "valor_unitario",
-        "valor_total",
-        "cliente_cpf_cnpj",
-        "fornecedor_cnpj",
-        "data_id",
-        "hora_id",
-        "sequencia_item",
-    ],
-    // Products dimension → analytics_v2.dim_produtos
-    dim_produtos: [
-        "produto_id",
-        "nome",
-        "descricao",
-        "preco",
-        "preco_custo",
-        "sku",
-        "codigo_barras",
-        "quantidade",
-        "quantidade_estoque",
-        "peso",
-        "unidade_peso",
-        "categoria",
-        "subcategoria",
-        "marca",
-        "fornecedor",
-        "tags",
-        "status",
-        "ativo",
-        "imagem_url",
-        "imagens",
-        "variantes",
-        "criado_em",
-        "atualizado_em",
-    ],
-    // Orders → analytics_v2.fcx_purchase_orders
-    fcx_orders: [
-        "pedido_id",
-        "numero_pedido",
-        "data_pedido",
-        "criado_em",
-        "atualizado_em",
-        "status",
-        "status_financeiro",
-        "status_entrega",
-        "cliente_id",
-        "cliente_email",
-        "cliente_nome",
-        "subtotal",
-        "valor_total",
-        "imposto_total",
-        "desconto_total",
-        "frete",
-        "moeda",
-        "metodo_pagamento",
-        "endereco_entrega",
-        "endereco_cobranca",
-        "itens",
-        "observacoes",
-        "tags",
-        "origem",
-    ],
-    // Customers dimension → analytics_v2.dim_clientes
+
+    // Customers dimension → analytics_v2.clientes (aligned with migration 20260224)
     dim_clientes: [
-        "cliente_id",
-        "email",
-        "nome",
-        "sobrenome",
-        "nome_completo",
-        "telefone",
-        "empresa",
-        "endereco",
-        "cidade",
-        "estado",
-        "pais",
-        "cep",
-        "total_pedidos",
-        "valor_total_gasto",
-        "tags",
-        "observacoes",
-        "aceita_marketing",
+        "cliente_id",            // UUID PK
+        "client_id",             // Tenant isolation (UUID)
+        "cpf_cnpj",              // CPF/CNPJ (VARCHAR 20)
+        "nome",                  // Customer name (VARCHAR 255)
+        "nome_fantasia",         // Trade name / fantasy name
+        "cnae",                  // CNAE economic activity code
+        "telefone",              // Phone (VARCHAR 50)
+        "endereco_rua",          // Street address (VARCHAR 255)
+        "endereco_numero",       // Street number (VARCHAR 50)
+        "endereco_bairro",       // Neighborhood (VARCHAR 100)
+        "endereco_cidade",       // City (VARCHAR 100)
+        "endereco_uf",           // State (VARCHAR 2)
+        "endereco_cep",          // Postal code (VARCHAR 10)
+        "total_pedidos",         // Aggregated: total orders
+        "receita_total",         // Aggregated: total revenue
+        "ticket_medio",          // Aggregated: average order value
+        "quantidade_total",      // Aggregated: total quantity
+        "pedidos_ultimos_30_dias", // Aggregated: orders in last 30 days
+        "frequencia_mensal",     // Aggregated: orders per month
+        "dias_recencia",         // Aggregated: days since last order
+        "data_primeira_compra",  // First purchase date
+        "data_ultima_compra",    // Last purchase date
+        "pontuacao_cluster",     // Cluster score (DECIMAL 5,2)
+        "nivel_cluster",         // Cluster tier (VARCHAR 50)
         "criado_em",
         "atualizado_em",
-        "ultima_compra",
     ],
     // Inventory dimension → analytics_v2.dim_inventory
     dim_inventory: [
         "inventory_id",
         "produto_id",
-        "sku",
+        "sku",                  // Product ID from source (id_product)
+        "nome",                 // Product description (description_product)
+        "ncm",                  // NCM fiscal classification
+        "unidade_comercial",    // Commercial unit (KG, UN, CX)
+        "external_id",          // External product ID
         "warehouse_code",
         "quantity_on_hand",
         "quantity_reserved",
@@ -176,6 +198,7 @@ const CANONICAL_SCHEMAS: Record<SchemaType, string[]> = {
     // Normalized fact table → analytics_v2.fato_transacoes (FK-based, no denormalized fields)
     fato_transacoes: [
         "documento",
+        "nf_numero",
         "data_competencia_id",
         "data_vencimento_id",
         "data_efetiva_id",
@@ -186,19 +209,21 @@ const CANONICAL_SCHEMAS: Record<SchemaType, string[]> = {
         "produto_id",
         "parcela",
         "quantidade",
+        "quantidade_kg",
         "valor_unitario",
+        "valor_unitario_kg",
         "valor",
+        "valor_nf",
         "status",
+        "movement_type",
         "origem_tabela",
         "origem_id",
     ],
-    // Categories for financial entries → analytics_v2.fcx_categorias
-    fcx_categorias: [
-        "id",
-        "nome",
-        "tipo",
-        "grupo",
-        "created_at",
+    // Categories → analytics_v2.dim_categoria
+    dim_categoria: [
+        "nome",              // Category name (TEXT, unique per client)
+        "tipo",              // Category type (TEXT)
+        "grupo",             // Category group (TEXT)
     ],
 };
 
@@ -207,7 +232,89 @@ const CANONICAL_SCHEMAS: Record<SchemaType, string[]> = {
 // =============================================================================
 
 const COLUMN_ALIASES: Record<string, string[]> = {
-    // =========== INVOICES / VENDAS ===========
+    // =============================================================================
+    // INVOICES schema: 1-to-1 aliases for all BQ products_invoices columns.
+    // Each BQ column maps to exactly ONE unique canonical target so dedup works.
+    // =============================================================================
+
+    // --- fato_transacoes scalar columns (actually stored via column_mapping) ---
+    documento: ["id_operatorinvoice", "id_invoice", "invoice_id", "order_id", "orderid"],
+    nf_numero: ["product_nf", "nota_fiscal", "nf_number", "numero_nf", "nf_e"],
+    data_competencia_id: ["emittedat_operatorinvoice", "data_emissao", "emission_date"],
+    quantidade: ["quantitytraded_product", "quantity", "qty", "qtd"],
+    quantidade_kg: ["quantitytradedkg_product", "qty_kg", "qtd_kg"],
+    valor_unitario: ["unitprice_product", "unit_price", "preco_unitario"],
+    valor_unitario_kg: ["unitpricekg_product", "unit_price_kg", "preco_unitario_kg"],
+    valor: ["totalprice_product", "total_price", "grand_total"],
+    valor_nf: ["price_operatorinvoice", "total_nf", "valor_nota_fiscal", "invoice_total"],
+    status: ["status_operatorinvoice", "order_status"],
+    movement_type: ["natop_operatorinvoice", "natureza_operacao", "natop", "tipo_movimento"],
+    danfe: ["danfe", "danfe_key", "chave_danfe"],
+    data_criacao_origem: ["createdat_operatorinvoice", "operation_created_at"],
+    is_blocked: ["isblocked_operatorinvoice", "blocked", "bloqueado"],
+    volume: ["volume_operatorinvoice", "volume_total"],
+    volume_validado: ["validvolume_operatorinvoice", "valid_volume"],
+    valor_validado: ["validprice_operatorinvoice", "valid_price", "preco_validado"],
+    id_credito: ["id_invoicecredit", "credit_note_id", "nota_credito_id"],
+    data_credito: ["createdat_invoicecredit", "credit_created_at"],
+    status_produto: ["status_product", "product_status"],
+    data_criacao_produto: ["createdat_product", "product_created_at"],
+    was_purchased: ["was_purchased", "compra_efetiva"],
+    was_compensation: ["was_compensation", "compensacao"],
+    compensations_ids: ["compensations_ids", "ids_compensacoes"],
+    purchase_order_ids: ["purchaseordersids", "purchase_orders_ids"],
+    purchase_order_codes: ["purchaseorders_codes", "purchase_orders_codes"],
+    in_offer: ["invoice_in_offer", "oferta"],
+    has_credit: ["has_invoice_credit", "tem_credito"],
+    product_invalidations: ["product_invalidations", "invalidacoes_produto"],
+    cpl_adicional: ["aditional_cpl_operatorinvoice", "cpl_additional"],
+    fisco_adicional: ["aditional_fisco_operatorinvoice", "fisco_additional"],
+    danfe_materials: ["danfe_materials", "materiais_danfe"],
+    filial_id: ["id_subsidiary", "subsidiary_id", "branch_id"],
+    filial_cnpj: ["cnpj_subsidiary", "subsidiary_cnpj"],
+
+    // --- dim_fornecedores (auto-handled by ETL, mapping is informational) ---
+    fornecedor_cnpj: ["emitterlegaldoc", "emitter_cnpj", "supplier_cnpj"],
+    fornecedor_nome: ["emitterlegalname", "nome_emitter", "supplier_name"],
+    fornecedor_nome_fantasia: ["emitterfantasyname", "emitter_fantasy_name"],
+    fornecedor_telefone: ["emitterphone", "emitter_phone", "supplier_phone"],
+    fornecedor_cnae: ["emittercnae", "emitter_cnae"],
+    fornecedor_rua: ["emitterstreet", "emitter_rua"],
+    fornecedor_numero: ["emitternumber", "emitter_numero"],
+    fornecedor_bairro: ["emitterneighborhood", "emitter_bairro"],
+    fornecedor_cidade: ["emittercity", "emitter_cidade"],
+    fornecedor_uf: ["emitterstateuf", "emitter_uf"],
+    fornecedor_cep: ["emitterzipcode", "emitter_cep"],
+    fornecedor_company_id: ["companyid", "company_id", "emitter_company_id"],
+
+    // --- dim_clientes (auto-handled by ETL, mapping is informational) ---
+    cliente_cpf_cnpj: ["receiverlegaldoc", "receiver_cnpj", "customer_doc"],
+    cliente_nome: ["receiverlegalname", "nome_receiver", "customer_name"],
+    cliente_nome_fantasia: ["receiverfantasyname", "receiver_fantasy_name"],
+    cliente_telefone: ["receiverphone", "receiver_phone", "customer_phone"],
+    cliente_cnae: ["receivercnae", "receiver_cnae"],
+    cliente_rua: ["receiverstreet", "receiver_rua", "customer_street"],
+    cliente_numero: ["receivernumber", "receiver_numero", "customer_number"],
+    cliente_bairro: ["receiverneighborhood", "receiver_bairro"],
+    cliente_cidade: ["receivercity", "receiver_cidade", "customer_city"],
+    cliente_uf: ["receiverstateuf", "receiver_uf", "customer_state"],
+    cliente_cep: ["receiverzipcode", "receiver_cep", "customer_zip"],
+
+    // --- dim_inventory (auto-handled by ETL, mapping is informational) ---
+    produto_id_externo: ["id_product", "product_id", "external_product_id"],
+    produto_descricao: ["description_product", "descricao_produto", "product_description"],
+    produto_ncm: ["ncm", "ncm_code", "fiscal_classification"],
+    produto_unidade: ["commercialunit_product", "commercial_unit", "unit_of_measure"],
+
+    // --- dim_tipo_transacao (auto-handled by ETL, mapping is informational) ---
+    tipo_cfop: ["cfop", "cfop_code", "codigo_cfop"],
+
+    // --- dim_categoria (auto-handled by ETL, mapping is informational) ---
+    categoria_material: ["material", "material_code", "grupo_material"],
+
+    // =============================================================================
+    // Legacy aliases for non-invoice schemas (fcx_vendas, dim_produtos, etc.)
+    // =============================================================================
     pedido_id: [
         "id_operatorinvoice", "id_invoice", "invoice_id", "order_id",
         "orderid", "numero_pedido", "id_pedido", "order_number", "id",
@@ -217,57 +324,50 @@ const COLUMN_ALIASES: Record<string, string[]> = {
         "createdat_product", "order_date", "data_pedido", "transaction_date",
         "date", "created_at", "purchase_date", "data_compra",
     ],
-    fornecedor_nome: ["emitterlegalname", "emitterfantasyname", "nome_emitter", "supplier_name", "vendor_name"],
-    fornecedor_cnpj: ["emitterlegaldoc", "emitter_cnpj", "companyid", "cnpj_emitter", "supplier_cnpj", "vendor_cnpj"],
-    fornecedor_telefone: ["emitterphone", "emitter_phone", "telefone_emitter", "supplier_phone"],
-    fornecedor_cidade: ["emittercity", "emitter_city", "cidade_emitter", "supplier_city"],
-    fornecedor_uf: ["emitterstate", "emitter_state", "uf_emitter", "supplier_state"],
-    cliente_nome: ["receiverlegalname", "receiverfantasyname", "nome_receiver", "customer_name", "buyer_name"],
-    cliente_cpf_cnpj: ["receiverlegaldoc", "receiver_cnpj", "cpf_cnpj_receiver", "customer_cpf_cnpj", "customer_doc"],
-    cliente_telefone: ["receiverphone", "receiver_phone", "telefone_receiver", "customer_phone"],
-    cliente_rua: ["receiverstreet", "receiver_street", "rua_receiver", "logradouro_receiver", "customer_street"],
-    cliente_numero: ["receivernumber", "receiver_number", "numero_receiver", "customer_number"],
-    cliente_bairro: ["receiverneighborhood", "receiver_neighborhood", "bairro_receiver", "customer_neighborhood"],
-    cliente_cidade: ["receivercity", "receiver_city", "cidade_receiver", "customer_city"],
-    cliente_uf: ["receiverstate", "receiver_state", "estado_receiver", "uf_receiver", "customer_state"],
-    cliente_cep: ["receiverpostalcode", "receiver_postal_code", "cep_receiver", "zipcode_receiver", "customer_zip"],
-    produto_descricao: ["description_product", "material", "descricao_produto", "ncm", "produto", "product_description"],
-    quantidade: ["quantitytraded_product", "quantitytradedkg_product", "quantity", "qty", "qtd"],
-    valor_unitario: ["unitprice_product", "unitpricekg_product", "unit_price", "preco_unitario", "price"],
-    valor_total: ["price_operatorinvoice", "totalprice_product", "total_price", "total", "grand_total", "order_total"],
-    status: ["status_operatorinvoice", "status_product", "order_status", "estado", "situacao"],
+    valor_total: ["totalprice_product", "total_price", "total", "grand_total", "order_total"],
 
-    // =========== PRODUCTS ===========
+    // --- Products ---
     produto_id: ["product_id", "productid", "prod_id", "item_id", "sku_id", "id"],
-    nome: ["name", "title", "product_title", "item_name", "productname", "product_name"],
-    descricao: ["body", "body_html", "content", "details", "product_description", "desc", "description"],
+    nome: ["name", "title", "product_title", "item_name", "productname", "product_name", "full_name", "customer_name"],
+    categoria: ["material", "category", "category_name", "tipo_material"],
+    descricao: ["body", "body_html", "content", "details", "desc", "description"],
     preco: ["price", "unit_price", "sale_price", "selling_price", "valor"],
     preco_custo: ["cost", "custo", "cost_price", "purchase_price", "wholesale_price"],
-    sku: ["item_sku", "product_sku", "codigo", "code"],
+    sku: ["item_sku", "product_sku", "codigo", "code", "id_product"],
+    ncm: ["ncm_product", "ncm_code", "fiscal_classification"],
+    unidade_comercial: ["commercialunit_product", "commercial_unit", "uom"],
+    external_id: ["id_product", "external_product_id"],
     codigo_barras: ["barcode", "ean", "upc", "gtin"],
     quantidade_estoque: ["stock_quantity", "available_quantity", "qty_available", "in_stock", "estoque"],
-    categoria: ["category", "category_name", "type", "product_type"],
     marca: ["brand", "manufacturer", "fabricante"],
     fornecedor: ["vendor", "supplier", "seller"],
     imagem_url: ["image_url", "image", "photo", "thumbnail", "imagem", "foto"],
     criado_em: ["created_at", "createdat", "date_created", "creation_date"],
     atualizado_em: ["updated_at", "updatedat", "date_modified", "modification_date"],
 
-    // =========== CUSTOMERS ===========
+    // --- Customers ---
     cliente_id: ["customer_id", "client_id", "user_id", "id"],
-    email: ["customer_email", "email_address", "e_mail"],
+    cpf_cnpj: ["receiverlegaldoc", "receiver_cnpj", "customer_doc", "cpf"],
     sobrenome: ["last_name", "lastname", "family_name", "surname"],
-    nome_completo: ["full_name", "customer_name"],
+    email: ["customer_email", "email_address", "e_mail"],
     telefone: ["phone", "telephone", "mobile", "celular", "phone_number"],
-    endereco: ["address", "street", "address_line", "logradouro"],
+    endereco_rua: ["street", "logradouro", "rua"],
+    endereco_numero: ["street_number", "numero_endereco"],
+    endereco_bairro: ["neighborhood", "bairro"],
+    endereco_cidade: ["city", "cidade", "municipio"],
+    endereco_uf: ["state", "uf", "estado"],
+    endereco_cep: ["zipcode", "postal_code", "cep"],
+    endereco: ["address", "address_line"],
     cidade: ["city", "locality"],
-    estado: ["state", "province", "region", "uf"],
+    estado: ["state", "province", "region"],
     pais: ["country", "country_code"],
-    cep: ["postal_code", "zip_code", "zipcode", "postcode"],
+    cep: ["postal_code", "zip_code", "postcode"],
     total_pedidos: ["orders_count", "order_count", "num_orders"],
     valor_total_gasto: ["total_spent", "lifetime_value", "total_revenue"],
+    nome_fantasia: ["fantasy_name", "trade_name", "nome_comercial"],
+    cnae: ["cnae_code", "atividade_economica"],
 
-    // =========== ORDERS ===========
+    // --- Orders ---
     numero_pedido: ["order_number", "number", "order_no", "numero"],
     data_pedido: ["order_date", "date", "purchase_date", "data_compra"],
     status_financeiro: ["financial_status", "payment_status"],
@@ -282,6 +382,7 @@ const COLUMN_ALIASES: Record<string, string[]> = {
     itens: ["line_items", "items", "order_items"],
     observacoes: ["notes", "comments", "remarks"],
     origem: ["source", "channel", "origem_pedido"],
+    parcela: ["installment", "parcela_numero", "installment_number"],
 };
 
 // =============================================================================
@@ -313,48 +414,21 @@ const SCHEMA_CONTEXT_DEFAULTS: Record<SchemaType, Record<string, string>> = {
         email: "email",
     },
     invoices: {
-        // Default to customer context in invoices (receiver = customer buying)
-        cnpj: "cliente_cpf_cnpj",
-        cpf: "cliente_cpf_cnpj",
-        cpf_cnpj: "cliente_cpf_cnpj",
-        documento: "cliente_cpf_cnpj",
-        telefone: "cliente_telefone",
-        nome: "cliente_nome",
-        endereco: "cliente_rua",
-        cidade: "cliente_cidade",
-        estado: "cliente_uf",
-        uf: "cliente_uf",
-        cep: "cliente_cep",
-        data: "data_transacao",
-        valor: "valor_total",
-        total: "valor_total",
+        // Maps to fato_transacoes columns
+        data: "data_competencia_id",
+        valor: "valor",
+        total: "valor",
+        preco: "valor_unitario",
+        qtd: "quantidade",
+        pedido: "documento",
+        nf: "nf_numero",
+        nota: "nf_numero",
+        nota_fiscal: "nf_numero",
+        natureza: "movement_type",
+        natop: "movement_type",
+        kg: "quantidade_kg",
     },
-    fcx_vendas: {
-        cnpj: "cliente_cpf_cnpj",
-        cpf: "cliente_cpf_cnpj",
-        cpf_cnpj: "cliente_cpf_cnpj",
-        telefone: "cliente_telefone",
-        nome: "cliente_nome",
-        data: "data_transacao",
-        valor: "valor_total",
-    },
-    dim_produtos: {
-        nome: "nome",
-        descricao: "descricao",
-        preco: "preco",
-        valor: "preco",
-        quantidade: "quantidade_estoque",
-        codigo: "sku",
-    },
-    fcx_orders: {
-        cnpj: "cliente_cpf_cnpj",
-        cpf: "cliente_cpf_cnpj",
-        telefone: "telefone",
-        nome: "cliente_nome",
-        data: "data_pedido",
-        valor: "valor_total",
-        total: "valor_total",
-    },
+
     dim_inventory: {
         quantidade: "quantity_on_hand",
         codigo: "sku",
@@ -368,9 +442,11 @@ const SCHEMA_CONTEXT_DEFAULTS: Record<SchemaType, Record<string, string>> = {
         data: "data_competencia_id",
         status: "status",
     },
-    fcx_categorias: {
+    dim_categoria: {
         nome: "nome",
         categoria: "nome",
+        tipo: "tipo",
+        grupo: "grupo",
     },
 };
 
@@ -840,47 +916,90 @@ function processMatch(
 // =============================================================================
 
 serve(async (req) => {
+    const requestId = crypto.randomUUID();
+    const startTime = Date.now();
+
+    // Shared CORS headers for all responses
+    const corsHeaders: Record<string, string> = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
+    };
+
+    logInfo("Incoming request", {
+        requestId,
+        method: req.method,
+        url: req.url,
+    });
+
     // Handle CORS preflight
     if (req.method === "OPTIONS") {
         return new Response(null, {
             status: 204,
-            headers: {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-            },
+            headers: corsHeaders,
         });
     }
 
     if (req.method !== "POST") {
+        logError("Method not allowed", undefined, { requestId, method: req.method });
         return new Response(JSON.stringify({ error: "Method not allowed" }), {
             status: 405,
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...corsHeaders },
         });
     }
 
     try {
         const body = await req.json();
-        const { source_columns, schema_type = "invoices" } = body as {
+        const { source_columns, schema_type = "invoices", client_id } = body as {
             source_columns: string[];
             schema_type?: string;
+            client_id?: string;
         };
 
+        logInfo("Request body parsed", {
+            requestId,
+            columnCount: source_columns?.length,
+            schemaType: schema_type,
+            clientId: client_id,
+        });
+
         if (!source_columns || !Array.isArray(source_columns)) {
+            logError("Invalid request: source_columns missing or not an array", undefined, {
+                requestId,
+                receivedType: typeof source_columns,
+            });
             return new Response(
-                JSON.stringify({ error: "source_columns must be an array of strings" }),
-                { status: 400, headers: { "Content-Type": "application/json" } }
+                JSON.stringify({
+                    error: "source_columns must be an array of strings",
+                    error_code: "INVALID_INPUT",
+                }),
+                { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+            );
+        }
+
+        if (source_columns.length === 0) {
+            logError("Invalid request: source_columns array is empty", undefined, { requestId });
+            return new Response(
+                JSON.stringify({
+                    error: "source_columns array cannot be empty",
+                    error_code: "EMPTY_INPUT",
+                }),
+                { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
             );
         }
 
         // Backwards compatibility: map legacy schema names to new names
         const LEGACY_SCHEMA_ALIASES: Record<string, SchemaType> = {
-            vendas: "fcx_vendas",
-            products: "dim_produtos",
-            orders: "fcx_orders",
+            vendas: "fato_transacoes",
+            products: "dim_inventory",
+            orders: "fato_transacoes",
             customers: "dim_clientes",
             inventory: "dim_inventory",
-            categories: "fcx_categorias",
+            categories: "dim_categoria",
+            fcx_vendas: "fato_transacoes",
+            dim_produtos: "dim_inventory",
+            fcx_orders: "fato_transacoes",
+            fcx_categorias: "dim_categoria",
         };
 
         const validSchemaTypes = Object.keys(CANONICAL_SCHEMAS);
@@ -892,28 +1011,89 @@ serve(async (req) => {
 
         if (!validSchemaTypes.includes(normalizedSchemaType)) {
             const legacyNames = Object.keys(LEGACY_SCHEMA_ALIASES);
+            logError("Invalid schema_type", undefined, {
+                requestId,
+                providedSchemaType: schema_type,
+                normalizedSchemaType,
+                validTypes: validSchemaTypes,
+            });
             return new Response(
                 JSON.stringify({
                     error: `Invalid schema_type. Must be one of: ${validSchemaTypes.join(", ")} (legacy aliases: ${legacyNames.join(", ")})`,
+                    error_code: "INVALID_SCHEMA_TYPE",
                 }),
-                { status: 400, headers: { "Content-Type": "application/json" } }
+                { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
             );
         }
 
+        logInfo("Starting column matching", {
+            requestId,
+            sourceColumns: source_columns,
+            schemaType: normalizedSchemaType,
+            canonicalColumnCount: CANONICAL_SCHEMAS[normalizedSchemaType].length,
+        });
+
+        const matchStartTime = Date.now();
         const result = autoMatch(source_columns, normalizedSchemaType);
+        const matchDuration = Date.now() - matchStartTime;
+
+        // Calculate confidence distribution
+        const confidenceDistribution = {
+            high: result.details.filter(d => d.auto_matched).length,
+            medium: result.needs_review.length,
+            low: result.unmatched.length,
+        };
+
+        logInfo("Column matching completed", {
+            requestId,
+            matchDuration,
+            matchedCount: Object.keys(result.matched).length,
+            unmatchedCount: result.unmatched.length,
+            needsReviewCount: result.needs_review.length,
+            confidenceDistribution,
+            detectedContext: result.detected_context,
+        });
+
+        const totalDuration = Date.now() - startTime;
+
+        logInfo("Request completed successfully", {
+            requestId,
+            totalDuration,
+            statusCode: 200,
+        });
 
         return new Response(JSON.stringify(result), {
             status: 200,
             headers: {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
+                ...corsHeaders,
+                "X-Request-Id": requestId,
+                "X-Duration-Ms": totalDuration.toString(),
             },
         });
     } catch (error) {
-        console.error("Error processing request:", error);
+        const totalDuration = Date.now() - startTime;
+
+        logError("Unhandled exception in request handler", error, {
+            requestId,
+            totalDuration,
+        });
+
         return new Response(
-            JSON.stringify({ error: "Internal server error", details: String(error) }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
+            JSON.stringify({
+                error: "Internal server error",
+                error_code: "INTERNAL_ERROR",
+                details: error instanceof Error ? error.message : String(error),
+                request_id: requestId,
+            }),
+            {
+                status: 500,
+                headers: {
+                    "Content-Type": "application/json",
+                    ...corsHeaders,
+                    "X-Request-Id": requestId,
+                }
+            }
         );
     }
 });

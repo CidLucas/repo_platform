@@ -125,18 +125,15 @@ dev:
 	@echo ""
 	@echo "💡 Uses remote Supabase (no local DB)"
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-	$(COMPOSE) up --build -d redis qdrant_db tool_pool_api atendente_core vizu_dashboard
-	@echo ""
-	@echo "✅ Dev stack ready!"
 	@echo ""
 	@echo "📋 Services:"
 	@echo "   🎨 Dashboard:      http://localhost:8080"
 	@echo "   🤖 Atendente:      http://localhost:8003"
 	@echo "   🔧 Tool Pool:      http://localhost:8006"
 	@echo ""
-	@echo "📊 View logs:         make dev-logs"
-	@echo "🛑 Stop stack:        make dev-down"
+	@echo "🛑 Stop stack:        Ctrl+C then 'make dev-down'"
 	@echo ""
+	$(COMPOSE) up --build redis qdrant_db tool_pool_api atendente_core vizu_dashboard
 
 dev-down:
 	@echo "🛑 Stopping dev stack..."

@@ -162,7 +162,7 @@ function mapConnectorToUI(backendConnector: ConnectorStatusResponse): ConnectorC
 
   return {
     ...metadata,
-    name: backendConnector.nome_conexao || metadata.name,
+    name: backendConnector.nome_servico || metadata.name,
     status: uiStatus,
     lastSync: backendConnector.last_sync_at || undefined,
     recordsCount: backendConnector.records_count || undefined,

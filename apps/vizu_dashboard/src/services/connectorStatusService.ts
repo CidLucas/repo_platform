@@ -15,7 +15,7 @@ export type FileStatus = 'uploaded' | 'processing' | 'completed' | 'failed' | 'd
 
 export interface ConnectorStatusResponse {
     credential_id: number;
-    nome_conexao: string;
+    nome_servico: string;
     tipo_servico: string;
     status: ConnectorStatus;
     last_sync_at: string | null;
@@ -148,7 +148,7 @@ export async function getConnectorStatus(
     // Get all credentials for the client
     const { data: credenciais, error: credError } = await supabase
         .from('credencial_servico_externo')
-        .select('id_credencial, nome_conexao, tipo_servico, status, created_at, updated_at')
+        .select('id, nome_servico, tipo_servico, status, created_at, updated_at')
         .eq('client_id', resolvedClientId)
         .order('created_at', { ascending: false });
 
@@ -157,7 +157,7 @@ export async function getConnectorStatus(
     }
 
     const credentials = credenciais || [];
-    const credentialIds = credentials.map(c => c.id_credencial);
+    const credentialIds = credentials.map(c => c.id);
 
     // Get latest sync info for each credential
     const { data: syncHistory } = await supabase
@@ -177,11 +177,11 @@ export async function getConnectorStatus(
 
     // Map to response format
     const connectors: ConnectorStatusResponse[] = credentials.map(c => {
-        const latestSync = latestSyncMap.get(c.id_credencial);
+        const latestSync = latestSyncMap.get(c.id);
 
         return {
-            credential_id: c.id_credencial,
-            nome_conexao: c.nome_conexao || '',
+            credential_id: c.id,
+            nome_servico: c.nome_servico || '',
             tipo_servico: c.tipo_servico || '',
             status: c.status as ConnectorStatus,
             last_sync_at: latestSync?.sync_completed_at || null,
@@ -354,7 +354,7 @@ export async function getDashboardStats(
     // Get connector counts
     const { data: credenciais, error: credError } = await supabase
         .from('credencial_servico_externo')
-        .select('id_credencial, status')
+        .select('id, status')
         .eq('client_id', resolvedClientId);
 
     if (credError) {
@@ -427,7 +427,7 @@ export async function getDashboardStats(
 
 /**
  * Start a sync job for a connector.
- * Calls sincronizar_dados_cliente RPC.
+ * Calls run-sync edge function (fire-and-forget).
  */
 export async function startSyncJob(
     credentialId: number,
@@ -438,31 +438,31 @@ export async function startSyncJob(
     const { data: credencial, error: credError } = await supabase
         .from('credencial_servico_externo')
         .select('client_id')
-        .eq('id_credencial', credentialId)
+        .eq('id', credentialId)
         .single();
 
     if (credError || !credencial) {
         throw new Error('Credential not found');
     }
 
-    const { data: result, error } = await supabase.rpc('sincronizar_dados_cliente', {
-        p_client_id: credencial.client_id,
-        p_credential_id: credentialId,
-        p_force_full_sync: false,
+    const { data, error } = await supabase.functions.invoke('run-sync', {
+        body: {
+            client_id: credencial.client_id,
+            credential_id: credentialId,
+            force_full_sync: false,
+        },
     });
 
     if (error) {
         throw new Error(error.message || 'Failed to start sync');
     }
 
-    const syncResult = result as { success?: boolean; error?: string; sync_id?: number };
-
-    if (!syncResult.success) {
-        throw new Error(syncResult.error || 'Sync failed');
+    if (!data?.job_id) {
+        throw new Error('Failed to create sync job');
     }
 
     return {
-        sync_id: String(syncResult.sync_id || ''),
+        sync_id: data.job_id,
         status: 'running',
         message: 'Sync started successfully',
     };

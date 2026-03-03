@@ -7,6 +7,7 @@ import { ChakraProvider, extendTheme } from '@chakra-ui/react'
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
+import { TenantProvider } from './contexts/TenantContext';
 import { ChatProvider } from './contexts/ChatContext';
 
 // Configure React Query with optimal caching settings
@@ -144,9 +145,11 @@ createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <ChakraProvider theme={theme}>
           <AuthProvider>
-            <ChatProvider>
-              <App />
-            </ChatProvider>
+            <TenantProvider>
+              <ChatProvider>
+                <App />
+              </ChatProvider>
+            </TenantProvider>
           </AuthProvider>
         </ChakraProvider>
       </BrowserRouter>

@@ -206,7 +206,7 @@ function AdminConnectorMappingPage() {
                                 : [];
 
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const sampleByColumn: Record<string, any[]> = {};
+                            const sampleByColumn: Record<string, any[]> = {};
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             samples.forEach((row: any) => {
                                 Object.entries(row).forEach(([col, val]) => {

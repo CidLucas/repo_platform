@@ -1,4 +1,5 @@
 import logging
+import os
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
@@ -6,12 +7,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_core.runnables.base import Runnable
 
-from vizu_llm_service.client import get_embedding_model
-
 # Dependências de outras libs Vizu
 from vizu_models.vizu_client_context import VizuClientContext
 from vizu_prompt_management.templates import RAG_TOOL_PROMPT
-from vizu_qdrant_client import get_qdrant_client  # Usa o singleton
+from vizu_rag_factory.retriever import SupabaseVectorRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +38,11 @@ def create_rag_runnable(
     """
     Factory agnóstica para criar um Runnable de RAG.
 
+    Uses SupabaseVectorRetriever to search document chunks stored in
+    ``vector_db.document_chunks`` via the ``search-documents`` Edge Function.
+
     Args:
-        contexto: Contexto do cliente Vizu com collection_rag
+        contexto: Contexto do cliente Vizu (client_id used for RLS)
         llm: Modelo de linguagem para responder (obrigatório)
 
     Returns:
@@ -62,42 +64,29 @@ def create_rag_runnable(
     if "executar_rag_cliente" not in enabled:
         return None
 
-    # Get collection name from available_tools config, fallback to client ID
-    collection_name = None
+    # Read search config from available_tools (top_k, score_threshold)
+    search_config: dict | None = None
     if contexto.available_tools:
-        collection_name = contexto.available_tools.get("rag_collection")
-    collection_name = collection_name or str(contexto.id)
+        search_config = contexto.available_tools.get("rag_search_config")
 
-    logger.debug(
-        f"Creating RAG runnable for client {contexto.id}, collection: {collection_name}"
-    )
+    logger.debug(f"Creating RAG runnable for client {contexto.id}")
 
     try:
-        # --- 2. Configuração do Retriever ---
-
-        # Obtém o modelo de embedding da service lib
-        embedding_model = get_embedding_model()
-
-        # Usa o cliente singleton do Qdrant
-        qdrant_client = get_qdrant_client()
-
-        # Verifica se a coleção existe
-        if not qdrant_client.collection_exists(collection_name):
-            logger.warning(
-                f"Coleção '{collection_name}' não existe no Qdrant para cliente {contexto.id}"
-            )
-            # Ainda assim tenta criar o retriever (pode ser que seja criada depois)
-
-        retriever = qdrant_client.get_langchain_retriever(
-            collection_name=collection_name, embeddings=embedding_model, search_k=4
+        # --- Retriever: Supabase vector_db via Edge Function ---
+        retriever = SupabaseVectorRetriever(
+            supabase_url=os.environ["SUPABASE_URL"],
+            supabase_service_key=os.environ["SUPABASE_SERVICE_KEY"],
+            client_id=str(contexto.id),
+            match_count=search_config.get("top_k", 5) if search_config else 5,
+            match_threshold=(search_config.get("score_threshold", 0.5) if search_config else 0.5),
         )
 
-        # --- 3. Criação da Cadeia (Runnable) ---
+        # --- Criação da Cadeia (Runnable) ---
         prompt = ChatPromptTemplate.from_template(RAG_PROMPT_TEMPLATE)
 
         # O chain recebe {"question": "..."} e:
         # 1. Extrai a pergunta
-        # 2. Busca documentos relevantes no Qdrant
+        # 2. Busca documentos relevantes no Supabase vector_db
         # 3. Formata o contexto e gera a resposta
 
         def retrieve_and_format(input_dict):
@@ -132,8 +121,5 @@ def create_rag_runnable(
         return rag_chain
 
     except Exception as e:
-        logger.error(
-            f"Falha grave ao criar o runnable RAG para {contexto.id} "
-            f"(coleção {collection_name}): {e}"
-        )
+        logger.error(f"Falha grave ao criar o runnable RAG para {contexto.id}: {e}")
         return None

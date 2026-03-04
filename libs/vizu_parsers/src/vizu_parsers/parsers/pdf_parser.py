@@ -45,27 +45,19 @@ class PDFParser(BaseParser):
                         extracted_pages.append(text)
                 except Exception as e:
                     # Log error for specific page but continue
-                    logger.warning(
-                        f"Error extracting text from page {i} of PDF: {e}"
-                    )
+                    logger.warning(f"Error extracting text from page {i} of PDF: {e}")
 
             if not extracted_pages:
                 logger.warning("PDF processed but no text was extracted.")
                 return ""
 
-            logger.debug(
-                f"PDF parsing complete. {len(extracted_pages)} pages extracted."
-            )
+            logger.debug(f"PDF parsing complete. {len(extracted_pages)} pages extracted.")
             # Join text from all pages with newlines
             return "\n".join(extracted_pages)
 
         except PdfReadError as e:
-            logger.error(
-                f"Failed to read PDF file. May be corrupted or encrypted. Error: {e}"
-            )
+            logger.error(f"Failed to read PDF file. May be corrupted or encrypted. Error: {e}")
             return ""
         except Exception as e:
-            logger.error(
-                f"Unexpected error during PDF parsing: {e}", exc_info=True
-            )
+            logger.error(f"Unexpected error during PDF parsing: {e}", exc_info=True)
             return ""

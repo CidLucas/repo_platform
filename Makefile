@@ -133,15 +133,15 @@ dev:
 	@echo ""
 	@echo "🛑 Stop stack:        Ctrl+C then 'make dev-down'"
 	@echo ""
-	$(COMPOSE) up --build redis qdrant_db tool_pool_api atendente_core vizu_dashboard
+	$(COMPOSE) up --build redis tool_pool_api atendente_core vizu_dashboard
 
 dev-down:
 	@echo "🛑 Stopping dev stack..."
-	$(COMPOSE) stop vizu_dashboard atendente_core tool_pool_api qdrant_db redis
+	$(COMPOSE) stop vizu_dashboard atendente_core tool_pool_api redis
 	@echo "✅ Dev stack stopped (containers preserved, use 'make down' to remove)"
 
 dev-logs:
-	$(COMPOSE) logs -f --tail=100 vizu_dashboard atendente_core tool_pool_api redis qdrant_db
+	$(COMPOSE) logs -f --tail=100 vizu_dashboard atendente_core tool_pool_api redis
 
 dev-rebuild:
 	@echo "🔨 Rebuilding dev services (no cache)..."
@@ -288,18 +288,13 @@ seed-db:
 		vizu_atendente_core python -m ferramentas.seeds.run_seeds --db
 
 seed-qdrant:
-	@echo "🌱 Seeding Qdrant..."
-	@docker exec \
-		-e PYTHONPATH=/app:/app/libs/vizu_qdrant_client/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
-		-e QDRANT_URL=http://qdrant_db:6333 \
-		-e EMBEDDING_SERVICE_URL=http://embedding_service:11435 \
-		vizu_atendente_core python -m ferramentas.seeds.run_seeds --qdrant
+	@echo "⚠️  DEPRECATED: Qdrant has been replaced by Supabase vector_db schema."
+	@echo "   See docs/RAG_MIGRATION_GUIDE.md for details."
 
 seed-check:
 	@echo "📊 Checking seed state..."
 	@docker exec \
 		-e PYTHONPATH=/app:/app/libs/vizu_qdrant_client/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
-		-e QDRANT_URL=http://qdrant_db:6333 \
 		vizu_atendente_core python -m ferramentas.seeds.run_seeds --check
 
 # =============================================================================

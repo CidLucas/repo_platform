@@ -1,5 +1,9 @@
 # Vizu Qdrant Client
 
+> **⚠️ DEPRECATED** — Vector storage has been migrated to Supabase `vector_db` schema.
+> Use `SupabaseVectorRetriever` from `vizu_rag_factory` instead.
+> See `docs/RAG_MIGRATION_GUIDE.md` for details.
+
 This library provides a standardized client for interacting with Qdrant in the Vizu ecosystem.
 
 ## Overview

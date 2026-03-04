@@ -33,6 +33,8 @@ export interface ChatRequest {
   context?: {
     current_page?: string;
     selected_filters?: Record<string, string>;
+    /** Document IDs from vector_db uploaded via chat file attachment */
+    attached_document_ids?: string[];
   };
 }
 

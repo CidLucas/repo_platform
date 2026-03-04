@@ -3,6 +3,7 @@ Upload Service using Supabase Storage.
 
 Handles file uploads with proper database registration and RLS security.
 """
+
 import logging
 import uuid
 from datetime import datetime
@@ -60,11 +61,7 @@ class SupabaseUploadService:
         return trace.format_trace_id(trace_id)
 
     def _register_fonte_de_dados(
-        self,
-        client_id: uuid.UUID,
-        storage_path: str,
-        file_name: str,
-        content_type: str
+        self, client_id: uuid.UUID, storage_path: str, file_name: str, content_type: str
     ) -> int:
         """
         Register the uploaded file in the fonte_de_dados table.
@@ -92,7 +89,7 @@ class SupabaseUploadService:
             "nome_arquivo": file_name,
             "content_type": content_type,
             "data_upload": datetime.utcnow().isoformat(),
-            "status": "PENDENTE_PROCESSAMENTO"
+            "status": "PENDENTE_PROCESSAMENTO",
         }
 
         response = self.supabase_client.table("fonte_de_dados").insert(data).execute()
@@ -105,9 +102,7 @@ class SupabaseUploadService:
 
         return fonte_id
 
-    def process_upload(
-        self, file: UploadFile, client_id: uuid.UUID
-    ) -> FileUploadResponse:
+    def process_upload(self, file: UploadFile, client_id: uuid.UUID) -> FileUploadResponse:
         """
         Process file upload with full RLS security and database registration:
         1. Generate unique IDs
@@ -119,9 +114,7 @@ class SupabaseUploadService:
         - Supabase Storage bucket policies enforce client_id access
         - Database RLS policies on fonte_de_dados table enforce client isolation
         """
-        logger.info(
-            f"Starting upload processing for client_id: {client_id}"
-        )
+        logger.info(f"Starting upload processing for client_id: {client_id}")
 
         # 1. Generate IDs
         job_id = uuid.uuid4()
@@ -156,16 +149,20 @@ class SupabaseUploadService:
                 client_id=client_id,
                 storage_path=result.full_path,
                 file_name=file.filename,
-                content_type=file.content_type or "application/octet-stream"
+                content_type=file.content_type or "application/octet-stream",
             )
         except Exception as e:
             # Rollback: Delete the uploaded file if database registration fails
-            logger.error(f"Job [{job_id}]: Database registration failed. Rolling back storage upload.")
+            logger.error(
+                f"Job [{job_id}]: Database registration failed. Rolling back storage upload."
+            )
             try:
                 self.storage.delete_file(result.path)
                 logger.info(f"Job [{job_id}]: Storage file deleted successfully")
             except Exception as rollback_error:
-                logger.error(f"Job [{job_id}]: CRITICAL - Failed to delete file during rollback: {rollback_error}")
+                logger.error(
+                    f"Job [{job_id}]: CRITICAL - Failed to delete file during rollback: {rollback_error}"
+                )
 
             raise Exception(f"Failed to register upload in database: {e}")
 
@@ -175,7 +172,7 @@ class SupabaseUploadService:
             file_name=file.filename,
             content_type=file.content_type or "application/octet-stream",
             storage_path=result.full_path,
-            fonte_de_dados_id=fonte_id
+            fonte_de_dados_id=fonte_id,
         )
 
 

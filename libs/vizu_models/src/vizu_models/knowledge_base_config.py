@@ -34,15 +34,16 @@ class KnowledgeBaseConfigBase(SQLModel):
         description="Descrição do conteúdo da base",
     )
 
-    collection_name: str = Field(
-        sa_column=Column(String(100), nullable=False),
-        description="Nome da collection no Qdrant",
+    collection_name: str | None = Field(
+        default=None,
+        sa_column=Column(String(100), nullable=True),
+        description="DEPRECATED: anteriormente nome da collection no Qdrant. Isolação agora é por client_id no schema vector_db.",
     )
 
     embedding_model: str = Field(
-        default="text-embedding-3-small",
+        default="gte-small",
         sa_column=Column(String(100), nullable=False),
-        description="Modelo de embedding usado",
+        description="Modelo de embedding usado (gte-small built-in no Supabase Edge Runtime)",
     )
 
     chunk_size: int = Field(
@@ -118,7 +119,7 @@ class KnowledgeBaseConfig(KnowledgeBaseConfigBase, table=True):
     last_sync_at: datetime | None = Field(
         default=None,
         sa_column=Column(DateTime),
-        description="Última sincronização com Qdrant",
+        description="Última sincronização (anteriormente com Qdrant, agora vector_db)",
     )
 
     # Relationship

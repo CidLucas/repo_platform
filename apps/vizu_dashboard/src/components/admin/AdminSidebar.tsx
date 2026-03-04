@@ -1,12 +1,13 @@
 import { Box, VStack, Text, Divider, Icon } from '@chakra-ui/react';
 import { NavLink } from 'react-router-dom';
-import { 
-  FiHome, 
-  FiDatabase, 
-  FiShield, 
-  FiMessageSquare, 
-  FiCreditCard, 
-  FiHelpCircle 
+import {
+  FiHome,
+  FiDatabase,
+  FiShield,
+  FiMessageSquare,
+  FiCreditCard,
+  FiHelpCircle,
+  FiBook
 } from 'react-icons/fi';
 
 interface SidebarItemProps {
@@ -57,38 +58,43 @@ export const AdminSidebar = () => {
       py={4}
     >
       <VStack spacing={1} align="stretch" px={3}>
-        <SidebarItem 
-          to="/dashboard/admin" 
-          icon={FiHome} 
-          label="Início" 
+        <SidebarItem
+          to="/dashboard/admin"
+          icon={FiHome}
+          label="Início"
         />
-        <SidebarItem 
-          to="/dashboard/admin/fontes" 
-          icon={FiDatabase} 
-          label="Minhas fontes" 
+        <SidebarItem
+          to="/dashboard/admin/fontes"
+          icon={FiDatabase}
+          label="Minhas fontes"
         />
-        <SidebarItem 
-          to="/dashboard/admin/privacidade" 
-          icon={FiShield} 
-          label="Dados e privacidade" 
+        <SidebarItem
+          to="/dashboard/admin/knowledge-base"
+          icon={FiBook}
+          label="Base de Conhecimento"
         />
-        <SidebarItem 
-          to="/dashboard/admin/chat" 
-          icon={FiMessageSquare} 
-          label="Chat admin" 
+        <SidebarItem
+          to="/dashboard/admin/privacidade"
+          icon={FiShield}
+          label="Dados e privacidade"
         />
-        <SidebarItem 
-          to="/dashboard/admin/planos" 
-          icon={FiCreditCard} 
-          label="Planos contratado" 
+        <SidebarItem
+          to="/dashboard/admin/chat"
+          icon={FiMessageSquare}
+          label="Chat admin"
         />
-        
+        <SidebarItem
+          to="/dashboard/admin/planos"
+          icon={FiCreditCard}
+          label="Planos contratado"
+        />
+
         <Divider my={2} borderColor="gray.200" />
-        
-        <SidebarItem 
-          to="/dashboard/admin/ajuda" 
-          icon={FiHelpCircle} 
-          label="Ajuda" 
+
+        <SidebarItem
+          to="/dashboard/admin/ajuda"
+          icon={FiHelpCircle}
+          label="Ajuda"
         />
       </VStack>
     </Box>

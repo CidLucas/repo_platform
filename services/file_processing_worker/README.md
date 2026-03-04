@@ -1,5 +1,10 @@
 # Vizu File Processing Worker
 
+> **⚠️ DEPRECATED** — This service is replaced by the Supabase-based RAG pipeline.
+> Simple files are processed by the `process-document` Edge Function.
+> Complex files are processed by `file_upload_api /v1/upload/process` with docling.
+> See `docs/RAG_MIGRATION_GUIDE.md` for details.
+
 This service is an asynchronous worker responsible for processing and embedding files.
 
 ## Overview

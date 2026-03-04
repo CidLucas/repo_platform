@@ -12,27 +12,6 @@ const ANALYTICS_SCHEMA = 'analytics_v2';
 
 // --- Type Definitions ---
 
-// Note: This Pedido interface appears to be for a different use case (possibly OLTP/UI-specific)
-// and does not match the backend's PedidoItem or PedidoDetailResponse from the analytics API.
-// Consider renaming this to avoid confusion or document its specific purpose.
-export interface Pedido {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  clientName: string;
-  valorUnitario: string;
-  enderecoEntrega: string;
-  cnpjFaturamento: string;
-  descricaoProdutos: string;
-  // Campos adicionais usados na listagem
-  valorTotal?: string;
-  descricao?: string;
-  frete?: string;
-  quantidadeItens?: number;
-  // Add other fields as per your API response for Pedidos
-}
-
 // Corresponds to the Pydantic 'PedidoItem' (used in PedidosOverviewResponse)
 export interface PedidoItem {
   order_id: string;
@@ -62,7 +41,7 @@ export interface PedidosOverviewResponse {
   ultimos_pedidos: PedidoItem[];
 }
 
-// Corresponds to the Pydantic 'CustomerMetricsResponse' from indicators endpoint
+// Customer metrics payload shape (used by useIndicators / HomePage)
 export interface CustomerMetricsResponse {
   total_active: number;
   new_customers: number;
@@ -77,7 +56,7 @@ export interface CustomerMetricsResponse {
   };
 }
 
-// Corresponds to the Pydantic 'ProductMetricsResponse' from indicators endpoint
+// Product metrics payload shape (used by useIndicators / HomePage)
 export interface ProductMetricsResponse {
   total_sold: number;
   unique_products: number;
@@ -93,7 +72,7 @@ export interface ProductMetricsResponse {
   };
 }
 
-// Corresponds to the Pydantic 'OrderMetricsResponse' from indicators endpoint
+// Order metrics payload shape (used by PedidosPage)
 export interface OrderMetricsResponse {
   total: number;
   revenue: number;
@@ -194,6 +173,10 @@ export interface HomeScorecards {
   crescimento_produtos?: number;  // Variação % produtos (último mês vs penúltimo)
   frequencia_media_fornecedores?: number;  // Média de pedidos por fornecedor por mês
   ultimo_mes?: string;  // Nome do último mês com dados (ex: "2026-01")
+  // Consolidated from v_resumo_dashboard (replaces useIndicators)
+  clientes_ativos?: number;  // Customers with recency <= 90 days
+  clientes_novos?: number;   // Customers with single order
+  quantidade_total_vendida?: number;  // Total quantity sold across all products
 }
 
 // Corresponds to the Pydantic 'HomeMetricsResponse'
@@ -206,6 +189,19 @@ export interface HomeMetricsResponse {
 export interface FornecedoresOverviewResponse {
   scorecard_total_fornecedores: number;
   scorecard_crescimento_percentual?: number | null;
+  // Tier breakdowns
+  scorecard_tier_a_count?: number;
+  scorecard_tier_b_count?: number;
+  scorecard_tier_c_count?: number;
+  scorecard_tier_d_count?: number;
+  scorecard_tier_a_receita?: number;
+  scorecard_tier_b_receita?: number;
+  scorecard_tier_c_receita?: number;
+  scorecard_tier_d_receita?: number;
+  scorecard_tier_a_ticket_medio?: number;
+  scorecard_tier_b_ticket_medio?: number;
+  scorecard_tier_c_ticket_medio?: number;
+  scorecard_tier_d_ticket_medio?: number;
   chart_fornecedores_no_tempo: ChartDataPoint[];
   chart_receita_no_tempo: ChartDataPoint[]; // Monthly revenue fluctuation
   chart_ticketmedio_no_tempo: ChartDataPoint[]; // Monthly avg ticket fluctuation
@@ -259,6 +255,19 @@ export interface ClientesOverviewResponse {
   scorecard_ticket_medio_geral: number;
   scorecard_frequencia_media_geral: number;
   scorecard_crescimento_percentual?: number | null;
+  // Tier breakdowns
+  scorecard_tier_a_count?: number;
+  scorecard_tier_b_count?: number;
+  scorecard_tier_c_count?: number;
+  scorecard_tier_d_count?: number;
+  scorecard_tier_a_receita?: number;
+  scorecard_tier_b_receita?: number;
+  scorecard_tier_c_receita?: number;
+  scorecard_tier_d_receita?: number;
+  scorecard_tier_a_ticket_medio?: number;
+  scorecard_tier_b_ticket_medio?: number;
+  scorecard_tier_c_ticket_medio?: number;
+  scorecard_tier_d_ticket_medio?: number;
   chart_clientes_no_tempo: ChartDataPoint[];
   chart_receita_no_tempo: ChartDataPoint[]; // Monthly revenue from customers
   chart_ticketmedio_no_tempo: ChartDataPoint[]; // Monthly average ticket from customers
@@ -389,8 +398,10 @@ export const getPedidosOverview = async (): Promise<PedidosOverviewResponse> => 
     .schema(ANALYTICS_SCHEMA)
     .from('v_resumo_dashboard')
     .select('*')
-    .single();
+    .limit(1)
+    .maybeSingle();
 
+  if (resumoError) console.warn('[Pedidos] v_resumo_dashboard error:', resumoError.message);
   const dashboard = resumo || { total_pedidos: 0, receita_total: 0, ticket_medio: 0 };
 
   // Calculate scorecards
@@ -500,6 +511,16 @@ export const getFornecedores = async (_period: string = 'all'): Promise<Forneced
     crescimentoPercentual = prev > 0 ? ((last - prev) / prev) * 100 : null;
   }
 
+  // Tier aggregations
+  const tiers = ['A', 'B', 'C', 'D'] as const;
+  const tierData = Object.fromEntries(tiers.map(t => {
+    const items = fornecedores.filter(f => String(f.nivel_cluster || '').toUpperCase() === t);
+    const count = items.length;
+    const receita = items.reduce((s, f) => s + (Number(f.receita_total) || 0), 0);
+    const ticket = count > 0 ? receita / count : 0;
+    return [t, { count, receita, ticket }];
+  })) as Record<string, { count: number; receita: number; ticket: number }>;
+
   // Map fornecedores to RankingItem format
   const toRankingItem = (f: Record<string, unknown>): RankingItem => ({
     nome: String(f.nome || ''),
@@ -520,6 +541,19 @@ export const getFornecedores = async (_period: string = 'all'): Promise<Forneced
   return {
     scorecard_total_fornecedores: totalFornecedores,
     scorecard_crescimento_percentual: crescimentoPercentual,
+    // Tier data
+    scorecard_tier_a_count: tierData.A.count,
+    scorecard_tier_b_count: tierData.B.count,
+    scorecard_tier_c_count: tierData.C.count,
+    scorecard_tier_d_count: tierData.D.count,
+    scorecard_tier_a_receita: tierData.A.receita,
+    scorecard_tier_b_receita: tierData.B.receita,
+    scorecard_tier_c_receita: tierData.C.receita,
+    scorecard_tier_d_receita: tierData.D.receita,
+    scorecard_tier_a_ticket_medio: tierData.A.ticket,
+    scorecard_tier_b_ticket_medio: tierData.B.ticket,
+    scorecard_tier_c_ticket_medio: tierData.C.ticket,
+    scorecard_tier_d_ticket_medio: tierData.D.ticket,
     chart_fornecedores_no_tempo: seriesContagem.map(s => ({ name: s.periodo, total: Number(s.total) })),
     chart_receita_no_tempo: seriesReceita.map(s => ({ name: s.periodo, total: Number(s.total) })),
     chart_ticketmedio_no_tempo: seriesTicketMedio.map(s => ({ name: s.periodo, total: s.total })),
@@ -613,6 +647,16 @@ export const getClientes = async (_period: string = 'all'): Promise<ClientesOver
     crescimentoPercentual = prev > 0 ? ((last - prev) / prev) * 100 : null;
   }
 
+  // Tier aggregations
+  const tiers = ['A', 'B', 'C', 'D'] as const;
+  const tierData = Object.fromEntries(tiers.map(t => {
+    const items = clientes.filter(c => String(c.nivel_cluster || '').toUpperCase() === t);
+    const count = items.length;
+    const receita = items.reduce((s, c) => s + (Number(c.receita_total) || 0), 0);
+    const ticket = count > 0 ? receita / count : 0;
+    return [t, { count, receita, ticket }];
+  })) as Record<string, { count: number; receita: number; ticket: number }>;
+
   // Map clientes to RankingItem format
   const toRankingItem = (c: Record<string, unknown>): RankingItem => ({
     nome: String(c.nome || ''),
@@ -635,6 +679,19 @@ export const getClientes = async (_period: string = 'all'): Promise<ClientesOver
     scorecard_ticket_medio_geral: ticketMedio,
     scorecard_frequencia_media_geral: frequenciaMedia,
     scorecard_crescimento_percentual: crescimentoPercentual,
+    // Tier data
+    scorecard_tier_a_count: tierData.A.count,
+    scorecard_tier_b_count: tierData.B.count,
+    scorecard_tier_c_count: tierData.C.count,
+    scorecard_tier_d_count: tierData.D.count,
+    scorecard_tier_a_receita: tierData.A.receita,
+    scorecard_tier_b_receita: tierData.B.receita,
+    scorecard_tier_c_receita: tierData.C.receita,
+    scorecard_tier_d_receita: tierData.D.receita,
+    scorecard_tier_a_ticket_medio: tierData.A.ticket,
+    scorecard_tier_b_ticket_medio: tierData.B.ticket,
+    scorecard_tier_c_ticket_medio: tierData.C.ticket,
+    scorecard_tier_d_ticket_medio: tierData.D.ticket,
     chart_clientes_no_tempo: seriesContagem.map(s => ({ name: s.periodo, total: Number(s.total) })),
     chart_receita_no_tempo: seriesReceita.map(s => ({ name: s.periodo, total: Number(s.total) })),
     chart_ticketmedio_no_tempo: seriesTicketMedio.map(s => ({ name: s.periodo, total: s.total })),
@@ -863,7 +920,8 @@ export const getHomeMetrics = async (): Promise<HomeMetricsResponse> => {
     .schema(ANALYTICS_SCHEMA)
     .from('v_resumo_dashboard')
     .select('*')
-    .single();
+    .limit(1)
+    .maybeSingle();
 
   if (error) console.error('[Dashboard] v_resumo_dashboard FAILED:', error.code, error.message, error.details, error.hint);
 
@@ -880,17 +938,25 @@ export const getHomeMetrics = async (): Promise<HomeMetricsResponse> => {
 
   const scorecards: HomeScorecards = {
     receita_total: Number(dashboard.receita_total) || 0,
-    receita_mes_atual: Number(dashboard.receita_total) || 0, // Would need monthly filter
+    receita_mes_atual: Number(dashboard.receita_mes_atual) || 0,
     total_fornecedores: Number(dashboard.total_fornecedores) || 0,
     total_produtos: Number(dashboard.total_produtos) || 0,
-    total_regioes: 0, // Would need aggregation
+    total_regioes: Number(dashboard.total_regioes) || 0,
     total_clientes: Number(dashboard.total_clientes) || 0,
     total_pedidos: Number(dashboard.total_pedidos) || 0,
     ticket_medio: Number(dashboard.ticket_medio) || 0,
+    crescimento_receita: dashboard.crescimento_receita != null ? Number(dashboard.crescimento_receita) : undefined,
+    crescimento_clientes: dashboard.crescimento_clientes != null ? Number(dashboard.crescimento_clientes) : undefined,
+    crescimento_produtos: dashboard.crescimento_produtos != null ? Number(dashboard.crescimento_produtos) : undefined,
+    frequencia_media_fornecedores: Number(dashboard.frequencia_media_fornecedores) || 0,
+    ultimo_mes: dashboard.ultimo_mes || undefined,
+    clientes_ativos: Number(dashboard.clientes_ativos) || 0,
+    clientes_novos: Number(dashboard.clientes_novos) || 0,
+    quantidade_total_vendida: Number(dashboard.quantidade_total_vendida) || 0,
   };
 
   // Group series by tipo_grafico for charts
-  const receitaNoTempo = (series || []).filter(s => s.dimensao === 'receita').map(s => ({
+  const receitaNoTempo = (series || []).filter(s => s.tipo_grafico === 'receita').map(s => ({
     name: s.periodo,
     total: Number(s.total) || 0,
   }));
@@ -902,67 +968,15 @@ export const getHomeMetrics = async (): Promise<HomeMetricsResponse> => {
   return { scorecards, charts };
 };
 
-// Customer Indicators (from IndicatorService)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export const getCustomerIndicators = async (period: string = 'month', _includeComparisons: boolean = false): Promise<CustomerMetricsResponse> => {
-  const { data: clientes, error } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('dim_clientes')
-    .select('total_pedidos, receita_total, dias_recencia');
-
-  if (error) console.warn('Error fetching customer indicators:', error);
-
-  const clientesData = clientes || [];
-  const totalActive = clientesData.filter(c => Number(c.dias_recencia) <= 90).length;
-  const newCustomers = clientesData.filter(c => Number(c.total_pedidos) === 1).length;
-  const returningCustomers = totalActive - newCustomers;
-  const avgLifetimeValue = clientesData.length > 0
-    ? clientesData.reduce((sum, c) => sum + Number(c.receita_total || 0), 0) / clientesData.length
-    : 0;
-
-  return {
-    total_active: totalActive,
-    new_customers: newCustomers,
-    returning_customers: returningCustomers,
-    avg_lifetime_value: avgLifetimeValue,
-    period,
-  };
-};
-
-// Product Indicators (from IndicatorService)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export const getProductIndicators = async (period: string = 'month', _includeComparisons: boolean = false): Promise<ProductMetricsResponse> => {
-  const { data: produtos, error } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('dim_inventory')
-    .select('quantidade_total_vendida, total_pedidos, preco_medio');
-
-  if (error) console.warn('Error fetching product indicators:', error);
-
-  const produtosData = produtos || [];
-  const totalSold = produtosData.reduce((sum, p) => sum + Number(p.quantidade_total_vendida || 0), 0);
-  const avgPrice = produtosData.length > 0
-    ? produtosData.reduce((sum, p) => sum + Number(p.preco_medio || 0), 0) / produtosData.length
-    : 0;
-
-  return {
-    total_sold: totalSold,
-    unique_products: produtosData.length,
-    top_sellers: [],
-    low_stock_alerts: 0,
-    avg_price: avgPrice,
-    period,
-  };
-};
-
-// Order Indicators (from IndicatorService)
+// Order Indicators (used by PedidosPage)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getOrderIndicators = async (period: string = 'month', _includeComparisons: boolean = false): Promise<OrderMetricsResponse> => {
   const { data: resumo, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
     .from('v_resumo_dashboard')
     .select('*')
-    .single();
+    .limit(1)
+    .maybeSingle();
 
   if (error) console.warn('Error fetching order indicators:', error);
 
@@ -972,7 +986,7 @@ export const getOrderIndicators = async (period: string = 'month', _includeCompa
     total: Number(dashboard.total_pedidos) || 0,
     revenue: Number(dashboard.receita_total) || 0,
     avg_order_value: Number(dashboard.ticket_medio) || 0,
-    growth_rate: null,
+    growth_rate: dashboard.crescimento_receita != null ? Number(dashboard.crescimento_receita) : null,
     by_status: { completed: Number(dashboard.total_pedidos) || 0 },
     period,
   };
@@ -1517,178 +1531,4 @@ export const getMe = async (_token: string): Promise<MeResponse> => {
   }
 
   return { client_id: cliente.client_id };
-};
-
-// --- MATERIALIZED VIEW ENDPOINTS (Fast pre-computed data) ---
-
-// MV Customer Summary
-export interface MVCustomerSummary {
-  customer_id: string;
-  name: string;
-  cpf_cnpj: string;
-  estado: string | null;
-  total_orders: number;
-  lifetime_value: number;
-  avg_order_value: number;
-  total_quantity: number;
-  last_order_date: string | null;
-  first_order_date: string | null;
-  days_since_last_order: number;
-}
-
-export interface MVCustomersResponse {
-  customers: MVCustomerSummary[];
-  total: number;
-}
-
-// MV Product Summary
-export interface MVProductSummary {
-  product_id: string;
-  product_name: string;
-  times_sold: number;
-  total_quantity_sold: number;
-  total_revenue: number;
-  avg_order_value: number;
-  avg_price: number;
-  min_price: number;
-  max_price: number;
-  last_sold_date: string | null;
-  unique_customers: number;
-}
-
-export interface MVProductsResponse {
-  products: MVProductSummary[];
-  total: number;
-}
-
-// MV Monthly Sales Trend
-export interface MVMonthlySales {
-  month: string;  // YYYY-MM format
-  name: string;   // Same as month, for chart compatibility
-  orders: number;
-  unique_customers: number;
-  revenue: number;
-  total: number;  // Same as revenue, for chart compatibility
-  avg_order_value: number;
-}
-
-export interface MVMonthlySalesResponse {
-  monthly_sales: MVMonthlySales[];
-  total_months: number;
-}
-
-// MV Dashboard Summary (combined)
-export interface MVDashboardSummary {
-  total_customers: number;
-  total_products: number;
-  total_orders: number;
-  total_revenue: number;
-  avg_order_value: number;
-  monthly_trend: MVMonthlySales[];
-  top_customers: MVCustomerSummary[];
-  top_products: MVProductSummary[];
-}
-
-// Get customer summary from dim_clientes
-export const getMVCustomers = async (): Promise<MVCustomersResponse> => {
-  const { data: clientes, error } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('dim_clientes')
-    .select('*')
-    .order('receita_total', { ascending: false })
-    .limit(100);
-
-  if (error) console.warn('Error fetching MV customers:', error);
-
-  const customers: MVCustomerSummary[] = (clientes || []).map(c => ({
-    customer_id: c.cliente_id,
-    name: c.nome,
-    cpf_cnpj: c.cpf_cnpj,
-    estado: c.endereco_uf,
-    total_orders: c.total_pedidos || 0,
-    lifetime_value: Number(c.receita_total) || 0,
-    avg_order_value: Number(c.ticket_medio) || 0,
-    total_quantity: Number(c.quantidade_total) || 0,
-    last_order_date: c.data_ultima_compra,
-    first_order_date: c.data_primeira_compra,
-    days_since_last_order: c.dias_recencia || 0,
-  }));
-
-  return { customers, total: customers.length };
-};
-
-// Get product summary from dim_inventory
-export const getMVProducts = async (): Promise<MVProductsResponse> => {
-  const { data: produtos, error } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('dim_inventory')
-    .select('*')
-    .order('receita_total', { ascending: false })
-    .limit(100);
-
-  if (error) console.warn('Error fetching MV products:', error);
-
-  const products: MVProductSummary[] = (produtos || []).map(p => ({
-    product_id: p.inventory_id,
-    product_name: p.nome,
-    times_sold: p.total_pedidos || 0,
-    total_quantity_sold: Number(p.quantidade_total_vendida) || 0,
-    total_revenue: Number(p.receita_total) || 0,
-    avg_order_value: Number(p.receita_total) / (p.total_pedidos || 1),
-    avg_price: Number(p.preco_medio) || 0,
-    min_price: Number(p.preco_medio) || 0,
-    max_price: Number(p.preco_medio) || 0,
-    last_sold_date: p.data_ultima_venda,
-    unique_customers: 0, // Would need join to calculate
-  }));
-
-  return { products, total: products.length };
-};
-
-// Get monthly sales trend from v_series_temporal
-export const getMVMonthlySales = async (): Promise<MVMonthlySalesResponse> => {
-  const { data: series, error } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('v_series_temporal')
-    .select('*')
-    .eq('tipo_grafico', 'vendas')
-    .eq('dimensao', 'receita')
-    .order('data_periodo', { ascending: true });
-
-  if (error) console.warn('Error fetching MV monthly sales:', error);
-
-  const monthly_sales: MVMonthlySales[] = (series || []).map(s => ({
-    month: s.periodo,
-    name: s.periodo,
-    orders: 0, // Would need different query
-    unique_customers: 0,
-    revenue: Number(s.total) || 0,
-    total: Number(s.total) || 0,
-    avg_order_value: 0,
-  }));
-
-  return { monthly_sales, total_months: monthly_sales.length };
-};
-
-// Get complete dashboard summary
-export const getMVDashboardSummary = async (): Promise<MVDashboardSummary> => {
-  const [resumoRes, customersRes, productsRes, salesRes] = await Promise.all([
-    supabase.schema(ANALYTICS_SCHEMA).from('v_resumo_dashboard').select('*').single(),
-    getMVCustomers(),
-    getMVProducts(),
-    getMVMonthlySales(),
-  ]);
-
-  const resumo = resumoRes.data || {};
-
-  return {
-    total_customers: Number(resumo.total_clientes) || 0,
-    total_products: Number(resumo.total_produtos) || 0,
-    total_orders: Number(resumo.total_pedidos) || 0,
-    total_revenue: Number(resumo.receita_total) || 0,
-    avg_order_value: Number(resumo.ticket_medio) || 0,
-    monthly_trend: salesRes.monthly_sales,
-    top_customers: customersRes.customers.slice(0, 10),
-    top_products: productsRes.products.slice(0, 10),
-  };
 };

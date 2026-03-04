@@ -398,7 +398,8 @@ export async function getDashboardStats(
         .schema('analytics_v2')
         .from('v_resumo_dashboard')
         .select('total_pedidos')
-        .single();
+        .limit(1)
+        .maybeSingle();
 
     const storageUsage: StorageUsageResponse = {
         database_size_bytes: 0, // Would need admin access to get this

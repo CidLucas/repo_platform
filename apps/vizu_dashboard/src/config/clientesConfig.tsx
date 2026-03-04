@@ -198,23 +198,23 @@ export const clientesConfig: DimensionConfig<ClientesOverviewResponse, ClienteDe
 
     carouselGraphsBuilder: (data) => {
         if (!data) return undefined;
-        const chartCustomersData = (data.chart_clientes_no_tempo || []).map(
-            (d: { name: string; total?: number; value?: number }) => ({ name: d.name || '', value: (d.total ?? d.value ?? 0) as number }),
-        );
-        const chartRevenueData = (data.chart_receita_no_tempo || []).map(
-            (d: { name: string; total?: number; value?: number }) => ({ name: d.name || '', value: (d.total ?? d.value ?? 0) as number }),
-        );
-        const chartAvgOrderData = (data.chart_ticketmedio_no_tempo || []).map(
-            (d: { name: string; total?: number; value?: number }) => ({ name: d.name || '', value: (d.total ?? d.value ?? 0) as number }),
-        );
-        const chartOrdersData = (data.chart_clientes_no_tempo || []).map(
-            (d: { name: string; total?: number; value?: number }) => ({ name: d.name || '', value: (d.total ?? d.value ?? 0) as number }),
-        );
+        const tierACount = data.scorecard_tier_a_count || 0;
+        const tierBCount = data.scorecard_tier_b_count || 0;
+        const tierCCount = data.scorecard_tier_c_count || 0;
+        const tierDCount = data.scorecard_tier_d_count || 0;
+        const tierATicketMedio = data.scorecard_tier_a_ticket_medio || 0;
+        const tierBTicketMedio = data.scorecard_tier_b_ticket_medio || 0;
+        const tierCTicketMedio = data.scorecard_tier_c_ticket_medio || 0;
+        const tierDTicketMedio = data.scorecard_tier_d_ticket_medio || 0;
+        const tierAReceita = data.scorecard_tier_a_receita || 0;
+        const tierBReceita = data.scorecard_tier_b_receita || 0;
+        const tierCReceita = data.scorecard_tier_c_receita || 0;
+        const tierDReceita = data.scorecard_tier_d_receita || 0;
+        const barColors = ['#4CAF50', '#FFC107', '#FF5722', '#9E9E9E'];
         return [
-            { data: chartCustomersData, dataKey: 'value', lineColor: '#82ca9d', title: 'Clientes Únicos por Mês', description: 'Evolução mensal do número de clientes únicos.' },
-            { data: chartRevenueData, dataKey: 'value', lineColor: '#8884d8', title: 'Receita Mensal', description: 'Flutuação mensal da receita total.' },
-            { data: chartAvgOrderData, dataKey: 'value', lineColor: '#ffc658', title: 'Ticket Médio no Tempo', description: 'Valor médio por pedido ao longo dos meses.' },
-            { data: chartOrdersData, dataKey: 'value', lineColor: '#ff7300', title: 'Pedidos por Mês', description: 'Total de pedidos realizados mês a mês.' },
+            { data: [{ name: 'Tier A', value: tierACount, color: '#4CAF50' }, { name: 'Tier B', value: tierBCount, color: '#FFC107' }, { name: 'Tier C', value: tierCCount, color: '#FF5722' }, { name: 'Tier D', value: tierDCount, color: '#9E9E9E' }], dataKey: 'value', title: 'Distribuição de Clientes por Tier', description: 'Quantidade de clientes em cada tier de performance.', chartType: 'bar' as const, barColors, valueLabel: 'Clientes' },
+            { data: [{ name: 'Tier A', value: Math.round(tierATicketMedio), color: '#4CAF50' }, { name: 'Tier B', value: Math.round(tierBTicketMedio), color: '#FFC107' }, { name: 'Tier C', value: Math.round(tierCTicketMedio), color: '#FF5722' }, { name: 'Tier D', value: Math.round(tierDTicketMedio), color: '#9E9E9E' }], dataKey: 'value', title: 'Ticket Médio por Tier (R$)', description: 'Receita média por cliente em cada tier.', chartType: 'bar' as const, barColors, valueLabel: 'Ticket Médio (R$)' },
+            { data: [{ name: 'Tier A', value: Math.round(tierAReceita), color: '#4CAF50' }, { name: 'Tier B', value: Math.round(tierBReceita), color: '#FFC107' }, { name: 'Tier C', value: Math.round(tierCReceita), color: '#FF5722' }, { name: 'Tier D', value: Math.round(tierDReceita), color: '#9E9E9E' }], dataKey: 'value', title: 'Receita por Tier (R$)', description: 'Comparativo da receita gerada por cada tier.', chartType: 'bar' as const, barColors, valueLabel: 'Receita (R$)' },
         ];
     },
 

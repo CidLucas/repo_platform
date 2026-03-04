@@ -6,7 +6,6 @@ import { useUserProfile } from '../hooks/useUserProfile';
 import { useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useHomeMetrics } from '../hooks/useHomeMetrics';
-import { useIndicators } from '../hooks/useIndicators';
 import { getClientes, getFornecedores, getProdutosOverview } from '../services/analyticsService';
 
 function HomePage() {
@@ -33,13 +32,8 @@ function HomePage() {
     });
   }, [queryClient]);
 
-  // Both hooks use React Query - they execute in parallel automatically
+  // Single consolidated hook — v_resumo_dashboard now provides all HomePage data
   const { data: metricsData, loading: metricsLoading, error: metricsError } = useHomeMetrics();
-  const { data: indicators, loading: indicatorsLoading, error: indicatorsError } = useIndicators({
-    period: 'today',
-    metrics: ['orders', 'products', 'customers'],
-    includeComparisons: true,
-  });
 
   // Derive revenue data from metricsData (memoized to avoid recalculation)
   const revenueData = useMemo(() => {
@@ -51,9 +45,8 @@ function HomePage() {
     return { value: monthlyRevenue, month: currentMonth };
   }, [metricsData]);
 
-  // Combined loading state (both fetching in parallel)
-  const loading = metricsLoading || indicatorsLoading;
-  const error = metricsError || indicatorsError;
+  const loading = metricsLoading;
+  const error = metricsError;
 
   // Early return for loading state
   if (loading) {
@@ -120,17 +113,16 @@ function HomePage() {
   const fornecedoresFrequencia = metricsData?.scorecards.frequencia_media_fornecedores || 0;
   const fornecedoresCrescimento = formatGrowth(metricsData?.scorecards.crescimento_receita);
 
-  // Extract Produtos data
-  const productsTotal = indicators?.products?.unique_products || metricsData?.scorecards.total_produtos || 0;
-  // Convert to tons (divide by 1000) then format compactly
-  const productsSoldRaw = indicators?.products?.total_sold || 0;
+  // Extract Produtos data — from consolidated v_resumo_dashboard
+  const productsTotal = metricsData?.scorecards.total_produtos || 0;
+  const productsSoldRaw = metricsData?.scorecards.quantidade_total_vendida || 0;
   const productsSoldInTons = productsSoldRaw / 1000; // Convert kg to tons
   const productsSoldFormatted = formatCompactNumber(productsSoldInTons, 'ton');
   const produtosCrescimento = formatGrowth(metricsData?.scorecards.crescimento_produtos);
 
-  // Extract Clientes data
-  const customersTotal = indicators?.customers?.total_active || metricsData?.scorecards.total_clientes || 0;
-  const customersNew = indicators?.customers?.new_customers || 0;
+  // Extract Clientes data — from consolidated v_resumo_dashboard
+  const customersTotal = metricsData?.scorecards.clientes_ativos || metricsData?.scorecards.total_clientes || 0;
+  const customersNew = metricsData?.scorecards.clientes_novos || 0;
   const clientesCrescimento = formatGrowth(metricsData?.scorecards.crescimento_clientes);
 
   return (

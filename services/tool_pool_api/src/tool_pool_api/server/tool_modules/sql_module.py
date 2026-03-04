@@ -167,10 +167,10 @@ async def _get_enriched_schema_context(
     # Focus on analytics_v2 star schema, exclude legacy analytics_silver and analytics_gold
     # NOTE: SQLDatabase requires schema parameter separately, not schema.table format
     production_tables = [
-        "fact_sales",
-        "dim_customer",
-        "dim_supplier",
-        "dim_product",
+        "fato_transacoes",
+        "dim_clientes",
+        "dim_fornecedores",
+        "dim_inventory",
     ]
 
     # Filter to production tables only
@@ -211,36 +211,59 @@ def _get_hardcoded_analytics_v2_schema() -> str:
 ANALYTICS V2 STAR SCHEMA (schema: analytics_v2)
 ================================================
 
-TABLE: analytics_v2.fact_sales (grain: order_id, line_item_sequence)
-- order_id (TEXT) - Order identifier
-- line_item_sequence (INTEGER) - Line number
-- data_transacao (TIMESTAMPTZ) - Transaction date (USE FOR DATE FILTERING)
-- customer_id (UUID) - FK to dim_customer
-- supplier_id (UUID) - FK to dim_supplier
-- product_id (UUID) - FK to dim_product
+TABLE: analytics_v2.fato_transacoes (grain: transacao_id)
+- transacao_id (UUID) - Primary key
+- documento (TEXT) - Order/document identifier
+- data_competencia_id (INTEGER) - FK to dim_datas (format YYYYMMDD)
+- tipo_id (INTEGER) - FK to dim_tipo_transacao
+- cliente_id (UUID) - FK to dim_clientes
+- fornecedor_id (UUID) - FK to dim_fornecedores
+- inventory_id (UUID) - FK to dim_inventory
 - quantidade (NUMERIC) - Quantity
 - valor_unitario (NUMERIC) - Unit price
-- valor_total (NUMERIC) - Line total
+- valor (NUMERIC) - Line total
+- status (TEXT) - Transaction status
 
-TABLE: analytics_v2.dim_customer
-- customer_id (UUID) - Primary key
-- name (TEXT), cpf_cnpj (TEXT)
+TABLE: analytics_v2.dim_clientes
+- cliente_id (UUID) - Primary key
+- nome (TEXT), cpf_cnpj (TEXT)
 - endereco_cidade (TEXT), endereco_uf (TEXT)
-- total_orders (INTEGER), total_revenue (NUMERIC)
+- total_pedidos (INTEGER), receita_total (NUMERIC), ticket_medio (NUMERIC)
 
-TABLE: analytics_v2.dim_supplier
-- supplier_id (UUID) - Primary key
-- name (TEXT), cnpj (TEXT)
+TABLE: analytics_v2.dim_fornecedores
+- fornecedor_id (UUID) - Primary key
+- nome (TEXT), cnpj (TEXT)
 - endereco_cidade (TEXT), endereco_uf (TEXT)
-- total_revenue (NUMERIC), total_orders_received (INTEGER)
+- receita_total (NUMERIC), total_pedidos_recebidos (INTEGER)
 
-TABLE: analytics_v2.dim_product
-- product_id (UUID) - Primary key
-- product_name (TEXT) - USE FOR FILTERING BY PRODUCT TYPE (e.g., ILIKE '%ALUMINIO%')
-- categoria (TEXT) - OFTEN NULL, prefer product_name for searches
-- total_quantity_sold (NUMERIC), total_revenue (NUMERIC)
+TABLE: analytics_v2.dim_inventory
+- inventory_id (UUID) - Primary key
+- nome (TEXT) - USE FOR FILTERING BY PRODUCT TYPE (e.g., ILIKE '%%ALUMINIO%%')
+- ncm (TEXT), sku (TEXT)
+- quantidade_total_vendida (NUMERIC), receita_total (NUMERIC), preco_medio (NUMERIC)
 
-JOINS: fact_sales -> dim_customer/dim_supplier/dim_product via customer_id/supplier_id/product_id
+TABLE: analytics_v2.dim_datas
+- data_id (INTEGER) - Primary key (YYYYMMDD)
+- data (DATE) - USE FOR DATE FILTERING
+- ano, mes, trimestre, dia_da_semana (INTEGER)
+
+TABLE: analytics_v2.dim_tipo_transacao
+- tipo_id (INTEGER) - Primary key
+- codigo (TEXT), descricao (TEXT), categoria (TEXT)
+
+JOINS:
+  fato_transacoes -> dim_clientes via cliente_id
+  fato_transacoes -> dim_fornecedores via fornecedor_id
+  fato_transacoes -> dim_inventory via inventory_id
+  fato_transacoes -> dim_datas via data_competencia_id = data_id
+  fato_transacoes -> dim_tipo_transacao via tipo_id
+
+VIEWS:
+  v_resumo_dashboard - Dashboard summary (total clients, revenue, etc.)
+  v_series_temporal - Time series by month
+  v_distribuicao_regional - Regional distribution
+  vw_dre_mensal - Monthly DRE (income statement)
+  vw_fluxo_caixa_mensal - Monthly cash flow
 
 """
 
@@ -375,7 +398,7 @@ def _inject_client_id_filter(sql: str, client_id: str) -> str:
     sql_clean = sql.strip().rstrip(";")
 
     # Tables in analytics_v2 schema that need client_id filtering
-    FILTERED_TABLES = ["fact_sales", "dim_customer", "dim_supplier", "dim_product"]
+    FILTERED_TABLES = ["fato_transacoes", "dim_clientes", "dim_fornecedores", "dim_inventory", "dim_datas", "dim_tipo_transacao", "dim_categoria"]
 
     # Pattern: analytics_v2.table_name followed by optional alias
     # Captures: (table_name) and optionally (alias)

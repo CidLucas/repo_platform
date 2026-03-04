@@ -1,11 +1,8 @@
 import HomePage from "../pages/HomePage";
 import SettingsPage from "../pages/SettingsPage";
-import FornecedoresPage from "../pages/FornecedoresPage";
-import FornecedoresListPage from "../pages/FornecedoresListPage";
-import ProdutosPage from "../pages/ProdutosPage";
-import ProdutosListPage from "../pages/ProdutosListPage";
-import ClientesPage from "../pages/ClientesPage";
-import ClientesListPage from "../pages/ClientesListPage";
+import GenericOverviewPage from "../pages/GenericOverviewPage";
+import GenericListPage from "../pages/GenericListPage";
+import { clientesConfig, fornecedoresConfig, produtosConfig } from "../config";
 import PedidosPage from "../pages/PedidosPage";
 // Client management pages (formerly "admin" pages - now accessible to all authenticated users)
 import AdminHomePage from "../pages/admin/AdminHomePage";
@@ -37,36 +34,36 @@ export const dashboardRoutes: RouteConfig[] = [
   },
   {
     path: "/dashboard/fornecedores",
-    element: <FornecedoresPage />,
+    element: <GenericOverviewPage config={fornecedoresConfig} />,
   },
   {
     path: "/dashboard/fornecedores/lista",
-    element: <FornecedoresListPage />,
+    element: <GenericListPage config={fornecedoresConfig} />,
   },
   {
     path: "/dashboard/produtos",
-    element: <ProdutosPage />,
+    element: <GenericOverviewPage config={produtosConfig} />,
   },
   {
     path: "/dashboard/produtos/lista",
-    element: <ProdutosListPage />,
+    element: <GenericListPage config={produtosConfig} />,
   },
   {
     path: "/dashboard/clientes",
-    element: <ClientesPage />,
+    element: <GenericOverviewPage config={clientesConfig} />,
   },
   {
     path: "/dashboard/clientes/lista",
-    element: <ClientesListPage />,
+    element: <GenericListPage config={clientesConfig} />,
   },
   // Alias routes for Menu Rápido (English paths)
   {
     path: "/dashboard/suppliers",
-    element: <FornecedoresListPage />,
+    element: <GenericListPage config={fornecedoresConfig} />,
   },
   {
     path: "/dashboard/products",
-    element: <ProdutosListPage />,
+    element: <GenericListPage config={produtosConfig} />,
   },
   {
     path: "/dashboard/pedidos",

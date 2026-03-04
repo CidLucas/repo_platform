@@ -1,0 +1,16 @@
+-- Migration: fix_trigger_drop_broken_analytics_v2_functions
+-- Applied remotely via Supabase MCP on 2025-07-17
+--
+-- Actions:
+-- 1. Fixed analytics_v2.update_updated_at_column() trigger to handle both
+--    'atualizado_em' (dim_clientes, dim_fornecedores) and 'updated_at' columns
+-- 2. Dropped 20+ broken functions that referenced non-existent tables:
+--    - 3 trigger functions: update_customer_aggregates, update_product_aggregates, update_supplier_aggregates
+--    - 13 ERP RPCs: erp_buscar_cliente, erp_criar_cliente, erp_atualizar_cliente,
+--      erp_buscar_fornecedor, erp_criar_fornecedor, erp_criar_produto, erp_criar_pedido,
+--      erp_ajustar_estoque, erp_criar_ordem_compra, erp_receber_ordem_compra,
+--      erp_busca, erp_criar_job, erp_atualizar_job
+--    - 5 MV refresh functions
+--    - 1 aggregate function (old atualizar_agregados with uuid param)
+
+-- See remote migration for full SQL

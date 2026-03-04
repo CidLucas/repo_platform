@@ -466,33 +466,39 @@ export const getPedidoDetails = async (order_id: string): Promise<PedidoDetailRe
 // Fornecedores API calls (overview)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getFornecedores = async (_period: string = 'all'): Promise<FornecedoresOverviewResponse> => {
-  // Get fornecedores from dim_fornecedores
-  const { data: fornecedores, error } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('dim_fornecedores')
-    .select('*')
-    .order('receita_total', { ascending: false });
+  // Fetch fornecedores, series, and regional in parallel
+  const [fornecedoresRes, seriesRes, regionalRes] = await Promise.all([
+    supabase.schema(ANALYTICS_SCHEMA).from('dim_fornecedores').select('*').order('receita_total', { ascending: false }),
+    supabase.schema(ANALYTICS_SCHEMA).from('v_series_temporal').select('*').eq('tipo_grafico', 'fornecedores').order('data_periodo', { ascending: true }),
+    supabase.schema(ANALYTICS_SCHEMA).from('v_distribuicao_regional').select('*').eq('tipo_grafico', 'pedidos_por_regiao').order('total', { ascending: false }),
+  ]);
 
-  throwIfError(fornecedores, error);
+  throwIfError(fornecedoresRes.data, fornecedoresRes.error);
+  const fornecedores = fornecedoresRes.data || [];
+  const allSeries = seriesRes.data || [];
+  const regional = regionalRes.data || [];
 
-  // Get series temporal for charts
-  const { data: seriesReceita } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('v_series_temporal')
-    .select('*')
-    .eq('tipo_grafico', 'fornecedores')
-    .eq('dimensao', 'receita')
-    .order('data_periodo', { ascending: true });
+  // Split series by dimensao
+  const seriesReceita = allSeries.filter(s => s.dimensao === 'receita');
+  const seriesContagem = allSeries.filter(s => s.dimensao === 'contagem');
+  const seriesQuantidade = allSeries.filter(s => s.dimensao === 'quantidade');
 
-  // Get regional distribution
-  const { data: regional } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('v_distribuicao_regional')
-    .select('*')
-    .eq('tipo_grafico', 'fornecedores')
-    .order('total', { ascending: false });
+  // Compute ticket medio time series
+  const seriesTicketMedio = seriesReceita.map((r, idx) => {
+    const q = seriesQuantidade[idx] ? Number(seriesQuantidade[idx].total) : 0;
+    const rv = Number(r.total) || 0;
+    return { periodo: r.periodo, total: q > 0 ? Math.round(rv / q) : 0 };
+  });
 
-  const totalFornecedores = fornecedores?.length || 0;
+  const totalFornecedores = fornecedores.length;
+
+  // Growth from series
+  let crescimentoPercentual: number | null = null;
+  if (seriesReceita.length >= 2) {
+    const last = Number(seriesReceita[seriesReceita.length - 1].total) || 0;
+    const prev = Number(seriesReceita[seriesReceita.length - 2].total) || 0;
+    crescimentoPercentual = prev > 0 ? ((last - prev) / prev) * 100 : null;
+  }
 
   // Map fornecedores to RankingItem format
   const toRankingItem = (f: Record<string, unknown>): RankingItem => ({
@@ -513,31 +519,40 @@ export const getFornecedores = async (_period: string = 'all'): Promise<Forneced
 
   return {
     scorecard_total_fornecedores: totalFornecedores,
-    scorecard_crescimento_percentual: null,
-    chart_fornecedores_no_tempo: [],
-    chart_receita_no_tempo: (seriesReceita || []).map(s => ({ name: s.periodo, total: Number(s.total) })),
-    chart_ticketmedio_no_tempo: [],
-    chart_quantidade_no_tempo: [],
-    chart_fornecedores_por_regiao: (regional || []).map(r => ({ name: r.estado || r.regiao, total: Number(r.total) })),
+    scorecard_crescimento_percentual: crescimentoPercentual,
+    chart_fornecedores_no_tempo: seriesContagem.map(s => ({ name: s.periodo, total: Number(s.total) })),
+    chart_receita_no_tempo: seriesReceita.map(s => ({ name: s.periodo, total: Number(s.total) })),
+    chart_ticketmedio_no_tempo: seriesTicketMedio.map(s => ({ name: s.periodo, total: s.total })),
+    chart_quantidade_no_tempo: seriesQuantidade.map(s => ({ name: s.periodo, total: Number(s.total) })),
+    chart_fornecedores_por_regiao: regional.map(r => ({ name: r.estado || r.regiao, total: Number(r.total) })),
     chart_cohort_fornecedores: [],
-    ranking_por_receita: (fornecedores || []).slice(0, 20).map(toRankingItem),
-    ranking_por_qtd_media: (fornecedores || []).slice(0, 20).map(toRankingItem),
-    ranking_por_ticket_medio: [...(fornecedores || [])].sort((a, b) => Number(b.ticket_medio) - Number(a.ticket_medio)).slice(0, 20).map(toRankingItem),
-    ranking_por_frequencia: [...(fornecedores || [])].sort((a, b) => Number(b.frequencia_mensal) - Number(a.frequencia_mensal)).slice(0, 20).map(toRankingItem),
+    ranking_por_receita: fornecedores.slice(0, 20).map(toRankingItem),
+    ranking_por_qtd_media: fornecedores.slice(0, 20).map(toRankingItem),
+    ranking_por_ticket_medio: [...fornecedores].sort((a, b) => Number(b.ticket_medio) - Number(a.ticket_medio)).slice(0, 20).map(toRankingItem),
+    ranking_por_frequencia: [...fornecedores].sort((a, b) => Number(b.frequencia_mensal) - Number(a.frequencia_mensal)).slice(0, 20).map(toRankingItem),
     ranking_produtos_mais_vendidos: [],
   };
 };
 
 // Fornecedor API call (details)
 export const getFornecedor = async (nome_fornecedor: string): Promise<FornecedorDetailResponse> => {
-  const { data: fornecedor, error } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('dim_fornecedores')
-    .select('*')
-    .eq('nome', nome_fornecedor)
-    .single();
+  // Fetch fornecedor data + cross-entity rankings + time series in parallel
+  // Use .limit(1) instead of .single() because multiple fornecedores can share the same name (different CNPJs)
+  const [fornecedorRes, topClientsRes, topProductsRes, topRegionsRes, revenueSeriesRes] = await Promise.all([
+    supabase.schema(ANALYTICS_SCHEMA).from('dim_fornecedores').select('*').eq('nome', nome_fornecedor).limit(1).maybeSingle(),
+    supabase.schema(ANALYTICS_SCHEMA).rpc('get_supplier_top_clients', { p_supplier_name: nome_fornecedor }),
+    supabase.schema(ANALYTICS_SCHEMA).rpc('get_supplier_top_products', { p_supplier_name: nome_fornecedor }),
+    supabase.schema(ANALYTICS_SCHEMA).rpc('get_supplier_top_regions', { p_supplier_name: nome_fornecedor }),
+    supabase.schema(ANALYTICS_SCHEMA).rpc('get_supplier_revenue_series', { p_supplier_name: nome_fornecedor }),
+  ]);
 
-  throwIfError(fornecedor, error);
+  if (fornecedorRes.error) throw new Error(fornecedorRes.error.message);
+  const fornecedor = fornecedorRes.data;
+
+  const toSimpleRanking = (item: Record<string, unknown>) => ({
+    nome: String(item.nome || item.regiao || ''),
+    receita_total: Number(item.receita_total) || 0,
+  });
 
   return {
     dados_cadastrais: {
@@ -548,12 +563,12 @@ export const getFornecedor = async (nome_fornecedor: string): Promise<Fornecedor
       emitter_cidade: fornecedor?.endereco_cidade,
     },
     rankings_internos: {
-      clientes_por_receita: [],
-      produtos_por_receita: [],
-      regioes_por_receita: [],
+      clientes_por_receita: (topClientsRes.data || []).map(toSimpleRanking),
+      produtos_por_receita: (topProductsRes.data || []).map(toSimpleRanking),
+      regioes_por_receita: (topRegionsRes.data || []).map(toSimpleRanking),
     },
     charts: {
-      receita_no_tempo: [],
+      receita_no_tempo: (revenueSeriesRes.data || []).map((s: Record<string, unknown>) => ({ name: String(s.periodo), total: Number(s.total) })),
     },
   };
 };
@@ -561,36 +576,42 @@ export const getFornecedor = async (nome_fornecedor: string): Promise<Fornecedor
 // Clientes API calls (overview)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getClientes = async (_period: string = 'all'): Promise<ClientesOverviewResponse> => {
-  // Get clientes from dim_clientes
-  const { data: clientes, error } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('dim_clientes')
-    .select('*')
-    .order('receita_total', { ascending: false });
+  // Fetch dim_clientes, series, and regional in parallel
+  const [clientesRes, seriesRes, regionalRes] = await Promise.all([
+    supabase.schema(ANALYTICS_SCHEMA).from('dim_clientes').select('*').order('receita_total', { ascending: false }),
+    supabase.schema(ANALYTICS_SCHEMA).from('v_series_temporal').select('*').eq('tipo_grafico', 'clientes').order('data_periodo', { ascending: true }),
+    supabase.schema(ANALYTICS_SCHEMA).from('v_distribuicao_regional').select('*').eq('tipo_grafico', 'pedidos_por_regiao').order('total', { ascending: false }),
+  ]);
 
-  throwIfError(clientes, error);
+  throwIfError(clientesRes.data, clientesRes.error);
+  const clientes = clientesRes.data || [];
+  const allSeries = seriesRes.data || [];
+  const regional = regionalRes.data || [];
 
-  // Get series temporal for charts
-  const { data: seriesReceita } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('v_series_temporal')
-    .select('*')
-    .eq('tipo_grafico', 'clientes')
-    .eq('dimensao', 'receita')
-    .order('data_periodo', { ascending: true });
+  // Split series by dimensao
+  const seriesReceita = allSeries.filter(s => s.dimensao === 'receita');
+  const seriesContagem = allSeries.filter(s => s.dimensao === 'contagem');
+  const seriesQuantidade = allSeries.filter(s => s.dimensao === 'quantidade');
 
-  // Get regional distribution
-  const { data: regional } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('v_distribuicao_regional')
-    .select('*')
-    .eq('tipo_grafico', 'clientes')
-    .order('total', { ascending: false });
+  // Compute ticket medio time series from receita / quantidade
+  const seriesTicketMedio = seriesReceita.map((r, idx) => {
+    const q = seriesQuantidade[idx] ? Number(seriesQuantidade[idx].total) : 0;
+    const rv = Number(r.total) || 0;
+    return { periodo: r.periodo, total: q > 0 ? Math.round(rv / q) : 0 };
+  });
 
-  const totalClientes = clientes?.length || 0;
-  const receitaTotal = clientes?.reduce((sum, c) => sum + Number(c.receita_total || 0), 0) || 0;
+  const totalClientes = clientes.length;
+  const receitaTotal = clientes.reduce((sum, c) => sum + Number(c.receita_total || 0), 0);
   const ticketMedio = totalClientes > 0 ? receitaTotal / totalClientes : 0;
-  const frequenciaMedia = clientes?.reduce((sum, c) => sum + Number(c.frequencia_mensal || 0), 0) / totalClientes || 0;
+  const frequenciaMedia = clientes.reduce((sum, c) => sum + Number(c.frequencia_mensal || 0), 0) / (totalClientes || 1);
+
+  // Growth from series
+  let crescimentoPercentual: number | null = null;
+  if (seriesReceita.length >= 2) {
+    const last = Number(seriesReceita[seriesReceita.length - 1].total) || 0;
+    const prev = Number(seriesReceita[seriesReceita.length - 2].total) || 0;
+    crescimentoPercentual = prev > 0 ? ((last - prev) / prev) * 100 : null;
+  }
 
   // Map clientes to RankingItem format
   const toRankingItem = (c: Record<string, unknown>): RankingItem => ({
@@ -613,30 +634,31 @@ export const getClientes = async (_period: string = 'all'): Promise<ClientesOver
     scorecard_total_clientes: totalClientes,
     scorecard_ticket_medio_geral: ticketMedio,
     scorecard_frequencia_media_geral: frequenciaMedia,
-    scorecard_crescimento_percentual: null,
-    chart_clientes_no_tempo: [],
-    chart_receita_no_tempo: (seriesReceita || []).map(s => ({ name: s.periodo, total: Number(s.total) })),
-    chart_ticketmedio_no_tempo: [],
-    chart_quantidade_no_tempo: [],
-    chart_clientes_por_regiao: (regional || []).map(r => ({ name: r.estado || r.regiao, total: Number(r.total) })),
+    scorecard_crescimento_percentual: crescimentoPercentual,
+    chart_clientes_no_tempo: seriesContagem.map(s => ({ name: s.periodo, total: Number(s.total) })),
+    chart_receita_no_tempo: seriesReceita.map(s => ({ name: s.periodo, total: Number(s.total) })),
+    chart_ticketmedio_no_tempo: seriesTicketMedio.map(s => ({ name: s.periodo, total: s.total })),
+    chart_quantidade_no_tempo: seriesQuantidade.map(s => ({ name: s.periodo, total: Number(s.total) })),
+    chart_clientes_por_regiao: regional.map(r => ({ name: r.estado || r.regiao, total: Number(r.total) })),
     chart_cohort_clientes: [],
-    ranking_por_receita: (clientes || []).slice(0, 20).map(toRankingItem),
-    ranking_por_ticket_medio: [...(clientes || [])].sort((a, b) => Number(b.ticket_medio) - Number(a.ticket_medio)).slice(0, 20).map(toRankingItem),
-    ranking_por_qtd_pedidos: [...(clientes || [])].sort((a, b) => Number(b.total_pedidos) - Number(a.total_pedidos)).slice(0, 20).map(toRankingItem),
-    ranking_por_cluster_vizu: [...(clientes || [])].sort((a, b) => Number(b.pontuacao_cluster) - Number(a.pontuacao_cluster)).slice(0, 20).map(toRankingItem),
+    ranking_por_receita: clientes.slice(0, 20).map(toRankingItem),
+    ranking_por_ticket_medio: [...clientes].sort((a, b) => Number(b.ticket_medio) - Number(a.ticket_medio)).slice(0, 20).map(toRankingItem),
+    ranking_por_qtd_pedidos: [...clientes].sort((a, b) => Number(b.total_pedidos) - Number(a.total_pedidos)).slice(0, 20).map(toRankingItem),
+    ranking_por_cluster_vizu: [...clientes].sort((a, b) => Number(b.pontuacao_cluster) - Number(a.pontuacao_cluster)).slice(0, 20).map(toRankingItem),
   };
 };
 
 // Cliente API call (details)
 export const getCliente = async (nome_cliente: string): Promise<ClienteDetailResponse> => {
-  const { data: cliente, error } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('dim_clientes')
-    .select('*')
-    .eq('nome', nome_cliente)
-    .single();
+  // Fetch cliente data + cross-entity rankings in parallel
+  // Use .limit(1) instead of .single() because multiple clientes can share the same name
+  const [clienteRes, topProductsRes] = await Promise.all([
+    supabase.schema(ANALYTICS_SCHEMA).from('dim_clientes').select('*').eq('nome', nome_cliente).limit(1).maybeSingle(),
+    supabase.schema(ANALYTICS_SCHEMA).rpc('get_client_top_products', { p_client_name: nome_cliente }),
+  ]);
 
-  throwIfError(cliente, error);
+  if (clienteRes.error) throw new Error(clienteRes.error.message);
+  const cliente = clienteRes.data;
 
   const scorecards: RankingItem | null = cliente ? {
     nome: cliente.nome,
@@ -664,7 +686,10 @@ export const getCliente = async (nome_cliente: string): Promise<ClienteDetailRes
     },
     scorecards,
     rankings_internos: {
-      mix_de_produtos_por_receita: [],
+      mix_de_produtos_por_receita: (topProductsRes.data || []).map((item: Record<string, unknown>) => ({
+        nome: String(item.nome || ''),
+        receita_total: Number(item.receita_total) || 0,
+      })),
     },
   };
 };
@@ -672,22 +697,54 @@ export const getCliente = async (nome_cliente: string): Promise<ClienteDetailRes
 // Produtos API calls (overview)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getProdutosOverview = async (_period: string = 'all'): Promise<ProdutosOverviewResponse> => {
-  const { data: produtos, error } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('dim_inventory')
-    .select('*')
-    .order('receita_total', { ascending: false });
+  // Fetch dim_inventory + all produtos series in parallel
+  const [produtosRes, seriesRes] = await Promise.all([
+    supabase.schema(ANALYTICS_SCHEMA).from('dim_inventory').select('*').order('receita_total', { ascending: false }),
+    supabase.schema(ANALYTICS_SCHEMA).from('v_series_temporal').select('*').eq('tipo_grafico', 'produtos').order('data_periodo', { ascending: true }),
+  ]);
 
-  throwIfError(produtos, error);
+  throwIfError(produtosRes.data, produtosRes.error);
+  const produtos = produtosRes.data || [];
+  const allSeries = seriesRes.data || [];
 
-  // Get series temporal
-  const { data: seriesReceita } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('v_series_temporal')
-    .select('*')
-    .eq('tipo_grafico', 'produtos')
-    .order('data_periodo', { ascending: true });
+  // Split series by dimensao
+  const seriesReceita = allSeries.filter(s => s.dimensao === 'receita');
+  const seriesQuantidade = allSeries.filter(s => s.dimensao === 'quantidade');
+  const seriesContagem = allSeries.filter(s => s.dimensao === 'contagem');
 
+  // --- Compute scorecard aggregations from dim_inventory rows ---
+  const totalProdutos = produtos.length;
+  const receitaTotal = produtos.reduce((sum, p) => sum + (Number(p.receita_total) || 0), 0);
+  const quantidadeTotal = produtos.reduce((sum, p) => sum + (Number(p.quantidade_total_vendida) || 0), 0);
+  const ticketMedio = quantidadeTotal > 0 ? receitaTotal / quantidadeTotal : 0;
+
+  // Growth: compare last 2 months of receita series
+  let crescimentoPercentual: number | undefined;
+  if (seriesReceita.length >= 2) {
+    const last = Number(seriesReceita[seriesReceita.length - 1].total) || 0;
+    const prev = Number(seriesReceita[seriesReceita.length - 2].total) || 0;
+    crescimentoPercentual = prev > 0 ? ((last - prev) / prev) * 100 : undefined;
+  }
+
+  // Tier aggregations
+  const tiers = ['A', 'B', 'C', 'D'] as const;
+  const tierData = Object.fromEntries(tiers.map(t => {
+    const items = produtos.filter(p => String(p.nivel_cluster || '').toUpperCase() === t);
+    const count = items.length;
+    const receita = items.reduce((s, p) => s + (Number(p.receita_total) || 0), 0);
+    const quantidade = items.reduce((s, p) => s + (Number(p.quantidade_total_vendida) || 0), 0);
+    const ticket = quantidade > 0 ? receita / quantidade : 0;
+    return [t, { count, receita, quantidade, ticket }];
+  })) as Record<string, { count: number; receita: number; quantidade: number; ticket: number }>;
+
+  // Price variation (compare the 2 most recent months of avg price from series)
+  // Fallback: no data → undefined
+  let variacaoPrecoPercentual: number | undefined;
+  const topVariacaoNome: string | null = null;
+  let topVariacaoPercentual: number | undefined;
+  let topVariacaoDirecao: string | undefined;
+
+  // Ranking mappers
   const toProdutoReceita = (p: Record<string, unknown>): ProdutoRankingReceita => ({
     nome: String(p.nome || ''),
     receita_total: Number(p.receita_total) || 0,
@@ -713,26 +770,57 @@ export const getProdutosOverview = async (_period: string = 'all'): Promise<Prod
   });
 
   return {
-    scorecard_total_itens_unicos: produtos?.length || 0,
-    chart_produtos_no_tempo: [],
-    chart_receita_no_tempo: (seriesReceita || []).map(s => ({ name: s.periodo, total: Number(s.total) })),
-    chart_quantidade_no_tempo: [],
-    ranking_por_receita: (produtos || []).slice(0, 20).map(toProdutoReceita),
-    ranking_por_volume: [...(produtos || [])].sort((a, b) => Number(b.quantidade_total_vendida) - Number(a.quantidade_total_vendida)).slice(0, 20).map(toProdutoVolume),
-    ranking_por_ticket_medio: [...(produtos || [])].sort((a, b) => (Number(b.receita_total) / Number(b.total_pedidos || 1)) - (Number(a.receita_total) / Number(a.total_pedidos || 1))).slice(0, 20).map(toProdutoTicket),
+    scorecard_total_itens_unicos: totalProdutos,
+    scorecard_receita_total: receitaTotal,
+    scorecard_quantidade_total: quantidadeTotal,
+    scorecard_ticket_medio: ticketMedio,
+    scorecard_crescimento_percentual: crescimentoPercentual,
+    // Tier data
+    scorecard_tier_a_count: tierData.A.count,
+    scorecard_tier_b_count: tierData.B.count,
+    scorecard_tier_c_count: tierData.C.count,
+    scorecard_tier_d_count: tierData.D.count,
+    scorecard_tier_a_receita: tierData.A.receita,
+    scorecard_tier_b_receita: tierData.B.receita,
+    scorecard_tier_c_receita: tierData.C.receita,
+    scorecard_tier_d_receita: tierData.D.receita,
+    scorecard_tier_a_quantidade: tierData.A.quantidade,
+    scorecard_tier_b_quantidade: tierData.B.quantidade,
+    scorecard_tier_c_quantidade: tierData.C.quantidade,
+    scorecard_tier_d_quantidade: tierData.D.quantidade,
+    scorecard_tier_a_ticket_medio: tierData.A.ticket,
+    scorecard_tier_b_ticket_medio: tierData.B.ticket,
+    scorecard_tier_c_ticket_medio: tierData.C.ticket,
+    scorecard_tier_d_ticket_medio: tierData.D.ticket,
+    // Price variation
+    scorecard_variacao_preco_percentual: variacaoPrecoPercentual,
+    top_variacao_produto_nome: topVariacaoNome,
+    top_variacao_produto_percentual: topVariacaoPercentual,
+    top_variacao_produto_direcao: topVariacaoDirecao,
+    // Charts — from v_series_temporal expanded view
+    chart_produtos_no_tempo: seriesContagem.map(s => ({ name: s.periodo, total: Number(s.total) })),
+    chart_receita_no_tempo: seriesReceita.map(s => ({ name: s.periodo, total: Number(s.total) })),
+    chart_quantidade_no_tempo: seriesQuantidade.map(s => ({ name: s.periodo, total: Number(s.total) })),
+    // Rankings
+    ranking_por_receita: produtos.slice(0, 20).map(toProdutoReceita),
+    ranking_por_volume: [...produtos].sort((a, b) => Number(b.quantidade_total_vendida) - Number(a.quantidade_total_vendida)).slice(0, 20).map(toProdutoVolume),
+    ranking_por_ticket_medio: [...produtos].sort((a, b) => (Number(b.receita_total) / Number(b.total_pedidos || 1)) - (Number(a.receita_total) / Number(a.total_pedidos || 1))).slice(0, 20).map(toProdutoTicket),
   };
 };
 
 // Produto API call (details)
 export const getProdutoDetails = async (nome_produto: string): Promise<ProdutoDetailResponse> => {
-  const { data: produto, error } = await supabase
-    .schema(ANALYTICS_SCHEMA)
-    .from('dim_inventory')
-    .select('*')
-    .eq('nome', nome_produto)
-    .single();
+  // Fetch product data + cross-entity rankings + time series in parallel
+  // Use .limit(1).maybeSingle() to avoid errors when name matches multiple rows
+  const [produtoRes, topClientsRes, topRegionsRes, revenueSeriesRes] = await Promise.all([
+    supabase.schema(ANALYTICS_SCHEMA).from('dim_inventory').select('*').eq('nome', nome_produto).limit(1).maybeSingle(),
+    supabase.schema(ANALYTICS_SCHEMA).rpc('get_product_top_clients', { p_product_name: nome_produto }),
+    supabase.schema(ANALYTICS_SCHEMA).rpc('get_product_top_regions', { p_product_name: nome_produto }),
+    supabase.schema(ANALYTICS_SCHEMA).rpc('get_product_revenue_series', { p_product_name: nome_produto }),
+  ]);
 
-  throwIfError(produto, error);
+  if (produtoRes.error) throw new Error(produtoRes.error.message);
+  const produto = produtoRes.data;
 
   const scorecards: RankingItem | null = produto ? {
     nome: produto.nome,
@@ -750,15 +838,20 @@ export const getProdutoDetails = async (nome_produto: string): Promise<ProdutoDe
     cluster_tier: produto.nivel_cluster || 'N/A',
   } : null;
 
+  const toSimpleRanking = (item: Record<string, unknown>) => ({
+    nome: String(item.nome || item.regiao || ''),
+    receita_total: Number(item.receita_total) || 0,
+  });
+
   return {
     nome_produto,
     scorecards,
     charts: {
-      segmentos_de_clientes: [],
+      segmentos_de_clientes: (revenueSeriesRes.data || []).map((s: Record<string, unknown>) => ({ name: String(s.periodo), total: Number(s.total) })),
     },
     rankings_internos: {
-      clientes_por_receita: [],
-      regioes_por_receita: [],
+      clientes_por_receita: (topClientsRes.data || []).map(toSimpleRanking),
+      regioes_por_receita: (topRegionsRes.data || []).map(toSimpleRanking),
     },
   };
 };
@@ -900,6 +993,19 @@ export interface GeoClustersResponse {
   total_clusters: number;
 }
 
+// Brazilian state capital coordinates for geo map circles
+const STATE_COORDINATES: Record<string, [number, number]> = {
+  AC: [-9.0238, -70.812], AL: [-9.5713, -36.782], AM: [-3.1190, -60.022],
+  AP: [0.0349, -51.066], BA: [-12.971, -38.511], CE: [-3.7172, -38.543],
+  DF: [-15.780, -47.929], ES: [-20.319, -40.338], GO: [-16.686, -49.264],
+  MA: [-2.5297, -44.282], MG: [-19.920, -43.938], MS: [-20.469, -54.620],
+  MT: [-15.601, -56.097], PA: [-1.4558, -48.502], PB: [-7.1195, -34.845],
+  PE: [-8.0476, -34.877], PI: [-5.0892, -42.802], PR: [-25.430, -49.271],
+  RJ: [-22.907, -43.173], RN: [-5.7945, -35.211], RO: [-8.7612, -63.900],
+  RR: [2.81950, -60.672], RS: [-30.034, -51.230], SC: [-27.594, -48.548],
+  SE: [-10.909, -37.072], SP: [-23.550, -46.633], TO: [-10.186, -48.334],
+};
+
 export const getGeoClusters = async (groupBy: 'state' | 'city' | 'cep' = 'state'): Promise<GeoClustersResponse> => {
   const { data: clientes, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
@@ -921,16 +1027,18 @@ export const getGeoClusters = async (groupBy: 'state' | 'city' | 'cep' = 'state'
     return acc;
   }, {} as Record<string, { count: number; total_revenue: number }>);
 
-  const clusters: GeoCluster[] = Object.entries(grouped).map(([location, data]) => ({
-    location,
-    count: data.count,
-    total_revenue: data.total_revenue,
-    coordinates: [0, 0], // Would need geocoding
-  }));
+  const clusters: GeoCluster[] = Object.entries(grouped)
+    .filter(([loc]) => loc !== 'N/A')
+    .map(([location, data]) => ({
+      location,
+      count: data.count,
+      total_revenue: data.total_revenue,
+      coordinates: STATE_COORDINATES[location.toUpperCase()] || [-14.235, -51.925],
+    }));
 
   return {
     clusters,
-    center: [-23.55, -46.63], // São Paulo default
+    center: [-14.235, -51.925], // Brazil center
     max_count: Math.max(...clusters.map(c => c.count), 1),
     total_clusters: clusters.length,
   };

@@ -1,0 +1,13 @@
+-- Migration: create_financial_views_dre_fluxo
+-- Applied remotely via Supabase MCP on 2025-07-17
+--
+-- Created two financial reporting views:
+-- 1. analytics_v2.vw_dre_mensal - Monthly DRE (Income Statement)
+--    Joins fato_transacoes + dim_datas + dim_tipo_transacao
+--    Shows: periodo, categoria, tipo_transacao, natureza, valor_total, total_periodo
+--
+-- 2. analytics_v2.vw_fluxo_caixa_mensal - Monthly Cash Flow
+--    Uses dim_tipo_transacao.impacto_caixa for direction
+--    Shows: periodo, categoria, entradas, saidas, saldo, num_transacoes
+
+-- See remote migration for full SQL

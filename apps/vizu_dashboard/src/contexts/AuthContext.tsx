@@ -14,6 +14,7 @@ export interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   clientId: string | null; // Real client_id from clientes_vizu table
+  tier: string | null; // Tier from clientes_vizu table (FREE, BASIC, SME, PREMIUM, ENTERPRISE, ADMIN)
   signInWithEmail: (
     email: string,
     password: string
@@ -39,6 +40,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [clientId, setClientId] = useState<string | null>(null);
+  const [tier, setTier] = useState<string | null>(null);
   const clientIdFetchedRef = useRef(false);
 
   const initializeClientId = async (accessToken: string) => {
@@ -59,6 +61,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setClientId(meResponse.client_id);
       localStorage.setItem('vizu_client_id', meResponse.client_id);
       console.log('Client ID initialized:', meResponse.client_id);
+
+      // Fetch tier from clientes_vizu table (direct Supabase query, RLS-protected)
+      try {
+        const { data: clientData } = await supabase
+          .from('clientes_vizu')
+          .select('tier')
+          .eq('id', meResponse.client_id)
+          .single();
+        const resolvedTier = clientData?.tier || 'FREE';
+        setTier(resolvedTier);
+        localStorage.setItem('vizu_client_tier', resolvedTier);
+        console.log('Tier initialized:', resolvedTier);
+      } catch (tierError) {
+        console.warn('Failed to fetch tier, defaulting to cached or FREE:', tierError);
+        const storedTier = localStorage.getItem('vizu_client_tier');
+        setTier(storedTier || 'FREE');
+      }
     } catch (error) {
       console.error('Failed to initialize client_id:', error);
       clientIdFetchedRef.current = false;
@@ -66,6 +85,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       if (storedClientId) {
         setClientId(storedClientId);
         clientIdFetchedRef.current = true;
+      }
+      const storedTier = localStorage.getItem('vizu_client_tier');
+      if (storedTier) {
+        setTier(storedTier);
       }
     }
   };
@@ -137,7 +160,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       if (_event === 'SIGNED_OUT') {
         clientIdFetchedRef.current = false;
         setClientId(null);
+        setTier(null);
         localStorage.removeItem('vizu_client_id');
+        localStorage.removeItem('vizu_client_tier');
       }
     });
 
@@ -209,6 +234,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         session,
         isLoading,
         clientId,
+        tier,
         signInWithEmail,
         signInWithGoogle,
         signInWithMicrosoft,

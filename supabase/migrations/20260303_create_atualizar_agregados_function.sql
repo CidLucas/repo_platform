@@ -1,0 +1,11 @@
+-- Migration: create_atualizar_agregados_function
+-- Applied remotely via Supabase MCP on 2025-07-17
+--
+-- Created analytics_v2.atualizar_agregados(uuid) -> void
+-- Recalculates aggregate columns on:
+--   - dim_clientes: total_pedidos, receita_total, ticket_medio, etc.
+--   - dim_fornecedores: total_pedidos_recebidos, receita_total, etc.
+--   - dim_inventory: quantidade_total_vendida, receita_total, preco_medio, etc.
+-- From fato_transacoes data for a given client_id.
+
+-- See remote migration for full SQL

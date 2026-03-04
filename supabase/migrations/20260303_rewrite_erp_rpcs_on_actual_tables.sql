@@ -1,0 +1,23 @@
+-- Migration: rewrite_erp_rpcs_on_actual_tables
+-- Applied remotely via Supabase MCP on 2025-07-17
+--
+-- Rewrote all 13 ERP RPC functions to target actual analytics_v2 tables:
+-- All functions: SECURITY DEFINER, search_path = analytics_v2, public
+-- Client scoping via get_my_client_id()
+--
+-- Functions created:
+-- 1. erp_buscar_cliente(text, text, text) -> TABLE (search dim_clientes)
+-- 2. erp_criar_cliente(text, text, text, text, text, text, text, text, text) -> uuid
+-- 3. erp_atualizar_cliente(uuid, text, text, text, text, text, text, text, text, text) -> boolean
+-- 4. erp_buscar_fornecedor(text, text) -> TABLE (search dim_fornecedores)
+-- 5. erp_criar_fornecedor(text, text, text, text, text) -> uuid
+-- 6. erp_criar_produto(text, text, text, text) -> uuid (dim_inventory + dim_categoria)
+-- 7. erp_criar_pedido(uuid, text, jsonb) -> text (fato_transacoes)
+-- 8. erp_ajustar_estoque(uuid, numeric, text, text, text, text, text) -> uuid
+-- 9. erp_criar_ordem_compra(uuid, text, date, jsonb, text) -> uuid
+-- 10. erp_receber_ordem_compra(uuid, jsonb, text) -> boolean
+-- 11. erp_busca(text, text[], integer) -> TABLE (unified search)
+-- 12. erp_criar_job(text, jsonb) -> uuid (reg_jobs)
+-- 13. erp_atualizar_job(uuid, text, integer, jsonb, text) -> boolean (reg_jobs)
+
+-- See remote migration for full SQL

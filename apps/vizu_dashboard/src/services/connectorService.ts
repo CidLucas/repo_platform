@@ -56,15 +56,15 @@ export type CredentialPayload =
 
 export interface CreateCredentialRequest {
     client_id: string;
-    nome_conexao: string;
+    nome_servico: string;
     tipo_servico: string;
     credentials: CredentialPayload;
 }
 
 export interface CredentialResponse {
-    id_credencial: string;
+    id: string;
     secret_manager_id: string;
-    nome_conexao: string;
+    nome_servico: string;
     tipo_servico: string;
     status: string;
 }
@@ -101,7 +101,7 @@ export interface ExtractDataResponse {
 export interface ConnectorStatus {
     id: string;
     platform: ConnectorPlatform;
-    nome_conexao: string;
+    nome_servico: string;
     status: 'connected' | 'pending' | 'error' | 'syncing';
     last_sync?: string;
     records_count?: number;
@@ -120,25 +120,41 @@ async function resolveClientIdFromSupabase(): Promise<string | null> {
         return null;
     }
 
-    // Check if client_id is in app_metadata
-    const clientId = user.app_metadata?.client_id;
+    const clientId = user.app_metadata?.client_id || user.user_metadata?.client_id;
     if (clientId) {
         return clientId;
     }
 
-    // Fallback: look up in clientes_vizu table by user email
-    const { data: cliente, error: clienteError } = await supabase
+    const { data: byExternalUserId, error: byExternalUserIdError } = await supabase
         .from('clientes_vizu')
         .select('client_id')
-        .eq('email', user.email)
-        .single();
+        .eq('external_user_id', user.id)
+        .maybeSingle();
 
-    if (clienteError || !cliente) {
-        console.warn('Failed to find client_id in clientes_vizu:', clienteError);
+    if (byExternalUserIdError) {
+        console.warn('Failed to find client_id by external_user_id:', byExternalUserIdError);
+    }
+
+    if (byExternalUserId?.client_id) {
+        return byExternalUserId.client_id;
+    }
+
+    if (!user.email) {
         return null;
     }
 
-    return cliente.client_id;
+    const { data: cliente, error: clienteError } = await supabase
+        .from('clientes_vizu')
+        .select('client_id')
+        .ilike('email', user.email)
+        .maybeSingle();
+
+    if (clienteError) {
+        console.warn('Failed to find client_id in clientes_vizu by email:', clienteError);
+        return null;
+    }
+
+    return cliente?.client_id ?? null;
 }
 
 /**
@@ -213,6 +229,57 @@ export async function testConnection(
 }
 
 /**
+ * Calls the match-columns Edge Function and persists the mapping to client_data_sources.
+ * This is a standalone function (not a React hook) for use in the service layer.
+ *
+ * Flow: source columns → Edge Function (fuzzy match) → column_mapping saved to DB
+ * The sync function (sincronizar_dados_cliente) reads column_mapping to route BQ columns to canonical targets.
+ */
+async function matchAndSaveColumnMapping(
+    dataSourceId: string,
+    sourceColumns: Array<{ name: string }>,
+    schemaType: string = 'invoices'
+): Promise<Record<string, string>> {
+    const columnNames = sourceColumns.map(c => c.name);
+    console.log('[matchAndSaveColumnMapping] Matching', columnNames.length, 'columns for schema:', schemaType);
+
+    // Use supabase.functions.invoke — handles Authorization + apikey headers automatically
+    const { data: matchResult, error: fnError } = await supabase.functions.invoke('match-columns', {
+        body: {
+            source_columns: columnNames,
+            schema_type: schemaType,
+        },
+    });
+
+    if (fnError) {
+        console.warn('[matchAndSaveColumnMapping] Edge function error:', fnError);
+        throw new Error(fnError.message || 'match-columns edge function failed');
+    }
+
+    const columnMapping: Record<string, string> = matchResult?.matched || {};
+
+    console.log('[matchAndSaveColumnMapping] Matched', Object.keys(columnMapping).length, 'of', columnNames.length, 'columns');
+
+    // Persist column_mapping to client_data_sources
+    const { error: updateError } = await supabase
+        .from('client_data_sources')
+        .update({
+            column_mapping: columnMapping,
+            sync_status: 'mapping_complete',
+            atualizado_em: new Date().toISOString(),
+        })
+        .eq('id', dataSourceId);
+
+    if (updateError) {
+        console.warn('[matchAndSaveColumnMapping] Failed to save mapping:', updateError);
+        throw new Error(updateError.message || 'Failed to save column mapping');
+    }
+
+    console.log('[matchAndSaveColumnMapping] Mapping saved to client_data_sources:', dataSourceId);
+    return columnMapping;
+}
+
+/**
  * Cria uma nova credencial de conexão BigQuery via Supabase RPC.
  * Para BigQuery: cria server FDW via create_bigquery_server RPC.
  * Credenciais são armazenadas no Supabase Vault.
@@ -250,15 +317,18 @@ export async function createCredential(
             .from('credencial_servico_externo')
             .insert({
                 client_id: resolvedClientId,
-                nome_conexao: request.nome_conexao,
+                nome_servico: request.nome_servico,
                 tipo_servico: 'BIGQUERY',
                 status: 'active',
-                project_id: bqCreds.project_id,
-                dataset_id: bqCreds.dataset_id,
-                table_name: bqCreds.table_name,
-                secret_manager_id: result.vault_key_id,
+                vault_key_id: result.vault_key_id,
+                connection_metadata: {
+                    project_id: bqCreds.project_id,
+                    dataset_id: bqCreds.dataset_id,
+                    table_name: bqCreds.table_name,
+                    location: bqCreds.location || 'US',
+                },
             })
-            .select('id, secret_manager_id, nome_conexao, tipo_servico, status')
+            .select('id, vault_key_id, nome_servico, tipo_servico, status')
             .single();
 
         if (credError) {
@@ -267,10 +337,49 @@ export async function createCredential(
             throw new Error(credError.message || 'Falha ao registrar credencial');
         }
 
+        // Create foreign table with two-step FDW discovery (discovers columns from BigQuery INFORMATION_SCHEMA)
+        const { data: foreignTableResult, error: ftError } = await supabase.rpc('create_bigquery_foreign_table', {
+            p_client_id: resolvedClientId,
+            p_table_name: bqCreds.table_name || 'default_table',
+            p_bigquery_table: bqCreds.table_name || 'default_table',
+            p_location: bqCreds.location || 'US',
+            p_timeout_ms: 300000,
+            p_credential_id: parseInt(String(credencial.id), 10),
+        });
+
+        if (ftError) {
+            console.warn('Warning: Foreign table creation had an issue:', ftError);
+        } else {
+            console.log('Foreign table created successfully:', foreignTableResult);
+
+            // ─── AUTO COLUMN MATCHING ───
+            // Call match-columns edge function to map BigQuery columns → canonical schema
+            // Then save the mapping to client_data_sources.column_mapping
+            const ftResult = foreignTableResult as {
+                success?: boolean;
+                columns?: Array<{ name: string }>;
+                data_source_id?: string;
+            };
+
+            if (ftResult.success && ftResult.columns && ftResult.data_source_id) {
+                try {
+                    const mapping = await matchAndSaveColumnMapping(
+                        ftResult.data_source_id,
+                        ftResult.columns,
+                        'invoices' // default schema type
+                    );
+                    console.log('Column mapping saved:', Object.keys(mapping).length, 'mappings');
+                } catch (matchErr) {
+                    // Non-fatal: user can still map manually via AdminConnectorMappingPage
+                    console.warn('Auto column matching failed (manual mapping still available):', matchErr);
+                }
+            }
+        }
+
         return {
-            id_credencial: String(credencial.id),
-            secret_manager_id: credencial.secret_manager_id || '',
-            nome_conexao: credencial.nome_conexao,
+            id: String(credencial.id),
+            secret_manager_id: credencial.vault_key_id || '',
+            nome_servico: credencial.nome_servico,
             tipo_servico: credencial.tipo_servico,
             status: credencial.status,
         };
@@ -282,12 +391,14 @@ export async function createCredential(
         .from('credencial_servico_externo')
         .insert({
             client_id: resolvedClientId,
-            nome_conexao: request.nome_conexao,
+            nome_servico: request.nome_servico,
             tipo_servico: tipoServicoUpper,
             status: 'pending',
-            credentials_json: request.credentials,
+            connection_metadata: {
+                credentials: request.credentials,
+            },
         })
-        .select('id, secret_manager_id, nome_conexao, tipo_servico, status')
+        .select('id, vault_key_id, nome_servico, tipo_servico, status')
         .single();
 
     if (credError) {
@@ -295,9 +406,9 @@ export async function createCredential(
     }
 
     return {
-        id_credencial: String(credencial.id),
-        secret_manager_id: credencial.secret_manager_id || '',
-        nome_conexao: credencial.nome_conexao,
+        id: String(credencial.id),
+        secret_manager_id: credencial.vault_key_id || '',
+        nome_servico: credencial.nome_servico,
         tipo_servico: credencial.tipo_servico,
         status: credencial.status,
     };
@@ -313,7 +424,7 @@ export async function listConnections(clienteVizuId: string): Promise<ConnectorS
         .from('credencial_servico_externo')
         .select(`
       id,
-      nome_conexao,
+      nome_servico,
       tipo_servico,
       status,
       created_at,
@@ -357,7 +468,7 @@ export async function listConnections(clienteVizuId: string): Promise<ConnectorS
         return {
             id: String(c.id),
             platform: c.tipo_servico?.toLowerCase() as ConnectorPlatform,
-            nome_conexao: c.nome_conexao,
+            nome_servico: c.nome_servico,
             status: connectorStatus,
             last_sync: latestSync?.sync_completed_at || undefined,
             records_count: latestSync?.records_processed || undefined,
@@ -410,42 +521,42 @@ export async function extractDataDirect(
 }
 
 /**
- * Inicia a sincronização de dados para uma conexão via Supabase RPC.
- * Chama sincronizar_dados_cliente que faz o ETL (FDW → dims → fato_transacoes).
+ * Inicia a sincronização de dados para uma conexão via run-sync edge function.
+ * Retorna imediatamente com o job_id para polling assíncrono.
  */
 export async function startSync(
     credentialId: string,
     clienteVizuId: string,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _resourceType: string = 'invoices'
-): Promise<{ status: string; message: string; rows_processed?: number }> {
+): Promise<{ status: string; message: string; job_id?: string }> {
     const resolvedClientId = await resolveClientId(clienteVizuId);
 
-    const { data: result, error } = await supabase.rpc('sincronizar_dados_cliente', {
-        p_client_id: resolvedClientId,
-        p_credential_id: parseInt(credentialId, 10),
-        p_force_full_sync: false,
+    const { data, error } = await supabase.functions.invoke('run-sync', {
+        body: {
+            client_id: resolvedClientId,
+            credential_id: parseInt(credentialId, 10),
+            force_full_sync: false,
+        },
     });
 
     if (error) {
         throw new Error(error.message || 'Falha ao iniciar sincronização');
     }
 
-    const syncResult = result as { success?: boolean; error?: string; rows_inserted?: number; sync_id?: number };
-
-    if (!syncResult.success) {
-        throw new Error(syncResult.error || 'Falha ao sincronizar dados');
+    if (!data?.job_id) {
+        throw new Error('Falha ao criar job de sincronização');
     }
 
     return {
-        status: 'completed',
-        message: 'Sincronização concluída com sucesso',
-        rows_processed: syncResult.rows_inserted || 0,
+        status: 'running',
+        message: 'Sincronização iniciada. Acompanhe o progresso pelo job_id.',
+        job_id: data.job_id,
     };
 }
 
 /**
- * Obtém o status de uma sincronização via connector_sync_history.
+ * Obtém o status de uma sincronização via analytics_v2.reg_jobs.
  */
 export async function getSyncStatus(jobId: string): Promise<{
     job_id: string;
@@ -453,34 +564,28 @@ export async function getSyncStatus(jobId: string): Promise<{
     progress?: number;
     records_processed?: number;
     error_message?: string;
+    result?: Record<string, unknown>;
 }> {
-    const { data: sync, error } = await supabase
-        .from('connector_sync_history')
-        .select('id, status, records_processed, error_message, sync_started_at, sync_completed_at')
-        .eq('id', parseInt(jobId, 10))
+    const { data: job, error } = await supabase
+        .schema('analytics_v2')
+        .from('reg_jobs')
+        .select('job_id, status, progress_pct, result, error_message')
+        .eq('job_id', jobId)
         .single();
 
     if (error) {
         throw new Error(error.message || 'Falha ao obter status');
     }
 
-    // Calculate progress based on timestamps
-    let progress = 0;
-    if (sync.status === 'completed') {
-        progress = 100;
-    } else if (sync.status === 'running' && sync.sync_started_at) {
-        // Estimate progress based on time elapsed (rough estimate)
-        const startTime = new Date(sync.sync_started_at).getTime();
-        const elapsed = Date.now() - startTime;
-        progress = Math.min(90, Math.floor(elapsed / 1000)); // 1% per second, max 90%
-    }
+    const result = job.result as Record<string, unknown> | null;
 
     return {
-        job_id: String(sync.id),
-        status: sync.status as 'pending' | 'running' | 'completed' | 'failed',
-        progress,
-        records_processed: sync.records_processed || undefined,
-        error_message: sync.error_message || undefined,
+        job_id: job.job_id,
+        status: job.status as 'pending' | 'running' | 'completed' | 'failed',
+        progress: job.progress_pct || 0,
+        records_processed: result?.rows_inserted as number | undefined,
+        error_message: job.error_message || undefined,
+        result: result || undefined,
     };
 }
 

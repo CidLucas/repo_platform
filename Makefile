@@ -61,9 +61,8 @@ help:
 	@echo "   make db-shell        Open psql shell"
 	@echo ""
 	@echo "🌱 SEEDS (Dados de Desenvolvimento)"
-	@echo "   make seed            Run all seeds (DB + Qdrant)"
+	@echo "   make seed            Run all seeds (DB)"
 	@echo "   make seed-db         Seed only database (clients)"
-	@echo "   make seed-qdrant     Seed only Qdrant (RAG knowledge)"
 	@echo "   make seed-check      Verify current seed state"
 	@echo ""
 	@echo "🧪 TESTING"
@@ -277,9 +276,9 @@ db-shell:
 # SEEDS
 # =============================================================================
 
-.PHONY: seed seed-db seed-qdrant seed-check
+.PHONY: seed seed-db seed-check
 
-seed: seed-db seed-qdrant
+seed: seed-db
 	@echo "✅ All seeds completed!"
 
 seed-db:
@@ -287,14 +286,10 @@ seed-db:
 	@docker exec -e PYTHONPATH=/app:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src:/app \
 		vizu_atendente_core python -m ferramentas.seeds.run_seeds --db
 
-seed-qdrant:
-	@echo "⚠️  DEPRECATED: Qdrant has been replaced by Supabase vector_db schema."
-	@echo "   See docs/RAG_MIGRATION_GUIDE.md for details."
-
 seed-check:
 	@echo "📊 Checking seed state..."
 	@docker exec \
-		-e PYTHONPATH=/app:/app/libs/vizu_qdrant_client/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+		-e PYTHONPATH=/app:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
 		vizu_atendente_core python -m ferramentas.seeds.run_seeds --check
 
 # =============================================================================

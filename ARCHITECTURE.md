@@ -28,17 +28,17 @@ This document describes how your local development environment connects to remot
 │       │                      ↓                                   │
 │       │         ┌─────────────────────────────────────────┐     │
 │       │         │  🔧 tool_pool_api (FastMCP)     :8006   │     │
-│       │         │     - RAG tools                          │     │
+│       │         │     - RAG tools (pgvector)               │     │
 │       │         │     - SQL agent                          │     │
 │       │         │     - Google integrations                │     │
 │       │         │     - Hot reload enabled                 │     │
 │       │         └────────┬────────────────────────────────┘     │
 │       │                  │                                       │
-│       │ Redis            │ Qdrant                                │
+│       │ Redis            │ Supabase Edge Functions               │
 │       ↓                  ↓                                       │
 │  ┌────────────┐    ┌──────────────┐                            │
-│  │ 📦 Redis   │    │ 🔍 Qdrant    │                            │
-│  │   :6379    │    │   :6333      │                            │
+│  │ 📦 Redis   │    │ ☁️  Supabase │                            │
+│  │   :6379    │    │   pgvector   │                            │
 │  │            │    │              │                            │
 │  │ Sessions + │    │ Vector DB    │                            │
 │  │ Checkpoints│    │ RAG search   │                            │
@@ -56,6 +56,8 @@ This document describes how your local development environment connects to remot
             │     - clientes_vizu      │
             │     - conversa           │
             │     - mensagem           │
+            │     - vector_db schema   │
+            │       (pgvector RAG)     │
             │     - analytics_silver   │
             │                          │
             │  🔐 Auth & Row Level     │

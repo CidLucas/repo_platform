@@ -12,6 +12,9 @@ ARG VITE_GOOGLE_CLIENT_ID
 ARG VITE_API_URL
 ARG VITE_ATENDENTE_CORE
 ARG VITE_TOOL_POOL_API_URL
+ARG VITE_GRAFANA_OTLP_ENDPOINT
+ARG VITE_GRAFANA_OTLP_BASIC_AUTH
+ARG VITE_FARO_APP_NAME
 
 # Export as environment variables for Vite build
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
@@ -20,10 +23,13 @@ ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_ATENDENTE_CORE=$VITE_ATENDENTE_CORE
 ENV VITE_TOOL_POOL_API_URL=$VITE_TOOL_POOL_API_URL
+ENV VITE_GRAFANA_OTLP_ENDPOINT=$VITE_GRAFANA_OTLP_ENDPOINT
+ENV VITE_GRAFANA_OTLP_BASIC_AUTH=$VITE_GRAFANA_OTLP_BASIC_AUTH
+ENV VITE_FARO_APP_NAME=$VITE_FARO_APP_NAME
 
 # 1. COPIA os arquivos de manifesto de dependências
 # Note: When building from monorepo root, paths are relative to root
-COPY apps/vizu_dashboard/package.json apps/vizu_dashboard/package-lock.json ./
+COPY apps/vizu_dashboard/package.json apps/vizu_dashboard/package-lock.json apps/vizu_dashboard/.npmrc ./
 
 # 2. INSTALA as dependências do projeto
 RUN npm install

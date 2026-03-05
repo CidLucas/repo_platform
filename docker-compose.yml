@@ -19,8 +19,6 @@ x-common-env: &common-env
   OTEL_METRICS_EXPORTER: ${OTEL_METRICS_EXPORTER:-otlp}
   OTEL_LOGS_EXPORTER: ${OTEL_LOGS_EXPORTER:-otlp}
   EMBEDDING_SERVICE_URL: http://embedding_service:11435
-  # Qdrant removed — vector storage migrated to Supabase vector_db schema
-  # See docs/RAG_MIGRATION_GUIDE.md
   # Internal API base (atendente_core is the main entry point)
   BASE_URL: "http://atendente_core:8000"
 
@@ -167,10 +165,6 @@ services:
   #      atendente_core:
   #       condition: service_started
   #    # Note: For local development with postgres, use --profile local
-
-  # qdrant_db: DEPRECATED — migrated to Supabase vector_db schema.
-  # See docs/RAG_MIGRATION_GUIDE.md
-
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.91.0
@@ -412,13 +406,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # file_processing_worker: DEPRECATED — replaced by:
-  #   - Edge Function `process-document` (simple files)
-  #   - file_upload_api /v1/upload/process with docling (complex files)
-  # See docs/RAG_MIGRATION_GUIDE.md
-
-
-
   # NOTE: analytics_api and data_ingestion_api REMOVED (deprecated)
   # All functionality now handled via Supabase PostgREST + RPCs
 
@@ -532,7 +519,6 @@ services:
 
 # Definição de volumes persistentes
 volumes:
-  # qdrant_data: removed — Qdrant deprecated
   postgres_data:
   huggingface_cache:
   langfuse_postgres_data:

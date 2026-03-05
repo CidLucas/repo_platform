@@ -146,7 +146,7 @@ make up --profile local    # include local postgres too
 This starts:
 - All services from `make dev`
 - `embedding_service` (HuggingFace embeddings)
-- `file_upload_api` + `file_processing_worker`
+- `file_upload_api`
 - `vendas_agent` + `support_agent`
 - And optionally with `--profile observability`:
   - `langfuse` (LLM tracing UI)

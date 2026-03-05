@@ -166,7 +166,7 @@ logger.info(f"CORS configured (outermost middleware): {origins}")
 try:
     from vizu_observability_bootstrap import create_health_router, setup_observability
 
-    setup_observability(app, service_name=settings.SERVICE_NAME)
+    setup_observability(app, service_name=settings.SERVICE_NAME, log_min_level=logging.INFO)
 
     # Add health router with dependency checks
     health_router = create_health_router(

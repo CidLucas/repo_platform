@@ -254,25 +254,6 @@ async def check_redis_url(redis_url: str | None = None) -> bool:
         return False
 
 
-async def check_qdrant_url(qdrant_url: str | None = None) -> bool:
-    """
-    Check Qdrant vector DB connectivity.
-    """
-    url = qdrant_url or os.environ.get("QDRANT_URL")
-    if not url:
-        return False
-
-    try:
-        import httpx
-
-        async with httpx.AsyncClient(timeout=5) as client:
-            response = await client.get(f"{url}/healthz")
-            return response.status_code == 200
-    except Exception as e:
-        logger.warning(f"Qdrant health check failed: {e}")
-        return False
-
-
 async def check_http_endpoint(url: str, expected_status: int = 200) -> bool:
     """
     Generic HTTP endpoint health check.

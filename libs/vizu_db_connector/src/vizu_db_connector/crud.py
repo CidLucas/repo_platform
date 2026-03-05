@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from vizu_models import ClienteVizu, ConfiguracaoNegocio
+from vizu_models import ClienteVizu
 
 
 def save_integration_config(
@@ -317,10 +317,4 @@ def get_cliente_vizu_by_id(db: Session, cliente_id: uuid.UUID):
     return db.execute(statement).scalars().first()
 
 
-def get_configuracao_negocio(db: Session, cliente_id: uuid.UUID):
-    """Busca as configurações de negócio de um cliente"""
-    # Transitional helper: query legacy configuracao_negocio by client_id
-    statement = select(ConfiguracaoNegocio).where(
-        ConfiguracaoNegocio.client_id == cliente_id
-    )
-    return db.execute(statement).scalars().first()
+

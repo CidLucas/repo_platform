@@ -17,9 +17,7 @@ Tom de voz: Formal, acolhedor e muito organizado.
         "segunda_a_sexta": "08:00 - 18:00",
         "almoco": "12:00 - 14:00"
     },
-    "ferramenta_agendamento_habilitada": True,  # Para Consultas
-    "ferramenta_rag_habilitada": True,          # Para Preços/Políticas
-    "ferramenta_sql_habilitada": True,          # Para Insumos
+    "enabled_tools": ["agendar_consulta", "executar_rag_cliente", "executar_sql_agent"],
     "collection_rag": "faq_beatriz_v2"
 }
 
@@ -42,9 +40,7 @@ Tom de voz: Tech-savvy, entusiasta, ágil e usa termos técnicos quando necessá
         "segunda_a_sabado": "10:00 - 22:00",
         "domingo": "14:00 - 20:00"
     },
-    "ferramenta_agendamento_habilitada": False,
-    "ferramenta_rag_habilitada": True,          # Para Specs/Políticas
-    "ferramenta_sql_habilitada": True,          # Para Estoque/Planilha
+    "enabled_tools": ["executar_rag_cliente", "executar_sql_agent"],
     "collection_rag": "catalogo_pixel_store"
 }
 
@@ -67,9 +63,7 @@ Tom de voz: Descontraído, "dá água na boca" (use adjetivos apetitosos), mas e
         "terca_a_domingo": "18:00 - 23:30",
         "segunda": "Fechado"
     },
-    "ferramenta_agendamento_habilitada": True,  # Para Reservas
-    "ferramenta_rag_habilitada": True,          # Para Cardápio/Preços
-    "ferramenta_sql_habilitada": False,         # Pedidos geralmente vão para um checkout, não SQL direto aqui
+    "enabled_tools": ["agendar_consulta", "executar_rag_cliente"],
     "collection_rag": "cardapio_brasa_malte"
 }
 

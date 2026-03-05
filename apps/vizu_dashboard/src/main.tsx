@@ -1,4 +1,8 @@
 // Dashboard v1.2.0 - Added React Query for data caching
+// Initialize Grafana Faro BEFORE React (captures early errors)
+import { initFaro } from './lib/faro';
+initFaro();
+
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -9,6 +13,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { TenantProvider } from './contexts/TenantContext';
 import { ChatProvider } from './contexts/ChatContext';
+import { FaroErrorBoundary } from '@grafana/faro-react';
 
 // Configure React Query with optimal caching settings
 const queryClient = new QueryClient({
@@ -141,18 +146,20 @@ const theme = extendTheme({
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <ChakraProvider theme={theme}>
-          <AuthProvider>
-            <TenantProvider>
-              <ChatProvider>
-                <App />
-              </ChatProvider>
-            </TenantProvider>
-          </AuthProvider>
-        </ChakraProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <FaroErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <ChakraProvider theme={theme}>
+            <AuthProvider>
+              <TenantProvider>
+                <ChatProvider>
+                  <App />
+                </ChatProvider>
+              </TenantProvider>
+            </AuthProvider>
+          </ChakraProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </FaroErrorBoundary>
   </StrictMode>,
 )

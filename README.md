@@ -58,7 +58,6 @@ vizu-mono/
 │   ├── vendas_agent/          # Sales specialist agent
 │   ├── support_agent/         # Support specialist agent
 │   ├── file_upload_api/       # Document ingestion
-│   └── file_processing_worker/# Async document processing
 └── libs/                      # 20+ shared Python libraries
     ├── vizu_models/           # ALL database models + API schemas
     ├── vizu_llm_service/      # Provider-agnostic LLM client

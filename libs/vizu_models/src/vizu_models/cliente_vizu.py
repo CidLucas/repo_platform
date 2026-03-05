@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any
 
-from sqlalchemy import ARRAY, Boolean, DateTime, Text
+from sqlalchemy import ARRAY, DateTime, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as pgUUID
 from sqlmodel import Column, Field, Relationship, SQLModel
@@ -11,9 +11,6 @@ from sqlmodel import Column, Field, Relationship, SQLModel
 from .cliente_final import ClienteFinal
 from .credencial_servico_externo import CredencialServicoExterno
 from .fonte_de_dados import FonteDeDados
-
-if TYPE_CHECKING:
-    from .configuracao_negocio import ConfiguracaoNegocio, ConfiguracaoNegocioRead
 
 
 class ClienteVizuBase(SQLModel):
@@ -47,7 +44,6 @@ class ClienteVizu(ClienteVizuBase, table=True):
     Tool configuration:
     - tier: BASIC, SME, ENTERPRISE (tool access level)
     - enabled_tools: Tool whitelist array
-    - collection_rag: Qdrant collection name
     """
     __tablename__ = "clientes_vizu"
 
@@ -144,11 +140,7 @@ class ClienteVizu(ClienteVizuBase, table=True):
         back_populates="cliente_vizu"
     )
 
-    # Legacy relationship - kept for migration compatibility
-    from typing import Optional as _Optional
-    configuracao: _Optional["ConfiguracaoNegocio"] = Relationship(
-        back_populates="cliente_vizu"
-    )
+
 
     # ===== HELPER METHODS =====
     def get_enabled_tools_list(self) -> list[str]:
@@ -228,7 +220,7 @@ class ClienteVizuRead(ClienteVizuBase):
 
 class ClienteVizuReadWithRelations(ClienteVizuRead):
     """Schema for reading a client with related data."""
-    configuracao: Optional["ConfiguracaoNegocioRead"] = None
+    pass
 
 
 class ClienteVizuUpdate(SQLModel):

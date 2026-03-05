@@ -8,7 +8,12 @@ venv/
 **/analytics-big-query*.json
 **/service-account*.json
 **/gcp-credentials.json
+service_account.json
 !**/*example*.json
+
+# Test output logs (never commit)
+*.log
+!*.changelog.md
 
 # Arquivos de Configuração de IDEs
 .vscode/

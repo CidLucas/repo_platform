@@ -49,8 +49,8 @@ PY
 echo "Seeding test client into database (id=$TEST_UUID api_key=$TEST_API_KEY)"
 
 read -r -d '' SQL <<SQL || true
-INSERT INTO cliente_vizu (id, api_key, nome_empresa, prompt_base, ferramenta_rag_habilitada, ferramenta_sql_habilitada, ferramenta_agendamento_habilitada)
-VALUES ('$TEST_UUID', '$TEST_API_KEY', '$TEST_CLIENT_NAME', 'Seja um assistente de testes E2E.', true, true, false)
+INSERT INTO cliente_vizu (id, nome_empresa, enabled_tools)
+VALUES ('$TEST_UUID', '$TEST_CLIENT_NAME', ARRAY['executar_rag_cliente', 'executar_sql_agent'])
 ON CONFLICT (id) DO NOTHING;
 SQL
 

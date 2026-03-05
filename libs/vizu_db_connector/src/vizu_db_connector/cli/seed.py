@@ -65,25 +65,8 @@ def run_LOCAL_DATABASE(db_url: str):
                 novo_cliente.horario_funcionamento = config_data.get(
                     "horario_funcionamento"
                 )
-                # Populate enabled_tools based on seed config flags
-                enabled_tools = []
-                if config_data.get("ferramenta_rag_habilitada", False):
-                    enabled_tools.append("executar_rag_cliente")
-                if config_data.get("ferramenta_sql_habilitada", False):
-                    enabled_tools.append("executar_sql_agent")
-                if config_data.get("ferramenta_agendamento_habilitada", False):
-                    enabled_tools.append("agendar_consulta")
-
-                # Deduplicate preserving order
-                seen = set()
-                deduped = []
-                for t in enabled_tools:
-                    if t in seen:
-                        continue
-                    seen.add(t)
-                    deduped.append(t)
-
-                novo_cliente.enabled_tools = deduped
+                # Populate enabled_tools directly from seed config
+                novo_cliente.enabled_tools = config_data.get("enabled_tools", [])
                 novo_cliente.collection_rag = config_data.get("collection_rag")
                 session.add(novo_cliente)
 

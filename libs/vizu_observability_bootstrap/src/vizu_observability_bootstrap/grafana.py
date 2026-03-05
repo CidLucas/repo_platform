@@ -122,31 +122,29 @@ def setup_grafana_logging(
     """
     Configure structured JSON logging for Grafana Loki.
 
-    Args:
-        service_name: Name of the service for log labels
-        environment: Environment name (defaults to ENVIRONMENT env var)
-        log_level: Logging level (defaults to LOG_LEVEL env var or INFO)
+    .. deprecated:: 1.0
+        Use :func:`setup_structured_logging` from the main module instead.
+        This function is kept for backward compatibility only.
     """
+    import warnings
+
+    warnings.warn(
+        "setup_grafana_logging() is deprecated. Use setup_structured_logging() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     env = environment or os.environ.get("ENVIRONMENT", "development")
     level = os.environ.get("LOG_LEVEL", log_level)
 
-    # Configure root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(level)
 
-    # Remove existing handlers
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
 
-    # Add Loki-compatible JSON handler
     handler = logging.StreamHandler()
     handler.setFormatter(GrafanaLokiFormatter(service_name, env))
     root_logger.addHandler(handler)
-
-    logger.info(
-        "Grafana logging configured",
-        extra={"service": service_name, "environment": env, "level": level},
-    )
 
 
 def create_grafana_logger(name: str) -> logging.Logger:
@@ -227,7 +225,7 @@ def health_check() -> dict:
     return status
 
 
-# Aliases for backward compatibility with datadog module
-setup_datadog = setup_grafana_logging  # No-op compatibility
+# Legacy aliases — deprecated, kept for backward compatibility
+setup_datadog = setup_grafana_logging
 create_datadog_logger = create_grafana_logger
 track_custom_metric = record_metric

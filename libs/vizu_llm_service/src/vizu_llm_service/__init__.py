@@ -49,7 +49,7 @@ from .token_budget import (
 
 
 # text_to_sql imports are lazy to avoid pulling in vizu_sql_factory/vizu_prompt_management
-# for services that don't need them (e.g., file_processing_worker)
+# for services that don't need them (e.g., file_upload_api)
 def __getattr__(name):
     """Lazy import for text_to_sql and prompt-related symbols."""
     _text_to_sql_symbols = {

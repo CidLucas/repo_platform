@@ -3,7 +3,7 @@ Vizu Observability Bootstrap
 
 Unified observability setup for all Vizu services:
 - OTLP traces → Grafana Tempo
-- OTLP logs (WARN+ only) → Grafana Loki
+- OTLP logs (INFO+ by default) → Grafana Loki
 - OTLP metrics → Grafana Mimir
 - Langfuse → LLM tracing with prompt versioning
 
@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import warnings
 from typing import TYPE_CHECKING, Any, Callable, Coroutine
 from urllib.parse import unquote, urlparse
 
@@ -40,14 +41,12 @@ from .grafana import (
     create_grafana_logger,
     is_grafana_enabled,
     record_metric,
-    setup_grafana_logging,
 )
 
 # Export health check utilities
 from .health import (
     check_database_url,
     check_http_endpoint,
-    check_qdrant_url,
     check_redis_url,
     create_health_router,
 )
@@ -71,17 +70,14 @@ if TYPE_CHECKING:
 __all__ = [
     # Main setup
     "setup_observability",
-    "setup_telemetry",
     "shutdown_observability",
     "setup_structured_logging",
     # Health
     "create_health_router",
     "check_database_url",
     "check_redis_url",
-    "check_qdrant_url",
     "check_http_endpoint",
     # Grafana/Logging
-    "setup_grafana_logging",
     "create_grafana_logger",
     "record_metric",
     "is_grafana_enabled",
@@ -283,7 +279,7 @@ def setup_observability(
     langfuse: bool = True,
     export_logs: bool = True,
     export_metrics: bool = True,
-    log_min_level: int = logging.WARNING,
+    log_min_level: int = logging.INFO,
     excluded_urls: list[str] | None = None,
 ) -> None:
     """
@@ -291,7 +287,7 @@ def setup_observability(
 
     Configures:
     - OTLP traces → Grafana Tempo
-    - OTLP logs (WARN+ by default) → Grafana Loki
+    - OTLP logs (INFO+ by default) → Grafana Loki
     - OTLP metrics → Grafana Mimir
     - Langfuse → LLM tracing (validates credentials)
 
@@ -302,7 +298,7 @@ def setup_observability(
         langfuse: Validate Langfuse is configured (warn if not)
         export_logs: Export logs via OTLP (WARN+ only)
         export_metrics: Export metrics via OTLP
-        log_min_level: Minimum log level to export (default: WARNING)
+        log_min_level: Minimum log level to export (default: INFO)
         excluded_urls: URL patterns to exclude from tracing (e.g., ["/mcp", "/health"])
 
     Environment variables:
@@ -370,18 +366,14 @@ def setup_telemetry(app: FastAPI, service_name: str) -> None:
     """
     Configure OpenTelemetry tracing for a FastAPI app.
 
-    DEPRECATED: Use setup_observability() instead for full stack.
-
-    Supports:
-    - Grafana Cloud OTLP (HTTPS with Basic Auth)
-    - Local OTLP collector (gRPC)
-    - No-op fallback (silent, no console spam)
-
-    Environment variables:
-    - OTEL_EXPORTER_OTLP_ENDPOINT: OTLP endpoint URL
-    - OTEL_EXPORTER_OTLP_HEADERS: Headers (URL-encoded)
+    .. deprecated:: 1.0
+        Use :func:`setup_observability` instead for full stack (traces + logs + metrics).
     """
-    # Legacy function - calls setup_observability with only traces
+    warnings.warn(
+        "setup_telemetry() is deprecated. Use setup_observability() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     setup_observability(
         app,
         service_name,

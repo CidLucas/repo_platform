@@ -37,7 +37,7 @@ def test_e2e_flow_with_db_and_redis_cache(
     )
     # Populate merged configuration fields directly on the client
     novo_cliente.prompt_base = "Seja um assistente de padaria."
-    novo_cliente.ferramenta_rag_habilitada = True
+    novo_cliente.enabled_tools = ["executar_rag_cliente"]
     db_session.add(novo_cliente)
     db_session.commit()
 

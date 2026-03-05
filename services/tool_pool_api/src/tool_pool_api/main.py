@@ -112,7 +112,7 @@ app = FastAPI(
 try:
     from vizu_observability_bootstrap import setup_observability
 
-    setup_observability(app, service_name="tool_pool_api")
+    setup_observability(app, service_name="tool_pool_api", log_min_level=logging.INFO)
 except ImportError as e:
     logger.warning(f"Observability bootstrap not available: {e}")
 

@@ -10,6 +10,7 @@ from langchain_core.runnables.base import Runnable
 # Dependências de outras libs Vizu
 from vizu_models.vizu_client_context import VizuClientContext
 from vizu_prompt_management.templates import RAG_TOOL_PROMPT
+from vizu_rag_factory.reranker import LLMReranker
 from vizu_rag_factory.retriever import SupabaseVectorRetriever
 
 logger = logging.getLogger(__name__)
@@ -22,11 +23,17 @@ RAG_PROMPT_TEMPLATE = RAG_TOOL_PROMPT.content.replace("{{ context }}", "{context
 
 
 def _format_docs(docs):
-    """Helper para formatar os documentos recuperados em uma string."""
+    """Helper para formatar os documentos recuperados em uma string com metadados."""
     logger.debug(f"Formatando {len(docs) if docs else 0} documentos recuperados")
     if not docs:
         return "Nenhum contexto encontrado."
-    formatted = "\n\n---\n\n".join([d.page_content for d in docs])
+    parts = []
+    for doc in docs:
+        source = doc.metadata.get("file_name") or doc.metadata.get("source_file", "desconhecido")
+        similarity = doc.metadata.get("similarity", 0)
+        header = f"[Fonte: {source} | Relevância: {similarity:.0%}]"
+        parts.append(f"{header}\n{doc.page_content}")
+    formatted = "\n\n---\n\n".join(parts)
     logger.debug(f"Contexto formatado (primeiros 500 chars): {formatted[:500]}...")
     return formatted
 
@@ -34,6 +41,7 @@ def _format_docs(docs):
 def create_rag_runnable(
     contexto: VizuClientContext,
     llm: BaseChatModel,
+    document_ids: list[str] | None = None,
 ) -> Runnable | None:
     """
     Factory agnóstica para criar um Runnable de RAG.
@@ -44,6 +52,7 @@ def create_rag_runnable(
     Args:
         contexto: Contexto do cliente Vizu (client_id used for RLS)
         llm: Modelo de linguagem para responder (obrigatório)
+        document_ids: Optional list of document UUIDs to scope search to specific documents
 
     Returns:
         Runnable configurado ou None se não for possível criar
@@ -79,7 +88,13 @@ def create_rag_runnable(
             client_id=str(contexto.id),
             match_count=search_config.get("top_k", 5) if search_config else 5,
             match_threshold=(search_config.get("score_threshold", 0.5) if search_config else 0.5),
+            document_ids=document_ids,
         )
+
+        # --- Optional reranker (Phase C5) ---
+        rerank_enabled = search_config.get("rerank", False) if search_config else False
+        rerank_top_k = search_config.get("rerank_top_k", 3) if search_config else 3
+        reranker = LLMReranker(llm=llm) if rerank_enabled else None
 
         # --- Criação da Cadeia (Runnable) ---
         prompt = ChatPromptTemplate.from_template(RAG_PROMPT_TEMPLATE)
@@ -97,6 +112,12 @@ def create_rag_runnable(
             try:
                 docs = retriever.invoke(question)
                 logger.debug(f"RAG retrieved {len(docs)} documents")
+
+                # Optional reranking step
+                if reranker and docs:
+                    docs = reranker.rerank(question, docs, top_k=rerank_top_k)
+                    logger.debug(f"RAG reranked to {len(docs)} documents")
+
                 formatted_context = _format_docs(docs)
 
                 # FULL CONTEXT DEBUG - Enable with LOG_LEVEL=DEBUG to inspect retrieved RAG context
@@ -109,9 +130,38 @@ def create_rag_runnable(
                 logger.error(f"RAG: Erro na busca: {e}")
                 return "Erro ao buscar informações."
 
+        async def aretrieve_and_format(input_dict):
+            """Busca assíncrona de documentos e formata o contexto."""
+            question = input_dict.get("question", "")
+            logger.debug(f"RAG async search: '{question[:100]}...'")
+
+            try:
+                docs = await retriever.ainvoke(question)
+                logger.debug(f"RAG async retrieved {len(docs)} documents")
+
+                # Optional async reranking step
+                if reranker and docs:
+                    docs = await reranker.arerank(question, docs, top_k=rerank_top_k)
+                    logger.debug(f"RAG async reranked to {len(docs)} documents")
+
+                formatted_context = _format_docs(docs)
+
+                logger.debug(f"=== RAG ASYNC RETRIEVED CONTEXT ({len(docs)} docs) ===")
+                logger.debug(formatted_context)
+                logger.debug("=== END RAG ASYNC CONTEXT ===")
+
+                return formatted_context
+            except Exception as e:
+                logger.error(f"RAG: Erro na busca assíncrona: {e}")
+                return "Erro ao buscar informações."
+
+        # Build the chain using async-aware retrieval
+        # RunnableLambda supports both sync and async callables
+        retrieval_runnable = RunnableLambda(retrieve_and_format, afunc=aretrieve_and_format)
+
         rag_chain = (
             # Adiciona o contexto recuperado mantendo a question original
-            RunnablePassthrough.assign(context=RunnableLambda(retrieve_and_format))
+            RunnablePassthrough.assign(context=retrieval_runnable)
             | prompt
             | llm
             | StrOutputParser()

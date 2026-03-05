@@ -34,6 +34,7 @@ Deno.serve(async (req: Request) => {
             client_id,
             match_count = 5,
             match_threshold = 0.5,
+            document_ids = null,
         } = body;
 
         // Validate required fields
@@ -55,14 +56,20 @@ Deno.serve(async (req: Request) => {
 
         const embeddingStr = `[${Array.from(queryEmbedding).join(",")}]`;
 
-        // 2. Call vector_db.match_documents RPC via direct Postgres
+        // 2. Build document_ids array parameter (NULL if not provided)
+        const docIdsParam = document_ids && Array.isArray(document_ids) && document_ids.length > 0
+            ? `{${document_ids.join(",")}}`
+            : null;
+
+        // 3. Call vector_db.match_documents RPC via direct Postgres
         const results = await sql`
       SELECT *
       FROM vector_db.match_documents(
         ${client_id}::uuid,
         ${embeddingStr}::vector::halfvec(384),
         ${match_count}::int,
-        ${match_threshold}::float
+        ${match_threshold}::float,
+        ${docIdsParam}::uuid[]
       )
     `;
 

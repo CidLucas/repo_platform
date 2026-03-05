@@ -491,6 +491,9 @@ RAG_TOOL_PROMPT = PromptTemplateConfig(
 O contexto é soberano. Se você não sabe a resposta com base no contexto,
 apenas diga que não sabe. Não tente inventar uma resposta.
 
+Cada trecho inclui metadados no formato [Fonte: nome_do_arquivo | Relevância: percentual].
+Ao responder, cite a fonte quando relevante para dar credibilidade à resposta.
+
 CONTEXTO:
 {{ context }}
 

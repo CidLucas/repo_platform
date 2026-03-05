@@ -23,6 +23,20 @@ const corsHeaders = {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// ── Token Estimation ────────────────────────────────────────
+// gte-small uses a BPE tokenizer. We approximate token count using a
+// heuristic: ~4 chars per token for Latin text, ~2 for CJK/complex scripts.
+// This avoids shipping a full tokenizer in the Edge Function while staying
+// safely within the model's 512-token limit.
+
+function estimateTokens(text: string): number {
+    // Count CJK-heavy characters (each roughly 1 token)
+    const cjk = text.match(/[\u3000-\u9fff\uac00-\ud7af]/g)?.length ?? 0;
+    const rest = text.length - cjk;
+    // Latin/mixed text averages ~3.5 chars/token; CJK ~1 char/token
+    return Math.ceil(rest / 3.5) + cjk;
+}
+
 // ── Chunking Algorithm ──────────────────────────────────────
 
 interface Chunk {
@@ -31,107 +45,93 @@ interface Chunk {
     metadata: Record<string, unknown>;
 }
 
-const TARGET_SIZE = 500; // chars per chunk
-const OVERLAP = 50; // overlap between chunks
+// Token-aware limits (gte-small max_seq_length = 512 tokens)
+const TARGET_TOKENS = 400; // target tokens per chunk (leaves headroom for overlap + special tokens)
+const OVERLAP_SENTENCES = 2; // number of trailing sentences to overlap
 
 function splitIntoSentences(text: string): string[] {
-    // Split on sentence boundaries (., !, ?) followed by space or newline
+    // Split on sentence boundaries: period/exclamation/question followed by
+    // whitespace, OR double-newline paragraph breaks.
     return text
-        .split(/(?<=[.!?])\s+/)
-        .filter((s) => s.trim().length > 0);
+        .split(/(?<=[.!?])\s+|(?:\n\n+)/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
 }
 
 function chunkText(
     text: string,
     metadata: Record<string, unknown> = {}
 ): Chunk[] {
+    // 1. Split entire text into sentences
+    const sentences = splitIntoSentences(text);
+    if (sentences.length === 0) return [];
+
     const chunks: Chunk[] = [];
-    // 1. Split on double newlines (paragraphs)
-    const paragraphs = text
-        .split(/\n\n+/)
-        .filter((p) => p.trim().length > 0);
-
-    let currentChunk = "";
     let chunkIndex = 0;
+    let charOffset = 0;
+    let sentIdx = 0;
 
-    for (const paragraph of paragraphs) {
-        // If paragraph fits within remaining space, accumulate
-        if (currentChunk.length + paragraph.length + 1 <= TARGET_SIZE) {
-            currentChunk += (currentChunk ? "\n\n" : "") + paragraph;
-        } else {
-            // Flush current chunk if non-empty
-            if (currentChunk.trim().length > 0) {
-                chunks.push({
-                    text: currentChunk.trim(),
-                    index: chunkIndex++,
-                    metadata: { ...metadata },
-                });
-            }
-
-            // If paragraph itself is larger than target, split further
-            if (paragraph.length > TARGET_SIZE) {
-                // Try splitting on single newlines
-                const lines = paragraph.split(/\n/).filter((l) => l.trim().length > 0);
-                currentChunk = "";
-                for (const line of lines) {
-                    if (currentChunk.length + line.length + 1 <= TARGET_SIZE) {
-                        currentChunk += (currentChunk ? "\n" : "") + line;
-                    } else {
-                        if (currentChunk.trim().length > 0) {
-                            chunks.push({
-                                text: currentChunk.trim(),
-                                index: chunkIndex++,
-                                metadata: { ...metadata },
-                            });
-                        }
-                        // If a single line is still too big, split on sentences
-                        if (line.length > TARGET_SIZE) {
-                            const sentences = splitIntoSentences(line);
-                            currentChunk = "";
-                            for (const sentence of sentences) {
-                                if (
-                                    currentChunk.length + sentence.length + 1 <=
-                                    TARGET_SIZE
-                                ) {
-                                    currentChunk += (currentChunk ? " " : "") + sentence;
-                                } else {
-                                    if (currentChunk.trim().length > 0) {
-                                        chunks.push({
-                                            text: currentChunk.trim(),
-                                            index: chunkIndex++,
-                                            metadata: { ...metadata },
-                                        });
-                                    }
-                                    currentChunk = sentence;
-                                }
-                            }
-                        } else {
-                            currentChunk = line;
-                        }
-                    }
-                }
-            } else {
-                currentChunk = paragraph;
-            }
-        }
-    }
-
-    // Flush remaining
-    if (currentChunk.trim().length > 0) {
+    const flushChunk = (chunkText: string) => {
+        const trimmed = chunkText.trim();
+        if (trimmed.length === 0) return;
+        const startIdx = text.indexOf(trimmed, Math.max(0, charOffset - trimmed.length - 100));
+        const charStart = startIdx >= 0 ? startIdx : charOffset;
+        const charEnd = charStart + trimmed.length;
         chunks.push({
-            text: currentChunk.trim(),
+            text: trimmed,
             index: chunkIndex++,
-            metadata: { ...metadata },
+            metadata: {
+                ...metadata,
+                chunk_index: chunkIndex - 1,
+                char_start: charStart,
+                char_end: charEnd,
+                estimated_tokens: estimateTokens(trimmed),
+            },
         });
+        charOffset = charEnd;
+    };
+
+    while (sentIdx < sentences.length) {
+        let currentText = "";
+        let currentTokens = 0;
+        const startSentIdx = sentIdx;
+
+        // Accumulate sentences until we hit the token target
+        while (sentIdx < sentences.length) {
+            const candidate = currentText
+                ? currentText + " " + sentences[sentIdx]
+                : sentences[sentIdx];
+            const candidateTokens = estimateTokens(candidate);
+
+            if (candidateTokens > TARGET_TOKENS && currentText.length > 0) {
+                // Adding this sentence would exceed target — flush what we have
+                break;
+            }
+
+            currentText = candidate;
+            currentTokens = candidateTokens;
+            sentIdx++;
+
+            // If a single sentence already exceeds the target, flush it alone
+            if (currentTokens > TARGET_TOKENS) {
+                break;
+            }
+        }
+
+        flushChunk(currentText);
+
+        // C2: Sentence-boundary overlap — back up by OVERLAP_SENTENCES
+        // so the next chunk starts with the last N sentences of this one
+        if (sentIdx < sentences.length) {
+            const backtrack = Math.min(OVERLAP_SENTENCES, sentIdx - startSentIdx);
+            sentIdx = sentIdx - backtrack;
+        }
     }
 
-    // Apply overlap: prepend last OVERLAP chars of previous chunk
-    if (chunks.length > 1) {
-        for (let i = 1; i < chunks.length; i++) {
-            const prevText = chunks[i - 1].text;
-            const overlapText = prevText.slice(-OVERLAP);
-            chunks[i].text = overlapText + " " + chunks[i].text;
-        }
+    // Set total_chunks on all chunk metadata
+    const totalChunks = chunks.length;
+    for (const chunk of chunks) {
+        chunk.metadata.total_chunks = totalChunks;
     }
 
     return chunks;
@@ -294,6 +294,10 @@ async function processDocument(
         // 3. Chunk text
         const chunks = chunkText(parsedText, {
             source_file: fileName,
+            file_type: fileType,
+            document_id: documentId,
+            document_title: fileName.replace(/\.[^.]+$/, ''),
+            total_chars: parsedText.length,
         });
         console.log(`[process-document] Chunked: ${chunks.length} chunks`);
 
@@ -301,20 +305,43 @@ async function processDocument(
             throw new Error("No chunks generated from file content");
         }
 
-        // 4. Insert chunks WITHOUT embedding — the trigger
+        // 4. Delete existing chunks for this document (re-upload scenario)
+        //    Then insert fresh chunks. Deduplication is handled by content_hash
+        //    unique constraint per (document_id, content_hash).
+        await sql`
+      DELETE FROM vector_db.document_chunks
+      WHERE document_id = ${documentId}::uuid
+    `;
+
+        // 5. Insert chunks WITHOUT embedding — the trigger
         //    `embed_on_insert` fires and queues each chunk
         //    into pgmq → pg_cron → embed Edge Function
         for (const chunk of chunks) {
+            // Compute SHA-256 content hash for deduplication
+            const hashBuffer = await crypto.subtle.digest(
+                "SHA-256",
+                new TextEncoder().encode(chunk.text)
+            );
+            const contentHash = Array.from(new Uint8Array(hashBuffer))
+                .map((b) => b.toString(16).padStart(2, "0"))
+                .join("");
+
             await sql`
         INSERT INTO vector_db.document_chunks
-          (document_id, client_id, content, chunk_index, metadata)
+          (document_id, client_id, content, chunk_index, metadata, content_hash)
         VALUES (
           ${documentId}::uuid,
           ${clientId}::uuid,
           ${chunk.text},
           ${chunk.index},
-          ${JSON.stringify(chunk.metadata)}::jsonb
+          ${sql.json(chunk.metadata)},
+          ${contentHash}
         )
+        ON CONFLICT (document_id, content_hash) DO UPDATE
+        SET content = EXCLUDED.content,
+            chunk_index = EXCLUDED.chunk_index,
+            metadata = EXCLUDED.metadata,
+            embedding = NULL
       `;
         }
 

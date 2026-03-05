@@ -18,8 +18,8 @@ def test_rag_factory_success(mocker: MagicMock, mock_vizu_client_context: VizuCl
     # 1. Arrange
     mock_llm = mocker.MagicMock(spec=BaseChatModel)
 
-    # Garantir que a ferramenta está habilitada
-    mock_vizu_client_context.ferramenta_rag_habilitada = True
+    # Garantir que a ferramenta está habilitada (já definida no fixture via enabled_tools)
+    assert "executar_rag_cliente" in mock_vizu_client_context.enabled_tools
 
     # Mock environment variables needed by the retriever
     mocker.patch.dict(
@@ -42,8 +42,8 @@ def test_rag_factory_disabled(mocker: MagicMock, mock_vizu_client_context: VizuC
     # 1. Arrange
     mock_llm = mocker.MagicMock(spec=BaseChatModel)
 
-    # DESABILITA a ferramenta
-    mock_vizu_client_context.ferramenta_rag_habilitada = False
+    # DESABILITA a ferramenta removendo do enabled_tools
+    mock_vizu_client_context.enabled_tools = []
 
     # 2. Act
     runnable = create_rag_runnable(mock_vizu_client_context, mock_llm)

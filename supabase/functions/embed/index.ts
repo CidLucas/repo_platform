@@ -3,10 +3,15 @@
 // Called internally by pg_net via the pg_cron scheduled job.
 // Pattern: follows Supabase automatic-embeddings docs exactly.
 // See: https://supabase.com/docs/guides/ai/automatic-embeddings
+//
+// Phase C6: Dead-letter queue support — tracks retry count per job.
+// After MAX_RETRIES failures, jobs are moved to 'embedding_jobs_dlq'
+// and the parent document is marked 'partially_failed'.
 
 import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
 
 const DB_URL = Deno.env.get("SUPABASE_DB_URL")!;
+const MAX_RETRIES = 3;
 
 // @ts-ignore — Supabase Edge Runtime built-in AI
 const session = new Supabase.ai.Session("gte-small");
@@ -18,6 +23,7 @@ interface EmbeddingJob {
     contentFunction: string;
     embeddingColumn: string;
     jobId: number;
+    retryCount?: number;
 }
 
 Deno.serve(async (req: Request) => {
@@ -34,9 +40,12 @@ Deno.serve(async (req: Request) => {
         const sql = postgres(DB_URL, { prepare: false });
         const completed: number[] = [];
         const failed: { jobId: number; error: string }[] = [];
+        const deadLettered: number[] = [];
 
         try {
             for (const job of jobs) {
+                const retryCount = job.retryCount ?? 0;
+
                 try {
                     // 1. Fetch content from the source table using the content function
                     const rows = await sql`
@@ -96,7 +105,69 @@ Deno.serve(async (req: Request) => {
                     // 5. Track success
                     completed.push(job.jobId);
                 } catch (jobErr) {
-                    console.error(`[embed] Failed job id=${job.id}:`, jobErr);
+                    const nextRetry = retryCount + 1;
+                    console.error(`[embed] Failed job id=${job.id} (attempt ${nextRetry}/${MAX_RETRIES}):`, jobErr);
+
+                    if (nextRetry >= MAX_RETRIES) {
+                        // Move to dead-letter queue
+                        console.warn(`[embed] Job id=${job.id} exhausted retries, moving to DLQ`);
+                        try {
+                            await sql`
+                SELECT pgmq.send(
+                  'embedding_jobs_dlq',
+                  ${sql.json({
+                                id: job.id,
+                                schema: job.schema,
+                                table: job.table,
+                                contentFunction: job.contentFunction,
+                                embeddingColumn: job.embeddingColumn,
+                                retryCount: nextRetry,
+                                lastError: jobErr instanceof Error ? jobErr.message : String(jobErr),
+                                failedAt: new Date().toISOString(),
+                            })}::jsonb
+                )
+              `;
+
+                            // Mark parent document as partially_failed
+                            if (job.table === "document_chunks") {
+                                await sql`
+                  UPDATE vector_db.documents d
+                  SET status = 'partially_failed', updated_at = now()
+                  WHERE d.id = (
+                    SELECT document_id FROM vector_db.document_chunks WHERE id = ${job.id}
+                  )
+                  AND d.status NOT IN ('completed', 'failed')
+                `;
+                            }
+                        } catch (dlqErr) {
+                            console.error(`[embed] Failed to send job ${job.id} to DLQ:`, dlqErr);
+                        }
+                        deadLettered.push(job.jobId);
+                        // Delete from main queue even on DLQ — it's been transferred
+                        completed.push(job.jobId);
+                    } else {
+                        // Re-queue with incremented retry count
+                        try {
+                            await sql`
+                SELECT pgmq.send(
+                  'embedding_jobs',
+                  ${sql.json({
+                                id: job.id,
+                                schema: job.schema,
+                                table: job.table,
+                                contentFunction: job.contentFunction,
+                                embeddingColumn: job.embeddingColumn,
+                                retryCount: nextRetry,
+                            })}::jsonb
+                )
+              `;
+                        } catch (requeueErr) {
+                            console.error(`[embed] Failed to re-queue job ${job.id}:`, requeueErr);
+                        }
+                        // Delete original message (re-queued with new msg_id)
+                        completed.push(job.jobId);
+                    }
+
                     failed.push({
                         jobId: job.jobId,
                         error: jobErr instanceof Error ? jobErr.message : String(jobErr),
@@ -116,8 +187,9 @@ Deno.serve(async (req: Request) => {
 
         return new Response(
             JSON.stringify({
-                processed: completed.length,
+                processed: completed.length - deadLettered.length,
                 failed: failed.length,
+                dead_lettered: deadLettered.length,
                 errors: failed,
             }),
             {

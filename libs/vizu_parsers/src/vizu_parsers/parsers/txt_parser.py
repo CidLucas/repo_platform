@@ -48,9 +48,7 @@ class TXTParser(BaseParser):
                 try:
                     text = content.decode(self.encoding)
                 except UnicodeDecodeError:
-                    logger.warning(
-                        f"Failed to decode with {self.encoding}, trying latin-1"
-                    )
+                    logger.warning(f"Failed to decode with {self.encoding}, trying latin-1")
                     text = content.decode("latin-1")
             else:
                 text = content
@@ -63,7 +61,5 @@ class TXTParser(BaseParser):
             return text
 
         except Exception as e:
-            logger.error(
-                f"Unexpected error during TXT parsing: {e}", exc_info=True
-            )
+            logger.error(f"Unexpected error during TXT parsing: {e}", exc_info=True)
             return ""

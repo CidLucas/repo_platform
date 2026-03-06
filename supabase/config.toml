@@ -7,9 +7,9 @@ project_id = "haruewffnubdgyofftut"
 port = 54321
 # Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
 # endpoints. public and storage are always included.
-schemas = ["public", "analytics_v2"]
+schemas = ["public", "analytics_v2", "vector_db"]
 # Extra schemas to add to the search_path of every request.
-extra_search_path = ["public", "extensions"]
+extra_search_path = ["public", "extensions", "vector_db"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
 # for accidental or malicious requests.
 max_rows = 1000
@@ -18,4 +18,13 @@ max_rows = 1000
 # Disable JWT verification for public endpoints
 
 [functions.match-columns]
+verify_jwt = false
+
+[functions.embed]
+verify_jwt = false
+
+[functions.process-document]
+verify_jwt = false
+
+[functions.search-documents]
 verify_jwt = false

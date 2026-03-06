@@ -417,35 +417,6 @@ class ToolRegistry:
         logger.info(f"Registered custom tool: {tool.name}")
 
     @classmethod
-    def get_tool_names_for_legacy_flags(
-        cls,
-        rag_enabled: bool,
-        sql_enabled: bool,
-        scheduling_enabled: bool,
-    ) -> list[str]:
-        """
-        Convert legacy boolean flags to enabled_tools list.
-
-        Helper for backward compatibility during migration.
-
-        Args:
-            rag_enabled: Legacy ferramenta_rag_habilitada flag
-            sql_enabled: Legacy ferramenta_sql_habilitada flag
-            scheduling_enabled: Legacy ferramenta_agendamento_habilitada flag
-
-        Returns:
-            List of tool names
-        """
-        tools = []
-        if rag_enabled:
-            tools.append("executar_rag_cliente")
-        if sql_enabled:
-            tools.append("executar_sql_agent")
-        if scheduling_enabled:
-            tools.append("agendar_consulta")
-        return tools
-
-    @classmethod
     def register_docker_mcp_tools(cls, docker_tools: dict[str, ToolMetadata]) -> int:
         """
         Register Docker MCP tools discovered at runtime.

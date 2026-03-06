@@ -47,22 +47,17 @@ def create_app() -> FastAPI:
     # 1. Configura a telemetria (OpenTelemetry) se o endpoint estiver definido.
     # Isso é um pilar da nossa arquitetura[cite: 13, 133].
     if settings.OTEL_EXPORTER_OTLP_ENDPOINT:
-        logger.info(
-            f"Configurando telemetria para o serviço '{settings.SERVICE_NAME}'..."
-        )
+        logger.info(f"Configurando observabilidade para '{settings.SERVICE_NAME}'...")
         try:
-            # Importa a 'lib' compartilhada de observabilidade
-            from vizu_observability_bootstrap import setup_telemetry
+            from vizu_observability_bootstrap import setup_observability
 
-            setup_telemetry(app, service_name=settings.SERVICE_NAME)
+            setup_observability(app, service_name=settings.SERVICE_NAME, log_min_level=logging.INFO)
         except ImportError:
             logger.warning(
-                "Falha ao importar 'vizu_observability_bootstrap'. Telemetria não configurada."
+                "Falha ao importar 'vizu_observability_bootstrap'. Observabilidade nao configurada."
             )
     else:
-        logger.info(
-            "Telemetria não configurada (OTEL_EXPORTER_OTLP_ENDPOINT não definido)."
-        )
+        logger.info("Observabilidade nao configurada (OTEL_EXPORTER_OTLP_ENDPOINT nao definido).")
 
     # 2. Inclui os roteadores da API
     # (Este arquivo será o próximo passo)

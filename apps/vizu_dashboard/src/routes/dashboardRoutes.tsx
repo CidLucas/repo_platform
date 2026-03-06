@@ -13,6 +13,7 @@ import AdminPlanosPage from "../pages/admin/AdminPlanosPage";
 import AdminChatPage from "../pages/admin/AdminChatPage";
 import AdminAjudaPage from "../pages/admin/AdminAjudaPage";
 import AdminPrivacidadePage from "../pages/admin/AdminPrivacidadePage";
+import AdminKnowledgeBasePage from "../pages/admin/AdminKnowledgeBasePage";
 // Super admin pages (requires ADMIN tier)
 import AdminClientesVizuPage from "../pages/admin/AdminClientesVizuPage";
 import { AdminRoute } from "./AdminRoute";
@@ -105,6 +106,10 @@ export const dashboardRoutes: RouteConfig[] = [
   {
     path: "/dashboard/admin/privacidade",
     element: <AdminPrivacidadePage />,
+  },
+  {
+    path: "/dashboard/admin/knowledge-base",
+    element: <AdminKnowledgeBasePage />,
   },
   // Super Admin routes - requires ADMIN tier (checked via backend)
   {

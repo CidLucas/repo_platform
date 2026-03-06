@@ -58,6 +58,25 @@ class LLMSettings(BaseSettings):
     # ========================================================================
     GOOGLE_API_KEY: str | None = Field(default=None)
 
+    # ========================================================================
+    # EDGE FUNCTION LLM DEFAULTS
+    # These mirror the env vars consumed by Supabase Edge Functions
+    # (enrich-metadata, etc.) so there is a single source of truth.
+    # Set the corresponding env var in Supabase to override at runtime.
+    # ========================================================================
+    METADATA_ENRICHMENT_MODEL: str = Field(
+        default="gpt-4.1-mini",
+        description="OpenAI model used by the enrich-metadata Edge Function",
+    )
+    METADATA_ENRICHMENT_MAX_TOKENS: int = Field(
+        default=500,
+        description="Max tokens for metadata enrichment LLM calls",
+    )
+    METADATA_ENRICHMENT_TEMPERATURE: float = Field(
+        default=0.0,
+        description="Temperature for metadata enrichment (deterministic)",
+    )
+
     @property
     def langfuse_enabled(self) -> bool:
         """Langfuse está habilitado se tiver public e secret key."""

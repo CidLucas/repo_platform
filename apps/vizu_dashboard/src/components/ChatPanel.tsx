@@ -10,6 +10,10 @@ import {
   Slide,
   Portal,
   useToast,
+  Tag,
+  TagLabel,
+  TagCloseButton,
+  Spinner,
 } from '@chakra-ui/react';
 import { useState, useRef, useEffect, useContext, useCallback } from 'react';
 import { ArrowForwardIcon, AttachmentIcon, AddIcon, ChatIcon, CloseIcon } from '@chakra-ui/icons';
@@ -17,6 +21,7 @@ import { AuthContext } from '../contexts/AuthContext';
 import { SimpleDataTable, type StructuredData } from './SimpleDataTable';
 import { MarkdownMessage } from './MarkdownMessage';
 import { sendChatMessageStream, type StreamDoneData } from '../services/chatService';
+import { uploadFile, getAcceptedExtensions } from '../services/knowledgeBaseService';
 
 interface Message {
   id: string;
@@ -47,8 +52,11 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<{ name: string; documentId: string }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const auth = useContext(AuthContext);
   const toast = useToast();
 
@@ -75,6 +83,45 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
       setTimeout(() => textareaRef.current?.focus(), 300);
     }
   }, [isOpen]);
+
+  // Handle file upload from the "Anexar" button
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const clientId = auth?.clientId;
+    if (!clientId) {
+      toast({ title: 'Erro', description: 'Usuário não autenticado.', status: 'error', duration: 3000 });
+      return;
+    }
+    setUploadingFile(true);
+    try {
+      for (const file of Array.from(files)) {
+        const documentId = await uploadFile(file, clientId, false, 'chat');
+        setAttachedFiles((prev) => [...prev, { name: file.name, documentId }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            content: `📎 Arquivo "${file.name}" enviado e processado para contexto.`,
+            sender: 'user',
+            timestamp: new Date(),
+          },
+        ]);
+      }
+      toast({ title: 'Upload concluído', status: 'success', duration: 2000 });
+    } catch (err) {
+      console.error('File upload error:', err);
+      toast({
+        title: 'Erro no upload',
+        description: err instanceof Error ? err.message : 'Erro desconhecido',
+        status: 'error',
+        duration: 4000,
+      });
+    } finally {
+      setUploadingFile(false);
+      e.target.value = ''; // reset input
+    }
+  };
 
   // Handle export to Google Sheets
   const handleExportToSheets = async (data: StructuredData) => {
@@ -122,10 +169,16 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
     // Stream response from atendente_core
     const token = auth?.session?.access_token;
 
+    // Include attached document IDs in context
+    const attachedDocumentIds = attachedFiles.map((f) => f.documentId);
+
     await sendChatMessageStream(
       {
         message: userMessage.content,
         session_id: sessionId,
+        ...(attachedDocumentIds.length > 0 && {
+          context: { attached_document_ids: attachedDocumentIds },
+        }),
       },
       {
         onToken: (token: string) => {
@@ -210,6 +263,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
   const handleNewChat = useCallback(() => {
     setMessages([]);
     setInputValue('');
+    setAttachedFiles([]);
     setSessionId(`${auth?.user?.id || 'anon'}:${Date.now()}`);
   }, [auth?.user?.id]);
 
@@ -433,6 +487,30 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
               </Button>
             </HStack>
 
+            {/* Attached files chips */}
+            {attachedFiles.length > 0 && (
+              <HStack spacing={2} mb={3} flexWrap="wrap">
+                {attachedFiles.map((f) => (
+                  <Tag
+                    key={f.documentId}
+                    size="sm"
+                    colorScheme="blue"
+                    borderRadius="full"
+                    variant="subtle"
+                  >
+                    <TagLabel>📎 {f.name}</TagLabel>
+                    <TagCloseButton
+                      onClick={() =>
+                        setAttachedFiles((prev) =>
+                          prev.filter((af) => af.documentId !== f.documentId)
+                        )
+                      }
+                    />
+                  </Tag>
+                ))}
+              </HStack>
+            )}
+
             {/* Text Input */}
             <Textarea
               ref={textareaRef}
@@ -456,15 +534,25 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  leftIcon={<AttachmentIcon />}
+                  leftIcon={uploadingFile ? <Spinner size="xs" /> : <AttachmentIcon />}
                   color="blackAlpha.600"
                   fontWeight="400"
                   fontSize="16px"
                   fontFamily="'Noto Sans', sans-serif"
                   _hover={{ bg: 'rgba(0,0,0,0.05)' }}
+                  onClick={() => fileInputRef.current?.click()}
+                  isDisabled={uploadingFile}
                 >
-                  Anexar
+                  {uploadingFile ? 'Enviando...' : 'Anexar'}
                 </Button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept={getAcceptedExtensions()}
+                  multiple
+                  style={{ display: 'none' }}
+                />
                 <Button
                   variant="ghost"
                   size="sm"

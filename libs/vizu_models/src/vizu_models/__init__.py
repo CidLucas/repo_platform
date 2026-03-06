@@ -33,13 +33,7 @@ from .cliente_vizu import (
     ClienteVizuReadWithRelations,
     ClienteVizuUpdate,
 )
-from .configuracao_negocio import (
-    ConfiguracaoNegocio,
-    ConfiguracaoNegocioBase,
-    ConfiguracaoNegocioCreate,
-    ConfiguracaoNegocioRead,
-    ConfiguracaoNegocioUpdate,
-)
+
 from .conversa import (
     Conversa,
     ConversaBase,
@@ -128,6 +122,7 @@ from .knowledge_base_config import (
     KnowledgeBaseConfigCreate,
     KnowledgeBaseConfigRead,
     KnowledgeBaseConfigUpdate,
+    RagSearchConfig,
 )
 
 # MCP Resources & Prompts support
@@ -170,11 +165,6 @@ __all__ = [
     "ClienteVizuRead",
     "ClienteVizuReadWithRelations",
     "ClienteVizuUpdate",  # Deve ser a classe única ClienteVizuUpdate
-    "ConfiguracaoNegocio",
-    "ConfiguracaoNegocioBase",
-    "ConfiguracaoNegocioCreate",
-    "ConfiguracaoNegocioRead",
-    "ConfiguracaoNegocioUpdate",
     "CredencialServicoExterno",
     "CredencialServicoExternoBase",
     "CredencialServicoExternoCreate",

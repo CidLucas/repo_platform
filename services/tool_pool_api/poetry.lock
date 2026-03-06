@@ -243,7 +243,7 @@ description = "Timeout context manager for asyncio programs"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "python_version == \"3.11\" and python_full_version < \"3.11.3\""
+markers = "python_full_version < \"3.11.3\""
 files = [
     {file = "async_timeout-5.0.1-py3-none-any.whl", hash = "sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c"},
     {file = "async_timeout-5.0.1.tar.gz", hash = "sha256:d9321a7a3d5a6a5e187e824d2fa0793ce379a202935782d555d6e9d2735677d3"},
@@ -2115,26 +2115,6 @@ langchain-core = ">=0.3.76,<2.0.0"
 ollama = ">=0.5.3,<1.0.0"
 
 [[package]]
-name = "langchain-qdrant"
-version = "0.2.1"
-description = "An integration package connecting Qdrant and LangChain"
-optional = false
-python-versions = ">=3.9"
-groups = ["main"]
-files = [
-    {file = "langchain_qdrant-0.2.1-py3-none-any.whl", hash = "sha256:d82637eae4828ca67ac806d722fc21b660617fdd5d7eef07b99249d0e7976c3b"},
-    {file = "langchain_qdrant-0.2.1.tar.gz", hash = "sha256:19d8cce3e305e87c32f3be6fdcca6b5acb595297695a4f373f233e7fda6a2b7c"},
-]
-
-[package.dependencies]
-langchain-core = ">=0.2.43,<0.3.0 || >0.3.0,<0.3.1 || >0.3.1,<0.3.2 || >0.3.2,<0.3.3 || >0.3.3,<0.3.4 || >0.3.4,<0.3.5 || >0.3.5,<0.3.6 || >0.3.6,<0.3.7 || >0.3.7,<0.3.8 || >0.3.8,<0.3.9 || >0.3.9,<0.3.10 || >0.3.10,<0.3.11 || >0.3.11,<0.3.12 || >0.3.12,<0.3.13 || >0.3.13,<0.3.14 || >0.3.14,<0.4.0"
-pydantic = ">=2.7.4,<3.0.0"
-qdrant-client = ">=1.10.1,<2.0.0"
-
-[package.extras]
-fastembed = ["fastembed (>=0.3.3,<1.0.0) ; python_version < \"3.13\" and python_version >= \"3.9\""]
-
-[[package]]
 name = "langchain-text-splitters"
 version = "0.3.11"
 description = "LangChain text splitting utilities"
@@ -3138,26 +3118,6 @@ dev = ["pre-commit", "tox"]
 testing = ["coverage", "pytest", "pytest-benchmark"]
 
 [[package]]
-name = "portalocker"
-version = "3.2.0"
-description = "Wraps the portalocker recipe for easy usage"
-optional = false
-python-versions = ">=3.9"
-groups = ["main"]
-files = [
-    {file = "portalocker-3.2.0-py3-none-any.whl", hash = "sha256:3cdc5f565312224bc570c49337bd21428bba0ef363bbcf58b9ef4a9f11779968"},
-    {file = "portalocker-3.2.0.tar.gz", hash = "sha256:1f3002956a54a8c3730586c5c77bf18fae4149e07eaf1c29fc3faf4d5a3f89ac"},
-]
-
-[package.dependencies]
-pywin32 = {version = ">=226", markers = "platform_system == \"Windows\""}
-
-[package.extras]
-docs = ["portalocker[tests]"]
-redis = ["redis"]
-tests = ["coverage-conditional-plugin (>=0.9.0)", "portalocker[redis]", "pytest (>=5.4.1)", "pytest-cov (>=2.8.1)", "pytest-mypy (>=0.8.0)", "pytest-rerunfailures (>=15.0)", "pytest-timeout (>=2.1.0)", "sphinx (>=6.0.0)", "types-pywin32 (>=310.0.0.20250429)", "types-redis"]
-
-[[package]]
 name = "postgrest"
 version = "2.25.0"
 description = "PostgREST client for Python. This library provides an ORM interface to PostgREST."
@@ -3508,7 +3468,7 @@ description = "C parser in Python"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "implementation_name != \"PyPy\" and platform_python_implementation != \"PyPy\""
+markers = "platform_python_implementation != \"PyPy\" and implementation_name != \"PyPy\""
 files = [
     {file = "pycparser-2.23-py3-none-any.whl", hash = "sha256:e5c6e8d3fbad53479cab09ac03729e0a9faf2bee3db8208a550daf5af81a5934"},
     {file = "pycparser-2.23.tar.gz", hash = "sha256:78816d4f24add8f10a06d6f05b4d424ad9e96cfebf68a4ddc99c65c0720d00c2"},
@@ -3883,7 +3843,7 @@ description = "Python for Window Extensions"
 optional = false
 python-versions = "*"
 groups = ["main"]
-markers = "sys_platform == \"win32\" or platform_system == \"Windows\""
+markers = "sys_platform == \"win32\""
 files = [
     {file = "pywin32-311-cp310-cp310-win32.whl", hash = "sha256:d03ff496d2a0cd4a5893504789d4a15399133fe82517455e78bad62efbb7f0a3"},
     {file = "pywin32-311-cp310-cp310-win_amd64.whl", hash = "sha256:797c2772017851984b97180b0bebe4b620bb86328e8a884bb626156295a63b3b"},
@@ -4002,35 +3962,6 @@ files = [
     {file = "pyyaml-6.0.3-cp39-cp39-win_amd64.whl", hash = "sha256:2e71d11abed7344e42a8849600193d15b6def118602c4c176f748e4583246007"},
     {file = "pyyaml-6.0.3.tar.gz", hash = "sha256:d76623373421df22fb4cf8817020cbb7ef15c725b9d5e45f17e189bfc384190f"},
 ]
-
-[[package]]
-name = "qdrant-client"
-version = "1.16.1"
-description = "Client library for the Qdrant vector search engine"
-optional = false
-python-versions = ">=3.9"
-groups = ["main"]
-files = [
-    {file = "qdrant_client-1.16.1-py3-none-any.whl", hash = "sha256:1eefe89f66e8a468ba0de1680e28b441e69825cfb62e8fb2e457c15e24ce5e3b"},
-    {file = "qdrant_client-1.16.1.tar.gz", hash = "sha256:676c7c10fd4d4cb2981b8fcb32fd764f5f661b04b7334d024034d07212f971fd"},
-]
-
-[package.dependencies]
-grpcio = ">=1.41.0"
-httpx = {version = ">=0.20.0", extras = ["http2"]}
-numpy = [
-    {version = ">=1.21", markers = "python_version >= \"3.10\" and python_version < \"3.12\""},
-    {version = ">=1.26", markers = "python_version == \"3.12\""},
-    {version = ">=2.1.0", markers = "python_version >= \"3.13\""},
-]
-portalocker = ">=2.7.0,<4.0"
-protobuf = ">=3.20.0"
-pydantic = ">=1.10.8,<2.0.dev0 || >2.2.0"
-urllib3 = ">=1.26.14,<3"
-
-[package.extras]
-fastembed = ["fastembed (>=0.7,<0.8)"]
-fastembed-gpu = ["fastembed-gpu (>=0.7,<0.8)"]
 
 [[package]]
 name = "realtime"
@@ -4809,7 +4740,7 @@ description = "Fast implementation of asyncio event loop on top of libuv"
 optional = false
 python-versions = ">=3.8.1"
 groups = ["main"]
-markers = "platform_python_implementation != \"PyPy\" and sys_platform != \"win32\" and sys_platform != \"cygwin\""
+markers = "sys_platform != \"win32\" and sys_platform != \"cygwin\" and platform_python_implementation != \"PyPy\""
 files = [
     {file = "uvloop-0.22.1-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:ef6f0d4cc8a9fa1f6a910230cd53545d9a14479311e87e3cb225495952eb672c"},
     {file = "uvloop-0.22.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:7cd375a12b71d33d46af85a3343b35d98e8116134ba404bd657b3b1d15988792"},
@@ -5058,27 +4989,6 @@ type = "directory"
 url = "../../libs/vizu_prompt_management"
 
 [[package]]
-name = "vizu-qdrant-client"
-version = "0.1.0"
-description = "Cliente padronizado para Qdrant no ecossistema Vizu."
-optional = false
-python-versions = "^3.11"
-groups = ["main"]
-files = []
-develop = true
-
-[package.dependencies]
-langchain-core = ">=0.3.0"
-langchain-qdrant = ">=0.2.0"
-pydantic-settings = "^2.3.4"
-qdrant-client = "^1.9.2"
-requests = "^2.31.0"
-
-[package.source]
-type = "directory"
-url = "../../libs/vizu_qdrant_client"
-
-[[package]]
 name = "vizu-rag-factory"
 version = "0.1.0"
 description = "Factory para criar RAG runnables/tools da Vizu"
@@ -5089,11 +4999,11 @@ files = []
 develop = true
 
 [package.dependencies]
+httpx = ">=0.27.0"
 langchain-core = ">=0.3.0"
 vizu_context_service = {path = "../../libs/vizu_context_service", develop = true}
 vizu_llm_service = {path = "../../libs/vizu_llm_service", develop = true}
 vizu_models = {path = "../../libs/vizu_models", develop = true}
-vizu_qdrant_client = {path = "../../libs/vizu_qdrant_client", develop = true}
 
 [package.source]
 type = "directory"

@@ -54,7 +54,5 @@ class CSVParser(BaseParser):
             logger.warning("CSV processed but contains no data (EmptyDataError).")
             return ""
         except Exception as e:
-            logger.error(
-                f"Unexpected error during CSV parsing: {e}", exc_info=True
-            )
+            logger.error(f"Unexpected error during CSV parsing: {e}", exc_info=True)
             return ""

@@ -84,7 +84,7 @@ class HitlConfig(BaseModel):
     """
     Configuração completa do sistema HITL para um cliente.
 
-    Pode ser armazenada como JSON em ConfiguracaoNegocio ou tabela dedicada.
+    Pode ser armazenada como JSON em clientes_vizu.available_tools ou tabela dedicada.
     """
 
     enabled: bool = False

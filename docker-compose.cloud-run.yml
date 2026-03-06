@@ -8,7 +8,7 @@
 # Purpose:
 #   - Test Cloud Run behavior locally (PORT env var, single container)
 #   - Build images ready for Artifact Registry push
-#   - No local infrastructure (uses cloud Supabase, Qdrant)
+#   - No local infrastructure (uses cloud Supabase)
 #
 # Deploy to Cloud Run:
 #   gcloud run deploy <service> \
@@ -28,9 +28,9 @@ x-common-env: &common-env
   JWT_ALGORITHM: ${JWT_ALGORITHM:-ES256}
   DB_MODE: supabase
 
-  # Qdrant Cloud
-  QDRANT_URL: ${QDRANT_URL}
-  QDRANT_API_KEY: ${QDRANT_API_KEY}
+  # Qdrant Cloud — DEPRECATED: migrated to Supabase vector_db schema
+  # QDRANT_URL: ${QDRANT_URL}
+  # QDRANT_API_KEY: ${QDRANT_API_KEY}
 
   # Embedding service (Cloud Run URL or local)
   EMBEDDING_SERVICE_URL: ${EMBEDDING_SERVICE_URL:-http://embedding_service:11435}

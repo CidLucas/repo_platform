@@ -224,17 +224,6 @@ class TestToolRegistry:
         for tool in tools:
             assert tool.requires_confirmation is True
 
-    def test_get_tool_names_for_legacy_flags(self):
-        """Test converting legacy boolean flags to tool names."""
-        tools = ToolRegistry.get_tool_names_for_legacy_flags(
-            rag_enabled=True,
-            sql_enabled=True,
-            scheduling_enabled=False,
-        )
-        assert "executar_rag_cliente" in tools
-        assert "executar_sql_agent" in tools
-        assert "agendar_consulta" not in tools
-
     def test_register_custom_tool(self):
         """Test registering a custom tool at runtime."""
         custom_tool = ToolMetadata(

@@ -59,7 +59,7 @@ conftest.py
 docker-compose*.yml
 !docker-compose.yml
 
-# Large directories not needed for data_ingestion_api
+# Large directories not needed for deployment
 langfuse/
 ferramentas/
 terraform/
@@ -77,13 +77,10 @@ services/tool_pool_api/
 services/vendas_agent/
 services/support_agent/
 services/data_ingestion_worker/
-services/file_processing_worker/
 services/file_upload_api/
-services/analytics_api/
 services/embedding_service/
 services/migration_runner/
 services/ollama_service/
-# services/data_ingestion_api/  # <-- Building this one
 
  # Exclude non-runtime files from libs
  libs/*/README.md
@@ -104,17 +101,3 @@ services/ollama_service/
  libs/*/Makefile
  libs/*/scripts/
 
- # Exclude non-runtime files from service
- services/data_ingestion_api/README.md
- services/data_ingestion_api/tests/
- services/data_ingestion_api/.ruff_cache/
- services/data_ingestion_api/.pytest_cache/
- services/data_ingestion_api/dist/
- services/data_ingestion_api/alembic/
- services/data_ingestion_api/integration/
- services/data_ingestion_api/poetry.lock
- services/data_ingestion_api/pyproject.toml
- services/data_ingestion_api/build/
- services/data_ingestion_api/setup.py
- services/data_ingestion_api/Makefile
- services/data_ingestion_api/scripts/

@@ -28,11 +28,10 @@ from tool_pool_api.server.tool_helpers import (
     get_tier_for_context,
 )
 from vizu_db_connector.database import SessionLocal
-from vizu_llm_service.client import get_embedding_model
 from vizu_models import KnowledgeBaseConfig, PromptTemplate
 from vizu_models.vizu_client_context import VizuClientContext
 from vizu_prompt_management import PromptLoader
-from vizu_qdrant_client import get_qdrant_client
+from vizu_supabase_client import get_supabase_client
 
 # Phase 3: Use vizu_tool_registry for dynamic tool filtering
 from vizu_tool_registry import ToolRegistry
@@ -86,10 +85,7 @@ async def _get_knowledge_summary(cliente_id: str | None = None) -> str:
     """
     Retorna um resumo da base de conhecimento do cliente.
 
-    Inclui:
-    - Nome da coleção RAG
-    - Número de documentos
-    - Metadados disponíveis
+    Queries ``vector_db.documents`` via Supabase REST API.
     """
     context = await _resolve_client_context(cliente_id)
 
@@ -97,52 +93,64 @@ async def _get_knowledge_summary(cliente_id: str | None = None) -> str:
     if "executar_rag_cliente" not in enabled_tools:
         return f"# Base de Conhecimento - {context.nome_empresa}\n\n⚠️ RAG não habilitado para este cliente."
 
-    # Get collection name from available_tools config or use client_id
-    collection_name = (
-        context.available_tools.get("rag_collection") if context.available_tools else None
-    ) or str(context.id)
+    client_id_str = str(context.id)
 
     try:
-        qdrant = get_qdrant_client()
+        supabase = get_supabase_client()
+        docs_resp = (
+            supabase.schema("vector_db")
+            .table("documents")
+            .select("id, file_name, status, chunk_count")
+            .eq("client_id", client_id_str)
+            .execute()
+        )
+        docs = docs_resp.data or []
 
-        # Verifica se a coleção existe
-        if not qdrant.collection_exists(collection_name):
+        if not docs:
             return (
                 f"# Base de Conhecimento - {context.nome_empresa}\n\n"
-                f"📁 Coleção: `{collection_name}`\n"
-                f"📊 Status: Coleção não encontrada\n\n"
+                f"📊 Status: Nenhum documento encontrado\n\n"
                 "A base de conhecimento ainda não foi populada."
             )
 
-        # Obtém info da coleção
-        collection_info = qdrant.client.get_collection(collection_name)
-        points_count = collection_info.points_count
-        vectors_config = collection_info.config.params.vectors
+        document_count = len(docs)
+        total_chunks = sum(d.get("chunk_count", 0) or 0 for d in docs)
+        completed = sum(1 for d in docs if d.get("status") == "completed")
+        pending = sum(1 for d in docs if d.get("status") in ("pending", "processing"))
+        failed = sum(1 for d in docs if d.get("status") == "failed")
 
-        # Extrai dimensão do vetor
-        if hasattr(vectors_config, "size"):
-            vector_size = vectors_config.size
-        elif isinstance(vectors_config, dict):
-            # Para configuração named vectors
-            first_config = next(iter(vectors_config.values()), None)
-            vector_size = first_config.size if first_config else "N/A"
-        else:
-            vector_size = "N/A"
-
-        return (
+        result = (
             f"# Base de Conhecimento - {context.nome_empresa}\n\n"
-            f"📁 **Coleção:** `{collection_name}`\n"
-            f"📊 **Documentos:** {points_count}\n"
-            f"🔢 **Dimensão do vetor:** {vector_size}\n"
-            f"✅ **Status:** Ativo\n\n"
-            "Use a ferramenta `executar_rag_cliente` para buscar informações."
+            f"📊 **Documentos:** {document_count}\n"
+            f"🧩 **Chunks totais:** {total_chunks}\n"
+            f"✅ **Processados:** {completed}\n"
         )
+        if pending:
+            result += f"⏳ **Pendentes:** {pending}\n"
+        if failed:
+            result += f"❌ **Falhas:** {failed}\n"
+
+        result += "\n## Documentos\n\n"
+        for d in docs:
+            status_emoji = {
+                "completed": "✅",
+                "processing": "⏳",
+                "pending": "🕐",
+                "failed": "❌",
+            }.get(d.get("status", ""), "❓")
+            result += (
+                f"- {status_emoji} **{d['file_name']}** — "
+                f"{d.get('chunk_count', 0) or 0} chunks ({d.get('status', 'unknown')})\n"
+            )
+
+        result += "\nUse a ferramenta `executar_rag_cliente` para buscar informações."
+        return result
 
     except Exception as e:
-        logger.error(f"Erro ao obter info da coleção {collection_name}: {e}")
+        logger.error(f"Erro ao obter resumo da base de conhecimento para {client_id_str}: {e}")
         return (
             f"# Base de Conhecimento - {context.nome_empresa}\n\n"
-            f"❌ Erro ao acessar a coleção: {e}"
+            f"❌ Erro ao acessar a base de conhecimento: {e}"
         )
 
 
@@ -150,8 +158,8 @@ async def _search_knowledge(query: str, cliente_id: str | None = None, limit: in
     """
     Busca documentos na base de conhecimento (read-only, sem LLM).
 
-    Diferente do tool executar_rag_cliente, este resource apenas
-    retorna os documentos brutos, sem passar pelo LLM.
+    Uses the ``search-documents`` Edge Function (same as SupabaseVectorRetriever)
+    to embed the query and perform cosine-similarity search.
 
     Args:
         query: Texto de busca
@@ -161,52 +169,61 @@ async def _search_knowledge(query: str, cliente_id: str | None = None, limit: in
     Returns:
         Documentos encontrados em formato Markdown
     """
+    import os
+
+    import httpx
+
     context = await _resolve_client_context(cliente_id)
 
     enabled = get_enabled_tools_for_context(context)
     if "executar_rag_cliente" not in enabled:
         raise ResourceError("RAG não habilitado para este cliente.")
 
-    # Get collection name from available_tools config or use client_id
-    collection_name = (
-        context.available_tools.get("rag_collection") if context.available_tools else None
-    ) or str(context.id)
+    client_id_str = str(context.id)
 
     try:
-        qdrant = get_qdrant_client()
-        embedding_model = get_embedding_model()
+        supabase_url = os.environ["SUPABASE_URL"]
+        supabase_key = os.environ["SUPABASE_SERVICE_KEY"]
 
-        if not qdrant.collection_exists(collection_name):
-            return "Nenhum documento encontrado (coleção não existe)."
-
-        # Obtém retriever
-        retriever = qdrant.get_langchain_retriever(
-            collection_name=collection_name, embeddings=embedding_model, search_k=limit
+        response = httpx.post(
+            f"{supabase_url}/functions/v1/search-documents",
+            json={
+                "query": query,
+                "client_id": client_id_str,
+                "match_count": limit,
+                "match_threshold": 0.5,
+            },
+            headers={
+                "Authorization": f"Bearer {supabase_key}",
+                "Content-Type": "application/json",
+            },
+            timeout=30.0,
         )
+        response.raise_for_status()
+        data = response.json()
+        results = data.get("results", [])
 
-        # Busca documentos
-        docs = retriever.invoke(query)
-
-        if not docs:
+        if not results:
             return f"Nenhum documento encontrado para: '{query}'"
 
         # Formata resultado
-        result = f"# Resultados para: '{query}'\n\n"
-        result += f"Encontrados {len(docs)} documento(s):\n\n"
+        result_text = f"# Resultados para: '{query}'\n\n"
+        result_text += f"Encontrados {len(results)} documento(s):\n\n"
 
-        for i, doc in enumerate(docs, 1):
-            content = doc.page_content[:500]
-            if len(doc.page_content) > 500:
+        for i, doc in enumerate(results, 1):
+            content = doc["content"][:500]
+            if len(doc["content"]) > 500:
                 content += "..."
 
-            metadata = doc.metadata or {}
-            source = metadata.get("source", "N/A")
+            metadata = doc.get("metadata") or {}
+            source = metadata.get("source_file", "N/A")
+            similarity = doc.get("similarity", 0)
 
-            result += f"## Documento {i}\n"
-            result += f"**Fonte:** {source}\n\n"
-            result += f"```\n{content}\n```\n\n"
+            result_text += f"## Documento {i} (similaridade: {similarity:.2f})\n"
+            result_text += f"**Fonte:** {source}\n\n"
+            result_text += f"```\n{content}\n```\n\n"
 
-        return result
+        return result_text
 
     except Exception as e:
         logger.error(f"Erro na busca knowledge: {e}")
@@ -287,13 +304,25 @@ async def _get_client_config(cliente_id: str | None = None) -> str:
                 result += f"❌ {name} (requer tier {tool_meta.tier_required.value})\n"
         result += "\n"
 
-    # Show RAG collection from available_tools config
-    rag_collection = (
-        context.available_tools.get("rag_collection") if context.available_tools else None
-    )
-    if rag_collection:
-        result += "## Base de Conhecimento\n"
-        result += f"- **Coleção RAG:** `{rag_collection}`\n\n"
+    # Show knowledge base status from vector_db
+    try:
+        supabase = get_supabase_client()
+        docs_resp = (
+            supabase.schema("vector_db")
+            .table("documents")
+            .select("id, status, chunk_count")
+            .eq("client_id", str(context.id))
+            .execute()
+        )
+        docs = docs_resp.data or []
+        if docs:
+            doc_count = len(docs)
+            total_chunks = sum(d.get("chunk_count", 0) or 0 for d in docs)
+            result += "## Base de Conhecimento\n"
+            result += f"- **Documentos:** {doc_count}\n"
+            result += f"- **Chunks totais:** {total_chunks}\n\n"
+    except Exception as e:
+        logger.debug(f"Could not fetch knowledge base info: {e}")
 
     return result
 
@@ -318,7 +347,7 @@ async def _get_client_prompt(cliente_id: str | None = None) -> str:
             "O agente usará o prompt do Langfuse (atendente/default)."
         )
 
-    return f"# Prompt - {context.nome_empresa}\n\n" f"```\n{default_prompt}\n```"
+    return f"# Prompt - {context.nome_empresa}\n\n```\n{default_prompt}\n```"
 
 
 # =============================================================================
@@ -524,7 +553,8 @@ def register_resources(mcp: FastMCP) -> None:
             result += f"## {cfg.name}\n"
             result += f"- **ID:** `{cfg.id}`\n"
             result += f"- **Descrição:** {cfg.description or 'N/A'}\n"
-            result += f"- **Collection:** `{cfg.collection_name}`\n"
+            if cfg.collection_name:
+                result += f"- **Collection (legacy):** `{cfg.collection_name}`\n"
             result += f"- **Modelo Embedding:** {cfg.embedding_model}\n"
             result += f"- **Chunks:** {cfg.chunk_size} (overlap: {cfg.chunk_overlap})\n"
             result += f"- **Documentos:** {cfg.document_count}\n"
@@ -763,4 +793,4 @@ def register_resources(mcp: FastMCP) -> None:
 
         return result
 
-    logger.info("MCP Resources registrados: " "knowledge://*, config://*, prompts://*, tools://*")
+    logger.info("MCP Resources registrados: knowledge://*, config://*, prompts://*, tools://*")

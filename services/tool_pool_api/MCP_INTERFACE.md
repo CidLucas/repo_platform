@@ -1,36 +1,4 @@
-# a partir da raiz do repo
-python -m pip install --user --upgrade pip
-python -m pip install --user poetry
-projects=$(git ls-files -- '**/pyproject.toml' | sed 's|/pyproject.toml||' | sort -u)
-for p in $projects; do
-  echo "Checking $p"
-  pushd "$p"
-  poetry config virtualenvs.in-project true
-  poetry install --no-interaction --no-ansi --no-dev
-  poetry lock --no-update || true
-  if git status --porcelain -- poetry.lock | grep -q .; then
-    echo "poetry.lock inconsistent in $p"
-  else
-    echo "OK $p"
-  fi
-  popd
-done# a partir da raiz do repo
-python -m pip install --user --upgrade pip
-python -m pip install --user poetry
-projects=$(git ls-files -- '**/pyproject.toml' | sed 's|/pyproject.toml||' | sort -u)
-for p in $projects; do
-  echo "Checking $p"
-  pushd "$p"
-  poetry config virtualenvs.in-project true
-  poetry install --no-interaction --no-ansi --no-dev
-  poetry lock --no-update || true
-  if git status --porcelain -- poetry.lock | grep -q .; then
-    echo "poetry.lock inconsistent in $p"
-  else
-    echo "OK $p"
-  fi
-  popd
-done# Tool Pool API - MCP Interface Documentation
+# Tool Pool API - MCP Interface Documentation
 
 > **Versão:** 1.0.0
 > **Endpoint SSE:** `http://tool_pool_api:9000/mcp/sse`

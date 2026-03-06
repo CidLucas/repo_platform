@@ -67,7 +67,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         const { data: clientData } = await supabase
           .from('clientes_vizu')
           .select('tier')
-          .eq('id', meResponse.client_id)
+          .eq('client_id', meResponse.client_id)
           .single();
         const resolvedTier = clientData?.tier || 'FREE';
         setTier(resolvedTier);

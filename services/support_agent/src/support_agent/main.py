@@ -40,14 +40,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure Telemetry (if available)
+# Configure Observability (if available)
 if settings.OTEL_EXPORTER_OTLP_ENDPOINT:
     try:
-        from vizu_observability_bootstrap import setup_telemetry
-        setup_telemetry(app, service_name=settings.SERVICE_NAME)
-        logger.info("🔭 OpenTelemetry configured.")
+        from vizu_observability_bootstrap import setup_observability
+        setup_observability(app, service_name=settings.SERVICE_NAME, log_min_level=logging.INFO)
+        logger.info("Observability configured (traces + logs + metrics).")
     except ImportError:
-        logger.warning("⚠️ Observability lib not found. Skipping setup.")
+        logger.warning("Observability lib not found. Skipping setup.")
 
 # Register Routes
 # 1. /api/v1 prefix (best practice)

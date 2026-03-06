@@ -12,6 +12,11 @@ python = "^3.11"
 pypdf = "^4.0.0"
 # CSV parsing
 pandas = "^2.0.0"
+# Complex document parsing (OCR, tables, images) — optional
+docling = {version = ">=2.0.0", optional = true}
+
+[tool.poetry.extras]
+docling = ["docling"]
 
 [build-system]
 requires = ["poetry-core"]

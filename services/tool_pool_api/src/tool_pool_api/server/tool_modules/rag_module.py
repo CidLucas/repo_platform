@@ -83,14 +83,21 @@ async def _executar_rag_cliente_logic(
     # Priority: 1) cliente_id param, 2) request meta, 3) access token
     vizu_context: VizuClientContext | None = None
 
-    # Try to get cliente_id from request meta (passed by atendente_core via _meta)
-    if not cliente_id and ctx and hasattr(ctx, "request_context"):
+    # Try to get cliente_id and document_ids from request meta (passed by atendente_core via _meta)
+    document_ids: list[str] | None = None
+    if ctx and hasattr(ctx, "request_context"):
         meta = getattr(ctx.request_context, "meta", None)
         if meta:
             meta_dict = meta.model_dump() if hasattr(meta, "model_dump") else dict(meta)
-            cliente_id = meta_dict.get("cliente_id")
-            if cliente_id:
-                logger.info(f"[RAG] Using cliente_id from request meta: {cliente_id}")
+            if not cliente_id:
+                cliente_id = meta_dict.get("cliente_id")
+                if cliente_id:
+                    logger.info(f"[RAG] Using cliente_id from request meta: {cliente_id}")
+            # Extract attached_document_ids for scoped RAG search (Phase B3)
+            raw_doc_ids = meta_dict.get("attached_document_ids")
+            if raw_doc_ids and isinstance(raw_doc_ids, list):
+                document_ids = [str(d) for d in raw_doc_ids]
+                logger.info(f"[RAG] Scoping search to {len(document_ids)} attached documents")
 
     try:
         if cliente_id:
@@ -135,7 +142,9 @@ async def _executar_rag_cliente_logic(
             tags=["tool_pool", "rag_module"],
         )
 
-        rag_runnable = server_tools.create_rag_runnable(vizu_context, llm=llm)
+        rag_runnable = server_tools.create_rag_runnable(
+            vizu_context, llm=llm, document_ids=document_ids
+        )
 
         if not rag_runnable:
             logger.error(f"[RAG] Fábrica retornou None para {real_client_id}.")

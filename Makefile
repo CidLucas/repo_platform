@@ -61,9 +61,8 @@ help:
 	@echo "   make db-shell        Open psql shell"
 	@echo ""
 	@echo "🌱 SEEDS (Dados de Desenvolvimento)"
-	@echo "   make seed            Run all seeds (DB + Qdrant)"
+	@echo "   make seed            Run all seeds (DB)"
 	@echo "   make seed-db         Seed only database (clients)"
-	@echo "   make seed-qdrant     Seed only Qdrant (RAG knowledge)"
 	@echo "   make seed-check      Verify current seed state"
 	@echo ""
 	@echo "🧪 TESTING"
@@ -133,15 +132,15 @@ dev:
 	@echo ""
 	@echo "🛑 Stop stack:        Ctrl+C then 'make dev-down'"
 	@echo ""
-	$(COMPOSE) up --build redis qdrant_db tool_pool_api atendente_core vizu_dashboard
+	$(COMPOSE) up --build redis tool_pool_api atendente_core vizu_dashboard
 
 dev-down:
 	@echo "🛑 Stopping dev stack..."
-	$(COMPOSE) stop vizu_dashboard atendente_core tool_pool_api qdrant_db redis
+	$(COMPOSE) stop vizu_dashboard atendente_core tool_pool_api redis
 	@echo "✅ Dev stack stopped (containers preserved, use 'make down' to remove)"
 
 dev-logs:
-	$(COMPOSE) logs -f --tail=100 vizu_dashboard atendente_core tool_pool_api redis qdrant_db
+	$(COMPOSE) logs -f --tail=100 vizu_dashboard atendente_core tool_pool_api redis
 
 dev-rebuild:
 	@echo "🔨 Rebuilding dev services (no cache)..."
@@ -277,9 +276,9 @@ db-shell:
 # SEEDS
 # =============================================================================
 
-.PHONY: seed seed-db seed-qdrant seed-check
+.PHONY: seed seed-db seed-check
 
-seed: seed-db seed-qdrant
+seed: seed-db
 	@echo "✅ All seeds completed!"
 
 seed-db:
@@ -287,19 +286,10 @@ seed-db:
 	@docker exec -e PYTHONPATH=/app:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src:/app \
 		vizu_atendente_core python -m ferramentas.seeds.run_seeds --db
 
-seed-qdrant:
-	@echo "🌱 Seeding Qdrant..."
-	@docker exec \
-		-e PYTHONPATH=/app:/app/libs/vizu_qdrant_client/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
-		-e QDRANT_URL=http://qdrant_db:6333 \
-		-e EMBEDDING_SERVICE_URL=http://embedding_service:11435 \
-		vizu_atendente_core python -m ferramentas.seeds.run_seeds --qdrant
-
 seed-check:
 	@echo "📊 Checking seed state..."
 	@docker exec \
-		-e PYTHONPATH=/app:/app/libs/vizu_qdrant_client/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
-		-e QDRANT_URL=http://qdrant_db:6333 \
+		-e PYTHONPATH=/app:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
 		vizu_atendente_core python -m ferramentas.seeds.run_seeds --check
 
 # =============================================================================

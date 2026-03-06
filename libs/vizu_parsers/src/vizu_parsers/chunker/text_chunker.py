@@ -11,10 +11,11 @@ logger = logging.getLogger(__name__)
 
 class ChunkingStrategy(Enum):
     """Available chunking strategies."""
-    BY_SENTENCE = "by_sentence"      # Split on sentence boundaries
-    BY_PARAGRAPH = "by_paragraph"    # Split on paragraph boundaries
-    BY_CHAR = "by_char"              # Split by character count
-    SEMANTIC = "semantic"            # Keep related content together (default)
+
+    BY_SENTENCE = "by_sentence"  # Split on sentence boundaries
+    BY_PARAGRAPH = "by_paragraph"  # Split on paragraph boundaries
+    BY_CHAR = "by_char"  # Split by character count
+    SEMANTIC = "semantic"  # Keep related content together (default)
 
 
 class TextChunker:
@@ -26,10 +27,10 @@ class TextChunker:
     """
 
     # Sentence ending patterns
-    SENTENCE_ENDINGS = re.compile(r'[.!?]+[\s\n]+')
+    SENTENCE_ENDINGS = re.compile(r"[.!?]+[\s\n]+")
 
     # Paragraph separator pattern (2+ newlines or newline + indentation)
-    PARAGRAPH_SEP = re.compile(r'\n\s*\n+')
+    PARAGRAPH_SEP = re.compile(r"\n\s*\n+")
 
     def __init__(
         self,
@@ -84,9 +85,9 @@ class TextChunker:
     def _normalize_text(self, text: str) -> str:
         """Normalize whitespace in text."""
         # Replace multiple spaces with single space
-        text = re.sub(r'[ \t]+', ' ', text)
+        text = re.sub(r"[ \t]+", " ", text)
         # Normalize line endings
-        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
         return text.strip()
 
     def _chunk_by_char(self, text: str, metadata: dict | None = None) -> list[Chunk]:
@@ -104,7 +105,7 @@ class TextChunker:
                 index=index,
                 start_char=start,
                 end_char=end,
-                metadata=metadata.copy() if metadata else {}
+                metadata=metadata.copy() if metadata else {},
             )
             chunks.append(chunk)
 
@@ -157,10 +158,7 @@ class TextChunker:
         return self._combine_segments(segments, text, metadata)
 
     def _combine_segments(
-        self,
-        segments: list[str],
-        original_text: str,
-        metadata: dict | None = None
+        self, segments: list[str], original_text: str, metadata: dict | None = None
     ) -> list[Chunk]:
         """
         Combine segments into chunks of target size.
@@ -195,14 +193,14 @@ class TextChunker:
                         index=index,
                         start_char=current_start,
                         end_char=end_pos,
-                        metadata=metadata.copy() if metadata else {}
+                        metadata=metadata.copy() if metadata else {},
                     )
                     chunks.append(chunk)
                     index += 1
 
                     # Calculate overlap start position
                     if self.chunk_overlap > 0 and len(current_text) > self.chunk_overlap:
-                        overlap_text = current_text[-self.chunk_overlap:]
+                        overlap_text = current_text[-self.chunk_overlap :]
                         current_start = end_pos - len(overlap_text)
                         current_text = overlap_text + " " + segment
                     else:
@@ -219,7 +217,7 @@ class TextChunker:
                 index=index,
                 start_char=current_start,
                 end_char=end_pos,
-                metadata=metadata.copy() if metadata else {}
+                metadata=metadata.copy() if metadata else {},
             )
             chunks.append(chunk)
 
@@ -251,7 +249,7 @@ class TextChunker:
                     index=current.index,
                     start_char=current.start_char,
                     end_char=next_chunk.end_char,
-                    metadata={**current.metadata, **next_chunk.metadata}
+                    metadata={**current.metadata, **next_chunk.metadata},
                 )
             else:
                 merged.append(current)
@@ -260,7 +258,7 @@ class TextChunker:
                     index=len(merged),
                     start_char=next_chunk.start_char,
                     end_char=next_chunk.end_char,
-                    metadata=next_chunk.metadata
+                    metadata=next_chunk.metadata,
                 )
 
         # Don't forget the last chunk

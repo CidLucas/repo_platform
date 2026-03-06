@@ -16,6 +16,12 @@ python-multipart = "^0.0.9" # Essencial para FastAPI lidar com UploadFile
 # --- Supabase Storage ---
 vizu-supabase-client = { path = "../../libs/vizu_supabase_client" }
 
+# --- Authentication ---
+vizu-auth = { path = "../../libs/vizu_auth" }
+
+# --- File parsing (with docling for complex documents) ---
+vizu-parsers = { path = "../../libs/vizu_parsers", extras = ["docling"] }
+
 # --- Dependências internas do monorepo Vizu ---
 vizu-observability-bootstrap = { path = "../../libs/vizu_observability_bootstrap" }
 vizu_models = { path = "../../libs/vizu_models" }

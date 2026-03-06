@@ -111,7 +111,6 @@ known-first-party = [
     "vizu_observability_bootstrap",
     "vizu_parsers",
     "vizu_prompt_management",
-    "vizu_qdrant_client",
     "vizu_rag_factory",
     "vizu_shared_utils",
     "vizu_sql_factory",

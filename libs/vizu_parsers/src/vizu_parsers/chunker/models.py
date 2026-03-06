@@ -16,6 +16,7 @@ class Chunk:
         end_char: Ending character position in the original document.
         metadata: Optional dictionary for additional metadata.
     """
+
     text: str
     index: int
     start_char: int

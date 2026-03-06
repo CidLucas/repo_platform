@@ -19,8 +19,17 @@ export interface KBDocument {
     status: "pending" | "processing" | "completed" | "failed";
     error_message: string | null;
     chunk_count: number;
+    description: string | null;
+    category: string | null;
+    scope: "platform" | "client";
     created_at: string;
     updated_at: string;
+}
+
+export interface UploadOptions {
+    forceComplex?: boolean;
+    description?: string;
+    category?: string;
 }
 
 export interface EmbeddingProgress {
@@ -30,6 +39,16 @@ export interface EmbeddingProgress {
 }
 
 export type KBDocumentSource = "upload" | "chat" | "url" | "api";
+
+/** Client-facing categories for document upload */
+export const KB_CATEGORIES = [
+    { value: "dados_negocio", label: "Dados de Negócio" },
+    { value: "contexto_empresa", label: "Contexto da Empresa" },
+    { value: "documentos", label: "Documentos" },
+    { value: "conhecimento_ia", label: "Conhecimento da IA" },
+] as const;
+
+export type KBCategory = (typeof KB_CATEGORIES)[number]["value"];
 
 // ── Constants ──────────────────────────────────────────────────
 
@@ -137,7 +156,8 @@ export async function getDocumentProgress(
 export async function uploadSimpleFile(
     file: File,
     clientId: string,
-    source: KBDocumentSource = "upload"
+    source: KBDocumentSource = "upload",
+    options?: UploadOptions
 ): Promise<string> {
     const ext = getExtension(file.name);
     const storagePath = `${clientId}/${crypto.randomUUID()}-${file.name}`;
@@ -162,6 +182,9 @@ export async function uploadSimpleFile(
             source,
             processing_mode: "simple" as const,
             status: "processing" as const,
+            scope: "client" as const,
+            description: options?.description || null,
+            category: options?.category || null,
         })
         .select("id")
         .single();
@@ -198,7 +221,8 @@ export async function uploadSimpleFile(
 export async function uploadComplexFile(
     file: File,
     clientId: string,
-    source: KBDocumentSource = "upload"
+    source: KBDocumentSource = "upload",
+    options?: UploadOptions
 ): Promise<string> {
     const ext = getExtension(file.name);
     const storagePath = `${clientId}/${crypto.randomUUID()}-${file.name}`;
@@ -223,6 +247,9 @@ export async function uploadComplexFile(
             source,
             processing_mode: "complex" as const,
             status: "pending" as const,
+            scope: "client" as const,
+            description: options?.description || null,
+            category: options?.category || null,
         })
         .select("id")
         .single();
@@ -274,10 +301,11 @@ export async function uploadFile(
     file: File,
     clientId: string,
     forceComplex = false,
-    source: KBDocumentSource = "upload"
+    source: KBDocumentSource = "upload",
+    options?: UploadOptions
 ): Promise<string> {
     if (isComplexFile(file.name, forceComplex)) {
-        return uploadComplexFile(file, clientId, source);
+        return uploadComplexFile(file, clientId, source, { ...options, forceComplex });
     }
-    return uploadSimpleFile(file, clientId, source);
+    return uploadSimpleFile(file, clientId, source, options);
 }

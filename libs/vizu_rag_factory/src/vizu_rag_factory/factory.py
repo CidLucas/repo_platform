@@ -8,10 +8,11 @@ from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_core.runnables.base import Runnable
 
 # Dependências de outras libs Vizu
+from vizu_models.knowledge_base_config import RagSearchConfig
 from vizu_models.vizu_client_context import VizuClientContext
 from vizu_prompt_management.templates import RAG_TOOL_PROMPT
-from vizu_rag_factory.reranker import LLMReranker
-from vizu_rag_factory.retriever import SupabaseVectorRetriever
+from vizu_rag_factory.reranker import CrossEncoderReranker, LLMReranker
+from vizu_rag_factory.retriever import HybridRetriever, SupabaseVectorRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -23,15 +24,26 @@ RAG_PROMPT_TEMPLATE = RAG_TOOL_PROMPT.content.replace("{{ context }}", "{context
 
 
 def _format_docs(docs):
-    """Helper para formatar os documentos recuperados em uma string com metadados."""
+    """Helper para formatar os documentos recuperados em uma string com metadados.
+
+    Supports both legacy (similarity-only) and hybrid (combined_score) results.
+    """
     logger.debug(f"Formatando {len(docs) if docs else 0} documentos recuperados")
     if not docs:
         return "Nenhum contexto encontrado."
     parts = []
     for doc in docs:
         source = doc.metadata.get("file_name") or doc.metadata.get("source_file", "desconhecido")
+        combined = doc.metadata.get("combined_score")
         similarity = doc.metadata.get("similarity", 0)
-        header = f"[Fonte: {source} | Relevância: {similarity:.0%}]"
+        scope = doc.metadata.get("scope", "client")
+
+        score_str = (
+            f"Relevância: {combined:.0%}"
+            if combined is not None
+            else f"Relevância: {similarity:.0%}"
+        )
+        header = f"[Fonte: {source} | {score_str} | Escopo: {scope}]"
         parts.append(f"{header}\n{doc.page_content}")
     formatted = "\n\n---\n\n".join(parts)
     logger.debug(f"Contexto formatado (primeiros 500 chars): {formatted[:500]}...")
@@ -73,28 +85,62 @@ def create_rag_runnable(
     if "executar_rag_cliente" not in enabled:
         return None
 
-    # Read search config from available_tools (top_k, score_threshold)
-    search_config: dict | None = None
+    # Read search config from available_tools — parse through RagSearchConfig
+    # for validated defaults instead of manual .get() with repeated fallbacks.
+    raw_config: dict | None = None
     if contexto.available_tools:
-        search_config = contexto.available_tools.get("rag_search_config")
+        raw_config = contexto.available_tools.get("rag_search_config")
+    cfg = RagSearchConfig(**(raw_config or {}))
 
     logger.debug(f"Creating RAG runnable for client {contexto.id}")
 
     try:
-        # --- Retriever: Supabase vector_db via Edge Function ---
-        retriever = SupabaseVectorRetriever(
-            supabase_url=os.environ["SUPABASE_URL"],
-            supabase_service_key=os.environ["SUPABASE_SERVICE_KEY"],
-            client_id=str(contexto.id),
-            match_count=search_config.get("top_k", 5) if search_config else 5,
-            match_threshold=(search_config.get("score_threshold", 0.5) if search_config else 0.5),
-            document_ids=document_ids,
+        # --- Retriever: select based on search_mode config ---
+        if cfg.search_mode == "semantic":
+            # Legacy path — pure cosine similarity
+            retriever = SupabaseVectorRetriever(
+                supabase_url=os.environ["SUPABASE_URL"],
+                supabase_service_key=os.environ["SUPABASE_SERVICE_KEY"],
+                client_id=str(contexto.id),
+                match_count=cfg.top_k,
+                match_threshold=cfg.score_threshold,
+                document_ids=document_ids,
+            )
+        else:
+            # Hybrid path — semantic + keyword fusion (Phase 3)
+            retriever = HybridRetriever(
+                supabase_url=os.environ["SUPABASE_URL"],
+                supabase_service_key=os.environ["SUPABASE_SERVICE_KEY"],
+                client_id=str(contexto.id),
+                match_count=cfg.top_k,
+                match_threshold=cfg.score_threshold,
+                document_ids=document_ids,
+                search_mode=cfg.search_mode,
+                fusion_strategy=cfg.fusion_strategy,
+                keyword_weight=cfg.keyword_weight,
+                vector_weight=cfg.vector_weight,
+                scope=cfg.scope,
+                categories=cfg.categories,
+            )
+
+        logger.debug(
+            f"Using {'HybridRetriever' if cfg.search_mode != 'semantic' else 'SupabaseVectorRetriever'} "
+            f"(mode={cfg.search_mode}) for client {contexto.id}"
         )
 
-        # --- Optional reranker (Phase C5) ---
-        rerank_enabled = search_config.get("rerank", False) if search_config else False
-        rerank_top_k = search_config.get("rerank_top_k", 3) if search_config else 3
-        reranker = LLMReranker(llm=llm) if rerank_enabled else None
+        # --- Optional reranker ---
+        reranker = None
+        if cfg.rerank:
+            if cfg.reranker_type == "cross-encoder":
+                reranker = CrossEncoderReranker()
+                logger.debug(
+                    f"Using CrossEncoderReranker (model={reranker.model_name}) "
+                    f"for client {contexto.id}"
+                )
+            else:
+                # Fallback: LLM-based reranker
+                reranker = LLMReranker(llm=llm)
+                logger.debug(f"Using LLMReranker for client {contexto.id}")
 
         # --- Criação da Cadeia (Runnable) ---
         prompt = ChatPromptTemplate.from_template(RAG_PROMPT_TEMPLATE)
@@ -115,7 +161,7 @@ def create_rag_runnable(
 
                 # Optional reranking step
                 if reranker and docs:
-                    docs = reranker.rerank(question, docs, top_k=rerank_top_k)
+                    docs = reranker.rerank(question, docs, top_k=cfg.rerank_top_k)
                     logger.debug(f"RAG reranked to {len(docs)} documents")
 
                 formatted_context = _format_docs(docs)
@@ -141,7 +187,7 @@ def create_rag_runnable(
 
                 # Optional async reranking step
                 if reranker and docs:
-                    docs = await reranker.arerank(question, docs, top_k=rerank_top_k)
+                    docs = await reranker.arerank(question, docs, top_k=cfg.rerank_top_k)
                     logger.debug(f"RAG async reranked to {len(docs)} documents")
 
                 formatted_context = _format_docs(docs)

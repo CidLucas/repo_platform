@@ -1,12 +1,17 @@
-"""Custom LangChain retriever backed by Supabase vector_db.
+"""Custom LangChain retrievers backed by Supabase vector_db.
 
-Calls the `search-documents` Edge Function to embed a query and
-perform cosine-similarity search against ``vector_db.document_chunks``.
+Provides:
+- ``SupabaseVectorRetriever``: Pure semantic (cosine-similarity) search.
+- ``HybridRetriever``: Hybrid semantic + keyword search with configurable fusion
+  (RRF or weighted linear) via the ``hybrid_match_documents`` RPC.
+
+Both call the ``search-documents`` Edge Function to embed queries and
+search against ``vector_db.document_chunks``.
 """
 
 import json
 import logging
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from langchain_core.callbacks import (
@@ -49,6 +54,17 @@ def _parse_result_metadata(result: dict[str, Any]) -> dict[str, Any]:
         metadata["file_name"] = result["file_name"]
     if result.get("document_title"):
         metadata["document_title"] = result["document_title"]
+
+    # Hybrid search fields (Phase 3)
+    if result.get("keyword_score") is not None:
+        metadata["keyword_score"] = result["keyword_score"]
+    if result.get("combined_score") is not None:
+        metadata["combined_score"] = result["combined_score"]
+    if result.get("scope"):
+        metadata["scope"] = result["scope"]
+    if result.get("category"):
+        metadata["category"] = result["category"]
+
     return metadata
 
 
@@ -63,8 +79,12 @@ def _build_documents(results: list[dict[str, Any]]) -> list[Document]:
     ]
 
 
-class SupabaseVectorRetriever(BaseRetriever):
-    """Retrieves documents from Supabase vector_db via the search-documents Edge Function."""
+class _BaseSupabaseRetriever(BaseRetriever):
+    """Shared base for Supabase vector_db retrievers.
+
+    Provides common fields, HTTP helpers, and sync/async retrieval logic.
+    Subclasses must override ``_build_payload`` and ``_log_prefix``.
+    """
 
     supabase_url: str = Field(description="Supabase project URL")
     supabase_service_key: str = Field(description="Service role key for auth")
@@ -76,17 +96,13 @@ class SupabaseVectorRetriever(BaseRetriever):
         description="Optional list of document UUIDs to scope search to specific documents",
     )
 
-    def _build_payload(self, query: str) -> dict[str, Any]:
-        """Build the JSON payload for the search-documents Edge Function."""
-        payload: dict[str, Any] = {
-            "query": query,
-            "client_id": self.client_id,
-            "match_count": self.match_count,
-            "match_threshold": self.match_threshold,
-        }
-        if self.document_ids:
-            payload["document_ids"] = self.document_ids
-        return payload
+    @property
+    def _log_prefix(self) -> str:
+        """Override in subclass for clearer log lines."""
+        return self.__class__.__name__
+
+    def _build_payload(self, query: str) -> dict[str, Any]:  # noqa: ARG002
+        raise NotImplementedError
 
     def _build_headers(self) -> dict[str, str]:
         return {
@@ -106,9 +122,8 @@ class SupabaseVectorRetriever(BaseRetriever):
         *,
         run_manager: CallbackManagerForRetrieverRun,
     ) -> list[Document]:
-        """Call search-documents Edge Function and convert to LangChain Documents."""
         logger.debug(
-            f"[SupabaseVectorRetriever] Searching for client {self.client_id}: '{query[:80]}...'"
+            f"[{self._log_prefix}] Searching for client {self.client_id}: '{query[:80]}...'"
         )
 
         response = httpx.post(
@@ -121,9 +136,7 @@ class SupabaseVectorRetriever(BaseRetriever):
         data = response.json()
 
         results = data.get("results", [])
-        logger.debug(
-            f"[SupabaseVectorRetriever] Got {len(results)} results for client {self.client_id}"
-        )
+        logger.debug(f"[{self._log_prefix}] Got {len(results)} results for client {self.client_id}")
         return _build_documents(results)
 
     # ── Async retrieval (used by .ainvoke()) ─────────────────
@@ -134,9 +147,8 @@ class SupabaseVectorRetriever(BaseRetriever):
         *,
         run_manager: AsyncCallbackManagerForRetrieverRun,
     ) -> list[Document]:
-        """Async version — uses httpx.AsyncClient to avoid blocking the event loop."""
         logger.debug(
-            f"[SupabaseVectorRetriever] Async searching for client {self.client_id}: '{query[:80]}...'"
+            f"[{self._log_prefix}] Async searching for client {self.client_id}: '{query[:80]}...'"
         )
 
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -150,6 +162,85 @@ class SupabaseVectorRetriever(BaseRetriever):
 
         results = data.get("results", [])
         logger.debug(
-            f"[SupabaseVectorRetriever] Async got {len(results)} results for client {self.client_id}"
+            f"[{self._log_prefix}] Async got {len(results)} results for client {self.client_id}"
         )
         return _build_documents(results)
+
+
+class SupabaseVectorRetriever(_BaseSupabaseRetriever):
+    """Retrieves documents from Supabase vector_db via the search-documents Edge Function.
+
+    Pure semantic (cosine-similarity) search.
+    """
+
+    def _build_payload(self, query: str) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "query": query,
+            "client_id": self.client_id,
+            "match_count": self.match_count,
+            "match_threshold": self.match_threshold,
+        }
+        if self.document_ids:
+            payload["document_ids"] = self.document_ids
+        return payload
+
+
+class HybridRetriever(_BaseSupabaseRetriever):
+    """Hybrid retriever combining semantic + keyword search with configurable fusion.
+
+    Calls the ``search-documents`` Edge Function with hybrid parameters which
+    routes to the ``hybrid_match_documents`` RPC — fusing pgvector cosine
+    similarity with PostgreSQL full-text search (``ts_rank``).
+
+    Fusion strategies:
+    - **rrf** (Reciprocal Rank Fusion): ``1/(k+rank_sem) + 1/(k+rank_kw)``, k=60
+    - **weighted**: ``vector_weight * similarity + keyword_weight * keyword_score``
+    """
+
+    # Hybrid-specific parameters
+    search_mode: Literal["semantic", "keyword", "hybrid"] = Field(
+        default="hybrid",
+        description="Search strategy: semantic-only, keyword-only, or hybrid fusion",
+    )
+    fusion_strategy: Literal["rrf", "weighted"] = Field(
+        default="rrf",
+        description="Score fusion method: reciprocal rank fusion or weighted linear",
+    )
+    keyword_weight: float = Field(
+        default=0.4,
+        description="Weight for keyword score in weighted fusion (0.0-1.0)",
+    )
+    vector_weight: float = Field(
+        default=0.6,
+        description="Weight for vector similarity in weighted fusion (0.0-1.0)",
+    )
+    scope: list[str] = Field(
+        default_factory=lambda: ["platform", "client"],
+        description="Document scopes to search: 'platform' (shared) and/or 'client' (tenant)",
+    )
+    categories: list[str] | None = Field(
+        default=None,
+        description="Optional category filter (e.g. 'tax_knowledge', 'dados_negocio')",
+    )
+
+    @property
+    def _log_prefix(self) -> str:
+        return f"HybridRetriever({self.search_mode}/{self.fusion_strategy})"
+
+    def _build_payload(self, query: str) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "query": query,
+            "client_id": self.client_id,
+            "match_count": self.match_count,
+            "match_threshold": self.match_threshold,
+            "search_mode": self.search_mode,
+            "fusion_strategy": self.fusion_strategy,
+            "keyword_weight": self.keyword_weight,
+            "vector_weight": self.vector_weight,
+            "scope": self.scope,
+        }
+        if self.document_ids:
+            payload["document_ids"] = self.document_ids
+        if self.categories:
+            payload["categories"] = self.categories
+        return payload

@@ -21,6 +21,18 @@ import {
     Tooltip,
     useToast,
     Flex,
+    Textarea,
+    Select,
+    Modal,
+    ModalOverlay,
+    ModalContent,
+    ModalHeader,
+    ModalBody,
+    ModalFooter,
+    ModalCloseButton,
+    FormControl,
+    FormLabel,
+    useDisclosure,
 } from "@chakra-ui/react";
 import { AdminLayout } from "../../components/layouts/AdminLayout";
 import {
@@ -29,9 +41,15 @@ import {
     FiRefreshCw,
     FiFile,
     FiBook,
+    FiTag,
 } from "react-icons/fi";
 import { useKnowledgeBase } from "../../hooks/useKnowledgeBase";
-import { getAcceptedExtensions, type KBDocument } from "../../services/knowledgeBaseService";
+import {
+    getAcceptedExtensions,
+    KB_CATEGORIES,
+    type KBDocument,
+    type UploadOptions,
+} from "../../services/knowledgeBaseService";
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -92,10 +110,26 @@ function ChunkInfo({ doc }: { doc: KBDocument }) {
     );
 }
 
+const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
+    KB_CATEGORIES.map((c) => [c.value, c.label])
+);
+
+function CategoryBadge({ category }: { category: string | null }) {
+    if (!category) return <Text fontSize="xs" color="gray.400">—</Text>;
+    return (
+        <Badge variant="subtle" colorScheme="teal" fontSize="xs">
+            <HStack spacing={1}>
+                <Icon as={FiTag} boxSize="10px" />
+                <Text>{CATEGORY_LABELS[category] || category}</Text>
+            </HStack>
+        </Badge>
+    );
+}
+
 // ── Upload Zone ─────────────────────────────────────────────
 
 interface UploadZoneProps {
-    onFiles: (files: File[], forceComplex: boolean) => void;
+    onFiles: (files: File[], forceComplex: boolean, options?: UploadOptions) => void;
     uploading: boolean;
 }
 
@@ -103,22 +137,39 @@ function UploadZone({ onFiles, uploading }: UploadZoneProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [dragOver, setDragOver] = useState(false);
     const [advancedProcessing, setAdvancedProcessing] = useState(false);
+    const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+    const [description, setDescription] = useState("");
+    const [category, setCategory] = useState("");
+    const { isOpen, onOpen, onClose } = useDisclosure();
 
-    const handleFiles = useCallback(
+    const openMetadataModal = useCallback(
         (files: FileList | null) => {
             if (!files || files.length === 0) return;
-            onFiles(Array.from(files), advancedProcessing);
+            setPendingFiles(Array.from(files));
+            onOpen();
         },
-        [onFiles, advancedProcessing]
+        [onOpen]
     );
+
+    const handleConfirmUpload = useCallback(() => {
+        const opts: UploadOptions = {};
+        if (description.trim()) opts.description = description.trim();
+        if (category) opts.category = category;
+        onFiles(pendingFiles, advancedProcessing, opts);
+        // Reset state
+        setDescription("");
+        setCategory("");
+        setPendingFiles([]);
+        onClose();
+    }, [onFiles, pendingFiles, advancedProcessing, description, category, onClose]);
 
     const handleDrop = useCallback(
         (e: React.DragEvent) => {
             e.preventDefault();
             setDragOver(false);
-            handleFiles(e.dataTransfer.files);
+            openMetadataModal(e.dataTransfer.files);
         },
-        [handleFiles]
+        [openMetadataModal]
     );
 
     const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -172,7 +223,7 @@ function UploadZone({ onFiles, uploading }: UploadZoneProps) {
                     multiple
                     style={{ display: "none" }}
                     onChange={(e) => {
-                        handleFiles(e.target.files);
+                        openMetadataModal(e.target.files);
                         e.target.value = "";
                     }}
                 />
@@ -188,6 +239,65 @@ function UploadZone({ onFiles, uploading }: UploadZoneProps) {
                     Processamento avançado (OCR / tabelas complexas)
                 </Text>
             </Checkbox>
+
+            {/* Upload Metadata Modal */}
+            <Modal isOpen={isOpen} onClose={onClose} size="md">
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Detalhes do Upload</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <VStack spacing={4}>
+                            <Box w="100%">
+                                <Text fontSize="sm" color="gray.500" mb={2}>
+                                    {pendingFiles.length} arquivo(s) selecionado(s):{" "}
+                                    {pendingFiles.map((f) => f.name).join(", ")}
+                                </Text>
+                            </Box>
+
+                            <FormControl>
+                                <FormLabel fontSize="sm">Categoria</FormLabel>
+                                <Select
+                                    placeholder="Selecione uma categoria (opcional)"
+                                    size="sm"
+                                    value={category}
+                                    onChange={(e) => setCategory(e.target.value)}
+                                >
+                                    {KB_CATEGORIES.map((c) => (
+                                        <option key={c.value} value={c.value}>
+                                            {c.label}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </FormControl>
+
+                            <FormControl>
+                                <FormLabel fontSize="sm">Descrição</FormLabel>
+                                <Textarea
+                                    placeholder="Descreva o conteúdo do documento (opcional)"
+                                    size="sm"
+                                    rows={3}
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                />
+                            </FormControl>
+                        </VStack>
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button variant="ghost" mr={3} onClick={onClose} size="sm">
+                            Cancelar
+                        </Button>
+                        <Button
+                            colorScheme="blue"
+                            onClick={handleConfirmUpload}
+                            size="sm"
+                            isLoading={uploading}
+                        >
+                            Enviar
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
         </VStack>
     );
 }
@@ -220,10 +330,11 @@ function DocumentsTable({ documents, onDelete }: DocumentsTableProps) {
                 <Thead>
                     <Tr>
                         <Th>Nome</Th>
+                        <Th>Categoria</Th>
                         <Th>Tipo</Th>
-                        <Th>Modo</Th>
                         <Th>Status</Th>
                         <Th>Chunks</Th>
+                        <Th>Descrição</Th>
                         <Th>Data</Th>
                         <Th w="50px" />
                     </Tr>
@@ -246,17 +357,11 @@ function DocumentsTable({ documents, onDelete }: DocumentsTableProps) {
                                 </HStack>
                             </Td>
                             <Td>
-                                <Badge variant="subtle" colorScheme="purple" fontSize="xs">
-                                    {doc.file_type || "—"}
-                                </Badge>
+                                <CategoryBadge category={doc.category} />
                             </Td>
                             <Td>
-                                <Badge
-                                    variant="outline"
-                                    colorScheme={doc.processing_mode === "complex" ? "orange" : "gray"}
-                                    fontSize="xs"
-                                >
-                                    {doc.processing_mode === "complex" ? "Avançado" : "Simples"}
+                                <Badge variant="subtle" colorScheme="purple" fontSize="xs">
+                                    {doc.file_type || "—"}
                                 </Badge>
                             </Td>
                             <Td>
@@ -264,6 +369,23 @@ function DocumentsTable({ documents, onDelete }: DocumentsTableProps) {
                             </Td>
                             <Td>
                                 <ChunkInfo doc={doc} />
+                            </Td>
+                            <Td>
+                                {doc.description ? (
+                                    <Tooltip label={doc.description} hasArrow placement="top">
+                                        <Text
+                                            fontSize="xs"
+                                            color="gray.500"
+                                            maxW="180px"
+                                            isTruncated
+                                            cursor="help"
+                                        >
+                                            {doc.description}
+                                        </Text>
+                                    </Tooltip>
+                                ) : (
+                                    <Text fontSize="xs" color="gray.400">—</Text>
+                                )}
                             </Td>
                             <Td>
                                 <Text fontSize="xs" color="gray.500">
@@ -296,9 +418,9 @@ function AdminKnowledgeBasePage() {
     const toast = useToast();
 
     const handleUpload = useCallback(
-        async (files: File[], forceComplex: boolean) => {
+        async (files: File[], forceComplex: boolean, options?: UploadOptions) => {
             try {
-                await upload(files, forceComplex);
+                await upload(files, forceComplex, options);
                 toast({
                     title: `${files.length} arquivo(s) enviado(s)`,
                     status: "success",

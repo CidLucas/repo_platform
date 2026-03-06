@@ -5,6 +5,7 @@ import {
     deleteDocument,
     uploadFile,
     type KBDocument,
+    type UploadOptions,
 } from "../services/knowledgeBaseService";
 
 const POLL_INTERVAL_MS = 5_000;
@@ -63,12 +64,12 @@ export function useKnowledgeBase() {
 
     // ── Upload ───────────────────────────────────────────────
     const upload = useCallback(
-        async (files: File[], forceComplex = false) => {
+        async (files: File[], forceComplex = false, options?: UploadOptions) => {
             if (!clientId) return;
             setUploading(true);
             try {
                 for (const file of files) {
-                    await uploadFile(file, clientId, forceComplex);
+                    await uploadFile(file, clientId, forceComplex, "upload", options);
                 }
                 // Refresh list after uploading
                 await fetchDocuments();

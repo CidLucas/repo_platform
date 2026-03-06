@@ -2,8 +2,15 @@
 // Retrieval endpoint — embeds query text and searches vector_db.document_chunks.
 // Called by Python backend (service_role key) or frontend (user JWT).
 //
-// Request:  POST { query, client_id, match_count?, match_threshold? }
-// Response: { results: [{ id, document_id, content, metadata, similarity }] }
+// Supports two modes:
+//   - semantic (legacy): pure cosine-similarity via match_documents RPC
+//   - hybrid (default):  semantic + keyword fusion via hybrid_match_documents RPC
+//
+// Request:  POST { query, client_id, match_count?, match_threshold?,
+//                  search_mode?, fusion_strategy?, keyword_weight?, vector_weight?,
+//                  scope?, categories?, document_ids? }
+// Response: { results: [{ id, document_id, content, metadata, similarity,
+//                         keyword_score?, combined_score?, scope?, category? }] }
 
 import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
 
@@ -35,12 +42,43 @@ Deno.serve(async (req: Request) => {
             match_count = 5,
             match_threshold = 0.5,
             document_ids = null,
+            // Hybrid parameters (Phase 3)
+            search_mode = "hybrid",
+            fusion_strategy = "rrf",
+            keyword_weight = 0.4,
+            vector_weight = 0.6,
+            scope = ["platform", "client"],
+            categories = null,
         } = body;
 
         // Validate required fields
         if (!query || !client_id) {
             return new Response(
                 JSON.stringify({ error: "Missing required fields: query, client_id" }),
+                {
+                    status: 400,
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                }
+            );
+        }
+
+        // Validate search_mode
+        const validModes = new Set(["semantic", "hybrid"]);
+        if (!validModes.has(search_mode)) {
+            return new Response(
+                JSON.stringify({ error: `Invalid search_mode: ${search_mode}. Must be 'semantic' or 'hybrid'.` }),
+                {
+                    status: 400,
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                }
+            );
+        }
+
+        // Validate fusion_strategy
+        const validStrategies = new Set(["rrf", "weighted"]);
+        if (!validStrategies.has(fusion_strategy)) {
+            return new Response(
+                JSON.stringify({ error: `Invalid fusion_strategy: ${fusion_strategy}. Must be 'rrf' or 'weighted'.` }),
                 {
                     status: 400,
                     headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -61,17 +99,49 @@ Deno.serve(async (req: Request) => {
             ? `{${document_ids.join(",")}}`
             : null;
 
-        // 3. Call vector_db.match_documents RPC via direct Postgres
-        const results = await sql`
-      SELECT *
-      FROM vector_db.match_documents(
-        ${client_id}::uuid,
-        ${embeddingStr}::vector::halfvec(384),
-        ${match_count}::int,
-        ${match_threshold}::float,
-        ${docIdsParam}::uuid[]
-      )
-    `;
+        let results;
+
+        if (search_mode === "semantic") {
+            // ── Legacy path: pure cosine similarity via match_documents ──
+            results = await sql`
+              SELECT *
+              FROM vector_db.match_documents(
+                ${client_id}::uuid,
+                ${embeddingStr}::vector::halfvec(384),
+                ${match_count}::int,
+                ${match_threshold}::float,
+                ${docIdsParam}::uuid[]
+              )
+            `;
+        } else {
+            // ── Hybrid path: semantic + keyword fusion via hybrid_match_documents ──
+            // Build scope array param
+            const scopeParam = Array.isArray(scope) && scope.length > 0
+                ? `{${scope.join(",")}}`
+                : "{platform,client}";
+
+            // Build categories array param (NULL if not provided)
+            const categoriesParam = categories && Array.isArray(categories) && categories.length > 0
+                ? `{${categories.join(",")}}`
+                : null;
+
+            results = await sql`
+              SELECT *
+              FROM vector_db.hybrid_match_documents(
+                ${client_id}::uuid,
+                ${embeddingStr}::vector::halfvec(384),
+                ${query},
+                ${match_count}::int,
+                ${match_threshold}::float,
+                ${docIdsParam}::uuid[],
+                ${scopeParam}::text[],
+                ${categoriesParam}::text[],
+                ${fusion_strategy},
+                ${keyword_weight}::float,
+                ${vector_weight}::float
+              )
+            `;
+        }
 
         return new Response(
             JSON.stringify({ results }),

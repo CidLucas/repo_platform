@@ -9,8 +9,9 @@ Integração com MCP: @mcp.resource("knowledge://...") busca desta tabela.
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Literal, Optional
 
+from pydantic import BaseModel
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as pgUUID
@@ -18,6 +19,50 @@ from sqlmodel import Column, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from .cliente_vizu import ClienteVizu
+
+
+# ── Phase 7: Typed RAG Search Config ────────────────────────
+
+
+class RagSearchConfig(BaseModel):
+    """Typed schema for ``rag_search_config`` in ``available_tools``.
+
+    All fields have sensible defaults so existing clients with partial or
+    missing config continue to work unchanged (backward compatibility).
+
+    Example JSON stored in ``clientes_vizu.available_tools.rag_search_config``::
+
+        {
+            "top_k": 5,
+            "score_threshold": 0.5,
+            "rerank": true,
+            "rerank_top_k": 3,
+            "search_mode": "hybrid",
+            "fusion_strategy": "rrf",
+            "keyword_weight": 0.4,
+            "vector_weight": 0.6,
+            "scope": ["platform", "client"],
+            "categories": null,
+            "reranker_type": "cross-encoder"
+        }
+    """
+
+    # Legacy fields (pre-hybrid)
+    top_k: int = 5
+    score_threshold: float = 0.5
+    rerank: bool = False
+    rerank_top_k: int = 3
+
+    # Hybrid retriever fields (Phase 3)
+    search_mode: Literal["semantic", "keyword", "hybrid"] = "hybrid"
+    fusion_strategy: Literal["rrf", "weighted"] = "rrf"
+    keyword_weight: float = 0.4
+    vector_weight: float = 0.6
+    scope: list[str] = ["platform", "client"]
+    categories: list[str] | None = None
+
+    # Reranker selection (Phase 4 / Phase 7)
+    reranker_type: Literal["llm", "cross-encoder"] = "cross-encoder"
 
 
 class KnowledgeBaseConfigBase(SQLModel):

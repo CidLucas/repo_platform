@@ -211,6 +211,48 @@ RESPOSTA:""",
 )
 
 
+RAG_RERANK_PROMPT = PromptTemplateConfig(
+    name="rag/rerank",
+    category=PromptCategory.RAG,
+    description="LLM-based reranker scoring prompt (query-passage relevance 0-10)",
+    required_variables=["question", "passage"],
+    content="""Rate how relevant and useful this document passage is for answering the given question.
+Score from 0 to 10 where:
+- 0 = completely irrelevant
+- 5 = somewhat relevant but not directly useful
+- 10 = highly relevant and directly answers the question
+
+Respond with ONLY a single integer number, nothing else.
+
+Question: {{ question }}
+
+Passage: {{ passage }}
+
+Score:""",
+)
+
+
+METADATA_ENRICHMENT_PROMPT = PromptTemplateConfig(
+    name="rag/metadata-enrichment",
+    category=PromptCategory.RAG,
+    description="System prompt for the enrich-metadata Edge Function (chunk metadata extraction)",
+    required_variables=["content"],
+    content="""You are a document metadata classifier. Given a text chunk, extract structured metadata.
+
+Respond in JSON only — no markdown fences, no explanation:
+{
+  "word_cloud": ["term1", "term2", ...],
+  "theme": "one_of_controlled_list",
+  "usage_context": "one sentence describing when this content is useful"
+}
+
+Rules:
+- word_cloud: 10-15 most salient terms from the text (Portuguese or English as found).
+- theme: MUST be exactly one of: statistical_analysis, tax_regulation, business_operations, financial_reporting, data_engineering, customer_service, product_knowledge, legal_compliance, market_analysis, human_resources, sales_strategy, operational_procedures, general
+- usage_context: A single sentence in the same language as the text.""",
+)
+
+
 # =============================================================================
 # ELICITATION PROMPTS
 # =============================================================================
@@ -824,6 +866,8 @@ BUILTIN_TEMPLATES: dict[str, PromptTemplateConfig] = {
     # RAG prompts
     RAG_QUERY_PROMPT.name: RAG_QUERY_PROMPT,
     RAG_HYBRID_PROMPT.name: RAG_HYBRID_PROMPT,
+    RAG_RERANK_PROMPT.name: RAG_RERANK_PROMPT,
+    METADATA_ENRICHMENT_PROMPT.name: METADATA_ENRICHMENT_PROMPT,
     # Elicitation prompts
     ELICITATION_OPTIONS_PROMPT.name: ELICITATION_OPTIONS_PROMPT,
     ELICITATION_CONFIRMATION_PROMPT.name: ELICITATION_CONFIRMATION_PROMPT,

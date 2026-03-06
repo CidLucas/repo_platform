@@ -122,6 +122,7 @@ from .knowledge_base_config import (
     KnowledgeBaseConfigCreate,
     KnowledgeBaseConfigRead,
     KnowledgeBaseConfigUpdate,
+    RagSearchConfig,
 )
 
 # MCP Resources & Prompts support

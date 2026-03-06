@@ -1,10 +1,10 @@
 // supabase/functions/embed/index.ts
 // Auto-embed worker — processes batched embedding jobs from pgmq queue.
-// Called internally by pg_net via the pg_cron scheduled job.
-// Pattern: follows Supabase automatic-embeddings docs exactly.
+// Called on-demand by process-document via util.process_embeddings() → pg_net.
+// Pattern: follows Supabase automatic-embeddings docs.
 // See: https://supabase.com/docs/guides/ai/automatic-embeddings
 //
-// Phase C6: Dead-letter queue support — tracks retry count per job.
+// Dead-letter queue support — tracks retry count per job.
 // After MAX_RETRIES failures, jobs are moved to 'embedding_jobs_dlq'
 // and the parent document is marked 'partially_failed'.
 
@@ -13,8 +13,17 @@ import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
 const DB_URL = Deno.env.get("SUPABASE_DB_URL")!;
 const MAX_RETRIES = 3;
 
+// Lazy-init: creating the session at module scope caused 546 (boot resource
+// limit exceeded) errors. Initialise on first use inside the handler instead.
 // @ts-ignore — Supabase Edge Runtime built-in AI
-const session = new Supabase.ai.Session("gte-small");
+let _session: InstanceType<typeof Supabase.ai.Session> | null = null;
+function getSession() {
+    if (!_session) {
+        // @ts-ignore
+        _session = new Supabase.ai.Session("gte-small");
+    }
+    return _session;
+}
 
 interface EmbeddingJob {
     id: number;
@@ -69,8 +78,8 @@ Deno.serve(async (req: Request) => {
                         continue;
                     }
 
-                    // 2. Generate embedding using built-in gte-small
-                    const embedding = await session.run(content, {
+                    // 2. Generate embedding using built-in gte-small (lazy session)
+                    const embedding = await getSession().run(content, {
                         mean_pool: true,
                         normalize: true,
                     });

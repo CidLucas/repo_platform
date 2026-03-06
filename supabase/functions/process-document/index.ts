@@ -1,7 +1,8 @@
 // supabase/functions/process-document/index.ts
 // Lightweight file parser — downloads file, parses text, chunks, and inserts
-// into document_chunks (WITHOUT embedding). Embeddings are handled asynchronously
-// by the pgmq trigger (queue_embedding_if_null) → pg_cron → embed Edge Function.
+// into document_chunks (WITHOUT embedding). Embeddings + metadata enrichment
+// are triggered on-demand after all chunks are inserted, via pgmq queues
+// drained by util.process_embeddings() and util.process_metadata().
 //
 // Request: POST { document_id, storage_path, client_id, file_name, file_type }
 // Response: 200 OK { document_id, status: "processing", chunk_count }
@@ -258,6 +259,13 @@ async function processDocument(
       WHERE id = ${documentId}::uuid
     `;
 
+        // Fetch scope + category from parent document (for denormalization into chunks)
+        const [docRow] = await sql`
+      SELECT scope, category FROM vector_db.documents WHERE id = ${documentId}::uuid
+    `;
+        const docScope = docRow?.scope ?? 'client';
+        const docCategory = docRow?.category ?? null;
+
         // 1. Download file from Storage
         console.log(`[process-document] Downloading from storage: ${storagePath}`);
         const { data: fileData, error: downloadError } = await supabase.storage
@@ -314,8 +322,8 @@ async function processDocument(
     `;
 
         // 5. Insert chunks WITHOUT embedding — the trigger
-        //    `embed_on_insert` fires and queues each chunk
-        //    into pgmq → pg_cron → embed Edge Function
+        //    `embed_on_insert` fires and queues each chunk into pgmq.
+        //    After all inserts we drain the queues on-demand (no cron).
         for (const chunk of chunks) {
             // Compute SHA-256 content hash for deduplication
             const hashBuffer = await crypto.subtle.digest(
@@ -326,23 +334,28 @@ async function processDocument(
                 .map((b) => b.toString(16).padStart(2, "0"))
                 .join("");
 
+            // client_id is NULL for platform-scoped documents
+            const chunkClientId = docScope === 'platform' ? null : clientId;
+
             await sql`
-        INSERT INTO vector_db.document_chunks
-          (document_id, client_id, content, chunk_index, metadata, content_hash)
-        VALUES (
-          ${documentId}::uuid,
-          ${clientId}::uuid,
-          ${chunk.text},
-          ${chunk.index},
-          ${sql.json(chunk.metadata)},
-          ${contentHash}
-        )
-        ON CONFLICT (document_id, content_hash) DO UPDATE
-        SET content = EXCLUDED.content,
-            chunk_index = EXCLUDED.chunk_index,
-            metadata = EXCLUDED.metadata,
-            embedding = NULL
-      `;
+          INSERT INTO vector_db.document_chunks
+            (document_id, client_id, content, chunk_index, metadata, content_hash, scope, category)
+          VALUES (
+            ${documentId}::uuid,
+            ${chunkClientId ? sql`${chunkClientId}::uuid` : sql`NULL`},
+            ${chunk.text},
+            ${chunk.index},
+            ${sql.json(chunk.metadata)},
+            ${contentHash},
+            ${docScope},
+            ${docCategory}
+          )
+          ON CONFLICT (document_id, content_hash) DO UPDATE
+          SET content = EXCLUDED.content,
+              chunk_index = EXCLUDED.chunk_index,
+              metadata = EXCLUDED.metadata,
+              embedding = NULL
+        `;
         }
 
         // 5. Update document: status=processing (will become 'completed'
@@ -355,8 +368,17 @@ async function processDocument(
       WHERE id = ${documentId}::uuid
     `;
 
+        // 6. Trigger embedding + metadata enrichment on-demand.
+        //    The INSERT triggers already queued jobs to pgmq. Now drain
+        //    the queues immediately — each fires async pg_net requests
+        //    to the embed / enrich-metadata Edge Functions.
+        console.log(`[process-document] Triggering embedding for ${chunks.length} chunks...`);
+        await sql`SELECT util.process_embeddings()`;
+        console.log(`[process-document] Triggering metadata enrichment...`);
+        await sql`SELECT util.process_metadata()`;
+
         console.log(
-            `[process-document] Completed parsing: ${fileName}, ${chunks.length} chunks inserted (embedding queued via pgmq)`
+            `[process-document] Completed: ${fileName}, ${chunks.length} chunks inserted, embedding + metadata triggered`
         );
     } catch (err) {
         console.error(`[process-document] Error processing ${fileName}:`, err);

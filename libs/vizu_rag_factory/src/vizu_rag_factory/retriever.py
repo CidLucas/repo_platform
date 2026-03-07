@@ -90,7 +90,7 @@ class _BaseSupabaseRetriever(BaseRetriever):
     supabase_service_key: str = Field(description="Service role key for auth")
     client_id: str = Field(description="Client UUID for RLS filtering")
     match_count: int = Field(default=5)
-    match_threshold: float = Field(default=0.5)
+    match_threshold: float = Field(default=0.3)
     document_ids: list[str] | None = Field(
         default=None,
         description="Optional list of document UUIDs to scope search to specific documents",

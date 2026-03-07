@@ -16,7 +16,7 @@ export interface KBDocument {
     storage_path: string | null;
     source: "upload" | "chat" | "url" | "api";
     processing_mode: "simple" | "complex";
-    status: "pending" | "processing" | "completed" | "failed";
+    status: "pending" | "processing" | "completed" | "failed" | "partially_failed";
     error_message: string | null;
     chunk_count: number;
     description: string | null;
@@ -209,7 +209,7 @@ export async function uploadSimpleFile(
     );
 
     if (fnError)
-        console.warn("Aviso: Edge Function retornou erro:", fnError.message);
+        throw new Error(`Erro ao processar documento: ${fnError.message}`);
 
     return documentId;
 }
@@ -285,10 +285,11 @@ export async function uploadComplexFile(
         });
 
         if (!res.ok) {
-            console.warn("file_upload_api retornou erro:", res.status);
+            const errText = await res.text().catch(() => "");
+            throw new Error(`Erro ao processar documento complexo (HTTP ${res.status}): ${errText}`);
         }
     } catch (err) {
-        console.warn("Erro ao chamar file_upload_api:", err);
+        throw new Error(`Erro ao processar documento complexo: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     return documentId;
@@ -308,4 +309,37 @@ export async function uploadFile(
         return uploadComplexFile(file, clientId, source, { ...options, forceComplex });
     }
     return uploadSimpleFile(file, clientId, source, options);
+}
+
+/**
+ * Reprocessa um documento com status failed ou partially_failed.
+ * Deleta chunks existentes, reseta status e re-invoca process-document.
+ */
+export async function retryDocument(doc: KBDocument): Promise<void> {
+    // 1. Delete existing chunks (will be re-created)
+    await supabase
+        .schema("vector_db")
+        .from("document_chunks")
+        .delete()
+        .eq("document_id", doc.id);
+
+    // 2. Reset document status
+    await supabase
+        .schema("vector_db")
+        .from("documents")
+        .update({ status: "processing", chunk_count: 0, error_message: null })
+        .eq("id", doc.id);
+
+    // 3. Re-invoke process-document
+    const { error } = await supabase.functions.invoke("process-document", {
+        body: {
+            document_id: doc.id,
+            storage_path: doc.storage_path,
+            client_id: doc.client_id,
+            file_name: doc.file_name,
+            file_type: doc.file_type,
+        },
+    });
+
+    if (error) throw new Error(`Erro ao reprocessar: ${error.message}`);
 }

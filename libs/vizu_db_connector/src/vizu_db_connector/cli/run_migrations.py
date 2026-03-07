@@ -18,8 +18,9 @@ import argparse
 import os
 import sys
 
-from alembic import command
 from alembic.config import Config
+
+from alembic import command  # noqa: I001
 
 
 def main() -> None:

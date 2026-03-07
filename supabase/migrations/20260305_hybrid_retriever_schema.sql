@@ -234,16 +234,17 @@ BEGIN
   ),
 
   -- Merge all unique candidates
+  -- Qualify all column refs to avoid clash with RETURNS TABLE output params
   all_candidates AS (
-    SELECT id, document_id, content, metadata,
-           similarity, keyword_score, file_name, document_title,
-           scope, category, sem_rank, NULL::bigint AS kw_rank
-    FROM semantic
+    SELECT sem.id, sem.document_id, sem.content, sem.metadata,
+           sem.similarity, sem.keyword_score, sem.file_name, sem.document_title,
+           sem.scope, sem.category, sem.sem_rank, NULL::bigint AS kw_rank
+    FROM semantic sem
     UNION ALL
-    SELECT id, document_id, content, metadata,
-           similarity, keyword_score, file_name, document_title,
-           scope, category, NULL::bigint AS sem_rank, kw_rank
-    FROM keyword
+    SELECT kw.id, kw.document_id, kw.content, kw.metadata,
+           kw.similarity, kw.keyword_score, kw.file_name, kw.document_title,
+           kw.scope, kw.category, NULL::bigint AS sem_rank, kw.kw_rank
+    FROM keyword kw
   ),
 
   -- Deduplicate and merge scores per chunk
@@ -252,7 +253,7 @@ BEGIN
       ac.id,
       ac.document_id,
       MAX(ac.content) AS content,
-      MAX(ac.metadata) AS metadata,
+      (array_agg(ac.metadata ORDER BY ac.similarity DESC))[1] AS metadata,
       COALESCE(MAX(ac.similarity), 0) AS similarity,
       COALESCE(MAX(ac.keyword_score), 0) AS keyword_score,
       MAX(ac.file_name) AS file_name,

@@ -9,6 +9,7 @@ import {
 } from "../services/knowledgeBaseService";
 
 const POLL_INTERVAL_MS = 5_000;
+const MAX_PROCESSING_MS = 5 * 60 * 1000; // 5 minutes — safety timeout for stuck documents
 
 export function useKnowledgeBase() {
     const { clientId } = useAuth();
@@ -39,9 +40,12 @@ export function useKnowledgeBase() {
 
     // ── Auto-poll while any document is processing/pending ───
     useEffect(() => {
-        const hasInProgress = documents.some(
-            (d) => d.status === "pending" || d.status === "processing"
-        );
+        const hasInProgress = documents.some((d) => {
+            if (d.status !== "pending" && d.status !== "processing") return false;
+            // Safety timeout: if stuck for more than MAX_PROCESSING_MS, stop polling
+            const elapsed = Date.now() - new Date(d.updated_at).getTime();
+            return elapsed < MAX_PROCESSING_MS;
+        });
 
         if (hasInProgress) {
             if (!pollRef.current) {

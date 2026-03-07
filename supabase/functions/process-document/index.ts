@@ -1,11 +1,13 @@
 // supabase/functions/process-document/index.ts
-// Lightweight file parser — downloads file, parses text, chunks, and inserts
-// into document_chunks (WITHOUT embedding). Embeddings + metadata enrichment
-// are triggered on-demand after all chunks are inserted, via pgmq queues
-// drained by util.process_embeddings() and util.process_metadata().
+// Self-contained document processing pipeline — downloads file, parses text,
+// chunks, generates embeddings (Cohere), enriches metadata (Ollama Cloud LLM), and inserts
+// everything into document_chunks in a single transaction.
+//
+// No pgmq, no cron, no separate embed/enrich-metadata Edge Functions.
+// Document is fully searchable the moment this EF returns 200.
 //
 // Request: POST { document_id, storage_path, client_id, file_name, file_type }
-// Response: 200 OK { document_id, status: "processing", chunk_count }
+// Response: 200 OK { document_id, status: "completed", chunk_count }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
@@ -25,10 +27,10 @@ const corsHeaders = {
 };
 
 // ── Token Estimation ────────────────────────────────────────
-// gte-small uses a BPE tokenizer. We approximate token count using a
-// heuristic: ~4 chars per token for Latin text, ~2 for CJK/complex scripts.
-// This avoids shipping a full tokenizer in the Edge Function while staying
-// safely within the model's 512-token limit.
+// Cohere embed-multilingual-light-v3.0 uses a BPE tokenizer. We approximate
+// token count using a heuristic: ~4 chars per token for Latin text, ~2 for
+// CJK/complex scripts. This avoids shipping a full tokenizer in the Edge
+// Function while staying safely within the model's 512-token limit.
 
 function estimateTokens(text: string): number {
     // Count CJK-heavy characters (each roughly 1 token)
@@ -46,15 +48,162 @@ interface Chunk {
     metadata: Record<string, unknown>;
 }
 
-// Token-aware limits (gte-small max_seq_length = 512 tokens)
-const TARGET_TOKENS = 400; // target tokens per chunk (leaves headroom for overlap + special tokens)
+// Token-aware limits (embed-multilingual-light-v3.0 max_seq_length = 512 tokens)
+// Smaller chunks = better retrieval precision (each chunk focuses on one topic)
+const TARGET_TOKENS = 250; // target tokens per chunk
 const OVERLAP_SENTENCES = 2; // number of trailing sentences to overlap
 
+// ── Embedding (Cohere) ──────────────────────────────────────
+const CO_API_KEY = Deno.env.get("CO_API_KEY")!;
+const COHERE_EMBEDDING_MODEL = "embed-multilingual-light-v3.0"; // 384 dims, matches halfvec(384), supports Portuguese
+const EMBEDDING_DIMENSIONS = 384; // matches halfvec(384) column
+
+// Ollama Cloud config — used ONLY for metadata enrichment LLM
+const OLLAMA_CLOUD_BASE_URL = Deno.env.get("OLLAMA_CLOUD_BASE_URL") ?? "https://ollama.com";
+const OLLAMA_CLOUD_API_KEY = Deno.env.get("OLLAMA_CLOUD_API_KEY")!;
+
+async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+    // Cohere v2/embed accepts max 96 texts per call
+    const BATCH_SIZE = 96;
+    const allEmbeddings: number[][] = [];
+
+    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+        const batch = texts.slice(i, i + BATCH_SIZE);
+        const response = await fetch("https://api.cohere.com/v2/embed", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${CO_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: COHERE_EMBEDDING_MODEL,
+                texts: batch,
+                input_type: "search_document",
+                embedding_types: ["float"],
+            }),
+        });
+
+        if (!response.ok) {
+            const errBody = await response.text();
+            throw new Error(`Cohere embeddings API error ${response.status}: ${errBody}`);
+        }
+
+        const data = await response.json();
+        // v2 response: { embeddings: { float: [[...], [...]] } }
+        allEmbeddings.push(...data.embeddings.float);
+    }
+
+    return allEmbeddings;
+}
+
+// ── Metadata Enrichment ─────────────────────────────────────
+const LLM_MODEL = Deno.env.get("METADATA_ENRICHMENT_MODEL") ?? "gpt-oss:20b";
+const LLM_MAX_TOKENS = Number(Deno.env.get("METADATA_ENRICHMENT_MAX_TOKENS") ?? "500");
+const LLM_TEMPERATURE = Number(Deno.env.get("METADATA_ENRICHMENT_TEMPERATURE") ?? "0");
+
+const METADATA_SYSTEM_PROMPT = Deno.env.get("METADATA_ENRICHMENT_SYSTEM_PROMPT") ?? `You are a document metadata classifier. Given a text chunk, extract structured metadata.
+
+Respond in JSON only — no markdown fences, no explanation:
+{
+  "word_cloud": ["term1", "term2", ...],
+  "theme": "one_of_controlled_list",
+  "usage_context": "one sentence describing when this content is useful"
+}
+
+Rules:
+- word_cloud: 10-15 most salient terms from the text (Portuguese or English as found).
+- theme: MUST be exactly one of: statistical_analysis, tax_regulation, business_operations, financial_reporting, data_engineering, customer_service, product_knowledge, legal_compliance, market_analysis, human_resources, sales_strategy, operational_procedures, general
+- usage_context: A single sentence in the same language as the text.`;
+
+interface EnrichedMetadata {
+    word_cloud: string[];
+    theme: string;
+    usage_context: string;
+}
+
+const ALLOWED_THEMES = new Set([
+    "statistical_analysis",
+    "tax_regulation",
+    "business_operations",
+    "financial_reporting",
+    "data_engineering",
+    "customer_service",
+    "product_knowledge",
+    "legal_compliance",
+    "market_analysis",
+    "human_resources",
+    "sales_strategy",
+    "operational_procedures",
+    "general",
+]);
+
+async function callMetadataLLM(content: string): Promise<EnrichedMetadata> {
+    const response = await fetch(
+        `${OLLAMA_CLOUD_BASE_URL}/api/chat`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${OLLAMA_CLOUD_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: LLM_MODEL,
+                stream: false,
+                options: {
+                    temperature: LLM_TEMPERATURE,
+                    num_predict: LLM_MAX_TOKENS,
+                },
+                messages: [
+                    { role: "system", content: METADATA_SYSTEM_PROMPT },
+                    { role: "user", content: `TEXT:\n${content}` },
+                ],
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        const errBody = await response.text();
+        throw new Error(`Ollama LLM API error ${response.status}: ${errBody}`);
+    }
+
+    const data = await response.json();
+    const rawContent = data.message.content;
+
+    // Strip markdown fences if present (e.g. ```json ... ```)
+    const cleaned = rawContent
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```\s*$/, "")
+        .trim();
+
+    const raw = JSON.parse(cleaned);
+
+    // Validate and sanitize
+    const result: EnrichedMetadata = {
+        word_cloud: Array.isArray(raw.word_cloud)
+            ? raw.word_cloud.filter((t: unknown) => typeof t === "string").slice(0, 15)
+            : [],
+        theme: ALLOWED_THEMES.has(raw.theme) ? raw.theme : "general",
+        usage_context:
+            typeof raw.usage_context === "string"
+                ? raw.usage_context.slice(0, 500)
+                : "",
+    };
+
+    return result;
+}
+
 function splitIntoSentences(text: string): string[] {
-    // Split on sentence boundaries: period/exclamation/question followed by
-    // whitespace, OR double-newline paragraph breaks.
+    // Split on multiple boundary types for better chunking:
+    // 1. Sentence-ending punctuation (.!?) followed by whitespace
+    // 2. Double-newline paragraph breaks
+    // 3. Single newlines (common in markdown, bullet lists, section breaks)
+    // 4. Markdown headers (# lines)
+    // 5. Numbered list items ("1. ", "2. ") at line start
+    // 6. Bullet points (- or * at line start)
     return text
-        .split(/(?<=[.!?])\s+|(?:\n\n+)/)
+        .split(
+            /(?<=[.!?])\s+|\n\n+|\n(?=\s*[-*•]\s)|\n(?=\s*\d+[.)\s])|\n(?=#{1,6}\s)|\n/
+        )
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
 }
@@ -235,7 +384,7 @@ function getParser(
     }
 }
 
-// ── Background Processing ───────────────────────────────────
+// ── Document Processing Pipeline ────────────────────────────
 
 async function processDocument(
     documentId: string,
@@ -313,72 +462,96 @@ async function processDocument(
             throw new Error("No chunks generated from file content");
         }
 
-        // 4. Delete existing chunks for this document (re-upload scenario)
-        //    Then insert fresh chunks. Deduplication is handled by content_hash
-        //    unique constraint per (document_id, content_hash).
-        await sql`
-      DELETE FROM vector_db.document_chunks
-      WHERE document_id = ${documentId}::uuid
-    `;
+        // 4. Generate embeddings for all chunks in a single API call
+        console.log(`[process-document] Generating embeddings for ${chunks.length} chunks...`);
+        const chunkTexts = chunks.map((c) => c.text);
+        const embeddings = await generateEmbeddings(chunkTexts);
+        console.log(`[process-document] Embeddings generated: ${embeddings.length}`);
 
-        // 5. Insert chunks WITHOUT embedding — the trigger
-        //    `embed_on_insert` fires and queues each chunk into pgmq.
-        //    After all inserts we drain the queues on-demand (no cron).
-        for (const chunk of chunks) {
-            // Compute SHA-256 content hash for deduplication
-            const hashBuffer = await crypto.subtle.digest(
-                "SHA-256",
-                new TextEncoder().encode(chunk.text)
+        // 5. Enrich metadata via LLM (5 concurrent calls)
+        console.log(`[process-document] Enriching metadata...`);
+        const METADATA_CONCURRENCY = 5;
+        const enrichedMetadata: (EnrichedMetadata | null)[] = new Array(chunks.length).fill(null);
+
+        for (let i = 0; i < chunks.length; i += METADATA_CONCURRENCY) {
+            const batch = chunks.slice(i, i + METADATA_CONCURRENCY);
+            const results = await Promise.allSettled(
+                batch.map((chunk) => callMetadataLLM(chunk.text.slice(0, 2000)))
             );
-            const contentHash = Array.from(new Uint8Array(hashBuffer))
-                .map((b) => b.toString(16).padStart(2, "0"))
-                .join("");
-
-            // client_id is NULL for platform-scoped documents
-            const chunkClientId = docScope === 'platform' ? null : clientId;
-
-            await sql`
-          INSERT INTO vector_db.document_chunks
-            (document_id, client_id, content, chunk_index, metadata, content_hash, scope, category)
-          VALUES (
-            ${documentId}::uuid,
-            ${chunkClientId ? sql`${chunkClientId}::uuid` : sql`NULL`},
-            ${chunk.text},
-            ${chunk.index},
-            ${sql.json(chunk.metadata)},
-            ${contentHash},
-            ${docScope},
-            ${docCategory}
-          )
-          ON CONFLICT (document_id, content_hash) DO UPDATE
-          SET content = EXCLUDED.content,
-              chunk_index = EXCLUDED.chunk_index,
-              metadata = EXCLUDED.metadata,
-              embedding = NULL
-        `;
+            results.forEach((result, idx) => {
+                if (result.status === "fulfilled") {
+                    enrichedMetadata[i + idx] = result.value;
+                } else {
+                    console.warn(`[process-document] Metadata enrichment failed for chunk ${i + idx}:`, result.reason);
+                    // Non-fatal — chunk will be inserted without enrichment
+                }
+            });
         }
+        console.log(`[process-document] Metadata enriched: ${enrichedMetadata.filter(Boolean).length}/${chunks.length}`);
 
-        // 5. Update document: status=processing (will become 'completed'
-        //    when the embed function finishes all chunks), set chunk_count
-        await sql`
-      UPDATE vector_db.documents
-      SET status = 'processing',
-          chunk_count = ${chunks.length},
-          updated_at = now()
-      WHERE id = ${documentId}::uuid
-    `;
+        // 6. Transactional insert: delete old chunks, insert new ones with embeddings + metadata
+        await sql.begin(async (tx: ReturnType<typeof postgres>) => {
+            // Delete existing chunks (re-upload scenario)
+            await tx`DELETE FROM vector_db.document_chunks WHERE document_id = ${documentId}::uuid`;
 
-        // 6. Trigger embedding + metadata enrichment on-demand.
-        //    The INSERT triggers already queued jobs to pgmq. Now drain
-        //    the queues immediately — each fires async pg_net requests
-        //    to the embed / enrich-metadata Edge Functions.
-        console.log(`[process-document] Triggering embedding for ${chunks.length} chunks...`);
-        await sql`SELECT util.process_embeddings()`;
-        console.log(`[process-document] Triggering metadata enrichment...`);
-        await sql`SELECT util.process_metadata()`;
+            // Batch insert all chunks with embeddings and metadata
+            for (let i = 0; i < chunks.length; i++) {
+                const chunk = chunks[i];
+                const embedding = embeddings[i];
+                const embeddingStr = `[${embedding.join(",")}]`;
+                const enriched = enrichedMetadata[i];
+
+                // Compute SHA-256 content hash for deduplication
+                const hashBuffer = await crypto.subtle.digest(
+                    "SHA-256",
+                    new TextEncoder().encode(chunk.text)
+                );
+                const contentHash = Array.from(new Uint8Array(hashBuffer))
+                    .map((b) => b.toString(16).padStart(2, "0"))
+                    .join("");
+
+                // client_id is NULL for platform-scoped documents
+                const chunkClientId = docScope === 'platform' ? null : clientId;
+
+                // Merge enriched metadata with chunk metadata
+                const mergedMetadata = enriched
+                    ? { ...chunk.metadata, ...enriched }
+                    : chunk.metadata;
+
+                await tx`
+                    INSERT INTO vector_db.document_chunks
+                        (document_id, client_id, content, chunk_index, metadata, content_hash, scope, category, embedding)
+                    VALUES (
+                        ${documentId}::uuid,
+                        ${chunkClientId ? tx`${chunkClientId}::uuid` : tx`NULL`},
+                        ${chunk.text},
+                        ${chunk.index},
+                        ${tx.json(mergedMetadata)},
+                        ${contentHash},
+                        ${docScope},
+                        ${docCategory},
+                        ${embeddingStr}::vector::halfvec(384)
+                    )
+                    ON CONFLICT (document_id, content_hash) DO UPDATE
+                    SET content = EXCLUDED.content,
+                        chunk_index = EXCLUDED.chunk_index,
+                        metadata = EXCLUDED.metadata,
+                        embedding = EXCLUDED.embedding
+                `;
+            }
+
+            // Update document to completed
+            await tx`
+                UPDATE vector_db.documents
+                SET status = 'completed',
+                    chunk_count = ${chunks.length},
+                    updated_at = now()
+                WHERE id = ${documentId}::uuid
+            `;
+        });
 
         console.log(
-            `[process-document] Completed: ${fileName}, ${chunks.length} chunks inserted, embedding + metadata triggered`
+            `[process-document] Completed: ${fileName}, ${chunks.length} chunks inserted with embeddings + metadata`
         );
     } catch (err) {
         console.error(`[process-document] Error processing ${fileName}:`, err);
@@ -396,6 +569,16 @@ async function processDocument(
     } finally {
         await sql.end();
     }
+}
+
+// ── Safety: Catch Deno Isolate Termination ─────────────────
+
+function catchUnload(): Promise<never> {
+    return new Promise((_resolve, reject) => {
+        addEventListener("beforeunload", (ev: Event) => {
+            reject(new Error("Deno isolate terminated (beforeunload) — document will be marked failed"));
+        });
+    });
 }
 
 // ── HTTP Handler ────────────────────────────────────────────
@@ -438,17 +621,21 @@ Deno.serve(async (req: Request) => {
             );
         }
 
-        // Process synchronously — parsing + chunking is fast (no embedding)
+        // Process synchronously — parse, chunk, embed, enrich, insert in one call
         console.log(`[process-document] Starting processing for ${file_name}`);
-        await processDocument(document_id, storage_path, client_id, file_name, file_type);
+        await Promise.race([
+            processDocument(document_id, storage_path, client_id, file_name, file_type),
+            catchUnload(),
+        ]);
         console.log(`[process-document] Completed processing for ${file_name}`);
 
         return new Response(
             JSON.stringify({
                 document_id,
-                status: "processing",
+                status: "completed",
+                chunk_count: 0, // actual count already persisted in DB
                 message:
-                    "Document parsed and chunked. Embeddings are being generated asynchronously.",
+                    "Document processed, embedded, and ready for search.",
             }),
             {
                 status: 200,

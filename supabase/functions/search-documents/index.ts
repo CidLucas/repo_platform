@@ -11,13 +11,43 @@
 //                  scope?, categories?, document_ids? }
 // Response: { results: [{ id, document_id, content, metadata, similarity,
 //                         keyword_score?, combined_score?, scope?, category? }] }
+//
+// Uses Cohere embed-multilingual-light-v3.0 (384 dimensions) for query embedding,
+// matching the process-document EF that generates stored vectors.
 
 import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
 
 const DB_URL = Deno.env.get("SUPABASE_DB_URL")!;
+const CO_API_KEY = Deno.env.get("CO_API_KEY")!;
 
-// @ts-ignore — Supabase Edge Runtime built-in AI
-const session = new Supabase.ai.Session("gte-small");
+// ── Embedding Config (Cohere) ──────────────────────────────
+const COHERE_EMBEDDING_MODEL = "embed-multilingual-light-v3.0"; // 384 dims, supports Portuguese
+const EMBEDDING_DIMENSIONS = 384; // matches halfvec(384) column
+
+async function generateEmbedding(text: string): Promise<number[]> {
+    const response = await fetch("https://api.cohere.com/v2/embed", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${CO_API_KEY}`,
+        },
+        body: JSON.stringify({
+            model: COHERE_EMBEDDING_MODEL,
+            texts: [text],
+            input_type: "search_query",
+            embedding_types: ["float"],
+        }),
+    });
+
+    if (!response.ok) {
+        const errBody = await response.text();
+        throw new Error(`Cohere embeddings API error ${response.status}: ${errBody}`);
+    }
+
+    const data = await response.json();
+    // v2 response: { embeddings: { float: [[...]] } }
+    return data.embeddings.float[0];
+}
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -40,7 +70,7 @@ Deno.serve(async (req: Request) => {
             query,
             client_id,
             match_count = 5,
-            match_threshold = 0.5,
+            match_threshold = 0.3,
             document_ids = null,
             // Hybrid parameters (Phase 3)
             search_mode = "hybrid",
@@ -86,13 +116,30 @@ Deno.serve(async (req: Request) => {
             );
         }
 
-        // 1. Embed query text using gte-small (same model as storage)
-        const queryEmbedding = await session.run(query, {
-            mean_pool: true,
-            normalize: true,
-        });
+        // ── Logging: incoming parameters ──────────────────────────
+        console.log("[search-documents] Incoming params:", JSON.stringify({
+            query: query.slice(0, 120),
+            client_id,
+            search_mode,
+            match_count,
+            match_threshold,
+            fusion_strategy,
+            keyword_weight,
+            vector_weight,
+            scope,
+            categories,
+            document_ids,
+        }));
 
-        const embeddingStr = `[${Array.from(queryEmbedding).join(",")}]`;
+        // 1. Embed query text using Cohere multilingual (same model as storage)
+        const embedStart = performance.now();
+        const queryEmbedding = await generateEmbedding(query);
+        const embedMs = (performance.now() - embedStart).toFixed(1);
+
+        // ── Logging: embedding sanity check ─────────────────────
+        console.log(`[search-documents] Cohere embed completed in ${embedMs}ms — dims=${queryEmbedding.length}, first5=[${queryEmbedding.slice(0, 5).map((v: number) => v.toFixed(6)).join(", ")}]`);
+
+        const embeddingStr = `[${queryEmbedding.join(",")}]`;
 
         // 2. Build document_ids array parameter (NULL if not provided)
         const docIdsParam = document_ids && Array.isArray(document_ids) && document_ids.length > 0
@@ -100,6 +147,8 @@ Deno.serve(async (req: Request) => {
             : null;
 
         let results;
+
+        const sqlStart = performance.now();
 
         if (search_mode === "semantic") {
             // ── Legacy path: pure cosine similarity via match_documents ──
@@ -141,6 +190,28 @@ Deno.serve(async (req: Request) => {
                 ${vector_weight}::float
               )
             `;
+        }
+
+        const sqlMs = (performance.now() - sqlStart).toFixed(1);
+
+        // ── Logging: result diagnostics ─────────────────────────
+        console.log(`[search-documents] SQL RPC completed in ${sqlMs}ms — result_count=${results.length}`);
+        if (results.length > 0) {
+            const top3 = results.slice(0, 3).map((r: Record<string, unknown>, i: number) => ({
+                rank: i + 1,
+                similarity: r.similarity,
+                keyword_score: r.keyword_score,
+                combined_score: r.combined_score,
+                content_preview: typeof r.content === "string" ? r.content.slice(0, 60) : "",
+            }));
+            console.log("[search-documents] Top-3 results:", JSON.stringify(top3));
+        } else {
+            console.warn("[search-documents] EMPTY RESULTS — no chunks matched.", JSON.stringify({
+                query: query.slice(0, 120),
+                client_id,
+                search_mode,
+                match_threshold,
+            }));
         }
 
         return new Response(

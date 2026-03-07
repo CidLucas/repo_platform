@@ -13,6 +13,7 @@ import json
 from uuid import uuid4
 
 import pytest
+
 from vizu_tool_registry.tools.sql_tool import (
     QueryDatabaseTextToSQL,
     SQLToolError,

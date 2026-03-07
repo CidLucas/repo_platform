@@ -42,11 +42,13 @@ import {
     FiFile,
     FiBook,
     FiTag,
+    FiRotateCw,
 } from "react-icons/fi";
 import { useKnowledgeBase } from "../../hooks/useKnowledgeBase";
 import {
     getAcceptedExtensions,
     KB_CATEGORIES,
+    retryDocument,
     type KBDocument,
     type UploadOptions,
 } from "../../services/knowledgeBaseService";
@@ -87,6 +89,14 @@ function StatusBadge({ doc }: { doc: KBDocument }) {
                 <Tooltip label={doc.error_message || "Erro desconhecido"} hasArrow>
                     <Badge colorScheme="red" fontSize="xs" cursor="help">
                         Falhou
+                    </Badge>
+                </Tooltip>
+            );
+        case "partially_failed":
+            return (
+                <Tooltip label={doc.error_message || "Alguns chunks falharam"} hasArrow>
+                    <Badge colorScheme="orange" fontSize="xs" cursor="help">
+                        Parcial
                     </Badge>
                 </Tooltip>
             );
@@ -307,9 +317,10 @@ function UploadZone({ onFiles, uploading }: UploadZoneProps) {
 interface DocumentsTableProps {
     documents: KBDocument[];
     onDelete: (doc: KBDocument) => void;
+    onRetry: (doc: KBDocument) => void;
 }
 
-function DocumentsTable({ documents, onDelete }: DocumentsTableProps) {
+function DocumentsTable({ documents, onDelete, onRetry }: DocumentsTableProps) {
     if (documents.length === 0) {
         return (
             <VStack py={12} spacing={4} color="gray.400">
@@ -336,7 +347,7 @@ function DocumentsTable({ documents, onDelete }: DocumentsTableProps) {
                         <Th>Chunks</Th>
                         <Th>Descrição</Th>
                         <Th>Data</Th>
-                        <Th w="50px" />
+                        <Th w="50px" position="sticky" right={0} bg="white" />
                     </Tr>
                 </Thead>
                 <Tbody>
@@ -392,15 +403,29 @@ function DocumentsTable({ documents, onDelete }: DocumentsTableProps) {
                                     {formatDate(doc.created_at)}
                                 </Text>
                             </Td>
-                            <Td>
-                                <IconButton
-                                    aria-label="Deletar documento"
-                                    icon={<FiTrash2 />}
-                                    size="sm"
-                                    variant="ghost"
-                                    colorScheme="red"
-                                    onClick={() => onDelete(doc)}
-                                />
+                            <Td position="sticky" right={0} bg="white">
+                                <HStack spacing={1}>
+                                    {(doc.status === "failed" || doc.status === "partially_failed") && (
+                                        <Tooltip label="Reprocessar documento" hasArrow>
+                                            <IconButton
+                                                aria-label="Reprocessar documento"
+                                                icon={<FiRotateCw />}
+                                                size="sm"
+                                                variant="ghost"
+                                                colorScheme="blue"
+                                                onClick={() => onRetry(doc)}
+                                            />
+                                        </Tooltip>
+                                    )}
+                                    <IconButton
+                                        aria-label="Deletar documento"
+                                        icon={<FiTrash2 />}
+                                        size="sm"
+                                        variant="ghost"
+                                        colorScheme="red"
+                                        onClick={() => onDelete(doc)}
+                                    />
+                                </HStack>
                             </Td>
                         </Tr>
                     ))}
@@ -462,9 +487,33 @@ function AdminKnowledgeBasePage() {
         [remove, toast]
     );
 
+    const handleRetry = useCallback(
+        async (doc: KBDocument) => {
+            try {
+                await retryDocument(doc);
+                toast({
+                    title: "Reprocessando documento...",
+                    status: "info",
+                    duration: 3000,
+                    isClosable: true,
+                });
+                refresh();
+            } catch (err) {
+                toast({
+                    title: "Erro ao reprocessar",
+                    description: err instanceof Error ? err.message : "Tente novamente.",
+                    status: "error",
+                    duration: 5000,
+                    isClosable: true,
+                });
+            }
+        },
+        [toast, refresh]
+    );
+
     return (
         <AdminLayout>
-            <Box p={8} maxW="960px" mx="auto">
+            <Box p={8} maxW="1100px" mx="auto">
                 <VStack spacing={6} align="stretch">
                     {/* Header */}
                     <Flex justify="space-between" align="center">
@@ -538,7 +587,7 @@ function AdminKnowledgeBasePage() {
                             <Spinner size="lg" color="gray.400" />
                         </Flex>
                     ) : (
-                        <DocumentsTable documents={documents} onDelete={handleDelete} />
+                        <DocumentsTable documents={documents} onDelete={handleDelete} onRetry={handleRetry} />
                     )}
                 </VStack>
             </Box>

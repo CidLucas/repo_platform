@@ -1,8 +1,9 @@
 // supabase/functions/embed/index.ts
 // Auto-embed worker — processes batched embedding jobs from pgmq queue.
 // Called on-demand by process-document via util.process_embeddings() → pg_net.
-// Pattern: follows Supabase automatic-embeddings docs.
-// See: https://supabase.com/docs/guides/ai/automatic-embeddings
+//
+// Uses OpenAI text-embedding-3-small (384 dimensions) instead of the built-in
+// Supabase.ai.Session("gte-small") which exceeded the 546 boot resource limit.
 //
 // Dead-letter queue support — tracks retry count per job.
 // After MAX_RETRIES failures, jobs are moved to 'embedding_jobs_dlq'
@@ -11,18 +12,37 @@
 import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
 
 const DB_URL = Deno.env.get("SUPABASE_DB_URL")!;
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const MAX_RETRIES = 3;
 
-// Lazy-init: creating the session at module scope caused 546 (boot resource
-// limit exceeded) errors. Initialise on first use inside the handler instead.
-// @ts-ignore — Supabase Edge Runtime built-in AI
-let _session: InstanceType<typeof Supabase.ai.Session> | null = null;
-function getSession() {
-    if (!_session) {
-        // @ts-ignore
-        _session = new Supabase.ai.Session("gte-small");
+// ── Embedding Config ───────────────────────────────────────
+const EMBEDDING_MODEL = "text-embedding-3-small";
+const EMBEDDING_DIMENSIONS = 384; // matches halfvec(384) column
+
+async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+    const response = await fetch("https://api.openai.com/v1/embeddings", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+            model: EMBEDDING_MODEL,
+            dimensions: EMBEDDING_DIMENSIONS,
+            input: texts,
+        }),
+    });
+
+    if (!response.ok) {
+        const errBody = await response.text();
+        throw new Error(`OpenAI embeddings API error ${response.status}: ${errBody}`);
     }
-    return _session;
+
+    const data = await response.json();
+    // Sort by index to ensure correct ordering
+    return data.data
+        .sort((a: { index: number }, b: { index: number }) => a.index - b.index)
+        .map((item: { embedding: number[] }) => item.embedding);
 }
 
 interface EmbeddingJob {
@@ -78,14 +98,11 @@ Deno.serve(async (req: Request) => {
                         continue;
                     }
 
-                    // 2. Generate embedding using built-in gte-small (lazy session)
-                    const embedding = await getSession().run(content, {
-                        mean_pool: true,
-                        normalize: true,
-                    });
+                    // 2. Generate embedding via OpenAI API
+                    const [embedding] = await generateEmbeddings([content]);
 
                     // 3. Convert to Postgres array format
-                    const embeddingStr = `[${Array.from(embedding).join(",")}]`;
+                    const embeddingStr = `[${embedding.join(",")}]`;
 
                     // 4. Update the embedding column
                     await sql`

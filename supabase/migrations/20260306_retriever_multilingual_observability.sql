@@ -1,5 +1,5 @@
 -- Migration: Retriever multilingual model + observability
--- 
+--
 -- Changes:
 -- 1. Lower default p_match_threshold from 0.5 → 0.3 in hybrid_match_documents
 -- 2. Add RAISE NOTICE diagnostics (visible in pg logs when p_debug = true)
@@ -183,7 +183,7 @@ $$;
 -- ============================================================
 -- Call from Supabase SQL editor to inspect all intermediate scores
 -- without needing to go through the Edge Function.
--- 
+--
 -- Usage:
 --   SELECT * FROM vector_db.debug_search(
 --     'e0e9c949-18fe-4d9a-9295-d5dfb2cc9723'::uuid,

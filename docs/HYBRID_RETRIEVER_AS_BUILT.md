@@ -1,8 +1,8 @@
 # Hybrid Retriever — As-Built Documentation
 
-> **Last updated:** 2026-03-06
-> **Migration:** `20260305_hybrid_retriever_schema.sql`
-> **Status:** Production-ready (Phase 1 + Phase 2 complete)
+> **Last updated:** 2026-03-10
+> **Migrations:** `20260305_hybrid_retriever_schema.sql`, `20260306_*`, `20260310_*`
+> **Status:** Production-ready (RAG Overhaul Phases 1–6 complete)
 
 ---
 
@@ -49,7 +49,7 @@
 │  │ id, client_id    │  1───N  │ id, document_id          │   │
 │  │ scope, category  │─────────│ content, embedding       │   │
 │  │ status, file_name│         │ fts (tsvector), metadata │   │
-│  └──────────────────┘         │ scope, category          │   │
+│  └──────────────────┘         │ scope, category, theme   │   │
 │                               └──────────────────────────┘   │
 │                                                              │
 │  RPCs: match_documents, hybrid_match_documents               │
@@ -63,11 +63,14 @@
 | Decision | Rationale |
 |----------|-----------|
 | **halfvec(384)** instead of vector(384) | 2× less storage, HNSW index fits in memory |
-| **gte-small** (built-in Supabase AI) | Zero-cost embedding, runs in Edge Runtime |
+| **Cohere embed-multilingual-light-v3.0** (384d) | Multilingual support (PT-BR), inline embedding in `process-document` EF. Replaced gte-small (built-in) to unify embedding model across ingestion and retrieval. |
 | **Portuguese tsvector** + `immutable_unaccent` | Brazilian-Portuguese keyword search with accent tolerance |
-| **pgmq** for async pipelines | Reliable queue with retry/DLQ, no external infra |
+| **pgmq** for metadata enrichment | Reliable queue with retry/DLQ for `enrich-metadata` EF. Embedding queues (pgmq `embedding_jobs`) were removed — embedding is now inline in `process-document`. |
 | **Scope (platform/client)** | Shared knowledge accessible to all clients without duplication |
-| **Cross-encoder reranker** (default) | Faster + cheaper than LLM reranking, better accuracy |
+| **Cohere reranker** (default) | `rerank-multilingual-v3.0` produces calibrated 0–1 relevance scores. Cross-encoder and LLM rerankers also available as alternatives. |
+| **QueryPreprocessor** (optional) | FAST-tier LLM rewrites raw queries for better embedding match. Disabled by default (agent system prompt already rewrites). |
+| **MMR Diversifier** | Maximal Marginal Relevance reduces redundant chunks using Jaccard + same-document penalty. |
+| **Theme column** on `document_chunks` | Chunk-level theme filter (`p_themes` in `hybrid_match_documents`). Backfilled from `metadata->>'theme'`. |
 
 ---
 
@@ -91,35 +94,21 @@ User uploads file via Dashboard
 │                          │  1. Downloads file from Storage
 │                          │  2. Parses (PDF/DOCX/CSV/TXT/MD/JSON/XML/HTML)
 │                          │  3. Chunks with token-aware splitter (TARGET=400 tokens, overlap=2 sentences)
-│                          │  4. INSERTs chunks into document_chunks (embedding=NULL)
-│                          │  5. Updates documents.status = 'processing'
+│                          │  4. Embeds each chunk with Cohere embed-multilingual-light-v3.0
+│                          │     (input_type: "search_document", 384 dimensions)
+│                          │  5. Enriches metadata via LLM (word_cloud, theme, usage_context)
+│                          │  6. INSERTs chunks WITH embeddings + metadata in single transaction
+│                          │  7. Updates documents.status = 'completed'
 └────────────┬────────────┘
              │  (INSERT trigger fires)
              ▼
 ┌─────────────────────────┐
 │ DB Trigger:              │
 │ generate_fts_on_insert   │  → Generates tsvector (Portuguese + unaccent)
-│ embed_on_insert (*)      │  → Queues chunk to embed-documents pgmq queue
-│ enrich_metadata_on_insert│  → Queues chunk to metadata_jobs pgmq queue
-└────────────┬────────────┘
-             │  (pg_cron every 30s)
-             ▼
-┌─────────────────────────┐
-│ pg_cron: process_metadata│  util.process_metadata(batch_size=10, max_requests=5)
-│                          │  Reads metadata_jobs queue → batches → invokes enrich-metadata EF
-└────────────┬────────────┘
-             ▼
-┌─────────────────────────┐
-│ enrich-metadata EF       │  supabase/functions/enrich-metadata/index.ts
-│                          │  1. Calls OpenAI gpt-4.1-mini (configurable via env)
-│                          │  2. Extracts: word_cloud, theme, usage_context
-│                          │  3. Merges into chunk metadata JSONB
-│                          │  4. On failure: retry (max 3) or → metadata_jobs_dlq
-│                          │  Concurrency: 5 parallel LLM calls per batch
 └─────────────────────────┘
 ```
 
-> (*) The `embed_on_insert` trigger and embedding Edge Function are part of the base vector_db schema (pre-existing), not part of this hybrid retriever migration.
+> **Note:** The legacy `embed` Edge Function (gte-small, via pgmq queue) and its associated triggers (`embed_on_insert`, `queue_embedding_if_null`) have been fully removed. All embedding is now inline in `process-document` using Cohere. See migration `20260310_remove_legacy_embed_infrastructure.sql`.
 
 ### 2.2 Query / Retrieval Flow
 
@@ -131,23 +120,33 @@ Agent receives user question
 │ factory.py               │  create_rag_runnable()
 │ vizu_rag_factory         │  1. Reads RagSearchConfig from client context
 │                          │  2. Creates HybridRetriever or SupabaseVectorRetriever
-│                          │  3. Optionally creates a reranker (CrossEncoder or LLM)
-│                          │  4. Builds LangChain Runnable chain
+│                          │  3. Optionally creates QueryPreprocessor (FAST-tier LLM)
+│                          │  4. Creates reranker: CohereReranker (default), CrossEncoder, or LLM
+│                          │  5. Creates MMRDiversifier for result diversity
+│                          │  6. Builds LangChain Runnable chain
 └────────────┬────────────┘
              │  .invoke({"question": "..."})
              ▼
 ┌─────────────────────────┐
+│ query_preprocessor.py    │  QueryPreprocessor  (optional, if cfg.query_preprocessing=True)
+│                          │  FAST-tier LLM rewrites query for optimal embedding match
+│                          │  Decomposes multi-topic queries, expands synonyms, removes filler
+└────────────┬────────────┘
+             ▼
+┌─────────────────────────┐
 │ retriever.py             │  HybridRetriever._build_payload() + HTTP POST
 │ _BaseSupabaseRetriever   │  → POST /functions/v1/search-documents
+│                          │  Pool size = top_k × retrieval_pool_multiplier (default 2.0)
 └────────────┬────────────┘
              ▼
 ┌─────────────────────────┐
 │ search-documents EF      │  supabase/functions/search-documents/index.ts
 │                          │  1. Validates input (search_mode, fusion_strategy, etc.)
-│                          │  2. Embeds query via gte-small (built-in)
+│                          │  2. Embeds query via Cohere embed-multilingual-light-v3.0
+│                          │     (input_type: "search_query", 384d)
 │                          │  3. Routes to SQL RPC:
 │                          │     - semantic → match_documents (cosine only)
-│                          │     - hybrid  → hybrid_match_documents (fusion)
+│                          │     - hybrid  → hybrid_match_documents (fusion + optional theme filter)
 └────────────┬────────────┘
              ▼
 ┌─────────────────────────┐
@@ -156,17 +155,28 @@ Agent receives user question
 │                          │  2. Keyword CTE: ts_rank_cd via GIN index
 │                          │  3. Merge + deduplicate candidates
 │                          │  4. Score fusion (RRF or weighted linear)
-│                          │  5. Return top N by combined_score
+│                          │  5. Optional theme filter (p_themes TEXT[])
+│                          │  6. Return top N by combined_score
 └────────────┬────────────┘
              ▼
 ┌─────────────────────────┐
-│ (Optional) Reranker      │  reranker.py — CrossEncoderReranker or LLMReranker
-│                          │  Re-scores top candidates, returns top_k best
+│ Reranker                 │  reranker.py — CohereReranker (default), CrossEncoder, or LLM
+│                          │  Adds rerank_score (0–1) to doc.metadata
+│                          │  Returns top rerank_top_k results
+└────────────┬────────────┘
+             ▼
+┌─────────────────────────┐
+│ MMR Diversifier          │  diversity.py — MMRDiversifier
+│                          │  Reduces redundancy via Jaccard similarity + same-doc penalty
+│                          │  Uses rerank_score > combined_score > similarity for relevance
+│                          │  Returns top top_k diverse results
 └────────────┬────────────┘
              ▼
 ┌─────────────────────────┐
 │ _format_docs → prompt    │  factory.py — Formats context with source/score headers
-│ → LLM → StrOutputParser  │  RAG_TOOL_PROMPT template fills {context} + {question}
+│ → LLM → StrOutputParser  │  Score priority: rerank_score > combined_score > similarity
+│                          │  Headers: [Fonte: file.pdf | Relevância: 85% | Escopo: client]
+│                          │  RAG_TOOL_PROMPT template fills {context} + {question}
 │                          │  LLM generates grounded answer
 └─────────────────────────┘
 ```
@@ -206,14 +216,17 @@ Agent receives user question
 
 ### 3.2 Functions & Triggers
 
-| Name | Type | Purpose | Location |
-|------|------|---------|----------|
-| `vector_db.immutable_unaccent(text)` | Function | Immutable wrapper for `extensions.unaccent()` — required for index expressions | Migration L87-89 |
-| `vector_db.generate_fts()` | Trigger function | Generates `tsvector` on INSERT or content UPDATE | Migration L98-106 |
-| `generate_fts_on_insert_or_update` | Trigger | Fires BEFORE INSERT/UPDATE OF content on document_chunks | Migration L108-111 |
-| `vector_db.queue_metadata_if_null()` | Trigger function | Queues chunk to pgmq `metadata_jobs` if word_cloud not set | Migration L321-337 |
-| `enrich_metadata_on_insert` | Trigger | Fires AFTER INSERT on document_chunks | Migration L339-342 |
-| `util.process_metadata()` | Function | Reads pgmq queue, batches jobs, invokes enrich-metadata EF via pg_net | Migration L345-380 |
+| Name | Type | Purpose | Notes |
+|------|------|---------|-------|
+| `vector_db.immutable_unaccent(text)` | Function | Immutable wrapper for `extensions.unaccent()` — required for index expressions | Used by FTS trigger |
+| `vector_db.generate_fts()` | Trigger function | Generates `tsvector` on INSERT or content UPDATE | Portuguese + unaccent |
+| `generate_fts_on_insert_or_update` | Trigger | Fires BEFORE INSERT/UPDATE OF content on `document_chunks` | Auto-populates `fts` column |
+
+**Removed (legacy):**
+- `vector_db.queue_embedding_if_null()` — Removed in `20260310_remove_legacy_embed_infrastructure.sql`. Embedding is now inline in `process-document`.
+- `embed_chunk_on_insert` trigger — Removed. No longer needed.
+- `util.process_embeddings()` — Removed. pgmq `embedding_jobs` queue dropped.
+- `clear_chunk_embedding_on_update` trigger — Removed. `process-document` replaces entire chunk set on re-process.
 
 ### 3.3 RPC: `hybrid_match_documents`
 
@@ -224,24 +237,28 @@ vector_db.hybrid_match_documents(
   p_query_embedding halfvec(384),
   p_query_text      TEXT,
   p_match_count     INT     DEFAULT 5,
-  p_match_threshold FLOAT   DEFAULT 0.5,
+  p_match_threshold FLOAT   DEFAULT 0.3,    -- Lowered from 0.5 (migration 20260306)
   p_document_ids    UUID[]  DEFAULT NULL,
   p_scope           TEXT[]  DEFAULT '{platform,client}',
   p_categories      TEXT[]  DEFAULT NULL,
+  p_themes          TEXT[]  DEFAULT NULL,    -- NEW: chunk-level theme filter (migration 20260310)
   p_fusion_strategy TEXT    DEFAULT 'rrf',
   p_keyword_weight  FLOAT   DEFAULT 0.4,
-  p_vector_weight   FLOAT   DEFAULT 0.6
+  p_vector_weight   FLOAT   DEFAULT 0.6,
+  p_debug           BOOLEAN DEFAULT FALSE   -- NEW: debug logging (migration 20260306)
 )
 ```
 
 **Algorithm (4 CTEs):**
-1. **`semantic`** — Cosine similarity via HNSW index. Filters by scope, client_id, status, threshold. Fetches `match_count × 3` candidates.
-2. **`keyword`** — `ts_rank_cd` via GIN index using `websearch_to_tsquery('portuguese', ...)`. Same filters. Fetches `match_count × 3` candidates.
+1. **`semantic`** — Cosine similarity via HNSW index. Filters by scope, client_id, status, threshold. Optional theme filter (`p_themes`). Fetches `match_count × 3` candidates.
+2. **`keyword`** — `ts_rank_cd` via GIN index using `websearch_to_tsquery('portuguese', ...)`. Same filters + theme. Fetches `match_count × 3` candidates.
 3. **`merged`** — UNION ALL + GROUP BY to deduplicate and take best rank from each method.
 4. **`scored`** — Applies fusion:
    - **RRF:** `1/(60+sem_rank) + 1/(60+kw_rank)` (k=60)
    - **Weighted:** `vector_weight * similarity + keyword_weight * min(keyword_score * 10, 1.0)`
 5. Final: ORDER BY `combined_score` DESC, LIMIT `match_count`.
+
+**Theme filter:** When `p_themes` is provided, both semantic and keyword CTEs add `AND dc.theme = ANY(p_themes)`. This enables domain-scoped retrieval (e.g., only `tax_regulation` chunks).
 
 ### 3.4 RLS Policies
 
@@ -252,12 +269,16 @@ vector_db.hybrid_match_documents(
 
 ### 3.5 pgmq Queues
 
-| Queue | Purpose | Consumer |
-|-------|---------|----------|
-| `metadata_jobs` | Chunks needing metadata enrichment | `enrich-metadata` EF (via pg_cron) |
-| `metadata_jobs_dlq` | Failed after 3 retries | Manual inspection |
+| Queue | Purpose | Consumer | Status |
+|-------|---------|----------|--------|
+| `metadata_jobs` | Chunks needing metadata enrichment | `enrich-metadata` EF (via pg_cron) | Active |
+| `metadata_jobs_dlq` | Failed after 3 retries | Manual inspection | Active |
+| ~~`embedding_jobs`~~ | ~~Chunks needing embedding~~ | ~~`embed` EF (via pg_cron)~~ | **Removed** (migration `20260310`) |
+| ~~`embedding_jobs_dlq`~~ | ~~Failed embedding jobs~~ | ~~Manual inspection~~ | **Removed** (migration `20260310`) |
 
 **Cron schedule:** `process-metadata` runs every **30 seconds**, batch_size=10, max_requests=5.
+
+> The `process-embeddings` cron job was removed in migration `20260306_drop_embedding_cron_jobs.sql`. Embedding is now inline in `process-document`.
 
 ---
 
@@ -296,8 +317,10 @@ vector_db.hybrid_match_documents(
 | `processDocument(...)` | ~200 | Main pipeline: download → parse → chunk → INSERT |
 
 **Tuning parameters:**
-- `TARGET_TOKENS = 400` — Target tokens per chunk (gte-small max is 512)
+- `TARGET_TOKENS = 400` — Target tokens per chunk (Cohere max = 512)
 - `OVERLAP_SENTENCES = 2` — Sentence overlap between chunks
+
+**Embedding:** Cohere `embed-multilingual-light-v3.0` (384d, `input_type: "search_document"`). Embeddings are generated inline during chunking — no separate queue or Edge Function.
 
 **To change:** Edit constants at the top of the file.
 
@@ -311,14 +334,15 @@ vector_db.hybrid_match_documents(
 {
   "query": "What are the tax rates?",
   "client_id": "uuid",
-  "match_count": 5,
-  "match_threshold": 0.5,
+  "match_count": 10,
+  "match_threshold": 0.3,
   "search_mode": "hybrid",
   "fusion_strategy": "rrf",
   "keyword_weight": 0.4,
   "vector_weight": 0.6,
   "scope": ["platform", "client"],
   "categories": null,
+  "themes": null,
   "document_ids": null
 }
 ```
@@ -329,10 +353,10 @@ vector_db.hybrid_match_documents(
 - `fusion_strategy` must be `"rrf"` or `"weighted"`
 
 **Routing:**
-- `search_mode === "semantic"` → calls `match_documents` RPC (legacy cosine-only)
-- `search_mode === "hybrid"` → calls `hybrid_match_documents` RPC (fusion)
+- `search_mode === "semantic"` → calls `match_documents` RPC (cosine-only)
+- `search_mode === "hybrid"` → calls `hybrid_match_documents` RPC (fusion + optional theme filter)
 
-**Embedding:** Uses Supabase built-in `Supabase.ai.Session("gte-small")` — no external API call.
+**Embedding:** Cohere `embed-multilingual-light-v3.0` (384d, `input_type: "search_query"`). Same model family as ingestion to ensure compatible embedding spaces.
 
 ### 4.3 `enrich-metadata`
 
@@ -387,14 +411,14 @@ vector_db.hybrid_match_documents(
 BaseRetriever (LangChain)
   └── _BaseSupabaseRetriever (private base)
         ├── SupabaseVectorRetriever   (semantic-only)
-        └── HybridRetriever           (hybrid fusion)
+        └── HybridRetriever           (hybrid fusion + theme filter)
 ```
 
 | Class | Purpose | Key Override |
 |-------|---------|-------------|
 | `_BaseSupabaseRetriever` | Shared HTTP logic, sync/async retrieval, auth headers | — |
 | `SupabaseVectorRetriever` | Pure cosine-similarity search | `_build_payload()` — sends basic params |
-| `HybridRetriever` | Semantic + keyword fusion | `_build_payload()` — adds `search_mode`, `fusion_strategy`, weights, `scope`, `categories` |
+| `HybridRetriever` | Semantic + keyword fusion | `_build_payload()` — adds `search_mode`, `fusion_strategy`, weights, `scope`, `categories`, `themes` |
 
 **Helper functions:**
 - `_parse_result_metadata(result)` — Parses JSONB metadata (handles double-encoded strings from legacy data)
@@ -404,12 +428,20 @@ BaseRetriever (LangChain)
 
 #### Module: `reranker.py`
 
-**File:** `libs/vizu_rag_factory/src/vizu_rag_factory/reranker.py` (~295 lines)
+**File:** `libs/vizu_rag_factory/src/vizu_rag_factory/reranker.py`
 
-| Class | Strategy | Model | Speed | Accuracy |
-|-------|----------|-------|-------|----------|
-| `CrossEncoderReranker` | Cross-encoder scoring | `BAAI/bge-reranker-v2-m3` (278M params) | Fast (~10ms/doc) | High |
-| `LLMReranker` | LLM prompt scoring (0-10) | Any `BaseChatModel` (FAST tier) | Slower (~200ms/doc) | Good |
+| Class | Strategy | Model | Score Range | Speed |
+|-------|----------|-------|-------------|-------|
+| **`CohereReranker`** (default) | Cohere Rerank API v2 | `rerank-multilingual-v3.0` | 0–1 (calibrated relevance probability) | Fast (~50ms/batch) |
+| `CrossEncoderReranker` | Cross-encoder scoring | `BAAI/bge-reranker-v2-m3` (278M params) | Arbitrary float (clamped to 0–1) | Fast (~10ms/doc) |
+| `LLMReranker` | LLM prompt scoring (0-10) | Any `BaseChatModel` (FAST tier) | 0–10 integer (clamped to 0–1) | Slower (~200ms/doc) |
+
+**CohereReranker details (default):**
+- Uses Cohere Rerank API v2 with `rerank-multilingual-v3.0`
+- Requires `CO_API_KEY` environment variable
+- Returns calibrated relevance scores in 0–1 range natively
+- Best for multilingual (PT-BR) content
+- All rerankers write `rerank_score` to `doc.metadata`
 
 **CrossEncoderReranker details:**
 - Model loaded as **module-level singleton** with double-checked locking (`_cross_encoder_lock`)
@@ -422,13 +454,37 @@ BaseRetriever (LangChain)
 - Uses `RAG_RERANK_PROMPT` from `vizu_prompt_management`
 - Scores all docs concurrently via `asyncio.gather()`
 - Fallback on scoring failure: `similarity × 10`
-- Sync wrapper handles nested event loops safely
 
-**To change the reranker model:** Instantiate `CrossEncoderReranker(model_name="your/model")`.
+#### Module: `diversity.py`
+
+**File:** `libs/vizu_rag_factory/src/vizu_rag_factory/diversity.py`
+**Class:** `MMRDiversifier`
+
+Reduces redundancy in retrieved chunks using Maximal Marginal Relevance with:
+- **Jaccard similarity** on word sets (no external embedding calls)
+- **Same-document penalty** (`_SAME_DOC_PENALTY = 0.8`) — chunks from same document are penalized
+- **Score priority:** `rerank_score > combined_score > similarity` (same as `_format_docs`)
+- **Lambda parameter:** `diversity_lambda` (default 0.7) — higher = more relevance, lower = more diversity
+- Produces `mmr_score` in doc.metadata
+
+#### Module: `query_preprocessor.py`
+
+**File:** `libs/vizu_rag_factory/src/vizu_rag_factory/query_preprocessor.py`
+**Class:** `QueryPreprocessor`
+
+Rewrites user queries for optimal RAG retrieval using a FAST-tier LLM:
+1. Decomposes multi-topic queries into key concepts
+2. Expands with synonyms and related terms (PT-BR)
+3. Removes conversational filler
+4. Produces a search-optimized query string
+
+**Methods:** `rewrite(query)` (sync), `arewrite(query)` (async). Graceful fallback to original query on failure.
+**Prompt:** Uses `RAG_QUERY_REWRITE_PROMPT` from `vizu_prompt_management`.
+**Controlled by:** `RagSearchConfig.query_preprocessing` (default `False` — agent system prompt already handles query rewriting).
 
 #### Module: `factory.py`
 
-**File:** `libs/vizu_rag_factory/src/vizu_rag_factory/factory.py` (~220 lines)
+**File:** `libs/vizu_rag_factory/src/vizu_rag_factory/factory.py`
 
 **Main entry point:** `create_rag_runnable(contexto, llm, document_ids=None) → Runnable | None`
 
@@ -437,24 +493,38 @@ BaseRetriever (LangChain)
 2. Checks `"executar_rag_cliente"` is in `contexto.enabled_tools`
 3. Parses `RagSearchConfig` from `contexto.available_tools["rag_search_config"]`
 4. Creates retriever: `HybridRetriever` (default) or `SupabaseVectorRetriever` (if `search_mode == "semantic"`)
-5. Optionally creates reranker: `CrossEncoderReranker` (default) or `LLMReranker`
-6. Builds LangChain chain:
+5. Optionally creates `QueryPreprocessor` (if `cfg.query_preprocessing == True`)
+6. Creates reranker: `CohereReranker` (default), `CrossEncoderReranker`, or `LLMReranker`
+7. Creates `MMRDiversifier` for result diversity
+8. Builds LangChain chain with pipeline: **Preprocess → Retrieve (pool) → Rerank → Diversify → Format**
 
 ```python
 RunnablePassthrough.assign(context=retrieval_runnable) | prompt | llm | StrOutputParser()
 ```
 
-**Helper:** `_format_docs(docs)` — Formats retrieved documents with headers:
+**`_get_display_score(doc)`** — Score priority for display:
+```python
+# rerank_score (Cohere 0-1) > combined_score (RRF) > similarity (cosine)
+rerank = doc.metadata.get("rerank_score")  # 0-1 calibrated
+combined = doc.metadata.get("combined_score")  # RRF: ~0.03 max
+similarity = doc.metadata.get("similarity", 0)  # cosine: 0-1
 ```
-[Fonte: arquivo.pdf | Relevância: 82% | Escopo: client]
+
+**`_format_docs(docs)`** — Formats retrieved documents with headers:
+```
+[Fonte: arquivo.pdf | Relevância: 85% | Escopo: client]
 <chunk content>
 ```
+
+**Retrieval pool:** `pool_size = top_k × retrieval_pool_multiplier` (default 2.0). Retrieves more candidates than needed, then reranking + MMR reduce to final `top_k`.
+
+**Score debug logging:** Top-3 docs logged with `rerank_score`, `combined_score`, and `similarity` at DEBUG level before formatting.
 
 **Environment variables required:** `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
 
 #### Module: `__init__.py`
 
-**Exports:** `create_rag_runnable`, `CrossEncoderReranker`, `HybridRetriever`, `LLMReranker`, `SupabaseVectorRetriever`
+**Exports:** `create_rag_runnable`, `CohereReranker`, `CrossEncoderReranker`, `HybridRetriever`, `LLMReranker`, `MMRDiversifier`, `QueryPreprocessor`, `SupabaseVectorRetriever`
 
 ### 5.2 Configuration Model: `RagSearchConfig`
 
@@ -465,17 +535,21 @@ Stored in `clientes_vizu.available_tools.rag_search_config` (JSONB).
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `top_k` | `int` | `5` | Number of results to return |
-| `score_threshold` | `float` | `0.5` | Minimum similarity threshold |
-| `rerank` | `bool` | `False` | Enable reranking step |
-| `rerank_top_k` | `int` | `3` | Final documents after reranking |
+| `top_k` | `int` | `10` | Number of final results after reranking + MMR |
+| `score_threshold` | `float` | `0.3` | Minimum similarity threshold (aligned with SQL default) |
+| `rerank` | `bool` | `True` | Enable reranking step |
+| `rerank_top_k` | `int` | `15` | Documents kept after reranking (before MMR) |
 | `search_mode` | `Literal` | `"hybrid"` | `"semantic"`, `"keyword"`, or `"hybrid"` |
 | `fusion_strategy` | `Literal` | `"rrf"` | `"rrf"` or `"weighted"` |
 | `keyword_weight` | `float` | `0.4` | Keyword score weight (weighted fusion) |
 | `vector_weight` | `float` | `0.6` | Vector similarity weight (weighted fusion) |
 | `scope` | `list[str]` | `["platform", "client"]` | Which scopes to search |
-| `categories` | `list[str] \| None` | `None` | Filter by category |
-| `reranker_type` | `Literal` | `"cross-encoder"` | `"cross-encoder"` or `"llm"` |
+| `categories` | `list[str] \| None` | `None` | Filter by document-level category |
+| `themes` | `list[str] \| None` | `None` | Filter by chunk-level theme |
+| `reranker_type` | `Literal` | `"cohere"` | `"cohere"`, `"cross-encoder"`, or `"llm"` |
+| `query_preprocessing` | `bool` | `False` | Enable FAST-tier LLM query rewriting before retrieval |
+| `diversity_lambda` | `float` | `0.7` | MMR relevance vs. diversity trade-off (1.0 = pure relevance) |
+| `retrieval_pool_multiplier` | `float` | `2.0` | Multiplier on top_k for initial retrieval pool size |
 
 **To tune per-client:** Update the `rag_search_config` key in the client's `available_tools` JSONB column in the `clientes_vizu` table.
 
@@ -542,23 +616,28 @@ These are set as environment variables for the Supabase Edge Functions (they can
 
 | What to tune | Where | Default | Effect |
 |---|---|---|---|
-| **Result count** | `RagSearchConfig.top_k` | 5 | More results = broader context, slower |
-| **Similarity threshold** | `RagSearchConfig.score_threshold` | 0.5 | Higher = stricter, fewer results |
-| **Enable reranking** | `RagSearchConfig.rerank` | `false` | Significantly improves relevance |
-| **Reranker type** | `RagSearchConfig.reranker_type` | `"cross-encoder"` | `"llm"` for no model download |
-| **Rerank top-K** | `RagSearchConfig.rerank_top_k` | 3 | Final doc count after reranking |
+| **Result count** | `RagSearchConfig.top_k` | 10 | More results = broader context, slower |
+| **Similarity threshold** | `RagSearchConfig.score_threshold` | 0.3 | Higher = stricter, fewer results. Aligned with SQL default. |
+| **Enable reranking** | `RagSearchConfig.rerank` | `true` | Significantly improves relevance |
+| **Reranker type** | `RagSearchConfig.reranker_type` | `"cohere"` | `"cross-encoder"` for local, `"llm"` for no model download |
+| **Rerank top-K** | `RagSearchConfig.rerank_top_k` | 15 | Docs kept after reranking (before MMR) |
 | **Search mode** | `RagSearchConfig.search_mode` | `"hybrid"` | `"semantic"` for pure vector search |
 | **Fusion strategy** | `RagSearchConfig.fusion_strategy` | `"rrf"` | `"weighted"` for tunable score weights |
 | **Keyword weight** | `RagSearchConfig.keyword_weight` | 0.4 | Higher = more keyword influence |
 | **Vector weight** | `RagSearchConfig.vector_weight` | 0.6 | Higher = more semantic influence |
 | **Scope** | `RagSearchConfig.scope` | `["platform", "client"]` | Remove `"platform"` to search only client docs |
 | **Category filter** | `RagSearchConfig.categories` | `null` | e.g. `["tax_knowledge"]` to scope to a domain |
+| **Theme filter** | `RagSearchConfig.themes` | `null` | e.g. `["tax_regulation"]` for chunk-level theme filtering |
+| **Query preprocessing** | `RagSearchConfig.query_preprocessing` | `false` | Enable FAST LLM query rewriting before retrieval |
+| **Diversity lambda** | `RagSearchConfig.diversity_lambda` | 0.7 | 1.0 = pure relevance, 0.0 = max diversity |
+| **Retrieval pool** | `RagSearchConfig.retrieval_pool_multiplier` | 2.0 | Higher = more candidates for reranking |
 | **Chunk size** | `process-document: TARGET_TOKENS` | 400 | Bigger = more context per chunk, less precision |
 | **Chunk overlap** | `process-document: OVERLAP_SENTENCES` | 2 | More overlap = better continuity, more chunks |
 | **Metadata enrichment model** | Env: `METADATA_ENRICHMENT_MODEL` | `gpt-4.1-mini` | Upgrade for better theme/tag quality |
 | **Metadata batch interval** | pg_cron SQL | 30 seconds | More frequent = faster enrichment, more load |
 | **LLM reranker prompt** | `RAG_RERANK_PROMPT` in templates.py | (see §8) | Improve scoring instructions |
 | **RAG answer prompt** | `RAG_TOOL_PROMPT` in templates.py | (see §8) | Change how the LLM uses context |
+| **Query rewrite prompt** | `RAG_QUERY_REWRITE_PROMPT` in templates.py | (see §8) | Control how queries are rewritten |
 | **Frontend poll interval** | `useKnowledgeBase: POLL_INTERVAL_MS` | 5000ms | Speed vs. network cost |
 
 ### 7.2 Per-Client Configuration
@@ -572,14 +651,18 @@ SET available_tools = jsonb_set(
   '{rag_search_config}',
   '{
     "top_k": 8,
-    "score_threshold": 0.4,
+    "score_threshold": 0.3,
     "rerank": true,
-    "rerank_top_k": 5,
+    "rerank_top_k": 10,
     "search_mode": "hybrid",
     "fusion_strategy": "rrf",
     "scope": ["platform", "client"],
     "categories": ["dados_negocio", "tax_knowledge"],
-    "reranker_type": "cross-encoder"
+    "themes": ["tax_regulation", "business_operations"],
+    "reranker_type": "cohere",
+    "query_preprocessing": false,
+    "diversity_lambda": 0.7,
+    "retrieval_pool_multiplier": 2.0
   }'::jsonb
 )
 WHERE client_id = 'your-client-uuid';
@@ -612,8 +695,7 @@ All RAG-related prompts are centralized in `vizu_prompt_management`:
 | Constant | Langfuse Name | Used By | Variables |
 |----------|---------------|---------|-----------|
 | `RAG_TOOL_PROMPT` | `tool/rag-query` | `factory.py` — main RAG answer template | `{context}`, `{question}` |
-| `RAG_RERANK_PROMPT` | `rag/rerank` | `reranker.py` — LLMReranker scoring | `{question}`, `{passage}` |
-| `METADATA_ENRICHMENT_PROMPT` | `rag/metadata-enrichment` | `enrich-metadata` EF (reference copy) | `{content}` |
+| `RAG_RERANK_PROMPT` | `rag/rerank` | `reranker.py` — LLMReranker scoring | `{question}`, `{passage}` || `RAG_QUERY_REWRITE_PROMPT` | `rag/query-rewrite` | `query_preprocessor.py` — query optimization | `{query}` || `METADATA_ENRICHMENT_PROMPT` | `rag/metadata-enrichment` | `enrich-metadata` EF (reference copy) | `{content}` |
 
 **How to edit prompts:**
 1. Edit the `content` field of the `PromptTemplateConfig` in `templates.py`
@@ -671,32 +753,44 @@ poetry run pytest libs/vizu_rag_factory/tests/ -v
 
 ## 11. File Index
 
-### Database
+### Database (Migrations)
 
 | File | Purpose |
 |------|---------|
-| `supabase/migrations/20260305_hybrid_retriever_schema.sql` | Schema: scope, FTS, hybrid RPC, metadata pipeline, RLS, indexes |
+| `supabase/migrations/20260305_create_vector_db_schema.sql` | Initial vector_db schema |
+| `supabase/migrations/20260305_add_content_hash_deduplication.sql` | Content hash dedup for chunks |
+| `supabase/migrations/20260305_fix_metadata_and_upgrade_match_documents.sql` | Upgraded `match_documents` RPC, `halfvec(384)` |
+| `supabase/migrations/20260305_hybrid_retriever_schema.sql` | Hybrid retriever: scope/category columns, FTS, composite indexes, `hybrid_match_documents` RPC |
+| `supabase/migrations/20260306_drop_embedding_cron_jobs.sql` | Dropped pg_cron embedding polling, removed duplicate triggers |
+| `supabase/migrations/20260306_remove_embed_and_metadata_triggers.sql` | Removed automatic embedding/metadata queue triggers |
+| `supabase/migrations/20260306_retriever_multilingual_observability.sql` | Lowered threshold 0.5→0.3, added `p_debug` to `hybrid_match_documents` |
+| `supabase/migrations/20260310_add_metadata_columns_and_enrich_fts.sql` | Added metadata columns + enriched FTS |
+| `supabase/migrations/20260310_add_theme_filter_to_hybrid_match.sql` | Added `p_themes` filter param to `hybrid_match_documents` |
+| `supabase/migrations/20260310_remove_legacy_embed_infrastructure.sql` | Final cleanup: dropped embed triggers, `queue_embedding_if_null`, `process_embeddings`, both pgmq embedding queues |
 
 ### Supabase Edge Functions
 
 | File | Purpose |
 |------|---------|
-| `supabase/functions/process-document/index.ts` | File parsing, chunking, chunk insertion |
-| `supabase/functions/search-documents/index.ts` | Query embedding + hybrid search dispatch |
-| `supabase/functions/enrich-metadata/index.ts` | LLM metadata extraction worker |
+| `supabase/functions/process-document/index.ts` | File parsing, chunking, Cohere embedding, metadata enrichment, chunk insertion |
+| `supabase/functions/search-documents/index.ts` | Cohere query embedding + hybrid search dispatch (supports theme filtering) |
+| `supabase/functions/enrich-metadata/index.ts` | LLM metadata extraction worker (pgmq consumer) |
+| ~~`supabase/functions/embed/index.ts`~~ | **REMOVED** — Legacy gte-small embedding worker. Replaced by inline Cohere embedding in `process-document`. |
 
 ### Python Libraries
 
 | File | Purpose |
 |------|---------|
 | `libs/vizu_rag_factory/src/vizu_rag_factory/__init__.py` | Public exports |
-| `libs/vizu_rag_factory/src/vizu_rag_factory/factory.py` | `create_rag_runnable()` — main entry point |
-| `libs/vizu_rag_factory/src/vizu_rag_factory/retriever.py` | `_BaseSupabaseRetriever`, `SupabaseVectorRetriever`, `HybridRetriever` |
-| `libs/vizu_rag_factory/src/vizu_rag_factory/reranker.py` | `LLMReranker`, `CrossEncoderReranker` |
+| `libs/vizu_rag_factory/src/vizu_rag_factory/factory.py` | `create_rag_runnable()` — main entry point, score display, doc formatting |
+| `libs/vizu_rag_factory/src/vizu_rag_factory/retriever.py` | `_BaseSupabaseRetriever`, `SupabaseVectorRetriever`, `HybridRetriever` (with theme filter) |
+| `libs/vizu_rag_factory/src/vizu_rag_factory/reranker.py` | `CohereReranker`, `CrossEncoderReranker`, `LLMReranker` |
+| `libs/vizu_rag_factory/src/vizu_rag_factory/diversity.py` | `MMRDiversifier` — Jaccard-based MMR with same-document penalty |
+| `libs/vizu_rag_factory/src/vizu_rag_factory/query_preprocessor.py` | `QueryPreprocessor` — FAST-tier LLM query rewriting |
 | `libs/vizu_rag_factory/pyproject.toml` | Package config and dependencies |
 | `libs/vizu_models/src/vizu_models/knowledge_base_config.py` | `RagSearchConfig` Pydantic model |
 | `libs/vizu_llm_service/src/vizu_llm_service/config.py` | `LLMSettings` — centralized LLM configuration |
-| `libs/vizu_prompt_management/src/vizu_prompt_management/templates.py` | `RAG_TOOL_PROMPT`, `RAG_RERANK_PROMPT`, `METADATA_ENRICHMENT_PROMPT` |
+| `libs/vizu_prompt_management/src/vizu_prompt_management/templates.py` | `RAG_TOOL_PROMPT`, `RAG_RERANK_PROMPT`, `RAG_QUERY_REWRITE_PROMPT`, `METADATA_ENRICHMENT_PROMPT` |
 
 ### Frontend
 

@@ -33,25 +33,29 @@ class RagSearchConfig(BaseModel):
     Example JSON stored in ``clientes_vizu.available_tools.rag_search_config``::
 
         {
-            "top_k": 5,
-            "score_threshold": 0.5,
+            "top_k": 10,
+            "score_threshold": 0.3,
             "rerank": true,
-            "rerank_top_k": 3,
+            "rerank_top_k": 15,
             "search_mode": "hybrid",
             "fusion_strategy": "rrf",
             "keyword_weight": 0.4,
             "vector_weight": 0.6,
             "scope": ["platform", "client"],
             "categories": null,
-            "reranker_type": "cross-encoder"
+            "themes": null,
+            "reranker_type": "cohere",
+            "diversity_lambda": 0.7,
+            "retrieval_pool_multiplier": 2.0,
+            "query_preprocessing": false
         }
     """
 
-    # Legacy fields (pre-hybrid)
-    top_k: int = 5
-    score_threshold: float = 0.5
-    rerank: bool = False
-    rerank_top_k: int = 3
+    # Core retrieval fields
+    top_k: int = 10
+    score_threshold: float = 0.3
+    rerank: bool = True
+    rerank_top_k: int = 15
 
     # Hybrid retriever fields (Phase 3)
     search_mode: Literal["semantic", "keyword", "hybrid"] = "hybrid"
@@ -61,8 +65,23 @@ class RagSearchConfig(BaseModel):
     scope: list[str] = ["platform", "client"]
     categories: list[str] | None = None
 
+    # Chunk-level theme filter — Phase 5 (RAG Overhaul)
+    # Filters by enriched metadata theme (e.g. "financial_reporting", "product_knowledge")
+    # NULL means no filter — all themes are searched.
+    themes: list[str] | None = None
+
     # Reranker selection (Phase 4 / Phase 7)
-    reranker_type: Literal["llm", "cross-encoder"] = "cross-encoder"
+    reranker_type: Literal["cohere", "llm", "cross-encoder"] = "cohere"
+
+    # Query preprocessing — Phase 3 (RAG Overhaul)
+    # Disabled by default: the agent system prompt already instructs the LLM to
+    # rewrite queries before calling the RAG tool, avoiding an extra LLM call.
+    # Enable for non-agent (direct API) use cases where no upstream rewriting exists.
+    query_preprocessing: bool = False
+
+    # Diversity (MMR) settings — Phase 8
+    diversity_lambda: float = 0.7
+    retrieval_pool_multiplier: float = 2.0
 
 
 class KnowledgeBaseConfigBase(SQLModel):
@@ -86,9 +105,9 @@ class KnowledgeBaseConfigBase(SQLModel):
     )
 
     embedding_model: str = Field(
-        default="gte-small",
+        default="embed-multilingual-light-v3.0",
         sa_column=Column(String(100), nullable=False),
-        description="Modelo de embedding usado (gte-small built-in no Supabase Edge Runtime)",
+        description="Modelo de embedding usado (Cohere embed-multilingual-light-v3.0 via process-document EF)",
     )
 
     chunk_size: int = Field(

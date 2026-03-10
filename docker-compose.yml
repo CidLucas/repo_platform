@@ -26,6 +26,8 @@ x-atendente-env: &atendente-env
   REDIS_URL: redis://redis:6379/0
   LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY}
   TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+  # Cohere API (embeddings + reranking)
+  CO_API_KEY: ${CO_API_KEY:-}
   # LLM Provider - ollama_cloud, openai, anthropic, google
   LLM_PROVIDER: ${LLM_PROVIDER:-ollama_cloud}
   # Ollama Cloud

@@ -1,16 +1,15 @@
-"""Tests for reranker module — LLMReranker and CrossEncoderReranker."""
+"""Tests for reranker module — CohereReranker, LLMReranker, and CrossEncoderReranker."""
 
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
-import numpy as np
 import pytest
 from langchain_core.documents import Document
 
 from vizu_rag_factory.reranker import (
+    CohereReranker,
     CrossEncoderReranker,
     LLMReranker,
-    _cross_encoder_lock,
 )
 
 # ---------------------------------------------------------------------------
@@ -42,12 +41,164 @@ def sample_documents() -> list[Document]:
 
 
 # ---------------------------------------------------------------------------
-# CrossEncoderReranker — unit tests (mocked model)
+# CohereReranker — unit tests (mocked HTTP)
+# ---------------------------------------------------------------------------
+
+
+class TestCohereReranker:
+    """Tests for CohereReranker with mocked Cohere API responses."""
+
+    def _make_reranker(self, api_key: str = "test-co-key") -> CohereReranker:
+        return CohereReranker(api_key=api_key)
+
+    def _mock_cohere_response(self, results: list[dict]) -> MagicMock:
+        """Create a mock httpx response with Cohere rerank results."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"results": results}
+        mock_response.raise_for_status = MagicMock()
+        return mock_response
+
+    @pytest.mark.asyncio
+    async def test_arerank_sorts_by_score(self, sample_documents):
+        """Cohere rerank scores should re-sort the documents."""
+        reranker = self._make_reranker()
+        cohere_results = [
+            {"index": 1, "relevance_score": 0.95},  # guia_fiscal
+            {"index": 2, "relevance_score": 0.80},  # analytics
+            {"index": 0, "relevance_score": 0.60},  # relatorio_q1
+            {"index": 3, "relevance_score": 0.20},  # contrato
+        ]
+        mock_resp = self._mock_cohere_response(cohere_results)
+
+        with patch("vizu_rag_factory.reranker.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_resp)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            result = await reranker.arerank("qual a receita?", sample_documents)
+
+        assert len(result) == 4
+        assert result[0].metadata["file_name"] == "guia_fiscal.pdf"
+        assert result[0].metadata["rerank_score"] == pytest.approx(0.95)
+        assert result[1].metadata["file_name"] == "analytics.pdf"
+        assert result[3].metadata["file_name"] == "contrato.pdf"
+
+    @pytest.mark.asyncio
+    async def test_arerank_respects_top_k(self, sample_documents):
+        """top_n in Cohere request should limit returned documents."""
+        reranker = self._make_reranker()
+        cohere_results = [
+            {"index": 1, "relevance_score": 0.95},
+            {"index": 2, "relevance_score": 0.80},
+        ]
+        mock_resp = self._mock_cohere_response(cohere_results)
+
+        with patch("vizu_rag_factory.reranker.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_resp)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            result = await reranker.arerank("query", sample_documents, top_k=2)
+
+        assert len(result) == 2
+        # Verify top_n was sent in the request payload
+        call_args = mock_client.post.call_args
+        payload = call_args.kwargs.get("json") or call_args[1].get("json")
+        assert payload["top_n"] == 2
+
+    @pytest.mark.asyncio
+    async def test_arerank_empty_list(self):
+        """Empty input should return empty list without calling API."""
+        reranker = self._make_reranker()
+        result = await reranker.arerank("query", [])
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_arerank_single_doc(self):
+        """Single document should be returned without calling API."""
+        doc = Document(page_content="test", metadata={})
+        reranker = self._make_reranker()
+        result = await reranker.arerank("query", [doc])
+        assert len(result) == 1
+        assert result[0] is doc
+
+    @pytest.mark.asyncio
+    async def test_arerank_no_api_key_returns_unchanged(self, sample_documents):
+        """Without API key, documents should be returned unchanged."""
+        reranker = CohereReranker(api_key="")
+        result = await reranker.arerank("query", sample_documents, top_k=2)
+        assert len(result) == 2
+        # Should return first 2 docs unchanged (no reranking)
+        assert result[0].metadata["file_name"] == "relatorio_q1.pdf"
+
+    @pytest.mark.asyncio
+    async def test_arerank_api_error_returns_fallback(self, sample_documents):
+        """On API error, should return documents in original order."""
+        import httpx as _httpx
+
+        reranker = self._make_reranker()
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 500
+        mock_resp.text = "Internal Server Error"
+        mock_resp.raise_for_status.side_effect = _httpx.HTTPStatusError(
+            "Server Error", request=MagicMock(), response=mock_resp
+        )
+
+        with patch("vizu_rag_factory.reranker.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_resp)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            result = await reranker.arerank("query", sample_documents, top_k=2)
+
+        # Graceful fallback — returns first top_k docs
+        assert len(result) == 2
+
+    @pytest.mark.asyncio
+    async def test_arerank_preserves_metadata(self, sample_documents):
+        """Reranking should preserve original metadata and add rerank_score."""
+        reranker = self._make_reranker()
+        cohere_results = [
+            {"index": 0, "relevance_score": 0.9},
+            {"index": 1, "relevance_score": 0.7},
+            {"index": 2, "relevance_score": 0.5},
+            {"index": 3, "relevance_score": 0.3},
+        ]
+        mock_resp = self._mock_cohere_response(cohere_results)
+
+        with patch("vizu_rag_factory.reranker.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_resp)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            result = await reranker.arerank("query", sample_documents)
+
+        assert result[0].metadata["similarity"] == 0.85
+        assert result[0].metadata["file_name"] == "relatorio_q1.pdf"
+        assert result[0].metadata["rerank_score"] == pytest.approx(0.9)
+
+
+# ---------------------------------------------------------------------------
+# CrossEncoderReranker — kept for backward compatibility (optional)
 # ---------------------------------------------------------------------------
 
 
 class TestCrossEncoderReranker:
-    """Tests for CrossEncoderReranker with mocked CrossEncoder model."""
+    """Tests for CrossEncoderReranker with mocked CrossEncoder model.
+
+    NOTE: sentence-transformers is an optional dependency. These tests use
+    mocked models and do not require it to be installed.
+    """
 
     def _make_reranker(self) -> CrossEncoderReranker:
         return CrossEncoderReranker(
@@ -62,7 +213,7 @@ class TestCrossEncoderReranker:
         mock_model = MagicMock()
         # Scores: doc[0]=0.1, doc[1]=0.9, doc[2]=0.5, doc[3]=0.3
         # Expected order: doc[1], doc[2], doc[3], doc[0]
-        mock_model.predict.return_value = np.array([0.1, 0.9, 0.5, 0.3])
+        mock_model.predict.return_value = [0.1, 0.9, 0.5, 0.3]
         mock_get_model.return_value = mock_model
 
         reranker = self._make_reranker()
@@ -82,7 +233,7 @@ class TestCrossEncoderReranker:
     def test_rerank_respects_top_k(self, mock_get_model, sample_documents):
         """top_k should limit the number of returned documents."""
         mock_model = MagicMock()
-        mock_model.predict.return_value = np.array([0.1, 0.9, 0.5, 0.3])
+        mock_model.predict.return_value = [0.1, 0.9, 0.5, 0.3]
         mock_get_model.return_value = mock_model
 
         reranker = self._make_reranker()
@@ -122,7 +273,7 @@ class TestCrossEncoderReranker:
     def test_rerank_truncates_long_passages(self, mock_get_model, sample_documents):
         """Passages should be truncated to max_passage_length."""
         mock_model = MagicMock()
-        mock_model.predict.return_value = np.array([0.5, 0.5, 0.5, 0.5])
+        mock_model.predict.return_value = [0.5, 0.5, 0.5, 0.5]
         mock_get_model.return_value = mock_model
 
         reranker = CrossEncoderReranker(max_passage_length=50)
@@ -138,7 +289,7 @@ class TestCrossEncoderReranker:
     async def test_arerank_sorts_by_score(self, mock_get_model, sample_documents):
         """Async rerank should produce same results as sync."""
         mock_model = MagicMock()
-        mock_model.predict.return_value = np.array([0.1, 0.9, 0.5, 0.3])
+        mock_model.predict.return_value = [0.1, 0.9, 0.5, 0.3]
         mock_get_model.return_value = mock_model
 
         reranker = self._make_reranker()
@@ -153,7 +304,7 @@ class TestCrossEncoderReranker:
     async def test_arerank_with_top_k(self, mock_get_model, sample_documents):
         """Async rerank with top_k should limit results."""
         mock_model = MagicMock()
-        mock_model.predict.return_value = np.array([0.1, 0.9, 0.5, 0.3])
+        mock_model.predict.return_value = [0.1, 0.9, 0.5, 0.3]
         mock_get_model.return_value = mock_model
 
         reranker = self._make_reranker()
@@ -166,7 +317,7 @@ class TestCrossEncoderReranker:
     def test_rerank_preserves_existing_metadata(self, mock_get_model, sample_documents):
         """Reranking should preserve original metadata and add rerank_score."""
         mock_model = MagicMock()
-        mock_model.predict.return_value = np.array([0.8, 0.2, 0.5, 0.1])
+        mock_model.predict.return_value = [0.8, 0.2, 0.5, 0.1]
         mock_get_model.return_value = mock_model
 
         reranker = self._make_reranker()
@@ -201,12 +352,36 @@ class TestFactoryRerankerSelection:
             },
         )
 
-        # Enable reranking with cross-encoder
+        # Enable reranking with cross-encoder (legacy option)
         mock_vizu_client_context.available_tools = {
             "rag_search_config": {
                 "rerank": True,
                 "reranker_type": "cross-encoder",
                 "rerank_top_k": 3,
+            }
+        }
+
+        runnable = create_rag_runnable(mock_vizu_client_context, mock_llm)
+        assert runnable is not None
+
+    def test_factory_creates_cohere_reranker(self, mocker, mock_vizu_client_context):
+        """When reranker_type='cohere', factory should use CohereReranker."""
+        from vizu_rag_factory.factory import create_rag_runnable
+
+        mock_llm = mocker.MagicMock()
+        mocker.patch.dict(
+            "os.environ",
+            {
+                "SUPABASE_URL": "https://test.supabase.co",
+                "SUPABASE_SERVICE_KEY": "test-service-key",
+            },
+        )
+
+        mock_vizu_client_context.available_tools = {
+            "rag_search_config": {
+                "rerank": True,
+                "reranker_type": "cohere",
+                "rerank_top_k": 5,
             }
         }
 
@@ -238,8 +413,8 @@ class TestFactoryRerankerSelection:
         runnable = create_rag_runnable(mock_vizu_client_context, mock_llm)
         assert runnable is not None
 
-    def test_factory_defaults_to_cross_encoder(self, mocker, mock_vizu_client_context):
-        """Default reranker_type should be 'cross-encoder'."""
+    def test_factory_defaults_to_cohere(self, mocker, mock_vizu_client_context):
+        """Default reranker_type should be 'cohere'."""
         from vizu_rag_factory.factory import create_rag_runnable
 
         mock_llm = mocker.MagicMock()
@@ -251,7 +426,7 @@ class TestFactoryRerankerSelection:
             },
         )
 
-        # Enable reranking without specifying type
+        # Enable reranking without specifying type — should default to cohere
         mock_vizu_client_context.available_tools = {
             "rag_search_config": {
                 "rerank": True,

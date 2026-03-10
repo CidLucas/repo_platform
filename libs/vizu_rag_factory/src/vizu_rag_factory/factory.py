@@ -11,7 +11,9 @@ from langchain_core.runnables.base import Runnable
 from vizu_models.knowledge_base_config import RagSearchConfig
 from vizu_models.vizu_client_context import VizuClientContext
 from vizu_prompt_management.templates import RAG_TOOL_PROMPT
-from vizu_rag_factory.reranker import CrossEncoderReranker, LLMReranker
+from vizu_rag_factory.diversity import MMRDiversifier
+from vizu_rag_factory.query_preprocessor import QueryPreprocessor
+from vizu_rag_factory.reranker import CohereReranker, CrossEncoderReranker, LLMReranker
 from vizu_rag_factory.retriever import HybridRetriever, SupabaseVectorRetriever
 
 logger = logging.getLogger(__name__)
@@ -23,10 +25,30 @@ RAG_PROMPT_TEMPLATE = RAG_TOOL_PROMPT.content.replace("{{ context }}", "{context
 )
 
 
+def _get_display_score(doc) -> float:
+    """Extract the best available relevance score for display.
+
+    Priority: rerank_score (Cohere 0-1) > combined_score (RRF) > similarity (cosine).
+    Mirrors ``diversity._get_score()`` so the LLM sees meaningful percentages.
+    """
+    rerank = doc.metadata.get("rerank_score")
+    if rerank is not None:
+        return max(0.0, min(1.0, float(rerank)))
+
+    combined = doc.metadata.get("combined_score")
+    if combined is not None:
+        return float(combined)
+
+    return float(doc.metadata.get("similarity", 0.0))
+
+
 def _format_docs(docs):
     """Helper para formatar os documentos recuperados em uma string com metadados.
 
-    Supports both legacy (similarity-only) and hybrid (combined_score) results.
+    Supports legacy (similarity-only), hybrid (combined_score), and reranked
+    (rerank_score) results.  Display score priority follows
+    ``rerank_score > combined_score > similarity`` so the LLM sees a meaningful
+    relevance percentage (e.g. 85 %) instead of a tiny RRF number (e.g. 2 %).
     """
     logger.debug(f"Formatando {len(docs) if docs else 0} documentos recuperados")
     if not docs:
@@ -34,15 +56,10 @@ def _format_docs(docs):
     parts = []
     for doc in docs:
         source = doc.metadata.get("file_name") or doc.metadata.get("source_file", "desconhecido")
-        combined = doc.metadata.get("combined_score")
-        similarity = doc.metadata.get("similarity", 0)
         scope = doc.metadata.get("scope", "client")
+        display_score = _get_display_score(doc)
 
-        score_str = (
-            f"Relevância: {combined:.0%}"
-            if combined is not None
-            else f"Relevância: {similarity:.0%}"
-        )
+        score_str = f"Relevância: {display_score:.0%}"
         header = f"[Fonte: {source} | {score_str} | Escopo: {scope}]"
         parts.append(f"{header}\n{doc.page_content}")
     formatted = "\n\n---\n\n".join(parts)
@@ -95,6 +112,9 @@ def create_rag_runnable(
     logger.debug(f"Creating RAG runnable for client {contexto.id}")
 
     try:
+        # --- Pool size: fetch more candidates for reranking + diversity ---
+        pool_size = int(cfg.top_k * cfg.retrieval_pool_multiplier)
+
         # --- Retriever: select based on search_mode config ---
         if cfg.search_mode == "semantic":
             # Legacy path — pure cosine similarity
@@ -102,7 +122,7 @@ def create_rag_runnable(
                 supabase_url=os.environ["SUPABASE_URL"],
                 supabase_service_key=os.environ["SUPABASE_SERVICE_KEY"],
                 client_id=str(contexto.id),
-                match_count=cfg.top_k,
+                match_count=pool_size,
                 match_threshold=cfg.score_threshold,
                 document_ids=document_ids,
             )
@@ -112,7 +132,7 @@ def create_rag_runnable(
                 supabase_url=os.environ["SUPABASE_URL"],
                 supabase_service_key=os.environ["SUPABASE_SERVICE_KEY"],
                 client_id=str(contexto.id),
-                match_count=cfg.top_k,
+                match_count=pool_size,
                 match_threshold=cfg.score_threshold,
                 document_ids=document_ids,
                 search_mode=cfg.search_mode,
@@ -121,17 +141,23 @@ def create_rag_runnable(
                 vector_weight=cfg.vector_weight,
                 scope=cfg.scope,
                 categories=cfg.categories,
+                themes=cfg.themes,
             )
 
         logger.debug(
             f"Using {'HybridRetriever' if cfg.search_mode != 'semantic' else 'SupabaseVectorRetriever'} "
-            f"(mode={cfg.search_mode}) for client {contexto.id}"
+            f"(mode={cfg.search_mode}, pool={pool_size}) for client {contexto.id}"
         )
 
         # --- Optional reranker ---
         reranker = None
         if cfg.rerank:
-            if cfg.reranker_type == "cross-encoder":
+            if cfg.reranker_type == "cohere":
+                reranker = CohereReranker()
+                logger.debug(
+                    f"Using CohereReranker (model={reranker.model}) for client {contexto.id}"
+                )
+            elif cfg.reranker_type == "cross-encoder":
                 reranker = CrossEncoderReranker()
                 logger.debug(
                     f"Using CrossEncoderReranker (model={reranker.model_name}) "
@@ -142,6 +168,25 @@ def create_rag_runnable(
                 reranker = LLMReranker(llm=llm)
                 logger.debug(f"Using LLMReranker for client {contexto.id}")
 
+        # --- Optional query preprocessor (Phase 3 — RAG Overhaul) ---
+        preprocessor: QueryPreprocessor | None = None
+        if cfg.query_preprocessing:
+            from vizu_llm_service.client import ModelTier, get_model
+
+            try:
+                fast_llm = get_model(tier=ModelTier.FAST)
+                preprocessor = QueryPreprocessor(llm=fast_llm)
+                logger.debug(f"Using QueryPreprocessor (FAST tier) for client {contexto.id}")
+            except Exception:
+                logger.warning(
+                    f"Failed to create QueryPreprocessor for client {contexto.id} — "
+                    "queries will not be preprocessed",
+                    exc_info=True,
+                )
+
+        # --- MMR diversity selector ---
+        diversifier = MMRDiversifier()
+
         # --- Criação da Cadeia (Runnable) ---
         prompt = ChatPromptTemplate.from_template(RAG_PROMPT_TEMPLATE)
 
@@ -151,18 +196,40 @@ def create_rag_runnable(
         # 3. Formata o contexto e gera a resposta
 
         def retrieve_and_format(input_dict):
-            """Busca documentos e formata o contexto."""
+            """Preprocess → retrieve → rerank → diversify → format."""
             question = input_dict.get("question", "")
             logger.debug(f"RAG search: '{question[:100]}...'")
 
             try:
-                docs = retriever.invoke(question)
-                logger.debug(f"RAG retrieved {len(docs)} documents")
+                # 0. Query preprocessing — rewrite for better retrieval
+                if preprocessor:
+                    question = preprocessor.rewrite(question)
+                    logger.debug(f"RAG preprocessed query: '{question[:100]}...'")
 
-                # Optional reranking step
+                # 1. Retrieve expanded candidate pool
+                docs = retriever.invoke(question)
+                logger.debug(f"RAG retrieved {len(docs)} candidates (pool)")
+
+                # 2. Rerank — re-score by relevance, keep top rerank_top_k
                 if reranker and docs:
                     docs = reranker.rerank(question, docs, top_k=cfg.rerank_top_k)
                     logger.debug(f"RAG reranked to {len(docs)} documents")
+
+                # 3. MMR diversity — select final top_k balancing relevance + novelty
+                if docs and len(docs) > cfg.top_k:
+                    docs = diversifier.select(docs, top_k=cfg.top_k, lambda_=cfg.diversity_lambda)
+                    logger.debug(f"RAG diversified to {len(docs)} documents")
+
+                # Score diagnostics — log all score dimensions for top-3 docs
+                for i, d in enumerate(docs[:3]):
+                    logger.debug(
+                        f"RAG doc[{i}] scores: "
+                        f"rerank={d.metadata.get('rerank_score')}, "
+                        f"combined={d.metadata.get('combined_score')}, "
+                        f"similarity={d.metadata.get('similarity')}, "
+                        f"display={_get_display_score(d):.4f}, "
+                        f"source={d.metadata.get('file_name', '?')}"
+                    )
 
                 formatted_context = _format_docs(docs)
 
@@ -177,18 +244,40 @@ def create_rag_runnable(
                 return "Erro ao buscar informações."
 
         async def aretrieve_and_format(input_dict):
-            """Busca assíncrona de documentos e formata o contexto."""
+            """Async preprocess → retrieve → rerank → diversify → format."""
             question = input_dict.get("question", "")
             logger.debug(f"RAG async search: '{question[:100]}...'")
 
             try:
-                docs = await retriever.ainvoke(question)
-                logger.debug(f"RAG async retrieved {len(docs)} documents")
+                # 0. Query preprocessing — rewrite for better retrieval
+                if preprocessor:
+                    question = await preprocessor.arewrite(question)
+                    logger.debug(f"RAG async preprocessed query: '{question[:100]}...'")
 
-                # Optional async reranking step
+                # 1. Retrieve expanded candidate pool
+                docs = await retriever.ainvoke(question)
+                logger.debug(f"RAG async retrieved {len(docs)} candidates (pool)")
+
+                # 2. Rerank — re-score by relevance, keep top rerank_top_k
                 if reranker and docs:
                     docs = await reranker.arerank(question, docs, top_k=cfg.rerank_top_k)
                     logger.debug(f"RAG async reranked to {len(docs)} documents")
+
+                # 3. MMR diversity — select final top_k balancing relevance + novelty
+                if docs and len(docs) > cfg.top_k:
+                    docs = diversifier.select(docs, top_k=cfg.top_k, lambda_=cfg.diversity_lambda)
+                    logger.debug(f"RAG async diversified to {len(docs)} documents")
+
+                # Score diagnostics — log all score dimensions for top-3 docs
+                for i, d in enumerate(docs[:3]):
+                    logger.debug(
+                        f"RAG doc[{i}] scores: "
+                        f"rerank={d.metadata.get('rerank_score')}, "
+                        f"combined={d.metadata.get('combined_score')}, "
+                        f"similarity={d.metadata.get('similarity')}, "
+                        f"display={_get_display_score(d):.4f}, "
+                        f"source={d.metadata.get('file_name', '?')}"
+                    )
 
                 formatted_context = _format_docs(docs)
 

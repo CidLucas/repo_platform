@@ -61,6 +61,14 @@ ATENDENTE = PromptTemplateConfig(
 - Perguntas sobre processos/políticas → chame `executar_rag_cliente`
 - NUNCA responda sobre dados sem consultar uma ferramenta
 
+## Regras para `executar_rag_cliente`
+Ao chamar a ferramenta RAG, **reescreva a pergunta do usuário** para otimizar a busca:
+1. **Decomponha** perguntas com múltiplos tópicos em conceitos-chave (ex: "análise de dados da empresa X" → "análise dados estatística indicadores empresa X produtos serviços")
+2. **Expanda** com sinônimos e termos relacionados no mesmo idioma (ex: "devolução" → "devolução reembolso troca política retorno")
+3. **Remova** preenchimento conversacional (saudações, "pode me dizer", "gostaria de saber") — mantenha apenas termos informativos
+4. **Inclua** palavras-chave de cada tópico mencionado para que os resultados cubram todos os assuntos
+5. O parâmetro `query` deve conter a versão reescrita, não a pergunta original do usuário
+
 ## Estratégias de Fallback
 
 Quando uma métrica ou dimensão não estiver disponível, ofereça alternativas:
@@ -533,8 +541,11 @@ RAG_TOOL_PROMPT = PromptTemplateConfig(
 O contexto é soberano. Se você não sabe a resposta com base no contexto,
 apenas diga que não sabe. Não tente inventar uma resposta.
 
-Cada trecho inclui metadados no formato [Fonte: nome_do_arquivo | Relevância: percentual].
-Ao responder, cite a fonte quando relevante para dar credibilidade à resposta.
+Os trechos abaixo vêm de **múltiplos documentos** e podem cobrir diferentes aspectos da pergunta.
+Sintetize as informações de todas as fontes relevantes em uma resposta coesa.
+Cada trecho inclui metadados no formato [Fonte: nome_do_arquivo | Relevância: percentual | Escopo: tipo].
+Ao responder, cite as fontes quando relevante para dar credibilidade à resposta.
+Se trechos de fontes diferentes fornecerem informações complementares, combine-os.
 
 CONTEXTO:
 {{ context }}
@@ -545,6 +556,36 @@ PERGUNTA:
 {{ question }}
 
 RESPOSTA:""",
+)
+
+
+RAG_QUERY_REWRITE_PROMPT = PromptTemplateConfig(
+    name="tool/rag-query-rewrite",
+    category=PromptCategory.RAG,
+    description="Rewrites user queries for optimal RAG retrieval — decompose, expand, clean",
+    required_variables=["query"],
+    content="""You are a search query optimizer for a RAG (Retrieval-Augmented Generation) system.
+Your job is to rewrite the user's question into an optimized search query that will
+retrieve the most relevant document chunks via embedding similarity and keyword search.
+
+Rules:
+1. Decompose multi-topic questions into their core concepts.
+2. Expand with synonyms and closely related terms (in the same language as the input).
+3. Remove conversational filler, greetings, and politeness markers.
+4. Keep the query in the SAME LANGUAGE as the original question.
+5. Output a single rewritten query string — no explanations, no bullet points, no formatting.
+6. Aim for 15-40 words — enough to capture key concepts without noise.
+7. Preserve domain-specific terminology and proper nouns exactly as written.
+
+Examples:
+- Input: "Oi, queria saber qual é o modelo de negócios da empresa e como eles usam análise de dados"
+  Output: "modelo de negócios empresa estratégia receita análise dados business intelligence uso aplicação"
+
+- Input: "What products does the company offer and what are their prices?"
+  Output: "products services offerings catalog pricing prices cost plans company"
+
+- Input: "Me fala sobre as regulamentações fiscais para importação"
+  Output: "regulamentações fiscais tributação importação impostos taxas legislação fiscal comércio exterior\"""",
 )
 
 
@@ -816,7 +857,15 @@ ORDER BY receita DESC LIMIT 20;
    ```
 
 ## For KNOWLEDGE questions (policies, processes, FAQs):
-→ Call `executar_rag_cliente` with the question
+→ Call `executar_rag_cliente` with a **search-optimized rewrite** of the question
+
+### RAG Query Rewriting Rules
+When calling `executar_rag_cliente`, rewrite the user's question to maximize retrieval quality:
+1. **Decompose** multi-topic queries into key concepts (e.g., "data analysis for company X" → "data analysis statistics indicators company X products services")
+2. **Expand** with synonyms and related terms in the same language (e.g., "return policy" → "return refund exchange policy")
+3. **Remove** conversational filler (greetings, "can you tell me") — keep only information-bearing terms
+4. **Include** keywords for each topic mentioned so results cover all subjects
+5. The `query` parameter must contain the rewritten version, not the user's raw question
 
 ## For OTHER tools:
 - Google Suite → `write_to_sheet`, `read_emails`, `query_calendar`
@@ -881,6 +930,7 @@ BUILTIN_TEMPLATES: dict[str, PromptTemplateConfig] = {
     SQL_AGENT_SUFFIX.name: SQL_AGENT_SUFFIX,
     # Tool prompts - RAG
     RAG_TOOL_PROMPT.name: RAG_TOOL_PROMPT,
+    RAG_QUERY_REWRITE_PROMPT.name: RAG_QUERY_REWRITE_PROMPT,
     # MCP prompt module templates
     TEXT_TO_SQL_SYSTEM.name: TEXT_TO_SQL_SYSTEM,
     RAG_CONTEXT_PROMPT.name: RAG_CONTEXT_PROMPT,

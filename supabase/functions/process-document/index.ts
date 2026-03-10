@@ -49,8 +49,9 @@ interface Chunk {
 }
 
 // Token-aware limits (embed-multilingual-light-v3.0 max_seq_length = 512 tokens)
-// Smaller chunks = better retrieval precision (each chunk focuses on one topic)
-const TARGET_TOKENS = 250; // target tokens per chunk
+// 400 tokens stays within Cohere's 512-token limit while producing more coherent,
+// self-contained chunks (~280 words) that improve retrieval quality.
+const TARGET_TOKENS = 400; // target tokens per chunk (Cohere max = 512)
 const OVERLAP_SENTENCES = 2; // number of trailing sentences to overlap
 
 // ── Embedding (Cohere) ──────────────────────────────────────
@@ -518,9 +519,18 @@ async function processDocument(
                     ? { ...chunk.metadata, ...enriched }
                     : chunk.metadata;
 
+                // Extract enriched fields for first-class columns
+                // (also kept in JSONB metadata for backward compat)
+                const chunkTheme = enriched?.theme ?? null;
+                const chunkWordCloud = enriched?.word_cloud?.length
+                    ? enriched.word_cloud
+                    : null;
+                const chunkUsageContext = enriched?.usage_context || null;
+
                 await tx`
                     INSERT INTO vector_db.document_chunks
-                        (document_id, client_id, content, chunk_index, metadata, content_hash, scope, category, embedding)
+                        (document_id, client_id, content, chunk_index, metadata, content_hash, scope, category, embedding,
+                         theme, word_cloud, usage_context)
                     VALUES (
                         ${documentId}::uuid,
                         ${chunkClientId ? tx`${chunkClientId}::uuid` : tx`NULL`},
@@ -530,13 +540,19 @@ async function processDocument(
                         ${contentHash},
                         ${docScope},
                         ${docCategory},
-                        ${embeddingStr}::vector::halfvec(384)
+                        ${embeddingStr}::vector::halfvec(384),
+                        ${chunkTheme},
+                        ${chunkWordCloud},
+                        ${chunkUsageContext}
                     )
                     ON CONFLICT (document_id, content_hash) DO UPDATE
                     SET content = EXCLUDED.content,
                         chunk_index = EXCLUDED.chunk_index,
                         metadata = EXCLUDED.metadata,
-                        embedding = EXCLUDED.embedding
+                        embedding = EXCLUDED.embedding,
+                        theme = EXCLUDED.theme,
+                        word_cloud = EXCLUDED.word_cloud,
+                        usage_context = EXCLUDED.usage_context
                 `;
             }
 

@@ -222,6 +222,10 @@ class HybridRetriever(_BaseSupabaseRetriever):
         default=None,
         description="Optional category filter (e.g. 'tax_knowledge', 'dados_negocio')",
     )
+    themes: list[str] | None = Field(
+        default=None,
+        description="Optional chunk-level theme filter from enriched metadata (e.g. 'financial_reporting', 'product_knowledge')",
+    )
 
     @property
     def _log_prefix(self) -> str:
@@ -243,4 +247,6 @@ class HybridRetriever(_BaseSupabaseRetriever):
             payload["document_ids"] = self.document_ids
         if self.categories:
             payload["categories"] = self.categories
+        if self.themes:
+            payload["themes"] = self.themes
         return payload

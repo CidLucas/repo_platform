@@ -15,15 +15,14 @@ python = "^3.11"
 langchain-core = ">=0.3.0"
 # (langchain e langchain-openai removidos)
 
-# Cross-encoder reranker
-sentence-transformers = ">=3.0.0"
+# HTTP client for Cohere Rerank API
+httpx = ">=0.27.0"
 
 # Dependências locais
 vizu_llm_service = {path = "../../libs/vizu_llm_service", develop = true}
 vizu_context_service = {path = "../../libs/vizu_context_service", develop = true}
 vizu_models = {path = "../../libs/vizu_models", develop = true}
 vizu_prompt_management = {path = "../../libs/vizu_prompt_management", develop = true}
-httpx = ">=0.27.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.2"

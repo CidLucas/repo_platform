@@ -1,8 +1,29 @@
 # RAG Migration Guide — Qdrant → Supabase
 
-> **Status:** Planning finalized
+> **Status:** ⚠️ ARCHIVED — Migration completed, document is historical reference only
 > **Created:** 2026-03-04
-> **Branch:** `feat/rag-supabase-migration`
+> **Archived:** 2026-03-10
+>
+> ---
+>
+> **⚠️ This document is outdated.** The Qdrant → Supabase migration has been fully completed
+> and the RAG pipeline has been significantly overhauled since this plan was written.
+>
+> **Key changes since this plan:**
+> - `embed` Edge Function (gte-small) **removed** — embedding is now inline in `process-document` using **Cohere embed-multilingual-light-v3.0**
+> - pgmq `embedding_jobs` queue, cron jobs, and embedding triggers **removed**
+> - `search-documents` uses **Cohere** for query embedding (not gte-small)
+> - `process-document` chunks at **400 tokens** (not 500 chars), sentence-aware overlap
+> - Hybrid retrieval with **RRF/weighted fusion**, **Cohere reranker**, **MMR diversifier**, and optional **query preprocessing**
+> - `score_threshold` lowered to **0.3** (was 0.5)
+> - `theme` column added to `document_chunks` for chunk-level filtering
+>
+> **For current documentation, see:**
+> - [`HYBRID_RETRIEVER_AS_BUILT.md`](./HYBRID_RETRIEVER_AS_BUILT.md) — Complete as-built reference
+> - [`RAG_PIPELINE_ANALYSIS.md`](./RAG_PIPELINE_ANALYSIS.md) — Original analysis with resolution status
+> - [`RAG_OVERHAUL_PLAN.md`](./RAG_OVERHAUL_PLAN.md) — Overhaul plan (Phases 1–6, all complete)
+>
+> ---
 
 ---
 

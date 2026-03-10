@@ -25,6 +25,7 @@ from vizu_prompt_management.renderer import TemplateRenderer
 from vizu_prompt_management.templates import (
     BUILTIN_TEMPLATES,
     METADATA_ENRICHMENT_PROMPT,
+    RAG_QUERY_REWRITE_PROMPT,
     RAG_RERANK_PROMPT,
     RAG_TOOL_PROMPT,
     SQL_AGENT_PREFIX,
@@ -70,6 +71,7 @@ __all__ = [
     "SQL_AGENT_PREFIX",
     "SQL_AGENT_SUFFIX",
     "RAG_TOOL_PROMPT",
+    "RAG_QUERY_REWRITE_PROMPT",
     "RAG_RERANK_PROMPT",
     "METADATA_ENRICHMENT_PROMPT",
     # Unified Dynamic Builder

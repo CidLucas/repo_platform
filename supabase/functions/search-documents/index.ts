@@ -79,6 +79,8 @@ Deno.serve(async (req: Request) => {
             vector_weight = 0.6,
             scope = ["platform", "client"],
             categories = null,
+            // Metadata filters (Phase 5 — RAG Overhaul)
+            themes = null,
         } = body;
 
         // Validate required fields
@@ -128,6 +130,7 @@ Deno.serve(async (req: Request) => {
             vector_weight,
             scope,
             categories,
+            themes,
             document_ids,
         }));
 
@@ -174,6 +177,11 @@ Deno.serve(async (req: Request) => {
                 ? `{${categories.join(",")}}`
                 : null;
 
+            // Build themes array param (NULL if not provided)
+            const themesParam = themes && Array.isArray(themes) && themes.length > 0
+                ? `{${themes.join(",")}}`
+                : null;
+
             results = await sql`
               SELECT *
               FROM vector_db.hybrid_match_documents(
@@ -187,7 +195,9 @@ Deno.serve(async (req: Request) => {
                 ${categoriesParam}::text[],
                 ${fusion_strategy},
                 ${keyword_weight}::float,
-                ${vector_weight}::float
+                ${vector_weight}::float,
+                false,
+                ${themesParam}::text[]
               )
             `;
         }

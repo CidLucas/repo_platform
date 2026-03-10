@@ -1,37 +1,49 @@
 # RAG Pipeline — Metadata & Retrieval Analysis
 
-> Generated: 2026-03-04 | Status: Active analysis with actionable improvements
+> Generated: 2026-03-04 | Updated: 2026-03-10 | Status: **Most issues resolved** — see RAG Overhaul Phases 1–6
+>
+> This document was the original analysis that led to the RAG Overhaul. Issues marked with ✅ have been resolved.
+> For the current as-built documentation, see `HYBRID_RETRIEVER_AS_BUILT.md`.
 
 ---
 
 ## 1. Architecture Overview
 
+### Current Architecture (Post-Overhaul)
+
 ```
 ┌──────────────┐    ┌──────────────────┐    ┌────────────────────┐
 │   Frontend    │───▶│  process-document │───▶│  document_chunks   │
 │  (Dashboard)  │    │  Edge Function    │    │  (vector_db)       │
-└──────────────┘    └──────────────────┘    └─────────┬──────────┘
-                                                      │ TRIGGER
+└──────────────┘    │  (Cohere embed    │    │  WITH embeddings   │
+                    │   inline)         │    │  + metadata        │
+                    └──────────────────┘    └─────────┬──────────┘
+                                                      │ FTS trigger
                                                       ▼
 ┌──────────────┐    ┌──────────────────┐    ┌────────────────────┐
-│  rag_module   │◀──│ search-documents  │◀──│  pgmq → pg_cron    │
-│ (tool_pool)   │   │  Edge Function    │   │  → embed EF        │
-└──────────────┘    └──────────────────┘    └────────────────────┘
+│  rag_module   │◀──│ search-documents  │    │  generate_fts      │
+│ (tool_pool)   │   │  Edge Function    │    │  (auto tsvector)   │
+└──────────────┘    │  (Cohere embed)   │    └────────────────────┘
+                    └──────────────────┘
 ```
+
+> **Removed:** The `embed` Edge Function (gte-small), pgmq `embedding_jobs` queue, `queue_embedding_if_null` trigger, and `util.process_embeddings()` cron job have all been removed. Embedding is now inline in `process-document` using Cohere `embed-multilingual-light-v3.0`.
 
 **Components in order of execution:**
 
 | # | Component | Location | Role |
 |---|-----------|----------|------|
 | 1 | `knowledgeBaseService.ts` | `apps/vizu_dashboard/src/services/` | Upload file, create doc row, invoke Edge Function |
-| 2 | `process-document` Edge Function | `supabase/functions/process-document/index.ts` | Download → parse → chunk → INSERT into `document_chunks` |
-| 3 | `queue_embedding_if_null` trigger | `vector_db` schema (PostgreSQL) | On INSERT: queue each chunk to pgmq `embedding_jobs` |
-| 4 | `util.process_embeddings()` | PostgreSQL function (pg_cron, 10s) | Read pgmq queue → batch → invoke `embed` Edge Function |
-| 5 | `embed` Edge Function | `supabase/functions/embed/index.ts` | Generate gte-small embeddings, update chunk rows, mark doc complete |
-| 6 | `search-documents` Edge Function | `supabase/functions/search-documents/index.ts` | Embed query → `match_documents()` RPC → return results |
-| 7 | `SupabaseVectorRetriever` | `libs/vizu_rag_factory/src/vizu_rag_factory/retriever.py` | LangChain retriever — calls search-documents, returns Documents |
-| 8 | `create_rag_runnable` | `libs/vizu_rag_factory/src/vizu_rag_factory/factory.py` | Build LangChain chain: retriever → prompt → LLM |
-| 9 | `rag_module.py` | `services/tool_pool_api/src/.../tool_modules/rag_module.py` | MCP tool entry point — resolves context, invokes RAG chain |
+| 2 | `process-document` Edge Function | `supabase/functions/process-document/index.ts` | Download → parse → chunk → embed (Cohere) → enrich metadata → INSERT |
+| 3 | ~~`queue_embedding_if_null` trigger~~ | ~~`vector_db` schema~~ | **REMOVED** — embedding is inline |
+| 4 | ~~`util.process_embeddings()`~~ | ~~pg_cron~~ | **REMOVED** — no embedding queue |
+| 5 | ~~`embed` Edge Function~~ | ~~`supabase/functions/embed/index.ts`~~ | **REMOVED** — replaced by Cohere in process-document |
+| 6 | `search-documents` Edge Function | `supabase/functions/search-documents/index.ts` | Embed query (Cohere) → `hybrid_match_documents()` RPC → return results |
+| 7 | `HybridRetriever` / `SupabaseVectorRetriever` | `libs/vizu_rag_factory/src/vizu_rag_factory/retriever.py` | LangChain retriever — calls search-documents, returns Documents |
+| 8 | `CohereReranker` | `libs/vizu_rag_factory/src/vizu_rag_factory/reranker.py` | Re-scores candidates with calibrated 0–1 relevance scores |
+| 9 | `MMRDiversifier` | `libs/vizu_rag_factory/src/vizu_rag_factory/diversity.py` | Reduces redundancy via Jaccard + same-document penalty |
+| 10 | `create_rag_runnable` | `libs/vizu_rag_factory/src/vizu_rag_factory/factory.py` | Build LangChain chain: preprocess → retrieve → rerank → diversify → format → LLM |
+| 11 | `rag_module.py` | `services/tool_pool_api/src/.../tool_modules/rag_module.py` | MCP tool entry point — resolves context, invokes RAG chain |
 
 ---
 
@@ -335,155 +347,67 @@ The prompt receives plain text context with `---` separators between chunks. No 
 
 ### 🐛 Critical
 
-| # | Issue | Location | Impact |
-|---|-------|----------|--------|
-| C1 | **Double-encoded metadata** | `process-document/index.ts` L310 | Metadata stored as JSONB string instead of JSONB object. `jsonb_typeof(metadata) = 'string'`. Every consumer needs double-decode workarounds. |
-| C2 | **Metadata lost in context formatting** | `factory.py` L24-29 (`_format_docs`) | `source_file`, `document_id`, `similarity` are all discarded — LLM never sees which file a chunk came from. |
+| # | Issue | Location | Impact | Status |
+|---|-------|----------|--------|--------|
+| C1 | **Double-encoded metadata** | `process-document/index.ts` L310 | Metadata stored as JSONB string instead of JSONB object. | ✅ **RESOLVED** — Fixed with `sql.json()`. Migration `20260305_fix_metadata_and_upgrade_match_documents.sql` |
+| C2 | **Metadata lost in context formatting** | `factory.py` (`_format_docs`) | `source_file`, `document_id`, `similarity` discarded — LLM never sees source. | ✅ **RESOLVED** — `_format_docs` now renders `[Fonte: file | Relevância: 85% | Escopo: type]` headers using `_get_display_score()` with priority: `rerank_score > combined_score > similarity` |
 
 ### ⚠️ Important
 
-| # | Issue | Location | Impact |
-|---|-------|----------|--------|
-| I1 | **Minimal chunk metadata** | `process-document/index.ts` L292 | Only `source_file` is stored. Missing: `chunk_index`, `total_chunks`, `file_type`, `document_title`, character offsets. |
-| I2 | **No document-level join in search** | `match_documents` SQL | Search returns raw `document_id` but not `file_name` or `title` from `documents` table. Consumer can't show source without extra query. |
-| I3 | **Overlap contaminates content** | `process-document/index.ts` L124-128 | Overlap is prepended as raw text — may break sentence boundaries or inject partial words into embeddings. |
-| I4 | **Chunking by chars, not tokens** | `process-document/index.ts` L35 | 500-char chunks may produce inconsistent token counts for gte-small (max 512 tokens). Long words/Unicode can cause truncation. |
-| I5 | **No deduplication on re-upload** | `process-document/index.ts` | Re-uploading the same file creates duplicate chunks. No content hash or upsert logic. |
-| I6 | **Retriever uses sync httpx** | `retriever.py` L41 | `httpx.post()` is synchronous — blocks the event loop in async contexts. Should use `httpx.AsyncClient`. |
-| I7 | **`queue_embedding_if_null` has `SET search_path TO ''`** | Trigger function | The empty search path works because it fully qualifies `pgmq.send`, but it's fragile. Should match the pattern used in `match_documents` (`'extensions', 'vector_db', 'public'`). |
-| I8 | **No retry on embed failure** | `embed/index.ts` | Failed jobs are logged but the pgmq message visibility timeout eventually expires and the job is retried by pgmq — but there's no max-retry or dead-letter queue logic. |
+| # | Issue | Location | Impact | Status |
+|---|-------|----------|--------|--------|
+| I1 | **Minimal chunk metadata** | `process-document/index.ts` | Only `source_file` stored. | ✅ **RESOLVED** — `process-document` now enriches with `word_cloud`, `theme`, `usage_context` via LLM (Cohere + metadata enrichment). Migration `20260310_add_metadata_columns_and_enrich_fts.sql` |
+| I2 | **No document-level join in search** | `match_documents` SQL | No `file_name` / `title` in results. | ✅ **RESOLVED** — `hybrid_match_documents` joins `documents` table, returns `file_name`. |
+| I3 | **Overlap contaminates content** | `process-document/index.ts` | Overlap may break sentence boundaries. | ⚠️ **MITIGATED** — Chunking now uses sentence-aware splitting (`OVERLAP_SENTENCES=2`), not character-based overlap. |
+| I4 | **Chunking by chars, not tokens** | `process-document/index.ts` | Inconsistent token counts. | ✅ **RESOLVED** — Now uses `estimateTokens()` heuristic with `TARGET_TOKENS=400` (Cohere max = 512). |
+| I5 | **No deduplication on re-upload** | `process-document/index.ts` | Duplicate chunks on re-upload. | ✅ **RESOLVED** — `content_hash` (SHA-256) unique constraint per `(document_id, content_hash)`. Migration `20260305_add_content_hash_deduplication.sql` |
+| I6 | **Retriever uses sync httpx** | `retriever.py` | Blocks event loop in async. | ✅ **RESOLVED** — Both sync and async methods implemented in `_BaseSupabaseRetriever`. |
+| I7 | **`queue_embedding_if_null` fragile search_path** | Trigger function | Empty search path is fragile. | ✅ **RESOLVED** — Trigger removed entirely (`20260310_remove_legacy_embed_infrastructure.sql`). Embedding is inline. |
+| I8 | **No retry on embed failure** | `embed/index.ts` | No max-retry or DLQ. | ✅ **RESOLVED** — `embed` EF removed. Embedding is inline in `process-document`. If embedding fails, the document status is set to `failed`. |
 
 ### 💡 Minor
 
-| # | Issue | Location | Impact |
-|---|-------|----------|--------|
-| M1 | **No attached_document_ids filtering** | `rag_module.py` / `retriever.py` | ChatPanel passes `attached_document_ids` in context but RAG search ignores them — can't scope search to specific uploaded docs. |
-| M2 | **Hardcoded match defaults** | `retriever.py` L26-27 | `match_count=5` and `match_threshold=0.5` are hardcoded defaults; no per-query tuning from tool_pool. |
-| M3 | **No reranking** | Pipeline | Raw cosine similarity used as final ranking. No cross-encoder reranking step. |
+| # | Issue | Location | Impact | Status |
+|---|-------|----------|--------|--------|
+| M1 | **No attached_document_ids filtering** | `rag_module.py` / `retriever.py` | Can't scope search to specific uploaded docs. | ✅ **RESOLVED** — `HybridRetriever` supports `document_ids` filtering via `hybrid_match_documents(p_document_ids)`. |
+| M2 | **Hardcoded match defaults** | `retriever.py` | No per-query tuning. | ✅ **RESOLVED** — All defaults configurable via `RagSearchConfig` per-client. Defaults: `top_k=10`, `score_threshold=0.3`. |
+| M3 | **No reranking** | Pipeline | Raw cosine similarity as final ranking. | ✅ **RESOLVED** — Three reranker options: `CohereReranker` (default), `CrossEncoderReranker`, `LLMReranker`. Plus `MMRDiversifier` for result diversity. |
 
 ---
 
-## 6. Proposed Improvements
+## 6. Proposed Improvements — Resolution Status
 
-### Phase A — Bug Fixes (Immediate)
+> All proposed improvements have been implemented as part of the RAG Overhaul (Phases 1–6).
 
-#### A1. Fix double-encoded metadata
-**File:** `supabase/functions/process-document/index.ts` L310
+### Phase A — Bug Fixes ✅ COMPLETE
 
-```typescript
-// BEFORE (buggy):
-${JSON.stringify(chunk.metadata)}::jsonb
+| Item | Status | Resolution |
+|------|--------|------------|
+| A1: Fix double-encoded metadata | ✅ | `sql.json()` in `process-document`. Migration backfilled existing data. |
+| A2: Include metadata in LLM context | ✅ | `_format_docs` renders `[Fonte: file | Relevância: 85% | Escopo: type]` headers. Score priority: `rerank_score > combined_score > similarity`. |
 
-// AFTER (correct):
-${sql.json(chunk.metadata)}
-```
+### Phase B — Richer Metadata ✅ COMPLETE
 
-Then fix existing data:
-```sql
-UPDATE vector_db.document_chunks
-SET metadata = metadata::text::jsonb
-WHERE jsonb_typeof(metadata) = 'string';
-```
+| Item | Status | Resolution |
+|------|--------|------------|
+| B1: Expand chunk metadata | ✅ | `process-document` enriches with `word_cloud`, `theme`, `usage_context` via LLM. |
+| B2: JOIN documents in match_documents | ✅ | `hybrid_match_documents` joins `documents` table, returns `file_name`. |
+| B3: document_ids filter for chat | ✅ | `HybridRetriever` supports `document_ids` via `p_document_ids` in SQL RPC. |
 
-#### A2. Include metadata in LLM context
-**File:** `libs/vizu_rag_factory/src/vizu_rag_factory/factory.py`
+### Phase C — Quality Improvements ✅ COMPLETE
 
-```python
-def _format_docs(docs):
-    if not docs:
-        return "Nenhum contexto encontrado."
-    parts = []
-    for i, doc in enumerate(docs, 1):
-        source = doc.metadata.get("source_file", "desconhecido")
-        similarity = doc.metadata.get("similarity", 0)
-        parts.append(
-            f"[Fonte: {source} | Relevância: {similarity:.0%}]\n{doc.page_content}"
-        )
-    return "\n\n---\n\n".join(parts)
-```
-
-### Phase B — Richer Metadata (Short-term)
-
-#### B1. Expand chunk metadata in process-document
-
-```typescript
-const chunks = chunkText(parsedText, {
-    source_file: fileName,
-    file_type: fileType,
-    document_id: documentId,
-    document_title: fileName.replace(/\.[^.]+$/, ''),
-    total_chars: parsedText.length,
-});
-
-// In chunkText, add per-chunk fields:
-chunks.push({
-    text: currentChunk.trim(),
-    index: chunkIndex++,
-    metadata: {
-        ...metadata,
-        chunk_index: chunkIndex,
-        char_start: charOffset,
-        char_end: charOffset + currentChunk.length,
-    },
-});
-```
-
-#### B2. JOIN documents table in match_documents
-
-```sql
-CREATE OR REPLACE FUNCTION vector_db.match_documents(...)
-RETURNS TABLE(
-    id integer, document_id uuid, content text,
-    metadata jsonb, similarity double precision,
-    file_name text, document_title text  -- NEW
-)
-AS $$
-  SELECT dc.id, dc.document_id, dc.content, dc.metadata,
-         1 - (dc.embedding <=> p_query_embedding) AS similarity,
-         d.file_name, d.title AS document_title
-  FROM vector_db.document_chunks dc
-  JOIN vector_db.documents d ON d.id = dc.document_id
-  WHERE dc.client_id = p_client_id
-    AND dc.embedding IS NOT NULL
-    AND d.status = 'completed'
-    AND 1 - (dc.embedding <=> p_query_embedding) > p_match_threshold
-  ORDER BY dc.embedding <=> p_query_embedding
-  LIMIT p_match_count;
-$$;
-```
-
-#### B3. Support document_ids filter for chat context
-
-Add optional `document_ids` parameter to `search-documents` and `match_documents`:
-
-```sql
--- In match_documents:
-AND (p_document_ids IS NULL OR dc.document_id = ANY(p_document_ids))
-```
-
-### Phase C — Quality Improvements (Medium-term)
-
-#### C1. Token-aware chunking
-Replace char-based chunking (500 chars) with token-based chunking using a tokenizer compatible with gte-small's tokenizer (512 token max).
-
-#### C2. Smarter overlap
-Instead of raw character overlap, overlap at sentence boundaries to avoid mid-word splits.
-
-#### C3. Content deduplication
-Add a `content_hash` column (SHA-256 of content) with a unique constraint per `(document_id, content_hash)` to prevent duplicate chunks on re-upload.
-
-#### C4. Async retriever
-Replace `httpx.post()` with `httpx.AsyncClient.post()` and implement `_aget_relevant_documents()` in the retriever for proper async support.
-
-#### C5. Reranking
-Add an optional cross-encoder reranking step after initial vector search to improve precision for top-K results.
-
-#### C6. Dead-letter queue for failed embeddings
-Track retry count in pgmq message metadata. After N failures, move to a dead-letter queue and mark the document as `'partially_failed'`.
+| Item | Status | Resolution |
+|------|--------|------------|
+| C1: Token-aware chunking | ✅ | `estimateTokens()` heuristic with `TARGET_TOKENS=400` (Cohere max = 512). |
+| C2: Smarter overlap | ✅ | `OVERLAP_SENTENCES=2` — sentence-boundary overlap instead of character-based. |
+| C3: Content deduplication | ✅ | `content_hash` (SHA-256) unique constraint. Migration `20260305_add_content_hash_deduplication.sql`. |
+| C4: Async retriever | ✅ | Both sync and async methods in `_BaseSupabaseRetriever`. |
+| C5: Reranking | ✅ | Three options: `CohereReranker` (default), `CrossEncoderReranker`, `LLMReranker`. Plus `MMRDiversifier`. |
+| C6: Dead-letter queue for embeddings | ✅ | N/A — `embed` EF removed. Embedding is inline in `process-document`. Failure sets document status to `failed`. |
 
 ---
 
-## 7. Data Flow Summary
+## 7. Data Flow Summary (Updated)
 
 ```
 User uploads file
@@ -491,27 +415,19 @@ User uploads file
     ▼
 knowledgeBaseService.uploadSimpleFile()
     ├── Storage: knowledge-base/{client_id}/{uuid}-{filename}
-    ├── DB: INSERT vector_db.documents (status='processing')
+    ├── DB: INSERT vector_db.documents (status='pending')
     └── Edge Function: process-document
             ├── Download from Storage
             ├── Parse (txt/pdf/docx/csv/json/xml/html)
-            ├── Chunk (500 chars, 50 overlap)
-            │   metadata = { source_file: fileName }  ← ONLY FIELD
-            ├── INSERT document_chunks (embedding=NULL)
+            ├── Chunk (TARGET_TOKENS=400, OVERLAP_SENTENCES=2)
+            ├── Embed each chunk (Cohere embed-multilingual-light-v3.0, 384d)
+            ├── Enrich metadata via LLM (word_cloud, theme, usage_context)
+            ├── INSERT document_chunks WITH embedding + metadata
             │       │
-            │       ▼ TRIGGER: queue_embedding_if_null
-            │       pgmq.send('embedding_jobs', {id, schema, table, ...})
+            │       ▼ TRIGGER: generate_fts_on_insert
+            │       Auto-generates tsvector (Portuguese + unaccent)
             │
-            └── UPDATE documents (status='processing', chunk_count=N)
-
-Every 10 seconds (pg_cron):
-    util.process_embeddings()
-        ├── pgmq.read('embedding_jobs', batch=10)
-        └── invoke embed Edge Function
-                ├── chunk_content_fn(row) → content text
-                ├── gte-small → 384-dim halfvec
-                ├── UPDATE document_chunks SET embedding = ...
-                └── IF all chunks embedded → UPDATE documents SET status='completed'
+            └── UPDATE documents (status='completed', chunk_count=N)
 
 User asks question:
     │
@@ -519,15 +435,21 @@ User asks question:
 rag_module._executar_rag_cliente_logic(query)
     ├── Resolve VizuClientContext
     ├── create_rag_runnable(context, llm)
-    │       ├── SupabaseVectorRetriever
-    │       │       POST search-documents { query, client_id, match_count, threshold }
-    │       │           ├── gte-small(query) → embedding
-    │       │           └── match_documents(client_id, embedding, count, threshold)
-    │       │               → { id, document_id, content, metadata, similarity }
     │       │
-    │       ├── _format_docs(docs)
-    │       │       → "chunk1\n\n---\n\nchunk2\n\n---\n\nchunk3"
-    │       │         ⚠️ metadata discarded here
+    │       ├── (Optional) QueryPreprocessor — FAST LLM rewrites query
+    │       │
+    │       ├── HybridRetriever (pool_size = top_k × pool_multiplier)
+    │       │       POST search-documents { query, client_id, ... }
+    │       │           ├── Cohere embed-multilingual-light-v3.0(query) → embedding
+    │       │           └── hybrid_match_documents(embedding, query_text, ...)
+    │       │               → { content, metadata, combined_score, similarity, file_name }
+    │       │
+    │       ├── CohereReranker → rerank_score (0–1 calibrated)
+    │       │
+    │       ├── MMRDiversifier → top_k diverse results
+    │       │
+    │       ├── _format_docs(docs) using _get_display_score()
+    │       │       → "[Fonte: file.pdf | Relevância: 85% | Escopo: client]\nchunk..."
     │       │
     │       └── ChatPromptTemplate + LLM + StrOutputParser
     │
@@ -536,18 +458,18 @@ rag_module._executar_rag_cliente_logic(query)
 
 ---
 
-## 8. Priority Matrix
+## 8. Priority Matrix — Final Status
 
-| Priority | Item | Effort | Impact |
-|----------|------|--------|--------|
-| 🔴 P0 | A1: Fix double-encoded metadata | 1h | Data integrity |
-| 🔴 P0 | A2: Include metadata in LLM context | 30min | Answer quality — LLM can cite sources |
-| 🟡 P1 | B2: JOIN documents in match_documents | 1h | Source attribution in search results |
-| 🟡 P1 | B3: document_ids filter for chat | 2h | Scoped RAG for attached files |
-| 🟡 P1 | B1: Richer chunk metadata | 1h | Better traceability |
-| 🟢 P2 | C4: Async retriever | 30min | Performance under load |
-| 🟢 P2 | C1: Token-aware chunking | 3h | Embedding quality |
-| 🟢 P2 | C2: Smarter overlap | 2h | Chunk boundary quality |
-| 🟢 P2 | C3: Content deduplication | 2h | Storage efficiency |
-| 🔵 P3 | C5: Reranking | 4h | Retrieval precision |
-| 🔵 P3 | C6: Dead-letter queue | 2h | Operational resilience |
+| Priority | Item | Effort | Impact | Status |
+|----------|------|--------|--------|--------|
+| 🔴 P0 | A1: Fix double-encoded metadata | 1h | Data integrity | ✅ Done |
+| 🔴 P0 | A2: Include metadata in LLM context | 30min | Answer quality | ✅ Done |
+| 🟡 P1 | B2: JOIN documents in match_documents | 1h | Source attribution | ✅ Done |
+| 🟡 P1 | B3: document_ids filter for chat | 2h | Scoped RAG | ✅ Done |
+| 🟡 P1 | B1: Richer chunk metadata | 1h | Traceability | ✅ Done |
+| 🟢 P2 | C4: Async retriever | 30min | Performance | ✅ Done |
+| 🟢 P2 | C1: Token-aware chunking | 3h | Embedding quality | ✅ Done |
+| 🟢 P2 | C2: Smarter overlap | 2h | Chunk boundary quality | ✅ Done |
+| 🟢 P2 | C3: Content deduplication | 2h | Storage efficiency | ✅ Done |
+| 🔵 P3 | C5: Reranking | 4h | Retrieval precision | ✅ Done |
+| 🔵 P3 | C6: Dead-letter queue | 2h | Operational resilience | ✅ N/A (embed EF removed) |

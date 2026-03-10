@@ -48,13 +48,17 @@ async def _executar_rag_cliente_logic(
     - User requests information that should be in the company's internal knowledge base
 
     **Input format:**
-    - query: (string) The user's question about the business
+    - query: (string) A search-optimized version of the user's question.
+      Before calling this tool, **rewrite the user's question** to maximize retrieval quality:
+      1. Decompose multi-topic questions into key concepts
+      2. Expand with synonyms and related terms (same language)
+      3. Remove conversational filler (greetings, "gostaria de saber")
+      4. Keep 15-40 words of domain-relevant terms
 
     **Examples:**
-    - "What are your shipping costs to Europe?"
-    - "Tell me about your premium subscription features"
-    - "What's your return policy for electronics?"
-    - "How do I set up two-factor authentication?"
+    - User: "What are your shipping costs to Europe?" → query: "shipping costs rates Europe international delivery pricing freight"
+    - User: "Tell me about your premium subscription features" → query: "premium subscription plan features benefits pricing tier enterprise"
+    - User: "Qual a política de devolução?" → query: "política devolução reembolso troca prazo condições retorno garantia"
 
     **IMPORTANT:** This tool accesses the specific company's knowledge base. The company context is automatically injected - do NOT ask the user for company ID.
     """
@@ -174,7 +178,10 @@ def register_tools(mcp: FastMCP) -> list[str]:
         description=(
             "Search the company's knowledge base for information about products, "
             "services, pricing, policies, FAQs, and business operations. "
-            "Parameter: query (the user's question in natural language)."
+            "Parameter: query (a search-optimized rewrite of the user's question — "
+            "decompose multi-topic queries into key concepts, add synonyms and "
+            "related terms, remove conversational filler. Include keywords for "
+            "ALL topics mentioned so results are diverse)."
         ),
     )(mcp_inject_cliente_id(get_context_service)(_executar_rag_cliente_logic))
 

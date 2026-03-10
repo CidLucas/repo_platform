@@ -53,6 +53,9 @@ x-atendente-env: &atendente-env
   # Anthropic (backup)
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
+  # Cohere API (embeddings + reranking)
+  CO_API_KEY: ${CO_API_KEY:-}
+
   # Langfuse Observability
   LANGFUSE_HOST: ${LANGFUSE_HOST:-https://us.cloud.langfuse.com}
   LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}

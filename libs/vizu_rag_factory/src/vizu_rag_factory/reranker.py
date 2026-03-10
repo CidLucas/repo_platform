@@ -1,18 +1,24 @@
 """Optional reranking step for RAG retrieval results.
 
-Provides two reranking strategies:
+Provides three reranking strategies:
 
-1. **LLMReranker** — Uses a fast LLM tier to score query-document relevance
+1. **CohereReranker** (default) — Uses Cohere Rerank API for fast, accurate
+   multilingual relevance scoring. Requires ``CO_API_KEY`` env var.
+2. **LLMReranker** — Uses a fast LLM tier to score query-document relevance
    (lightweight, no extra model download, higher latency per doc).
-2. **CrossEncoderReranker** — Uses ``bge-reranker-v2-m3`` cross-encoder model
+3. **CrossEncoderReranker** — Uses ``bge-reranker-v2-m3`` cross-encoder model
    for fast, accurate relevance scoring (requires ``sentence-transformers``).
 
 Usage:
+    # Cohere API (default — fast, multilingual, PT-BR native)
+    reranker = CohereReranker()
+    reranked = await reranker.arerank(query, docs, top_k=5)
+
     # LLM-based (no extra deps)
     reranker = LLMReranker(llm=get_model(tier="FAST"))
     reranked = await reranker.arerank(query, docs, top_k=3)
 
-    # Cross-encoder (faster per-doc, better accuracy)
+    # Cross-encoder (requires sentence-transformers — optional)
     reranker = CrossEncoderReranker()
     reranked = await reranker.arerank(query, docs, top_k=3)
 """
@@ -21,10 +27,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+import httpx
 from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
 
@@ -132,6 +140,139 @@ class LLMReranker:
 
         if loop and loop.is_running():
             # Already in an async context — run scoring synchronously
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                return pool.submit(asyncio.run, self.arerank(question, documents, top_k)).result()
+        return asyncio.run(self.arerank(question, documents, top_k))
+
+
+# ---------------------------------------------------------------------------
+# CohereReranker — uses the Cohere Rerank API (default)
+# ---------------------------------------------------------------------------
+
+COHERE_RERANK_URL = "https://api.cohere.com/v2/rerank"
+DEFAULT_COHERE_RERANK_MODEL = "rerank-multilingual-v3.0"
+
+
+class CohereReranker:
+    """Reranks documents using the Cohere Rerank API.
+
+    Uses ``rerank-multilingual-v3.0`` which natively supports Portuguese (BR),
+    aligning with the Cohere ``embed-multilingual-light-v3.0`` model already
+    used for embedding in the Supabase Edge Function.
+
+    Requires the ``CO_API_KEY`` environment variable.
+
+    Args:
+        model: Cohere rerank model identifier.
+        api_key: Cohere API key. Defaults to ``CO_API_KEY`` env var.
+        max_passage_length: Passage truncation length in characters (default 1500).
+        timeout: HTTP request timeout in seconds (default 30).
+    """
+
+    def __init__(
+        self,
+        model: str = DEFAULT_COHERE_RERANK_MODEL,
+        api_key: str | None = None,
+        max_passage_length: int = 1500,
+        timeout: float = 30.0,
+    ):
+        self.model = model
+        self.api_key = api_key or os.environ.get("CO_API_KEY", "")
+        self.max_passage_length = max_passage_length
+        self.timeout = timeout
+
+        if not self.api_key:
+            logger.warning("[CohereReranker] CO_API_KEY not set — reranking will be skipped")
+
+    async def arerank(
+        self,
+        question: str,
+        documents: list[Document],
+        top_k: int | None = None,
+    ) -> list[Document]:
+        """Asynchronously rerank documents using the Cohere Rerank API.
+
+        Args:
+            question: The user's search query.
+            documents: Retrieved documents from vector / hybrid search.
+            top_k: Number of top documents to return. ``None`` returns all, re-sorted.
+
+        Returns:
+            Documents re-ordered by Cohere relevance score, with ``rerank_score``
+            added to each document's metadata.
+        """
+        if not documents:
+            return []
+        if len(documents) <= 1:
+            return documents
+        if not self.api_key:
+            logger.warning("[CohereReranker] No API key — returning documents unchanged")
+            return documents[:top_k] if top_k else documents
+
+        logger.debug(
+            f"[CohereReranker] Scoring {len(documents)} documents for: '{question[:80]}...'"
+        )
+
+        # Prepare truncated document texts for the API
+        doc_texts = [doc.page_content[: self.max_passage_length] for doc in documents]
+
+        payload = {
+            "model": self.model,
+            "query": question,
+            "documents": doc_texts,
+            "top_n": top_k or len(documents),
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    COHERE_RERANK_URL,
+                    json=payload,
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"[CohereReranker] API error {e.response.status_code}: {e.response.text[:200]}"
+            )
+            return documents[:top_k] if top_k else documents
+        except Exception as e:
+            logger.error(f"[CohereReranker] Request failed: {e}")
+            return documents[:top_k] if top_k else documents
+
+        # Parse results — Cohere returns [{index, relevance_score}, ...]
+        results = data.get("results", [])
+        ranked: list[Document] = []
+        for item in results:
+            idx = item["index"]
+            score = float(item["relevance_score"])
+            doc = documents[idx]
+            doc.metadata["rerank_score"] = score
+            ranked.append(doc)
+
+        scores_str = [f"{doc.metadata.get('rerank_score', 0):.4f}" for doc in ranked[:5]]
+        logger.debug(f"[CohereReranker] Top scores: {scores_str}")
+        return ranked
+
+    def rerank(
+        self,
+        question: str,
+        documents: list[Document],
+        top_k: int | None = None,
+    ) -> list[Document]:
+        """Sync wrapper for ``arerank``."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as pool:

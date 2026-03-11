@@ -146,7 +146,7 @@ async def _executar_rag_cliente_logic(
             tags=["tool_pool", "rag_module"],
         )
 
-        rag_runnable = server_tools.create_rag_runnable(
+        rag_runnable = await server_tools.create_rag_runnable(
             vizu_context, llm=llm, document_ids=document_ids
         )
 

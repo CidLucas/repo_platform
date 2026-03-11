@@ -339,7 +339,18 @@ class TestCrossEncoderReranker:
 class TestFactoryRerankerSelection:
     """Test that factory.py correctly selects CrossEncoderReranker vs LLMReranker."""
 
-    def test_factory_creates_cross_encoder_reranker(self, mocker, mock_vizu_client_context):
+    def _mock_build_prompt(self, mocker):
+        """Mock build_prompt to avoid Langfuse dependency in tests."""
+        from unittest.mock import AsyncMock
+
+        mocker.patch(
+            "vizu_rag_factory.factory.build_prompt",
+            new_callable=AsyncMock,
+            return_value="You are an assistant.\n\nCONTEXT:\n{context}\n\nQUESTION:\n{question}\n\nRESPONSE:",
+        )
+
+    @pytest.mark.asyncio
+    async def test_factory_creates_cross_encoder_reranker(self, mocker, mock_vizu_client_context):
         """When reranker_type='cross-encoder', factory should use CrossEncoderReranker."""
         from vizu_rag_factory.factory import create_rag_runnable
 
@@ -361,10 +372,12 @@ class TestFactoryRerankerSelection:
             }
         }
 
-        runnable = create_rag_runnable(mock_vizu_client_context, mock_llm)
+        self._mock_build_prompt(mocker)
+        runnable = await create_rag_runnable(mock_vizu_client_context, mock_llm)
         assert runnable is not None
 
-    def test_factory_creates_cohere_reranker(self, mocker, mock_vizu_client_context):
+    @pytest.mark.asyncio
+    async def test_factory_creates_cohere_reranker(self, mocker, mock_vizu_client_context):
         """When reranker_type='cohere', factory should use CohereReranker."""
         from vizu_rag_factory.factory import create_rag_runnable
 
@@ -385,10 +398,12 @@ class TestFactoryRerankerSelection:
             }
         }
 
-        runnable = create_rag_runnable(mock_vizu_client_context, mock_llm)
+        self._mock_build_prompt(mocker)
+        runnable = await create_rag_runnable(mock_vizu_client_context, mock_llm)
         assert runnable is not None
 
-    def test_factory_creates_llm_reranker(self, mocker, mock_vizu_client_context):
+    @pytest.mark.asyncio
+    async def test_factory_creates_llm_reranker(self, mocker, mock_vizu_client_context):
         """When reranker_type='llm', factory should use LLMReranker."""
         from vizu_rag_factory.factory import create_rag_runnable
 
@@ -410,10 +425,12 @@ class TestFactoryRerankerSelection:
             }
         }
 
-        runnable = create_rag_runnable(mock_vizu_client_context, mock_llm)
+        self._mock_build_prompt(mocker)
+        runnable = await create_rag_runnable(mock_vizu_client_context, mock_llm)
         assert runnable is not None
 
-    def test_factory_defaults_to_cohere(self, mocker, mock_vizu_client_context):
+    @pytest.mark.asyncio
+    async def test_factory_defaults_to_cohere(self, mocker, mock_vizu_client_context):
         """Default reranker_type should be 'cohere'."""
         from vizu_rag_factory.factory import create_rag_runnable
 
@@ -433,10 +450,12 @@ class TestFactoryRerankerSelection:
             }
         }
 
-        runnable = create_rag_runnable(mock_vizu_client_context, mock_llm)
+        self._mock_build_prompt(mocker)
+        runnable = await create_rag_runnable(mock_vizu_client_context, mock_llm)
         assert runnable is not None
 
-    def test_factory_no_reranker_when_disabled(self, mocker, mock_vizu_client_context):
+    @pytest.mark.asyncio
+    async def test_factory_no_reranker_when_disabled(self, mocker, mock_vizu_client_context):
         """When rerank=False, no reranker should be created."""
         from vizu_rag_factory.factory import create_rag_runnable
 
@@ -456,5 +475,6 @@ class TestFactoryRerankerSelection:
             }
         }
 
-        runnable = create_rag_runnable(mock_vizu_client_context, mock_llm)
+        self._mock_build_prompt(mocker)
+        runnable = await create_rag_runnable(mock_vizu_client_context, mock_llm)
         assert runnable is not None

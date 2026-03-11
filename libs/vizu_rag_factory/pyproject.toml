@@ -26,6 +26,7 @@ vizu_prompt_management = {path = "../../libs/vizu_prompt_management", develop = 
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.4.2"
+pytest-asyncio = ">=0.23"
 pytest-mock = "^3.14.0"
 pytest-cov = "^5.0.0"
 

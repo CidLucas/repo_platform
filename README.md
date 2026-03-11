@@ -6,7 +6,7 @@ This repository is my full-stack demonstration project: a production‑grade sys
 LLMs, hybrid RAG retrieval, text‑to-SQL analytics, multi‑tenant security, and human‑in‑the‑loop workflows.
 
 It showcases my skills across backend development, AI orchestration, frontend engineering, infra,
-and observability. 
+and observability.
 
 ---
 
@@ -69,7 +69,7 @@ docs/           # Deep-dive design documents and architecture notes
 3. Open the dashboard: `open http://localhost:8080`
 
 Services run with **hot reload** and connect to a remote Supabase instance —
-no local database required. 
+no local database required.
 
 
 

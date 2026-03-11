@@ -36,17 +36,10 @@ import httpx
 from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from vizu_prompt_management.templates import RAG_RERANK_PROMPT
-
 if TYPE_CHECKING:
     from sentence_transformers import CrossEncoder
 
 logger = logging.getLogger(__name__)
-
-# Centralized in vizu_prompt_management — convert Jinja2 {{ var }} to Python .format() {var}
-RERANK_PROMPT = RAG_RERANK_PROMPT.content.replace("{{ question }}", "{question}").replace(
-    "{{ passage }}", "{passage}"
-)
 
 
 @dataclass
@@ -65,15 +58,16 @@ class LLMReranker:
     then re-sorts by the LLM relevance score.
     """
 
-    def __init__(self, llm: BaseChatModel):
+    def __init__(self, llm: BaseChatModel, rerank_prompt: str):
         self.llm = llm
+        self._rerank_prompt = rerank_prompt
 
     async def _score_one(self, question: str, doc: Document) -> ScoredDocument:
         """Score a single document against the question."""
         # Truncate very long passages to avoid exhausting context
         passage = doc.page_content[:1500]
         try:
-            prompt = RERANK_PROMPT.format(question=question, passage=passage)
+            prompt = self._rerank_prompt.format(question=question, passage=passage)
             result = await self.llm.ainvoke(prompt)
             text = result.content.strip() if hasattr(result, "content") else str(result).strip()
             # Parse integer score

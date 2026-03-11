@@ -15,9 +15,7 @@ from .executor import (
     TextToSqlExecutor,
 )
 from .factory import (
-    RLSContextDatabase,
     close_shared_engine,
-    create_sql_agent_runnable,
     get_shared_engine,
 )
 from .observability import (
@@ -46,10 +44,8 @@ from .validator import (
 
 __all__ = [
     # Factory exports
-    "create_sql_agent_runnable",
     "get_shared_engine",
     "close_shared_engine",
-    "RLSContextDatabase",
     # Allowlist exports
     "AllowlistConfig",
     "AllowlistLoader",

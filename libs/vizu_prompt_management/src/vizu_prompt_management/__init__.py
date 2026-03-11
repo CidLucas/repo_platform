@@ -24,12 +24,8 @@ from vizu_prompt_management.loader import LoadedPrompt, PromptLoader, PromptNotF
 from vizu_prompt_management.renderer import TemplateRenderer
 from vizu_prompt_management.templates import (
     BUILTIN_TEMPLATES,
-    METADATA_ENRICHMENT_PROMPT,
-    RAG_QUERY_REWRITE_PROMPT,
     RAG_RERANK_PROMPT,
     RAG_TOOL_PROMPT,
-    SQL_AGENT_PREFIX,
-    SQL_AGENT_SUFFIX,
     get_builtin_template,
     list_builtin_templates,
 )
@@ -68,12 +64,8 @@ __all__ = [
     "get_builtin_template",
     "list_builtin_templates",
     # Tool prompts (commonly used)
-    "SQL_AGENT_PREFIX",
-    "SQL_AGENT_SUFFIX",
     "RAG_TOOL_PROMPT",
-    "RAG_QUERY_REWRITE_PROMPT",
     "RAG_RERANK_PROMPT",
-    "METADATA_ENRICHMENT_PROMPT",
     # Unified Dynamic Builder
     "build_prompt",
     "build_prompt_full",

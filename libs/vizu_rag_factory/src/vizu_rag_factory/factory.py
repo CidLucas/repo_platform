@@ -10,19 +10,13 @@ from langchain_core.runnables.base import Runnable
 # Dependências de outras libs Vizu
 from vizu_models.knowledge_base_config import RagSearchConfig
 from vizu_models.vizu_client_context import VizuClientContext
-from vizu_prompt_management.templates import RAG_TOOL_PROMPT
+from vizu_prompt_management import build_prompt
 from vizu_rag_factory.diversity import MMRDiversifier
 from vizu_rag_factory.query_preprocessor import QueryPreprocessor
 from vizu_rag_factory.reranker import CohereReranker, CrossEncoderReranker, LLMReranker
 from vizu_rag_factory.retriever import HybridRetriever, SupabaseVectorRetriever
 
 logger = logging.getLogger(__name__)
-
-# Use centralized prompt from vizu_prompt_management
-# Convert Jinja2 syntax {{ var }} to LangChain syntax {var}
-RAG_PROMPT_TEMPLATE = RAG_TOOL_PROMPT.content.replace("{{ context }}", "{context}").replace(
-    "{{ question }}", "{question}"
-)
 
 
 def _get_display_score(doc) -> float:
@@ -67,7 +61,7 @@ def _format_docs(docs):
     return formatted
 
 
-def create_rag_runnable(
+async def create_rag_runnable(
     contexto: VizuClientContext,
     llm: BaseChatModel,
     document_ids: list[str] | None = None,
@@ -112,6 +106,13 @@ def create_rag_runnable(
     logger.debug(f"Creating RAG runnable for client {contexto.id}")
 
     try:
+        # --- Load RAG prompt from Langfuse (with builtin fallback) ---
+        # Pass LangChain placeholders as variable values so Jinja2 {{var}} → {var}
+        rag_prompt_template = await build_prompt(
+            name="tool/rag-query",
+            variables={"context": "{context}", "question": "{question}"},
+        )
+
         # --- Pool size: fetch more candidates for reranking + diversity ---
         pool_size = int(cfg.top_k * cfg.retrieval_pool_multiplier)
 
@@ -165,7 +166,11 @@ def create_rag_runnable(
                 )
             else:
                 # Fallback: LLM-based reranker
-                reranker = LLMReranker(llm=llm)
+                rerank_prompt_text = await build_prompt(
+                    name="rag/rerank",
+                    variables={"question": "{question}", "passage": "{passage}"},
+                )
+                reranker = LLMReranker(llm=llm, rerank_prompt=rerank_prompt_text)
                 logger.debug(f"Using LLMReranker for client {contexto.id}")
 
         # --- Optional query preprocessor (Phase 3 — RAG Overhaul) ---
@@ -174,8 +179,12 @@ def create_rag_runnable(
             from vizu_llm_service.client import ModelTier, get_model
 
             try:
+                preprocessor_prompt = await build_prompt(
+                    name="tool/rag-query-rewrite",
+                    variables={},
+                )
                 fast_llm = get_model(tier=ModelTier.FAST)
-                preprocessor = QueryPreprocessor(llm=fast_llm)
+                preprocessor = QueryPreprocessor(llm=fast_llm, system_prompt=preprocessor_prompt)
                 logger.debug(f"Using QueryPreprocessor (FAST tier) for client {contexto.id}")
             except Exception:
                 logger.warning(
@@ -188,7 +197,7 @@ def create_rag_runnable(
         diversifier = MMRDiversifier()
 
         # --- Criação da Cadeia (Runnable) ---
-        prompt = ChatPromptTemplate.from_template(RAG_PROMPT_TEMPLATE)
+        prompt = ChatPromptTemplate.from_template(rag_prompt_template)
 
         # O chain recebe {"question": "..."} e:
         # 1. Extrai a pergunta

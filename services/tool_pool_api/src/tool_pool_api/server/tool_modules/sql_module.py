@@ -242,12 +242,12 @@ TABLE: analytics_v2.dim_inventory
 - ncm (TEXT), sku (TEXT)
 - quantidade_total_vendida (NUMERIC), receita_total (NUMERIC), preco_medio (NUMERIC)
 
-TABLE: analytics_v2.dim_datas
+TABLE: analytics_v2.dim_datas  -- GLOBAL SHARED TABLE (no client_id)
 - data_id (INTEGER) - Primary key (YYYYMMDD)
 - data (DATE) - USE FOR DATE FILTERING
 - ano, mes, trimestre, dia_da_semana (INTEGER)
 
-TABLE: analytics_v2.dim_tipo_transacao
+TABLE: analytics_v2.dim_tipo_transacao  -- GLOBAL SHARED TABLE (no client_id)
 - tipo_id (INTEGER) - Primary key
 - codigo (TEXT), descricao (TEXT), categoria (TEXT)
 
@@ -397,8 +397,9 @@ def _inject_client_id_filter(sql: str, client_id: str) -> str:
     # Remove trailing semicolon for processing
     sql_clean = sql.strip().rstrip(";")
 
-    # Tables in analytics_v2 schema that need client_id filtering
-    FILTERED_TABLES = ["fato_transacoes", "dim_clientes", "dim_fornecedores", "dim_inventory", "dim_datas", "dim_tipo_transacao", "dim_categoria"]
+    # Tables that have client_id columns and need client-level filtering.
+    # EXCLUDED: dim_datas, dim_tipo_transacao (global reference tables without client_id)
+    FILTERED_TABLES = ["fato_transacoes", "dim_clientes", "dim_fornecedores", "dim_inventory", "dim_categoria"]
 
     # Pattern: analytics_v2.table_name followed by optional alias
     # Captures: (table_name) and optionally (alias)

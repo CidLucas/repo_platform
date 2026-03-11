@@ -131,93 +131,8 @@ Seu texto deve ser um **resumo de 2-3 frases** bem formatado:
 
 
 # =============================================================================
-# ACTION PROMPTS
-# =============================================================================
-
-CONFIRMACAO_AGENDAMENTO = PromptTemplateConfig(
-    name="atendente/confirmacao-agendamento",
-    category=PromptCategory.ACTION,
-    description="Appointment confirmation prompt",
-    required_variables=["data", "horario", "servico"],
-    content="""Você está auxiliando um cliente a confirmar um agendamento.
-
-**Dados do agendamento:**
-- Data: {{ data }}
-- Horário: {{ horario }}
-- Serviço: {{ servico }}
-
-Por favor, confirme os dados acima com o cliente antes de finalizar.
-Pergunte se está tudo correto e se deseja prosseguir.
-""",
-)
-
-ESCLARECIMENTO_PROMPT = PromptTemplateConfig(
-    name="atendente/esclarecimento",
-    category=PromptCategory.ACTION,
-    description="Clarification request prompt",
-    required_variables=["pergunta", "opcoes"],
-    content="""O cliente fez uma pergunta que precisa de esclarecimento.
-
-**Pergunta original:** {{ pergunta }}
-
-**Possíveis interpretações:**
-{{ opcoes }}
-
-Peça gentilmente ao cliente para especificar qual das opções ele deseja.
-""",
-)
-
-
-# =============================================================================
 # RAG PROMPTS
 # =============================================================================
-
-RAG_QUERY_PROMPT = PromptTemplateConfig(
-    name="rag/query",
-    category=PromptCategory.RAG,
-    description="RAG query answering prompt",
-    required_variables=["context", "question"],
-    content="""Você é um assistente da Vizu. Use os seguintes trechos de contexto para responder à pergunta.
-O contexto é soberano. Se você não sabe a resposta com base no contexto,
-apenas diga que não sabe. Não tente inventar uma resposta.
-
-CONTEXTO:
-{{ context }}
-
----
-
-PERGUNTA:
-{{ question }}
-
-RESPOSTA:""",
-)
-
-RAG_HYBRID_PROMPT = PromptTemplateConfig(
-    name="rag/hybrid",
-    category=PromptCategory.RAG,
-    description="RAG with hybrid search context",
-    required_variables=["semantic_context", "keyword_context", "question"],
-    optional_variables={"company_name": "Vizu"},
-    content="""Você é um assistente da {{ company_name }}. Use o contexto abaixo para responder.
-
-## CONTEXTO SEMÂNTICO (por relevância)
-{{ semantic_context }}
-
-## CONTEXTO POR PALAVRAS-CHAVE
-{{ keyword_context }}
-
----
-
-PERGUNTA: {{ question }}
-
-Instruções:
-1. Priorize informações que aparecem em ambos os contextos
-2. Se houver contradição, mencione ambas as versões
-3. Diga "não sei" se não encontrar resposta no contexto
-
-RESPOSTA:""",
-)
-
 
 RAG_RERANK_PROMPT = PromptTemplateConfig(
     name="rag/rerank",
@@ -240,103 +155,9 @@ Score:""",
 )
 
 
-METADATA_ENRICHMENT_PROMPT = PromptTemplateConfig(
-    name="rag/metadata-enrichment",
-    category=PromptCategory.RAG,
-    description="System prompt for the enrich-metadata Edge Function (chunk metadata extraction)",
-    required_variables=["content"],
-    content="""You are a document metadata classifier. Given a text chunk, extract structured metadata.
-
-Respond in JSON only — no markdown fences, no explanation:
-{
-  "word_cloud": ["term1", "term2", ...],
-  "theme": "one_of_controlled_list",
-  "usage_context": "one sentence describing when this content is useful"
-}
-
-Rules:
-- word_cloud: 10-15 most salient terms from the text (Portuguese or English as found).
-- theme: MUST be exactly one of: statistical_analysis, tax_regulation, business_operations, financial_reporting, data_engineering, customer_service, product_knowledge, legal_compliance, market_analysis, human_resources, sales_strategy, operational_procedures, general
-- usage_context: A single sentence in the same language as the text.""",
-)
-
-
 # =============================================================================
-# ELICITATION PROMPTS
+# ELICITATION PROMPTS (only actively used ones)
 # =============================================================================
-
-ELICITATION_OPTIONS_PROMPT = PromptTemplateConfig(
-    name="elicitation/options",
-    category=PromptCategory.ELICITATION,
-    description="Present options to user",
-    required_variables=["question", "options"],
-    content="""{{ question }}
-
-Por favor, escolha uma das opções abaixo:
-
-{% for option in options %}
-{{ loop.index }}. {{ option.label }}{% if option.description %} - {{ option.description }}{% endif %}
-
-{% endfor %}
-Digite o número da opção desejada:""",
-)
-
-ELICITATION_CONFIRMATION_PROMPT = PromptTemplateConfig(
-    name="elicitation/confirmation",
-    category=PromptCategory.ELICITATION,
-    description="Confirmation request",
-    required_variables=["action", "details"],
-    content="""Você está prestes a realizar a seguinte ação:
-
-**{{ action }}**
-
-{{ details }}
-
-Você confirma esta ação? (sim/não)""",
-)
-
-ELICITATION_FREEFORM_PROMPT = PromptTemplateConfig(
-    name="elicitation/freeform",
-    category=PromptCategory.ELICITATION,
-    description="Freeform input request",
-    required_variables=["question"],
-    optional_variables={"hint": ""},
-    content="""{{ question }}
-
-{% if hint %}
-Dica: {{ hint }}
-{% endif %}
-
-Por favor, digite sua resposta:""",
-)
-
-
-# =============================================================================
-# ERROR PROMPTS
-# =============================================================================
-
-ERROR_TOOL_FAILED = PromptTemplateConfig(
-    name="error/tool-failed",
-    category=PromptCategory.ERROR,
-    description="Tool execution failure message",
-    required_variables=["tool_name"],
-    optional_variables={"error_message": "Ocorreu um erro inesperado."},
-    content="""Desculpe, houve um problema ao executar uma operação.
-
-Erro: {{ error_message }}
-
-Por favor, tente novamente ou entre em contato com o suporte se o problema persistir.""",
-)
-
-ERROR_NOT_FOUND = PromptTemplateConfig(
-    name="error/not-found",
-    category=PromptCategory.ERROR,
-    description="Resource not found message",
-    required_variables=["resource_type"],
-    content="""Desculpe, não foi possível encontrar {{ resource_type }}.
-
-Por favor, verifique se as informações estão corretas e tente novamente.""",
-)
 
 
 # =============================================================================
@@ -523,40 +344,6 @@ ORDER BY receita DESC;
 USER QUESTION: {{ query }}
 
 SQL:""",
-)
-
-SQL_AGENT_PREFIX = PromptTemplateConfig(
-    name="tool/sql-agent-prefix",
-    category=PromptCategory.SYSTEM,
-    description="SQL Agent system prompt prefix - instructs the LLM how to use SQL tools",
-    required_variables=[],
-    content="""You are an expert SQL assistant. Your task is to answer questions about a database.
-
-IMPORTANT RULES:
-1. FIRST, always list the available tables using sql_db_list_tables
-2. THEN, get the schema of relevant tables using sql_db_schema
-3. THEN, write and execute your SQL query using sql_db_query
-4. ALWAYS execute queries to get real data - NEVER guess or make up numbers
-5. Return the EXACT results from the query
-
-Available tools:
-- sql_db_list_tables: Lists all tables in the database
-- sql_db_schema: Shows the schema of specified tables
-- sql_db_query: Executes a SQL SELECT query and returns results
-- sql_db_query_checker: Validates SQL syntax before execution
-
-NEVER make up data. ALWAYS run the query and report the actual results.""",
-)
-
-SQL_AGENT_SUFFIX = PromptTemplateConfig(
-    name="tool/sql-agent-suffix",
-    category=PromptCategory.ACTION,
-    description="SQL Agent prompt suffix - formats the user question",
-    required_variables=["input", "agent_scratchpad"],
-    content="""Begin! Remember to ALWAYS execute queries to get real data.
-
-Question: {{ input }}
-{{ agent_scratchpad }}""",
 )
 
 
@@ -1012,25 +799,10 @@ BUILTIN_TEMPLATES: dict[str, PromptTemplateConfig] = {
     # System prompts
     ATENDENTE.name: ATENDENTE,
     ATENDENTE_SQL_DIRECT.name: ATENDENTE_SQL_DIRECT,
-    # Action prompts
-    CONFIRMACAO_AGENDAMENTO.name: CONFIRMACAO_AGENDAMENTO,
-    ESCLARECIMENTO_PROMPT.name: ESCLARECIMENTO_PROMPT,
     # RAG prompts
-    RAG_QUERY_PROMPT.name: RAG_QUERY_PROMPT,
-    RAG_HYBRID_PROMPT.name: RAG_HYBRID_PROMPT,
     RAG_RERANK_PROMPT.name: RAG_RERANK_PROMPT,
-    METADATA_ENRICHMENT_PROMPT.name: METADATA_ENRICHMENT_PROMPT,
-    # Elicitation prompts
-    ELICITATION_OPTIONS_PROMPT.name: ELICITATION_OPTIONS_PROMPT,
-    ELICITATION_CONFIRMATION_PROMPT.name: ELICITATION_CONFIRMATION_PROMPT,
-    ELICITATION_FREEFORM_PROMPT.name: ELICITATION_FREEFORM_PROMPT,
-    # Error prompts
-    ERROR_TOOL_FAILED.name: ERROR_TOOL_FAILED,
-    ERROR_NOT_FOUND.name: ERROR_NOT_FOUND,
-    # Tool prompts - SQL Agent
+    # Tool prompts - SQL
     SQL_GENERATION.name: SQL_GENERATION,
-    SQL_AGENT_PREFIX.name: SQL_AGENT_PREFIX,
-    SQL_AGENT_SUFFIX.name: SQL_AGENT_SUFFIX,
     # Tool prompts - RAG
     RAG_TOOL_PROMPT.name: RAG_TOOL_PROMPT,
     RAG_QUERY_REWRITE_PROMPT.name: RAG_QUERY_REWRITE_PROMPT,

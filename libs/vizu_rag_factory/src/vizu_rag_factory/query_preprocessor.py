@@ -19,12 +19,7 @@ import logging
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from vizu_prompt_management.templates import RAG_QUERY_REWRITE_PROMPT
-
 logger = logging.getLogger(__name__)
-
-# Convert Jinja2 ``{{ query }}`` to plain Python format string
-_SYSTEM_PROMPT = RAG_QUERY_REWRITE_PROMPT.content
 
 
 class QueryPreprocessor:
@@ -37,10 +32,13 @@ class QueryPreprocessor:
     ----------
     llm:
         A chat model instance (ideally tier=FAST for low latency).
+    system_prompt:
+        The system prompt loaded from Langfuse (or builtin fallback).
     """
 
-    def __init__(self, llm: BaseChatModel) -> None:
+    def __init__(self, llm: BaseChatModel, system_prompt: str) -> None:
         self.llm = llm
+        self.system_prompt = system_prompt
 
     # -- public API ----------------------------------------------------------
 
@@ -51,7 +49,7 @@ class QueryPreprocessor:
         try:
             response = await self.llm.ainvoke(
                 [
-                    SystemMessage(content=_SYSTEM_PROMPT),
+                    SystemMessage(content=self.system_prompt),
                     HumanMessage(content=query),
                 ],
             )
@@ -71,7 +69,7 @@ class QueryPreprocessor:
         try:
             response = self.llm.invoke(
                 [
-                    SystemMessage(content=_SYSTEM_PROMPT),
+                    SystemMessage(content=self.system_prompt),
                     HumanMessage(content=query),
                 ],
             )

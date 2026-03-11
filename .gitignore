@@ -61,3 +61,8 @@ build-and-push-images.sh
 build-single-image.sh
 tag-and-push-images.sh
 pull-github-push-gcp.sh
+# Internal documentation moved out of repository
+/docs/internal/
+
+# GitHub configuration and team instructions (not part of portfolio)
+.github/copilot-instructions.md

@@ -1,13 +1,12 @@
-# Vizu Mono / Platform (Personal Portfolio)
+# Platform (Personal Portfolio)
 
 > **A multi-tenant AI data platform built from the ground up**
 
 This repository is my full-stack demonstration project: a production‑grade system that combines
-LLMs, hybrid retrieval, text‑to-SQL analytics, multi‑tenant security, and human‑in‑the‑loop workflows.
+LLMs, hybrid RAG retrieval, text‑to-SQL analytics, multi‑tenant security, and human‑in‑the‑loop workflows.
 
 It showcases my skills across backend development, AI orchestration, frontend engineering, infra,
-and observability. If you're hiring an engineer who can design, build and deploy scalable AI
-platforms, this is the project that proves it.
+and observability. 
 
 ---
 
@@ -70,17 +69,7 @@ docs/           # Deep-dive design documents and architecture notes
 3. Open the dashboard: `open http://localhost:8080`
 
 Services run with **hot reload** and connect to a remote Supabase instance —
-no local database required. See [QUICK_START.md](./QUICK_START.md) for a step-by-step
-checklist.
-
----
-
-## 📚 Documentation (Essential Reading)
-
-Most documentation has been moved to an **internal folder** (`docs/internal/`) that is
-ignored in the repository. Visitors can review the high-level architecture in this README
-and contact me if they need to dive deeper — the full body of design notes, plans, and
-service documentation is preserved locally.
+no local database required. 
 
 
 
@@ -128,7 +117,7 @@ make cloudrun-push-all # push to Artifact Registry
 ## ✅ Why This Project Matters
 
 This repo is more than a toy application; it's a comprehensive platform that I designed,
-built, tested, and documented myself. It proves I can:
+built, tested, and documented myself. It features:
 
 1. Architect complex systems with secure multi-tenant data handling.
 2. Integrate cutting-edge AI technologies and manage provider agnosticism.

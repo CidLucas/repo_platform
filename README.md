@@ -77,13 +77,12 @@ checklist.
 
 ## 📚 Documentation (Essential Reading)
 
-| Document | Purpose |
-|----------|---------|
-| QUICK_START.md | Setup in 5 minutes |
-| DEV_SETUP.md   | Full local development workflow |
-| ARCHITECTURE.md| System architecture and data flows |
-| docs/HYBRID_RETRIEVER_AS_BUILT.md | RAG pipeline reference |
-| .github/copilot-instructions.md | Coding standards & conventions |
+Most documentation has been moved to an **internal folder** (`docs/internal/`) that is
+ignored in the repository. Visitors can review the high-level architecture in this README
+and contact me if they need to dive deeper — the full body of design notes, plans, and
+service documentation is preserved locally.
+
+
 
 ---
 

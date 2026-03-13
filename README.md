@@ -46,7 +46,7 @@ Ingest data from multiple sources (BigQuery, Shopify, VTEX, CSV/XLSX uploads), t
 
 ![Product Detail View](screenshots/detail.png)
 
-*Detail view — drill-down into individual product analytics with AI-generated insights*
+*Detail view — drill-down into individual product analytics*
 
 </div>
 

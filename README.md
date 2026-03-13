@@ -378,14 +378,12 @@ make cloudrun-push-all # Push to GCP Artifact Registry
 
 ## About
 
-This platform was designed and implemented by me as the **sole engineer** at Vizu, a startup delivering business management and productivity solutions for SMBs.
+This platform was designed and implemented by me at Vizu, a startup delivering business management and productivity solutions for SMBs.
 
 The goal: enable non-technical business users to ask questions, get reports, and manage their data through natural conversation — with AI doing the heavy lifting, securely scoped to each tenant's data.
 
 **Key numbers:**
-- ~60,000 lines of Python across 20 libraries and 6 services
-- ~21,000 lines of TypeScript in the React dashboard
-- 62 database migrations maintaining the schema
+- 20 libraries and 6 services
 - 20+ MCP tools in a centralized tool server
 - 5 Supabase Edge Functions
 - Full observability pipeline (traces, metrics, logs, LLM monitoring)

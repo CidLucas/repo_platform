@@ -4,7 +4,7 @@
 
 **A production-grade, multi-tenant platform that centralizes business data and enables AI agents to analyze, query, and act on it.**
 
-Built from scratch as a solo full-stack engineer (with CoPilot) — 20+ shared libraries, 6 microservices, written in Python and TypeScript.
+Built from scratch as a solo full-stack engineer — 20+ shared libraries, 6 microservices, 62 database migrations, ~60k lines of Python, ~21k lines of TypeScript.
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](#)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](#)
@@ -27,11 +27,9 @@ Small and medium businesses generate data across multiple platforms (ERPs, e-com
 Vizu is a **data-centralization and analysis platform** that creates a context layer so **AI agents can perform tasks effectively** — from answering natural-language questions about sales data, to generating reports, to managing knowledge bases — all scoped per tenant with strict data isolation.
 
 <div align="center">
-
-![Dashboard Home](screenshots/home.png)
-
-*Dashboard — real-time KPI scorecards, charts, and AI chat in a unified interface*
-
+  <img src="screenshots/home.png" alt="Dashboard Home" width="600"/>
+  <br>
+  <em>Dashboard — real-time KPI scorecards, charts, and AI chat in a unified interface</em>
 </div>
 
 ---
@@ -43,11 +41,9 @@ Vizu is a **data-centralization and analysis platform** that creates a context l
 Ingest data from multiple sources (BigQuery, Shopify, VTEX, CSV/XLSX uploads), transform it into a star-schema analytics layer, and visualize it through interactive dashboards with scorecards, bar charts, and detail views.
 
 <div align="center">
-
-![Product Detail View](screenshots/detail.png)
-
-*Detail view — drill-down into individual product analytics*
-
+  <img src="screenshots/detail.png" alt="Product Detail View" width="600"/>
+  <br>
+  <em>Detail view — drill-down into individual product analytics with AI-generated insights</em>
 </div>
 
 ### 🗣️ Natural Language to SQL
@@ -60,11 +56,9 @@ Users ask questions in plain language; the platform converts them to safe, valid
 4. **Execute** — via PostgREST with RLS enforcement
 
 <div align="center">
-
-![SQL Agent](screenshots/SQL.png)
-
-*Text-to-SQL — natural language query converted to validated SQL with results rendered in the chat*
-
+  <img src="screenshots/SQL.png" alt="SQL Agent" width="600"/>
+  <br>
+  <em>Text-to-SQL — natural language query converted to validated SQL with results rendered in the chat</em>
 </div>
 
 ### 📚 Knowledge Base (Hybrid RAG)
@@ -78,19 +72,15 @@ Upload documents (PDF, DOCX, TXT, CSV) to build per-tenant knowledge bases. The 
 - **MMR diversification** — Maximal Marginal Relevance to avoid redundant results
 
 <div align="center">
-
-![Knowledge Base RAG](screenshots/RAG.png)
-
-*RAG pipeline — hybrid retrieval with source attribution and confidence scores*
-
+  <img src="screenshots/RAG.png" alt="Knowledge Base RAG" width="600"/>
+  <br>
+  <em>RAG pipeline — hybrid retrieval with source attribution and confidence scores</em>
 </div>
 
 <div align="center">
-
-![Knowledge Management](screenshots/knowledge.png)
-
-*Knowledge base management — upload, chunk, embed, and search documents per tenant*
-
+  <img src="screenshots/knowledge.png" alt="Knowledge Management" width="600"/>
+  <br>
+  <em>Knowledge base management — upload, chunk, embed, and search documents per tenant</em>
 </div>
 
 ### 🔧 MCP Tool Server (20+ Tools)
@@ -110,7 +100,7 @@ A centralized **FastMCP** server exposes tools that agents can invoke at runtime
 | `config_helper_module` | Tool validation | Availability checks per tier |
 
 <div align="center">
-  <img src="screenshots/MCPServer.png" alt="MCP Server" width="400"/>
+  <img src="screenshots/MCPServer.png" alt="MCP Server" width="600"/>
   <br>
   <em>MCP tool server — modular tool registration with health introspection</em>
 </div>
@@ -157,11 +147,9 @@ A factory-based connector system integrates with external data sources:
 - **Column mapping** — AI-assisted mapping of source columns to the star-schema
 
 <div align="center">
-
-![Column Mapping](screenshots/column_mapping.png)
-
-*Column mapping — AI-assisted mapping of imported data to the analytics schema*
-
+  <img src="screenshots/column_mapping.png" alt="Column Mapping" width="600"/>
+  <br>
+  <em>Column mapping — AI-assisted mapping of imported data to the analytics schema</em>
 </div>
 
 ### 💬 Human-in-the-Loop (HITL)
@@ -376,12 +364,14 @@ make cloudrun-push-all # Push to GCP Artifact Registry
 
 ## About
 
-This platform was designed and implemented by me at Vizu, a startup delivering business management and productivity solutions for SMBs.
+This platform was designed and implemented by me as the **sole engineer** at Vizu, a startup delivering business management and productivity solutions for SMBs.
 
 The goal: enable non-technical business users to ask questions, get reports, and manage their data through natural conversation — with AI doing the heavy lifting, securely scoped to each tenant's data.
 
 **Key numbers:**
-- 20 libraries and 6 services
+- ~60,000 lines of Python across 20 libraries and 6 services
+- ~21,000 lines of TypeScript in the React dashboard
+- 62 database migrations maintaining the schema
 - 20+ MCP tools in a centralized tool server
 - 5 Supabase Edge Functions
 - Full observability pipeline (traces, metrics, logs, LLM monitoring)

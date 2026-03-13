@@ -110,11 +110,9 @@ A centralized **FastMCP** server exposes tools that agents can invoke at runtime
 | `config_helper_module` | Tool validation | Availability checks per tier |
 
 <div align="center">
-
-![MCP Server](screenshots/MCPServer.png)
-
-*MCP tool server — modular tool registration with health introspection*
-
+  <img src="screenshots/MCPServer.png" alt="MCP Server" width="400"/>
+  <br>
+  <em>MCP tool server — modular tool registration with health introspection</em>
 </div>
 
 ### 🤖 Multi-Agent Architecture

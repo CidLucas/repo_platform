@@ -1,6 +1,6 @@
 <div align="center">
 
-# Vizu — AI-Powered Data Platform
+# AI-Powered Data Platform
 
 **A production-grade, multi-tenant platform that centralizes business data and enables AI agents to analyze, query, and act on it.**
 

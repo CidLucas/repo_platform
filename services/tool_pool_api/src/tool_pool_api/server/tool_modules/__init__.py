@@ -58,7 +58,15 @@ def register_all_tools(mcp: FastMCP) -> dict:
     modules_loaded = []
 
     # Importa módulos para trigger os decorators
-    from . import common_module, prompt_module, rag_module, sql_module, web_monitor_module
+    from . import (
+        common_module,
+        config_helper_module,
+        csv_module,
+        prompt_module,
+        rag_module,
+        sql_module,
+        web_monitor_module,
+    )
 
     # Optional Google module (integration)
     try:
@@ -91,6 +99,25 @@ AVAILABLE_MODULES = {
     "sql": {
         "description": "SQL Agent para dados estruturados",
         "tools": ["executar_sql_agent"],
+        "requires_auth": True,
+    },
+    "csv": {
+        "description": "CSV analytics with DuckDB",
+        "tools": [
+            "execute_csv_query",
+            "list_csv_datasets",
+        ],
+        "requires_auth": True,
+    },
+    "config_helper": {
+        "description": "Config Helper tools for standalone agent setup",
+        "tools": [
+            "check_config_completeness",
+            "save_config_field",
+            "get_agent_requirements",
+            "finalize_config",
+            "peek_csv_columns",
+        ],
         "requires_auth": True,
     },
     "common": {

@@ -441,6 +441,33 @@ services:
 
 
   # =========================================
+  # STANDALONE AGENT API SERVICE
+  # =========================================
+  standalone_agent_api:
+    container_name: vizu_standalone_agent_api
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: ./services/standalone_agent_api/Dockerfile
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./services/standalone_agent_api/src:/app/services/standalone_agent_api/src
+      - ./libs:/app/libs
+    environment:
+      <<: [*common-env, *atendente-env]
+      PYTHONPATH: /app/services/standalone_agent_api/src
+      # Standalone agent config
+      TOOL_POOL_API_URL: http://tool_pool_api:8000/mcp/
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DEBUG: ${DEBUG:-false}
+    depends_on:
+      - redis
+      - tool_pool_api
+
+
+  # =========================================
   # FRONTEND DASHBOARD (SPA React + Nginx)
   # =========================================
   vizu_dashboard:

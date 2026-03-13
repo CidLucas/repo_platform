@@ -22,6 +22,7 @@ COPY libs/vizu_sql_factory ./libs/vizu_sql_factory
 COPY libs/vizu_tool_registry ./libs/vizu_tool_registry
 COPY libs/vizu_prompt_management ./libs/vizu_prompt_management
 COPY libs/vizu_google_suite_client ./libs/vizu_google_suite_client
+COPY libs/vizu_parsers ./libs/vizu_parsers
 
 # Copy pyproject and install deps
 COPY services/tool_pool_api/pyproject.toml services/tool_pool_api/poetry.lock* ./services/tool_pool_api/
@@ -52,6 +53,7 @@ COPY libs/vizu_sql_factory/src ./libs/vizu_sql_factory/src
 COPY libs/vizu_tool_registry/src ./libs/vizu_tool_registry/src
 COPY libs/vizu_prompt_management/src ./libs/vizu_prompt_management/src
 COPY libs/vizu_google_suite_client/src ./libs/vizu_google_suite_client/src
+COPY libs/vizu_parsers/src ./libs/vizu_parsers/src
 
 # Copy service source code
 COPY services/tool_pool_api/src ./src

@@ -120,6 +120,7 @@ dev:
 	@echo "   ✓ vizu_dashboard (frontend)"
 	@echo "   ✓ atendente_core (main backend)"
 	@echo "   ✓ tool_pool_api (MCP tools)"
+	@echo "   ✓ standalone_agent_api (standalone agents)"
 	@echo "   ✓ redis + qdrant (dependencies)"
 	@echo ""
 	@echo "💡 Uses remote Supabase (no local DB)"
@@ -129,14 +130,15 @@ dev:
 	@echo "   🎨 Dashboard:      http://localhost:8080"
 	@echo "   🤖 Atendente:      http://localhost:8003"
 	@echo "   🔧 Tool Pool:      http://localhost:8006"
+	@echo "   📊 Standalone API: http://localhost:8001"
 	@echo ""
 	@echo "🛑 Stop stack:        Ctrl+C then 'make dev-down'"
 	@echo ""
-	$(COMPOSE) up --build redis tool_pool_api atendente_core vizu_dashboard
+	$(COMPOSE) up --build redis tool_pool_api atendente_core standalone_agent_api vizu_dashboard
 
 dev-down:
 	@echo "🛑 Stopping dev stack..."
-	$(COMPOSE) stop vizu_dashboard atendente_core tool_pool_api redis
+	$(COMPOSE) stop vizu_dashboard atendente_core standalone_agent_api tool_pool_api redis
 	@echo "✅ Dev stack stopped (containers preserved, use 'make down' to remove)"
 
 dev-logs:

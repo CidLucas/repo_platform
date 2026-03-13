@@ -81,7 +81,7 @@ export const AdminSidebar = () => {
         <SidebarItem
           to="/dashboard/admin/chat"
           icon={FiMessageSquare}
-          label="Chat admin"
+          label="Agente Config"
         />
         <SidebarItem
           to="/dashboard/admin/planos"

@@ -19,6 +19,7 @@ redis = "^5.0.0"
 httpx = "^0.28.1"
 langfuse = "^3.0.0"
 langchain = "^0.3.0"  # Required for langfuse.langchain integration
+duckdb = "^1.1.0"  # In-process analytical SQL engine for CSV queries
 
 # --- Internal libs (only direct dependencies) ---
 vizu-models = { path = "../../libs/vizu_models", develop = true }
@@ -32,6 +33,7 @@ vizu-sql-factory = { path = "../../libs/vizu_sql_factory", develop = true }
 vizu-tool-registry = { path = "../../libs/vizu_tool_registry", develop = true }
 vizu-prompt-management = { path = "../../libs/vizu_prompt_management", develop = true }
 vizu-google-suite-client = { path = "../../libs/vizu_google_suite_client", develop = true }
+vizu-parsers = { path = "../../libs/vizu_parsers", develop = true }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"

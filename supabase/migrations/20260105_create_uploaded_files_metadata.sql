@@ -6,16 +6,15 @@ CREATE TABLE IF NOT EXISTS public.uploaded_files_metadata (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
     -- Client isolation
-    client_id UUID NOT NULL REFERENCES clientes_vizu(id) ON DELETE CASCADE,
+    cliente_vizu_id UUID NOT NULL REFERENCES clientes_vizu(client_id) ON DELETE CASCADE,
 
     -- File information
     file_name TEXT NOT NULL,
     file_size_bytes BIGINT NOT NULL,
     file_type TEXT, -- 'csv', 'xlsx', etc.
-    content_type TEXT,
 
     -- Storage location
-    storage_bucket TEXT DEFAULT 'file-uploads',
+    storage_bucket TEXT DEFAULT 'vizu-uploads',
     storage_path TEXT NOT NULL, -- Full path in Supabase Storage
 
     -- Processing status
@@ -39,7 +38,7 @@ CREATE TABLE IF NOT EXISTS public.uploaded_files_metadata (
 );
 
 -- Indexes
-CREATE INDEX idx_uploaded_files_cliente ON uploaded_files_metadata(client_id);
+CREATE INDEX idx_uploaded_files_cliente ON uploaded_files_metadata(cliente_vizu_id);
 CREATE INDEX idx_uploaded_files_status ON uploaded_files_metadata(status);
 CREATE INDEX idx_uploaded_files_uploaded_at ON uploaded_files_metadata(uploaded_at DESC);
 
@@ -51,8 +50,8 @@ CREATE POLICY "Users can view own uploaded files"
 ON uploaded_files_metadata
 FOR SELECT
 USING (
-    client_id IN (
-        SELECT id FROM clientes_vizu
+    cliente_vizu_id IN (
+        SELECT client_id FROM clientes_vizu
         WHERE external_user_id = auth.jwt() ->> 'sub'
     )
 );
@@ -62,8 +61,8 @@ CREATE POLICY "Users can insert own uploaded files"
 ON uploaded_files_metadata
 FOR INSERT
 WITH CHECK (
-    client_id IN (
-        SELECT id FROM clientes_vizu
+    cliente_vizu_id IN (
+        SELECT client_id FROM clientes_vizu
         WHERE external_user_id = auth.jwt() ->> 'sub'
     )
 );
@@ -73,8 +72,8 @@ CREATE POLICY "Users can update own uploaded files"
 ON uploaded_files_metadata
 FOR UPDATE
 USING (
-    client_id IN (
-        SELECT id FROM clientes_vizu
+    cliente_vizu_id IN (
+        SELECT client_id FROM clientes_vizu
         WHERE external_user_id = auth.jwt() ->> 'sub'
     )
 );

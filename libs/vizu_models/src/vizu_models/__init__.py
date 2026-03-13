@@ -134,6 +134,17 @@ from .prompt_template import (
 )
 from .safe_client_context import InternalClientContext, SafeClientContext
 from .seed_clients import SEED_CLIENTS, get_all_rag_collections, get_client_by_name
+
+# Standalone Agent models
+from .standalone_agent import (
+    AgentCatalog,
+    AgentCatalogBase,
+    AgentCatalogRead,
+    StandaloneAgentSession,
+    StandaloneAgentSessionBase,
+    StandaloneAgentSessionCreate,
+    StandaloneAgentSessionRead,
+)
 from .sql_schema_config import (
     SqlTableConfig,
     SqlTableConfigCreate,

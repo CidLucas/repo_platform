@@ -4,7 +4,7 @@
 
 **A production-grade, multi-tenant platform that centralizes business data and enables AI agents to analyze, query, and act on it.**
 
-Built from scratch as a solo full-stack engineer — 20+ shared libraries, 6 microservices, 62 database migrations, ~60k lines of Python, ~21k lines of TypeScript.
+Built from scratch as a solo full-stack engineer (with CoPilot) — 20+ shared libraries, 6 microservices, written in Python and TypeScript.
 
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](#)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](#)

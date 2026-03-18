@@ -36,6 +36,7 @@ export interface EmbeddingProgress {
     total_chunks: number;
     embedded_chunks: number;
     progress_pct: number;
+    status: KBDocument['status'] | null;
 }
 
 export type KBDocumentSource = "upload" | "chat" | "url" | "api";
@@ -133,19 +134,31 @@ export async function deleteDocument(
 export async function getDocumentProgress(
     documentId: string
 ): Promise<EmbeddingProgress> {
-    const { data, error } = await supabase.rpc(
-        "get_document_embedding_progress",
-        { p_document_id: documentId }
-    );
+    // Fetch chunk-level progress AND document status in parallel
+    const [rpcResult, docResult] = await Promise.all([
+        supabase.rpc(
+            "get_document_embedding_progress",
+            { p_document_id: documentId }
+        ),
+        supabase
+            .schema("vector_db")
+            .from("documents")
+            .select("status")
+            .eq("id", documentId)
+            .single(),
+    ]);
 
-    if (error)
-        throw new Error(`Erro ao buscar progresso: ${error.message}`);
+    if (rpcResult.error)
+        throw new Error(`Erro ao buscar progresso: ${rpcResult.error.message}`);
 
-    const row = Array.isArray(data) ? data[0] : data;
+    const row = Array.isArray(rpcResult.data) ? rpcResult.data[0] : rpcResult.data;
+    const docStatus = docResult.data?.status ?? null;
+
     return {
         total_chunks: row?.total_chunks ?? 0,
         embedded_chunks: row?.embedded_chunks ?? 0,
         progress_pct: row?.progress_pct ?? 0,
+        status: docStatus,
     };
 }
 

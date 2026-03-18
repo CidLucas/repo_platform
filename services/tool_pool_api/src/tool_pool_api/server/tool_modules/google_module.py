@@ -1,6 +1,6 @@
 """Google Suite Tools Module
 
-Registers Google-related tools (Sheets, Gmail, Calendar) with the MCP registry.
+Registers Google-related tools (Sheets, Gmail, Calendar, Docs) with the MCP registry.
 """
 
 import logging
@@ -13,6 +13,7 @@ from tool_pool_api.server.dependencies import get_context_service
 from tool_pool_api.server.tool_modules import register_module
 from vizu_google_suite_client import (
     GoogleCalendarClient,
+    GoogleDocsClient,
     GoogleGmailClient,
     GoogleSheetsClient,
 )
@@ -192,6 +193,77 @@ async def _create_spreadsheet_with_data_logic(
         "spreadsheet_url": spreadsheet["spreadsheet_url"],
         "rows_written": len(values),
     }
+
+
+# ── Google Docs business logic ──────────────────────────────────────────────
+
+
+async def _create_document_logic(
+    title: str,
+    cliente_id: str,
+    account_email: str | None = None,
+) -> dict:
+    """Create a new Google Doc."""
+    tokens = await _get_google_tokens(cliente_id, account_email)
+    client = GoogleDocsClient(access_token=tokens["access_token"])
+    result = await client.create_document(title)
+    result["account_used"] = tokens.get("account_email")
+    return result
+
+
+async def _read_document_logic(
+    document_id: str,
+    cliente_id: str,
+    account_email: str | None = None,
+) -> dict:
+    """Read a Google Doc and return its text content."""
+    tokens = await _get_google_tokens(cliente_id, account_email)
+    client = GoogleDocsClient(access_token=tokens["access_token"])
+    result = await client.read_document(document_id)
+    return {
+        "document_id": result.document_id,
+        "title": result.title,
+        "body_text": result.body_text,
+        "revision_id": result.revision_id,
+        "account_used": tokens.get("account_email"),
+    }
+
+
+async def _write_document_logic(
+    document_id: str,
+    text: str,
+    cliente_id: str,
+    mode: str = "append",
+    old_text: str | None = None,
+    account_email: str | None = None,
+) -> dict:
+    """Write to a Google Doc (append text or replace text)."""
+    tokens = await _get_google_tokens(cliente_id, account_email)
+    client = GoogleDocsClient(access_token=tokens["access_token"])
+
+    if mode == "replace" and old_text:
+        result = await client.replace_text(document_id, old_text, text)
+    else:
+        result = await client.append_text(document_id, text)
+
+    return {
+        "status": "success",
+        "document_id": result.document_id,
+        "title": result.title,
+        "replies": result.replies,
+        "account_used": tokens.get("account_email"),
+    }
+
+
+async def _list_documents_logic(
+    cliente_id: str,
+    max_results: int = 20,
+    account_email: str | None = None,
+) -> list:
+    """List user's recent Google Docs."""
+    tokens = await _get_google_tokens(cliente_id, account_email)
+    client = GoogleDocsClient(access_token=tokens["access_token"])
+    return await client.list_documents(max_results)
 
 
 # =============================================================================
@@ -470,9 +542,186 @@ def register_tools(mcp: FastMCP) -> list[str]:
         ),
     )(create_spreadsheet_with_data_wrapper)
 
+    # ── Google Docs Tools ───────────────────────────────────────────────
+
+    # Tool 8: Create Google Doc
+    async def google_docs_create_wrapper(
+        title: str,
+        ctx: Context = None,
+        cliente_id: str | None = None,
+        account_email: str | None = None,
+    ) -> dict:
+        """
+        Create a new Google Docs document.
+
+        Args:
+            title: Title for the new document
+            cliente_id: ID do cliente (injected internally)
+            account_email: Optional Google account to use
+        """
+        if not cliente_id:
+            raise ValueError("cliente_id is required")
+        return await _create_document_logic(title, cliente_id, account_email)
+
+    mcp.tool(
+        name="google_docs_create",
+        description=(
+            """**Purpose:** Create a new Google Docs document.
+
+**When to use this tool:**
+- User asks to create a new document
+- User wants to draft a report, letter, or document
+- Generating content that should live in Google Docs
+
+**Input format:**
+- title: (string) Title for the new document
+- account_email: (optional string) Specific Google account to use
+
+**Examples:**
+- "create a new Google Doc called Monthly Report"
+- "make a document for meeting notes"
+- "start a new draft in Google Docs"""
+        ),
+    )(google_docs_create_wrapper)
+
+    # Tool 9: Read Google Doc
+    async def google_docs_read_wrapper(
+        document_id: str,
+        ctx: Context = None,
+        cliente_id: str | None = None,
+        account_email: str | None = None,
+    ) -> dict:
+        """
+        Read the content of a Google Docs document.
+
+        Args:
+            document_id: The ID of the document (from the URL)
+            cliente_id: ID do cliente (injected internally)
+            account_email: Optional Google account to use
+        """
+        if not cliente_id:
+            raise ValueError("cliente_id is required")
+        return await _read_document_logic(document_id, cliente_id, account_email)
+
+    mcp.tool(
+        name="google_docs_read",
+        description=(
+            """**Purpose:** Read the content of a Google Docs document.
+
+**When to use this tool:**
+- User asks to read or review a document
+- User wants to see the contents of a Google Doc
+- Fetching document content for analysis or summarization
+
+**Input format:**
+- document_id: (string) The document ID from the URL
+- account_email: (optional string) Specific Google account to use
+
+**Examples:**
+- "read my Google Doc with ID abc123"
+- "what's in this document?"
+- "show me the contents of that Google Doc"""
+        ),
+    )(google_docs_read_wrapper)
+
+    # Tool 10: Write to Google Doc
+    async def google_docs_write_wrapper(
+        document_id: str,
+        text: str,
+        mode: str = "append",
+        old_text: str | None = None,
+        ctx: Context = None,
+        cliente_id: str | None = None,
+        account_email: str | None = None,
+    ) -> dict:
+        """
+        Write content to a Google Docs document.
+
+        Args:
+            document_id: The ID of the document (from the URL)
+            text: The text to write (append) or the replacement text (replace mode)
+            mode: "append" to add text at end, "replace" to find-and-replace
+            old_text: Text to find and replace (required when mode is "replace")
+            cliente_id: ID do cliente (injected internally)
+            account_email: Optional Google account to use
+        """
+        if not cliente_id:
+            raise ValueError("cliente_id is required")
+        return await _write_document_logic(
+            document_id, text, cliente_id, mode, old_text, account_email
+        )
+
+    mcp.tool(
+        name="google_docs_write",
+        description=(
+            """**Purpose:** Write content to a Google Docs document.
+
+**When to use this tool:**
+- User asks to add text to an existing document
+- User wants to append content (e.g., meeting notes, report sections)
+- User wants to find and replace text in a document
+
+**Input format:**
+- document_id: (string) The document ID from the URL
+- text: (string) Text to append or replacement text
+- mode: (string) "append" (default) or "replace"
+- old_text: (string, required for replace) Text to find and replace
+- account_email: (optional string) Specific Google account to use
+
+**Examples:**
+- "add this paragraph to my document"
+- "append the meeting notes to the Google Doc"
+- "replace 'draft' with 'final' in the document"""
+        ),
+    )(google_docs_write_wrapper)
+
+    # Tool 11: List Google Docs
+    async def google_docs_list_wrapper(
+        max_results: int = 20,
+        ctx: Context = None,
+        cliente_id: str | None = None,
+        account_email: str | None = None,
+    ) -> list:
+        """
+        List user's recent Google Docs documents.
+
+        Returns a list of documents with their IDs, titles, and URLs.
+        Use this to let users select a document to read or edit.
+
+        Args:
+            max_results: Maximum number of documents to return (default 20)
+            cliente_id: ID do cliente (injected internally)
+            account_email: Optional Google account to use
+        """
+        if not cliente_id:
+            raise ValueError("cliente_id is required")
+        return await _list_documents_logic(cliente_id, max_results, account_email)
+
+    mcp.tool(
+        name="google_docs_list",
+        description=(
+            """**Purpose:** List user's recent Google Docs documents.
+
+**When to use this tool:**
+- User asks to see their documents
+- Before reading/writing, to let user pick a document
+- User wants to find a specific document
+
+**Input format:**
+- max_results: (optional integer) Number of documents to return (default 20)
+- account_email: (optional string) Specific Google account to use
+
+**Examples:**
+- "show me my recent Google Docs"
+- "list my documents"
+- "what documents do I have?"""
+        ),
+    )(google_docs_list_wrapper)
+
     logger.info(
         "[Google Module] Tools registered: write_to_sheet, read_emails, query_calendar, "
-        "list_google_accounts, list_spreadsheets, export_to_sheet, create_spreadsheet_with_data"
+        "list_google_accounts, list_spreadsheets, export_to_sheet, create_spreadsheet_with_data, "
+        "google_docs_create, google_docs_read, google_docs_write, google_docs_list"
     )
     return [
         "write_to_sheet",
@@ -482,4 +731,8 @@ def register_tools(mcp: FastMCP) -> list[str]:
         "list_spreadsheets",
         "export_to_sheet",
         "create_spreadsheet_with_data",
+        "google_docs_create",
+        "google_docs_read",
+        "google_docs_write",
+        "google_docs_list",
     ]

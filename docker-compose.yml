@@ -427,9 +427,9 @@ services:
       # --- CORREÇÃO DE IMPORTAÇÃO ---
       # Ajustado para encontrar o código dentro da estrutura específica deste container
       PYTHONPATH: /app/services/tool_pool_api/src
-      # Google OAuth config
-      MCP_AUTH_GOOGLE_CLIENT_ID: ${MCP_AUTH_GOOGLE_CLIENT_ID:-}
-      MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV: ${MCP_AUTH_GOOGLE_CLIENT_SECRET_DEV:-}
+      # Google OAuth: platform-level credentials are stored in Supabase Vault.
+      # Per-client overrides go to integration_configs table.
+      # See: scripts/seed_google_oauth_vault.py
       MCP_AUTH_BASE_URL: ${MCP_AUTH_BASE_URL:-http://localhost:8006}
       CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY:-}
       # Docker MCP integration

@@ -131,8 +131,16 @@ AVAILABLE_MODULES = {
         "requires_auth": False,
     },
     "google": {
-        "description": "Google Suite integrations (Sheets, Gmail, Calendar)",
-        "tools": ["write_to_sheet", "read_emails", "query_calendar"],
+        "description": "Google Suite integrations (Sheets, Gmail, Calendar, Docs)",
+        "tools": [
+            "write_to_sheet",
+            "read_emails",
+            "query_calendar",
+            "google_docs_create",
+            "google_docs_read",
+            "google_docs_write",
+            "google_docs_list",
+        ],
         "requires_auth": True,
     },
     "prompts": {

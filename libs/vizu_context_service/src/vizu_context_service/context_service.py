@@ -613,6 +613,18 @@ class ContextService:
             )
             return row
 
+    async def get_platform_oauth_config(self, provider: str) -> dict | None:
+        """Retrieve platform-level OAuth credentials from Supabase Vault.
+
+        Returns dict with 'client_id' and 'client_secret' (plaintext) or None.
+        Used as fallback when no per-client integration_configs row exists.
+        """
+        if not self._use_supabase:
+            return None
+        return await asyncio.to_thread(
+            self._supabase_crud.get_platform_oauth_config, provider
+        )
+
     async def save_integration_tokens(
         self,
         client_id: UUID,
@@ -786,24 +798,32 @@ class ContextService:
         try:
             # Get the OAuth config to get client_id/secret
             cfg_row = await self.get_integration_config(client_id, "google")
-            if not cfg_row:
-                logger.error(f"[Token Refresh] No Google config found for cliente {client_id}")
-                return None
 
-            client_id = self._decrypt(
-                cfg_row.get("client_id_encrypted")
-                if isinstance(cfg_row, dict)
-                else cfg_row.client_id_encrypted
-            )
-            client_secret = self._decrypt(
-                cfg_row.get("client_secret_encrypted")
-                if isinstance(cfg_row, dict)
-                else cfg_row.client_secret_encrypted
-            )
-            redirect_uri = (
-                cfg_row.get("redirect_uri") if isinstance(cfg_row, dict) else cfg_row.redirect_uri
-            )
-            scopes = cfg_row.get("scopes") if isinstance(cfg_row, dict) else cfg_row.scopes
+            if cfg_row:
+                oauth_client_id = self._decrypt(
+                    cfg_row.get("client_id_encrypted")
+                    if isinstance(cfg_row, dict)
+                    else cfg_row.client_id_encrypted
+                )
+                oauth_client_secret = self._decrypt(
+                    cfg_row.get("client_secret_encrypted")
+                    if isinstance(cfg_row, dict)
+                    else cfg_row.client_secret_encrypted
+                )
+                redirect_uri = (
+                    cfg_row.get("redirect_uri") if isinstance(cfg_row, dict) else cfg_row.redirect_uri
+                )
+                scopes = cfg_row.get("scopes") if isinstance(cfg_row, dict) else cfg_row.scopes
+            else:
+                # Fallback: platform-level credentials from Vault
+                platform_cfg = await self.get_platform_oauth_config("google")
+                if not platform_cfg:
+                    logger.error(f"[Token Refresh] No Google config found for cliente {client_id}")
+                    return None
+                oauth_client_id = platform_cfg["client_id"]
+                oauth_client_secret = platform_cfg["client_secret"]
+                redirect_uri = ""
+                scopes = []
 
             # Use OAuthManager to refresh
             from datetime import timedelta
@@ -812,8 +832,8 @@ class ContextService:
             from vizu_auth.oauth2.oauth_manager import OAuthManager
 
             oauth_config = OAuthConfig(
-                client_id=client_id,
-                client_secret=client_secret,
+                client_id=oauth_client_id,
+                client_secret=oauth_client_secret,
                 redirect_uri=redirect_uri,
                 scopes=scopes if isinstance(scopes, list) else [],
             )

@@ -56,6 +56,57 @@ def _extract_oauth_config(cfg_row, context: ContextService) -> tuple[str, str, s
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
+# Default scopes for platform-level Google OAuth
+_GOOGLE_SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/documents",
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar.events",
+    "openid",
+    "email",
+    "profile",
+]
+
+
+async def _resolve_oauth_config(
+    client_id: UUID,
+    context: ContextService,
+) -> tuple[str, str, str, list[str]]:
+    """Resolve Google OAuth config: per-client first, then platform-level Vault fallback.
+
+    Returns:
+        Tuple of (oauth_client_id, client_secret, redirect_uri, scopes)
+
+    Raises:
+        HTTPException 400 if neither per-client nor platform config exists.
+    """
+    settings = get_settings()
+
+    # 1) Try per-client config from integration_configs table
+    cfg_row = await context.get_integration_config(client_id, "google")
+    if cfg_row:
+        return _extract_oauth_config(cfg_row, context)
+
+    # 2) Fallback: platform-level credentials from Supabase Vault
+    platform_cfg = await context.get_platform_oauth_config("google")
+    if platform_cfg:
+        return (
+            platform_cfg["client_id"],
+            platform_cfg["client_secret"],
+            f"{settings.MCP_AUTH_BASE_URL}/integrations/google/callback",
+            _GOOGLE_SCOPES,
+        )
+
+    raise HTTPException(
+        status_code=400,
+        detail="Google integration not configured. "
+        "Either configure per-client credentials via POST /integrations/google/config "
+        "or seed platform-level credentials in Supabase Vault.",
+    )
+
 
 class GoogleClientConfig(BaseModel):
     client_id: str
@@ -159,6 +210,8 @@ async def configure_google_integration(
         redirect_uri=f"{settings.MCP_AUTH_BASE_URL}/integrations/google/callback",
         scopes=[
             "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/drive.readonly",
             "https://www.googleapis.com/auth/gmail.readonly",
             "https://www.googleapis.com/auth/gmail.send",
             "https://www.googleapis.com/auth/calendar.readonly",
@@ -177,12 +230,10 @@ async def initiate_google_auth(
     auth: AuthResult = Depends(_get_auth_result),
     context: ContextService = Depends(get_context_service),
 ):
-    # Retrieve saved config
-    cfg_row = await context.get_integration_config(auth.client_id, "google")
-    if not cfg_row:
-        raise HTTPException(status_code=400, detail="Google integration not configured")
-
-    client_id, client_secret, redirect_uri, scopes = _extract_oauth_config(cfg_row, context)
+    # Resolve config: per-client → Vault fallback
+    client_id, client_secret, redirect_uri, scopes = await _resolve_oauth_config(
+        auth.client_id, context
+    )
 
     oauth_config = OAuthConfig(
         client_id=client_id,
@@ -223,12 +274,10 @@ async def google_auth_callback(
     # Remove state
     await asyncio.to_thread(context.cache.client.delete, f"oauth_state:{state}")
 
-    # Load integration config
-    cfg_row = await context.get_integration_config(client_id, "google")
-    if not cfg_row:
-        raise HTTPException(status_code=400, detail="Google integration not configured")
-
-    oauth_client_id, client_secret, redirect_uri, scopes = _extract_oauth_config(cfg_row, context)
+    # Load integration config: per-client → Vault fallback
+    oauth_client_id, client_secret, redirect_uri, scopes = await _resolve_oauth_config(
+        client_id, context
+    )
 
     oauth_config = OAuthConfig(
         client_id=oauth_client_id,

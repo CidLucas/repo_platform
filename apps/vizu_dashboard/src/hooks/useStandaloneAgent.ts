@@ -315,7 +315,24 @@ export function useStandaloneAgent() {
                 const pollId = setInterval(async () => {
                     try {
                         const progress = await getDocumentProgress(documentId);
-                        if (progress.progress_pct >= 100) {
+
+                        // Stop polling on failure
+                        if (progress.status === 'failed') {
+                            clearInterval(pollId);
+                            setState((prev) => ({
+                                ...prev,
+                                uploadedDocuments: prev.uploadedDocuments.map((d) =>
+                                    d.id === documentId
+                                        ? { ...d, status: 'failed' as const }
+                                        : d
+                                ),
+                            }));
+                            toast({ title: 'Erro no processamento', description: `Falha ao processar ${file.name}`, status: 'error', duration: 5000 });
+                            return;
+                        }
+
+                        // Stop polling on completion (check both progress and status)
+                        if (progress.progress_pct >= 100 || progress.status === 'completed') {
                             clearInterval(pollId);
                             setState((prev) => ({
                                 ...prev,

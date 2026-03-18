@@ -348,31 +348,38 @@ export async function createCredential(
         });
 
         if (ftError) {
-            console.warn('Warning: Foreign table creation had an issue:', ftError);
+            console.warn('Warning: Foreign table creation RPC error:', ftError);
         } else {
-            console.log('Foreign table created successfully:', foreignTableResult);
-
-            // ─── AUTO COLUMN MATCHING ───
-            // Call match-columns edge function to map BigQuery columns → canonical schema
-            // Then save the mapping to client_data_sources.column_mapping
             const ftResult = foreignTableResult as {
                 success?: boolean;
+                error?: string;
                 columns?: Array<{ name: string }>;
                 data_source_id?: string;
             };
 
-            if (ftResult.success && ftResult.columns && ftResult.data_source_id) {
-                try {
-                    const mapping = await matchAndSaveColumnMapping(
-                        ftResult.data_source_id,
-                        ftResult.columns,
-                        'invoices' // default schema type
-                    );
-                    console.log('Column mapping saved:', Object.keys(mapping).length, 'mappings');
-                } catch (matchErr) {
-                    // Non-fatal: user can still map manually via AdminConnectorMappingPage
-                    console.warn('Auto column matching failed (manual mapping still available):', matchErr);
+            if (ftResult.success) {
+                console.log('Foreign table created successfully:', ftResult.data_source_id);
+
+                // ─── AUTO COLUMN MATCHING ───
+                // Call match-columns edge function to map BigQuery columns → canonical schema
+                // Then save the mapping to client_data_sources.column_mapping
+                if (ftResult.columns && ftResult.data_source_id) {
+                    try {
+                        const mapping = await matchAndSaveColumnMapping(
+                            ftResult.data_source_id,
+                            ftResult.columns,
+                            'invoices' // default schema type
+                        );
+                        console.log('Column mapping saved:', Object.keys(mapping).length, 'mappings');
+                    } catch (matchErr) {
+                        // Non-fatal: user can still map manually via AdminConnectorMappingPage
+                        console.warn('Auto column matching failed (manual mapping still available):', matchErr);
+                    }
                 }
+            } else {
+                // Function returned {success: false} — log the actual error from the DB function
+                console.warn('Warning: Foreign table creation returned failure:', ftResult.error);
+                // trigger_column_discovery will retry the FDW creation
             }
         }
 

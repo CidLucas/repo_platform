@@ -205,7 +205,7 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
         credentials,
       });
 
-      // For BigQuery: Trigger column discovery immediately
+      // For BigQuery: Trigger column discovery (checks cached results first, then falls back to info_schema)
       if (connector.id === 'bigquery') {
         toast({
           title: 'Credencial criada!',
@@ -217,7 +217,8 @@ const ConnectorModal = ({ isOpen, onClose, connector }: ConnectorModalProps) => 
         });
 
         try {
-          // Call the discovery RPC function
+          // trigger_column_discovery first checks if create_bigquery_foreign_table
+          // already stored columns, avoiding redundant info_schema lookups
           const { data: discoveryResult, error: discoveryError } = await supabase.rpc('trigger_column_discovery', {
             p_credential_id: parseInt(response.id),
           });

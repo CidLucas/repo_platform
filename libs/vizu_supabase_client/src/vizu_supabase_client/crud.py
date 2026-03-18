@@ -496,6 +496,16 @@ class SupabaseCRUD:
             logger.error(f"Error getting integration config: {e}")
             return None
 
+    def get_platform_oauth_config(self, provider: str) -> dict[str, Any] | None:
+        """Get platform-level OAuth credentials from Supabase Vault.
+
+        Falls back to vault-stored secrets when no per-client config exists.
+        Only supports 'google' provider currently.
+        """
+        if provider != "google":
+            return None
+        return self.call_function("get_platform_google_oauth_config")
+
     # ========================================================================
     # INTEGRATION TOKENS OPERATIONS (Multi-account support)
     # ========================================================================

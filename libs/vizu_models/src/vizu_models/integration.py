@@ -47,6 +47,12 @@ class IntegrationTokens(SQLModel, table=True):
     token_type: str | None = None
     expires_at: datetime | None = None
     scopes: list[str] = Field(sa_column=Column(JSON))
+
+    # Multi-account support
+    account_email: str = Field(default="default@unknown.com")
+    account_name: str | None = None
+    is_default: bool = Field(default=False)
+
     # 'metadata' is a reserved attribute on SQLAlchemy declarative classes.
     # Use `metadata_json` in the Python model but map it to the DB column name 'metadata'.
     metadata_json: dict[str, Any] | None = Field(

@@ -86,13 +86,6 @@ class CreateSessionRequest(BaseModel):
     agent_catalog_id: UUID
 
 
-class GoogleAccountInfo(BaseModel):
-    """Google account info."""
-
-    email: str
-    connected: bool
-
-
 # ============================================================================
 # CATALOG ROUTES
 # ============================================================================
@@ -303,16 +296,11 @@ async def list_session_csvs(
 # ============================================================================
 # GOOGLE INTEGRATION ROUTES
 # ============================================================================
-
-
-@router.get("/google/accounts", response_model=list[GoogleAccountInfo])
-async def get_google_accounts(
-    auth_result: AuthResult = Depends(get_auth_result),
-):
-    """Get user's connected Google accounts."""
-    # TODO: Query integration_tokens table for Google OAuth tokens
-    # For now, return empty list
-    return []
+# NOTE: OAuth initiation and account listing are handled by tool_pool_api
+# (integrations_router.py). The frontend calls tool_pool_api directly for:
+#   - POST /integrations/google/auth/initiate
+#   - GET  /integrations/google/accounts
+# This router only handles session-level linking.
 
 
 @router.patch("/sessions/{session_id}/google")
@@ -334,20 +322,6 @@ async def link_google_account(
     except Exception as e:
         logger.error(f"Error linking Google account: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/google/auth/initiate")
-async def initiate_google_auth(
-    session_id: str = Query(...),
-    redirect_uri: str = Query(...),
-):
-    """Initiate Google OAuth flow."""
-    # TODO: Implement Google OAuth initiation
-    # Should redirect to Google OAuth consent screen with proper scopes
-    return {
-        "auth_url": f"https://accounts.google.com/o/oauth2/v2/auth?...",
-        "session_id": session_id,
-    }
 
 
 # ============================================================================

@@ -37,9 +37,11 @@ function AdminChatPage() {
     finalize,
     activate,
     connectGoogle,
+    reloadCatalog,
   } = useStandaloneAgent();
 
   const accessToken = auth?.session?.access_token;
+  const isAdmin = auth?.tier === 'ADMIN';
 
   // If no session selected, show agent selector
   if (!currentSession) {
@@ -52,6 +54,8 @@ function AdminChatPage() {
             loading={loadingCatalog}
             onSelectAgent={(agent) => selectAgent(agent.id)}
             onCreateSession={createNewSession}
+            onAgentCreated={reloadCatalog}
+            isAdmin={isAdmin}
           />
         </Box>
       </AdminLayout>

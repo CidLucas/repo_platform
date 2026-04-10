@@ -129,36 +129,6 @@ class ContextService:
         Context 2.0: Now includes all modular context sections.
         """
 
-        def _normalize_enabled_tools(raw):
-            if not raw:
-                return []
-            if isinstance(raw, str):
-                # JSON string? Try to parse conservatively
-                try:
-                    import json
-
-                    parsed = json.loads(raw)
-                except Exception:
-                    return []
-            else:
-                parsed = raw
-
-            if not isinstance(parsed, list | tuple):
-                return []
-
-            seen = set()
-            deduped = []
-            for v in parsed:
-                if v is None:
-                    continue
-                if v in seen:
-                    continue
-                seen.add(v)
-                deduped.append(v)
-            return deduped
-
-        enabled_tools = _normalize_enabled_tools(data.get("enabled_tools"))
-
         return VizuClientContext(
             # Identification
             id=UUID(data["client_id"]) if isinstance(data["client_id"], str) else data["client_id"],
@@ -174,8 +144,6 @@ class ContextService:
             policies=data.get("policies"),
             data_schema=data.get("data_schema"),
             available_tools=data.get("available_tools"),
-            # Tool configuration
-            enabled_tools=enabled_tools,
             credenciais=[],
         )
 
@@ -184,17 +152,6 @@ class ContextService:
 
         Context 2.0: Now includes all modular context sections.
         """
-        raw = getattr(cliente_db, "enabled_tools", None) or []
-        # Normalize/dedupe preserving order
-        seen = set()
-        deduped = []
-        for v in raw or []:
-            if v is None:
-                continue
-            if v in seen:
-                continue
-            seen.add(v)
-            deduped.append(v)
 
         return VizuClientContext(
             # Identification
@@ -211,8 +168,6 @@ class ContextService:
             policies=getattr(cliente_db, "policies", None),
             data_schema=getattr(cliente_db, "data_schema", None),
             available_tools=getattr(cliente_db, "available_tools", None),
-            # Tool configuration
-            enabled_tools=deduped,
             credenciais=[],
         )
 

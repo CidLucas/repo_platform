@@ -270,3 +270,64 @@ def build_tools_description(
         Formatted tool descriptions string
     """
     return VariableExtractor.build_tools_description(available_tools, tool_registry)
+
+
+async def compose_prompt(
+    fragments: list[str],
+    variables: dict[str, Any],
+    context_service: "ContextService | None" = None,
+    langfuse_label: str | None = None,
+    separator: str = "\n\n",
+) -> str:
+    """
+    Compose a prompt from multiple Langfuse fragment prompts.
+
+    Loads each fragment via build_prompt() (Langfuse-first with caching)
+    and concatenates them. This enables modular prompt design where
+    fragments like base-role, sql-schema, rag-rules can be mixed per-client.
+
+    Args:
+        fragments: List of Langfuse prompt names (e.g., ["fragment/base-role", "fragment/sql-rules"])
+        variables: Shared variables dict passed to all fragments
+        context_service: Optional ContextService for Redis caching
+        langfuse_label: Override Langfuse label for all fragments
+        separator: String to join fragments (default: double newline)
+
+    Returns:
+        Concatenated rendered prompt
+
+    Example:
+        prompt = await compose_prompt(
+            fragments=[
+                "fragment/base-role",
+                "fragment/sql-schema",
+                "fragment/sql-rules",
+                "fragment/sql-examples",
+                "fragment/tool-usage-general",
+                "fragment/response-format",
+            ],
+            variables={"nome_empresa": "Acme", "tools_description": "..."},
+            context_service=ctx_service,
+        )
+    """
+    parts: list[str] = []
+    for fragment_name in fragments:
+        try:
+            content = await build_prompt(
+                name=fragment_name,
+                variables=variables,
+                context_service=context_service,
+                langfuse_label=langfuse_label,
+            )
+            if content and content.strip():
+                parts.append(content.strip())
+        except Exception as e:
+            logger.warning(f"Failed to load fragment '{fragment_name}': {e}")
+            continue
+
+    result = separator.join(parts)
+    logger.info(
+        f"Composed prompt from {len(parts)}/{len(fragments)} fragments "
+        f"({len(result)} chars)"
+    )
+    return result

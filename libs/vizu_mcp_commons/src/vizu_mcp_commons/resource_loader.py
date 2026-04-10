@@ -240,7 +240,6 @@ class ResourceLoader:
                         "cliente_id": str(context.id),
                         "nome_cliente": context.nome_cliente,
                         "tier": context.tier.value if hasattr(context.tier, "value") else context.tier,
-                        "enabled_tools": context.get_enabled_tools_list(),
                     }
             return None
         except Exception as e:

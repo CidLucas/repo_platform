@@ -1,6 +1,8 @@
 """Service layer for standalone agent operations."""
 
 import logging
+import re
+import unicodedata
 from datetime import datetime
 from uuid import UUID, uuid4
 
@@ -14,8 +16,25 @@ from standalone_agent_api.core.factory import get_factory
 logger = logging.getLogger(__name__)
 
 
+def _slugify(name: str) -> str:
+    """Generate a URL-safe slug from a name."""
+    # Normalize unicode → ascii
+    value = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+    value = value.lower().strip()
+    value = re.sub(r"[^\w\s-]", "", value)
+    value = re.sub(r"[-\s]+", "-", value)
+    return value.strip("-")
+
+
 class CatalogService:
     """Service for agent catalog operations."""
+
+    _AGENT_CONFIG_REQUIRED_FIELDS = {"name", "role"}
+    _ALL_COLUMNS = (
+        "id,name,slug,description,category,icon,"
+        "agent_config,prompt_name,required_context,required_files,"
+        "requires_google,tier_required,is_active,workflow_graph,created_at,updated_at"
+    )
 
     def __init__(self):
         """Initialize service."""
@@ -41,6 +60,13 @@ class CatalogService:
 
         return agents
 
+    async def list_agents_admin(self) -> list[dict]:
+        """List all agents (including inactive) for admin views."""
+        result = self.db.table("agent_catalog").select(
+            self._ALL_COLUMNS
+        ).order("created_at", desc=False).execute()
+        return result.data or []
+
     async def get_agent(self, agent_id: UUID) -> dict:
         """Get agent details with full config."""
         result = self.db.table("agent_catalog").select(
@@ -54,6 +80,152 @@ class CatalogService:
 
         return result.data[0]
 
+    async def get_agent_admin(self, agent_id: UUID) -> dict:
+        """Get agent details for admin (includes inactive)."""
+        result = self.db.table("agent_catalog").select(
+            self._ALL_COLUMNS
+        ).eq("id", str(agent_id)).execute()
+
+        if not result.data:
+            raise ValueError(f"Agent {agent_id} not found")
+
+        return result.data[0]
+
+    def _validate_agent_config(self, agent_config: dict) -> list[str]:
+        """Validate agent_config matches AgentConfig dataclass fields."""
+        errors = []
+        for field in self._AGENT_CONFIG_REQUIRED_FIELDS:
+            if not agent_config.get(field):
+                errors.append(f"agent_config.{field} is required")
+
+        max_turns = agent_config.get("max_turns")
+        if max_turns is not None and (not isinstance(max_turns, int) or max_turns < 1):
+            errors.append("agent_config.max_turns must be a positive integer")
+
+        return errors
+
+    async def _ensure_unique_slug(self, slug: str, exclude_id: str | None = None) -> str:
+        """Ensure slug is unique, appending a suffix if needed."""
+        candidate = slug
+        suffix = 1
+        while True:
+            query = self.db.table("agent_catalog").select("id").eq("slug", candidate)
+            if exclude_id:
+                query = query.neq("id", exclude_id)
+            result = query.execute()
+            if not result.data:
+                return candidate
+            candidate = f"{slug}-{suffix}"
+            suffix += 1
+
+    async def create_agent(self, data: dict) -> dict:
+        """Create a new agent catalog entry."""
+        # Validate agent_config
+        agent_config = data.get("agent_config", {})
+        config_errors = self._validate_agent_config(agent_config)
+        if config_errors:
+            raise ValueError(f"Invalid agent_config: {'; '.join(config_errors)}")
+
+        # Auto-generate slug from name
+        base_slug = _slugify(data.get("name", ""))
+        if not base_slug:
+            raise ValueError("Agent name is required")
+        slug = await self._ensure_unique_slug(base_slug)
+
+        row = {
+            "name": data["name"],
+            "slug": slug,
+            "description": data.get("description"),
+            "category": data.get("category"),
+            "icon": data.get("icon"),
+            "agent_config": agent_config,
+            "prompt_name": data.get("prompt_name", ""),
+            "required_context": data.get("required_context", []),
+            "required_files": data.get("required_files", {}),
+            "requires_google": data.get("requires_google", False),
+            "tier_required": data.get("tier_required", "BASIC"),
+            "is_active": data.get("is_active", True),
+            "workflow_graph": data.get("workflow_graph"),
+        }
+
+        result = self.db.table("agent_catalog").insert(row).execute()
+        if not result.data:
+            raise RuntimeError("Failed to create agent catalog entry")
+        return result.data[0]
+
+    async def update_agent(self, agent_id: UUID, data: dict) -> dict:
+        """Update an existing agent catalog entry."""
+        # Verify it exists
+        await self.get_agent_admin(agent_id)
+
+        # Validate agent_config if provided
+        if "agent_config" in data:
+            config_errors = self._validate_agent_config(data["agent_config"])
+            if config_errors:
+                raise ValueError(f"Invalid agent_config: {'; '.join(config_errors)}")
+
+        # Re-generate slug if name changed
+        if "name" in data:
+            base_slug = _slugify(data["name"])
+            if not base_slug:
+                raise ValueError("Agent name is required")
+            data["slug"] = await self._ensure_unique_slug(base_slug, exclude_id=str(agent_id))
+
+        data["updated_at"] = datetime.utcnow().isoformat()
+
+        # Remove fields that shouldn't be updated directly
+        data.pop("id", None)
+        data.pop("created_at", None)
+
+        result = self.db.table("agent_catalog").update(data).eq(
+            "id", str(agent_id)
+        ).execute()
+
+        if not result.data:
+            raise RuntimeError("Failed to update agent catalog entry")
+        return result.data[0]
+
+    async def soft_delete_agent(self, agent_id: UUID) -> dict:
+        """Soft-delete an agent (set is_active=false)."""
+        await self.get_agent_admin(agent_id)
+
+        result = self.db.table("agent_catalog").update({
+            "is_active": False,
+            "updated_at": datetime.utcnow().isoformat(),
+        }).eq("id", str(agent_id)).execute()
+
+        if not result.data:
+            raise RuntimeError("Failed to soft-delete agent")
+        return result.data[0]
+
+    async def duplicate_agent(self, agent_id: UUID) -> dict:
+        """Clone an agent with a new slug."""
+        source = await self.get_agent_admin(agent_id)
+
+        base_slug = _slugify(source["name"] + " copy")
+        slug = await self._ensure_unique_slug(base_slug)
+
+        row = {
+            "name": source["name"] + " (copy)",
+            "slug": slug,
+            "description": source.get("description"),
+            "category": source.get("category"),
+            "icon": source.get("icon"),
+            "agent_config": source.get("agent_config", {}),
+            "prompt_name": source.get("prompt_name", ""),
+            "required_context": source.get("required_context", []),
+            "required_files": source.get("required_files", {}),
+            "requires_google": source.get("requires_google", False),
+            "tier_required": source.get("tier_required", "BASIC"),
+            "is_active": False,  # duplicates start inactive
+            "workflow_graph": source.get("workflow_graph"),
+        }
+
+        result = self.db.table("agent_catalog").insert(row).execute()
+        if not result.data:
+            raise RuntimeError("Failed to duplicate agent")
+        return result.data[0]
+
 
 class SessionService:
     """Service for session CRUD and status management."""
@@ -62,6 +234,22 @@ class SessionService:
         """Initialize service."""
         self.db = get_supabase_client()
 
+    async def _resolve_client_id(self, auth_user_id: UUID) -> str:
+        """Resolve Supabase auth user ID to clientes_vizu.client_id.
+
+        The JWT 'sub' claim is the auth.users.id, but standalone_agent_sessions
+        FK references clientes_vizu.client_id which may differ (linked via
+        external_user_id).
+        """
+        result = self.db.table("clientes_vizu").select("client_id").eq(
+            "external_user_id", str(auth_user_id)
+        ).limit(1).execute()
+
+        if result.data:
+            return result.data[0]["client_id"]
+        # Fallback: auth user ID might itself be the client_id
+        return str(auth_user_id)
+
     async def create_session(
         self,
         client_id: UUID,
@@ -69,9 +257,10 @@ class SessionService:
     ) -> dict:
         """Create new standalone agent session."""
         session_id = str(uuid4())
+        resolved_client_id = await self._resolve_client_id(client_id)
 
         result = self.db.table("standalone_agent_sessions").insert({
-            "client_id": str(client_id),
+            "client_id": resolved_client_id,
             "agent_catalog_id": str(agent_catalog_id),
             "session_id": session_id,
             "config_status": "configuring",
@@ -88,10 +277,11 @@ class SessionService:
         status: str | None = None,
     ) -> list[dict]:
         """List user sessions, optionally filtered by status."""
+        resolved_client_id = await self._resolve_client_id(client_id)
         query = self.db.table("standalone_agent_sessions").select(
             "id,agent_catalog_id,config_status,collected_context,"
             "uploaded_file_ids,created_at,updated_at"
-        ).eq("client_id", str(client_id))
+        ).eq("client_id", resolved_client_id)
 
         if status:
             query = query.eq("config_status", status)
@@ -105,11 +295,12 @@ class SessionService:
         session_id: str,
     ) -> dict:
         """Get session with full details including computed requirements."""
+        resolved_client_id = await self._resolve_client_id(client_id)
         result = self.db.table("standalone_agent_sessions").select(
             "id,client_id,agent_catalog_id,session_id,config_status,collected_context,"
             "uploaded_file_ids,uploaded_document_ids,"
             "google_account_email,metadata,created_at,updated_at"
-        ).eq("client_id", str(client_id)).eq("id", session_id).execute()
+        ).eq("client_id", resolved_client_id).eq("id", session_id).execute()
 
         if not result.data:
             raise ValueError(f"Session {session_id} not found")
@@ -156,7 +347,7 @@ class SessionService:
                 })
 
         csv_req = required_files.get("csv", {})
-        text_req = required_files.get("text", {})
+        document_req = required_files.get("document", {}) or required_files.get("text", {})
         csv_current = len(session.get("uploaded_file_ids") or [])
         text_current = len(session.get("uploaded_document_ids") or [])
 
@@ -169,9 +360,9 @@ class SessionService:
             total_checks += 1
             if csv_current >= csv_req["min"]:
                 filled_checks += 1
-        if text_req.get("min", 0) > 0:
+        if document_req.get("min", 0) > 0:
             total_checks += 1
-            if text_current >= text_req["min"]:
+            if text_current >= document_req["min"]:
                 filled_checks += 1
         if requires_google:
             total_checks += 1
@@ -190,9 +381,9 @@ class SessionService:
                     "max": csv_req.get("max", 10),
                     "current": csv_current,
                 },
-                "text": {
-                    "min": text_req.get("min", 0),
-                    "max": text_req.get("max", 10),
+                "document": {
+                    "min": document_req.get("min", 0),
+                    "max": document_req.get("max", 10),
                     "current": text_current,
                 },
             },
@@ -227,11 +418,12 @@ class SessionService:
     ) -> dict:
         """Finalize config — transition session to 'ready'."""
         session = await self.get_session(client_id, session_id)
+        resolved_client_id = await self._resolve_client_id(client_id)
 
         self.db.table("standalone_agent_sessions").update({
             "config_status": "ready",
             "updated_at": datetime.utcnow().isoformat(),
-        }).eq("id", session_id).eq("client_id", str(client_id)).execute()
+        }).eq("id", session_id).eq("client_id", resolved_client_id).execute()
 
         session["config_status"] = "ready"
         return session
@@ -243,11 +435,12 @@ class SessionService:
     ) -> dict:
         """Transition session from 'ready' to 'active'."""
         session = await self.get_session(client_id, session_id)
+        resolved_client_id = await self._resolve_client_id(client_id)
 
         self.db.table("standalone_agent_sessions").update({
             "config_status": "active",
             "updated_at": datetime.utcnow().isoformat(),
-        }).eq("id", session_id).eq("client_id", str(client_id)).execute()
+        }).eq("id", session_id).eq("client_id", resolved_client_id).execute()
 
         session["config_status"] = "active"
         return session
@@ -259,10 +452,11 @@ class SessionService:
         email: str,
     ) -> dict:
         """Link Google account to session."""
+        resolved_client_id = await self._resolve_client_id(client_id)
         self.db.table("standalone_agent_sessions").update({
             "google_account_email": email,
             "updated_at": datetime.utcnow().isoformat(),
-        }).eq("id", session_id).eq("client_id", str(client_id)).execute()
+        }).eq("id", session_id).eq("client_id", resolved_client_id).execute()
 
         return {"session_id": session_id, "google_account_email": email}
 
@@ -273,11 +467,12 @@ class SessionService:
         document_id: str,
     ) -> dict:
         """Link a document (uploaded via knowledge base) to session's uploaded_document_ids."""
+        resolved_client_id = await self._resolve_client_id(client_id)
         session_result = self.db.table(
             "standalone_agent_sessions"
         ).select("uploaded_document_ids").eq(
             "id", session_id
-        ).eq("client_id", str(client_id)).execute()
+        ).eq("client_id", resolved_client_id).execute()
 
         if not session_result.data:
             raise ValueError(f"Session {session_id} not found")
@@ -289,7 +484,7 @@ class SessionService:
         self.db.table("standalone_agent_sessions").update({
             "uploaded_document_ids": doc_ids,
             "updated_at": datetime.utcnow().isoformat(),
-        }).eq("id", session_id).eq("client_id", str(client_id)).execute()
+        }).eq("id", session_id).eq("client_id", resolved_client_id).execute()
 
         return {"session_id": session_id, "document_id": document_id, "uploaded_document_ids": doc_ids}
 
@@ -411,8 +606,8 @@ class StandaloneAgentService:
             system_prompt=built.system_prompt,
             agent_name=built.agent_name,
             agent_role=built.agent_role,
-            enabled_tools=built.enabled_tools,
             client_context=built.client_context,
+            metadata=built.metadata,
         )
 
         # Add user message
@@ -470,8 +665,8 @@ class StandaloneAgentService:
             system_prompt=built.system_prompt,
             agent_name=built.agent_name,
             agent_role=built.agent_role,
-            enabled_tools=built.enabled_tools,
             client_context=built.client_context,
+            metadata=built.metadata,
         )
 
         # Add user message

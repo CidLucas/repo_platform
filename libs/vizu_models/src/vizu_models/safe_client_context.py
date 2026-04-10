@@ -59,7 +59,7 @@ class SafeClientContext(BaseModel):
     # ===== BASIC IDENTITY (always available) =====
     nome_empresa: str
     tier: str = "BASIC"
-    enabled_tools: list[str] = Field(default_factory=list)
+    enabled_tools: list[str] = Field(default_factory=list, description="Derived from available_tools_config.enabled_tool_names")
 
     # ===== MODULAR SECTIONS (Context 2.0) =====
     company_profile: CompanyProfile | None = None
@@ -315,17 +315,6 @@ class InternalClientContext(BaseModel):
         Returns:
             InternalClientContext with SafeClientContext populated
         """
-        # Get enabled tools
-        enabled_tools: list[str] = []
-        if hasattr(ctx, "get_enabled_tools_list"):
-            enabled_tools = ctx.get_enabled_tools_list()
-        elif hasattr(ctx, "enabled_tools") and ctx.enabled_tools:
-            enabled_tools = (
-                list(ctx.enabled_tools)
-                if isinstance(ctx.enabled_tools, list)
-                else []
-            )
-
         # Get tier value
         tier_value = "BASIC"
         if hasattr(ctx, "tier") and ctx.tier:
@@ -361,6 +350,11 @@ class InternalClientContext(BaseModel):
                 else:
                     section_kwargs[field_name] = content
                     loaded_sections.append(section_type)
+
+        # Get enabled tools from available_tools section
+        enabled_tools: list[str] = []
+        if hasattr(ctx, "get_enabled_tools_list"):
+            enabled_tools = ctx.get_enabled_tools_list()
 
         safe = SafeClientContext(
             nome_empresa=ctx.nome_empresa,

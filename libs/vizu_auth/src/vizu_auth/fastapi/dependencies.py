@@ -15,6 +15,8 @@ from vizu_auth.core.exceptions import (
 from vizu_auth.core.jwt_decoder import decode_jwt
 from vizu_auth.core.models import AuthMethod, AuthResult
 
+_ADMIN_ROLE = "admin"
+
 logger = logging.getLogger(__name__)
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -101,3 +103,47 @@ async def get_optional_auth_result(
         return await get_auth_result(credentials)
     except HTTPException:
         return None
+
+
+async def get_admin_auth_result(
+    auth_result: AuthResult = Depends(get_auth_result),
+) -> AuthResult:
+    """
+    Admin-only authentication dependency.
+
+    Wraps get_auth_result() and additionally checks:
+    1. JWT app_metadata.role == 'admin'  (fast path — no DB hit)
+    2. Fallback: queries clientes_vizu.is_admin from Supabase
+
+    Raises HTTPException 403 if the user is not an admin.
+    """
+    # --- Fast path: check JWT claim ---
+    app_metadata = auth_result.raw_claims.get("app_metadata", {})
+    if isinstance(app_metadata, dict) and app_metadata.get("role") == _ADMIN_ROLE:
+        return auth_result
+
+    # --- Fallback: query database ---
+    try:
+        from vizu_supabase_client import get_supabase_client
+
+        db = get_supabase_client()
+        result = (
+            db.table("clientes_vizu")
+            .select("tier")
+            .eq("external_user_id", str(auth_result.client_id))
+            .maybe_single()
+            .execute()
+        )
+        if result.data and result.data.get("tier", "").upper() == "ADMIN":
+            return auth_result
+    except Exception as exc:
+        logger.error(f"Failed to check admin status in DB: {exc}")
+        # If DB is unreachable and JWT didn't have the claim, deny access
+
+    logger.warning(
+        f"Non-admin user {auth_result.client_id} attempted admin action"
+    )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Admin access required.",
+    )

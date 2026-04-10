@@ -38,9 +38,10 @@ async def verify_admin_access(
     crud: SupabaseCRUD = Depends(get_crud),
 ) -> AdminAuthResult:
     """
-    Verify admin access via JWT with ADMIN tier.
+    Verify admin access via JWT with ADMIN tier or is_admin flag.
 
-    The user must have tier=ADMIN in their cliente_vizu record.
+    Looks up the user by external_user_id (Supabase auth UUID from JWT sub).
+    Accepts either tier=ADMIN or is_admin=true.
 
     Returns:
         AdminAuthResult with client info if authenticated
@@ -56,7 +57,7 @@ async def verify_admin_access(
         claims = decode_jwt(credentials.credentials)
 
         try:
-            client_id = UUID(claims.sub)
+            auth_user_id = UUID(claims.sub)
         except (ValueError, TypeError) as e:
             logger.error(f"Invalid UUID in JWT sub claim: {claims.sub}, error: {e}")
             raise HTTPException(
@@ -65,8 +66,12 @@ async def verify_admin_access(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        # Fetch client to check tier
-        client_data = crud.get_cliente_vizu_by_id(client_id)
+        # Fast path: check JWT app_metadata.role
+        app_metadata = claims.model_dump(exclude_none=True).get("app_metadata", {})
+        is_jwt_admin = isinstance(app_metadata, dict) and app_metadata.get("role") == "admin"
+
+        # Look up client by external_user_id (JWT sub = Supabase auth UUID)
+        client_data = crud.get_cliente_vizu_by_external_user_id(auth_user_id)
         if not client_data:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -74,12 +79,14 @@ async def verify_admin_access(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
+        client_id = UUID(client_data["client_id"])
         client_tier = client_data.get("tier", "BASIC")
+        is_admin = client_data.get("is_admin", False)
 
-        # Check if client has ADMIN tier
-        if not TierLevel.is_admin(client_tier):
+        # Check if client has admin access (JWT claim, tier, or is_admin flag)
+        if not is_jwt_admin and not TierLevel.is_admin(client_tier) and not is_admin:
             logger.warning(
-                f"Non-admin client {client_id} attempted admin access (tier: {client_tier})"
+                f"Non-admin client {client_id} attempted admin access (tier: {client_tier}, is_admin: {is_admin})"
             )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -127,7 +134,6 @@ class ClientCreateRequest(BaseModel):
     tier: str | None = Field(
         default="BASIC", description="Client tier: FREE, BASIC, SME, PREMIUM, ENTERPRISE"
     )
-    enabled_tools: list[str] | None = Field(default=None, description="List of enabled tool names")
     external_user_id: str | None = Field(
         default=None, description="External user ID from OAuth provider"
     )
@@ -149,7 +155,6 @@ class ClientUpdateRequest(BaseModel):
     tier: str | None = Field(
         default=None, description="Client tier: FREE, BASIC, SME, PREMIUM, ENTERPRISE"
     )
-    enabled_tools: list[str] | None = None
     external_user_id: str | None = None
     # Context 2.0 sections (optional)
     available_tools: dict | None = None
@@ -163,7 +168,6 @@ class ClientResponse(BaseModel):
     nome_empresa: str
     tipo_cliente: str | None = None
     tier: str | None = None
-    enabled_tools: list[str] | None = None
     external_user_id: str | None = None
     # Context 2.0 sections
     available_tools: dict | None = None
@@ -199,29 +203,17 @@ class AvailableToolsResponse(BaseModel):
 
 
 # =============================================================================
-# HELPER FUNCTIONS
+# HELPERS
 # =============================================================================
-
-
-def _validate_tools_for_tier(
-    enabled_tools: list[str] | None, tier: str | None
-) -> tuple[bool, list[str]]:
-    """Validate that enabled tools are compatible with the tier."""
-    if not enabled_tools:
-        return True, []
-
-    tier_to_use = tier or "BASIC"
-    return ToolRegistry.validate_client_tools(enabled_tools, tier_to_use)
 
 
 def _dict_to_response(data: dict) -> ClientResponse:
     """Convert database dict to response model."""
     return ClientResponse(
-        id=UUID(data["id"]) if isinstance(data["id"], str) else data["id"],
+        id=UUID(data["client_id"]) if isinstance(data["client_id"], str) else data["client_id"],
         nome_empresa=data.get("nome_empresa", ""),
         tipo_cliente=data.get("tipo_cliente"),
         tier=data.get("tier"),
-        enabled_tools=data.get("enabled_tools"),
         external_user_id=data.get("external_user_id"),
         available_tools=data.get("available_tools"),
         team_structure=data.get("team_structure"),
@@ -248,21 +240,7 @@ async def create_client(
 ):
     """
     Create a new cliente_vizu in the database.
-
-    The enabled_tools list will be validated against the specified tier.
     """
-    # Validate tools against tier
-    is_valid, errors = _validate_tools_for_tier(payload.enabled_tools, payload.tier)
-
-    if not is_valid:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "message": "Tool validation failed",
-                "errors": errors,
-            },
-        )
-
     # Build data dict (exclude None values)
     data = payload.model_dump(exclude_none=True)
 
@@ -274,7 +252,7 @@ async def create_client(
             detail="Failed to create client",
         )
 
-    logger.info(f"Created client: {result.get('id')} - {result.get('nome_empresa')}")
+    logger.info(f"Created client: {result.get('client_id')} - {result.get('nome_empresa')}")
     return _dict_to_response(result)
 
 
@@ -339,9 +317,6 @@ async def update_client(
 ):
     """
     Update a cliente_vizu. Only provided fields will be updated.
-
-    If enabled_tools is updated, it will be validated against the tier
-    (either the new tier if provided, or the existing tier).
     """
     # First, check if client exists
     existing = crud.get_cliente_vizu_by_id(client_id)
@@ -350,23 +325,6 @@ async def update_client(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Client not found: {client_id}",
         )
-
-    # Determine the tier to validate against
-    tier_for_validation = payload.tier or existing.get("tier") or "BASIC"
-    tools_to_validate = payload.enabled_tools
-
-    # If tools aren't being updated, skip validation
-    if tools_to_validate is not None:
-        is_valid, errors = _validate_tools_for_tier(tools_to_validate, tier_for_validation)
-
-        if not is_valid:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "message": "Tool validation failed",
-                    "errors": errors,
-                },
-            )
 
     # Build data dict (exclude None values to only update provided fields)
     data = payload.model_dump(exclude_none=True)
@@ -440,7 +398,7 @@ async def validate_tools(
     """
     Validate that a list of tools is compatible with a tier.
 
-    Useful for checking before creating/updating a client.
+    Useful for checking before creating/updating an agent configuration.
     """
     is_valid, errors = ToolRegistry.validate_client_tools(enabled_tools, tier)
 

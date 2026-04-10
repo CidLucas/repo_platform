@@ -2,13 +2,14 @@
 """Create analytics_v2 schema prompts in Langfuse."""
 
 from base64 import b64encode
+import os
 
 import requests
 
 # Auth
-PUBLIC_KEY = "pk-lf-c64e4914-b8ab-426d-a5ea-14989b564e13"
-SECRET_KEY = "sk-lf-dc053e58-e9e3-4822-abfe-89421ca9c2d4"
-BASE_URL = "https://us.cloud.langfuse.com"
+PUBLIC_KEY = os.environ.get("LANGFUSE_PUBLIC_KEY", "pk-lf-461b0371-b3d8-4dd1-a043-132366f9cc64")
+SECRET_KEY = os.environ.get("LANGFUSE_SECRET_KEY", "sk-lf-734d84c8-464e-41de-bc98-07396d0d7ee4")
+BASE_URL = os.environ.get("LANGFUSE_HOST", os.environ.get("LANGFUSE_BASE_URL", "https://us.cloud.langfuse.com"))
 
 auth_token = b64encode(f"{PUBLIC_KEY}:{SECRET_KEY}".encode()).decode()
 HEADERS = {

@@ -13,43 +13,23 @@ from vizu_tool_registry import ToolRegistry
 logger = logging.getLogger(__name__)
 
 
-def is_tool_enabled_for_client(tool_name: str, context: VizuClientContext) -> bool:
+def is_tool_accessible_by_tier(tool_name: str, context: VizuClientContext) -> bool:
     """
-    Check if a tool is enabled for a client.
-
-    Uses the authoritative `enabled_tools` list and validates against tier.
+    Check if a tool is accessible by the client's tier.
 
     Args:
         tool_name: Name of the tool (e.g., "executar_sql_agent")
         context: VizuClientContext
 
     Returns:
-        True if tool is enabled and accessible by client's tier
+        True if tool is accessible by client's tier
     """
-    enabled = getattr(context, "enabled_tools", None) or []
-
-    if tool_name not in enabled:
-        return False
-
     tier = get_tier_for_context(context)
     tool_meta = ToolRegistry.get_tool(tool_name)
     if tool_meta and not tool_meta.is_accessible_by_tier(tier):
         return False
 
     return True
-
-
-def get_enabled_tools_for_context(context: VizuClientContext) -> list[str]:
-    """
-    Get list of enabled tool names from client context.
-
-    Args:
-        context: VizuClientContext
-
-    Returns:
-        List of enabled tool names
-    """
-    return getattr(context, "enabled_tools", []) or []
 
 
 def get_tier_for_context(context: VizuClientContext) -> str:

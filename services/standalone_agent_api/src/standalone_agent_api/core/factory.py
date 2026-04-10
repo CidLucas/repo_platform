@@ -1,5 +1,6 @@
 """Standalone Agent Factory - Builds agents from catalog entries."""
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from uuid import UUID
@@ -13,11 +14,94 @@ from vizu_context_service import ContextService
 from vizu_context_service.redis_service import RedisService
 from vizu_supabase_client import get_supabase_client
 from vizu_llm_service import get_model
+from vizu_prompt_management import compose_prompt
 from vizu_prompt_management.dynamic_builder import build_prompt_full
 
 from standalone_agent_api.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Fragment composition per standalone agent slug
+AGENT_FRAGMENTS: dict[str, list[str]] = {
+    "data-analyst": [
+        "fragment/standalone-base",
+        "fragment/csv-tools",
+        "fragment/google-export",
+        "fragment/data-analyst-workflow",
+        "fragment/standalone-response",
+    ],
+    "knowledge-assistant": [
+        "fragment/standalone-base",
+        "fragment/rag-search",
+        "fragment/knowledge-assistant-workflow",
+        "fragment/standalone-response",
+    ],
+    "report-generator": [
+        "fragment/standalone-base",
+        "fragment/csv-tools",
+        "fragment/rag-search",
+        "fragment/google-export",
+        "fragment/report-generator-workflow",
+        "fragment/standalone-response",
+    ],
+    "document-intelligence": [
+        "fragment/standalone-base",
+        "fragment/rag-search",
+        "fragment/document-intelligence-tools",
+        "fragment/document-intelligence-workflow",
+        "fragment/standalone-response",
+    ],
+    "config-helper": [
+        "fragment/standalone-base",
+        "fragment/config-helper-workflow",
+    ],
+}
+
+
+class _CheckpointerAdapter:
+    """Adapter that wraps a sync-only RedisSaver so LangGraph's async
+    runtime (astream) can use it.  The library's RedisSaver has sync
+    get_tuple/put/put_writes but its async counterparts raise
+    NotImplementedError in the base class."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    # --- forwarded sync methods ---
+    def get_next_version(self, *a, **kw):
+        if hasattr(self._inner, "get_next_version"):
+            return self._inner.get_next_version(*a, **kw)
+        return None
+
+    # --- async wrappers over sync implementations ---
+    async def aget_tuple(self, config):
+        if hasattr(self._inner, "get_tuple"):
+            return await asyncio.to_thread(self._inner.get_tuple, config)
+        return None
+
+    async def aput(self, *a, **kw):
+        if hasattr(self._inner, "put"):
+            return await asyncio.to_thread(self._inner.put, *a, **kw)
+        return None
+
+    async def aput_writes(self, *a, **kw):
+        if hasattr(self._inner, "put_writes"):
+            return await asyncio.to_thread(self._inner.put_writes, *a, **kw)
+        return None
+
+    def __getattr__(self, name):
+        """Proxy anything else to the inner checkpointer; auto-wrap
+        sync methods as async when an ``a``-prefixed name is requested."""
+        if hasattr(self._inner, name):
+            return getattr(self._inner, name)
+        if name.startswith("a"):
+            sync_name = name[1:]
+            if hasattr(self._inner, sync_name):
+                sync_fn = getattr(self._inner, sync_name)
+                async def _async(*a, **kw):
+                    return await asyncio.to_thread(sync_fn, *a, **kw)
+                return _async
+        raise AttributeError(name)
 
 
 # Module-level singletons (same pattern as atendente_core)
@@ -26,7 +110,7 @@ _context_service: ContextService | None = None
 
 
 def _get_checkpointer():
-    """Get or create the RedisSaver checkpointer singleton."""
+    """Get or create the RedisSaver checkpointer singleton (async-wrapped)."""
     global _checkpointer
     if _checkpointer is None:
         settings = get_settings()
@@ -42,7 +126,7 @@ def _get_checkpointer():
                 cp.setup()
             except Exception:
                 pass
-        _checkpointer = cp
+        _checkpointer = _CheckpointerAdapter(cp)
     return _checkpointer
 
 
@@ -72,6 +156,7 @@ class BuiltAgent:
     agent_role: str = "Assistant"
     enabled_tools: list[str] = field(default_factory=list)
     client_context: dict = field(default_factory=dict)
+    metadata: dict = field(default_factory=dict)
 
 
 class StandaloneAgentFactory:
@@ -94,6 +179,15 @@ class StandaloneAgentFactory:
         # Caching
         self._agent_cache: dict[str, BuiltAgent] = {}
 
+    async def _resolve_client_id(self, auth_user_id: UUID) -> UUID:
+        """Resolve Supabase auth user ID to clientes_vizu.client_id."""
+        result = self.db.table("clientes_vizu").select("client_id").eq(
+            "external_user_id", str(auth_user_id)
+        ).limit(1).execute()
+        if result.data:
+            return UUID(result.data[0]["client_id"])
+        return auth_user_id
+
     async def build_agent(
         self,
         session_id: str,
@@ -111,11 +205,14 @@ class StandaloneAgentFactory:
             logger.info(f"[Factory] Returning cached agent for session {session_id}")
             return self._agent_cache[session_id]
 
+        # Resolve auth user ID to clientes_vizu.client_id
+        client_id = await self._resolve_client_id(client_id)
+
         logger.info(f"[Factory] Building agent for session {session_id}")
 
         # 1. Fetch catalog entry
         catalog_result = self.db.table("agent_catalog").select(
-            "id,name,agent_config,prompt_name,requires_google"
+            "id,name,slug,description,agent_config,prompt_name,required_context,requires_google,workflow_graph"
         ).eq("id", str(agent_catalog_id)).single().execute()
 
         catalog = catalog_result.data
@@ -154,7 +251,6 @@ class StandaloneAgentFactory:
                 client_context_data = {
                     "nome_empresa": getattr(vizu_ctx, "nome_empresa", ""),
                     "tier": getattr(vizu_ctx, "tier", "BASIC"),
-                    "enabled_tools": getattr(vizu_ctx, "enabled_tools", []),
                 }
                 logger.info(
                     f"[Factory] Client context loaded: tier={client_context_data['tier']}, "
@@ -171,22 +267,51 @@ class StandaloneAgentFactory:
                     client_context_data = {
                         "nome_empresa": client_result.data.get("nome_empresa", ""),
                         "tier": client_result.data.get("tier", "BASIC"),
-                        "enabled_tools": [],
                     }
             except Exception:
                 logger.warning("[Factory] Fallback DB query also failed")
 
-        # 5. Build prompt with dynamic variables
+        # 5. Resolve uploaded file names and document names from DB
+        csv_datasets = []
+        csv_datasets_details = ""
+        if uploaded_file_ids:
+            try:
+                file_meta_result = self.db.table("uploaded_files_metadata").select(
+                    "id,file_name,schema_info"
+                ).in_("id", [str(fid) for fid in uploaded_file_ids]).execute()
+                for fm in (file_meta_result.data or []):
+                    csv_datasets.append(fm.get("file_name", ""))
+                    schema = fm.get("schema_info")
+                    if schema:
+                        csv_datasets_details += f"\n- {fm['file_name']}: {schema}"
+            except Exception as e:
+                logger.warning(f"[Factory] Failed to resolve CSV metadata: {e}")
+
+        document_names = []
+        if uploaded_doc_ids:
+            try:
+                doc_result = self.db.schema("vector_db").table("documents").select(
+                    "id,title"
+                ).in_("id", [str(did) for did in uploaded_doc_ids]).execute()
+                document_names = [
+                    d.get("title", "") for d in (doc_result.data or [])
+                ]
+            except Exception as e:
+                logger.warning(f"[Factory] Failed to resolve document names: {e}")
+
+        required_context = catalog.get("required_context") or []
+
+        # Build prompt with dynamic variables
         prompt_vars = {
             "agent_name": catalog.get("name"),
             "agent_description": catalog.get("description", ""),
             "nome_empresa": client_context_data.get("nome_empresa", ""),
             "collected_context": collected_context,
-            "csv_datasets": [],
-            "document_names": [],
-            "csv_datasets_details": "",
+            "csv_datasets": csv_datasets,
+            "document_names": document_names,
+            "csv_datasets_details": csv_datasets_details.strip(),
             "filled_fields": len(collected_context),
-            "total_fields": agent_config_dict.get("max_turns", 20),
+            "total_fields": len(required_context),
             "uploaded_file_count": len(uploaded_file_ids),
             "google_connected": google_email is not None,
             "knowledge_updated_at": "Just loaded",
@@ -194,12 +319,26 @@ class StandaloneAgentFactory:
         }
 
         try:
-            loaded_prompt = await build_prompt_full(
-                name=catalog.get("prompt_name"),
-                variables=prompt_vars,
-                context_service=context_service,
-            )
-            system_prompt = loaded_prompt.content
+            # Try fragment composition first
+            agent_slug = catalog.get("slug", "")
+            fragments = AGENT_FRAGMENTS.get(agent_slug)
+            if fragments:
+                system_prompt = await compose_prompt(
+                    fragments=fragments,
+                    variables=prompt_vars,
+                    context_service=context_service,
+                )
+                logger.info(
+                    f"[Factory] Composed prompt from {len(fragments)} fragments for '{agent_slug}'"
+                )
+            else:
+                # Fall back to monolithic prompt
+                loaded_prompt = await build_prompt_full(
+                    name=catalog.get("prompt_name"),
+                    variables=prompt_vars,
+                    context_service=context_service,
+                )
+                system_prompt = loaded_prompt.content
         except Exception as e:
             logger.warning(
                 f"[Factory] Failed to load prompt {catalog.get('prompt_name')}: {e}"
@@ -240,7 +379,13 @@ class StandaloneAgentFactory:
         builder.with_checkpointer(checkpointer)
         builder.with_mcp(mcp_executor)
 
-        graph = builder.use_default_graph().build()
+        workflow_graph = catalog.get("workflow_graph")
+        if workflow_graph:
+            builder.use_custom_graph(workflow_graph)
+        else:
+            builder.use_default_graph()
+
+        graph = builder.build()
 
         # 10. Cache and return BuiltAgent with context
         built = BuiltAgent(
@@ -250,6 +395,7 @@ class StandaloneAgentFactory:
             agent_role=agent_config.role,
             enabled_tools=agent_config.enabled_tools,
             client_context=client_context_data,
+            metadata=agent_config.metadata or {},
         )
         self._agent_cache[session_id] = built
 

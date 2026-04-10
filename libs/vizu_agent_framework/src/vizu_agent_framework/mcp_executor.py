@@ -5,7 +5,6 @@ This module is kept for backward compatibility with AgentBuilder.
 New code should use mcp_client.MCPConnectionManager directly.
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -114,18 +113,26 @@ class MCPToolExecutor:
             if "cliente_id" not in args and context.get("cliente_id"):
                 args["cliente_id"] = context["cliente_id"]
 
-            # Execute
-            if hasattr(tool, "ainvoke"):
-                result = await tool.ainvoke(args)
-            elif hasattr(tool, "invoke"):
-                result = await asyncio.to_thread(tool.invoke, args)
+            # Execute via call_tool with full context as meta
+            raw_result = await mcp_manager.call_tool(tool_name, args, meta=context)
+
+            # Extract text content from MCP CallToolResult
+            if hasattr(raw_result, "content"):
+                text_parts = [
+                    c.text for c in raw_result.content
+                    if hasattr(c, "text")
+                ]
+                result = "\n".join(text_parts) if text_parts else str(raw_result)
+                is_error = getattr(raw_result, "isError", False)
             else:
-                result = str(tool.run(args))
+                result = str(raw_result)
+                is_error = False
 
             return ToolResult(
                 tool_name=tool_name,
-                success=True,
+                success=not is_error,
                 result=result,
+                error=result if is_error else None,
                 execution_time_ms=(time.time() - start_time) * 1000,
             )
 

@@ -48,7 +48,6 @@ class AgentState(TypedDict, total=False):
     # Tool Configuration
     # =========================================================================
 
-    enabled_tools: list[str]  # List of enabled tool names
     available_tools_metadata: list[dict[str, Any]]  # Full tool metadata
 
     # =========================================================================
@@ -111,7 +110,6 @@ def create_initial_state(
     session_id: str,
     cliente_id: str,
     messages: list[BaseMessage] | None = None,
-    enabled_tools: list[str] | None = None,
     system_prompt: str = "",
     agent_name: str = "agent",
     agent_role: str = "Assistant",
@@ -127,7 +125,6 @@ def create_initial_state(
         session_id: Unique session identifier
         cliente_id: Client UUID
         messages: Initial messages (optional)
-        enabled_tools: List of enabled tool names
         system_prompt: System prompt for LLM
         agent_name: Agent identifier
         agent_role: Agent role description
@@ -148,7 +145,6 @@ def create_initial_state(
         # Messages
         messages=messages or [],
         # Tools
-        enabled_tools=enabled_tools or [],
         available_tools_metadata=[],
         # Elicitation
         pending_elicitation=None,
@@ -198,7 +194,6 @@ class ToolExecutionState(TypedDict, total=False):
     tool_to_execute: str
     tool_args: dict[str, Any]
     cliente_id: str
-    enabled_tools: list[str]
     last_tool_result: dict[str, Any] | None
 
 

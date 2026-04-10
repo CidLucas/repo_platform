@@ -144,7 +144,7 @@ async def _resolve_context_by_external_id(
 def _validate_tool_access(context: VizuClientContext, tool_name: str) -> None:
     """Validate that client has access to the specified tool."""
     enabled_tools = context.get_enabled_tools_list()
-    if tool_name not in enabled_tools:
+    if enabled_tools and tool_name not in enabled_tools:
         raise MCPToolDisabledError(
             f"Ferramenta '{tool_name}' não está habilitada para este cliente.",
             tool_name=tool_name,

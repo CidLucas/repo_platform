@@ -16,7 +16,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.dependencies import get_context_service
-from tool_pool_api.server.tool_helpers import is_tool_enabled_for_client
+from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
 from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
 from vizu_llm_service import ModelTier, get_model
 from vizu_models.vizu_client_context import VizuClientContext
@@ -97,8 +97,9 @@ async def _executar_rag_cliente_logic(
                 cliente_id = meta_dict.get("cliente_id")
                 if cliente_id:
                     logger.info(f"[RAG] Using cliente_id from request meta: {cliente_id}")
-            # Extract attached_document_ids for scoped RAG search (Phase B3)
-            raw_doc_ids = meta_dict.get("attached_document_ids")
+            # Extract document_ids for scoped RAG search
+            # Standalone agents use "uploaded_document_ids", atendente_core uses "attached_document_ids"
+            raw_doc_ids = meta_dict.get("uploaded_document_ids") or meta_dict.get("attached_document_ids")
             if raw_doc_ids and isinstance(raw_doc_ids, list):
                 document_ids = [str(d) for d in raw_doc_ids]
                 logger.info(f"[RAG] Scoping search to {len(document_ids)} attached documents")
@@ -133,7 +134,7 @@ async def _executar_rag_cliente_logic(
     real_client_id = vizu_context.id
     logger.info(f"[RAG] Executando para cliente {real_client_id}...")
 
-    if not is_tool_enabled_for_client("executar_rag_cliente", vizu_context):
+    if not is_tool_accessible_by_tier("executar_rag_cliente", vizu_context):
         logger.warning(f"[RAG] Ferramenta desabilitada para {real_client_id}.")
         raise ToolError("Ferramenta RAG não está habilitada para este cliente.")
 

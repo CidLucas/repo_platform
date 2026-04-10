@@ -74,14 +74,6 @@ class ToolRegistry:
             requires_confirmation=False,
             tags=["sql", "database", "analytics", "direct-sql"],
         ),
-        "agendar_consulta": ToolMetadata(
-            name="agendar_consulta",
-            category=ToolCategory.SCHEDULING,
-            description="Agenda consultas ou compromissos no calendário",
-            tier_required=TierLevel.SME,
-            requires_confirmation=True,
-            tags=["scheduling", "calendar", "appointments"],
-        ),
         "ferramenta_publica_de_teste": ToolMetadata(
             name="ferramenta_publica_de_teste",
             category=ToolCategory.PUBLIC,
@@ -121,35 +113,209 @@ class ToolRegistry:
             requires_confirmation=False,
             tags=["monitoring", "web", "brand"],
         ),
+        "extract_document_with_ocr": ToolMetadata(
+            name="extract_document_with_ocr",
+            category=ToolCategory.RAG,
+            description=(
+                "Extract text, tables, and structured data from uploaded documents "
+                "using configurable OCR (language, table accuracy mode). "
+                "Returns markdown + tables as structured JSON."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            tags=["ocr", "extraction", "tables", "documents"],
+        ),
+        "summarize_document_sections": ToolMetadata(
+            name="summarize_document_sections",
+            category=ToolCategory.RAG,
+            description=(
+                "Summarize text sections extracted from a document using LLM. "
+                "Use after extract_document_with_ocr."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            tags=["ocr", "summarization", "documents"],
+        ),
+        "extract_structured_data": ToolMetadata(
+            name="extract_structured_data",
+            category=ToolCategory.RAG,
+            description=(
+                "Extract structured data from uploaded documents into a JSON table "
+                "using LLM-powered field extraction."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            tags=["extraction", "structured-data", "documents"],
+        ),
+        "compile_time_series": ToolMetadata(
+            name="compile_time_series",
+            category=ToolCategory.RAG,
+            description=(
+                "Compile structured data records into a sorted time series with statistics."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            tags=["time-series", "analytics", "documents"],
+        ),
+        "write_summary_to_kb": ToolMetadata(
+            name="write_summary_to_kb",
+            category=ToolCategory.RAG,
+            description=(
+                "Save analysis summary or extracted data to the knowledge base."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            tags=["knowledge-base", "persistence", "documents"],
+        ),
+        "execute_csv_query": ToolMetadata(
+            name="execute_csv_query",
+            category=ToolCategory.SQL,
+            description="Execute DuckDB SQL queries on uploaded CSV datasets.",
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            tags=["csv", "sql", "analytics"],
+        ),
+        "list_csv_datasets": ToolMetadata(
+            name="list_csv_datasets",
+            category=ToolCategory.SQL,
+            description="List available CSV datasets for the current client.",
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            tags=["csv", "datasets", "analytics"],
+        ),
+        "check_config_completeness": ToolMetadata(
+            name="check_config_completeness",
+            category=ToolCategory.PUBLIC,
+            description="Check which configuration fields are still missing.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["config", "setup", "helper"],
+        ),
+        "save_config_field": ToolMetadata(
+            name="save_config_field",
+            category=ToolCategory.PUBLIC,
+            description="Save a single configuration field value.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["config", "setup", "helper"],
+        ),
+        "get_agent_requirements": ToolMetadata(
+            name="get_agent_requirements",
+            category=ToolCategory.PUBLIC,
+            description="Get the list of required configuration fields for an agent type.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["config", "setup", "helper"],
+        ),
+        "finalize_config": ToolMetadata(
+            name="finalize_config",
+            category=ToolCategory.PUBLIC,
+            description="Finalize and validate the agent configuration.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["config", "setup", "helper"],
+        ),
+        "peek_csv_columns": ToolMetadata(
+            name="peek_csv_columns",
+            category=ToolCategory.PUBLIC,
+            description="Preview column names and sample data from a CSV dataset.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["csv", "preview", "helper"],
+        ),
     }
 
     # =========================================================================
     # GOOGLE INTEGRATION TOOLS
     # =========================================================================
     GOOGLE_TOOLS: dict[str, ToolMetadata] = {
-        "google_calendar_list_events": ToolMetadata(
-            name="google_calendar_list_events",
+        "write_to_sheet": ToolMetadata(
+            name="write_to_sheet",
             category=ToolCategory.GOOGLE,
-            description="Lista eventos do Google Calendar",
-            tier_required=TierLevel.SME,
+            description="Write data to a Google Sheets spreadsheet.",
+            tier_required=TierLevel.PREMIUM,
+            requires_confirmation=False,
+            tags=["google", "sheets", "write"],
+        ),
+        "read_emails": ToolMetadata(
+            name="read_emails",
+            category=ToolCategory.GOOGLE,
+            description="Read emails from the connected Google account.",
+            tier_required=TierLevel.PREMIUM,
+            requires_confirmation=False,
+            tags=["google", "gmail", "email"],
+        ),
+        "query_calendar": ToolMetadata(
+            name="query_calendar",
+            category=ToolCategory.GOOGLE,
+            description="Query events from Google Calendar.",
+            tier_required=TierLevel.PREMIUM,
             requires_confirmation=False,
             tags=["google", "calendar", "events"],
         ),
-        "google_calendar_create_event": ToolMetadata(
-            name="google_calendar_create_event",
+        "list_google_accounts": ToolMetadata(
+            name="list_google_accounts",
             category=ToolCategory.GOOGLE,
-            description="Cria eventos no Google Calendar",
-            tier_required=TierLevel.SME,
-            requires_confirmation=True,
-            tags=["google", "calendar", "create"],
-        ),
-        "google_drive_list_files": ToolMetadata(
-            name="google_drive_list_files",
-            category=ToolCategory.GOOGLE,
-            description="Lista arquivos do Google Drive",
-            tier_required=TierLevel.SME,
+            description="List connected Google accounts for the current client.",
+            tier_required=TierLevel.PREMIUM,
             requires_confirmation=False,
-            tags=["google", "drive", "files"],
+            tags=["google", "accounts", "oauth"],
+        ),
+        "list_spreadsheets": ToolMetadata(
+            name="list_spreadsheets",
+            category=ToolCategory.GOOGLE,
+            description="List available Google Sheets spreadsheets.",
+            tier_required=TierLevel.PREMIUM,
+            requires_confirmation=False,
+            tags=["google", "sheets", "list"],
+        ),
+        "export_to_sheet": ToolMetadata(
+            name="export_to_sheet",
+            category=ToolCategory.GOOGLE,
+            description="Export data to a Google Sheets spreadsheet.",
+            tier_required=TierLevel.PREMIUM,
+            requires_confirmation=False,
+            tags=["google", "sheets", "export"],
+        ),
+        "create_spreadsheet_with_data": ToolMetadata(
+            name="create_spreadsheet_with_data",
+            category=ToolCategory.GOOGLE,
+            description="Create a new Google Sheets spreadsheet with initial data.",
+            tier_required=TierLevel.PREMIUM,
+            requires_confirmation=False,
+            tags=["google", "sheets", "create"],
+        ),
+        "google_docs_create": ToolMetadata(
+            name="google_docs_create",
+            category=ToolCategory.GOOGLE,
+            description="Create a new Google Docs document.",
+            tier_required=TierLevel.PREMIUM,
+            requires_confirmation=False,
+            tags=["google", "docs", "create"],
+        ),
+        "google_docs_read": ToolMetadata(
+            name="google_docs_read",
+            category=ToolCategory.GOOGLE,
+            description="Read content from a Google Docs document.",
+            tier_required=TierLevel.PREMIUM,
+            requires_confirmation=False,
+            tags=["google", "docs", "read"],
+        ),
+        "google_docs_write": ToolMetadata(
+            name="google_docs_write",
+            category=ToolCategory.GOOGLE,
+            description="Write or append content to a Google Docs document.",
+            tier_required=TierLevel.PREMIUM,
+            requires_confirmation=False,
+            tags=["google", "docs", "write"],
+        ),
+        "google_docs_list": ToolMetadata(
+            name="google_docs_list",
+            category=ToolCategory.GOOGLE,
+            description="List Google Docs documents accessible to the client.",
+            tier_required=TierLevel.PREMIUM,
+            requires_confirmation=False,
+            tags=["google", "docs", "list"],
         ),
     }
 

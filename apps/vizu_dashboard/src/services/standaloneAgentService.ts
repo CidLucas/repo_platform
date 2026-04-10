@@ -87,7 +87,7 @@ export interface RequirementsStatus {
     }>;
     files_required: {
         csv: { min: number; max: number; current: number };
-        text: { min: number; max: number; current: number };
+        document: { min: number; max: number; current: number };
     };
     google_required: boolean;
     google_connected: boolean;

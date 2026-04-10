@@ -28,23 +28,16 @@ class VizuClientContext(ClienteVizuBase):
     data_schema: dict[str, Any] | None = None
     available_tools: dict[str, Any] | None = None
 
-    # ===== TOOL CONFIGURATION =====
-    enabled_tools: list[str] = []
-
     # Decrypted credentials (internal use)
     credenciais: list[CredencialServicoExternoBase] = []
 
     # ===== HELPER METHODS =====
 
     def get_enabled_tools_list(self) -> list[str]:
-        """
-        Get list of enabled tools (Context 2.0 compatible).
-
-        Prefers available_tools section, falls back to legacy enabled_tools.
-        """
+        """Get list of enabled tools from available_tools section."""
         if self.available_tools and self.available_tools.get("enabled_tool_names"):
             return self.available_tools["enabled_tool_names"]
-        return list(self.enabled_tools or [])
+        return []
 
     def get_default_prompt(self) -> str | None:
         """Get default system prompt from available_tools section."""

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from standalone_agent_api.api.auth import AuthResult, get_auth_result
 from standalone_agent_api.core.service import SessionService
+from standalone_agent_api.core.factory import get_factory
 from vizu_supabase_client import get_storage, get_supabase_client
 
 logger = logging.getLogger(__name__)
@@ -235,6 +236,9 @@ async def upload_document(
             session_id=session_id,
             document_id=document_id,
         )
+
+        # Invalidate cached agent so next invocation picks up new document
+        get_factory().clear_session_cache(session_id)
 
         logger.info(f"Document {document_id} successfully processed and linked to session")
         return DocumentUploadResponse(

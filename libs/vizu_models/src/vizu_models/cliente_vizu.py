@@ -43,7 +43,7 @@ class ClienteVizu(ClienteVizuBase, table=True):
 
     Tool configuration:
     - tier: BASIC, SME, ENTERPRISE (tool access level)
-    - enabled_tools: Tool whitelist array
+    - available_tools: JSONB with enabled_tool_names, default_system_prompt
     """
     __tablename__ = "clientes_vizu"
 
@@ -115,13 +115,6 @@ class ClienteVizu(ClienteVizuBase, table=True):
         description="Tool permissions: enabled_tool_names list and default_system_prompt"
     )
 
-    # ===== TOOL CONFIGURATION =====
-    enabled_tools: list[str] | None = Field(
-        default=None,
-        sa_column=Column(ARRAY(Text), nullable=True, server_default="ARRAY[]::text[]"),
-        description="DEPRECATED: Use available_tools.enabled_tool_names"
-    )
-
     # ===== TIMESTAMPS =====
     created_at: datetime | None = Field(
         default=None,
@@ -144,14 +137,10 @@ class ClienteVizu(ClienteVizuBase, table=True):
 
     # ===== HELPER METHODS =====
     def get_enabled_tools_list(self) -> list[str]:
-        """
-        Get list of enabled tools (Context 2.0 compatible).
-
-        Prefers available_tools section, falls back to legacy enabled_tools.
-        """
+        """Get list of enabled tools from available_tools section."""
         if self.available_tools and self.available_tools.get("enabled_tool_names"):
             return self.available_tools["enabled_tool_names"]
-        return list(self.enabled_tools or [])
+        return []
 
     def get_default_prompt(self) -> str | None:
         """
@@ -193,9 +182,6 @@ class ClienteVizuCreate(ClienteVizuBase):
     data_schema: dict[str, Any] | None = None
     available_tools: dict[str, Any] | None = None  # Contains rag_collection, default_system_prompt
 
-    # Tool configuration
-    enabled_tools: list[str] | None = None
-
 
 class ClienteVizuRead(ClienteVizuBase):
     """Schema for reading a client."""
@@ -210,9 +196,6 @@ class ClienteVizuRead(ClienteVizuBase):
     policies: dict[str, Any] | None = None
     data_schema: dict[str, Any] | None = None
     available_tools: dict[str, Any] | None = None
-
-    # Tool configuration
-    enabled_tools: list[str] | None = None
 
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -238,6 +221,3 @@ class ClienteVizuUpdate(SQLModel):
     policies: dict[str, Any] | None = None
     data_schema: dict[str, Any] | None = None
     available_tools: dict[str, Any] | None = None
-
-    # Tool configuration
-    enabled_tools: list[str] | None = None

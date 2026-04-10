@@ -6,3 +6,5 @@ export { default as AdminChatPage } from './AdminChatPage';
 export { default as AdminPlanosPage } from './AdminPlanosPage';
 export { default as AdminAjudaPage } from './AdminAjudaPage';
 export { default as AdminKnowledgeBasePage } from './AdminKnowledgeBasePage';
+export { default as AdminAgentBuilderPage } from './AdminAgentBuilderPage';
+export { default as AdminAgentBuilderEditorPage } from './AdminAgentBuilderEditorPage';

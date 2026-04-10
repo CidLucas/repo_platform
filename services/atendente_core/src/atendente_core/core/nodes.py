@@ -40,13 +40,21 @@ from vizu_models.vizu_client_context import VizuClientContext
 # PHASE 3+5: Use vizu_prompt_management unified dynamic builder
 from vizu_prompt_management import (
     build_prompt,
-    build_tools_description,
+    compose_prompt,
 )
 
 # PHASE 3: Use vizu_tool_registry for tool filtering
 from vizu_tool_registry import ToolRegistry
 
+# Hierarchical multi-agent: worker delegation infrastructure
+from atendente_core.core.worker_registry import WorkerRegistry
+from atendente_core.core.worker_tools import build_worker_tools, is_delegation_tool_call
+
 logger = logging.getLogger(__name__)
+
+# Maximum number of supervisor→tools→supervisor cycles before forcing a final response.
+# Prevents runaway tool loops when the LLM keeps retrying failed queries.
+MAX_TOOL_TURNS = 3
 
 # ---------------------------------------------------------------------------
 # Module-level ContextService holder for Redis-cached prompts (OPT-3).
@@ -60,6 +68,9 @@ def set_node_context_service(ctx: "ContextService | None") -> None:
     global _node_context_service
     _node_context_service = ctx
     _clear_supervisor_context_cache()
+    # Also clear worker prompt cache on new request
+    from atendente_core.core.worker_factory import clear_worker_cache
+    clear_worker_cache()
 
 
 def get_node_context_service() -> "ContextService | None":
@@ -308,13 +319,21 @@ def filter_tools_for_client(
     enabled_tool_names = _get_enabled_tools_from_context(safe_context)
     tier = _get_tier_from_context(safe_context)
 
-    # Get available tools from registry (validates against tier)
-    available_tools = ToolRegistry.get_available_tools(
-        enabled_tools=enabled_tool_names,
-        tier=tier,
-        include_google=True,
-    )
-    available_names = {t.name for t in available_tools}
+    if enabled_tool_names:
+        # Explicit whitelist: only allow tools in enabled_tools that pass tier check
+        available_tools = ToolRegistry.get_available_tools(
+            enabled_tools=enabled_tool_names,
+            tier=tier,
+            include_google=True,
+        )
+        available_names = {t.name for t in available_tools}
+    else:
+        # No enabled_tools configured: grant ALL tools accessible at client's tier
+        logger.info(
+            f"No enabled_tools configured for {safe_context.nome_empresa} — "
+            f"granting all tools for tier {tier}"
+        )
+        available_names = {t.name for t in ToolRegistry.get_tools_for_tier(tier)}
 
     # Also always include public tools (tier FREE)
     public_tools = ToolRegistry.get_tools_for_tier("FREE")
@@ -338,15 +357,20 @@ async def build_dynamic_system_prompt(
     vizu_context: VizuClientContext | None = None,
 ) -> str:
     """
-    Build system prompt dynamically using vizu_prompt_management.
+    Build the supervisor system prompt using lightweight routing fragments.
 
-    Context 2.0: Now supports modular context sections for selective injection.
-    Uses the unified build_prompt() function from dynamic_builder,
-    which handles caching via context_service and fallback to builtin.
+    The supervisor is a thin routing layer — it delegates data/knowledge/report
+    questions to specialist workers and only handles greetings/clarifications
+    directly. SQL schema, SQL rules, RAG rules, and tool-usage fragments are
+    NOT included here; they live inside the workers.
+
+    Fragments: supervisor-role, supervisor-workers, supervisor-rules, response-format.
+
+    Falls back to the old monolithic prompt if fragment composition fails.
 
     Args:
-        safe_context: Safe client context with permissions (legacy)
-        available_tools: List of filtered tools for this client
+        safe_context: Safe client context with permissions
+        available_tools: List of tools (worker meta-tools + public tools)
         context_service: Optional ContextService for Redis caching
         vizu_context: Full VizuClientContext with all sections (Context 2.0)
 
@@ -354,42 +378,32 @@ async def build_dynamic_system_prompt(
         Rendered system prompt
     """
     nome_empresa = safe_context.nome_empresa if safe_context else "Vizu"
+    tier = _get_tier_from_context(safe_context)
 
-    # Build tools description using unified function
-    tools_description = build_tools_description(available_tools, ToolRegistry)
+    # Build workers description from registry (tier-filtered)
+    workers_description = WorkerRegistry.build_workers_description(tier)
 
     # Context 2.0: Build modular context sections (includes business hours, policies, etc.)
     context_sections_text = ""
     if vizu_context:
         logger.info("[PROMPT_BUILD] vizu_context available, converting to safe context")
-        # Convert to SafeClientContext for LLM-safe exposure
         llm_safe_context = vizu_context.to_safe_context()
         logger.info(
             f"[PROMPT_BUILD] Safe context loaded_sections: {llm_safe_context.loaded_sections}"
         )
 
-        # Define which sections the respond node needs
-        # SIMPLIFIED: Only essential sections for data analyst role
         respond_sections = [
-            ContextSection.COMPANY_PROFILE,  # Basic company context
-            ContextSection.DATA_SCHEMA,  # Schema for SQL queries
+            ContextSection.COMPANY_PROFILE,
+            ContextSection.DATA_SCHEMA,
         ]
-        logger.info(f"[PROMPT_BUILD] Requesting sections: {[s.value for s in respond_sections]}")
 
-        # Compile only loaded sections
         context_sections_text = llm_safe_context.get_compiled_context(
             sections=respond_sections,
-            include_header=False,  # Header included separately
+            include_header=False,
         )
         logger.info(
             f"[PROMPT_BUILD] Context 2.0: Compiled {len(respond_sections)} sections ({len(context_sections_text)} chars)"
         )
-        if context_sections_text:
-            logger.info(f"[PROMPT_BUILD] Sections preview: {context_sections_text[:300]}...")
-        else:
-            logger.warning(
-                "[PROMPT_BUILD] No context sections compiled! Check if sections are loaded in DB"
-            )
     else:
         logger.warning(
             "[PROMPT_BUILD] No vizu_context provided - prompt will rely on Langfuse template"
@@ -397,25 +411,40 @@ async def build_dynamic_system_prompt(
 
     variables = {
         "nome_empresa": nome_empresa,
-        "tools_description": tools_description,
+        "workers_description": workers_description,
         "context_sections": context_sections_text,
+        # Keep tools_description for backward compat (used by response-format fragment)
+        "tools_description": "",
     }
 
-    # Select prompt based on available tools:
-    # - If execute_sql is available → use sql-direct prompt (schema embedded, supervisor generates SQL)
-    # - Otherwise → use default prompt (tool generates SQL)
-    available_tool_names = {t.name for t in available_tools}
-    if "execute_sql" in available_tool_names:
-        prompt_name = "atendente/sql-direct"
-        logger.info("[PROMPT_BUILD] Using sql-direct prompt (supervisor generates SQL)")
-    else:
-        prompt_name = "atendente/default"
-        logger.info("[PROMPT_BUILD] Using default prompt (tool generates SQL)")
+    # Supervisor fragments — no SQL/RAG/tool-usage fragments
+    fragments = [
+        "fragment/supervisor-role",
+        "fragment/supervisor-workers",
+        "fragment/supervisor-rules",
+        "fragment/response-format",
+    ]
 
-    # Use unified build_prompt which handles caching internally
-    # Fetches prompt from Langfuse, with builtin fallback
+    logger.info(
+        f"[PROMPT_BUILD] Composing {len(fragments)} supervisor fragments: {fragments}"
+    )
+
+    try:
+        prompt = await compose_prompt(
+            fragments=fragments,
+            variables=variables,
+            context_service=context_service,
+        )
+        if prompt and prompt.strip():
+            return prompt
+        logger.warning("[PROMPT_BUILD] compose_prompt returned empty, falling back to monolithic")
+    except Exception as e:
+        logger.warning(f"[PROMPT_BUILD] Fragment composition failed: {e}, falling back to monolithic")
+
+    # Fallback: use monolithic prompt if fragment composition fails
+    logger.info("[PROMPT_BUILD] Falling back to monolithic prompt: atendente/default")
     return await build_prompt(
-        name=prompt_name,
+        name="atendente/default",
         variables=variables,
         context_service=context_service,
     )
@@ -538,37 +567,55 @@ async def supervisor_node(state: AgentState) -> dict:
         )
 
     # 2+3. Get tools (use cached on subsequent supervisor calls within same request)
+    # Hierarchical architecture: supervisor binds worker meta-tools + public MCP tools.
+    # Specialist MCP tools (SQL, RAG, OCR) are NOT bound here — workers own them.
     cached_tools = state.get("_cached_tools")
     if cached_tools:
         validated_tools = cached_tools
         available_tools = cached_tools
         logger.debug(f"[SUPERVISOR] Using cached tools ({len(cached_tools)})")
     else:
-        all_tools = mcp_manager.tools
+        tier = _get_tier_from_context(safe_ctx)
+        nome_empresa = safe_ctx.nome_empresa if safe_ctx else "Vizu"
 
-        if not all_tools:
-            logger.warning("Nenhuma ferramenta MCP disponível no momento.")
-            return {
-                "messages": [
-                    AIMessage(
-                        content="Sinto muito, minhas ferramentas de busca estão temporariamente indisponíveis."
-                    )
-                ],
-                "structured_data": None,
-            }
-
-        available_tools = filter_tools_for_client(all_tools, safe_ctx)
-
-        logger.debug(f"[SUPERVISOR] Available tools count: {len(available_tools)}")
-        logger.debug(f"[SUPERVISOR] Tool names: {[t.name for t in available_tools[:5]]}...")
-
-        if not available_tools:
-            logger.warning(
-                f"Cliente {safe_ctx.nome_empresa if safe_ctx else 'desconhecido'} não tem tools habilitadas"
+        # Context 2.0: compile context sections for worker prompts
+        context_sections_text = ""
+        if vizu_ctx:
+            llm_safe_ctx = vizu_ctx.to_safe_context()
+            respond_sections = [ContextSection.COMPANY_PROFILE, ContextSection.DATA_SCHEMA]
+            context_sections_text = llm_safe_ctx.get_compiled_context(
+                sections=respond_sections, include_header=False,
             )
 
-        # Sanitize once and cache
-        validated_tools = sanitize_tools_for_llm(available_tools) if available_tools else []
+        # Build worker delegation tools (tier-filtered)
+        context_service = get_node_context_service()
+        worker_meta_tools = build_worker_tools(
+            tier=tier,
+            session_id=state.get("cliente_id", "default"),
+            cliente_id=state.get("cliente_id"),
+            nome_empresa=nome_empresa,
+            context_sections=context_sections_text,
+            context_service=context_service,
+        )
+
+        # Also include public MCP tools (tier FREE — diagnostic, monitoring)
+        all_mcp_tools = mcp_manager.tools or []
+        public_tools_from_registry = ToolRegistry.get_tools_for_tier("FREE")
+        public_names = {t.name for t in public_tools_from_registry}
+        public_mcp_tools = [t for t in all_mcp_tools if t.name in public_names]
+
+        available_tools = worker_meta_tools + public_mcp_tools
+
+        if not available_tools:
+            logger.warning("Nenhuma ferramenta disponível (workers + public)")
+
+        # Sanitize public MCP tools (worker meta-tools are already clean)
+        sanitized_public = sanitize_tools_for_llm(public_mcp_tools)
+        validated_tools = list(worker_meta_tools) + sanitized_public
+
+        logger.info(
+            f"[SUPERVISOR] Tools: {len(worker_meta_tools)} workers + {len(sanitized_public)} public = {len(validated_tools)} total"
+        )
 
     # 4. PHASE 2 + 5 + Context 2.0: Constrói system prompt dinâmico com seções modulares
     # OPT-7: Use cached prompt on subsequent supervisor calls (tools → supervisor loop)
@@ -645,12 +692,18 @@ async def supervisor_node(state: AgentState) -> dict:
             ],
         }
 
+    # Increment turn_count when processing tool results (each tools→supervisor cycle)
+    current_turn_count = state.get("turn_count", 0)
+    if is_processing_tool_results:
+        current_turn_count += 1
+
     # Only clear structured_data when NOT processing tool results
     # When processing tool results, we preserve it so the frontend receives the table
     if is_processing_tool_results:
         # Keep structured_data from execute_tools_node - don't override it
         return {
             "messages": [response],
+            "turn_count": current_turn_count,
             "_cached_system_prompt": system_prompt,
             "_cached_tools": validated_tools,
         }
@@ -658,6 +711,7 @@ async def supervisor_node(state: AgentState) -> dict:
         # New user turn without tools - clear any previous structured_data
         return {
             "messages": [response],
+            "turn_count": current_turn_count,
             "structured_data": None,
             "_cached_system_prompt": system_prompt,
             "_cached_tools": validated_tools,
@@ -683,8 +737,15 @@ async def execute_tools_node(state: AgentState) -> dict:
     pending_elicitation = None
 
     # 1. Mapeia as ferramentas disponíveis para acesso rápido
+    # Include both MCP tools AND worker delegation meta-tools from cached state
     tools = mcp_manager.tools
     tool_map = {t.name: t for t in tools}
+
+    # Add cached tools (worker meta-tools) so delegation calls can be resolved
+    cached_tools = state.get("_cached_tools") or []
+    for ct in cached_tools:
+        if hasattr(ct, "name") and ct.name not in tool_map:
+            tool_map[ct.name] = ct
 
     # 2. Prepara contexto compartilhado
     elicitation_response = state.get("elicitation_response")
@@ -703,7 +764,7 @@ async def execute_tools_node(state: AgentState) -> dict:
         tool_call: dict, retry_on_stream_error: bool = True
     ) -> ToolMessage:
         """Executa uma única tool e retorna ToolMessage."""
-        nonlocal tool_map  # Allow updating tool_map after reconnection
+        nonlocal tool_map, extracted_structured_data
         tool_name = tool_call["name"]
         tool_call_id = tool_call["id"]
 
@@ -716,6 +777,49 @@ async def execute_tools_node(state: AgentState) -> dict:
                     name=tool_name,
                 )
 
+            # --- Worker delegation tools (delegate_to_*) ---
+            # These are StructuredTool instances that run a full worker loop
+            # in-process. They return JSON with summary + optional structured_data.
+            if is_delegation_tool_call(tool_name):
+                logger.info(f"[Tools] Delegation call: {tool_name}")
+                args_to_pass = dict(tool_call.get("args") or {})
+                task = args_to_pass.get("task", "")
+
+                try:
+                    # Invoke the StructuredTool's async coroutine
+                    output = await tool.ainvoke({"task": task})
+                except Exception as e:
+                    logger.exception(f"[Tools] Delegation error for '{tool_name}': {e}")
+                    return ToolMessage(
+                        content=f"Worker error: {e}",
+                        tool_call_id=tool_call_id,
+                        name=tool_name,
+                    )
+
+                # Extract structured_data from worker JSON response
+                try:
+                    import json as _json
+                    parsed_delegation = _json.loads(output) if isinstance(output, str) else output
+                    if isinstance(parsed_delegation, dict) and parsed_delegation.get("structured_data"):
+                        if extracted_structured_data is None:
+                            extracted_structured_data = parsed_delegation["structured_data"]
+                            logger.info(
+                                f"[Tools] Extracted structured_data from worker '{tool_name}': "
+                                f"{len(extracted_structured_data.get('rows', []))} rows"
+                            )
+                        # Remove structured_data from LLM context (frontend shows it)
+                        summary = parsed_delegation.get("summary", output)
+                        tools_used = parsed_delegation.get("tools_used", [])
+                        if tools_used:
+                            summary += f"\n(Worker used: {', '.join(tools_used)})"
+                        output = summary
+                except (ValueError, TypeError):
+                    pass
+
+                output_str = str(output)[:4000]
+                return ToolMessage(content=output_str, tool_call_id=tool_call_id, name=tool_name)
+
+            # --- Regular MCP tools (public tools handled by supervisor) ---
             # Prepara argumentos
             args_to_pass = dict(tool_call.get("args") or {})
 
@@ -753,8 +857,7 @@ async def execute_tools_node(state: AgentState) -> dict:
                 if isinstance(parsed_output, dict) and parsed_output.get("structured_data"):
                     full_data = parsed_output["structured_data"]
 
-                    # Store in nonlocal for later extraction (with row limit for frontend)
-                    nonlocal extracted_structured_data
+                    # Store for later extraction (with row limit for frontend)
                     if extracted_structured_data is None:
                         # Limit rows for frontend display (20 rows, 10 per page)
                         frontend_data = full_data.copy()
@@ -889,6 +992,13 @@ def should_continue(
 
     # Se o LLM decidiu chamar ferramentas, vamos para o nó executor
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
+        turn_count = state.get("turn_count", 0)
+        if turn_count >= MAX_TOOL_TURNS:
+            logger.warning(
+                f"[LOOP_GUARD] Max tool turns reached ({turn_count}/{MAX_TOOL_TURNS}). "
+                f"Forcing end to prevent runaway loop."
+            )
+            return "__end__"
         return "execute_tools"
 
     # Caso contrário, devolvemos a resposta final ao usuário

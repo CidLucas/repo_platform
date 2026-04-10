@@ -27,6 +27,7 @@ from vizu_agent_framework.mcp_client import (
     initialize_mcp,
 )
 from vizu_agent_framework.nodes import (
+    NodeMetadata,
     NodeRegistry,
     elicit_node,
     end_node,

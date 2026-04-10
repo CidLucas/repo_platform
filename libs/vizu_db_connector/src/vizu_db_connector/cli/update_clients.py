@@ -41,10 +41,6 @@ def update_client(session: Session, client_data: dict[str, Any]) -> bool:
         "horario_funcionamento", cliente.horario_funcionamento
     )
 
-    # Update enabled_tools from config
-    if "enabled_tools" in config:
-        cliente.enabled_tools = config.get("enabled_tools") or []
-
     cliente.collection_rag = config.get("collection_rag", cliente.collection_rag)
 
     # Atualiza tier se especificado

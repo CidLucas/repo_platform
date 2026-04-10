@@ -92,9 +92,6 @@ class ClientVariant(BaseModel):
     cliente_id: str = Field(..., description="UUID of the ClienteVizu")
     name: str = Field(..., description="Human-readable name for this variant")
     description: str | None = None
-    enabled_tools: list[str] | None = Field(
-        None, description="Tools to test (None = all enabled)"
-    )
 
 
 class HitlRoutingConfig(BaseModel):

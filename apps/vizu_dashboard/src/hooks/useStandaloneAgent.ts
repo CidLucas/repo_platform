@@ -85,32 +85,32 @@ export function useStandaloneAgent() {
     const accessToken = auth?.session?.access_token;
     const clientId = auth?.clientId;
 
+    // Load agent catalog
+    const reloadCatalog = useCallback(async () => {
+        if (!accessToken) return;
+        try {
+            setState((prev) => ({ ...prev, loadingCatalog: true, catalogError: null }));
+            const agents = await fetchAgentCatalog(accessToken);
+            setState((prev) => ({
+                ...prev,
+                agents,
+                loadingCatalog: false,
+            }));
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Failed to load agents';
+            setState((prev) => ({
+                ...prev,
+                catalogError: message,
+                loadingCatalog: false,
+            }));
+            toast({ title: 'Erro', description: message, status: 'error', duration: 3000 });
+        }
+    }, [accessToken, toast]);
+
     // Load agent catalog on mount
     useEffect(() => {
-        if (!accessToken) return;
-
-        const loadCatalog = async () => {
-            try {
-                setState((prev) => ({ ...prev, loadingCatalog: true, catalogError: null }));
-                const agents = await fetchAgentCatalog(accessToken);
-                setState((prev) => ({
-                    ...prev,
-                    agents,
-                    loadingCatalog: false,
-                }));
-            } catch (err) {
-                const message = err instanceof Error ? err.message : 'Failed to load agents';
-                setState((prev) => ({
-                    ...prev,
-                    catalogError: message,
-                    loadingCatalog: false,
-                }));
-                toast({ title: 'Erro', description: message, status: 'error', duration: 3000 });
-            }
-        };
-
-        loadCatalog();
-    }, [accessToken, toast]);
+        reloadCatalog();
+    }, [reloadCatalog]);
 
     // Load user's sessions on mount
     useEffect(() => {
@@ -312,9 +312,12 @@ export function useStandaloneAgent() {
                 });
 
                 // 3. Poll for embedding completion
+                let pollErrors = 0;
+                const MAX_POLL_ERRORS = 5;
                 const pollId = setInterval(async () => {
                     try {
                         const progress = await getDocumentProgress(documentId);
+                        pollErrors = 0; // reset on success
 
                         // Stop polling on failure
                         if (progress.status === 'failed') {
@@ -352,7 +355,11 @@ export function useStandaloneAgent() {
                             }
                         }
                     } catch {
-                        // Silently continue polling
+                        pollErrors++;
+                        if (pollErrors >= MAX_POLL_ERRORS) {
+                            clearInterval(pollId);
+                            console.warn(`Polling stopped after ${MAX_POLL_ERRORS} consecutive errors for doc ${documentId}`);
+                        }
                     }
                 }, 3000);
 
@@ -532,5 +539,6 @@ export function useStandaloneAgent() {
         finalize,
         activate,
         connectGoogle,
+        reloadCatalog,
     };
 }

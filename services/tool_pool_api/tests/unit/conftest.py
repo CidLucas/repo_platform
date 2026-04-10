@@ -33,10 +33,11 @@ def mock_vizu_context():
 
     # --- Atributos de Permissão (CRUCIAL para os testes) ---
     # Substituímos as flags por uma lista autoritativa de tools.
-    mock_ctx.enabled_tools = [
+    mock_ctx.enabled_tools = []
+    mock_ctx.get_enabled_tools_list = MagicMock(return_value=[
         "executar_rag_cliente",
         "executar_sql_agent",
-    ]
+    ])
     mock_ctx.tier = "BASIC"
 
     # --- Atributos de Configuração ---

@@ -65,8 +65,6 @@ def run_LOCAL_DATABASE(db_url: str):
                 novo_cliente.horario_funcionamento = config_data.get(
                     "horario_funcionamento"
                 )
-                # Populate enabled_tools directly from seed config
-                novo_cliente.enabled_tools = config_data.get("enabled_tools", [])
                 novo_cliente.collection_rag = config_data.get("collection_rag")
                 session.add(novo_cliente)
 

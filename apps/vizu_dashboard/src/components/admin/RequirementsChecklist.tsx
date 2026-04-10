@@ -86,7 +86,7 @@ export const RequirementsChecklist = ({
         requirements.completion_pct === 100 &&
         requirements.missing.length === 0 &&
         csvCount >= requirements.files_required.csv.min &&
-        docCount >= requirements.files_required.text.min &&
+        docCount >= requirements.files_required.document.min &&
         (!agent.requires_google || googleConnected);
 
     return (
@@ -157,7 +157,7 @@ export const RequirementsChecklist = ({
                 )}
 
                 {/* Files Required */}
-                {(requirements.files_required.csv.min > 0 || requirements.files_required.text.min > 0) && (
+                {(requirements.files_required.csv.min > 0 || requirements.files_required.document.min > 0) && (
                     <Box>
                         <Heading size="sm" mb={3}>
                             Arquivos
@@ -178,12 +178,12 @@ export const RequirementsChecklist = ({
                                 </HStack>
                             )}
 
-                            {requirements.files_required.text.min > 0 && (
+                            {requirements.files_required.document.min > 0 && (
                                 <HStack justify="space-between">
                                     <Text fontSize="sm">
-                                        Documentos: {docCount}/{requirements.files_required.text.min}
+                                        Documentos: {docCount}/{requirements.files_required.document.min}
                                     </Text>
-                                    {docCount >= requirements.files_required.text.min ? (
+                                    {docCount >= requirements.files_required.document.min ? (
                                         <Icon as={FiCheck} color="green.500" boxSize={4} />
                                     ) : (
                                         <Badge colorScheme="orange" variant="outline">

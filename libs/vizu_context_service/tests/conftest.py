@@ -35,7 +35,7 @@ def mock_vizu_client_context(
     return VizuClientContext(
         id=mock_cliente_id,
         nome_empresa="test_empresa",
-        enabled_tools=["executar_rag_cliente", "executar_sql_agent"],
+        available_tools={"enabled_tool_names": ["executar_rag_cliente", "executar_sql_agent"]},
         credenciais=[mock_credencial_sql],
     )
 

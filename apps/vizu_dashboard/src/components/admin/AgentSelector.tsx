@@ -13,10 +13,12 @@ import {
     VStack,
     Spinner,
     Center,
+    useDisclosure,
 } from '@chakra-ui/react';
-import { FiZap } from 'react-icons/fi';
+import { FiZap, FiPlus } from 'react-icons/fi';
 import { useState } from 'react';
 import type { AgentCatalogEntry } from '../../services/standaloneAgentService';
+import { QuickCreateAgentModal } from './QuickCreateAgentModal';
 
 interface AgentSelectorProps {
     agents: AgentCatalogEntry[];
@@ -24,6 +26,8 @@ interface AgentSelectorProps {
     loading: boolean;
     onSelectAgent: (agent: AgentCatalogEntry) => void;
     onCreateSession: (agentId: string) => Promise<void>;
+    onAgentCreated?: () => void;
+    isAdmin?: boolean;
 }
 
 export const AgentSelector = ({
@@ -32,8 +36,11 @@ export const AgentSelector = ({
     loading,
     onSelectAgent,
     onCreateSession,
+    onAgentCreated,
+    isAdmin = false,
 }: AgentSelectorProps) => {
     const [startingAgentId, setStartingAgentId] = useState<string | null>(null);
+    const { isOpen, onOpen, onClose } = useDisclosure();
 
     if (loading) {
         return (
@@ -119,7 +126,45 @@ export const AgentSelector = ({
                         </Card>
                     );
                 })}
+
+                {isAdmin && (
+                    <Card
+                        borderWidth="2px"
+                        borderColor="gray.300"
+                        borderStyle="dashed"
+                        borderRadius="lg"
+                        cursor="pointer"
+                        transition="all 0.2s"
+                        _hover={{
+                            borderColor: 'gray.500',
+                            boxShadow: 'md',
+                            bg: 'gray.50',
+                        }}
+                        onClick={onOpen}
+                        minH="180px"
+                        display="flex"
+                        alignItems="center"
+                        justifyContent="center"
+                    >
+                        <CardBody textAlign="center">
+                            <VStack spacing={3}>
+                                <Icon as={FiPlus} boxSize={8} color="gray.400" />
+                                <Text fontWeight="medium" color="gray.500">
+                                    Create Custom Agent
+                                </Text>
+                            </VStack>
+                        </CardBody>
+                    </Card>
+                )}
             </SimpleGrid>
+
+            {isAdmin && (
+                <QuickCreateAgentModal
+                    isOpen={isOpen}
+                    onClose={onClose}
+                    onCreated={onAgentCreated}
+                />
+            )}
         </Box>
     );
 };

@@ -92,8 +92,8 @@ async def create_rag_runnable(
         )
         raise ValueError("llm é obrigatório para create_rag_runnable")
 
-    enabled = getattr(contexto, "enabled_tools", []) or []
-    if "executar_rag_cliente" not in enabled:
+    enabled = contexto.get_enabled_tools_list()
+    if enabled and "executar_rag_cliente" not in enabled:
         return None
 
     # Read search config from available_tools — parse through RagSearchConfig

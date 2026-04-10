@@ -12,6 +12,33 @@ from vizu_agent_framework.state import AgentState
 logger = logging.getLogger(__name__)
 
 
+class NodeMetadata:
+    """Metadata for a registered node."""
+
+    def __init__(
+        self,
+        name: str,
+        description: str = "",
+        category: str = "core",
+        inputs: list[str] | None = None,
+        outputs: list[str] | None = None,
+    ):
+        self.name = name
+        self.description = description
+        self.category = category
+        self.inputs = inputs or []
+        self.outputs = outputs or []
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "category": self.category,
+            "inputs": self.inputs,
+            "outputs": self.outputs,
+        }
+
+
 class NodeRegistry:
     """
     Registry for custom node handlers.
@@ -20,20 +47,29 @@ class NodeRegistry:
     """
 
     _registry: dict[str, Callable] = {}
+    _metadata: dict[str, NodeMetadata] = {}
 
     @classmethod
-    def register(cls, name: str):
+    def register(cls, name: str, description: str = "", category: str = "core",
+                 inputs: list[str] | None = None, outputs: list[str] | None = None):
         """
         Decorator to register a node handler.
 
         Usage:
-            @NodeRegistry.register("custom_validation")
+            @NodeRegistry.register("custom_validation", description="Validates order data")
             async def validate_order(state: AgentState) -> dict:
                 ...
         """
 
         def decorator(func: Callable):
             cls._registry[name] = func
+            cls._metadata[name] = NodeMetadata(
+                name=name,
+                description=description or (func.__doc__ or "").strip().split("\n")[0],
+                category=category,
+                inputs=inputs,
+                outputs=outputs,
+            )
             return func
 
         return decorator
@@ -47,6 +83,17 @@ class NodeRegistry:
     def list_nodes(cls) -> list[str]:
         """List all registered node names."""
         return list(cls._registry.keys())
+
+    @classmethod
+    def list_nodes_with_metadata(cls) -> list[dict]:
+        """List all registered nodes with metadata."""
+        result = []
+        for name in cls._registry:
+            if name in cls._metadata:
+                result.append(cls._metadata[name].to_dict())
+            else:
+                result.append({"name": name, "description": "", "category": "core", "inputs": [], "outputs": []})
+        return result
 
 
 # =============================================================================
@@ -132,7 +179,6 @@ async def execute_tool_node(state: AgentState) -> dict[str, Any]:
 
     This node:
     - Gets tool to execute from state
-    - Validates tool is in enabled_tools
     - Executes via MCP executor
     - Stores result in tool_results
     """
@@ -140,18 +186,9 @@ async def execute_tool_node(state: AgentState) -> dict[str, Any]:
 
     tool_name = state.get("tool_to_execute")
     tool_args = state.get("tool_args", {})
-    enabled_tools = state.get("enabled_tools", [])
 
     if not tool_name:
         return {"error": "No tool specified for execution"}
-
-    # Validate tool is enabled
-    if tool_name not in enabled_tools:
-        return {
-            "error": f"Tool '{tool_name}' is not enabled for this client",
-            "tool_to_execute": None,
-            "tool_args": None,
-        }
 
     # Note: Actual execution happens via MCPToolExecutor
     # This is a placeholder that will be replaced by AgentBuilder
@@ -240,11 +277,13 @@ async def context_enrichment_node(state: AgentState) -> dict[str, Any]:
     client_context = state.get("client_context", {})
 
     # Extract useful fields from client context
+    available_tools = client_context.get("available_tools", {})
+    tool_names = available_tools.get("enabled_tool_names", []) if available_tools else []
     enriched_metadata = {
         "nome_empresa": client_context.get("nome_empresa", ""),
         "tier": client_context.get("tier", "BASIC"),
-        "has_rag": "executar_rag_cliente" in state.get("enabled_tools", []),
-        "has_sql": "executar_sql_agent" in state.get("enabled_tools", []),
+        "has_rag": "executar_rag_cliente" in tool_names,
+        "has_sql": "executar_sql_agent" in tool_names,
     }
 
     return {
@@ -321,16 +360,72 @@ def with_tracing(_trace_name: str):
     return decorator
 
 
-# Register built-in nodes
-NodeRegistry._registry.update(
-    {
-        "init": init_node,
-        "elicit": elicit_node,
-        "execute_tool": execute_tool_node,
-        "respond": respond_node,
-        "end": end_node,
-        "error_recovery": error_recovery_node,
-        "context_enrichment": context_enrichment_node,
-        "rate_limit": rate_limit_node,
-    }
-)
+# Register built-in nodes with metadata
+_BUILTIN_NODES = {
+    "init": {
+        "handler": init_node,
+        "description": "Initialize agent state and increment turn count",
+        "category": "core",
+        "inputs": ["messages"],
+        "outputs": ["turn_count", "error"],
+    },
+    "elicit": {
+        "handler": elicit_node,
+        "description": "Handle elicitation flows for collecting user context",
+        "category": "core",
+        "inputs": ["pending_elicitation", "elicitation_response"],
+        "outputs": ["pending_elicitation", "elicitation_history"],
+    },
+    "execute_tool": {
+        "handler": execute_tool_node,
+        "description": "Execute a tool call via MCP",
+        "category": "core",
+        "inputs": ["tool_to_execute", "tool_args"],
+        "outputs": ["tool_to_execute", "tool_args"],
+    },
+    "respond": {
+        "handler": respond_node,
+        "description": "Generate LLM response from gathered context",
+        "category": "core",
+        "inputs": ["messages", "last_tool_result"],
+        "outputs": ["last_tool_result"],
+    },
+    "end": {
+        "handler": end_node,
+        "description": "End the conversation and set the ended flag",
+        "category": "core",
+        "inputs": ["end_reason"],
+        "outputs": ["ended", "end_reason"],
+    },
+    "error_recovery": {
+        "handler": error_recovery_node,
+        "description": "Handle errors and attempt recovery",
+        "category": "specialized",
+        "inputs": ["error"],
+        "outputs": ["error", "errors", "metadata"],
+    },
+    "context_enrichment": {
+        "handler": context_enrichment_node,
+        "description": "Enrich state with additional client context",
+        "category": "specialized",
+        "inputs": ["client_context"],
+        "outputs": ["metadata"],
+    },
+    "rate_limit": {
+        "handler": rate_limit_node,
+        "description": "Check and enforce rate limits",
+        "category": "specialized",
+        "inputs": ["turn_count", "max_turns"],
+        "outputs": ["ended", "end_reason"],
+    },
+}
+
+for _name, _info in _BUILTIN_NODES.items():
+    NodeRegistry._registry[_name] = _info["handler"]
+    NodeRegistry._metadata[_name] = NodeMetadata(
+        name=_name,
+        description=_info["description"],
+        category=_info["category"],
+        inputs=_info.get("inputs", []),
+        outputs=_info.get("outputs", []),
+    )

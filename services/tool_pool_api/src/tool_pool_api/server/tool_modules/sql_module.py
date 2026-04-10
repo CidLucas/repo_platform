@@ -321,7 +321,7 @@ def _build_context_guidance(vizu_context: VizuClientContext) -> str:
 
 
 # Use shared helper - see tool_helpers.py for implementation
-from tool_pool_api.server.tool_helpers import is_tool_enabled_for_client
+from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
 
 
 def _validate_sql_for_production_schema(sql: str) -> tuple[bool, str]:
@@ -501,7 +501,7 @@ async def _executar_sql_agent_logic(
     real_client_id = vizu_context.id
     logger.info(f"[SQL] Executando para {real_client_id}...")
 
-    if not is_tool_enabled_for_client("executar_sql_agent", vizu_context):
+    if not is_tool_accessible_by_tier("executar_sql_agent", vizu_context):
         logger.warning(f"[SQL] Ferramenta desabilitada para {real_client_id}.")
         raise ToolError("Ferramenta SQL não está habilitada para este cliente.")
 
@@ -594,6 +594,15 @@ async def _executar_sql_agent_logic(
         generated_sql = _strip_markdown_code_block(generated_sql)
         generated_sql = generated_sql.strip().rstrip(";") + ";"
 
+        # Reject multi-statement SQL (multiple queries separated by ;)
+        # Strip the trailing ; we just added, then check for remaining ;
+        if ";" in generated_sql[:-1]:
+            logger.error(f"[SQL] Multi-statement SQL rejected: {generated_sql}")
+            return {
+                "output": "Error: Only single SQL statements are allowed. Please split your question into separate queries.",
+                "sql": generated_sql,
+            }
+
         logger.info(f"[SQL] Generated SQL (before injection): {generated_sql}")
 
         # Basic SQL validation - allow SELECT and WITH (CTEs)
@@ -658,7 +667,7 @@ async def _executar_sql_agent_logic(
                 if not results:
                     return {
                         "output": "Nenhum resultado encontrado.",
-                        "sql": final_sql,
+                        "sql": generated_sql,
                         "success": True,
                         "structured_data": None,
                     }
@@ -727,7 +736,7 @@ async def _executar_sql_agent_logic(
                 # Use model_dump(mode='json') to ensure all values are JSON-serializable
                 return {
                     "output": f"{len(rows_as_dicts)} registros encontrados",
-                    "sql": final_sql,
+                    "sql": generated_sql,
                     "success": True,
                     "structured_data": structured_data.model_dump(mode="json"),
                     "row_count": len(rows_as_dicts),
@@ -743,7 +752,7 @@ async def _executar_sql_agent_logic(
 
             return {
                 "output": f"SQL execution error: {str(exec_error)}",
-                "sql": final_sql,
+                "sql": generated_sql,
                 "success": False,
                 "structured_data": None,
             }
@@ -826,9 +835,9 @@ async def _execute_sql_logic(
     logger.info(f"[execute_sql] Executing for client {real_client_id}")
 
     # 3. Tool access validation
-    if not is_tool_enabled_for_client("execute_sql", vizu_context):
+    if not is_tool_accessible_by_tier("execute_sql", vizu_context):
         # Fallback: check if executar_sql_agent is enabled (same tier)
-        if not is_tool_enabled_for_client("executar_sql_agent", vizu_context):
+        if not is_tool_accessible_by_tier("executar_sql_agent", vizu_context):
             logger.warning(f"[execute_sql] Tool disabled for {real_client_id}")
             raise ToolError("SQL tools are not enabled for this client.")
 
@@ -838,6 +847,15 @@ async def _execute_sql_logic(
     # Remove markdown code blocks if present
     sql_clean = _strip_markdown_code_block(sql_clean)
     sql_clean = sql_clean.strip().rstrip(";") + ";"
+
+    # Reject multi-statement SQL
+    if ";" in sql_clean[:-1]:
+        logger.error(f"[execute_sql] Multi-statement SQL rejected: {sql_clean[:200]}")
+        return {
+            "output": "Error: Only single SQL statements are allowed.",
+            "sql": sql_clean,
+            "success": False,
+        }
 
     sql_upper = sql_clean.upper()
 
@@ -901,7 +919,7 @@ async def _execute_sql_logic(
             if not results:
                 return {
                     "output": "No results found.",
-                    "sql": final_sql,
+                    "sql": sql_clean,
                     "success": True,
                     "structured_data": None,
                     "row_count": 0,
@@ -948,7 +966,7 @@ async def _execute_sql_logic(
 
             return {
                 "output": f"{len(rows_as_dicts)} records found",
-                "sql": final_sql,
+                "sql": sql_clean,
                 "success": True,
                 "structured_data": structured_data.model_dump(mode="json"),
                 "row_count": len(rows_as_dicts),
@@ -959,7 +977,7 @@ async def _execute_sql_logic(
         logger.error(f"[execute_sql] Execution error: {exec_error}")
         return {
             "output": f"SQL execution error: {str(exec_error)}",
-            "sql": final_sql,
+            "sql": sql_clean,
             "success": False,
             "structured_data": None,
         }

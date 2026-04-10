@@ -24,7 +24,6 @@ from tool_pool_api.server.dependencies import (
     load_context_from_token,
 )
 from tool_pool_api.server.tool_helpers import (
-    get_enabled_tools_for_context,
     get_tier_for_context,
 )
 from vizu_db_connector.database import SessionLocal
@@ -89,7 +88,7 @@ async def _get_knowledge_summary(cliente_id: str | None = None) -> str:
     """
     context = await _resolve_client_context(cliente_id)
 
-    enabled_tools = get_enabled_tools_for_context(context)
+    enabled_tools = context.get_enabled_tools_list()
     if "executar_rag_cliente" not in enabled_tools:
         return f"# Base de Conhecimento - {context.nome_empresa}\n\n⚠️ RAG não habilitado para este cliente."
 
@@ -175,7 +174,7 @@ async def _search_knowledge(query: str, cliente_id: str | None = None, limit: in
 
     context = await _resolve_client_context(cliente_id)
 
-    enabled = get_enabled_tools_for_context(context)
+    enabled = context.get_enabled_tools_list()
     if "executar_rag_cliente" not in enabled:
         raise ResourceError("RAG não habilitado para este cliente.")
 
@@ -251,7 +250,7 @@ async def _get_client_config(cliente_id: str | None = None) -> str:
     context = await _resolve_client_context(cliente_id)
 
     # Get enabled tools and tier
-    enabled_tools = get_enabled_tools_for_context(context)
+    enabled_tools = context.get_enabled_tools_list()
     tier = get_tier_for_context(context)
 
     # Get available tools from registry (validates against tier)
@@ -622,11 +621,11 @@ def register_resources(mcp: FastMCP) -> None:
         """
         List tools available for a specific client.
 
-        Takes into account the client's tier and enabled_tools configuration.
+        Takes into account the client's tier configuration.
         """
         context = await _resolve_client_context(cliente_id)
 
-        enabled_tools = get_enabled_tools_for_context(context)
+        enabled_tools = context.get_enabled_tools_list()
         tier = get_tier_for_context(context)
 
         available = ToolRegistry.get_available_tools(

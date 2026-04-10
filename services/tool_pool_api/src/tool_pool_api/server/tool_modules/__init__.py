@@ -62,6 +62,8 @@ def register_all_tools(mcp: FastMCP) -> dict:
         common_module,
         config_helper_module,
         csv_module,
+        document_intelligence_module,
+        ocr_extraction_module,
         prompt_module,
         rag_module,
         sql_module,
@@ -147,6 +149,23 @@ AVAILABLE_MODULES = {
         "description": "Native MCP prompts for dynamic prompt generation",
         "prompts": ["atendente_system", "text_to_sql_system", "rag_context", "elicitation"],
         "requires_auth": False,  # Prompts are public, auth is handled at variable level
+    },
+    "document_intelligence": {
+        "description": "Document analysis, structured extraction, and knowledge persistence",
+        "tools": [
+            "extract_structured_data",
+            "compile_time_series",
+            "write_summary_to_kb",
+        ],
+        "requires_auth": True,
+    },
+    "ocr_extraction": {
+        "description": "OCR & structured data extraction with configurable pipeline options",
+        "tools": [
+            "extract_document_with_ocr",
+            "summarize_document_sections",
+        ],
+        "requires_auth": True,
     },
     # Futuros módulos:
     # "scheduling": {

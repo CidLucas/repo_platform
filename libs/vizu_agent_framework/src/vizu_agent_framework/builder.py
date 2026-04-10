@@ -296,6 +296,98 @@ class AgentBuilder:
 
         return self
 
+    def use_custom_graph(self, graph_def: dict[str, Any]) -> "AgentBuilder":
+        """
+        Build the graph from a custom workflow_graph definition.
+
+        The graph_def must have:
+            - nodes: list of {id, type, ...}
+            - edges: list of {source, target, label?, condition?}
+
+        Nodes use their 'type' field to look up registered handlers.
+        Edges with a 'condition' field are treated as conditional edges
+        using the default routing functions for the source node type.
+
+        Returns:
+            Self for chaining
+        """
+        nodes_def = graph_def.get("nodes", [])
+        edges_def = graph_def.get("edges", [])
+
+        # Map of known conditional routers by source node name
+        routers: dict[str, Callable] = {
+            "init": route_from_init,
+            "elicit": route_from_elicit,
+            "execute_tool": route_from_tool,
+            "respond": route_from_respond,
+        }
+
+        # Add nodes (skip __start__ and __end__ which are graph sentinels)
+        for ndef in nodes_def:
+            nid = ndef.get("id", "")
+            ntype = ndef.get("type", nid)
+            if nid in ("__start__", "__end__"):
+                continue
+            handler = NodeRegistry.get(ntype)
+            if handler:
+                self._nodes[nid] = handler
+            else:
+                logger.warning(f"Custom graph: node type '{ntype}' not in registry, skipping")
+
+        # Group edges by source to detect conditional routing
+        from collections import defaultdict
+        edges_by_source: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for edef in edges_def:
+            edges_by_source[edef["source"]].append(edef)
+
+        # Process edges grouped by source
+        processed_sources: set[str] = set()
+        for source, src_edges in edges_by_source.items():
+            src_key = source if source != "__start__" else START
+
+            # If there's only one edge from this source and no condition, add simple edge
+            if len(src_edges) == 1 and not src_edges[0].get("condition"):
+                target = src_edges[0]["target"]
+                tgt_key = target if target != "__end__" else END
+                self._edges.append(EdgeDefinition(from_node=src_key, to_node=tgt_key))
+                continue
+
+            # Multiple edges or conditional edges → build conditional routing
+            router = routers.get(source)
+            if router:
+                routes: dict[str, str] = {}
+                for edef in src_edges:
+                    label = edef.get("label") or edef.get("condition") or edef["target"]
+                    target = edef["target"]
+                    tgt_key = target if target != "__end__" else END
+                    routes[label] = tgt_key
+                self.add_conditional_edge(src_key, router, routes)
+            else:
+                # No router for this source — add individual simple edges
+                for edef in src_edges:
+                    target = edef["target"]
+                    tgt_key = target if target != "__end__" else END
+                    self._edges.append(EdgeDefinition(from_node=src_key, to_node=tgt_key))
+
+        # Validate that all edge targets reference known nodes
+        valid_node_ids = set(self._nodes.keys()) | {START, END}
+        for edge in self._edges:
+            if edge.is_conditional:
+                for target in edge.routes.values():
+                    if target not in valid_node_ids and target != END:
+                        raise ValueError(
+                            f"Custom graph edge from '{edge.from_node}' routes to unknown node '{target}'. "
+                            f"Known nodes: {sorted(self._nodes.keys())}"
+                        )
+            else:
+                if edge.to_node not in valid_node_ids and edge.to_node != END:
+                    raise ValueError(
+                        f"Custom graph edge references unknown target node '{edge.to_node}'. "
+                        f"Known nodes: {sorted(self._nodes.keys())}"
+                    )
+
+        return self
+
     # =========================================================================
     # Build Method
     # =========================================================================
@@ -379,9 +471,9 @@ class AgentBuilder:
             if not tool_name:
                 return {"error": "No tool specified"}
 
-            # Validate tool is enabled
-            enabled_tools = state.get("enabled_tools", [])
-            if tool_name not in enabled_tools:
+            # Validate tool is enabled (per-agent config)
+            enabled_tools = self.config.enabled_tools or []
+            if enabled_tools and tool_name not in enabled_tools:
                 return {
                     "error": f"Tool '{tool_name}' not enabled",
                     "tool_to_execute": None,
@@ -392,6 +484,7 @@ class AgentBuilder:
                 "cliente_id": state.get("cliente_id", ""),
                 "session_id": state.get("session_id", ""),
                 "channel": state.get("channel", "api"),
+                **(state.get("metadata") or {}),
             }
 
             # Execute tool

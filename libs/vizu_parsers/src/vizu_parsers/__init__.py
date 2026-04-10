@@ -13,6 +13,7 @@ from vizu_parsers.chunker.models import Chunk
 from vizu_parsers.chunker.text_chunker import ChunkingStrategy, TextChunker
 from vizu_parsers.parsers.base_parser import BaseParser
 from vizu_parsers.parsers.csv_parser import CSVParser
+from vizu_parsers.parsers.docling_parser import DoclingExtractionOptions
 from vizu_parsers.parsers.pdf_parser import PDFParser
 from vizu_parsers.parsers.router import (
     COMPLEX_EXTENSIONS,
@@ -32,6 +33,7 @@ __all__ = [
     "CSVParser",
     "TXTParser",
     "SmartPDFParser",
+    "DoclingExtractionOptions",
     "get_parser_for_file",
     "is_complex_file",
     "ParserRouter",

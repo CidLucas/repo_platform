@@ -136,10 +136,12 @@ export async function getDocumentProgress(
 ): Promise<EmbeddingProgress> {
     // Fetch chunk-level progress AND document status in parallel
     const [rpcResult, docResult] = await Promise.all([
-        supabase.rpc(
-            "get_document_embedding_progress",
-            { p_document_id: documentId }
-        ),
+        supabase
+            .schema("vector_db")
+            .rpc(
+                "get_document_embedding_progress",
+                { p_document_id: documentId }
+            ),
         supabase
             .schema("vector_db")
             .from("documents")

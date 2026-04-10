@@ -12,6 +12,6 @@ def mock_vizu_client_context() -> VizuClientContext:
     return VizuClientContext(
         id=uuid.uuid4(),
         nome_empresa="test_empresa",
-        enabled_tools=["executar_rag_cliente"],
+        available_tools={"enabled_tool_names": ["executar_rag_cliente"]},
         credenciais=[CredencialServicoExternoBase(nome_servico="sql_service_mock")],
     )

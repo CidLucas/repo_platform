@@ -7,8 +7,10 @@ import {
   FiMessageSquare,
   FiCreditCard,
   FiHelpCircle,
-  FiBook
+  FiBook,
+  FiCpu,
 } from 'react-icons/fi';
+import { useAuth } from '../../hooks/useAuth';
 
 interface SidebarItemProps {
   to: string;
@@ -47,6 +49,9 @@ const SidebarItem = ({ to, icon, label }: SidebarItemProps) => {
 };
 
 export const AdminSidebar = () => {
+  const { tier } = useAuth();
+  const isAdmin = tier === 'ADMIN';
+
   return (
     <Box
       as="aside"
@@ -83,6 +88,13 @@ export const AdminSidebar = () => {
           icon={FiMessageSquare}
           label="Agente Config"
         />
+        {isAdmin && (
+          <SidebarItem
+            to="/dashboard/admin/agent-builder"
+            icon={FiCpu}
+            label="Agent Builder"
+          />
+        )}
         <SidebarItem
           to="/dashboard/admin/planos"
           icon={FiCreditCard}

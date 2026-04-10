@@ -21,6 +21,7 @@ EXPECTED_PROMPTS = [
     "standalone/knowledge-assistant",
     "standalone/report-generator",
     "standalone/admin-catalog",
+    "standalone/document-intelligence",
 ]
 
 

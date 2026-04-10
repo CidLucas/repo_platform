@@ -41,6 +41,7 @@ from vizu_prompt_management.dynamic_builder import (
     build_prompt_full,
     build_prompt_sync,
     build_tools_description,
+    compose_prompt,
     filter_prompt_tools,
     get_prompt_loader,
 )
@@ -71,6 +72,7 @@ __all__ = [
     "build_prompt_full",
     "build_prompt_sync",
     "build_tools_description",
+    "compose_prompt",
     "filter_prompt_tools",
     "get_prompt_loader",
 ]

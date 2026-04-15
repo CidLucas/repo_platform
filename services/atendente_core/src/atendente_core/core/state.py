@@ -58,9 +58,12 @@ class AgentState(TypedDict):
     # Resposta do usuário para elicitation pendente
     elicitation_response: dict[str, Any] | None
 
-    # --- STRUCTURED DATA (from SQL queries) ---
+    # --- STRUCTURED DATA (from SQL queries / worker delegations) ---
     # Rich tabular data for interactive display (sorting, filtering, export)
+    # First result for backward compatibility
     structured_data: dict[str, Any] | None
+    # All structured data results when multiple workers return tabular data concurrently
+    structured_data_list: list[dict[str, Any]] | None
 
     # --- CONVERSATION CONTROL ---
     ended: bool  # Whether conversation has ended

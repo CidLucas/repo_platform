@@ -229,6 +229,7 @@ async def chat_endpoint(
             model_used=result.model_used,
             elicitation_pending=pending_elicitation,
             structured_data=result.structured_data,
+            structured_data_list=result.structured_data_list,
         )
 
     except ValueError as e:

@@ -1069,19 +1069,16 @@ FRAGMENT_CSV_TOOLS = PromptTemplateConfig(
 FRAGMENT_RAG_SEARCH = PromptTemplateConfig(
     name="fragment/rag-search",
     category=PromptCategory.SYSTEM,
-    description="RAG search tool description and query optimization rules",
+    description="RAG search tool description and usage rules",
     content="""## Knowledge Search Tool
 
-- **executar_rag_cliente** — Search the company's knowledge base (uploaded documents). Returns relevant passages with source attribution.
+- **executar_rag_cliente** — Semantic search across uploaded knowledge documents. Returns relevant passages with source attribution.
 
-### Search Rules
-1. **Always search before answering** questions about document content, policies, or procedures
-2. **Rewrite queries** for optimal retrieval:
-   - Decompose multi-topic questions into key concepts
-   - Expand with synonyms in the same language
-   - Remove conversational filler
-3. **Cite sources** — Always reference the document name: "According to [Document Name]..."
-4. If information is not found, say so clearly — never fabricate content""",
+### Rules
+1. **Search before answering** — Never answer about document content without querying first
+2. **Cite sources** — Always mention which document your answer comes from: "According to [Document Name]..."
+3. **Handle gaps** — If information isn't in the documents, say so clearly rather than guessing
+4. **Multiple searches** — For complex questions covering distinct topics, run separate searches then synthesize""",
 )
 
 FRAGMENT_GOOGLE_EXPORT = PromptTemplateConfig(
@@ -1142,25 +1139,29 @@ FRAGMENT_DATA_ANALYST_WORKFLOW = PromptTemplateConfig(
 FRAGMENT_KNOWLEDGE_ASSISTANT_WORKFLOW = PromptTemplateConfig(
     name="fragment/knowledge-assistant-workflow",
     category=PromptCategory.SYSTEM,
-    description="Knowledge assistant agent workflow: question types and citation style",
+    description="Knowledge assistant agent workflow: raw context synthesis and citation",
     content="""## Knowledge Workflow
 
-1. **Search first** — Always use `executar_rag_cliente` before answering questions about document content
-2. **Cite precisely** — Reference the specific document and section: "According to [Document Name], section X..."
-3. **Synthesize** — When multiple documents cover the same topic, combine their information into a coherent answer
-4. **Acknowledge limits** — If the answer isn't in the documents, say so and suggest what else the user might provide
+The RAG tool (`executar_rag_cliente`) returns **raw document passages** with source metadata — NOT a pre-made answer.
+Your job is to synthesise these passages into a coherent, well-cited response.
 
-## Question Types You Handle
+### Process
+1. **Search first** — Always call `executar_rag_cliente` before answering questions about document content
+2. **Synthesise** — Combine relevant passages from the tool response into a single coherent answer. The retrieved context is sovereign: if the answer isn't there, say so — never invent.
+3. **Cite precisely** — Reference the source document: "According to [Document Name]..."
+4. **Acknowledge limits** — If the retrieved passages don't cover the question, say so and suggest what else the user might provide
+
+### Question Types You Handle
 - Company policies and procedures
 - Product/service information
 - Process documentation and best practices
 - FAQ and troubleshooting
 - Compliance and guidelines
 
-## Response Structure
-1. **Direct answer** — Start with the core information requested
+### Response Structure
+1. **Direct answer** — Start with the core information
 2. **Source** — "According to [Document Name]..."
-3. **Context** — Supporting details and related information
+3. **Context** — Supporting details from other relevant passages
 4. **Related** — Offer to search for related topics""",
 )
 

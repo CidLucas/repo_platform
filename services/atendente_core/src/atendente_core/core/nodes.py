@@ -713,6 +713,7 @@ async def supervisor_node(state: AgentState) -> dict:
             "messages": [response],
             "turn_count": current_turn_count,
             "structured_data": None,
+            "structured_data_list": None,
             "_cached_system_prompt": system_prompt,
             "_cached_tools": validated_tools,
         }
@@ -757,14 +758,11 @@ async def execute_tools_node(state: AgentState) -> dict:
     if not cliente_id:
         logger.warning("[Tools] No cliente_id in state! Tools may fail auth.")
 
-    # Variable to capture structured_data from tool results (before truncation)
-    extracted_structured_data: dict | None = None
-
     async def execute_single_tool(
         tool_call: dict, retry_on_stream_error: bool = True
-    ) -> ToolMessage:
-        """Executa uma única tool e retorna ToolMessage."""
-        nonlocal tool_map, extracted_structured_data
+    ) -> tuple[ToolMessage, dict | None]:
+        """Executa uma única tool e retorna (ToolMessage, structured_data | None)."""
+        nonlocal tool_map
         tool_name = tool_call["name"]
         tool_call_id = tool_call["id"]
 
@@ -775,7 +773,7 @@ async def execute_tools_node(state: AgentState) -> dict:
                     content=f"Ferramenta '{tool_name}' não encontrada.",
                     tool_call_id=tool_call_id,
                     name=tool_name,
-                )
+                ), None
 
             # --- Worker delegation tools (delegate_to_*) ---
             # These are StructuredTool instances that run a full worker loop
@@ -794,19 +792,23 @@ async def execute_tools_node(state: AgentState) -> dict:
                         content=f"Worker error: {e}",
                         tool_call_id=tool_call_id,
                         name=tool_name,
-                    )
+                    ), None
 
                 # Extract structured_data from worker JSON response
+                tool_structured_data: dict | None = None
                 try:
                     import json as _json
                     parsed_delegation = _json.loads(output) if isinstance(output, str) else output
                     if isinstance(parsed_delegation, dict) and parsed_delegation.get("structured_data"):
-                        if extracted_structured_data is None:
-                            extracted_structured_data = parsed_delegation["structured_data"]
-                            logger.info(
-                                f"[Tools] Extracted structured_data from worker '{tool_name}': "
-                                f"{len(extracted_structured_data.get('rows', []))} rows"
-                            )
+                        tool_structured_data = parsed_delegation["structured_data"]
+                        # Tag with source worker for multi-delegation traceability
+                        tool_structured_data["source_worker"] = parsed_delegation.get(
+                            "worker_slug", tool_name.replace("delegate_to_", "")
+                        )
+                        logger.info(
+                            f"[Tools] Extracted structured_data from worker '{tool_name}': "
+                            f"{len(tool_structured_data.get('rows', []))} rows"
+                        )
                         # Remove structured_data from LLM context (frontend shows it)
                         summary = parsed_delegation.get("summary", output)
                         tools_used = parsed_delegation.get("tools_used", [])
@@ -817,7 +819,7 @@ async def execute_tools_node(state: AgentState) -> dict:
                     pass
 
                 output_str = str(output)[:4000]
-                return ToolMessage(content=output_str, tool_call_id=tool_call_id, name=tool_name)
+                return ToolMessage(content=output_str, tool_call_id=tool_call_id, name=tool_name), tool_structured_data
 
             # --- Regular MCP tools (public tools handled by supervisor) ---
             # Prepara argumentos
@@ -850,6 +852,7 @@ async def execute_tools_node(state: AgentState) -> dict:
 
             # Extract structured_data BEFORE truncating (it may be large)
             # Frontend gets 20 rows max, LLM gets summary + 3 sample rows
+            tool_structured_data: dict | None = None
             try:
                 import json
 
@@ -857,18 +860,17 @@ async def execute_tools_node(state: AgentState) -> dict:
                 if isinstance(parsed_output, dict) and parsed_output.get("structured_data"):
                     full_data = parsed_output["structured_data"]
 
-                    # Store for later extraction (with row limit for frontend)
-                    if extracted_structured_data is None:
-                        # Limit rows for frontend display (20 rows, 10 per page)
-                        frontend_data = full_data.copy()
-                        if frontend_data.get("rows") and len(frontend_data["rows"]) > 20:
-                            frontend_data["rows"] = frontend_data["rows"][:20]
-                            frontend_data["truncated"] = True
-                            frontend_data["total_rows"] = len(full_data["rows"])
-                        extracted_structured_data = frontend_data
-                        logger.info(
-                            f"[Tools] Extracted structured_data from '{tool_name}': {len(full_data.get('rows', []))} total rows, {len(frontend_data.get('rows', []))} for frontend"
-                        )
+                    # Limit rows for frontend display (20 rows, 10 per page)
+                    frontend_data = full_data.copy()
+                    if frontend_data.get("rows") and len(frontend_data["rows"]) > 20:
+                        frontend_data["rows"] = frontend_data["rows"][:20]
+                        frontend_data["truncated"] = True
+                        frontend_data["total_rows"] = len(full_data["rows"])
+                    frontend_data["source_tool"] = tool_name
+                    tool_structured_data = frontend_data
+                    logger.info(
+                        f"[Tools] Extracted structured_data from '{tool_name}': {len(full_data.get('rows', []))} total rows, {len(frontend_data.get('rows', []))} for frontend"
+                    )
 
                     # Create LLM-friendly summary (aggregated + 3 sample rows)
                     llm_summary = _create_llm_data_summary(full_data, parsed_output)
@@ -892,7 +894,7 @@ async def execute_tools_node(state: AgentState) -> dict:
                     f"Tool '{tool_name}' output truncated from {len(str(output))} to {MAX_TOOL_OUTPUT_CHARS} chars"
                 )
 
-            return ToolMessage(content=output_str, tool_call_id=tool_call_id, name=tool_name)
+            return ToolMessage(content=output_str, tool_call_id=tool_call_id, name=tool_name), tool_structured_data
 
         except (ClosedResourceError, BrokenResourceError) as stream_err:
             # MCP stream died - reconnect and retry once
@@ -913,14 +915,14 @@ async def execute_tools_node(state: AgentState) -> dict:
                         content=f"Erro de conexão com serviço de ferramentas: {str(stream_err)}",
                         tool_call_id=tool_call_id,
                         name=tool_name,
-                    )
+                    ), None
             else:
                 logger.exception(f"MCP stream error on retry for '{tool_name}': {stream_err}")
                 return ToolMessage(
                     content=f"Erro de conexão persistente com serviço de ferramentas: {str(stream_err)}",
                     tool_call_id=tool_call_id,
                     name=tool_name,
-                )
+                ), None
 
         except ElicitationRequired as elicit:
             nonlocal pending_elicitation
@@ -931,7 +933,7 @@ async def execute_tools_node(state: AgentState) -> dict:
                 content=f"[ELICITATION REQUIRED] {elicitation_msg}",
                 tool_call_id=tool_call_id,
                 name=tool_name,
-            )
+            ), None
 
         except Exception as e:
             logger.exception(f"Erro ao executar '{tool_name}': {e}")
@@ -939,7 +941,7 @@ async def execute_tools_node(state: AgentState) -> dict:
                 content=f"Erro ao executar ferramenta: {str(e)}",
                 tool_call_id=tool_call_id,
                 name=tool_name,
-            )
+            ), None
 
     # 3. Executa TODAS as tools em PARALELO
     if len(tool_calls) > 1:
@@ -947,16 +949,25 @@ async def execute_tools_node(state: AgentState) -> dict:
             f"Executando {len(tool_calls)} tools em paralelo: {[tc['name'] for tc in tool_calls]}"
         )
 
-    results = await asyncio.gather(*[execute_single_tool(tc) for tc in tool_calls])
+    raw_results = await asyncio.gather(*[execute_single_tool(tc) for tc in tool_calls])
+
+    # Separate ToolMessages from structured_data (collected after gather to avoid race conditions)
+    messages_list: list[ToolMessage] = []
+    all_structured_data: list[dict] = []
+    for msg, sd in raw_results:
+        messages_list.append(msg)
+        if sd is not None:
+            all_structured_data.append(sd)
 
     # Build return dict
-    return_dict = {"messages": list(results)}
+    return_dict = {"messages": messages_list}
 
-    # Use structured_data extracted before truncation (already limited to 20 rows for frontend)
-    if extracted_structured_data:
-        return_dict["structured_data"] = extracted_structured_data
+    # Populate structured_data (first result for backward compat) and structured_data_list (all)
+    if all_structured_data:
+        return_dict["structured_data"] = all_structured_data[0]
+        return_dict["structured_data_list"] = all_structured_data
         logger.info(
-            f"[Tools] Passing structured_data to frontend: {len(extracted_structured_data.get('rows', []))} rows"
+            f"[Tools] Passing {len(all_structured_data)} structured_data result(s) to state"
         )
 
     # PHASE 3: If we have pending elicitation, add it to state

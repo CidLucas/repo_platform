@@ -68,6 +68,7 @@ SUPERVISOR_RULES = """# ROUTING RULES
 - Questions about policies, processes, documentation, company info → **knowledge assistant**
 - Requests for reports, exports, combined analyses → **report generator**
 - Requests involving uploaded documents, OCR, extraction → **document intelligence**
+- Buying lists, purchasing, quotations, supplier management, RFQs, purchase orders, procurement → **rfq agent**
 
 ## Handle DIRECTLY (no delegation)
 - Greetings and pleasantries ("olá", "tudo bem?", "obrigado")

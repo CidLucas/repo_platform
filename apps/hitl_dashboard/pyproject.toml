@@ -10,7 +10,7 @@ packages = [{include = "hitl_dashboard", from = "src"}]
 python = "^3.11"
 streamlit = "^1.40.0"
 redis = "^5.0.0"
-langfuse = "^2.0.0"
+langfuse = ">=4.0.0"
 vizu-models = {path = "../../libs/vizu_models", develop = true}
 vizu-hitl-service = {path = "../../libs/vizu_hitl_service", develop = true}
 vizu-db-connector = {path = "../../libs/vizu_db_connector", develop = true}

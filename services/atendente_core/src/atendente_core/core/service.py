@@ -34,11 +34,13 @@ class ProcessMessageResult:
         model_used: str | None = None,
         pending_elicitation: PendingElicitation | None = None,
         structured_data: dict[str, Any] | None = None,
+        structured_data_list: list[dict[str, Any]] | None = None,
     ):
         self.response = response
         self.model_used = model_used
         self.pending_elicitation = pending_elicitation
         self.structured_data = structured_data
+        self.structured_data_list = structured_data_list
 
     @property
     def has_pending_elicitation(self) -> bool:
@@ -143,6 +145,7 @@ class AtendenteService:
             ended=False,
             turn_count=0,
             structured_data=None,
+            structured_data_list=None,
             # OPT-7: Cached system prompt (populated on first supervisor call)
             _cached_system_prompt=None,
             _cached_tools=None,
@@ -253,14 +256,16 @@ class AtendenteService:
                     )
                 )
 
-                # Extract structured_data from state (populated by SQL tools)
+                # Extract structured_data from state (populated by SQL tools / worker delegations)
                 structured_data = final_state.get("structured_data")
+                structured_data_list = final_state.get("structured_data_list")
 
                 return ProcessMessageResult(
                     response=agent_response,
                     model_used=model_used,
                     pending_elicitation=pending_elicitation,
                     structured_data=structured_data,
+                    structured_data_list=structured_data_list,
                 )
 
             return ProcessMessageResult(
@@ -324,6 +329,7 @@ class AtendenteService:
             ended=False,
             turn_count=0,
             structured_data=None,
+            structured_data_list=None,
             _cached_system_prompt=None,
             _cached_tools=None,
         )

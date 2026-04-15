@@ -45,6 +45,7 @@ class WorkerResult:
     """Result returned by a worker invocation."""
 
     summary: str  # Text summary for the supervisor/user
+    worker_slug: str = ""  # Worker identifier for traceability
     structured_data: dict[str, Any] | None = None  # Tabular data for frontend
     tool_calls_made: list[str] = field(default_factory=list)
     error: str | None = None
@@ -137,23 +138,23 @@ async def _build_worker_prompt(
 async def _execute_worker_tools(
     tool_calls: list[dict],
     tool_map: dict,
-) -> tuple[list[ToolMessage], dict | None]:
+) -> tuple[list[ToolMessage], list[dict]]:
     """
     Execute tool calls for a worker (parallel, same as execute_tools_node).
 
-    Returns (tool_messages, extracted_structured_data).
+    Returns (tool_messages, list_of_structured_data).
+    Each execute returns a tuple so structured_data is collected after gather
+    (no race condition with nonlocal under asyncio.gather).
     """
-    extracted_structured_data: dict | None = None
 
-    async def _run_one(tc: dict) -> ToolMessage:
-        nonlocal extracted_structured_data
+    async def _run_one(tc: dict) -> tuple[ToolMessage, dict | None]:
         name = tc["name"]
         call_id = tc["id"]
         tool = tool_map.get(name)
         if not tool:
             return ToolMessage(
                 content=f"Tool '{name}' not found.", tool_call_id=call_id, name=name
-            )
+            ), None
 
         args = dict(tc.get("args") or {})
         # Strip internal params
@@ -170,17 +171,18 @@ async def _execute_worker_tools(
                 )
 
             # Extract structured_data before truncation
+            tool_structured_data: dict | None = None
             try:
                 parsed = json.loads(output) if isinstance(output, str) else output
                 if isinstance(parsed, dict) and parsed.get("structured_data"):
                     full_data = parsed["structured_data"]
-                    if extracted_structured_data is None:
-                        frontend_data = full_data.copy()
-                        if frontend_data.get("rows") and len(frontend_data["rows"]) > 20:
-                            frontend_data["rows"] = frontend_data["rows"][:20]
-                            frontend_data["truncated"] = True
-                            frontend_data["total_rows"] = len(full_data["rows"])
-                        extracted_structured_data = frontend_data
+                    frontend_data = full_data.copy()
+                    if frontend_data.get("rows") and len(frontend_data["rows"]) > 20:
+                        frontend_data["rows"] = frontend_data["rows"][:20]
+                        frontend_data["truncated"] = True
+                        frontend_data["total_rows"] = len(full_data["rows"])
+                    frontend_data["source_tool"] = name
+                    tool_structured_data = frontend_data
 
                     llm_summary = _create_llm_data_summary(full_data, parsed)
                     parsed["output"] = llm_summary
@@ -193,7 +195,7 @@ async def _execute_worker_tools(
             if len(output_str) > _WORKER_MAX_TOOL_OUTPUT:
                 output_str = output_str[:_WORKER_MAX_TOOL_OUTPUT] + "\n[truncated]"
 
-            return ToolMessage(content=output_str, tool_call_id=call_id, name=name)
+            return ToolMessage(content=output_str, tool_call_id=call_id, name=name), tool_structured_data
 
         except (BrokenResourceError, ClosedResourceError) as e:
             logger.warning(f"[Worker] MCP stream error on '{name}': {e}, reconnecting")
@@ -208,20 +210,22 @@ async def _execute_worker_tools(
                         for item in output.content
                     )
                 output_str = str(output)[:_WORKER_MAX_TOOL_OUTPUT]
-                return ToolMessage(content=output_str, tool_call_id=call_id, name=name)
+                return ToolMessage(content=output_str, tool_call_id=call_id, name=name), None
             except Exception as retry_err:
                 logger.exception(f"[Worker] Retry failed for '{name}': {retry_err}")
                 return ToolMessage(
                     content=f"Connection error: {e}", tool_call_id=call_id, name=name
-                )
+                ), None
         except Exception as e:
             logger.exception(f"[Worker] Error executing '{name}': {e}")
             return ToolMessage(
                 content=f"Error: {e}", tool_call_id=call_id, name=name
-            )
+            ), None
 
-    results = await asyncio.gather(*[_run_one(tc) for tc in tool_calls])
-    return list(results), extracted_structured_data
+    raw_results = await asyncio.gather(*[_run_one(tc) for tc in tool_calls])
+    messages = [msg for msg, _ in raw_results]
+    all_structured_data = [sd for _, sd in raw_results if sd is not None]
+    return messages, all_structured_data
 
 
 async def invoke_worker(
@@ -254,7 +258,7 @@ async def invoke_worker(
     """
     worker = WorkerRegistry.get_worker(worker_slug)
     if not worker:
-        return WorkerResult(summary="", error=f"Unknown worker: {worker_slug}")
+        return WorkerResult(summary="", worker_slug=worker_slug, error=f"Unknown worker: {worker_slug}")
 
     # 1. Build or retrieve cached prompt
     cache_key = (session_id, worker_slug)
@@ -306,6 +310,7 @@ async def invoke_worker(
             logger.exception(f"[Worker:{worker_slug}] LLM error on turn {turn}: {e}")
             return WorkerResult(
                 summary=f"Worker error: {e}",
+                worker_slug=worker_slug,
                 structured_data=structured_data,
                 tool_calls_made=calls_made,
                 error=str(e),
@@ -318,17 +323,19 @@ async def invoke_worker(
             logger.info(f"[Worker:{worker_slug}] Final response on turn {turn}")
             return WorkerResult(
                 summary=response.content or "",
+                worker_slug=worker_slug,
                 structured_data=structured_data,
                 tool_calls_made=calls_made,
             )
 
         # Execute tool calls
         calls_made.extend(tc["name"] for tc in response.tool_calls)
-        tool_msgs, extracted = await _execute_worker_tools(response.tool_calls, tool_map)
+        tool_msgs, extracted_list = await _execute_worker_tools(response.tool_calls, tool_map)
         messages.extend(tool_msgs)
 
-        if extracted and structured_data is None:
-            structured_data = extracted
+        # Use first structured_data from this turn if we don't have one yet
+        if extracted_list and structured_data is None:
+            structured_data = extracted_list[0]
 
     # Max turns exceeded — use last response content if available
     last_ai = next(
@@ -339,6 +346,7 @@ async def invoke_worker(
     logger.warning(f"[Worker:{worker_slug}] Hit max turns ({_WORKER_MAX_TURNS})")
     return WorkerResult(
         summary=summary,
+        worker_slug=worker_slug,
         structured_data=structured_data,
         tool_calls_made=calls_made,
     )

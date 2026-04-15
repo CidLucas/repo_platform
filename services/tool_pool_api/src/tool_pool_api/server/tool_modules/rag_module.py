@@ -18,7 +18,6 @@ from fastmcp.exceptions import ToolError
 from tool_pool_api.server.dependencies import get_context_service
 from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
 from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
-from vizu_llm_service import ModelTier, get_model
 from vizu_models.vizu_client_context import VizuClientContext
 
 from . import register_module
@@ -39,13 +38,16 @@ async def _executar_rag_cliente_logic(
     """
        **Tool: executar_rag_cliente**
 
-    **Purpose:** Search a company's knowledge base for information about their products, services, pricing, policies, FAQs, and business operations.
+    **Purpose:** Search a company's knowledge base and return relevant document
+    passages with source metadata. The calling agent synthesises the final answer.
 
     **When to use this tool:**
     - User asks questions about a company's offerings, prices, or services
     - User needs information from company documentation, manuals, or help articles
     - User asks about company policies, terms of service, or procedures
-    - User requests information that should be in the company's internal knowledge base
+
+    **Returns:** Raw document passages with [Source | Relevance | Scope] headers.
+    You must synthesise these into a coherent answer and cite sources.
 
     **Input format:**
     - query: (string) A search-optimized version of the user's question.
@@ -57,7 +59,6 @@ async def _executar_rag_cliente_logic(
 
     **Examples:**
     - User: "What are your shipping costs to Europe?" → query: "shipping costs rates Europe international delivery pricing freight"
-    - User: "Tell me about your premium subscription features" → query: "premium subscription plan features benefits pricing tier enterprise"
     - User: "Qual a política de devolução?" → query: "política devolução reembolso troca prazo condições retorno garantia"
 
     **IMPORTANT:** This tool accesses the specific company's knowledge base. The company context is automatically injected - do NOT ask the user for company ID.
@@ -138,24 +139,19 @@ async def _executar_rag_cliente_logic(
         logger.warning(f"[RAG] Ferramenta desabilitada para {real_client_id}.")
         raise ToolError("Ferramenta RAG não está habilitada para este cliente.")
 
-    # 4. Execução da Ferramenta
+    # 4. Execução da Ferramenta — retrieval-only (no LLM answer generation)
+    # The calling agent LLM will synthesise the answer from the retrieved context,
+    # eliminating one redundant DEFAULT-tier LLM call per RAG query.
     try:
-        llm = get_model(
-            tier=ModelTier.DEFAULT,
-            task="rag",
-            user_id=str(real_client_id),
-            tags=["tool_pool", "rag_module"],
+        rag_retriever = await server_tools.create_rag_retriever(
+            vizu_context, document_ids=document_ids
         )
 
-        rag_runnable = await server_tools.create_rag_runnable(
-            vizu_context, llm=llm, document_ids=document_ids
-        )
-
-        if not rag_runnable:
+        if not rag_retriever:
             logger.error(f"[RAG] Fábrica retornou None para {real_client_id}.")
             raise ToolError("Não foi possível inicializar o sistema RAG.")
 
-        result = await rag_runnable.ainvoke({"question": query})
+        result = await rag_retriever.ainvoke({"question": query})
         logger.info(f"[RAG] Executado com sucesso para {real_client_id}.")
 
         return str(result)
@@ -177,12 +173,12 @@ def register_tools(mcp: FastMCP) -> list[str]:
     mcp.tool(
         name="executar_rag_cliente",
         description=(
-            "Search the company's knowledge base for information about products, "
-            "services, pricing, policies, FAQs, and business operations. "
+            "Search the company's knowledge base and return relevant document "
+            "passages with source metadata. Returns raw context — YOU must "
+            "synthesise, cite sources, and answer based on the retrieved passages. "
             "Parameter: query (a search-optimized rewrite of the user's question — "
             "decompose multi-topic queries into key concepts, add synonyms and "
-            "related terms, remove conversational filler. Include keywords for "
-            "ALL topics mentioned so results are diverse)."
+            "related terms, remove conversational filler)."
         ),
     )(mcp_inject_cliente_id(get_context_service)(_executar_rag_cliente_logic))
 

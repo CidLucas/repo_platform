@@ -11,7 +11,7 @@ import {
   Spinner
 } from '@chakra-ui/react';
 import { AdminLayout } from '../../components/layouts/AdminLayout';
-import { FiDatabase, FiUsers, FiExternalLink, FiAlertCircle } from 'react-icons/fi';
+import { FiDatabase, FiUsers, FiExternalLink, FiAlertCircle, FiSettings } from 'react-icons/fi';
 import { useContext } from 'react';
 import { AuthContext } from '../../contexts/AuthContext';
 import { useDashboardStats } from '../../hooks/useDashboardStats';
@@ -42,24 +42,24 @@ const InfoCard = ({ title, description, items, linkText, linkHref, image }: Info
       position="relative"
     >
       <VStack align="start" spacing={3}>
-        <Text 
-          fontSize="16px" 
-          fontWeight="normal" 
+        <Text
+          fontSize="16px"
+          fontWeight="normal"
           color="gray.900"
           letterSpacing="-0.3px"
         >
           {title}
         </Text>
-        
-        <Text 
-          fontSize="14px" 
-          color="gray.500" 
+
+        <Text
+          fontSize="14px"
+          color="gray.500"
           lineHeight="20px"
           letterSpacing="-0.15px"
         >
           {description}
         </Text>
-        
+
         <VStack align="start" spacing={4} mt={4} w="full">
           {items.map((item, index) => (
             <HStack key={index} spacing={4} w="full" borderTop={index > 0 ? "1px solid" : "none"} borderColor="gray.200" pt={index > 0 ? 4 : 0}>
@@ -82,11 +82,11 @@ const InfoCard = ({ title, description, items, linkText, linkHref, image }: Info
             </HStack>
           ))}
         </VStack>
-        
-        <Link 
-          href={linkHref} 
-          color="blue.600" 
-          fontSize="14px" 
+
+        <Link
+          href={linkHref}
+          color="blue.600"
+          fontSize="14px"
           mt="auto"
           display="flex"
           alignItems="center"
@@ -96,7 +96,7 @@ const InfoCard = ({ title, description, items, linkText, linkHref, image }: Info
           <Icon as={FiExternalLink} boxSize={3} />
         </Link>
       </VStack>
-      
+
       {image && (
         <Box position="absolute" right={4} bottom={4}>
           {image}
@@ -112,8 +112,8 @@ function AdminHomePage() {
 
   // Get user name from auth context - fallback to first part of email if no display name
   const userName = auth?.user?.user_metadata?.full_name ||
-                   auth?.user?.email?.split('@')[0] ||
-                   'Usuário';
+    auth?.user?.email?.split('@')[0] ||
+    'Usuário';
 
   // Format storage usage
   const formatStorage = (gb: number): string => {
@@ -196,6 +196,20 @@ function AdminHomePage() {
               items={[]}
               linkText="Gerenciar privacidade e personalização"
               linkHref="/dashboard/admin/privacidade"
+            />
+
+            <InfoCard
+              title="Personalizar Agente"
+              description="Configure o perfil da empresa, equipe, prioridades e políticas para que o agente responda de forma personalizada"
+              items={[
+                {
+                  icon: FiSettings,
+                  title: "Contexto do agente",
+                  subtitle: "Perfil, equipe, momento atual e regras"
+                }
+              ]}
+              linkText="Configurar agente"
+              linkHref="/dashboard/admin/onboarding"
             />
           </SimpleGrid>
         ) : null}

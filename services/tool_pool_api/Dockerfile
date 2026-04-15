@@ -23,6 +23,7 @@ COPY libs/vizu_tool_registry ./libs/vizu_tool_registry
 COPY libs/vizu_prompt_management ./libs/vizu_prompt_management
 COPY libs/vizu_google_suite_client ./libs/vizu_google_suite_client
 COPY libs/vizu_parsers ./libs/vizu_parsers
+COPY libs/vizu_elicitation_service ./libs/vizu_elicitation_service
 
 # Copy pyproject and install deps
 COPY services/tool_pool_api/pyproject.toml services/tool_pool_api/poetry.lock* ./services/tool_pool_api/
@@ -54,13 +55,14 @@ COPY libs/vizu_tool_registry/src ./libs/vizu_tool_registry/src
 COPY libs/vizu_prompt_management/src ./libs/vizu_prompt_management/src
 COPY libs/vizu_google_suite_client/src ./libs/vizu_google_suite_client/src
 COPY libs/vizu_parsers/src ./libs/vizu_parsers/src
+COPY libs/vizu_elicitation_service/src ./libs/vizu_elicitation_service/src
 
 # Copy service source code
 COPY services/tool_pool_api/src ./src
 
 # PYTHONPATH for imports
 ENV PATH="/app/services/tool_pool_api/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_context_service/src:/app/libs/vizu_supabase_client/src:/app/libs/vizu_auth/src:/app/libs/vizu_observability_bootstrap/src:/app/libs/vizu_llm_service/src:/app/libs/vizu_rag_factory/src:/app/libs/vizu_sql_factory/src:/app/libs/vizu_tool_registry/src:/app/libs/vizu_prompt_management/src:/app/libs/vizu_google_suite_client/src"
+ENV PYTHONPATH="/app/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_context_service/src:/app/libs/vizu_supabase_client/src:/app/libs/vizu_auth/src:/app/libs/vizu_observability_bootstrap/src:/app/libs/vizu_llm_service/src:/app/libs/vizu_rag_factory/src:/app/libs/vizu_sql_factory/src:/app/libs/vizu_tool_registry/src:/app/libs/vizu_prompt_management/src:/app/libs/vizu_google_suite_client/src:/app/libs/vizu_parsers/src:/app/libs/vizu_elicitation_service/src"
 
 EXPOSE 8000
 

@@ -229,6 +229,11 @@ class AgentChatResponse(BaseModel):
         None,
         description="Structured tabular data for interactive display (sorting, filtering, export)",
     )
+    # All structured data results when multiple workers return tabular data concurrently
+    structured_data_list: "list[StructuredDataResponse] | None" = Field(
+        None,
+        description="List of structured data from concurrent worker delegations",
+    )
 
 
 # ============================================================================

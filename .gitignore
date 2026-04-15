@@ -66,3 +66,7 @@ pull-github-push-gcp.sh
 
 # GitHub configuration and team instructions (not part of portfolio)
 .github/copilot-instructions.md
+
+# Seeds and project data (large files, local only)
+seeds/
+projetos/

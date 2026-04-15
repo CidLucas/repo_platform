@@ -61,39 +61,68 @@ def _format_docs(docs):
     return formatted
 
 
+async def create_rag_retriever(
+    contexto: VizuClientContext,
+    document_ids: list[str] | None = None,
+) -> Runnable | None:
+    """Create a retrieval-only RAG runnable that returns formatted context.
+
+    Unlike ``create_rag_runnable``, this does **not** invoke an LLM to generate
+    an answer.  It returns the formatted retrieved passages directly, letting
+    the calling agent LLM synthesise an answer with full conversational context.
+
+    This eliminates one DEFAULT-tier LLM call per RAG query.
+
+    Input:  ``{"question": "..."}``
+    Output: formatted context string with source metadata.
+    """
+    return await _build_rag_pipeline(contexto, llm=None, document_ids=document_ids, generate_answer=False)
+
+
 async def create_rag_runnable(
     contexto: VizuClientContext,
     llm: BaseChatModel,
     document_ids: list[str] | None = None,
 ) -> Runnable | None:
-    """
-    Factory agnóstica para criar um Runnable de RAG.
+    """Create a full RAG runnable that retrieves context AND generates an LLM answer.
 
-    Uses SupabaseVectorRetriever to search document chunks stored in
-    ``vector_db.document_chunks`` via the ``search-documents`` Edge Function.
+    Prefer ``create_rag_retriever`` when the caller is an agent that will
+    synthesise the answer itself — it saves one LLM call.
+    """
+    if llm is None:
+        raise ValueError("llm é obrigatório para create_rag_runnable")
+    return await _build_rag_pipeline(contexto, llm=llm, document_ids=document_ids, generate_answer=True)
+
+
+async def _build_rag_pipeline(
+    contexto: VizuClientContext,
+    *,
+    llm: BaseChatModel | None,
+    document_ids: list[str] | None = None,
+    generate_answer: bool = True,
+) -> Runnable | None:
+    """
+    Internal factory that builds the retrieval pipeline.
 
     Args:
-        contexto: Contexto do cliente Vizu (client_id used for RLS)
-        llm: Modelo de linguagem para responder (obrigatório)
-        document_ids: Optional list of document UUIDs to scope search to specific documents
+        contexto: Client context (client_id used for RLS)
+        llm: LLM for answer generation (required only when generate_answer=True)
+        document_ids: Optional document UUID scope
+        generate_answer: If True, appends prompt→LLM→parser to the chain.
+                         If False, returns formatted context string only.
 
     Returns:
-        Runnable configurado ou None se não for possível criar
-
-    Raises:
-        ValueError: Se llm for None
+        Runnable or None
     """
-
-    # Validação do LLM (obrigatório)
-    if llm is None:
-        logger.error(
-            f"LLM não fornecido para create_rag_runnable do cliente {contexto.id}. "
-            "Utilize get_model() do vizu_llm_service para obter um LLM."
-        )
-        raise ValueError("llm é obrigatório para create_rag_runnable")
+    if generate_answer and llm is None:
+        raise ValueError("llm is required when generate_answer=True")
 
     enabled = contexto.get_enabled_tools_list()
     if enabled and "executar_rag_cliente" not in enabled:
+        logger.warning(
+            f"[RAG] Tool 'executar_rag_cliente' not in enabled_tool_names for "
+            f"client {contexto.id}. Enabled tools: {enabled}"
+        )
         return None
 
     # Read search config from available_tools — parse through RagSearchConfig
@@ -103,15 +132,20 @@ async def create_rag_runnable(
         raw_config = contexto.available_tools.get("rag_search_config")
     cfg = RagSearchConfig(**(raw_config or {}))
 
-    logger.debug(f"Creating RAG runnable for client {contexto.id}")
+    logger.info(
+        f"[RAG] Creating {'runnable' if generate_answer else 'retriever'} for client "
+        f"{contexto.id} (mode={cfg.search_mode}, rerank={cfg.rerank}, reranker={cfg.reranker_type})"
+    )
 
     try:
-        # --- Load RAG prompt from Langfuse (with builtin fallback) ---
-        # Pass LangChain placeholders as variable values so Jinja2 {{var}} → {var}
-        rag_prompt_template = await build_prompt(
-            name="tool/rag-query",
-            variables={"context": "{context}", "question": "{question}"},
-        )
+        # --- Load RAG prompt from Langfuse (only when generating answers) ---
+        rag_prompt_template: str | None = None
+        if generate_answer:
+            rag_prompt_template = await build_prompt(
+                name="tool/rag-query",
+                variables={"context": "{context}", "question": "{question}"},
+            )
+            logger.info(f"[RAG] Prompt loaded for client {contexto.id}")
 
         # --- Pool size: fetch more candidates for reranking + diversity ---
         pool_size = int(cfg.top_k * cfg.retrieval_pool_multiplier)
@@ -145,8 +179,8 @@ async def create_rag_runnable(
                 themes=cfg.themes,
             )
 
-        logger.debug(
-            f"Using {'HybridRetriever' if cfg.search_mode != 'semantic' else 'SupabaseVectorRetriever'} "
+        logger.info(
+            f"[RAG] Using {'HybridRetriever' if cfg.search_mode != 'semantic' else 'SupabaseVectorRetriever'} "
             f"(mode={cfg.search_mode}, pool={pool_size}) for client {contexto.id}"
         )
 
@@ -155,8 +189,8 @@ async def create_rag_runnable(
         if cfg.rerank:
             if cfg.reranker_type == "cohere":
                 reranker = CohereReranker()
-                logger.debug(
-                    f"Using CohereReranker (model={reranker.model}) for client {contexto.id}"
+                logger.info(
+                    f"[RAG] Using CohereReranker (model={reranker.model}) for client {contexto.id}"
                 )
             elif cfg.reranker_type == "cross-encoder":
                 reranker = CrossEncoderReranker()
@@ -197,7 +231,7 @@ async def create_rag_runnable(
         diversifier = MMRDiversifier()
 
         # --- Criação da Cadeia (Runnable) ---
-        prompt = ChatPromptTemplate.from_template(rag_prompt_template)
+        prompt = ChatPromptTemplate.from_template(rag_prompt_template) if rag_prompt_template else None
 
         # O chain recebe {"question": "..."} e:
         # 1. Extrai a pergunta
@@ -303,17 +337,22 @@ async def create_rag_runnable(
         # RunnableLambda supports both sync and async callables
         retrieval_runnable = RunnableLambda(retrieve_and_format, afunc=aretrieve_and_format)
 
-        rag_chain = (
-            # Adiciona o contexto recuperado mantendo a question original
-            RunnablePassthrough.assign(context=retrieval_runnable)
-            | prompt
-            | llm
-            | StrOutputParser()
-        )
+        if generate_answer and prompt and llm:
+            # Full chain: retrieve → prompt → LLM → parse
+            rag_chain = (
+                RunnablePassthrough.assign(context=retrieval_runnable)
+                | prompt
+                | llm
+                | StrOutputParser()
+            )
+        else:
+            # Retrieval-only: return formatted context string directly
+            rag_chain = retrieval_runnable
 
-        logger.debug(f"RAG runnable created for {contexto.id}")
+        mode_label = "runnable" if generate_answer else "retriever"
+        logger.info(f"[RAG] {mode_label} created successfully for {contexto.id}")
         return rag_chain
 
     except Exception as e:
-        logger.error(f"Falha grave ao criar o runnable RAG para {contexto.id}: {e}")
+        logger.error(f"[RAG] Falha grave ao criar o runnable RAG para {contexto.id}: {e}", exc_info=True)
         return None

@@ -73,4 +73,4 @@ from tool_pool_api.server.dependencies import (
     get_context_service,
     load_context_from_token,
 )
-from vizu_rag_factory.factory import create_rag_runnable
+from vizu_rag_factory.factory import create_rag_retriever, create_rag_runnable

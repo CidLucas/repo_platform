@@ -20,7 +20,7 @@ python-json-logger = "^2.0.7"
 
 # === Langfuse (LLM Observability) ===
 # v3 OTEL-native with ClickHouse backend
-langfuse = ">=3.0.0"
+langfuse = ">=4.0.0"
 langchain-core = ">=0.3.0"  # For callback types
 
 # === Web Framework ===

@@ -77,8 +77,11 @@ def _make_delegation_tool(
             logger.warning(f"[DelegationTool] {tool_name} error: {result.error}")
             return f"Worker error: {result.error}\n{result.summary}"
 
-        # Return JSON with summary + structured_data marker
-        response: dict[str, Any] = {"summary": result.summary}
+        # Return JSON with summary + structured_data marker + worker identity
+        response: dict[str, Any] = {
+            "summary": result.summary,
+            "worker_slug": result.worker_slug,
+        }
         if result.structured_data:
             response["structured_data"] = result.structured_data
         if result.tool_calls_made:

@@ -55,6 +55,15 @@ AGENT_FRAGMENTS: dict[str, list[str]] = {
         "fragment/standalone-base",
         "fragment/config-helper-workflow",
     ],
+    "rfq-agent": [
+        "fragment/standalone-base",
+        "fragment/rfq-orchestrator",
+        "fragment/rfq-supplier-liaison",
+        "fragment/rfq-optimizer",
+        "fragment/rfq-report-composer",
+        "fragment/google-export",
+        "fragment/standalone-response",
+    ],
 }
 
 

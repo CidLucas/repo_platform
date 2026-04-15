@@ -429,3 +429,190 @@ for _name, _info in _BUILTIN_NODES.items():
         inputs=_info.get("inputs", []),
         outputs=_info.get("outputs", []),
     )
+
+
+# =============================================================================
+# RFQ Workflow Nodes (Phase 2)
+# =============================================================================
+
+
+@NodeRegistry.register(
+    "rfq_wait_responses",
+    description="Poll rfq_requests status and route to follow-up or optimization",
+    category="rfq",
+    inputs=["session_id", "metadata"],
+    outputs=["rfq_poll_result", "metadata"],
+)
+async def rfq_wait_responses_node(state: AgentState) -> dict[str, Any]:
+    """
+    Check how many RFQ responses are in. Routes to:
+    - 'optimize' if all responded or deadline passed
+    - 'follow_up' if responses pending and reminder thresholds hit
+    - 'wait' if still within deadline window
+    """
+    from datetime import datetime, timezone
+
+    metadata = state.get("metadata", {})
+    session_id = state.get("session_id")
+
+    if not session_id:
+        return {"rfq_poll_result": "error", "error": "No session_id in state"}
+
+    try:
+        from vizu_supabase_client import get_supabase_client
+
+        db = get_supabase_client()
+        result = db.table("rfq_requests").select(
+            "id,status,deadline,follow_up_count"
+        ).eq("session_id", session_id).execute()
+
+        rfqs = result.data or []
+        if not rfqs:
+            return {"rfq_poll_result": "no_rfqs"}
+
+        now = datetime.now(timezone.utc)
+        total = len(rfqs)
+        responded = sum(1 for r in rfqs if r["status"] == "responded")
+        pending = [r for r in rfqs if r["status"] in ("sent", "pending")]
+
+        # All responded → optimize
+        if responded == total:
+            logger.info(f"[rfq_wait] All {total} RFQs responded → optimize")
+            return {"rfq_poll_result": "optimize", "metadata": {**metadata, "rfq_responded": responded, "rfq_total": total}}
+
+        # Check deadlines
+        expired = []
+        needs_follow_up = []
+        for rfq in pending:
+            deadline_str = rfq.get("deadline")
+            if not deadline_str:
+                continue
+            deadline = datetime.fromisoformat(deadline_str.replace("Z", "+00:00"))
+            hours_left = (deadline - now).total_seconds() / 3600
+            follow_ups = rfq.get("follow_up_count", 0) or 0
+
+            if hours_left <= 0:
+                expired.append(rfq["id"])
+            elif hours_left <= 2 and follow_ups < 2:
+                needs_follow_up.append(rfq["id"])
+            elif hours_left <= 12 and follow_ups < 1:
+                needs_follow_up.append(rfq["id"])
+
+        # Mark expired
+        if expired:
+            for rfq_id in expired:
+                db.table("rfq_requests").update(
+                    {"status": "expired"}
+                ).eq("id", rfq_id).execute()
+            logger.info(f"[rfq_wait] {len(expired)} RFQs expired")
+
+        # If some responded + rest expired → optimize with partial
+        active_pending = [r for r in pending if r["id"] not in expired]
+        if not active_pending and responded > 0:
+            logger.info(f"[rfq_wait] {responded}/{total} responded, rest expired → optimize")
+            return {
+                "rfq_poll_result": "optimize",
+                "metadata": {**metadata, "rfq_responded": responded, "rfq_total": total, "partial": True},
+            }
+
+        # Follow-up needed
+        if needs_follow_up:
+            return {
+                "rfq_poll_result": "follow_up",
+                "metadata": {**metadata, "rfq_follow_up_ids": needs_follow_up},
+            }
+
+        # Still waiting
+        return {
+            "rfq_poll_result": "wait",
+            "metadata": {**metadata, "rfq_responded": responded, "rfq_pending": len(active_pending)},
+        }
+
+    except Exception as e:
+        logger.error(f"[rfq_wait] Error polling RFQ status: {e}")
+        return {"rfq_poll_result": "error", "error": str(e)}
+
+
+@NodeRegistry.register(
+    "rfq_follow_up",
+    description="Send follow-up reminders for pending RFQs at T-12h and T-2h",
+    category="rfq",
+    inputs=["metadata"],
+    outputs=["metadata"],
+)
+async def rfq_follow_up_node(state: AgentState) -> dict[str, Any]:
+    """
+    Send reminder messages for RFQs approaching deadline.
+    Increments follow_up_count to avoid duplicate reminders.
+    """
+    from datetime import datetime, timezone
+
+    metadata = state.get("metadata", {})
+    follow_up_ids = metadata.get("rfq_follow_up_ids", [])
+
+    if not follow_up_ids:
+        return {"metadata": metadata}
+
+    try:
+        from vizu_supabase_client import get_supabase_client
+
+        db = get_supabase_client()
+        now = datetime.now(timezone.utc)
+        reminded = []
+
+        for rfq_id in follow_up_ids:
+            rfq_result = db.table("rfq_requests").select(
+                "id,supplier_id,follow_up_count,deadline,communication_channel,"
+                "supplier_roster(name,contact_phone,contact_email)"
+            ).eq("id", rfq_id).single().execute()
+
+            rfq = rfq_result.data
+            if not rfq:
+                continue
+
+            follow_ups = (rfq.get("follow_up_count") or 0) + 1
+            supplier_info = rfq.get("supplier_roster") or {}
+            supplier_name = supplier_info.get("name", "Fornecedor")
+            channel = rfq.get("communication_channel", "mock")
+
+            deadline_str = rfq.get("deadline", "")
+            hours_left = 0
+            if deadline_str:
+                deadline = datetime.fromisoformat(deadline_str.replace("Z", "+00:00"))
+                hours_left = max(0, (deadline - now).total_seconds() / 3600)
+
+            # Send follow-up via appropriate channel
+            if channel == "whatsapp":
+                phone = supplier_info.get("contact_phone")
+                if phone:
+                    try:
+                        from vizu_twilio_client import TwilioClient
+                        from vizu_twilio_client.config import get_twilio_settings
+
+                        twilio = TwilioClient(get_twilio_settings())
+                        msg = (
+                            f"Olá {supplier_name}! Gentil lembrete: sua cotação vence em "
+                            f"{hours_left:.0f}h. Por favor, envie sua resposta o mais breve possível."
+                        )
+                        twilio.send_whatsapp(to=phone, body=msg)
+                    except Exception as e:
+                        logger.warning(f"[rfq_follow_up] WhatsApp send failed for {supplier_name}: {e}")
+
+            # Update follow-up count
+            db.table("rfq_requests").update({
+                "follow_up_count": follow_ups,
+                "updated_at": now.isoformat(),
+            }).eq("id", rfq_id).execute()
+
+            reminded.append(supplier_name)
+            logger.info(f"[rfq_follow_up] Reminder #{follow_ups} sent to {supplier_name} ({channel})")
+
+        updated_meta = {**metadata}
+        updated_meta.pop("rfq_follow_up_ids", None)
+        updated_meta["rfq_last_follow_up"] = reminded
+
+        return {"metadata": updated_meta}
+
+    except Exception as e:
+        logger.error(f"[rfq_follow_up] Error sending follow-ups: {e}")
+        return {"metadata": metadata, "error": str(e)}

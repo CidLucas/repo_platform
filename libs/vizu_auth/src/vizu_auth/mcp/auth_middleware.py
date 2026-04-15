@@ -11,6 +11,7 @@ access token is present or no mapping exists, it leaves the kwargs
 unchanged and lets the tool handle auth/fallbacks.
 """
 
+import inspect
 import logging
 from collections.abc import Awaitable, Callable
 from functools import wraps
@@ -85,6 +86,12 @@ def mcp_inject_cliente_id(get_context_service_fn: Callable[[], object]) -> Calla
                 logger.warning("[mcp_inject_cliente_id] No cliente_id resolved, using caller-provided value")
 
             return await fn(*args, **kwargs)
+
+        # Hide cliente_id from the function signature so FastMCP
+        # does not expose it as a tool parameter to the LLM.
+        sig = inspect.signature(fn)
+        new_params = [p for name, p in sig.parameters.items() if name != "cliente_id"]
+        wrapper.__signature__ = sig.replace(parameters=new_params)
 
         return wrapper
 

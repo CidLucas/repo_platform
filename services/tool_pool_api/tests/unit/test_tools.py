@@ -46,7 +46,7 @@ async def test_executar_rag_cliente_sucesso(
             "src.tool_pool_api.server.tools.load_context_from_token", mock_load_context
         ) as p_load_ctx,
         patch(
-            "src.tool_pool_api.server.tools.create_rag_runnable", mock_create_rag
+            "src.tool_pool_api.server.tools.create_rag_retriever", mock_create_rag
         ) as p_create_rag,
     ):
         # 3. Executar a função LÓGICA
@@ -57,5 +57,5 @@ async def test_executar_rag_cliente_sucesso(
         # 4. Validar
         assert resultado == "Resposta do RAG"
         p_load_ctx.assert_called_once_with(mock_ctx_service, mock_token)
-        p_create_rag.assert_called_once_with(mock_vizu_context, llm=ANY)
+        p_create_rag.assert_called_once_with(mock_vizu_context, document_ids=None)
         mock_rag_runnable.ainvoke.assert_called_once_with({"question": "Qual o faturamento?"})

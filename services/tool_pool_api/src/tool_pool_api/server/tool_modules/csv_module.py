@@ -47,6 +47,7 @@ def _get_session_engine(session_id: str) -> DuckDBQueryEngine:
 async def _execute_csv_query_logic(
     sql: str,
     ctx: Context,
+    cliente_id: str | None = None,
 ) -> dict:
     """
     Execute a SQL query against uploaded CSV datasets.
@@ -62,7 +63,7 @@ async def _execute_csv_query_logic(
             - row_count: Number of rows returned
             - columns: Column names
     """
-    cliente_id = ctx.request_context.lifespan_context.get("cliente_id")
+    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
     session_id = ctx.request_context.lifespan_context.get("session_id")
 
     if not cliente_id or not session_id:
@@ -94,7 +95,7 @@ async def _execute_csv_query_logic(
         raise ToolError(f"Query execution failed: {str(e)}")
 
 
-async def _list_csv_datasets_logic(ctx: Context) -> list[dict]:
+async def _list_csv_datasets_logic(ctx: Context, cliente_id: str | None = None) -> list[dict]:
     """
     List all CSV datasets available in the current session.
 
@@ -108,7 +109,7 @@ async def _list_csv_datasets_logic(ctx: Context) -> list[dict]:
     knows what CSV datasets are available.
     """
     session_id = ctx.request_context.lifespan_context.get("session_id")
-    cliente_id = ctx.request_context.lifespan_context.get("cliente_id")
+    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
 
     if not session_id or not cliente_id:
         raise ToolError("Missing session_id or cliente_id in context")

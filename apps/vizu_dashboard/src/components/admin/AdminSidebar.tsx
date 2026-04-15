@@ -9,6 +9,7 @@ import {
   FiHelpCircle,
   FiBook,
   FiCpu,
+  FiSettings,
 } from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -87,6 +88,11 @@ export const AdminSidebar = () => {
           to="/dashboard/admin/chat"
           icon={FiMessageSquare}
           label="Agente Config"
+        />
+        <SidebarItem
+          to="/dashboard/admin/onboarding"
+          icon={FiSettings}
+          label="Personalizar Agente"
         />
         {isAdmin && (
           <SidebarItem

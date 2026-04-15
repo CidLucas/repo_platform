@@ -77,7 +77,6 @@ _WORKERS: dict[str, WorkerConfig] = {
         fragments=[
             "fragment/standalone-base",
             "fragment/rag-search",
-            "fragment/rag-rules",
             "fragment/knowledge-assistant-workflow",
             "fragment/standalone-response",
         ],
@@ -141,6 +140,51 @@ _WORKERS: dict[str, WorkerConfig] = {
         tier_required=TierLevel.SME,
         routing_hint="Requests involving uploaded documents, OCR, extraction, time-series compilation.",
     ),
+    "rfq-agent": WorkerConfig(
+        name="Procurement / RFQ Agent",
+        slug="rfq-agent",
+        description=(
+            "Handles the full procurement cycle: parses buying lists, manages the "
+            "supplier roster, dispatches RFQs to multiple suppliers, collects and "
+            "compares quotes, optimises allocation across suppliers with concentration "
+            "caps, generates purchase orders, and exports results to Google Sheets."
+        ),
+        agent_slug="rfq-agent",
+        enabled_tools=[
+            "parse_buying_list",
+            "validate_buying_list",
+            "list_suppliers",
+            "add_supplier",
+            "update_supplier",
+            "remove_supplier",
+            "dispatch_rfq",
+            "dispatch_rfq_whatsapp",
+            "check_rfq_responses",
+            "submit_mock_response",
+            "parse_supplier_reply",
+            "suggest_counter_offer",
+            "optimize_allocation",
+            "generate_po_report",
+            "create_purchase_order",
+            "approve_purchase_order",
+            "import_buying_list_from_sheets",
+            "export_po_to_sheets",
+        ],
+        fragments=[
+            "fragment/standalone-base",
+            "fragment/rfq-orchestrator",
+            "fragment/rfq-supplier-liaison",
+            "fragment/rfq-optimizer",
+            "fragment/rfq-report-composer",
+            "fragment/google-export",
+            "fragment/standalone-response",
+        ],
+        tier_required=TierLevel.BASIC,
+        routing_hint=(
+            "Buying lists, purchasing, quotations, supplier management, RFQs, "
+            "purchase orders, procurement, cotações, compras, fornecedores."
+        ),
+    ),
 }
 
 
@@ -199,7 +243,13 @@ class WorkerRegistry:
         if not workers:
             return "No specialist workers available."
 
-        lines = []
+        lines = [
+            "You can delegate to ONE or MULTIPLE workers simultaneously. "
+            "When a user request involves independent sub-tasks (e.g., data query AND "
+            "knowledge search), call multiple delegation tools in a single response to "
+            "run them concurrently. Each task description must be specific and self-contained.",
+            "",
+        ]
         for w in workers:
             lines.append(f"- **{w.name}** (`delegate_to_{w.slug.replace('-', '_')}`): {w.description}")
             if w.routing_hint:

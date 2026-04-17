@@ -98,6 +98,8 @@ A centralized **FastMCP** server exposes tools that agents can invoke at runtime
 | `prompt_module` | MCP prompts | Langfuse-versioned prompt resources |
 | `structured_data_formatter` | Output formatting | Deterministic formatting for reports |
 | `config_helper_module` | Tool validation | Availability checks per tier |
+| `rfq_module` | Procurement workflow | Parse buying lists, manage suppliers, collect quotes, optimize allocation |
+| `rfq_whatsapp_module` | Supplier messaging | WhatsApp-based RFQ dispatch and quote collection via Twilio |
 
 <div align="center">
   <img src="screenshots/MCPServer.png" alt="MCP Server" width="600"/>
@@ -109,13 +111,15 @@ A centralized **FastMCP** server exposes tools that agents can invoke at runtime
 
 The platform runs **specialized agents** built with LangGraph, orchestrated through a supervisor pattern:
 
-- **Orchestrator (Atendente Core)** — LangGraph state machine with 4 nodes: `init` → `supervisor` → `execute_tools` → `elicit`. Routes between tool execution, knowledge retrieval, data analysis, and clarification requests.
+- **Orchestrator (Atendente Core)** — LangGraph state machine with 4 nodes: `init` → `supervisor` → `execute_tools` → `elicit`. Routes between tool execution, knowledge retrieval, data analysis, and clarification requests. A **worker registry** maps specialized workers (data-analyst, knowledge-assistant, report-generator, document-intelligence, rfq-agent) to their enabled tools, prompt fragments, and tier requirements.
 - **Standalone Agents** — Catalog-driven factory that dynamically builds agents from database definitions. Each agent gets its own session, tools, and context.
+- **Buyer Agent (RFQ)** — End-to-end procurement workflow: parses buying lists (free-text or CSV), manages supplier rosters, dispatches RFQs via WhatsApp, collects and extracts quote responses with LLM parsing, optimizes allocation across suppliers with concentration caps, and generates purchase orders. Uses fan-out/fan-in parallel tool dispatch nodes.
 - **Sales Agent / Support Agent** — Specialized lightweight agents using the shared `AgentBuilder` fluent API.
 
 ```
 User message → Supervisor Node → Route decision
                     ├── execute_tools → MCP Server → Tool result → Response
+                    ├── fan_out_tools → Parallel tool dispatch → Collect results → Response
                     ├── elicit → Clarification question → User
                     └── respond → Direct LLM response
 ```
@@ -124,7 +128,7 @@ User message → Supervisor Node → Route decision
 
 Every layer enforces tenant isolation:
 
-- **PostgreSQL Row-Level Security (RLS)** on all tables — 62 migrations maintain the schema
+- **PostgreSQL Row-Level Security (RLS)** on all tables — 77 migrations maintain the schema
 - **JWT validation** supporting HS256 + ES256 + RS256 (Supabase Auth)
 - **Per-request context injection** — `VizuClientContext` carries tenant config, enabled tools, tier, and brand voice
 - **Tool-level auth** — each MCP tool extracts and validates JWT independently
@@ -151,6 +155,21 @@ A factory-based connector system integrates with external data sources:
   <br>
   <em>Column mapping — AI-assisted mapping of imported data to the analytics schema</em>
 </div>
+
+### 🎨 Dashboard & Onboarding
+
+The React dashboard features a **dark navy theme** (Blu rebrand) with domain-specific analytics cards (Orders, Customers, Suppliers, Products), interactive drill-down modals with KPI scorecards and trend charts, and a unified data connector management page. A **multi-step onboarding wizard** guides new tenants through Context 2.0 setup: company profile, team structure, current business priorities, and organizational policies — stored as JSONB with full RLS protection.
+
+### 🛒 Procurement (RFQ) Pipeline
+
+A complete buyer agent workflow for Request for Quotation:
+
+- **Buying list parsing** — accepts free-text or CSV input, extracts items with quantities and specs
+- **Supplier management** — per-tenant supplier roster with contact details and product categories
+- **RFQ dispatch** — sends structured quote requests to multiple suppliers via WhatsApp (Twilio)
+- **Quote collection** — receives and parses unstructured supplier responses using LLM extraction
+- **Allocation optimization** — selects best prices across suppliers with concentration caps and fallback logic
+- **Purchase order generation** — produces ready-to-approve POs with full audit trail
 
 ### 💬 Human-in-the-Loop (HITL)
 
@@ -226,7 +245,7 @@ One of the core engineering decisions: **every reusable capability is a library,
 
 | Library | Purpose |
 |---------|---------|
-| `vizu_agent_framework` | LangGraph builder pattern, state machines, node registry |
+| `vizu_agent_framework` | LangGraph builder pattern, state machines, node registry, fan-out/fan-in parallel tool dispatch |
 | `vizu_auth` | JWT decode (HS256/ES256/RS256), RLS context injection |
 | `vizu_context_service` | Per-tenant context loading with Redis cache (5min TTL) |
 | `vizu_data_connectors` | Factory for BigQuery, Shopify, VTEX, Loja Integrada |
@@ -260,7 +279,7 @@ One of the core engineering decisions: **every reusable capability is a library,
 | **Dependency injection** | FastAPI `Depends()` for auth, context, and services |
 | **Defense-in-depth** | SQL validation has 4 security layers; tools validate JWT independently |
 | **12-factor config** | All config via environment variables, `.env` files, no hardcoded secrets |
-| **Database migrations** | 62 Alembic/Supabase migrations — versioned schema evolution |
+| **Database migrations** | 77 Alembic/Supabase migrations — versioned schema evolution |
 | **Code quality** | `ruff` for formatting + linting, enforced via `make fmt` / `make lint` |
 | **Testing** | Unit tests, E2E smoke tests, persona tests, batch evaluation with Langfuse traces |
 | **Streaming** | Server-Sent Events (SSE) for real-time agent responses |
@@ -306,7 +325,7 @@ services/
 libs/                        # 20 shared Python packages (see table above)
 
 supabase/
-├── migrations/              # 62 SQL migrations (RLS, star-schema, vector DB)
+├── migrations/              # 77 SQL migrations (RLS, star-schema, vector DB, RFQ)
 └── functions/               # 5 Edge Functions (search, process, sync, enrich, match)
 
 scripts/                     # Evaluation, seeding, and utility scripts
@@ -369,10 +388,10 @@ This platform was designed and implemented by me as the **sole engineer** at Viz
 The goal: enable non-technical business users to ask questions, get reports, and manage their data through natural conversation — with AI doing the heavy lifting, securely scoped to each tenant's data.
 
 **Key numbers:**
-- ~60,000 lines of Python across 20 libraries and 6 services
-- ~21,000 lines of TypeScript in the React dashboard
-- 62 database migrations maintaining the schema
-- 20+ MCP tools in a centralized tool server
+- ~65,000 lines of Python across 20 libraries and 6 services
+- ~25,000 lines of TypeScript in the React dashboard
+- 77 database migrations maintaining the schema
+- 25+ MCP tools in a centralized tool server
 - 5 Supabase Edge Functions
 - Full observability pipeline (traces, metrics, logs, LLM monitoring)
 

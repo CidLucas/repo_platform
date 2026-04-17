@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from standalone_agent_api.api.auth import AuthResult, get_auth_result
-from standalone_agent_api.core.service import SessionService
 from standalone_agent_api.core.factory import get_factory
+from standalone_agent_api.core.service import SessionService
 from vizu_supabase_client import get_storage, get_supabase_client
 
 logger = logging.getLogger(__name__)
@@ -206,7 +206,7 @@ async def upload_document(
         )
 
         # Step 2: Create document record in database
-        logger.info(f"Step 2: Creating document record")
+        logger.info("Step 2: Creating document record")
         doc_record = await _create_document_record(
             client_id=auth_result.client_id,
             document_id=document_id,
@@ -216,7 +216,7 @@ async def upload_document(
         )
 
         # Step 3: Invoke process-document Edge Function
-        logger.info(f"Step 3: Invoking process-document Edge Function")
+        logger.info("Step 3: Invoking process-document Edge Function")
         await _invoke_process_document(
             document_id=document_id,
             storage_path=storage_path,
@@ -226,11 +226,11 @@ async def upload_document(
         )
 
         # Step 4: Wait for embedding completion
-        logger.info(f"Step 4: Waiting for embedding completion")
+        logger.info("Step 4: Waiting for embedding completion")
         final_status = await _wait_for_embedding_completion(document_id)
 
         # Step 5: Add to session's uploaded_document_ids
-        logger.info(f"Step 5: Linking document to session")
+        logger.info("Step 5: Linking document to session")
         await session_service.link_document_to_session(
             client_id=auth_result.client_id,
             session_id=session_id,

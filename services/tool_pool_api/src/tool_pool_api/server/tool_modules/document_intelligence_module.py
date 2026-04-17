@@ -180,6 +180,7 @@ async def _extract_structured_data_logic(
 
     # 6. Call LLM for extraction
     from langchain_core.messages import HumanMessage, SystemMessage
+
     from vizu_llm_service import ModelTier, get_model
 
     llm = get_model(

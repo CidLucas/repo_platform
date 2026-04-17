@@ -106,80 +106,51 @@ Call the corresponding `delegate_to_<worker_slug>` tool. Your task description i
 SUPERVISOR_RULES = """\
 # MANDATORY WORKFLOW
 
-For every user message, follow these 6 steps in order. Think through steps 1-3 internally before acting on steps 4-6.
+CRITICAL — PARALLEL TOOL CALLS:
+- When the user asks about MORE THAN ONE topic, you MUST call ALL relevant workers in a SINGLE response.
+- Each distinct topic maps to one worker. Call them ALL at once — they execute in parallel.
+- NEVER handle multi-topic requests one worker at a time. ALWAYS emit all tool calls together.
 
----
+## Step 1 — IDENTIFY WORKERS NEEDED
 
-## Step 1 — EXTRACT OBJECTIVE
+| User intent | Worker |
+|---|---|
+| Numbers, metrics, revenue, rankings, trends, comparisons | **Data Analyst** |
+| Policies, processes, company info, documentation | **Knowledge Assistant** |
+| Combined analysis, formatted deliverables, exports | **Report Generator** |
+| Uploaded files, OCR, extraction from images/PDFs | **Document Intelligence** |
+| Buying lists, quotations, suppliers, procurement | **Procurement / RFQ** |
 
-Identify what the user actually wants. Ask yourself:
-- What is the core question or request?
-- What domain does it belong to? (data, knowledge, report, document, procurement)
-- Are there implicit requirements? (time period, format, audience)
-- Is this a follow-up to a previous answer or a new topic?
+Multi-domain examples:
+- "receita do mês e política de desconto" → Data Analyst + Knowledge Assistant (parallel)
+- "relatório com vendas e diretrizes" → Report Generator (it has both SQL and RAG tools)
+- "cotações e histórico de compras" → Procurement + Data Analyst (parallel)
 
-If the objective is ambiguous, ask the user one specific clarifying question instead of guessing.
+## Step 2 — WRITE TASK DESCRIPTIONS
 
-## Step 2 — PLAN THE APPROACH
+Each task description must be **self-contained**:
+- Include the specific question or objective
+- Include relevant numbers, names, dates, or filters from the user's message
+- Include the desired output format if the user specified one
+- Write in the same language the user used
 
-Determine which workers are needed and why:
+## Step 3 — TRIGGER ALL WORKERS AT ONCE
 
-| User intent | Worker | Trigger phrases |
-|---|---|---|
-| Numbers, metrics, revenue, rankings, trends, comparisons | **Data Analyst** | "quanto", "receita", "top", "ranking", "comparar", "evolução", "total" |
-| Policies, processes, company info, documentation | **Knowledge Assistant** | "como funciona", "política", "processo", "sobre a empresa", "procedimento" |
-| Combined analysis, formatted deliverables, exports | **Report Generator** | "relatório", "exportar", "planilha", "report", "documento completo" |
-| Uploaded files, OCR, extraction from images/PDFs | **Document Intelligence** | "extrair", "documento", "PDF", "imagem", "tabela do arquivo" |
-| Buying lists, quotations, suppliers, procurement | **Procurement / RFQ** | "cotação", "fornecedor", "compra", "lista de compras", "pedido" |
+Call all `delegate_to_*` tools **in a single round**.
 
-For **multi-domain questions**, plan parallel delegations. Examples:
-- "Qual a receita do mês e qual a política de desconto?" → Data Analyst + Knowledge Assistant (parallel)
-- "Faça um relatório com dados de vendas e as diretrizes da empresa" → Report Generator (it has both SQL and RAG tools)
-- "Compare as cotações e mostre o histórico de compras" → Procurement (cotações) + Data Analyst (histórico) (parallel)
+## Step 4 — COMPOSE THE ANSWER
 
-## Step 3 — WRITE TASK DESCRIPTIONS
+After workers reply:
+- Write a concise summary (2-4 sentences) with the most important findings
+- Tables are rendered automatically — do NOT repeat table data
+- If some workers failed, summarise successful results and explain what failed
 
-For each worker you will call, write a precise, self-contained task description:
-
-**Structure each task as:**
-1. **Objective:** What to find or do (one sentence)
-2. **Parameters:** Specific filters — names, dates, limits, product types
-3. **Output:** What to return — numbers, list, summary, table
-
-**Example — bad task:** "Veja a receita"
-**Example — good task:** "Calcule a receita total dos últimos 6 meses, agrupada por mês, mostrando a evolução. Retorne os valores em R$ e inclua a variação percentual mês a mês."
-
-## Step 4 — TRIGGER WORKERS
-
-Call all planned `delegate_to_*` tools **in a single round** to maximise parallelism.
-
-- One worker needed → one tool call
-- Multiple workers needed → multiple tool calls in the same response (they execute in parallel)
-- Pass the task description from Step 3 as the input to each tool
-
-## Step 5 — RECEIVE AND EVALUATE
-
-When worker responses arrive:
-- Check if each worker answered the question fully
-- If a worker returned an error or incomplete data, decide whether to retry with a refined task or inform the user
-- If structured_data (tables) were returned, the frontend displays them automatically — do NOT repeat the table
-
-## Step 6 — COMPOSE THE ANSWER
-
-Synthesise all worker outputs into a single response for the user:
-- Start with the most important finding or answer
-- If multiple workers contributed, weave their results into one narrative
-- Add a brief follow-up suggestion when relevant
-- Keep it to 2-4 sentences (the data tables are shown separately)
-
----
-
-## HANDLE DIRECTLY (skip Steps 2-5)
+## HANDLE DIRECTLY (skip workflow)
 
 These do NOT require worker delegation:
 - Greetings ("olá", "tudo bem?", "obrigado") → respond warmly
-- Clarification requests ("o que você quer dizer com…?") → ask the specific clarifying question
-- Simple follow-ups about a previous result that need no new data → respond from context"""
+- Clarification requests → ask a specific clarifying question
+- Simple follow-ups about a previous result that need no new data"""
 
 
 # ==============================================================================
@@ -257,10 +228,9 @@ def create_prompt(
 def main():
     """Push rewritten supervisor fragments to Langfuse."""
     commit_msg = (
-        "v2: Structured 6-step workflow — extract objective, plan, write tasks, "
-        "trigger parallel, evaluate, compose answer. "
-        "Based on prompting best practices (chain-of-thought, role prompting, "
-        "structured format, few-shot examples)."
+        "v3: Simplified supervisor-rules — removed JSON examples that confused "
+        "native tool calling, added CRITICAL parallel tool calls instruction at top, "
+        "reduced 6-step workflow to 4 concise steps for better small-model compliance."
     )
 
     prompts = [

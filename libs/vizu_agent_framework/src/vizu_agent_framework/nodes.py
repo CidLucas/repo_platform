@@ -7,6 +7,8 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Any
 
+from langgraph.types import Send
+
 from vizu_agent_framework.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -198,6 +200,92 @@ async def execute_tool_node(state: AgentState) -> dict[str, Any]:
     return {
         "tool_to_execute": None,
         "tool_args": None,
+    }
+
+
+# =============================================================================
+# Fan-out Tool Execution (Send-based parallel dispatch)
+# =============================================================================
+
+
+def fan_out_tool_calls(state: AgentState) -> list[Send]:
+    """
+    Fan-out dispatcher: returns a list of Send objects for parallel tool execution.
+
+    Use as a conditional edge function. Each pending tool call is dispatched
+    to the 'execute_single_tool' node with its own state slice.
+
+    If no pending tool calls exist, returns an empty list (no fan-out).
+
+    Usage in graph:
+        graph.add_conditional_edges("supervisor", fan_out_tool_calls, ["execute_single_tool"])
+    """
+    pending = state.get("pending_tool_calls", [])
+    if not pending:
+        logger.debug("fan_out_tool_calls: no pending tool calls")
+        return []
+
+    sends = []
+    for tool_call in pending:
+        sends.append(
+            Send(
+                "execute_single_tool",
+                {
+                    "tool_call": tool_call,
+                    "cliente_id": state.get("cliente_id", ""),
+                    "session_id": state.get("session_id", ""),
+                    "channel": state.get("channel", "api"),
+                    "metadata": state.get("metadata", {}),
+                    "available_tools_metadata": state.get("available_tools_metadata", []),
+                },
+            )
+        )
+
+    logger.info(
+        f"fan_out_tool_calls: dispatching {len(sends)} parallel tool calls: "
+        f"{[tc.get('name', 'unknown') for tc in pending]}"
+    )
+    return sends
+
+
+async def execute_single_tool_node(state: dict[str, Any]) -> dict[str, Any]:
+    """
+    Execute a single tool call dispatched via Send (fan-out).
+
+    This node receives a ToolCallSendState with a single tool_call
+    and returns results that are aggregated back via reducers.
+
+    Note: Actual execution is wired in AgentBuilder._create_single_tool_executor_node().
+    This is a placeholder.
+    """
+    tool_call = state.get("tool_call", {})
+    tool_name = tool_call.get("name", "unknown")
+
+    logger.debug(f"execute_single_tool_node: {tool_name}")
+
+    # Placeholder - actual execution injected by AgentBuilder
+    return {
+        "tool_results": [{"tool_name": tool_name, "error": "Not wired to executor"}],
+    }
+
+
+async def collect_tool_results_node(state: AgentState) -> dict[str, Any]:
+    """
+    Fan-in node: collects results from parallel tool executions.
+
+    This node runs after all Send-dispatched execute_single_tool nodes complete.
+    Results are already aggregated by the reducer on tool_results and messages.
+    This node clears pending_tool_calls and sets last_tool_result.
+    """
+    tool_results = state.get("tool_results", [])
+    logger.debug(f"collect_tool_results_node: {len(tool_results)} results collected")
+
+    # Set last_tool_result to the most recent result
+    last_result = tool_results[-1] if tool_results else None
+
+    return {
+        "pending_tool_calls": [],  # Clear after fan-out complete
+        "last_tool_result": last_result,
     }
 
 
@@ -418,6 +506,20 @@ _BUILTIN_NODES = {
         "inputs": ["turn_count", "max_turns"],
         "outputs": ["ended", "end_reason"],
     },
+    "execute_single_tool": {
+        "handler": execute_single_tool_node,
+        "description": "Execute a single tool call dispatched via Send (fan-out)",
+        "category": "core",
+        "inputs": ["tool_call"],
+        "outputs": ["tool_results", "messages"],
+    },
+    "collect_tool_results": {
+        "handler": collect_tool_results_node,
+        "description": "Fan-in: collect results from parallel tool executions",
+        "category": "core",
+        "inputs": ["tool_results"],
+        "outputs": ["pending_tool_calls", "last_tool_result"],
+    },
 }
 
 for _name, _info in _BUILTIN_NODES.items():
@@ -450,7 +552,7 @@ async def rfq_wait_responses_node(state: AgentState) -> dict[str, Any]:
     - 'follow_up' if responses pending and reminder thresholds hit
     - 'wait' if still within deadline window
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     metadata = state.get("metadata", {})
     session_id = state.get("session_id")
@@ -470,7 +572,7 @@ async def rfq_wait_responses_node(state: AgentState) -> dict[str, Any]:
         if not rfqs:
             return {"rfq_poll_result": "no_rfqs"}
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(datetime.UTC)
         total = len(rfqs)
         responded = sum(1 for r in rfqs if r["status"] == "responded")
         pending = [r for r in rfqs if r["status"] in ("sent", "pending")]
@@ -545,7 +647,7 @@ async def rfq_follow_up_node(state: AgentState) -> dict[str, Any]:
     Send reminder messages for RFQs approaching deadline.
     Increments follow_up_count to avoid duplicate reminders.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     metadata = state.get("metadata", {})
     follow_up_ids = metadata.get("rfq_follow_up_ids", [])
@@ -557,7 +659,7 @@ async def rfq_follow_up_node(state: AgentState) -> dict[str, Any]:
         from vizu_supabase_client import get_supabase_client
 
         db = get_supabase_client()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(datetime.UTC)
         reminded = []
 
         for rfq_id in follow_up_ids:

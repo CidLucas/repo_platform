@@ -325,6 +325,7 @@ async def _summarize_document_sections_logic(
 
     # 3. Summarize with LLM
     from langchain_core.messages import HumanMessage, SystemMessage
+
     from vizu_llm_service import ModelTier, get_model
 
     llm = get_model(

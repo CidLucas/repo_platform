@@ -49,7 +49,6 @@ def sample_state() -> AgentState:
         session_id="session-123",
         cliente_id="client-456",
         messages=[HumanMessage(content="Hello")],
-        enabled_tools=["tool_a", "tool_b"],
         system_prompt="You are a test agent.",
         agent_name="test_agent",
         max_turns=10,
@@ -547,3 +546,118 @@ class TestRedisCheckpointer:
         result = await checkpointer.aget_tuple(config)
         assert result is not None
         assert result.checkpoint["id"] == "cp-1"
+
+
+# ============================================================================
+# Fan-out (Send-based) Tests
+# ============================================================================
+
+
+class TestFanOut:
+    """Tests for Send-based fan-out tool execution."""
+
+    def test_fan_out_no_pending_calls(self, sample_state):
+        """Test fan_out_tool_calls returns empty when no pending tool calls."""
+        from vizu_agent_framework.nodes import fan_out_tool_calls
+
+        sample_state["pending_tool_calls"] = []
+        result = fan_out_tool_calls(sample_state)
+        assert result == []
+
+    def test_fan_out_dispatches_sends(self, sample_state):
+        """Test fan_out_tool_calls returns Send objects for each pending call."""
+        from langgraph.types import Send
+
+        from vizu_agent_framework.nodes import fan_out_tool_calls
+
+        sample_state["pending_tool_calls"] = [
+            {"name": "tool_a", "id": "call-1", "args": {"q": "test1"}},
+            {"name": "tool_b", "id": "call-2", "args": {"q": "test2"}},
+        ]
+
+        result = fan_out_tool_calls(sample_state)
+
+        assert len(result) == 2
+        assert all(isinstance(s, Send) for s in result)
+        # Verify Send targets
+        assert result[0].node == "execute_single_tool"
+        assert result[1].node == "execute_single_tool"
+        # Verify each Send has the correct tool_call
+        assert result[0].arg["tool_call"]["name"] == "tool_a"
+        assert result[1].arg["tool_call"]["name"] == "tool_b"
+
+    def test_fan_out_passes_context(self, sample_state):
+        """Test fan_out_tool_calls passes session context in Send state."""
+        from vizu_agent_framework.nodes import fan_out_tool_calls
+
+        sample_state["pending_tool_calls"] = [
+            {"name": "tool_a", "id": "call-1", "args": {}},
+        ]
+        sample_state["cliente_id"] = "client-123"
+        sample_state["session_id"] = "session-456"
+        sample_state["channel"] = "web"
+
+        result = fan_out_tool_calls(sample_state)
+
+        assert len(result) == 1
+        send_state = result[0].arg
+        assert send_state["cliente_id"] == "client-123"
+        assert send_state["session_id"] == "session-456"
+        assert send_state["channel"] == "web"
+
+    @pytest.mark.asyncio
+    async def test_execute_single_tool_node_placeholder(self, sample_state):
+        """Test execute_single_tool_node returns error when not wired."""
+        from vizu_agent_framework.nodes import execute_single_tool_node
+
+        state = {"tool_call": {"name": "test_tool", "id": "call-1", "args": {}}}
+        result = await execute_single_tool_node(state)
+
+        assert "tool_results" in result
+        assert result["tool_results"][0]["tool_name"] == "test_tool"
+
+    @pytest.mark.asyncio
+    async def test_collect_tool_results_node(self):
+        """Test collect_tool_results_node clears pending and sets last result."""
+        from vizu_agent_framework.nodes import collect_tool_results_node
+
+        state = create_initial_state(
+            session_id="sess-1",
+            cliente_id="client-1",
+        )
+        state["tool_results"] = [
+            {"tool_name": "tool_a", "result": "A", "success": True},
+            {"tool_name": "tool_b", "result": "B", "success": True},
+        ]
+        state["pending_tool_calls"] = [{"name": "tool_a"}, {"name": "tool_b"}]
+
+        result = await collect_tool_results_node(state)
+
+        assert result["pending_tool_calls"] == []
+        assert result["last_tool_result"]["tool_name"] == "tool_b"
+
+    def test_tool_call_send_state_import(self):
+        """Test ToolCallSendState is importable."""
+        from vizu_agent_framework import ToolCallSendState
+
+        assert ToolCallSendState is not None
+
+    def test_builder_use_fanout_graph(self, sample_config):
+        """Test AgentBuilder.use_fanout_graph builds valid graph."""
+        builder = AgentBuilder(sample_config)
+        builder.use_fanout_graph()
+
+        assert "init" in builder._nodes
+        assert "execute_single_tool" in builder._nodes
+        assert "collect_tool_results" in builder._nodes
+        assert "respond" in builder._nodes
+        assert "end" in builder._nodes
+        assert builder._use_fanout is True
+
+    def test_builder_fanout_compiles(self, sample_config):
+        """Test AgentBuilder.use_fanout_graph compiles successfully."""
+        builder = AgentBuilder(sample_config)
+        builder.use_fanout_graph()
+        graph = builder.build()
+
+        assert graph is not None

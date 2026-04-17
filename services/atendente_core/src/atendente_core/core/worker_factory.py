@@ -19,12 +19,15 @@ from uuid import UUID
 from anyio import BrokenResourceError, ClosedResourceError
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
+# Maximum retries for transient LLM errors (e.g. Ollama Cloud 500s)
+_LLM_MAX_RETRIES = 2
+_LLM_RETRY_DELAY_SECS = 1.0
+
 from atendente_core.core.config import get_settings
 from atendente_core.core.worker_registry import WorkerConfig, WorkerRegistry
 
 # Reuse atendente_core's shared MCP connection
 from atendente_core.services.mcp_client import mcp_manager
-
 from vizu_llm_service import get_model
 from vizu_prompt_management import compose_prompt
 
@@ -38,6 +41,18 @@ _WORKER_MAX_TURNS = 3
 
 # Maximum chars from tool output sent to worker LLM
 _WORKER_MAX_TOOL_OUTPUT = 4000
+
+
+def _is_transient_llm_error(exc: Exception) -> bool:
+    """Check if an LLM error is transient and worth retrying."""
+    try:
+        from ollama._types import ResponseError
+        if isinstance(exc, ResponseError):
+            return True
+    except ImportError:
+        pass
+    err_str = str(exc).lower()
+    return "internal server error" in err_str or "status code: -1" in err_str
 
 
 @dataclass
@@ -304,16 +319,39 @@ async def invoke_worker(
     calls_made: list[str] = []
 
     for turn in range(_WORKER_MAX_TURNS):
-        try:
-            response: AIMessage = await bound_llm.ainvoke(messages)
-        except Exception as e:
-            logger.exception(f"[Worker:{worker_slug}] LLM error on turn {turn}: {e}")
+        last_llm_error: Exception | None = None
+        response: AIMessage | None = None
+
+        for retry in range(_LLM_MAX_RETRIES + 1):
+            try:
+                response = await bound_llm.ainvoke(messages)
+                break
+            except Exception as e:
+                last_llm_error = e
+                if retry < _LLM_MAX_RETRIES and _is_transient_llm_error(e):
+                    logger.warning(
+                        f"[Worker:{worker_slug}] Transient LLM error on turn {turn} "
+                        f"(retry {retry+1}/{_LLM_MAX_RETRIES}): {e}"
+                    )
+                    await asyncio.sleep(_LLM_RETRY_DELAY_SECS * (retry + 1))
+                else:
+                    logger.exception(f"[Worker:{worker_slug}] LLM error on turn {turn}: {e}")
+                    return WorkerResult(
+                        summary=f"Worker error: {e}",
+                        worker_slug=worker_slug,
+                        structured_data=structured_data,
+                        tool_calls_made=calls_made,
+                        error=str(e),
+                    )
+
+        if response is None:
+            logger.error(f"[Worker:{worker_slug}] All retries exhausted on turn {turn}")
             return WorkerResult(
-                summary=f"Worker error: {e}",
+                summary=f"Worker error: {last_llm_error}",
                 worker_slug=worker_slug,
                 structured_data=structured_data,
                 tool_calls_made=calls_made,
-                error=str(e),
+                error=str(last_llm_error),
             )
 
         messages.append(response)

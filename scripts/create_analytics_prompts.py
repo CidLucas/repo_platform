@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Create analytics_v2 schema prompts in Langfuse."""
 
-from base64 import b64encode
 import os
+from base64 import b64encode
 
 import requests
 

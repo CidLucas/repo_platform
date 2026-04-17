@@ -7,17 +7,17 @@ from uuid import UUID
 
 import redis as redis_lib
 from langgraph.checkpoint.redis import RedisSaver
+
+from standalone_agent_api.config import get_settings
 from vizu_agent_framework import AgentBuilder, AgentConfig
 from vizu_agent_framework.mcp_executor import MCPToolExecutor
 from vizu_agent_framework.state import AgentState, create_initial_state
 from vizu_context_service import ContextService
 from vizu_context_service.redis_service import RedisService
-from vizu_supabase_client import get_supabase_client
 from vizu_llm_service import get_model
 from vizu_prompt_management import compose_prompt
 from vizu_prompt_management.dynamic_builder import build_prompt_full
-
-from standalone_agent_api.config import get_settings
+from vizu_supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 

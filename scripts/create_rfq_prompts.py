@@ -8,8 +8,8 @@ This script creates 4 prompt fragments for the RFQ (Cotações) standalone agent
 4. fragment/rfq-report-composer   — Report structure and formatting
 """
 
-from base64 import b64encode
 import os
+from base64 import b64encode
 
 import requests
 
@@ -250,7 +250,7 @@ def main():
 
     print(f"\n{'='*60}")
     print(f"✅ Created {success_count}/{len(prompts)} prompts successfully!")
-    print(f"View at: https://us.cloud.langfuse.com/prompts")
+    print("View at: https://us.cloud.langfuse.com/prompts")
     print(f"{'='*60}")
 
 

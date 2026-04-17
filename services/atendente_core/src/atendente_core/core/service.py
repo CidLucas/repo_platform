@@ -179,6 +179,7 @@ class AtendenteService:
             from atendente_core.services.mcp_client import mcp_manager
 
             mcp_manager.set_cliente_id(str(client_context.id))
+            mcp_manager.set_session_id(session_id)
 
             # Parallelize conversa creation + MCP connection (independent operations)
             async def _get_conversa():
@@ -358,6 +359,7 @@ class AtendenteService:
             from atendente_core.services.mcp_client import ensure_mcp_connected, mcp_manager
 
             mcp_manager.set_cliente_id(str(client_context.id))
+            mcp_manager.set_session_id(session_id)
 
             # Parallel setup: conversa + MCP
             async def _get_conversa():

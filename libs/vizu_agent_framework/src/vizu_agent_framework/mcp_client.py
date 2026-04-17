@@ -117,6 +117,31 @@ class MCPConnectionManager:
         self._connected = False
         logger.debug(f"[MCP] X-Cliente-Id header set: {cliente_id}, will reconnect")
 
+    def set_session_id(self, session_id: str) -> None:
+        """
+        Set the X-Session-Id header for session scoping in tool_pool_api.
+
+        Tools use session_id to scope data (CSV engines, RFQ queries, etc.).
+        Like set_cliente_id, header changes invalidate the connection.
+
+        Args:
+            session_id: The session UUID
+        """
+        if not session_id:
+            if "X-Session-Id" in self.headers:
+                del self.headers["X-Session-Id"]
+                self._connected = False
+                logger.debug("[MCP] X-Session-Id header cleared, will reconnect")
+            return
+
+        current_session_id = self.headers.get("X-Session-Id")
+        if current_session_id == session_id:
+            return
+
+        self.headers["X-Session-Id"] = session_id
+        self._connected = False
+        logger.debug(f"[MCP] X-Session-Id header set: {session_id}, will reconnect")
+
     @property
     def is_connected(self) -> bool:
         """Check if connected to MCP server."""

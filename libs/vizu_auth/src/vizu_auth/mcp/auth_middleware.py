@@ -40,6 +40,8 @@ def mcp_inject_cliente_id(get_context_service_fn: Callable[[], object]) -> Calla
     """
 
     def decorator(fn: Callable[..., Awaitable]) -> Callable[..., Awaitable]:
+        sig = inspect.signature(fn)
+
         @wraps(fn)
         async def wrapper(*args, **kwargs):
             # Priority for cliente_id resolution:
@@ -85,12 +87,18 @@ def mcp_inject_cliente_id(get_context_service_fn: Callable[[], object]) -> Calla
             else:
                 logger.warning("[mcp_inject_cliente_id] No cliente_id resolved, using caller-provided value")
 
+            # Also inject session_id from X-Session-Id header if present
+            # Only inject if the function actually accepts session_id
+            header_session_id = headers.get("x-session-id")
+            if header_session_id and "session_id" in sig.parameters:
+                kwargs["session_id"] = str(header_session_id)
+                logger.debug(f"[mcp_inject_cliente_id] Got session_id from X-Session-Id header: {header_session_id}")
+
             return await fn(*args, **kwargs)
 
-        # Hide cliente_id from the function signature so FastMCP
-        # does not expose it as a tool parameter to the LLM.
-        sig = inspect.signature(fn)
-        new_params = [p for name, p in sig.parameters.items() if name != "cliente_id"]
+        # Hide cliente_id and session_id from the function signature so FastMCP
+        # does not expose them as tool parameters to the LLM.
+        new_params = [p for name, p in sig.parameters.items() if name not in ("cliente_id", "session_id")]
         wrapper.__signature__ = sig.replace(parameters=new_params)
 
         return wrapper

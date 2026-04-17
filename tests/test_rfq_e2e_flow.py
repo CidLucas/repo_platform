@@ -43,6 +43,7 @@ sys.path.insert(0, str(ROOT_DIR / "libs" / "vizu_shared_utils" / "src"))
 sys.path.insert(0, str(ROOT_DIR / "libs" / "vizu_observability_bootstrap" / "src"))
 
 from dotenv import load_dotenv
+
 load_dotenv(ROOT_DIR / ".env")
 
 logging.basicConfig(
@@ -100,20 +101,21 @@ async def run_full_flow():
 
     # Import logic functions directly (bypassing MCP decorator)
     from tool_pool_api.server.tool_modules.rfq_module import (
-        _parse_buying_list_logic,
-        _validate_buying_list_logic,
-        _list_suppliers_logic,
-        _dispatch_rfq_logic,
-        _check_rfq_responses_logic,
-        _submit_mock_response_logic,
-        _optimize_allocation_logic,
-        _generate_po_report_logic,
-        _create_purchase_order_logic,
-        _approve_purchase_order_logic,
         _add_supplier_logic,
-        _update_supplier_logic,
+        _approve_purchase_order_logic,
+        _check_rfq_responses_logic,
+        _create_purchase_order_logic,
+        _dispatch_rfq_logic,
+        _generate_po_report_logic,
+        _list_suppliers_logic,
+        _optimize_allocation_logic,
+        _parse_buying_list_logic,
         _remove_supplier_logic,
+        _submit_mock_response_logic,
+        _update_supplier_logic,
+        _validate_buying_list_logic,
     )
+
     from vizu_elicitation_service.exceptions import ElicitationRequired
 
     ctx = make_mock_ctx()
@@ -330,7 +332,7 @@ async def run_full_flow():
     if allocation.get("constraint_warnings"):
         logger.info(f"  ⚠️ Constraints: {allocation['constraint_warnings']}")
 
-    logger.info(f"\n  Allocations by supplier:")
+    logger.info("\n  Allocations by supplier:")
     for alloc in allocation["allocations"]:
         logger.info(
             f"    {alloc['supplier_name']}: "
@@ -484,7 +486,7 @@ async def run_full_flow():
     # FINAL SUMMARY
     # ═══════════════════════════════════════════════════════════════
     logger.info(f"\n{'='*60}")
-    logger.info(f"  🎉 ALL STEPS PASSED!")
+    logger.info("  🎉 ALL STEPS PASSED!")
     logger.info(f"{'='*60}")
     logger.info(f"  Session: {SESSION_ID}")
     logger.info(f"  Items parsed: {len(items)}")

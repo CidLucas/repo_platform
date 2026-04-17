@@ -7,11 +7,11 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from langchain_core.messages import AIMessage, HumanMessage
-from vizu_agent_framework.state import create_initial_state
-from vizu_supabase_client import get_supabase_client
-from vizu_parsers.csv_ingestion import ingest_csv
 
 from standalone_agent_api.core.factory import get_factory
+from vizu_agent_framework.state import create_initial_state
+from vizu_parsers.csv_ingestion import ingest_csv
+from vizu_supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 

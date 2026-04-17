@@ -14,7 +14,7 @@ using LLM extraction from free-text messages.
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
@@ -136,7 +136,7 @@ async def _dispatch_rfq_whatsapp_logic(
         db.table("rfq_requests").update({
             "communication_channel": "whatsapp",
             "whatsapp_message_sid": message_sid,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }).eq("id", rfq_id).execute()
 
         logger.info(
@@ -238,6 +238,7 @@ async def _parse_supplier_reply_logic(
 
         # Use FAST tier LLM for parsing
         from langchain_core.messages import HumanMessage, SystemMessage
+
         from vizu_llm_service import get_model
         from vizu_llm_service.client import ModelTier
 
@@ -290,7 +291,7 @@ async def _parse_supplier_reply_logic(
             "delivery_days": parsed_data.get("delivery_days", 0),
             "payment_terms": parsed_data.get("payment_terms", ""),
             "notes": parsed_data.get("notes", ""),
-            "responded_at": datetime.now(timezone.utc).isoformat(),
+            "responded_at": datetime.now(UTC).isoformat(),
             "parse_confidence": confidence,
         }
 
@@ -298,7 +299,7 @@ async def _parse_supplier_reply_logic(
             "status": "responded",
             "response_data": response_data,
             "raw_response": reply_text,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }).eq("id", rfq_id).execute()
 
         logger.info(

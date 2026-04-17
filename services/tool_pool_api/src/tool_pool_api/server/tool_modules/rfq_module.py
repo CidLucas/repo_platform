@@ -18,7 +18,7 @@ collecting responses, optimizing allocation, and generating POs.
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from fastmcp import Context, FastMCP
@@ -312,6 +312,7 @@ async def _dispatch_rfq_logic(
     items: list[dict],
     deadline: str | None = None,
     cliente_id: str | None = None,
+    session_id: str | None = None,
 ) -> dict:
     """
     Send an RFQ to a specific supplier. Creates a record in rfq_requests.
@@ -328,7 +329,7 @@ async def _dispatch_rfq_logic(
         dict with rfq_id, supplier_name, status, items_count, deadline
     """
     cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
-    session_id = ctx.request_context.lifespan_context.get("session_id")
+    session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
 
     if not cliente_id or not session_id:
         raise ToolError("Missing cliente_id or session_id in context")
@@ -356,7 +357,7 @@ async def _dispatch_rfq_logic(
             except ValueError:
                 raise ToolError(f"Formato de deadline inválido: {deadline}. Use ISO 8601.")
         else:
-            deadline_dt = datetime.now(timezone.utc) + timedelta(days=2)
+            deadline_dt = datetime.now(UTC) + timedelta(days=2)
 
         rfq_id = str(uuid4())
 
@@ -367,7 +368,7 @@ async def _dispatch_rfq_logic(
             "supplier_id": supplier_id,
             "items": items,
             "status": "sent",
-            "sent_at": datetime.now(timezone.utc).isoformat(),
+            "sent_at": datetime.now(UTC).isoformat(),
             "deadline": deadline_dt.isoformat(),
         }).execute()
 
@@ -394,6 +395,7 @@ async def _dispatch_rfq_logic(
 async def _check_rfq_responses_logic(
     ctx: Context,
     cliente_id: str | None = None,
+    session_id: str | None = None,
 ) -> dict:
     """
     Check the status of all RFQ requests for the current session.
@@ -402,7 +404,7 @@ async def _check_rfq_responses_logic(
         dict with responses list, total, responded, pending, all_responded
     """
     cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
-    session_id = ctx.request_context.lifespan_context.get("session_id")
+    session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
 
     if not cliente_id or not session_id:
         raise ToolError("Missing cliente_id or session_id in context")
@@ -492,14 +494,14 @@ async def _submit_mock_response_logic(
             "delivery_days": delivery_days,
             "payment_terms": payment_terms,
             "notes": notes,
-            "responded_at": datetime.now(timezone.utc).isoformat(),
+            "responded_at": datetime.now(UTC).isoformat(),
         }
 
         db.table("rfq_requests").update({
             "status": "responded",
             "response_data": response_data,
             "raw_response": json.dumps(response_data, ensure_ascii=False),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }).eq("id", rfq_id).execute()
 
         logger.info(f"[RFQ] Mock response submitted for RFQ {rfq_id}")
@@ -530,6 +532,7 @@ async def _optimize_allocation_logic(
     required_payment_terms: str | None = None,
     enforce_moq: bool = True,
     cliente_id: str | None = None,
+    session_id: str | None = None,
 ) -> dict:
     """
     Optimize item allocation across suppliers based on collected quotes.
@@ -551,7 +554,7 @@ async def _optimize_allocation_logic(
         dict with allocations, summary, rationale, unallocated, constraint_warnings
     """
     cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
-    session_id = ctx.request_context.lifespan_context.get("session_id")
+    session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
 
     if not cliente_id or not session_id:
         raise ToolError("Missing cliente_id or session_id in context")
@@ -779,7 +782,7 @@ async def _optimize_allocation_logic(
 
         # Single-source baseline
         single_source_costs: dict[str, float] = {}
-        for item_name, quotes in price_matrix.items():
+        for _item_name, quotes in price_matrix.items():
             for q in quotes:
                 sid = q["supplier_id"]
                 if sid not in single_source_costs:
@@ -948,6 +951,7 @@ async def _create_purchase_order_logic(
     currency: str = "BRL",
     confirmed: bool = False,
     cliente_id: str | None = None,
+    session_id: str | None = None,
 ) -> dict:
     """
     Create a draft Purchase Order for a supplier.
@@ -966,7 +970,7 @@ async def _create_purchase_order_logic(
         dict with po_id, supplier_name, total, status
     """
     cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
-    session_id = ctx.request_context.lifespan_context.get("session_id")
+    session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
 
     if not cliente_id or not session_id:
         raise ToolError("Missing cliente_id or session_id in context")
@@ -1134,7 +1138,7 @@ async def _approve_purchase_order_logic(
                 },
             )
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         db.table("purchase_orders").update({
             "status": "approved",
@@ -1410,6 +1414,7 @@ async def _export_po_to_sheets_logic(
     sheet_name: str = "Pedidos de Compra",
     account_email: str | None = None,
     cliente_id: str | None = None,
+    session_id: str | None = None,
 ) -> dict:
     """
     Export Purchase Orders to Google Sheets.
@@ -1428,7 +1433,7 @@ async def _export_po_to_sheets_logic(
         dict with spreadsheet_url, rows_written, pos_exported
     """
     cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
-    session_id = ctx.request_context.lifespan_context.get("session_id")
+    session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
 
     if not cliente_id:
         raise ToolError("Missing cliente_id in context")
@@ -1497,7 +1502,7 @@ async def _export_po_to_sheets_logic(
             )
         else:
             # Create new spreadsheet
-            title = f"Pedidos de Compra — {datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+            title = f"Pedidos de Compra — {datetime.now(UTC).strftime('%Y-%m-%d')}"
             spreadsheet = await client.create_spreadsheet(title)
             spreadsheet_id = spreadsheet["spreadsheet_id"]
             spreadsheet_url = spreadsheet["spreadsheet_url"]
@@ -1634,7 +1639,7 @@ async def _update_supplier_logic(
         if not existing.data:
             raise ToolError(f"Fornecedor não encontrado: {supplier_id}")
 
-        updates: dict = {"updated_at": datetime.now(timezone.utc).isoformat()}
+        updates: dict = {"updated_at": datetime.now(UTC).isoformat()}
         if name is not None:
             updates["name"] = name.strip()
         if contact_email is not None:
@@ -1699,7 +1704,7 @@ async def _remove_supplier_logic(
 
         db.table("supplier_roster").update({
             "is_active": False,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }).eq("id", supplier_id).execute()
 
         logger.info(f"[RFQ] Supplier {supplier_id} deactivated")

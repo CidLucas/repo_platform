@@ -14,6 +14,11 @@ from pydantic import BaseModel, create_model
 
 from atendente_core.core.config import get_settings
 from atendente_core.core.state import AgentState
+from atendente_core.core.worker_factory import _is_transient_llm_error
+
+# Hierarchical multi-agent: worker delegation infrastructure
+from atendente_core.core.worker_registry import WorkerRegistry
+from atendente_core.core.worker_tools import build_worker_tools, is_delegation_tool_call
 
 # Importamos o gerenciador de conexão MCP
 from atendente_core.services.mcp_client import mcp_manager
@@ -45,10 +50,6 @@ from vizu_prompt_management import (
 
 # PHASE 3: Use vizu_tool_registry for tool filtering
 from vizu_tool_registry import ToolRegistry
-
-# Hierarchical multi-agent: worker delegation infrastructure
-from atendente_core.core.worker_registry import WorkerRegistry
-from atendente_core.core.worker_tools import build_worker_tools, is_delegation_tool_call
 
 logger = logging.getLogger(__name__)
 
@@ -598,23 +599,17 @@ async def supervisor_node(state: AgentState) -> dict:
             context_service=context_service,
         )
 
-        # Also include public MCP tools (tier FREE — diagnostic, monitoring)
-        all_mcp_tools = mcp_manager.tools or []
-        public_tools_from_registry = ToolRegistry.get_tools_for_tier("FREE")
-        public_names = {t.name for t in public_tools_from_registry}
-        public_mcp_tools = [t for t in all_mcp_tools if t.name in public_names]
-
-        available_tools = worker_meta_tools + public_mcp_tools
+        # Supervisor only sees worker delegation tools — specialist tools
+        # (SQL, RAG, OCR, etc.) are owned by workers, not exposed here.
+        available_tools = worker_meta_tools
 
         if not available_tools:
-            logger.warning("Nenhuma ferramenta disponível (workers + public)")
+            logger.warning("Nenhuma ferramenta disponível (workers)")
 
-        # Sanitize public MCP tools (worker meta-tools are already clean)
-        sanitized_public = sanitize_tools_for_llm(public_mcp_tools)
-        validated_tools = list(worker_meta_tools) + sanitized_public
+        validated_tools = list(worker_meta_tools)
 
         logger.info(
-            f"[SUPERVISOR] Tools: {len(worker_meta_tools)} workers + {len(sanitized_public)} public = {len(validated_tools)} total"
+            f"[SUPERVISOR] Tools: {len(worker_meta_tools)} workers bound"
         )
 
     # 4. PHASE 2 + 5 + Context 2.0: Constrói system prompt dinâmico com seções modulares
@@ -671,21 +666,35 @@ async def supervisor_node(state: AgentState) -> dict:
         llm = llm.bind_tools(validated_tools)
         logger.debug(f"Bound {len(validated_tools)} tools to LLM")
 
-    # 6. Invoca o Modelo
-    try:
-        response = await llm.ainvoke(messages)
-        # Log para debug - ver se há tool_calls
-        logger.info(f"LLM response type: {type(response)}")
-        if hasattr(response, "tool_calls") and response.tool_calls:
-            logger.info(
-                f"LLM escolheu chamar tools: {[tc.get('name') for tc in response.tool_calls]}"
-            )
-        else:
-            logger.info(
-                f"LLM não chamou nenhuma tool. Content (primeiros 200 chars): {str(response.content)[:200]}"
-            )
-    except Exception as e:
-        logger.error(f"Erro ao invocar LLM: {e}")
+    # 6. Invoca o Modelo (with retry for transient errors)
+    response = None
+    for _retry in range(3):
+        try:
+            response = await llm.ainvoke(messages)
+            # Log para debug - ver se há tool_calls
+            logger.info(f"LLM response type: {type(response)}")
+            if hasattr(response, "tool_calls") and response.tool_calls:
+                logger.info(
+                    f"LLM escolheu chamar tools: {[tc.get('name') for tc in response.tool_calls]}"
+                )
+            else:
+                logger.info(
+                    f"LLM não chamou nenhuma tool. Content (primeiros 200 chars): {str(response.content)[:200]}"
+                )
+            break
+        except Exception as e:
+            if _retry < 2 and _is_transient_llm_error(e):
+                logger.warning(f"Transient LLM error (retry {_retry+1}/2): {e}")
+                await asyncio.sleep(1.0 * (_retry + 1))
+                continue
+            logger.error(f"Erro ao invocar LLM: {e}")
+            return {
+                "messages": [
+                    AIMessage(content="Ocorreu um erro interno ao processar sua solicitação.")
+                ],
+            }
+
+    if response is None:
         return {
             "messages": [
                 AIMessage(content="Ocorreu um erro interno ao processar sua solicitação.")
@@ -1014,6 +1023,282 @@ def should_continue(
 
     # Caso contrário, devolvemos a resposta final ao usuário
     return "__end__"
+
+
+def fan_out_tool_calls(
+    state: AgentState,
+) -> list:
+    """
+    Fan-out dispatcher: returns Send objects for parallel tool execution.
+
+    Uses LangGraph's Send API to dispatch each tool call to its own
+    execute_single_tool_fanout node instance. All instances run in parallel
+    and results are aggregated via reducers.
+
+    Returns:
+        - List of Send objects for parallel execution
+        - Or a list with single string for non-tool-call routes
+    """
+    from langgraph.types import Send
+
+    # Check for pending elicitation first
+    pending = state.get("pending_elicitation")
+    if pending:
+        logger.info(
+            f"[fan-out] Elicitation pending - pausing for user input: {pending.get('elicitation_id')}"
+        )
+        return [Send("await_elicitation", state)]
+
+    last_message = state["messages"][-1]
+
+    # If the LLM decided to call tools, fan-out via Send
+    if isinstance(last_message, AIMessage) and last_message.tool_calls:
+        turn_count = state.get("turn_count", 0)
+        if turn_count >= MAX_TOOL_TURNS:
+            logger.warning(
+                f"[LOOP_GUARD] Max tool turns reached ({turn_count}/{MAX_TOOL_TURNS}). "
+                f"Forcing end to prevent runaway loop."
+            )
+            return "__end__"
+
+        tool_calls = last_message.tool_calls
+        sends = []
+        for tc in tool_calls:
+            sends.append(
+                Send(
+                    "execute_single_tool_fanout",
+                    {
+                        **state,
+                        "_tool_call": tc,
+                    },
+                )
+            )
+
+        logger.info(
+            f"[fan-out] Dispatching {len(sends)} parallel tool calls: "
+            f"{[tc['name'] for tc in tool_calls]}"
+        )
+        return sends
+
+    # No tool calls - end the graph
+    return "__end__"
+
+
+async def execute_single_tool_fanout(state: AgentState) -> dict:
+    """
+    Execute a single tool call dispatched via Send (fan-out).
+
+    This node receives the full AgentState plus a _tool_call field
+    containing the single tool call to execute. Results are aggregated
+    back via the messages reducer (add_messages).
+    """
+    tool_call = state.get("_tool_call")
+    if not tool_call:
+        logger.warning("[fan-out] No _tool_call in state")
+        return {"messages": []}
+
+    tool_name = tool_call["name"]
+    tool_call_id = tool_call["id"]
+
+    # Reuse the tool execution logic from execute_tools_node
+    tools = mcp_manager.tools
+    tool_map = {t.name: t for t in tools}
+
+    # Add cached tools (worker meta-tools)
+    cached_tools = state.get("_cached_tools") or []
+    for ct in cached_tools:
+        if hasattr(ct, "name") and ct.name not in tool_map:
+            tool_map[ct.name] = ct
+
+    elicitation_response = state.get("elicitation_response")
+    pending = state.get("pending_elicitation")
+    pending_elicitation = None
+
+    cliente_id = state.get("cliente_id")
+    if not cliente_id:
+        logger.warning("[fan-out] No cliente_id in state! Tools may fail auth.")
+
+    try:
+        tool = tool_map.get(tool_name)
+
+        # Fuzzy match delegation tools — local models sometimes hallucinate
+        # names like "delegate_to_data_analysis" instead of "delegate_to_data_analyst".
+        if not tool and tool_name.startswith("delegate_to_"):
+            delegation_tools = {k: v for k, v in tool_map.items() if k.startswith("delegate_to_")}
+            if delegation_tools:
+                from difflib import get_close_matches
+                matches = get_close_matches(tool_name, delegation_tools.keys(), n=1, cutoff=0.75)
+                if matches:
+                    matched_name = matches[0]
+                    logger.warning(
+                        f"[fan-out] Fuzzy match: LLM called '{tool_name}' → resolved to '{matched_name}'"
+                    )
+                    tool = delegation_tools[matched_name]
+                    tool_name = matched_name  # use corrected name for ToolMessage
+
+        if not tool:
+            return {
+                "messages": [
+                    ToolMessage(
+                        content=f"Ferramenta '{tool_name}' não encontrada.",
+                        tool_call_id=tool_call_id,
+                        name=tool_name,
+                    )
+                ]
+            }
+
+        # --- Worker delegation tools ---
+        if is_delegation_tool_call(tool_name):
+            logger.info(f"[fan-out] Delegation call: {tool_name}")
+            args_to_pass = dict(tool_call.get("args") or {})
+            task = args_to_pass.get("task", "")
+
+            try:
+                output = await tool.ainvoke({"task": task})
+            except Exception as e:
+                logger.exception(f"[fan-out] Delegation error for '{tool_name}': {e}")
+                return {
+                    "messages": [
+                        ToolMessage(
+                            content=f"Worker error: {e}",
+                            tool_call_id=tool_call_id,
+                            name=tool_name,
+                        )
+                    ]
+                }
+
+            tool_structured_data = None
+            try:
+                import json as _json
+                parsed_delegation = _json.loads(output) if isinstance(output, str) else output
+                if isinstance(parsed_delegation, dict) and parsed_delegation.get("structured_data"):
+                    tool_structured_data = parsed_delegation["structured_data"]
+                    tool_structured_data["source_worker"] = parsed_delegation.get(
+                        "worker_slug", tool_name.replace("delegate_to_", "")
+                    )
+                    summary = parsed_delegation.get("summary", output)
+                    tools_used = parsed_delegation.get("tools_used", [])
+                    if tools_used:
+                        summary += f"\n(Worker used: {', '.join(tools_used)})"
+                    output = summary
+            except (ValueError, TypeError):
+                pass
+
+            output_str = str(output)[:4000]
+            result = {"messages": [ToolMessage(content=output_str, tool_call_id=tool_call_id, name=tool_name)]}
+            if tool_structured_data:
+                result["structured_data"] = tool_structured_data
+                result["structured_data_list"] = [tool_structured_data]
+            return result
+
+        # --- Regular MCP tools ---
+        args_to_pass = dict(tool_call.get("args") or {})
+
+        for internal_param in ("cliente_id", "user_jwt"):
+            if internal_param in args_to_pass:
+                logger.warning(f"Removing '{internal_param}' from LLM-generated args for '{tool_name}'")
+                args_to_pass.pop(internal_param)
+
+        if elicitation_response and pending and pending.get("tool_name") == tool_name:
+            args_to_pass["_elicitation_response"] = elicitation_response.get("response")
+
+        output = await mcp_manager.call_tool(tool_name, args_to_pass)
+
+        if hasattr(output, "content") and output.content:
+            output = "\n".join(
+                item.text if hasattr(item, "text") else str(item) for item in output.content
+            )
+
+        logger.info(f"[fan-out] Tool '{tool_name}' result (first 300 chars): {str(output)[:300]}")
+
+        tool_structured_data = None
+        try:
+            import json
+            parsed_output = json.loads(output) if isinstance(output, str) else output
+            if isinstance(parsed_output, dict) and parsed_output.get("structured_data"):
+                full_data = parsed_output["structured_data"]
+                frontend_data = full_data.copy()
+                if frontend_data.get("rows") and len(frontend_data["rows"]) > 20:
+                    frontend_data["rows"] = frontend_data["rows"][:20]
+                    frontend_data["truncated"] = True
+                    frontend_data["total_rows"] = len(full_data["rows"])
+                frontend_data["source_tool"] = tool_name
+                tool_structured_data = frontend_data
+
+                llm_summary = _create_llm_data_summary(full_data, parsed_output)
+                parsed_output["output"] = llm_summary
+                del parsed_output["structured_data"]
+                output = json.dumps(parsed_output, ensure_ascii=False)
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.debug(f"[fan-out] Could not parse output as JSON: {e}")
+
+        MAX_TOOL_OUTPUT_CHARS = 4000
+        output_str = str(output)
+        if len(output_str) > MAX_TOOL_OUTPUT_CHARS:
+            output_str = (
+                output_str[:MAX_TOOL_OUTPUT_CHARS]
+                + "\n\n[Output truncated. Full data available via cache_ref_id.]"
+            )
+
+        result = {"messages": [ToolMessage(content=output_str, tool_call_id=tool_call_id, name=tool_name)]}
+        if tool_structured_data:
+            result["structured_data"] = tool_structured_data
+            result["structured_data_list"] = [tool_structured_data]
+        return result
+
+    except (ClosedResourceError, BrokenResourceError) as stream_err:
+        logger.warning(f"[fan-out] MCP stream error on '{tool_name}': {stream_err}. Reconnecting...")
+        try:
+            await mcp_manager.disconnect()
+            await mcp_manager.connect()
+            # Retry by re-invoking with updated tool map
+            return {
+                "messages": [
+                    ToolMessage(
+                        content=f"Erro de conexão com serviço de ferramentas (reconectando): {str(stream_err)}",
+                        tool_call_id=tool_call_id,
+                        name=tool_name,
+                    )
+                ]
+            }
+        except Exception as reconnect_err:
+            logger.exception(f"[fan-out] Failed to reconnect MCP: {reconnect_err}")
+            return {
+                "messages": [
+                    ToolMessage(
+                        content=f"Erro de conexão persistente: {str(stream_err)}",
+                        tool_call_id=tool_call_id,
+                        name=tool_name,
+                    )
+                ]
+            }
+
+    except ElicitationRequired as elicit:
+        logger.info(f"[fan-out] Tool '{tool_name}' requires elicitation: {elicit.message}")
+        elicitation_data = elicit.to_pending_elicitation()
+        elicitation_msg = format_elicitation_for_llm(elicitation_data)
+        return {
+            "messages": [
+                ToolMessage(
+                    content=f"[ELICITATION REQUIRED] {elicitation_msg}",
+                    tool_call_id=tool_call_id,
+                    name=tool_name,
+                )
+            ],
+            "pending_elicitation": elicitation_data,
+        }
+
+    except Exception as e:
+        logger.exception(f"[fan-out] Error executing '{tool_name}': {e}")
+        return {
+            "messages": [
+                ToolMessage(
+                    content=f"Erro ao executar ferramenta: {str(e)}",
+                    tool_call_id=tool_call_id,
+                    name=tool_name,
+                )
+            ]
+        }
 
 
 def await_elicitation_node(state: AgentState) -> dict:

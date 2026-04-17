@@ -45,6 +45,7 @@ exclude = [
     "node_modules",
     "langfuse",                 # External project (Langfuse fork)
     "ferramentas",              # Internal dev tools
+    ".claude",                  # Skill definitions (vendored)
     "alembic/versions",         # Auto-generated migrations
     "alembic/versions.backup",  # Backup migrations
     ".pytest_cache",

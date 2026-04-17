@@ -16,8 +16,8 @@ from langgraph.graph import END, StateGraph
 from .config import get_settings
 from .nodes import (
     await_elicitation_node,
-    execute_tools_node,
-    should_continue,
+    execute_single_tool_fanout,
+    fan_out_tool_calls,
     supervisor_node,
 )
 
@@ -175,34 +175,30 @@ def create_agent_graph() -> StateGraph:
 
     # 3. Adiciona os Nós (Nodes)
     workflow.add_node("supervisor", supervisor_node)
-    workflow.add_node("execute_tools", execute_tools_node)
+    workflow.add_node("execute_single_tool_fanout", execute_single_tool_fanout)
     workflow.add_node("await_elicitation", await_elicitation_node)  # PHASE 3
 
     # 4. Define o Ponto de Entrada (Entry Point)
     workflow.set_entry_point("supervisor")
 
-    # 5. Define as Arestas Condicionais (Conditional Edges)
+    # 5. Fan-out: supervisor dispatches tool calls in parallel via Send.
+    #    fan_out_tool_calls returns Send objects targeting execute_single_tool_fanout,
+    #    await_elicitation, or __end__ based on the supervisor's output.
     workflow.add_conditional_edges(
         "supervisor",
-        should_continue,
-        {
-            "execute_tools": "execute_tools",
-            "await_elicitation": "await_elicitation",  # PHASE 3
-            "__end__": END,
-        },
+        fan_out_tool_calls,
+        ["execute_single_tool_fanout", "await_elicitation", "__end__"],
     )
 
-    # PHASE 3: Conditional edges from execute_tools
-    # - If elicitation pending -> await_elicitation (pause)
-    # - Otherwise -> supervisor (continue loop)
-    def after_tools_continue(state: AgentState):
+    # Fan-in: after all parallel tool executions complete, route back
+    def after_fanout_continue(state: AgentState):
         if state.get("pending_elicitation"):
             return "await_elicitation"
         return "supervisor"
 
     workflow.add_conditional_edges(
-        "execute_tools",
-        after_tools_continue,
+        "execute_single_tool_fanout",
+        after_fanout_continue,
         {
             "await_elicitation": "await_elicitation",
             "supervisor": "supervisor",

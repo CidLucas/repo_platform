@@ -243,15 +243,10 @@ class WorkerRegistry:
         if not workers:
             return "No specialist workers available."
 
-        lines = [
-            "You can delegate to ONE or MULTIPLE workers simultaneously. "
-            "When a user request involves independent sub-tasks (e.g., data query AND "
-            "knowledge search), call multiple delegation tools in a single response to "
-            "run them concurrently. Each task description must be specific and self-contained.",
-            "",
-        ]
+        lines = []
         for w in workers:
-            lines.append(f"- **{w.name}** (`delegate_to_{w.slug.replace('-', '_')}`): {w.description}")
+            tool_name = f"delegate_to_{w.slug.replace('-', '_')}"
+            lines.append(f"- `{tool_name}`: {w.description}")
             if w.routing_hint:
-                lines.append(f"  _When to use:_ {w.routing_hint}")
+                lines.append(f"  Use for: {w.routing_hint}")
         return "\n".join(lines)

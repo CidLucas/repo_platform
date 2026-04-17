@@ -19,6 +19,22 @@ def merge_dict(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
     return {**left, **right}
 
 
+class ToolCallSendState(TypedDict, total=False):
+    """
+    State passed to each fan-out tool execution node via LangGraph Send.
+
+    Each Send dispatches one tool call to execute_single_tool_node
+    with this minimal state. Results are aggregated back via reducers.
+    """
+
+    tool_call: dict[str, Any]  # Single tool call: {name, id, args}
+    cliente_id: str
+    session_id: str
+    channel: str
+    metadata: dict[str, Any]
+    available_tools_metadata: list[dict[str, Any]]
+
+
 class AgentState(TypedDict, total=False):
     """
     Base state for all Vizu agents.
@@ -62,10 +78,13 @@ class AgentState(TypedDict, total=False):
     # Tool Execution State
     # =========================================================================
 
-    tool_to_execute: str | None  # Next tool to execute
-    tool_args: dict[str, Any] | None  # Arguments for next tool
+    tool_to_execute: str | None  # Next tool to execute (legacy single-tool)
+    tool_args: dict[str, Any] | None  # Arguments for next tool (legacy)
     tool_results: Annotated[list[dict[str, Any]], add]  # Accumulated tool results
     last_tool_result: dict[str, Any] | None  # Most recent result
+
+    # Fan-out tool execution (Send-based parallel dispatch)
+    pending_tool_calls: list[dict[str, Any]]  # Tool calls to fan-out via Send
 
     # =========================================================================
     # Conversation Control
@@ -155,6 +174,7 @@ def create_initial_state(
         tool_args=None,
         tool_results=[],
         last_tool_result=None,
+        pending_tool_calls=[],
         # Conversation control
         turn_count=0,
         max_turns=max_turns,

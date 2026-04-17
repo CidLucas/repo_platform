@@ -2,6 +2,7 @@
 """Verify standalone agent prompts in Langfuse."""
 
 from base64 import b64encode
+
 import requests
 
 # Auth

@@ -44,10 +44,11 @@ for _mod_name, _mod in [
 ]:
     sys.modules.setdefault(_mod_name, _mod)
 
-import pytest  # noqa: E402
 from datetime import datetime, timedelta  # noqa: E402
 from unittest.mock import AsyncMock, patch  # noqa: E402
 from uuid import uuid4  # noqa: E402
+
+import pytest  # noqa: E402
 
 from vizu_auth.oauth2.models import OAuthConfig, TokenResponse  # noqa: E402
 

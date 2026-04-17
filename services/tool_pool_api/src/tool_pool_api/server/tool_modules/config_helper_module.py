@@ -28,7 +28,7 @@ from . import register_module
 logger = logging.getLogger(__name__)
 
 
-async def _check_config_completeness_logic(ctx: Context) -> dict:
+async def _check_config_completeness_logic(ctx: Context, session_id: str | None = None, cliente_id: str | None = None) -> dict:
     """
     Check how many required config fields have been filled.
 
@@ -41,8 +41,8 @@ async def _check_config_completeness_logic(ctx: Context) -> dict:
             - missing: List of missing field definitions with labels
             - percent_complete: Completion percentage (0-100)
     """
-    session_id = ctx.request_context.lifespan_context.get("session_id")
-    cliente_id = ctx.request_context.lifespan_context.get("cliente_id")
+    session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
+    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
 
     if not session_id or not cliente_id:
         raise ToolError("Missing session_id or cliente_id in context")
@@ -78,7 +78,7 @@ async def _check_config_completeness_logic(ctx: Context) -> dict:
         ]
 
         percent = (
-            int((len(filled_fields) / len(required_fields) * 100))
+            int(len(filled_fields) / len(required_fields) * 100)
             if required_fields
             else 0
         )
@@ -103,6 +103,8 @@ async def _save_config_field_logic(
     field_name: str,
     value: str,
     ctx: Context,
+    session_id: str | None = None,
+    cliente_id: str | None = None,
 ) -> dict:
     """
     Save a config field value to the session.
@@ -116,8 +118,8 @@ async def _save_config_field_logic(
     Returns:
         dict confirming the save with filled count
     """
-    session_id = ctx.request_context.lifespan_context.get("session_id")
-    cliente_id = ctx.request_context.lifespan_context.get("cliente_id")
+    session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
+    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
 
     if not session_id or not cliente_id:
         raise ToolError("Missing session_id or cliente_id in context")
@@ -182,6 +184,8 @@ async def _save_config_field_logic(
 
 async def _get_agent_requirements_logic(
     ctx: Context,
+    session_id: str | None = None,
+    cliente_id: str | None = None,
 ) -> dict:
     """
     Get requirements for the agent catalog of the current session.
@@ -196,8 +200,8 @@ async def _get_agent_requirements_logic(
             - uploaded_doc_count: Already uploaded documents
             - google_connected: Whether Google account is linked
     """
-    session_id = ctx.request_context.lifespan_context.get("session_id")
-    cliente_id = ctx.request_context.lifespan_context.get("cliente_id")
+    session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
+    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
 
     if not session_id or not cliente_id:
         raise ToolError("Missing session_id or cliente_id in context")
@@ -243,7 +247,7 @@ async def _get_agent_requirements_logic(
         raise ToolError(f"Failed to get requirements: {str(e)}")
 
 
-async def _finalize_config_logic(ctx: Context) -> dict:
+async def _finalize_config_logic(ctx: Context, session_id: str | None = None, cliente_id: str | None = None) -> dict:
     """
     Finalize configuration and mark session as ready.
 
@@ -253,8 +257,8 @@ async def _finalize_config_logic(ctx: Context) -> dict:
     Returns:
         dict with finalize status and summary for confirmation
     """
-    session_id = ctx.request_context.lifespan_context.get("session_id")
-    cliente_id = ctx.request_context.lifespan_context.get("cliente_id")
+    session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
+    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
 
     if not session_id or not cliente_id:
         raise ToolError("Missing session_id or cliente_id in context")
@@ -311,6 +315,8 @@ async def _finalize_config_logic(ctx: Context) -> dict:
 async def _peek_csv_columns_logic(
     file_id: str,
     ctx: Context,
+    session_id: str | None = None,
+    cliente_id: str | None = None,
 ) -> dict:
     """
     Peek at a CSV file's structure to help Config Helper understand data.
@@ -324,8 +330,8 @@ async def _peek_csv_columns_logic(
             - row_count: Number of rows
             - file_size: File size in bytes
     """
-    session_id = ctx.request_context.lifespan_context.get("session_id")
-    cliente_id = ctx.request_context.lifespan_context.get("cliente_id")
+    session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
+    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
 
     if not session_id or not cliente_id:
         raise ToolError("Missing session_id or cliente_id in context")

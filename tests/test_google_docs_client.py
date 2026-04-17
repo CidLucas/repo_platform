@@ -4,8 +4,9 @@ Mocks the Google Docs API v1 and Drive API v3 to test
 create, read, append, replace, and list operations.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from vizu_google_suite_client.docs.client import GoogleDocsClient
 from vizu_google_suite_client.docs.models import DocReadResult, DocWriteResult

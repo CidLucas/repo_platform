@@ -10,8 +10,8 @@ This script creates the prompts for:
 6. Document Intelligence - extracts structured data from documents, compiles time series
 """
 
-from base64 import b64encode
 import os
+from base64 import b64encode
 
 import requests
 
@@ -512,7 +512,7 @@ def main():
 
     print(f"\n{'='*60}")
     print(f"✅ Created {success_count}/{len(prompts)} prompts successfully!")
-    print(f"View at: https://us.cloud.langfuse.com/prompts")
+    print("View at: https://us.cloud.langfuse.com/prompts")
     print(f"{'='*60}")
 
 

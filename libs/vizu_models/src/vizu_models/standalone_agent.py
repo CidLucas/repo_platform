@@ -7,7 +7,6 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as pgUUID
 from sqlmodel import Field, SQLModel
 
-
 # ---------------------------------------------------------------------------
 # Agent Catalog
 # ---------------------------------------------------------------------------

@@ -87,19 +87,19 @@ Upload documents (PDF, DOCX, TXT, CSV) to build per-tenant knowledge bases. The 
 
 A centralized **FastMCP** server exposes tools that agents can invoke at runtime. Tools are registered as modular packages, each with its own auth, validation, and tier gating:
 
-| Module | Tools | Description |
-|--------|-------|-------------|
-| `rag_module` | `executar_rag_cliente` | Hybrid semantic + BM25 document search |
-| `sql_module` | `executar_sql_agent` | Safe text-to-SQL with defense-in-depth |
-| `csv_module` | CSV analysis | Statistics, distributions, column profiling |
-| `google_module` | Sheets, Gmail, Calendar | Full Google Workspace integration via OAuth |
-| `common_module` | File retrieval, context | Utility tools for agent context |
-| `web_monitor_module` | URL monitoring | Track website changes |
-| `prompt_module` | MCP prompts | Langfuse-versioned prompt resources |
-| `structured_data_formatter` | Output formatting | Deterministic formatting for reports |
-| `config_helper_module` | Tool validation | Availability checks per tier |
-| `rfq_module` | Procurement workflow | Parse buying lists, manage suppliers, collect quotes, optimize allocation |
-| `rfq_whatsapp_module` | Supplier messaging | WhatsApp-based RFQ dispatch and quote collection via Twilio |
+| Module                      | Tools                   | Description                                                               |
+| --------------------------- | ----------------------- | ------------------------------------------------------------------------- |
+| `rag_module`                | `executar_rag_cliente`  | Hybrid semantic + BM25 document search                                    |
+| `sql_module`                | `executar_sql_agent`    | Safe text-to-SQL with defense-in-depth                                    |
+| `csv_module`                | CSV analysis            | Statistics, distributions, column profiling                               |
+| `google_module`             | Sheets, Gmail, Calendar | Full Google Workspace integration via OAuth                               |
+| `common_module`             | File retrieval, context | Utility tools for agent context                                           |
+| `web_monitor_module`        | URL monitoring          | Track website changes                                                     |
+| `prompt_module`             | MCP prompts             | Langfuse-versioned prompt resources                                       |
+| `structured_data_formatter` | Output formatting       | Deterministic formatting for reports                                      |
+| `config_helper_module`      | Tool validation         | Availability checks per tier                                              |
+| `rfq_module`                | Procurement workflow    | Parse buying lists, manage suppliers, collect quotes, optimize allocation |
+| `rfq_whatsapp_module`       | Supplier messaging      | WhatsApp-based RFQ dispatch and quote collection via Twilio               |
 
 <div align="center">
   <img src="screenshots/MCPServer.png" alt="MCP Server" width="600"/>
@@ -243,48 +243,48 @@ An elicitation service handles cases where the agent needs clarification or huma
 
 One of the core engineering decisions: **every reusable capability is a library, not duplicated code.** All services depend on the same shared packages:
 
-| Library | Purpose |
-|---------|---------|
-| `vizu_agent_framework` | LangGraph builder pattern, state machines, node registry, fan-out/fan-in parallel tool dispatch |
-| `vizu_auth` | JWT decode (HS256/ES256/RS256), RLS context injection |
-| `vizu_context_service` | Per-tenant context loading with Redis cache (5min TTL) |
-| `vizu_data_connectors` | Factory for BigQuery, Shopify, VTEX, Loja Integrada |
-| `vizu_db_connector` | SQLAlchemy async engine management |
-| `vizu_elicitation_service` | Agent clarification requests (yes/no, multiple choice, free text) |
-| `vizu_experiment_service` | Experiment manifests, batch evaluation, classification |
-| `vizu_google_suite_client` | Google Sheets, Gmail, Calendar with OAuth token management |
-| `vizu_hitl_service` | Human-in-the-loop review queue with Streamlit UI |
-| `vizu_llm_service` | Provider abstraction (OpenAI, Anthropic, Google, Ollama) with tier budgets |
-| `vizu_mcp_commons` | MCP tool dataclasses, executor with parallel invocation |
-| `vizu_models` | Shared Pydantic/SQLModel domain models |
-| `vizu_observability_bootstrap` | One-line OpenTelemetry + Langfuse + Grafana setup |
-| `vizu_parsers` | PDF, DOCX, CSV, TXT parsing + semantic chunking |
-| `vizu_prompt_management` | Langfuse prompt fetching with Redis cache and builtin fallbacks |
-| `vizu_rag_factory` | Hybrid retrieval (semantic + BM25 + RRF + reranking + MMR) |
-| `vizu_shared_utils` | Common utilities across all services |
-| `vizu_sql_factory` | Text-to-SQL with AST validation, allowlists, PII masking |
-| `vizu_supabase_client` | Typed Supabase SDK wrapper |
-| `vizu_tool_registry` | Tool discovery, tier validation, Docker MCP bridge |
-| `vizu_twilio_client` | WhatsApp webhook integration |
+| Library                        | Purpose                                                                                         |
+| ------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `vizu_agent_framework`         | LangGraph builder pattern, state machines, node registry, fan-out/fan-in parallel tool dispatch |
+| `vizu_auth`                    | JWT decode (HS256/ES256/RS256), RLS context injection                                           |
+| `vizu_context_service`         | Per-tenant context loading with Redis cache (5min TTL)                                          |
+| `vizu_data_connectors`         | Factory for BigQuery, Shopify, VTEX, Loja Integrada                                             |
+| `vizu_db_connector`            | SQLAlchemy async engine management                                                              |
+| `vizu_elicitation_service`     | Agent clarification requests (yes/no, multiple choice, free text)                               |
+| `vizu_experiment_service`      | Experiment manifests, batch evaluation, classification                                          |
+| `vizu_google_suite_client`     | Google Sheets, Gmail, Calendar with OAuth token management                                      |
+| `vizu_hitl_service`            | Human-in-the-loop review queue with Streamlit UI                                                |
+| `vizu_llm_service`             | Provider abstraction (OpenAI, Anthropic, Google, Ollama) with tier budgets                      |
+| `vizu_mcp_commons`             | MCP tool dataclasses, executor with parallel invocation                                         |
+| `vizu_models`                  | Shared Pydantic/SQLModel domain models                                                          |
+| `vizu_observability_bootstrap` | One-line OpenTelemetry + Langfuse + Grafana setup                                               |
+| `vizu_parsers`                 | PDF, DOCX, CSV, TXT parsing + semantic chunking                                                 |
+| `vizu_prompt_management`       | Langfuse prompt fetching with Redis cache and builtin fallbacks                                 |
+| `vizu_rag_factory`             | Hybrid retrieval (semantic + BM25 + RRF + reranking + MMR)                                      |
+| `vizu_shared_utils`            | Common utilities across all services                                                            |
+| `vizu_sql_factory`             | Text-to-SQL with AST validation, allowlists, PII masking                                        |
+| `vizu_supabase_client`         | Typed Supabase SDK wrapper                                                                      |
+| `vizu_tool_registry`           | Tool discovery, tier validation, Docker MCP bridge                                              |
+| `vizu_twilio_client`           | WhatsApp webhook integration                                                                    |
 
 ---
 
 ## Engineering Practices
 
-| Practice | Implementation |
-|----------|---------------|
-| **Monorepo structure** | Single repo with `libs/`, `services/`, `apps/`, `supabase/` — shared dependencies via path imports |
-| **Factory patterns** | `ConnectorFactory`, `StandaloneAgentFactory`, `RAGFactory` — pluggable components |
-| **Builder pattern** | `AgentBuilder` fluent API: `.with_llm().with_mcp().with_checkpointer().build()` |
-| **Dependency injection** | FastAPI `Depends()` for auth, context, and services |
-| **Defense-in-depth** | SQL validation has 4 security layers; tools validate JWT independently |
-| **12-factor config** | All config via environment variables, `.env` files, no hardcoded secrets |
-| **Database migrations** | 77 Alembic/Supabase migrations — versioned schema evolution |
-| **Code quality** | `ruff` for formatting + linting, enforced via `make fmt` / `make lint` |
-| **Testing** | Unit tests, E2E smoke tests, persona tests, batch evaluation with Langfuse traces |
-| **Streaming** | Server-Sent Events (SSE) for real-time agent responses |
-| **Caching** | Redis for context (5min TTL), prompts, agent checkpoints, tool results |
-| **Observability** | OpenTelemetry → Grafana Cloud; Langfuse for LLM traces; structured logging |
+| Practice                 | Implementation                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------------- |
+| **Monorepo structure**   | Single repo with `libs/`, `services/`, `apps/`, `supabase/` — shared dependencies via path imports |
+| **Factory patterns**     | `ConnectorFactory`, `StandaloneAgentFactory`, `RAGFactory` — pluggable components                  |
+| **Builder pattern**      | `AgentBuilder` fluent API: `.with_llm().with_mcp().with_checkpointer().build()`                    |
+| **Dependency injection** | FastAPI `Depends()` for auth, context, and services                                                |
+| **Defense-in-depth**     | SQL validation has 4 security layers; tools validate JWT independently                             |
+| **12-factor config**     | All config via environment variables, `.env` files, no hardcoded secrets                           |
+| **Database migrations**  | 77 Alembic/Supabase migrations — versioned schema evolution                                        |
+| **Code quality**         | `ruff` for formatting + linting, enforced via `make fmt` / `make lint`                             |
+| **Testing**              | Unit tests, E2E smoke tests, persona tests, batch evaluation with Langfuse traces                  |
+| **Streaming**            | Server-Sent Events (SSE) for real-time agent responses                                             |
+| **Caching**              | Redis for context (5min TTL), prompts, agent checkpoints, tool results                             |
+| **Observability**        | OpenTelemetry → Grafana Cloud; Langfuse for LLM traces; structured logging                         |
 
 ---
 
@@ -388,6 +388,7 @@ This platform was designed and implemented by me as the **sole engineer** at Viz
 The goal: enable non-technical business users to ask questions, get reports, and manage their data through natural conversation — with AI doing the heavy lifting, securely scoped to each tenant's data.
 
 **Key numbers:**
+
 - ~65,000 lines of Python across 20 libraries and 6 services
 - ~25,000 lines of TypeScript in the React dashboard
 - 77 database migrations maintaining the schema
@@ -397,4 +398,4 @@ The goal: enable non-technical business users to ask questions, get reports, and
 
 ---
 
-*Designed and built by Lucas Cruz*
+_Designed and built by Lucas Cruz_

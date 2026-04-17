@@ -80,7 +80,7 @@ export default function CompanyProfileStep({ data, onChange }: Props) {
                 <FormControl>
                     <FormLabel fontSize="sm">Nome Fantasia</FormLabel>
                     <Input
-                        placeholder="Ex: Vizu"
+                        placeholder="Ex: Blu"
                         value={data.trading_name ?? ''}
                         onChange={e => onChange({ trading_name: e.target.value || null })}
                     />
@@ -89,7 +89,7 @@ export default function CompanyProfileStep({ data, onChange }: Props) {
                 <FormControl>
                     <FormLabel fontSize="sm">Razão Social</FormLabel>
                     <Input
-                        placeholder="Ex: Vizu Tecnologia Ltda"
+                        placeholder="Ex: Blu Tecnologia Ltda"
                         value={data.legal_name ?? ''}
                         onChange={e => onChange({ legal_name: e.target.value || null })}
                     />

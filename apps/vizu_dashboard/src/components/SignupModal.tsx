@@ -59,7 +59,7 @@ const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose }) => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Form state - simplified
   const [formData, setFormData] = useState({
     nome: "",
@@ -107,10 +107,10 @@ const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose }) => {
     try {
       // TODO: Integrar com backend para salvar lead
       console.log("Lead data:", formData);
-      
+
       // Simula delay de envio
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       setShowSuccess(true);
     } catch {
       setError("Erro ao enviar. Tente novamente.");

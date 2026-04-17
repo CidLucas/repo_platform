@@ -271,7 +271,7 @@ function AdminClientesVizuPage() {
             <HStack>
               <Icon as={FiUsers} boxSize={6} color="gray.600" />
               <Text fontSize="24px" fontWeight="600" color="gray.900">
-                Gerenciar Clientes Vizu
+                Gerenciar Clientes Blu
               </Text>
             </HStack>
             <Text fontSize="14px" color="gray.500">

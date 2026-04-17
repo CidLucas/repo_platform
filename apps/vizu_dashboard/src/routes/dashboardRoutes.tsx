@@ -16,6 +16,7 @@ import AdminPrivacidadePage from "../pages/admin/AdminPrivacidadePage";
 import AdminKnowledgeBasePage from "../pages/admin/AdminKnowledgeBasePage";
 import AdminAgentBuilderPage from "../pages/admin/AdminAgentBuilderPage";
 import AdminAgentBuilderEditorPage from "../pages/admin/AdminAgentBuilderEditorPage";
+import AdminConnectorsPage from "../pages/admin/AdminConnectorsPage";
 import OnboardingPage from "../pages/admin/OnboardingPage";
 // Super admin pages (requires ADMIN tier)
 import AdminClientesVizuPage from "../pages/admin/AdminClientesVizuPage";
@@ -93,6 +94,10 @@ export const dashboardRoutes: RouteConfig[] = [
   {
     path: "/dashboard/admin/connectors/:credentialId/mapping",
     element: <AdminConnectorMappingPage />,
+  },
+  {
+    path: "/dashboard/admin/conectores",
+    element: <AdminConnectorsPage />,
   },
   {
     path: "/dashboard/admin/planos",

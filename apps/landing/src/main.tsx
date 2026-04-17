@@ -4,16 +4,26 @@ import { ChakraProvider, extendTheme } from '@chakra-ui/react'
 import App from './App'
 
 const theme = extendTheme({
+  config: {
+    initialColorMode: 'dark',
+    useSystemColorMode: false,
+  },
   fonts: {
-    heading: "'Noto Sans Thai Looped', 'IBM Plex Sans', sans-serif",
-    body: "'IBM Plex Sans', sans-serif",
+    heading: "'Playfair Display', 'Inter', serif",
+    body: "'Inter', system-ui, sans-serif",
   },
   styles: {
     global: {
-      body: {
-        bg: '#9dc5f6',
+      'html, body': {
+        bg: '#0d0e1f',
+        color: 'white',
         margin: 0,
         padding: 0,
+        scrollBehavior: 'smooth',
+      },
+      '::selection': {
+        bg: '#3b82f640',
+        color: 'white',
       },
     },
   },

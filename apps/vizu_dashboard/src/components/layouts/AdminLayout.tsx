@@ -14,11 +14,11 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
   const { isChatOpen, closeChat } = useChat();
 
   return (
-    <Flex direction="column" minHeight="100vh" bg="#f6f6f6">
+    <Flex direction="column" minHeight="100vh" bg="#0d0e1f">
       <Header />
       <Flex flex="1">
         <AdminSidebar />
-        <Box as="main" flex="1" overflowY="auto">
+        <Box as="main" flex="1" overflowY="auto" bg="#0d0e1f">
           {children}
         </Box>
       </Flex>

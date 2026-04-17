@@ -12,10 +12,11 @@ import {
   MenuDivider,
   Box,
   useDisclosure,
+  Button,
 } from '@chakra-ui/react';
 import { BellIcon, ChatIcon } from '@chakra-ui/icons';
 import { FiUser, FiSettings, FiShield, FiLogOut, FiGrid } from 'react-icons/fi';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useChat } from '../contexts/ChatContext';
 import { useTenant } from '../contexts/TenantContext';
 import { useContext } from 'react';
@@ -26,6 +27,7 @@ import { MenuDrawer } from './MenuDrawer';
 export const Header = () => {
   const { toggleChat } = useChat();
   const navigate = useNavigate();
+  const location = useLocation();
   const tenant = useTenant();
   const { isOpen: isMenuOpen, onOpen: onMenuOpen, onClose: onMenuClose } = useDisclosure();
   const auth = useContext(AuthContext);
@@ -53,18 +55,58 @@ export const Header = () => {
     <>
       <Flex
         as="header"
-        py={3}
+        h="64px"
         px={6}
         align="center"
         width="100%"
-        bg="white"
-        borderBottom="1px solid"
-        borderColor="gray.200"
+        bgGradient="linear(to-r, #001f3f, #003366)"
+        position="sticky"
+        top={0}
+        zIndex={20}
       >
-        {/* Logo */}
+        {/* Logo with gradient effect */}
         <Link to="/dashboard">
-          <Logo style={{ height: '13.0657px', width: '36.8166px' }} />
+          <Box
+            sx={{
+              '& svg': {
+                filter: 'brightness(0) invert(1)',
+              },
+            }}
+          >
+            <Logo style={{ height: '13.0657px', width: '36.8166px' }} />
+          </Box>
         </Link>
+
+        {/* Nav Buttons — Dashboard & Admin */}
+        <HStack spacing={1} ml={6}>
+          <Button
+            size="sm"
+            variant="ghost"
+            color={location.pathname === '/dashboard' || (!location.pathname.startsWith('/dashboard/admin') && location.pathname.startsWith('/dashboard')) ? 'white' : 'whiteAlpha.600'}
+            bg={location.pathname === '/dashboard' || (!location.pathname.startsWith('/dashboard/admin') && location.pathname.startsWith('/dashboard')) ? 'whiteAlpha.200' : 'transparent'}
+            fontWeight="medium"
+            fontSize="sm"
+            borderRadius="lg"
+            _hover={{ bg: 'whiteAlpha.200', color: 'white' }}
+            onClick={() => navigate('/dashboard')}
+          >
+            Dashboard
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            color={location.pathname.startsWith('/dashboard/admin') ? 'white' : 'whiteAlpha.600'}
+            bg={location.pathname.startsWith('/dashboard/admin') ? 'whiteAlpha.200' : 'transparent'}
+            fontWeight="medium"
+            fontSize="sm"
+            borderRadius="lg"
+            leftIcon={<FiShield size={14} />}
+            _hover={{ bg: 'whiteAlpha.200', color: 'white' }}
+            onClick={() => navigate('/dashboard/admin')}
+          >
+            Admin
+          </Button>
+        </HStack>
 
         <Spacer />
 
@@ -75,19 +117,21 @@ export const Header = () => {
               aria-label="Chat"
               icon={<ChatIcon />}
               variant="ghost"
-              colorScheme="gray"
+              color="white"
               borderRadius="full"
               size="md"
               onClick={toggleChat}
+              _hover={{ bg: 'whiteAlpha.200' }}
             />
           )}
           <IconButton
             aria-label="Notifications"
             icon={<BellIcon />}
             variant="ghost"
-            colorScheme="gray"
+            color="white"
             borderRadius="full"
             size="md"
+            _hover={{ bg: 'whiteAlpha.200' }}
           />
 
           {/* Menu Grid Button */}
@@ -95,10 +139,11 @@ export const Header = () => {
             aria-label="Menu"
             icon={<FiGrid />}
             variant="ghost"
-            colorScheme="gray"
+            color="white"
             borderRadius="full"
             size="md"
             onClick={onMenuOpen}
+            _hover={{ bg: 'whiteAlpha.200' }}
           />
 
           {/* User Avatar with Dropdown Menu */}
@@ -106,7 +151,7 @@ export const Header = () => {
             <MenuButton>
               <Avatar
                 name={userName}
-                bg="black"
+                bg="whiteAlpha.300"
                 color="white"
                 size="sm"
                 fontSize="xs"
@@ -117,10 +162,10 @@ export const Header = () => {
             <MenuList shadow="lg" borderRadius="12px" py={2}>
               {/* User Info */}
               <Box px={4} py={2} mb={2}>
-                <Text fontWeight="medium" fontSize="sm">{userName}</Text>
-                <Text fontSize="xs" color="gray.500">{auth?.user?.email || 'Sem email'}</Text>
+                <Text fontWeight="medium" fontSize="sm" color="white">{userName}</Text>
+                <Text fontSize="xs" color="whiteAlpha.600">{auth?.user?.email || 'Sem email'}</Text>
               </Box>
-              <MenuDivider />
+              <MenuDivider borderColor="whiteAlpha.100" />
 
               {/* Menu Items */}
               <MenuItem
@@ -141,12 +186,12 @@ export const Header = () => {
               {/* Admin Link - Only show for admins */}
               {isAdmin && (
                 <>
-                  <MenuDivider />
+                  <MenuDivider borderColor="whiteAlpha.100" />
                   <MenuItem
                     icon={<FiShield />}
                     fontSize="sm"
                     fontWeight="medium"
-                    color="purple.600"
+                    color="#0ea5e9"
                     onClick={() => navigate('/dashboard/admin')}
                   >
                     Painel Admin
@@ -154,11 +199,11 @@ export const Header = () => {
                 </>
               )}
 
-              <MenuDivider />
+              <MenuDivider borderColor="whiteAlpha.100" />
               <MenuItem
                 icon={<FiLogOut />}
                 fontSize="sm"
-                color="red.500"
+                color="red.400"
                 onClick={handleLogout}
               >
                 Sair

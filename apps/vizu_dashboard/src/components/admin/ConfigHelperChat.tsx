@@ -49,7 +49,7 @@ export const ConfigHelperChat = ({ sessionId, accessToken, agentName }: ConfigHe
             setMessages([
                 {
                     id: '0',
-                    content: `Olá! Sou o Assistente de Configuração do Vizu. Vou ajudá-lo a configurar o agente **${agentName}** respondendo algumas perguntas simples sobre seu negócio e dados.`,
+                    content: `Olá! Sou o Assistente de Configuração da Blu. Vou ajudá-lo a configurar o agente **${agentName}** respondendo algumas perguntas simples sobre seu negócio e dados.`,
                     sender: 'assistant',
                     timestamp: new Date(),
                 },
@@ -169,7 +169,7 @@ export const ConfigHelperChat = ({ sessionId, accessToken, agentName }: ConfigHe
             <Box borderBottomWidth="1px" borderColor="gray.200" p={4}>
                 <Heading size="sm">Assistente de Configuração</Heading>
                 <Text fontSize="xs" color="gray.600">
-                    Vizu Config
+                    Blu Config
                 </Text>
             </Box>
 

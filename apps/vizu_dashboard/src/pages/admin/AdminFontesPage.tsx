@@ -206,28 +206,30 @@ const ConnectorCard = ({ connector, onConnect }: ConnectorCardProps) => {
 
   return (
     <Box
-      bg="white"
-      borderRadius="16px"
+      bg="#1a1b2e"
+      borderRadius="1rem"
       border="1px solid"
-      borderColor="gray.200"
+      borderColor="rgba(255,255,255,0.08)"
+      boxShadow="0 4px 24px rgba(0,0,0,0.4)"
       p={5}
       position="relative"
       transition="all 0.2s"
       _hover={{
-        borderColor: 'gray.300',
-        shadow: 'sm',
+        borderColor: 'rgba(255,255,255,0.15)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+        transform: 'translateY(-2px)',
       }}
       opacity={connector.comingSoon ? 0.6 : 1}
     >
       {/* Badges */}
       <HStack position="absolute" top={4} right={4} spacing={2}>
         {connector.isNew && (
-          <Badge colorScheme="purple" fontSize="10px">
+          <Badge bg="#a855f720" color="#a855f7" fontSize="10px" borderRadius="full" px={2}>
             NOVO
           </Badge>
         )}
         {connector.comingSoon && (
-          <Badge colorScheme="gray" fontSize="10px">
+          <Badge bg="whiteAlpha.100" color="whiteAlpha.500" fontSize="10px" borderRadius="full" px={2}>
             EM BREVE
           </Badge>
         )}
@@ -239,10 +241,11 @@ const ConnectorCard = ({ connector, onConnect }: ConnectorCardProps) => {
         <Flex
           w="48px"
           h="48px"
-          bg="gray.50"
+          bg={`${connector.iconColor}20`}
           borderRadius="12px"
           align="center"
           justify="center"
+          boxShadow={`0 4px 12px ${connector.iconColor}30`}
         >
           <Icon
             as={connector.icon}
@@ -253,10 +256,10 @@ const ConnectorCard = ({ connector, onConnect }: ConnectorCardProps) => {
 
         {/* Info */}
         <VStack align="start" spacing={1}>
-          <Text fontSize="16px" fontWeight="medium" color="gray.900">
+          <Text fontSize="md" fontWeight="medium" color="white">
             {connector.name}
           </Text>
-          <Text fontSize="13px" color="gray.500" lineHeight="18px">
+          <Text fontSize="xs" color="whiteAlpha.500" lineHeight="18px">
             {connector.description}
           </Text>
         </VStack>
@@ -265,19 +268,19 @@ const ConnectorCard = ({ connector, onConnect }: ConnectorCardProps) => {
         {connector.status === 'connected' && connector.recordsCount && (
           <HStack spacing={4} pt={2}>
             <VStack align="start" spacing={0}>
-              <Text fontSize="12px" color="gray.400">
+              <Text fontSize="xs" color="whiteAlpha.400">
                 Registros
               </Text>
-              <Text fontSize="14px" fontWeight="medium" color="gray.700">
+              <Text fontSize="sm" fontWeight="medium" color="white">
                 {connector.recordsCount.toLocaleString('pt-BR')}
               </Text>
             </VStack>
             {connector.lastSync && (
               <VStack align="start" spacing={0}>
-                <Text fontSize="12px" color="gray.400">
+                <Text fontSize="xs" color="whiteAlpha.400">
                   Última sync
                 </Text>
-                <Text fontSize="14px" fontWeight="medium" color="gray.700">
+                <Text fontSize="sm" fontWeight="medium" color="white">
                   {new Date(connector.lastSync).toLocaleDateString('pt-BR')}
                 </Text>
               </VStack>
@@ -288,13 +291,21 @@ const ConnectorCard = ({ connector, onConnect }: ConnectorCardProps) => {
         {/* Action Button */}
         <Button
           size="sm"
-          variant={connector.status === 'connected' ? 'outline' : 'solid'}
-          colorScheme={connector.status === 'connected' ? 'gray' : 'blue'}
           w="full"
           mt={2}
           isDisabled={connector.comingSoon}
           onClick={() => onConnect(connector)}
           leftIcon={connector.status === 'not_configured' ? <FiPlus /> : undefined}
+          bgGradient={connector.status === 'connected' ? undefined : 'linear(to-r, #3b82f6, #2563eb)'}
+          bg={connector.status === 'connected' ? 'transparent' : undefined}
+          color="white"
+          border={connector.status === 'connected' ? '1px solid' : 'none'}
+          borderColor={connector.status === 'connected' ? 'whiteAlpha.200' : undefined}
+          _hover={{
+            bgGradient: connector.status === 'connected' ? undefined : 'linear(to-r, #2563eb, #1d4ed8)',
+            bg: connector.status === 'connected' ? 'whiteAlpha.100' : undefined,
+          }}
+          boxShadow={connector.status !== 'connected' ? '0 4px 12px rgba(59,130,246,0.4)' : 'none'}
         >
           {connector.status === 'connected'
             ? 'Gerenciar'
@@ -376,28 +387,24 @@ function AdminFontesPage() {
     return (
       <AdminLayout>
         <Box p={8} textAlign="center">
-          <Spinner size="xl" />
-          <Text mt={4}>Carregando conectores...</Text>
+          <Spinner size="xl" color="blue.400" />
+          <Text mt={4} color="whiteAlpha.600">Carregando conectores...</Text>
         </Box>
       </AdminLayout>
     );
   }
 
-  // Error state (only show error if API call failed, not if user is logged out)
   if (error) {
     return (
       <AdminLayout>
         <Box p={8} textAlign="center">
-          <Icon as={FiAlertCircle} boxSize={12} color="red.500" mb={4} />
-          <Text fontSize="18px" color="gray.700">Erro ao carregar conectores</Text>
-          <Text fontSize="14px" color="gray.500" mt={2}>{error.message}</Text>
+          <Icon as={FiAlertCircle} boxSize={12} color="red.400" mb={4} />
+          <Text fontSize="18px" color="whiteAlpha.800">Erro ao carregar conectores</Text>
+          <Text fontSize="14px" color="whiteAlpha.500" mt={2}>{error.message}</Text>
         </Box>
       </AdminLayout>
     );
   }
-
-  // Note: If user is not authenticated (connectorsData is null),
-  // allConnectors will still show all available connector types as "not_configured"
 
   return (
     <AdminLayout>
@@ -405,14 +412,21 @@ function AdminFontesPage() {
         {/* Header */}
         <VStack align="start" spacing={2} mb={8}>
           <HStack spacing={3}>
-            <Icon as={FiDatabase} boxSize={6} color="gray.700" />
-            <Text fontSize="24px" fontWeight="medium" color="gray.900">
+            <Flex w={10} h={10} borderRadius="lg" align="center" justify="center" bg="#3b82f620">
+              <Icon as={FiDatabase} boxSize={5} color="#3b82f6" />
+            </Flex>
+            <Text
+              fontSize="1.5rem"
+              fontWeight="normal"
+              fontFamily="'Playfair Display', serif"
+              color="white"
+            >
               Minhas Fontes de Dados
             </Text>
           </HStack>
-          <Text fontSize="14px" color="gray.500">
+          <Text fontSize="sm" color="whiteAlpha.500">
             Conecte suas fontes de dados para começar a analisar.
-            <Text as="span" fontWeight="medium" color="gray.700">
+            <Text as="span" fontWeight="medium" color="#3b82f6">
               {' '}{connectedCount} de {totalCount} conectadas
             </Text>
           </Text>
@@ -422,20 +436,25 @@ function AdminFontesPage() {
         <HStack mb={6} spacing={4}>
           <InputGroup maxW="320px">
             <InputLeftElement pointerEvents="none">
-              <Icon as={FiSearch} color="gray.400" />
+              <Icon as={FiSearch} color="whiteAlpha.400" />
             </InputLeftElement>
             <Input
               placeholder="Buscar conectores..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               borderRadius="full"
-              bg="white"
+              bg="#1a1b2e"
+              border="1px solid"
+              borderColor="rgba(255,255,255,0.08)"
+              color="white"
+              _placeholder={{ color: 'whiteAlpha.400' }}
+              _hover={{ borderColor: 'rgba(255,255,255,0.15)' }}
+              _focus={{ borderColor: '#3b82f6', boxShadow: '0 0 0 1px #3b82f6' }}
             />
           </InputGroup>
 
           <Tabs
             variant="soft-rounded"
-            colorScheme="gray"
             index={categories.findIndex(c => c.id === selectedCategory)}
             onChange={(index) => setSelectedCategory(categories[index].id as ConnectorCategory)}
           >
@@ -446,7 +465,9 @@ function AdminFontesPage() {
                   fontSize="13px"
                   fontWeight="normal"
                   px={4}
-                  _selected={{ bg: 'black', color: 'white' }}
+                  color="whiteAlpha.600"
+                  _selected={{ bg: '#3b82f6', color: 'white' }}
+                  _hover={{ color: 'white' }}
                 >
                   {cat.label} ({cat.count})
                 </Tab>
@@ -471,14 +492,16 @@ function AdminFontesPage() {
           <Box
             textAlign="center"
             py={16}
-            bg="gray.50"
-            borderRadius="16px"
+            bg="#1a1b2e"
+            borderRadius="1rem"
+            border="1px solid"
+            borderColor="rgba(255,255,255,0.08)"
           >
-            <Icon as={FiSearch} boxSize={10} color="gray.300" mb={4} />
-            <Text fontSize="16px" color="gray.500">
+            <Icon as={FiSearch} boxSize={10} color="whiteAlpha.300" mb={4} />
+            <Text fontSize="md" color="whiteAlpha.600">
               Nenhum conector encontrado
             </Text>
-            <Text fontSize="14px" color="gray.400">
+            <Text fontSize="sm" color="whiteAlpha.400">
               Tente ajustar sua busca ou filtros
             </Text>
           </Box>

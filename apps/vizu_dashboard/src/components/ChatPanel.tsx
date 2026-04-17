@@ -297,12 +297,12 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
           width={{ base: '100%', md: '50%' }}
           maxW="750px"
           height="100vh"
-          bg="rgba(255, 255, 255, 0.98)"
+          bg="#0d0e1f"
           backdropFilter="blur(20px)"
           sx={{ WebkitBackdropFilter: 'blur(20px)' }}
           borderLeft="1px solid"
-          borderColor="rgba(200, 200, 200, 0.5)"
-          boxShadow="-10px 0 40px rgba(0, 0, 0, 0.15)"
+          borderColor="rgba(255, 255, 255, 0.08)"
+          boxShadow="-10px 0 40px rgba(0, 0, 0, 0.5)"
           display="flex"
           flexDirection="column"
         >
@@ -313,7 +313,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
             left="0"
             right="0"
             bottom="0"
-            bg="linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)"
+            bg="linear-gradient(135deg, rgba(26,27,46,0.5) 0%, rgba(13,14,31,0.3) 100%)"
             pointerEvents="none"
             zIndex="0"
           />
@@ -325,30 +325,34 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
             px={6}
             py={4}
             borderBottom="1px solid"
-            borderColor="rgba(0, 0, 0, 0.08)"
-            bg="rgba(255, 255, 255, 0.5)"
+            borderColor="rgba(255, 255, 255, 0.08)"
+            bgGradient="linear(to-r, #001f3f, #003366)"
             position="relative"
             zIndex="1"
           >
             <HStack spacing={2}>
-              <Text fontWeight="500" fontSize="18px" fontFamily="'Noto Sans', sans-serif">
-                Novo chat vizu
+              <Text fontWeight="500" fontSize="18px" fontFamily="'Inter', sans-serif" color="white">
+                Novo chat Blu
               </Text>
-              <ChatIcon w={5} h={5} color="gray.500" />
+              <ChatIcon w={5} h={5} color="whiteAlpha.600" />
             </HStack>
             <HStack spacing={2}>
               <IconButton
                 aria-label="Novo chat"
                 icon={<AddIcon />}
                 variant="ghost"
+                color="white"
                 size="sm"
+                _hover={{ bg: 'whiteAlpha.200' }}
                 onClick={handleNewChat}
               />
               <IconButton
                 aria-label="Fechar chat"
                 icon={<CloseIcon />}
                 variant="ghost"
+                color="white"
                 size="sm"
+                _hover={{ bg: 'whiteAlpha.200' }}
                 onClick={onClose}
               />
             </HStack>
@@ -370,13 +374,16 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
                 <Text
                   fontSize={{ base: '28px', md: '34px' }}
                   fontWeight="400"
-                  fontFamily="'Noto Sans', sans-serif"
+                  fontFamily="'Playfair Display', serif"
                   lineHeight="1.1"
                   letterSpacing="0.35px"
+                  color="white"
                 >
                   Olá {userName}, por{' '}
                   <br />
-                  onde quer começar?
+                  <Box as="span" bgGradient="linear(to-r, #3b82f6, #a855f7)" bgClip="text">
+                    onde quer começar?
+                  </Box>
                 </Text>
 
                 {/* Suggestion Chips */}
@@ -384,15 +391,16 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
                   {suggestionChips.map((chip) => (
                     <Button
                       key={chip.label}
-                      bg={chip.color}
-                      color="black"
+                      bg="rgba(255,255,255,0.08)"
+                      color="white"
                       borderRadius="full"
                       height="36px"
                       px={4}
                       fontWeight="400"
                       fontSize="14px"
-                      fontFamily="'Noto Sans', sans-serif"
-                      _hover={{ opacity: 0.9, transform: 'scale(1.02)' }}
+                      fontFamily="'Inter', sans-serif"
+                      border="1px solid rgba(255,255,255,0.12)"
+                      _hover={{ bg: 'whiteAlpha.200', transform: 'scale(1.02)' }}
                       transition="all 0.2s ease"
                       onClick={() => handleChipClick(chip.label)}
                       leftIcon={chip.icon ? <AddIcon w={3} h={3} /> : undefined}
@@ -418,12 +426,13 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
                       {/* Text content */}
                       {message.content && (
                         <Box
-                          bg={message.sender === 'user' ? 'black' : 'rgba(0, 0, 0, 0.06)'}
-                          color={message.sender === 'user' ? 'white' : 'black'}
+                          bg={message.sender === 'user' ? '#3b82f6' : '#1a1b2e'}
+                          color="white"
                           px={4}
                           py={3}
                           borderRadius="18px"
-                          boxShadow={message.sender === 'user' ? '0 2px 8px rgba(0,0,0,0.15)' : 'none'}
+                          border={message.sender === 'user' ? 'none' : '1px solid rgba(255,255,255,0.08)'}
+                          boxShadow={message.sender === 'user' ? '0 2px 12px rgba(59,130,246,0.3)' : '0 2px 8px rgba(0,0,0,0.3)'}
                           mb={message.structuredData ? 3 : 0}
                         >
                           <MarkdownMessage
@@ -446,8 +455,8 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
                 ))}
                 {isLoading && (
                   <Flex justify="flex-start">
-                    <Box bg="rgba(0, 0, 0, 0.06)" px={4} py={3} borderRadius="18px">
-                      <Text fontSize="15px" color="gray.500">
+                    <Box bg="#1a1b2e" border="1px solid rgba(255,255,255,0.08)" px={4} py={3} borderRadius="18px">
+                      <Text fontSize="15px" color="whiteAlpha.500">
                         Digitando...
                       </Text>
                     </Box>
@@ -460,8 +469,8 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
 
           {/* Input Area */}
           <Box
-            bg="rgba(222, 222, 222, 0.8)"
-            backdropFilter="blur(10px)"
+            bg="#1a1b2e"
+            border="1px solid rgba(255,255,255,0.08)"
             borderRadius="22px"
             mx={4}
             mb={4}
@@ -472,16 +481,17 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
             {/* Context Button */}
             <HStack mb={3}>
               <Button
-                bg="black"
+                bg="rgba(255,255,255,0.08)"
                 color="white"
                 borderRadius="full"
                 height="36px"
                 px={4}
                 fontWeight="400"
                 fontSize="14px"
-                fontFamily="'Noto Sans', sans-serif"
+                fontFamily="'Inter', sans-serif"
+                border="1px solid rgba(255,255,255,0.12)"
                 leftIcon={<AddIcon w={3} h={3} />}
-                _hover={{ bg: 'gray.800' }}
+                _hover={{ bg: 'whiteAlpha.200' }}
               >
                 Adicione um contexto
               </Button>
@@ -520,11 +530,12 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
               onKeyDown={handleKeyPress}
               bg="transparent"
               border="none"
+              color="white"
               resize="none"
               minH="60px"
               fontSize="16px"
-              fontFamily="'Noto Sans', sans-serif"
-              _placeholder={{ color: '#7D7D7D' }}
+              fontFamily="'Inter', sans-serif"
+              _placeholder={{ color: 'whiteAlpha.400' }}
               _focus={{ border: 'none', boxShadow: 'none' }}
             />
 
@@ -535,11 +546,11 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
                   variant="ghost"
                   size="sm"
                   leftIcon={uploadingFile ? <Spinner size="xs" /> : <AttachmentIcon />}
-                  color="blackAlpha.600"
+                  color="whiteAlpha.600"
                   fontWeight="400"
                   fontSize="16px"
-                  fontFamily="'Noto Sans', sans-serif"
-                  _hover={{ bg: 'rgba(0,0,0,0.05)' }}
+                  fontFamily="'Inter', sans-serif"
+                  _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
                   onClick={() => fileInputRef.current?.click()}
                   isDisabled={uploadingFile}
                 >
@@ -557,11 +568,11 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
                   variant="ghost"
                   size="sm"
                   leftIcon={<AddIcon />}
-                  color="blackAlpha.600"
+                  color="whiteAlpha.600"
                   fontWeight="400"
                   fontSize="16px"
-                  fontFamily="'Noto Sans', sans-serif"
-                  _hover={{ bg: 'rgba(0,0,0,0.05)' }}
+                  fontFamily="'Inter', sans-serif"
+                  _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
                 >
                   Conectar bancos
                 </Button>
@@ -571,7 +582,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
               <IconButton
                 aria-label="Enviar mensagem"
                 icon={<ArrowForwardIcon />}
-                bg="black"
+                bgGradient="linear(to-r, #3b82f6, #2563eb)"
                 color="white"
                 borderRadius="full"
                 size="md"
@@ -579,7 +590,7 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
                 h="40px"
                 isDisabled={!inputValue.trim() || isLoading}
                 onClick={handleSendMessage}
-                _hover={{ bg: 'gray.800', transform: 'scale(1.05)' }}
+                _hover={{ bgGradient: 'linear(to-r, #2563eb, #1d4ed8)', transform: 'scale(1.05)', boxShadow: '0 4px 12px rgba(59,130,246,0.4)' }}
                 _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
                 transition="all 0.2s ease"
               />

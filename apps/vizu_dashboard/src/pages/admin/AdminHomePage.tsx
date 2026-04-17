@@ -7,14 +7,15 @@ import {
   Icon,
   SimpleGrid,
   Flex,
-  Link,
-  Spinner
+  Spinner,
+  Button
 } from '@chakra-ui/react';
 import { AdminLayout } from '../../components/layouts/AdminLayout';
-import { FiDatabase, FiUsers, FiExternalLink, FiAlertCircle, FiSettings } from 'react-icons/fi';
+import { FiDatabase, FiUsers, FiAlertCircle, FiSettings, FiChevronRight, FiShield, FiCpu, FiArrowRight } from 'react-icons/fi';
 import { useContext } from 'react';
 import { AuthContext } from '../../contexts/AuthContext';
 import { useDashboardStats } from '../../hooks/useDashboardStats';
+import { useNavigate } from 'react-router-dom';
 
 // Card component for plan info
 interface InfoCardProps {
@@ -24,58 +25,66 @@ interface InfoCardProps {
     icon: React.ElementType;
     title: string;
     subtitle: string;
+    color: string;
   }[];
   linkText: string;
   linkHref: string;
-  image?: React.ReactNode;
+  accentColor: string;
 }
 
-const InfoCard = ({ title, description, items, linkText, linkHref, image }: InfoCardProps) => {
+const InfoCard = ({ title, description, items, linkText, linkHref, accentColor }: InfoCardProps) => {
+  const navigate = useNavigate();
   return (
     <Box
-      bg="white"
-      borderRadius="22px"
+      bg="#1a1b2e"
+      borderRadius="1rem"
       border="1px solid"
-      borderColor="gray.200"
+      borderColor="rgba(255,255,255,0.08)"
+      boxShadow="0 4px 24px rgba(0,0,0,0.4)"
       p={6}
-      h="310px"
       position="relative"
+      overflow="hidden"
+      transition="all 0.2s"
+      _hover={{ borderColor: 'rgba(255,255,255,0.15)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
     >
+      <Box position="absolute" top={0} left={0} w="3px" h="100%" bg={accentColor} />
       <VStack align="start" spacing={3}>
         <Text
-          fontSize="16px"
-          fontWeight="normal"
-          color="gray.900"
-          letterSpacing="-0.3px"
+          fontSize="xs"
+          fontWeight="semibold"
+          textTransform="uppercase"
+          letterSpacing="wider"
+          color={accentColor}
         >
           {title}
         </Text>
 
         <Text
-          fontSize="14px"
-          color="gray.500"
+          fontSize="sm"
+          color="whiteAlpha.600"
           lineHeight="20px"
-          letterSpacing="-0.15px"
         >
           {description}
         </Text>
 
-        <VStack align="start" spacing={4} mt={4} w="full">
+        <VStack align="start" spacing={4} mt={2} w="full">
           {items.map((item, index) => (
-            <HStack key={index} spacing={4} w="full" borderTop={index > 0 ? "1px solid" : "none"} borderColor="gray.200" pt={index > 0 ? 4 : 0}>
+            <HStack key={index} spacing={4} w="full" borderTop={index > 0 ? "1px solid" : "none"} borderColor="whiteAlpha.100" pt={index > 0 ? 4 : 0}>
               <Flex
                 w="40px"
                 h="40px"
                 align="center"
                 justify="center"
+                borderRadius="lg"
+                bg={`${item.color}20`}
               >
-                <Icon as={item.icon} boxSize={6} color="gray.600" />
+                <Icon as={item.icon} boxSize={5} color={item.color} />
               </Flex>
               <VStack align="start" spacing={0}>
-                <Text fontSize="14px" fontWeight="normal" color="gray.900" letterSpacing="-0.15px">
+                <Text fontSize="sm" fontWeight="medium" color="white">
                   {item.title}
                 </Text>
-                <Text fontSize="12px" color="gray.500">
+                <Text fontSize="xs" color="whiteAlpha.500">
                   {item.subtitle}
                 </Text>
               </VStack>
@@ -83,25 +92,18 @@ const InfoCard = ({ title, description, items, linkText, linkHref, image }: Info
           ))}
         </VStack>
 
-        <Link
-          href={linkHref}
-          color="blue.600"
-          fontSize="14px"
-          mt="auto"
-          display="flex"
-          alignItems="center"
-          gap={1}
+        <Button
+          variant="ghost"
+          size="sm"
+          color={accentColor}
+          rightIcon={<FiArrowRight />}
+          _hover={{ bg: `${accentColor}15` }}
+          mt={2}
+          onClick={() => navigate(linkHref)}
         >
           {linkText}
-          <Icon as={FiExternalLink} boxSize={3} />
-        </Link>
+        </Button>
       </VStack>
-
-      {image && (
-        <Box position="absolute" right={4} bottom={4}>
-          {image}
-        </Box>
-      )}
     </Box>
   );
 };
@@ -109,13 +111,12 @@ const InfoCard = ({ title, description, items, linkText, linkHref, image }: Info
 function AdminHomePage() {
   const auth = useContext(AuthContext);
   const { stats, loading, error } = useDashboardStats();
+  const navigate = useNavigate();
 
-  // Get user name from auth context - fallback to first part of email if no display name
   const userName = auth?.user?.user_metadata?.full_name ||
     auth?.user?.email?.split('@')[0] ||
     'Usuário';
 
-  // Format storage usage
   const formatStorage = (gb: number): string => {
     if (gb < 1) return `${(gb * 1024).toFixed(2)} MB`;
     return `${gb.toFixed(2)} GB`;
@@ -126,64 +127,94 @@ function AdminHomePage() {
       <Box p={8} maxW="900px" mx="auto">
         {/* Welcome Section */}
         <VStack spacing={6} mb={12}>
-          {/* Avatar */}
           <Avatar
             size="xl"
             name={userName}
-            bg="black"
+            bg="linear-gradient(135deg, #3b82f6, #a855f7)"
             color="white"
             fontSize="18px"
           />
 
-          {/* Welcome Text */}
           <Text
-            fontSize="34px"
+            fontSize="2.5rem"
             fontWeight="normal"
-            color="gray.900"
-            letterSpacing="-0.3px"
+            fontFamily="'Playfair Display', serif"
             textAlign="center"
           >
-            Bem-vindo, {userName}
+            <Box as="span" color="white">Bem-vindo, </Box>
+            <Box as="span" bgGradient="linear(to-r, #3b82f6, #a855f7)" bgClip="text">{userName}</Box>
           </Text>
 
           <Text
-            fontSize="16px"
-            color="black"
+            fontSize="md"
+            color="whiteAlpha.600"
             textAlign="center"
-            maxW="413px"
+            maxW="450px"
             lineHeight="24px"
-            letterSpacing="-0.3px"
           >
-            Gerencia suas informações, privacidade e segurança para que a VIZU atenda suas necessidades.
+            Gerencie suas informações, privacidade e segurança para que a Blu atenda suas necessidades.
           </Text>
         </VStack>
+
+        {/* Stats Summary Bar */}
+        {stats && (
+          <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} mb={8}>
+            {[
+              { label: 'Conectores', value: stats.connected_connectors, color: '#3b82f6', icon: FiDatabase },
+              { label: 'Armazenamento', value: formatStorage(stats.storage_usage.total_storage_gb), color: '#10b981', icon: FiCpu },
+              { label: 'Agentes', value: '1', color: '#a855f7', icon: FiUsers },
+              { label: 'Segurança', value: 'Ativo', color: '#10b981', icon: FiShield },
+            ].map((stat) => (
+              <Box
+                key={stat.label}
+                bg="#1a1b2e"
+                borderRadius="lg"
+                border="1px solid"
+                borderColor="rgba(255,255,255,0.08)"
+                p={4}
+                textAlign="center"
+              >
+                <Flex justify="center" mb={2}>
+                  <Flex w={10} h={10} borderRadius="lg" align="center" justify="center" bg={`${stat.color}20`}>
+                    <Icon as={stat.icon} boxSize={5} color={stat.color} />
+                  </Flex>
+                </Flex>
+                <Text fontSize="lg" fontWeight="bold" color="white">{stat.value}</Text>
+                <Text fontSize="xs" color="whiteAlpha.500">{stat.label}</Text>
+              </Box>
+            ))}
+          </SimpleGrid>
+        )}
 
         {/* Cards Grid */}
         {loading ? (
           <Box textAlign="center" py={12}>
-            <Spinner size="xl" />
-            <Text mt={4}>Carregando estatísticas...</Text>
+            <Spinner size="xl" color="blue.400" />
+            <Text mt={4} color="whiteAlpha.600">Carregando estatísticas...</Text>
           </Box>
         ) : error ? (
           <Box textAlign="center" py={12}>
-            <Icon as={FiAlertCircle} boxSize={10} color="red.500" mb={4} />
-            <Text fontSize="16px" color="gray.700">Erro ao carregar estatísticas</Text>
+            <Icon as={FiAlertCircle} boxSize={10} color="red.400" mb={4} />
+            <Text fontSize="md" color="whiteAlpha.800">Erro ao carregar estatísticas</Text>
           </Box>
         ) : stats ? (
           <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
             <InfoCard
               title="MEU PLANO"
-              description="Com seu plano VIZUXX, você tem mais conectores de dados disponíveis, acesso a um agente e muito mais"
+              description="Com seu plano premium, você tem mais conectores de dados disponíveis, acesso a um agente e muito mais"
+              accentColor="#3b82f6"
               items={[
                 {
                   icon: FiDatabase,
                   title: `${stats.connected_connectors} fontes de dados conectadas`,
-                  subtitle: `Uso: ${formatStorage(stats.storage_usage.total_storage_gb)} de ${stats.storage_usage.quota_gb || 2000} GB`
+                  subtitle: `Uso: ${formatStorage(stats.storage_usage.total_storage_gb)} de ${stats.storage_usage.quota_gb || 2000} GB`,
+                  color: '#3b82f6'
                 },
                 {
                   icon: FiUsers,
                   title: "Agente especialista contratado",
-                  subtitle: "Potencialize sua jornada com o agente VIZU"
+                  subtitle: "Potencialize sua jornada com o agente Blu",
+                  color: '#a855f7'
                 }
               ]}
               linkText="Ver detalhes do plano"
@@ -192,20 +223,23 @@ function AdminHomePage() {
 
             <InfoCard
               title="Privacidade e personalização"
-              description="Veja os termos de privacidade e segurança referentes ao seu plano VIZUXX"
+              description="Veja os termos de privacidade e segurança referentes ao seu plano"
+              accentColor="#10b981"
               items={[]}
-              linkText="Gerenciar privacidade e personalização"
+              linkText="Gerenciar privacidade"
               linkHref="/dashboard/admin/privacidade"
             />
 
             <InfoCard
               title="Personalizar Agente"
               description="Configure o perfil da empresa, equipe, prioridades e políticas para que o agente responda de forma personalizada"
+              accentColor="#a855f7"
               items={[
                 {
                   icon: FiSettings,
                   title: "Contexto do agente",
-                  subtitle: "Perfil, equipe, momento atual e regras"
+                  subtitle: "Perfil, equipe, momento atual e regras",
+                  color: '#a855f7'
                 }
               ]}
               linkText="Configurar agente"

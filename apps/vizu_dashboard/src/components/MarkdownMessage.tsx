@@ -16,12 +16,12 @@ interface MarkdownMessageProps {
  * Styled for clean, readable AI responses.
  */
 export const MarkdownMessage = ({ content, isUser = false }: MarkdownMessageProps) => {
-    const textColor = isUser ? 'white' : 'gray.800';
-    const linkColor = isUser ? 'blue.200' : 'blue.600';
-    const codeBackground = isUser ? 'whiteAlpha.200' : 'gray.100';
-    const tableBorderColor = isUser ? 'whiteAlpha.300' : 'gray.200';
-    const strongColor = isUser ? 'white' : 'gray.900';
-    const mutedColor = isUser ? 'whiteAlpha.800' : 'gray.600';
+    const textColor = isUser ? 'white' : 'whiteAlpha.800';
+    const linkColor = isUser ? 'blue.200' : '#3b82f6';
+    const codeBackground = isUser ? 'whiteAlpha.200' : 'rgba(255,255,255,0.06)';
+    const tableBorderColor = isUser ? 'whiteAlpha.300' : 'rgba(255,255,255,0.1)';
+    const strongColor = isUser ? 'white' : 'white';
+    const mutedColor = isUser ? 'whiteAlpha.800' : 'whiteAlpha.600';
 
     const components: Components = {
         // Paragraphs - clean spacing
@@ -147,7 +147,7 @@ export const MarkdownMessage = ({ content, isUser = false }: MarkdownMessageProp
             </Box>
         ),
         thead: ({ children }) => (
-            <Thead bg={isUser ? 'whiteAlpha.100' : 'gray.50'}>
+            <Thead bg={isUser ? 'whiteAlpha.100' : 'rgba(255,255,255,0.04)'}>
                 {children}
             </Thead>
         ),
@@ -183,11 +183,11 @@ export const MarkdownMessage = ({ content, isUser = false }: MarkdownMessageProp
         blockquote: ({ children }) => (
             <Box
                 borderLeftWidth="3px"
-                borderLeftColor={isUser ? 'whiteAlpha.500' : 'gray.300'}
+                borderLeftColor={isUser ? 'whiteAlpha.500' : '#3b82f6'}
                 pl={3}
                 my={2}
                 fontStyle="italic"
-                color={isUser ? 'whiteAlpha.800' : 'gray.600'}
+                color={isUser ? 'whiteAlpha.800' : 'whiteAlpha.600'}
             >
                 {children}
             </Box>

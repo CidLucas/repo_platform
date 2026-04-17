@@ -12,9 +12,9 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
   const { isChatOpen, closeChat } = useChat();
 
   return (
-    <Flex direction="column" minHeight="100vh">
+    <Flex direction="column" minHeight="100vh" bg="#0d0e1f">
       <Header />
-      <Box as="main" flex="1">
+      <Box as="main" flex="1" bg="#0d0e1f">
         {children}
       </Box>
       {/* Chat Panel - slides from right with blur effect */}

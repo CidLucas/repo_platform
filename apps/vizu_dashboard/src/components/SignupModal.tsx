@@ -137,7 +137,7 @@ const SignupModal: React.FC<SignupModalProps> = ({ isOpen, onClose }) => {
               >
                 <Image
                   src="/image 82.png"
-                  alt="VIZU"
+                  alt="Blu"
                   w="100%"
                   h="100%"
                   objectFit="cover"

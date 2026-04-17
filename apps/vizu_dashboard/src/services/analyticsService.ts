@@ -1532,3 +1532,138 @@ export const getMe = async (_token: string): Promise<MeResponse> => {
 
   return { client_id: cliente.client_id };
 };
+
+// --- Domain Analytics (for DomainExpansionModal) ---
+
+export interface DomainAnalytics {
+  monthlyData: ChartDataPoint[];
+  kpis: Record<string, number>;
+}
+
+/**
+ * Fetches analytics for a specific business domain (orders, customers, suppliers, products).
+ * Uses existing v_series_temporal + dimension tables to build monthly trends and KPIs.
+ */
+export const getDomainAnalytics = async (
+  domain: 'orders' | 'customers' | 'suppliers' | 'products'
+): Promise<DomainAnalytics> => {
+  // Get dashboard summary for KPIs
+  const { data: resumo } = await supabase
+    .schema(ANALYTICS_SCHEMA)
+    .from('v_resumo_dashboard')
+    .select('*')
+    .limit(1)
+    .maybeSingle();
+
+  const dashboard = resumo || {};
+
+  switch (domain) {
+    case 'orders': {
+      const { data: series } = await supabase
+        .schema(ANALYTICS_SCHEMA)
+        .from('v_series_temporal')
+        .select('*')
+        .eq('tipo_grafico', 'receita')
+        .order('data_periodo', { ascending: true });
+
+      const monthlyData = (series || []).map(s => ({
+        name: s.periodo,
+        month: s.periodo,
+        value: Number(s.total) || 0,
+        revenue: Number(s.total) || 0,
+      }));
+
+      return {
+        monthlyData,
+        kpis: {
+          total_orders: Number(dashboard.total_pedidos) || 0,
+          avg_ticket: Number(dashboard.ticket_medio) || 0,
+          growth: Number(dashboard.crescimento_receita) || 0,
+          conversion_rate: 0,
+          revenue_growth: Number(dashboard.crescimento_receita) || 0,
+        },
+      };
+    }
+
+    case 'customers': {
+      const { data: series } = await supabase
+        .schema(ANALYTICS_SCHEMA)
+        .from('v_series_temporal')
+        .select('*')
+        .eq('tipo_grafico', 'clientes')
+        .order('data_periodo', { ascending: true });
+
+      const monthlyData = (series || []).map(s => ({
+        name: s.periodo,
+        month: s.periodo,
+        new: Number(s.total) || 0,
+        returning: 0,
+      }));
+
+      return {
+        monthlyData,
+        kpis: {
+          active_customers: Number(dashboard.clientes_ativos) || Number(dashboard.total_clientes) || 0,
+          total_customers: Number(dashboard.total_clientes) || 0,
+          avg_ltv: Number(dashboard.ticket_medio) || 0,
+          churn_rate: 0,
+          growth: Number(dashboard.crescimento_clientes) || 0,
+        },
+      };
+    }
+
+    case 'suppliers': {
+      const { data: series } = await supabase
+        .schema(ANALYTICS_SCHEMA)
+        .from('v_series_temporal')
+        .select('*')
+        .eq('tipo_grafico', 'fornecedores')
+        .order('data_periodo', { ascending: true });
+
+      const monthlyData = (series || []).map(s => ({
+        name: s.periodo,
+        month: s.periodo,
+        active: Number(s.total) || 0,
+        orders: 0,
+      }));
+
+      return {
+        monthlyData,
+        kpis: {
+          total_suppliers: Number(dashboard.total_fornecedores) || 0,
+          active_suppliers: Number(dashboard.total_fornecedores) || 0,
+          total_revenue: Number(dashboard.receita_total) || 0,
+          avg_delivery_time: 0,
+          compliance_rate: 0,
+        },
+      };
+    }
+
+    case 'products': {
+      const { data: series } = await supabase
+        .schema(ANALYTICS_SCHEMA)
+        .from('v_series_temporal')
+        .select('*')
+        .eq('tipo_grafico', 'produtos')
+        .order('data_periodo', { ascending: true });
+
+      const monthlyData = (series || []).map(s => ({
+        name: s.periodo,
+        month: s.periodo,
+        sold: Number(s.total) || 0,
+        revenue: 0,
+      }));
+
+      return {
+        monthlyData,
+        kpis: {
+          total_products: Number(dashboard.total_produtos) || 0,
+          total_sold: Number(dashboard.quantidade_total_vendida) || 0,
+          total_revenue: Number(dashboard.receita_total) || 0,
+          avg_margin: 0,
+          turnover_rate: 0,
+        },
+      };
+    }
+  }
+};

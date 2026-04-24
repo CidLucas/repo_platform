@@ -16,6 +16,7 @@ import AdminPrivacidadePage from "../pages/admin/AdminPrivacidadePage";
 import AdminKnowledgeBasePage from "../pages/admin/AdminKnowledgeBasePage";
 import AdminAgentBuilderPage from "../pages/admin/AdminAgentBuilderPage";
 import AdminAgentBuilderEditorPage from "../pages/admin/AdminAgentBuilderEditorPage";
+import AdminAgentsPage from "../pages/admin/AdminAgentsPage";
 import AdminConnectorsPage from "../pages/admin/AdminConnectorsPage";
 import OnboardingPage from "../pages/admin/OnboardingPage";
 // Super admin pages (requires ADMIN tier)
@@ -123,6 +124,20 @@ export const dashboardRoutes: RouteConfig[] = [
     path: "/dashboard/admin/onboarding",
     element: <OnboardingPage />,
   },
+  {
+    path: "/dashboard/admin/agents",
+    element: <AdminAgentsPage />,
+  },
+  {
+    path: "/dashboard/admin/agents/:agentId",
+    element: (
+      <AdminRoute>
+        <AdminAgentBuilderEditorPage />
+      </AdminRoute>
+    ),
+    requiresAdmin: true,
+  },
+  // Legacy routes kept for backwards compatibility
   {
     path: "/dashboard/admin/agent-builder",
     element: (

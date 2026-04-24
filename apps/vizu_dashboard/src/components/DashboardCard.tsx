@@ -7,7 +7,7 @@ import { MapComponent } from './MapComponent';
 import { ModalContentLayout } from './ModalContentLayout';
 import { AccordionComponent } from './AccordionComponent';
 import { GraphCarousel } from './GraphCarousel';
-import type { ChartDataPoint, MapData, GeoCluster } from '../types';
+import type { ChartDataPoint, MapData } from '../types';
 
 // Interface for insight bullets
 export interface InsightBullet {
@@ -68,8 +68,8 @@ const InsightBulletItemCompact = ({ bullet }: { bullet: InsightBullet }) => {
   const { icon, color, bgColor } = getIconAndColor();
 
   return (
-    <HStack 
-      spacing={3} 
+    <HStack
+      spacing={3}
       align="center"
       p={3}
       bg="whiteAlpha.50"

@@ -14,7 +14,6 @@ import {
     StepTitle,
     StepDescription,
     Stepper,
-    useSteps,
 } from '@chakra-ui/react';
 import { useOnboarding, ONBOARDING_STEPS } from '../../hooks/useOnboarding';
 import CompanyProfileStep from './steps/CompanyProfileStep';

@@ -7,6 +7,7 @@
  */
 
 import { supabase } from "../lib/supabase";
+import { resolveClientId } from "../lib/auth";
 
 // Tipos
 export type ConnectorPlatform = 'shopify' | 'vtex' | 'loja_integrada' | 'bigquery' | 'postgresql' | 'mysql';
@@ -37,6 +38,43 @@ export interface BigQueryCredentials {
     table_name: string;
     location?: string;
     service_account_json: Record<string, unknown>;
+}
+
+interface ParsedBigQueryTableRef {
+    projectId?: string;
+    datasetId?: string;
+    tableName: string;
+    normalizedReference: string;
+}
+
+function parseBigQueryTableReference(rawTableName: string): ParsedBigQueryTableRef {
+    const cleaned = (rawTableName || '').replace(/`/g, '').trim();
+    const parts = cleaned.split('.').map((part) => part.trim()).filter(Boolean);
+
+    if (parts.length === 3) {
+        const [projectId, datasetId, tableName] = parts;
+        return {
+            projectId,
+            datasetId,
+            tableName,
+            normalizedReference: `${projectId}.${datasetId}.${tableName}`,
+        };
+    }
+
+    if (parts.length === 2) {
+        const [datasetId, tableName] = parts;
+        return {
+            datasetId,
+            tableName,
+            normalizedReference: `${datasetId}.${tableName}`,
+        };
+    }
+
+    const tableName = parts[0] || cleaned;
+    return {
+        tableName,
+        normalizedReference: tableName,
+    };
 }
 
 export interface SQLCredentials {
@@ -81,23 +119,6 @@ export interface TestConnectionResponse {
     connection_string?: string;
 }
 
-export interface ExtractDataRequest {
-    credential_id: string;
-    resource: 'products' | 'orders' | 'customers' | 'inventory';
-    limit?: number;
-    page?: number;
-    filters?: Record<string, unknown>;
-}
-
-export interface ExtractDataResponse {
-    success: boolean;
-    resource: string;
-    total_records: number;
-    page: number;
-    has_more: boolean;
-    data: unknown[];
-}
-
 export interface ConnectorStatus {
     id: string;
     platform: ConnectorPlatform;
@@ -106,76 +127,6 @@ export interface ConnectorStatus {
     last_sync?: string;
     records_count?: number;
     error_message?: string;
-}
-
-/**
- * Resolve client_id from Supabase auth session.
- * Falls back to clientes_vizu table lookup by user email.
- */
-async function resolveClientIdFromSupabase(): Promise<string | null> {
-    const { data: { user }, error } = await supabase.auth.getUser();
-
-    if (error || !user) {
-        console.warn('Failed to get user from Supabase auth:', error);
-        return null;
-    }
-
-    const clientId = user.app_metadata?.client_id || user.user_metadata?.client_id;
-    if (clientId) {
-        return clientId;
-    }
-
-    const { data: byExternalUserId, error: byExternalUserIdError } = await supabase
-        .from('clientes_vizu')
-        .select('client_id')
-        .eq('external_user_id', user.id)
-        .maybeSingle();
-
-    if (byExternalUserIdError) {
-        console.warn('Failed to find client_id by external_user_id:', byExternalUserIdError);
-    }
-
-    if (byExternalUserId?.client_id) {
-        return byExternalUserId.client_id;
-    }
-
-    if (!user.email) {
-        return null;
-    }
-
-    const { data: cliente, error: clienteError } = await supabase
-        .from('clientes_vizu')
-        .select('client_id')
-        .ilike('email', user.email)
-        .maybeSingle();
-
-    if (clienteError) {
-        console.warn('Failed to find client_id in clientes_vizu by email:', clienteError);
-        return null;
-    }
-
-    return cliente?.client_id ?? null;
-}
-
-/**
- * Resolve client_id from various sources, caching in localStorage.
- */
-async function resolveClientId(providedClientId?: string): Promise<string> {
-    let resolvedClientId = providedClientId || localStorage.getItem('vizu_client_id') || '';
-
-    if (!resolvedClientId) {
-        const clientIdFromSupabase = await resolveClientIdFromSupabase();
-        if (clientIdFromSupabase) {
-            resolvedClientId = clientIdFromSupabase;
-            localStorage.setItem('vizu_client_id', resolvedClientId);
-        }
-    }
-
-    if (!resolvedClientId) {
-        throw new Error('client_id is required; could not resolve from context, localStorage, or Supabase');
-    }
-
-    return resolvedClientId;
 }
 
 // Funções da API
@@ -292,13 +243,17 @@ export async function createCredential(
 
     if (tipoServicoUpper === 'BIGQUERY') {
         const bqCreds = request.credentials as BigQueryCredentials;
+        const parsedTableRef = parseBigQueryTableReference(bqCreds.table_name);
+        const effectiveProjectId = parsedTableRef.projectId || bqCreds.project_id;
+        const effectiveDatasetId = parsedTableRef.datasetId || bqCreds.dataset_id || 'default';
+        const tableReference = parsedTableRef.normalizedReference || parsedTableRef.tableName;
 
         // Create BigQuery server via RPC (handles Vault storage + FDW creation)
         const { data: serverResult, error: serverError } = await supabase.rpc('create_bigquery_server', {
             p_client_id: resolvedClientId,
             p_service_account_key: bqCreds.service_account_json,
-            p_project_id: bqCreds.project_id,
-            p_dataset_id: bqCreds.dataset_id || 'default',
+            p_project_id: effectiveProjectId,
+            p_dataset_id: effectiveDatasetId,
             p_location: bqCreds.location || 'US',
         });
 
@@ -312,6 +267,10 @@ export async function createCredential(
             throw new Error(result.error || 'Falha ao criar servidor BigQuery');
         }
 
+        if (!result.vault_key_id) {
+            throw new Error('Falha ao persistir chave da credencial no Vault (vault_key_id ausente)');
+        }
+
         // Also insert into credencial_servico_externo for tracking
         const { data: credencial, error: credError } = await supabase
             .from('credencial_servico_externo')
@@ -322,9 +281,9 @@ export async function createCredential(
                 status: 'active',
                 vault_key_id: result.vault_key_id,
                 connection_metadata: {
-                    project_id: bqCreds.project_id,
-                    dataset_id: bqCreds.dataset_id,
-                    table_name: bqCreds.table_name,
+                    project_id: effectiveProjectId,
+                    dataset_id: effectiveDatasetId,
+                    table_name: tableReference,
                     location: bqCreds.location || 'US',
                 },
             })
@@ -340,8 +299,8 @@ export async function createCredential(
         // Create foreign table with two-step FDW discovery (discovers columns from BigQuery INFORMATION_SCHEMA)
         const { data: foreignTableResult, error: ftError } = await supabase.rpc('create_bigquery_foreign_table', {
             p_client_id: resolvedClientId,
-            p_table_name: bqCreds.table_name || 'default_table',
-            p_bigquery_table: bqCreds.table_name || 'default_table',
+            p_table_name: parsedTableRef.tableName || 'default_table',
+            p_bigquery_table: tableReference || parsedTableRef.tableName || 'default_table',
             p_location: bqCreds.location || 'US',
             p_timeout_ms: 300000,
             p_credential_id: parseInt(String(credencial.id), 10),
@@ -485,64 +444,60 @@ export async function listConnections(clienteVizuId: string): Promise<ConnectorS
 }
 
 /**
- * Extrai dados de uma conexão configurada.
- * Note: This function is deprecated. Use startSync instead for data ingestion.
- * @deprecated Use startSync instead
- */
-export async function extractData(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _request: ExtractDataRequest
-): Promise<ExtractDataResponse> {
-    console.warn('extractData is deprecated. Use startSync for data ingestion.');
-    return {
-        success: false,
-        resource: '',
-        total_records: 0,
-        page: 0,
-        has_more: false,
-        data: [],
-    };
-}
-
-/**
- * Extração direta (sem credencial salva) - deprecado.
- * @deprecated Use startSync instead
- */
-export async function extractDataDirect(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _platform: ConnectorPlatform,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _credentials: CredentialPayload,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _resource: string
-): Promise<ExtractDataResponse> {
-    console.warn('extractDataDirect is deprecated. Use startSync for data ingestion.');
-    return {
-        success: false,
-        resource: '',
-        total_records: 0,
-        page: 0,
-        has_more: false,
-        data: [],
-    };
-}
-
-/**
  * Inicia a sincronização de dados para uma conexão via run-sync edge function.
  * Retorna imediatamente com o job_id para polling assíncrono.
  */
 export async function startSync(
     credentialId: string,
     clienteVizuId: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     _resourceType: string = 'invoices'
 ): Promise<{ status: string; message: string; job_id?: string }> {
     const resolvedClientId = await resolveClientId(clienteVizuId);
+    const normalizedCredentialId = parseInt(credentialId, 10);
+
+    const { data: dataSource, error: dataSourceError } = await supabase
+        .from('client_data_sources')
+        .select('id, source_columns, column_mapping')
+        .eq('client_id', resolvedClientId)
+        .eq('credential_id', normalizedCredentialId)
+        .order('atualizado_em', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (dataSourceError) {
+        throw new Error(dataSourceError.message || 'Falha ao validar mapeamento da fonte de dados');
+    }
+
+    if (!dataSource) {
+        throw new Error('Esta credencial ainda não possui descoberta de colunas. Recrie a conexão ou execute a descoberta antes de sincronizar.');
+    }
+
+    const sourceColumns = Array.isArray(dataSource.source_columns)
+        ? (dataSource.source_columns as Array<{ name: string }>)
+        : [];
+
+    let columnMapping =
+        dataSource.column_mapping && typeof dataSource.column_mapping === 'object'
+            ? (dataSource.column_mapping as Record<string, string>)
+            : {};
+
+    if (Object.keys(columnMapping).length === 0 && sourceColumns.length > 0) {
+        columnMapping = await matchAndSaveColumnMapping(
+            dataSource.id,
+            sourceColumns,
+            'invoices'
+        );
+    }
+
+    if (Object.keys(columnMapping).length === 0) {
+        throw new Error('Nenhum mapeamento válido foi encontrado para esta fonte. Revise o mapeamento antes de sincronizar.');
+    }
 
     const { data, error } = await supabase.functions.invoke('run-sync', {
         body: {
             client_id: resolvedClientId,
-            credential_id: parseInt(credentialId, 10),
+            credential_id: normalizedCredentialId,
             force_full_sync: false,
         },
     });
@@ -578,10 +533,10 @@ export async function getSyncStatus(jobId: string): Promise<{
         .from('reg_jobs')
         .select('job_id, status, progress_pct, result, error_message')
         .eq('job_id', jobId)
-        .single();
+        .maybeSingle();
 
-    if (error) {
-        throw new Error(error.message || 'Falha ao obter status');
+    if (error || !job) {
+        throw new Error(error?.message || 'Falha ao obter status');
     }
 
     const result = job.result as Record<string, unknown> | null;
@@ -606,10 +561,10 @@ export async function deleteConnection(credentialId: string): Promise<void> {
         .from('credencial_servico_externo')
         .select('client_id, tipo_servico')
         .eq('id', parseInt(credentialId, 10))
-        .single();
+        .maybeSingle();
 
-    if (fetchError) {
-        throw new Error(fetchError.message || 'Credencial não encontrada');
+    if (fetchError || !credencial) {
+        throw new Error(fetchError?.message || 'Credencial não encontrada');
     }
 
     // If it's BigQuery, drop the FDW server

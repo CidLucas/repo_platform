@@ -78,6 +78,10 @@ export interface OrderMetricsResponse {
   revenue: number;
   avg_order_value: number;
   growth_rate: number | null;
+  /**
+   * Sourced from `analytics_v2.get_order_status_breakdown` →
+   * `fato_transacoes.status` (real values like `valid`, `review`, `invalid`).
+   */
   by_status: Record<string, number>;
   period: string;
   comparisons?: {
@@ -86,6 +90,69 @@ export interface OrderMetricsResponse {
     vs_90_days: number | null;
     trend: string | null;
   };
+}
+
+// Period filter shared across pedidos RPCs.
+export type PeriodType = 'week' | 'month' | 'quarter' | 'year';
+
+// Recent activity feed item (public.get_recent_activity)
+export interface RecentActivityItem {
+  kind: 'ingestion' | 'agent_session' | 'rfq' | 'upload' | string;
+  title: string;
+  subtitle: string | null;
+  occurredAt: string; // ISO timestamp
+  severity: 'info' | 'warning' | 'error' | string;
+}
+
+// Pendência item (public.get_pendencias)
+export interface PendenciaItem {
+  kind: 'rfq_pending' | 'connector_error' | 'data_source_issue' | string;
+  title: string;
+  severity: 'info' | 'warning' | 'error' | string;
+  occurredAt: string | null;
+  targetRoute: string;
+}
+
+// Agent runs today (public.get_agent_runs_today)
+export interface AgentRunsTodayResponse {
+  total: number;
+  byAgent: Record<string, number>;
+}
+
+// NPS score (public.get_nps_score)
+export interface NpsScoreResponse {
+  score: number;
+  totalResponses: number;
+  promoters: number;
+  passives: number;
+  detractors: number;
+}
+
+// Pedidos overview scorecards (analytics_v2.get_pedidos_overview_scorecards)
+export interface PedidosOverviewScorecards {
+  qtdMediaProdutos: number;
+  taxaRecorrencia: number;
+  recenciaMediaDias: number;
+}
+
+// Agenda event (Google Calendar via google-calendar-events Edge Function)
+export interface AgendaEvent {
+  id: string;
+  title: string;
+  startsAt: string; // ISO timestamp
+  endsAt: string; // ISO timestamp
+  type: 'meeting' | 'call' | 'deadline';
+  location: string | null;
+  attendeesCount: number;
+  hangoutLink: string | null;
+}
+
+export interface AgendaResponse {
+  events: AgendaEvent[];
+  disabled: boolean;
+  reason?: string;
+  fetchedAt: string | null;
+  rangeDays: number;
 }
 
 // Corresponds to the Pydantic 'PedidoDetailResponse'
@@ -393,7 +460,6 @@ export const getPedidosOverview = async (): Promise<PedidosOverviewResponse> => 
   throwIfError(regional, regionalError);
 
   // Get scorecards from dim_clientes aggregations
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { data: resumo, error: resumoError } = await supabase
     .schema(ANALYTICS_SCHEMA)
     .from('v_resumo_dashboard')
@@ -409,11 +475,24 @@ export const getPedidosOverview = async (): Promise<PedidosOverviewResponse> => 
   const receitaTotal = Number(dashboard.receita_total) || 0;
   const ticketMedio = totalPedidos > 0 ? receitaTotal / totalPedidos : 0;
 
+  // Real recurrence / recency / qty-per-order scorecards from RPC.
+  // Soft-fail to zeros so the page still renders if the RPC errors.
+  let realScorecards: PedidosOverviewScorecards = {
+    qtdMediaProdutos: 0,
+    taxaRecorrencia: 0,
+    recenciaMediaDias: 0,
+  };
+  try {
+    realScorecards = await getPedidosOverviewScorecards();
+  } catch (err) {
+    console.warn('[Pedidos] get_pedidos_overview_scorecards error:', err);
+  }
+
   return {
     scorecard_ticket_medio_por_pedido: ticketMedio,
-    scorecard_qtd_media_produtos_por_pedido: 0, // Would need aggregation from fato_transacoes
-    scorecard_taxa_recorrencia_clientes_perc: 0, // Would need calculation
-    scorecard_recencia_media_entre_pedidos_dias: 0, // Would need calculation
+    scorecard_qtd_media_produtos_por_pedido: realScorecards.qtdMediaProdutos,
+    scorecard_taxa_recorrencia_clientes_perc: realScorecards.taxaRecorrencia,
+    scorecard_recencia_media_entre_pedidos_dias: realScorecards.recenciaMediaDias,
     chart_pedidos_no_tempo: (series || []).map(s => ({
       name: s.periodo,
       total: Number(s.total) || 0,
@@ -443,6 +522,7 @@ export const getPedidoDetails = async (order_id: string): Promise<PedidoDetailRe
       valor,
       quantidade,
       valor_unitario,
+      status,
       dim_clientes(nome, cpf_cnpj, telefone, endereco_uf, endereco_cidade),
       dim_inventory!inventory_id(nome),
       dim_datas!data_competencia_id(data)
@@ -454,9 +534,18 @@ export const getPedidoDetails = async (order_id: string): Promise<PedidoDetailRe
   const firstItem = transacoes?.[0];
   const cliente = firstItem?.dim_clientes as unknown as Record<string, string> | null;
 
+  // Pick the most-common non-null status across the order's rows; fall back to first non-null.
+  const statusCounts = (transacoes || []).reduce((acc, v) => {
+    const s = (v as { status?: string | null }).status;
+    if (s) acc[s] = (acc[s] ?? 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  const statusPedido =
+    Object.entries(statusCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'unknown';
+
   return {
     order_id,
-    status_pedido: 'completed',
+    status_pedido: statusPedido,
     total_pedido: transacoes?.reduce((sum, v) => sum + Number(v.valor || 0), 0) || 0,
     dados_cliente: {
       receiver_nome: cliente?.nome,
@@ -475,7 +564,7 @@ export const getPedidoDetails = async (order_id: string): Promise<PedidoDetailRe
 };
 
 // Fornecedores API calls (overview)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export const getFornecedores = async (_period: string = 'all'): Promise<FornecedoresOverviewResponse> => {
   // Fetch fornecedores, series, and regional in parallel
   const [fornecedoresRes, seriesRes, regionalRes] = await Promise.all([
@@ -608,7 +697,7 @@ export const getFornecedor = async (nome_fornecedor: string): Promise<Fornecedor
 };
 
 // Clientes API calls (overview)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export const getClientes = async (_period: string = 'all'): Promise<ClientesOverviewResponse> => {
   // Fetch dim_clientes, series, and regional in parallel
   const [clientesRes, seriesRes, regionalRes] = await Promise.all([
@@ -752,7 +841,7 @@ export const getCliente = async (nome_cliente: string): Promise<ClienteDetailRes
 };
 
 // Produtos API calls (overview)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export const getProdutosOverview = async (_period: string = 'all'): Promise<ProdutosOverviewResponse> => {
   // Fetch dim_inventory + all produtos series in parallel
   const [produtosRes, seriesRes] = await Promise.all([
@@ -969,26 +1058,338 @@ export const getHomeMetrics = async (): Promise<HomeMetricsResponse> => {
 };
 
 // Order Indicators (used by PedidosPage)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export const getOrderIndicators = async (period: string = 'month', _includeComparisons: boolean = false): Promise<OrderMetricsResponse> => {
-  const { data: resumo, error } = await supabase
+// Backed by analytics_v2.get_order_indicators(p_period) — period filters
+// fato_transacoes by dim_datas.data window. Status breakdown is fetched
+// separately via getOrderStatusBreakdown to keep payloads small.
+export const getOrderIndicators = async (
+  period: PeriodType | string = 'month',
+): Promise<OrderMetricsResponse> => {
+  const { data, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
-    .from('v_resumo_dashboard')
-    .select('*')
-    .limit(1)
-    .maybeSingle();
+    .rpc('get_order_indicators', { p_period: period });
 
-  if (error) console.warn('Error fetching order indicators:', error);
+  if (error) throw new Error(error.message);
 
-  const dashboard = resumo || {};
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | {
+        total?: number | string;
+        revenue?: number | string;
+        avg_order_value?: number | string;
+        growth_rate?: number | string | null;
+        period?: string;
+      }
+    | null
+    | undefined;
+
+  // Pull the real status breakdown for the same period in parallel-friendly
+  // sequence (RPC above is the gating call, this is a quick aggregation).
+  const breakdown = await getOrderStatusBreakdown(period);
+  const by_status: Record<string, number> = {};
+  for (const item of breakdown) {
+    by_status[item.status] = item.count;
+  }
 
   return {
-    total: Number(dashboard.total_pedidos) || 0,
-    revenue: Number(dashboard.receita_total) || 0,
-    avg_order_value: Number(dashboard.ticket_medio) || 0,
-    growth_rate: dashboard.crescimento_receita != null ? Number(dashboard.crescimento_receita) : null,
-    by_status: { completed: Number(dashboard.total_pedidos) || 0 },
-    period,
+    total: Number(row?.total) || 0,
+    revenue: Number(row?.revenue) || 0,
+    avg_order_value: Number(row?.avg_order_value) || 0,
+    growth_rate: row?.growth_rate != null ? Number(row.growth_rate) : null,
+    by_status,
+    period: row?.period || String(period),
+  };
+};
+
+// Order status breakdown (analytics_v2.get_order_status_breakdown)
+export const getOrderStatusBreakdown = async (
+  period: PeriodType | string = 'month',
+): Promise<{ status: string; count: number }[]> => {
+  const { data, error } = await supabase
+    .schema(ANALYTICS_SCHEMA)
+    .rpc('get_order_status_breakdown', { p_period: period });
+
+  if (error) throw new Error(error.message);
+
+  return (data || []).map((row: { status: string; count: number | string }) => ({
+    status: row.status,
+    count: Number(row.count) || 0,
+  }));
+};
+
+// Maps real `fato_transacoes.status` values to the UI's coarse buckets used
+// by PedidosPage scorecards. Defined here so the page stays presentational.
+// Source values observed in production: `valid`, `review`, `invalid`.
+// Anything we have not classified is bucketed as `other` so the header still
+// reflects 100% of the period's pedidos.
+export type OrderStatusBucket = 'completed' | 'pending' | 'other';
+
+export const ORDER_STATUS_BUCKETS: Record<string, OrderStatusBucket> = {
+  valid: 'completed',
+  completed: 'completed',
+  finalizado: 'completed',
+  pago: 'completed',
+  review: 'pending',
+  pending: 'pending',
+  aberto: 'pending',
+  aguardando: 'pending',
+};
+
+export interface OrderStatusSummary {
+  completed: number;
+  pending: number;
+  other: number;
+  total: number;
+}
+
+export const summarizeOrderStatusBreakdown = (
+  items: { status: string; count: number }[] | null | undefined,
+): OrderStatusSummary => {
+  const summary: OrderStatusSummary = { completed: 0, pending: 0, other: 0, total: 0 };
+  for (const item of items ?? []) {
+    const bucket = ORDER_STATUS_BUCKETS[String(item.status).toLowerCase()] ?? 'other';
+    summary[bucket] += item.count;
+    summary.total += item.count;
+  }
+  return summary;
+};
+
+// Pedidos time series for the "Métricas de Pedidos" chart selector.
+// Reads `analytics_v2.v_series_temporal` (monthly granularity). Period
+// truncates the trailing window client-side so the chart respects the
+// page's period select. `metric` switches between revenue, qty and ticket.
+export type PedidosMetric = 'receita' | 'quantidade' | 'ticket_medio';
+
+const PERIOD_TO_MONTHS: Record<string, number> = {
+  week: 1,
+  month: 1,
+  quarter: 3,
+  year: 12,
+};
+
+export const getPedidosTimeSeries = async (
+  period: PeriodType | string = 'month',
+  metric: PedidosMetric = 'receita',
+): Promise<ChartDataPoint[]> => {
+  // Map UI metric → (tipo_grafico, dimensao) tuples present in v_series_temporal.
+  const queries: { tipo: string; dim: string }[] =
+    metric === 'ticket_medio'
+      ? [
+          { tipo: 'receita', dim: 'receita' },
+          { tipo: 'pedidos', dim: 'total' },
+        ]
+      : metric === 'quantidade'
+        ? [{ tipo: 'clientes', dim: 'quantidade' }]
+        : [{ tipo: 'receita', dim: 'receita' }];
+
+  const results = await Promise.all(
+    queries.map(({ tipo, dim }) =>
+      supabase
+        .schema(ANALYTICS_SCHEMA)
+        .from('v_series_temporal')
+        .select('periodo, data_periodo, total')
+        .eq('tipo_grafico', tipo)
+        .eq('dimensao', dim)
+        .order('data_periodo', { ascending: true }),
+    ),
+  );
+
+  for (const r of results) {
+    if (r.error) throw new Error(r.error.message);
+  }
+
+  const months = PERIOD_TO_MONTHS[String(period)] ?? 12;
+
+  if (metric === 'ticket_medio') {
+    const receita = (results[0].data ?? []) as { periodo: string; total: number | string }[];
+    const totals = (results[1].data ?? []) as { periodo: string; total: number | string }[];
+    const totalsByPeriod = new Map(totals.map((t) => [t.periodo, Number(t.total) || 0]));
+    const merged = receita.map((r) => {
+      const orders = totalsByPeriod.get(r.periodo) ?? 0;
+      const value = orders > 0 ? Number(r.total) / orders : 0;
+      return { name: r.periodo, value: Math.round(value) };
+    });
+    return merged.slice(-months);
+  }
+
+  const rows = (results[0].data ?? []) as { periodo: string; total: number | string }[];
+  return rows.slice(-months).map((r) => ({
+    name: r.periodo,
+    value: Number(r.total) || 0,
+  }));
+};
+
+// Pedidos overview scorecards (analytics_v2.get_pedidos_overview_scorecards)
+export const getPedidosOverviewScorecards = async (): Promise<PedidosOverviewScorecards> => {
+  const { data, error } = await supabase
+    .schema(ANALYTICS_SCHEMA)
+    .rpc('get_pedidos_overview_scorecards');
+
+  if (error) throw new Error(error.message);
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | {
+        qtd_media_produtos_por_pedido?: number | string;
+        taxa_recorrencia_clientes_perc?: number | string;
+        recencia_media_entre_pedidos_dias?: number | string;
+      }
+    | null
+    | undefined;
+
+  return {
+    qtdMediaProdutos: Number(row?.qtd_media_produtos_por_pedido) || 0,
+    taxaRecorrencia: Number(row?.taxa_recorrencia_clientes_perc) || 0,
+    recenciaMediaDias: Number(row?.recencia_media_entre_pedidos_dias) || 0,
+  };
+};
+
+// Recent activity feed (public.get_recent_activity)
+export const getRecentActivity = async (
+  limit: number = 10,
+): Promise<RecentActivityItem[]> => {
+  const { data, error } = await supabase.rpc('get_recent_activity', { p_limit: limit });
+
+  if (error) throw new Error(error.message);
+
+  return (data || []).map(
+    (row: {
+      kind: string;
+      title: string;
+      subtitle: string | null;
+      occurred_at: string;
+      severity: string;
+    }) => ({
+      kind: row.kind,
+      title: row.title,
+      subtitle: row.subtitle,
+      occurredAt: row.occurred_at,
+      severity: row.severity,
+    }),
+  );
+};
+
+// Pendências feed (public.get_pendencias)
+export const getPendencias = async (): Promise<PendenciaItem[]> => {
+  const { data, error } = await supabase.rpc('get_pendencias');
+
+  if (error) throw new Error(error.message);
+
+  return (data || []).map(
+    (row: {
+      kind: string;
+      title: string;
+      severity: string;
+      occurred_at: string | null;
+      target_route: string;
+    }) => ({
+      kind: row.kind,
+      title: row.title,
+      severity: row.severity,
+      occurredAt: row.occurred_at,
+      targetRoute: row.target_route,
+    }),
+  );
+};
+
+// Agent runs today (public.get_agent_runs_today)
+export const getAgentRunsToday = async (): Promise<AgentRunsTodayResponse> => {
+  const { data, error } = await supabase.rpc('get_agent_runs_today');
+
+  if (error) throw new Error(error.message);
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { total?: number | string; by_agent?: Record<string, number> | null }
+    | null
+    | undefined;
+
+  return {
+    total: Number(row?.total) || 0,
+    byAgent: (row?.by_agent ?? {}) as Record<string, number>,
+  };
+};
+
+// NPS score (public.get_nps_score)
+export const getNpsScore = async (windowDays: number = 90): Promise<NpsScoreResponse> => {
+  const { data, error } = await supabase.rpc('get_nps_score', {
+    p_window_days: windowDays,
+  });
+
+  if (error) throw new Error(error.message);
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | {
+        score?: number | string;
+        total_responses?: number | string;
+        promoters?: number | string;
+        passives?: number | string;
+        detractors?: number | string;
+      }
+    | null
+    | undefined;
+
+  return {
+    score: Number(row?.score) || 0,
+    totalResponses: Number(row?.total_responses) || 0,
+    promoters: Number(row?.promoters) || 0,
+    passives: Number(row?.passives) || 0,
+    detractors: Number(row?.detractors) || 0,
+  };
+};
+
+// Agenda events from Google Calendar (Edge Function: google-calendar-events).
+// Returns `disabled: true` with a typed `reason` when the integration is
+// off, missing tokens, or refresh fails — so the UI can render an onboarding
+// CTA instead of an error state.
+export const getAgendaEvents = async (
+  rangeDays: number = 7,
+): Promise<AgendaResponse> => {
+  const { data, error } = await supabase.functions.invoke(
+    'google-calendar-events',
+    { body: { rangeDays } },
+  );
+
+  if (error) {
+    // Network / function-level error — surface as disabled so the UI degrades
+    // gracefully without throwing across the React Query boundary.
+    return {
+      events: [],
+      disabled: true,
+      reason: 'function_error',
+      fetchedAt: null,
+      rangeDays,
+    };
+  }
+
+  const payload = (data ?? {}) as {
+    events?: Array<{
+      id: string;
+      title: string;
+      starts_at: string;
+      ends_at: string;
+      type: string;
+      location: string | null;
+      attendees_count: number;
+      hangout_link: string | null;
+    }>;
+    disabled?: boolean;
+    reason?: string;
+    fetched_at?: string;
+    range_days?: number;
+  };
+
+  return {
+    events: (payload.events ?? []).map((ev) => ({
+      id: ev.id,
+      title: ev.title,
+      startsAt: ev.starts_at,
+      endsAt: ev.ends_at,
+      type: (ev.type as AgendaEvent['type']) ?? 'meeting',
+      location: ev.location,
+      attendeesCount: Number(ev.attendees_count) || 0,
+      hangoutLink: ev.hangout_link,
+    })),
+    disabled: Boolean(payload.disabled),
+    reason: payload.reason,
+    fetchedAt: payload.fetched_at ?? null,
+    rangeDays: Number(payload.range_days ?? rangeDays),
   };
 };
 
@@ -1020,21 +1421,19 @@ const STATE_COORDINATES: Record<string, [number, number]> = {
   SE: [-10.909, -37.072], SP: [-23.550, -46.633], TO: [-10.186, -48.334],
 };
 
-export const getGeoClusters = async (groupBy: 'state' | 'city' | 'cep' = 'state'): Promise<GeoClustersResponse> => {
+export const getGeoClusters = async (groupBy: 'state' | 'city' = 'state'): Promise<GeoClustersResponse> => {
   const { data: clientes, error } = await supabase
     .schema(ANALYTICS_SCHEMA)
     .from('dim_clientes')
-    .select('endereco_uf, endereco_cidade, endereco_cep, receita_total');
+    .select('endereco_uf, endereco_cidade, receita_total');
 
   if (error) console.warn('Error fetching geo clusters:', error);
 
-  // Aggregate by location
+  // Aggregate by location (state or city only — CEP was dropped in the Apr 2026 slim)
   const grouped = (clientes || []).reduce((acc, c) => {
     const loc = groupBy === 'state'
       ? String(c.endereco_uf || 'N/A')
-      : groupBy === 'city'
-        ? String(c.endereco_cidade || 'N/A')
-        : String(c.endereco_cep || 'N/A');
+      : String(c.endereco_cidade || 'N/A');
     if (!acc[loc]) acc[loc] = { count: 0, total_revenue: 0 };
     acc[loc].count++;
     acc[loc].total_revenue += Number(c.receita_total) || 0;
@@ -1191,7 +1590,7 @@ export const getProductsByCustomer = async (customerCpfCnpj: string, limit: numb
     .from('dim_clientes')
     .select('cliente_id')
     .eq('cpf_cnpj', customerCpfCnpj)
-    .single();
+    .maybeSingle();
 
   if (!customer) return [];
 
@@ -1246,7 +1645,7 @@ export const getCustomerMonthlyOrders = async (customerCpfCnpj: string): Promise
     .from('dim_clientes')
     .select('cliente_id')
     .eq('cpf_cnpj', customerCpfCnpj)
-    .single();
+    .maybeSingle();
 
   if (!customer) return [];
 
@@ -1295,7 +1694,7 @@ export const getCustomersBySupplier = async (supplierCnpj: string, limit: number
     .from('dim_fornecedores')
     .select('fornecedor_id')
     .eq('cnpj', supplierCnpj)
-    .single();
+    .maybeSingle();
 
   if (!supplier) return [];
 
@@ -1348,7 +1747,7 @@ export const getProductsBySupplier = async (supplierCnpj: string, limit: number 
     .from('dim_fornecedores')
     .select('fornecedor_id')
     .eq('cnpj', supplierCnpj)
-    .single();
+    .maybeSingle();
 
   if (!supplier) return [];
 
@@ -1467,71 +1866,7 @@ export const getSuppliersByProduct = async (productName: string, limit: number =
 };
 
 // User profile API call - now reads from Supabase auth session
-export interface MeResponse {
-  client_id: string;
-}
-
-// Get client_id from the authenticated user's custom claims or clientes_vizu table
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export const getMe = async (_token: string): Promise<MeResponse> => {
-  // Get current user from Supabase auth
-  const { data: { user }, error } = await supabase.auth.getUser();
-
-  if (error || !user) {
-    throw new Error('User not authenticated');
-  }
-
-  // Prefer JWT/app metadata claim when available
-  const clientId = user.app_metadata?.client_id;
-
-  if (clientId) {
-    return { client_id: clientId };
-  }
-
-  // Fallback to user_metadata for social providers/custom onboarding flows
-  const userMetadataClientId = user.user_metadata?.client_id;
-  if (userMetadataClientId) {
-    return { client_id: userMetadataClientId };
-  }
-
-  // Fallback 1: look up by auth user id if mapped
-  const { data: byExternalUserId, error: byExternalUserIdError } = await supabase
-    .from('clientes_vizu')
-    .select('client_id')
-    .eq('external_user_id', user.id)
-    .maybeSingle();
-
-  if (byExternalUserIdError) {
-    throw new Error(`Failed to resolve client by external_user_id: ${byExternalUserIdError.message}`);
-  }
-
-  if (byExternalUserId?.client_id) {
-    return { client_id: byExternalUserId.client_id };
-  }
-
-  // Fallback 2: look up by email (case-insensitive)
-  const normalizedEmail = (user.email ?? '').trim().toLowerCase();
-
-  if (!normalizedEmail) {
-    throw new Error('Client not found for user (missing email and client metadata)');
-  }
-
-  const { data: cliente, error: clienteError } = await supabase
-    .from('clientes_vizu')
-    .select('client_id')
-    .ilike('email', normalizedEmail)
-    .maybeSingle();
-
-  if (clienteError) {
-    throw new Error(`Failed to resolve client by email: ${clienteError.message}`);
-  }
-
-  if (!cliente?.client_id) {
-    throw new Error(`Client not found for user: ${normalizedEmail}`);
-  }
-
-  return { client_id: cliente.client_id };
-};
+// (getMe helper removed — consumers import `resolveClientId()` from lib/auth directly)
 
 // --- Domain Analytics (for DomainExpansionModal) ---
 

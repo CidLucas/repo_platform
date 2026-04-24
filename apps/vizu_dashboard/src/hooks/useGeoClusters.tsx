@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getGeoClusters, GeoClustersResponse } from '../services/analyticsService';
 
-export const useGeoClusters = (groupBy: 'state' | 'city' | 'cep' = 'state') => {
+export const useGeoClusters = (groupBy: 'state' | 'city' = 'state') => {
   const [data, setData] = useState<GeoClustersResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);

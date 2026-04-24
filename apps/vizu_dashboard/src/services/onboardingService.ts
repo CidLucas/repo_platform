@@ -28,7 +28,7 @@ export async function getClientContext(
         .from(TABLE)
         .select(CONTEXT_COLUMNS)
         .eq('client_id', clientId)
-        .single();
+        .maybeSingle();
 
     if (error || !data) {
         console.error('Failed to fetch client context:', error);

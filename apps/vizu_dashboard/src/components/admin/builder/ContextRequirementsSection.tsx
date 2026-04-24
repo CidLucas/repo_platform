@@ -56,7 +56,7 @@ export const ContextRequirementsSection = ({
 
     return (
         <Box>
-            <Text fontSize="sm" color="gray.600" mb={4}>
+            <Text fontSize="sm" color="whiteAlpha.700" mb={4}>
                 Define context fields that the Config Helper will ask users before the agent session starts.
             </Text>
 
@@ -162,8 +162,8 @@ export const ContextRequirementsSection = ({
                 </Box>
             )}
 
-            <Box p={4} borderWidth="1px" borderColor="gray.200" borderRadius="md" bg="gray.50">
-                <Text fontWeight="medium" fontSize="sm" mb={3}>Add new field</Text>
+            <Box p={4} borderWidth="1px" borderColor="rgba(255,255,255,0.1)" borderRadius="md" bg="rgba(255,255,255,0.03)">
+                <Text fontWeight="medium" fontSize="sm" mb={3} color="whiteAlpha.800">Add new field</Text>
                 <VStack spacing={3}>
                     <HStack w="full" spacing={3}>
                         <FormControl flex={1}>

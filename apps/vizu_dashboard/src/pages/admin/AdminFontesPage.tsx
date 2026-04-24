@@ -1,5 +1,5 @@
 // filepath: /Users/tarsobarreto/Documents/vizu-mono/apps/vizu_dashboard/src/pages/admin/AdminFontesPage.tsx
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Box,
   VStack,
@@ -20,6 +20,7 @@ import {
   Spinner,
 } from '@chakra-ui/react';
 import { AdminLayout } from '../../components/layouts/AdminLayout';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   FiSearch,
   FiPlus,
@@ -324,6 +325,10 @@ function AdminFontesPage() {
   const [selectedCategory, setSelectedCategory] = useState<ConnectorCategory>('all');
   const [selectedConnector, setSelectedConnector] = useState<ConnectorConfig | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const connectSlug = searchParams.get('connect');
+  const returnTo = searchParams.get('return');
 
   // Fetch real connector data
   const { connectors: connectorsData, loading, error } = useConnectorStatus();
@@ -373,6 +378,33 @@ function AdminFontesPage() {
     setSelectedConnector(connector);
     onOpen();
   };
+
+  // Auto-open modal when ?connect=<id> is present (used by onboarding hand-off).
+  useEffect(() => {
+    if (!connectSlug || isOpen || loading) return;
+    const match = allConnectors.find((c) => c.id === connectSlug.toLowerCase());
+    if (match) {
+      setSelectedConnector(match);
+      onOpen();
+    }
+  }, [connectSlug, allConnectors, isOpen, loading, onOpen]);
+
+  // On modal close, either go back to onboarding or just clear the query params.
+  const handleModalClose = useCallback(() => {
+    onClose();
+    if (returnTo && returnTo.startsWith('/')) {
+      // External SPA (landing) — use full navigation so the session/localStorage is picked up there.
+      window.location.href = returnTo;
+      return;
+    }
+    if (connectSlug) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('connect');
+      next.delete('return');
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose, returnTo, connectSlug, searchParams, setSearchParams, navigate]);
 
   const categories = [
     { id: 'all', label: 'Todos', count: totalCount },
@@ -512,7 +544,7 @@ function AdminFontesPage() {
       {selectedConnector && (
         <ConnectorModal
           isOpen={isOpen}
-          onClose={onClose}
+          onClose={handleModalClose}
           connector={selectedConnector}
         />
       )}

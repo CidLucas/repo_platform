@@ -9,12 +9,6 @@ import {
     Badge,
     Button,
     Checkbox,
-    Table,
-    Thead,
-    Tbody,
-    Tr,
-    Th,
-    Td,
     IconButton,
     Spinner,
     Progress,
@@ -114,7 +108,7 @@ function ChunkInfo({ doc }: { doc: KBDocument }) {
         );
     }
     return (
-        <Text fontSize="sm" color="gray.600">
+        <Text fontSize="sm" color="whiteAlpha.600">
             {doc.chunk_count}
         </Text>
     );
@@ -125,7 +119,7 @@ const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
 );
 
 function CategoryBadge({ category }: { category: string | null }) {
-    if (!category) return <Text fontSize="xs" color="gray.400">—</Text>;
+    if (!category) return <Text fontSize="xs" color="whiteAlpha.400">—</Text>;
     return (
         <Badge variant="subtle" colorScheme="teal" fontSize="xs">
             <HStack spacing={1}>
@@ -195,14 +189,14 @@ function UploadZone({ onFiles, uploading }: UploadZoneProps) {
         <VStack spacing={3} align="stretch">
             <Box
                 border="2px dashed"
-                borderColor={dragOver ? "blue.400" : "gray.300"}
+                borderColor={dragOver ? "blue.400" : "rgba(255,255,255,0.15)"}
                 borderRadius="xl"
-                bg={dragOver ? "blue.50" : "gray.50"}
+                bg={dragOver ? "rgba(59,130,246,0.1)" : "#1a1b2e"}
                 p={8}
                 textAlign="center"
                 cursor="pointer"
                 transition="all 0.2s"
-                _hover={{ borderColor: "gray.400", bg: "gray.100" }}
+                _hover={{ borderColor: "rgba(255,255,255,0.25)", bg: "#1e1f34" }}
                 onClick={() => fileInputRef.current?.click()}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
@@ -210,18 +204,18 @@ function UploadZone({ onFiles, uploading }: UploadZoneProps) {
             >
                 {uploading ? (
                     <VStack spacing={3}>
-                        <Spinner size="lg" color="blue.500" />
-                        <Text color="gray.600" fontSize="sm">
+                        <Spinner size="lg" color="blue.400" />
+                        <Text color="whiteAlpha.600" fontSize="sm">
                             Enviando arquivo(s)...
                         </Text>
                     </VStack>
                 ) : (
                     <VStack spacing={3}>
-                        <Icon as={FiUploadCloud} boxSize={10} color="gray.400" />
-                        <Text fontWeight="medium" color="gray.700">
+                        <Icon as={FiUploadCloud} boxSize={10} color="whiteAlpha.400" />
+                        <Text fontWeight="medium" color="white">
                             Arraste arquivos ou clique para selecionar
                         </Text>
-                        <Text fontSize="xs" color="gray.500">
+                        <Text fontSize="xs" color="whiteAlpha.500">
                             PDF, DOCX, CSV, TXT, MD, JSON, XML, HTML, XLSX, PPTX
                         </Text>
                     </VStack>
@@ -245,7 +239,7 @@ function UploadZone({ onFiles, uploading }: UploadZoneProps) {
                 isChecked={advancedProcessing}
                 onChange={(e) => setAdvancedProcessing(e.target.checked)}
             >
-                <Text fontSize="xs" color="gray.600">
+                <Text fontSize="xs" color="whiteAlpha.600">
                     Processamento avançado (OCR / tabelas complexas)
                 </Text>
             </Checkbox>
@@ -253,25 +247,29 @@ function UploadZone({ onFiles, uploading }: UploadZoneProps) {
             {/* Upload Metadata Modal */}
             <Modal isOpen={isOpen} onClose={onClose} size="md">
                 <ModalOverlay />
-                <ModalContent>
-                    <ModalHeader>Detalhes do Upload</ModalHeader>
-                    <ModalCloseButton />
+                <ModalContent bg="#1a1b2e" border="1px solid" borderColor="rgba(255,255,255,0.08)">
+                    <ModalHeader color="white">Detalhes do Upload</ModalHeader>
+                    <ModalCloseButton color="whiteAlpha.600" />
                     <ModalBody>
                         <VStack spacing={4}>
                             <Box w="100%">
-                                <Text fontSize="sm" color="gray.500" mb={2}>
+                                <Text fontSize="sm" color="whiteAlpha.500" mb={2}>
                                     {pendingFiles.length} arquivo(s) selecionado(s):{" "}
                                     {pendingFiles.map((f) => f.name).join(", ")}
                                 </Text>
                             </Box>
 
                             <FormControl>
-                                <FormLabel fontSize="sm">Categoria</FormLabel>
+                                <FormLabel fontSize="sm" color="whiteAlpha.700">Categoria</FormLabel>
                                 <Select
                                     placeholder="Selecione uma categoria (opcional)"
                                     size="sm"
                                     value={category}
                                     onChange={(e) => setCategory(e.target.value)}
+                                    bg="#0d0e1f"
+                                    borderColor="rgba(255,255,255,0.1)"
+                                    color="white"
+                                    _hover={{ borderColor: "rgba(255,255,255,0.2)" }}
                                 >
                                     {KB_CATEGORIES.map((c) => (
                                         <option key={c.value} value={c.value}>
@@ -282,19 +280,24 @@ function UploadZone({ onFiles, uploading }: UploadZoneProps) {
                             </FormControl>
 
                             <FormControl>
-                                <FormLabel fontSize="sm">Descrição</FormLabel>
+                                <FormLabel fontSize="sm" color="whiteAlpha.700">Descrição</FormLabel>
                                 <Textarea
                                     placeholder="Descreva o conteúdo do documento (opcional)"
                                     size="sm"
                                     rows={3}
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
+                                    bg="#0d0e1f"
+                                    borderColor="rgba(255,255,255,0.1)"
+                                    color="white"
+                                    _hover={{ borderColor: "rgba(255,255,255,0.2)" }}
+                                    _placeholder={{ color: "whiteAlpha.400" }}
                                 />
                             </FormControl>
                         </VStack>
                     </ModalBody>
                     <ModalFooter>
-                        <Button variant="ghost" mr={3} onClick={onClose} size="sm">
+                        <Button variant="ghost" mr={3} onClick={onClose} size="sm" color="whiteAlpha.700" _hover={{ bg: "whiteAlpha.100" }}>
                             Cancelar
                         </Button>
                         <Button
@@ -320,10 +323,23 @@ interface DocumentsTableProps {
     onRetry: (doc: KBDocument) => void;
 }
 
+function getFileColor(fileType: string | null): string {
+    if (!fileType) return '#3b82f6';
+    const t = fileType.toLowerCase();
+    if (t.includes('pdf')) return '#ef4444';
+    if (t.includes('doc') || t.includes('docx')) return '#3b82f6';
+    if (t.includes('csv') || t.includes('xlsx') || t.includes('xls')) return '#10b981';
+    if (t.includes('ppt') || t.includes('pptx')) return '#f97316';
+    if (t.includes('json') || t.includes('xml')) return '#a855f7';
+    if (t.includes('md') || t.includes('txt')) return '#6366f1';
+    if (t.includes('html')) return '#ec4899';
+    return '#3b82f6';
+}
+
 function DocumentsTable({ documents, onDelete, onRetry }: DocumentsTableProps) {
     if (documents.length === 0) {
         return (
-            <VStack py={12} spacing={4} color="gray.400">
+            <VStack py={12} spacing={4} color="whiteAlpha.400">
                 <Icon as={FiBook} boxSize={12} />
                 <Text fontSize="lg" fontWeight="medium">
                     Nenhum documento ainda
@@ -336,74 +352,80 @@ function DocumentsTable({ documents, onDelete, onRetry }: DocumentsTableProps) {
     }
 
     return (
-        <Box overflowX="auto">
-            <Table variant="simple" size="sm">
-                <Thead>
-                    <Tr>
-                        <Th>Nome</Th>
-                        <Th>Categoria</Th>
-                        <Th>Tipo</Th>
-                        <Th>Status</Th>
-                        <Th>Chunks</Th>
-                        <Th>Descrição</Th>
-                        <Th>Data</Th>
-                        <Th w="50px" position="sticky" right={0} bg="white" />
-                    </Tr>
-                </Thead>
-                <Tbody>
-                    {documents.map((doc) => (
-                        <Tr key={doc.id} _hover={{ bg: "gray.50" }}>
-                            <Td>
-                                <HStack spacing={2}>
-                                    <Icon as={FiFile} color="gray.400" />
-                                    <Text
-                                        fontSize="sm"
-                                        fontWeight="medium"
-                                        maxW="250px"
-                                        isTruncated
-                                        title={doc.file_name}
-                                    >
-                                        {doc.file_name}
-                                    </Text>
-                                </HStack>
-                            </Td>
-                            <Td>
-                                <CategoryBadge category={doc.category} />
-                            </Td>
-                            <Td>
-                                <Badge variant="subtle" colorScheme="purple" fontSize="xs">
-                                    {doc.file_type || "—"}
-                                </Badge>
-                            </Td>
-                            <Td>
-                                <StatusBadge doc={doc} />
-                            </Td>
-                            <Td>
-                                <ChunkInfo doc={doc} />
-                            </Td>
-                            <Td>
-                                {doc.description ? (
-                                    <Tooltip label={doc.description} hasArrow placement="top">
+        <VStack spacing={3} align="stretch">
+            {documents.map((doc) => {
+                const fileColor = getFileColor(doc.file_type);
+
+                return (
+                    <Box
+                        key={doc.id}
+                        bg="#1a1b2e"
+                        borderRadius="1rem"
+                        border="1px solid rgba(255,255,255,0.08)"
+                        p={5}
+                        w="full"
+                        transition="all 0.2s"
+                        _hover={{ borderColor: 'rgba(255,255,255,0.15)', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}
+                        position="relative"
+                        overflow="hidden"
+                    >
+                        <Box position="absolute" top={0} left={0} w="3px" h="100%" bg={fileColor} />
+                        <Flex justify="space-between" align="start">
+                            <HStack spacing={4} flex={1} minW={0}>
+                                <Flex
+                                    w="40px" h="40px"
+                                    borderRadius="lg"
+                                    align="center" justify="center"
+                                    bg={`${fileColor}20`}
+                                    flexShrink={0}
+                                >
+                                    <Icon as={FiFile} boxSize={5} color={fileColor} />
+                                </Flex>
+                                <Box flex={1} minW={0}>
+                                    <HStack spacing={2} mb={1}>
                                         <Text
-                                            fontSize="xs"
-                                            color="gray.500"
-                                            maxW="180px"
+                                            fontSize="sm"
+                                            fontWeight="medium"
+                                            color="white"
                                             isTruncated
-                                            cursor="help"
+                                            title={doc.file_name}
                                         >
-                                            {doc.description}
+                                            {doc.file_name}
                                         </Text>
-                                    </Tooltip>
-                                ) : (
-                                    <Text fontSize="xs" color="gray.400">—</Text>
-                                )}
-                            </Td>
-                            <Td>
-                                <Text fontSize="xs" color="gray.500">
-                                    {formatDate(doc.created_at)}
-                                </Text>
-                            </Td>
-                            <Td position="sticky" right={0} bg="white">
+                                        <Badge variant="subtle" fontSize="2xs" bg={`${fileColor}20`} color={fileColor}>
+                                            {doc.file_type || "—"}
+                                        </Badge>
+                                    </HStack>
+                                    <HStack spacing={3} flexWrap="wrap">
+                                        {doc.description ? (
+                                            <Tooltip label={doc.description} hasArrow placement="top">
+                                                <Text fontSize="xs" color="whiteAlpha.500" isTruncated maxW="300px" cursor="help">
+                                                    {doc.description}
+                                                </Text>
+                                            </Tooltip>
+                                        ) : (
+                                            <Text fontSize="xs" color="whiteAlpha.400" fontStyle="italic">Sem descrição</Text>
+                                        )}
+                                    </HStack>
+                                </Box>
+                            </HStack>
+
+                            <HStack spacing={3} flexShrink={0} ml={4}>
+                                <VStack spacing={1} align="end">
+                                    <HStack spacing={2}>
+                                        <StatusBadge doc={doc} />
+                                        <CategoryBadge category={doc.category} />
+                                    </HStack>
+                                    <HStack spacing={3}>
+                                        <HStack spacing={1}>
+                                            <ChunkInfo doc={doc} />
+                                            {doc.status !== 'processing' && doc.status !== 'pending' && (
+                                                <Text fontSize="xs" color="whiteAlpha.400">chunks</Text>
+                                            )}
+                                        </HStack>
+                                        <Text fontSize="xs" color="whiteAlpha.400">{formatDate(doc.created_at)}</Text>
+                                    </HStack>
+                                </VStack>
                                 <HStack spacing={1}>
                                     {(doc.status === "failed" || doc.status === "partially_failed") && (
                                         <Tooltip label="Reprocessar documento" hasArrow>
@@ -412,26 +434,30 @@ function DocumentsTable({ documents, onDelete, onRetry }: DocumentsTableProps) {
                                                 icon={<FiRotateCw />}
                                                 size="sm"
                                                 variant="ghost"
-                                                colorScheme="blue"
+                                                color="blue.400"
+                                                _hover={{ bg: 'rgba(59,130,246,0.15)' }}
                                                 onClick={() => onRetry(doc)}
                                             />
                                         </Tooltip>
                                     )}
-                                    <IconButton
-                                        aria-label="Deletar documento"
-                                        icon={<FiTrash2 />}
-                                        size="sm"
-                                        variant="ghost"
-                                        colorScheme="red"
-                                        onClick={() => onDelete(doc)}
-                                    />
+                                    <Tooltip label="Deletar documento" hasArrow>
+                                        <IconButton
+                                            aria-label="Deletar documento"
+                                            icon={<FiTrash2 />}
+                                            size="sm"
+                                            variant="ghost"
+                                            color="red.400"
+                                            _hover={{ bg: 'rgba(239,68,68,0.15)' }}
+                                            onClick={() => onDelete(doc)}
+                                        />
+                                    </Tooltip>
                                 </HStack>
-                            </Td>
-                        </Tr>
-                    ))}
-                </Tbody>
-            </Table>
-        </Box>
+                            </HStack>
+                        </Flex>
+                    </Box>
+                );
+            })}
+        </VStack>
     );
 }
 
@@ -518,17 +544,32 @@ function AdminKnowledgeBasePage() {
                     {/* Header */}
                     <Flex justify="space-between" align="center">
                         <Box>
-                            <Heading size="lg" fontWeight="semibold">
-                                Base de Conhecimento
+                            <Heading
+                                size="lg"
+                                fontFamily="'Playfair Display', serif"
+                                fontWeight="bold"
+                                color="white"
+                            >
+                                <Text as="span">Base de </Text>
+                                <Text
+                                    as="span"
+                                    bgGradient="linear(to-r, #06ffa5, #06d6a0)"
+                                    bgClip="text"
+                                >
+                                    Conhecimento
+                                </Text>
                             </Heading>
-                            <Text fontSize="sm" color="gray.500" mt={1}>
+                            <Text fontSize="sm" color="gray.400" mt={1}>
                                 Faça upload de documentos para alimentar a IA com contexto personalizado.
                             </Text>
                         </Box>
                         <Button
                             leftIcon={<FiRefreshCw />}
                             size="sm"
-                            variant="ghost"
+                            variant="outline"
+                            borderColor="rgba(255,255,255,0.1)"
+                            color="gray.300"
+                            _hover={{ bg: "whiteAlpha.100", color: "white", borderColor: "whiteAlpha.200" }}
                             onClick={refresh}
                             isLoading={loading}
                         >
@@ -541,21 +582,21 @@ function AdminKnowledgeBasePage() {
 
                     {/* Stats bar */}
                     {documents.length > 0 && (
-                        <HStack spacing={6} py={2} borderBottom="1px solid" borderColor="gray.100">
-                            <Text fontSize="xs" color="gray.500">
-                                <Text as="span" fontWeight="bold" color="gray.700">
+                        <HStack spacing={6} py={2} borderBottom="1px solid" borderColor="rgba(255,255,255,0.08)">
+                            <Text fontSize="xs" color="whiteAlpha.500">
+                                <Text as="span" fontWeight="bold" color="white">
                                     {documents.length}
                                 </Text>{" "}
                                 documento(s)
                             </Text>
-                            <Text fontSize="xs" color="gray.500">
-                                <Text as="span" fontWeight="bold" color="gray.700">
+                            <Text fontSize="xs" color="whiteAlpha.500">
+                                <Text as="span" fontWeight="bold" color="white">
                                     {documents.reduce((sum, d) => sum + d.chunk_count, 0)}
                                 </Text>{" "}
                                 chunks totais
                             </Text>
-                            <Text fontSize="xs" color="gray.500">
-                                <Text as="span" fontWeight="bold" color="green.600">
+                            <Text fontSize="xs" color="whiteAlpha.500">
+                                <Text as="span" fontWeight="bold" color="green.400">
                                     {documents.filter((d) => d.status === "completed").length}
                                 </Text>{" "}
                                 concluído(s)
@@ -563,7 +604,7 @@ function AdminKnowledgeBasePage() {
                             {documents.some((d) => d.status === "processing" || d.status === "pending") && (
                                 <HStack spacing={1}>
                                     <Spinner size="xs" color="blue.400" />
-                                    <Text fontSize="xs" color="blue.500">
+                                    <Text fontSize="xs" color="blue.400">
                                         {documents.filter((d) => d.status === "processing" || d.status === "pending").length}{" "}
                                         em processamento
                                     </Text>
@@ -574,8 +615,8 @@ function AdminKnowledgeBasePage() {
 
                     {/* Error banner */}
                     {error && (
-                        <Box bg="red.50" border="1px solid" borderColor="red.200" borderRadius="md" p={3}>
-                            <Text fontSize="sm" color="red.600">
+                        <Box bg="rgba(239,68,68,0.1)" border="1px solid" borderColor="rgba(239,68,68,0.3)" borderRadius="md" p={3}>
+                            <Text fontSize="sm" color="red.300">
                                 {error}
                             </Text>
                         </Box>
@@ -584,7 +625,7 @@ function AdminKnowledgeBasePage() {
                     {/* Documents Table */}
                     {loading && documents.length === 0 ? (
                         <Flex justify="center" py={12}>
-                            <Spinner size="lg" color="gray.400" />
+                            <Spinner size="lg" color="whiteAlpha.400" />
                         </Flex>
                     ) : (
                         <DocumentsTable documents={documents} onDelete={handleDelete} onRetry={handleRetry} />

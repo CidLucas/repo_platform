@@ -118,6 +118,7 @@ help:
 dev:
 	@echo "🚀 Starting core dev stack..."
 	@echo "   ✓ vizu_dashboard (frontend)"
+	@echo "   ✓ landing (landing page)"
 	@echo "   ✓ atendente_core (main backend)"
 	@echo "   ✓ tool_pool_api (MCP tools)"
 	@echo "   ✓ standalone_agent_api (standalone agents)"
@@ -127,22 +128,23 @@ dev:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
 	@echo "📋 Services:"
-	@echo "   🎨 Dashboard:      http://localhost:8080"
+	@echo "   � Landing:        http://localhost:8080"
+	@echo "   🎨 Dashboard:      http://localhost:8081"
 	@echo "   🤖 Atendente:      http://localhost:8003"
 	@echo "   🔧 Tool Pool:      http://localhost:8006"
 	@echo "   📊 Standalone API: http://localhost:8001"
 	@echo ""
 	@echo "🛑 Stop stack:        Ctrl+C then 'make dev-down'"
 	@echo ""
-	$(COMPOSE) up --build redis tool_pool_api atendente_core standalone_agent_api vizu_dashboard
+	$(COMPOSE) up --build redis tool_pool_api atendente_core standalone_agent_api vizu_dashboard landing
 
 dev-down:
 	@echo "🛑 Stopping dev stack..."
-	$(COMPOSE) stop vizu_dashboard atendente_core standalone_agent_api tool_pool_api redis
+	$(COMPOSE) stop vizu_dashboard landing atendente_core standalone_agent_api tool_pool_api redis
 	@echo "✅ Dev stack stopped (containers preserved, use 'make down' to remove)"
 
 dev-logs:
-	$(COMPOSE) logs -f --tail=100 vizu_dashboard atendente_core tool_pool_api redis
+	$(COMPOSE) logs -f --tail=100 vizu_dashboard landing atendente_core tool_pool_api redis
 
 dev-rebuild:
 	@echo "🔨 Rebuilding dev services (no cache)..."

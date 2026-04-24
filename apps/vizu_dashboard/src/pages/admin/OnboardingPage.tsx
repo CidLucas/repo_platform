@@ -10,12 +10,12 @@ function OnboardingPage() {
                     <Text
                         fontSize="24px"
                         fontWeight="semibold"
-                        color="gray.900"
+                        color="white"
                         letterSpacing="-0.3px"
                     >
                         Personalizar Agente
                     </Text>
-                    <Text fontSize="14px" color="gray.500" lineHeight="20px">
+                    <Text fontSize="14px" color="whiteAlpha.600" lineHeight="20px">
                         Configure as informações da sua empresa para que o agente responda de
                         forma personalizada. Quanto mais contexto você fornecer, melhores serão
                         as respostas.

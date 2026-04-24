@@ -222,17 +222,21 @@ class StandaloneAgentFactory:
         # 1. Fetch catalog entry
         catalog_result = self.db.table("agent_catalog").select(
             "id,name,slug,description,agent_config,prompt_name,required_context,requires_google,workflow_graph"
-        ).eq("id", str(agent_catalog_id)).single().execute()
+        ).eq("id", str(agent_catalog_id)).maybe_single().execute()
 
         catalog = catalog_result.data
+        if not catalog:
+            raise ValueError(f"Agent catalog not found: {agent_catalog_id}")
         agent_config_dict = catalog.get("agent_config") or {}
 
         # 2. Fetch session (for context, files, etc)
         session_result = self.db.table("standalone_agent_sessions").select(
             "id,collected_context,uploaded_file_ids,uploaded_document_ids,google_account_email"
-        ).eq("id", session_id).single().execute()
+        ).eq("id", session_id).maybe_single().execute()
 
         session_data = session_result.data
+        if not session_data:
+            raise ValueError(f"Standalone session not found: {session_id}")
         collected_context = session_data.get("collected_context") or {}
         uploaded_file_ids = session_data.get("uploaded_file_ids") or []
         uploaded_doc_ids = session_data.get("uploaded_document_ids") or []
@@ -271,7 +275,7 @@ class StandaloneAgentFactory:
             try:
                 client_result = self.db.table("clientes_vizu").select(
                     "client_id,tier,nome_empresa"
-                ).eq("client_id", str(client_id)).single().execute()
+                ).eq("client_id", str(client_id)).maybe_single().execute()
                 if client_result.data:
                     client_context_data = {
                         "nome_empresa": client_result.data.get("nome_empresa", ""),

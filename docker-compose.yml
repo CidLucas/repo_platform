@@ -1,6 +1,5 @@
 # --- DEFINIÇÕES COMUNS ---
-x-common-env: &common-env
-  # Variáveis Padronizadas Supabase (Primary Data Store)
+x-common-env: &common-env # Variáveis Padronizadas Supabase (Primary Data Store)
   SUPABASE_URL: ${SUPABASE_URL}
   SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
   SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
@@ -140,9 +139,6 @@ services:
       timeout: 5s
       retries: 5
 
-
-
-
   # evaluation_suite:
   #    container_name: vizu_evaluation_suite
   #    platform: linux/amd64
@@ -171,7 +167,7 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.91.0
     container_name: otel-collector
-    profiles: ["observability"]  # Only start with Langfuse stack
+    profiles: ["observability"] # Only start with Langfuse stack
     command: ["--config=/etc/otel-collector-config.yaml"]
     # Dev: Langfuse config | Prod: use docker-compose.prod.yml override
     volumes:
@@ -209,8 +205,8 @@ services:
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
     ports:
-      - "8123:8123"  # HTTP interface
-      - "9000:9000"  # Native protocol
+      - "8123:8123" # HTTP interface
+      - "9000:9000" # Native protocol
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
       interval: 10s
@@ -245,8 +241,8 @@ services:
     volumes:
       - langfuse_minio_data:/data
     ports:
-      - "9002:9000"   # S3 API
-      - "9001:9001"   # Console
+      - "9002:9000" # S3 API
+      - "9001:9001" # Console
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
@@ -319,7 +315,11 @@ services:
       TELEMETRY_ENABLED: "false"
       LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://$(hostname -i):3000/api/public/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://$(hostname -i):3000/api/public/health || exit 1",
+        ]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -380,7 +380,6 @@ services:
   #     # Falhas de healthcheck durante este período não contam.
   #     start_period: 300s
 
-
   file_upload_api:
     container_name: vizu_file_upload_api
     platform: linux/amd64
@@ -439,7 +438,6 @@ services:
       redis:
         condition: service_healthy
 
-
   # =========================================
   # STANDALONE AGENT API SERVICE
   # =========================================
@@ -466,7 +464,6 @@ services:
       - redis
       - tool_pool_api
 
-
   # =========================================
   # FRONTEND DASHBOARD (SPA React + Nginx)
   # =========================================
@@ -484,12 +481,31 @@ services:
         VITE_ATENDENTE_CORE: ${VITE_ATENDENTE_CORE:-http://localhost:8003}
         VITE_TOOL_POOL_API_URL: ${VITE_TOOL_POOL_API_URL:-http://localhost:8006}
     ports:
-      - "8080:8080"
+      - "8081:8080"
     environment:
       # Runtime environment (not used by Vite build, just for reference)
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8003}
-  #  depends_on:
-  #    - atendente_core
+    #  depends_on:
+    #    - atendente_core
+    restart: unless-stopped
+
+  # =========================================
+  # LANDING PAGE (React + Nginx)
+  # =========================================
+  landing:
+    container_name: vizu_landing
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: apps/landing/Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_DASHBOARD_URL: ${VITE_DASHBOARD_URL:-/dashboard}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - vizu_dashboard
     restart: unless-stopped
 
   # =========================================

@@ -7,7 +7,6 @@ import {
   SimpleGrid,
   Icon,
   Badge,
-  Button,
   Input,
   InputGroup,
   InputLeftElement,

@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, CircleMarker, Marker, Popup, useMap } from 're
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { useEffect } from 'react';
-import type { GeoCluster, MapMarker, MapComponentProps } from '../types';
+import type { MapComponentProps } from '../types';
 
 // Fix for default icon issue with Webpack/Vite
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

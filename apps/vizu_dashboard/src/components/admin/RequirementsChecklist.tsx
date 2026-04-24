@@ -41,7 +41,7 @@ export const RequirementsChecklist = ({
     onSaveField,
     onConnectGoogle,
     onFinalize,
-    saving,
+    saving: _saving,
     finalizing,
 }: RequirementsChecklistProps) => {
     const [localValues, setLocalValues] = useState<Record<string, string>>({});
@@ -90,15 +90,19 @@ export const RequirementsChecklist = ({
         (!agent.requires_google || googleConnected);
 
     return (
-        <Box borderWidth="1px" borderColor="gray.200" borderRadius="lg" p={6}>
+        <Box borderWidth="1px" borderColor="rgba(255,255,255,0.08)" borderRadius="lg" bg="#1a1b2e" p={6}>
             <VStack align="stretch" spacing={6}>
                 {/* Progress Bar */}
                 <Box>
                     <HStack justify="space-between" mb={2}>
-                        <Heading size="md">Progresso da Configuração</Heading>
+                        <Heading size="md" color="white">Progresso da Configuração</Heading>
                         <Badge
-                            colorScheme={requirements.completion_pct === 100 ? 'green' : 'blue'}
+                            bgGradient={requirements.completion_pct === 100 ? 'linear(to-r, #06ffa5, #06d6a0)' : 'linear(to-r, #ff6b35, #ff006e)'}
+                            color={requirements.completion_pct === 100 ? 'black' : 'white'}
                             fontSize="md"
+                            px={3}
+                            py={1}
+                            borderRadius="full"
                         >
                             {Math.round(requirements.completion_pct)}%
                         </Badge>
@@ -107,20 +111,21 @@ export const RequirementsChecklist = ({
                         value={requirements.completion_pct}
                         borderRadius="full"
                         height="8px"
-                        colorScheme={requirements.completion_pct === 100 ? 'green' : 'blue'}
+                        bg="rgba(255,255,255,0.08)"
+                        sx={{ '& > div': { background: requirements.completion_pct === 100 ? 'linear-gradient(90deg, #06ffa5, #06d6a0)' : 'linear-gradient(90deg, #ff6b35, #ff006e)' } }}
                     />
                 </Box>
 
                 {/* Context Fields — always visible and editable */}
-                {agent.required_context.filter((field: any) => field.required).length > 0 && (
+                {agent.required_context.filter((field: { required: boolean }) => field.required).length > 0 && (
                     <Box>
                         <Heading size="sm" mb={4}>
                             Informações Necessárias
                         </Heading>
                         <VStack align="stretch" spacing={3}>
                             {agent.required_context
-                                .filter((field: any) => field.required)
-                                .map((field: any) => {
+                                .filter((field: { required: boolean }) => field.required)
+                                .map((field: { field: string; label?: string; description?: string; type?: string; prompt_hint?: string }) => {
                                     const localVal = localValues[field.field] || '';
                                     const isFilled = localVal.trim().length > 0;
 
@@ -147,7 +152,7 @@ export const RequirementsChecklist = ({
                                                 }
                                                 onBlur={() => handleBlur(field.field)}
                                                 size="sm"
-                                                _placeholder={{ color: 'gray.400' }}
+                                                _placeholder={{ color: 'whiteAlpha.400' }}
                                             />
                                         </FormControl>
                                     );
@@ -202,7 +207,7 @@ export const RequirementsChecklist = ({
                         <HStack justify="space-between" align="start">
                             <Box>
                                 <Heading size="sm">Google Sheets</Heading>
-                                <Text fontSize="sm" color="gray.600">
+                                <Text fontSize="sm" color="whiteAlpha.600">
                                     Conexão necessária para exportar dados
                                 </Text>
                             </Box>
@@ -224,16 +229,18 @@ export const RequirementsChecklist = ({
 
                 {/* Ready to Activate */}
                 {isComplete && (
-                    <Box bg="green.50" borderWidth="1px" borderColor="green.200" borderRadius="md" p={4}>
+                    <Box bg="rgba(6,255,165,0.08)" borderWidth="1px" borderColor="rgba(6,255,165,0.18)" borderRadius="xl" p={4}>
                         <HStack spacing={2} mb={3}>
-                            <Icon as={FiCheck} color="green.600" boxSize={5} />
-                            <Text fontWeight="medium" color="green.900">
+                            <Icon as={FiCheck} color="#06ffa5" boxSize={5} />
+                            <Text fontWeight="medium" color="white">
                                 Todas as configurações estão prontas!
                             </Text>
                         </HStack>
                         <Button
                             width="100%"
-                            colorScheme="green"
+                            bgGradient="linear(to-r, #06ffa5, #06d6a0)"
+                            color="black"
+                            _hover={{ opacity: 0.9 }}
                             onClick={onFinalize}
                             isLoading={finalizing}
                             loadingText="Ativando..."
@@ -244,10 +251,10 @@ export const RequirementsChecklist = ({
                 )}
 
                 {!isComplete && (
-                    <Box bg="blue.50" borderWidth="1px" borderColor="blue.200" borderRadius="md" p={4}>
+                    <Box bg="rgba(59,130,246,0.08)" borderWidth="1px" borderColor="rgba(59,130,246,0.18)" borderRadius="xl" p={4}>
                         <HStack spacing={2}>
-                            <Icon as={FiInfo} color="blue.600" boxSize={4} />
-                            <Text fontSize="sm" color="blue.900">
+                            <Icon as={FiInfo} color="#3b82f6" boxSize={4} />
+                            <Text fontSize="sm" color="whiteAlpha.800">
                                 Complete todos os requisitos para ativar o agente
                             </Text>
                         </HStack>

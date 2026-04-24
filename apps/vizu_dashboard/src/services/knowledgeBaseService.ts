@@ -4,6 +4,7 @@
  */
 
 import { supabase } from "../lib/supabase";
+import { getAuthToken } from "../lib/auth";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -147,7 +148,7 @@ export async function getDocumentProgress(
             .from("documents")
             .select("status")
             .eq("id", documentId)
-            .single(),
+            .maybeSingle(),
     ]);
 
     if (rpcResult.error)
@@ -281,15 +282,14 @@ export async function uploadComplexFile(
         return documentId;
     }
 
-    const session = await supabase.auth.getSession();
-    const accessToken = session.data.session?.access_token;
+    const accessToken = await getAuthToken();
 
     try {
         const res = await fetch(`${fileUploadApiUrl}/v1/upload/process`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+                Authorization: `Bearer ${accessToken}`,
             },
             body: JSON.stringify({
                 document_id: documentId,

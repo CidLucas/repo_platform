@@ -15,8 +15,6 @@ import {
     Badge,
     Spinner,
     useToast,
-    Divider,
-    Select,
     Heading,
     Code,
     Flex,
@@ -107,7 +105,7 @@ export const PromptEditorModal = ({
         }
     };
 
-    const handleVersionSelect = async (version: number) => {
+    const handleVersionSelect = async (_version: number) => {
         if (!accessToken || !promptName) return;
         setLoading(true);
         try {

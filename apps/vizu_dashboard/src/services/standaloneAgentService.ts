@@ -7,8 +7,6 @@
  * - SSE streaming com Config Helper e agentes
  */
 
-import { supabase } from "../lib/supabase";
-
 const AGENT_API_URL = import.meta.env.VITE_STANDALONE_AGENT_API || 'http://localhost:8001';
 const TOOL_POOL_API_URL = import.meta.env.VITE_TOOL_POOL_API_URL || 'http://localhost:8006';
 
@@ -133,7 +131,7 @@ export interface StructuredDataEvent {
  */
 export async function fetchAgentCatalog(
     accessToken: string,
-    tier?: string
+    _tier?: string
 ): Promise<AgentCatalogEntry[]> {
     const response = await fetch(`${AGENT_API_URL}/v1/catalog/agents`, {
         headers: {

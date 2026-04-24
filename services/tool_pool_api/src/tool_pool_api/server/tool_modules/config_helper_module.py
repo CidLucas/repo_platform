@@ -52,9 +52,11 @@ async def _check_config_completeness_logic(ctx: Context, session_id: str | None 
 
         result = await db.table("standalone_agent_sessions").select(
             "collected_context,agent_catalog_id"
-        ).eq("id", session_id).single().execute()
+        ).eq("id", session_id).maybe_single().execute()
 
         session_data = result.data
+        if not session_data:
+            raise ToolError(f"Session not found: {session_id}")
         collected = session_data.get("collected_context") or {}
 
         # Fetch catalog to get required fields
@@ -64,9 +66,11 @@ async def _check_config_completeness_logic(ctx: Context, session_id: str | None 
 
         catalog_result = await db.table("agent_catalog").select(
             "required_context"
-        ).eq("id", catalog_id).single().execute()
+        ).eq("id", catalog_id).maybe_single().execute()
 
         catalog_data = catalog_result.data
+        if not catalog_data:
+            raise ToolError(f"Agent catalog not found: {catalog_id}")
         required_fields = catalog_data.get("required_context") or []
 
         # Count filled fields
@@ -130,14 +134,20 @@ async def _save_config_field_logic(
         # Fetch current collected_context
         result = await db.table("standalone_agent_sessions").select(
             "collected_context"
-        ).eq("id", session_id).single().execute()
+        ).eq("id", session_id).maybe_single().execute()
+
+        if not result.data:
+            raise ToolError(f"Session not found: {session_id}")
 
         current = result.data.get("collected_context") or {}
 
         # Validate field exists in catalog
         session_result = await db.table("standalone_agent_sessions").select(
             "agent_catalog_id"
-        ).eq("id", session_id).single().execute()
+        ).eq("id", session_id).maybe_single().execute()
+
+        if not session_result.data:
+            raise ToolError(f"Session not found: {session_id}")
 
         catalog_id = session_result.data.get("agent_catalog_id")
         if not catalog_id:
@@ -145,7 +155,10 @@ async def _save_config_field_logic(
 
         catalog_result = await db.table("agent_catalog").select(
             "required_context"
-        ).eq("id", catalog_id).single().execute()
+        ).eq("id", catalog_id).maybe_single().execute()
+
+        if not catalog_result.data:
+            raise ToolError(f"Agent catalog not found: {catalog_id}")
 
         required_fields = catalog_result.data.get("required_context") or []
         valid_fields = [f.get("field") for f in required_fields]
@@ -211,9 +224,11 @@ async def _get_agent_requirements_logic(
 
         session_result = await db.table("standalone_agent_sessions").select(
             "agent_catalog_id,uploaded_file_ids,uploaded_document_ids,google_account_email"
-        ).eq("id", session_id).single().execute()
+        ).eq("id", session_id).maybe_single().execute()
 
         session_data = session_result.data
+        if not session_data:
+            raise ToolError(f"Session not found: {session_id}")
 
         # Fetch catalog
         catalog_id = session_data.get("agent_catalog_id")
@@ -222,7 +237,10 @@ async def _get_agent_requirements_logic(
 
         catalog_result = await db.table("agent_catalog").select(
             "name,required_context,required_files,requires_google"
-        ).eq("id", catalog_id).single().execute()
+        ).eq("id", catalog_id).maybe_single().execute()
+
+        if not catalog_result.data:
+            raise ToolError(f"Agent catalog not found: {catalog_id}")
 
         catalog = catalog_result.data
 
@@ -285,16 +303,18 @@ async def _finalize_config_logic(ctx: Context, session_id: str | None = None, cl
         # Fetch full session for summary
         result = await db.table("standalone_agent_sessions").select(
             "agent_catalog_id,collected_context,uploaded_file_ids"
-        ).eq("id", session_id).single().execute()
+        ).eq("id", session_id).maybe_single().execute()
 
         session_data = result.data
+        if not session_data:
+            raise ToolError(f"Session not found: {session_id}")
 
         # Fetch agent name
         catalog_result = await db.table("agent_catalog").select(
             "name"
-        ).eq("id", session_data.get("agent_catalog_id")).single().execute()
+        ).eq("id", session_data.get("agent_catalog_id")).maybe_single().execute()
 
-        agent_name = catalog_result.data.get("name", "Agent")
+        agent_name = (catalog_result.data or {}).get("name", "Agent")
 
         logger.info(f"[Config] Configuration finalized for session {session_id}")
 
@@ -342,9 +362,11 @@ async def _peek_csv_columns_logic(
         # Fetch file metadata
         result = await db.table("uploaded_files_metadata").select(
             "file_name,columns_schema,records_count,file_size"
-        ).eq("id", file_id).single().execute()
+        ).eq("id", file_id).maybe_single().execute()
 
         file_data = result.data
+        if not file_data:
+            raise ToolError(f"CSV file not found: {file_id}")
 
         if not file_data.get("columns_schema"):
             raise ToolError(

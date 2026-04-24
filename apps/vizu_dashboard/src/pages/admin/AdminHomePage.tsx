@@ -11,7 +11,7 @@ import {
   Button
 } from '@chakra-ui/react';
 import { AdminLayout } from '../../components/layouts/AdminLayout';
-import { FiDatabase, FiUsers, FiAlertCircle, FiSettings, FiChevronRight, FiShield, FiCpu, FiArrowRight } from 'react-icons/fi';
+import { FiDatabase, FiUsers, FiAlertCircle, FiSettings, FiShield, FiCpu, FiArrowRight } from 'react-icons/fi';
 import { useContext } from 'react';
 import { AuthContext } from '../../contexts/AuthContext';
 import { useDashboardStats } from '../../hooks/useDashboardStats';
@@ -111,7 +111,6 @@ const InfoCard = ({ title, description, items, linkText, linkHref, accentColor }
 function AdminHomePage() {
   const auth = useContext(AuthContext);
   const { stats, loading, error } = useDashboardStats();
-  const navigate = useNavigate();
 
   const userName = auth?.user?.user_metadata?.full_name ||
     auth?.user?.email?.split('@')[0] ||

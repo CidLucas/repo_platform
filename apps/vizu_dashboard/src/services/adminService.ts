@@ -3,7 +3,7 @@
  * Communicates with Tool Pool API admin endpoints.
  */
 
-import { supabase } from "../lib/supabase";
+import { getAuthToken, buildAuthHeaders } from "../lib/auth";
 
 const TOOL_POOL_API_URL = import.meta.env.VITE_TOOL_POOL_API_URL || 'http://localhost:8000';
 
@@ -74,23 +74,6 @@ export interface ToolValidationResult {
 // Tiers disponíveis
 export const TIERS = ['FREE', 'BASIC', 'SME', 'PREMIUM', 'ENTERPRISE', 'ADMIN'] as const;
 export type TierType = typeof TIERS[number];
-
-// Resolve JWT token from Supabase
-async function getAuthToken(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession();
-  return data?.session?.access_token ?? null;
-}
-
-async function buildAuthHeaders(): Promise<Record<string, string>> {
-  const token = await getAuthToken();
-  if (!token) {
-    throw new Error('Authentication required. Please log in.');
-  }
-  return {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-  };
-}
 
 // Error handler
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -254,10 +237,7 @@ export async function validateTools(
  * Returns the user's tier or throws if not authenticated
  */
 export async function getCurrentUserTier(): Promise<string> {
-  const token = await getAuthToken();
-  if (!token) {
-    throw new Error('Not authenticated');
-  }
+  await getAuthToken();
 
   // We can check by trying to access an admin endpoint
   // If it returns 403, user is not admin

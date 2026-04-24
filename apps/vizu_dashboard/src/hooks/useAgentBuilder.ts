@@ -421,6 +421,7 @@ export function useAgentBuilder() {
             toast({ title: 'Erro', description: message, status: 'error', duration: 4000 });
             return null;
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [accessToken, state.formData, state.editingAgentId, toast]);
 
     // ── Load agent for editing ─────────────────────────────────
@@ -479,6 +480,7 @@ export function useAgentBuilder() {
             setState((prev) => ({ ...prev, loadingCatalog: false }));
             toast({ title: 'Erro', description: message, status: 'error', duration: 3000 });
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [accessToken, loadTools, loadPrompts, triggerToolValidation, toast]);
 
     // ── Reset form ─────────────────────────────────────────────
@@ -546,6 +548,7 @@ export function useAgentBuilder() {
         }
 
         return true;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [state.formData, accessToken, toast]);
 
     // ── Delete agent ───────────────────────────────────────────

@@ -65,7 +65,7 @@ async def _dispatch_rfq_whatsapp_logic(
         rfq_result = db.table("rfq_requests").select(
             "id,status,items,deadline,"
             "supplier_roster(id,name,contact_phone,contact_email)"
-        ).eq("id", rfq_id).eq("client_id", cliente_id).single().execute()
+        ).eq("id", rfq_id).eq("client_id", cliente_id).maybe_single().execute()
 
         rfq = rfq_result.data
         if not rfq:
@@ -218,7 +218,7 @@ async def _parse_supplier_reply_logic(
         rfq_result = db.table("rfq_requests").select(
             "id,status,items,supplier_id,"
             "supplier_roster(name)"
-        ).eq("id", rfq_id).eq("client_id", cliente_id).single().execute()
+        ).eq("id", rfq_id).eq("client_id", cliente_id).maybe_single().execute()
 
         rfq = rfq_result.data
         if not rfq:

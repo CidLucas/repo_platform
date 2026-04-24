@@ -1,4 +1,4 @@
-import { VStack, HStack, Box, useMediaQuery, Tabs, TabList, Tab, TabPanels, TabPanel } from '@chakra-ui/react';
+import { VStack, HStack, Box, useMediaQuery, Tabs, TabList, Tab, TabPanels, TabPanel, Heading, Text } from '@chakra-ui/react';
 import { useContext } from 'react';
 import { AuthContext } from '../../contexts/AuthContext';
 import { AdminLayout } from '../../components/layouts/AdminLayout';
@@ -16,28 +16,23 @@ function AdminChatPage() {
     selectedAgent,
     loadingCatalog,
     currentSession,
-    configStatus,
     requirements,
     collectedContext,
     uploadedCsvs,
     uploadedDocuments,
     uploadingFile,
     googleConnected,
-    googleEmail,
-    creating,
-    activating,
     savingField,
     selectAgent,
     createNewSession,
-    resumeSession,
     saveField,
     uploadCsv,
     uploadDoc,
     removeFile,
     finalize,
-    activate,
     connectGoogle,
     reloadCatalog,
+    activating,
   } = useStandaloneAgent();
 
   const accessToken = auth?.session?.access_token;
@@ -48,6 +43,26 @@ function AdminChatPage() {
     return (
       <AdminLayout>
         <Box p={8} maxW="1200px" mx="auto">
+          <Box mb={8}>
+            <Heading
+              size="xl"
+              fontFamily="'Playfair Display', serif"
+              fontWeight="bold"
+              mb={1}
+            >
+              <Text as="span" color="white">Agent </Text>
+              <Text
+                as="span"
+                bgGradient="linear(to-r, #4361ee, #7209b7)"
+                bgClip="text"
+              >
+                Configuration
+              </Text>
+            </Heading>
+            <Text fontSize="sm" color="gray.400" mt={1}>
+              Select an agent to configure
+            </Text>
+          </Box>
           <AgentSelector
             agents={agents}
             selectedAgent={selectedAgent}
@@ -65,13 +80,79 @@ function AdminChatPage() {
   // Configuration view with 3 panels
   return (
     <AdminLayout>
-      <Box p={8} maxW="1600px" mx="auto">
+      <Box
+        p={8}
+        maxW="1600px"
+        mx="auto"
+        sx={{
+          '.chakra-tabs__tablist': { borderColor: 'rgba(255,255,255,0.08)' },
+          '.chakra-tabs__tab': { color: 'gray.400' },
+          '.chakra-input, .chakra-textarea, .chakra-select': {
+            bg: '#14151f',
+            color: 'white',
+            borderColor: 'rgba(255,255,255,0.08)',
+          },
+          '.chakra-input::placeholder, .chakra-textarea::placeholder': {
+            color: 'rgba(255,255,255,0.4)',
+          },
+          '.chakra-input:hover, .chakra-textarea:hover, .chakra-select:hover': {
+            borderColor: 'rgba(255,255,255,0.16)',
+          },
+          '.chakra-input:focus, .chakra-textarea:focus, .chakra-select:focus': {
+            borderColor: '#ff6b35',
+            boxShadow: '0 0 0 1px #ff6b35',
+          },
+        }}
+      >
+        <Box mb={8}>
+          <Heading
+            size="xl"
+            fontFamily="'Playfair Display', serif"
+            fontWeight="bold"
+            mb={1}
+          >
+            <Text as="span" color="white">Configure </Text>
+            <Text
+              as="span"
+              bgGradient="linear(to-r, #ff6b35, #ff006e)"
+              bgClip="text"
+            >
+              {selectedAgent?.name || 'Agent'}
+            </Text>
+          </Heading>
+          <Text fontSize="sm" color="gray.400" mt={1}>
+            Upload files and configure your agent settings
+          </Text>
+        </Box>
         {isMobile ? (
           // Mobile: Tabs layout
-          <Tabs isLazy orientation="vertical">
-            <TabList>
-              <Tab>Configuração</Tab>
-              <Tab>Chat</Tab>
+          <Tabs isLazy orientation="vertical" variant="unstyled">
+            <TabList borderColor="rgba(255,255,255,0.08)" gap={2}>
+              <Tab
+                color="gray.400"
+                _selected={{
+                  color: 'white',
+                  bgGradient: 'linear(to-r, #ff6b35, #ff006e)',
+                  borderRadius: 'lg',
+                }}
+                _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+                borderRadius="lg"
+                mr={2}
+              >
+                Configuração
+              </Tab>
+              <Tab
+                color="gray.400"
+                _selected={{
+                  color: 'white',
+                  bgGradient: 'linear(to-r, #ff6b35, #ff006e)',
+                  borderRadius: 'lg',
+                }}
+                _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+                borderRadius="lg"
+              >
+                Chat
+              </Tab>
             </TabList>
             <TabPanels>
               <TabPanel>
@@ -116,7 +197,15 @@ function AdminChatPage() {
           // Desktop: Side-by-side layout
           <HStack align="flex-start" spacing={8}>
             {/* Left Panel: Configuration */}
-            <Box flex={1} minW="0">
+            <Box
+              flex={1}
+              minW="0"
+              bg="#1a1b2e"
+              borderRadius="xl"
+              borderWidth="1px"
+              borderColor="rgba(255,255,255,0.08)"
+              p={6}
+            >
               <VStack align="stretch" spacing={6}>
                 {/* Files */}
                 <FileUploadPanel
@@ -146,7 +235,15 @@ function AdminChatPage() {
             </Box>
 
             {/* Right Panel: Config Helper Chat */}
-            <Box flex={1} minW="0">
+            <Box
+              flex={1}
+              minW="0"
+              bg="#1a1b2e"
+              borderRadius="xl"
+              borderWidth="1px"
+              borderColor="rgba(255,255,255,0.08)"
+              p={6}
+            >
               <ConfigHelperChat
                 sessionId={currentSession?.id}
                 accessToken={accessToken}

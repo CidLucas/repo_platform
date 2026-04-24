@@ -15,16 +15,29 @@ extra_search_path = ["public", "extensions", "vector_db"]
 max_rows = 1000
 
 [functions]
-# Disable JWT verification for public endpoints
+# JWT verification enabled on all edge functions for security
+# Functions that need public access should validate auth internally
 
 [functions.match-columns]
-verify_jwt = false
+verify_jwt = true
 
 [functions.embed]
-verify_jwt = false
+verify_jwt = true
 
 [functions.process-document]
-verify_jwt = false
+verify_jwt = true
 
 [functions.search-documents]
+verify_jwt = true
+
+[functions.run-sync]
 verify_jwt = false
+
+[functions.google-calendar-events]
+verify_jwt = true
+
+[functions.onboarding-bootstrap]
+verify_jwt = true
+
+[functions.onboarding-capture-drive-token]
+verify_jwt = true

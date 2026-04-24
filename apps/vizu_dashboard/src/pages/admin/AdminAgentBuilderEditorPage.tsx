@@ -14,7 +14,6 @@ import {
     TabPanel,
     Badge,
     Divider,
-    useToast,
 } from '@chakra-ui/react';
 import { FiArrowLeft, FiSave, FiCheck } from 'react-icons/fi';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -42,7 +41,6 @@ const TAB_LABELS = [
 const AdminAgentBuilderEditorPage = () => {
     const { agentId } = useParams<{ agentId: string }>();
     const navigate = useNavigate();
-    const toast = useToast();
     const isNew = agentId === 'new';
 
     const {
@@ -108,8 +106,8 @@ const AdminAgentBuilderEditorPage = () => {
             <AdminLayout>
                 <Center minH="400px">
                     <VStack spacing={3}>
-                        <Spinner size="lg" color="black" />
-                        <Text color="gray.600">
+                        <Spinner size="lg" color="orange.400" />
+                        <Text color="gray.400">
                             {isNew ? 'Preparing editor...' : 'Loading agent...'}
                         </Text>
                     </VStack>
@@ -120,21 +118,71 @@ const AdminAgentBuilderEditorPage = () => {
 
     return (
         <AdminLayout>
-            <Box p={8} maxW="1000px" mx="auto">
+            <Box
+                p={8}
+                maxW="1200px"
+                mx="auto"
+                sx={{
+                    '.chakra-input, .chakra-textarea, .chakra-select, .chakra-numberinput__field': {
+                        bg: '#14151f',
+                        color: 'white',
+                        borderColor: 'rgba(255,255,255,0.08)',
+                    },
+                    '.chakra-input::placeholder, .chakra-textarea::placeholder': {
+                        color: 'rgba(255,255,255,0.4)',
+                    },
+                    '.chakra-input[readonly], .chakra-textarea[readonly], .chakra-select[readonly]': {
+                        bg: 'rgba(255,255,255,0.04)',
+                        color: 'whiteAlpha.700',
+                    },
+                    '.chakra-input:hover, .chakra-textarea:hover, .chakra-select:hover': {
+                        borderColor: 'rgba(255,255,255,0.16)',
+                    },
+                    '.chakra-input:focus, .chakra-textarea:focus, .chakra-select:focus': {
+                        borderColor: '#ff6b35',
+                        boxShadow: '0 0 0 1px #ff6b35',
+                    },
+                    '.chakra-form__label, .chakra-text, .chakra-heading': {
+                        color: 'white',
+                    },
+                    '.chakra-table th': {
+                        color: 'whiteAlpha.700',
+                        borderColor: 'rgba(255,255,255,0.08)',
+                    },
+                    '.chakra-table td': {
+                        color: 'white',
+                        borderColor: 'rgba(255,255,255,0.06)',
+                    },
+                }}
+            >
                 {/* Header */}
-                <HStack justify="space-between" mb={6}>
-                    <HStack spacing={4}>
+                <HStack justify="space-between" mb={6} align="flex-start">
+                    <HStack spacing={4} align="flex-start">
                         <Button
                             variant="ghost"
                             leftIcon={<FiArrowLeft />}
                             onClick={() => navigate('/dashboard/admin/agent-builder')}
+                            color="white"
+                            _hover={{ bg: 'whiteAlpha.100' }}
                         >
                             Back
                         </Button>
                         <VStack align="start" spacing={0}>
-                            <Heading size="md">
-                                {isNew ? 'Create New Agent' : `Edit: ${formData.name || 'Untitled'}`}
+                            <Heading size="lg" fontFamily="'Playfair Display', serif" fontWeight="400">
+                                <Text as="span" color="white">
+                                    {isNew ? 'Create ' : 'Edit '}
+                                </Text>
+                                <Text
+                                    as="span"
+                                    bgGradient="linear(to-r, #ff6b35, #ff006e)"
+                                    bgClip="text"
+                                >
+                                    {isNew ? 'Agent' : (formData.name || 'Untitled')}
+                                </Text>
                             </Heading>
+                            <Text fontSize="sm" color="gray.400">
+                                Configure identity, tools, prompts, context and workflow.
+                            </Text>
                             {editingAgentId && (
                                 <Text fontSize="xs" color="gray.500">ID: {editingAgentId}</Text>
                             )}
@@ -142,16 +190,17 @@ const AdminAgentBuilderEditorPage = () => {
                     </HStack>
                     <HStack spacing={3}>
                         {isDirty && (
-                            <Badge colorScheme="orange" fontSize="xs">Unsaved changes</Badge>
+                            <Badge bg="orange.500" color="white" fontSize="xs">Unsaved changes</Badge>
                         )}
                         {saveError && (
-                            <Text fontSize="xs" color="red.500">{saveError}</Text>
+                            <Text fontSize="xs" color="red.300">{saveError}</Text>
                         )}
                         <Button
                             leftIcon={saving ? undefined : (isDirty ? <FiSave /> : <FiCheck />)}
-                            bg="black"
+                            bgGradient="linear(to-r, #ff6b35, #ff006e)"
                             color="white"
-                            _hover={{ bg: 'gray.800' }}
+                            _hover={{ opacity: 0.9 }}
+                            boxShadow="0 8px 24px rgba(255,107,53,0.25)"
                             onClick={handleSave}
                             isLoading={saving}
                             isDisabled={!isDirty && !isNew}
@@ -161,13 +210,33 @@ const AdminAgentBuilderEditorPage = () => {
                     </HStack>
                 </HStack>
 
-                <Divider mb={6} />
+                <Divider mb={6} borderColor="rgba(255,255,255,0.08)" />
 
                 {/* Tabbed Form */}
-                <Tabs isLazy variant="enclosed" colorScheme="blackAlpha">
-                    <TabList overflowX="auto" flexWrap="nowrap">
+                <Tabs
+                    isLazy
+                    variant="unstyled"
+                    colorScheme="blackAlpha"
+                    bg="#1a1b2e"
+                    borderWidth="1px"
+                    borderColor="rgba(255,255,255,0.08)"
+                    borderRadius="2xl"
+                    p={4}
+                >
+                    <TabList overflowX="auto" flexWrap="nowrap" gap={2} pb={4} borderBottomWidth="1px" borderColor="rgba(255,255,255,0.08)">
                         {TAB_LABELS.map((label) => (
-                            <Tab key={label} fontSize="sm" whiteSpace="nowrap">
+                            <Tab
+                                key={label}
+                                fontSize="sm"
+                                whiteSpace="nowrap"
+                                color="gray.400"
+                                borderRadius="full"
+                                _selected={{
+                                    color: 'white',
+                                    bgGradient: 'linear(to-r, #ff6b35, #ff006e)',
+                                }}
+                                _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+                            >
                                 {label}
                             </Tab>
                         ))}
@@ -175,7 +244,7 @@ const AdminAgentBuilderEditorPage = () => {
 
                     <TabPanels>
                         {/* A. Identity */}
-                        <TabPanel>
+                        <TabPanel px={2} pt={6}>
                             <AgentIdentitySection
                                 formData={formData}
                                 setField={setField}
@@ -183,7 +252,7 @@ const AdminAgentBuilderEditorPage = () => {
                         </TabPanel>
 
                         {/* B. Agent Config */}
-                        <TabPanel>
+                        <TabPanel px={2} pt={6}>
                             <AgentConfigSection
                                 agentConfig={formData.agent_config}
                                 setAgentConfigField={setAgentConfigField}
@@ -191,7 +260,7 @@ const AdminAgentBuilderEditorPage = () => {
                         </TabPanel>
 
                         {/* C. Tools */}
-                        <TabPanel>
+                        <TabPanel px={2} pt={6}>
                             <ToolSelectionSection
                                 availableTools={availableTools}
                                 enabledTools={formData.agent_config.enabled_tools}
@@ -204,7 +273,7 @@ const AdminAgentBuilderEditorPage = () => {
                         </TabPanel>
 
                         {/* D. Prompt */}
-                        <TabPanel>
+                        <TabPanel px={2} pt={6}>
                             <PromptConfigSection
                                 formData={formData}
                                 setField={setField}
@@ -214,7 +283,7 @@ const AdminAgentBuilderEditorPage = () => {
                         </TabPanel>
 
                         {/* E. Context Requirements */}
-                        <TabPanel>
+                        <TabPanel px={2} pt={6}>
                             <ContextRequirementsSection
                                 fields={formData.required_context}
                                 addContextField={addContextField}
@@ -225,7 +294,7 @@ const AdminAgentBuilderEditorPage = () => {
                         </TabPanel>
 
                         {/* F. File Requirements */}
-                        <TabPanel>
+                        <TabPanel px={2} pt={6}>
                             <FileRequirementsSection
                                 formData={formData}
                                 setField={setField}
@@ -233,7 +302,7 @@ const AdminAgentBuilderEditorPage = () => {
                         </TabPanel>
 
                         {/* G. Workflow Preview */}
-                        <TabPanel>
+                        <TabPanel px={2} pt={6}>
                             <WorkflowPreviewSection
                                 formData={formData}
                                 catalogNodes={catalogNodes}

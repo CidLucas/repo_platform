@@ -4,15 +4,12 @@ import {
   FiHome,
   FiDatabase,
   FiShield,
-  FiMessageSquare,
   FiCreditCard,
   FiHelpCircle,
   FiBook,
   FiCpu,
-  FiSettings,
   FiChevronRight,
 } from 'react-icons/fi';
-import { useAuth } from '../../hooks/useAuth';
 
 interface SidebarItemProps {
   to: string;
@@ -31,15 +28,15 @@ const SidebarItem = ({ to, icon, label }: SidebarItemProps) => {
           px={3}
           py={2.5}
           borderRadius="lg"
-          bg={isActive ? 'linear-gradient(to right, #0ea5e9, #0284c7)' : 'transparent'}
-          bgGradient={isActive ? 'linear(to-r, #0ea5e9, #0284c7)' : undefined}
-          color={isActive ? 'white' : 'blue.100'}
+          bg={isActive ? undefined : 'transparent'}
+          bgGradient={isActive ? 'linear(to-r, #4361ee, #7209b7)' : undefined}
+          color={isActive ? 'white' : 'gray.300'}
           fontWeight={isActive ? 'medium' : 'normal'}
           cursor="pointer"
           transition="all 0.2s"
           boxShadow={isActive ? 'lg' : 'none'}
           _hover={{
-            bg: isActive ? undefined : 'whiteAlpha.100',
+            bg: isActive ? undefined : 'whiteAlpha.50',
             color: 'white',
           }}
           w="full"
@@ -56,15 +53,14 @@ const SidebarItem = ({ to, icon, label }: SidebarItemProps) => {
 };
 
 export const AdminSidebar = () => {
-  const { tier } = useAuth();
-  const isAdmin = tier === 'ADMIN';
-
   return (
     <Box
       as="aside"
       w="280px"
       minH="calc(100vh - 64px)"
-      bgGradient="linear(to-b, #001f3f, #002a54, #003d7a)"
+      bgGradient="linear(to-b, #141620, #181b28, #1a1d2e)"
+      borderRight="1px solid"
+      borderColor="rgba(255,255,255,0.08)"
       color="white"
       boxShadow="xl"
       display="flex"
@@ -72,7 +68,7 @@ export const AdminSidebar = () => {
     >
       <Box p={6}>
         <Text fontSize="lg" fontWeight="semibold" mb={1} color="white">Admin Panel</Text>
-        <Text fontSize="sm" color="blue.200">System Configuration</Text>
+        <Text fontSize="sm" color="gray.400">System Configuration</Text>
       </Box>
       <VStack spacing={1} align="stretch" px={3} pb={4}>
         <SidebarItem
@@ -83,7 +79,7 @@ export const AdminSidebar = () => {
         <SidebarItem
           to="/dashboard/admin/fontes"
           icon={FiDatabase}
-          label="Minhas fontes"
+          label="Fonte de Dados"
         />
         <SidebarItem
           to="/dashboard/admin/knowledge-base"
@@ -96,29 +92,17 @@ export const AdminSidebar = () => {
           label="Dados e privacidade"
         />
         <SidebarItem
-          to="/dashboard/admin/chat"
-          icon={FiMessageSquare}
-          label="Agente Config"
+          to="/dashboard/admin/agents"
+          icon={FiCpu}
+          label="AI Agents"
         />
-        <SidebarItem
-          to="/dashboard/admin/onboarding"
-          icon={FiSettings}
-          label="Personalizar Agente"
-        />
-        {isAdmin && (
-          <SidebarItem
-            to="/dashboard/admin/agent-builder"
-            icon={FiCpu}
-            label="Agent Builder"
-          />
-        )}
         <SidebarItem
           to="/dashboard/admin/planos"
           icon={FiCreditCard}
           label="Planos contratado"
         />
 
-        <Divider my={2} borderColor="whiteAlpha.200" />
+        <Divider my={2} borderColor="whiteAlpha.100" />
 
         <SidebarItem
           to="/dashboard/admin/ajuda"

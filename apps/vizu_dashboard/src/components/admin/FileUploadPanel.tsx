@@ -173,17 +173,27 @@ export const FileUploadPanel = ({
     };
 
     return (
-        <Box borderWidth="1px" borderColor="gray.200" borderRadius="lg" p={6}>
-            <Heading size="md" mb={6}>
+        <Box borderWidth="1px" borderColor="rgba(255,255,255,0.08)" borderRadius="lg" bg="#1a1b2e" p={6}>
+            <Heading size="md" mb={6} color="white">
                 Arquivos
             </Heading>
 
-            <Tabs isLazy>
-                <TabList>
-                    <Tab>
+            <Tabs isLazy variant="unstyled">
+                <TabList gap={2} mb={4}>
+                    <Tab
+                        color="gray.400"
+                        borderRadius="full"
+                        _selected={{ color: 'white', bgGradient: 'linear(to-r, #ff6b35, #ff006e)' }}
+                        _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+                    >
                         Dados CSV ({csvFiles.length}/{maxCsvFiles})
                     </Tab>
-                    <Tab>
+                    <Tab
+                        color="gray.400"
+                        borderRadius="full"
+                        _selected={{ color: 'white', bgGradient: 'linear(to-r, #ff6b35, #ff006e)' }}
+                        _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+                    >
                         Documentos ({documentFiles.length}/{maxDocFiles})
                     </Tab>
                 </TabList>
@@ -208,13 +218,17 @@ export const FileUploadPanel = ({
                                     isDisabled={uploading || csvFiles.length >= maxCsvFiles}
                                     width="100%"
                                     variant="outline"
-                                    borderRadius="md"
+                                    borderRadius="xl"
                                     py={6}
                                     fontSize="sm"
+                                    borderColor="rgba(255,255,255,0.12)"
+                                    color="white"
+                                    bg="rgba(255,255,255,0.02)"
+                                    _hover={{ borderColor: 'rgba(255,255,255,0.2)', bg: 'rgba(255,255,255,0.04)' }}
                                 >
                                     {uploading ? 'Enviando...' : 'Clique ou arraste um CSV'}
                                 </Button>
-                                <Text fontSize="xs" color="gray.500" mt={2}>
+                                <Text fontSize="xs" color="whiteAlpha.500" mt={2}>
                                     Máximo 30MB por arquivo. Suporta valores separados por vírgula, ponto-e-vírgula ou tabulação.
                                 </Text>
                             </FormControl>
@@ -294,13 +308,17 @@ export const FileUploadPanel = ({
                                     isDisabled={uploading || documentFiles.length >= maxDocFiles}
                                     width="100%"
                                     variant="outline"
-                                    borderRadius="md"
+                                    borderRadius="xl"
                                     py={6}
                                     fontSize="sm"
+                                    borderColor="rgba(255,255,255,0.12)"
+                                    color="white"
+                                    bg="rgba(255,255,255,0.02)"
+                                    _hover={{ borderColor: 'rgba(255,255,255,0.2)', bg: 'rgba(255,255,255,0.04)' }}
                                 >
                                     {uploading ? 'Enviando...' : 'Clique ou arraste um documento'}
                                 </Button>
-                                <Text fontSize="xs" color="gray.500" mt={2}>
+                                <Text fontSize="xs" color="whiteAlpha.500" mt={2}>
                                     Máximo 50MB. Formatos: PDF, TXT, DOCX
                                 </Text>
                             </FormControl>

@@ -71,10 +71,10 @@ export const NodePalette = ({ catalogNodes, loading }: NodePaletteProps) => {
 
     return (
         <Box>
-            <Heading size="xs" mb={3} color="gray.600" textTransform="uppercase" letterSpacing="wide">
+            <Heading size="xs" mb={3} color="whiteAlpha.600" textTransform="uppercase" letterSpacing="wide">
                 Node Palette
             </Heading>
-            <Text fontSize="xs" color="gray.500" mb={3}>
+            <Text fontSize="xs" color="whiteAlpha.500" mb={3}>
                 Drag nodes onto the canvas to build your workflow.
             </Text>
             <VStack spacing={2} align="stretch">
@@ -101,18 +101,18 @@ export const NodePalette = ({ catalogNodes, loading }: NodePaletteProps) => {
                                             px={3}
                                             py={2}
                                             borderWidth="1px"
-                                            borderColor="gray.200"
+                                            borderColor="rgba(255,255,255,0.1)"
                                             borderRadius="md"
-                                            bg="white"
+                                            bg="rgba(255,255,255,0.03)"
                                             cursor="grab"
-                                            _hover={{ borderColor: 'blue.300', bg: 'blue.50' }}
+                                            _hover={{ borderColor: '#ff6b35', bg: 'rgba(255,107,53,0.08)' }}
                                             _active={{ cursor: 'grabbing' }}
                                             draggable
                                             onDragStart={(e) => onDragStart(e, node.name, node.name)}
                                         >
                                             <Box display="flex" alignItems="center" gap={2}>
-                                                <Icon as={IconComp} boxSize={3} color="gray.600" />
-                                                <Text fontSize="xs" fontWeight="medium" noOfLines={1}>
+                                                <Icon as={IconComp} boxSize={3} color="whiteAlpha.600" />
+                                                <Text fontSize="xs" fontWeight="medium" noOfLines={1} color="whiteAlpha.800">
                                                     {node.name}
                                                 </Text>
                                             </Box>

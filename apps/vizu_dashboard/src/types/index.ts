@@ -11,7 +11,7 @@ export interface ChartDataPoint {
     name: string;
     value?: number;   // optional because some payloads use other keys (total, pedidos, etc.)
     color?: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 /** A simple alias for the two allowed chart types used throughout the UI */

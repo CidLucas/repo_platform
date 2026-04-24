@@ -16,6 +16,7 @@ import { ListCard } from '../components/ListCard';
 import { GenericDetailsModal } from '../components/GenericDetailsModal';
 import { useGeoClusters } from '../hooks/useGeoClusters';
 import { useUserProfile } from '../hooks/useUserProfile';
+import { mapGeoClustersToMapData } from '../utils/mapGeoClustersToMapData';
 import React, { useState, useMemo, useCallback } from 'react';
 import type { DimensionConfig } from '../types/dimensionConfig';
 import type { MapData } from '../types';
@@ -129,12 +130,7 @@ export default function GenericOverviewPage({ config }: GenericOverviewPageProps
         if (config.mapDataBuilder && geoClusters) {
             return config.mapDataBuilder(geoClusters);
         }
-        return {
-            center: geoClusters?.center || [-14.235, -51.9253],
-            zoom: 4.5,
-            clusters: geoClusters?.clusters || [],
-            maxCount: geoClusters?.max_count || 1,
-        } as MapData;
+        return mapGeoClustersToMapData(geoClusters);
     }, [geoClusters, config]);
 
     // ─── Loading / Error ───────────────────────────────────────

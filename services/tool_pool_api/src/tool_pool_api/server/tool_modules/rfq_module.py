@@ -68,7 +68,7 @@ async def _parse_buying_list_logic(
             db = get_supabase_client()
             file_result = db.table("uploaded_files_metadata").select(
                 "file_name,storage_path,parsed_data"
-            ).eq("id", file_id).single().execute()
+            ).eq("id", file_id).maybe_single().execute()
 
             file_data = file_result.data
             if not file_data:
@@ -345,7 +345,7 @@ async def _dispatch_rfq_logic(
             "id,name"
         ).eq("id", supplier_id).eq("client_id", cliente_id).eq(
             "is_active", True
-        ).single().execute()
+        ).maybe_single().execute()
 
         supplier = supplier_result.data
         if not supplier:
@@ -480,7 +480,7 @@ async def _submit_mock_response_logic(
 
         rfq_result = db.table("rfq_requests").select(
             "id,status,items"
-        ).eq("id", rfq_id).eq("client_id", cliente_id).single().execute()
+        ).eq("id", rfq_id).eq("client_id", cliente_id).maybe_single().execute()
 
         rfq = rfq_result.data
         if not rfq:
@@ -980,7 +980,7 @@ async def _create_purchase_order_logic(
 
         supplier_result = db.table("supplier_roster").select(
             "name"
-        ).eq("id", supplier_id).eq("client_id", cliente_id).single().execute()
+        ).eq("id", supplier_id).eq("client_id", cliente_id).maybe_single().execute()
 
         supplier_name = (
             supplier_result.data.get("name", supplier_id)
@@ -1088,7 +1088,7 @@ async def _approve_purchase_order_logic(
         po_result = db.table("purchase_orders").select(
             "id,status,supplier_id,total_amount,currency,items,"
             "supplier_roster(name)"
-        ).eq("id", po_id).eq("client_id", cliente_id).single().execute()
+        ).eq("id", po_id).eq("client_id", cliente_id).maybe_single().execute()
 
         po = po_result.data
         if not po:
@@ -1203,7 +1203,7 @@ async def _suggest_counter_offer_logic(
         # Get supplier name
         supplier_result = db.table("supplier_roster").select(
             "name"
-        ).eq("id", supplier_id).eq("client_id", cliente_id).single().execute()
+        ).eq("id", supplier_id).eq("client_id", cliente_id).maybe_single().execute()
         supplier_name = (
             supplier_result.data.get("name", supplier_id)
             if supplier_result.data else supplier_id
@@ -1634,7 +1634,7 @@ async def _update_supplier_logic(
         # Verify supplier belongs to tenant
         existing = db.table("supplier_roster").select(
             "id"
-        ).eq("id", supplier_id).eq("client_id", cliente_id).single().execute()
+        ).eq("id", supplier_id).eq("client_id", cliente_id).maybe_single().execute()
 
         if not existing.data:
             raise ToolError(f"Fornecedor não encontrado: {supplier_id}")
@@ -1697,7 +1697,7 @@ async def _remove_supplier_logic(
 
         existing = db.table("supplier_roster").select(
             "id,name"
-        ).eq("id", supplier_id).eq("client_id", cliente_id).single().execute()
+        ).eq("id", supplier_id).eq("client_id", cliente_id).maybe_single().execute()
 
         if not existing.data:
             raise ToolError(f"Fornecedor não encontrado: {supplier_id}")

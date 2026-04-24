@@ -4,8 +4,6 @@
  * tool validation, and prompt listing.
  */
 
-import { supabase } from "../lib/supabase";
-
 const AGENT_API_URL = import.meta.env.VITE_STANDALONE_AGENT_API || 'http://localhost:8001';
 const TOOL_POOL_API_URL = import.meta.env.VITE_TOOL_POOL_API_URL || 'http://localhost:8006';
 
@@ -161,13 +159,6 @@ export interface PromptVersionsResponse {
 }
 
 // ── Auth helpers ───────────────────────────────────────────────
-
-async function getAuthToken(): Promise<string> {
-    const { data } = await supabase.auth.getSession();
-    const token = data?.session?.access_token;
-    if (!token) throw new Error('Authentication required. Please log in.');
-    return token;
-}
 
 function authHeaders(accessToken: string): Record<string, string> {
     return {

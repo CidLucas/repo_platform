@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import { User, Session, AuthError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
-import { getMe } from "../services/analyticsService";
+import { resolveClientId } from "../lib/auth";
 
 export interface AuthContextType {
   user: User | null;
@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [tier, setTier] = useState<string | null>(null);
   const clientIdFetchedRef = useRef(false);
 
-  const initializeClientId = async (accessToken: string) => {
+  const initializeClientId = async () => {
     if (clientIdFetchedRef.current) {
       return;
     }
@@ -51,45 +51,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     clientIdFetchedRef.current = true;
 
     try {
-      const meResponse = await Promise.race([
-        getMe(accessToken),
+      const resolved = await Promise.race([
+        resolveClientId(),
         new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('getMe timeout')), 5000);
+          setTimeout(() => reject(new Error('resolveClientId timeout')), 5000);
         }),
       ]);
 
-      setClientId(meResponse.client_id);
-      localStorage.setItem('vizu_client_id', meResponse.client_id);
-      console.log('Client ID initialized:', meResponse.client_id);
+      setClientId(resolved);
+      console.log('Client ID initialized:', resolved);
 
       // Fetch tier from clientes_vizu table (direct Supabase query, RLS-protected)
       try {
         const { data: clientData } = await supabase
           .from('clientes_vizu')
           .select('tier')
-          .eq('client_id', meResponse.client_id)
-          .single();
+          .eq('client_id', resolved)
+          .maybeSingle();
         const resolvedTier = clientData?.tier || 'FREE';
         setTier(resolvedTier);
-        localStorage.setItem('vizu_client_tier', resolvedTier);
         console.log('Tier initialized:', resolvedTier);
       } catch (tierError) {
-        console.warn('Failed to fetch tier, defaulting to cached or FREE:', tierError);
-        const storedTier = localStorage.getItem('vizu_client_tier');
-        setTier(storedTier || 'FREE');
+        console.warn('Failed to fetch tier, defaulting to FREE:', tierError);
+        setTier('FREE');
       }
     } catch (error) {
       console.error('Failed to initialize client_id:', error);
       clientIdFetchedRef.current = false;
-      const storedClientId = localStorage.getItem('vizu_client_id');
-      if (storedClientId) {
-        setClientId(storedClientId);
-        clientIdFetchedRef.current = true;
-      }
-      const storedTier = localStorage.getItem('vizu_client_tier');
-      if (storedTier) {
-        setTier(storedTier);
-      }
+      // Do NOT fall back to stale localStorage — force re-auth
+      setClientId(null);
+      setTier(null);
     }
   };
 
@@ -122,7 +113,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
       // Initialize client_id in background (non-blocking)
       if (session?.access_token && !clientIdFetchedRef.current) {
-        void initializeClientId(session.access_token);
+        void initializeClientId();
       }
     };
 
@@ -152,7 +143,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       // Initialize client_id in background (non-blocking)
       if (session?.access_token && _event !== 'SIGNED_OUT') {
         if (!clientIdFetchedRef.current) {
-          void initializeClientId(session.access_token);
+          void initializeClientId();
         }
       }
 

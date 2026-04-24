@@ -34,7 +34,7 @@ export const FileRequirementsSection = ({ formData, setField }: FileRequirements
                 csv: { min: 1, max: 5, description: 'Upload CSV data files' },
             });
         } else {
-            const { csv: _, ...rest } = required_files;
+            const { csv: _csv, ...rest } = required_files;
             updateFileReq(rest);
         }
     };
@@ -46,7 +46,7 @@ export const FileRequirementsSection = ({ formData, setField }: FileRequirements
                 document: { min: 0, max: 3, description: 'Upload text documents' },
             });
         } else {
-            const { document: _, ...rest } = required_files;
+            const { document: _doc, ...rest } = required_files;
             updateFileReq(rest);
         }
     };

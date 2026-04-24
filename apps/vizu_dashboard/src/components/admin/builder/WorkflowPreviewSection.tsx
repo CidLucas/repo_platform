@@ -215,21 +215,21 @@ export const WorkflowPreviewSection = ({
                 label: def.label,
                 animated: def.animated && active,
                 style: {
-                    stroke: active ? '#333' : '#ddd',
+                    stroke: active ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.15)',
                     strokeWidth: active ? 2 : 1,
                 },
                 labelStyle: {
                     fontSize: 10,
-                    fill: active ? '#555' : '#bbb',
+                    fill: active ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.3)',
                     fontWeight: active ? 600 : 400,
                 },
                 labelBgStyle: {
-                    fill: '#fff',
-                    fillOpacity: 0.85,
+                    fill: '#1a1b2e',
+                    fillOpacity: 0.9,
                 },
                 markerEnd: {
                     type: MarkerType.ArrowClosed,
-                    color: active ? '#333' : '#ddd',
+                    color: active ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.15)',
                     width: 16,
                     height: 16,
                 },
@@ -262,10 +262,10 @@ export const WorkflowPreviewSection = ({
                 label: e.label,
                 animated: e.animated ?? false,
                 data: { condition: e.condition },
-                style: { stroke: '#333', strokeWidth: 2 },
-                labelStyle: { fontSize: 10, fill: '#555', fontWeight: 600 },
-                labelBgStyle: { fill: '#fff', fillOpacity: 0.85 },
-                markerEnd: { type: MarkerType.ArrowClosed, color: '#333', width: 16, height: 16 },
+                style: { stroke: 'rgba(255,255,255,0.6)', strokeWidth: 2 },
+                labelStyle: { fontSize: 10, fill: 'rgba(255,255,255,0.85)', fontWeight: 600 },
+                labelBgStyle: { fill: '#1a1b2e', fillOpacity: 0.9 },
+                markerEnd: { type: MarkerType.ArrowClosed, color: 'rgba(255,255,255,0.6)', width: 16, height: 16 },
             }));
             setCustomNodes(nodes);
             setCustomEdges(edges);
@@ -320,10 +320,10 @@ export const WorkflowPreviewSection = ({
             const newEdge: Edge = {
                 ...connection,
                 id: `ce-new-${Date.now()}`,
-                style: { stroke: '#333', strokeWidth: 2 },
-                labelStyle: { fontSize: 10, fill: '#555', fontWeight: 600 },
-                labelBgStyle: { fill: '#fff', fillOpacity: 0.85 },
-                markerEnd: { type: MarkerType.ArrowClosed, color: '#333', width: 16, height: 16 },
+                style: { stroke: 'rgba(255,255,255,0.6)', strokeWidth: 2 },
+                labelStyle: { fontSize: 10, fill: 'rgba(255,255,255,0.85)', fontWeight: 600 },
+                labelBgStyle: { fill: '#1a1b2e', fillOpacity: 0.9 },
+                markerEnd: { type: MarkerType.ArrowClosed, color: 'rgba(255,255,255,0.6)', width: 16, height: 16 },
             };
             const updated = addEdge(newEdge, eds);
             setTimeout(() => serializeGraph(customNodesRef.current, updated), 0);
@@ -384,7 +384,7 @@ export const WorkflowPreviewSection = ({
         setCustomEdges((eds) => {
             const updated = eds.map((e) =>
                 e.id === edgeId
-                    ? { ...e, label: updates.label ?? e.label, animated: updates.animated ?? e.animated, data: { ...e.data, ...updates.data } }
+                    ? { ...e, label: updates.label ?? e.label, animated: updates.animated ?? e.animated, data: { ...e.data, ...updates.data }, style: { stroke: 'rgba(255,255,255,0.6)', strokeWidth: 2 }, labelStyle: { fontSize: 10, fill: 'rgba(255,255,255,0.85)', fontWeight: 600 }, labelBgStyle: { fill: '#1a1b2e', fillOpacity: 0.9 } }
                     : e
             );
             setTimeout(() => serializeGraph(customNodesRef.current, updated), 0);
@@ -411,7 +411,7 @@ export const WorkflowPreviewSection = ({
     return (
         <Box>
             <HStack justify="space-between" mb={4}>
-                <Text fontSize="sm" color="gray.600">
+                <Text fontSize="sm" color="whiteAlpha.700">
                     {editMode
                         ? 'Drag nodes from the palette, connect them, and click edges to configure routing.'
                         : 'Read-only preview of the agent workflow. Click "Customize" to edit.'}
@@ -438,12 +438,12 @@ export const WorkflowPreviewSection = ({
                         w="200px"
                         flexShrink={0}
                         borderWidth="1px"
-                        borderColor="gray.200"
+                        borderColor="rgba(255,255,255,0.1)"
                         borderRightWidth="0"
                         borderRadius="md"
                         borderRightRadius="0"
                         p={3}
-                        bg="gray.50"
+                        bg="#14151f"
                         overflowY="auto"
                         maxH="580px"
                     >
@@ -457,9 +457,10 @@ export const WorkflowPreviewSection = ({
                     flex={1}
                     borderRadius="md"
                     borderWidth="1px"
-                    borderColor="gray.200"
+                    borderColor="rgba(255,255,255,0.1)"
                     overflow="hidden"
                     borderLeftRadius={editMode ? '0' : 'md'}
+                    sx={{ '.react-flow': { background: '#0d0e1f' }, '.react-flow__controls': { background: '#1a1b2e', border: '1px solid rgba(255,255,255,0.1)' }, '.react-flow__controls-button': { background: '#1a1b2e', borderColor: 'rgba(255,255,255,0.08)', color: 'white', fill: 'white', _hover: { background: '#2a2b3e' } } }}
                 >
                     {editMode ? (
                         <ReactFlow
@@ -484,7 +485,7 @@ export const WorkflowPreviewSection = ({
                             proOptions={{ hideAttribution: true }}
                             deleteKeyCode="Backspace"
                         >
-                            <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#e2e8f0" />
+                            <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="rgba(255,255,255,0.08)" />
                             <Controls />
                         </ReactFlow>
                     ) : (
@@ -503,7 +504,7 @@ export const WorkflowPreviewSection = ({
                             maxZoom={1.5}
                             proOptions={{ hideAttribution: true }}
                         >
-                            <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#e2e8f0" />
+                            <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="rgba(255,255,255,0.08)" />
                             <Controls showInteractive={false} />
                         </ReactFlow>
                     )}
@@ -511,7 +512,7 @@ export const WorkflowPreviewSection = ({
             </HStack>
 
             <Box mt={4}>
-                <Text fontSize="sm" fontWeight="medium" mb={2}>Summary</Text>
+                <Text fontSize="sm" fontWeight="medium" mb={2} color="whiteAlpha.800">Summary</Text>
                 <HStack spacing={2} flexWrap="wrap">
                     <Badge colorScheme="green">
                         {formData.agent_config.enabled_tools.length} tools

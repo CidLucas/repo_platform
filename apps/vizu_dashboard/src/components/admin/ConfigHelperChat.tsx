@@ -13,7 +13,7 @@ import {
 import { useState, useEffect, useRef } from 'react';
 import { FiSend } from 'react-icons/fi';
 import { MarkdownMessage } from '../MarkdownMessage';
-import { streamConfigHelperChat, type StreamEvent } from '../../services/standaloneAgentService';
+import { streamConfigHelperChat } from '../../services/standaloneAgentService';
 
 interface ChatMessage {
     id: string;
@@ -55,6 +55,7 @@ export const ConfigHelperChat = ({ sessionId, accessToken, agentName }: ConfigHe
                 },
             ]);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sessionId, agentName]);
 
     const handleSendMessage = async () => {
@@ -101,10 +102,10 @@ export const ConfigHelperChat = ({ sessionId, accessToken, agentName }: ConfigHe
                         }
                     });
                 } else if (event.event === 'tool_start') {
-                    const toolEvent = event.data as any;
+                    const toolEvent = event.data as { tool?: string; input?: unknown };
                     console.debug(`Tool started: ${toolEvent.tool}`, toolEvent.input);
                 } else if (event.event === 'error') {
-                    const errorEvent = event.data as any;
+                    const errorEvent = event.data as { error?: string };
                     toast({
                         title: 'Erro',
                         description: errorEvent.error,
@@ -148,8 +149,8 @@ export const ConfigHelperChat = ({ sessionId, accessToken, agentName }: ConfigHe
 
     if (!sessionId) {
         return (
-            <Box borderWidth="1px" borderColor="gray.200" borderRadius="lg" p={6} textAlign="center">
-                <Text color="gray.600">
+            <Box borderWidth="1px" borderColor="rgba(255,255,255,0.08)" borderRadius="lg" bg="#1a1b2e" p={6} textAlign="center">
+                <Text color="whiteAlpha.600">
                     Selecione um agente e comece a configuração para iniciar a conversa
                 </Text>
             </Box>
@@ -159,16 +160,19 @@ export const ConfigHelperChat = ({ sessionId, accessToken, agentName }: ConfigHe
     return (
         <Box
             borderWidth="1px"
-            borderColor="gray.200"
-            borderRadius="lg"
+            borderColor="rgba(255,255,255,0.08)"
+            borderRadius="2xl"
+            bg="#1a1b2e"
             display="flex"
             flexDir="column"
             height="600px"
+            overflow="hidden"
+            boxShadow="0 20px 60px rgba(0,0,0,0.35)"
         >
             {/* Header */}
-            <Box borderBottomWidth="1px" borderColor="gray.200" p={4}>
-                <Heading size="sm">Assistente de Configuração</Heading>
-                <Text fontSize="xs" color="gray.600">
+            <Box borderBottomWidth="1px" borderColor="rgba(255,255,255,0.08)" p={4} bgGradient="linear(to-r, #141620, #1a1d2e)">
+                <Heading size="sm" color="white">Assistente de Configuração</Heading>
+                <Text fontSize="xs" color="whiteAlpha.600">
                     Blu Config
                 </Text>
             </Box>
@@ -189,11 +193,15 @@ export const ConfigHelperChat = ({ sessionId, accessToken, agentName }: ConfigHe
                     >
                         <Box
                             maxW="70%"
-                            bg={msg.sender === 'user' ? 'black' : 'gray.100'}
-                            color={msg.sender === 'user' ? 'white' : 'black'}
+                            bg={msg.sender === 'user' ? 'transparent' : '#14151f'}
+                            bgGradient={msg.sender === 'user' ? 'linear(to-br, #ff6b35, #ff006e)' : undefined}
+                            borderWidth={msg.sender === 'user' ? '0' : '1px'}
+                            borderColor="rgba(255,255,255,0.08)"
+                            color="white"
                             px={4}
                             py={3}
-                            borderRadius="lg"
+                            borderRadius="xl"
+                            boxShadow={msg.sender === 'user' ? '0 8px 24px rgba(255,107,53,0.18)' : 'none'}
                         >
                             {msg.sender === 'user' ? (
                                 <Text fontSize="sm">{msg.content}</Text>
@@ -205,8 +213,8 @@ export const ConfigHelperChat = ({ sessionId, accessToken, agentName }: ConfigHe
                 ))}
                 {isLoading && (
                     <HStack align="flex-start">
-                        <Spinner size="sm" color="gray.600" />
-                        <Text fontSize="xs" color="gray.600">
+                        <Spinner size="sm" color="whiteAlpha.600" />
+                        <Text fontSize="xs" color="whiteAlpha.600">
                             Processando...
                         </Text>
                     </HStack>
@@ -215,8 +223,8 @@ export const ConfigHelperChat = ({ sessionId, accessToken, agentName }: ConfigHe
             </VStack>
 
             {/* Input */}
-            <Box borderTopWidth="1px" borderColor="gray.200" p={4}>
-                <HStack spacing={2}>
+            <Box borderTopWidth="1px" borderColor="rgba(255,255,255,0.08)" p={4} bgGradient="linear(to-r, #141620, #1a1d2e)">
+                <HStack spacing={2} align="stretch">
                     <Textarea
                         placeholder="Descreva suas informações, dados e contexto do negócio..."
                         value={inputValue}
@@ -228,14 +236,24 @@ export const ConfigHelperChat = ({ sessionId, accessToken, agentName }: ConfigHe
                         resize="none"
                         fontSize="sm"
                         rows={3}
+                        bg="#14151f"
+                        color="white"
+                        borderColor="rgba(255,255,255,0.08)"
+                        _placeholder={{ color: 'whiteAlpha.400' }}
+                        _hover={{ borderColor: 'rgba(255,255,255,0.16)' }}
+                        _focus={{ borderColor: '#ff6b35', boxShadow: '0 0 0 1px #ff6b35' }}
                     />
                     <Button
-                        colorScheme="black"
+                        bgGradient="linear(to-r, #ff6b35, #ff006e)"
+                        color="white"
+                        _hover={{ opacity: 0.9 }}
                         onClick={handleSendMessage}
                         isDisabled={!inputValue.trim() || isLoading}
                         isLoading={isLoading}
                         leftIcon={<Icon as={FiSend} />}
-                        height="100%"
+                        height="auto"
+                        minW="120px"
+                        boxShadow="0 8px 24px rgba(255,107,53,0.22)"
                     >
                         Enviar
                     </Button>

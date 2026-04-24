@@ -1,14 +1,22 @@
-import { Box, Flex, Text, Alert, AlertIcon, Spinner, useDisclosure, Icon, SimpleGrid, VStack, HStack, Badge } from '@chakra-ui/react';
+import { Box, Flex, Text, Alert, AlertIcon, Spinner, useDisclosure, Icon, SimpleGrid, VStack, HStack, Badge, Link as ChakraLink } from '@chakra-ui/react';
 import { DomainExpansionModal } from '../components/DomainExpansionModal';
 import { MainLayout } from '../components/layouts/MainLayout';
+import { OnboardingBanner } from '../components/OnboardingBanner';
 import { useMemo, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useHomeMetrics } from '../hooks/useHomeMetrics';
+import { useAgentRunsToday } from '../hooks/useAgentRunsToday';
+import { useRecentActivity } from '../hooks/useRecentActivity';
+import { useAgenda } from '../hooks/useAgenda';
+import { usePendencias } from '../hooks/usePendencias';
+import { useNps } from '../hooks/useNps';
 import { getClientes, getFornecedores, getProdutosOverview } from '../services/analyticsService';
 import { FiDollarSign, FiCheckCircle, FiPackage, FiUsers, FiFileText, FiTrendingUp, FiZap, FiCalendar, FiClock, FiActivity, FiChevronRight, FiMail, FiPhone, FiTarget, FiSend, FiPlusCircle, FiBarChart2 } from 'react-icons/fi';
 
 function HomePage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
   const [selectedDomain, setSelectedDomain] = useState<'orders' | 'customers' | 'suppliers' | 'products'>('orders');
 
@@ -39,6 +47,32 @@ function HomePage() {
 
   // Single consolidated hook — v_resumo_dashboard now provides all HomePage data
   const { data: metricsData, loading: metricsLoading, error: metricsError } = useHomeMetrics();
+
+  // Live data hooks (Phase 4: dashboard mocks → live data)
+  const { data: agentRunsData } = useAgentRunsToday();
+  const { data: recentActivityData } = useRecentActivity(4);
+  const { data: agendaData } = useAgenda(7);
+  const { data: pendenciasData } = usePendencias();
+  const { data: npsData } = useNps(90);
+
+  // Relative-time formatter (PT-BR) — used by Recent Activity & Pendências.
+  const relativeTimeFormatter = useMemo(
+    () => new Intl.RelativeTimeFormat('pt-BR', { numeric: 'auto' }),
+    []
+  );
+
+  const formatRelativeTime = (iso: string | null): string => {
+    if (!iso) return '';
+    const then = new Date(iso).getTime();
+    if (Number.isNaN(then)) return '';
+    const diffSec = Math.round((then - Date.now()) / 1000);
+    const abs = Math.abs(diffSec);
+    if (abs < 60) return relativeTimeFormatter.format(diffSec, 'second');
+    if (abs < 3600) return relativeTimeFormatter.format(Math.round(diffSec / 60), 'minute');
+    if (abs < 86400) return relativeTimeFormatter.format(Math.round(diffSec / 3600), 'hour');
+    if (abs < 604800) return relativeTimeFormatter.format(Math.round(diffSec / 86400), 'day');
+    return relativeTimeFormatter.format(Math.round(diffSec / 604800), 'week');
+  };
 
   // Derive revenue data from metricsData (memoized to avoid recalculation)
   const revenueData = useMemo(() => {
@@ -124,6 +158,7 @@ function HomePage() {
 
   return (
     <MainLayout>
+      <OnboardingBanner />
       <Box p={6} maxW="1800px" mx="auto">
         {/* Welcome Header — Playfair Display title with gradient accent */}
         <Box mb={8}>
@@ -238,7 +273,7 @@ function HomePage() {
                     </Text>
                   </Box>
                 </Flex>
-                <Text fontSize="xs" color="whiteAlpha.600">tasks in progress</Text>
+                <Text fontSize="xs" color="whiteAlpha.600">pedidos no total</Text>
               </Box>
             </SimpleGrid>
 
@@ -337,7 +372,7 @@ function HomePage() {
                       AI Tasks Today
                     </Text>
                     <Text fontSize="2xl" fontWeight="bold" color="white">
-                      {totalPedidos > 0 ? Math.floor(totalPedidos * 0.12) : 0}
+                      {(agentRunsData?.total ?? 0).toLocaleString('pt-BR')}
                     </Text>
                   </Box>
                   <Flex
@@ -370,7 +405,19 @@ function HomePage() {
                       Quick Insight
                     </Text>
                     <Text fontSize="sm" color="whiteAlpha.800">
-                      Sua base de clientes cresceu e a receita está em tendência positiva. Continue assim! 🎉
+                      {(() => {
+                        const sc = metricsData?.scorecards;
+                        if (sc?.crescimento_receita !== undefined && sc.crescimento_receita !== null && sc.crescimento_receita > 0) {
+                          return `Receita cresceu ${sc.crescimento_receita.toFixed(1)}% vs. mês anterior.`;
+                        }
+                        if (sc?.crescimento_clientes !== undefined && sc.crescimento_clientes !== null && sc.crescimento_clientes > 0) {
+                          return `Sua base de clientes cresceu ${sc.crescimento_clientes.toFixed(1)}% vs. mês anterior.`;
+                        }
+                        if (sc?.crescimento_produtos !== undefined && sc.crescimento_produtos !== null && sc.crescimento_produtos > 0) {
+                          return `Catálogo de produtos cresceu ${sc.crescimento_produtos.toFixed(1)}% vs. mês anterior.`;
+                        }
+                        return 'Acompanhe os indicadores principais para identificar oportunidades.';
+                      })()}
                     </Text>
                   </Box>
                   <Flex
@@ -388,8 +435,8 @@ function HomePage() {
               </Box>
             </SimpleGrid>
 
-            {/* Horizontal Row — Quick Actions, Pendências, KPIs, Atividade Recente */}
-            <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4} mb={6}>
+            {/* Horizontal Row — Quick Actions, Pendências, KPIs */}
+            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={6}>
               {/* Quick Actions Card */}
               <Box
                 bg="#1a1b2e"
@@ -407,10 +454,10 @@ function HomePage() {
                 </Flex>
                 <SimpleGrid columns={2} spacing={2}>
                   {[
-                    { icon: FiPlusCircle, label: 'Novo Pedido', color: '#3b82f6' },
-                    { icon: FiSend, label: 'Enviar Relatório', color: '#10b981' },
-                    { icon: FiMail, label: 'Email Cliente', color: '#a855f7' },
-                    { icon: FiTarget, label: 'Definir Meta', color: '#f97316' },
+                    { icon: FiPlusCircle, label: 'Novo Pedido', color: '#3b82f6', route: '/dashboard/orders/new' },
+                    { icon: FiSend, label: 'Enviar Relatório', color: '#10b981', route: '/dashboard/orders' },
+                    { icon: FiMail, label: 'Email Cliente', color: '#a855f7', route: '/dashboard/suppliers' },
+                    { icon: FiTarget, label: 'Definir Meta', color: '#f97316', route: '/dashboard/goals/new' },
                   ].map((action) => (
                     <Flex
                       key={action.label}
@@ -422,6 +469,7 @@ function HomePage() {
                       cursor="pointer"
                       transition="all 0.2s"
                       _hover={{ bg: 'whiteAlpha.100' }}
+                      onClick={() => navigate(action.route)}
                     >
                       <Flex w={9} h={9} borderRadius="lg" align="center" justify="center" bg={`${action.color}20`}>
                         <Icon as={action.icon} boxSize={4} color={action.color} />
@@ -432,7 +480,7 @@ function HomePage() {
                 </SimpleGrid>
               </Box>
 
-              {/* Pending Requests Card */}
+              {/* Recent Activity Card (moved from right column) */}
               <Box
                 bg="#1a1b2e"
                 borderRadius="0.625rem"
@@ -443,36 +491,51 @@ function HomePage() {
               >
                 <Flex justify="space-between" align="center" mb={4}>
                   <HStack spacing={2}>
-                    <Icon as={FiClock} boxSize={4} color="#f97316" />
-                    <Text fontSize="sm" fontWeight="semibold" color="white">Pendências</Text>
+                    <Icon as={FiActivity} boxSize={4} color="#10b981" />
+                    <Text fontSize="sm" fontWeight="semibold" color="white">Atividade Recente</Text>
                   </HStack>
-                  <Badge bg="#f9731620" color="#f97316" fontSize="2xs" borderRadius="full" px={2}>3</Badge>
                 </Flex>
                 <VStack spacing={3} align="stretch">
-                  {[
-                    { title: 'Aprovar pedido #1042', priority: 'high', time: 'Há 2h' },
-                    { title: 'Revisar proposta comercial', priority: 'medium', time: 'Há 4h' },
-                    { title: 'Atualizar catálogo de preços', priority: 'high', time: 'Há 1d' },
-                  ].map((req, idx) => (
-                    <Flex key={idx} align="center" gap={3} py={2} borderBottom={idx < 2 ? '1px solid' : 'none'} borderColor="whiteAlpha.100">
-                      <Box flex={1} minW={0}>
-                        <Flex align="center" gap={2} mb={0.5}>
-                          <Text fontSize="xs" fontWeight="medium" color="white" noOfLines={1}>{req.title}</Text>
-                          <Badge
-                            fontSize="2xs"
-                            borderRadius="full"
-                            px={1.5}
-                            bg={req.priority === 'high' ? '#ef444420' : '#f9731620'}
-                            color={req.priority === 'high' ? '#ef4444' : '#f97316'}
-                          >
-                            {req.priority === 'high' ? 'Alta' : 'Média'}
-                          </Badge>
+                  {(() => {
+                    const items = recentActivityData ?? [];
+                    if (items.length === 0) {
+                      return (
+                        <Text fontSize="xs" color="whiteAlpha.500">
+                          Nenhuma atividade recente.
+                        </Text>
+                      );
+                    }
+                    const colorByKind: Record<string, string> = {
+                      ingestion: '#3b82f6',
+                      agent_session: '#10b981',
+                      rfq: '#f97316',
+                      upload: '#a855f7',
+                    };
+                    return items.map((activity, idx) => {
+                      const color = colorByKind[activity.kind] ?? '#94a3b8';
+                      return (
+                        <Flex
+                          key={`${activity.kind}-${activity.occurredAt}-${idx}`}
+                          align="start"
+                          gap={3}
+                          py={2}
+                          borderBottom={idx < items.length - 1 ? '1px solid' : 'none'}
+                          borderColor="whiteAlpha.100"
+                        >
+                          <Box w={1.5} h={1.5} borderRadius="full" bg={color} mt={1.5} flexShrink={0} />
+                          <Box flex={1} minW={0}>
+                            <Text fontSize="xs" fontWeight="medium" color="white" noOfLines={1}>{activity.title}</Text>
+                            <Flex gap={2}>
+                              {activity.subtitle && (
+                                <Text fontSize="2xs" color={color} noOfLines={1}>{activity.subtitle}</Text>
+                              )}
+                              <Text fontSize="2xs" color="whiteAlpha.400">{formatRelativeTime(activity.occurredAt)}</Text>
+                            </Flex>
+                          </Box>
                         </Flex>
-                        <Text fontSize="2xs" color="whiteAlpha.500">{req.time}</Text>
-                      </Box>
-                      <Icon as={FiChevronRight} boxSize={3.5} color="whiteAlpha.400" />
-                    </Flex>
-                  ))}
+                      );
+                    });
+                  })()}
                 </VStack>
               </Box>
 
@@ -493,56 +556,36 @@ function HomePage() {
                 </Flex>
                 <VStack spacing={3} align="stretch">
                   {[
-                    { label: 'Taxa de Conversão', value: '3.2%', color: '#3b82f6' },
-                    { label: 'Ticket Médio', value: formatCompactCurrency(metricsData?.scorecards.ticket_medio || 0), color: '#10b981' },
-                    { label: 'NPS Score', value: '72', color: '#f97316' },
+                    {
+                      label: 'Ticket Médio',
+                      value: formatCompactCurrency(metricsData?.scorecards.ticket_medio || 0),
+                      sub: undefined as string | undefined,
+                      color: '#10b981',
+                    },
+                    {
+                      label: 'NPS Score',
+                      value: npsData ? `${Math.round(npsData.score)}` : '—',
+                      sub: npsData ? `${npsData.totalResponses} respostas` : undefined,
+                      color: '#f97316',
+                    },
                   ].map((kpi) => (
                     <Flex key={kpi.label} justify="space-between" align="center" py={2} borderBottom="1px solid" borderColor="whiteAlpha.100">
-                      <Text fontSize="xs" color="whiteAlpha.600">{kpi.label}</Text>
+                      <Box>
+                        <Text fontSize="xs" color="whiteAlpha.600">{kpi.label}</Text>
+                        {kpi.sub && (
+                          <Text fontSize="2xs" color="whiteAlpha.400">{kpi.sub}</Text>
+                        )}
+                      </Box>
                       <Text fontSize="sm" fontWeight="bold" color={kpi.color}>{kpi.value}</Text>
                     </Flex>
                   ))}
                 </VStack>
               </Box>
-
-              {/* Recent Activity Card */}
-              <Box
-                bg="#1a1b2e"
-                borderRadius="0.625rem"
-                border="1px solid"
-                borderColor="rgba(255,255,255,0.08)"
-                boxShadow="0 4px 24px rgba(0,0,0,0.4)"
-                p={5}
-              >
-                <Flex justify="space-between" align="center" mb={4}>
-                  <HStack spacing={2}>
-                    <Icon as={FiActivity} boxSize={4} color="#10b981" />
-                    <Text fontSize="sm" fontWeight="semibold" color="white">Atividade Recente</Text>
-                  </HStack>
-                </Flex>
-                <VStack spacing={3} align="stretch">
-                  {[
-                    { action: 'Relatório de vendas gerado', agent: 'Agente Analytics', time: 'Há 15min', color: '#3b82f6' },
-                    { action: 'Novo fornecedor cadastrado', agent: 'Agente Supply', time: 'Há 1h', color: '#10b981' },
-                    { action: 'Alerta de estoque baixo', agent: 'Agente Inventory', time: 'Há 2h', color: '#f97316' },
-                    { action: 'Campanha email enviada', agent: 'Agente Marketing', time: 'Há 3h', color: '#a855f7' },
-                  ].map((activity, idx) => (
-                    <Flex key={idx} align="start" gap={3} py={2} borderBottom={idx < 3 ? '1px solid' : 'none'} borderColor="whiteAlpha.100">
-                      <Box w={1.5} h={1.5} borderRadius="full" bg={activity.color} mt={1.5} flexShrink={0} />
-                      <Box flex={1} minW={0}>
-                        <Text fontSize="xs" fontWeight="medium" color="white" noOfLines={1}>{activity.action}</Text>
-                        <Flex gap={2}>
-                          <Text fontSize="2xs" color={activity.color}>{activity.agent}</Text>
-                          <Text fontSize="2xs" color="whiteAlpha.400">{activity.time}</Text>
-                        </Flex>
-                      </Box>
-                    </Flex>
-                  ))}
-                </VStack>
-              </Box>
             </SimpleGrid>
+          </Box>
 
-            {/* Agenda Card — Full width */}
+          {/* Right Section — Agenda + Pendências (1 column, scrolls together) */}
+          <Box>
             <Box
               bg="#1a1b2e"
               borderRadius="0.625rem"
@@ -558,30 +601,149 @@ function HomePage() {
                 </HStack>
                 <Icon as={FiChevronRight} boxSize={4} color="whiteAlpha.400" cursor="pointer" _hover={{ color: 'white' }} />
               </Flex>
-              <SimpleGrid columns={{ base: 1, md: 4 }} spacing={3}>
-                {[
-                  { title: 'Reunião com equipe de vendas', time: '09:00', type: 'meeting', color: '#3b82f6' },
-                  { title: 'Call com fornecedor', time: '11:30', type: 'call', color: '#10b981' },
-                  { title: 'Deadline relatório mensal', time: '17:00', type: 'deadline', color: '#ec4899' },
-                  { title: 'Review pipeline de dados', time: '14:00', type: 'meeting', color: '#a855f7' },
-                ].map((event, idx) => (
-                  <Flex key={idx} align="center" gap={3} py={2}>
-                    <Flex
-                      w={8} h={8}
-                      borderRadius="lg"
-                      align="center" justify="center"
-                      bg={`${event.color}20`}
-                      flexShrink={0}
-                    >
-                      <Icon as={event.type === 'call' ? FiPhone : event.type === 'deadline' ? FiClock : FiCalendar} boxSize={3.5} color={event.color} />
-                    </Flex>
-                    <Box flex={1} minW={0}>
-                      <Text fontSize="xs" fontWeight="medium" color="white" noOfLines={1}>{event.title}</Text>
-                      <Text fontSize="2xs" color="whiteAlpha.500">{event.time}</Text>
-                    </Box>
-                  </Flex>
-                ))}
-              </SimpleGrid>
+              <VStack spacing={3} align="stretch">
+                {(() => {
+                  if (agendaData?.disabled) {
+                    return (
+                      <Box py={2}>
+                        <Text fontSize="xs" color="whiteAlpha.600" mb={2}>
+                          Conecte sua agenda para ver eventos.
+                        </Text>
+                        <ChakraLink
+                          fontSize="xs"
+                          color="#3b82f6"
+                          fontWeight="semibold"
+                          onClick={() => navigate('/dashboard/admin/fontes')}
+                          _hover={{ textDecoration: 'underline', cursor: 'pointer' }}
+                        >
+                          Conectar Google Calendar →
+                        </ChakraLink>
+                      </Box>
+                    );
+                  }
+                  const events = agendaData?.events ?? [];
+                  if (events.length === 0) {
+                    return (
+                      <Text fontSize="xs" color="whiteAlpha.500">
+                        Sem eventos nos próximos dias.
+                      </Text>
+                    );
+                  }
+                  const colorByType: Record<string, string> = {
+                    meeting: '#3b82f6',
+                    call: '#10b981',
+                    deadline: '#ec4899',
+                  };
+                  return events.map((event, idx) => {
+                    const color = colorByType[event.type] ?? '#a855f7';
+                    const iconForType = event.type === 'call' ? FiPhone : event.type === 'deadline' ? FiClock : FiCalendar;
+                    let timeLabel = '';
+                    try {
+                      timeLabel = new Intl.DateTimeFormat('pt-BR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }).format(new Date(event.startsAt));
+                    } catch {
+                      timeLabel = '';
+                    }
+                    return (
+                      <Flex
+                        key={event.id}
+                        align="center"
+                        gap={3}
+                        py={2}
+                        borderBottom={idx < events.length - 1 ? '1px solid' : 'none'}
+                        borderColor="rgba(255,255,255,0.06)"
+                      >
+                        <Flex
+                          w={8} h={8}
+                          borderRadius="lg"
+                          align="center" justify="center"
+                          bg={`${color}20`}
+                          flexShrink={0}
+                        >
+                          <Icon as={iconForType} boxSize={3.5} color={color} />
+                        </Flex>
+                        <Box flex={1} minW={0}>
+                          <Text fontSize="xs" fontWeight="medium" color="white" noOfLines={1}>{event.title}</Text>
+                          <Text fontSize="2xs" color="whiteAlpha.500">{timeLabel}</Text>
+                        </Box>
+                      </Flex>
+                    );
+                  });
+                })()}
+              </VStack>
+            </Box>
+
+            {/* Pendências Card (moved from horizontal row) */}
+            <Box
+              bg="#1a1b2e"
+              borderRadius="0.625rem"
+              border="1px solid"
+              borderColor="rgba(255,255,255,0.08)"
+              boxShadow="0 4px 24px rgba(0,0,0,0.4)"
+              p={5}
+              mt={4}
+            >
+              <Flex justify="space-between" align="center" mb={4}>
+                <HStack spacing={2}>
+                  <Icon as={FiClock} boxSize={4} color="#f97316" />
+                  <Text fontSize="sm" fontWeight="semibold" color="white">Pendências</Text>
+                </HStack>
+                <Badge bg="#f9731620" color="#f97316" fontSize="2xs" borderRadius="full" px={2}>
+                  {pendenciasData?.length ?? 0}
+                </Badge>
+              </Flex>
+              <VStack spacing={3} align="stretch">
+                {(() => {
+                  const items = pendenciasData ?? [];
+                  if (items.length === 0) {
+                    return (
+                      <Text fontSize="xs" color="whiteAlpha.500">
+                        Nenhuma pendência no momento.
+                      </Text>
+                    );
+                  }
+                  return items.map((item, idx) => {
+                    const isHigh = item.severity === 'error';
+                    const isMed = item.severity === 'warning';
+                    const badgeBg = isHigh ? '#ef444420' : isMed ? '#f9731620' : '#3b82f620';
+                    const badgeColor = isHigh ? '#ef4444' : isMed ? '#f97316' : '#3b82f6';
+                    const badgeLabel = isHigh ? 'Alta' : isMed ? 'Média' : 'Baixa';
+                    return (
+                      <Flex
+                        key={`${item.kind}-${idx}`}
+                        align="center"
+                        gap={3}
+                        py={2}
+                        borderBottom={idx < items.length - 1 ? '1px solid' : 'none'}
+                        borderColor="whiteAlpha.100"
+                        cursor="pointer"
+                        onClick={() => item.targetRoute && navigate(item.targetRoute)}
+                        _hover={{ bg: 'whiteAlpha.50' }}
+                        borderRadius="sm"
+                      >
+                        <Box flex={1} minW={0}>
+                          <Flex align="center" gap={2} mb={0.5}>
+                            <Text fontSize="xs" fontWeight="medium" color="white" noOfLines={1}>{item.title}</Text>
+                            <Badge
+                              fontSize="2xs"
+                              borderRadius="full"
+                              px={1.5}
+                              bg={badgeBg}
+                              color={badgeColor}
+                            >
+                              {badgeLabel}
+                            </Badge>
+                          </Flex>
+                          <Text fontSize="2xs" color="whiteAlpha.500">{formatRelativeTime(item.occurredAt)}</Text>
+                        </Box>
+                        <Icon as={FiChevronRight} boxSize={3.5} color="whiteAlpha.400" />
+                      </Flex>
+                    );
+                  });
+                })()}
+              </VStack>
             </Box>
           </Box>
         </SimpleGrid>

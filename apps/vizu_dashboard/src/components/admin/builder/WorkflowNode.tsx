@@ -29,13 +29,13 @@ const NODE_ICONS: Record<string, React.ElementType> = {
 };
 
 const NODE_COLORS: Record<string, { bg: string; border: string; accent: string }> = {
-    start: { bg: 'green.50', border: 'green.400', accent: 'green.500' },
-    init: { bg: 'blue.50', border: 'blue.400', accent: 'blue.500' },
-    elicit: { bg: 'purple.50', border: 'purple.400', accent: 'purple.500' },
-    execute_tool: { bg: 'orange.50', border: 'orange.400', accent: 'orange.500' },
-    respond: { bg: 'teal.50', border: 'teal.400', accent: 'teal.500' },
-    end: { bg: 'red.50', border: 'red.400', accent: 'red.500' },
-    terminal: { bg: 'gray.50', border: 'gray.400', accent: 'gray.500' },
+    start: { bg: 'rgba(6,255,165,0.08)', border: '#06ffa5', accent: '#06ffa5' },
+    init: { bg: 'rgba(67,97,238,0.12)', border: '#4361ee', accent: '#7c9fff' },
+    elicit: { bg: 'rgba(114,9,183,0.12)', border: '#7209b7', accent: '#c084fc' },
+    execute_tool: { bg: 'rgba(255,107,53,0.12)', border: '#ff6b35', accent: '#ff6b35' },
+    respond: { bg: 'rgba(20,184,166,0.1)', border: '#14b8a6', accent: '#5eead4' },
+    end: { bg: 'rgba(239,68,68,0.1)', border: '#ef4444', accent: '#fca5a5' },
+    terminal: { bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.3)', accent: 'rgba(255,255,255,0.6)' },
 };
 
 const WorkflowNode = ({ data }: NodeProps) => {
@@ -66,25 +66,25 @@ const WorkflowNode = ({ data }: NodeProps) => {
                 py={3}
                 minW={isTerminal ? '80px' : '140px'}
                 borderWidth="2px"
-                borderColor={active ? colors.border : 'gray.200'}
+                borderColor={active ? colors.border : 'rgba(255,255,255,0.08)'}
                 borderRadius={isTerminal ? 'full' : 'lg'}
-                bg={active ? colors.bg : 'gray.50'}
-                opacity={active ? 1 : 0.45}
+                bg={active ? colors.bg : 'rgba(255,255,255,0.02)'}
+                opacity={active ? 1 : 0.35}
                 textAlign="center"
                 transition="all 0.2s"
-                boxShadow={active ? 'sm' : 'none'}
-                _hover={active ? { boxShadow: 'md' } : undefined}
+                boxShadow={active ? `0 0 12px ${colors.border}33` : 'none'}
+                _hover={active ? { boxShadow: `0 0 18px ${colors.border}55` } : undefined}
             >
                 <Icon
                     as={IconComponent}
-                    color={active ? colors.accent : 'gray.400'}
+                    color={active ? colors.accent : 'rgba(255,255,255,0.2)'}
                     boxSize={4}
                     mb={1}
                 />
                 <Text
                     fontSize="xs"
                     fontWeight={active ? 'bold' : 'normal'}
-                    color={active ? 'gray.800' : 'gray.400'}
+                    color={active ? 'white' : 'rgba(255,255,255,0.25)'}
                     lineHeight="short"
                 >
                     {label}
@@ -96,10 +96,10 @@ const WorkflowNode = ({ data }: NodeProps) => {
                     type="source"
                     position={Position.Bottom}
                     style={{
-                        background: active ? '#333' : '#ccc',
+                        background: active ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.15)',
                         width: 8,
                         height: 8,
-                        border: '2px solid white',
+                        border: '2px solid rgba(255,255,255,0.3)',
                     }}
                 />
             )}

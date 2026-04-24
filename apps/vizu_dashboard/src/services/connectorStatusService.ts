@@ -6,6 +6,7 @@
  */
 
 import { supabase } from "../lib/supabase";
+import { resolveClientId } from "../lib/auth";
 
 // --- Types ---
 
@@ -89,50 +90,6 @@ export interface DashboardStatsResponse {
     storage_usage: StorageUsageResponse;
     last_sync_at: string | null;
     total_syncs_today: number;
-}
-
-// --- Helper Functions ---
-
-/**
- * Resolve client_id from Supabase auth session.
- */
-async function resolveClientIdFromSupabase(): Promise<string | null> {
-    const { data: { user }, error } = await supabase.auth.getUser();
-
-    if (error || !user) {
-        return null;
-    }
-
-    const clientId = user.app_metadata?.client_id;
-    if (clientId) {
-        return clientId;
-    }
-
-    const { data: cliente } = await supabase
-        .from('clientes_vizu')
-        .select('client_id')
-        .eq('email', user.email)
-        .single();
-
-    return cliente?.client_id || null;
-}
-
-async function resolveClientId(providedClientId?: string): Promise<string> {
-    let resolvedClientId = providedClientId || localStorage.getItem('vizu_client_id') || '';
-
-    if (!resolvedClientId) {
-        const clientIdFromSupabase = await resolveClientIdFromSupabase();
-        if (clientIdFromSupabase) {
-            resolvedClientId = clientIdFromSupabase;
-            localStorage.setItem('vizu_client_id', resolvedClientId);
-        }
-    }
-
-    if (!resolvedClientId) {
-        throw new Error('client_id is required');
-    }
-
-    return resolvedClientId;
 }
 
 // --- API Functions ---
@@ -314,10 +271,10 @@ export async function deleteUploadedFile(
         .select('storage_path')
         .eq('id', parseInt(fileId, 10))
         .eq('client_id', resolvedClientId)
-        .single();
+        .maybeSingle();
 
-    if (fetchError) {
-        throw new Error(fetchError.message || 'Failed to find file');
+    if (fetchError || !fileRecord) {
+        throw new Error(fetchError?.message || 'Failed to find file');
     }
 
     // Delete from storage if path exists
@@ -382,13 +339,17 @@ export async function getDashboardStats(
     }
 
     // Get last sync
-    const { data: lastSync } = await supabase
+    const { data: lastSync, error: lastSyncError } = await supabase
         .from('connector_sync_history')
         .select('sync_completed_at')
         .eq('client_id', resolvedClientId)
         .order('sync_completed_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
+
+    if (lastSyncError) {
+        console.warn('Failed to fetch last sync timestamp:', lastSyncError);
+    }
 
     // Get file storage stats
     const filesResponse = await getUploadedFiles(resolvedClientId);
@@ -432,7 +393,7 @@ export async function getDashboardStats(
  */
 export async function startSyncJob(
     credentialId: number,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     _resourceType?: string
 ): Promise<{ sync_id: string; status: string; message: string }> {
     // Get client_id from credential
@@ -440,7 +401,7 @@ export async function startSyncJob(
         .from('credencial_servico_externo')
         .select('client_id')
         .eq('id', credentialId)
-        .single();
+        .maybeSingle();
 
     if (credError || !credencial) {
         throw new Error('Credential not found');

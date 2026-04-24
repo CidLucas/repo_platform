@@ -14,9 +14,9 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
   const { isChatOpen, closeChat } = useChat();
 
   return (
-    <Flex direction="column" minHeight="100vh" bg="#0d0e1f">
+    <Flex direction="column" minHeight="100vh" bg="#0d0e1f" color="white">
       <Header />
-      <Flex flex="1">
+      <Flex flex="1" minH="calc(100vh - 4rem)">
         <AdminSidebar />
         <Box as="main" flex="1" overflowY="auto" bg="#0d0e1f">
           {children}

@@ -114,7 +114,7 @@ function AdminConnectorMappingPage() {
     } | null>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [sampleData, setSampleData] = useState<Record<string, any[]>>({});
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     const [_loadingSampleData, setLoadingSampleData] = useState(false);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [ingestionQuality, setIngestionQuality] = useState<Record<string, any> | null>(null);
@@ -141,9 +141,9 @@ function AdminConnectorMappingPage() {
                     .from('credencial_servico_externo')
                     .select('nome_servico, tipo_servico, connection_metadata')
                     .eq('id', parseInt(credentialId))
-                    .single();
+                    .maybeSingle();
 
-                if (credError) throw credError;
+                if (credError || !credential) throw credError || new Error('Credencial não encontrada');
 
                 setCredentialInfo({
                     nome_servico: credential.nome_servico,
@@ -321,6 +321,7 @@ function AdminConnectorMappingPage() {
         }
 
         loadCredentialData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [credentialId, toast]);
 
     // Handle user selection for a column
@@ -381,7 +382,7 @@ function AdminConnectorMappingPage() {
                 .from('credencial_servico_externo')
                 .select('client_id')
                 .eq('id', parseInt(credentialId))
-                .single();
+                    .maybeSingle();
 
             if (!credential?.client_id) {
                 throw new Error('client_id não encontrado na credencial');
@@ -454,10 +455,14 @@ function AdminConnectorMappingPage() {
                     .from('reg_jobs')
                     .select('status, progress_pct, result, error_message')
                     .eq('job_id', jobId)
-                    .single();
+                    .maybeSingle();
 
                 if (pollError) {
                     console.warn('Poll error:', pollError);
+                    continue;
+                }
+
+                if (!job) {
                     continue;
                 }
 
@@ -490,7 +495,7 @@ function AdminConnectorMappingPage() {
                     .from('client_data_sources')
                     .select('ingestion_quality, quality_assessed_at')
                     .eq('credential_id', parseInt(credentialId))
-                    .single();
+                    .maybeSingle();
                 if (qualityData?.ingestion_quality) {
                     setIngestionQuality(qualityData.ingestion_quality);
                 }
@@ -519,6 +524,7 @@ function AdminConnectorMappingPage() {
         } finally {
             setIsSyncing(false);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [credentialId, matchResult, mappingState, toast, navigate]);
 
     // Render confidence badge
@@ -538,15 +544,15 @@ function AdminConnectorMappingPage() {
         if (samples.length === 0) return null;
 
         return (
-            <Box mt={2} p={3} bg="gray.50" borderRadius="md" fontSize="sm">
-                <Text fontWeight="medium" color="gray.600" mb={2}>
+            <Box mt={2} p={3} bg="rgba(255,255,255,0.03)" border="1px solid rgba(255,255,255,0.08)" borderRadius="md" fontSize="sm">
+                <Text fontWeight="medium" color="whiteAlpha.700" mb={2}>
                     📊 Dados de Exemplo:
                 </Text>
                 <VStack align="start" spacing={1}>
                     {samples.map((val, idx) => (
                         <HStack key={idx} spacing={2}>
                             <Badge colorScheme="gray" fontSize="xs">{idx + 1}</Badge>
-                            <Text fontFamily="mono" fontSize="xs" color="gray.700">
+                            <Text fontFamily="mono" fontSize="xs" color="whiteAlpha.700">
                                 {String(val).substring(0, 100)}
                                 {String(val).length > 100 && '...'}
                             </Text>
@@ -563,12 +569,20 @@ function AdminConnectorMappingPage() {
                 {/* Header */}
                 <VStack align="start" spacing={4} mb={8}>
                     <HStack spacing={3}>
-                        <Icon as={FiDatabase} boxSize={6} color="blue.500" />
+                        <Box p={2} borderRadius="lg" bgGradient="linear(to-br, #ff6b35, #ff006e)" boxShadow="0 0 16px rgba(255,107,53,0.4)">
+                            <Icon as={FiDatabase} boxSize={5} color="white" />
+                        </Box>
                         <VStack align="start" spacing={0}>
-                            <Text fontSize="2xl" fontWeight="semibold">
+                            <Text
+                                fontSize="2xl"
+                                fontWeight="bold"
+                                fontFamily="'Playfair Display', serif"
+                                bgGradient="linear(to-r, #ff6b35, #ff006e)"
+                                bgClip="text"
+                            >
                                 Mapeamento de Colunas
                             </Text>
-                            <Text fontSize="sm" color="gray.500">
+                            <Text fontSize="sm" color="whiteAlpha.600">
                                 {credentialInfo?.nome_servico || 'Carregando...'} • {credentialInfo?.tipo_servico}
                             </Text>
                         </VStack>
@@ -585,8 +599,8 @@ function AdminConnectorMappingPage() {
                 {/* Loading state */}
                 {matchLoading && (
                     <VStack py={12} spacing={4}>
-                        <Spinner size="xl" color="blue.500" />
-                        <Text color="gray.500">Analisando colunas...</Text>
+                        <Spinner size="xl" color="orange.400" />
+                        <Text color="whiteAlpha.600">Analisando colunas...</Text>
                     </VStack>
                 )}
 
@@ -595,26 +609,26 @@ function AdminConnectorMappingPage() {
                     <VStack spacing={6} align="stretch">
                         {/* Summary cards */}
                         <HStack spacing={4}>
-                            <Box bg="green.50" p={4} borderRadius="lg" flex={1}>
+                            <Box bg="rgba(6,255,165,0.08)" border="1px solid rgba(6,255,165,0.18)" p={4} borderRadius="lg" flex={1}>
                                 <HStack>
-                                    <Icon as={FiCheck} color="green.500" />
-                                    <Text fontWeight="medium" color="green.700">
+                                    <Icon as={FiCheck} color="#06ffa5" />
+                                    <Text fontWeight="medium" color="#06ffa5">
                                         {Object.keys(matchResult.matched).length} Mapeadas Automaticamente
                                     </Text>
                                 </HStack>
                             </Box>
-                            <Box bg="yellow.50" p={4} borderRadius="lg" flex={1}>
+                            <Box bg="rgba(234,179,8,0.08)" border="1px solid rgba(234,179,8,0.2)" p={4} borderRadius="lg" flex={1}>
                                 <HStack>
-                                    <Icon as={FiAlertTriangle} color="yellow.600" />
-                                    <Text fontWeight="medium" color="yellow.700">
+                                    <Icon as={FiAlertTriangle} color="yellow.300" />
+                                    <Text fontWeight="medium" color="yellow.300">
                                         {matchResult.needs_review.length} Precisam Revisão
                                     </Text>
                                 </HStack>
                             </Box>
-                            <Box bg="red.50" p={4} borderRadius="lg" flex={1}>
+                            <Box bg="rgba(239,68,68,0.08)" border="1px solid rgba(239,68,68,0.2)" p={4} borderRadius="lg" flex={1}>
                                 <HStack>
-                                    <Icon as={FiX} color="red.500" />
-                                    <Text fontWeight="medium" color="red.700">
+                                    <Icon as={FiX} color="red.400" />
+                                    <Text fontWeight="medium" color="red.400">
                                         {matchResult.unmatched.length} Não Mapeadas
                                     </Text>
                                 </HStack>
@@ -642,17 +656,17 @@ function AdminConnectorMappingPage() {
 
                         <Accordion allowMultiple defaultIndex={[0, 1]}>
                             {/* Auto-matched columns */}
-                            <AccordionItem border="1px solid" borderColor="gray.200" borderRadius="lg" mb={4}>
-                                <AccordionButton py={4}>
+                            <AccordionItem border="1px solid" borderColor="rgba(6,255,165,0.2)" borderRadius="lg" mb={4} bg="rgba(6,255,165,0.04)">
+                                <AccordionButton py={4} _hover={{ bg: 'rgba(6,255,165,0.06)' }} borderRadius="lg">
                                     <HStack flex={1}>
-                                        <Icon as={FiCheck} color="green.500" />
-                                        <Text fontWeight="medium">Mapeadas Automaticamente</Text>
+                                        <Icon as={FiCheck} color="#06ffa5" />
+                                        <Text fontWeight="medium" color="white">Mapeadas Automaticamente</Text>
                                         <Badge colorScheme="green">{Object.keys(matchResult.matched).length}</Badge>
                                     </HStack>
-                                    <AccordionIcon />
+                                    <AccordionIcon color="whiteAlpha.600" />
                                 </AccordionButton>
-                                <AccordionPanel>
-                                    <Table size="sm">
+                                <AccordionPanel bg="transparent" px={0}>
+                                    <Table size="sm" sx={{ 'th': { color: 'whiteAlpha.500', borderColor: 'rgba(255,255,255,0.08)', fontSize: 'xs', textTransform: 'uppercase', letterSpacing: 'wider' }, 'td': { borderColor: 'rgba(255,255,255,0.06)', color: 'whiteAlpha.900' } }}>
                                         <Thead>
                                             <Tr>
                                                 <Th>Coluna Origem</Th>
@@ -664,14 +678,14 @@ function AdminConnectorMappingPage() {
                                         <Tbody>
                                             {Object.entries(matchResult.matched).map(([source, canonical]) => (
                                                 <>
-                                                    <Tr key={source}>
-                                                        <Td fontFamily="mono" fontSize="sm">{source}</Td>
-                                                        <Td><Icon as={FiArrowRight} color="gray.400" /></Td>
+                                                    <Tr key={source} _hover={{ bg: 'rgba(255,255,255,0.03)' }}>
+                                                        <Td fontFamily="mono" fontSize="sm" color="orange.200">{source}</Td>
+                                                        <Td><Icon as={FiArrowRight} color="whiteAlpha.400" /></Td>
                                                         <Td>
-                                                            <Text fontWeight="medium">
+                                                            <Text fontWeight="medium" color="white">
                                                                 {CANONICAL_COLUMNS[canonical] || canonical}
                                                             </Text>
-                                                            <Text fontSize="xs" color="gray.500">{canonical}</Text>
+                                                            <Text fontSize="xs" color="whiteAlpha.500">{canonical}</Text>
                                                         </Td>
                                                         <Td>{renderConfidenceBadge(matchResult.confidence_scores[source] || 1)}</Td>
                                                     </Tr>
@@ -693,23 +707,23 @@ function AdminConnectorMappingPage() {
 
                             {/* Needs review columns */}
                             {matchResult.needs_review.length > 0 && (
-                                <AccordionItem border="1px solid" borderColor="yellow.200" borderRadius="lg" mb={4} bg="yellow.50">
-                                    <AccordionButton py={4}>
+                                <AccordionItem border="1px solid" borderColor="rgba(234,179,8,0.25)" borderRadius="lg" mb={4} bg="rgba(234,179,8,0.05)">
+                                    <AccordionButton py={4} _hover={{ bg: 'rgba(234,179,8,0.08)' }} borderRadius="lg">
                                         <HStack flex={1}>
-                                            <Icon as={FiAlertTriangle} color="yellow.600" />
-                                            <Text fontWeight="medium">Precisam de Revisão</Text>
+                                            <Icon as={FiAlertTriangle} color="yellow.300" />
+                                            <Text fontWeight="medium" color="white">Precisam de Revisão</Text>
                                             <Badge colorScheme="yellow">{matchResult.needs_review.length}</Badge>
                                         </HStack>
-                                        <AccordionIcon />
+                                        <AccordionIcon color="whiteAlpha.600" />
                                     </AccordionButton>
-                                    <AccordionPanel bg="white" borderRadius="md" p={4}>
+                                    <AccordionPanel bg="transparent" p={4}>
                                         <VStack spacing={4} align="stretch">
                                             {matchResult.needs_review.map(({ source, candidates }) => (
-                                                <Box key={source} p={4} border="1px solid" borderColor="gray.200" borderRadius="md">
+                                                <Box key={source} p={4} border="1px solid" borderColor="rgba(255,255,255,0.1)" borderRadius="md" bg="rgba(255,255,255,0.03)">
                                                     <HStack justify="space-between" mb={3}>
                                                         <VStack align="start" spacing={0}>
-                                                            <Text fontFamily="mono" fontWeight="medium">{source}</Text>
-                                                            <Text fontSize="xs" color="gray.500">
+                                                            <Text fontFamily="mono" fontWeight="medium" color="orange.200">{source}</Text>
+                                                            <Text fontSize="xs" color="whiteAlpha.500">
                                                                 Melhor correspondência: {renderConfidenceBadge(candidates[0]?.confidence || 0)}
                                                             </Text>
                                                         </VStack>
@@ -726,6 +740,11 @@ function AdminConnectorMappingPage() {
                                                         value={mappingState.userSelections[source] || candidates[0]?.canonical || ''}
                                                         onChange={(e) => handleColumnSelection(source, e.target.value)}
                                                         isDisabled={mappingState.ignoredColumns.has(source)}
+                                                        bg="#14151f"
+                                                        borderColor="rgba(255,255,255,0.12)"
+                                                        color="white"
+                                                        _focus={{ borderColor: '#ff6b35', boxShadow: '0 0 0 1px #ff6b35' }}
+                                                        sx={{ option: { background: '#1a1b2e', color: 'white' } }}
                                                     >
                                                         {ALL_CANONICAL_OPTIONS.map(opt => (
                                                             <option key={opt.value} value={opt.value}>
@@ -746,21 +765,21 @@ function AdminConnectorMappingPage() {
 
                             {/* Unmatched columns */}
                             {matchResult.unmatched.length > 0 && (
-                                <AccordionItem border="1px solid" borderColor="red.200" borderRadius="lg" mb={4}>
-                                    <AccordionButton py={4}>
+                                <AccordionItem border="1px solid" borderColor="rgba(239,68,68,0.25)" borderRadius="lg" mb={4} bg="rgba(239,68,68,0.04)">
+                                    <AccordionButton py={4} _hover={{ bg: 'rgba(239,68,68,0.07)' }} borderRadius="lg">
                                         <HStack flex={1}>
-                                            <Icon as={FiX} color="red.500" />
-                                            <Text fontWeight="medium">Não Mapeadas</Text>
+                                            <Icon as={FiX} color="red.400" />
+                                            <Text fontWeight="medium" color="white">Não Mapeadas</Text>
                                             <Badge colorScheme="red">{matchResult.unmatched.length}</Badge>
                                         </HStack>
-                                        <AccordionIcon />
+                                        <AccordionIcon color="whiteAlpha.600" />
                                     </AccordionButton>
-                                    <AccordionPanel>
+                                    <AccordionPanel bg="transparent">
                                         <VStack spacing={3} align="stretch">
                                             {matchResult.unmatched.map((source) => (
-                                                <Box key={source} p={3} border="1px solid" borderColor="gray.200" borderRadius="md">
+                                                <Box key={source} p={3} border="1px solid" borderColor="rgba(255,255,255,0.1)" borderRadius="md" bg="rgba(255,255,255,0.03)">
                                                     <HStack justify="space-between" mb={2}>
-                                                        <Text fontFamily="mono" fontSize="sm">{source}</Text>
+                                                        <Text fontFamily="mono" fontSize="sm" color="orange.200">{source}</Text>
                                                         <Checkbox
                                                             isChecked={mappingState.ignoredColumns.has(source)}
                                                             onChange={(e) => handleIgnoreColumn(source, e.target.checked)}
@@ -774,6 +793,11 @@ function AdminConnectorMappingPage() {
                                                         value={mappingState.userSelections[source] || ''}
                                                         onChange={(e) => handleColumnSelection(source, e.target.value)}
                                                         isDisabled={mappingState.ignoredColumns.has(source)}
+                                                        bg="#14151f"
+                                                        borderColor="rgba(255,255,255,0.12)"
+                                                        color="white"
+                                                        _focus={{ borderColor: '#ff6b35', boxShadow: '0 0 0 1px #ff6b35' }}
+                                                        sx={{ option: { background: '#1a1b2e', color: 'white' } }}
                                                     >
                                                         {ALL_CANONICAL_OPTIONS.map(opt => (
                                                             <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -791,20 +815,25 @@ function AdminConnectorMappingPage() {
 
                         {/* Sync progress */}
                         {isSyncing && (
-                            <Box>
-                                <Text mb={2} fontSize="sm" color="gray.600">
+                            <Box p={4} bg="rgba(255,255,255,0.03)" borderRadius="lg" border="1px solid rgba(255,255,255,0.08)">
+                                <Text mb={2} fontSize="sm" color="whiteAlpha.700">
                                     Sincronizando dados...
                                 </Text>
-                                <Progress value={syncProgress} colorScheme="blue" borderRadius="full" />
+                                <Progress
+                                    value={syncProgress}
+                                    borderRadius="full"
+                                    sx={{ '& > div': { bgGradient: 'linear(to-r, #ff6b35, #ff006e)' } }}
+                                    bg="rgba(255,255,255,0.08)"
+                                />
                             </Box>
                         )}
 
                         {/* Ingestion Quality Report */}
                         {ingestionQuality && (
-                            <Box border="1px solid" borderColor="blue.200" borderRadius="lg" p={5} bg="blue.50">
+                            <Box border="1px solid" borderColor="rgba(67,97,238,0.3)" borderRadius="lg" p={5} bg="rgba(67,97,238,0.06)">
                                 <HStack mb={4}>
-                                    <Icon as={FiDatabase} color="blue.600" />
-                                    <Text fontWeight="semibold" color="blue.800" fontSize="lg">
+                                    <Icon as={FiDatabase} color="#7c9fff" />
+                                    <Text fontWeight="semibold" color="white" fontSize="lg" fontFamily="'Playfair Display', serif">
                                         Relatório de Qualidade da Ingestão
                                     </Text>
                                 </HStack>
@@ -813,27 +842,27 @@ function AdminConnectorMappingPage() {
                                 <HStack spacing={4} mb={4} flexWrap="wrap">
                                     {ingestionQuality.summary && (
                                         <>
-                                            <Box bg="white" p={3} borderRadius="md" minW="150px">
-                                                <Text fontSize="xs" color="gray.500">Linhas carregadas (FDW)</Text>
-                                                <Text fontSize="xl" fontWeight="bold" color="blue.700">
+                                            <Box bg="rgba(255,255,255,0.05)" border="1px solid rgba(255,255,255,0.08)" p={3} borderRadius="md" minW="150px">
+                                                <Text fontSize="xs" color="whiteAlpha.500">Linhas carregadas (FDW)</Text>
+                                                <Text fontSize="xl" fontWeight="bold" color="#7c9fff">
                                                     {(ingestionQuality.summary.rows_loaded || 0).toLocaleString()}
                                                 </Text>
                                             </Box>
-                                            <Box bg="white" p={3} borderRadius="md" minW="150px">
-                                                <Text fontSize="xs" color="gray.500">Linhas inseridas</Text>
-                                                <Text fontSize="xl" fontWeight="bold" color="green.600">
+                                            <Box bg="rgba(255,255,255,0.05)" border="1px solid rgba(255,255,255,0.08)" p={3} borderRadius="md" minW="150px">
+                                                <Text fontSize="xs" color="whiteAlpha.500">Linhas inseridas</Text>
+                                                <Text fontSize="xl" fontWeight="bold" color="#06ffa5">
                                                     {(ingestionQuality.summary.rows_inserted || 0).toLocaleString()}
                                                 </Text>
                                             </Box>
-                                            <Box bg="white" p={3} borderRadius="md" minW="150px">
-                                                <Text fontSize="xs" color="gray.500">Período dos dados</Text>
-                                                <Text fontSize="sm" fontWeight="bold" color="purple.600">
+                                            <Box bg="rgba(255,255,255,0.05)" border="1px solid rgba(255,255,255,0.08)" p={3} borderRadius="md" minW="150px">
+                                                <Text fontSize="xs" color="whiteAlpha.500">Período dos dados</Text>
+                                                <Text fontSize="sm" fontWeight="bold" color="#c084fc">
                                                     {ingestionQuality.summary.date_range_min || '?'} → {ingestionQuality.summary.date_range_max || '?'}
                                                 </Text>
                                             </Box>
-                                            <Box bg="white" p={3} borderRadius="md" minW="150px">
-                                                <Text fontSize="xs" color="gray.500">Duração</Text>
-                                                <Text fontSize="xl" fontWeight="bold" color="gray.700">
+                                            <Box bg="rgba(255,255,255,0.05)" border="1px solid rgba(255,255,255,0.08)" p={3} borderRadius="md" minW="150px">
+                                                <Text fontSize="xs" color="whiteAlpha.500">Duração</Text>
+                                                <Text fontSize="xl" fontWeight="bold" color="white">
                                                     {(() => {
                                                         const sec = ingestionQuality.summary.duration_seconds || 0;
                                                         if (sec >= 60) {
@@ -861,7 +890,7 @@ function AdminConnectorMappingPage() {
                                                 </HStack>
                                                 <AccordionIcon />
                                             </AccordionButton>
-                                            <AccordionPanel>
+                                            <AccordionPanel sx={{ 'th': { color: 'whiteAlpha.500', borderColor: 'rgba(255,255,255,0.08)', fontSize: 'xs' }, 'td': { borderColor: 'rgba(255,255,255,0.06)', color: 'whiteAlpha.800' } }}>
                                                 <Table size="sm">
                                                     <Thead>
                                                         <Tr>
@@ -875,8 +904,8 @@ function AdminConnectorMappingPage() {
                                                     </Thead>
                                                     <Tbody>
                                                         {Object.keys(ingestionQuality.fato_transacoes.null_counts || {}).map((col) => (
-                                                            <Tr key={col}>
-                                                                <Td fontFamily="mono" fontSize="xs">{col}</Td>
+                                                            <Tr key={col} _hover={{ bg: 'rgba(255,255,255,0.03)' }}>
+                                                                <Td fontFamily="mono" fontSize="xs" color="orange.200">{col}</Td>
                                                                 <Td isNumeric>
                                                                     <Text color={ingestionQuality.fato_transacoes.null_counts[col] > 0 ? 'orange.500' : 'green.500'}>
                                                                         {ingestionQuality.fato_transacoes.null_counts[col] || 0}
@@ -897,10 +926,10 @@ function AdminConnectorMappingPage() {
                                     {/* Dimension tables */}
                                     {['dim_clientes', 'dim_fornecedores', 'dim_inventory', 'dim_tipo_transacao', 'dim_categoria'].map((dim) => (
                                         ingestionQuality[dim] && (
-                                            <AccordionItem key={dim} border="1px solid" borderColor="gray.200" borderRadius="md" mb={2} bg="white">
-                                                <AccordionButton>
+                                            <AccordionItem key={dim} border="1px solid" borderColor="rgba(255,255,255,0.1)" borderRadius="md" mb={2} bg="rgba(255,255,255,0.03)">
+                                                <AccordionButton _hover={{ bg: 'rgba(255,255,255,0.05)' }}>
                                                     <HStack flex={1}>
-                                                        <Text fontWeight="medium">{dim}</Text>
+                                                        <Text fontWeight="medium" color="white">{dim}</Text>
                                                         <Badge colorScheme="purple">{(ingestionQuality[dim].total_rows || 0).toLocaleString()} registros</Badge>
                                                     </HStack>
                                                     <AccordionIcon />
@@ -908,7 +937,7 @@ function AdminConnectorMappingPage() {
                                                 <AccordionPanel>
                                                     {/* Null / Unique counts table */}
                                                     {ingestionQuality[dim].null_counts && (
-                                                        <Table size="sm" mb={3}>
+                                                        <Table size="sm" mb={3} sx={{ 'th': { color: 'whiteAlpha.500', borderColor: 'rgba(255,255,255,0.08)', fontSize: 'xs' }, 'td': { borderColor: 'rgba(255,255,255,0.06)', color: 'whiteAlpha.800' } }}>
                                                             <Thead>
                                                                 <Tr>
                                                                     <Th>Coluna</Th>
@@ -918,8 +947,8 @@ function AdminConnectorMappingPage() {
                                                             </Thead>
                                                             <Tbody>
                                                                 {Object.keys(ingestionQuality[dim].null_counts).map((col: string) => (
-                                                                    <Tr key={col}>
-                                                                        <Td fontFamily="mono" fontSize="xs">{col}</Td>
+                                                                    <Tr key={col} _hover={{ bg: 'rgba(255,255,255,0.03)' }}>
+                                                                        <Td fontFamily="mono" fontSize="xs" color="orange.200">{col}</Td>
                                                                         <Td isNumeric>
                                                                             <Text color={ingestionQuality[dim].null_counts[col] > 0 ? 'orange.500' : 'green.500'}>
                                                                                 {(ingestionQuality[dim].null_counts[col] || 0).toLocaleString()}
@@ -946,9 +975,9 @@ function AdminConnectorMappingPage() {
                                                     {ingestionQuality[dim].by_categoria && (
                                                         <HStack spacing={3} mb={2} flexWrap="wrap">
                                                             {Object.entries(ingestionQuality[dim].by_categoria).map(([cat, cnt]) => (
-                                                                <Box key={cat} bg="gray.50" p={2} borderRadius="md">
-                                                                    <Text fontSize="xs" color="gray.500">{cat}</Text>
-                                                                    <Text fontSize="md" fontWeight="bold">{(cnt as number).toLocaleString()}</Text>
+                                                                <Box key={cat} bg="rgba(255,255,255,0.05)" border="1px solid rgba(255,255,255,0.08)" p={2} borderRadius="md">
+                                                                    <Text fontSize="xs" color="whiteAlpha.500">{cat}</Text>
+                                                                    <Text fontSize="md" fontWeight="bold" color="white">{(cnt as number).toLocaleString()}</Text>
                                                                 </Box>
                                                             ))}
                                                         </HStack>
@@ -965,7 +994,7 @@ function AdminConnectorMappingPage() {
 
                                                     {/* Fallback if no detail */}
                                                     {!ingestionQuality[dim].null_counts && !ingestionQuality[dim].by_categoria && !ingestionQuality[dim].nomes && (
-                                                        <Text fontSize="sm" color="gray.500">Sem detalhes adicionais</Text>
+                                                        <Text fontSize="sm" color="whiteAlpha.500">Sem detalhes adicionais</Text>
                                                     )}
                                                 </AccordionPanel>
                                             </AccordionItem>
@@ -986,7 +1015,14 @@ function AdminConnectorMappingPage() {
                                 )}
 
                                 <HStack mt={4} justify="flex-end">
-                                    <Button size="sm" colorScheme="blue" variant="outline" onClick={() => navigate('/dashboard/admin/fontes')}>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        borderColor="rgba(255,255,255,0.15)"
+                                        color="whiteAlpha.800"
+                                        _hover={{ borderColor: '#ff6b35', color: '#ff6b35', bg: 'rgba(255,107,53,0.08)' }}
+                                        onClick={() => navigate('/dashboard/admin/fontes')}
+                                    >
                                         Ir para Fontes de Dados
                                     </Button>
                                 </HStack>
@@ -1000,15 +1036,21 @@ function AdminConnectorMappingPage() {
                                 leftIcon={<FiRefreshCw />}
                                 onClick={handleRematch}
                                 isDisabled={matchLoading || isSyncing}
+                                borderColor="rgba(255,255,255,0.15)"
+                                color="whiteAlpha.800"
+                                _hover={{ borderColor: '#ff6b35', color: '#ff6b35', bg: 'rgba(255,107,53,0.08)' }}
                             >
                                 Remapear
                             </Button>
                             <Button
-                                colorScheme="blue"
                                 onClick={handleConfirmAndSync}
                                 isLoading={isSyncing}
                                 loadingText="Sincronizando..."
                                 isDisabled={matchLoading}
+                                bgGradient="linear(to-r, #ff6b35, #ff006e)"
+                                color="white"
+                                _hover={{ bgGradient: 'linear(to-r, #ff8555, #ff2080)', boxShadow: '0 4px 20px rgba(255,107,53,0.4)' }}
+                                _active={{ bgGradient: 'linear(to-r, #e55a25, #dd005e)' }}
                             >
                                 Confirmar e Sincronizar
                             </Button>

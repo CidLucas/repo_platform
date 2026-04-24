@@ -5,35 +5,71 @@ import { DashboardCard } from '../components/DashboardCard';
 import { ListCard } from '../components/ListCard';
 import React, { useState, useEffect } from 'react'; // Added useEffect
 import { PedidoDetailsModal } from '../components/PedidoDetailsModal';
-import { getPedidosOverview, getPedidoDetails, getOrderIndicators } from '../services/analyticsService';
-import type { PedidosOverviewResponse, PedidoDetailResponse, PedidoItem, OrderMetricsResponse } from '../services/analyticsService';
+import {
+  getPedidosOverview,
+  getPedidoDetails,
+  getOrderIndicators,
+  getOrderStatusBreakdown,
+  getPedidosTimeSeries,
+  summarizeOrderStatusBreakdown,
+} from '../services/analyticsService';
+import type {
+  PedidosOverviewResponse,
+  PedidoDetailResponse,
+  PedidoItem,
+  OrderMetricsResponse,
+  OrderStatusSummary,
+  PedidosMetric,
+} from '../services/analyticsService';
 import type { ChartDataPoint } from '../types';
 import type { MapData } from '../types';
+import { useGeoClusters } from '../hooks/useGeoClusters';
+import { mapGeoClustersToMapData } from '../utils/mapGeoClustersToMapData';
 
 type PeriodType = 'week' | 'month' | 'quarter' | 'year';
+
+const METRIC_LABELS: Record<PedidosMetric, string> = {
+  receita: 'Receita',
+  quantidade: 'Quantidade',
+  ticket_medio: 'Ticket Médio',
+};
 
 function PedidosPage() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedItem, setSelectedItem] = useState<PedidoDetailResponse | null>(null);
   const [overviewData, setOverviewData] = useState<PedidosOverviewResponse | null>(null);
   const [orderMetrics, setOrderMetrics] = useState<OrderMetricsResponse | null>(null);
+  const [statusSummary, setStatusSummary] = useState<OrderStatusSummary>({
+    completed: 0,
+    pending: 0,
+    other: 0,
+    total: 0,
+  });
+  const [metricSeries, setMetricSeries] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>('month');
+  const [selectedMetric, setSelectedMetric] = useState<PedidosMetric>('receita');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+
+  const { data: geoClusters } = useGeoClusters('state');
 
   const fetchPedidosData = async () => {
     try {
       setLoading(true);
 
-      // Fetch both overview data and order indicators in parallel
-      const [overviewResponse, metricsResponse] = await Promise.all([
+      // Fetch overview, indicators, status breakdown and the metric time series in parallel.
+      const [overviewResponse, metricsResponse, breakdown, series] = await Promise.all([
         getPedidosOverview(),
-        getOrderIndicators(selectedPeriod)
+        getOrderIndicators(selectedPeriod),
+        getOrderStatusBreakdown(selectedPeriod),
+        getPedidosTimeSeries(selectedPeriod, selectedMetric),
       ]);
 
       setOverviewData(overviewResponse);
       setOrderMetrics(metricsResponse);
+      setStatusSummary(summarizeOrderStatusBreakdown(breakdown));
+      setMetricSeries(series);
       setLastUpdate(new Date());
       setError(null);
     } catch (err: unknown) {
@@ -47,11 +83,15 @@ function PedidosPage() {
 
   useEffect(() => {
     fetchPedidosData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchPedidosData depends on selectedPeriod which is already in deps
-  }, [selectedPeriod]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchPedidosData depends on selectedPeriod / selectedMetric which are already in deps
+  }, [selectedPeriod, selectedMetric]);
 
   const handlePeriodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedPeriod(e.target.value as PeriodType);
+  };
+
+  const handleMetricChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedMetric(e.target.value as PedidosMetric);
   };
 
   const handleMiniCardClick = async (item: PedidoItem) => {
@@ -137,13 +177,13 @@ function PedidosPage() {
           <Box> {/* Wrapper for big number title and number */}
             <Text textStyle="homeCardStatLabel">PEDIDOS CONCLUÍDOS</Text>
             <Text as="h2" textStyle="pageBigNumberSmall" mt="4px">
-              {orderMetrics?.by_status?.completed || orderMetrics?.by_status?.Completed || 0}
+              {statusSummary.completed}
             </Text>
           </Box>
           <Box> {/* Wrapper for big number title and number */}
             <Text textStyle="homeCardStatLabel">PEDIDOS PENDENTES</Text>
             <Text as="h2" textStyle="pageBigNumberSmall" mt="4px">
-              {orderMetrics?.by_status?.pending || orderMetrics?.by_status?.Pending || 0}
+              {statusSummary.pending}
             </Text>
           </Box>
           <HStack spacing="4" position="relative"> {/* HStack for multiple Selects */}
@@ -159,7 +199,13 @@ function PedidosPage() {
               <option value="quarter">Último trimestre</option>
               <option value="year">Último ano</option>
             </Select>
-            <Select placeholder="Métricas" width="150px" bg="white" color="gray.800">
+            <Select
+              value={selectedMetric}
+              onChange={handleMetricChange}
+              width="150px"
+              bg="white"
+              color="gray.800"
+            >
               <option value="receita">Receita</option>
               <option value="quantidade">Quantidade</option>
               <option value="ticket_medio">Ticket Médio</option>
@@ -173,20 +219,11 @@ function PedidosPage() {
             title="Métricas de Pedidos"
             size="large"
             bgColor="#FFD3E1"
-            graphData={
-              orderMetrics
-                ? [
-                  { name: 'Total Pedidos', value: orderMetrics.total },
-                  { name: 'Receita', value: Math.round(orderMetrics.revenue / 1000) }, // Convert to thousands for readability
-                  { name: 'Ticket Médio', value: Math.round(orderMetrics.avg_order_value) },
-                  { name: 'Crescimento %', value: Math.round(orderMetrics.growth_rate || 0) }
-                ]
-                : []
-            }
+            graphData={metricSeries}
             scorecardValue={orderMetrics ? `R$ ${(orderMetrics.revenue / 1000).toFixed(1)}K` : 'R$ 0'}
-            scorecardLabel="Total Vendido"
+            scorecardLabel={`Total Vendido (${METRIC_LABELS[selectedMetric]})`}
             kpiItems={
-              orderMetrics
+              orderMetrics && overviewData
                 ? [
                   {
                     label: `Total de Pedidos: ${orderMetrics.total.toLocaleString('pt-BR')}`,
@@ -201,7 +238,7 @@ function PedidosPage() {
                             ))}
                           </Box>
                         )}
-                        <Text mt={2} fontSize="sm" color="gray.600">Métrica: <strong>total</strong></Text>
+                        <Text mt={2} fontSize="sm" color="gray.600">Métrica selecionada: <strong>{METRIC_LABELS[selectedMetric]}</strong></Text>
                       </Box>
                     )
                   },
@@ -234,6 +271,30 @@ function PedidosPage() {
                           </Text>
                         )}
                         <Text mt={2} fontSize="sm" color="gray.600">Métrica: <strong>growth_rate</strong></Text>
+                      </Box>
+                    )
+                  },
+                  {
+                    label: `Qtd média de produtos por pedido: ${overviewData.scorecard_qtd_media_produtos_por_pedido.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}`,
+                    content: (
+                      <Box>
+                        <Text>Média de itens distintos por pedido (analytics_v2.get_pedidos_overview_scorecards).</Text>
+                      </Box>
+                    )
+                  },
+                  {
+                    label: `Taxa de recorrência de clientes: ${overviewData.scorecard_taxa_recorrencia_clientes_perc.toFixed(1)}%`,
+                    content: (
+                      <Box>
+                        <Text>Percentual de clientes com mais de um pedido no histórico.</Text>
+                      </Box>
+                    )
+                  },
+                  {
+                    label: `Recência média entre pedidos: ${overviewData.scorecard_recencia_media_entre_pedidos_dias.toFixed(0)} dias`,
+                    content: (
+                      <Box>
+                        <Text>Intervalo médio entre pedidos consecutivos do mesmo cliente.</Text>
                       </Box>
                     )
                   }
@@ -288,22 +349,12 @@ function PedidosPage() {
             viewAllLink="/dashboard/pedidos/lista" // Link to the full list page
           />
 
-          {/* Card Type 3: Histórico de Pedidos */}
-          <DashboardCard
-            title="Histórico de Pedidos"
-            size="small"
-            bgColor="#FFD3E1" // Specific color for Pedidos module
-            mainText="Histórico completo de todos os pedidos."
-            modalLeftBgColor="#FFD3E1"
-            modalRightBgColor="#F9BBCB"
-          />
-
-          {/* Card Type 4: Distribuição Geográfica (Unchanged) */}
+          {/* Card Type 4: Distribuição Geográfica — real customer clusters */}
           <DashboardCard
             title="Distribuição Geográfica"
             size="large"
-            bgColor="white" // Unchanged
-            mapData={{ center: [-23.55052, -46.633308], zoom: 10, markers: [{ position: [-23.55052, -46.633308], popupText: 'São Paulo' }] } as MapData}
+            bgColor="white"
+            mapData={mapGeoClustersToMapData(geoClusters) as MapData}
             mainText="Principais regiões de entrega de pedidos."
             modalLeftBgColor="#FFD3E1"
             modalRightBgColor="#F9BBCB"

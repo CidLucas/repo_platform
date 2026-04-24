@@ -9,6 +9,7 @@ import os
 from dataclasses import dataclass
 from functools import lru_cache
 
+import httpx
 from supabase.lib.client_options import SyncClientOptions
 
 from supabase import Client, create_client
@@ -82,10 +83,10 @@ def get_supabase_client(use_service_role: bool = True) -> Client:
         config = SupabaseConfig.from_env()
         key = config.service_key if use_service_role else (config.anon_key or config.service_key)
 
-        # SyncClientOptions for sync create_client (not ClientOptions)
         options = SyncClientOptions(
             auto_refresh_token=False,
             persist_session=False,
+            httpx_client=httpx.Client(http2=False),
         )
 
         _supabase_client = create_client(config.url, key, options)

@@ -666,7 +666,7 @@ async def rfq_follow_up_node(state: AgentState) -> dict[str, Any]:
             rfq_result = db.table("rfq_requests").select(
                 "id,supplier_id,follow_up_count,deadline,communication_channel,"
                 "supplier_roster(name,contact_phone,contact_email)"
-            ).eq("id", rfq_id).single().execute()
+            ).eq("id", rfq_id).maybe_single().execute()
 
             rfq = rfq_result.data
             if not rfq:

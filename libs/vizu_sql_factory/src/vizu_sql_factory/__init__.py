@@ -7,6 +7,13 @@ from .allowlist import (
     get_allowlist_config,
     get_default_loader,
 )
+from .analytics_v2_contract import (
+    ALLOWED_AGGREGATES,
+    ALLOWED_COLUMNS,
+    ALLOWED_VIEWS,
+    ANALYTICS_V2_CONTRACT,
+    AnalyticsV2Contract,
+)
 from .checks import SqlValidator as ChecksValidator
 from .checks import ValidationResult as ChecksValidationResult
 from .executor import (
@@ -54,6 +61,12 @@ __all__ = [
     "JoinPath",
     "get_allowlist_config",
     "get_default_loader",
+    # Frozen analytics_v2 LLM contract (Phase 0 / F0.2)
+    "ALLOWED_AGGREGATES",
+    "ALLOWED_COLUMNS",
+    "ALLOWED_VIEWS",
+    "ANALYTICS_V2_CONTRACT",
+    "AnalyticsV2Contract",
     # Schema snapshot exports
     "ColumnMetadata",
     "ViewMetadata",

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -10,7 +10,8 @@ import {
   Flex,
   Text,
   Spinner,
-  IconButton,
+  ButtonGroup,
+  Button,
   SimpleGrid,
   Stat,
   StatLabel,
@@ -18,7 +19,6 @@ import {
   StatHelpText,
   StatArrow,
 } from '@chakra-ui/react';
-import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import {
   AreaChart,
   Area,
@@ -111,7 +111,8 @@ export function DomainExpansionModal({
 }: DomainExpansionModalProps) {
   const [data, setData] = useState<DomainAnalytics | null>(null);
   const [loading, setLoading] = useState(false);
-  const [chartPage, setChartPage] = useState(0);
+  // Chart range in months — default 12, options 6 / 12 / 24 / all.
+  const [rangeMonths, setRangeMonths] = useState<number | 'all'>(12);
 
   const config = DOMAIN_CONFIG[domain];
 
@@ -129,17 +130,25 @@ export function DomainExpansionModal({
 
   useEffect(() => {
     if (isOpen) {
-      setChartPage(0);
+      setRangeMonths(12);
       fetchData();
     }
   }, [isOpen, fetchData]);
 
-  const chartDataPages = data?.monthlyData
-    ? [data.monthlyData.slice(0, 6), data.monthlyData.slice(6, 12)]
-        .filter(page => page.length > 0)
-    : [];
+  // Slice the most recent N months client-side — switching the toggle is
+  // instant because the full series is already cached.
+  const currentChartData = useMemo(() => {
+    const series = data?.monthlyData ?? [];
+    if (rangeMonths === 'all') return series;
+    return series.slice(Math.max(0, series.length - rangeMonths));
+  }, [data, rangeMonths]);
 
-  const currentChartData = chartDataPages[chartPage] || [];
+  const rangeOptions: Array<{ label: string; value: number | 'all' }> = [
+    { label: '6m', value: 6 },
+    { label: '12m', value: 12 },
+    { label: '24m', value: 24 },
+    { label: 'Tudo', value: 'all' },
+  ];
 
   const formatKpiValue = (key: string, value: number): string => {
     if (key.includes('rate') || key === 'growth') {
@@ -232,34 +241,30 @@ export function DomainExpansionModal({
             </Flex>
           ) : (
             <>
-              {/* Chart with pagination */}
+              {/* Chart with range toggle */}
               <Box mb={6}>
-                <Flex justify="space-between" align="center" mb={3}>
+                <Flex justify="space-between" align="center" mb={3} gap={3} flexWrap="wrap">
                   <Text fontSize="sm" color="gray.400" fontWeight="medium">
                     Tendência Mensal
                   </Text>
-                  {chartDataPages.length > 1 && (
-                    <Flex gap={1}>
-                      <IconButton
-                        aria-label="Anterior"
-                        icon={<ChevronLeftIcon />}
-                        size="xs"
-                        variant="ghost"
-                        color="gray.400"
-                        isDisabled={chartPage === 0}
-                        onClick={() => setChartPage(p => p - 1)}
-                      />
-                      <IconButton
-                        aria-label="Próximo"
-                        icon={<ChevronRightIcon />}
-                        size="xs"
-                        variant="ghost"
-                        color="gray.400"
-                        isDisabled={chartPage === chartDataPages.length - 1}
-                        onClick={() => setChartPage(p => p + 1)}
-                      />
-                    </Flex>
-                  )}
+                  <ButtonGroup size="xs" isAttached variant="outline">
+                    {rangeOptions.map((opt) => {
+                      const active = rangeMonths === opt.value;
+                      return (
+                        <Button
+                          key={String(opt.value)}
+                          onClick={() => setRangeMonths(opt.value)}
+                          bg={active ? 'whiteAlpha.200' : 'transparent'}
+                          color={active ? 'white' : 'gray.400'}
+                          borderColor="whiteAlpha.300"
+                          _hover={{ bg: 'whiteAlpha.100' }}
+                          aria-pressed={active}
+                        >
+                          {opt.label}
+                        </Button>
+                      );
+                    })}
+                  </ButtonGroup>
                 </Flex>
                 {renderChart()}
               </Box>

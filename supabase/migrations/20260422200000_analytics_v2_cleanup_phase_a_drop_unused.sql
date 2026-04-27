@@ -6,7 +6,7 @@
 --     vw_contas_aging, vw_dre_mensal, vw_fluxo_caixa_mensal
 --   - ERP/reservation functions that no service or UI still imports
 --
--- Reference: docs/plans/2026-04-22-analytics-v2-minimal-schema-cleanup.md (Phase A, C)
+-- Reference: docs/plans/archive/2026-04-22-analytics-v2-minimal-schema-cleanup.md (Phase A, C)
 
 BEGIN;
 

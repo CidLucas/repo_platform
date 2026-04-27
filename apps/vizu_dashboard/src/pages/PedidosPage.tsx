@@ -1,4 +1,4 @@
-import { Box, Flex, Text, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon, IconButton } from '@chakra-ui/react';
+import { Box, Flex, Text, Select, HStack, useDisclosure, Spinner, Alert, AlertIcon, IconButton, Button, useToast, SimpleGrid } from '@chakra-ui/react';
 import { RepeatIcon } from '@chakra-ui/icons';
 import { MainLayout } from '../components/layouts/MainLayout';
 import { DashboardCard } from '../components/DashboardCard';
@@ -12,6 +12,9 @@ import {
   getOrderStatusBreakdown,
   getPedidosTimeSeries,
   summarizeOrderStatusBreakdown,
+  getProcurementOverview,
+  getRecentPurchaseOrders,
+  exportPoToSheets,
 } from '../services/analyticsService';
 import type {
   PedidosOverviewResponse,
@@ -20,6 +23,8 @@ import type {
   OrderMetricsResponse,
   OrderStatusSummary,
   PedidosMetric,
+  ProcurementOverview,
+  PurchaseOrderListItem,
 } from '../services/analyticsService';
 import type { ChartDataPoint } from '../types';
 import type { MapData } from '../types';
@@ -51,6 +56,10 @@ function PedidosPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>('month');
   const [selectedMetric, setSelectedMetric] = useState<PedidosMetric>('receita');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [procurement, setProcurement] = useState<ProcurementOverview | null>(null);
+  const [recentPos, setRecentPos] = useState<PurchaseOrderListItem[]>([]);
+  const [exportingPoId, setExportingPoId] = useState<string | null>(null);
+  const toast = useToast();
 
   const { data: geoClusters } = useGeoClusters('state');
 
@@ -59,17 +68,27 @@ function PedidosPage() {
       setLoading(true);
 
       // Fetch overview, indicators, status breakdown and the metric time series in parallel.
-      const [overviewResponse, metricsResponse, breakdown, series] = await Promise.all([
+      const [overviewResponse, metricsResponse, breakdown, series, procurementResp, posResp] = await Promise.all([
         getPedidosOverview(),
         getOrderIndicators(selectedPeriod),
         getOrderStatusBreakdown(selectedPeriod),
         getPedidosTimeSeries(selectedPeriod, selectedMetric),
+        getProcurementOverview().catch((e) => {
+          console.warn('procurement overview failed:', e);
+          return null;
+        }),
+        getRecentPurchaseOrders(10).catch((e) => {
+          console.warn('recent purchase orders failed:', e);
+          return [];
+        }),
       ]);
 
       setOverviewData(overviewResponse);
       setOrderMetrics(metricsResponse);
       setStatusSummary(summarizeOrderStatusBreakdown(breakdown));
       setMetricSeries(series);
+      setProcurement(procurementResp);
+      setRecentPos(posResp);
       setLastUpdate(new Date());
       setError(null);
     } catch (err: unknown) {
@@ -105,6 +124,28 @@ function PedidosPage() {
       console.error("Erro ao carregar detalhes do pedido:", err);
       const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar detalhes do pedido.';
       setError(errorMessage);
+    }
+  };
+
+  const handleExportPo = async (poId: string) => {
+    try {
+      setExportingPoId(poId);
+      const result = await exportPoToSheets(poId);
+      toast({
+        title: 'Pedido exportado',
+        description: 'Planilha criada no Google Sheets.',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+      });
+      if (result.spreadsheet_url) {
+        window.open(result.spreadsheet_url, '_blank', 'noopener');
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Falha ao exportar pedido.';
+      toast({ title: 'Erro ao exportar', description: message, status: 'error', duration: 6000, isClosable: true });
+    } finally {
+      setExportingPoId(null);
     }
   };
 
@@ -360,6 +401,74 @@ function PedidosPage() {
             modalRightBgColor="#F9BBCB"
           />
         </Flex>
+
+        {/* Phase 3A — Procurement (BLU-MVP-043 / BLU-MVP-044) */}
+        <Box mt="24px">
+          <Text textStyle="homeCardStatLabel" mb="8px">PROCUREMENT — RFQs E PEDIDOS DE COMPRA</Text>
+          <SimpleGrid columns={{ base: 1, md: 2 }} spacing="16px">
+            <Box bg="white" borderRadius="md" p="16px" boxShadow="sm">
+              <Text fontWeight="bold" mb="8px">RFQs por status</Text>
+              {procurement ? (
+                <SimpleGrid columns={2} spacing="8px">
+                  <Text fontSize="sm">Pendentes: <strong>{procurement.rfq.pending}</strong></Text>
+                  <Text fontSize="sm">Enviadas: <strong>{procurement.rfq.sent}</strong></Text>
+                  <Text fontSize="sm">Respondidas: <strong>{procurement.rfq.responded}</strong></Text>
+                  <Text fontSize="sm">Expiradas: <strong>{procurement.rfq.expired}</strong></Text>
+                  <Text fontSize="sm" gridColumn="span 2" mt="4px">Total: <strong>{procurement.rfq.total}</strong></Text>
+                </SimpleGrid>
+              ) : (
+                <Text fontSize="sm" color="gray.500">Sem dados de RFQ.</Text>
+              )}
+            </Box>
+            <Box bg="white" borderRadius="md" p="16px" boxShadow="sm">
+              <Text fontWeight="bold" mb="8px">Pedidos de Compra por status</Text>
+              {procurement ? (
+                <SimpleGrid columns={2} spacing="8px">
+                  <Text fontSize="sm">Rascunho: <strong>{procurement.purchase_orders.draft}</strong></Text>
+                  <Text fontSize="sm">Aguard. aprovação: <strong>{procurement.purchase_orders.pending_approval}</strong></Text>
+                  <Text fontSize="sm">Aprovados: <strong>{procurement.purchase_orders.approved}</strong></Text>
+                  <Text fontSize="sm">Entregues: <strong>{procurement.purchase_orders.delivered}</strong></Text>
+                  <Text fontSize="sm">Cancelados: <strong>{procurement.purchase_orders.cancelled}</strong></Text>
+                  <Text fontSize="sm" mt="4px">Total: <strong>{procurement.purchase_orders.total}</strong></Text>
+                </SimpleGrid>
+              ) : (
+                <Text fontSize="sm" color="gray.500">Sem dados de PO.</Text>
+              )}
+            </Box>
+          </SimpleGrid>
+
+          {recentPos.length > 0 && (
+            <Box bg="white" borderRadius="md" p="16px" boxShadow="sm" mt="16px">
+              <Text fontWeight="bold" mb="12px">Pedidos de Compra recentes</Text>
+              {recentPos.map((po) => (
+                <Flex
+                  key={po.id}
+                  justify="space-between"
+                  align="center"
+                  py="8px"
+                  borderBottom="1px solid"
+                  borderColor="gray.100"
+                >
+                  <Box>
+                    <Text fontSize="sm" fontWeight="semibold">PO {po.id.slice(0, 8)}</Text>
+                    <Text fontSize="xs" color="gray.600">
+                      Status: {po.status} · R$ {Number(po.total_amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </Text>
+                  </Box>
+                  <Button
+                    size="sm"
+                    colorScheme="pink"
+                    isLoading={exportingPoId === po.id}
+                    onClick={() => handleExportPo(po.id)}
+                    isDisabled={po.status === 'cancelled'}
+                  >
+                    Exportar para Sheets
+                  </Button>
+                </Flex>
+              ))}
+            </Box>
+          )}
+        </Box>
       </Flex>
 
       {/* Reusable PedidoDetailsModal */}

@@ -8,6 +8,12 @@ from .auth_context import (
     JWTContextExtractor,
     get_jwt_extractor,
 )
+from .audit import (
+    ActorKind,
+    AuditError,
+    Outcome,
+    record_audit,
+)
 from .client import (
     SupabaseConfig,
     close_supabase_client,
@@ -46,4 +52,9 @@ __all__ = [
     "SupabaseStorage",
     "UploadResult",
     "get_storage",
+    # Audit log (Phase 0 / F0.4)
+    "ActorKind",
+    "AuditError",
+    "Outcome",
+    "record_audit",
 ]

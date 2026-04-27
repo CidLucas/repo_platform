@@ -1,401 +1,241 @@
-<div align="center">
+# Vizu Mono
 
-# AI-Powered Data Platform
+Monorepo for Vizu platform services, shared libraries, dashboards, and infrastructure.
 
-**A production-grade, multi-tenant platform that centralizes business data and enables AI agents to analyze, query, and act on it.**
+This repository combines:
 
-Built from scratch as a solo full-stack engineer — 20+ shared libraries, 6 microservices in Python and TypeScript.
+- FastAPI microservices for orchestration, tool execution, and file ingestion
+- Shared Python libraries for auth, context, SQL safety, RAG, connectors, and observability
+- Frontend apps for dashboard, landing, and HITL operations
+- Supabase schema and Edge Functions
+- Local and Cloud Run oriented Docker Compose stacks
 
-[![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](#)
-[![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](#)
-[![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](#)
-[![LangGraph](https://img.shields.io/badge/LangGraph-Agents-1C3C3C?logo=langchain&logoColor=white)](#)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-RLS-4169E1?logo=postgresql&logoColor=white)](#)
-[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](#)
-[![GCP Cloud Run](https://img.shields.io/badge/Cloud_Run-Deploy-4285F4?logo=googlecloud&logoColor=white)](#)
+## What This Platform Does
 
-</div>
+Vizu is a multi-tenant AI data platform focused on:
 
----
+- Data analysis workflows for business teams
+- Natural language to SQL with safety controls
+- Hybrid RAG over tenant documents
+- Agent orchestration with tool calling through MCP
+- Secure tenant isolation through JWT and RLS
 
-## The Problem
+## Repository Layout
 
-Small and medium businesses generate data across multiple platforms (ERPs, e-commerce, spreadsheets) but lack the tools to centralize, analyze, and act on it. Hiring data teams is expensive. Generic BI tools require technical expertise.
+```text
+apps/
+  hitl_dashboard/         Streamlit app for human-in-the-loop operations
+  landing/                Landing web app
+  vizu_dashboard/         Main React dashboard
 
-## The Solution
+services/
+  atendente_core/         Main orchestration API (LangGraph-based)
+  file_upload_api/        File upload and document processing API
+  standalone_agent_api/   Standalone agent API
+  tool_pool_api/          MCP tool server API
 
-Vizu is a **data-centralization and analysis platform** that creates a context layer so **AI agents can perform tasks effectively** — from answering natural-language questions about sales data, to generating reports, to managing knowledge bases — all scoped per tenant with strict data isolation.
+libs/
+  vizu_agent_framework/
+  vizu_auth/
+  vizu_context_service/
+  vizu_data_connectors/
+  vizu_db_connector/
+  vizu_elicitation_service/
+  vizu_experiment_service/
+  vizu_google_suite_client/
+  vizu_hitl_service/
+  vizu_llm_service/
+  vizu_models/
+  vizu_observability_bootstrap/
+  vizu_parsers/
+  vizu_prompt_management/
+  vizu_rag_factory/
+  vizu_shared_utils/
+  vizu_sql_factory/
+  vizu_supabase_client/
+  vizu_tool_registry/
+  vizu_twilio_client/
 
-<div align="center">
-  <img src="screenshots/home.png" alt="Dashboard Home" width="600"/>
-  <br>
-  <em>Dashboard — real-time KPI scorecards, charts, and AI chat in a unified interface</em>
-</div>
+supabase/
+  migrations/             SQL migrations
+  functions/              Edge Functions
 
----
-
-## Platform Features
-
-### 📊 Data Analysis & Visualization
-
-Ingest data from multiple sources (BigQuery, Shopify, VTEX, CSV/XLSX uploads), transform it into a star-schema analytics layer, and visualize it through interactive dashboards with scorecards, bar charts, and detail views.
-
-<div align="center">
-  <img src="screenshots/detail.png" alt="Product Detail View" width="600"/>
-  <br>
-  <em>Detail view — drill-down into individual product analytics with AI-generated insights</em>
-</div>
-
-### 🗣️ Natural Language to SQL
-
-Users ask questions in plain language; the platform converts them to safe, validated SQL queries. A defense-in-depth pipeline ensures security:
-
-1. **Parse** — AST validation via `sqlglot` (only `SELECT` allowed)
-2. **Validate** — table/column allowlists, mandatory filters, PII masking
-3. **Rewrite** — expand `SELECT *`, inject `LIMIT`, enforce `client_id` filter
-4. **Execute** — via PostgREST with RLS enforcement
-
-<div align="center">
-  <img src="screenshots/SQL.png" alt="SQL Agent" width="600"/>
-  <br>
-  <em>Text-to-SQL — natural language query converted to validated SQL with results rendered in the chat</em>
-</div>
-
-### 📚 Knowledge Base (Hybrid RAG)
-
-Upload documents (PDF, DOCX, TXT, CSV) to build per-tenant knowledge bases. The retrieval pipeline combines multiple strategies for high-quality answers:
-
-- **Semantic search** — pgvector cosine similarity with multilingual embeddings
-- **Keyword search** — PostgreSQL full-text search (BM25)
-- **Reciprocal Rank Fusion** — merges semantic + keyword results
-- **Reranking** — Cohere, CrossEncoder, or LLM-based reranking
-- **MMR diversification** — Maximal Marginal Relevance to avoid redundant results
-
-<div align="center">
-  <img src="screenshots/RAG.png" alt="Knowledge Base RAG" width="600"/>
-  <br>
-  <em>RAG pipeline — hybrid retrieval with source attribution and confidence scores</em>
-</div>
-
-<div align="center">
-  <img src="screenshots/knowledge.png" alt="Knowledge Management" width="600"/>
-  <br>
-  <em>Knowledge base management — upload, chunk, embed, and search documents per tenant</em>
-</div>
-
-### 🔧 MCP Tool Server (20+ Tools)
-
-A centralized **FastMCP** server exposes tools that agents can invoke at runtime. Tools are registered as modular packages, each with its own auth, validation, and tier gating:
-
-| Module                      | Tools                   | Description                                                               |
-| --------------------------- | ----------------------- | ------------------------------------------------------------------------- |
-| `rag_module`                | `executar_rag_cliente`  | Hybrid semantic + BM25 document search                                    |
-| `sql_module`                | `executar_sql_agent`    | Safe text-to-SQL with defense-in-depth                                    |
-| `csv_module`                | CSV analysis            | Statistics, distributions, column profiling                               |
-| `google_module`             | Sheets, Gmail, Calendar | Full Google Workspace integration via OAuth                               |
-| `common_module`             | File retrieval, context | Utility tools for agent context                                           |
-| `web_monitor_module`        | URL monitoring          | Track website changes                                                     |
-| `prompt_module`             | MCP prompts             | Langfuse-versioned prompt resources                                       |
-| `structured_data_formatter` | Output formatting       | Deterministic formatting for reports                                      |
-| `config_helper_module`      | Tool validation         | Availability checks per tier                                              |
-| `rfq_module`                | Procurement workflow    | Parse buying lists, manage suppliers, collect quotes, optimize allocation |
-| `rfq_whatsapp_module`       | Supplier messaging      | WhatsApp-based RFQ dispatch and quote collection via Twilio               |
-
-<div align="center">
-  <img src="screenshots/MCPServer.png" alt="MCP Server" width="600"/>
-  <br>
-  <em>MCP tool server — modular tool registration with health introspection</em>
-</div>
-
-### 🤖 Multi-Agent Architecture
-
-The platform runs **specialized agents** built with LangGraph, orchestrated through a supervisor pattern:
-
-- **Orchestrator (Atendente Core)** — LangGraph state machine with 4 nodes: `init` → `supervisor` → `execute_tools` → `elicit`. Routes between tool execution, knowledge retrieval, data analysis, and clarification requests. A **worker registry** maps specialized workers (data-analyst, knowledge-assistant, report-generator, document-intelligence, rfq-agent) to their enabled tools, prompt fragments, and tier requirements.
-- **Standalone Agents** — Catalog-driven factory that dynamically builds agents from database definitions. Each agent gets its own session, tools, and context.
-- **Buyer Agent (RFQ)** — End-to-end procurement workflow: parses buying lists (free-text or CSV), manages supplier rosters, dispatches RFQs via WhatsApp, collects and extracts quote responses with LLM parsing, optimizes allocation across suppliers with concentration caps, and generates purchase orders. Uses fan-out/fan-in parallel tool dispatch nodes.
-- **Sales Agent / Support Agent** — Specialized lightweight agents using the shared `AgentBuilder` fluent API.
-
-```
-User message → Supervisor Node → Route decision
-                    ├── execute_tools → MCP Server → Tool result → Response
-                    ├── fan_out_tools → Parallel tool dispatch → Collect results → Response
-                    ├── elicit → Clarification question → User
-                    └── respond → Direct LLM response
+docs/                     Internal documentation and plans
+scripts/                  Utility, seed, and automation scripts
+tests/                    Cross-service and integration tests
 ```
 
-### 🔐 Multi-Tenant Security & Context Isolation
+## Architecture at a Glance
 
-Every layer enforces tenant isolation:
-
-- **PostgreSQL Row-Level Security (RLS)** on all tables — 77 migrations maintain the schema
-- **JWT validation** supporting HS256 + ES256 + RS256 (Supabase Auth)
-- **Per-request context injection** — `VizuClientContext` carries tenant config, enabled tools, tier, and brand voice
-- **Tool-level auth** — each MCP tool extracts and validates JWT independently
-- **Tier-based access control** — tools, agents, and features gated by subscription tier (BASIC → PRO → ENTERPRISE → ADMIN)
-
-### 📈 Observability & Prompt Management
-
-- **OpenTelemetry** traces exported to Grafana Cloud (Tempo, Loki, Mimir)
-- **Langfuse** as prompt management system — version-controlled prompts with A/B testing labels, Redis-cached with builtin fallbacks
-- **One-line bootstrap** — `setup_observability(app, service_name)` instruments any service
-- **End-to-end tracing** — from HTTP request → agent graph → tool call → LLM invocation → database query
-
-### 🔄 Data Connectors & Ingestion
-
-A factory-based connector system integrates with external data sources:
-
-- **BigQuery** — federated queries via Foreign Data Wrappers
-- **Shopify / VTEX / Loja Integrada** — e-commerce platform connectors
-- **CSV/XLSX uploads** — automatic parsing, column detection, and schema inference
-- **Column mapping** — AI-assisted mapping of source columns to the star-schema
-
-<div align="center">
-  <img src="screenshots/column_mapping.png" alt="Column Mapping" width="600"/>
-  <br>
-  <em>Column mapping — AI-assisted mapping of imported data to the analytics schema</em>
-</div>
-
-### 🎨 Dashboard & Onboarding
-
-The React dashboard features a **dark navy theme** (Blu rebrand) with domain-specific analytics cards (Orders, Customers, Suppliers, Products), interactive drill-down modals with KPI scorecards and trend charts, and a unified data connector management page. A **multi-step onboarding wizard** guides new tenants through Context 2.0 setup: company profile, team structure, current business priorities, and organizational policies — stored as JSONB with full RLS protection.
-
-### 🛒 Procurement (RFQ) Pipeline
-
-A complete buyer agent workflow for Request for Quotation:
-
-- **Buying list parsing** — accepts free-text or CSV input, extracts items with quantities and specs
-- **Supplier management** — per-tenant supplier roster with contact details and product categories
-- **RFQ dispatch** — sends structured quote requests to multiple suppliers via WhatsApp (Twilio)
-- **Quote collection** — receives and parses unstructured supplier responses using LLM extraction
-- **Allocation optimization** — selects best prices across suppliers with concentration caps and fallback logic
-- **Purchase order generation** — produces ready-to-approve POs with full audit trail
-
-### 💬 Human-in-the-Loop (HITL)
-
-An elicitation service handles cases where the agent needs clarification or human approval:
-
-- Multiple elicitation types: `yes_no`, `multiple_choice`, `free_text`
-- Priority queue for human review (Streamlit UI)
-- Audit trail for all decisions
-- Integrated into the agent graph as a first-class node
-
----
-
-## Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        FRONTEND LAYER                               │
-│  React 18 + TypeScript + Vite + Chakra UI                          │
-│  ┌──────────────┐  ┌───────────────┐  ┌──────────────────┐        │
-│  │  Dashboard    │  │  Chat Panel   │  │  HITL Review     │        │
-│  │  (Scorecards, │  │  (SSE Stream) │  │  (Streamlit)     │        │
-│  │   Charts)     │  │               │  │                  │        │
-│  └──────┬───────┘  └──────┬────────┘  └────────┬─────────┘        │
-└─────────┼─────────────────┼─────────────────────┼──────────────────┘
-          │                 │                     │
-          ▼                 ▼                     ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                      SERVICE LAYER (FastAPI)                        │
-│  ┌──────────────┐  ┌───────────────┐  ┌──────────────────┐        │
-│  │  Atendente   │  │  Standalone   │  │   File Upload    │        │
-│  │  Core        │  │  Agent API    │  │   API            │        │
-│  │  (LangGraph) │  │  (Catalog)    │  │   (Ingestion)    │        │
-│  └──────┬───────┘  └──────┬────────┘  └────────┬─────────┘        │
-│         │                 │                     │                   │
-│         ▼                 ▼                     │                   │
-│  ┌──────────────────────────────┐               │                  │
-│  │   Tool Pool API (FastMCP)   │◄──────────────┘                  │
-│  │   20+ tools, JWT per-tool   │                                   │
-│  └──────────────┬──────────────┘                                   │
-└─────────────────┼──────────────────────────────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                       LIBRARY LAYER (20 packages)                   │
-│  ┌──────────────┐ ┌──────────┐ ┌────────────┐ ┌────────────────┐  │
-│  │ Agent        │ │ RAG      │ │ SQL        │ │ LLM Service    │  │
-│  │ Framework    │ │ Factory  │ │ Factory    │ │ (multi-provider)│  │
-│  ├──────────────┤ ├──────────┤ ├────────────┤ ├────────────────┤  │
-│  │ Auth (JWT)   │ │ Context  │ │ Prompt     │ │ Observability  │  │
-│  │              │ │ Service  │ │ Management │ │ Bootstrap      │  │
-│  ├──────────────┤ ├──────────┤ ├────────────┤ ├────────────────┤  │
-│  │ MCP Commons  │ │ Parsers  │ │ Tool       │ │ Data           │  │
-│  │              │ │          │ │ Registry   │ │ Connectors     │  │
-│  └──────────────┘ └──────────┘ └────────────┘ └────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                       DATA LAYER                                    │
-│  ┌──────────────────┐ ┌──────────┐ ┌───────────┐ ┌─────────────┐  │
-│  │ PostgreSQL       │ │ pgvector │ │ Redis     │ │ Supabase    │  │
-│  │ (RLS, analytics  │ │ (RAG     │ │ (cache,   │ │ (Auth, Edge │  │
-│  │  star-schema)    │ │  chunks) │ │  checkpts)│ │  Functions) │  │
-│  └──────────────────┘ └──────────┘ └───────────┘ └─────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Shared Library Ecosystem (20 packages)
-
-One of the core engineering decisions: **every reusable capability is a library, not duplicated code.** All services depend on the same shared packages:
-
-| Library                        | Purpose                                                                                         |
-| ------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `vizu_agent_framework`         | LangGraph builder pattern, state machines, node registry, fan-out/fan-in parallel tool dispatch |
-| `vizu_auth`                    | JWT decode (HS256/ES256/RS256), RLS context injection                                           |
-| `vizu_context_service`         | Per-tenant context loading with Redis cache (5min TTL)                                          |
-| `vizu_data_connectors`         | Factory for BigQuery, Shopify, VTEX, Loja Integrada                                             |
-| `vizu_db_connector`            | SQLAlchemy async engine management                                                              |
-| `vizu_elicitation_service`     | Agent clarification requests (yes/no, multiple choice, free text)                               |
-| `vizu_experiment_service`      | Experiment manifests, batch evaluation, classification                                          |
-| `vizu_google_suite_client`     | Google Sheets, Gmail, Calendar with OAuth token management                                      |
-| `vizu_hitl_service`            | Human-in-the-loop review queue with Streamlit UI                                                |
-| `vizu_llm_service`             | Provider abstraction (OpenAI, Anthropic, Google, Ollama) with tier budgets                      |
-| `vizu_mcp_commons`             | MCP tool dataclasses, executor with parallel invocation                                         |
-| `vizu_models`                  | Shared Pydantic/SQLModel domain models                                                          |
-| `vizu_observability_bootstrap` | One-line OpenTelemetry + Langfuse + Grafana setup                                               |
-| `vizu_parsers`                 | PDF, DOCX, CSV, TXT parsing + semantic chunking                                                 |
-| `vizu_prompt_management`       | Langfuse prompt fetching with Redis cache and builtin fallbacks                                 |
-| `vizu_rag_factory`             | Hybrid retrieval (semantic + BM25 + RRF + reranking + MMR)                                      |
-| `vizu_shared_utils`            | Common utilities across all services                                                            |
-| `vizu_sql_factory`             | Text-to-SQL with AST validation, allowlists, PII masking                                        |
-| `vizu_supabase_client`         | Typed Supabase SDK wrapper                                                                      |
-| `vizu_tool_registry`           | Tool discovery, tier validation, Docker MCP bridge                                              |
-| `vizu_twilio_client`           | WhatsApp webhook integration                                                                    |
-
----
-
-## Engineering Practices
-
-| Practice                 | Implementation                                                                                     |
-| ------------------------ | -------------------------------------------------------------------------------------------------- |
-| **Monorepo structure**   | Single repo with `libs/`, `services/`, `apps/`, `supabase/` — shared dependencies via path imports |
-| **Factory patterns**     | `ConnectorFactory`, `StandaloneAgentFactory`, `RAGFactory` — pluggable components                  |
-| **Builder pattern**      | `AgentBuilder` fluent API: `.with_llm().with_mcp().with_checkpointer().build()`                    |
-| **Dependency injection** | FastAPI `Depends()` for auth, context, and services                                                |
-| **Defense-in-depth**     | SQL validation has 4 security layers; tools validate JWT independently                             |
-| **12-factor config**     | All config via environment variables, `.env` files, no hardcoded secrets                           |
-| **Database migrations**  | 77 Alembic/Supabase migrations — versioned schema evolution                                        |
-| **Code quality**         | `ruff` for formatting + linting, enforced via `make fmt` / `make lint`                             |
-| **Testing**              | Unit tests, E2E smoke tests, persona tests, batch evaluation with Langfuse traces                  |
-| **Streaming**            | Server-Sent Events (SSE) for real-time agent responses                                             |
-| **Caching**              | Redis for context (5min TTL), prompts, agent checkpoints, tool results                             |
-| **Observability**        | OpenTelemetry → Grafana Cloud; Langfuse for LLM traces; structured logging                         |
-
----
+1. Frontend apps call service APIs.
+2. `atendente_core` orchestrates requests, context, and agent/tool routes.
+3. `tool_pool_api` exposes MCP tools used by agents.
+4. Shared libraries provide reusable logic for auth, SQL safety, RAG, and connectors.
+5. Supabase stores application data and enforces tenant isolation (RLS).
+6. Redis supports caching and agent runtime state.
 
 ## Tech Stack
 
-**Backend:** Python 3.11+, FastAPI, Pydantic, SQLModel, LangGraph, LangChain, FastMCP
+- Backend: Python 3.11+, FastAPI, SQLModel/Pydantic, LangGraph
+- Frontend: React + TypeScript + Vite
+- Data: Supabase/PostgreSQL, pgvector, Redis
+- AI: Multi-provider LLM integration, hybrid retrieval pipeline
+- Infra: Docker Compose (local), Cloud Run (deployment path), OpenTelemetry, Langfuse
 
-**Frontend:** React 18, TypeScript, Vite, Chakra UI, Recharts
+## Prerequisites
 
-**AI/ML:** LangGraph agents, pgvector embeddings, hybrid RAG (BM25 + semantic + RRF), Cohere reranking, multi-provider LLM (OpenAI, Anthropic, Google, Ollama)
+Install these tools first:
 
-**Database:** PostgreSQL with RLS, pgvector, Supabase (Auth, Edge Functions, Storage, PostgREST)
+- Docker and Docker Compose
+- Make
+- Python 3.11+
+- (Optional) gcloud CLI for Cloud Run flows
 
-**Infrastructure:** Docker Compose (dev), Google Cloud Run (prod), Artifact Registry, Redis, Nginx
+## Environment Setup
 
-**Observability:** OpenTelemetry, Grafana Cloud (Tempo, Loki, Mimir, Faro), Langfuse
+The development stack expects a root `.env` file.
 
-**Auth:** Supabase Auth, JWT (HS256/ES256/RS256), PostgreSQL RLS, per-tool tier gating
+### 1. Create `.env`
 
----
-
-## Repository Structure
-
-```
-apps/
-├── vizu_dashboard/          # React 18 + TypeScript admin dashboard
-├── hitl_dashboard/          # Streamlit HITL review interface
-└── landing/                 # Marketing landing page
-
-services/
-├── atendente_core/          # Main LangGraph agent orchestrator
-├── tool_pool_api/           # FastMCP server (20+ tools)
-├── standalone_agent_api/    # Catalog-driven agent builder
-├── file_upload_api/         # Document ingestion + vector pipeline
-├── vendas_agent/            # Sales-specialized agent
-└── support_agent/           # Support-specialized agent
-
-libs/                        # 20 shared Python packages (see table above)
-
-supabase/
-├── migrations/              # 77 SQL migrations (RLS, star-schema, vector DB, RFQ)
-└── functions/               # 5 Edge Functions (search, process, sync, enrich, match)
-
-scripts/                     # Evaluation, seeding, and utility scripts
-docs/                        # Architecture documentation
-```
-
----
-
-## Quick Start
+Use the service template as a starting point:
 
 ```bash
-# 1. Clone and configure
-git clone https://github.com/vizubr/vizu-mono.git
-cd vizu-mono
-cp .env.example .env          # fill in your keys
+cp services/atendente_core/.env.example .env
+```
 
-# 2. Start the development stack
+Then fill in required values for your environment. At minimum, confirm:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_KEY`
+- `SUPABASE_JWT_SECRET`
+- `SUPABASE_JWT_JWK`
+- `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` (or leave observability disabled where applicable)
+- provider credentials for your selected `LLM_PROVIDER`
+
+For frontend apps, set any required `VITE_*` values used by your workflow.
+
+### 2. Optional Cloud Run env file
+
+For Cloud Run compose testing, use:
+
+```bash
+cp .env.cloudrun.example .env.cloudrun
+```
+
+## Quick Start (Local Development)
+
+Start the core development stack:
+
+```bash
 make dev
-
-# 3. Open the dashboard
-open http://localhost:8080
 ```
 
-Services run with **hot reload** and connect to a remote Supabase instance — no local database setup required.
+This starts the core services used for day-to-day development, including:
 
-### Available Commands
+- landing app on http://localhost:8080
+- dashboard app on http://localhost:8081
+- atendente core on http://localhost:8003
+- tool pool API on http://localhost:8006
+- standalone agent API on http://localhost:8001
+
+Stop the stack:
 
 ```bash
-# Development
-make dev               # Start core stack (dashboard + backend + tools + redis)
-make dev-logs          # Tail all service logs
-make dev-rebuild       # Rebuild after dependency changes
-
-# Testing & Evaluation
-make test              # Unit tests
-make smoke-test        # End-to-end integration
-make batch-run         # Batch test with Langfuse traces
-make experiment-run    # Run evaluation experiments
-
-# Database
-make migrate           # Apply Alembic migrations
-make migrate-prod      # Apply to production (with confirmation)
-
-# Code Quality
-make fmt               # Format with ruff
-make lint              # Lint with ruff
-make lint-fix          # Auto-fix lint issues
-
-# Deployment
-make cloudrun-build    # Build Docker images
-make cloudrun-push-all # Push to GCP Artifact Registry
+make dev-down
 ```
 
----
+## Common Commands
 
-## About
+### Development and logs
 
-This platform was designed and implemented by me as the **sole engineer** at Vizu, a startup delivering business management and productivity solutions for SMBs.
+```bash
+make dev
+make dev-logs
+make dev-rebuild
+make ps
+make logs
+```
 
-The goal: enable non-technical business users to ask questions, get reports, and manage their data through natural conversation — with AI doing the heavy lifting, securely scoped to each tenant's data.
+### Testing
 
-**Key numbers:**
+```bash
+make test
+make test-all
+make smoke-test
+make batch-run
+```
 
-- ~65,000 lines of Python across 20 libraries and 6 services
-- ~25,000 lines of TypeScript in the React dashboard
-- 77 database migrations maintaining the schema
-- 25+ MCP tools in a centralized tool server
-- 5 Supabase Edge Functions
-- Full observability pipeline (traces, metrics, logs, LLM monitoring)
+### Lint and format
 
----
+```bash
+make fmt
+make lint
+make lint-fix
+```
 
-_Designed and built by Lucas Cruz_
+### Database and migrations
+
+```bash
+make migrate
+make migrate-status
+make migrate-prod
+```
+
+### Seed and data utilities
+
+```bash
+make seed
+make seed-db
+make seed-check
+```
+
+Run `make help` for the full command catalog.
+
+## Working with Supabase
+
+- SQL migrations live in `supabase/migrations`.
+- Additional migration support exists in `libs/vizu_db_connector/alembic`.
+- Root `supabase/config.toml` and `supabase/seed.sql` support local/managed workflows.
+
+## Running Observability Components
+
+The repository includes a local Langfuse stack in root compose files and a dedicated `langfuse/` workspace.
+
+Use the observability profile when needed:
+
+```bash
+docker compose --profile observability up -d
+```
+
+## Development Notes
+
+- Root `pyproject.toml` defines shared development tooling, not a distributable package.
+- Each service/library can maintain its own local dependency configuration.
+- Avoid committing secrets. Keep credentials in local `.env` files only.
+
+## Security and Multi-Tenancy
+
+Core safeguards in this codebase include:
+
+- JWT-based request context extraction
+- Row-Level Security in Supabase/PostgreSQL
+- Tool-level validation and access constraints
+- SQL validation and rewrite safeguards for text-to-SQL flows
+
+## Contributing
+
+1. Create a branch from `main`.
+2. Implement changes with tests where relevant.
+3. Run formatting, lint, and test commands locally.
+4. Open a PR with context, risks, and rollout notes.
+
+## Troubleshooting
+
+- Run `make dev-logs` and `make logs s=<service_name>` for service-level logs.
+- Check required env variables in `.env` first.
+- Confirm Docker containers are healthy with `make ps`.
+- For migration issues, inspect `make migrate-status` and Supabase migration state.
+
+## License
+
+Internal repository. Follow organizational policies for code usage and redistribution.

@@ -522,16 +522,18 @@ function AdminClientesVizuPage() {
 
                 {/* RAG Collection */}
                 <FormControl>
-                  <FormLabel>Collection RAG</FormLabel>
+                  <FormLabel>Identificador da Knowledge Base</FormLabel>
                   <Input
                     value={formData.collection_rag}
                     onChange={(e) =>
                       setFormData({ ...formData, collection_rag: e.target.value })
                     }
-                    placeholder="Nome da collection no Qdrant"
+                    placeholder="Identificador da knowledge base do cliente"
                   />
                   <FormHelperText>
-                    Collection do Qdrant para busca RAG deste cliente
+                    Identificador legado do RAG (a base atual usa o schema
+                    <code> vector_db </code>do Supabase/pgvector). Mantido para
+                    compatibilidade com clientes antigos.
                   </FormHelperText>
                 </FormControl>
 

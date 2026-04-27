@@ -21,6 +21,12 @@ from vizu_agent_framework.config import (
     VENDAS_CONFIG,
     AgentConfig,
 )
+from vizu_agent_framework.approval import (
+    ApprovalEngine,
+    ApprovalError,
+    ApprovalRequest,
+)
+from vizu_agent_framework.audit import record_audit
 from vizu_agent_framework.mcp_client import (
     MCPConnectionManager,
     get_mcp_manager,
@@ -79,4 +85,10 @@ __all__ = [
     "initialize_mcp",
     # Checkpointing
     "RedisCheckpointer",
+    # Approval Engine v1
+    "ApprovalEngine",
+    "ApprovalError",
+    "ApprovalRequest",
+    # Audit
+    "record_audit",
 ]

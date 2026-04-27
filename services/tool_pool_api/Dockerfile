@@ -24,6 +24,8 @@ COPY libs/vizu_prompt_management ./libs/vizu_prompt_management
 COPY libs/vizu_google_suite_client ./libs/vizu_google_suite_client
 COPY libs/vizu_parsers ./libs/vizu_parsers
 COPY libs/vizu_elicitation_service ./libs/vizu_elicitation_service
+COPY libs/vizu_agent_framework ./libs/vizu_agent_framework
+COPY libs/vizu_twilio_client ./libs/vizu_twilio_client
 
 # Copy pyproject and install deps
 COPY services/tool_pool_api/pyproject.toml services/tool_pool_api/poetry.lock* ./services/tool_pool_api/
@@ -56,13 +58,15 @@ COPY libs/vizu_prompt_management/src ./libs/vizu_prompt_management/src
 COPY libs/vizu_google_suite_client/src ./libs/vizu_google_suite_client/src
 COPY libs/vizu_parsers/src ./libs/vizu_parsers/src
 COPY libs/vizu_elicitation_service/src ./libs/vizu_elicitation_service/src
+COPY libs/vizu_agent_framework/src ./libs/vizu_agent_framework/src
+COPY libs/vizu_twilio_client/src ./libs/vizu_twilio_client/src
 
 # Copy service source code
 COPY services/tool_pool_api/src ./src
 
 # PYTHONPATH for imports
 ENV PATH="/app/services/tool_pool_api/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_context_service/src:/app/libs/vizu_supabase_client/src:/app/libs/vizu_auth/src:/app/libs/vizu_observability_bootstrap/src:/app/libs/vizu_llm_service/src:/app/libs/vizu_rag_factory/src:/app/libs/vizu_sql_factory/src:/app/libs/vizu_tool_registry/src:/app/libs/vizu_prompt_management/src:/app/libs/vizu_google_suite_client/src:/app/libs/vizu_parsers/src:/app/libs/vizu_elicitation_service/src"
+ENV PYTHONPATH="/app/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_context_service/src:/app/libs/vizu_supabase_client/src:/app/libs/vizu_auth/src:/app/libs/vizu_observability_bootstrap/src:/app/libs/vizu_llm_service/src:/app/libs/vizu_rag_factory/src:/app/libs/vizu_sql_factory/src:/app/libs/vizu_tool_registry/src:/app/libs/vizu_prompt_management/src:/app/libs/vizu_google_suite_client/src:/app/libs/vizu_parsers/src:/app/libs/vizu_elicitation_service/src:/app/libs/vizu_agent_framework/src:/app/libs/vizu_twilio_client/src"
 
 EXPOSE 8000
 

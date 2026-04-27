@@ -46,9 +46,15 @@ const suggestionChips: SuggestionChip[] = [
 interface ChatPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  /**
+   * One-shot prefilled message from a deep-link (e.g. HomePage InsightsFeed
+   * "explicar"). Applied on next open and cleared via onInitialMessageConsumed.
+   */
+  initialMessage?: string | null;
+  onInitialMessageConsumed?: () => void;
 }
 
-export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
+export const ChatPanel = ({ isOpen, onClose, initialMessage, onInitialMessageConsumed }: ChatPanelProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -83,6 +89,15 @@ export const ChatPanel = ({ isOpen, onClose }: ChatPanelProps) => {
       setTimeout(() => textareaRef.current?.focus(), 300);
     }
   }, [isOpen]);
+
+  // Phase 2 (I2.2): seed the input from a deep-link (e.g. "Explicar" on an
+  // insight card). Applied once per open; cleared by the context consumer.
+  useEffect(() => {
+    if (isOpen && initialMessage && initialMessage.trim()) {
+      setInputValue(initialMessage);
+      onInitialMessageConsumed?.();
+    }
+  }, [isOpen, initialMessage, onInitialMessageConsumed]);
 
   // Handle file upload from the "Anexar" button
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

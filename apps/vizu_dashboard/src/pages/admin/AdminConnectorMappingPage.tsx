@@ -119,6 +119,17 @@ function AdminConnectorMappingPage() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [ingestionQuality, setIngestionQuality] = useState<Record<string, any> | null>(null);
 
+    // Initial page load + retry tracking. `pageLoading` covers credential lookup
+    // and discovery/match. `pageError` is shown when something fatal happens
+    // (credential missing, RLS denied, etc.). `discoveryPending` is true when
+    // the credential exists but `client_data_sources` has no source_columns yet,
+    // which is the most common reason this page shows nothing.
+    const [pageLoading, setPageLoading] = useState(true);
+    const [pageError, setPageError] = useState<string | null>(null);
+    const [discoveryPending, setDiscoveryPending] = useState(false);
+    const [retryingDiscovery, setRetryingDiscovery] = useState(false);
+    const [reloadKey, setReloadKey] = useState(0);
+
     const { matchColumns, loading: matchLoading, error: matchError } = useColumnMatching();
 
     // Load credential info and source columns
@@ -126,14 +137,14 @@ function AdminConnectorMappingPage() {
         async function loadCredentialData() {
             if (!credentialId) return;
             if (!clienteVizuId) {
-                toast({
-                    title: 'Erro de autenticação',
-                    description: 'Não foi possível identificar o cliente.',
-                    status: 'error',
-                    duration: 5000,
-                });
+                setPageLoading(false);
+                setPageError('Não foi possível identificar o cliente. Faça login novamente.');
                 return;
             }
+
+            setPageLoading(true);
+            setPageError(null);
+            setDiscoveryPending(false);
 
             try {
                 // Get credential info
@@ -143,7 +154,13 @@ function AdminConnectorMappingPage() {
                     .eq('id', parseInt(credentialId))
                     .maybeSingle();
 
-                if (credError || !credential) throw credError || new Error('Credencial não encontrada');
+                if (credError || !credential) {
+                    setPageError(
+                        credError?.message ||
+                            'Credencial não encontrada. Verifique o link ou volte para "Minhas Fontes".',
+                    );
+                    return;
+                }
 
                 setCredentialInfo({
                     nome_servico: credential.nome_servico,
@@ -169,23 +186,21 @@ function AdminConnectorMappingPage() {
 
                 if (error) {
                     console.error('Error loading data source:', error);
-                    toast({
-                        title: 'Erro ao carregar credencial',
-                        description: 'Certifique-se de que o descobrimento de colunas foi concluído.',
-                        status: 'error',
-                        duration: 5000,
-                    });
+                    setPageError(
+                        'Não foi possível carregar o registro de descoberta. Verifique permissões ou tente novamente.',
+                    );
                     return;
                 }
 
-                if (!dataSource) {
-                    // PGRST116: 0 rows — discovery hasn't completed yet
-                    toast({
-                        title: 'Descoberta de colunas em andamento',
-                        description: 'Aguarde alguns segundos e recarregue a página.',
-                        status: 'warning',
-                        duration: 5000,
-                    });
+                const hasSourceColumns = !!dataSource?.source_columns && (
+                    Array.isArray(dataSource.source_columns)
+                        ? dataSource.source_columns.length > 0
+                        : Object.keys(dataSource.source_columns).length > 0
+                );
+
+                if (!dataSource || !hasSourceColumns) {
+                    // No row yet, or discovery row exists but never populated source_columns.
+                    setDiscoveryPending(true);
                     return;
                 }
 
@@ -311,18 +326,65 @@ function AdminConnectorMappingPage() {
                 }
             } catch (err) {
                 console.error('Error loading credential data:', err);
-                toast({
-                    title: 'Erro ao carregar dados',
-                    description: err instanceof Error ? err.message : 'Erro desconhecido',
-                    status: 'error',
-                    duration: 5000,
-                });
+                setPageError(err instanceof Error ? err.message : 'Erro desconhecido ao carregar dados.');
+            } finally {
+                setPageLoading(false);
             }
         }
 
         loadCredentialData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [credentialId, toast]);
+    }, [credentialId, toast, reloadKey]);
+
+    // Manually trigger column discovery (for connectors where discovery hasn't
+    // run, failed, or where the user wants to refresh schema). Currently
+    // `trigger_column_discovery` is implemented for BigQuery; for other
+    // connectors we fall back to a fresh sync via `run-sync` which also
+    // populates source_columns/source_sample_data.
+    const handleRetryDiscovery = useCallback(async () => {
+        if (!credentialId) return;
+        setRetryingDiscovery(true);
+        try {
+            const credId = parseInt(credentialId);
+            const tipo = (credentialInfo?.tipo_servico || '').toLowerCase();
+
+            if (tipo === 'bigquery') {
+                const { error: rpcErr } = await supabase.rpc('trigger_column_discovery', {
+                    p_credential_id: credId,
+                });
+                if (rpcErr) throw rpcErr;
+            } else {
+                // Trigger run-sync which performs discovery on first run.
+                const { error: invokeErr } = await supabase.functions.invoke('run-sync', {
+                    body: {
+                        credential_id: credId,
+                        client_id: clienteVizuId,
+                        force_full_sync: true,
+                    },
+                });
+                if (invokeErr) throw invokeErr;
+            }
+
+            toast({
+                title: 'Descoberta iniciada',
+                description: 'Aguarde alguns segundos e tente novamente.',
+                status: 'info',
+                duration: 4000,
+            });
+            // Give the backend a moment, then reload.
+            setTimeout(() => setReloadKey((k) => k + 1), 2500);
+        } catch (err) {
+            console.error('Error triggering discovery:', err);
+            toast({
+                title: 'Falha ao iniciar descoberta',
+                description: err instanceof Error ? err.message : 'Erro desconhecido',
+                status: 'error',
+                duration: 6000,
+            });
+        } finally {
+            setRetryingDiscovery(false);
+        }
+    }, [credentialId, clienteVizuId, credentialInfo, toast]);
 
     // Handle user selection for a column
     const handleColumnSelection = useCallback((sourceColumn: string, canonicalColumn: string) => {
@@ -597,15 +659,98 @@ function AdminConnectorMappingPage() {
                 </VStack>
 
                 {/* Loading state */}
-                {matchLoading && (
+                {(pageLoading || matchLoading) && (
                     <VStack py={12} spacing={4}>
                         <Spinner size="xl" color="orange.400" />
-                        <Text color="whiteAlpha.600">Analisando colunas...</Text>
+                        <Text color="whiteAlpha.600">
+                            {pageLoading ? 'Carregando dados da fonte…' : 'Analisando colunas…'}
+                        </Text>
                     </VStack>
                 )}
 
+                {/* Fatal error */}
+                {!pageLoading && pageError && (
+                    <Box
+                        p={8}
+                        borderRadius="lg"
+                        bg="rgba(239,68,68,0.06)"
+                        border="1px solid rgba(239,68,68,0.25)"
+                    >
+                        <HStack spacing={3} mb={3}>
+                            <Icon as={FiX} color="red.400" boxSize={5} />
+                            <Text fontWeight="semibold" color="white" fontSize="lg" fontFamily="'Playfair Display', serif">
+                                Não foi possível carregar a fonte
+                            </Text>
+                        </HStack>
+                        <Text color="whiteAlpha.700" mb={4}>{pageError}</Text>
+                        <HStack>
+                            <Button
+                                variant="outline"
+                                borderColor="rgba(255,255,255,0.15)"
+                                color="whiteAlpha.800"
+                                _hover={{ borderColor: '#3b82f6', color: '#3b82f6' }}
+                                onClick={() => navigate('/dashboard/admin/fontes')}
+                            >
+                                Voltar para Fontes
+                            </Button>
+                            <Button
+                                bgGradient="linear(to-r, #3b82f6, #6366f1)"
+                                color="white"
+                                _hover={{ bgGradient: 'linear(to-r, #4f8df8, #7c7df0)' }}
+                                onClick={() => setReloadKey((k) => k + 1)}
+                            >
+                                Tentar novamente
+                            </Button>
+                        </HStack>
+                    </Box>
+                )}
+
+                {/* Discovery pending — no source_columns yet */}
+                {!pageLoading && !pageError && discoveryPending && !matchLoading && (
+                    <Box
+                        p={8}
+                        borderRadius="lg"
+                        bg="rgba(234,179,8,0.06)"
+                        border="1px solid rgba(234,179,8,0.25)"
+                    >
+                        <HStack spacing={3} mb={3}>
+                            <Icon as={FiAlertTriangle} color="yellow.300" boxSize={5} />
+                            <Text fontWeight="semibold" color="white" fontSize="lg" fontFamily="'Playfair Display', serif">
+                                Descoberta de colunas pendente
+                            </Text>
+                        </HStack>
+                        <Text color="whiteAlpha.700" mb={4}>
+                            Ainda não temos o esquema desta fonte. Isso geralmente significa que a
+                            descoberta de colunas não foi executada — ou não foi concluída — para esta
+                            credencial. Inicie a descoberta agora e recarregue em alguns segundos.
+                        </Text>
+                        <HStack>
+                            <Button
+                                variant="outline"
+                                borderColor="rgba(255,255,255,0.15)"
+                                color="whiteAlpha.800"
+                                _hover={{ borderColor: '#3b82f6', color: '#3b82f6' }}
+                                onClick={() => navigate('/dashboard/admin/fontes')}
+                            >
+                                Voltar para Fontes
+                            </Button>
+                            <Button
+                                leftIcon={<FiRefreshCw />}
+                                isLoading={retryingDiscovery}
+                                loadingText="Iniciando descoberta…"
+                                bgGradient="linear(to-r, #3b82f6, #6366f1)"
+                                color="white"
+                                _hover={{ bgGradient: 'linear(to-r, #4f8df8, #7c7df0)' }}
+                                onClick={handleRetryDiscovery}
+                            >
+                                Iniciar descoberta
+                            </Button>
+                        </HStack>
+                    </Box>
+                )}
+
                 {/* Mapping interface */}
-                {matchResult && !matchLoading && (
+                {matchResult && !matchLoading && !pageLoading && !pageError && !discoveryPending && (
                     <VStack spacing={6} align="stretch">
                         {/* Summary cards */}
                         <HStack spacing={4}>

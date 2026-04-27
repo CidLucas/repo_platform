@@ -25,6 +25,11 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.dependencies import get_context_service
+from vizu_agent_framework.approval import (
+    ApprovalEngine,
+    ApprovalError,
+    resolve_policy,
+)
 from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
 from vizu_elicitation_service.exceptions import ElicitationRequired
 from vizu_google_suite_client import GoogleSheetsClient
@@ -1025,6 +1030,22 @@ async def _create_purchase_order_logic(
 
         po_id = str(uuid4())
 
+        # ── P3.1 — Approval Engine policy gate ────────────────────────────
+        # The chat elicitation above already captured the operator's intent.
+        # Now resolve the tenant's `approval_policy` for this action: if it
+        # demands a separate, role-routed approval (e.g. finance-responsible
+        # on PRO+), park the PO as `pending_approval` and enqueue an
+        # `approval_requests` row for the dashboard Approvals Tray.
+        decision = resolve_policy(
+            client_id=cliente_id,
+            agent_slug="rfq-agent",
+            action="create_purchase_order",
+            payload={"total_amount": total_amount, "supplier_id": supplier_id},
+            supabase=db,
+        )
+
+        po_status = "pending_approval" if decision.requires_async_approval else "draft"
+
         db.table("purchase_orders").insert({
             "id": po_id,
             "session_id": session_id,
@@ -1033,12 +1054,39 @@ async def _create_purchase_order_logic(
             "items": items,
             "total_amount": total_amount,
             "currency": currency,
-            "status": "draft",
+            "status": po_status,
         }).execute()
+
+        approval_id: str | None = None
+        if decision.requires_async_approval:
+            try:
+                req = ApprovalEngine(supabase=db).request(
+                    agent_slug="rfq-agent",
+                    action="create_purchase_order",
+                    payload={
+                        "po_id": po_id,
+                        "supplier_id": supplier_id,
+                        "supplier_name": supplier_name,
+                        "total_amount": total_amount,
+                        "currency": currency,
+                        "items_count": len(items),
+                    },
+                    session_id=session_id,
+                    routed_to_role=decision.routed_role,
+                    sla_hours=decision.sla_hours,
+                )
+                approval_id = req.id
+            except ApprovalError:
+                logger.exception(
+                    "[RFQ] approval enqueue failed for PO %s; falling back to draft",
+                    po_id,
+                )
+                db.table("purchase_orders").update({"status": "draft"}).eq("id", po_id).execute()
+                po_status = "draft"
 
         logger.info(
             f"[RFQ] PO {po_id} created for {supplier_name}: "
-            f"{currency} {total_amount:,.2f}"
+            f"{currency} {total_amount:,.2f} (status={po_status}, approval={approval_id})"
         )
 
         return {
@@ -1046,8 +1094,10 @@ async def _create_purchase_order_logic(
             "supplier_name": supplier_name,
             "total_amount": total_amount,
             "currency": currency,
-            "status": "draft",
+            "status": po_status,
             "items_count": len(items),
+            "approval_id": approval_id,
+            "approval_reason": decision.reason,
         }
 
     except (ToolError, ElicitationRequired):
@@ -1101,9 +1151,9 @@ async def _approve_purchase_order_logic(
                 "message": "Este pedido já está aprovado.",
             }
 
-        if po["status"] != "draft":
+        if po["status"] not in {"draft", "pending_approval"}:
             raise ToolError(
-                f"Só é possível aprovar pedidos em status 'draft'. "
+                f"Só é possível aprovar pedidos em status 'draft' ou 'pending_approval'. "
                 f"Status atual: {po['status']}"
             )
 
@@ -1139,6 +1189,58 @@ async def _approve_purchase_order_logic(
             )
 
         now = datetime.now(UTC).isoformat()
+
+        # ── P3.1 — Approval Engine policy gate ────────────────────────────
+        # If the tenant policy routes this action to a separate role, do not
+        # immediately flip the PO to `approved`; enqueue an `approval_requests`
+        # row instead and surface the deferred state to the agent so it can
+        # tell the operator a finance-responsible needs to sign off.
+        decision = resolve_policy(
+            client_id=cliente_id,
+            agent_slug="rfq-agent",
+            action="approve_purchase_order",
+            payload={"total_amount": float(total), "po_id": po_id},
+            supabase=db,
+        )
+
+        if decision.requires_async_approval:
+            try:
+                req = ApprovalEngine(supabase=db).request(
+                    agent_slug="rfq-agent",
+                    action="approve_purchase_order",
+                    payload={
+                        "po_id": po_id,
+                        "supplier_id": po["supplier_id"],
+                        "supplier_name": supplier_name,
+                        "total_amount": float(total),
+                        "currency": currency,
+                        "items_count": items_count,
+                    },
+                    routed_to_role=decision.routed_role,
+                    sla_hours=decision.sla_hours,
+                )
+            except ApprovalError as exc:
+                logger.exception("[RFQ] approval enqueue failed for PO %s", po_id)
+                raise ToolError(f"Falha ao registrar aprovação: {exc}") from exc
+
+            db.table("purchase_orders").update({"status": "pending_approval"}).eq("id", po_id).execute()
+            logger.info(
+                "[RFQ] PO %s queued for async approval (id=%s, role=%s)",
+                po_id, req.id, decision.routed_role,
+            )
+            return {
+                "po_id": po_id,
+                "supplier_name": supplier_name,
+                "total_amount": float(total),
+                "currency": currency,
+                "status": "pending_approval",
+                "approval_id": req.id,
+                "approval_reason": decision.reason,
+                "message": (
+                    f"Pedido encaminhado para aprovação ({decision.routed_role or 'responsável'}). "
+                    f"SLA {decision.sla_hours}h."
+                ),
+            }
 
         db.table("purchase_orders").update({
             "status": "approved",
@@ -1407,34 +1509,21 @@ async def _import_buying_list_from_sheets_logic(
         raise ToolError(f"Erro ao importar planilha Google: {e}")
 
 
-async def _export_po_to_sheets_logic(
-    ctx: Context,
+async def export_po_to_sheets_core(
+    *,
+    cliente_id: str,
     po_id: str | None = None,
+    session_id: str | None = None,
     spreadsheet_id: str | None = None,
     sheet_name: str = "Pedidos de Compra",
     account_email: str | None = None,
-    cliente_id: str | None = None,
-    session_id: str | None = None,
 ) -> dict:
     """
-    Export Purchase Orders to Google Sheets.
+    Core (ctx-free) implementation of `export_po_to_sheets`.
 
-    If po_id is given, exports that specific PO. Otherwise exports all
-    approved POs from the current session. Creates a new spreadsheet if
-    spreadsheet_id is not provided.
-
-    Args:
-        po_id: Optional specific PO UUID to export
-        spreadsheet_id: Optional existing spreadsheet to append to
-        sheet_name: Sheet tab name (default: "Pedidos de Compra")
-        account_email: Optional Google account email to use
-
-    Returns:
-        dict with spreadsheet_url, rows_written, pos_exported
+    Exposed so REST handlers (e.g. the dashboard "Exportar para Sheets" button)
+    can reuse the same logic without going through the MCP `Context` object.
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
-    session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
-
     if not cliente_id:
         raise ToolError("Missing cliente_id in context")
 
@@ -1526,6 +1615,30 @@ async def _export_po_to_sheets_logic(
     except Exception as e:
         logger.error(f"[RFQ] Failed to export POs to Google Sheets: {e}")
         raise ToolError(f"Erro ao exportar para Google Sheets: {e}")
+
+
+async def _export_po_to_sheets_logic(
+    ctx: Context,
+    po_id: str | None = None,
+    spreadsheet_id: str | None = None,
+    sheet_name: str = "Pedidos de Compra",
+    account_email: str | None = None,
+    cliente_id: str | None = None,
+    session_id: str | None = None,
+) -> dict:
+    """MCP wrapper around :func:`export_po_to_sheets_core`."""
+    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
+    session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
+    if not cliente_id:
+        raise ToolError("Missing cliente_id in context")
+    return await export_po_to_sheets_core(
+        cliente_id=cliente_id,
+        po_id=po_id,
+        session_id=session_id,
+        spreadsheet_id=spreadsheet_id,
+        sheet_name=sheet_name,
+        account_email=account_email,
+    )
 
 
 # =============================================================================

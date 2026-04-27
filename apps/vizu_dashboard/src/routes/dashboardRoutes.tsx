@@ -4,6 +4,8 @@ import GenericOverviewPage from "../pages/GenericOverviewPage";
 import GenericListPage from "../pages/GenericListPage";
 import { clientesConfig, fornecedoresConfig, produtosConfig } from "../config";
 import PedidosPage from "../pages/PedidosPage";
+import InboxPage from "../pages/InboxPage";
+import ReportsPage from "../pages/ReportsPage";
 // Client management pages (formerly "admin" pages - now accessible to all authenticated users)
 import AdminHomePage from "../pages/admin/AdminHomePage";
 import AdminFontesPage from "../pages/admin/AdminFontesPage";
@@ -78,6 +80,18 @@ export const dashboardRoutes: RouteConfig[] = [
   {
     path: "/dashboard/orders",
     element: <PedidosPage />,
+  },
+  {
+    path: "/dashboard/inbox",
+    element: <InboxPage />,
+  },
+  {
+    path: "/dashboard/reports",
+    element: <ReportsPage />,
+  },
+  {
+    path: "/dashboard/relatorios",
+    element: <ReportsPage />,
   },
   // Client management routes (formerly "admin" routes - accessible to all authenticated users)
   {

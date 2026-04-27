@@ -84,6 +84,13 @@ def create_mcp_server():
     # while individual tool calls are authenticated via JWT in headers
     mcp = FastMCP("Vizu Tool Pool")
 
+    # BLU-MVP-070: instrument mcp.tool with OTel spans + metrics BEFORE any
+    # registration happens so every tool is auto-traced (tool_name, client_id,
+    # tier as standard span attributes; latency histogram + error counter).
+    from .otel_instrumentation import instrument_mcp_tools
+
+    instrument_mcp_tools(mcp)
+
     # Registre os componentes MCP
     # Tools include prompt_module which registers native MCP prompts
     register_tools(mcp)

@@ -11,7 +11,7 @@ interface AdminLayoutProps {
 }
 
 export const AdminLayout = ({ children }: AdminLayoutProps) => {
-  const { isChatOpen, closeChat } = useChat();
+  const { isChatOpen, closeChat, initialMessage, consumeInitialMessage } = useChat();
 
   return (
     <Flex direction="column" minHeight="100vh" bg="#0d0e1f" color="white">
@@ -22,7 +22,12 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
           {children}
         </Box>
       </Flex>
-      <ChatPanel isOpen={isChatOpen} onClose={closeChat} />
+      <ChatPanel
+        isOpen={isChatOpen}
+        onClose={closeChat}
+        initialMessage={initialMessage}
+        onInitialMessageConsumed={consumeInitialMessage}
+      />
     </Flex>
   );
 };

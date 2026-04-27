@@ -2,6 +2,7 @@ README.md
 pyproject.toml
 src/vizu_sql_factory/__init__.py
 src/vizu_sql_factory/allowlist.py
+src/vizu_sql_factory/analytics_v2_contract.py
 src/vizu_sql_factory/checks.py
 src/vizu_sql_factory/executor.py
 src/vizu_sql_factory/exemplar_validator.py

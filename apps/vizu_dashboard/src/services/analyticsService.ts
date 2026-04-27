@@ -93,7 +93,15 @@ export interface OrderMetricsResponse {
 }
 
 // Period filter shared across pedidos RPCs.
+// Legacy values (week|month|quarter|year) are kept for backwards compatibility
+// with existing pages (PedidosPage, useDashboardIndicators). New dimension
+// pages should prefer the standardized vocabulary from `StandardPeriod`.
 export type PeriodType = 'week' | 'month' | 'quarter' | 'year';
+
+// Standardized period vocabulary introduced in Phase 1 (K1.4).
+// Backed by analytics_v2._resolve_period() which also accepts the legacy
+// PeriodType aliases above.
+export type StandardPeriod = '7d' | '30d' | '90d' | 'mtd' | 'ytd' | 'custom';
 
 // Recent activity feed item (public.get_recent_activity)
 export interface RecentActivityItem {
@@ -111,6 +119,23 @@ export interface PendenciaItem {
   severity: 'info' | 'warning' | 'error' | string;
   occurredAt: string | null;
   targetRoute: string;
+}
+
+// Insight item (public.get_my_insights — Phase 2 / I2.2)
+export interface InsightItem {
+  id: string;
+  runDate: string;
+  dimension: 'finance' | 'commercial' | 'inventory' | 'supply' | 'marketing' | 'operations' | string;
+  kpi: string;
+  severity: 'info' | 'warning' | 'error' | string;
+  title: string;
+  observation: string;
+  recommendation: string | null;
+  metricValue: number | null;
+  baselineValue: number | null;
+  variancePct: number | null;
+  status: 'active' | 'dismissed' | 'expired' | string;
+  createdAt: string;
 }
 
 // Agent runs today (public.get_agent_runs_today)
@@ -234,8 +259,10 @@ export interface HomeScorecards {
   total_regioes: number;
   total_clientes: number;
   total_pedidos: number;
+  pedidos_mes_atual?: number;  // Pedidos count for current calendar month
   ticket_medio?: number;
   crescimento_receita?: number;  // Variação % receita (último mês vs penúltimo)
+  crescimento_pedidos?: number;  // Variação % pedidos (último mês vs penúltimo)
   crescimento_clientes?: number;  // Variação % clientes (último mês vs penúltimo)
   crescimento_produtos?: number;  // Variação % produtos (último mês vs penúltimo)
   frequencia_media_fornecedores?: number;  // Média de pedidos por fornecedor por mês
@@ -564,7 +591,7 @@ export const getPedidoDetails = async (order_id: string): Promise<PedidoDetailRe
 };
 
 // Fornecedores API calls (overview)
- 
+
 export const getFornecedores = async (_period: string = 'all'): Promise<FornecedoresOverviewResponse> => {
   // Fetch fornecedores, series, and regional in parallel
   const [fornecedoresRes, seriesRes, regionalRes] = await Promise.all([
@@ -697,7 +724,7 @@ export const getFornecedor = async (nome_fornecedor: string): Promise<Fornecedor
 };
 
 // Clientes API calls (overview)
- 
+
 export const getClientes = async (_period: string = 'all'): Promise<ClientesOverviewResponse> => {
   // Fetch dim_clientes, series, and regional in parallel
   const [clientesRes, seriesRes, regionalRes] = await Promise.all([
@@ -841,7 +868,7 @@ export const getCliente = async (nome_cliente: string): Promise<ClienteDetailRes
 };
 
 // Produtos API calls (overview)
- 
+
 export const getProdutosOverview = async (_period: string = 'all'): Promise<ProdutosOverviewResponse> => {
   // Fetch dim_inventory + all produtos series in parallel
   const [produtosRes, seriesRes] = await Promise.all([
@@ -1033,8 +1060,10 @@ export const getHomeMetrics = async (): Promise<HomeMetricsResponse> => {
     total_regioes: Number(dashboard.total_regioes) || 0,
     total_clientes: Number(dashboard.total_clientes) || 0,
     total_pedidos: Number(dashboard.total_pedidos) || 0,
+    pedidos_mes_atual: Number(dashboard.pedidos_mes_atual) || 0,
     ticket_medio: Number(dashboard.ticket_medio) || 0,
     crescimento_receita: dashboard.crescimento_receita != null ? Number(dashboard.crescimento_receita) : undefined,
+    crescimento_pedidos: dashboard.crescimento_pedidos != null ? Number(dashboard.crescimento_pedidos) : undefined,
     crescimento_clientes: dashboard.crescimento_clientes != null ? Number(dashboard.crescimento_clientes) : undefined,
     crescimento_produtos: dashboard.crescimento_produtos != null ? Number(dashboard.crescimento_produtos) : undefined,
     frequencia_media_fornecedores: Number(dashboard.frequencia_media_fornecedores) || 0,
@@ -1055,6 +1084,66 @@ export const getHomeMetrics = async (): Promise<HomeMetricsResponse> => {
   ];
 
   return { scorecards, charts };
+};
+
+// Dashboard period-toggle indicators (HomePage rolling-window KPIs).
+// Backed by analytics_v2.get_dashboard_indicators(p_period) — returns
+// rolling current-window aggregates plus growth vs the prior equal-length
+// window. Calendar-month "mês atual" values still come from
+// v_resumo_dashboard / getHomeMetrics(); this RPC powers the period select.
+export interface DashboardIndicatorsResponse {
+  total_pedidos: number;
+  receita: number;
+  ticket_medio: number;
+  quantidade: number;
+  clientes_unicos: number;
+  produtos_unicos: number;
+  fornecedores_unicos: number;
+  crescimento_receita: number | null;
+  crescimento_pedidos: number | null;
+  crescimento_clientes: number | null;
+  period: string;
+}
+
+export const getDashboardIndicators = async (
+  period: PeriodType | string = 'month',
+): Promise<DashboardIndicatorsResponse> => {
+  const { data, error } = await supabase
+    .schema(ANALYTICS_SCHEMA)
+    .rpc('get_dashboard_indicators', { p_period: period });
+
+  if (error) throw new Error(error.message);
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | {
+        total_pedidos?: number | string;
+        receita?: number | string;
+        ticket_medio?: number | string;
+        quantidade?: number | string;
+        clientes_unicos?: number | string;
+        produtos_unicos?: number | string;
+        fornecedores_unicos?: number | string;
+        crescimento_receita?: number | string | null;
+        crescimento_pedidos?: number | string | null;
+        crescimento_clientes?: number | string | null;
+        period?: string;
+      }
+    | null
+    | undefined;
+
+  return {
+    total_pedidos: Number(row?.total_pedidos) || 0,
+    receita: Number(row?.receita) || 0,
+    ticket_medio: Number(row?.ticket_medio) || 0,
+    quantidade: Number(row?.quantidade) || 0,
+    clientes_unicos: Number(row?.clientes_unicos) || 0,
+    produtos_unicos: Number(row?.produtos_unicos) || 0,
+    fornecedores_unicos: Number(row?.fornecedores_unicos) || 0,
+    crescimento_receita: row?.crescimento_receita != null ? Number(row.crescimento_receita) : null,
+    crescimento_pedidos: row?.crescimento_pedidos != null ? Number(row.crescimento_pedidos) : null,
+    crescimento_clientes: row?.crescimento_clientes != null ? Number(row.crescimento_clientes) : null,
+    period: row?.period || String(period),
+  };
 };
 
 // Order Indicators (used by PedidosPage)
@@ -1287,6 +1376,54 @@ export const getPendencias = async (): Promise<PendenciaItem[]> => {
       targetRoute: row.target_route,
     }),
   );
+};
+
+// Insights feed (public.get_my_insights — Phase 2 / I2.2)
+export const getInsights = async (limit: number = 5): Promise<InsightItem[]> => {
+  const { data, error } = await supabase.rpc('get_my_insights', {
+    p_limit: limit,
+    p_status: 'active',
+  });
+
+  if (error) throw new Error(error.message);
+
+  return (data || []).map(
+    (row: {
+      id: string;
+      run_date: string;
+      dimension: string;
+      kpi: string;
+      severity: string;
+      title: string;
+      observation: string;
+      recommendation: string | null;
+      metric_value: number | string | null;
+      baseline_value: number | string | null;
+      variance_pct: number | string | null;
+      status: string;
+      created_at: string;
+    }) => ({
+      id: row.id,
+      runDate: row.run_date,
+      dimension: row.dimension,
+      kpi: row.kpi,
+      severity: row.severity,
+      title: row.title,
+      observation: row.observation,
+      recommendation: row.recommendation,
+      metricValue: row.metric_value !== null ? Number(row.metric_value) : null,
+      baselineValue: row.baseline_value !== null ? Number(row.baseline_value) : null,
+      variancePct: row.variance_pct !== null ? Number(row.variance_pct) : null,
+      status: row.status,
+      createdAt: row.created_at,
+    }),
+  );
+};
+
+// Dismiss an insight (public.dismiss_insight — Phase 2 / I2.2)
+export const dismissInsight = async (insightId: string): Promise<void> => {
+  const { error } = await supabase.rpc('dismiss_insight', { p_insight_id: insightId });
+  if (error) throw new Error(error.message);
 };
 
 // Agent runs today (public.get_agent_runs_today)
@@ -1899,6 +2036,7 @@ export const getDomainAnalytics = async (
         .from('v_series_temporal')
         .select('*')
         .eq('tipo_grafico', 'receita')
+        .eq('dimensao', 'receita')
         .order('data_periodo', { ascending: true });
 
       const monthlyData = (series || []).map(s => ({
@@ -1926,6 +2064,7 @@ export const getDomainAnalytics = async (
         .from('v_series_temporal')
         .select('*')
         .eq('tipo_grafico', 'clientes')
+        .eq('dimensao', 'contagem')
         .order('data_periodo', { ascending: true });
 
       const monthlyData = (series || []).map(s => ({
@@ -1953,6 +2092,7 @@ export const getDomainAnalytics = async (
         .from('v_series_temporal')
         .select('*')
         .eq('tipo_grafico', 'fornecedores')
+        .eq('dimensao', 'contagem')
         .order('data_periodo', { ascending: true });
 
       const monthlyData = (series || []).map(s => ({
@@ -1980,6 +2120,7 @@ export const getDomainAnalytics = async (
         .from('v_series_temporal')
         .select('*')
         .eq('tipo_grafico', 'produtos')
+        .eq('dimensao', 'quantidade')
         .order('data_periodo', { ascending: true });
 
       const monthlyData = (series || []).map(s => ({
@@ -2001,4 +2142,833 @@ export const getDomainAnalytics = async (
       };
     }
   }
+};
+
+// ─────────────────────────────────────────────────────────────────────
+// Phase 1 — Per-dimension KPI RPCs (BLU-MVP-010..014)
+// All RPCs are SECURITY INVOKER and accept the standardized period vocabulary
+// '7d' | '30d' | '90d' | 'mtd' | 'ytd' | 'custom' as well as the legacy
+// PeriodType aliases ('week' | 'month' | 'quarter' | 'year').
+// ─────────────────────────────────────────────────────────────────────
+
+export type DimensionKey = 'finance' | 'commercial' | 'inventory' | 'supply' | 'marketing' | 'admin';
+
+export interface FinanceIndicators {
+  receita_liquida: number;
+  custo_total: number;
+  margem_bruta_perc: number | null;
+  margem_operacional_perc: number | null;
+  ticket_medio: number;
+  receita_yoy_perc: number | null;
+  crescimento_receita_perc: number | null;
+  total_pedidos: number;
+  // §6.1 PRO extensions (NULL until upstream ingest lands)
+  dso_dias: number | null;
+  dpo_dias: number | null;
+  ccc_dias: number | null;
+  working_capital_ratio: number | null;
+  burn_rate_mensal: number | null;
+  runway_meses: number | null;
+  cash_flow_30d: number | null;
+  period: string;
+}
+
+export interface CommercialIndicators {
+  pedidos_periodo: number;
+  receita_periodo: number;
+  ticket_medio: number;
+  clientes_unicos: number;
+  clientes_novos: number;
+  clientes_recorrentes: number;
+  recencia_media_dias: number;
+  frequencia_media_mensal: number;
+  churn_60d_perc: number | null;
+  crescimento_receita_perc: number | null;
+  // §6.2 PRO extensions
+  win_rate_perc: number | null;
+  ciclo_venda_dias: number | null;
+  nrr_perc: number | null;
+  clv: number | null;
+  checkout_conversion_perc: number | null;
+  nps: number | null;
+  period: string;
+}
+
+export interface InventoryIndicators {
+  skus_ativos: number;
+  skus_total: number;
+  quantidade_vendida_periodo: number;
+  receita_skus_periodo: number;
+  giro_estimado: number | null;
+  ticket_medio_sku: number;
+  cobertura_top20_perc: number | null;
+  stockout_rate_perc: number | null;
+  crescimento_quantidade_perc: number | null;
+  // §6.3 PRO extensions
+  dio_dias: number | null;
+  cobertura_dias: number | null;
+  fill_rate_perc: number | null;
+  sell_through_perc: number | null;
+  gmroi: number | null;
+  acuracidade_perc: number | null;
+  period: string;
+}
+
+export interface SupplyIndicators {
+  rfqs_abertas: number;
+  rfqs_enviadas: number;
+  rfqs_respondidas: number;
+  taxa_resposta_perc: number | null;
+  tempo_resposta_medio_h: number | null;
+  pos_aprovadas: number;
+  pos_pendentes_aprovacao: number;
+  spend_periodo: number;
+  fornecedores_ativos: number;
+  concentracao_top_perc: number | null;
+  cycle_time_medio_h: number | null;
+  // §6.4 PRO extensions
+  cost_savings_perc: number | null;
+  ppv: number | null;
+  otif_perc: number | null;
+  lead_time_medio_dias: number | null;
+  maverick_spend_perc: number | null;
+  spend_under_management_perc: number | null;
+  period: string;
+}
+
+export interface MarketingIndicators {
+  novos_clientes_periodo: number;
+  receita_novos_clientes: number;
+  conversao_campanha_perc: number | null;
+  engajamento_whatsapp_perc: number | null;
+  taxa_optout_perc: number | null;
+  cac: number | null;
+  ltv_cac_ratio: number | null;
+  roas: number | null;
+  ctr_perc: number | null;
+  // §6.5 PRO extensions
+  cac_payback_meses: number | null;
+  share_of_voice_perc: number | null;
+  period: string;
+}
+
+export interface AdminIndicators {
+  aprovacoes_pendentes: number;
+  lead_time_aprovacao_h: number | null;
+  sla_aprovacao_perc: number | null;
+  documentos_pendentes: number;
+  cobertura_rotinas_perc: number | null;
+  frescor_dados_h: number | null;
+  audit_coverage_perc: number | null;
+  period: string;
+}
+
+export interface DimensionIndicatorMap {
+  finance: FinanceIndicators;
+  commercial: CommercialIndicators;
+  inventory: InventoryIndicators;
+  supply: SupplyIndicators;
+  marketing: MarketingIndicators;
+  admin: AdminIndicators;
+}
+
+const num = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+const numOrNull = (v: unknown): number | null => {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+async function callDimensionRpc<T>(rpc: string, period: PeriodType | StandardPeriod | string): Promise<T> {
+  const { data, error } = await supabase
+    .schema(ANALYTICS_SCHEMA)
+    .rpc(rpc, { p_period: period });
+  if (error) throw new Error(`${rpc}: ${error.message}`);
+  return (Array.isArray(data) ? data[0] : data) as T;
+}
+
+export const getFinanceIndicators = async (
+  period: PeriodType | StandardPeriod | string = '30d',
+): Promise<FinanceIndicators> => {
+  const r = await callDimensionRpc<Record<string, unknown>>('get_finance_indicators', period);
+  return {
+    receita_liquida:           num(r?.receita_liquida),
+    custo_total:               num(r?.custo_total),
+    margem_bruta_perc:         numOrNull(r?.margem_bruta_perc),
+    margem_operacional_perc:   numOrNull(r?.margem_operacional_perc),
+    ticket_medio:              num(r?.ticket_medio),
+    receita_yoy_perc:          numOrNull(r?.receita_yoy_perc),
+    crescimento_receita_perc:  numOrNull(r?.crescimento_receita_perc),
+    total_pedidos:             num(r?.total_pedidos),
+    dso_dias:                  numOrNull(r?.dso_dias),
+    dpo_dias:                  numOrNull(r?.dpo_dias),
+    ccc_dias:                  numOrNull(r?.ccc_dias),
+    working_capital_ratio:     numOrNull(r?.working_capital_ratio),
+    burn_rate_mensal:          numOrNull(r?.burn_rate_mensal),
+    runway_meses:              numOrNull(r?.runway_meses),
+    cash_flow_30d:             numOrNull(r?.cash_flow_30d),
+    period:                    String(r?.period ?? period),
+  };
+};
+
+export const getCommercialIndicators = async (
+  period: PeriodType | StandardPeriod | string = '30d',
+): Promise<CommercialIndicators> => {
+  const r = await callDimensionRpc<Record<string, unknown>>('get_commercial_indicators', period);
+  return {
+    pedidos_periodo:          num(r?.pedidos_periodo),
+    receita_periodo:          num(r?.receita_periodo),
+    ticket_medio:             num(r?.ticket_medio),
+    clientes_unicos:          num(r?.clientes_unicos),
+    clientes_novos:           num(r?.clientes_novos),
+    clientes_recorrentes:     num(r?.clientes_recorrentes),
+    recencia_media_dias:      num(r?.recencia_media_dias),
+    frequencia_media_mensal:  num(r?.frequencia_media_mensal),
+    churn_60d_perc:           numOrNull(r?.churn_60d_perc),
+    crescimento_receita_perc: numOrNull(r?.crescimento_receita_perc),
+    win_rate_perc:            numOrNull(r?.win_rate_perc),
+    ciclo_venda_dias:         numOrNull(r?.ciclo_venda_dias),
+    nrr_perc:                 numOrNull(r?.nrr_perc),
+    clv:                      numOrNull(r?.clv),
+    checkout_conversion_perc: numOrNull(r?.checkout_conversion_perc),
+    nps:                      numOrNull(r?.nps),
+    period:                   String(r?.period ?? period),
+  };
+};
+
+export const getInventoryIndicators = async (
+  period: PeriodType | StandardPeriod | string = '30d',
+): Promise<InventoryIndicators> => {
+  const r = await callDimensionRpc<Record<string, unknown>>('get_inventory_indicators', period);
+  return {
+    skus_ativos:                  num(r?.skus_ativos),
+    skus_total:                   num(r?.skus_total),
+    quantidade_vendida_periodo:   num(r?.quantidade_vendida_periodo),
+    receita_skus_periodo:         num(r?.receita_skus_periodo),
+    giro_estimado:                numOrNull(r?.giro_estimado),
+    ticket_medio_sku:             num(r?.ticket_medio_sku),
+    cobertura_top20_perc:         numOrNull(r?.cobertura_top20_perc),
+    stockout_rate_perc:           numOrNull(r?.stockout_rate_perc),
+    crescimento_quantidade_perc:  numOrNull(r?.crescimento_quantidade_perc),
+    dio_dias:                     numOrNull(r?.dio_dias),
+    cobertura_dias:               numOrNull(r?.cobertura_dias),
+    fill_rate_perc:               numOrNull(r?.fill_rate_perc),
+    sell_through_perc:            numOrNull(r?.sell_through_perc),
+    gmroi:                        numOrNull(r?.gmroi),
+    acuracidade_perc:             numOrNull(r?.acuracidade_perc),
+    period:                       String(r?.period ?? period),
+  };
+};
+
+export const getSupplyIndicators = async (
+  period: PeriodType | StandardPeriod | string = '30d',
+): Promise<SupplyIndicators> => {
+  const r = await callDimensionRpc<Record<string, unknown>>('get_supply_indicators', period);
+  return {
+    rfqs_abertas:             num(r?.rfqs_abertas),
+    rfqs_enviadas:            num(r?.rfqs_enviadas),
+    rfqs_respondidas:         num(r?.rfqs_respondidas),
+    taxa_resposta_perc:       numOrNull(r?.taxa_resposta_perc),
+    tempo_resposta_medio_h:   numOrNull(r?.tempo_resposta_medio_h),
+    pos_aprovadas:            num(r?.pos_aprovadas),
+    pos_pendentes_aprovacao:  num(r?.pos_pendentes_aprovacao),
+    spend_periodo:            num(r?.spend_periodo),
+    fornecedores_ativos:      num(r?.fornecedores_ativos),
+    concentracao_top_perc:    numOrNull(r?.concentracao_top_perc),
+    cycle_time_medio_h:       numOrNull(r?.cycle_time_medio_h),
+    cost_savings_perc:        numOrNull(r?.cost_savings_perc),
+    ppv:                      numOrNull(r?.ppv),
+    otif_perc:                numOrNull(r?.otif_perc),
+    lead_time_medio_dias:     numOrNull(r?.lead_time_medio_dias),
+    maverick_spend_perc:      numOrNull(r?.maverick_spend_perc),
+    spend_under_management_perc: numOrNull(r?.spend_under_management_perc),
+    period:                   String(r?.period ?? period),
+  };
+};
+
+export const getMarketingIndicators = async (
+  period: PeriodType | StandardPeriod | string = '30d',
+): Promise<MarketingIndicators> => {
+  const r = await callDimensionRpc<Record<string, unknown>>('get_marketing_indicators', period);
+  return {
+    novos_clientes_periodo:    num(r?.novos_clientes_periodo),
+    receita_novos_clientes:    num(r?.receita_novos_clientes),
+    conversao_campanha_perc:   numOrNull(r?.conversao_campanha_perc),
+    engajamento_whatsapp_perc: numOrNull(r?.engajamento_whatsapp_perc),
+    taxa_optout_perc:          numOrNull(r?.taxa_optout_perc),
+    cac:                       numOrNull(r?.cac),
+    ltv_cac_ratio:             numOrNull(r?.ltv_cac_ratio),
+    roas:                      numOrNull(r?.roas),
+    ctr_perc:                  numOrNull(r?.ctr_perc),
+    cac_payback_meses:         numOrNull(r?.cac_payback_meses),
+    share_of_voice_perc:       numOrNull(r?.share_of_voice_perc),
+    period:                    String(r?.period ?? period),
+  };
+};
+
+export const getAdminIndicators = async (
+  period: PeriodType | StandardPeriod | string = '30d',
+): Promise<AdminIndicators> => {
+  const r = await callDimensionRpc<Record<string, unknown>>('get_admin_indicators', period);
+  return {
+    aprovacoes_pendentes:    num(r?.aprovacoes_pendentes),
+    lead_time_aprovacao_h:   numOrNull(r?.lead_time_aprovacao_h),
+    sla_aprovacao_perc:      numOrNull(r?.sla_aprovacao_perc),
+    documentos_pendentes:    num(r?.documentos_pendentes),
+    cobertura_rotinas_perc:  numOrNull(r?.cobertura_rotinas_perc),
+    frescor_dados_h:         numOrNull(r?.frescor_dados_h),
+    audit_coverage_perc:     numOrNull(r?.audit_coverage_perc),
+    period:                  String(r?.period ?? period),
+  };
+};
+
+export const DIMENSION_RPC: Record<DimensionKey, (period: PeriodType | StandardPeriod | string) => Promise<unknown>> = {
+  finance:    getFinanceIndicators,
+  commercial: getCommercialIndicators,
+  inventory:  getInventoryIndicators,
+  supply:     getSupplyIndicators,
+  marketing:  getMarketingIndicators,
+  admin:      getAdminIndicators,
+};
+
+// ──────────────────────────────────────────────────────────────────────────
+// §6.2 Commercial — list/groupby KPIs
+// ──────────────────────────────────────────────────────────────────────────
+
+export interface RevenueByChannelRow {
+  channel: string;
+  receita: number;
+  pedidos: number;
+  share_perc: number | null;
+  period: string;
+}
+
+export const getCommercialRevenueByChannel = async (
+  period: PeriodType | StandardPeriod | string = '30d',
+): Promise<RevenueByChannelRow[]> => {
+  const { data, error } = await supabase
+    .schema(ANALYTICS_SCHEMA)
+    .rpc('get_commercial_revenue_by_channel', { p_period: period });
+  if (error) throw new Error(`get_commercial_revenue_by_channel: ${error.message}`);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    channel:    String(r?.channel ?? 'sem_canal'),
+    receita:    num(r?.receita),
+    pedidos:    num(r?.pedidos),
+    share_perc: numOrNull(r?.share_perc),
+    period:     String(r?.period ?? period),
+  }));
+};
+
+export interface TopClientRow {
+  cliente_id: number;
+  nome: string | null;
+  receita: number;
+  pedidos: number;
+  share_perc: number | null;
+  period: string;
+}
+
+export const getCommercialTopClients = async (
+  period: PeriodType | StandardPeriod | string = '30d',
+  limit = 10,
+): Promise<TopClientRow[]> => {
+  const { data, error } = await supabase
+    .schema(ANALYTICS_SCHEMA)
+    .rpc('get_commercial_top_clients', { p_period: period, p_limit: limit });
+  if (error) throw new Error(`get_commercial_top_clients: ${error.message}`);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    cliente_id: num(r?.cliente_id),
+    nome:       r?.nome == null ? null : String(r.nome),
+    receita:    num(r?.receita),
+    pedidos:    num(r?.pedidos),
+    share_perc: numOrNull(r?.share_perc),
+    period:     String(r?.period ?? period),
+  }));
+};
+
+// ──────────────────────────────────────────────────────────────────────────
+// §6 KPI Catalog (public.list_kpi_catalog) — single source of truth for the
+// labels, formulas, tier-gates and data_status displayed on the dashboard.
+// ──────────────────────────────────────────────────────────────────────────
+
+export type KpiUnit = 'number' | 'currency' | 'percent' | 'days' | 'hours' | 'ratio' | 'count';
+export type KpiDataStatus = 'live' | 'proxy' | 'external' | 'pending_data';
+export type KpiTier = 'BASIC' | 'SME' | 'PRO' | 'PREMIUM' | 'ENTERPRISE' | 'ADMIN';
+
+export interface KpiCatalogEntry {
+  slug: string;
+  dimension: DimensionKey;
+  label: string;
+  formula: string;
+  unit: KpiUnit;
+  is_leading: boolean;
+  tier_required: KpiTier;
+  data_status: KpiDataStatus;
+  rpc_column: string | null;
+  description: string | null;
+  references_url: string | null;
+  sort_order: number;
+  is_enabled: boolean;
+}
+
+export const listKpiCatalog = async (
+  dimension: DimensionKey | null = null,
+  onlyEnabled = true,
+): Promise<KpiCatalogEntry[]> => {
+  const { data, error } = await supabase.rpc('list_kpi_catalog', {
+    p_dimension:    dimension,
+    p_only_enabled: onlyEnabled,
+  });
+  if (error) throw new Error(`list_kpi_catalog: ${error.message}`);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    slug:           String(r?.slug),
+    dimension:      String(r?.dimension) as DimensionKey,
+    label:          String(r?.label),
+    formula:        String(r?.formula),
+    unit:           (String(r?.unit) as KpiUnit) ?? 'number',
+    is_leading:     Boolean(r?.is_leading),
+    tier_required:  (String(r?.tier_required) as KpiTier) ?? 'BASIC',
+    data_status:    (String(r?.data_status) as KpiDataStatus) ?? 'live',
+    rpc_column:     r?.rpc_column == null ? null : String(r.rpc_column),
+    description:    r?.description == null ? null : String(r.description),
+    references_url: r?.references_url == null ? null : String(r.references_url),
+    sort_order:     num(r?.sort_order),
+    is_enabled:     Boolean(r?.is_enabled),
+  }));
+};
+
+// ──────────────────────────────────────────────────────────────────────────
+// Phase 3A — Procurement (P3.4) BLU-MVP-043 / BLU-MVP-044
+// ──────────────────────────────────────────────────────────────────────────
+
+export interface RfqStatusBreakdown {
+  pending: number;
+  sent: number;
+  responded: number;
+  expired: number;
+  total: number;
+}
+
+export interface PurchaseOrderStatusBreakdown {
+  draft: number;
+  pending_approval: number;
+  approved: number;
+  delivered: number;
+  cancelled: number;
+  total: number;
+}
+
+export interface ProcurementOverview {
+  rfq: RfqStatusBreakdown;
+  purchase_orders: PurchaseOrderStatusBreakdown;
+}
+
+/**
+ * Fetch RFQ + PO status counts for the current tenant.
+ * Uses Supabase PostgREST so RLS scopes by client_id automatically.
+ */
+export const getProcurementOverview = async (): Promise<ProcurementOverview> => {
+  const [rfqRes, poRes] = await Promise.all([
+    supabase.from('rfq_requests').select('status'),
+    supabase.from('purchase_orders').select('status'),
+  ]);
+
+  if (rfqRes.error) throw new Error(rfqRes.error.message);
+  if (poRes.error) throw new Error(poRes.error.message);
+
+  const rfq: RfqStatusBreakdown = { pending: 0, sent: 0, responded: 0, expired: 0, total: 0 };
+  for (const row of rfqRes.data ?? []) {
+    rfq.total += 1;
+    const s = (row as { status?: string }).status;
+    if (s === 'pending') rfq.pending += 1;
+    else if (s === 'sent') rfq.sent += 1;
+    else if (s === 'responded') rfq.responded += 1;
+    else if (s === 'expired') rfq.expired += 1;
+  }
+
+  const po: PurchaseOrderStatusBreakdown = {
+    draft: 0,
+    pending_approval: 0,
+    approved: 0,
+    delivered: 0,
+    cancelled: 0,
+    total: 0,
+  };
+  for (const row of poRes.data ?? []) {
+    po.total += 1;
+    const s = (row as { status?: string }).status;
+    if (s === 'draft') po.draft += 1;
+    else if (s === 'pending_approval') po.pending_approval += 1;
+    else if (s === 'approved') po.approved += 1;
+    else if (s === 'delivered') po.delivered += 1;
+    else if (s === 'cancelled') po.cancelled += 1;
+  }
+
+  return { rfq, purchase_orders: po };
+};
+
+export interface PurchaseOrderListItem {
+  id: string;
+  status: string;
+  total_amount: number;
+  supplier_id: string | null;
+  created_at: string;
+  approved_at: string | null;
+}
+
+/**
+ * Recent purchase orders for the current tenant.
+ */
+export const getRecentPurchaseOrders = async (
+  limit: number = 20,
+): Promise<PurchaseOrderListItem[]> => {
+  const { data, error } = await supabase
+    .from('purchase_orders')
+    .select('id,status,total_amount,supplier_id,created_at,approved_at')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as PurchaseOrderListItem[];
+};
+
+export interface PoExportToSheetsResponse {
+  spreadsheet_url: string;
+  spreadsheet_id: string;
+}
+
+/**
+ * BLU-MVP-044 — call the existing `export_po_to_sheets` MCP tool through the
+ * tool_pool_api integrations endpoint. The endpoint requires the user JWT for
+ * RLS and forges its own service-role context server-side.
+ */
+export const exportPoToSheets = async (
+  poId: string,
+): Promise<PoExportToSheetsResponse> => {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) throw new Error('Sessão expirada — faça login novamente.');
+
+  const baseUrl =
+    (import.meta as { env?: Record<string, string | undefined> }).env
+      ?.VITE_TOOL_POOL_API_URL ?? '';
+  if (!baseUrl) throw new Error('VITE_TOOL_POOL_API_URL não configurada.');
+
+  const resp = await fetch(`${baseUrl.replace(/\/$/, '')}/integrations/tools/export_po_to_sheets`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ po_id: poId }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`Falha ao exportar pedido: ${text}`);
+  }
+  return (await resp.json()) as PoExportToSheetsResponse;
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 3B (C3.1, C3.2) — Inbox helpers
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface InboxThread {
+  contact_id: string;
+  channel: 'whatsapp' | 'gmail';
+  external_id: string;
+  display_name: string | null;
+  last_message_preview: string | null;
+  last_direction: 'inbound' | 'outbound' | null;
+  last_status: string | null;
+  last_message_at: string | null;
+  unread_count: number;
+  message_count: number;
+}
+
+export interface InboxMessage {
+  id: string;
+  direction: 'inbound' | 'outbound';
+  status: string;
+  body: string;
+  sent_at: string | null;
+  created_at: string;
+  metadata: Record<string, unknown> | null;
+}
+
+const _inboxBase = (): string => {
+  const baseUrl =
+    (import.meta as { env?: Record<string, string | undefined> }).env
+      ?.VITE_TOOL_POOL_API_URL ?? '';
+  if (!baseUrl) throw new Error('VITE_TOOL_POOL_API_URL não configurada.');
+  return baseUrl.replace(/\/$/, '');
+};
+
+const _inboxFetch = async <T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> => {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) throw new Error('Sessão expirada — faça login novamente.');
+
+  const resp = await fetch(`${_inboxBase()}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(init.headers ?? {}),
+    },
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`Inbox API ${resp.status}: ${text}`);
+  }
+  return (await resp.json()) as T;
+};
+
+export const listInboxThreads = async (limit = 50): Promise<InboxThread[]> => {
+  const data = await _inboxFetch<{ threads: InboxThread[] }>(
+    `/integrations/inbox/threads?limit=${limit}`,
+  );
+  return data.threads ?? [];
+};
+
+export const listThreadMessages = async (
+  contactId: string,
+  limit = 100,
+): Promise<InboxMessage[]> => {
+  const data = await _inboxFetch<{ messages: InboxMessage[] }>(
+    `/integrations/inbox/threads/${contactId}/messages?limit=${limit}`,
+  );
+  return data.messages ?? [];
+};
+
+export interface DraftReplyResponse {
+  message_id: string;
+  draft_text: string;
+  channel: string;
+}
+
+export const draftInboxReply = async (
+  contactId: string,
+  hint?: string,
+): Promise<DraftReplyResponse> =>
+  _inboxFetch<DraftReplyResponse>('/integrations/inbox/threads/draft', {
+    method: 'POST',
+    body: JSON.stringify({ contact_id: contactId, hint }),
+  });
+
+export interface SendReplyResponse {
+  status: 'pending_approval' | 'sent';
+  approval_id?: string;
+  external_id?: string;
+}
+
+export const sendInboxReply = async (
+  messageId: string,
+  editedBody?: string,
+): Promise<SendReplyResponse> =>
+  _inboxFetch<SendReplyResponse>('/integrations/inbox/threads/send', {
+    method: 'POST',
+    body: JSON.stringify({ message_id: messageId, edited_body: editedBody }),
+  });
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 4 (R4.3) — Reports helpers
+// ─────────────────────────────────────────────────────────────────────────
+
+export type ReportFormat = 'markdown' | 'pdf' | 'xlsx' | 'gdoc' | 'gsheet';
+export type ReportCadence = 'daily' | 'weekly' | 'monthly';
+export type ReportStatus = 'pending' | 'running' | 'success' | 'failed';
+
+export interface ReportTemplate {
+  id: string;
+  title: string;
+  description: string;
+  domain: string;
+  default_period: string;
+  default_format: ReportFormat;
+  tier_required: string;
+  sections: string[];
+}
+
+export interface ReportRun {
+  id: string;
+  template_id: string;
+  period: string;
+  format: ReportFormat;
+  status: ReportStatus;
+  output_url: string | null;
+  output_metadata: Record<string, unknown> | null;
+  error_message: string | null;
+  schedule_id: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+}
+
+export interface ReportSchedule {
+  id: string;
+  template_id: string;
+  period: string;
+  format: ReportFormat;
+  cadence: ReportCadence;
+  enabled: boolean;
+  notify_channel: 'app' | 'email' | 'whatsapp';
+  last_run_at: string | null;
+  next_run_at: string;
+  config: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GenerateReportResponse {
+  run_id: string;
+  status: ReportStatus;
+  template_id: string;
+  format: ReportFormat;
+  period: string;
+  output_url: string | null;
+  output_metadata: Record<string, unknown> | null;
+}
+
+export interface ReportPayload {
+  run_id: string;
+  format: ReportFormat;
+  mime_type: string;
+  filename: string;
+  size_bytes: number;
+  payload_b64: string;
+}
+
+const _reportsBase = (): string => {
+  const baseUrl =
+    (import.meta as { env?: Record<string, string | undefined> }).env
+      ?.VITE_TOOL_POOL_API_URL ?? '';
+  if (!baseUrl) throw new Error('VITE_TOOL_POOL_API_URL não configurada.');
+  return baseUrl.replace(/\/$/, '');
+};
+
+const _reportsFetch = async <T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> => {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) throw new Error('Sessão expirada — faça login novamente.');
+
+  const resp = await fetch(`${_reportsBase()}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(init.headers ?? {}),
+    },
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`Reports API ${resp.status}: ${text}`);
+  }
+  return (await resp.json()) as T;
+};
+
+export const listReportTemplates = async (): Promise<ReportTemplate[]> => {
+  const data = await _reportsFetch<{ templates: ReportTemplate[] }>(
+    '/integrations/reports/templates',
+  );
+  return data.templates ?? [];
+};
+
+export const listReportRuns = async (limit = 50): Promise<ReportRun[]> => {
+  const data = await _reportsFetch<{ runs: ReportRun[] }>(
+    `/integrations/reports/runs?limit=${limit}`,
+  );
+  return data.runs ?? [];
+};
+
+export const fetchReportPayload = async (
+  runId: string,
+): Promise<ReportPayload> =>
+  _reportsFetch<ReportPayload>(`/integrations/reports/runs/${runId}/payload`);
+
+export const generateReport = async (
+  templateId: string,
+  options: { period?: string; format?: ReportFormat } = {},
+): Promise<GenerateReportResponse> =>
+  _reportsFetch<GenerateReportResponse>('/integrations/reports/generate', {
+    method: 'POST',
+    body: JSON.stringify({
+      template_id: templateId,
+      period: options.period,
+      format: options.format,
+    }),
+  });
+
+export const listReportSchedules = async (): Promise<ReportSchedule[]> => {
+  const data = await _reportsFetch<{ schedules: ReportSchedule[] }>(
+    '/integrations/reports/schedules',
+  );
+  return data.schedules ?? [];
+};
+
+export interface UpsertScheduleInput {
+  template_id: string;
+  period?: string;
+  format?: ReportFormat;
+  cadence?: ReportCadence;
+  notify_channel?: 'app' | 'email' | 'whatsapp';
+  enabled?: boolean;
+  config?: Record<string, unknown>;
+}
+
+export const upsertReportSchedule = async (
+  input: UpsertScheduleInput,
+): Promise<ReportSchedule> =>
+  _reportsFetch<ReportSchedule>('/integrations/reports/schedules', {
+    method: 'POST',
+    body: JSON.stringify({
+      template_id: input.template_id,
+      period: input.period ?? '30d',
+      format: input.format ?? 'pdf',
+      cadence: input.cadence ?? 'monthly',
+      notify_channel: input.notify_channel ?? 'app',
+      enabled: input.enabled ?? true,
+      config: input.config ?? {},
+    }),
+  });
+
+export const disableReportSchedule = async (
+  scheduleId: string,
+): Promise<ReportSchedule> =>
+  _reportsFetch<ReportSchedule>(
+    `/integrations/reports/schedules/${scheduleId}/disable`,
+    { method: 'POST' },
+  );
+
+/**
+ * Convenience helper: triggers a download in the browser for runs whose
+ * payload is stored inline (markdown/pdf/xlsx). Google Doc/Sheet runs
+ * should redirect to `output_url` instead.
+ */
+export const downloadReportRun = async (run: ReportRun): Promise<void> => {
+  if (run.output_url && (run.format === 'gdoc' || run.format === 'gsheet')) {
+    window.open(run.output_url, '_blank');
+    return;
+  }
+  const payload = await fetchReportPayload(run.id);
+  const binary = atob(payload.payload_b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: payload.mime_type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = payload.filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 };

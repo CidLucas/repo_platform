@@ -1,10 +1,6 @@
 import {
     Box,
     SimpleGrid,
-    Card,
-    CardHeader,
-    CardBody,
-    Heading,
     Text,
     Button,
     HStack,
@@ -22,34 +18,91 @@ import {
     ModalFooter,
     ModalCloseButton,
     Icon,
+    IconButton,
+    Tooltip,
     Flex,
+    Divider,
 } from '@chakra-ui/react';
-import { FiPlus, FiEdit, FiRotateCcw, FiArchive, FiSettings } from 'react-icons/fi';
+import type { IconType } from 'react-icons';
+import {
+    FiPlus,
+    FiEdit2,
+    FiRotateCcw,
+    FiArchive,
+    FiSettings,
+    FiCpu,
+    FiBarChart2,
+    FiBookOpen,
+    FiFileText,
+    FiSearch,
+    FiTool,
+    FiMessageSquare,
+    FiShoppingCart,
+    FiTrendingUp,
+    FiDatabase,
+    FiZap,
+    FiPieChart,
+    FiLayers,
+    FiShield,
+    FiMail,
+    FiUsers,
+} from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { AdminLayout } from '../../components/layouts/AdminLayout';
 import { useAgentBuilder } from '../../hooks/useAgentBuilder';
 import { useAuth } from '../../hooks/useAuth';
 
-// Category color mapping
-const categoryColors: Record<string, { from: string; to: string }> = {
-    procurement: { from: '#ff6b35', to: '#ff006e' },
-    communication: { from: '#4361ee', to: '#7209b7' },
-    report: { from: '#06ffa5', to: '#06d6a0' },
-    analytics: { from: '#f72585', to: '#b5179e' },
-    default: { from: '#0ea5e9', to: '#0284c7' },
+// Category accent color mapping — aligns with the palette used across
+// AdminHome / AdminPrivacidade so the agents page feels part of the same system.
+const CATEGORY_COLORS: Record<string, string> = {
+    analytics: '#3b82f6',
+    procurement: '#f97316',
+    communication: '#a855f7',
+    reporting: '#06d6a0',
+    report: '#06d6a0',
+    knowledge: '#f59e0b',
+    data_analysis: '#3b82f6',
+    default: '#3b82f6',
 };
 
-function getCategoryColor(category: string | null) {
-    if (!category) return categoryColors.default;
+function getCategoryColor(category: string | null): string {
+    if (!category) return CATEGORY_COLORS.default;
     const key = category.toLowerCase();
-    for (const [k, v] of Object.entries(categoryColors)) {
+    for (const [k, v] of Object.entries(CATEGORY_COLORS)) {
         if (key.includes(k)) return v;
     }
-    // Cycle through colors based on hash
-    const colors = Object.values(categoryColors);
-    const hash = (category || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-    return colors[hash % colors.length];
+    return CATEGORY_COLORS.default;
+}
+
+// Map the icon name stored in `agent_catalog.icon` (Lucide-style names) to a
+// react-icons/fi component. Anything unknown falls back to a sensible default
+// so the UI never renders a raw string like "BarChart2".
+const ICON_MAP: Record<string, IconType> = {
+    BarChart2: FiBarChart2,
+    BarChart: FiBarChart2,
+    PieChart: FiPieChart,
+    TrendingUp: FiTrendingUp,
+    BookOpen: FiBookOpen,
+    FileText: FiFileText,
+    FileSpreadsheet: FiFileText,
+    FileSearch: FiSearch,
+    Search: FiSearch,
+    Database: FiDatabase,
+    Layers: FiLayers,
+    Shield: FiShield,
+    Mail: FiMail,
+    Users: FiUsers,
+    MessageSquare: FiMessageSquare,
+    ShoppingCart: FiShoppingCart,
+    Zap: FiZap,
+    Tool: FiTool,
+    Cpu: FiCpu,
+};
+
+function resolveAgentIcon(iconName: string | null | undefined): IconType {
+    if (!iconName) return FiCpu;
+    return ICON_MAP[iconName] ?? FiCpu;
 }
 
 const AdminAgentsPage = () => {
@@ -87,66 +140,82 @@ const AdminAgentsPage = () => {
 
     return (
         <AdminLayout>
-            <Box p={8} maxW="1400px" mx="auto">
+            <Box p={8} maxW="1200px" mx="auto">
                 {/* Header */}
-                <Flex justify="space-between" align="center" mb={8}>
-                    <Box>
-                        <Heading
-                            size="xl"
-                            fontFamily="'Playfair Display', serif"
-                            fontWeight="bold"
-                            mb={1}
-                        >
-                            <Text as="span" color="white">AI </Text>
+                <VStack spacing={2} mb={8} align="start">
+                    <Flex
+                        w="48px"
+                        h="48px"
+                        borderRadius="12px"
+                        align="center"
+                        justify="center"
+                        bg="#3b82f620"
+                        mb={2}
+                    >
+                        <Icon as={FiCpu} boxSize={6} color="#3b82f6" />
+                    </Flex>
+                    <Flex w="full" justify="space-between" align="center" flexWrap="wrap" gap={3}>
+                        <Box>
                             <Text
-                                as="span"
-                                bgGradient="linear(to-r, #ff6b35, #ff006e)"
-                                bgClip="text"
-                            >
-                                Agents
-                            </Text>
-                        </Heading>
-                        <Text fontSize="sm" color="gray.400" mt={1}>
-                            Configure and monitor your AI-powered agents
-                        </Text>
-                    </Box>
-                    <HStack spacing={3}>
-                        {archivedCount > 0 && (
-                            <HStack spacing={2}>
-                                <HStack spacing={1}>
-                                    <Icon as={FiArchive} boxSize={4} color="gray.500" />
-                                    <Text fontSize="sm" color="gray.500">
-                                        {archivedCount} archived
-                                    </Text>
-                                </HStack>
-                                <Switch
-                                    size="sm"
-                                    isChecked={showArchived}
-                                    onChange={(e) => setShowArchived(e.target.checked)}
-                                    colorScheme="gray"
-                                />
-                            </HStack>
-                        )}
-                        {isAdmin && (
-                            <Button
-                                leftIcon={<FiPlus />}
-                                bgGradient="linear(to-r, #4361ee, #7209b7)"
+                                fontSize="24px"
+                                fontWeight="semibold"
                                 color="white"
-                                _hover={{ opacity: 0.9 }}
-                                onClick={() => navigate('/dashboard/admin/agents/new')}
+                                letterSpacing="-0.3px"
                             >
-                                Configure New Agent
-                            </Button>
-                        )}
-                    </HStack>
-                </Flex>
+                                Agentes de IA
+                            </Text>
+                            <Text fontSize="14px" color="whiteAlpha.600" lineHeight="20px">
+                                Configure e monitore os agentes que trabalham para o seu time.
+                            </Text>
+                        </Box>
+                        <HStack spacing={3}>
+                            {archivedCount > 0 && (
+                                <HStack
+                                    spacing={2}
+                                    px={3}
+                                    py={2}
+                                    borderRadius="lg"
+                                    bg="whiteAlpha.50"
+                                    border="1px solid"
+                                    borderColor="whiteAlpha.100"
+                                >
+                                    <Icon as={FiArchive} boxSize={4} color="whiteAlpha.500" />
+                                    <Text fontSize="xs" color="whiteAlpha.600">
+                                        {archivedCount} arquivado{archivedCount !== 1 && 's'}
+                                    </Text>
+                                    <Switch
+                                        size="sm"
+                                        isChecked={showArchived}
+                                        onChange={(e) => setShowArchived(e.target.checked)}
+                                        colorScheme="gray"
+                                    />
+                                </HStack>
+                            )}
+                            {isAdmin && (
+                                <Button
+                                    leftIcon={<Icon as={FiPlus} />}
+                                    bgGradient="linear(to-r, #3b82f6, #a855f7)"
+                                    color="white"
+                                    size="sm"
+                                    h="40px"
+                                    px={5}
+                                    borderRadius="lg"
+                                    _hover={{ filter: 'brightness(1.1)' }}
+                                    onClick={() => navigate('/dashboard/admin/agents/new')}
+                                >
+                                    Novo agente
+                                </Button>
+                            )}
+                        </HStack>
+                    </Flex>
+                </VStack>
 
                 {/* Loading */}
                 {loadingCatalog && (
                     <Center minH="300px">
                         <VStack spacing={3}>
-                            <Spinner size="lg" color="blue.400" />
-                            <Text color="gray.400">Loading agents...</Text>
+                            <Spinner size="lg" color="#3b82f6" thickness="3px" />
+                            <Text color="whiteAlpha.600">Carregando agentes...</Text>
                         </VStack>
                     </Center>
                 )}
@@ -162,17 +231,18 @@ const AdminAgentsPage = () => {
                 {!loadingCatalog && !catalogError && agents.length === 0 && (
                     <Center minH="300px">
                         <VStack spacing={3}>
-                            <Text color="gray.400">No agents configured yet.</Text>
+                            <Icon as={FiCpu} boxSize={10} color="whiteAlpha.300" />
+                            <Text color="whiteAlpha.600">Nenhum agente configurado ainda.</Text>
                             {isAdmin && (
                                 <Button
                                     variant="outline"
-                                    leftIcon={<FiPlus />}
-                                    borderColor="gray.600"
+                                    leftIcon={<Icon as={FiPlus} />}
+                                    borderColor="whiteAlpha.200"
                                     color="white"
-                                    _hover={{ borderColor: 'gray.400' }}
+                                    _hover={{ borderColor: 'whiteAlpha.400', bg: 'whiteAlpha.50' }}
                                     onClick={() => navigate('/dashboard/admin/agents/new')}
                                 >
-                                    Create your first agent
+                                    Criar o primeiro agente
                                 </Button>
                             )}
                         </VStack>
@@ -182,207 +252,225 @@ const AdminAgentsPage = () => {
                 {/* No active agents */}
                 {!loadingCatalog && !catalogError && agents.length > 0 && filteredAgents.length === 0 && (
                     <Center minH="200px">
-                        <Text color="gray.500">No active agents. Toggle "archived" to see inactive agents.</Text>
+                        <Text color="whiteAlpha.500">
+                            Nenhum agente ativo. Ative "arquivados" para ver os inativos.
+                        </Text>
                     </Center>
                 )}
 
                 {/* Agents Grid */}
                 {!loadingCatalog && !catalogError && filteredAgents.length > 0 && (
-                    <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
+                    <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} spacing={5}>
                         {filteredAgents.map((agent) => {
-                            const color = getCategoryColor(agent.category);
+                            const accent = getCategoryColor(agent.category);
+                            const AgentIcon = resolveAgentIcon(agent.icon);
                             const toolCount = agent.agent_config.enabled_tools?.length ?? 0;
 
                             return (
-                                <Card
+                                <Box
                                     key={agent.id}
                                     bg="#1a1b2e"
-                                    borderWidth="1px"
-                                    borderColor="rgba(255,255,255,0.08)"
-                                    borderRadius="xl"
+                                    borderRadius="1rem"
+                                    border="1px solid rgba(255,255,255,0.08)"
+                                    p={6}
+                                    position="relative"
+                                    overflow="hidden"
                                     opacity={agent.is_active ? 1 : 0.6}
                                     transition="all 0.2s"
-                                    overflow="hidden"
-                                    position="relative"
                                     _hover={{
-                                        borderColor: 'whiteAlpha.200',
-                                        transform: 'translateY(-2px)',
-                                        boxShadow: `0 8px 30px rgba(0,0,0,0.3)`,
-                                    }}
-                                    _before={{
-                                        content: '""',
-                                        position: 'absolute',
-                                        top: 0,
-                                        left: 0,
-                                        right: 0,
-                                        height: '3px',
-                                        bgGradient: `linear(to-r, ${color.from}, ${color.to})`,
+                                        borderColor: 'rgba(255,255,255,0.15)',
+                                        boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
                                     }}
                                 >
-                                    <CardHeader pb={2}>
-                                        <Flex justify="space-between" align="flex-start">
-                                            <HStack spacing={4} align="flex-start">
-                                                {/* Agent Icon */}
-                                                <Flex
-                                                    position="relative"
-                                                    w="56px"
-                                                    h="56px"
-                                                    borderRadius="1rem"
-                                                    align="center"
-                                                    justify="center"
-                                                    overflow="hidden"
-                                                    flexShrink={0}
-                                                    bgGradient={`linear(135deg, ${color.from}, ${color.to})`}
-                                                    boxShadow={`0 8px 24px ${color.from}40, 0 0 0 1px ${color.from}20`}
-                                                >
-                                                    <Box
-                                                        position="absolute"
-                                                        inset={0}
-                                                        bgGradient="linear(to-br, whiteAlpha.200, transparent)"
-                                                    />
-                                                    <Text fontSize="2xl" position="relative" zIndex={1}>
-                                                        {agent.icon || '🤖'}
-                                                    </Text>
-                                                </Flex>
-                                                <Box>
-                                                    <Heading
-                                                        size="sm"
-                                                        color="white"
-                                                        textDecoration={agent.is_active ? 'none' : 'line-through'}
-                                                    >
-                                                        {agent.name}
-                                                    </Heading>
-                                                    <Text fontSize="sm" color="gray.400" mt={1} noOfLines={2}>
-                                                        {agent.description || 'No description'}
-                                                    </Text>
-                                                </Box>
-                                            </HStack>
-                                            <Switch
-                                                size="md"
-                                                isChecked={agent.is_active}
-                                                onChange={(e) => toggleActive(agent.id, e.target.checked)}
-                                                colorScheme="green"
-                                            />
-                                        </Flex>
-                                    </CardHeader>
+                                    {/* Left accent bar */}
+                                    <Box
+                                        position="absolute"
+                                        top={0}
+                                        left={0}
+                                        w="3px"
+                                        h="100%"
+                                        bg={accent}
+                                    />
 
-                                    <CardBody pt={0}>
-                                        <VStack spacing={4} align="stretch">
-                                            {/* Status */}
-                                            <Flex justify="space-between" align="center">
-                                                <Text fontSize="sm" color="gray.400">Status</Text>
-                                                <Badge
-                                                    px={2}
-                                                    py={0.5}
-                                                    borderRadius="full"
-                                                    fontSize="xs"
-                                                    {...(agent.is_active
-                                                        ? {
-                                                            bgGradient: 'linear(to-r, #06ffa5, #06d6a0)',
-                                                            color: 'black',
-                                                        }
-                                                        : {
-                                                            bg: 'gray.700',
-                                                            color: 'gray.300',
-                                                        }
-                                                    )}
-                                                >
-                                                    {agent.is_active ? 'Active' : 'Inactive'}
-                                                </Badge>
+                                    {/* Header row */}
+                                    <Flex justify="space-between" align="flex-start" mb={4}>
+                                        <HStack spacing={4} align="flex-start" flex={1} minW={0}>
+                                            <Flex
+                                                w="48px"
+                                                h="48px"
+                                                borderRadius="12px"
+                                                align="center"
+                                                justify="center"
+                                                bg={`${accent}20`}
+                                                flexShrink={0}
+                                            >
+                                                <Icon as={AgentIcon} boxSize={6} color={accent} />
                                             </Flex>
-
-                                            {/* Stats */}
-                                            <VStack spacing={2} align="stretch">
-                                                <Flex justify="space-between" align="center">
-                                                    <Text fontSize="sm" color="gray.400">Tools</Text>
-                                                    <Text fontSize="sm" fontWeight="medium" color="white">
-                                                        {toolCount}
-                                                    </Text>
-                                                </Flex>
-                                                <Flex justify="space-between" align="center">
-                                                    <Text fontSize="sm" color="gray.400">Category</Text>
-                                                    <Text fontSize="sm" fontWeight="medium" color="white">
-                                                        {agent.category || '—'}
-                                                    </Text>
-                                                </Flex>
-                                                <Flex justify="space-between" align="center">
-                                                    <Text fontSize="sm" color="gray.400">Tier</Text>
-                                                    <Badge
-                                                        variant="outline"
-                                                        colorScheme="blue"
-                                                        fontSize="xs"
-                                                    >
-                                                        {agent.tier_required}
-                                                    </Badge>
-                                                </Flex>
-                                                {/* Progress bar */}
-                                                <Box w="full" h="4px" bg="gray.800" borderRadius="full" overflow="hidden">
-                                                    <Box
-                                                        h="full"
-                                                        borderRadius="full"
-                                                        bgGradient={`linear(90deg, ${color.from}, ${color.to})`}
-                                                        w={`${Math.min(toolCount * 15, 100)}%`}
-                                                        transition="all 0.3s"
-                                                    />
-                                                </Box>
+                                            <VStack align="start" spacing={1} minW={0}>
+                                                <Text
+                                                    fontSize="sm"
+                                                    fontWeight="semibold"
+                                                    color="white"
+                                                    textDecoration={agent.is_active ? 'none' : 'line-through'}
+                                                    noOfLines={1}
+                                                >
+                                                    {agent.name}
+                                                </Text>
+                                                <Text
+                                                    fontSize="xs"
+                                                    color="whiteAlpha.500"
+                                                    noOfLines={2}
+                                                    lineHeight="16px"
+                                                >
+                                                    {agent.description || 'Sem descrição'}
+                                                </Text>
                                             </VStack>
+                                        </HStack>
+                                        <Tooltip
+                                            label={agent.is_active ? 'Desativar agente' : 'Ativar agente'}
+                                            hasArrow
+                                        >
+                                            <Box>
+                                                <Switch
+                                                    size="sm"
+                                                    isChecked={agent.is_active}
+                                                    onChange={(e) => toggleActive(agent.id, e.target.checked)}
+                                                    colorScheme="green"
+                                                />
+                                            </Box>
+                                        </Tooltip>
+                                    </Flex>
 
-                                            {/* Actions */}
-                                            <HStack spacing={2} pt={2}>
-                                                <Button
+                                    <Divider borderColor="whiteAlpha.100" mb={4} />
+
+                                    {/* Stats */}
+                                    <VStack spacing={3} align="stretch" mb={4}>
+                                        <Flex justify="space-between" align="center">
+                                            <Text fontSize="xs" color="whiteAlpha.500">Status</Text>
+                                            <Badge
+                                                px={2}
+                                                py={0.5}
+                                                borderRadius="full"
+                                                fontSize="10px"
+                                                textTransform="none"
+                                                fontWeight="medium"
+                                                bg={agent.is_active ? '#10b98120' : 'whiteAlpha.100'}
+                                                color={agent.is_active ? '#10b981' : 'whiteAlpha.500'}
+                                            >
+                                                {agent.is_active ? 'Ativo' : 'Inativo'}
+                                            </Badge>
+                                        </Flex>
+                                        <Flex justify="space-between" align="center">
+                                            <HStack spacing={2}>
+                                                <Icon as={FiTool} boxSize={3.5} color="whiteAlpha.400" />
+                                                <Text fontSize="xs" color="whiteAlpha.500">Ferramentas</Text>
+                                            </HStack>
+                                            <Text fontSize="xs" fontWeight="medium" color="white">
+                                                {toolCount}
+                                            </Text>
+                                        </Flex>
+                                        <Flex justify="space-between" align="center">
+                                            <HStack spacing={2}>
+                                                <Icon as={FiLayers} boxSize={3.5} color="whiteAlpha.400" />
+                                                <Text fontSize="xs" color="whiteAlpha.500">Categoria</Text>
+                                            </HStack>
+                                            <Text
+                                                fontSize="xs"
+                                                fontWeight="medium"
+                                                color="white"
+                                                textTransform="capitalize"
+                                            >
+                                                {agent.category?.replace(/_/g, ' ') || '—'}
+                                            </Text>
+                                        </Flex>
+                                        <Flex justify="space-between" align="center">
+                                            <HStack spacing={2}>
+                                                <Icon as={FiShield} boxSize={3.5} color="whiteAlpha.400" />
+                                                <Text fontSize="xs" color="whiteAlpha.500">Plano</Text>
+                                            </HStack>
+                                            <Badge
+                                                bg="whiteAlpha.100"
+                                                color="whiteAlpha.700"
+                                                fontSize="10px"
+                                                px={2}
+                                                borderRadius="full"
+                                                textTransform="none"
+                                            >
+                                                {agent.tier_required}
+                                            </Badge>
+                                        </Flex>
+                                    </VStack>
+
+                                    {/* Actions */}
+                                    <HStack spacing={2}>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            flex={1}
+                                            h="36px"
+                                            borderColor="whiteAlpha.200"
+                                            color="whiteAlpha.800"
+                                            leftIcon={<Icon as={FiSettings} boxSize={3.5} />}
+                                            _hover={{ borderColor: 'whiteAlpha.400', bg: 'whiteAlpha.50' }}
+                                            onClick={() => navigate('/dashboard/admin/chat')}
+                                        >
+                                            Configurar
+                                        </Button>
+                                        {isAdmin && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                flex={1}
+                                                h="36px"
+                                                borderColor="whiteAlpha.200"
+                                                color="whiteAlpha.800"
+                                                leftIcon={<Icon as={FiEdit2} boxSize={3.5} />}
+                                                _hover={{ borderColor: 'whiteAlpha.400', bg: 'whiteAlpha.50' }}
+                                                onClick={() => navigate(`/dashboard/admin/agents/${agent.id}`)}
+                                            >
+                                                Editar
+                                            </Button>
+                                        )}
+                                        {isAdmin && agent.is_active && (
+                                            <Tooltip label="Arquivar agente" hasArrow>
+                                                <IconButton
+                                                    aria-label="Arquivar agente"
+                                                    icon={<Icon as={FiArchive} boxSize={4} />}
                                                     variant="outline"
                                                     size="sm"
-                                                    flex={1}
-                                                    borderColor="gray.600"
-                                                    color="white"
-                                                    _hover={{ borderColor: 'gray.400' }}
-                                                    leftIcon={<FiSettings />}
-                                                    onClick={() => navigate('/dashboard/admin/chat')}
-                                                >
-                                                    Configure
-                                                </Button>
-                                                {isAdmin && (
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        flex={1}
-                                                        borderColor="gray.600"
-                                                        color="white"
-                                                        _hover={{ borderColor: 'gray.400' }}
-                                                        leftIcon={<FiEdit />}
-                                                        onClick={() => navigate(`/dashboard/admin/agents/${agent.id}`)}
-                                                    >
-                                                        Edit
-                                                    </Button>
-                                                )}
-                                                {isAdmin && agent.is_active && (
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        borderColor="gray.600"
-                                                        color="red.300"
-                                                        _hover={{ borderColor: 'red.400' }}
-                                                        onClick={() => confirmArchive(agent.id)}
-                                                    >
-                                                        <Icon as={FiArchive} />
-                                                    </Button>
-                                                )}
-                                                {isAdmin && !agent.is_active && (
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        borderColor="gray.600"
-                                                        color="green.300"
-                                                        _hover={{ borderColor: 'green.400' }}
-                                                        onClick={() => toggleActive(agent.id, true)}
-                                                    >
-                                                        <Icon as={FiRotateCcw} />
-                                                    </Button>
-                                                )}
-                                            </HStack>
-                                        </VStack>
-                                    </CardBody>
-                                </Card>
+                                                    h="36px"
+                                                    borderColor="whiteAlpha.200"
+                                                    color="red.300"
+                                                    _hover={{
+                                                        borderColor: 'red.400',
+                                                        bg: 'red.900',
+                                                        color: 'red.200',
+                                                    }}
+                                                    onClick={() => confirmArchive(agent.id)}
+                                                />
+                                            </Tooltip>
+                                        )}
+                                        {isAdmin && !agent.is_active && (
+                                            <Tooltip label="Reativar agente" hasArrow>
+                                                <IconButton
+                                                    aria-label="Reativar agente"
+                                                    icon={<Icon as={FiRotateCcw} boxSize={4} />}
+                                                    variant="outline"
+                                                    size="sm"
+                                                    h="36px"
+                                                    borderColor="whiteAlpha.200"
+                                                    color="green.300"
+                                                    _hover={{
+                                                        borderColor: 'green.400',
+                                                        bg: 'green.900',
+                                                        color: 'green.200',
+                                                    }}
+                                                    onClick={() => toggleActive(agent.id, true)}
+                                                />
+                                            </Tooltip>
+                                        )}
+                                    </HStack>
+                                </Box>
                             );
                         })}
                     </SimpleGrid>
@@ -392,25 +480,42 @@ const AdminAgentsPage = () => {
             {/* Archive confirmation modal */}
             <Modal isOpen={isOpen} onClose={onClose} isCentered>
                 <ModalOverlay bg="blackAlpha.700" backdropFilter="blur(4px)" />
-                <ModalContent bg="#1a1b2e" borderColor="rgba(255,255,255,0.08)" borderWidth="1px" color="white">
-                    <ModalHeader>Archive Agent</ModalHeader>
+                <ModalContent
+                    bg="#1a1b2e"
+                    borderColor="rgba(255,255,255,0.08)"
+                    borderWidth="1px"
+                    borderRadius="1rem"
+                    color="white"
+                >
+                    <ModalHeader fontSize="lg" fontWeight="semibold">
+                        Arquivar agente
+                    </ModalHeader>
                     <ModalCloseButton />
                     <ModalBody>
-                        <Text>
-                            Are you sure you want to archive{' '}
-                            <strong>{archiveTargetAgent?.name}</strong>?
+                        <Text fontSize="sm" color="whiteAlpha.800">
+                            Tem certeza que deseja arquivar{' '}
+                            <Text as="span" fontWeight="semibold" color="white">
+                                {archiveTargetAgent?.name}
+                            </Text>
+                            ?
                         </Text>
-                        <Text mt={2} fontSize="sm" color="gray.400">
-                            This agent will be archived and hidden from users.
-                            Existing sessions will continue to work.
+                        <Text mt={3} fontSize="xs" color="whiteAlpha.500">
+                            O agente será ocultado dos usuários. Sessões existentes continuarão
+                            funcionando.
                         </Text>
                     </ModalBody>
                     <ModalFooter>
-                        <Button variant="ghost" mr={3} onClick={onClose} color="gray.300" _hover={{ bg: 'whiteAlpha.100' }}>
-                            Cancel
+                        <Button
+                            variant="ghost"
+                            mr={3}
+                            onClick={onClose}
+                            color="whiteAlpha.700"
+                            _hover={{ bg: 'whiteAlpha.100' }}
+                        >
+                            Cancelar
                         </Button>
                         <Button colorScheme="red" onClick={handleArchive}>
-                            Archive
+                            Arquivar
                         </Button>
                     </ModalFooter>
                 </ModalContent>

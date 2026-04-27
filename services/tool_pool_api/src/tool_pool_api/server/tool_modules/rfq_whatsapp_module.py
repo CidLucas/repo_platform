@@ -208,6 +208,26 @@ async def _parse_supplier_reply_logic(
     if not cliente_id:
         raise ToolError("Missing cliente_id in context")
 
+    return await parse_supplier_reply_core(
+        cliente_id=cliente_id,
+        rfq_id=rfq_id,
+        reply_text=reply_text,
+    )
+
+
+async def parse_supplier_reply_core(
+    *,
+    cliente_id: str,
+    rfq_id: str,
+    reply_text: str,
+) -> dict:
+    """Context-free core of :func:`_parse_supplier_reply_logic`.
+
+    Used by both the MCP tool wrapper and the Twilio inbound webhook
+    (services/tool_pool_api/api/twilio_webhook_router.py — Phase 3A P3.2).
+    Raises :class:`ToolError` on validation issues so callers can decide
+    whether to surface the message to the supplier or swallow it.
+    """
     if not reply_text or not reply_text.strip():
         raise ToolError("Texto da resposta vazio.")
 

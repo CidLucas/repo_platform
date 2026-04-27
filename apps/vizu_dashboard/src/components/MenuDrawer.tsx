@@ -11,10 +11,10 @@ import {
   Icon,
 } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  FiUsers, 
-  FiShoppingCart, 
-  FiPackage, 
+import {
+  FiUsers,
+  FiShoppingCart,
+  FiPackage,
   FiTarget,
   FiPlus,
   FiDatabase,
@@ -60,7 +60,7 @@ const menuItems = [
     path: '/dashboard/orders/new',
   },
   {
-    label: 'NOVA FONTE DADOS',
+    label: 'NOVA INTEGRAÇÃO',
     icon: FiDatabase,
     color: '#ff8b00',
     path: '/dashboard/admin/fontes',

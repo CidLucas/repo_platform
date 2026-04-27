@@ -66,6 +66,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
         ocr_extraction_module,
         prompt_module,
         rag_module,
+        report_module,
         rfq_module,
         rfq_whatsapp_module,
         sql_module,

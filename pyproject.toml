@@ -107,7 +107,6 @@ known-first-party = [
     "vizu_google_suite_client",
     "vizu_hitl_service",
     "vizu_llm_service",
-    "vizu_mcp_commons",
     "vizu_models",
     "vizu_observability_bootstrap",
     "vizu_parsers",

@@ -1,7 +1,18 @@
 -- =====================================================================
 -- Analytics Gold Tables Enhancement: Add RankingItem Fields
 -- =====================================================================
--- Purpose: Add all RankingItem fields to gold tables for complete metrics
+-- ⚠️ DEPRECATED (2026-04-26): The `analytics_gold.*` tables were superseded
+-- by the slim `analytics_v2` star schema (`fato_transacoes` + 4 dims, plus
+-- the indicator MVs/RPCs introduced by the Blu MVP Phase 1 migrations).
+-- The SQL tool validator now rejects queries against `analytics_gold`
+-- (see services/tool_pool_api/.../sql_module.py).
+--
+-- This migration is kept for schema-history continuity only — the tables
+-- it creates are no longer maintained. Do NOT extend `analytics_gold`;
+-- add new MVs/RPCs to `analytics_v2` instead.
+--
+-- Purpose (historical): Add all RankingItem fields to gold tables for
+-- complete metrics.
 -- Created: 2026-01-09
 -- Changes:
 --   1. Add quantity and frequency metrics to all gold tables

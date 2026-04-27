@@ -2,6 +2,8 @@ import { Box, Flex, Text, Alert, AlertIcon, Spinner, useDisclosure, Icon, Simple
 import { DomainExpansionModal } from '../components/DomainExpansionModal';
 import { MainLayout } from '../components/layouts/MainLayout';
 import { OnboardingBanner } from '../components/OnboardingBanner';
+import { MappingReviewBanner } from '../components/MappingReviewBanner';
+import { InsightsCard } from '../components/InsightsCard';
 import { useMemo, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -74,12 +76,12 @@ function HomePage() {
     return relativeTimeFormatter.format(Math.round(diffSec / 604800), 'week');
   };
 
-  // Derive revenue data from metricsData (memoized to avoid recalculation)
+  // Derive revenue data — current calendar month from v_resumo_dashboard.
   const revenueData = useMemo(() => {
-    if (!metricsData) {
-      return { value: 0, month: new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date()) };
-    }
     const currentMonth = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date());
+    if (!metricsData) {
+      return { value: 0, month: currentMonth };
+    }
     const monthlyRevenue = metricsData.scorecards.receita_mes_atual || metricsData.scorecards.receita_total;
     return { value: monthlyRevenue, month: currentMonth };
   }, [metricsData]);
@@ -121,11 +123,15 @@ function HomePage() {
   // Extract Clientes data — from consolidated v_resumo_dashboard
   const customersTotal = metricsData?.scorecards.clientes_ativos || metricsData?.scorecards.total_clientes || 0;
 
-  // Revenue growth
+  // Revenue growth — calendar-month value vs prior month.
   const revenueGrowth = metricsData?.scorecards.crescimento_receita;
 
-  // Active tasks / AI tasks
-  const totalPedidos = metricsData?.scorecards.total_pedidos || 0;
+  // Pedidos this calendar month — from v_resumo_dashboard.pedidos_mes_atual.
+  const pedidosMesAtual = metricsData?.scorecards.pedidos_mes_atual || 0;
+
+  const revenueLabel = 'Revenue this month';
+  const growthLabel = 'vs last month';
+  const pedidosCardLabel = 'pedidos este mês';
 
   // Format revenue as compact number (ex: R$ 91,7 mi)
   const formatCompactCurrency = (value: number): string => {
@@ -150,7 +156,7 @@ function HomePage() {
     color: string;
     stat: number;
   }> = [
-    { domain: 'orders', label: 'Pedidos', sublabel: 'Total de pedidos processados', icon: FiPackage, color: '#3b82f6', stat: totalPedidos },
+    { domain: 'orders', label: 'Pedidos', sublabel: 'Pedidos processados este mês', icon: FiPackage, color: '#3b82f6', stat: pedidosMesAtual },
     { domain: 'customers', label: 'Clientes', sublabel: 'Base total de clientes', icon: FiUsers, color: '#a855f7', stat: customersTotal },
     { domain: 'suppliers', label: 'Fornecedores', sublabel: 'Parceiros ativos fornecendo produtos', icon: FiFileText, color: '#ec4899', stat: fornecedoresTotal },
     { domain: 'products', label: 'Produtos', sublabel: 'Catálogo de produtos', icon: FiPackage, color: '#10b981', stat: productsTotal },
@@ -159,28 +165,33 @@ function HomePage() {
   return (
     <MainLayout>
       <OnboardingBanner />
+      <MappingReviewBanner />
       <Box p={6} maxW="1800px" mx="auto">
         {/* Welcome Header — Playfair Display title with gradient accent */}
         <Box mb={8}>
-          <Text
-            as="h1"
-            fontSize="2.5rem"
-            fontWeight="normal"
-            fontFamily="'Playfair Display', serif"
-            mb={2}
-          >
-            <Box as="span" color="white">Dashboard </Box>
-            <Box
-              as="span"
-              bgGradient="linear(to-r, #ff6b35, #ff006e)"
-              bgClip="text"
-            >
-              Analytics
+          <Flex justify="space-between" align={{ base: 'flex-start', md: 'flex-end' }} direction={{ base: 'column', md: 'row' }} gap={4}>
+            <Box>
+              <Text
+                as="h1"
+                fontSize="2.5rem"
+                fontWeight="normal"
+                fontFamily="'Playfair Display', serif"
+                mb={2}
+              >
+                <Box as="span" color="white">Dashboard </Box>
+                <Box
+                  as="span"
+                  bgGradient="linear(to-r, #ff6b35, #ff006e)"
+                  bgClip="text"
+                >
+                  Analytics
+                </Box>
+              </Text>
+              <Text color="whiteAlpha.600" fontSize="lg" fontWeight="medium">
+                Visão completa do seu negócio em tempo real
+              </Text>
             </Box>
-          </Text>
-          <Text color="whiteAlpha.600" fontSize="lg" fontWeight="medium">
-            Visão completa do seu negócio em tempo real
-          </Text>
+          </Flex>
         </Box>
 
         {/* Main Layout Grid — 3 + 1 columns like Figma */}
@@ -213,7 +224,7 @@ function HomePage() {
                       letterSpacing="wider"
                       mb={1}
                     >
-                      Revenue this month
+                      {revenueLabel}
                     </Text>
                     <Text fontSize="2.5rem" fontWeight="bold" color="white">
                       {formattedRevenue}
@@ -230,7 +241,15 @@ function HomePage() {
                   </Flex>
                 </Flex>
                 <Flex align="center" gap={2}>
-                  <Flex align="center" gap={1} color="green.400">
+                  <Flex
+                    align="center"
+                    gap={1}
+                    color={
+                      revenueGrowth !== undefined && revenueGrowth !== null && revenueGrowth < 0
+                        ? 'red.400'
+                        : 'green.400'
+                    }
+                  >
                     <Icon as={FiTrendingUp} boxSize={4} />
                     <Text fontSize="sm" fontWeight="medium">
                       {revenueGrowth !== undefined && revenueGrowth !== null
@@ -238,7 +257,7 @@ function HomePage() {
                         : '+0%'}
                     </Text>
                   </Flex>
-                  <Text fontSize="sm" color="whiteAlpha.500">vs last month</Text>
+                  <Text fontSize="sm" color="whiteAlpha.500">{growthLabel}</Text>
                 </Flex>
               </Box>
 
@@ -269,11 +288,11 @@ function HomePage() {
                       Active
                     </Text>
                     <Text fontSize="2xl" fontWeight="bold" color="white">
-                      {totalPedidos.toLocaleString('pt-BR')}
+                      {pedidosMesAtual.toLocaleString('pt-BR')}
                     </Text>
                   </Box>
                 </Flex>
-                <Text fontSize="xs" color="whiteAlpha.600">pedidos no total</Text>
+                <Text fontSize="xs" color="whiteAlpha.600">{pedidosCardLabel}</Text>
               </Box>
             </SimpleGrid>
 
@@ -584,8 +603,12 @@ function HomePage() {
             </SimpleGrid>
           </Box>
 
-          {/* Right Section — Agenda + Pendências (1 column, scrolls together) */}
+          {/* Right Section — Insights + Agenda + Pendências (1 column, scrolls together) */}
           <Box>
+            {/* Phase 2 (I2.2): nightly insights feed */}
+            <Box mb={4}>
+              <InsightsCard limit={5} />
+            </Box>
             <Box
               bg="#1a1b2e"
               borderRadius="0.625rem"

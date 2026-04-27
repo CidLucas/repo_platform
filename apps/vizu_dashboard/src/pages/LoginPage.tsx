@@ -194,14 +194,66 @@ const LoginPage: React.FC = () => {
     }
   }, [navigate]);
 
-  // Redireciona se já estiver logado
+  // Redireciona se já estiver logado.
+  //
+  // Novos usuários (ou qualquer sessão com `clientes_vizu.onboarding_completed_at`
+  // ainda NULL) são enviados para o passo 1 do onboarding (Welcome) no app de
+  // landing. Usuários que já concluíram o onboarding seguem para o dashboard
+  // (ou para a rota protegida que tentaram acessar originalmente).
   useEffect(() => {
-    if (user) {
-      // Clear processing state and redirect
+    if (!user) return;
+
+    let cancelled = false;
+
+    const resolveDestination = async () => {
       setIsProcessingOAuth(false);
-      const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/dashboard";
+
+      const env =
+        (import.meta as unknown as { env?: Record<string, string | undefined> })
+          .env ?? {};
+      const landingUrl = (env.VITE_LANDING_URL || "").replace(/\/$/, "");
+
+      // Check onboarding completion. If the row is missing or the column is
+      // null we treat the user as "needs onboarding" and send them to step 1.
+      let needsOnboarding = false;
+      try {
+        const { data } = await supabase
+          .from("clientes_vizu")
+          .select("onboarding_completed_at")
+          .maybeSingle();
+        needsOnboarding = !data || data.onboarding_completed_at === null;
+      } catch {
+        // Fail-open to onboarding — safer for first-time social logins where
+        // the row might not exist yet.
+        needsOnboarding = true;
+      }
+
+      if (cancelled) return;
+
+      if (needsOnboarding) {
+        const target = `${landingUrl}/onboarding/welcome`;
+        // Cross-origin when VITE_LANDING_URL is set; same-origin fallback uses
+        // /onboarding/welcome on this app (will 404 if not configured — that
+        // is intentional so misconfiguration is visible).
+        if (landingUrl) {
+          window.location.assign(target);
+        } else {
+          navigate("/onboarding/welcome", { replace: true });
+        }
+        return;
+      }
+
+      const from =
+        (location.state as { from?: { pathname: string } })?.from?.pathname ||
+        "/dashboard";
       navigate(from, { replace: true });
-    }
+    };
+
+    resolveDestination();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user, navigate, location]);
 
   const handleLogin = async () => {

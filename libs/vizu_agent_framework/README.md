@@ -5,6 +5,7 @@ Reusable LangGraph agent framework for Vizu multi-agent architecture.
 ## Overview
 
 This library provides a shared foundation for building LangGraph-based agents with:
+
 - Composable state management
 - Reusable graph nodes (init, elicit, execute_tool, respond, end)
 - MCP tool integration
@@ -153,21 +154,16 @@ class AgentBuilder:
 
 ## MCP Integration
 
-The framework integrates with MCP servers via `vizu_mcp_commons`:
+The framework integrates with MCP servers via its built-in `MCPConnectionManager`
+(StreamableHTTP client). Use it to connect to a tool pool, list tools, and
+execute them with tenant-scoped context:
 
 ```python
-from vizu_agent_framework import MCPToolExecutor
+from vizu_agent_framework import get_mcp_manager, initialize_mcp
 
-executor = MCPToolExecutor(
-    mcp_url="http://tool_pool_api:8000/mcp/v1",
-    timeout=30.0,
-)
-
-result = await executor.execute(
-    tool_name="executar_rag_cliente",
-    tool_args={"query": "horário de funcionamento"},
-    context={"cliente_id": "..."},
-)
+await initialize_mcp("http://tool_pool_api:8000/mcp")
+manager = get_mcp_manager()
+tools = await manager.list_tools()
 ```
 
 ## Observability
@@ -189,6 +185,7 @@ agent = builder.build()
 ## Creating a New Agent
 
 1. **Create agent service directory:**
+
 ```
 services/my_agent/
 ├── src/my_agent/
@@ -204,6 +201,7 @@ services/my_agent/
 ```
 
 2. **Define agent:**
+
 ```python
 # services/my_agent/src/my_agent/core/agent.py
 
@@ -235,6 +233,7 @@ class MyAgent:
 ```
 
 3. **Expose via FastAPI:**
+
 ```python
 # services/my_agent/src/my_agent/api/routes.py
 

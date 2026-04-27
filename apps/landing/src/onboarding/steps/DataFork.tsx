@@ -14,6 +14,7 @@ import {
   ArrowForwardIcon,
   CheckCircleIcon,
   ExternalLinkIcon,
+  WarningTwoIcon,
 } from "@chakra-ui/icons";
 import { useNavigate } from "react-router-dom";
 import { OnboardingLayout, StepHeader } from "../OnboardingLayout";
@@ -56,6 +57,12 @@ const DataFork: React.FC = () => {
   const [driveConnected, setDriveConnected] = useState(state.googleDriveConnected);
   const [driveLoading, setDriveLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Mapping review hint pushed back from the dashboard's connector modal.
+  // Shape: { credentialId: string; connector?: string }
+  const [mappingReview, setMappingReview] = useState<{
+    credentialId: string;
+    connector?: string;
+  } | null>(null);
 
   // If we're coming back from a Google OAuth redirect (?drive=connected),
   // hand the provider refresh token off to the edge function that
@@ -101,6 +108,39 @@ const DataFork: React.FC = () => {
     return () => {
       cancelled = true;
     };
+  }, [toast, update]);
+
+  // Parse `?connector_synced=` / `?mapping_review=` hints set by the dashboard
+  // connector modal. Strip them from the URL so a reload doesn't re-trigger.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const synced = params.get("connector_synced");
+    const review = params.get("mapping_review");
+    const reviewConnector = params.get("connector") || undefined;
+
+    if (!synced && !review) return;
+
+    if (synced) {
+      const sys = synced.replace("postgresql", "postgres");
+      setSystems((prev) => (prev.includes(sys) ? prev : [...prev, sys]));
+      update({ dataPath: "systems" });
+      toast({
+        title: "Conector sincronizado",
+        description: `A sincronização do ${synced} começou em segundo plano.`,
+        status: "success",
+        duration: 4000,
+        isClosable: true,
+      });
+    }
+    if (review) {
+      setMappingReview({ credentialId: review, connector: reviewConnector });
+    }
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete("connector_synced");
+    url.searchParams.delete("mapping_review");
+    url.searchParams.delete("connector");
+    window.history.replaceState({}, "", url.toString());
   }, [toast, update]);
 
   const toggleSystem = (id: string) =>
@@ -208,6 +248,57 @@ const DataFork: React.FC = () => {
         }
         subtitle="Escolha o caminho que faz sentido hoje. Você pode adicionar mais depois."
       />
+
+      {mappingReview && (
+        <Box
+          mb={5}
+          p={4}
+          borderRadius="14px"
+          bg={`${C.yellow}14`}
+          border="1px solid"
+          borderColor={`${C.yellow}55`}
+        >
+          <HStack align="start" spacing={3}>
+            <Icon as={WarningTwoIcon} color={C.yellow} mt="2px" />
+            <VStack align="stretch" spacing={2} flex={1}>
+              <Text fontSize="14px" fontWeight={600} color="white">
+                Precisamos confirmar o mapeamento das colunas
+              </Text>
+              <Text fontSize="12px" color={C.textDim}>
+                Conectamos {mappingReview.connector ?? "sua fonte"} com sucesso, mas algumas
+                colunas precisam de revisão antes da sincronização. Confirme o mapeamento
+                e voltaremos a sincronizar automaticamente.
+              </Text>
+              <HStack>
+                <Button
+                  size="sm"
+                  bg={C.yellow}
+                  color="#1a1a1a"
+                  fontWeight={600}
+                  borderRadius="full"
+                  rightIcon={<ExternalLinkIcon boxSize={3} />}
+                  _hover={{ filter: "brightness(1.05)" }}
+                  onClick={() => {
+                    const url = `${DASHBOARD_BASE}/admin/connectors/${mappingReview.credentialId}/mapping`;
+                    window.location.href = url;
+                  }}
+                >
+                  Confirmar mapeamento
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  color={C.textDim}
+                  _hover={{ color: "white", bg: "rgba(255,255,255,0.04)" }}
+                  onClick={() => setMappingReview(null)}
+                >
+                  Depois
+                </Button>
+              </HStack>
+            </VStack>
+          </HStack>
+        </Box>
+      )}
 
       <VStack spacing={4} align="stretch">
         <PathCard

@@ -1,0 +1,296 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Blu MVP — EPIC-H (BLU-MVP-071). MCP tool latency p50/p95, error rate, approvals queued. Datasource templates default to Grafana Cloud (Mimir + Postgres).",
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "type": "row",
+      "title": "MCP Tools — Latency & Errors",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100
+    },
+    {
+      "type": "timeseries",
+      "title": "Tool latency p50 (ms)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "id": 1,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(vizu_tool_duration_ms_bucket{tool_name!=\"\"}[$__rate_interval])) by (le, tool_name))",
+          "legendFormat": "{{tool_name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Tool latency p95 (ms)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "id": 2,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(vizu_tool_duration_ms_bucket{tool_name!=\"\"}[$__rate_interval])) by (le, tool_name))",
+          "legendFormat": "{{tool_name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Calls per second (by tool)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "id": 3,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "targets": [
+        {
+          "expr": "sum(rate(vizu_tool_calls_total[$__rate_interval])) by (tool_name)",
+          "legendFormat": "{{tool_name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Error rate (% of calls)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "id": 4,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "targets": [
+        {
+          "expr": "100 * sum(rate(vizu_tool_errors_total[$__rate_interval])) by (tool_name) / clamp_min(sum(rate(vizu_tool_calls_total[$__rate_interval])) by (tool_name), 1e-9)",
+          "legendFormat": "{{tool_name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Calls — last 5m (all tools)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "id": 5,
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 17 },
+      "targets": [
+        {
+          "expr": "sum(increase(vizu_tool_calls_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "type": "stat",
+      "title": "Errors — last 5m",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "id": 6,
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 17 },
+      "targets": [
+        {
+          "expr": "sum(increase(vizu_tool_errors_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Active tenants — last 1h",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "id": 7,
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 17 },
+      "targets": [
+        {
+          "expr": "count(count by (client_id) (increase(vizu_tool_calls_total{client_id!=\"\"}[1h])))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "type": "stat",
+      "title": "Tools used — last 1h",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "id": 8,
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 17 },
+      "targets": [
+        {
+          "expr": "count(count by (tool_name) (increase(vizu_tool_calls_total[1h])))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "type": "row",
+      "title": "Approval Engine",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 },
+      "id": 200
+    },
+    {
+      "type": "stat",
+      "title": "Approvals pending (now)",
+      "datasource": { "type": "postgres", "uid": "${DS_PG}" },
+      "id": 9,
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 22 },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS value FROM public.approval_requests WHERE status = 'pending'",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 25 },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Approvals pending — by tenant",
+      "datasource": { "type": "postgres", "uid": "${DS_PG}" },
+      "id": 10,
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 22 },
+      "targets": [
+        {
+          "rawSql": "SELECT date_trunc('minute', $__timeFrom()) AS time, client_id::text AS metric, COUNT(*) AS value FROM public.approval_requests WHERE status = 'pending' AND $__timeFilter(created_at) GROUP BY 1, client_id ORDER BY 1",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Top tools by error rate (last 1h)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "id": 11,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
+      "targets": [
+        {
+          "expr": "topk(10, 100 * sum(increase(vizu_tool_errors_total[1h])) by (tool_name) / clamp_min(sum(increase(vizu_tool_calls_total[1h])) by (tool_name), 1))",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Top tools by p95 latency (last 1h)",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+      "id": 12,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+      "targets": [
+        {
+          "expr": "topk(10, histogram_quantile(0.95, sum(rate(vizu_tool_duration_ms_bucket[1h])) by (le, tool_name)))",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["blu-mvp", "observability", "epic-h"],
+  "templating": {
+    "list": [
+      {
+        "current": { "selected": false, "text": "grafanacloud-prom", "value": "grafanacloud-prom" },
+        "label": "Mimir / Prometheus",
+        "name": "DS_PROM",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 0
+      },
+      {
+        "current": { "selected": false, "text": "supabase-postgres", "value": "supabase-postgres" },
+        "label": "Postgres (Supabase)",
+        "name": "DS_PG",
+        "type": "datasource",
+        "query": "postgres",
+        "hide": 0
+      },
+      {
+        "name": "tool_name",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+        "query": "label_values(vizu_tool_calls_total, tool_name)",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "hide": 0
+      },
+      {
+        "name": "client_id",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
+        "query": "label_values(vizu_tool_calls_total, client_id)",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "hide": 0
+      }
+    ]
+  },
+  "time": { "from": "now-3h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Blu MVP — Tool Pool & Approvals",
+  "uid": "blu-mvp-tool-pool",
+  "version": 1,
+  "weekStart": ""
+}

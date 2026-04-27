@@ -3,7 +3,7 @@
 -- Snapshot each into analytics_v2_legacy before dropping columns.
 -- Recreates affected MVs against slim schema.
 --
--- Reference: docs/plans/2026-04-22-analytics-v2-minimal-schema-cleanup.md (Phase C)
+-- Reference: docs/plans/archive/2026-04-22-analytics-v2-minimal-schema-cleanup.md (Phase C)
 
 BEGIN;
 

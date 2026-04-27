@@ -2,7 +2,7 @@ import { Box, VStack, Text, Divider, Icon } from '@chakra-ui/react';
 import { NavLink } from 'react-router-dom';
 import {
   FiHome,
-  FiDatabase,
+  FiGrid,
   FiShield,
   FiCreditCard,
   FiHelpCircle,
@@ -78,8 +78,8 @@ export const AdminSidebar = () => {
         />
         <SidebarItem
           to="/dashboard/admin/fontes"
-          icon={FiDatabase}
-          label="Fonte de Dados"
+          icon={FiGrid}
+          label="Integrações"
         />
         <SidebarItem
           to="/dashboard/admin/knowledge-base"

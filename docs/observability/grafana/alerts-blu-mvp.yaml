@@ -1,0 +1,248 @@
+# Blu MVP — EPIC-H BLU-MVP-072 alert rules.
+#
+# Provisioning format: Grafana Alerting (unified), file-based provisioning.
+# Drop into Grafana's `provisioning/alerting/` directory or import via the UI.
+#
+# Three alerts cover the failure modes called out in the roadmap §10:
+#   1. MV staleness   → analytics_v2 materialised views older than 25 h.
+#   2. RFQ webhook    → Twilio inbound webhook → tool_pool_api > 5 % errors / 15 min.
+#   3. Langfuse outage → Langfuse 5xx rate > 1 % over 5 min, OR client unreachable.
+#
+# Datasource UIDs match the dashboard (DS_PROM = Mimir/Prometheus, DS_PG =
+# Supabase Postgres). Adjust to your tenancy if you renamed them.
+
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: blu-mvp-observability
+    folder: Blu MVP
+    interval: 1m
+    rules:
+      # --------------------------------------------------------------
+      # 1. MV staleness — analytics_v2 materialised views > 25h
+      # --------------------------------------------------------------
+      - uid: blu-mvp-mv-staleness
+        title: "Analytics MV stale > 25h"
+        condition: A
+        for: 10m
+        noDataState: Alerting
+        execErrState: Error
+        annotations:
+          summary: "Analytics materialized view is stale"
+          description: |
+            One or more rows from `analytics_v2.mv_refresh_log` (or the
+            view's last refresh timestamp) is older than 25 h.
+            Dashboards and daily-insights routine will degrade until refresh
+            recovers. Trigger `REFRESH MATERIALIZED VIEW CONCURRENTLY` and
+            check the pg_cron worker.
+          runbook_url: "https://github.com/CidLucas/platform/blob/main/docs/observability/README.md#mv-staleness"
+        labels:
+          severity: warning
+          team: data-platform
+          epic: blu-mvp-epic-h
+        data:
+          - refId: A
+            datasourceUid: ${DS_PG}
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              format: table
+              rawSql: |
+                SELECT
+                  schemaname || '.' || matviewname AS metric,
+                  EXTRACT(EPOCH FROM (now() - GREATEST(
+                    COALESCE((SELECT MAX(refreshed_at) FROM analytics_v2.mv_refresh_log
+                              WHERE matview = schemaname || '.' || matviewname), 'epoch'::timestamptz),
+                    'epoch'::timestamptz
+                  ))) / 3600.0 AS value
+                FROM pg_matviews
+                WHERE schemaname = 'analytics_v2'
+              refId: A
+            # Trigger when value > 25 (hours)
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [25]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                    params: []
+
+      # --------------------------------------------------------------
+      # 2. RFQ Twilio webhook errors > 5% / 15min
+      # --------------------------------------------------------------
+      - uid: blu-mvp-rfq-webhook-failure
+        title: "RFQ Twilio webhook failure rate > 5%"
+        condition: A
+        for: 15m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: "RFQ webhook failure rate elevated"
+          description: |
+            Inbound RFQ Twilio webhook (`/v1/twilio/inbound`) is failing
+            for more than 5 % of requests over the last 15 min. Suppliers'
+            replies will not be parsed automatically; the RFQ optimisation
+            loop stalls. Check tool_pool_api logs and Twilio status page.
+          runbook_url: "https://github.com/CidLucas/platform/blob/main/docs/observability/README.md#rfq-webhook-failure"
+        labels:
+          severity: warning
+          team: supply
+          epic: blu-mvp-epic-h
+        data:
+          - refId: A
+            datasourceUid: ${DS_PROM}
+            relativeTimeRange:
+              from: 900
+              to: 0
+            model:
+              expr: |
+                100 * (
+                  sum(rate(http_server_requests_total{job=~"tool_pool_api|tool-pool-api",
+                                                       http_route=~".*twilio.*",
+                                                       http_status_code=~"5..|4(?!04|01).."}[15m]))
+                  /
+                  clamp_min(
+                    sum(rate(http_server_requests_total{job=~"tool_pool_api|tool-pool-api",
+                                                         http_route=~".*twilio.*"}[15m])),
+                    1e-9
+                  )
+                )
+              refId: A
+              instant: false
+              intervalMs: 60000
+              maxDataPoints: 43200
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [5]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                    params: []
+
+      # --------------------------------------------------------------
+      # 3. Langfuse outage — 5xx rate > 1% / 5min, OR call volume = 0
+      # --------------------------------------------------------------
+      - uid: blu-mvp-langfuse-outage
+        title: "Langfuse outage (5xx > 1% / 5m)"
+        condition: A
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: "Langfuse 5xx rate elevated"
+          description: |
+            Langfuse responses to outbound HTTP calls from any Vizu service
+            show a 5xx error rate over 1 % during the last 5 min. Prompts
+            will fall back to in-repo defaults
+            (`libs/vizu_prompt_management/prompts/...`) but versioning &
+            traces are degraded. Check Langfuse status & worker logs.
+          runbook_url: "https://github.com/CidLucas/platform/blob/main/docs/observability/README.md#langfuse-outage"
+        labels:
+          severity: warning
+          team: ml-platform
+          epic: blu-mvp-epic-h
+        data:
+          - refId: A
+            datasourceUid: ${DS_PROM}
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              expr: |
+                100 * (
+                  sum(rate(http_client_requests_total{peer_service="langfuse",
+                                                       http_status_code=~"5.."}[5m]))
+                  /
+                  clamp_min(
+                    sum(rate(http_client_requests_total{peer_service="langfuse"}[5m])),
+                    1e-9
+                  )
+                )
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [1]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                    params: []
+
+      # --------------------------------------------------------------
+      # 4. Approval queue — > 50 pending per tenant
+      # --------------------------------------------------------------
+      - uid: blu-mvp-approval-queue
+        title: "Approval queue > 50 pending for a tenant"
+        condition: A
+        for: 30m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: "Approval queue backed up for tenant"
+          description: |
+            A tenant has > 50 pending approval_requests for more than 30 min.
+            The owner is likely overwhelmed or routing is misconfigured.
+            Investigate via the Approvals tray and SLA dashboard.
+          runbook_url: "https://github.com/CidLucas/platform/blob/main/docs/observability/README.md#approval-queue"
+        labels:
+          severity: warning
+          team: product
+          epic: blu-mvp-epic-h
+        data:
+          - refId: A
+            datasourceUid: ${DS_PG}
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              format: table
+              rawSql: |
+                SELECT client_id::text AS metric, COUNT(*)::float AS value
+                FROM public.approval_requests
+                WHERE status = 'pending'
+                GROUP BY client_id
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [50]
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                    params: []

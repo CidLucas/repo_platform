@@ -4,19 +4,14 @@ import secrets
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from tool_pool_api.core.config import get_settings
 from tool_pool_api.server.dependencies import get_context_service
-from vizu_auth.core.exceptions import (
-    AuthError,
-    InvalidTokenError,
-    TokenExpiredError,
-)
-from vizu_auth.core.jwt_decoder import decode_jwt
-from vizu_auth.core.models import AuthMethod, AuthResult
+from vizu_auth.core.models import AuthResult
+from vizu_auth.fastapi.dependencies import get_auth_result
 from vizu_auth.oauth2.models import OAuthConfig
 from vizu_auth.oauth2.oauth_manager import OAuthManager
 from vizu_context_service.context_service import ContextService
@@ -131,57 +126,10 @@ class GoogleAccountInfo(BaseModel):
     created_at: datetime | None = None
 
 
-async def _get_auth_result(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> AuthResult:
-    """JWT-only authentication for integrations API."""
-    if not credentials:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required. Provide Bearer token.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    try:
-        claims = decode_jwt(credentials.credentials)
-
-        try:
-            client_id = UUID(claims.sub)
-        except (ValueError, TypeError) as e:
-            logger.error(f"Invalid UUID in JWT sub claim: {claims.sub}, error: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid user ID format in token.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        return AuthResult(
-            client_id=client_id,
-            auth_method=AuthMethod.JWT,
-            external_user_id=claims.sub,
-            email=claims.email,
-            raw_claims=claims.model_dump(exclude_none=True),
-        )
-
-    except TokenExpiredError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired. Please refresh your authentication.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except InvalidTokenError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except AuthError as e:
-        logger.error(f"Auth error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication failed.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+# JWT auth is delegated to the canonical helper in vizu_auth. We expose a
+# private alias so existing call sites (`Depends(_get_auth_result)`) keep
+# working without churn; new code should import ``get_auth_result`` directly.
+_get_auth_result = get_auth_result
 
 
 @router.post("/google/config")
@@ -468,3 +416,161 @@ async def get_google_status(
             "default_account": default_tokens._get("account_email") if default_tokens else None,
             "expires_at": default_tokens._get("expires_at") if default_tokens else None,
         }
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Phase 3A (P3.4) — BLU-MVP-044
+# REST wrappers around RFQ tools for the Pedidos page.
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class ExportPoToSheetsRequest(BaseModel):
+    po_id: str
+    spreadsheet_id: str | None = None
+    sheet_name: str = "Pedidos de Compra"
+    account_email: str | None = None
+
+
+@router.post("/tools/export_po_to_sheets")
+async def export_po_to_sheets_endpoint(
+    payload: ExportPoToSheetsRequest,
+    auth: AuthResult = Depends(_get_auth_result),
+):
+    """
+    Export a Purchase Order to Google Sheets. Used by the dashboard's
+    "Exportar para Sheets" button on the Pedidos page.
+    """
+    from fastmcp.exceptions import ToolError
+
+    from tool_pool_api.server.tool_modules.rfq_module import (
+        export_po_to_sheets_core,
+    )
+
+    try:
+        return await export_po_to_sheets_core(
+            cliente_id=str(auth.client_id),
+            po_id=payload.po_id,
+            spreadsheet_id=payload.spreadsheet_id,
+            sheet_name=payload.sheet_name,
+            account_email=payload.account_email,
+        )
+    except ToolError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Phase 3B (C3.1, C3.2) — Consumer Inbox endpoints
+# ─────────────────────────────────────────────────────────────────────────
+
+
+class DraftReplyRequest(BaseModel):
+    contact_id: str
+    hint: str | None = None
+
+
+class SendReplyRequest(BaseModel):
+    message_id: str
+    edited_body: str | None = None
+
+
+def _supabase_with_user_jwt(token: str):
+    """Return a Supabase client whose RLS context is the JWT's user.
+
+    Used by inbox endpoints so RLS policies (``client_id = get_my_client_id()``)
+    work without granting service_role to the dashboard.
+    """
+    from vizu_supabase_client import get_supabase_client
+
+    db = get_supabase_client()
+    # postgrest-py exposes auth() to swap the bearer used for downstream calls.
+    try:
+        db.postgrest.auth(token)
+    except Exception:
+        logger.debug("inbox: could not attach user JWT to postgrest client", exc_info=True)
+    return db
+
+
+@router.get("/inbox/threads")
+async def list_inbox_threads(
+    limit: int = Query(default=50, ge=1, le=200),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    auth: AuthResult = Depends(_get_auth_result),
+):
+    """List the tenant's consumer threads (most recent first)."""
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    db = _supabase_with_user_jwt(credentials.credentials)
+    try:
+        resp = db.rpc("list_inbox_threads", {"p_limit": limit}).execute()
+    except Exception as exc:
+        logger.exception("inbox.list_threads failed for client=%s", auth.client_id)
+        raise HTTPException(status_code=500, detail=str(exc))
+    return {"threads": getattr(resp, "data", None) or []}
+
+
+@router.get("/inbox/threads/{contact_id}/messages")
+async def list_thread_messages(
+    contact_id: str,
+    limit: int = Query(default=100, ge=1, le=500),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    auth: AuthResult = Depends(_get_auth_result),
+):
+    """List messages in a thread (oldest → newest)."""
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    db = _supabase_with_user_jwt(credentials.credentials)
+    try:
+        resp = db.rpc(
+            "get_thread_messages",
+            {"p_contact_id": contact_id, "p_limit": limit},
+        ).execute()
+    except Exception as exc:
+        logger.exception(
+            "inbox.thread_messages failed: client=%s contact=%s", auth.client_id, contact_id
+        )
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"messages": getattr(resp, "data", None) or []}
+
+
+@router.post("/inbox/threads/draft")
+async def draft_inbox_reply(
+    payload: DraftReplyRequest,
+    auth: AuthResult = Depends(_get_auth_result),
+):
+    """Generate a draft reply for a thread."""
+    from fastmcp.exceptions import ToolError
+
+    from tool_pool_api.server.tool_modules.consumer_inbox_module import (
+        draft_consumer_reply_core,
+    )
+
+    try:
+        return await draft_consumer_reply_core(
+            cliente_id=str(auth.client_id),
+            contact_id=payload.contact_id,
+            hint=payload.hint,
+        )
+    except ToolError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/inbox/threads/send")
+async def send_inbox_reply(
+    payload: SendReplyRequest,
+    auth: AuthResult = Depends(_get_auth_result),
+):
+    """Promote a draft to either pending_approval (Approvals tray) or sent."""
+    from fastmcp.exceptions import ToolError
+
+    from tool_pool_api.server.tool_modules.consumer_inbox_module import (
+        send_consumer_reply_core,
+    )
+
+    try:
+        return await send_consumer_reply_core(
+            cliente_id=str(auth.client_id),
+            message_id=payload.message_id,
+            edited_body=payload.edited_body,
+        )
+    except ToolError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))

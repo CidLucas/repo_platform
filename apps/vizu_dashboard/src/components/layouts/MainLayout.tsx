@@ -9,7 +9,7 @@ interface MainLayoutProps {
 }
 
 export const MainLayout = ({ children }: MainLayoutProps) => {
-  const { isChatOpen, closeChat } = useChat();
+  const { isChatOpen, closeChat, initialMessage, consumeInitialMessage } = useChat();
 
   return (
     <Flex direction="column" minHeight="100vh" bg="#0d0e1f">
@@ -18,7 +18,12 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
         {children}
       </Box>
       {/* Chat Panel - slides from right with blur effect */}
-      <ChatPanel isOpen={isChatOpen} onClose={closeChat} />
+      <ChatPanel
+        isOpen={isChatOpen}
+        onClose={closeChat}
+        initialMessage={initialMessage}
+        onInitialMessageConsumed={consumeInitialMessage}
+      />
     </Flex>
   );
 };

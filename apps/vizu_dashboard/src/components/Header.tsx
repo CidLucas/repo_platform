@@ -1,5 +1,6 @@
 import {
   Avatar,
+  Badge,
   Flex,
   Spacer,
   IconButton,
@@ -11,26 +12,33 @@ import {
   MenuItem,
   MenuDivider,
   Box,
-  useDisclosure,
   Button,
+  VisuallyHidden,
 } from '@chakra-ui/react';
 import { BellIcon, ChatIcon } from '@chakra-ui/icons';
-import { FiUser, FiSettings, FiShield, FiLogOut, FiGrid } from 'react-icons/fi';
+import { FiUser, FiSettings, FiShield, FiLogOut, FiEye, FiEyeOff } from 'react-icons/fi';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useChat } from '../contexts/ChatContext';
 import { useTenant } from '../contexts/TenantContext';
-import { useContext } from 'react';
+import { useContext, useState } from 'react';
 import { AuthContext } from '../contexts/AuthContext';
 import Logo from '../assets/logo.svg?react';
-import { MenuDrawer } from './MenuDrawer';
+import { getChatRailFocusMode, setChatRailFocusMode } from './chatRailFocusMode';
+import { usePendencias } from '../hooks/usePendencias';
 
 export const Header = () => {
   const { toggleChat } = useChat();
   const navigate = useNavigate();
   const location = useLocation();
   const tenant = useTenant();
-  const { isOpen: isMenuOpen, onOpen: onMenuOpen, onClose: onMenuClose } = useDisclosure();
   const auth = useContext(AuthContext);
+  const [chatFocusMode, setChatFocusMode] = useState<boolean>(getChatRailFocusMode);
+  const { data: pendenciasData } = usePendencias();
+
+  const pendingApprovalsCount = (pendenciasData ?? []).filter((item) => item.kind === 'rfq_pending').length;
+  const isHomeActive = location.pathname === '/dashboard' || (!location.pathname.startsWith('/dashboard/admin') && !location.pathname.startsWith('/dashboard/configurar') && !location.pathname.startsWith('/dashboard/inbox') && !location.pathname.startsWith('/dashboard/reports') && !location.pathname.startsWith('/dashboard/relatorios') && location.pathname.startsWith('/dashboard'));
+  const isPanelsActive = location.pathname.startsWith('/dashboard/reports') || location.pathname.startsWith('/dashboard/relatorios');
+  const isConfigActive = location.pathname.startsWith('/dashboard/admin') || location.pathname.startsWith('/dashboard/configurar');
 
   // Get user name from auth context - fallback to first part of email if no display name
   const userName = auth?.user?.user_metadata?.full_name ||
@@ -49,6 +57,12 @@ export const Header = () => {
     } catch (error) {
       console.error('Error signing out:', error);
     }
+  };
+
+  const toggleChatFocusMode = () => {
+    const next = !chatFocusMode;
+    setChatFocusMode(next);
+    setChatRailFocusMode(next);
   };
 
   return (
@@ -77,34 +91,75 @@ export const Header = () => {
           </Box>
         </Link>
 
-        {/* Nav Buttons — Dashboard & Admin */}
+        {/* Nav Buttons — Mission Control, Aprovações, Painéis, Configurar */}
         <HStack spacing={1} ml={6}>
           <Button
             size="sm"
             variant="ghost"
-            color={location.pathname === '/dashboard' || (!location.pathname.startsWith('/dashboard/admin') && location.pathname.startsWith('/dashboard')) ? 'white' : 'whiteAlpha.600'}
-            bg={location.pathname === '/dashboard' || (!location.pathname.startsWith('/dashboard/admin') && location.pathname.startsWith('/dashboard')) ? 'whiteAlpha.200' : 'transparent'}
+            color={isHomeActive ? 'white' : 'whiteAlpha.600'}
+            bg={isHomeActive ? 'whiteAlpha.200' : 'transparent'}
             fontWeight="medium"
             fontSize="sm"
             borderRadius="lg"
             _hover={{ bg: 'whiteAlpha.200', color: 'white' }}
             onClick={() => navigate('/dashboard')}
           >
-            Dashboard
+            Início
           </Button>
           <Button
             size="sm"
             variant="ghost"
-            color={location.pathname.startsWith('/dashboard/admin') ? 'white' : 'whiteAlpha.600'}
-            bg={location.pathname.startsWith('/dashboard/admin') ? 'whiteAlpha.200' : 'transparent'}
+            color={location.pathname.startsWith('/dashboard/inbox') ? 'white' : 'whiteAlpha.600'}
+            bg={location.pathname.startsWith('/dashboard/inbox') ? 'whiteAlpha.200' : 'transparent'}
+            fontWeight="medium"
+            fontSize="sm"
+            borderRadius="lg"
+            _hover={{ bg: 'whiteAlpha.200', color: 'white' }}
+            onClick={() => navigate('/dashboard/inbox')}
+          >
+            <HStack spacing={2}>
+              <Text>Aprovações</Text>
+              {pendingApprovalsCount > 0 && (
+                <>
+                  <Badge bg="#f9731620" color="#f97316" fontSize="2xs" borderRadius="full" px={1.5}>
+                    {pendingApprovalsCount > 99 ? '99+' : pendingApprovalsCount}
+                  </Badge>
+                  <VisuallyHidden>{`${pendingApprovalsCount} aprovações pendentes`}</VisuallyHidden>
+                </>
+              )}
+            </HStack>
+          </Button>
+          <Menu>
+            <MenuButton
+              as={Button}
+              size="sm"
+              variant="ghost"
+              color={isPanelsActive ? 'white' : 'whiteAlpha.600'}
+              bg={isPanelsActive ? 'whiteAlpha.200' : 'transparent'}
+              fontWeight="medium"
+              fontSize="sm"
+              borderRadius="lg"
+              _hover={{ bg: 'whiteAlpha.200', color: 'white' }}
+            >
+              Painéis
+            </MenuButton>
+            <MenuList shadow="lg" borderRadius="12px" py={2}>
+              <MenuItem fontSize="sm" onClick={() => navigate('/dashboard/reports')}>Relatórios</MenuItem>
+            </MenuList>
+          </Menu>
+          <Button
+            size="sm"
+            variant="ghost"
+            color={isConfigActive ? 'white' : 'whiteAlpha.600'}
+            bg={isConfigActive ? 'whiteAlpha.200' : 'transparent'}
             fontWeight="medium"
             fontSize="sm"
             borderRadius="lg"
             leftIcon={<FiShield size={14} />}
             _hover={{ bg: 'whiteAlpha.200', color: 'white' }}
-            onClick={() => navigate('/dashboard/admin')}
+            onClick={() => navigate('/dashboard/configurar')}
           >
-            Admin
+            Configurar
           </Button>
         </HStack>
 
@@ -114,7 +169,7 @@ export const Header = () => {
         <HStack spacing={3}>
           {tenant.features.canUseAgent && (
             <IconButton
-              aria-label="Chat"
+              aria-label="Abrir chat"
               icon={<ChatIcon />}
               variant="ghost"
               color="white"
@@ -125,24 +180,12 @@ export const Header = () => {
             />
           )}
           <IconButton
-            aria-label="Notifications"
+            aria-label="Notificações"
             icon={<BellIcon />}
             variant="ghost"
             color="white"
             borderRadius="full"
             size="md"
-            _hover={{ bg: 'whiteAlpha.200' }}
-          />
-
-          {/* Menu Grid Button */}
-          <IconButton
-            aria-label="Menu"
-            icon={<FiGrid />}
-            variant="ghost"
-            color="white"
-            borderRadius="full"
-            size="md"
-            onClick={onMenuOpen}
             _hover={{ bg: 'whiteAlpha.200' }}
           />
 
@@ -182,6 +225,13 @@ export const Header = () => {
               >
                 Configurações
               </MenuItem>
+              <MenuItem
+                icon={chatFocusMode ? <FiEye /> : <FiEyeOff />}
+                fontSize="sm"
+                onClick={toggleChatFocusMode}
+              >
+                {chatFocusMode ? 'Desativar modo foco do chat' : 'Ativar modo foco do chat'}
+              </MenuItem>
 
               {/* Admin Link - Only show for admins */}
               {isAdmin && (
@@ -192,9 +242,9 @@ export const Header = () => {
                     fontSize="sm"
                     fontWeight="medium"
                     color="#0ea5e9"
-                    onClick={() => navigate('/dashboard/admin')}
+                    onClick={() => navigate('/dashboard/configurar')}
                   >
-                    Painel Admin
+                      Painel administrativo
                   </MenuItem>
                 </>
               )}
@@ -212,9 +262,6 @@ export const Header = () => {
           </Menu>
         </HStack>
       </Flex>
-
-      {/* Menu Drawer */}
-      <MenuDrawer isOpen={isMenuOpen} onClose={onMenuClose} />
     </>
   );
 };

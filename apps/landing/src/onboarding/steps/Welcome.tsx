@@ -161,7 +161,7 @@ const Welcome: React.FC = () => {
           _hover={{ filter: "brightness(1.12)", transform: "translateY(-1px)" }}
           transition="all .2s"
           boxShadow={`0 16px 50px ${C.purple}55`}
-          onClick={() => navigate("/onboarding/dna")}
+          onClick={() => navigate("/onboarding/website")}
         >
           Montar meu time de agentes
         </Button>

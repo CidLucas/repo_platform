@@ -96,7 +96,7 @@ const AdminAgentBuilderEditorPage = () => {
         const result = await save();
         if (result) {
             if (isNew) {
-                navigate(`/dashboard/admin/agent-builder/${result.id}`, { replace: true });
+                navigate(`/dashboard/configurar/agent-builder/${result.id}`, { replace: true });
             }
         }
     };
@@ -161,7 +161,7 @@ const AdminAgentBuilderEditorPage = () => {
                         <Button
                             variant="ghost"
                             leftIcon={<FiArrowLeft />}
-                            onClick={() => navigate('/dashboard/admin/agent-builder')}
+                            onClick={() => navigate('/dashboard/configurar/agent-builder')}
                             color="white"
                             _hover={{ bg: 'whiteAlpha.100' }}
                         >

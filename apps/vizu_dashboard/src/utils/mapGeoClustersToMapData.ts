@@ -9,8 +9,8 @@ const DEFAULT_ZOOM = 4.5;
 
 /**
  * Convert a `GeoClustersResponse` into the `MapData` shape consumed by
- * `DashboardCard` / Leaflet wrapper. Used by `PedidosPage`,
- * `GenericOverviewPage`, and any future page rendering geo clusters so the
+ * `DashboardCard` / Leaflet wrapper. Used by
+ * any future page rendering geo clusters so the
  * mapping stays consistent.
  */
 export const mapGeoClustersToMapData = (

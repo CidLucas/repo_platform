@@ -441,6 +441,8 @@ Without these the redesign builds on top of broken foundations.
 
 ### Phase C — Information architecture (3-4 weeks)
 
+Status (2026-04-27): **C1-C5 implementados (fase C concluída)** — atalho `⌘\` / `Ctrl+\` no `ChatContext`; `ChatRail` responsivo no `MainLayout` com focus mode sincronizado (rail + menu do usuário); `InsightsCard` no fluxo principal do Mission Control com deep-link para chat, scroll contextual de seção e retorno de foco no fechamento (WCAG 2.4.3); header com `Aprovações` (badge + texto SR) + grupo `Painéis`; aliases do namespace `/dashboard/configurar/*` com compatibilidade ao legado `/dashboard/admin/*`; chat mobile em bottom-sheet com trigger fixo; e interações principais do dashboard respeitando `prefers-reduced-motion`.
+
 | #   | Item                                                                                                                                                                                                                    |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | C1  | Chat companion right-rail (`ChatRail.tsx`) wrapping current `ChatPanel` logic. Sizing: 320px / 64px / bottom-sheet. `⌘\` shortcut. Focus mode toggle.                                                                   |

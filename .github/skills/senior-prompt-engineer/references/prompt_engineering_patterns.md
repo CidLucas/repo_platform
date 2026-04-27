@@ -2,79 +2,107 @@
 
 ## Overview
 
-World-class prompt engineering patterns for senior prompt engineer.
+These prompt patterns are adapted to `vizu-mono`'s actual prompt stack: Langfuse-managed prompts, fragment composition, builtin fallbacks in selected paths, and runtime variables injected from client/session/tool context.
 
 ## Core Principles
 
-### Production-First Design
+### Prompt text should encode behavior policy, not workflow control
 
-Always design with production in mind:
-- Scalability: Handle 10x current load
-- Reliability: 99.9% uptime target
-- Maintainability: Clear, documented code
-- Observability: Monitor everything
+If the prompt starts deciding retry loops, fan-out behavior, or routing between specialists, the workflow likely belongs in LangGraph or service code instead.
 
-### Performance by Design
+### Prefer shared prompt loaders and composition paths
 
-Optimize from the start:
-- Efficient algorithms
-- Resource awareness
-- Strategic caching
-- Batch processing
+This repo already has shared prompt-management infrastructure. Reuse it before adding direct SDK prompt loading or inline string assembly.
 
-### Security & Privacy
+### Prompt variables must reflect real repo entities
 
-Build security in:
-- Input validation
-- Data encryption
-- Access control
-- Audit logging
+Typical variables in this repo include:
 
-## Advanced Patterns
+- `nome_empresa`
+- `context_sections` or client context sections
+- `tools_description`
+- session-collected context
+- file and document metadata
+- worker or agent identity fields
 
-### Pattern 1: Distributed Processing
+## Common Repo Patterns
 
-Enterprise-scale data processing with fault tolerance.
+### Pattern 1: Langfuse-first with stable labels
 
-### Pattern 2: Real-Time Systems
+The sampled prompt-management stack expects production-labeled prompts as the live contract.
 
-Low-latency, high-throughput systems.
+Use when:
 
-### Pattern 3: ML at Scale
+- the prompt is runtime-configurable
+- operators or admin tools need to inspect or update prompt versions
+- the prompt belongs to a reusable agent or tool flow
 
-Production ML with monitoring and automation.
+### Pattern 2: Fragment composition for reusable agent families
+
+Standalone agents can compose prompts from multiple fragments instead of one monolithic instruction block. Use this when multiple agents share base tone, tool rules, output constraints, or onboarding behavior.
+
+### Pattern 3: Builtin fallback only where the loader already supports it
+
+Builtin templates are useful for resilience and local defaults, but they are not a license to duplicate the same prompt logic in two places indefinitely.
+
+Use builtin fallback when:
+
+- the shared loader already implements it
+- the service must remain usable if Langfuse is unavailable
+
+Avoid it when:
+
+- it creates two competing sources of truth for the same live prompt
+
+### Pattern 4: Prompt variables are assembled from context and metadata, not improvised ad hoc
+
+Examples from repo patterns:
+
+- client context from `ContextService`
+- collected onboarding/session context
+- uploaded file and document summaries
+- tier or enabled tool scopes
+- worker-specific tool descriptions
 
 ## Best Practices
 
-### Code Quality
-- Comprehensive testing
-- Clear documentation
-- Code reviews
-- Type hints
+### Keep prompt structure aligned with graph/tool structure
 
-### Performance
-- Profile before optimizing
-- Monitor continuously
-- Cache strategically
-- Batch operations
+If the graph fans out to specialist workers, the supervisor prompt should know only delegation surfaces, not every specialist implementation detail.
 
-### Reliability
-- Design for failure
-- Implement retries
-- Use circuit breakers
-- Monitor health
+### Keep prompts grounded in the actual schema and tools
 
-## Tools & Technologies
+For SQL, RAG, onboarding, or reporting prompts, use the repo's real table names, tool names, and context field names. Generic examples drift quickly.
 
-Essential tools for this domain:
-- Development frameworks
-- Testing libraries
-- Deployment platforms
-- Monitoring solutions
+### Change the smallest prompt surface that can explain the behavior
+
+If a problem is isolated to one worker, one fragment, or one prompt variable, do not rewrite the entire system prompt stack.
+
+### Preserve prompt names where downstream tooling depends on them
+
+Scripts, admin routes, or shared loaders may expect stable prompt names and labels.
+
+## Anti-Patterns To Avoid
+
+### Hiding missing context assembly behind prompt instructions
+
+If a prompt is compensating for missing `client_context`, missing file metadata, or absent tool descriptions, fix the assembly path first.
+
+### Encoding branching workflow in the prompt when the graph should own it
+
+Prompts should guide decisions, not emulate a state machine the graph can represent directly.
+
+### Copying prompt text between Langfuse and builtin templates without a migration plan
+
+That creates silent drift.
+
+## Unknowns To Verify
+
+- Some prompt families in the repo may still be partially documented only in Langfuse, not in code.
+- Not every fragment composition path was sampled here.
 
 ## Further Reading
 
-- Research papers
-- Industry blogs
-- Conference talks
-- Open source projects
+- `libs/vizu_prompt_management`
+- `/memories/repo/langfuse-prompts.md`
+- `/memories/repo/agent-configuration-context-flow.md`

@@ -2,79 +2,109 @@
 
 ## Overview
 
-World-class agentic system design for senior prompt engineer.
+This guide documents the agent system patterns that are actually visible in `vizu-mono`: LangGraph supervisors, worker delegation, session-scoped standalone agents, shared state reducers, and context/prompt assembly before execution.
 
 ## Core Principles
 
-### Production-First Design
+### Start from the owning runtime
 
-Always design with production in mind:
-- Scalability: Handle 10x current load
-- Reliability: 99.9% uptime target
-- Maintainability: Clear, documented code
-- Observability: Monitor everything
+There is no single agent architecture for the entire repo. The main sampled patterns are:
 
-### Performance by Design
+- `atendente_core`: supervisor + worker delegation + parallel fan-out
+- `vizu_agent_framework`: reusable agent builder/runtime primitives
+- `standalone_agent_api`: catalog-driven session agents with factory-based context injection
 
-Optimize from the start:
-- Efficient algorithms
-- Resource awareness
-- Strategic caching
-- Batch processing
+### Keep orchestration, context, and prompt responsibilities separate
 
-### Security & Privacy
+- graph design decides routing and execution order
+- services/factories assemble context and metadata
+- prompt management renders prompt text
+- tools perform side effects or retrieval
 
-Build security in:
-- Input validation
-- Data encryption
-- Access control
-- Audit logging
+### Session and tenant scope are first-class design constraints
 
-## Advanced Patterns
+Standalone agents in particular depend on strict separation between client-scoped context and session-scoped uploaded data, documents, and OAuth metadata.
 
-### Pattern 1: Distributed Processing
+## Core Repo Patterns
 
-Enterprise-scale data processing with fault tolerance.
+### Pattern 1: Supervisor with parallel tool fan-out
 
-### Pattern 2: Real-Time Systems
+In `atendente_core`, the supervisor can emit multiple tool calls that are dispatched via LangGraph `Send` objects and merged back through reducers.
 
-Low-latency, high-throughput systems.
+Use when:
 
-### Pattern 3: ML at Scale
+- the LLM selects multiple independent tools
+- worker delegation or MCP calls can happen concurrently
 
-Production ML with monitoring and automation.
+Key characteristics:
+
+- loop guards such as max tool turns
+- pending elicitation can short-circuit the normal loop
+- tool results accumulate into shared message history
+
+### Pattern 2: Worker delegation instead of giving every tool to one agent
+
+The supervisor sees delegation tools like `delegate_to_*`, while specialists own the detailed toolchains. This keeps top-level prompts smaller and clearer.
+
+### Pattern 3: Session-built standalone agents
+
+`standalone_agent_api` builds agents from:
+
+- catalog configuration
+- session-collected context
+- uploaded file/document metadata
+- tenant/client context
+- prompt fragments or Langfuse prompt names
+
+Use this when agent behavior must be customized per session without creating a new service.
+
+### Pattern 4: Reducer-based state accumulation
+
+Message history and tool results are merged through reducers instead of hand-written fan-in glue in every node.
+
+This is a key design constraint when editing graph behavior.
 
 ## Best Practices
 
-### Code Quality
-- Comprehensive testing
-- Clear documentation
-- Code reviews
-- Type hints
+### Keep graph nodes narrow
 
-### Performance
-- Profile before optimizing
-- Monitor continuously
-- Cache strategically
-- Batch operations
+Nodes should own one clear responsibility: supervisor decision, tool execution, elicitation wait, or response synthesis.
 
-### Reliability
-- Design for failure
-- Implement retries
-- Use circuit breakers
-- Monitor health
+### Build expensive resources once when the service already does
 
-## Tools & Technologies
+The repo already uses singleton-like graph/factory/checkpointer patterns in some services. Reuse them where appropriate instead of rebuilding per request.
 
-Essential tools for this domain:
-- Development frameworks
-- Testing libraries
-- Deployment platforms
-- Monitoring solutions
+### Attach context before execution, not during random tool calls
+
+The factory/service layer should inject session and tenant metadata before the graph starts, so tools and prompts receive a coherent view of the world.
+
+### Use prompt changes to refine policy, not to repair graph design
+
+If the agent cannot decide between tools cleanly, the fix may belong in tool availability, state shape, or delegation boundaries.
+
+## Anti-Patterns To Avoid
+
+### One giant agent with every tool and every rule
+
+This repo already demonstrates better separation through worker delegation and catalog-driven enabled tools.
+
+### Mixing tenant-scoped and session-scoped context casually
+
+Uploaded files/documents are session-specific; company profile and tier are client-scoped. Mixing them carelessly weakens isolation and reasoning clarity.
+
+### Replacing graph structure with prompt instructions alone
+
+Parallel fan-out, elicitation pauses, and tool loops are graph concerns.
+
+## Unknowns To Verify
+
+- Some agent families outside the sampled services may use different graph conventions.
+- The long-term unification path between `atendente_core` and `vizu_agent_framework` is not fully documented here.
 
 ## Further Reading
 
-- Research papers
-- Industry blogs
-- Conference talks
-- Open source projects
+- `/memories/repo/agent-execution-pipeline.md`
+- `/memories/repo/agent-configuration-context-flow.md`
+- `services/atendente_core/src/atendente_core/core/`
+- `services/standalone_agent_api/src/standalone_agent_api/core/`
+- `libs/vizu_agent_framework`

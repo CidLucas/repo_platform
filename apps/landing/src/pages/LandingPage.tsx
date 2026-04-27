@@ -457,10 +457,6 @@ const useExitIntent = (
     if (opts.suppressed) return;
     if (window.localStorage.getItem("blu.exit_intent.shown") === "1") return;
 
-    const reduceMotion = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
-
     const desktop = window.matchMedia("(min-width: 768px)").matches;
 
     let scrollFired = false;

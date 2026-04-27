@@ -8,6 +8,7 @@ import React, {
 import { User, Session, AuthError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { resolveClientId } from "../lib/auth";
+import { identifyTelemetryUser, resetTelemetry } from "../lib/telemetry";
 
 export interface AuthContextType {
   user: User | null;
@@ -108,6 +109,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setSession(session);
       setUser(session?.user ?? null);
 
+      if (session?.user?.id) {
+        identifyTelemetryUser(session.user.id, {
+          email: session.user.email,
+        });
+      }
+
       // Never block app routing on client_id fetch
       setIsLoading(false);
 
@@ -154,6 +161,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         setTier(null);
         localStorage.removeItem('vizu_client_id');
         localStorage.removeItem('vizu_client_tier');
+        resetTelemetry();
       }
     });
 

@@ -16,14 +16,17 @@ const BASE: OnboardingState = {
   vertical: "ecommerce",
   porte: "pequena",
   website: "acme.com",
+  primaryFocus: "vendas",
   dataPath: "systems",
   systems: ["shopify", "bigquery"],
   csvUploaded: false,
   googleDriveConnected: false,
   agents: ["analytics", "crm"],
   approvalTasks: ["make_payment", "supplier_order"],
+  alwaysRequireApproval: true,
   routines: ["daily_sales_digest"],
   notifyChannel: "email",
+  kpiSelections: {},
 };
 
 // Every vertical enum value must map to a non-empty industry label. Keeps

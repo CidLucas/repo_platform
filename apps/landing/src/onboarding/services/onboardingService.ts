@@ -22,6 +22,7 @@ const TABLE = "clientes_vizu";
 const MERGE_RPC = "merge_onboarding_state";
 const BOOTSTRAP_FN = "onboarding-bootstrap";
 const DRIVE_TOKEN_FN = "onboarding-capture-drive-token";
+const WEBSITE_INTEL_FN = "onboarding-website-intel";
 
 // ---------------------------------------------------------------------------
 // Read
@@ -162,6 +163,85 @@ export async function runBootstrap(
     throw error ?? new Error("bootstrap returned empty response");
   }
   return data;
+}
+
+export interface KpiCatalogItem {
+  slug: string;
+  dimension: string;
+  label: string;
+  unit: string;
+  data_status: string;
+  sort_order: number;
+  is_default?: boolean;
+  default_dimension_rank?: number | null;
+  is_enabled?: boolean;
+}
+
+export async function listKpiCatalog(
+  dimension: string,
+  onlyEnabled = false,
+): Promise<KpiCatalogItem[]> {
+  const { data, error } = await supabase.rpc("list_kpi_catalog", {
+    p_dimension: dimension,
+    p_only_enabled: onlyEnabled,
+  });
+  if (error) {
+    console.error("[onboarding] listKpiCatalog failed", error);
+    throw error;
+  }
+  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    slug: String(r.slug),
+    dimension: String(r.dimension),
+    label: String(r.label),
+    unit: String(r.unit),
+    data_status: String(r.data_status),
+    sort_order: Number(r.sort_order ?? 0),
+    is_default: Boolean(r.is_default),
+    default_dimension_rank:
+      r.default_dimension_rank == null ? null : Number(r.default_dimension_rank),
+    is_enabled: r.is_enabled == null ? undefined : Boolean(r.is_enabled),
+  }));
+}
+
+export async function setClientDimensionKpis(
+  dimension: string,
+  slugs: string[],
+): Promise<void> {
+  const { error } = await supabase.rpc("set_client_dimension_kpis", {
+    p_dimension: dimension,
+    p_slugs: slugs,
+  });
+  if (error) {
+    console.error("[onboarding] setClientDimensionKpis failed", error);
+    throw error;
+  }
+}
+
+export interface WebsiteIntelResult {
+  company_name?: string | null;
+  vertical?: string | null;
+  suggested_size?: string | null;
+  suggested_agents?: string[];
+  suggested_routines?: string[];
+  suggested_kpis?: Record<string, string[]>;
+  confidence?: number;
+}
+
+export async function fetchWebsiteIntel(
+  websiteUrl: string,
+): Promise<WebsiteIntelResult | null> {
+  if (!websiteUrl.trim()) return null;
+  const { data, error } = await supabase.functions.invoke<WebsiteIntelResult>(
+    WEBSITE_INTEL_FN,
+    {
+      body: { website_url: websiteUrl.trim() },
+    },
+  );
+  if (error) {
+    console.warn("[onboarding] fetchWebsiteIntel failed", error.message);
+    return null;
+  }
+  return data ?? null;
 }
 
 /**

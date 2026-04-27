@@ -37,7 +37,7 @@ const Auth: React.FC = () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/onboarding/welcome`,
+        redirectTo: `${window.location.origin}/onboarding/website`,
       },
     });
     if (error) {
@@ -50,7 +50,7 @@ const Auth: React.FC = () => {
         isClosable: true,
       });
     }
-    // On success the browser is redirected to Google and back to /onboarding/welcome.
+    // On success the browser is redirected to Google and back to /onboarding/website.
   };
 
   const handleEmail = async (e: React.FormEvent) => {
@@ -69,7 +69,7 @@ const Auth: React.FC = () => {
           password,
           options: {
             data: { full_name: cleanNome },
-            emailRedirectTo: `${window.location.origin}/onboarding/welcome`,
+            emailRedirectTo: `${window.location.origin}/onboarding/website`,
           },
         });
         if (error) throw error;
@@ -92,7 +92,7 @@ const Auth: React.FC = () => {
         });
         if (error) throw error;
       }
-      navigate("/onboarding/welcome");
+      navigate("/onboarding/website");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Tente novamente.";
       toast({

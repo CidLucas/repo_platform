@@ -37,7 +37,7 @@ All paths are relative to [`apps/vizu_dashboard/src`](../apps/vizu_dashboard/src
 | 2.1 | "Métricas" select                                      | ✅ controlled (`selectedMetric`) and feeds the chart                                                                                | `analyticsService.getPedidosTimeSeries(period, metric)` over `analytics_v2.v_series_temporal` |
 | 2.2 | Period select                                          | ✅ now drives `getOrderIndicators(period)`, `getOrderStatusBreakdown(period)`, `getPedidosTimeSeries(period, metric)`               | `analytics_v2.get_order_indicators`                                                           |
 | 2.3 | "Histórico de Pedidos" small card                      | ✅ removed (covered by Últimos Pedidos list)                                                                                        | n/a                                                                                           |
-| 2.4 | "Distribuição Geográfica" map                          | ✅ uses `useGeoClusters('state')` + shared [`mapGeoClustersToMapData`](../apps/vizu_dashboard/src/utils/mapGeoClustersToMapData.ts) | analytics geo clusters RPC                                                                    |
+| 2.4 | "Distribuição Geográfica" map                          | ✅ Removed from dashboard                                                                                                            | n/a                                                                                            |
 | 2.5 | "Pedidos Concluídos" / "Pendentes"                     | ✅ real status breakdown via `summarizeOrderStatusBreakdown`                                                                        | `analytics_v2.get_order_status_breakdown(period)` reading `fato_transacoes.status`            |
 | 2.6 | Overview scorecards (qtd média, recorrência, recência) | ✅ surfaced as `kpiItems` in the Métricas card                                                                                      | `analytics_v2.get_pedidos_overview_scorecards()`                                              |
 | 2.7 | Pedido detail modal `status_pedido`                    | ✅ computed as most-common non-null status across the order's rows                                                                  | `fato_transacoes.status`                                                                      |
@@ -49,13 +49,15 @@ All paths are relative to [`apps/vizu_dashboard/src`](../apps/vizu_dashboard/src
 
 ---
 
-## 3. Overview pages (Clientes / Fornecedores / Produtos)
+## 3. Legacy Dimension Flow (Removed)
 
-Rendered by [`GenericOverviewPage.tsx`](../apps/vizu_dashboard/src/pages/GenericOverviewPage.tsx). All cards are driven by live data (see live-metrics doc §3). The only non-live touches:
+The old dimension pages (Clientes / Fornecedores / Produtos and list variants) were removed. Legacy URLs now redirect to `/dashboard`.
+
+The active analytics experience is centered on Mission Control (`/dashboard`) and expandable domain cards. The only non-live touches remain:
 
 ### 3.1 Geo map center fallback
 
-- When `useGeoClusters` returns no center, the map defaults to `center: [-14.235, -51.9253]` (geographic centre of Brazil) with `zoom: 4.5` (now centralised in [`mapGeoClustersToMapData`](../apps/vizu_dashboard/src/utils/mapGeoClustersToMapData.ts)). Acceptable fallback but worth noting.
+
 
 ### 3.2 `STATE_COORDINATES` lookup
 

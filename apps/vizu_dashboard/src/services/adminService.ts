@@ -4,6 +4,7 @@
  */
 
 import { getAuthToken, buildAuthHeaders } from "../lib/auth";
+import { supabase } from "../lib/supabase";
 
 const TOOL_POOL_API_URL = import.meta.env.VITE_TOOL_POOL_API_URL || 'http://localhost:8000';
 
@@ -281,4 +282,73 @@ export async function isCurrentUserAdmin(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export interface ActivationFunnelTenant {
+  client_id: string;
+  nome_empresa: string;
+  signup_at: string | null;
+  website_provided: boolean;
+  package_accepted: boolean;
+  first_connector_synced: boolean;
+  first_approval_acted: boolean;
+  pending_approvals: number;
+  days_since_signup: number;
+}
+
+export interface ActivationFunnelSummary {
+  total_tenants: number;
+  website_provided: number;
+  package_accepted: number;
+  first_connector_synced: number;
+  first_approval_acted_d7: number;
+  conversion_website: number;
+  conversion_package: number;
+  conversion_connector: number;
+  conversion_first_approval_d7: number;
+}
+
+export interface ActivationFunnelResponse {
+  generated_at: string;
+  summary: ActivationFunnelSummary;
+  tenants: ActivationFunnelTenant[];
+}
+
+/**
+ * Internal-only (admin) activation funnel data used in Phase D.
+ */
+export async function getActivationFunnel(limit: number = 100): Promise<ActivationFunnelResponse> {
+  const response = await fetch(
+    `${TOOL_POOL_API_URL}/admin/clients/activation-funnel?limit=${limit}`,
+    {
+      method: 'GET',
+      headers: await buildAuthHeaders(),
+    }
+  );
+  return handleResponse<ActivationFunnelResponse>(response);
+}
+
+// ============================================================================
+// D1 ENGAGEMENT METRICS
+// ============================================================================
+
+export interface D1EngagementRow {
+  event_name: string;
+  unique_tenants: number;
+  total_events: number;
+  events_last_7d: number;
+  events_last_24h: number;
+}
+
+/**
+ * Read D1 engagement indicator totals from the `d1_engagement_summary` view.
+ * Requires service-role or admin Supabase session.
+ */
+export async function getD1EngagementMetrics(): Promise<D1EngagementRow[]> {
+  const { data, error } = await supabase
+    .from('d1_engagement_summary')
+    .select('*');
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as D1EngagementRow[];
 }

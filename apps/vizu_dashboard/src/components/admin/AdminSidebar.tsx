@@ -72,32 +72,32 @@ export const AdminSidebar = () => {
       </Box>
       <VStack spacing={1} align="stretch" px={3} pb={4}>
         <SidebarItem
-          to="/dashboard/admin"
+          to="/dashboard/configurar"
           icon={FiHome}
           label="Início"
         />
         <SidebarItem
-          to="/dashboard/admin/fontes"
+          to="/dashboard/configurar/fontes"
           icon={FiGrid}
           label="Integrações"
         />
         <SidebarItem
-          to="/dashboard/admin/knowledge-base"
+          to="/dashboard/configurar/knowledge-base"
           icon={FiBook}
           label="Base de Conhecimento"
         />
         <SidebarItem
-          to="/dashboard/admin/privacidade"
+          to="/dashboard/configurar/privacidade"
           icon={FiShield}
           label="Dados e privacidade"
         />
         <SidebarItem
-          to="/dashboard/admin/agents"
+          to="/dashboard/configurar/agents"
           icon={FiCpu}
           label="AI Agents"
         />
         <SidebarItem
-          to="/dashboard/admin/planos"
+          to="/dashboard/configurar/planos"
           icon={FiCreditCard}
           label="Planos contratado"
         />
@@ -105,7 +105,7 @@ export const AdminSidebar = () => {
         <Divider my={2} borderColor="whiteAlpha.100" />
 
         <SidebarItem
-          to="/dashboard/admin/ajuda"
+          to="/dashboard/configurar/ajuda"
           icon={FiHelpCircle}
           label="Ajuda"
         />

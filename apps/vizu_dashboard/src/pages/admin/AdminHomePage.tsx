@@ -11,7 +11,7 @@ import {
   Button
 } from '@chakra-ui/react';
 import { AdminLayout } from '../../components/layouts/AdminLayout';
-import { FiDatabase, FiUsers, FiAlertCircle, FiSettings, FiShield, FiCpu, FiArrowRight } from 'react-icons/fi';
+import { FiDatabase, FiUsers, FiAlertCircle, FiSettings, FiShield, FiCpu, FiArrowRight, FiTrendingUp } from 'react-icons/fi';
 import { useContext } from 'react';
 import { AuthContext } from '../../contexts/AuthContext';
 import { useDashboardStats } from '../../hooks/useDashboardStats';
@@ -217,7 +217,7 @@ function AdminHomePage() {
                 }
               ]}
               linkText="Ver detalhes do plano"
-              linkHref="/dashboard/admin/planos"
+              linkHref="/dashboard/configurar/planos"
             />
 
             <InfoCard
@@ -226,7 +226,7 @@ function AdminHomePage() {
               accentColor="#10b981"
               items={[]}
               linkText="Gerenciar privacidade"
-              linkHref="/dashboard/admin/privacidade"
+              linkHref="/dashboard/configurar/privacidade"
             />
 
             <InfoCard
@@ -242,7 +242,23 @@ function AdminHomePage() {
                 }
               ]}
               linkText="Configurar agente"
-              linkHref="/dashboard/admin/onboarding"
+              linkHref="/dashboard/configurar/onboarding"
+            />
+
+            <InfoCard
+              title="Ativação (interno)"
+              description="Monitore o funil de ativação por tenant para identificar gargalos de D1 e D7."
+              accentColor="#f59e0b"
+              items={[
+                {
+                  icon: FiTrendingUp,
+                  title: 'Funil signup -> aprovação D7',
+                  subtitle: 'Website, pacote, conector e primeira aprovação',
+                  color: '#f59e0b'
+                }
+              ]}
+              linkText="Abrir funil de ativação"
+              linkHref="/dashboard/super-admin/activation-funnel"
             />
           </SimpleGrid>
         ) : null}

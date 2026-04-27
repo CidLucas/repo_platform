@@ -72,7 +72,7 @@ export interface ProductMetricsResponse {
   };
 }
 
-// Order metrics payload shape (used by PedidosPage)
+// Order metrics payload shape for order analytics surfaces.
 export interface OrderMetricsResponse {
   total: number;
   revenue: number;
@@ -94,7 +94,7 @@ export interface OrderMetricsResponse {
 
 // Period filter shared across pedidos RPCs.
 // Legacy values (week|month|quarter|year) are kept for backwards compatibility
-// with existing pages (PedidosPage, useDashboardIndicators). New dimension
+// with existing hooks and analytics surfaces. New dimension
 // pages should prefer the standardized vocabulary from `StandardPeriod`.
 export type PeriodType = 'week' | 'month' | 'quarter' | 'year';
 
@@ -1146,7 +1146,7 @@ export const getDashboardIndicators = async (
   };
 };
 
-// Order Indicators (used by PedidosPage)
+// Order Indicators used by order analytics hooks.
 // Backed by analytics_v2.get_order_indicators(p_period) — period filters
 // fato_transacoes by dim_datas.data window. Status breakdown is fetched
 // separately via getOrderStatusBreakdown to keep payloads small.
@@ -1205,7 +1205,7 @@ export const getOrderStatusBreakdown = async (
 };
 
 // Maps real `fato_transacoes.status` values to the UI's coarse buckets used
-// by PedidosPage scorecards. Defined here so the page stays presentational.
+// by order scorecards. Defined here so presentation layers stay thin.
 // Source values observed in production: `valid`, `review`, `invalid`.
 // Anything we have not classified is bucketed as `other` so the header still
 // reflects 100% of the period's pedidos.
@@ -2012,6 +2012,60 @@ export interface DomainAnalytics {
   kpis: Record<string, number>;
 }
 
+interface DomainSeriesRow {
+  periodo: string;
+  total: number | string | null;
+}
+
+const toMonthlySeries = (series: DomainSeriesRow[] | null | undefined): Array<{ name: string; value: number }> => {
+  const byMonth = new Map<string, number>();
+
+  for (const row of series || []) {
+    const month = row?.periodo;
+    if (!month) continue;
+    byMonth.set(month, (byMonth.get(month) || 0) + (Number(row.total) || 0));
+  }
+
+  return Array.from(byMonth.entries()).map(([name, value]) => ({ name, value }));
+};
+
+const fetchMonthlyDomainSeries = async (
+  tipoGrafico: string,
+  dimensaoPreferencial: string
+): Promise<Array<{ name: string; value: number }>> => {
+  const { data: primary } = await supabase
+    .schema(ANALYTICS_SCHEMA)
+    .from('v_series_temporal')
+    .select('periodo,total,dimensao,data_periodo')
+    .eq('tipo_grafico', tipoGrafico)
+    .eq('dimensao', dimensaoPreferencial)
+    .order('data_periodo', { ascending: true });
+
+  if (primary && primary.length > 0) {
+    return toMonthlySeries(primary as DomainSeriesRow[]);
+  }
+
+  const fallbackDimensions = ['contagem', 'quantidade', 'receita'].filter(
+    d => d !== dimensaoPreferencial
+  );
+
+  for (const fallbackDim of fallbackDimensions) {
+    const { data: fallback } = await supabase
+      .schema(ANALYTICS_SCHEMA)
+      .from('v_series_temporal')
+      .select('periodo,total,dimensao,data_periodo')
+      .eq('tipo_grafico', tipoGrafico)
+      .eq('dimensao', fallbackDim)
+      .order('data_periodo', { ascending: true });
+
+    if (fallback && fallback.length > 0) {
+      return toMonthlySeries(fallback as DomainSeriesRow[]);
+    }
+  }
+
+  return [];
+};
+
 /**
  * Fetches analytics for a specific business domain (orders, customers, suppliers, products).
  * Uses existing v_series_temporal + dimension tables to build monthly trends and KPIs.
@@ -2031,19 +2085,12 @@ export const getDomainAnalytics = async (
 
   switch (domain) {
     case 'orders': {
-      const { data: series } = await supabase
-        .schema(ANALYTICS_SCHEMA)
-        .from('v_series_temporal')
-        .select('*')
-        .eq('tipo_grafico', 'receita')
-        .eq('dimensao', 'receita')
-        .order('data_periodo', { ascending: true });
-
-      const monthlyData = (series || []).map(s => ({
-        name: s.periodo,
-        month: s.periodo,
-        value: Number(s.total) || 0,
-        revenue: Number(s.total) || 0,
+      const series = await fetchMonthlyDomainSeries('receita', 'receita');
+      const monthlyData = series.map(s => ({
+        name: s.name,
+        month: s.name,
+        value: s.value,
+        revenue: s.value,
       }));
 
       return {
@@ -2059,18 +2106,12 @@ export const getDomainAnalytics = async (
     }
 
     case 'customers': {
-      const { data: series } = await supabase
-        .schema(ANALYTICS_SCHEMA)
-        .from('v_series_temporal')
-        .select('*')
-        .eq('tipo_grafico', 'clientes')
-        .eq('dimensao', 'contagem')
-        .order('data_periodo', { ascending: true });
-
-      const monthlyData = (series || []).map(s => ({
-        name: s.periodo,
-        month: s.periodo,
-        new: Number(s.total) || 0,
+      const series = await fetchMonthlyDomainSeries('clientes', 'contagem');
+      const monthlyData = series.map(s => ({
+        name: s.name,
+        month: s.name,
+        value: s.value,
+        new: s.value,
         returning: 0,
       }));
 
@@ -2087,18 +2128,12 @@ export const getDomainAnalytics = async (
     }
 
     case 'suppliers': {
-      const { data: series } = await supabase
-        .schema(ANALYTICS_SCHEMA)
-        .from('v_series_temporal')
-        .select('*')
-        .eq('tipo_grafico', 'fornecedores')
-        .eq('dimensao', 'contagem')
-        .order('data_periodo', { ascending: true });
-
-      const monthlyData = (series || []).map(s => ({
-        name: s.periodo,
-        month: s.periodo,
-        active: Number(s.total) || 0,
+      const series = await fetchMonthlyDomainSeries('fornecedores', 'contagem');
+      const monthlyData = series.map(s => ({
+        name: s.name,
+        month: s.name,
+        value: s.value,
+        active: s.value,
         orders: 0,
       }));
 
@@ -2115,18 +2150,12 @@ export const getDomainAnalytics = async (
     }
 
     case 'products': {
-      const { data: series } = await supabase
-        .schema(ANALYTICS_SCHEMA)
-        .from('v_series_temporal')
-        .select('*')
-        .eq('tipo_grafico', 'produtos')
-        .eq('dimensao', 'quantidade')
-        .order('data_periodo', { ascending: true });
-
-      const monthlyData = (series || []).map(s => ({
-        name: s.periodo,
-        month: s.periodo,
-        sold: Number(s.total) || 0,
+      const series = await fetchMonthlyDomainSeries('produtos', 'contagem');
+      const monthlyData = series.map(s => ({
+        name: s.name,
+        month: s.name,
+        value: s.value,
+        sold: s.value,
         revenue: 0,
       }));
 
@@ -2514,6 +2543,18 @@ export interface KpiCatalogEntry {
   is_enabled: boolean;
 }
 
+export interface DashboardKpiSlot {
+  dimension: DimensionKey;
+  slot_index: number;
+  slug: string;
+  label: string;
+  unit: KpiUnit;
+  formula: string;
+  data_status: KpiDataStatus;
+  tier_required: KpiTier;
+  is_enabled: boolean;
+}
+
 export const listKpiCatalog = async (
   dimension: DimensionKey | null = null,
   onlyEnabled = true,
@@ -2537,6 +2578,38 @@ export const listKpiCatalog = async (
     references_url: r?.references_url == null ? null : String(r.references_url),
     sort_order:     num(r?.sort_order),
     is_enabled:     Boolean(r?.is_enabled),
+  }));
+};
+
+export const setClientDimensionKpis = async (
+  dimension: DimensionKey,
+  slugs: string[],
+): Promise<Array<{ dimension: DimensionKey; slot_index: number; kpi_slug: string }>> => {
+  const { data, error } = await supabase.rpc('set_client_dimension_kpis', {
+    p_dimension: dimension,
+    p_slugs: slugs,
+  });
+  if (error) throw new Error(`set_client_dimension_kpis: ${error.message}`);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    dimension: String(r?.dimension) as DimensionKey,
+    slot_index: num(r?.slot_index),
+    kpi_slug: String(r?.kpi_slug),
+  }));
+};
+
+export const getMyDashboardKpis = async (): Promise<DashboardKpiSlot[]> => {
+  const { data, error } = await supabase.rpc('get_my_dashboard_kpis');
+  if (error) throw new Error(`get_my_dashboard_kpis: ${error.message}`);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    dimension: String(r?.dimension) as DimensionKey,
+    slot_index: num(r?.slot_index),
+    slug: String(r?.slug),
+    label: String(r?.label),
+    unit: (String(r?.unit) as KpiUnit) ?? 'number',
+    formula: String(r?.formula),
+    data_status: (String(r?.data_status) as KpiDataStatus) ?? 'live',
+    tier_required: (String(r?.tier_required) as KpiTier) ?? 'BASIC',
+    is_enabled: Boolean(r?.is_enabled),
   }));
 };
 
@@ -2971,4 +3044,68 @@ export const downloadReportRun = async (run: ReportRun): Promise<void> => {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+};
+
+export interface ActivationStatusSnapshot {
+  client_id: string;
+  has_synced_connector: boolean;
+  pending_approvals: number;
+}
+
+/**
+ * Small activation snapshot for celebratory/coach-mark UX.
+ */
+export const getActivationStatusSnapshot = async (): Promise<ActivationStatusSnapshot> => {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    throw new Error('Usuário não autenticado');
+  }
+
+  let clientId = user.app_metadata?.client_id as string | undefined;
+  if (!clientId) {
+    const { data: tenant, error: tenantError } = await supabase
+      .from('clientes_vizu')
+      .select('client_id')
+      .eq('external_user_id', user.id)
+      .maybeSingle();
+    if (tenantError) {
+      throw new Error(`Falha ao resolver tenant: ${tenantError.message}`);
+    }
+    clientId = (tenant?.client_id as string | undefined) ?? undefined;
+  }
+
+  if (!clientId) {
+    throw new Error('Tenant não encontrado para usuário atual');
+  }
+
+  const [connectorRes, approvalsRes] = await Promise.all([
+    supabase
+      .from('client_data_sources')
+      .select('id')
+      .eq('client_id', clientId)
+      .not('last_synced_at', 'is', null)
+      .limit(1),
+    supabase
+      .from('approval_requests')
+      .select('id')
+      .eq('client_id', clientId)
+      .eq('status', 'pending'),
+  ]);
+
+  if (connectorRes.error) {
+    throw new Error(`Falha ao carregar conectores: ${connectorRes.error.message}`);
+  }
+  if (approvalsRes.error) {
+    throw new Error(`Falha ao carregar aprovações: ${approvalsRes.error.message}`);
+  }
+
+  return {
+    client_id: clientId,
+    has_synced_connector: Boolean((connectorRes.data ?? []).length > 0),
+    pending_approvals: (approvalsRes.data ?? []).length,
+  };
 };

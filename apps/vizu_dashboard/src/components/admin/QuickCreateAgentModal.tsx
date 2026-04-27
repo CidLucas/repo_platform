@@ -153,7 +153,7 @@ export const QuickCreateAgentModal = ({
 
     const handleAdvanced = () => {
         handleClose();
-        navigate('/dashboard/admin/agent-builder/new');
+        navigate('/dashboard/configurar/agent-builder/new');
     };
 
     return (

@@ -98,7 +98,7 @@ const AdminAgentBuilderPage = () => {
                             bg="black"
                             color="white"
                             _hover={{ bg: 'gray.800' }}
-                            onClick={() => navigate('/dashboard/admin/agent-builder/new')}
+                            onClick={() => navigate('/dashboard/configurar/agent-builder/new')}
                         >
                             Create New Agent
                         </Button>
@@ -127,7 +127,7 @@ const AdminAgentBuilderPage = () => {
                             <Button
                                 variant="outline"
                                 leftIcon={<FiPlus />}
-                                onClick={() => navigate('/dashboard/admin/agent-builder/new')}
+                                onClick={() => navigate('/dashboard/configurar/agent-builder/new')}
                             >
                                 Create your first agent
                             </Button>
@@ -186,7 +186,7 @@ const AdminAgentBuilderPage = () => {
                                             <MenuList>
                                                 <MenuItem
                                                     icon={<FiEdit />}
-                                                    onClick={() => navigate(`/dashboard/admin/agent-builder/${agent.id}`)}
+                                                    onClick={() => navigate(`/dashboard/configurar/agent-builder/${agent.id}`)}
                                                 >
                                                     Edit
                                                 </MenuItem>

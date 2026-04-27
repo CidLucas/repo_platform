@@ -85,7 +85,7 @@ export function MappingReviewBanner({ mx = 6, mt = 4, mb = 0 }: MappingReviewBan
                     color="white"
                     _hover={{ bgGradient: 'linear(to-r, #4f8df8, #7c7df0)' }}
                     onClick={() =>
-                        navigate(`/dashboard/admin/connectors/${first.credentialId}/mapping`)
+                        navigate(`/dashboard/configurar/connectors/${first.credentialId}/mapping`)
                     }
                 >
                     Revisar mapeamento

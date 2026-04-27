@@ -405,7 +405,7 @@ const ConnectorModal = ({ isOpen, onClose, connector, returnTo }: ConnectorModal
         });
         onClose();
         if (!goBackToReturnTo({ connector_synced: connector.id })) {
-          navigate(`/dashboard/admin/connectors/${response.id}/mapping`);
+          navigate(`/dashboard/configurar/connectors/${response.id}/mapping`);
         }
         return;
       }
@@ -425,7 +425,7 @@ const ConnectorModal = ({ isOpen, onClose, connector, returnTo }: ConnectorModal
         });
         return;
       }
-      navigate(`/dashboard/admin/connectors/${response.id}/mapping`);
+      navigate(`/dashboard/configurar/connectors/${response.id}/mapping`);
     } catch (error) {
       toast.close('connector-analysis-toast');
       toast({

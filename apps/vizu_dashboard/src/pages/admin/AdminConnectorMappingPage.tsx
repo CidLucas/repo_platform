@@ -689,7 +689,7 @@ function AdminConnectorMappingPage() {
                                 borderColor="rgba(255,255,255,0.15)"
                                 color="whiteAlpha.800"
                                 _hover={{ borderColor: '#3b82f6', color: '#3b82f6' }}
-                                onClick={() => navigate('/dashboard/admin/fontes')}
+                                onClick={() => navigate('/dashboard/configurar/fontes')}
                             >
                                 Voltar para Fontes
                             </Button>
@@ -730,7 +730,7 @@ function AdminConnectorMappingPage() {
                                 borderColor="rgba(255,255,255,0.15)"
                                 color="whiteAlpha.800"
                                 _hover={{ borderColor: '#3b82f6', color: '#3b82f6' }}
-                                onClick={() => navigate('/dashboard/admin/fontes')}
+                                onClick={() => navigate('/dashboard/configurar/fontes')}
                             >
                                 Voltar para Fontes
                             </Button>
@@ -1166,7 +1166,7 @@ function AdminConnectorMappingPage() {
                                         borderColor="rgba(255,255,255,0.15)"
                                         color="whiteAlpha.800"
                                         _hover={{ borderColor: '#ff6b35', color: '#ff6b35', bg: 'rgba(255,107,53,0.08)' }}
-                                        onClick={() => navigate('/dashboard/admin/fontes')}
+                                        onClick={() => navigate('/dashboard/configurar/fontes')}
                                     >
                                         Ir para Fontes de Dados
                                     </Button>

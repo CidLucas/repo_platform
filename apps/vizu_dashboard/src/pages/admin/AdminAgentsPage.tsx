@@ -201,7 +201,7 @@ const AdminAgentsPage = () => {
                                     px={5}
                                     borderRadius="lg"
                                     _hover={{ filter: 'brightness(1.1)' }}
-                                    onClick={() => navigate('/dashboard/admin/agents/new')}
+                                    onClick={() => navigate('/dashboard/configurar/agents/new')}
                                 >
                                     Novo agente
                                 </Button>
@@ -240,7 +240,7 @@ const AdminAgentsPage = () => {
                                     borderColor="whiteAlpha.200"
                                     color="white"
                                     _hover={{ borderColor: 'whiteAlpha.400', bg: 'whiteAlpha.50' }}
-                                    onClick={() => navigate('/dashboard/admin/agents/new')}
+                                    onClick={() => navigate('/dashboard/configurar/agents/new')}
                                 >
                                     Criar o primeiro agente
                                 </Button>
@@ -412,7 +412,7 @@ const AdminAgentsPage = () => {
                                             color="whiteAlpha.800"
                                             leftIcon={<Icon as={FiSettings} boxSize={3.5} />}
                                             _hover={{ borderColor: 'whiteAlpha.400', bg: 'whiteAlpha.50' }}
-                                            onClick={() => navigate('/dashboard/admin/chat')}
+                                            onClick={() => navigate('/dashboard/configurar/chat')}
                                         >
                                             Configurar
                                         </Button>
@@ -426,7 +426,7 @@ const AdminAgentsPage = () => {
                                                 color="whiteAlpha.800"
                                                 leftIcon={<Icon as={FiEdit2} boxSize={3.5} />}
                                                 _hover={{ borderColor: 'whiteAlpha.400', bg: 'whiteAlpha.50' }}
-                                                onClick={() => navigate(`/dashboard/admin/agents/${agent.id}`)}
+                                                onClick={() => navigate(`/dashboard/configurar/agents/${agent.id}`)}
                                             >
                                                 Editar
                                             </Button>

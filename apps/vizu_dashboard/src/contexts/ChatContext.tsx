@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 
 interface ChatContextType {
   isChatOpen: boolean;
@@ -8,7 +8,7 @@ interface ChatContextType {
    * `consumeInitialMessage()` once they've read it so it is not re-applied.
    */
   initialMessage: string | null;
-  openChat: (initialMessage?: string) => void;
+  openChat: (initialMessage?: string, returnFocusElement?: HTMLElement | null) => void;
   closeChat: () => void;
   toggleChat: () => void;
   consumeInitialMessage: () => void;
@@ -19,16 +19,66 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [initialMessage, setInitialMessage] = useState<string | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
 
-  const openChat = useCallback((message?: string) => {
+  const restoreFocus = useCallback(() => {
+    const target = returnFocusRef.current;
+    returnFocusRef.current = null;
+    if (!target) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      if (target.isConnected) {
+        target.focus();
+      }
+    });
+  }, []);
+
+  const openChat = useCallback((message?: string, returnFocusElement?: HTMLElement | null) => {
     if (message && message.trim()) {
       setInitialMessage(message);
     }
+    if (returnFocusElement) {
+      returnFocusRef.current = returnFocusElement;
+    }
     setIsChatOpen(true);
   }, []);
-  const closeChat = useCallback(() => setIsChatOpen(false), []);
-  const toggleChat = useCallback(() => setIsChatOpen((prev) => !prev), []);
+  const closeChat = useCallback(() => {
+    setIsChatOpen(false);
+    restoreFocus();
+  }, [restoreFocus]);
+  const toggleChat = useCallback(() => {
+    setIsChatOpen((prev) => {
+      if (prev) {
+        restoreFocus();
+      }
+      return !prev;
+    });
+  }, [restoreFocus]);
   const consumeInitialMessage = useCallback(() => setInitialMessage(null), []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const isShortcut = (event.metaKey || event.ctrlKey) && event.code === 'Backslash';
+      if (!isShortcut) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName?.toLowerCase();
+      const isTypingContext = tagName === 'input' || tagName === 'textarea' || Boolean(target?.isContentEditable);
+      if (isTypingContext) {
+        return;
+      }
+
+      event.preventDefault();
+      setIsChatOpen((prev) => !prev);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   return (
     <ChatContext.Provider

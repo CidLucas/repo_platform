@@ -191,14 +191,17 @@ describe("runBootstrap", () => {
       vertical: null,
       porte: "",
       website: "",
+      primaryFocus: null,
       dataPath: null,
       systems: [],
       csvUploaded: false,
       googleDriveConnected: false,
       agents: [],
       approvalTasks: [],
+      alwaysRequireApproval: true,
       routines: [],
       notifyChannel: "email",
+      kpiSelections: {},
     } as Parameters<typeof runBootstrap>[0];
 
     const out = await runBootstrap(payload);

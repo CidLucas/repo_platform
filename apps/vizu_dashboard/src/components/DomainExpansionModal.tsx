@@ -20,8 +20,6 @@ import {
   StatArrow,
 } from '@chakra-ui/react';
 import {
-  AreaChart,
-  Area,
   BarChart,
   Bar,
   XAxis,
@@ -45,7 +43,7 @@ const DOMAIN_CONFIG: Record<
   {
     title: string;
     color: string;
-    chartType: 'area' | 'bar';
+    chartType: 'bar';
     dataKeys: string[];
     kpiLabels: Record<string, string>;
   }
@@ -53,7 +51,7 @@ const DOMAIN_CONFIG: Record<
   orders: {
     title: 'Pedidos',
     color: '#8884d8',
-    chartType: 'area',
+    chartType: 'bar',
     dataKeys: ['revenue'],
     kpiLabels: {
       total_orders: 'Total de Pedidos',
@@ -79,7 +77,7 @@ const DOMAIN_CONFIG: Record<
   suppliers: {
     title: 'Fornecedores',
     color: '#92DAFF',
-    chartType: 'area',
+    chartType: 'bar',
     dataKeys: ['active'],
     kpiLabels: {
       total_suppliers: 'Total Fornecedores',
@@ -181,11 +179,9 @@ export function DomainExpansionModal({
       );
     }
 
-    const ChartComponent = config.chartType === 'area' ? AreaChart : BarChart;
-
     return (
       <ResponsiveContainer width="100%" height={240}>
-        <ChartComponent data={currentChartData}>
+        <BarChart data={currentChartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#333" />
           <XAxis dataKey="name" stroke="#999" fontSize={12} />
           <YAxis stroke="#999" fontSize={12} />
@@ -197,26 +193,15 @@ export function DomainExpansionModal({
               color: '#fff',
             }}
           />
-          {config.dataKeys.map(key =>
-            config.chartType === 'area' ? (
-              <Area
-                key={key}
-                type="monotone"
-                dataKey={key}
-                stroke={config.color}
-                fill={config.color}
-                fillOpacity={0.3}
-              />
-            ) : (
-              <Bar
-                key={key}
-                dataKey={key}
-                fill={config.color}
-                radius={[4, 4, 0, 0]}
-              />
-            )
-          )}
-        </ChartComponent>
+          {config.dataKeys.map(key => (
+            <Bar
+              key={key}
+              dataKey={key}
+              fill={config.color}
+              radius={[4, 4, 0, 0]}
+            />
+          ))}
+        </BarChart>
       </ResponsiveContainer>
     );
   };

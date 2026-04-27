@@ -28,14 +28,17 @@ export interface OnboardingState {
   vertical: Vertical;
   porte: string;
   website: string;
+  primaryFocus?: "vendas" | "operacao" | "atendimento" | "estoque" | "outro" | null;
   dataPath: "systems" | "files" | "scratch" | null;
   systems: string[];
   csvUploaded: boolean;
   googleDriveConnected: boolean;
   agents: string[];
   approvalTasks: string[];
+  alwaysRequireApproval?: boolean;
   routines: string[];
   notifyChannel: NotifyChannel;
+  kpiSelections?: Record<string, string[]>;
   approvalLimit?: string;
   riskProfile?: string;
 }

@@ -1,25 +1,34 @@
-import { Box, Flex, Text, Alert, AlertIcon, Spinner, useDisclosure, Icon, SimpleGrid, VStack, HStack, Badge, Link as ChakraLink } from '@chakra-ui/react';
+import { Box, Flex, Text, Alert, AlertIcon, useDisclosure, Icon, SimpleGrid, VStack, HStack, Badge, Link as ChakraLink, usePrefersReducedMotion, useToast } from '@chakra-ui/react';
 import { DomainExpansionModal } from '../components/DomainExpansionModal';
 import { MainLayout } from '../components/layouts/MainLayout';
 import { OnboardingBanner } from '../components/OnboardingBanner';
 import { MappingReviewBanner } from '../components/MappingReviewBanner';
 import { InsightsCard } from '../components/InsightsCard';
+import { KpiCard } from '../components/KpiCard';
+import { KpisSection } from '../components/KpisSection';
+import { GeneralKpisCard } from '../components/GeneralKpisCard';
+import { SampleBadge } from '../components/SampleBadge';
 import { useMemo, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { useHomeMetrics } from '../hooks/useHomeMetrics';
 import { useAgentRunsToday } from '../hooks/useAgentRunsToday';
 import { useRecentActivity } from '../hooks/useRecentActivity';
 import { useAgenda } from '../hooks/useAgenda';
 import { usePendencias } from '../hooks/usePendencias';
 import { useNps } from '../hooks/useNps';
-import { getClientes, getFornecedores, getProdutosOverview } from '../services/analyticsService';
-import { FiDollarSign, FiCheckCircle, FiPackage, FiUsers, FiFileText, FiTrendingUp, FiZap, FiCalendar, FiClock, FiActivity, FiChevronRight, FiMail, FiPhone, FiTarget, FiSend, FiPlusCircle, FiBarChart2 } from 'react-icons/fi';
+import { useDashboardKpis } from '../hooks/useDashboardKpis';
+import { getActivationStatusSnapshot } from '../services/analyticsService';
+import { useAuth } from '../hooks/useAuth';
+import { useTracking } from '../hooks/useTracking';
+import { FiDollarSign, FiCheckCircle, FiPackage, FiUsers, FiFileText, FiTrendingUp, FiZap, FiCalendar, FiClock, FiActivity, FiChevronRight, FiMail, FiPhone, FiTarget, FiSend, FiPlusCircle } from 'react-icons/fi';
 
 function HomePage() {
-  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const toast = useToast();
+  const { track } = useTracking();
   const navigate = useNavigate();
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [selectedDomain, setSelectedDomain] = useState<'orders' | 'customers' | 'suppliers' | 'products'>('orders');
 
   const handleDomainClick = (domain: 'orders' | 'customers' | 'suppliers' | 'products') => {
@@ -27,25 +36,46 @@ function HomePage() {
     onModalOpen();
   };
 
-  // Prefetch list page data when HomePage loads (improves navigation speed)
   useEffect(() => {
-    // Prefetch in background - won't show loading, just warms the cache
-    queryClient.prefetchQuery({
-      queryKey: ['clientes', 'all'],
-      queryFn: () => getClientes('all'),
-      staleTime: 5 * 60 * 1000,
-    });
-    queryClient.prefetchQuery({
-      queryKey: ['fornecedores', 'all'],
-      queryFn: () => getFornecedores('all'),
-      staleTime: 5 * 60 * 1000,
-    });
-    queryClient.prefetchQuery({
-      queryKey: ['produtos', 'all'],
-      queryFn: () => getProdutosOverview('all'),
-      staleTime: 5 * 60 * 1000,
-    });
-  }, [queryClient]);
+    let mounted = true;
+
+    const maybeCelebrateFirstConnector = async () => {
+      try {
+        const snapshot = await getActivationStatusSnapshot();
+        if (!mounted || !snapshot.has_synced_connector) return;
+
+        const storageKey = `blu.activation.first_connector_toast.${snapshot.client_id}`;
+        if (window.localStorage.getItem(storageKey) === '1') return;
+
+        const suggestions = [
+          '"Vendas dessa semana"',
+          '"Ticket médio"',
+          '"Top produtos"',
+        ];
+        const extra = snapshot.pending_approvals > 0
+          ? ` Você também tem ${snapshot.pending_approvals} aprovação(ões) pendente(s).`
+          : '';
+
+        toast({
+          title: 'Primeiro conector sincronizado com sucesso!',
+          description: `Próximos prompts sugeridos: ${suggestions.join(' · ')}.${extra}`,
+          status: 'success',
+          duration: 9000,
+          isClosable: true,
+          position: 'top-right',
+        });
+
+        window.localStorage.setItem(storageKey, '1');
+      } catch {
+        // Non-blocking UX enhancement.
+      }
+    };
+
+    void maybeCelebrateFirstConnector();
+    return () => {
+      mounted = false;
+    };
+  }, [toast, user?.id]);
 
   // Single consolidated hook — v_resumo_dashboard now provides all HomePage data
   const { data: metricsData, loading: metricsLoading, error: metricsError } = useHomeMetrics();
@@ -56,6 +86,7 @@ function HomePage() {
   const { data: agendaData } = useAgenda(7);
   const { data: pendenciasData } = usePendencias();
   const { data: npsData } = useNps(90);
+  const { data: dashboardKpisData, loading: dashboardKpisLoading } = useDashboardKpis();
 
   // Relative-time formatter (PT-BR) — used by Recent Activity & Pendências.
   const relativeTimeFormatter = useMemo(
@@ -63,51 +94,37 @@ function HomePage() {
     []
   );
 
-  const formatRelativeTime = (iso: string | null): string => {
-    if (!iso) return '';
-    const then = new Date(iso).getTime();
-    if (Number.isNaN(then)) return '';
-    const diffSec = Math.round((then - Date.now()) / 1000);
-    const abs = Math.abs(diffSec);
-    if (abs < 60) return relativeTimeFormatter.format(diffSec, 'second');
-    if (abs < 3600) return relativeTimeFormatter.format(Math.round(diffSec / 60), 'minute');
-    if (abs < 86400) return relativeTimeFormatter.format(Math.round(diffSec / 3600), 'hour');
-    if (abs < 604800) return relativeTimeFormatter.format(Math.round(diffSec / 86400), 'day');
-    return relativeTimeFormatter.format(Math.round(diffSec / 604800), 'week');
+  const formatRelativeTime = (isoDate?: string | null): string => {
+    if (!isoDate) {
+      return 'agora';
+    }
+    const now = Date.now();
+    const then = new Date(isoDate).getTime();
+    if (!Number.isFinite(then)) {
+      return 'agora';
+    }
+
+    const diffMs = then - now;
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+
+    if (Math.abs(diffMs) < hour) {
+      return relativeTimeFormatter.format(Math.round(diffMs / minute), 'minute');
+    }
+    if (Math.abs(diffMs) < day) {
+      return relativeTimeFormatter.format(Math.round(diffMs / hour), 'hour');
+    }
+    return relativeTimeFormatter.format(Math.round(diffMs / day), 'day');
   };
 
-  // Derive revenue data — current calendar month from v_resumo_dashboard.
-  const revenueData = useMemo(() => {
-    const currentMonth = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date());
-    if (!metricsData) {
-      return { value: 0, month: currentMonth };
-    }
-    const monthlyRevenue = metricsData.scorecards.receita_mes_atual || metricsData.scorecards.receita_total;
-    return { value: monthlyRevenue, month: currentMonth };
-  }, [metricsData]);
-
-  const loading = metricsLoading;
-  const error = metricsError;
-
-  // Early return for loading state
-  if (loading) {
-    return (
-      <MainLayout>
-        <Flex justify="center" align="center" height="100vh">
-          <Spinner size="xl" color="white" />
-        </Flex>
-      </MainLayout>
-    );
-  }
-
-  // Early return for error state
-  if (error) {
+  if (metricsError) {
     return (
       <MainLayout>
         <Flex justify="center" align="center" height="100vh">
           <Alert status="error" bg="#1a1b2e" color="white" borderRadius="10px" border="1px solid" borderColor="red.600">
             <AlertIcon color="red.400" />
-            {error}
+            {metricsError}
           </Alert>
         </Flex>
       </MainLayout>
@@ -129,9 +146,41 @@ function HomePage() {
   // Pedidos this calendar month — from v_resumo_dashboard.pedidos_mes_atual.
   const pedidosMesAtual = metricsData?.scorecards.pedidos_mes_atual || 0;
 
-  const revenueLabel = 'Revenue this month';
-  const growthLabel = 'vs last month';
+  const revenueLabel = 'Receita deste mês';
+  const growthLabel = 'vs. mês anterior';
   const pedidosCardLabel = 'pedidos este mês';
+  const scorecardsAny = metricsData?.scorecards as unknown as Record<string, unknown> | undefined;
+  const isSampleData = Boolean(scorecardsAny?.is_sample || scorecardsAny?.sample);
+
+  const capDisplayNumber = (value: number): number => {
+    if (!Number.isFinite(value)) return 0;
+    if (!isSampleData) return value;
+    return Math.min(value, 99_999);
+  };
+
+  const formatCountWithCap = (value: number): string => {
+    const capped = capDisplayNumber(value);
+    const suffix = isSampleData && value > capped ? '+' : '';
+    return `${capped.toLocaleString('pt-BR')}${suffix}`;
+  };
+
+  const buildActionableInsight = () => {
+    const sc = metricsData?.scorecards;
+    if (!sc) {
+      return 'Receita atual: R$ 0,0. Investigar origem de dados para iniciar o painel.';
+    }
+
+    if (revenueGrowth !== undefined && revenueGrowth !== null) {
+      const trend = revenueGrowth > 0 ? 'subiu' : revenueGrowth < 0 ? 'caiu' : 'ficou estável';
+      return `Receita do mês ${trend} ${Math.abs(revenueGrowth).toFixed(1)}%. Investigar drivers por canal.`;
+    }
+
+    if (sc.ticket_medio !== undefined && sc.ticket_medio !== null) {
+      return `Ticket médio atual: ${formatCompactCurrency(sc.ticket_medio)}. Investigar oportunidades de upsell.`;
+    }
+
+    return `Pedidos no mês: ${formatCountWithCap(pedidosMesAtual)}. Priorizar clientes sem recompra nos últimos 30 dias.`;
+  };
 
   // Format revenue as compact number (ex: R$ 91,7 mi)
   const formatCompactCurrency = (value: number): string => {
@@ -145,7 +194,7 @@ function HomePage() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
-  const formattedRevenue = formatCompactCurrency(revenueData.value);
+  const formattedRevenue = formatCompactCurrency(metricsData?.scorecards.receita_mes_atual || 0);
 
   // Domain cards config (matching Figma design)
   const domainCards: Array<{
@@ -166,6 +215,42 @@ function HomePage() {
     <MainLayout>
       <OnboardingBanner />
       <MappingReviewBanner />
+      {isSampleData && (
+        <Box
+          mx={6}
+          mt={4}
+          px={4}
+          py={3}
+          borderRadius="10px"
+          bg="rgba(251,191,36,0.08)"
+          border="1px solid"
+          borderColor="rgba(251,191,36,0.35)"
+        >
+          <HStack justify="space-between" flexWrap="wrap" spacing={3}>
+            <HStack spacing={2}>
+              <Text fontSize="14px">🧪</Text>
+              <Text fontSize="14px" color="white">
+                Você está vendo dados de exemplo.
+              </Text>
+            </HStack>
+            <ChakraLink
+              href="/dashboard/configurar/connectors"
+              color="#fbbf24"
+              fontSize="14px"
+              fontWeight={600}
+              _hover={{ color: '#fcd34d', textDecoration: 'none' }}
+              onClick={() => {
+                track('dashboard.demo_live.switch', { source: 'demo_banner' });
+                track('tenant.sample_data.disabled', { source: 'demo_banner' });
+              }}
+            >
+              <HStack as="span" spacing={1}>
+                <Text>Conectar minha loja →</Text>
+              </HStack>
+            </ChakraLink>
+          </HStack>
+        </Box>
+      )}
       <Box p={6} maxW="1800px" mx="auto">
         {/* Welcome Header — Playfair Display title with gradient accent */}
         <Box mb={8}>
@@ -178,13 +263,13 @@ function HomePage() {
                 fontFamily="'Playfair Display', serif"
                 mb={2}
               >
-                <Box as="span" color="white">Dashboard </Box>
+                <Box as="span" color="white">Painel </Box>
                 <Box
                   as="span"
                   bgGradient="linear(to-r, #ff6b35, #ff006e)"
                   bgClip="text"
                 >
-                  Analytics
+                  Analítico
                 </Box>
               </Text>
               <Text color="whiteAlpha.600" fontSize="lg" fontWeight="medium">
@@ -203,62 +288,16 @@ function HomePage() {
               {/* Revenue Card — Larger, spans 2 columns */}
               <Box
                 gridColumn={{ md: 'span 2' }}
-                bg="#1a1b2e"
-                borderRadius="0.625rem"
-                border="1px solid"
-                borderColor="rgba(255,255,255,0.08)"
-                boxShadow="0 4px 24px rgba(0,0,0,0.4)"
-                p={6}
-                position="relative"
-                overflow="hidden"
               >
-                {/* Left accent bar */}
-                <Box position="absolute" top={0} left={0} w="3px" h="100%" bg="#10b981" />
-                <Flex justify="space-between" align="start" mb={4}>
-                  <Box>
-                    <Text
-                      color="whiteAlpha.500"
-                      fontSize="xs"
-                      fontWeight="semibold"
-                      textTransform="uppercase"
-                      letterSpacing="wider"
-                      mb={1}
-                    >
-                      {revenueLabel}
-                    </Text>
-                    <Text fontSize="2.5rem" fontWeight="bold" color="white">
-                      {formattedRevenue}
-                    </Text>
-                  </Box>
-                  <Flex
-                    w={12} h={12}
-                    borderRadius="1rem"
-                    align="center" justify="center"
-                    bgGradient="linear(to-br, #10b981, #10b981dd)"
-                    boxShadow="0 4px 12px rgba(16,185,129,0.6)"
-                  >
-                    <Icon as={FiDollarSign} boxSize={6} color="white" />
-                  </Flex>
-                </Flex>
-                <Flex align="center" gap={2}>
-                  <Flex
-                    align="center"
-                    gap={1}
-                    color={
-                      revenueGrowth !== undefined && revenueGrowth !== null && revenueGrowth < 0
-                        ? 'red.400'
-                        : 'green.400'
-                    }
-                  >
-                    <Icon as={FiTrendingUp} boxSize={4} />
-                    <Text fontSize="sm" fontWeight="medium">
-                      {revenueGrowth !== undefined && revenueGrowth !== null
-                        ? `${revenueGrowth > 0 ? '+' : ''}${revenueGrowth.toFixed(1)}%`
-                        : '+0%'}
-                    </Text>
-                  </Flex>
-                  <Text fontSize="sm" color="whiteAlpha.500">{growthLabel}</Text>
-                </Flex>
+                <KpiCard
+                  title={revenueLabel}
+                  value={formattedRevenue}
+                  icon={FiDollarSign}
+                  accentColor="#10b981"
+                  delta={revenueGrowth}
+                  deltaContext={growthLabel}
+                  isSample={isSampleData}
+                />
               </Box>
 
               {/* Active Tasks Card */}
@@ -284,11 +323,14 @@ function HomePage() {
                     <Icon as={FiCheckCircle} boxSize={5} color="white" />
                   </Flex>
                   <Box>
-                    <Text fontSize="xs" color="whiteAlpha.500" fontWeight="semibold" textTransform="uppercase" letterSpacing="wider">
-                      Active
-                    </Text>
+                    <HStack spacing={2} mb={1}>
+                      <Text fontSize="xs" color="whiteAlpha.500" fontWeight="semibold" textTransform="uppercase" letterSpacing="wider">
+                        Pedidos ativos
+                      </Text>
+                      {isSampleData && <SampleBadge />}
+                    </HStack>
                     <Text fontSize="2xl" fontWeight="bold" color="white">
-                      {pedidosMesAtual.toLocaleString('pt-BR')}
+                      {formatCountWithCap(pedidosMesAtual)}
                     </Text>
                   </Box>
                 </Flex>
@@ -320,11 +362,11 @@ function HomePage() {
                     position="relative"
                     overflow="hidden"
                     cursor="pointer"
-                    transition="all 0.2s"
+                    transition={prefersReducedMotion ? 'none' : 'all 0.2s'}
                     _hover={{
                       borderColor: 'rgba(255,255,255,0.12)',
                       boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                      transform: 'translateY(-4px)',
+                      transform: prefersReducedMotion ? 'none' : 'translateY(-4px)',
                     }}
                     onClick={() => handleDomainClick(card.domain)}
                   >
@@ -357,13 +399,18 @@ function HomePage() {
                           {card.label}
                         </Text>
                         <Text fontSize="2.5rem" fontWeight="bold" color="white" lineHeight="1">
-                          {card.stat.toLocaleString('pt-BR')}
+                          {formatCountWithCap(card.stat)}
                         </Text>
                       </Box>
                     </Flex>
                     <Text fontSize="sm" color="whiteAlpha.600" lineHeight="relaxed">
                       {card.sublabel}
                     </Text>
+                    {isSampleData && (
+                      <Box mt={3}>
+                        <SampleBadge />
+                      </Box>
+                    )}
                   </Box>
                 ))}
               </SimpleGrid>
@@ -382,16 +429,16 @@ function HomePage() {
                 overflow="hidden"
                 cursor="pointer"
                 _hover={{ boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
-                transition="box-shadow 0.2s"
+                transition={prefersReducedMotion ? 'none' : 'box-shadow 0.2s'}
               >
                 <Box position="absolute" top={0} left={0} w="3px" h="100%" bg="#fbbf24" />
                 <Flex justify="space-between" align="center">
                   <Box>
                     <Text fontSize="xs" color="whiteAlpha.500" fontWeight="semibold" textTransform="uppercase" letterSpacing="wider" mb={1}>
-                      AI Tasks Today
+                      Tarefas de IA hoje
                     </Text>
                     <Text fontSize="2xl" fontWeight="bold" color="white">
-                      {(agentRunsData?.total ?? 0).toLocaleString('pt-BR')}
+                      {formatCountWithCap(agentRunsData?.total ?? 0)}
                     </Text>
                   </Box>
                   <Flex
@@ -421,22 +468,10 @@ function HomePage() {
                 <Flex justify="space-between" align="start">
                   <Box flex={1}>
                     <Text fontSize="xs" color="whiteAlpha.500" fontWeight="semibold" textTransform="uppercase" letterSpacing="wider" mb={2}>
-                      Quick Insight
+                      Insight acionável
                     </Text>
                     <Text fontSize="sm" color="whiteAlpha.800">
-                      {(() => {
-                        const sc = metricsData?.scorecards;
-                        if (sc?.crescimento_receita !== undefined && sc.crescimento_receita !== null && sc.crescimento_receita > 0) {
-                          return `Receita cresceu ${sc.crescimento_receita.toFixed(1)}% vs. mês anterior.`;
-                        }
-                        if (sc?.crescimento_clientes !== undefined && sc.crescimento_clientes !== null && sc.crescimento_clientes > 0) {
-                          return `Sua base de clientes cresceu ${sc.crescimento_clientes.toFixed(1)}% vs. mês anterior.`;
-                        }
-                        if (sc?.crescimento_produtos !== undefined && sc.crescimento_produtos !== null && sc.crescimento_produtos > 0) {
-                          return `Catálogo de produtos cresceu ${sc.crescimento_produtos.toFixed(1)}% vs. mês anterior.`;
-                        }
-                        return 'Acompanhe os indicadores principais para identificar oportunidades.';
-                      })()}
+                      {buildActionableInsight()}
                     </Text>
                   </Box>
                   <Flex
@@ -454,8 +489,23 @@ function HomePage() {
               </Box>
             </SimpleGrid>
 
-            {/* Horizontal Row — Quick Actions, Pendências, KPIs */}
-            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} mb={6}>
+            {/* Full-width KPIs Section */}
+            <Box mb={6} id="section-kpis" data-insight-target="kpis">
+              <KpisSection
+                kpis={dashboardKpisData}
+                loading={dashboardKpisLoading}
+                isSampleData={isSampleData}
+                demoStateShowsOnlyPrimary={true}
+              />
+            </Box>
+
+            {/* C2: insights as actionable section in Mission Control main flow */}
+            <Box mb={6}>
+              <InsightsCard limit={5} title="Insights acionáveis" />
+            </Box>
+
+            {/* Horizontal Row — Quick Actions, Recent Activity, Pendências */}
+              <SimpleGrid columns={{ base: 1, md: 4 }} spacing={4} mb={6}>
               {/* Quick Actions Card */}
               <Box
                 bg="#1a1b2e"
@@ -473,9 +523,9 @@ function HomePage() {
                 </Flex>
                 <SimpleGrid columns={2} spacing={2}>
                   {[
-                    { icon: FiPlusCircle, label: 'Novo Pedido', color: '#3b82f6', route: '/dashboard/orders/new' },
-                    { icon: FiSend, label: 'Enviar Relatório', color: '#10b981', route: '/dashboard/orders' },
-                    { icon: FiMail, label: 'Email Cliente', color: '#a855f7', route: '/dashboard/suppliers' },
+                    { icon: FiPlusCircle, label: 'Nova Aprovação', color: '#3b82f6', route: '/dashboard/inbox' },
+                    { icon: FiSend, label: 'Enviar Relatório', color: '#10b981', route: '/dashboard/reports' },
+                    { icon: FiMail, label: 'E-mail cliente', color: '#a855f7', route: '/dashboard/inbox' },
                     { icon: FiTarget, label: 'Definir Meta', color: '#f97316', route: '/dashboard/goals/new' },
                   ].map((action) => (
                     <Flex
@@ -486,7 +536,7 @@ function HomePage() {
                       py={3}
                       borderRadius="lg"
                       cursor="pointer"
-                      transition="all 0.2s"
+                      transition={prefersReducedMotion ? 'none' : 'all 0.2s'}
                       _hover={{ bg: 'whiteAlpha.100' }}
                       onClick={() => navigate(action.route)}
                     >
@@ -558,58 +608,31 @@ function HomePage() {
                 </VStack>
               </Box>
 
-              {/* KPIs Card */}
-              <Box
-                bg="#1a1b2e"
-                borderRadius="0.625rem"
-                border="1px solid"
-                borderColor="rgba(255,255,255,0.08)"
-                boxShadow="0 4px 24px rgba(0,0,0,0.4)"
-                p={5}
-              >
-                <Flex justify="space-between" align="center" mb={4}>
-                  <HStack spacing={2}>
-                    <Icon as={FiBarChart2} boxSize={4} color="#a855f7" />
-                    <Text fontSize="sm" fontWeight="semibold" color="white">KPIs</Text>
-                  </HStack>
-                </Flex>
-                <VStack spacing={3} align="stretch">
-                  {[
-                    {
-                      label: 'Ticket Médio',
-                      value: formatCompactCurrency(metricsData?.scorecards.ticket_medio || 0),
-                      sub: undefined as string | undefined,
-                      color: '#10b981',
-                    },
-                    {
-                      label: 'NPS Score',
-                      value: npsData ? `${Math.round(npsData.score)}` : '—',
-                      sub: npsData ? `${npsData.totalResponses} respostas` : undefined,
-                      color: '#f97316',
-                    },
-                  ].map((kpi) => (
-                    <Flex key={kpi.label} justify="space-between" align="center" py={2} borderBottom="1px solid" borderColor="whiteAlpha.100">
-                      <Box>
-                        <Text fontSize="xs" color="whiteAlpha.600">{kpi.label}</Text>
-                        {kpi.sub && (
-                          <Text fontSize="2xs" color="whiteAlpha.400">{kpi.sub}</Text>
-                        )}
-                      </Box>
-                      <Text fontSize="sm" fontWeight="bold" color={kpi.color}>{kpi.value}</Text>
-                    </Flex>
-                  ))}
-                </VStack>
-              </Box>
+              {/* General KPIs Card */}
+              <GeneralKpisCard
+                kpis={[
+                  {
+                    label: 'Ticket Médio',
+                    value: formatCompactCurrency(metricsData?.scorecards.ticket_medio || 0),
+                    color: '#10b981',
+                  },
+                  {
+                    label: 'NPS Score',
+                    value: npsData ? `${Math.round(npsData.score)}` : '—',
+                    unit: npsData ? `${npsData.totalResponses} respostas` : undefined,
+                    color: '#f97316',
+                  },
+                ]}
+                loading={metricsLoading}
+              />
             </SimpleGrid>
           </Box>
 
-          {/* Right Section — Insights + Agenda + Pendências (1 column, scrolls together) */}
+          {/* Right Section — Hoje + Pendências (1 column, scrolls together) */}
           <Box>
-            {/* Phase 2 (I2.2): nightly insights feed */}
-            <Box mb={4}>
-              <InsightsCard limit={5} />
-            </Box>
             <Box
+              id="section-hoje"
+              data-insight-target="operations"
               bg="#1a1b2e"
               borderRadius="0.625rem"
               border="1px solid"
@@ -636,7 +659,7 @@ function HomePage() {
                           fontSize="xs"
                           color="#3b82f6"
                           fontWeight="semibold"
-                          onClick={() => navigate('/dashboard/admin/fontes')}
+                          onClick={() => navigate('/dashboard/configurar/fontes')}
                           _hover={{ textDecoration: 'underline', cursor: 'pointer' }}
                         >
                           Conectar Google Calendar →

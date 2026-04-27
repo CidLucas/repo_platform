@@ -2,79 +2,102 @@
 
 ## Overview
 
-World-class llm evaluation frameworks for senior prompt engineer.
+This repo does not have one single centralized evaluation harness for all prompt and agent behavior. Evaluation is distributed across focused tests, prompt verification scripts, runtime traces, and service-specific smoke checks. This guide reflects that reality.
 
 ## Core Principles
 
-### Production-First Design
+### Evaluate the real consuming path
 
-Always design with production in mind:
-- Scalability: Handle 10x current load
-- Reliability: 99.9% uptime target
-- Maintainability: Clear, documented code
-- Observability: Monitor everything
+A prompt change is only validated when the real service, tool, or agent path behaves correctly. Reading the prompt or manually eyeballing one output is not enough.
 
-### Performance by Design
+### Choose the narrowest useful evaluation surface
 
-Optimize from the start:
-- Efficient algorithms
-- Resource awareness
-- Strategic caching
-- Batch processing
+Good evaluation targets in this repo include:
 
-### Security & Privacy
+- focused unit/integration tests
+- prompt verification scripts
+- admin prompt surfaces
+- service startup or endpoint smoke checks
+- Langfuse traces for live runtime inspection
 
-Build security in:
-- Input validation
-- Data encryption
-- Access control
-- Audit logging
+### Separate prompt failure from graph or data failure
 
-## Advanced Patterns
+If a run fails, isolate whether the issue is:
 
-### Pattern 1: Distributed Processing
+- wrong prompt text
+- wrong variables/context injection
+- wrong tool availability
+- wrong graph routing
+- wrong SQL/RAG backend behavior
 
-Enterprise-scale data processing with fault tolerance.
+## Evaluation Surfaces In This Repo
 
-### Pattern 2: Real-Time Systems
+### Pattern 1: Script-based prompt verification
 
-Low-latency, high-throughput systems.
+Examples already present:
 
-### Pattern 3: ML at Scale
+- `scripts/audit_langfuse_prompts.py`
+- `scripts/verify_standalone_prompts.py`
 
-Production ML with monitoring and automation.
+Use these when validating prompt existence, production labeling, or rollout completeness.
+
+### Pattern 2: Focused integration tests for downstream behavior
+
+Examples include task-specific tests for dashboard RPCs, phase flows, RLS regressions, and agent e2e behavior. When a prompt change affects SQL or retrieval outcomes, prefer the closest existing test slice over inventing a generic evaluation harness.
+
+### Pattern 3: Runtime trace inspection
+
+Langfuse is useful for checking which prompt version ran, what variables were compiled, and how the runtime behaved in context. Use it when the change is live-path sensitive or when tests do not capture the failure mode well.
+
+### Pattern 4: Admin-surface validation for prompt management
+
+`standalone_agent_api` exposes admin prompt routes that can list, inspect, edit, and view prompt versions. These are valid evaluation surfaces for prompt-management changes.
 
 ## Best Practices
 
-### Code Quality
-- Comprehensive testing
-- Clear documentation
-- Code reviews
-- Type hints
+### Define success in task terms
 
-### Performance
-- Profile before optimizing
-- Monitor continuously
-- Cache strategically
-- Batch operations
+Examples:
 
-### Reliability
-- Design for failure
-- Implement retries
-- Use circuit breakers
-- Monitor health
+- SQL prompt returns queries that match the analytics schema
+- config-helper elicits the required fields cleanly
+- standalone agent prompt compiles with real session variables
+- supervisor delegates to the right worker tools
 
-## Tools & Technologies
+### Keep golden examples close to the actual feature
 
-Essential tools for this domain:
-- Development frameworks
-- Testing libraries
-- Deployment platforms
-- Monitoring solutions
+If you need fixtures, derive them from the service's existing payloads, context fields, or session tables, not generic benchmark prompts.
+
+### Re-run the same focused check after local repairs
+
+If a fix targets the same slice, do not broaden evaluation before rerunning the original narrow check.
+
+### Prefer behavioral assertions over style judgments
+
+Judge prompts by correctness, tool usage, isolation, and output contract, not by how elegant the wording sounds.
+
+## Anti-Patterns To Avoid
+
+### Declaring prompt success without verifying the compiled variables
+
+Many failures in this repo are variable-assembly issues, not wording issues.
+
+### Treating all agent regressions as prompt regressions
+
+The graph, context service, tool registry, RLS layer, and prompt loader can all fail independently.
+
+### Building a generic eval harness before checking existing tests and scripts
+
+This repo already has multiple narrow validation entry points.
+
+## Unknowns To Verify
+
+- There is not yet one fully unified evaluation framework spanning every agent family.
+- Some prompt-sensitive flows may rely on manual product validation in addition to tests.
 
 ## Further Reading
 
-- Research papers
-- Industry blogs
-- Conference talks
-- Open source projects
+- `scripts/audit_langfuse_prompts.py`
+- `scripts/verify_standalone_prompts.py`
+- `/memories/repo/agent-execution-pipeline.md`
+- `/memories/repo/langfuse-prompts.md`

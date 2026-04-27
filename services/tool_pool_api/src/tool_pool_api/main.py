@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .api.admin_router import router as admin_router
+from .api.engagement_dispatch_router import router as engagement_dispatch_router
 from .api.inbox_dispatch_router import router as inbox_dispatch_router
 from .api.integrations_router import router as integrations_router
 from .api.reports_dispatch_router import router as reports_dispatch_router
@@ -127,6 +128,7 @@ app.include_router(integrations_router)
 app.include_router(twilio_webhook_router)
 app.include_router(rfq_follow_ups_router)
 app.include_router(inbox_dispatch_router)
+app.include_router(engagement_dispatch_router)
 app.include_router(reports_router)
 app.include_router(reports_dispatch_router)
 

@@ -33,6 +33,7 @@ import {
 } from '@chakra-ui/icons';
 import { useState, useMemo } from 'react';
 import { FaGoogle } from 'react-icons/fa';
+import { SampleBadge } from './SampleBadge';
 
 // Types matching backend StructuredDataResponse
 export type ColumnType = 'string' | 'number' | 'date' | 'datetime' | 'boolean' | 'currency';
@@ -77,6 +78,11 @@ const DataCard = ({ row, columns, formatValue }: DataCardProps) => {
     <Card bg={cardBg} size="sm" variant="outline">
       <CardBody py={3} px={4}>
         <VStack align="stretch" spacing={2}>
+          {(row.is_sample === true || row.sample === true) && (
+            <Flex justify="flex-end">
+              <SampleBadge />
+            </Flex>
+          )}
           {columns.map((col) => (
             <Flex key={col.key} justify="space-between" align="center">
               <Text fontSize="xs" color={labelColor} fontWeight="500">
@@ -341,9 +347,14 @@ export const SimpleDataTable = ({
           <Tbody>
             {paginatedRows.map((row, idx) => (
               <Tr key={idx} _hover={{ bg: hoverBg }}>
-                {data.columns.map((col) => (
+                {data.columns.map((col, colIndex) => (
                   <Td key={col.key} whiteSpace="nowrap">
-                    {formatCellValue(row[col.key], col.type)}
+                    <HStack spacing={2} align="center">
+                      <Text as="span">{formatCellValue(row[col.key], col.type)}</Text>
+                      {colIndex === 0 && (row.is_sample === true || row.sample === true) && (
+                        <SampleBadge />
+                      )}
+                    </HStack>
                   </Td>
                 ))}
               </Tr>

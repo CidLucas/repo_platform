@@ -1,7 +1,9 @@
 // Dashboard v1.2.0 - Added React Query for data caching
 // Initialize Grafana Faro BEFORE React (captures early errors)
 import { initFaro } from './lib/faro';
+import { initTelemetry } from './lib/telemetry';
 initFaro();
+initTelemetry();
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'

@@ -28,7 +28,6 @@
 - [`libs/vizu_google_suite_client`](../../libs/vizu_google_suite_client) → `GoogleCalendarClient.list_events`
 - [`libs/vizu_supabase_client`](../../libs/vizu_supabase_client) for the Edge Function
 - React Query + `useHomeMetrics` hook pattern
-- `useGeoClusters('state')` hook (already powers Clientes/Fornecedores/Produtos maps)
 
 ---
 
@@ -42,9 +41,7 @@
 │  HomePage / PedidosPage / DomainExpansionModal                         │
 │        │                                                                │
 │  hooks: useHomeMetrics, useRecentActivity, usePendencias,              │
-│         useAgentRunsToday, useAgenda, useNps,                          │
-│         useOrderIndicators(period), useOrderStatusBreakdown(period),   │
-│         useGeoClusters                                                  │
+│         useAgentRunsToday, useAgenda, useNps                           │
 │        │                                                                │
 │        ▼  supabase-js (PostgREST + .rpc + edge.invoke)                  │
 └────────────────────────────────────────────────────────────────────────┘
@@ -92,7 +89,7 @@
 | `[NEW TABLE]`   | `public.nps_responses` + `public.get_nps_score(p_window_days int)` RPC                                                            | new migration                               | First-class NPS storage, can later feed survey product                       |
 | `[NEW TABLE]`   | `public.calendar_settings` (per-client calendar id + sync prefs)                                                                  | new migration                               | Reusable for any calendar feature                                            |
 | `[NEW EDGE FN]` | `google-calendar-events`                                                                                                          | `supabase/functions/google-calendar-events` | Reusable for Pedidos page deadlines, RFQ scheduling, etc.                    |
-| `[NEW HOOKS]`   | `useRecentActivity`, `usePendencias`, `useAgentRunsToday`, `useAgenda`, `useNps`, `useOrderIndicators`, `useOrderStatusBreakdown` | `apps/vizu_dashboard/src/hooks/`            | Mirror `useHomeMetrics` shape; consumed by Home + future pages               |
+| `[NEW HOOKS]`   | `useRecentActivity`, `usePendencias`, `useAgentRunsToday`, `useAgenda`, `useNps` | `apps/vizu_dashboard/src/hooks/`            | Mirror `useHomeMetrics` shape; consumed by Home + future pages               |
 
 ---
 
@@ -213,13 +210,10 @@
      - `useAgentRunsToday.ts`
      - `useAgenda.ts`
      - `useNps.ts`
-     - `useOrderIndicators.ts` (`(period)` → query key `['orderIndicators', period]`)
-     - `useOrderStatusBreakdown.ts` (`(period)`)
    - All `staleTime: 5 * 60 * 1000` except `useAgentRunsToday` (1 min) and `useAgenda` (2 min).
 
 3. **Type updates**
    - Add new exported interfaces: `RecentActivityItem`, `PendenciaItem`, `NpsScoreResponse`, `AgendaEvent`.
-   - Extend `OrderMetricsResponse.by_status` doc comment to note it is now sourced from `fato_transacoes.status`.
 
 ---
 
@@ -331,8 +325,7 @@
 ### Tasks
 
 1. **Period select → real period filter**
-   - `getOrderIndicators(period)` already accepts the param after Phase 2. Confirm refetch fires (it already does via `useEffect([selectedPeriod])`).
-   - Update `OrderMetricsResponse.by_status` consumer: header now reads `by_status.completed | pending | …` from real data instead of single-bucket fallback.
+   - Confirmed refetch fires via `useEffect([selectedPeriod])`. [ARCHIVED - hooks removed Apr 2026]
 
 2. **"Métricas" select → real binding** ([`PedidosPage.tsx:158`](../../apps/vizu_dashboard/src/pages/PedidosPage.tsx#L158))
    - Add `selectedMetric` state (`'receita' | 'quantidade' | 'ticket_medio'`).
@@ -341,15 +334,12 @@
    - Feed result into the "Métricas de Pedidos" `DashboardCard`'s `graphData`.
 
 3. **Status header scorecards** ([`PedidosPage.tsx:147-156`](../../apps/vizu_dashboard/src/pages/PedidosPage.tsx#L147))
-   - `useOrderStatusBreakdown(selectedPeriod)` → map to `{ completed, pending, … }`.
-   - Concluídos = sum of buckets that map to "completed/finalizado/pago" (define mapping in service layer to keep page presentational).
-   - Pendentes = sum of "pending/aberto/aguardando".
+   - [ARCHIVED - hooks removed Apr 2026]
 
 4. **Geo card → useGeoClusters** ([`PedidosPage.tsx:296`](../../apps/vizu_dashboard/src/pages/PedidosPage.tsx#L296))
    - Replace static SP marker with the `useGeoClusters('state')` hook (already used by `GenericOverviewPage`).
-   - Render same `MapData` shape via the existing helper inside `GenericOverviewPage` — extract that mapper into a shared util `mapGeoClustersToMapData(clusters)` under `apps/vizu_dashboard/src/utils/` so both pages reuse it.
-
-5. **Drop "Histórico de Pedidos" small card** ([`PedidosPage.tsx:282`](../../apps/vizu_dashboard/src/pages/PedidosPage.tsx#L282))
+   - Render s** ([`PedidosPage.tsx:296`](../../apps/vizu_dashboard/src/pages/PedidosPage.tsx#L296))
+   - [ARCHIVED - hook removed Apr 2026]
    - Pure delete — the `ListCard "Últimos Pedidos"` already covers it and links to `/dashboard/pedidos/lista`.
    - Confirm with PM before removal (record decision in PR description).
 

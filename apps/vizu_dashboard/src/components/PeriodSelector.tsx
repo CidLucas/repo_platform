@@ -10,7 +10,7 @@ import type { StandardPeriod } from '../services/analyticsService';
  * for now selecting it falls back to the default window in the RPC layer
  * (analytics_v2._resolve_period treats 'custom' as 30d).
  *
- * Backwards compatibility: PedidosPage and useDashboardIndicators still use
+ * Backwards compatibility: some older hooks still use
  * the legacy week|month|quarter|year vocabulary which the RPC layer also
  * accepts. New pages should use this component + StandardPeriod type.
  */
@@ -20,7 +20,7 @@ export interface PeriodOption {
   label: string;
 }
 
-export const STANDARD_PERIOD_OPTIONS: PeriodOption[] = [
+const STANDARD_PERIOD_OPTIONS: PeriodOption[] = [
   { value: '7d', label: 'Últimos 7 dias' },
   { value: '30d', label: 'Últimos 30 dias' },
   { value: '90d', label: 'Últimos 90 dias' },

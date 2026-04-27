@@ -2,6 +2,7 @@ import { Box, Flex, HStack, Icon, Text, Badge, IconButton, VStack, Button, Toolt
 import { FiZap, FiX, FiMessageCircle, FiTrendingUp, FiAlertTriangle } from 'react-icons/fi';
 import { useInsights } from '../hooks/useInsights';
 import { useChat } from '../contexts/ChatContext';
+import { useTracking } from '../hooks/useTracking';
 import type { InsightItem } from '../services/analyticsService';
 
 const severityToken = (severity: string) => {
@@ -24,11 +25,34 @@ const dimensionLabel: Record<string, string> = {
  * renders top-N active insights ordered by severity, exposes a "Explicar"
  * deep-link into `atendente_core` and a dismiss action.
  */
-export const InsightsCard = ({ limit = 5 }: { limit?: number }) => {
+interface InsightsCardProps {
+  limit?: number;
+  title?: string;
+}
+
+const sectionByDimension: Record<string, string> = {
+  finance: 'section-kpis',
+  commercial: 'section-kpis',
+  inventory: 'section-kpis',
+  supply: 'section-kpis',
+  marketing: 'section-kpis',
+  operations: 'section-hoje',
+};
+
+export const InsightsCard = ({ limit = 5, title = 'Insights acionáveis' }: InsightsCardProps) => {
   const { data, loading, error, dismiss } = useInsights(limit);
   const { openChat } = useChat();
+  const { track } = useTracking();
 
-  const handleExplain = (insight: InsightItem) => {
+  const handleExplain = (insight: InsightItem, returnFocusElement?: HTMLElement | null) => {
+    track('dashboard.insight.ctr', { kpi: insight.kpi, dimension: insight.dimension, severity: insight.severity });
+    track('mc.insight.click', { insight_id: insight.id, kpi: insight.kpi, dimension: insight.dimension, severity: insight.severity });
+    const targetSectionId = sectionByDimension[insight.dimension];
+    const targetSection = targetSectionId ? document.getElementById(targetSectionId) : null;
+    if (targetSection) {
+      targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     const dim = dimensionLabel[insight.dimension] ?? insight.dimension;
     const prompt = [
       `Explique este insight em detalhe e sugira próximos passos:`,
@@ -45,7 +69,7 @@ export const InsightsCard = ({ limit = 5 }: { limit?: number }) => {
     ]
       .filter(Boolean)
       .join('\n');
-    openChat(prompt);
+    openChat(prompt, returnFocusElement);
   };
 
   return (
@@ -60,7 +84,7 @@ export const InsightsCard = ({ limit = 5 }: { limit?: number }) => {
       <Flex justify="space-between" align="center" mb={4}>
         <HStack spacing={2}>
           <Icon as={FiZap} boxSize={4} color="#a855f7" />
-          <Text fontSize="sm" fontWeight="semibold" color="white">Insights do dia</Text>
+          <Text fontSize="sm" fontWeight="semibold" color="white">{title}</Text>
         </HStack>
         {data && data.length > 0 && (
           <Badge bg="#a855f720" color="#a855f7" fontSize="2xs" borderRadius="full" px={2}>
@@ -130,10 +154,10 @@ export const InsightsCard = ({ limit = 5 }: { limit?: number }) => {
                         variant="ghost"
                         color="#a855f7"
                         leftIcon={<Icon as={FiMessageCircle} boxSize={3} />}
-                        onClick={() => handleExplain(insight)}
+                        onClick={(event) => handleExplain(insight, event.currentTarget)}
                         _hover={{ bg: '#a855f715' }}
                       >
-                        Explicar
+                        Investigar
                       </Button>
                       <Tooltip label="Dispensar" placement="top">
                         <IconButton

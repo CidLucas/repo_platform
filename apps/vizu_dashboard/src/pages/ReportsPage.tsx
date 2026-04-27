@@ -2,7 +2,6 @@ import {
   Box,
   Flex,
   HStack,
-  VStack,
   Text,
   Spinner,
   Alert,
@@ -17,8 +16,9 @@ import {
   Switch,
 } from '@chakra-ui/react';
 import { RepeatIcon, DownloadIcon, ExternalLinkIcon } from '@chakra-ui/icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MainLayout } from '../components/layouts/MainLayout';
+import { PeriodSelector } from '../components/PeriodSelector';
 import {
   listReportTemplates,
   listReportRuns,
@@ -32,6 +32,7 @@ import {
   type ReportSchedule,
   type ReportFormat,
   type ReportCadence,
+  type StandardPeriod,
 } from '../services/analyticsService';
 
 const FORMAT_OPTIONS: { value: ReportFormat; label: string }[] = [
@@ -40,14 +41,6 @@ const FORMAT_OPTIONS: { value: ReportFormat; label: string }[] = [
   { value: 'xlsx', label: 'Excel (XLSX)' },
   { value: 'gdoc', label: 'Google Docs' },
   { value: 'gsheet', label: 'Google Sheets' },
-];
-
-const PERIOD_OPTIONS = [
-  { value: '7d', label: 'Últimos 7 dias' },
-  { value: '30d', label: 'Últimos 30 dias' },
-  { value: '90d', label: 'Últimos 90 dias' },
-  { value: 'mtd', label: 'Mês corrente (MTD)' },
-  { value: 'ytd', label: 'Ano corrente (YTD)' },
 ];
 
 const CADENCE_OPTIONS: { value: ReportCadence; label: string }[] = [
@@ -62,6 +55,12 @@ const STATUS_COLORS: Record<string, string> = {
   success: 'green',
   failed: 'red',
 };
+
+const isStandardPeriod = (value: string): value is StandardPeriod =>
+  ['7d', '30d', '90d', 'mtd', 'ytd', 'custom'].includes(value);
+
+const toStandardPeriod = (value: string): StandardPeriod =>
+  (isStandardPeriod(value) ? value : '30d');
 
 const formatDate = (iso: string | null): string => {
   if (!iso) return '—';
@@ -87,7 +86,7 @@ function ReportsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
-  const [period, setPeriod] = useState('30d');
+  const [period, setPeriod] = useState<StandardPeriod>('30d');
   const [format, setFormat] = useState<ReportFormat>('pdf');
   const [cadence, setCadence] = useState<ReportCadence>('monthly');
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
@@ -98,7 +97,7 @@ function ReportsPage() {
     [templates, activeTemplateId],
   );
 
-  const refreshAll = async () => {
+  const refreshAll = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -112,7 +111,7 @@ function ReportsPage() {
       setSchedules(sch);
       if (!activeTemplateId && tpls.length > 0) {
         setActiveTemplateId(tpls[0].id);
-        setPeriod(tpls[0].default_period);
+        setPeriod(toStandardPeriod(tpls[0].default_period));
         setFormat(tpls[0].default_format);
       }
     } catch (e) {
@@ -120,23 +119,21 @@ function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTemplateId]);
 
   useEffect(() => {
     void refreshAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshAll]);
 
   // Reset format/period defaults when switching templates.
   useEffect(() => {
     if (!activeTemplate) return;
-    setPeriod(activeTemplate.default_period);
+    setPeriod(toStandardPeriod(activeTemplate.default_period));
     setFormat(activeTemplate.default_format);
     const existing = schedules.find((s) => s.template_id === activeTemplate.id);
     setCadence((existing?.cadence ?? 'monthly') as ReportCadence);
     setScheduleEnabled(existing?.enabled ?? false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTemplateId, schedules.length]);
+  }, [activeTemplate, schedules]);
 
   const handleGenerate = async () => {
     if (!activeTemplate) return;
@@ -307,17 +304,13 @@ function ReportsPage() {
                     <Text fontSize="sm" mb={1}>
                       Período
                     </Text>
-                    <Select
+                    <PeriodSelector
                       value={period}
-                      onChange={(e) => setPeriod(e.target.value)}
+                      onChange={setPeriod}
                       size="sm"
-                    >
-                      {PERIOD_OPTIONS.map((p) => (
-                        <option key={p.value} value={p.value}>
-                          {p.label}
-                        </option>
-                      ))}
-                    </Select>
+                      width="100%"
+                      excludeOptions={['custom']}
+                    />
                   </Box>
                   <Box flex={1}>
                     <Text fontSize="sm" mb={1}>

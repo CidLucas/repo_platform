@@ -6,6 +6,7 @@ Protected by JWT authentication - requires ADMIN tier.
 """
 
 import logging
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -14,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from vizu_auth.core.exceptions import AuthError, InvalidTokenError, TokenExpiredError
 from vizu_auth.core.jwt_decoder import decode_jwt
+from vizu_supabase_client import get_supabase_client
 from vizu_supabase_client.crud import SupabaseCRUD, get_crud
 from vizu_tool_registry.registry import ToolRegistry
 from vizu_tool_registry.tool_metadata import TierLevel
@@ -202,6 +204,36 @@ class AvailableToolsResponse(BaseModel):
     tools: list[dict]
 
 
+class ActivationFunnelTenant(BaseModel):
+    client_id: str
+    nome_empresa: str
+    signup_at: str | None
+    website_provided: bool
+    package_accepted: bool
+    first_connector_synced: bool
+    first_approval_acted: bool
+    pending_approvals: int
+    days_since_signup: int
+
+
+class ActivationFunnelSummary(BaseModel):
+    total_tenants: int
+    website_provided: int
+    package_accepted: int
+    first_connector_synced: int
+    first_approval_acted_d7: int
+    conversion_website: float
+    conversion_package: float
+    conversion_connector: float
+    conversion_first_approval_d7: float
+
+
+class ActivationFunnelResponse(BaseModel):
+    generated_at: str
+    summary: ActivationFunnelSummary
+    tenants: list[ActivationFunnelTenant]
+
+
 # =============================================================================
 # HELPERS
 # =============================================================================
@@ -277,6 +309,123 @@ async def list_clients(
         total=len(clients),  # Note: Supabase doesn't return total count easily
         limit=limit,
         offset=offset,
+    )
+
+
+@router.get(
+    "/activation-funnel",
+    response_model=ActivationFunnelResponse,
+    summary="Get per-tenant activation funnel metrics",
+)
+async def get_activation_funnel(
+    limit: int = Query(default=100, ge=1, le=500),
+    admin: AdminAuthResult = Depends(verify_admin_access),
+):
+    """Internal-only Phase D funnel: signup -> website -> package -> connector -> first approval."""
+
+    db = get_supabase_client()
+    now = datetime.now(UTC)
+
+    tenants_rows = (
+        db.table("clientes_vizu")
+        .select("client_id,nome_empresa,created_at,onboarding_state")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+        .data
+        or []
+    )
+
+    tenants: list[ActivationFunnelTenant] = []
+    for row in tenants_rows:
+        client_id = str(row["client_id"])
+        state = row.get("onboarding_state") or {}
+        created_at_raw = row.get("created_at")
+        created_at = None
+        if created_at_raw:
+            try:
+                created_at = datetime.fromisoformat(str(created_at_raw).replace("Z", "+00:00"))
+                if created_at.tzinfo is None:
+                    created_at = created_at.replace(tzinfo=UTC)
+            except ValueError:
+                created_at = None
+
+        agents_rows = (
+            db.table("client_enabled_agents")
+            .select("agent_slug")
+            .eq("client_id", client_id)
+            .eq("enabled", True)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        connectors_rows = (
+            db.table("client_data_sources")
+            .select("id")
+            .eq("client_id", client_id)
+            .not_.is_("last_synced_at", "null")
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        approvals_rows = (
+            db.table("approval_requests")
+            .select("status,decided_at")
+            .eq("client_id", client_id)
+            .limit(300)
+            .execute()
+            .data
+            or []
+        )
+
+        pending_approvals = sum(1 for x in approvals_rows if x.get("status") == "pending")
+        has_approval = any(x.get("decided_at") is not None for x in approvals_rows)
+
+        tenants.append(
+            ActivationFunnelTenant(
+                client_id=client_id,
+                nome_empresa=str(row.get("nome_empresa") or "Sem nome"),
+                signup_at=str(created_at_raw) if created_at_raw else None,
+                website_provided=bool(state.get("website")),
+                package_accepted=bool(agents_rows),
+                first_connector_synced=bool(connectors_rows),
+                first_approval_acted=has_approval,
+                pending_approvals=pending_approvals,
+                days_since_signup=int((now - created_at).total_seconds() // 86400) if created_at else 0,
+            )
+        )
+
+    total = len(tenants)
+    website = sum(1 for t in tenants if t.website_provided)
+    package = sum(1 for t in tenants if t.package_accepted)
+    connector = sum(1 for t in tenants if t.first_connector_synced)
+    approval_d7 = sum(
+        1
+        for t in tenants
+        if t.first_approval_acted and t.days_since_signup <= 7
+    )
+
+    def pct(part: int) -> float:
+        return round((part / total * 100.0), 2) if total > 0 else 0.0
+
+    summary = ActivationFunnelSummary(
+        total_tenants=total,
+        website_provided=website,
+        package_accepted=package,
+        first_connector_synced=connector,
+        first_approval_acted_d7=approval_d7,
+        conversion_website=pct(website),
+        conversion_package=pct(package),
+        conversion_connector=pct(connector),
+        conversion_first_approval_d7=pct(approval_d7),
+    )
+
+    return ActivationFunnelResponse(
+        generated_at=now.isoformat(),
+        summary=summary,
+        tenants=tenants,
     )
 
 

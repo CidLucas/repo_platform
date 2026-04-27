@@ -22,6 +22,16 @@ export type Vertical =
 
 export type NotifyChannel = "email" | "whatsapp" | "app";
 
+export type PrimaryFocus =
+  | "vendas"
+  | "operacao"
+  | "atendimento"
+  | "estoque"
+  | "outro"
+  | null;
+
+export type KpiDimension = "commercial" | "inventory" | "supply" | "finance";
+
 // Tasks an agent may perform. User picks which ones require human approval.
 export type ApprovalTaskId =
   | "send_email"
@@ -54,6 +64,7 @@ export interface OnboardingState {
   vertical: Vertical;
   porte: string;
   website: string;
+  primaryFocus: PrimaryFocus;
   // Step 3 – Data fork
   dataPath: DataPath;
   systems: string[]; // shopify, vtex, bigquery, postgres, mysql, api
@@ -63,8 +74,10 @@ export interface OnboardingState {
   agents: string[];
   // Step 5 – Command rules
   approvalTasks: ApprovalTaskId[]; // tasks that require human approval
+  alwaysRequireApproval: boolean;
   routines: RoutineId[]; // built-in routines to activate
   notifyChannel: NotifyChannel;
+  kpiSelections: Partial<Record<KpiDimension, string[]>>;
 }
 
 const DEFAULT: OnboardingState = {
@@ -75,14 +88,17 @@ const DEFAULT: OnboardingState = {
   vertical: null,
   porte: "",
   website: "",
+  primaryFocus: null,
   dataPath: null,
   systems: [],
   csvUploaded: false,
   googleDriveConnected: false,
   agents: [],
   approvalTasks: ["supplier_order", "make_payment", "update_prices"],
+  alwaysRequireApproval: true,
   routines: ["daily_sales_digest", "low_stock_alert", "stale_lead_followup"],
   notifyChannel: "email",
+  kpiSelections: {},
 };
 
 const STORAGE_KEY = "blu.onboarding.v1";

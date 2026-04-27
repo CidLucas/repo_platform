@@ -5,222 +5,139 @@ description: World-class prompt engineering skill for LLM optimization, prompt p
 
 # Senior Prompt Engineer
 
-World-class senior prompt engineer skill for production-grade AI/ML/Data systems.
+Repo-adapted prompt and agent design guidance for `vizu-mono`.
 
-## Quick Start
+This skill is tuned to the prompt and agent architecture that actually exists in this monorepo today:
 
-### Main Capabilities
+- shared prompt loading and composition through `libs/vizu_prompt_management`
+- Langfuse-first prompt management with production labels and builtin fallback where supported
+- LangGraph-based agent execution in `services/atendente_core` and `libs/vizu_agent_framework`
+- standalone agent factory/session flow in `services/standalone_agent_api`
+- context injection through `vizu_context_service`
+- tool execution through MCP and worker delegation patterns
 
-```bash
-# Core Tool 1
-python scripts/prompt_optimizer.py --input data/ --output results/
+Use this skill when you are:
 
-# Core Tool 2  
-python scripts/rag_evaluator.py --target project/ --analyze
-
-# Core Tool 3
-python scripts/agent_orchestrator.py --config config.yaml --deploy
-```
+- designing or refactoring system prompts, prompt fragments, or agent prompt variables
+- changing agent graph behavior, tool routing, or worker delegation logic
+- evaluating prompt quality for SQL, RAG, reporting, or onboarding/config-helper flows
+- adding or reviewing standalone agents from catalog definition through runtime invocation
+- deciding whether logic belongs in prompts, graph state, tools, or context assembly
 
 ## Core Expertise
 
-This skill covers world-class capabilities in:
+This skill covers the repo's concrete prompt and agent concerns:
 
-- Advanced production patterns and architectures
-- Scalable system design and implementation
-- Performance optimization at scale
-- MLOps and DataOps best practices
-- Real-time processing and inference
-- Distributed computing frameworks
-- Model deployment and monitoring
-- Security and compliance
-- Cost optimization
-- Team leadership and mentoring
+- prompt composition from fragments and variables
+- Langfuse prompt lifecycle and production-label usage
+- agent state design and context isolation
+- fan-out/fan-in tool execution in LangGraph
+- evaluation of prompt changes through task-specific tests and runtime traces
+- tradeoffs between prompt instructions, tool contracts, and structured outputs
 
 ## Tech Stack
 
-**Languages:** Python, SQL, R, Scala, Go
-**ML Frameworks:** PyTorch, TensorFlow, Scikit-learn, XGBoost
-**Data Tools:** Spark, Airflow, dbt, Kafka, Databricks
-**LLM Frameworks:** LangChain, LlamaIndex, DSPy
-**Deployment:** Docker, Kubernetes, AWS/GCP/Azure
-**Monitoring:** MLflow, Weights & Biases, Prometheus
-**Databases:** PostgreSQL, BigQuery, Snowflake, Pinecone
+**Primary language:** Python
+**Prompt management:** Langfuse + `vizu_prompt_management`
+**Agent runtime:** LangGraph + `vizu_agent_framework`
+**Observability:** Langfuse + `vizu_observability_bootstrap`
+**Context layer:** `vizu_context_service`
+**Data/tool surfaces:** Supabase, analytics SQL, MCP tools, worker delegation, RAG
+**Primary services:** `atendente_core`, `standalone_agent_api`, `tool_pool_api`
 
 ## Reference Documentation
 
 ### 1. Prompt Engineering Patterns
 
-Comprehensive guide available in `references/prompt_engineering_patterns.md` covering:
-
-- Advanced patterns and best practices
-- Production implementation strategies
-- Performance optimization techniques
-- Scalability considerations
-- Security and compliance
-- Real-world case studies
+See `references/prompt_engineering_patterns.md` for the repo's actual prompt composition, fragment, fallback, and variable-injection patterns.
 
 ### 2. Llm Evaluation Frameworks
 
-Complete workflow documentation in `references/llm_evaluation_frameworks.md` including:
-
-- Step-by-step processes
-- Architecture design patterns
-- Tool integration guides
-- Performance tuning strategies
-- Troubleshooting procedures
+See `references/llm_evaluation_frameworks.md` for how to validate prompt and agent behavior in this repo without falling back to vague manual judgment.
 
 ### 3. Agentic System Design
 
-Technical reference guide in `references/agentic_system_design.md` with:
+See `references/agentic_system_design.md` for the concrete graph, factory, context, and tool-routing patterns already in use.
 
-- System design principles
-- Implementation examples
-- Configuration best practices
-- Deployment strategies
-- Monitoring and observability
+## Current Repo Patterns
 
-## Production Patterns
+### Pattern 1: Prompt logic is shared infrastructure, not scattered strings
 
-### Pattern 1: Scalable Data Processing
+- Prefer `vizu_prompt_management` over direct ad hoc prompt assembly.
+- Use fragment composition when the agent family shares reusable prompt blocks.
+- Use production-labeled Langfuse prompts for live runtime behavior.
+- Preserve builtin fallback only where the existing loader already supports it.
 
-Enterprise-scale data processing with distributed computing:
+### Pattern 2: Context is assembled before graph execution
 
-- Horizontal scaling architecture
-- Fault-tolerant design
-- Real-time and batch processing
-- Data quality validation
-- Performance monitoring
+- `ContextService` loads tenant/client context.
+- standalone sessions add collected context, uploaded file references, document references, and OAuth links.
+- the factory turns that into prompt variables and state metadata before agent execution starts.
 
-### Pattern 2: ML Model Deployment
+### Pattern 3: Tool strategy is architectural, not just prompt wording
 
-Production ML system with high availability:
+- `atendente_core` uses supervisor + worker delegation tools.
+- worker tools are tier-gated and can fan out in parallel.
+- standalone agents use catalog-defined enabled tools plus session metadata.
+- prompt changes should not attempt to paper over missing tool contracts or bad graph structure.
 
-- Model serving with low latency
-- A/B testing infrastructure
-- Feature store integration
-- Model monitoring and drift detection
-- Automated retraining pipelines
+## How To Use This Skill In This Repo
 
-### Pattern 3: Real-Time Inference
+### For prompt changes
 
-High-throughput inference system:
+1. Identify whether the prompt is fragment-based, monolithic, or builtin fallback.
+2. Preserve existing prompt names when code, scripts, or admin routes depend on them.
+3. Move branching, loops, or stateful behavior into code or graph logic when the prompt starts encoding workflow.
+4. Verify through the actual consuming service or test, not only by reading the text.
 
-- Batching and caching strategies
-- Load balancing
-- Auto-scaling
-- Latency optimization
-- Cost optimization
+### For agent design changes
+
+1. Start from the owning abstraction: `atendente_core`, `vizu_agent_framework`, or `standalone_agent_api`.
+2. Decide whether the behavior belongs in graph routing, tool execution, state reducers, context assembly, or prompt text.
+3. Keep tenant/session context boundaries explicit.
+4. Validate the narrowest real slice: prompt loader, graph node, runtime stream, or focused e2e test.
 
 ## Best Practices
 
 ### Development
 
-- Test-driven development
-- Code reviews and pair programming
-- Documentation as code
-- Version control everything
-- Continuous integration
+- Reuse shared prompt and agent infrastructure before introducing a new abstraction.
+- Keep prompts declarative; keep orchestration in graph or service code.
+- Use real repo vocabulary in prompts, including tenant/context/tool names that actually exist.
+- Document unknowns instead of fabricating prompt behavior contracts.
 
 ### Production
 
-- Monitor everything critical
-- Automate deployments
-- Feature flags for releases
-- Canary deployments
-- Comprehensive logging
+- Prefer `label="production"` prompt loading for live behavior.
+- Treat prompt regressions as runtime regressions: verify them where the user experiences them.
+- Preserve graceful degradation where Langfuse or optional integrations are intentionally best-effort.
 
-### Team Leadership
+### Evaluation
 
-- Mentor junior engineers
-- Drive technical decisions
-- Establish coding standards
-- Foster learning culture
-- Cross-functional collaboration
+- Evaluate prompts by task outcome, not by how polished the prompt text looks.
+- Prefer existing tests and verification scripts over subjective spot checks.
+- When changing SQL or RAG prompts, verify against the real schema and retrieval contracts in the repo.
 
-## Performance Targets
+## High-Signal Repo Anchors
 
-**Latency:**
-- P50: < 50ms
-- P95: < 100ms
-- P99: < 200ms
+- `libs/vizu_prompt_management`
+- `libs/vizu_agent_framework`
+- `services/atendente_core/src/atendente_core/core/`
+- `services/standalone_agent_api/src/standalone_agent_api/core/`
+- `scripts/audit_langfuse_prompts.py`
+- `scripts/verify_standalone_prompts.py`
+- `/memories/repo/agent-execution-pipeline.md`
+- `/memories/repo/agent-configuration-context-flow.md`
+- `/memories/repo/langfuse-prompts.md`
 
-**Throughput:**
-- Requests/second: > 1000
-- Concurrent users: > 10,000
+## Known Unknowns
 
-**Availability:**
-- Uptime: 99.9%
-- Error rate: < 0.1%
-
-## Security & Compliance
-
-- Authentication & authorization
-- Data encryption (at rest & in transit)
-- PII handling and anonymization
-- GDPR/CCPA compliance
-- Regular security audits
-- Vulnerability management
-
-## Common Commands
-
-```bash
-# Development
-python -m pytest tests/ -v --cov
-python -m black src/
-python -m pylint src/
-
-# Training
-python scripts/train.py --config prod.yaml
-python scripts/evaluate.py --model best.pth
-
-# Deployment
-docker build -t service:v1 .
-kubectl apply -f k8s/
-helm upgrade service ./charts/
-
-# Monitoring
-kubectl logs -f deployment/service
-python scripts/health_check.py
-```
+- Not every agent implementation in the repo was sampled for this skill.
+- Some older prompt consumers may still rely on builtin templates or legacy loaders.
+- The full evaluation story across all agents is still partly distributed between tests, scripts, and runtime inspection.
 
 ## Resources
 
-- Advanced Patterns: `references/prompt_engineering_patterns.md`
-- Implementation Guide: `references/llm_evaluation_frameworks.md`
-- Technical Reference: `references/agentic_system_design.md`
-- Automation Scripts: `scripts/` directory
-
-## Senior-Level Responsibilities
-
-As a world-class senior professional:
-
-1. **Technical Leadership**
-   - Drive architectural decisions
-   - Mentor team members
-   - Establish best practices
-   - Ensure code quality
-
-2. **Strategic Thinking**
-   - Align with business goals
-   - Evaluate trade-offs
-   - Plan for scale
-   - Manage technical debt
-
-3. **Collaboration**
-   - Work across teams
-   - Communicate effectively
-   - Build consensus
-   - Share knowledge
-
-4. **Innovation**
-   - Stay current with research
-   - Experiment with new approaches
-   - Contribute to community
-   - Drive continuous improvement
-
-5. **Production Excellence**
-   - Ensure high availability
-   - Monitor proactively
-   - Optimize performance
-   - Respond to incidents
+- `references/prompt_engineering_patterns.md`
+- `references/llm_evaluation_frameworks.md`
+- `references/agentic_system_design.md`

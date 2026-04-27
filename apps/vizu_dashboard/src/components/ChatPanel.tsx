@@ -14,6 +14,7 @@ import {
   TagLabel,
   TagCloseButton,
   Spinner,
+  usePrefersReducedMotion,
 } from '@chakra-ui/react';
 import { useState, useRef, useEffect, useContext, useCallback } from 'react';
 import { ArrowForwardIcon, AttachmentIcon, AddIcon, ChatIcon, CloseIcon } from '@chakra-ui/icons';
@@ -22,6 +23,7 @@ import { SimpleDataTable, type StructuredData } from './SimpleDataTable';
 import { MarkdownMessage } from './MarkdownMessage';
 import { sendChatMessageStream, type StreamDoneData } from '../services/chatService';
 import { uploadFile, getAcceptedExtensions } from '../services/knowledgeBaseService';
+import { useTracking } from '../hooks/useTracking';
 
 interface Message {
   id: string;
@@ -64,7 +66,9 @@ export const ChatPanel = ({ isOpen, onClose, initialMessage, onInitialMessageCon
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const auth = useContext(AuthContext);
+  const { track } = useTracking();
   const toast = useToast();
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   // Unique session ID per conversation — resets on "New Chat" or fresh page open
   const [sessionId, setSessionId] = useState(
@@ -155,6 +159,12 @@ export const ChatPanel = ({ isOpen, onClose, initialMessage, onInitialMessageCon
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return;
+
+    track('chat.rail.message_sent', {
+      source: 'chat_panel',
+      has_attachments: attachedFiles.length > 0,
+      message_length: inputValue.trim().length,
+    });
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -299,7 +309,7 @@ export const ChatPanel = ({ isOpen, onClose, initialMessage, onInitialMessageCon
           sx={{ WebkitBackdropFilter: 'blur(8px)' }}
           zIndex={9998}
           onClick={onClose}
-          transition="opacity 0.3s ease"
+          transition={prefersReducedMotion ? 'none' : 'opacity 0.3s ease'}
         />
       )}
 
@@ -307,17 +317,19 @@ export const ChatPanel = ({ isOpen, onClose, initialMessage, onInitialMessageCon
       <Slide direction="right" in={isOpen} style={{ zIndex: 9999 }}>
         <Box
           position="fixed"
-          top="0"
+          top={{ base: 'auto', md: 0 }}
+          bottom={{ base: 0, md: 'auto' }}
           right="0"
           width={{ base: '100%', md: '50%' }}
-          maxW="750px"
-          height="100vh"
+          maxW={{ base: '100%', md: '750px' }}
+          height={{ base: '78vh', md: '100vh' }}
           bg="#0d0e1f"
           backdropFilter="blur(20px)"
           sx={{ WebkitBackdropFilter: 'blur(20px)' }}
           borderLeft="1px solid"
           borderColor="rgba(255, 255, 255, 0.08)"
           boxShadow="-10px 0 40px rgba(0, 0, 0, 0.5)"
+          borderTopRadius={{ base: '20px', md: 0 }}
           display="flex"
           flexDirection="column"
         >
@@ -415,8 +427,8 @@ export const ChatPanel = ({ isOpen, onClose, initialMessage, onInitialMessageCon
                       fontSize="14px"
                       fontFamily="'Inter', sans-serif"
                       border="1px solid rgba(255,255,255,0.12)"
-                      _hover={{ bg: 'whiteAlpha.200', transform: 'scale(1.02)' }}
-                      transition="all 0.2s ease"
+                      _hover={{ bg: 'whiteAlpha.200', transform: prefersReducedMotion ? 'none' : 'scale(1.02)' }}
+                      transition={prefersReducedMotion ? 'none' : 'all 0.2s ease'}
                       onClick={() => handleChipClick(chip.label)}
                       leftIcon={chip.icon ? <AddIcon w={3} h={3} /> : undefined}
                     >
@@ -605,9 +617,9 @@ export const ChatPanel = ({ isOpen, onClose, initialMessage, onInitialMessageCon
                 h="40px"
                 isDisabled={!inputValue.trim() || isLoading}
                 onClick={handleSendMessage}
-                _hover={{ bgGradient: 'linear(to-r, #2563eb, #1d4ed8)', transform: 'scale(1.05)', boxShadow: '0 4px 12px rgba(59,130,246,0.4)' }}
+                _hover={{ bgGradient: 'linear(to-r, #2563eb, #1d4ed8)', transform: prefersReducedMotion ? 'none' : 'scale(1.05)', boxShadow: '0 4px 12px rgba(59,130,246,0.4)' }}
                 _disabled={{ opacity: 0.5, cursor: 'not-allowed' }}
-                transition="all 0.2s ease"
+                transition={prefersReducedMotion ? 'none' : 'all 0.2s ease'}
               />
             </Flex>
           </Box>

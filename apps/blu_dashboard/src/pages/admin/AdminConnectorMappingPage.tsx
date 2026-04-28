@@ -51,31 +51,28 @@ import { supabase } from '../../lib/supabase';
 // Canonical columns for display (Portuguese names matching fato_transacoes pipeline)
 // These are the mappable canonical columns that the sync function knows how to route
 const CANONICAL_COLUMNS: Record<string, string> = {
-    // Transaction fields (-> fato_transacoes)
-    pedido_id: 'ID do Pedido (documento)',
-    data_transacao: 'Data da Transação',
+    // Transaction fields (-> fato_transacoes / invoices)
+    documento: 'Documento (NF / Pedido)',
+    data_competencia_id: 'Data da Transação',
     quantidade: 'Quantidade',
     valor_unitario: 'Valor Unitário',
-    valor_total: 'Valor Total',
+    valor: 'Valor Total',
     status: 'Status',
-    // Customer fields (-> dim_clientes)
+    // Customer fields (-> dim_clientes / invoices)
     cliente_cpf_cnpj: 'CPF/CNPJ do Cliente',
     cliente_nome: 'Nome do Cliente',
     cliente_telefone: 'Telefone do Cliente',
-    cliente_rua: 'Rua do Cliente',
-    cliente_numero: 'Número do Cliente',
-    cliente_bairro: 'Bairro do Cliente',
     cliente_cidade: 'Cidade do Cliente',
     cliente_uf: 'UF do Cliente',
-    cliente_cep: 'CEP do Cliente',
-    // Supplier fields (-> dim_fornecedores)
+    // Supplier fields (-> dim_fornecedores / invoices)
     fornecedor_cnpj: 'CNPJ do Fornecedor',
     fornecedor_nome: 'Nome do Fornecedor',
     fornecedor_telefone: 'Telefone do Fornecedor',
     fornecedor_cidade: 'Cidade do Fornecedor',
     fornecedor_uf: 'UF do Fornecedor',
-    // Product fields (-> dim_produtos)
-    produto_descricao: 'Descrição do Produto',
+    // Product fields (-> dim_inventory / invoices)
+    produto_sku: 'SKU do Produto',
+    produto_nome: 'Nome do Produto',
 };
 
 // All possible canonical columns for dropdown
@@ -488,7 +485,7 @@ function AdminConnectorMappingPage() {
 
             setSyncProgress(50);
 
-            // Call run-sync edge function (fire-and-forget)
+            // Call run-sync edge function
             const { data: syncResponse, error: invokeError } = await supabase.functions.invoke('run-sync', {
                 body: {
                     client_id: credential.client_id,
@@ -497,16 +494,29 @@ function AdminConnectorMappingPage() {
                 },
             });
 
-            if (invokeError) throw invokeError;
-            if (!syncResponse?.job_id) throw new Error('Falha ao criar job de sincronização');
-
-            const jobId = syncResponse.job_id;
+            let jobId: string;
+            if (invokeError) {
+                // 409 = a job is already pending/running — reuse its ID for polling
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const errBody = await (invokeError as any).context?.json?.().catch(() => null);
+                if (errBody?.existing_job_id) {
+                    jobId = errBody.existing_job_id;
+                    toast({ title: 'Job em andamento', description: 'Acompanhando o progresso do job existente.', status: 'info', duration: 3000 });
+                } else {
+                    throw invokeError;
+                }
+            } else {
+                if (!syncResponse?.job_id) throw new Error('Falha ao criar job de sincronização');
+                jobId = syncResponse.job_id;
+            }
             setSyncProgress(55);
 
             // Poll reg_jobs for progress
             let pollAttempts = 0;
-            const maxPollAttempts = 360; // 30 min max (5s intervals)
-            let finalResult: { status: string; result?: Record<string, unknown>; error_message?: string } | null = null;
+            let consecutiveErrors = 0;
+            const maxPollAttempts = 120; // 10 min max (5s intervals)
+            const maxConsecutiveErrors = 5;
+            let finalResult: { status: string; output?: Record<string, unknown>; rows_inserted?: number; error_message?: string } | null = null;
 
             while (pollAttempts < maxPollAttempts) {
                 await new Promise(r => setTimeout(r, 5000)); // 5s interval
@@ -515,14 +525,20 @@ function AdminConnectorMappingPage() {
                 const { data: job, error: pollError } = await supabase
                     .schema('analytics_v2')
                     .from('reg_jobs')
-                    .select('status, progress_pct, result, error_message')
+                    .select('status, progress_pct, output, rows_inserted, error_message')
                     .eq('job_id', jobId)
                     .maybeSingle();
 
                 if (pollError) {
-                    console.warn('Poll error:', pollError);
+                    consecutiveErrors++;
+                    console.warn(`Poll error (${consecutiveErrors}/${maxConsecutiveErrors}):`, pollError);
+                    if (consecutiveErrors >= maxConsecutiveErrors) {
+                        throw new Error(`Polling falhou após ${maxConsecutiveErrors} erros consecutivos: ${pollError.message}`);
+                    }
                     continue;
                 }
+
+                consecutiveErrors = 0;
 
                 if (!job) {
                     continue;
@@ -539,7 +555,7 @@ function AdminConnectorMappingPage() {
             }
 
             if (!finalResult) {
-                throw new Error('Sincronização expirou após 30 minutos');
+                throw new Error('Sincronização expirou após 10 minutos');
             }
 
             if (finalResult.status === 'failed') {
@@ -548,8 +564,8 @@ function AdminConnectorMappingPage() {
 
             setSyncProgress(100);
 
-            const rowsInserted = (finalResult.result as Record<string, unknown>)?.rows_inserted || 0;
-            const targetTable = (finalResult.result as Record<string, unknown>)?.target_table || 'tabela';
+            const rowsInserted = finalResult.rows_inserted ?? (finalResult.output as Record<string, unknown>)?.rows_inserted ?? 0;
+            const targetTable = (finalResult.output as Record<string, unknown>)?.target_table || 'tabela';
 
             // Fetch ingestion quality stats from client_data_sources
             try {

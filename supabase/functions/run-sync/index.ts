@@ -104,7 +104,7 @@ Deno.serve(async (req: Request) => {
       .select("id, source_columns, column_mapping")
       .eq("client_id", client_id)
       .eq("credential_id", normalizedCredentialId)
-      .order("atualizado_em", { ascending: false })
+      .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 

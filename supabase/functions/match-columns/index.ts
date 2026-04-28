@@ -59,330 +59,168 @@ interface SchemaMatchResult {
     detected_context?: string; // The inferred entity context (customer/supplier/product/neutral)
 }
 
-type SchemaType = "invoices" | "fato_transacoes" | "dim_clientes" | "dim_inventory" | "dim_categoria";
+type SchemaType = "invoices" | "fato_transacoes" | "dim_clientes" | "dim_inventory";
 
 // =============================================================================
 // Canonical Schemas (Portuguese-aligned with analytics_v2 tables)
 // =============================================================================
 
 const CANONICAL_SCHEMAS: Record<SchemaType, string[]> = {
-    // Main schema for BigQuery invoice data → analytics_v2 multi-table ETL
-    // Each canonical name must be UNIQUE so dedup works (one source → one target)
+    // Main schema for BigQuery → analytics_v2 multi-table ETL.
+    // Canonical names are the target DB column names (with table prefix for dim tables
+    // so the ETL knows which dimension to write to).
     invoices: [
-        // === fato_transacoes (scalar columns via column_mapping) ===
-        "documento",            // id_operatorinvoice → internal operation ID
-        "nf_numero",            // product_nf → NF-e number
-        "data_competencia_id",  // emittedat_operatorinvoice → emission date (YYYYMMDD)
-        "quantidade",           // quantitytraded_product
-        "quantidade_kg",        // quantitytradedkg_product
-        "valor_unitario",       // unitprice_product
-        "valor_unitario_kg",    // unitpricekg_product
-        "valor",                // totalprice_product → product line total
-        "valor_nf",             // price_operatorinvoice → invoice total with taxes
-        "status",               // status_operatorinvoice
-        "movement_type",        // natop_operatorinvoice → NATOP
-        "danfe",                // danfe → DANFE access key
-        "data_criacao_origem",  // createdat_operatorinvoice → source creation date
-        "is_blocked",           // isblocked_operatorinvoice
-        "volume",               // volume_operatorinvoice
-        "volume_validado",      // validvolume_operatorinvoice
-        "valor_validado",       // validprice_operatorinvoice
-        "id_credito",           // id_invoicecredit → credit note ID
-        "data_credito",         // createdat_invoicecredit → credit note date
-        "status_produto",       // status_product → product-level status
-        "data_criacao_produto", // createdat_product → product creation date
-        "was_purchased",        // was_purchased
-        "was_compensation",     // was_compensation
-        "compensations_ids",    // compensations_ids
-        "purchase_order_ids",   // purchaseordersids
-        "purchase_order_codes", // purchaseorders_codes
-        "in_offer",             // invoice_in_offer
-        "has_credit",           // has_invoice_credit
-        "product_invalidations", // product_invalidations
-        "cpl_adicional",        // aditional_cpl_operatorinvoice
-        "fisco_adicional",      // aditional_fisco_operatorinvoice
-        "danfe_materials",      // danfe_materials
-        "filial_id",            // id_subsidiary
-        "filial_cnpj",          // cnpj_subsidiary
+        // → fato_transacoes
+        "documento",           // id_operatorinvoice / order_id
+        "data_competencia_id", // emittedat_operatorinvoice (YYYYMMDD integer)
+        "quantidade",          // quantitytraded_product
+        "valor_unitario",      // unitprice_product
+        "valor",               // totalprice_product
+        "status",              // status_operatorinvoice
 
-        // === dim_fornecedores (auto-handled by ETL, mapping is informational) ===
-        "fornecedor_cnpj",       // emitterlegaldoc
-        "fornecedor_nome",       // emitterlegalname
-        "fornecedor_nome_fantasia", // emitterfantasyname
-        "fornecedor_telefone",   // emitterphone
-        "fornecedor_cnae",       // emittercnae
-        "fornecedor_rua",        // emitterstreet
-        "fornecedor_numero",     // emitternumber
-        "fornecedor_bairro",     // emitterneighborhood
-        "fornecedor_cidade",     // emittercity
-        "fornecedor_uf",         // emitterstateuf
-        "fornecedor_cep",        // emitterzipcode
-        "fornecedor_company_id", // companyid
+        // → dim_clientes (receiver / buyer fields)
+        "cliente_cpf_cnpj",    // receiverlegaldoc
+        "cliente_nome",        // receiverlegalname
+        "cliente_telefone",    // receiverphone
+        "cliente_cidade",      // receivercity  → dim_clientes.endereco_cidade
+        "cliente_uf",          // receiverstateuf → dim_clientes.endereco_uf
 
-        // === dim_clientes (auto-handled by ETL, mapping is informational) ===
-        "cliente_cpf_cnpj",      // receiverlegaldoc
-        "cliente_nome",          // receiverlegalname
-        "cliente_nome_fantasia", // receiverfantasyname
-        "cliente_telefone",      // receiverphone
-        "cliente_cnae",          // receivercnae
-        "cliente_rua",           // receiverstreet
-        "cliente_numero",        // receivernumber
-        "cliente_bairro",        // receiverneighborhood
-        "cliente_cidade",        // receivercity
-        "cliente_uf",            // receiverstateuf
-        "cliente_cep",           // receiverzipcode
+        // → dim_fornecedores (emitter / supplier fields)
+        "fornecedor_cnpj",     // emitterlegaldoc → dim_fornecedores.cnpj
+        "fornecedor_nome",     // emitterlegalname
+        "fornecedor_telefone", // emitterphone
+        "fornecedor_cidade",   // emittercity → dim_fornecedores.endereco_cidade
+        "fornecedor_uf",       // emitterstateuf → dim_fornecedores.endereco_uf
 
-        // === dim_inventory (auto-handled by ETL, mapping is informational) ===
-        "produto_id_externo",    // id_product → external product ID
-        "produto_descricao",     // description_product
-        "produto_ncm",           // ncm → fiscal classification
-        "produto_unidade",       // commercialunit_product
-
-        // === dim_tipo_transacao (auto-handled by ETL, mapping is informational) ===
-        "tipo_cfop",             // cfop
-
-        // === dim_categoria (auto-handled by ETL, mapping is informational) ===
-        "categoria_material",    // material
-
+        // → dim_inventory (product fields)
+        "produto_sku",         // id_product → dim_inventory.sku
+        "produto_nome",        // description_product → dim_inventory.nome
     ],
 
-    // Customers dimension → analytics_v2.clientes (aligned with migration 20260224)
-    dim_clientes: [
-        "cliente_id",            // UUID PK
-        "client_id",             // Tenant isolation (UUID)
-        "cpf_cnpj",              // CPF/CNPJ (VARCHAR 20)
-        "nome",                  // Customer name (VARCHAR 255)
-        "nome_fantasia",         // Trade name / fantasy name
-        "cnae",                  // CNAE economic activity code
-        "telefone",              // Phone (VARCHAR 50)
-        "endereco_rua",          // Street address (VARCHAR 255)
-        "endereco_numero",       // Street number (VARCHAR 50)
-        "endereco_bairro",       // Neighborhood (VARCHAR 100)
-        "endereco_cidade",       // City (VARCHAR 100)
-        "endereco_uf",           // State (VARCHAR 2)
-        "endereco_cep",          // Postal code (VARCHAR 10)
-        "total_pedidos",         // Aggregated: total orders
-        "receita_total",         // Aggregated: total revenue
-        "ticket_medio",          // Aggregated: average order value
-        "quantidade_total",      // Aggregated: total quantity
-        "pedidos_ultimos_30_dias", // Aggregated: orders in last 30 days
-        "frequencia_mensal",     // Aggregated: orders per month
-        "dias_recencia",         // Aggregated: days since last order
-        "data_primeira_compra",  // First purchase date
-        "data_ultima_compra",    // Last purchase date
-        "pontuacao_cluster",     // Cluster score (DECIMAL 5,2)
-        "nivel_cluster",         // Cluster tier (VARCHAR 50)
-        "criado_em",
-        "atualizado_em",
-    ],
-    // Inventory dimension → analytics_v2.dim_inventory
-    dim_inventory: [
-        "inventory_id",
-        "produto_id",
-        "sku",                  // Product ID from source (id_product)
-        "nome",                 // Product description (description_product)
-        "ncm",                  // NCM fiscal classification
-        "unidade_comercial",    // Commercial unit (KG, UN, CX)
-        "external_id",          // External product ID
-        "warehouse_code",
-        "quantity_on_hand",
-        "quantity_reserved",
-        "quantity_available",
-        "reorder_point",
-        "reorder_quantity",
-        "unit_cost",
-        "last_counted_at",
-        "created_at",
-        "updated_at",
-    ],
-    // Normalized fact table → analytics_v2.fato_transacoes (FK-based, no denormalized fields)
+    // analytics_v2.fato_transacoes — actual writeable columns
     fato_transacoes: [
         "documento",
-        "nf_numero",
         "data_competencia_id",
-        "data_vencimento_id",
-        "data_efetiva_id",
-        "tipo_id",
-        "categoria_id",
-        "cliente_id",
-        "fornecedor_id",
-        "produto_id",
-        "parcela",
         "quantidade",
-        "quantidade_kg",
         "valor_unitario",
-        "valor_unitario_kg",
         "valor",
-        "valor_nf",
         "status",
-        "movement_type",
-        "origem_tabela",
-        "origem_id",
     ],
-    // Categories → analytics_v2.dim_categoria
-    dim_categoria: [
-        "nome",              // Category name (TEXT, unique per client)
-        "tipo",              // Category type (TEXT)
-        "grupo",             // Category group (TEXT)
+
+    // analytics_v2.dim_clientes — only fields written at ingestion time
+    dim_clientes: [
+        "cpf_cnpj",
+        "nome",
+        "telefone",
+        "endereco_cidade",
+        "endereco_uf",
+    ],
+
+    // analytics_v2.dim_inventory — only fields written at ingestion time
+    dim_inventory: [
+        "sku",
+        "nome",
     ],
 };
 
 // =============================================================================
-// Column Aliases (maps source variations → canonical names)
+// Column Aliases (BigQuery source column names → canonical target names)
 // =============================================================================
 
 const COLUMN_ALIASES: Record<string, string[]> = {
-    // =============================================================================
-    // INVOICES schema: 1-to-1 aliases for all BQ products_invoices columns.
-    // Each BQ column maps to exactly ONE unique canonical target so dedup works.
-    // =============================================================================
-
-    // --- fato_transacoes scalar columns (actually stored via column_mapping) ---
-    documento: ["id_operatorinvoice", "id_invoice", "invoice_id", "order_id", "orderid"],
-    nf_numero: ["product_nf", "nota_fiscal", "nf_number", "numero_nf", "nf_e"],
-    data_competencia_id: ["emittedat_operatorinvoice", "data_emissao", "emission_date"],
-    quantidade: ["quantitytraded_product", "quantity", "qty", "qtd"],
-    quantidade_kg: ["quantitytradedkg_product", "qty_kg", "qtd_kg"],
-    valor_unitario: ["unitprice_product", "unit_price", "preco_unitario"],
-    valor_unitario_kg: ["unitpricekg_product", "unit_price_kg", "preco_unitario_kg"],
-    valor: ["totalprice_product", "total_price", "grand_total"],
-    valor_nf: ["price_operatorinvoice", "total_nf", "valor_nota_fiscal", "invoice_total"],
-    status: ["status_operatorinvoice", "order_status"],
-    movement_type: ["natop_operatorinvoice", "natureza_operacao", "natop", "tipo_movimento"],
-    danfe: ["danfe", "danfe_key", "chave_danfe"],
-    data_criacao_origem: ["createdat_operatorinvoice", "operation_created_at"],
-    is_blocked: ["isblocked_operatorinvoice", "blocked", "bloqueado"],
-    volume: ["volume_operatorinvoice", "volume_total"],
-    volume_validado: ["validvolume_operatorinvoice", "valid_volume"],
-    valor_validado: ["validprice_operatorinvoice", "valid_price", "preco_validado"],
-    id_credito: ["id_invoicecredit", "credit_note_id", "nota_credito_id"],
-    data_credito: ["createdat_invoicecredit", "credit_created_at"],
-    status_produto: ["status_product", "product_status"],
-    data_criacao_produto: ["createdat_product", "product_created_at"],
-    was_purchased: ["was_purchased", "compra_efetiva"],
-    was_compensation: ["was_compensation", "compensacao"],
-    compensations_ids: ["compensations_ids", "ids_compensacoes"],
-    purchase_order_ids: ["purchaseordersids", "purchase_orders_ids"],
-    purchase_order_codes: ["purchaseorders_codes", "purchase_orders_codes"],
-    in_offer: ["invoice_in_offer", "oferta"],
-    has_credit: ["has_invoice_credit", "tem_credito"],
-    product_invalidations: ["product_invalidations", "invalidacoes_produto"],
-    cpl_adicional: ["aditional_cpl_operatorinvoice", "cpl_additional"],
-    fisco_adicional: ["aditional_fisco_operatorinvoice", "fisco_additional"],
-    danfe_materials: ["danfe_materials", "materiais_danfe"],
-    filial_id: ["id_subsidiary", "subsidiary_id", "branch_id"],
-    filial_cnpj: ["cnpj_subsidiary", "subsidiary_cnpj"],
-
-    // --- dim_fornecedores (auto-handled by ETL, mapping is informational) ---
-    fornecedor_cnpj: ["emitterlegaldoc", "emitter_cnpj", "supplier_cnpj"],
-    fornecedor_nome: ["emitterlegalname", "nome_emitter", "supplier_name"],
-    fornecedor_nome_fantasia: ["emitterfantasyname", "emitter_fantasy_name"],
-    fornecedor_telefone: ["emitterphone", "emitter_phone", "supplier_phone"],
-    fornecedor_cnae: ["emittercnae", "emitter_cnae"],
-    fornecedor_rua: ["emitterstreet", "emitter_rua"],
-    fornecedor_numero: ["emitternumber", "emitter_numero"],
-    fornecedor_bairro: ["emitterneighborhood", "emitter_bairro"],
-    fornecedor_cidade: ["emittercity", "emitter_cidade"],
-    fornecedor_uf: ["emitterstateuf", "emitter_uf"],
-    fornecedor_cep: ["emitterzipcode", "emitter_cep"],
-    fornecedor_company_id: ["companyid", "company_id", "emitter_company_id"],
-
-    // --- dim_clientes (auto-handled by ETL, mapping is informational) ---
-    cliente_cpf_cnpj: ["receiverlegaldoc", "receiver_cnpj", "customer_doc"],
-    cliente_nome: ["receiverlegalname", "nome_receiver", "customer_name"],
-    cliente_nome_fantasia: ["receiverfantasyname", "receiver_fantasy_name"],
-    cliente_telefone: ["receiverphone", "receiver_phone", "customer_phone"],
-    cliente_cnae: ["receivercnae", "receiver_cnae"],
-    cliente_rua: ["receiverstreet", "receiver_rua", "customer_street"],
-    cliente_numero: ["receivernumber", "receiver_numero", "customer_number"],
-    cliente_bairro: ["receiverneighborhood", "receiver_bairro"],
-    cliente_cidade: ["receivercity", "receiver_cidade", "customer_city"],
-    cliente_uf: ["receiverstateuf", "receiver_uf", "customer_state"],
-    cliente_cep: ["receiverzipcode", "receiver_cep", "customer_zip"],
-
-    // --- dim_inventory (auto-handled by ETL, mapping is informational) ---
-    produto_id_externo: ["id_product", "product_id", "external_product_id"],
-    produto_descricao: ["description_product", "descricao_produto", "product_description"],
-    produto_ncm: ["ncm", "ncm_code", "fiscal_classification"],
-    produto_unidade: ["commercialunit_product", "commercial_unit", "unit_of_measure"],
-
-    // --- dim_tipo_transacao (auto-handled by ETL, mapping is informational) ---
-    tipo_cfop: ["cfop", "cfop_code", "codigo_cfop"],
-
-    // --- dim_categoria (auto-handled by ETL, mapping is informational) ---
-    categoria_material: ["material", "material_code", "grupo_material"],
-
-    // =============================================================================
-    // Legacy aliases for non-invoice schemas (fcx_vendas, dim_produtos, etc.)
-    // =============================================================================
-    pedido_id: [
-        "id_operatorinvoice", "id_invoice", "invoice_id", "order_id",
-        "orderid", "numero_pedido", "id_pedido", "order_number", "id",
+    // fato_transacoes
+    documento: [
+        "id_operatorinvoice", "id_invoice", "invoice_id", "order_id", "orderid",
+        "pedido_id", "id_pedido", "numero_pedido", "order_number",
     ],
-    data_transacao: [
-        "emittedat_operatorinvoice", "createdat_invoicecredit", "createdat_operatorinvoice",
-        "createdat_product", "order_date", "data_pedido", "transaction_date",
-        "date", "created_at", "purchase_date", "data_compra",
+    data_competencia_id: [
+        "emittedat_operatorinvoice", "createdat_operatorinvoice", "data_emissao",
+        "emission_date", "order_date", "data_pedido", "data_transacao",
+        "transaction_date", "date", "created_at", "purchase_date",
     ],
-    valor_total: ["totalprice_product", "total_price", "total", "grand_total", "order_total"],
+    quantidade: ["quantitytraded_product", "quantity", "qty", "qtd", "quantitytraded"],
+    valor_unitario: ["unitprice_product", "unit_price", "preco_unitario", "unitprice"],
+    valor: [
+        "totalprice_product", "total_price", "grand_total", "valor_total",
+        "price", "preco", "total",
+    ],
+    status: ["status_operatorinvoice", "order_status", "status_order"],
 
-    // --- Products ---
-    produto_id: ["product_id", "productid", "prod_id", "item_id", "sku_id", "id"],
-    nome: ["name", "title", "product_title", "item_name", "productname", "product_name", "full_name", "customer_name"],
-    categoria: ["material", "category", "category_name", "tipo_material"],
-    descricao: ["body", "body_html", "content", "details", "desc", "description"],
-    preco: ["price", "unit_price", "sale_price", "selling_price", "valor"],
-    preco_custo: ["cost", "custo", "cost_price", "purchase_price", "wholesale_price"],
-    sku: ["item_sku", "product_sku", "codigo", "code", "id_product"],
-    ncm: ["ncm_product", "ncm_code", "fiscal_classification"],
-    unidade_comercial: ["commercialunit_product", "commercial_unit", "uom"],
-    external_id: ["id_product", "external_product_id"],
-    codigo_barras: ["barcode", "ean", "upc", "gtin"],
-    quantidade_estoque: ["stock_quantity", "available_quantity", "qty_available", "in_stock", "estoque"],
-    marca: ["brand", "manufacturer", "fabricante"],
-    fornecedor: ["vendor", "supplier", "seller"],
-    imagem_url: ["image_url", "image", "photo", "thumbnail", "imagem", "foto"],
-    criado_em: ["created_at", "createdat", "date_created", "creation_date"],
-    atualizado_em: ["updated_at", "updatedat", "date_modified", "modification_date"],
+    // dim_clientes (receiver / buyer fields)
+    cliente_cpf_cnpj: [
+        "receiverlegaldoc", "receiver_cnpj", "customer_doc",
+        "cpf_cnpj", "cpf", "cnpj_cliente",
+    ],
+    cliente_nome: [
+        "receiverlegalname", "nome_receiver", "customer_name",
+        "nome_cliente", "receiver_name",
+    ],
+    cliente_telefone: [
+        "receiverphone", "receiver_phone", "customer_phone",
+        "telefone_cliente", "receiverphone",
+    ],
+    cliente_cidade: [
+        "receivercity", "receiver_cidade", "customer_city",
+        "cidade_cliente", "receivercity",
+    ],
+    cliente_uf: [
+        "receiverstateuf", "receiver_uf", "customer_state",
+        "uf_cliente", "estado_cliente",
+    ],
 
-    // --- Customers ---
-    cliente_id: ["customer_id", "client_id", "user_id", "id"],
-    cpf_cnpj: ["receiverlegaldoc", "receiver_cnpj", "customer_doc", "cpf"],
-    sobrenome: ["last_name", "lastname", "family_name", "surname"],
-    email: ["customer_email", "email_address", "e_mail"],
+    // dim_fornecedores (emitter / supplier fields)
+    fornecedor_cnpj: [
+        "emitterlegaldoc", "emitter_cnpj", "supplier_cnpj",
+        "cnpj_fornecedor", "emitter_doc",
+    ],
+    fornecedor_nome: [
+        "emitterlegalname", "nome_emitter", "supplier_name",
+        "nome_fornecedor", "emittername",
+    ],
+    fornecedor_telefone: [
+        "emitterphone", "emitter_phone", "supplier_phone",
+        "telefone_fornecedor",
+    ],
+    fornecedor_cidade: [
+        "emittercity", "emitter_cidade", "supplier_city",
+        "cidade_fornecedor",
+    ],
+    fornecedor_uf: [
+        "emitterstateuf", "emitter_uf", "supplier_state",
+        "uf_fornecedor", "estado_fornecedor",
+    ],
+
+    // dim_inventory (product fields)
+    produto_sku: [
+        "id_product", "product_id", "external_product_id",
+        "sku", "codigo_produto", "item_sku", "product_sku",
+    ],
+    produto_nome: [
+        "description_product", "descricao_produto", "product_description",
+        "product_name", "nome_produto", "item_name",
+    ],
+
+    // dim_clientes standalone schema
+    cpf_cnpj: ["receiverlegaldoc", "customer_doc", "cpf", "cnpj", "documento_cliente"],
+    nome: ["name", "full_name", "customer_name", "product_name", "supplier_name"],
     telefone: ["phone", "telephone", "mobile", "celular", "phone_number"],
-    endereco_rua: ["street", "logradouro", "rua"],
-    endereco_numero: ["street_number", "numero_endereco"],
-    endereco_bairro: ["neighborhood", "bairro"],
-    endereco_cidade: ["city", "cidade", "municipio"],
-    endereco_uf: ["state", "uf", "estado"],
-    endereco_cep: ["zipcode", "postal_code", "cep"],
-    endereco: ["address", "address_line"],
-    cidade: ["city", "locality"],
-    estado: ["state", "province", "region"],
-    pais: ["country", "country_code"],
-    cep: ["postal_code", "zip_code", "postcode"],
-    total_pedidos: ["orders_count", "order_count", "num_orders"],
-    valor_total_gasto: ["total_spent", "lifetime_value", "total_revenue"],
-    nome_fantasia: ["fantasy_name", "trade_name", "nome_comercial"],
-    cnae: ["cnae_code", "atividade_economica"],
+    endereco_cidade: ["city", "cidade", "municipio", "receivercity", "emittercity"],
+    endereco_uf: ["state", "uf", "estado", "receiverstateuf", "emitterstateuf"],
+    total_pedidos: ["orders_count", "order_count", "num_orders", "total_orders"],
+    receita_total: ["total_revenue", "total_spent", "lifetime_value", "revenue"],
+    ticket_medio: ["average_order_value", "avg_order", "ticket"],
+    quantidade_total: ["total_quantity", "total_qty"],
+    frequencia_mensal: ["monthly_frequency", "orders_per_month"],
+    dias_recencia: ["recency_days", "days_since_last_order"],
+    data_primeira_compra: ["first_purchase_date", "first_order_date"],
+    data_ultima_compra: ["last_purchase_date", "last_order_date"],
+    atualizado_em: ["updated_at", "updatedat", "date_modified"],
 
-    // --- Orders ---
-    numero_pedido: ["order_number", "number", "order_no", "numero"],
-    data_pedido: ["order_date", "date", "purchase_date", "data_compra"],
-    status_financeiro: ["financial_status", "payment_status"],
-    status_entrega: ["fulfillment_status", "shipping_status", "delivery_status"],
-    subtotal: ["sub_total", "items_total"],
-    imposto_total: ["total_tax", "tax", "tax_amount", "impostos"],
-    desconto_total: ["total_discount", "discount", "discount_amount", "desconto"],
-    frete: ["shipping_cost", "shipping", "freight", "shipping_amount"],
-    metodo_pagamento: ["payment_method", "payment_type", "forma_pagamento"],
-    endereco_entrega: ["shipping_address"],
-    endereco_cobranca: ["billing_address"],
-    itens: ["line_items", "items", "order_items"],
-    observacoes: ["notes", "comments", "remarks"],
-    origem: ["source", "channel", "origem_pedido"],
-    parcela: ["installment", "parcela_numero", "installment_number"],
+    // dim_inventory standalone schema
+    sku: ["item_sku", "product_sku", "codigo", "code", "id_product", "product_id"],
+    quantidade_total_vendida: ["total_quantity_sold", "qty_sold", "total_sold"],
+    preco_medio: ["average_price", "avg_price", "mean_price"],
+    data_ultima_venda: ["last_sale_date", "last_sold_date"],
 };
 
 // =============================================================================
@@ -400,53 +238,37 @@ const MEDIUM_CONFIDENCE_THRESHOLD = 0.70;
 // When a bare column like "cnpj" appears, use schema context to disambiguate
 const SCHEMA_CONTEXT_DEFAULTS: Record<SchemaType, Record<string, string>> = {
     dim_clientes: {
-        cnpj: "cliente_cpf_cnpj",
-        cpf: "cliente_cpf_cnpj",
-        cpf_cnpj: "cliente_cpf_cnpj",
-        documento: "cliente_cpf_cnpj",
+        cnpj: "cpf_cnpj",
+        cpf: "cpf_cnpj",
+        cpf_cnpj: "cpf_cnpj",
         telefone: "telefone",
         nome: "nome",
-        endereco: "endereco",
-        cidade: "cidade",
-        estado: "estado",
-        uf: "estado",
-        cep: "cep",
-        email: "email",
+        cidade: "endereco_cidade",
+        estado: "endereco_uf",
+        uf: "endereco_uf",
     },
     invoices: {
-        // Maps to fato_transacoes columns
         data: "data_competencia_id",
         valor: "valor",
         total: "valor",
         preco: "valor_unitario",
         qtd: "quantidade",
         pedido: "documento",
-        nf: "nf_numero",
-        nota: "nf_numero",
-        nota_fiscal: "nf_numero",
-        natureza: "movement_type",
-        natop: "movement_type",
-        kg: "quantidade_kg",
+        id: "documento",
     },
-
     dim_inventory: {
-        quantidade: "quantity_on_hand",
+        quantidade: "quantidade_total_vendida",
         codigo: "sku",
-        estoque: "quantity_on_hand",
+        estoque: "quantidade_total_vendida",
+        nome: "nome",
     },
     fato_transacoes: {
         valor: "valor",
         total: "valor",
         quantidade: "quantidade",
-        codigo: "documento",
         data: "data_competencia_id",
         status: "status",
-    },
-    dim_categoria: {
-        nome: "nome",
-        categoria: "nome",
-        tipo: "tipo",
-        grupo: "grupo",
+        documento: "documento",
     },
 };
 
@@ -573,46 +395,46 @@ const CONTEXT_SPECIFIC_MAPPINGS: Record<string, Record<EntityContext, string>> =
         neutral: "estado",
     },
     endereco: {
-        customer: "cliente_rua",
-        supplier: "fornecedor_cidade", // Suppliers usually just have city
-        product: "endereco",
-        neutral: "endereco",
+        customer: "cliente_cidade",
+        supplier: "fornecedor_cidade",
+        product: "nome",
+        neutral: "fornecedor_cidade",
     },
     cep: {
-        customer: "cliente_cep",
-        supplier: "fornecedor_cidade", // Map to city as proxy
-        product: "cep",
-        neutral: "cep",
+        customer: "cliente_uf",
+        supplier: "fornecedor_uf",
+        product: "sku",
+        neutral: "fornecedor_uf",
     },
     data: {
-        customer: "criado_em",
-        supplier: "data_transacao",
-        product: "criado_em",
-        neutral: "data_transacao",
+        customer: "data_ultima_compra",
+        supplier: "data_competencia_id",
+        product: "data_ultima_venda",
+        neutral: "data_competencia_id",
     },
     date: {
-        customer: "criado_em",
-        supplier: "data_transacao",
-        product: "criado_em",
-        neutral: "data_transacao",
+        customer: "data_ultima_compra",
+        supplier: "data_competencia_id",
+        product: "data_ultima_venda",
+        neutral: "data_competencia_id",
     },
     valor: {
-        customer: "valor_total_gasto",
-        supplier: "valor_total",
-        product: "preco",
-        neutral: "valor_total",
+        customer: "receita_total",
+        supplier: "valor",
+        product: "preco_medio",
+        neutral: "valor",
     },
     value: {
-        customer: "valor_total_gasto",
-        supplier: "valor_total",
-        product: "preco",
-        neutral: "valor_total",
+        customer: "receita_total",
+        supplier: "valor",
+        product: "preco_medio",
+        neutral: "valor",
     },
     total: {
-        customer: "valor_total_gasto",
-        supplier: "valor_total",
-        product: "preco",
-        neutral: "valor_total",
+        customer: "receita_total",
+        supplier: "valor",
+        product: "preco_medio",
+        neutral: "valor",
     },
 };
 
@@ -995,11 +817,9 @@ serve(async (req) => {
             orders: "fato_transacoes",
             customers: "dim_clientes",
             inventory: "dim_inventory",
-            categories: "dim_categoria",
             fcx_vendas: "fato_transacoes",
             dim_produtos: "dim_inventory",
             fcx_orders: "fato_transacoes",
-            fcx_categorias: "dim_categoria",
         };
 
         const validSchemaTypes = Object.keys(CANONICAL_SCHEMAS);

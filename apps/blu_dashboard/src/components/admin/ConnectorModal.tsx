@@ -94,7 +94,7 @@ const DARK_SELECT_PROPS: Partial<SelectProps> = {
 // Required canonical fields. If all of these are mapped (and no ambiguous
 // matches need user review), we sync without bouncing the user through the
 // mapping page.
-const REQUIRED_CANONICAL = ['pedido_id', 'data_transacao', 'valor_total'];
+const REQUIRED_CANONICAL = ['documento', 'data_competencia_id', 'valor'];
 
 const ConnectorModal = ({ isOpen, onClose, connector, returnTo }: ConnectorModalProps) => {
   const [formData, setFormData] = useState<FormData>({});
@@ -236,75 +236,103 @@ const ConnectorModal = ({ isOpen, onClose, connector, returnTo }: ConnectorModal
     }
   };
 
-  /** Run column discovery + the match-columns edge function and decide whether
-   * we have enough mapping coverage to sync straight away. Returns null when
-   * we can't run the analysis (caller falls back to the mapping page). */
+  /** Discover BigQuery columns via the edge function, run match-columns, and
+   * decide whether we have enough coverage to sync straight away.
+   * Returns { canAutoSync: false } when discovery fails (user lands on the
+   * mapping page to review manually). */
   const analyseSchema = async (
     credentialId: number,
   ): Promise<{ canAutoSync: boolean; matchResult: SchemaMatchResult | null }> => {
-    // 1. Trigger column discovery (BigQuery-only RPC today; other connectors
-    //    surface columns via async sync jobs, so we defer them to the mapping page).
     if (connector.id !== 'bigquery') {
       return { canAutoSync: false, matchResult: null };
     }
 
-    const { data: discoveryResult, error: discoveryError } = await supabase.rpc(
-      'trigger_column_discovery',
-      { p_credential_id: credentialId },
-    );
-    if (discoveryError || !discoveryResult?.success) {
+    // Parse SA JSON from the form (already in memory — no extra round-trip needed)
+    let serviceAccountJson: Record<string, string>;
+    try {
+      serviceAccountJson = JSON.parse(formData.service_account_json || '{}');
+    } catch {
       return { canAutoSync: false, matchResult: null };
     }
 
-    // 2. Pull discovered source columns.
-    const { data: dataSource } = await supabase
-      .from('client_data_sources')
-      .select('source_columns, column_mapping, unmapped_columns, needs_review_columns, match_confidence, detected_entity_context')
-      .eq('credential_id', credentialId)
-      .maybeSingle();
+    const projectId = serviceAccountJson.project_id || '';
+    const datasetId = formData.dataset_id || '';
+    const rawTableName = formData.table_name || '';
+    // table_name may be "project.dataset.table" — extract the bare table name
+    const tableName = rawTableName.includes('.')
+      ? rawTableName.split('.').pop()!
+      : rawTableName;
 
-    if (!dataSource?.source_columns) {
-      return { canAutoSync: false, matchResult: null };
-    }
-
-    const columns = Array.isArray(dataSource.source_columns)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ? dataSource.source_columns.map((col: any) => (typeof col === 'object' ? col.name : col))
-      : Object.keys(dataSource.source_columns as Record<string, unknown>);
-
-    // 3. Call the match-columns edge function.
+    // Get auth token first (needed for both discover and match calls)
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData?.session?.access_token;
+
+    if (!token) {
+      console.error('[analyseSchema] No auth token available');
+      return { canAutoSync: false, matchResult: null };
+    }
+
+    // 1. Call discover-bigquery-columns — queries BigQuery REST API and
+    //    persists real columns to client_data_sources.source_columns.
+    const { data: discoveryResult, error: discoveryError } = await supabase.functions.invoke(
+      'discover-bigquery-columns',
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: {
+          credential_id: credentialId,
+          service_account_json: serviceAccountJson,
+          project_id: projectId,
+          dataset_id: datasetId,
+          table_name: tableName,
+        },
+      },
+    );
+
+    if (discoveryError || !discoveryResult?.columns?.length) {
+      console.warn('[analyseSchema] Column discovery failed:', discoveryError?.message ?? 'no columns returned');
+      return { canAutoSync: false, matchResult: null };
+    }
+
+    // 2. Call match-columns with the real column names.
+    const columnNames: string[] = (discoveryResult.columns as Array<{ name: string }>).map(
+      (c) => c.name,
+    );
+
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321';
+
     const matchResp = await fetch(`${supabaseUrl}/functions/v1/match-columns`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ source_columns: columns, schema_type: 'invoices' }),
+      body: JSON.stringify({ source_columns: columnNames, schema_type: 'invoices' }),
     });
+
     if (!matchResp.ok) {
       return { canAutoSync: false, matchResult: null };
     }
+
     const matchResult = (await matchResp.json()) as SchemaMatchResult;
 
-    // 4. Persist the auto-mapping back so the mapping page stays in sync.
+    // 3. Persist the full match result so the mapping page shows real data.
     await supabase
       .from('client_data_sources')
       .update({
-        column_mapping: matchResult.matched,
-        auto_column_mapping: matchResult.matched,
-        unmapped_columns: matchResult.unmatched,
-        needs_review_columns: matchResult.needs_review,
-        match_confidence: matchResult.confidence_scores,
-        detected_entity_context: matchResult.detected_context || 'neutral',
+        column_mapping:          matchResult.matched,
+        auto_column_mapping:     matchResult.matched,
+        unmapped_columns:        matchResult.unmatched,
+        needs_review_columns:    matchResult.needs_review,
+        match_confidence:        matchResult.confidence_scores,
+        detected_entity_context: matchResult.detected_context ?? 'neutral',
+        sync_status:             'mapping_complete',
       })
       .eq('credential_id', credentialId);
 
-    // 5. Mapping is "complete" when all required canonical fields are mapped
-    //    and there are no ambiguous matches awaiting user review.
-    const matchedCanonicals = new Set(Object.values(matchResult.matched || {}));
+    // 4. Auto-sync only when all required fields are mapped with no ambiguity.
+    const matchedCanonicals = new Set(Object.values(matchResult.matched ?? {}));
     const allRequired = REQUIRED_CANONICAL.every((c) => matchedCanonicals.has(c));
     const noAmbiguity = (matchResult.needs_review?.length ?? 0) === 0;
 
@@ -393,20 +421,16 @@ const ConnectorModal = ({ isOpen, onClose, connector, returnTo }: ConnectorModal
       const { canAutoSync } = await analyseSchema(credentialId);
       toast.close('connector-analysis-toast');
 
-      // 3. Decide where to send the user.
+      // 3. Always send the user to the mapping page to confirm before syncing.
       if (canAutoSync) {
-        // Mapping is complete — kick off sync and bounce back to onboarding.
-        await startBackgroundSync(credentialId, ClienteBluId);
         toast({
-          title: 'Conector configurado!',
-          description: 'A sincronização começou em segundo plano.',
+          title: 'Mapeamento automático concluído!',
+          description: 'Revise as colunas mapeadas e confirme para sincronizar.',
           status: 'success',
-          duration: 4000,
+          duration: 5000,
         });
         onClose();
-        if (!goBackToReturnTo({ connector_synced: connector.id })) {
-          navigate(`/dashboard/configurar/connectors/${response.id}/mapping`);
-        }
+        navigate(`/dashboard/configurar/connectors/${response.id}/mapping`);
         return;
       }
 

@@ -296,7 +296,7 @@ export async function createCredential(
             throw new Error(credError.message || 'Falha ao registrar credencial');
         }
 
-        // Create foreign table with two-step FDW discovery (discovers columns from BigQuery INFORMATION_SCHEMA)
+        // Create foreign table with column discovery (discovers columns from BigQuery INFORMATION_SCHEMA)
         const { data: foreignTableResult, error: ftError } = await supabase.rpc('create_bigquery_foreign_table', {
             p_client_id: resolvedClientId,
             p_table_name: parsedTableRef.tableName || 'default_table',
@@ -307,38 +307,33 @@ export async function createCredential(
         });
 
         if (ftError) {
-            console.warn('Warning: Foreign table creation RPC error:', ftError);
+            console.warn('[createCredential] Metadata registration error:', ftError);
         } else {
-            const ftResult = foreignTableResult as {
-                success?: boolean;
-                error?: string;
-                columns?: Array<{ name: string }>;
-                data_source_id?: string;
-            };
-
+            const ftResult = foreignTableResult as { success?: boolean; error?: string; data_source_id?: string };
             if (ftResult.success) {
-                console.log('Foreign table created successfully:', ftResult.data_source_id);
+                console.log('[createCredential] Registered for discovery, invoking discover-bigquery-columns...');
 
-                // ─── AUTO COLUMN MATCHING ───
-                // Call match-columns edge function to map BigQuery columns → canonical schema
-                // Then save the mapping to client_data_sources.column_mapping
-                if (ftResult.columns && ftResult.data_source_id) {
-                    try {
-                        const mapping = await matchAndSaveColumnMapping(
-                            ftResult.data_source_id,
-                            ftResult.columns,
-                            'invoices' // default schema type
-                        );
-                        console.log('Column mapping saved:', Object.keys(mapping).length, 'mappings');
-                    } catch (matchErr) {
-                        // Non-fatal: user can still map manually via AdminConnectorMappingPage
-                        console.warn('Auto column matching failed (manual mapping still available):', matchErr);
-                    }
+                // Invoke discovery edge function to fetch real schema from BigQuery
+                // and create the actual FT with properly-typed columns
+                const { error: discoveryError } = await supabase.functions.invoke('discover-bigquery-columns', {
+                    body: {
+                        credential_id: parseInt(String(credencial.id), 10),
+                        service_account_json: bqCreds.service_account_json,
+                        project_id: effectiveProjectId,
+                        dataset_id: effectiveDatasetId,
+                        table_name: parsedTableRef.tableName || 'default_table',
+                    },
+                });
+
+                if (discoveryError) {
+                    console.error('[createCredential] Column discovery failed:', discoveryError.message);
+                    throw new Error(`Column discovery failed: ${discoveryError.message}`);
+                } else {
+                    console.log('[createCredential] Foreign table created with discovered columns');
                 }
             } else {
-                // Function returned {success: false} — log the actual error from the DB function
-                console.warn('Warning: Foreign table creation returned failure:', ftResult.error);
-                // trigger_column_discovery will retry the FDW creation
+                console.error('[createCredential] Metadata registration failed:', ftResult.error);
+                throw new Error(ftResult.error || 'Failed to register foreign table metadata');
             }
         }
 
@@ -461,7 +456,7 @@ export async function startSync(
         .select('id, source_columns, column_mapping')
         .eq('client_id', resolvedClientId)
         .eq('credential_id', normalizedCredentialId)
-        .order('atualizado_em', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 

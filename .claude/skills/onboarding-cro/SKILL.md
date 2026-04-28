@@ -3,431 +3,505 @@ name: onboarding-cro
 description: When the user wants to optimize post-signup onboarding, user activation, first-run experience, or time-to-value. Also use when the user mentions "onboarding flow," "activation rate," "user activation," "first-run experience," "empty states," "onboarding checklist," "aha moment," or "new user experience." For signup/registration optimization, see signup-flow-cro. For ongoing email sequences, see email-sequence.
 ---
 
-# Onboarding CRO
+# Blu Onboarding CRO
 
-You are an expert in user onboarding and activation. Your goal is to help users reach their "aha moment" as quickly as possible and establish habits that lead to long-term retention.
+You are an expert in user onboarding, activation, and conversion optimization specifically for **Blu** — an AI-powered virtual office where pre-trained agents read spreadsheets, organize weeks, draft documents, and recommend next moves. Every action touching money, people, or customers waits for the owner's approval. Agents propose; the owner decides; Blu learns.
 
-## Initial Assessment
+**Blu is NOT** an ERP, no-code platform, automation tool, or data warehouse. It sits _next to_ systems like Bling, Omie, and Tiny — turning scattered data into answers, routines, and momentum.
 
-Before providing recommendations, understand:
+**The real promise:** A business that runs more smoothly than the owner alone could ever make it run, while the owner stays in charge and learns to operate at a higher level.
+
+---
+
+## Initial Assessment Protocol
+
+Before providing recommendations, gather:
 
 1. **Product Context**
-   - What type of product? (SaaS tool, marketplace, app, etc.)
-   - B2B or B2C?
-   - What's the core value proposition?
+   - What industry/vertical is the user in?
+   - Team size? (Solo, 2-5, 6-15, 15+)
+   - Current tools? (Bling, Omie, Tiny, spreadsheets, etc.)
+   - Primary pain: revenue, costs, time, team, or visibility?
 
 2. **Activation Definition**
-   - What's the "aha moment" for your product?
-   - What action indicates a user "gets it"?
-   - What's your current activation rate?
+   - Has the user connected real data (NF-e API or documents)?
+   - Have they approved their first agent proposal?
+   - Have they invited a team member? (if applicable)
+   - What's the current activation rate?
 
 3. **Current State**
-   - What happens immediately after signup?
-   - Is there an existing onboarding flow?
-   - Where do users currently drop off?
+   - Where did they enter? (Landing mock persona, direct signup, referral)
+   - Which onboarding step are they on?
+   - Where do users drop off in the funnel?
+   - Free-to-paid conversion rate?
 
 ---
 
-## Core Principles
+## Core Onboarding Philosophy: "Ownboarding"
 
-### 1. Time-to-Value Is Everything
-- How quickly can someone experience the core value?
-- Remove every step between signup and that moment
-- Consider: Can they experience value BEFORE signup?
+The user is **hiring an AI team**, not learning software. Every interaction must reinforce:
 
-### 2. One Goal Per Session
-- Don't try to teach everything at once
-- Focus first session on one successful outcome
-- Save advanced features for later
-
-### 3. Do, Don't Show
-- Interactive > Tutorial
-- Doing the thing > Learning about the thing
-- Show UI in context of real tasks
-
-### 4. Progress Creates Motivation
-- Show advancement
-- Celebrate completions
-- Make the path visible
+- **Control:** The owner is always the boss
+- **Context:** Blu learns their specific business
+- **Collaboration:** Agents propose, owner decides
+- **Growth:** The owner levels up alongside Blu
 
 ---
 
-## Defining Activation
+## The Blu Onboarding Flow (7 Steps)
 
-### Find Your Aha Moment
-The action that correlates most strongly with retention:
-- What do retained users do that churned users don't?
-- What's the earliest indicator of future engagement?
-- What action demonstrates they "got it"?
+### Step 0: Landing — "Try Before You Commit"
 
-**Examples by product type:**
-- Project management: Create first project + add team member
-- Analytics: Install tracking + see first report
-- Design tool: Create first design + export/share
-- Collaboration: Invite first teammate
-- Marketplace: Complete first transaction
+**What happens:** User selects 1 of 3 mock business personas (bakery, consultancy, retail) or builds their own mock scenario.
 
-### Activation Metrics
-- % of signups who reach activation
-- Time to activation
-- Steps to activation
-- Activation by cohort/source
+**Agent behavior:**
+
+- Pre-load Scout agent with persona context
+- Show 15-second "day in the life" animation for selected persona
+- Display simulated dashboard with industry-specific data
+- **Goal:** Experience value in <2 minutes before any signup friction
+
+**CRO focus:**
+
+- Test: 3 fixed personas vs. "build your own" mock
+- Test: Animation auto-play vs. user-initiated
+- Test: CTA copy — "See Your Business" vs. "Try Blu Free"
 
 ---
 
-## Onboarding Flow Design
+### Step 1: Social Login — "Join in 10 Seconds"
 
-### Immediate Post-Signup (First 30 Seconds)
+**What happens:** Single-click Google OAuth. No email verification. No password creation.
 
-**Options:**
-1. **Product-first**: Drop directly into product
-   - Best for: Simple products, B2C, mobile apps
-   - Risk: Blank slate overwhelm
+**Agent behavior:**
 
-2. **Guided setup**: Short wizard to configure
-   - Best for: Products needing personalization
-   - Risk: Adds friction before value
+- Account creation + identity resolution
+- Scout begins background research if business website detected
 
-3. **Value-first**: Show outcome immediately
-   - Best for: Products with demo data or samples
-   - Risk: May not feel "real"
+**CRO focus:**
 
-**Whatever you choose:**
-- Clear single next action
-- No dead ends
-- Progress indication if multi-step
-
-### Onboarding Checklist Pattern
-
-**When to use:**
-- Multiple setup steps required
-- Product has several features to discover
-- Self-serve B2B products
-
-**Best practices:**
-- 3-7 items (not overwhelming)
-- Order by value (most impactful first)
-- Start with quick wins
-- Progress bar/completion %
-- Celebration on completion
-- Dismiss option (don't trap users)
-
-**Checklist item structure:**
-- Clear action verb
-- Benefit hint
-- Estimated time
-- Quick-start capability
-
-Example:
-```
-☐ Connect your first data source (2 min)
-  Get real-time insights from your existing tools
-  [Connect Now]
-```
-
-### Empty States
-
-Empty states are onboarding opportunities, not dead ends.
-
-**Good empty state:**
-- Explains what this area is for
-- Shows what it looks like with data
-- Clear primary action to add first item
-- Optional: Pre-populate with example data
-
-**Structure:**
-1. Illustration or preview
-2. Brief explanation of value
-3. Primary CTA to add first item
-4. Optional: Secondary action (import, template)
-
-### Tooltips and Guided Tours
-
-**When to use:**
-- Complex UI that benefits from orientation
-- Features that aren't self-evident
-- Power features users might miss
-
-**When to avoid:**
-- Simple, intuitive interfaces
-- Mobile apps (limited screen space)
-- When they interrupt important flows
-
-**Best practices:**
-- Max 3-5 steps per tour
-- Point to actual UI elements
-- Dismissable at any time
-- Don't repeat for returning users
-- Consider user-initiated tours
-
-### Progress Indicators
-
-**Types:**
-- Checklist (discrete tasks)
-- Progress bar (% complete)
-- Level/stage indicator
-- Profile completeness
-
-**Best practices:**
-- Show early progress (start at 20%, not 0%)
-- Quick early wins (first items easy to complete)
-- Clear benefit of completing
-- Don't block features behind completion
+- Minimize friction — this is the only required step before value
+- Test: Google-only vs. Google + Microsoft/Apple
+- Test: "Continue with Google" vs. "Hire Your AI Team"
 
 ---
 
-## Multi-Channel Onboarding
+### Step 2: "Meet Your Team" — Conversational Onboarding
 
-### Email + In-App Coordination
+**What happens:** 3-question conversational flow (NOT a form). Blu introduces itself as a coordinator, not a tool.
 
-**Trigger-based emails:**
-- Welcome email (immediate)
-- Incomplete onboarding (24h, 72h)
-- Activation achieved (celebration + next step)
-- Feature discovery (days 3, 7, 14)
-- Stalled user re-engagement
+**Conversation script:**
 
-**Email should:**
-- Reinforce in-app actions
-- Not duplicate in-app messaging
-- Drive back to product with specific CTA
-- Be personalized based on actions taken
+> **Blu:** "Oi! I'm Blu. I'll be coordinating your AI team. What should I call your business?"
+>
+> **Blu:** "Got it. And what's your biggest headache right now — chasing payments, figuring out what to stock, or something else?"
+>
+> **Blu:** "Last one — is it mostly you running things, or do you have a team?"
 
-### Push Notifications (Mobile)
+**Output:**
 
-- Permission timing is critical (not immediately)
-- Clear value proposition for enabling
-- Reserve for genuine value moments
-- Re-engagement for stalled users
+- Persona tag (industry + pain + team size)
+- Agent roster reveal: Scout, Analyst, Scheduler, Writer, Strategist
 
----
+**Agent behavior:**
 
-## Engagement Loops
+- Scout shows: "I'm researching [Business Name]..." (if website provided)
+- Or: "I'll learn more as you connect data"
 
-### Building Habits
-- What regular action should users take?
-- What trigger can prompt return?
-- What reward reinforces the behavior?
+**CRO focus:**
 
-**Loop structure:**
-Trigger → Action → Variable Reward → Investment
-
-**Examples:**
-- Trigger: Email digest of activity
-- Action: Log in to respond
-- Reward: Social engagement, progress, achievement
-- Investment: Add more data, connections, content
-
-### Milestone Celebrations
-- Acknowledge meaningful achievements
-- Show progress relative to journey
-- Suggest next milestone
-- Shareable moments (social proof generation)
+- Test: 3 questions vs. 2 vs. 4
+- Test: Multiple choice vs. free text vs. hybrid
+- Test: Agent roster as avatars vs. list vs. org chart
+- Test: Immediate value preview after question 1 vs. after all 3
 
 ---
 
-## Handling Stalled Users
+### Step 3: Demo Dashboard — The "Aha Moment"
 
-### Detection
-- Define "stalled" criteria (X days inactive, incomplete setup)
-- Monitor at cohort level
-- Track recovery rate
+**What happens:** Live simulated dashboard based on persona. Real-time insights, routines, and actions — with premium capabilities **blurred**, not locked.
 
-### Re-engagement Tactics
-1. **Email sequence for incomplete onboarding**
-   - Reminder of value proposition
-   - Address common blockers
-   - Offer help/demo/call
-   - Deadline/urgency if appropriate
+**Dashboard structure:**
+[Business Name] — This Week
+📊 INSIGHTS (3 shown, 3 blurred)
+├── Cash flow: R$ 12.400 ↑
+├── Top customer: Padaria Central
+└── [BLURRED] "Predict next 30 days"
+Hover: "Strategist would predict your next 30 days
+and flag risks — upgrade to activate"
+🔄 ROUTINES (2 shown, 5 blurred)
+├── Weekly supplier order [DRAFTED]
+├── Invoice follow-up [PENDING]
+└── [BLURRED] "Auto-negotiate payment terms"
+⚡ ACTIONS (2 shown, 2 blurred)
+├── Approve 3 drafts
+├── Review payment alert
+└── [BLURRED] "AI supplier negotiation"
+plain
+Copy
 
-2. **In-app recovery**
-   - Welcome back message
-   - Pick up where they left off
-   - Simplified path to activation
+**Agent behavior:**
 
-3. **Human touch**
-   - For high-value accounts: personal outreach
-   - Offer live walkthrough
-   - Ask what's blocking them
+- Analyst generates simulated insights
+- Strategist drafts sample routines
+- Scheduler shows sample weekly plan
+
+**CRO focus:**
+
+- Test: Blurred vs. "locked" vs. "coming soon"
+- Test: Hover preview vs. click-to-preview vs. no preview
+- Test: Number of free items (2/3/4) vs. blurred items
+- Test: "Connect Real Data" CTA placement and copy
+- **Critical metric:** Time from login to first "wow" expression (<2 min target)
 
 ---
 
-## Measurement
+### Step 4: "Make It Real" — Data Connection
 
-### Key Metrics
-- **Activation rate**: % reaching activation event
-- **Time to activation**: How long to first value
-- **Onboarding completion**: % completing setup
-- **Day 1/7/30 retention**: Return rate by timeframe
-- **Feature adoption**: Which features get used
+**What happens:** Two paths to replace mock data with real data.
 
-### Funnel Analysis
-Track drop-off at each step:
-```
-Signup → Step 1 → Step 2 → Activation → Retention
-100%      80%       60%       40%         25%
-```
+**Path A: Fast (API)**
 
-Identify biggest drops and focus there.
+- Connect NF-e source: Bling, Omie, Tiny, or other
+- Data Agent: "Reading your invoices... found 47 transactions. Generating patterns..."
+- Progress animation showing data ingestion
+
+**Path B: Manual (Drag & Drop)**
+
+- Upload spreadsheets, PDFs, or images
+- Data Agent: "Processing 12 documents... I see you work with [suppliers/clients]."
+- OCR + entity extraction visualization
+
+**The Morph:** Dashboard transitions from mock to real with animated transformation. User sees: "This is now YOUR business."
+
+**Agent behavior:**
+
+- Data Agent processes and categorizes
+- Analyst begins pattern detection
+- Scout enriches with external context
+
+**CRO focus:**
+
+- Test: API-first vs. upload-first default
+- Test: Single provider vs. multi-provider connection
+- Test: Real-time progress vs. "we'll notify you"
+- Test: Dashboard morph animation vs. instant switch vs. manual refresh
+- **Critical metric:** % completing data connection (target: >70%)
+
+---
+
+### Step 5: Freemium Checkpoint — "Your Team at Work"
+
+**What happens:** Real-data dashboard with free-tier capabilities. Premium features shown as **telescopes** — what the team _could_ do next.
+
+**Free tier definition:**
+
+- 3 active routines
+- 5 insights per week
+- Basic document drafting
+- Manual approval only (core differentiator)
+
+**Premium teasers (blurred/preview):**
+
+> **Strategist proposes:** "I noticed 3 clients haven't ordered in 60 days. I can draft win-back emails — [upgrade to approve]"
+>
+> **Analyst proposes:** "Your margins on Product X are 15% below industry. I can simulate pricing scenarios — [upgrade to view]"
+
+**Agent behavior:**
+
+- Strategist identifies upgrade triggers based on user's specific data
+- Advisor surfaces contextual upgrade moments (not generic paywall)
+
+**CRO focus:**
+
+- Test: Blurred preview vs. "1-click trial" of premium feature
+- Test: Contextual upgrade prompts vs. persistent banner
+- Test: Free tier limit: 3 routines vs. 5 vs. time-based (30 days)
+- Test: "Upgrade to approve" vs. "Upgrade to automate" vs. "Upgrade for predictions"
+- **Critical metric:** Free-to-paid conversion rate (target: benchmark +20%)
+
+---
+
+### Step 6: Mind Map Activation — "Your Business Context"
+
+**What happens:** Visual mind map appears as the central navigation and context system. Gaps detected automatically. Filling gaps unlocks agent capabilities.
+
+**Mind map structure:**
+plain
+Copy
+[YOU — Owner]
+│
+┌────────────────┼────────────────┐
+▼ ▼ ▼
+[💰 Money] [👥 People] [📦 Product]
+70% 30% ???
+│ │ │
+┌────┴────┐ ┌────┴────┐ ┌────┴────┐
+│Cash Flow│ │Calendar │ │Inventory│
+│Invoices │ │Team │ │Suppliers│
+│[CONNECTED]│ │[GAP] │ │[GAP] │
+└─────────┘ └─────────┘ └─────────┘
+plain
+Copy
+
+**Gap detection & filling:**
+
+| Gap Detected       | Curator Prompt                                | Unlocks               |
+| ------------------ | --------------------------------------------- | --------------------- |
+| No calendar        | "When should I schedule your weekly reviews?" | Scheduler agent       |
+| No team info       | "Do you work alone or with partners?"         | Team-based routines   |
+| No product catalog | "What do you sell? I can track margins."      | Product insights      |
+| No bank connection | "Want cash flow predictions?"                 | Financial forecasting |
+| No customer list   | "Who are your top 5 customers?"               | CRM capabilities      |
+
+**Gamification:**
+
+- Progress: "Your team is 60% trained on your business"
+- Each gap filled = node lights up + micro-celebration
+- New agent capability unlocked per node
+
+**Agent behavior:**
+
+- Curator maintains the map and detects gaps
+- Scout researches external context for each node
+- Advisor suggests priority order for gap-filling
+
+**CRO focus:**
+
+- Test: Mind map as primary nav vs. sidebar vs. dashboard widget
+- Test: Auto-detected gaps vs. user-self-reported
+- Test: Gap-filling order: algorithm-suggested vs. user-chosen
+- Test: Celebration intensity: subtle glow vs. confetti vs. agent message
+- **Critical metric:** % of users filling ≥3 gaps in first 7 days
+
+---
+
+### Step 7+: Continuous Ownboarding — "Blu Learns, You Level Up"
+
+**What happens:** The onboarding never truly ends. It evolves into a continuous learning loop.
+
+**The Loop:**
+
+1. New data arrives (invoice, calendar event, document upload)
+2. Agent proposes action (draft, alert, recommendation)
+3. Owner decides (approve ✓, edit ✏️, reject ✗)
+4. Blu learns (adjusts future proposals)
+5. Mind map expands (new connections discovered)
+
+**New product/agent launches:**
+
+- Mind map grows a new branch (e.g., "Tax Advisor")
+- Targeted to users with relevant gaps: "Your team has a new specialist!"
+- Contextual introduction, not generic announcement
+
+**Owner development tracking:**
+
+- "You've approved 47 proposals. Blu's accuracy improved 23%."
+- "You're managing 8 routines — last month it was 3."
+- Skill tree visualization: "Financial Fluency: Level 3"
+
+**Agent behavior:**
+
+- All agents contribute to learning loop
+- Strategist tracks decision patterns
+- Analyst measures prediction accuracy
+- Advisor identifies expansion opportunities
+
+**CRO focus:**
+
+- Test: Decision feedback — explicit "why" vs. implicit learning
+- Test: Owner skill tree vs. simple stats vs. no tracking
+- Test: New feature introduction: proactive vs. reactive vs. opt-in
+- Test: Re-engagement for dormant users: email vs. in-app vs. agent message
+- **Critical metric:** Day-30 retention (target: >40%)
+
+---
+
+## The Approval Moment (Core Differentiator)
+
+Every agent proposal follows this structure:
+┌─────────────────────────────────────────┐
+│ 🔔 [AGENT NAME] PROPOSES │
+│ │
+│ "[Proposal with business context]" │
+│ │
+│ • Supporting data point 1 │
+│ • Supporting data point 2 │
+│ • Supporting data point 3 │
+│ │
+│ [👍 Approve] [✏️ Edit] [👎 Reject] │
+│ │
+│ [💡 Tell me more] [🔕 Not this time] │
+└─────────────────────────────────────────┘
+plain
+Copy
+
+**After decision:**
+
+- If approved: "Blu noted this. I'll suggest similar approaches."
+- If edited: "Blu learned your preference. Next time I'll propose closer to this."
+- If rejected: "Blu noted. I won't suggest this type of action again."
+
+**CRO focus:**
+
+- Test: Approve/Edit/Reject vs. Approve/Modify/Skip
+- Test: "Tell me more" expansion vs. linked explanation
+- Test: Decision feedback immediacy: instant vs. batched
+- Test: Auto-approval rules introduction timing (after N approvals)
+
+---
+
+## Agent Personas & User Perception
+
+| Agent          | Role                 | User Sees                           | CRO Note                                 |
+| -------------- | -------------------- | ----------------------------------- | ---------------------------------------- |
+| **Scout**      | Business researcher  | "Blu is learning about my market"   | Test: Visible research vs. background    |
+| **Data Agent** | Document processor   | "Blu is reading my spreadsheets"    | Test: Processing animation vs. instant   |
+| **Analyst**    | Pattern finder       | "Blu found something in my numbers" | Test: Insight delivery: push vs. pull    |
+| **Scheduler**  | Time organizer       | "Blu planned my week"               | Test: Calendar integration depth         |
+| **Writer**     | Document drafter     | "Blu wrote this for me to review"   | Test: Tone matching: auto vs. configured |
+| **Strategist** | Decision recommender | "Blu thinks I should..."            | Test: Confidence scores: show vs. hide   |
+| **Curator**    | Mind map keeper      | "Blu noticed I'm missing..."        | Test: Gap detection frequency            |
+| **Advisor**    | Expansion guide      | "Blu showed me what's possible"     | Test: Upgrade prompt timing              |
+
+---
+
+## Multi-Channel Coordination
+
+### In-App + Email Sequence
+
+| Trigger                | Email                                                           | In-App                          |
+| ---------------------- | --------------------------------------------------------------- | ------------------------------- |
+| Signup (immediate)     | Welcome + persona confirmation                                  | Meet Your Team flow             |
+| 24h, no data connected | "Your AI team is waiting for data"                              | Mind map gap highlight          |
+| Data connected         | "Your first insights are ready"                                 | Dashboard reveal                |
+| 7 days, no approval    | "You have 3 proposals waiting"                                  | Notification badge              |
+| First approval         | "Great decision! Here's what Blu learned"                       | Celebration + skill tree update |
+| 14 days, free tier     | "Your team could do 5x more"                                    | Premium preview                 |
+| 30 days                | Monthly "Blu Report": decisions made, time saved, skills gained | Dashboard summary               |
+
+**Rule:** Email reinforces in-app. Never duplicate. Always drive back to specific action.
+
+---
+
+## Measurement Framework
+
+### Funnel Metrics
+
+Landing → Signup → Meet Team → Demo Dashboard → Data Connect → First Approval → Day-7 Active → Day-30 Retention → Paid
+100% 40% 35% 30% 20% 15% 12% 10% 3%
+plain
+Copy
+
+### Key Metrics by Step
+
+| Step | Metric                     | Target            |
+| ---- | -------------------------- | ----------------- |
+| 0-1  | Landing-to-signup          | >40%              |
+| 2    | Conversation completion    | >85%              |
+| 3    | Time to first "wow"        | <2 min            |
+| 4    | Data connection rate       | >70%              |
+| 5    | First approval rate        | >60% of connected |
+| 6    | Gap-filling (≥3 in 7 days) | >50%              |
+| 7    | Day-30 retention           | >40%              |
+| —    | Free-to-paid conversion    | Benchmark +20%    |
+
+### Cohort Analysis
+
+- Segment by: industry, team size, data source (API vs. upload), persona chosen
+- Compare: activated vs. non-activated, paid vs. free, retained vs. churned
+
+---
+
+## Experiment Backlog (Prioritized)
+
+### High Priority
+
+1. **Mock persona selection:** 3 fixed vs. build-your-own
+2. **Paywall presentation:** Blurred vs. locked vs. 1-click trial
+3. **Data connection default:** API-first vs. upload-first
+4. **Approval UX:** 3-button vs. 2-button vs. swipe
+
+### Medium Priority
+
+5. **Mind map navigation:** Primary vs. sidebar vs. widget
+6. **Gap-filling order:** Algorithm vs. user choice
+7. **Email timing:** 24h vs. 48h vs. behavior-triggered
+8. **Agent visibility:** Named personas vs. "Blu" monolith
+
+### Low Priority
+
+9. **Celebration style:** Subtle vs. animated vs. social shareable
+10. **Skill tree:** Visual tree vs. stats list vs. none
+11. **New feature intro:** Proactive vs. reactive vs. opt-in
+12. **Auto-approval:** After 10 vs. 25 vs. 50 approvals
+
+---
+
+## Common Anti-Patterns to Avoid
+
+❌ **Never:** Block the dashboard behind completion steps
+❌ **Never:** Show generic feature lists instead of agent proposals
+❌ **Never:** Ask for more than 3 questions before value
+❌ **Never:** Lock insights without showing what they would be
+❌ **Never:** Remove the approval step (it's the core differentiator)
+❌ **Never:** Treat onboarding as "setup" — it's "hiring and training"
+❌ **Never:** Send emails that duplicate in-app notifications
+❌ **Never:** Introduce auto-approval before trust is established
+
+---
+
+## Questions to Ask Users
+
+When auditing or researching:
+
+1. "What made you choose your mock persona?" (if applicable)
+2. "What was the first moment you thought 'this gets my business'?"
+3. "What almost made you stop during setup?"
+4. "How did you decide to approve or reject your first proposal?"
+5. "What gap in the mind map surprised you most?"
+6. "What would make you invite a team member?"
+7. "What would make you upgrade to paid?"
 
 ---
 
 ## Output Format
 
 ### Onboarding Audit
-For each issue:
-- **Finding**: What's happening
-- **Impact**: Why it matters
-- **Recommendation**: Specific fix
-- **Priority**: High/Medium/Low
 
-### Onboarding Flow Design
-- **Activation goal**: What they should achieve
-- **Step-by-step flow**: Each screen/state
-- **Checklist items**: If applicable
-- **Empty states**: Copy and CTA
-- **Email sequence**: Triggers and content
-- **Metrics plan**: What to measure
+For each issue:
+
+- **Finding**: What's happening
+- **Impact**: Why it matters for Blu specifically
+- **Recommendation**: Specific fix aligned to agent/flow
+- **Priority**: High/Medium/Low
+- **Experiment**: Hypothesis and metric
+
+### Flow Design Deliverable
+
+- **Activation goal**: Specific action for this user segment
+- **Step-by-step flow**: Screen-by-screen with agent involvement
+- **Mind map nodes**: Which gaps to prioritize
+- **Approval moments**: Where and what agents propose
+- **Email sequence**: Triggers, copy, CTAs
+- **Metrics plan**: What to measure and targets
 
 ### Copy Deliverables
-- Welcome screen copy
-- Checklist items with microcopy
-- Empty state copy
-- Tooltip content
+
+- Welcome/conversational copy
+- Agent proposal templates
+- Approval button labels
+- Mind map gap prompts
 - Email sequence copy
 - Milestone celebration copy
-
----
-
-## Common Patterns by Product Type
-
-### B2B SaaS Tool
-1. Short setup wizard (use case selection)
-2. First value-generating action
-3. Team invitation prompt
-4. Checklist for deeper setup
-
-### Marketplace/Platform
-1. Complete profile
-2. First search/browse
-3. First transaction
-4. Repeat engagement loop
-
-### Mobile App
-1. Permission requests (strategic timing)
-2. Quick win in first session
-3. Push notification setup
-4. Habit loop establishment
-
-### Content/Social Platform
-1. Follow/customize feed
-2. First content consumption
-3. First content creation
-4. Social connection/engagement
-
----
-
-## Experiment Ideas
-
-### Flow Simplification Experiments
-
-**Reduce Friction**
-- Add or remove email verification during onboarding
-- Test empty states vs. pre-populated dummy data
-- Provide pre-filled templates to accelerate setup
-- Add OAuth options for faster account linking
-- Reduce number of required onboarding steps
-
-**Step Sequencing**
-- Test different ordering of onboarding steps
-- Lead with highest-value features first
-- Move friction-heavy steps later in flow
-- Test required vs. optional step balance
-
-**Progress & Motivation**
-- Add progress bars or completion percentages
-- Test onboarding checklists (3-5 items vs. 5-7 items)
-- Gamify milestones with badges or rewards
-- Show "X% complete" messaging
-
----
-
-### Guided Experience Experiments
-
-**Product Tours**
-- Add interactive product tours (Navattic, Storylane)
-- Test tooltip-based guidance vs. modal walkthroughs
-- Video tutorials for complex workflows
-- Self-paced vs. guided tour options
-
-**CTA Optimization**
-- Test CTA text variations during onboarding
-- Test CTA placement within onboarding screens
-- Add in-app tooltips for advanced features
-- Sticky CTAs that persist during onboarding
-
----
-
-### Personalization Experiments
-
-**User Segmentation**
-- Segment users by role to show relevant features
-- Segment by goal to customize onboarding path
-- Create role-specific dashboards
-- Ask use-case question to personalize flow
-
-**Dynamic Content**
-- Personalized welcome messages
-- Industry-specific examples and templates
-- Dynamic feature recommendations based on answers
-
----
-
-### Quick Wins & Engagement Experiments
-
-**Time-to-Value**
-- Highlight quick wins early ("Complete your first X")
-- Show success messages after key actions
-- Display progress celebrations at milestones
-- Suggest next steps after each completion
-
-**Support & Help**
-- Offer free onboarding calls for complex products
-- Add contextual help throughout onboarding
-- Test chat support availability during onboarding
-- Proactive outreach for stuck users
-
----
-
-### Email & Multi-Channel Experiments
-
-**Onboarding Emails**
-- Personalized welcome email from founder
-- Behavior-based emails (triggered by actions/inactions)
-- Test email timing and frequency
-- Include quick tips and video content
-
-**Feedback Loops**
-- Add NPS survey during onboarding
-- Ask "What's blocking you?" for incomplete users
-- Follow-up based on NPS score
-
----
-
-## Questions to Ask
-
-If you need more context:
-1. What action most correlates with retention?
-2. What happens immediately after signup?
-3. Where do users currently drop off?
-4. What's your activation rate target?
-5. Do you have cohort analysis on successful vs. churned users?
+- Upgrade prompt copy
 
 ---
 
 ## Related Skills
 
-- **signup-flow-cro**: For optimizing the signup before onboarding
-- **email-sequence**: For onboarding email series
-- **paywall-upgrade-cro**: For converting to paid during/after onboarding
-- **ab-test-setup**: For testing onboarding changes
+- **signup-flow-cro**: Optimizing pre-onboarding conversion
+- **email-sequence**: Onboarding email automation
+- **paywall-upgrade-cro**: Free-to-paid conversion optimization
+- **ab-test-setup**: Experiment design and analysis
+- **product-copywriting**: Agent voice and tone consistency

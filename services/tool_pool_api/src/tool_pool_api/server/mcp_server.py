@@ -74,7 +74,7 @@ def create_mcp_server():
     Authentication:
     - JWT tokens are validated at the TOOL level, not transport level
     - Tools extract Authorization header via get_http_headers()
-    - Tokens validated using vizu_auth.decode_jwt()
+    - Tokens validated using blu_auth.decode_jwt()
     - This allows shared MCP connections without per-connection auth
     """
     logger.info("Criando instância do FastMCP...")
@@ -82,7 +82,7 @@ def create_mcp_server():
     # Create FastMCP WITHOUT auth provider - tools handle auth themselves
     # This allows atendente_core to maintain a shared MCP connection
     # while individual tool calls are authenticated via JWT in headers
-    mcp = FastMCP("Vizu Tool Pool")
+    mcp = FastMCP("Blu Tool Pool")
 
     # BLU-MVP-070: instrument mcp.tool with OTel spans + metrics BEFORE any
     # registration happens so every tool is auto-traced (tool_name, client_id,
@@ -132,7 +132,7 @@ def create_mcp_server():
             docker_mcp_status = _docker_mcp_adapter.get_status()
 
         return {
-            "name": "Vizu Tool Pool API",
+            "name": "Blu Tool Pool API",
             "version": "1.0.0",
             "transport": "http",
             "modules": list(modules.keys()),

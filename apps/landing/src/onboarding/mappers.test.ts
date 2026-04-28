@@ -4,7 +4,6 @@ import {
   mapBusinessDNAToCompanyProfile,
   mapContactToTeamStructure,
   mapRulesToPolicies,
-  mapStateToCurrentMoment,
 } from "./mappers";
 import type { OnboardingState } from "./state";
 
@@ -162,49 +161,3 @@ describe("mapRulesToPolicies", () => {
   });
 });
 
-describe("mapStateToCurrentMoment", () => {
-  it("records systems dataPath + agent activation in priorities", () => {
-    const out = mapStateToCurrentMoment(BASE);
-    expect(out.current_priorities).toEqual(
-      expect.arrayContaining([
-        "Integrar sistemas operacionais: shopify, bigquery",
-        "Ativar agentes: analytics, crm",
-      ]),
-    );
-    expect(out.key_metrics).toEqual({});
-    expect(typeof out.last_updated).toBe("string");
-    // ISO-ish sanity: parseable Date.
-    expect(Number.isNaN(Date.parse(out.last_updated ?? ""))).toBe(false);
-  });
-
-  it.each([
-    ["files", "Operar a partir de planilhas e documentos"],
-    ["scratch", "Começar a estruturar dados do zero"],
-  ] as const)("handles dataPath=%s", (dataPath, expectedPriority) => {
-    const out = mapStateToCurrentMoment({
-      ...BASE,
-      dataPath,
-      systems: [],
-      agents: [],
-    });
-    expect(out.current_priorities).toContain(expectedPriority);
-  });
-
-  it("omits systems priority when dataPath=systems but list is empty", () => {
-    const out = mapStateToCurrentMoment({
-      ...BASE,
-      systems: [],
-      agents: [],
-    });
-    expect(out.current_priorities).not.toContain(
-      expect.stringContaining("Integrar sistemas"),
-    );
-  });
-
-  it("omits agents priority when none selected", () => {
-    const out = mapStateToCurrentMoment({ ...BASE, agents: [] });
-    expect(
-      out.current_priorities!.some((p) => p.startsWith("Ativar agentes")),
-    ).toBe(false);
-  });
-});

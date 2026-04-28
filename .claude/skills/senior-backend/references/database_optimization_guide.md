@@ -104,7 +104,7 @@ client = get_supabase_client(use_service_role=True)
 
 ### Shared query safety for generated SQL
 
-- `vizu_sql_factory` exists to parse, validate, and rewrite generated SQL
+- `blu_sql_factory` exists to parse, validate, and rewrite generated SQL
 - if your optimization touches LLM-generated SQL flows, update the validation/rewrite path rather than bypassing it
 
 ## Anti-Patterns to Avoid
@@ -127,7 +127,7 @@ The sampled services already defend against this. Do not remove those protection
 
 - Supabase migrations under `supabase/migrations/`
 - Integration tests under `tests/`
-- `vizu_sql_factory`
+- `blu_sql_factory`
 - Root `Makefile`
 
 ### Further Reading
@@ -135,7 +135,7 @@ The sampled services already defend against this. Do not remove those protection
 - `tests/test_dashboard_rpcs.py`
 - `services/tool_pool_api/src/tool_pool_api/main.py`
 - `services/atendente_core/src/atendente_core/main.py`
-- `/memories/repo/vizu-mono-architecture.md`
+- `/memories/repo/blu-mono-architecture.md`
 
 ## Unknowns To Verify Before Aggressive Optimization
 
@@ -145,4 +145,4 @@ The sampled services already defend against this. Do not remove those protection
 
 ## Conclusion
 
-In `vizu-mono`, the best database optimization is usually better SQL structure, clearer tenant scoping, and fewer app-layer round trips, not clever Python refactors detached from the Supabase boundary.
+In `blu-mono`, the best database optimization is usually better SQL structure, clearer tenant scoping, and fewer app-layer round trips, not clever Python refactors detached from the Supabase boundary.

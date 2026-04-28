@@ -158,7 +158,7 @@ Deno.serve(async (req: Request) => {
 
     // ── Resolve client_id from authenticated user ──
     const { data: clientRow, error: clientErr } = await supabase
-      .from("clientes_vizu")
+      .from("clientes_blu")
       .select("client_id")
       .eq("external_user_id", userId)
       .maybeSingle();

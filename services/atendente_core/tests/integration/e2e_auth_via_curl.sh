@@ -6,7 +6,7 @@
 #   ./services/atendente_core/tests/integration/e2e_auth_via_curl.sh
 #
 # This script demonstrates the steps to:
-# 1) seed a test `cliente_vizu` row in your Postgres (uses $DATABASE_URL from repo .env)
+# 1) seed a test `cliente_blu` row in your Postgres (uses $DATABASE_URL from repo .env)
 # 2) start the atendente_core server (uvicorn) in the background
 # 3) call the `/chat` endpoint via `curl` using API-Key and JWT flows
 # 4) show responses, then teardown the server
@@ -33,7 +33,7 @@ fi
 if [ -z "${DATABASE_URL:-}" ]; then
   # Default to the Docker Compose service name (useful when running inside
   # a development container or when the repo is run via docker-compose).
-  DATABASE_URL="postgresql://user:password@postgres:5432/vizu_db"
+  DATABASE_URL="postgresql://user:password@postgres:5432/blu_db"
   echo "DATABASE_URL not provided; defaulting to Docker Compose DB: $DATABASE_URL"
   echo "Note: When running from the host shell you may need to use localhost:5433 instead."
 fi
@@ -49,7 +49,7 @@ PY
 echo "Seeding test client into database (id=$TEST_UUID api_key=$TEST_API_KEY)"
 
 read -r -d '' SQL <<SQL || true
-INSERT INTO cliente_vizu (id, nome_empresa, enabled_tools)
+INSERT INTO cliente_blu (id, nome_empresa, enabled_tools)
 VALUES ('$TEST_UUID', '$TEST_CLIENT_NAME', ARRAY['executar_rag_cliente', 'executar_sql_agent'])
 ON CONFLICT (id) DO NOTHING;
 SQL
@@ -109,7 +109,7 @@ echo
 echo "=== CURL: API-Key flow ==="
   curl -sS -X POST "http://127.0.0.1:8000/chat" \
     -H "Content-Type: application/json" \
-    -H "X-Vizu-API-Key: $TEST_API_KEY" \
+    -H "X-Blu-API-Key: $TEST_API_KEY" \
     -d '{"session_id":"s1","message":"Olá, teste via API key"}' || true
 
 echo

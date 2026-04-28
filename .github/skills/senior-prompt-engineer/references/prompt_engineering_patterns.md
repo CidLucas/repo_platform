@@ -2,7 +2,7 @@
 
 ## Overview
 
-These prompt patterns are adapted to `vizu-mono`'s actual prompt stack: Langfuse-managed prompts, fragment composition, builtin fallbacks in selected paths, and runtime variables injected from client/session/tool context.
+These prompt patterns are adapted to `blu-mono`'s actual prompt stack: Langfuse-managed prompts, fragment composition, builtin fallbacks in selected paths, and runtime variables injected from client/session/tool context.
 
 ## Core Principles
 
@@ -103,6 +103,6 @@ That creates silent drift.
 
 ## Further Reading
 
-- `libs/vizu_prompt_management`
+- `libs/blu_prompt_management`
 - `/memories/repo/langfuse-prompts.md`
 - `/memories/repo/agent-configuration-context-flow.md`

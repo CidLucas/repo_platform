@@ -38,7 +38,7 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
         try:
             from sqlalchemy import text
 
-            from vizu_db_connector.database import SessionLocal
+            from blu_db_connector.database import SessionLocal
 
             session = SessionLocal()
             try:

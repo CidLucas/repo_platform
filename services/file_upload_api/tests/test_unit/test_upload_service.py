@@ -12,7 +12,7 @@ from file_upload_api.services.upload_service import UploadService
 from pytest_mock import MockerFixture
 
 
-# Padrão Vizu: Testar a lógica de serviço isoladamente
+# Padrão Blu: Testar a lógica de serviço isoladamente
 def test_process_upload_success(
     settings: Settings,
     mock_storage_client: MagicMock,
@@ -88,7 +88,7 @@ def test_process_upload_success(
         "gcs_path": expected_gcs_path,
         "original_filename": "teste.txt",
         "content_type": "text/plain",
-        "trace_id": test_trace_id,  # Padrão Vizu: Observabilidade
+        "trace_id": test_trace_id,  # Padrão Blu: Observabilidade
     }
     expected_data = json.dumps(expected_payload).encode("utf-8")
 

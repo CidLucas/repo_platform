@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document captures backend design patterns that are actually visible in `vizu-mono` today. It is meant to prevent generic architecture advice from being mistaken for repo convention.
+This document captures backend design patterns that are actually visible in `blu-mono` today. It is meant to prevent generic architecture advice from being mistaken for repo convention.
 
 ## Patterns and Practices
 
@@ -49,20 +49,20 @@ Reusable concerns live in `libs/` rather than being reimplemented in each servic
 
 **Common shared boundaries:**
 
-- `vizu_auth`
-- `vizu_supabase_client`
-- `vizu_context_service`
-- `vizu_db_connector`
-- `vizu_sql_factory`
-- `vizu_observability_bootstrap`
+- `blu_auth`
+- `blu_supabase_client`
+- `blu_context_service`
+- `blu_db_connector`
+- `blu_sql_factory`
+- `blu_observability_bootstrap`
 
 **Implementation:**
 
 ```python
-from vizu_auth.core.jwt_decoder import decode_jwt
-from vizu_context_service.context_service import ContextService
-from vizu_supabase_client import get_supabase_client
-from vizu_observability_bootstrap import setup_observability
+from blu_auth.core.jwt_decoder import decode_jwt
+from blu_context_service.context_service import ContextService
+from blu_supabase_client import get_supabase_client
+from blu_observability_bootstrap import setup_observability
 ```
 
 **Benefits:**
@@ -87,7 +87,7 @@ from vizu_observability_bootstrap import setup_observability
 class AtendenteService:
     def __init__(self):
         self.graph = get_agent_graph()
-        self.db = VizuDBConnector()
+        self.db = BluDBConnector()
 
     async def process_message(..., context_service: ContextService, ...):
         ...
@@ -137,7 +137,7 @@ FastAPI routers typically assemble dependencies, normalize HTTP concerns, and de
 
 ### Security Best Practices
 
-- Reuse `vizu_auth` JWT parsing and model types
+- Reuse `blu_auth` JWT parsing and model types
 - Make tenant scoping explicit at the route or RPC layer
 - Separate public, private, admin, webhook, and internal routers clearly
 
@@ -163,7 +163,7 @@ FastAPI routers typically assemble dependencies, normalize HTTP concerns, and de
 
 ### Reimplementing shared auth or Supabase access in each service
 
-If `vizu_auth`, `vizu_supabase_client`, or `vizu_context_service` already solve the concern, reusing them is usually lower risk.
+If `blu_auth`, `blu_supabase_client`, or `blu_context_service` already solve the concern, reusing them is usually lower risk.
 
 ### Mixing tenant resolution rules casually
 
@@ -178,9 +178,9 @@ Do not force all services into one bootstrap pattern when their runtime concerns
 ### Recommended Tools
 
 - Root `Makefile`
-- `vizu_observability_bootstrap`
-- `vizu_supabase_client`
-- `vizu_sql_factory`
+- `blu_observability_bootstrap`
+- `blu_supabase_client`
+- `blu_sql_factory`
 
 ### Further Reading
 
@@ -188,7 +188,7 @@ Do not force all services into one bootstrap pattern when their runtime concerns
 - `services/atendente_core/src/atendente_core/main.py`
 - `services/atendente_core/src/atendente_core/core/service.py`
 - `services/file_upload_api/src/file_upload_api/main.py`
-- `/memories/repo/vizu-mono-architecture.md`
+- `/memories/repo/blu-mono-architecture.md`
 
 ## Unknowns To Verify Before Large Changes
 

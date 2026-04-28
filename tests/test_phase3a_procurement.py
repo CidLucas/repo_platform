@@ -38,7 +38,7 @@ class TestResolvePolicy:
     """resolve_policy() decides whether actions need an Approvals-Tray row."""
 
     def _resolve(self, **kwargs):
-        from vizu_agent_framework.approval import resolve_policy
+        from blu_agent_framework.approval import resolve_policy
 
         return resolve_policy(
             client_id=kwargs.pop("client_id", "c-1"),
@@ -152,7 +152,7 @@ class TestResolvePolicy:
 
 @pytest.fixture(scope="module")
 def db():
-    from vizu_supabase_client import get_supabase_client
+    from blu_supabase_client import get_supabase_client
 
     return get_supabase_client(use_service_role=True)
 
@@ -637,8 +637,8 @@ class TestRfqFollowUpsEndpoint:
                 "tool_pool_api.api.rfq_follow_ups_router.get_supabase_client",
                 return_value=fake_db,
             ),
-            patch("vizu_twilio_client.TwilioClient", return_value=twilio_mock),
-            patch("vizu_twilio_client.config.get_twilio_settings", return_value=MagicMock()),
+            patch("blu_twilio_client.TwilioClient", return_value=twilio_mock),
+            patch("blu_twilio_client.config.get_twilio_settings", return_value=MagicMock()),
         ):
             resp = follow_ups_app.post("/internal/rfq/follow-ups/run")
 
@@ -679,8 +679,8 @@ class TestRfqFollowUpsEndpoint:
                 "tool_pool_api.api.rfq_follow_ups_router.get_supabase_client",
                 return_value=fake_db,
             ),
-            patch("vizu_twilio_client.TwilioClient", return_value=twilio_mock),
-            patch("vizu_twilio_client.config.get_twilio_settings", return_value=MagicMock()),
+            patch("blu_twilio_client.TwilioClient", return_value=twilio_mock),
+            patch("blu_twilio_client.config.get_twilio_settings", return_value=MagicMock()),
         ):
             resp = follow_ups_app.post("/internal/rfq/follow-ups/run")
 
@@ -713,8 +713,8 @@ class TestRfqFollowUpsEndpoint:
                 "tool_pool_api.api.rfq_follow_ups_router.get_supabase_client",
                 return_value=fake_db,
             ),
-            patch("vizu_twilio_client.TwilioClient", return_value=MagicMock()),
-            patch("vizu_twilio_client.config.get_twilio_settings", return_value=MagicMock()),
+            patch("blu_twilio_client.TwilioClient", return_value=MagicMock()),
+            patch("blu_twilio_client.config.get_twilio_settings", return_value=MagicMock()),
         ):
             resp = follow_ups_app.post("/internal/rfq/follow-ups/run")
         body = resp.json()
@@ -746,8 +746,8 @@ class TestRfqFollowUpsEndpoint:
                 "tool_pool_api.api.rfq_follow_ups_router.get_supabase_client",
                 return_value=fake_db,
             ),
-            patch("vizu_twilio_client.TwilioClient", return_value=MagicMock()),
-            patch("vizu_twilio_client.config.get_twilio_settings", return_value=MagicMock()),
+            patch("blu_twilio_client.TwilioClient", return_value=MagicMock()),
+            patch("blu_twilio_client.config.get_twilio_settings", return_value=MagicMock()),
         ):
             resp = follow_ups_app.post("/internal/rfq/follow-ups/run")
         assert resp.json()["skipped"] == 1

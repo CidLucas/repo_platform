@@ -20,8 +20,8 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, status
 
-from vizu_agent_framework import record_audit as _record_audit
-from vizu_supabase_client import get_supabase_client
+from blu_agent_framework import record_audit as _record_audit
+from blu_supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -88,8 +88,8 @@ async def dispatch_approved(
             continue
 
         if twilio is None:
-            from vizu_twilio_client import TwilioClient
-            from vizu_twilio_client.config import get_twilio_settings
+            from blu_twilio_client import TwilioClient
+            from blu_twilio_client.config import get_twilio_settings
 
             twilio = TwilioClient(get_twilio_settings())
 

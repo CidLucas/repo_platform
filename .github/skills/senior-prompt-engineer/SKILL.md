@@ -5,15 +5,15 @@ description: World-class prompt engineering skill for LLM optimization, prompt p
 
 # Senior Prompt Engineer
 
-Repo-adapted prompt and agent design guidance for `vizu-mono`.
+Repo-adapted prompt and agent design guidance for `blu-mono`.
 
 This skill is tuned to the prompt and agent architecture that actually exists in this monorepo today:
 
-- shared prompt loading and composition through `libs/vizu_prompt_management`
+- shared prompt loading and composition through `libs/blu_prompt_management`
 - Langfuse-first prompt management with production labels and builtin fallback where supported
-- LangGraph-based agent execution in `services/atendente_core` and `libs/vizu_agent_framework`
+- LangGraph-based agent execution in `services/atendente_core` and `libs/blu_agent_framework`
 - standalone agent factory/session flow in `services/standalone_agent_api`
-- context injection through `vizu_context_service`
+- context injection through `blu_context_service`
 - tool execution through MCP and worker delegation patterns
 
 Use this skill when you are:
@@ -38,10 +38,10 @@ This skill covers the repo's concrete prompt and agent concerns:
 ## Tech Stack
 
 **Primary language:** Python
-**Prompt management:** Langfuse + `vizu_prompt_management`
-**Agent runtime:** LangGraph + `vizu_agent_framework`
-**Observability:** Langfuse + `vizu_observability_bootstrap`
-**Context layer:** `vizu_context_service`
+**Prompt management:** Langfuse + `blu_prompt_management`
+**Agent runtime:** LangGraph + `blu_agent_framework`
+**Observability:** Langfuse + `blu_observability_bootstrap`
+**Context layer:** `blu_context_service`
 **Data/tool surfaces:** Supabase, analytics SQL, MCP tools, worker delegation, RAG
 **Primary services:** `atendente_core`, `standalone_agent_api`, `tool_pool_api`
 
@@ -63,7 +63,7 @@ See `references/agentic_system_design.md` for the concrete graph, factory, conte
 
 ### Pattern 1: Prompt logic is shared infrastructure, not scattered strings
 
-- Prefer `vizu_prompt_management` over direct ad hoc prompt assembly.
+- Prefer `blu_prompt_management` over direct ad hoc prompt assembly.
 - Use fragment composition when the agent family shares reusable prompt blocks.
 - Use production-labeled Langfuse prompts for live runtime behavior.
 - Preserve builtin fallback only where the existing loader already supports it.
@@ -92,7 +92,7 @@ See `references/agentic_system_design.md` for the concrete graph, factory, conte
 
 ### For agent design changes
 
-1. Start from the owning abstraction: `atendente_core`, `vizu_agent_framework`, or `standalone_agent_api`.
+1. Start from the owning abstraction: `atendente_core`, `blu_agent_framework`, or `standalone_agent_api`.
 2. Decide whether the behavior belongs in graph routing, tool execution, state reducers, context assembly, or prompt text.
 3. Keep tenant/session context boundaries explicit.
 4. Validate the narrowest real slice: prompt loader, graph node, runtime stream, or focused e2e test.
@@ -120,8 +120,8 @@ See `references/agentic_system_design.md` for the concrete graph, factory, conte
 
 ## High-Signal Repo Anchors
 
-- `libs/vizu_prompt_management`
-- `libs/vizu_agent_framework`
+- `libs/blu_prompt_management`
+- `libs/blu_agent_framework`
 - `services/atendente_core/src/atendente_core/core/`
 - `services/standalone_agent_api/src/standalone_agent_api/core/`
 - `scripts/audit_langfuse_prompts.py`

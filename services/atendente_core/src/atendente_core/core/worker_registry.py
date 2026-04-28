@@ -12,7 +12,7 @@ via meta-tools (delegate_to_*). The registry controls:
 import logging
 from dataclasses import dataclass, field
 
-from vizu_tool_registry.tool_metadata import TierLevel
+from blu_tool_registry.tool_metadata import TierLevel
 
 logger = logging.getLogger(__name__)
 

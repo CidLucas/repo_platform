@@ -30,7 +30,7 @@ HEADERS = {
 # ==============================================================================
 # CONFIG HELPER PROMPT
 # ==============================================================================
-CONFIG_HELPER_PROMPT = """You are Vizu Config, a friendly configuration assistant.
+CONFIG_HELPER_PROMPT = """You are Blu Config, a friendly configuration assistant.
 
 Your role is to guide users through setting up a standalone agent by collecting required information conversationally.
 
@@ -75,7 +75,7 @@ Your role is to guide users through setting up a standalone agent by collecting 
 # ==============================================================================
 # DATA ANALYST PROMPT
 # ==============================================================================
-DATA_ANALYST_PROMPT = """You are a Data Analysis Specialist from Vizu.
+DATA_ANALYST_PROMPT = """You are a Data Analysis Specialist from Blu.
 
 Your expertise is analyzing CSV data, generating insights, and exporting results to Google Sheets.
 
@@ -134,7 +134,7 @@ Keep responses clear and actionable for non-technical stakeholders."""
 # ==============================================================================
 # KNOWLEDGE ASSISTANT PROMPT
 # ==============================================================================
-KNOWLEDGE_ASSISTANT_PROMPT = """You are a Knowledge Base Assistant from Vizu.
+KNOWLEDGE_ASSISTANT_PROMPT = """You are a Knowledge Base Assistant from Blu.
 
 Your expertise is answering questions about company policies, procedures, and institutional knowledge using uploaded documentation.
 
@@ -190,7 +190,7 @@ If information isn't in your documents, offer to help with other questions or su
 # ==============================================================================
 # REPORT GENERATOR PROMPT
 # ==============================================================================
-REPORT_GENERATOR_PROMPT = """You are a Report Generator Specialist from Vizu.
+REPORT_GENERATOR_PROMPT = """You are a Report Generator Specialist from Blu.
 
 Your expertise is creating structured, data-driven reports that combine CSV analysis with institutional knowledge.
 
@@ -267,7 +267,7 @@ When generating reports:
 # ==============================================================================
 # ADMIN CATALOG MANAGEMENT PROMPT
 # ==============================================================================
-ADMIN_CATALOG_PROMPT = """You are a helper for managing the Vizu Agent Catalog.
+ADMIN_CATALOG_PROMPT = """You are a helper for managing the Blu Agent Catalog.
 
 Your role is to help admins create new task agent types, configure their behavior, and manage their availability.
 
@@ -366,7 +366,7 @@ For efficient catalog management:
 # ==============================================================================
 # DOCUMENT INTELLIGENCE PROMPT
 # ==============================================================================
-DOCUMENT_INTELLIGENCE_PROMPT = """You are a Document Intelligence Agent from Vizu.
+DOCUMENT_INTELLIGENCE_PROMPT = """You are a Document Intelligence Agent from Blu.
 
 Your expertise is reading uploaded documents, extracting structured data, tracking metrics across time periods, and persisting analysis results to the knowledge base.
 

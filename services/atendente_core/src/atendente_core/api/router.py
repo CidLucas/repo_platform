@@ -1,10 +1,7 @@
 import logging
 
-from fastapi import APIRouter, Depends, Form, Header, HTTPException, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
-from sqlalchemy.orm import Session
-from vizu_twilio_client.webhook import create_twiml_response
 
 from atendente_core.api.auth import get_auth_result
 from atendente_core.api.schemas import (
@@ -20,18 +17,15 @@ from atendente_core.api.schemas import (
 from atendente_core.core.nodes import filter_tools_for_client
 from atendente_core.core.service import AtendenteService
 from atendente_core.services.mcp_client import mcp_manager
-from vizu_auth.core.models import AuthResult
-from vizu_context_service.context_service import ContextService
+from blu_auth.core.models import AuthResult
+from blu_context_service.context_service import ContextService
 
 # --- 1. INTEGRAÇÃO COM LIB COMPARTILHADA (O Segredo da Limpeza) ---
-from vizu_context_service.dependencies import get_redis_service
-from vizu_context_service.redis_service import RedisService
+from blu_context_service.dependencies import get_redis_service
+from blu_context_service.redis_service import RedisService
 
-# DB helpers
-from vizu_db_connector.database import get_db_session
-
-# Importa ModelInfo diretamente de vizu_models (para /models endpoint)
-from vizu_models import ClienteVizu, ModelInfo
+# Importa ModelInfo diretamente de blu_models (para /models endpoint)
+from blu_models import ModelInfo
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -52,7 +46,7 @@ def get_context_service() -> ContextService:
         import redis
 
         from atendente_core.core.config import get_settings
-        from vizu_context_service.redis_service import RedisService as _RedisService
+        from blu_context_service.redis_service import RedisService as _RedisService
 
         settings = get_settings()
         if not settings.REDIS_URL:
@@ -61,7 +55,7 @@ def get_context_service() -> ContextService:
         pool = redis.ConnectionPool.from_url(settings.REDIS_URL, decode_responses=True)
         redis_client = redis.Redis(connection_pool=pool)
         redis_service = _RedisService(redis_client=redis_client)
-        _context_service = ContextService(cache_service=redis_service, use_supabase=True)
+        _context_service = ContextService(cache_service=redis_service)
         logger.info("ContextService singleton created (atendente_core)")
     return _context_service
 
@@ -80,52 +74,6 @@ def get_atendente_service() -> AtendenteService:
     if _atendente_service is None:
         _atendente_service = AtendenteService()
     return _atendente_service
-
-
-# Dependency used to validate incoming Twilio webhook requests.
-# Tests import and override this dependency, so keep it lightweight.
-def validate_twilio_request(signature: str | None = Header(None)):
-    """
-    Default Twilio request validator placeholder.
-    In production this should validate the X-Twilio-Signature header.
-    Tests will override this dependency.
-    """
-    return None
-
-
-# Incoming endpoint used by integration tests (WhatsApp-like webhook)
-@router.post("/api/v1/incoming")
-async def incoming(
-    From: str = Form(...),
-    Body: str = Form(...),
-    api_key: str | None = Header(None, alias="X-Vizu-API-Key"),
-    db: Session = Depends(get_db_session),
-    cache: RedisService = Depends(get_redis_service),
-    _validate=Depends(validate_twilio_request),
-):
-    # Basic authorization
-    if not api_key:
-        raise HTTPException(status_code=401, detail="Missing API key")
-
-    statement = select(ClienteVizu).where(ClienteVizu.api_key == api_key)
-    cliente = db.execute(statement).scalars().first()
-    if not cliente:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-
-    # Populate cache (TTL 24h)
-    redis_key = f"context:client:{api_key}"
-    cache.set_json(redis_key, {"cliente": cliente.nome_empresa}, ttl_seconds=86400)
-
-    # Invoke the agent graph (tests patch `atendente_core.api.router.agent_graph`)
-    current_graph = agent_graph
-    if current_graph is None:
-        # Fallback lightweight response when no graph is available
-        return Response(content=f"Olá {cliente.nome_empresa}", media_type="text/plain")
-
-    result = current_graph.invoke(input=Body, cliente=cliente)
-    messages = result.get("messages", [])
-    texts = [getattr(m, "content", str(m)) for m in messages]
-    return Response(content="\n".join(texts), media_type="text/plain")
 
 
 # ============================================================================
@@ -243,8 +191,10 @@ async def chat_endpoint(
         raise HTTPException(status_code=500, detail="Erro interno no processamento.")
 
 
+
+
 # ============================================================================
-# ENDPOINT 1.1: CHAT STREAMING (Server-Sent Events)
+# ENDPOINT 2: CHAT STREAMING (Server-Sent Events)
 # ============================================================================
 @router.post("/chat/stream")
 async def chat_stream_endpoint(
@@ -306,65 +256,6 @@ async def chat_stream_endpoint(
         },
     )
 
-
-# ============================================================================
-# ENDPOINT 2: WEBHOOK TWILIO (Para WhatsApp)
-# ============================================================================
-@router.post("/webhook/twilio")
-async def twilio_webhook(
-    # O Twilio envia os dados como FORM DATA (application/x-www-form-urlencoded)
-    From: str = Form(...),
-    Body: str = Form(...),
-    To: str | None = Form(None),  # Número de destino (opcional, para multi-client)
-    service: AtendenteService = Depends(get_atendente_service),
-    context_service: ContextService = Depends(get_context_service),
-    db: Session = Depends(get_db_session),
-):
-    """
-    Webhook Twilio para WhatsApp.
-
-    Mapeia o número de telefone do cliente final (From) para um cliente_vizu
-    através da tabela cliente_final, permitindo autenticação sem API key.
-    """
-    try:
-        logger.info(f"Recebido Webhook Twilio de {From} para {To}: {Body}")
-
-        # Normaliza o número de telefone (remove espaços, caracteres especiais)
-        phone_number = (
-            From.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-        )
-
-        # Busca o cliente_vizu através do número de telefone
-        from vizu_models import ClienteFinal
-
-        statement = select(ClienteFinal).where(ClienteFinal.id_externo == phone_number)
-        cliente_final = db.execute(statement).scalars().first()
-
-        if not cliente_final:
-            logger.warning(f"Cliente final não encontrado para o número: {phone_number}")
-            response_text = "Olá! Não conseguimos identificar seu número. Por favor, entre em contato com o suporte."
-            twiml_response = create_twiml_response(response_text)
-            return Response(content=twiml_response, media_type="application/xml")
-
-        # Processa a mensagem usando o client_id
-        result = await service.process_message(
-            session_id=f"whatsapp:{phone_number}",  # Session ID baseada no número
-            message_text=Body,
-            client_id=str(cliente_final.client_id),
-            context_service=context_service,
-        )
-
-        # Resposta em XML TwiML (exigido pelo Twilio)
-        twiml_response = create_twiml_response(result.response)
-        return Response(content=twiml_response, media_type="application/xml")
-
-    except Exception as e:
-        logger.error(f"Erro no webhook Twilio: {e}", exc_info=True)
-        # Mesmo em erro, o Twilio espera XML válido para não retentar infinitamente
-        error_twiml = create_twiml_response("Desculpe, ocorreu um erro ao processar sua mensagem.")
-        return Response(content=error_twiml, media_type="application/xml")
-
-
 # ============================================================================
 # ENDPOINT 3: LISTAR MODELOS DISPONÍVEIS
 # ============================================================================
@@ -378,7 +269,7 @@ async def list_models():
 
     Use o nome do modelo no campo `model` do /chat ou no header X-LLM-Model.
     """
-    from vizu_llm_service import (
+    from blu_llm_service import (
         MODEL_MAPPINGS,
         LLMProvider,
         ModelTier,
@@ -455,7 +346,7 @@ async def get_client_context(
     from uuid import UUID
 
     from atendente_core.services.mcp_client import ensure_mcp_connected
-    from vizu_models.safe_client_context import InternalClientContext
+    from blu_models.safe_client_context import InternalClientContext
 
     # Ensure MCP is connected before accessing tools
     await ensure_mcp_connected()
@@ -475,7 +366,7 @@ async def get_client_context(
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
 
     # Separa contexto seguro
-    internal_ctx = InternalClientContext.from_vizu_client_context(client_context)
+    internal_ctx = InternalClientContext.from_blu_client_context(client_context)
     safe_ctx = internal_ctx.get_safe_context()
 
     # Obtém todas as tools do MCP e filtra

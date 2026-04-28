@@ -15,7 +15,7 @@ from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.dependencies import get_context_service
 from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
-from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
 
 from . import register_module
 
@@ -135,15 +135,15 @@ async def _extract_structured_data_logic(
         raise ToolError("Could not determine client identity.")
 
     ctx_service = get_context_service()
-    vizu_context = await ctx_service.get_client_context_by_id(UUID(cliente_id))
-    if not vizu_context:
+    blu_context = await ctx_service.get_client_context_by_id(UUID(cliente_id))
+    if not blu_context:
         raise ToolError(f"Client context not found: {cliente_id}")
 
-    if not is_tool_accessible_by_tier("extract_structured_data", vizu_context):
+    if not is_tool_accessible_by_tier("extract_structured_data", blu_context):
         raise ToolError("Tool 'extract_structured_data' is not enabled for this client.")
 
     # 4. Fetch document chunks from vector_db
-    from vizu_supabase_client import get_supabase_client
+    from blu_supabase_client import get_supabase_client
 
     supabase = get_supabase_client()
     chunk_result = (
@@ -181,12 +181,12 @@ async def _extract_structured_data_logic(
     # 6. Call LLM for extraction
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    from vizu_llm_service import ModelTier, get_model
+    from blu_llm_service import ModelTier, get_model
 
     llm = get_model(
         tier=ModelTier.DEFAULT,
         task="extraction",
-        user_id=str(vizu_context.id),
+        user_id=str(blu_context.id),
         tags=["tool_pool", "document_intelligence", "extraction"],
     )
 
@@ -422,18 +422,18 @@ async def _write_summary_to_kb_logic(
         raise ToolError("Could not determine client identity.")
 
     ctx_service = get_context_service()
-    vizu_context = await ctx_service.get_client_context_by_id(UUID(cliente_id))
-    if not vizu_context:
+    blu_context = await ctx_service.get_client_context_by_id(UUID(cliente_id))
+    if not blu_context:
         raise ToolError(f"Client context not found: {cliente_id}")
 
-    if not is_tool_accessible_by_tier("write_summary_to_kb", vizu_context):
+    if not is_tool_accessible_by_tier("write_summary_to_kb", blu_context):
         raise ToolError("Tool 'write_summary_to_kb' is not enabled for this client.")
 
     # 2. Insert document record
-    from vizu_supabase_client import get_storage, get_supabase_client
+    from blu_supabase_client import get_storage, get_supabase_client
 
     supabase = get_supabase_client()
-    real_client_id = str(vizu_context.id)
+    real_client_id = str(blu_context.id)
     safe_title = title.strip()[:80].replace(" ", "_")
     file_name = f"{safe_title}.md"
 

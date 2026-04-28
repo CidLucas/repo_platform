@@ -29,7 +29,7 @@ processors:
         value: ${env:ENVIRONMENT}
         action: upsert
       - key: service.namespace
-        value: vizu
+        value: blu
         action: upsert
 
   # Memory limiter to prevent OOM

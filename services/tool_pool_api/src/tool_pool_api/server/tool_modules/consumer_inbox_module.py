@@ -7,7 +7,7 @@ Two ctx-free cores plus their MCP wrappers:
   as a ``consumer_messages`` row with ``status='draft'`` so the dashboard
   can render and edit it.
 - :func:`send_consumer_reply_core` — promotes a draft. Reads the tenant's
-  approval policy via :func:`vizu_agent_framework.approval.resolve_policy`
+  approval policy via :func:`blu_agent_framework.approval.resolve_policy`
   and either:
     • enqueues an ``approval_requests`` row (status ``pending_approval``)
       — the actual dispatch happens once an approver flips the status
@@ -28,9 +28,9 @@ from typing import Any
 
 from fastmcp.exceptions import ToolError
 
-from vizu_agent_framework import record_audit as _record_audit
-from vizu_agent_framework.approval import ApprovalEngine, resolve_policy
-from vizu_supabase_client import get_supabase_client
+from blu_agent_framework import record_audit as _record_audit
+from blu_agent_framework.approval import ApprovalEngine, resolve_policy
+from blu_supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +57,8 @@ async def _generate_draft_with_llm(thread_text: str, *, hint: str | None = None)
     """Call the FAST-tier model to produce a reply. Returns plain text."""
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    from vizu_llm_service import get_model
-    from vizu_llm_service.client import ModelTier
+    from blu_llm_service import get_model
+    from blu_llm_service.client import ModelTier
 
     user_payload = thread_text
     if hint:
@@ -275,8 +275,8 @@ async def _dispatch_consumer_message(
 ) -> dict[str, Any]:
     """Send the message via the right channel and update the row."""
     if channel == "whatsapp":
-        from vizu_twilio_client import TwilioClient
-        from vizu_twilio_client.config import get_twilio_settings
+        from blu_twilio_client import TwilioClient
+        from blu_twilio_client.config import get_twilio_settings
 
         twilio = TwilioClient(get_twilio_settings())
         try:

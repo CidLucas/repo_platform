@@ -62,7 +62,7 @@ RLS_TABLES: list[tuple[str, str, str, bool]] = [
 
 @pytest.fixture(scope="module")
 def db():
-    from vizu_supabase_client import get_supabase_client
+    from blu_supabase_client import get_supabase_client
 
     return get_supabase_client()
 
@@ -85,7 +85,7 @@ def tenant_b(db) -> Iterator[dict[str, Any]]:
 
 def _create_tenant(db, label: str) -> Iterator[dict[str, Any]]:
     """Provision an auth.users row + rely on handle_new_auth_user trigger."""
-    email = f"phase-h-{label}-{uuid.uuid4().hex[:8]}@vizu.test"
+    email = f"phase-h-{label}-{uuid.uuid4().hex[:8]}@blu.test"
     password = uuid.uuid4().hex + "Aa!"
     resp = db.auth.admin.create_user(
         {"email": email, "password": password, "email_confirm": True}
@@ -94,21 +94,21 @@ def _create_tenant(db, label: str) -> Iterator[dict[str, Any]]:
     user_id = user.id if hasattr(user, "id") else user["id"]
 
     row = (
-        db.table("clientes_vizu")
+        db.table("clientes_blu")
         .select("client_id")
         .eq("external_user_id", str(user_id))
         .maybe_single()
         .execute()
     )
-    assert row.data, f"trigger did not bootstrap clientes_vizu for {email}"
+    assert row.data, f"trigger did not bootstrap clientes_blu for {email}"
     client_id = row.data["client_id"]
 
     try:
         yield {"user_id": str(user_id), "email": email, "client_id": client_id}
     finally:
-        # Clean up tenant — clientes_vizu CASCADE handles related tables.
+        # Clean up tenant — clientes_blu CASCADE handles related tables.
         try:
-            db.table("clientes_vizu").delete().eq("client_id", client_id).execute()
+            db.table("clientes_blu").delete().eq("client_id", client_id).execute()
         finally:
             db.auth.admin.delete_user(user_id)
 

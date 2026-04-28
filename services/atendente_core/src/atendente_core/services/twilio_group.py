@@ -1,12 +1,12 @@
 """
-Twilio service wrapper using vizu_twilio_client library.
+Twilio service wrapper using blu_twilio_client library.
 
 This module provides a FastAPI-compatible dependency for Twilio operations,
-using the shared vizu_twilio_client library.
+using the shared blu_twilio_client library.
 """
 
 from fastapi import Depends
-from vizu_twilio_client import TwilioClient, TwilioSettings
+from blu_twilio_client import TwilioClient, TwilioSettings
 
 
 def get_twilio_client(

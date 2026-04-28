@@ -1,0 +1,44 @@
+{
+"mcpServers": {
+		"supabase": {
+			"type": "http",
+			"url": "https://mcp.supabase.com/mcp?project_ref=haruewffnubdgyofftut",
+			"headers": {
+				"Authorization": "Bearer sbp_a8ed89bcd29c6fb7da2465bacfb3a378bb5ebbc0"
+			}
+		},
+		"cloud-run": {
+			"type": "stdio",
+			"command": "docker",
+			"args": [
+				"run",
+				"-i",
+				"--rm",
+				"-e",
+				"GOOGLE_APPLICATION_CREDENTIALS",
+				"-v",
+				"/local-directory:/local-directory",
+				"mcp/cloud-run-mcp:latest"
+			],
+			"env": {
+				"GOOGLE_APPLICATION_CREDENTIALS": "/Users/slim/.config/gcloud/application_default-credentials.json",
+				"DEFAULT_SERVICE_NAME": "Bludev"
+			}
+		},
+		"langfuse": {
+			"url": "https://us.cloud.langfuse.com/api/public/mcp",
+			"type": "http",
+			"headers": {
+				"Authorization": "Basic cGstbGYtNjJhNGYwNzQtNTQ2MC00ZDhjLTg3OWUtNTBhZjE1MTdkMjk1OnNrLWxmLTUzZjczYzY3LTY0ZjctNDA2NC1iZGEzLTRiNzEzMzVlMzIxZg"
+			}
+		}
+	},
+	"inputs": [
+		{
+			"id": "CONTEXT7_API_KEY",
+			"type": "promptString",
+			"description": "API key for authentication",
+			"password": true
+		}
+	]
+}

@@ -20,8 +20,8 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.dependencies import get_context_service
-from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
-from vizu_supabase_client import get_supabase_client
+from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_supabase_client import get_supabase_client
 
 from . import register_module
 

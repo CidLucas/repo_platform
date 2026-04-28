@@ -6,70 +6,52 @@ from datetime import datetime, timedelta
 
 from cryptography.fernet import Fernet
 from redis import Redis
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from vizu_auth.oauth2.models import TokenResponse
-from vizu_context_service.context_service import ContextService
-from vizu_context_service.redis_service import RedisService
+from blu_auth.oauth2.models import TokenResponse
+from blu_context_service.context_service import ContextService
+from blu_context_service.redis_service import RedisService
+from blu_supabase_client import get_supabase_client
 
 
 async def main():
-    # Ensure we have an encryption key for this test run
     key = os.environ.get("CREDENTIALS_ENCRYPTION_KEY")
     if not key:
         key = Fernet.generate_key().decode()
         os.environ["CREDENTIALS_ENCRYPTION_KEY"] = key
     print("Using CREDENTIALS_ENCRYPTION_KEY (len):", len(key))
 
-    # Redis client pointing to the compose service name
     redis_client = Redis(host="redis", port=6379, db=0, decode_responses=False)
     cache = RedisService(redis_client)
+    ctx = ContextService(cache_service=cache)
 
-    # SQLAlchemy session to local Postgres (compose service)
-    # Force the compose service hostname to ensure the container connects to the Postgres service
-    DATABASE_URL = "postgresql://user:password@postgres:5432/vizu_db"
-    engine = create_engine(DATABASE_URL)
-    SessionLocal = sessionmaker(bind=engine)
-    db_session = SessionLocal()
-
-    # Instantiate ContextService using the SQLAlchemy backend
-    ctx = ContextService(cache_service=cache, db_session=db_session, use_supabase=False)
-
-    # Try to pick an existing cliente_vizu ID from the database (required by FK)
-    from sqlalchemy import text
-
-    row = db_session.execute(text("SELECT id FROM cliente_vizu LIMIT 1")).fetchone()
-    if not row:
-        print("No existing cliente_vizu found in DB. Please seed a client first.")
+    # Pick an existing client_id from clientes_blu via Supabase
+    supabase = get_supabase_client()
+    row = supabase.table("clientes_blu").select("client_id").limit(1).execute()
+    if not row.data:
+        print("No existing clientes_blu found. Please seed a client first.")
         return
 
-    cliente_id = uuid.UUID(row[0]) if isinstance(row[0], str) else row[0]
+    cliente_id = uuid.UUID(row.data[0]["client_id"])
     print("Using existing client_id:", cliente_id)
 
-    # Save a fake integration config
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/gmail.readonly",
         "openid",
         "email",
     ]
-    client_id = "test-client-id"
-    client_secret = "test-client-secret"
-    redirect_uri = "http://localhost/integrations/google/callback"
 
     await ctx.save_integration_config(
         client_id=cliente_id,
         provider="google",
         config_type="oauth2_client",
-        oauth_client_id=client_id,
-        client_secret=client_secret,
-        redirect_uri=redirect_uri,
+        oauth_client_id="test-client-id",
+        client_secret="test-client-secret",
+        redirect_uri="http://localhost/integrations/google/callback",
         scopes=scopes,
     )
     print("Saved integration config")
 
-    # Simulate OAuth token exchange (mocked)
     tokens = TokenResponse(
         access_token="access_test_123",
         refresh_token="refresh_test_456",
@@ -92,7 +74,6 @@ async def main():
     )
     print("Saved integration tokens")
 
-    # Retrieve persisted tokens and validate
     wrapper = await ctx.get_integration_tokens(cliente_id, "google", auto_refresh=False)
     if not wrapper:
         print("ERROR: tokens not found")

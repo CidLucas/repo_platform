@@ -21,7 +21,7 @@ Blu is an **escritório virtual com IA** — an AI-powered team of pre-trained a
 
 **The real promise:** A business that runs more smoothly than the owner alone could ever make it run, while the owner stays in charge and learns to operate at a higher level along the way.
 
-> Internal note on naming: the product is **Blu**. The codebase still uses the legacy `vizu_*` namespace. Never expose `vizu` in marketing surfaces. Use **Blu** everywhere — landing, ads, emails, in-product copy.
+> Internal note on naming: the product is **Blu**. The codebase still uses the legacy `blu_*` namespace. Never expose `blu` in marketing surfaces. Use **Blu** everywhere — landing, ads, emails, in-product copy.
 
 ---
 
@@ -218,7 +218,7 @@ Antes de publicar, leia o texto imaginando o dono lendo no celular, no sofá, de
 3. Nunca usar inglês quando há equivalente em português. _Time_, não _team_. _Aprovação_, não _approval_. _Escritório_, não _office_. (_Dashboard_ só dentro do produto e sob o nome **Centro de Comando**.)
 4. Nunca falar de IA como mágica. Falar como funcionário competente, treinado, que ainda assim pede confirmação.
 5. Nunca usar "fácil," "simples" ou "rápido" como benefício principal. Facilidade é pré-requisito, não promessa.
-6. Nunca expor `vizu`, nomes de libs, nomes de serviços, ou linguagem de engenharia em superfícies de marketing.
+6. Nunca expor `blu`, nomes de libs, nomes de serviços, ou linguagem de engenharia em superfícies de marketing.
 7. Nunca prometer integração que está em "later." Se Bling/Omie/Tiny ainda não estão nativos, diga "em breve" — ou nem cite.
 8. Nunca repetir a mesma metáfora ("gargalo," "sair do caos") em peças seguidas. Varie a porta de entrada emocional.
 9. Nunca inventar métricas. Se não tem dado de cliente real, escreva sem número.

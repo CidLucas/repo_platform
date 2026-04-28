@@ -144,32 +144,3 @@ export function mapRulesToPolicies(
   };
 }
 
-export function mapStateToCurrentMoment(
-  state: OnboardingState,
-): Record<string, unknown> {
-  const priorities: string[] = [];
-  if (state.dataPath === "systems" && (state.systems ?? []).length > 0) {
-    priorities.push(
-      `Integrar sistemas operacionais: ${state.systems.join(", ")}`,
-    );
-  }
-  if (state.dataPath === "files") {
-    priorities.push("Operar a partir de planilhas e documentos");
-  }
-  if (state.dataPath === "scratch") {
-    priorities.push("Começar a estruturar dados do zero");
-  }
-  if ((state.agents ?? []).length > 0) {
-    priorities.push(`Ativar agentes: ${state.agents.join(", ")}`);
-  }
-
-  return {
-    current_priorities: priorities,
-    current_challenges: [],
-    recent_wins: [],
-    key_metrics: {},
-    active_campaigns: [],
-    upcoming_events: [],
-    last_updated: new Date().toISOString(),
-  };
-}

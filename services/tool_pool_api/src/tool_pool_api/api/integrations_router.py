@@ -10,11 +10,11 @@ from pydantic import BaseModel
 
 from tool_pool_api.core.config import get_settings
 from tool_pool_api.server.dependencies import get_context_service
-from vizu_auth.core.models import AuthResult
-from vizu_auth.fastapi.dependencies import get_auth_result
-from vizu_auth.oauth2.models import OAuthConfig
-from vizu_auth.oauth2.oauth_manager import OAuthManager
-from vizu_context_service.context_service import ContextService
+from blu_auth.core.models import AuthResult
+from blu_auth.fastapi.dependencies import get_auth_result
+from blu_auth.oauth2.models import OAuthConfig
+from blu_auth.oauth2.oauth_manager import OAuthManager
+from blu_context_service.context_service import ContextService
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ class GoogleAccountInfo(BaseModel):
     created_at: datetime | None = None
 
 
-# JWT auth is delegated to the canonical helper in vizu_auth. We expose a
+# JWT auth is delegated to the canonical helper in blu_auth. We expose a
 # private alias so existing call sites (`Depends(_get_auth_result)`) keep
 # working without churn; new code should import ``get_auth_result`` directly.
 _get_auth_result = get_auth_result
@@ -479,7 +479,7 @@ def _supabase_with_user_jwt(token: str):
     Used by inbox endpoints so RLS policies (``client_id = get_my_client_id()``)
     work without granting service_role to the dashboard.
     """
-    from vizu_supabase_client import get_supabase_client
+    from blu_supabase_client import get_supabase_client
 
     db = get_supabase_client()
     # postgrest-py exposes auth() to swap the bearer used for downstream calls.

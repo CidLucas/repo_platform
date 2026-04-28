@@ -19,8 +19,7 @@ from atendente_core.core.hitl_integration import HitlIntegration
 from atendente_core.core.observability import get_langfuse_config
 from atendente_core.core.state import AgentState, PendingElicitation
 from atendente_core.services.mcp_client import ensure_mcp_connected
-from vizu_context_service.context_service import ContextService
-from vizu_db_connector.operations import VizuDBConnector
+from blu_context_service.context_service import ContextService
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +69,6 @@ class AtendenteService:
 
     def __init__(self):
         self.settings = get_settings()
-        self.db = VizuDBConnector()
         self.hitl = HitlIntegration()
 
         logger.info("Building agent graph with custom supervisor_node")
@@ -79,16 +77,6 @@ class AtendenteService:
         from .graph import get_agent_graph
 
         self.graph = get_agent_graph()
-
-    async def _persist_message(self, conversa_id: UUID, role: str, content: str) -> None:
-        """Fire-and-forget message persistence for OPT-4.
-
-        Runs in background task, logs errors but doesn't propagate them.
-        """
-        try:
-            await self.db.add_mensagem(conversa_id, role, content)
-        except Exception:
-            logger.exception(f"Background message persistence failed ({role})")
 
     async def process_message(
         self,
@@ -129,7 +117,7 @@ class AtendenteService:
 
         # 2. Preparação do Estado do Grafo
         # OTIMIZAÇÃO: Contextos são buscados on-demand no supervisor_node usando cliente_id
-        # Isso evita trace bloat (vizu_context, safe_context, _internal_context não vão para o estado)
+        # Isso evita trace bloat (blu_context, safe_context, _internal_context não vão para o estado)
         initial_state = AgentState(
             messages=[HumanMessage(content=message_text)],
             tools=[],  # Será preenchido pelo nó supervisor via MCP
@@ -156,7 +144,7 @@ class AtendenteService:
             logger.info(f"Resuming from elicitation: {elicitation_response.get('elicitation_id')}")
 
         # Determina qual modelo será usado (para retornar na resposta)
-        from vizu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
+        from blu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
 
         llm_settings = get_llm_settings()
         if model_override:
@@ -181,21 +169,7 @@ class AtendenteService:
             mcp_manager.set_cliente_id(str(client_context.id))
             mcp_manager.set_session_id(session_id)
 
-            # Parallelize conversa creation + MCP connection (independent operations)
-            async def _get_conversa():
-                try:
-                    cid = await self.db.create_or_get_conversa(
-                        session_id, cliente_final_id=None, client_id=str(client_context.id)
-                    )
-                    _create_background_task(self._persist_message(cid, "user", message_text))
-                    return cid
-                except Exception:
-                    logger.exception("Falha ao criar/obter conversa (não bloqueante)")
-                    return None
-
-            conversa_task = asyncio.create_task(_get_conversa())
             await ensure_mcp_connected()
-            conversa_id = await conversa_task
 
             # OPT-3: Set context_service for supervisor_node to enable Redis-cached prompts
             from atendente_core.core.nodes import set_node_context_service
@@ -227,12 +201,6 @@ class AtendenteService:
 
             if isinstance(last_message, AIMessage):
                 agent_response = last_message.content
-
-                # OPT-4: Fire-and-forget persist AI response in background
-                if conversa_id:
-                    _create_background_task(
-                        self._persist_message(conversa_id, "ai", agent_response)
-                    )
 
                 # PHASE 6: HITL Evaluation
                 # Avalia se esta interação deve ir para revisão humana
@@ -336,7 +304,7 @@ class AtendenteService:
         )
 
         # Model info for response
-        from vizu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
+        from blu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
 
         llm_settings = get_llm_settings()
         if model_override:
@@ -361,21 +329,7 @@ class AtendenteService:
             mcp_manager.set_cliente_id(str(client_context.id))
             mcp_manager.set_session_id(session_id)
 
-            # Parallel setup: conversa + MCP
-            async def _get_conversa():
-                try:
-                    cid = await self.db.create_or_get_conversa(
-                        session_id, cliente_final_id=None, client_id=str(client_context.id)
-                    )
-                    _create_background_task(self._persist_message(cid, "user", message_text))
-                    return cid
-                except Exception:
-                    logger.exception("Falha ao criar/obter conversa (não bloqueante)")
-                    return None
-
-            conversa_task = asyncio.create_task(_get_conversa())
             await ensure_mcp_connected()
-            conversa_id = await conversa_task
 
             # Set context service for nodes
             from atendente_core.core.nodes import set_node_context_service
@@ -413,12 +367,6 @@ class AtendenteService:
 
             # Final response
             yield f"data: {json.dumps({'event': 'done', 'data': {'response': accumulated_response, 'model': model_used}})}\n\n"
-
-            # Persist AI response in background
-            if conversa_id and accumulated_response:
-                _create_background_task(
-                    self._persist_message(conversa_id, "ai", accumulated_response)
-                )
 
         except Exception as e:
             logger.exception(f"[Stream] Erro ao processar mensagem na sessão {session_id}")

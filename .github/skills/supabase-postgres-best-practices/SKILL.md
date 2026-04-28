@@ -12,7 +12,7 @@ metadata:
 
 # Supabase Postgres Best Practices
 
-Repo-adapted Postgres optimization guide for `vizu-mono`.
+Repo-adapted Postgres optimization guide for `blu-mono`.
 
 This repo uses Postgres through Supabase as an application boundary, not just a backing store. The highest-value optimization work here usually touches one of these surfaces:
 

@@ -13,13 +13,13 @@ class Settings(BaseSettings):
     # Nome do serviço para logging e telemetria
     SERVICE_NAME: str = "file-upload-api"
 
-    # --- Configuração de Observabilidade (Padrão Vizu) ---
+    # --- Configuração de Observabilidade (Padrão Blu) ---
     # Endpoint do coletor OpenTelemetry (ex: "http://otel-collector:4317")
     # É opcional para permitir a execução em testes sem um coletor.
     OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
 
     # --- Supabase Configuration ---
-    # These are loaded from environment by vizu_supabase_client
+    # These are loaded from environment by blu_supabase_client
     SUPABASE_URL: str | None = None
     SUPABASE_SERVICE_KEY: str | None = None
     SUPABASE_BUCKET: str = "file-uploads"

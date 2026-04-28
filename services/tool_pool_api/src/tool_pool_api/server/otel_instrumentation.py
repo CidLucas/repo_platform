@@ -32,10 +32,10 @@ from opentelemetry.trace import Status, StatusCode
 
 logger = logging.getLogger(__name__)
 
-_TRACER = trace.get_tracer("vizu.tool_pool_api.tools")
+_TRACER = trace.get_tracer("blu.tool_pool_api.tools")
 
 # Flag so we never wrap twice on a given FastMCP instance.
-_INSTRUMENTED_FLAG = "_vizu_otel_instrumented"
+_INSTRUMENTED_FLAG = "_blu_otel_instrumented"
 
 
 def _read_request_headers() -> dict[str, str]:
@@ -56,7 +56,7 @@ def _record_metric_safe(
 ) -> None:
     """Record a Mimir metric without failing the tool call if OTel is down."""
     try:
-        from vizu_observability_bootstrap import record_metric
+        from blu_observability_bootstrap import record_metric
 
         record_metric(metric_name, value, labels, metric_type)
     except Exception as exc:  # pragma: no cover — defensive
@@ -133,20 +133,20 @@ def _emit_metrics(
         labels["tier"] = str(span_attrs["tier"])
 
     _record_metric_safe(
-        "vizu.tool.duration_ms",
+        "blu.tool.duration_ms",
         duration_ms,
         labels,
         metric_type="histogram",
     )
     _record_metric_safe(
-        "vizu.tool.calls_total",
+        "blu.tool.calls_total",
         1,
         labels,
         metric_type="counter",
     )
     if outcome == "error":
         _record_metric_safe(
-            "vizu.tool.errors_total",
+            "blu.tool.errors_total",
             1,
             labels,
             metric_type="counter",

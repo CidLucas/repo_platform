@@ -26,7 +26,7 @@ from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.dependencies import get_context_service
 from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
-from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
 
 from . import register_module
 
@@ -146,18 +146,18 @@ async def _extract_document_with_ocr_logic(
         raise ToolError("Could not determine client identity.")
 
     ctx_service = get_context_service()
-    vizu_context = await ctx_service.get_client_context_by_id(UUID(cliente_id))
-    if not vizu_context:
+    blu_context = await ctx_service.get_client_context_by_id(UUID(cliente_id))
+    if not blu_context:
         raise ToolError(f"Client context not found: {cliente_id}")
 
-    if not is_tool_accessible_by_tier("extract_document_with_ocr", vizu_context):
+    if not is_tool_accessible_by_tier("extract_document_with_ocr", blu_context):
         raise ToolError("Tool 'extract_document_with_ocr' is not enabled for this client.")
 
     # 4. Fetch document metadata from vector_db
-    from vizu_supabase_client import get_storage, get_supabase_client
+    from blu_supabase_client import get_storage, get_supabase_client
 
     supabase = get_supabase_client()
-    real_client_id = str(vizu_context.id)
+    real_client_id = str(blu_context.id)
 
     doc_result = (
         supabase.schema("vector_db")
@@ -172,7 +172,7 @@ async def _extract_document_with_ocr_logic(
         raise ToolError("No document records found for the provided IDs.")
 
     # 5. Process each document with Docling
-    from vizu_parsers.parsers.docling_parser import (
+    from blu_parsers.parsers.docling_parser import (
         DoclingExtractionOptions,
         DoclingParser,
     )
@@ -319,19 +319,19 @@ async def _summarize_document_sections_logic(
         raise ToolError("Could not determine client identity.")
 
     ctx_service = get_context_service()
-    vizu_context = await ctx_service.get_client_context_by_id(UUID(cliente_id))
-    if not vizu_context:
+    blu_context = await ctx_service.get_client_context_by_id(UUID(cliente_id))
+    if not blu_context:
         raise ToolError(f"Client context not found: {cliente_id}")
 
     # 3. Summarize with LLM
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    from vizu_llm_service import ModelTier, get_model
+    from blu_llm_service import ModelTier, get_model
 
     llm = get_model(
         tier=ModelTier.FAST,
         task="extraction",
-        user_id=str(vizu_context.id),
+        user_id=str(blu_context.id),
         tags=["tool_pool", "ocr_extraction", "summarization"],
     )
 

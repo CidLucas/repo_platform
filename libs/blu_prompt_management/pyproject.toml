@@ -1,0 +1,35 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "blu_prompt_management"
+version = "0.1.0"
+description = "Centralized prompt management for Blu services - versioning, templates, and MCP integration"
+authors = ["Blu Team"]
+readme = "README.md"
+packages = [{include = "blu_prompt_management", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pydantic = "^2.6.0"
+jinja2 = "^3.1.0"
+
+# Blu dependencies
+blu_models = {path = "../blu_models", develop = true}
+blu_db_connector = {path = "../blu_db_connector", develop = true}
+blu_sql_factory = {path = "../blu_sql_factory", develop = true}
+
+# Optional MCP integration
+fastmcp = {version = "^2.11.0", optional = true}
+
+[tool.poetry.extras]
+mcp = ["fastmcp"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.0"
+pytest-asyncio = "^0.21"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

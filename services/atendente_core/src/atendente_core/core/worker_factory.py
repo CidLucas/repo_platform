@@ -28,11 +28,11 @@ from atendente_core.core.worker_registry import WorkerConfig, WorkerRegistry
 
 # Reuse atendente_core's shared MCP connection
 from atendente_core.services.mcp_client import mcp_manager
-from vizu_llm_service import get_model
-from vizu_prompt_management import compose_prompt
+from blu_llm_service import get_model
+from blu_prompt_management import compose_prompt
 
 if TYPE_CHECKING:
-    from vizu_context_service import ContextService
+    from blu_context_service import ContextService
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +249,7 @@ async def invoke_worker(
     *,
     session_id: str,
     cliente_id: UUID | None = None,
-    nome_empresa: str = "Vizu",
+    nome_empresa: str = "Blu",
     context_sections: str = "",
     context_service: "ContextService | None" = None,
 ) -> WorkerResult:

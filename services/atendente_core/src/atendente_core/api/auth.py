@@ -1,5 +1,5 @@
 """
-JWT-only authentication for atendente_core using vizu_auth.
+JWT-only authentication for atendente_core using blu_auth.
 
 This module provides the `get_auth_result` dependency that validates
 JWT tokens from Supabase and returns an AuthResult.
@@ -11,13 +11,13 @@ from uuid import UUID
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from vizu_auth.core.exceptions import (
+from blu_auth.core.exceptions import (
     AuthError,
     InvalidTokenError,
     TokenExpiredError,
 )
-from vizu_auth.core.jwt_decoder import decode_jwt
-from vizu_auth.core.models import AuthMethod, AuthResult
+from blu_auth.core.jwt_decoder import decode_jwt
+from blu_auth.core.models import AuthMethod, AuthResult
 
 logger = logging.getLogger(__name__)
 

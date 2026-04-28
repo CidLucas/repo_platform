@@ -14,7 +14,7 @@ The MVP report pipeline:
     5. Compose a Markdown body via the LLM (DEFAULT tier).
     6. Convert the body to the requested format with the adapters in
        :mod:`report_format_adapters`. Google Docs / Sheets exports go
-       through the existing ``vizu_google_suite_client``.
+       through the existing ``blu_google_suite_client``.
     7. Persist the output URL / inline payload, flip ``status='success'``
        and stamp ``audit_log``.
 
@@ -33,9 +33,9 @@ from typing import Any
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
-from vizu_agent_framework import record_audit as _record_audit
-from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
-from vizu_supabase_client import get_supabase_client
+from blu_agent_framework import record_audit as _record_audit
+from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_supabase_client import get_supabase_client
 
 from . import register_module
 from .report_format_adapters import to_markdown, to_pdf, to_xlsx
@@ -146,8 +146,8 @@ async def _compose_markdown(
 ) -> str:
     """Use the FAST-tier LLM to render a Markdown report."""
     from langchain_core.messages import HumanMessage, SystemMessage
-    from vizu_llm_service import get_model
-    from vizu_llm_service.client import ModelTier
+    from blu_llm_service import get_model
+    from blu_llm_service.client import ModelTier
 
     indicators_block = _format_indicators_for_prompt(indicators)
     kb_block = _format_kb_for_prompt(kb_summaries)
@@ -290,7 +290,7 @@ async def _export_gdoc(
     template: ReportTemplate,
     markdown_body: str,
 ) -> dict[str, Any]:
-    from vizu_google_suite_client import GoogleDocsClient
+    from blu_google_suite_client import GoogleDocsClient
 
     tokens = await _get_google_tokens(cliente_id)
     client = GoogleDocsClient(access_token=tokens["access_token"])
@@ -318,7 +318,7 @@ async def _export_gsheet(
     indicators: dict[str, Any],
     markdown_body: str,
 ) -> dict[str, Any]:
-    from vizu_google_suite_client import GoogleSheetsClient
+    from blu_google_suite_client import GoogleSheetsClient
 
     tokens = await _get_google_tokens(cliente_id)
     client = GoogleSheetsClient(access_token=tokens["access_token"])

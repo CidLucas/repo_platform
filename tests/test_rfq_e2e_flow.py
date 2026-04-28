@@ -15,7 +15,7 @@ Tests the entire procurement pipeline:
 10. Supplier CRUD (add, update, remove)
 
 Usage:
-    cd vizu-mono
+    cd blu-mono
     python3 tests/test_rfq_e2e_flow.py
 """
 
@@ -32,14 +32,14 @@ from uuid import uuid4
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR / "services" / "tool_pool_api" / "src"))
-sys.path.insert(0, str(ROOT_DIR / "libs" / "vizu_supabase_client" / "src"))
-sys.path.insert(0, str(ROOT_DIR / "libs" / "vizu_elicitation_service" / "src"))
-sys.path.insert(0, str(ROOT_DIR / "libs" / "vizu_models" / "src"))
-sys.path.insert(0, str(ROOT_DIR / "libs" / "vizu_context_service" / "src"))
-sys.path.insert(0, str(ROOT_DIR / "libs" / "vizu_auth" / "src"))
-sys.path.insert(0, str(ROOT_DIR / "libs" / "vizu_google_suite_client" / "src"))
-sys.path.insert(0, str(ROOT_DIR / "libs" / "vizu_shared_utils" / "src"))
-sys.path.insert(0, str(ROOT_DIR / "libs" / "vizu_observability_bootstrap" / "src"))
+sys.path.insert(0, str(ROOT_DIR / "libs" / "blu_supabase_client" / "src"))
+sys.path.insert(0, str(ROOT_DIR / "libs" / "blu_elicitation_service" / "src"))
+sys.path.insert(0, str(ROOT_DIR / "libs" / "blu_models" / "src"))
+sys.path.insert(0, str(ROOT_DIR / "libs" / "blu_context_service" / "src"))
+sys.path.insert(0, str(ROOT_DIR / "libs" / "blu_auth" / "src"))
+sys.path.insert(0, str(ROOT_DIR / "libs" / "blu_google_suite_client" / "src"))
+sys.path.insert(0, str(ROOT_DIR / "libs" / "blu_shared_utils" / "src"))
+sys.path.insert(0, str(ROOT_DIR / "libs" / "blu_observability_bootstrap" / "src"))
 
 from dotenv import load_dotenv
 
@@ -115,7 +115,7 @@ async def run_full_flow():
         _validate_buying_list_logic,
     )
 
-    from vizu_elicitation_service.exceptions import ElicitationRequired
+    from blu_elicitation_service.exceptions import ElicitationRequired
 
     ctx = make_mock_ctx()
 
@@ -512,7 +512,7 @@ async def run_full_flow():
 
 async def cleanup(session_id: str):
     """Clean up test data created during the E2E flow."""
-    from vizu_supabase_client import get_supabase_client
+    from blu_supabase_client import get_supabase_client
 
     db = get_supabase_client()
     logger.info(f"\n🧹 Cleaning up session {session_id}...")

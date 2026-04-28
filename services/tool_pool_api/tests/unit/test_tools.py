@@ -13,7 +13,7 @@ from src.tool_pool_api.server.tools import _executar_rag_cliente_logic
 @pytest.mark.asyncio
 async def test_executar_rag_cliente_sucesso(
     mock_mcp_context,  # Mock do Context do FastMCP
-    mock_vizu_context,  # Mock do seu VizuClientContext
+    mock_blu_context,  # Mock do seu BluClientContext
 ):
     """
     Testa o caminho feliz do 'executar_rag_cliente_logic'.
@@ -21,8 +21,8 @@ async def test_executar_rag_cliente_sucesso(
 
     # 1. Mockar as dependências que serão chamadas DENTRO da tool
     mock_ctx_service = MagicMock()
-    mock_token = MagicMock(claims={"sub": "user-123", "email": "test@vizu.ai"})
-    mock_load_context = AsyncMock(return_value=mock_vizu_context)
+    mock_token = MagicMock(claims={"sub": "user-123", "email": "test@blu.ai"})
+    mock_load_context = AsyncMock(return_value=mock_blu_context)
     # 1. Crie o mock do runnable
     mock_rag_runnable = AsyncMock()
 
@@ -57,5 +57,5 @@ async def test_executar_rag_cliente_sucesso(
         # 4. Validar
         assert resultado == "Resposta do RAG"
         p_load_ctx.assert_called_once_with(mock_ctx_service, mock_token)
-        p_create_rag.assert_called_once_with(mock_vizu_context, document_ids=None)
+        p_create_rag.assert_called_once_with(mock_blu_context, document_ids=None)
         mock_rag_runnable.ainvoke.assert_called_once_with({"question": "Qual o faturamento?"})

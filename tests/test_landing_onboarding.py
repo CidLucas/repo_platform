@@ -9,7 +9,7 @@ Covers the SQL artefacts shipped in Phases 1 & 4 of
   * ``public.onboarding_bootstrap_tx(jsonb)`` RPC
   * ``public.client_enabled_agents`` + RLS policies
   * ``public.client_routines`` + RLS policies
-  * ``public.clientes_vizu.onboarding_state`` JSONB column
+  * ``public.clientes_blu.onboarding_state`` JSONB column
   * 8 canonical landing slugs in ``public.agent_catalog``
 
 Strategy
@@ -46,7 +46,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(scope="module")
 def db():
     """Service-role Supabase client (bypasses RLS)."""
-    from vizu_supabase_client import get_supabase_client
+    from blu_supabase_client import get_supabase_client
 
     return get_supabase_client()
 
@@ -59,7 +59,7 @@ def db_url() -> str | None:
 
 @pytest.fixture(scope="module")
 def tenant_a(db) -> Iterator[dict[str, Any]]:
-    """Create a throw-away auth.users row + rely on the trigger for clientes_vizu."""
+    """Create a throw-away auth.users row + rely on the trigger for clientes_blu."""
     yield from _create_tenant(db, label="a")
 
 
@@ -70,8 +70,8 @@ def tenant_b(db) -> Iterator[dict[str, Any]]:
 
 def _create_tenant(db, label: str) -> Iterator[dict[str, Any]]:
     """Provision a fresh auth.users row via the admin API, wait for the
-    trigger-seeded clientes_vizu row, yield {user_id, email, client_id}."""
-    email = f"phase6-landing-{label}-{uuid.uuid4().hex[:8]}@vizu.test"
+    trigger-seeded clientes_blu row, yield {user_id, email, client_id}."""
+    email = f"phase6-landing-{label}-{uuid.uuid4().hex[:8]}@blu.test"
     password = uuid.uuid4().hex + "Aa!"
     resp = db.auth.admin.create_user(
         {
@@ -83,27 +83,27 @@ def _create_tenant(db, label: str) -> Iterator[dict[str, Any]]:
     user = getattr(resp, "user", None) or resp
     user_id = user.id if hasattr(user, "id") else user["id"]
 
-    # Trigger should have seeded clientes_vizu already.
+    # Trigger should have seeded clientes_blu already.
     row = (
-        db.table("clientes_vizu")
+        db.table("clientes_blu")
         .select("client_id")
         .eq("external_user_id", str(user_id))
         .maybe_single()
         .execute()
     )
     assert row.data, (
-        f"handle_new_auth_user trigger did not produce clientes_vizu row for {email}"
+        f"handle_new_auth_user trigger did not produce clientes_blu row for {email}"
     )
     client_id = row.data["client_id"]
 
     try:
         yield {"user_id": str(user_id), "email": email, "client_id": client_id}
     finally:
-        # Cleanup: clientes_vizu cascades via ON DELETE CASCADE on enabled_agents/routines.
+        # Cleanup: clientes_blu cascades via ON DELETE CASCADE on enabled_agents/routines.
         try:
             db.table("client_enabled_agents").delete().eq("client_id", client_id).execute()
             db.table("client_routines").delete().eq("client_id", client_id).execute()
-            db.table("clientes_vizu").delete().eq("client_id", client_id).execute()
+            db.table("clientes_blu").delete().eq("client_id", client_id).execute()
         finally:
             db.auth.admin.delete_user(user_id)
 
@@ -153,13 +153,13 @@ def _as_user(db_url: str, user_id: str, email: str):
 
 
 def test_onboarding_state_column_exists(db):
-    """``clientes_vizu.onboarding_state`` + ``onboarding_completed_at`` must exist."""
+    """``clientes_blu.onboarding_state`` + ``onboarding_completed_at`` must exist."""
     resp = db.rpc(
         "exec_sql",
         {
             "query": (
                 "SELECT column_name FROM information_schema.columns "
-                "WHERE table_schema = 'public' AND table_name = 'clientes_vizu' "
+                "WHERE table_schema = 'public' AND table_name = 'clientes_blu' "
                 "AND column_name IN ('onboarding_state', 'onboarding_completed_at') "
                 "ORDER BY column_name"
             )
@@ -196,10 +196,10 @@ def test_landing_agent_slugs_seeded(db):
 # ---------------------------------------------------------------------------
 
 
-def test_trigger_creates_clientes_vizu_row(tenant_a: dict[str, Any], db):
+def test_trigger_creates_clientes_blu_row(tenant_a: dict[str, Any], db):
     """Fixture already asserts the row exists; belt-and-braces check email + empty state."""
     resp = (
-        db.table("clientes_vizu")
+        db.table("clientes_blu")
         .select("client_id, email, onboarding_state, onboarding_completed_at")
         .eq("client_id", tenant_a["client_id"])
         .single()
@@ -290,19 +290,19 @@ def test_rls_client_routines_isolation(
 def test_rls_onboarding_state_isolation(
     db, db_url: str | None, tenant_a: dict[str, Any], tenant_b: dict[str, Any]
 ):
-    """A tenant must not read another tenant's ``clientes_vizu`` row."""
+    """A tenant must not read another tenant's ``clientes_blu`` row."""
     if not db_url:
         pytest.skip("SUPABASE_DB_URL not configured")
 
     # Stamp a sentinel on tenant A so we can detect cross-tenant leaks.
-    db.table("clientes_vizu").update(
+    db.table("clientes_blu").update(
         {"onboarding_state": {"sentinel": "tenant_a"}}
     ).eq("client_id", tenant_a["client_id"]).execute()
 
     with _as_user(db_url, tenant_b["user_id"], tenant_b["email"]) as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT client_id::text FROM public.clientes_vizu "
+                "SELECT client_id::text FROM public.clientes_blu "
                 "WHERE onboarding_state ->> 'sentinel' = 'tenant_a'"
             )
             rows = cur.fetchall()
@@ -321,7 +321,7 @@ def test_merge_onboarding_state_rpc(
         pytest.skip("SUPABASE_DB_URL not configured")
 
     # Reset state to a known baseline.
-    db.table("clientes_vizu").update({"onboarding_state": {}}).eq(
+    db.table("clientes_blu").update({"onboarding_state": {}}).eq(
         "client_id", tenant_a["client_id"]
     ).execute()
 
@@ -338,7 +338,7 @@ def test_merge_onboarding_state_rpc(
         conn.commit()
 
     resp = (
-        db.table("clientes_vizu")
+        db.table("clientes_blu")
         .select("onboarding_state")
         .eq("client_id", tenant_a["client_id"])
         .single()
@@ -372,20 +372,13 @@ def test_bootstrap_tx_idempotent(
     db.table("client_routines").delete().eq(
         "client_id", tenant_a["client_id"]
     ).execute()
-    db.table("clientes_vizu").update(
+    db.table("clientes_blu").update(
         {"onboarding_completed_at": None}
     ).eq("client_id", tenant_a["client_id"]).execute()
 
     payload = {
         "company_profile": {"legal_name": "Acme LTDA", "core_values": []},
-        "current_moment": {
-            "current_priorities": ["Integrar sistemas"],
-            "current_challenges": [],
-            "recent_wins": [],
-            "key_metrics": {},
-            "active_campaigns": [],
-            "upcoming_events": [],
-        },
+
         "team_structure": {
             "key_contacts": [],
             "escalation_path": [],
@@ -446,7 +439,7 @@ def test_bootstrap_tx_idempotent(
 
     # Completion timestamp must be preserved across runs (COALESCE guard).
     first_ts = (
-        db.table("clientes_vizu")
+        db.table("clientes_blu")
         .select("onboarding_completed_at")
         .eq("client_id", tenant_a["client_id"])
         .single()

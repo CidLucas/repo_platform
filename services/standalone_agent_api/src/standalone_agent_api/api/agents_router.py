@@ -213,7 +213,7 @@ async def list_catalog_nodes(
     auth_result: AuthResult = Depends(get_admin_auth_result),
 ):
     """List available node types from NodeRegistry with metadata."""
-    from vizu_agent_framework.nodes import NodeRegistry
+    from blu_agent_framework.nodes import NodeRegistry
 
     nodes = NodeRegistry.list_nodes_with_metadata()
     return nodes
@@ -558,7 +558,7 @@ async def chat_agent(
         raise HTTPException(status_code=400, detail="Message required")
 
     # Look up agent by slug
-    from vizu_supabase_client import get_supabase_client
+    from blu_supabase_client import get_supabase_client
 
     db = get_supabase_client()
 
@@ -744,7 +744,7 @@ async def validate_tools(
     auth_result: AuthResult = Depends(get_admin_auth_result),
 ):
     """Validate enabled_tools against tier using ToolRegistry."""
-    from vizu_tool_registry import ToolRegistry
+    from blu_tool_registry import ToolRegistry
 
     is_valid, errors = ToolRegistry.validate_client_tools(
         enabled_tools=body.enabled_tools,
@@ -771,8 +771,8 @@ async def list_prompts(
     auth_result: AuthResult = Depends(get_admin_auth_result),
 ):
     """List available prompt names from builtin templates + Langfuse."""
-    from vizu_prompt_management import PromptLoader
-    from vizu_prompt_management.templates import BUILTIN_TEMPLATES
+    from blu_prompt_management import PromptLoader
+    from blu_prompt_management.templates import BUILTIN_TEMPLATES
 
     prompts: list[PromptInfo] = []
 
@@ -828,7 +828,7 @@ async def get_prompt_detail(
     auth_result: AuthResult = Depends(get_admin_auth_result),
 ):
     """Fetch full prompt content by name (label=production) from Langfuse or builtin."""
-    from vizu_prompt_management.templates import BUILTIN_TEMPLATES
+    from blu_prompt_management.templates import BUILTIN_TEMPLATES
 
     # Try builtin first
     if prompt_name in BUILTIN_TEMPLATES:
@@ -868,7 +868,7 @@ async def update_prompt(
     auth_result: AuthResult = Depends(get_admin_auth_result),
 ):
     """Create a new Langfuse prompt version with updated content. Auto-promotes to production label."""
-    from vizu_prompt_management.templates import BUILTIN_TEMPLATES
+    from blu_prompt_management.templates import BUILTIN_TEMPLATES
 
     if prompt_name in BUILTIN_TEMPLATES:
         raise HTTPException(status_code=400, detail="Cannot edit builtin prompts. Duplicate to Langfuse first.")
@@ -904,7 +904,7 @@ async def list_prompt_versions(
     auth_result: AuthResult = Depends(get_admin_auth_result),
 ):
     """List version history for a prompt from Langfuse."""
-    from vizu_prompt_management.templates import BUILTIN_TEMPLATES
+    from blu_prompt_management.templates import BUILTIN_TEMPLATES
 
     if prompt_name in BUILTIN_TEMPLATES:
         return PromptVersionsResponse(

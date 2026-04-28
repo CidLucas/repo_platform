@@ -16,22 +16,20 @@ os.environ["TWILIO_AUTH_TOKEN"] = "test_auth_token"
 os.environ["REDIS_URL"] = "redis://localhost:6379/0"
 # Use PostgreSQL for tests (required for JSONB columns)
 os.environ["DATABASE_URL"] = os.getenv(
-    "TEST_DATABASE_URL", "postgresql://user:password@localhost:5432/vizu_db"
+    "TEST_DATABASE_URL", "postgresql://user:password@localhost:5432/blu_db"
 )
 os.environ["LANGCHAIN_PROJECT"] = "dev-tests"
 os.environ["LLM_PROVIDER"] = "ollama_cloud"
 
 # Now we can safely import the app and other dependencies
 import fakeredis
-from atendente_core.api.router import validate_twilio_request
 from atendente_core.main import app
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from vizu_context_service.dependencies import get_redis_service
-from vizu_context_service.redis_service import RedisService
-from vizu_db_connector.database import get_db_session
+from blu_context_service.dependencies import get_redis_service
+from blu_context_service.redis_service import RedisService
 
 
 # Since we're setting envs at module level, this fixture can be used for other setups
@@ -45,7 +43,7 @@ def mock_settings_env_vars():
     os.environ["TWILIO_AUTH_TOKEN"] = "test_auth_token"
     os.environ["REDIS_URL"] = "redis://localhost:6379/0"
     os.environ["DATABASE_URL"] = os.getenv(
-        "TEST_DATABASE_URL", "postgresql://user:password@localhost:5432/vizu_db"
+        "TEST_DATABASE_URL", "postgresql://user:password@localhost:5432/blu_db"
     )
     os.environ["LANGCHAIN_PROJECT"] = "dev-tests"
     os.environ["LLM_PROVIDER"] = "ollama_cloud"
@@ -70,41 +68,16 @@ def db_engine():
 
 
 @pytest.fixture(scope="function")
-def test_client_db_session(db_engine):
-    """
-    Gerencia a sessão e a transação do banco de dados para cada teste,
-    garantindo que a aplicação use a mesma sessão.
-    """
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
-    connection = db_engine.connect()
-    transaction = connection.begin()
-    db = TestingSessionLocal(bind=connection)
-
-    app.dependency_overrides[get_db_session] = lambda: db
-    try:
-        yield db
-    finally:
-        db.close()
-        transaction.rollback()
-        connection.close()
-        app.dependency_overrides.clear()
-
-
-@pytest.fixture(scope="function")
-def test_client(test_client_db_session):
+def test_client():
     """
     Configura o TestClient com as dependências mockadas.
     """
     fake_redis_client = fakeredis.FakeStrictRedis()
     fake_redis_service = RedisService(fake_redis_client)
 
-    def override_validate_twilio_request():
-        pass
-
     def override_get_redis_service():
         yield fake_redis_service
 
-    app.dependency_overrides[validate_twilio_request] = override_validate_twilio_request
     app.dependency_overrides[get_redis_service] = override_get_redis_service
 
     with TestClient(app) as client:

@@ -51,17 +51,17 @@ services:
     image: postgres:15-alpine
     platform: linux/amd64
     profiles: ["local"] # <--- Só sobe no modo local
-    container_name: vizu_postgres
+    container_name: blu_postgres
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: vizu_db
+      POSTGRES_DB: blu_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d vizu_db"]
+      test: ["CMD-SHELL", "pg_isready -U user -d blu_db"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -75,12 +75,12 @@ services:
       dockerfile: ./services/migration_runner/Dockerfile
     environment:
       # Aponta para o container postgres local
-      DATABASE_URL: postgresql://user:password@postgres:5432/vizu_db
+      DATABASE_URL: postgresql://user:password@postgres:5432/blu_db
     depends_on:
       postgres:
         condition: service_healthy
     # Comando mágico: usa a CLI que acabamos de criar
-    command: ["poetry", "run", "vizu-db", "migrate"]
+    command: ["poetry", "run", "blu-db", "migrate"]
     volumes:
       - ./libs:/app/libs # Mapeia as libs para ter o código mais recente
 
@@ -90,7 +90,7 @@ services:
   # =========================================
 
   atendente_core:
-    container_name: vizu_atendente_core
+    container_name: blu_atendente_core
     platform: linux/amd64
     build:
       context: .
@@ -128,7 +128,7 @@ services:
   # =========================================
 
   redis:
-    container_name: vizu_redis_dev
+    container_name: blu_redis_dev
     # Use Redis Stack which includes RedisJSON (required by the checkpoint index)
     image: redis/redis-stack:latest
     ports:
@@ -140,7 +140,7 @@ services:
       retries: 5
 
   # evaluation_suite:
-  #    container_name: vizu_evaluation_suite
+  #    container_name: blu_evaluation_suite
   #    platform: linux/amd64
   #    build:
   #      context: .
@@ -158,7 +158,7 @@ services:
   #      # URL da API que será testada (apontando para o nome do container interno)
   #      ASSISTANT_API_URL: "http://atendente_core:8000"
   #      # PYTHONPATH crítico para encontrar as libs e o próprio src da tool
-  #      PYTHONPATH: "/app/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src"
+  #      PYTHONPATH: "/app/src:/app/libs/blu_db_connector/src:/app/libs/blu_models/src"
   #    depends_on:
   #      atendente_core:
   #       condition: service_started
@@ -350,7 +350,7 @@ services:
       LANGFUSE_LOG_LEVEL: debug
 
   # embedding_service:
-  #   container_name: vizu_embedding_service
+  #   container_name: blu_embedding_service
   #   platform: linux/amd64
   #   build:
   #     context: .
@@ -381,7 +381,7 @@ services:
   #     start_period: 300s
 
   file_upload_api:
-    container_name: vizu_file_upload_api
+    container_name: blu_file_upload_api
     platform: linux/amd64
     build:
       context: .
@@ -411,7 +411,7 @@ services:
   # All functionality now handled via Supabase PostgREST + RPCs
 
   tool_pool_api:
-    container_name: vizu_tool_pool_api
+    container_name: blu_tool_pool_api
     platform: linux/amd64
     build:
       context: .
@@ -442,7 +442,7 @@ services:
   # STANDALONE AGENT API SERVICE
   # =========================================
   standalone_agent_api:
-    container_name: vizu_standalone_agent_api
+    container_name: blu_standalone_agent_api
     platform: linux/amd64
     build:
       context: .
@@ -467,12 +467,12 @@ services:
   # =========================================
   # FRONTEND DASHBOARD (SPA React + Nginx)
   # =========================================
-  vizu_dashboard:
-    container_name: vizu_dashboard
+  blu_dashboard:
+    container_name: blu_dashboard
     platform: linux/amd64
     build:
       context: .
-      dockerfile: apps/vizu_dashboard/Dockerfile
+      dockerfile: apps/blu_dashboard/Dockerfile
       args:
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
@@ -493,7 +493,7 @@ services:
   # LANDING PAGE (React + Nginx)
   # =========================================
   landing:
-    container_name: vizu_landing
+    container_name: blu_landing
     platform: linux/amd64
     build:
       context: .
@@ -505,7 +505,7 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - vizu_dashboard
+      - blu_dashboard
     restart: unless-stopped
 
   # =========================================
@@ -513,7 +513,7 @@ services:
   # =========================================
 
   vendas_agent:
-    container_name: vizu_vendas_agent
+    container_name: blu_vendas_agent
     platform: linux/amd64
     build:
       context: .
@@ -522,7 +522,7 @@ services:
       - .env
     environment:
       <<: [*common-env, *atendente-env]
-      DATABASE_URL: "postgresql://user:password@postgres:5432/vizu_db"
+      DATABASE_URL: "postgresql://user:password@postgres:5432/blu_db"
       PYTHONPATH: /app/src
       MCP_SERVER_URL: http://tool_pool_api:8000/mcp/
       USE_LOCAL_DB: "true"
@@ -538,7 +538,7 @@ services:
         condition: service_started
 
   support_agent:
-    container_name: vizu_support_agent
+    container_name: blu_support_agent
     platform: linux/amd64
     build:
       context: .
@@ -547,7 +547,7 @@ services:
       - .env
     environment:
       <<: [*common-env, *atendente-env]
-      DATABASE_URL: "postgresql://user:password@postgres:5432/vizu_db"
+      DATABASE_URL: "postgresql://user:password@postgres:5432/blu_db"
       PYTHONPATH: /app/src
       MCP_SERVER_URL: http://tool_pool_api:8000/mcp/
       USE_LOCAL_DB: "true"

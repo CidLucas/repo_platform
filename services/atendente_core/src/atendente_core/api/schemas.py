@@ -2,17 +2,17 @@
 Schemas da API do Atendente Core.
 
 Este módulo contém apenas schemas específicos da API HTTP deste serviço.
-Tipos compartilhados entre agentes (Elicitation, ToolInfo, etc.) estão em vizu_models.agent_types.
+Tipos compartilhados entre agentes (Elicitation, ToolInfo, etc.) estão em blu_models.agent_types.
 
 Hierarquia:
-- vizu_models.agent_types: Tipos base reutilizáveis
+- blu_models.agent_types: Tipos base reutilizáveis
 - Este arquivo: Extensões específicas do atendente
 """
 
 from pydantic import BaseModel, Field
 
-# Importa tipos compartilhados de vizu_models
-from vizu_models import (
+# Importa tipos compartilhados de blu_models
+from blu_models import (
     AgentChatRequest,
     AgentChatResponse,
     ClientContextResponse,
@@ -26,7 +26,7 @@ from vizu_models import (
 
 # Re-exporta para compatibilidade com imports existentes
 __all__ = [
-    # De vizu_models (re-export)
+    # De blu_models (re-export)
     "ElicitationType",
     "ElicitationOption",
     "ElicitationRequest",

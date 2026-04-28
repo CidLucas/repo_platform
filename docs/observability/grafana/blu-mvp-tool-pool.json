@@ -30,7 +30,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(vizu_tool_duration_ms_bucket{tool_name!=\"\"}[$__rate_interval])) by (le, tool_name))",
+          "expr": "histogram_quantile(0.50, sum(rate(blu_tool_duration_ms_bucket{tool_name!=\"\"}[$__rate_interval])) by (le, tool_name))",
           "legendFormat": "{{tool_name}}",
           "refId": "A"
         }
@@ -47,7 +47,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(vizu_tool_duration_ms_bucket{tool_name!=\"\"}[$__rate_interval])) by (le, tool_name))",
+          "expr": "histogram_quantile(0.95, sum(rate(blu_tool_duration_ms_bucket{tool_name!=\"\"}[$__rate_interval])) by (le, tool_name))",
           "legendFormat": "{{tool_name}}",
           "refId": "A"
         }
@@ -64,7 +64,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
       "targets": [
         {
-          "expr": "sum(rate(vizu_tool_calls_total[$__rate_interval])) by (tool_name)",
+          "expr": "sum(rate(blu_tool_calls_total[$__rate_interval])) by (tool_name)",
           "legendFormat": "{{tool_name}}",
           "refId": "A"
         }
@@ -79,7 +79,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
       "targets": [
         {
-          "expr": "100 * sum(rate(vizu_tool_errors_total[$__rate_interval])) by (tool_name) / clamp_min(sum(rate(vizu_tool_calls_total[$__rate_interval])) by (tool_name), 1e-9)",
+          "expr": "100 * sum(rate(blu_tool_errors_total[$__rate_interval])) by (tool_name) / clamp_min(sum(rate(blu_tool_calls_total[$__rate_interval])) by (tool_name), 1e-9)",
           "legendFormat": "{{tool_name}}",
           "refId": "A"
         }
@@ -106,7 +106,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 17 },
       "targets": [
         {
-          "expr": "sum(increase(vizu_tool_calls_total[5m]))",
+          "expr": "sum(increase(blu_tool_calls_total[5m]))",
           "refId": "A"
         }
       ],
@@ -120,7 +120,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 17 },
       "targets": [
         {
-          "expr": "sum(increase(vizu_tool_errors_total[5m]))",
+          "expr": "sum(increase(blu_tool_errors_total[5m]))",
           "refId": "A"
         }
       ],
@@ -145,7 +145,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 17 },
       "targets": [
         {
-          "expr": "count(count by (client_id) (increase(vizu_tool_calls_total{client_id!=\"\"}[1h])))",
+          "expr": "count(count by (client_id) (increase(blu_tool_calls_total{client_id!=\"\"}[1h])))",
           "refId": "A"
         }
       ],
@@ -159,7 +159,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 17 },
       "targets": [
         {
-          "expr": "count(count by (tool_name) (increase(vizu_tool_calls_total[1h])))",
+          "expr": "count(count by (tool_name) (increase(blu_tool_calls_total[1h])))",
           "refId": "A"
         }
       ],
@@ -220,7 +220,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
       "targets": [
         {
-          "expr": "topk(10, 100 * sum(increase(vizu_tool_errors_total[1h])) by (tool_name) / clamp_min(sum(increase(vizu_tool_calls_total[1h])) by (tool_name), 1))",
+          "expr": "topk(10, 100 * sum(increase(blu_tool_errors_total[1h])) by (tool_name) / clamp_min(sum(increase(blu_tool_calls_total[1h])) by (tool_name), 1))",
           "format": "table",
           "instant": true,
           "refId": "A"
@@ -235,7 +235,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
       "targets": [
         {
-          "expr": "topk(10, histogram_quantile(0.95, sum(rate(vizu_tool_duration_ms_bucket[1h])) by (le, tool_name)))",
+          "expr": "topk(10, histogram_quantile(0.95, sum(rate(blu_tool_duration_ms_bucket[1h])) by (le, tool_name)))",
           "format": "table",
           "instant": true,
           "refId": "A"
@@ -268,7 +268,7 @@
         "name": "tool_name",
         "type": "query",
         "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
-        "query": "label_values(vizu_tool_calls_total, tool_name)",
+        "query": "label_values(blu_tool_calls_total, tool_name)",
         "includeAll": true,
         "multi": true,
         "refresh": 2,
@@ -278,7 +278,7 @@
         "name": "client_id",
         "type": "query",
         "datasource": { "type": "prometheus", "uid": "${DS_PROM}" },
-        "query": "label_values(vizu_tool_calls_total, client_id)",
+        "query": "label_values(blu_tool_calls_total, client_id)",
         "includeAll": true,
         "multi": true,
         "refresh": 2,

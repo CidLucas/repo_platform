@@ -1,22 +1,22 @@
 """
 Langfuse Observability Integration for LangGraph.
 
-This module provides a thin wrapper around vizu_llm_service's Langfuse functions,
+This module provides a thin wrapper around blu_llm_service's Langfuse functions,
 adding LangGraph-specific configuration (thread_id for memory).
 
-All Langfuse initialization and callback handling is delegated to vizu_llm_service
+All Langfuse initialization and callback handling is delegated to blu_llm_service
 to avoid code duplication.
 """
 
 import logging
 from typing import Any
 
-from vizu_llm_service import (
+from blu_llm_service import (
     flush_langfuse,
     get_llm_settings,
     shutdown_langfuse,
 )
-from vizu_llm_service import (
+from blu_llm_service import (
     get_langfuse_callback as _get_langfuse_callback,
 )
 
@@ -36,7 +36,7 @@ def get_langfuse_callback() -> Any | None:
     Langfuse SDK v3 reads trace attributes (session_id, user_id, tags)
     from config["metadata"] at invoke time, not from constructor args.
 
-    Delegates to vizu_llm_service.get_langfuse_callback().
+    Delegates to blu_llm_service.get_langfuse_callback().
     """
     return _get_langfuse_callback()
 
@@ -59,7 +59,7 @@ def get_langfuse_config(
     Args:
         session_id: Session ID for trace grouping and thread memory
         user_id: User ID for attribution
-        cliente_id: Vizu client ID for multi-client filtering
+        cliente_id: Blu client ID for multi-client filtering
         tags: Optional tags for filtering
         trace_name: Name for the trace in Langfuse (default: 'atendente_chat')
 

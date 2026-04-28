@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "blu-hitl-service"
+version = "0.1.0"
+description = "Human-in-the-Loop service for dataset creation and quality assurance"
+authors = ["Blu <dev@blu.com.br>"]
+readme = "README.md"
+packages = [{include = "blu_hitl_service", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+redis = "^5.0.0"
+pydantic = "^2.0.0"
+blu-models = {path = "../blu_models", develop = true}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-asyncio = "^0.23.0"
+fakeredis = "^2.21.0"
+ruff = "^0.14.7"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

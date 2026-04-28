@@ -1,5 +1,5 @@
 # =============================================================================
-# Makefile for Vizu Mono - Development Environment
+# Makefile for Blu Mono - Development Environment
 # =============================================================================
 #
 # Uso: make <target>
@@ -31,7 +31,7 @@ SERVICE ?= atendente_core
 help:
 	@echo ""
 	@echo "╔═══════════════════════════════════════════════════════════════════╗"
-	@echo "║               🚀 Vizu Mono - Development Commands                  ║"
+	@echo "║               🚀 Blu Mono - Development Commands                  ║"
 	@echo "╚═══════════════════════════════════════════════════════════════════╝"
 	@echo ""
 	@echo "📦 DOCKER COMPOSE"
@@ -117,7 +117,7 @@ help:
 # Core development stack - minimal services for fast iteration
 dev:
 	@echo "🚀 Starting core dev stack..."
-	@echo "   ✓ vizu_dashboard (frontend)"
+	@echo "   ✓ blu_dashboard (frontend)"
 	@echo "   ✓ landing (landing page)"
 	@echo "   ✓ atendente_core (main backend)"
 	@echo "   ✓ tool_pool_api (MCP tools)"
@@ -136,19 +136,19 @@ dev:
 	@echo ""
 	@echo "🛑 Stop stack:        Ctrl+C then 'make dev-down'"
 	@echo ""
-	$(COMPOSE) up --build redis tool_pool_api atendente_core standalone_agent_api vizu_dashboard landing
+	$(COMPOSE) up --build redis tool_pool_api atendente_core standalone_agent_api blu_dashboard landing
 
 dev-down:
 	@echo "🛑 Stopping dev stack..."
-	$(COMPOSE) stop vizu_dashboard landing atendente_core standalone_agent_api tool_pool_api redis
+	$(COMPOSE) stop blu_dashboard landing atendente_core standalone_agent_api tool_pool_api redis
 	@echo "✅ Dev stack stopped (containers preserved, use 'make down' to remove)"
 
 dev-logs:
-	$(COMPOSE) logs -f --tail=100 vizu_dashboard landing atendente_core tool_pool_api redis
+	$(COMPOSE) logs -f --tail=100 blu_dashboard landing atendente_core tool_pool_api redis
 
 dev-rebuild:
 	@echo "🔨 Rebuilding dev services (no cache)..."
-	$(COMPOSE) build --no-cache vizu_dashboard atendente_core tool_pool_api
+	$(COMPOSE) build --no-cache blu_dashboard atendente_core tool_pool_api
 	@echo "✅ Rebuild complete. Run 'make dev' to start."
 
 up:
@@ -234,16 +234,16 @@ cloudrun-push-all:
 
 migrate:
 	@echo "🔄 Running migrations (local Docker)..."
-	@docker exec vizu_atendente_core python -c "\
+	@docker exec blu_atendente_core python -c "\
 import sys; \
-sys.path.insert(0, '/app/libs/vizu_db_connector/src'); \
-sys.path.insert(0, '/app/libs/vizu_models/src'); \
+sys.path.insert(0, '/app/libs/blu_db_connector/src'); \
+sys.path.insert(0, '/app/libs/blu_models/src'); \
 from alembic.config import Config; \
 from alembic import command; \
 import os; \
-cfg = Config('/app/libs/vizu_db_connector/alembic.ini'); \
+cfg = Config('/app/libs/blu_db_connector/alembic.ini'); \
 cfg.set_main_option('sqlalchemy.url', os.environ['DATABASE_URL']); \
-cfg.set_main_option('script_location', '/app/libs/vizu_db_connector/alembic'); \
+cfg.set_main_option('script_location', '/app/libs/blu_db_connector/alembic'); \
 command.upgrade(cfg, 'head'); \
 print('✅ Migrations applied!')"
 
@@ -255,15 +255,15 @@ migrate-prod:
 	@echo "⚠️  This will modify PRODUCTION database!"
 	@echo "   URL: $$(echo '$(SUPABASE_DB_URL)' | sed 's/:.*@/:***@/')"
 	@read -p "Continue? [y/N] " confirm && [ "$$confirm" = "y" ] || exit 1
-	@cd libs/vizu_db_connector && \
+	@cd libs/blu_db_connector && \
 		DATABASE_URL="$(SUPABASE_DB_URL)" \
-		PYTHONPATH="$(PWD)/libs/vizu_models/src:$(PWD)/libs/vizu_db_connector/src" \
+		PYTHONPATH="$(PWD)/libs/blu_models/src:$(PWD)/libs/blu_db_connector/src" \
 		poetry run alembic upgrade head
 	@echo "✅ Migrations applied to Supabase!"
 
 migrate-status:
 	@echo "📊 Migration status..."
-	@docker exec vizu_atendente_core python -c "\
+	@docker exec blu_atendente_core python -c "\
 from sqlalchemy import create_engine, text; \
 import os; \
 engine = create_engine(os.environ['DATABASE_URL']); \
@@ -274,7 +274,7 @@ print('Current version:', row[0] if row else 'No migrations'); \
 conn.close()"
 
 db-shell:
-	$(COMPOSE) exec -it postgres psql -U user -d vizu_db
+	$(COMPOSE) exec -it postgres psql -U user -d blu_db
 
 # =============================================================================
 # SEEDS
@@ -287,14 +287,14 @@ seed: seed-db
 
 seed-db:
 	@echo "🌱 Seeding database..."
-	@docker exec -e PYTHONPATH=/app:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src:/app \
-		vizu_atendente_core python -m ferramentas.seeds.run_seeds --db
+	@docker exec -e PYTHONPATH=/app:/app/libs/blu_db_connector/src:/app/libs/blu_models/src:/app \
+		blu_atendente_core python -m ferramentas.seeds.run_seeds --db
 
 seed-check:
 	@echo "📊 Checking seed state..."
 	@docker exec \
-		-e PYTHONPATH=/app:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
-		vizu_atendente_core python -m ferramentas.seeds.run_seeds --check
+		-e PYTHONPATH=/app:/app/libs/blu_db_connector/src:/app/libs/blu_models/src \
+		blu_atendente_core python -m ferramentas.seeds.run_seeds --check
 
 # =============================================================================
 # TESTING
@@ -320,7 +320,7 @@ test-all:
 
 test-vendas:
 	@echo "💰 Testing vendas_agent..."
-	@API_KEY=$$(docker exec vizu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
+	@API_KEY=$$(docker exec blu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
 	curl -s -X POST "http://localhost:8009/chat" \
 		-H "Content-Type: application/json" \
 		-H "X-API-KEY: $$API_KEY" \
@@ -328,7 +328,7 @@ test-vendas:
 
 test-support:
 	@echo "🛠️ Testing support_agent..."
-	@API_KEY=$$(docker exec vizu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
+	@API_KEY=$$(docker exec blu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
 	curl -s -X POST "http://localhost:8010/chat" \
 		-H "Content-Type: application/json" \
 		-H "X-API-KEY: $$API_KEY" \
@@ -352,7 +352,7 @@ smoke-test:
 	@curl -s http://localhost:8006/health 2>/dev/null && echo "✅ tool_pool_api healthy" || echo "❌ tool_pool_api unhealthy"
 	@echo ""
 	@echo "3️⃣ Testing atendente_core with RAG tool..."
-	@API_KEY=$$(docker exec vizu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
+	@API_KEY=$$(docker exec blu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
 	echo "Testing RAG query..." && \
 	curl -s -X POST "http://localhost:8003/chat" \
 		-H "Content-Type: application/json" \
@@ -360,14 +360,14 @@ smoke-test:
 		-d '{"message": "Busque informações sobre os produtos disponíveis", "session_id": "smoke-rag-'$$(date +%s)'"}' | python3 -m json.tool 2>/dev/null | head -20 || echo "❌ RAG test failed"
 	@echo ""
 	@echo "4️⃣ Testing vendas_agent..."
-	@API_KEY=$$(docker exec vizu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
+	@API_KEY=$$(docker exec blu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
 	curl -s -X POST "http://localhost:8009/chat" \
 		-H "Content-Type: application/json" \
 		-H "X-API-KEY: $$API_KEY" \
 		-d '{"message": "Qual o preço do produto X?", "session_id": "smoke-vendas-'$$(date +%s)'"}' 2>/dev/null | head -c 500 && echo "..." || echo "❌ vendas_agent test failed"
 	@echo ""
 	@echo "5️⃣ Testing support_agent..."
-	@API_KEY=$$(docker exec vizu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
+	@API_KEY=$$(docker exec blu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
 	curl -s -X POST "http://localhost:8010/chat" \
 		-H "Content-Type: application/json" \
 		-H "X-API-KEY: $$API_KEY" \
@@ -386,11 +386,11 @@ test-personas-quick:
 batch-run:
 	@echo "🚀 Running batch test (generates Langfuse traces)..."
 	@docker exec -e PYTHONPATH=/app \
-		vizu_atendente_core python /app/scripts/batch_run.py
+		blu_atendente_core python /app/scripts/batch_run.py
 
 chat:
 	@echo "💬 Testing chat endpoint..."
-	@API_KEY=$$(docker exec vizu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
+	@API_KEY=$$(docker exec blu_atendente_core python /app/scripts/get_api_key.py 2>/dev/null) && \
 	if [ -z "$$API_KEY" ]; then \
 		echo "❌ No client found. Run 'make seed' first."; \
 		exit 1; \
@@ -414,8 +414,8 @@ experiment-run:
 		echo "   Example: make experiment-run MANIFEST=ferramentas/evaluation_suite/workflows/atendente/example_manifest.yaml"; \
 		exit 1; \
 	fi && \
-	docker exec -e PYTHONPATH=/app:/app/libs/vizu_experiment_service/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src \
-		vizu_atendente_core python -m vizu_experiment_service.cli run "$(MANIFEST)" --legacy --created-by "$$(whoami)"
+	docker exec -e PYTHONPATH=/app:/app/libs/blu_experiment_service/src:/app/libs/blu_models/src:/app/libs/blu_db_connector/src \
+		blu_atendente_core python -m blu_experiment_service.cli run "$(MANIFEST)" --legacy --created-by "$$(whoami)"
 
 experiment-workflow:
 	@echo "🔄 Running LangGraph workflow experiment..."
@@ -424,89 +424,89 @@ experiment-workflow:
 		echo "   Example: make experiment-workflow MANIFEST=ferramentas/evaluation_suite/workflows/boleta_trader/manifest.yaml"; \
 		exit 1; \
 	fi && \
-	docker exec -e PYTHONPATH=/app:/app/libs/vizu_experiment_service/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src:/app/ferramentas/evaluation_suite/workflows \
+	docker exec -e PYTHONPATH=/app:/app/libs/blu_experiment_service/src:/app/libs/blu_models/src:/app/libs/blu_db_connector/src:/app/ferramentas/evaluation_suite/workflows \
 		-w /app \
-		vizu_atendente_core python -m vizu_experiment_service.cli workflow "$(MANIFEST)" --created-by "$$(whoami)"
+		blu_atendente_core python -m blu_experiment_service.cli workflow "$(MANIFEST)" --created-by "$$(whoami)"
 
 # Run workflow experiment with JSON output (default - always saves results file)
 experiment-workflow-local:
 	@echo "🔬 Running workflow experiment..."
-	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/blu_db_connector/src:/app/libs/blu_models/src \
 		-w /app \
-		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		blu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
 		ferramentas/evaluation_suite/workflows/boleta_trader/manifest.yaml
 
 # Run workflow experiment with database storage
 experiment-workflow-db:
 	@echo "🔬 Running workflow experiment with DB storage..."
-	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/blu_db_connector/src:/app/libs/blu_models/src \
 		-w /app \
-		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		blu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
 		ferramentas/evaluation_suite/workflows/boleta_trader/manifest.yaml --db
 
 # Run workflow experiment with Langfuse tracing
 experiment-workflow-langfuse:
 	@echo "🔬 Running workflow experiment with Langfuse tracing..."
-	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/blu_db_connector/src:/app/libs/blu_models/src \
 		-w /app \
-		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		blu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
 		ferramentas/evaluation_suite/workflows/boleta_trader/manifest.yaml --langfuse
 
 # Run workflow experiment with both DB and Langfuse
 experiment-workflow-full:
 	@echo "🔬 Running workflow experiment with DB + Langfuse..."
-	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/blu_db_connector/src:/app/libs/blu_models/src \
 		-w /app \
-		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		blu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
 		ferramentas/evaluation_suite/workflows/boleta_trader/manifest.yaml --db --langfuse
 
 # ============================================================================
-# V2 Workflow Experiments (vizu_llm_service - multi-provider support)
+# V2 Workflow Experiments (blu_llm_service - multi-provider support)
 # ============================================================================
 
 # Run workflow v2 with local Ollama (default)
 experiment-workflow-v2:
-	@echo "🔬 Running workflow v2 (vizu_llm_service)..."
-	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_llm_service/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+	@echo "🔬 Running workflow v2 (blu_llm_service)..."
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/blu_llm_service/src:/app/libs/blu_db_connector/src:/app/libs/blu_models/src \
 		-w /app \
-		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		blu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
 		ferramentas/evaluation_suite/workflows/boleta_trader/manifest_v2.yaml
 
 # Run workflow v2 with Ollama Cloud
 experiment-workflow-v2-cloud:
 	@echo "🔬 Running workflow v2 with Ollama Cloud..."
-	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_llm_service/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/blu_llm_service/src:/app/libs/blu_db_connector/src:/app/libs/blu_models/src \
 		-e LLM_PROVIDER=ollama_cloud \
 		-w /app \
-		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		blu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
 		ferramentas/evaluation_suite/workflows/boleta_trader/manifest_v2.yaml
 
 # Run workflow v2 with MCP tools enabled
 experiment-workflow-v2-mcp:
 	@echo "🔬 Running workflow v2 with MCP tools..."
-	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_llm_service/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/blu_llm_service/src:/app/libs/blu_db_connector/src:/app/libs/blu_models/src \
 		-e ENABLE_MCP_TOOLS=true \
 		-w /app \
-		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		blu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
 		ferramentas/evaluation_suite/workflows/boleta_trader/manifest_v2.yaml
 
 # Run workflow v2 with full options (Langfuse + DB + custom provider)
 # Usage: make experiment-workflow-v2-full LLM_PROVIDER=openai
 experiment-workflow-v2-full:
 	@echo "🔬 Running workflow v2 with full options..."
-	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_llm_service/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/blu_llm_service/src:/app/libs/blu_db_connector/src:/app/libs/blu_models/src \
 		-e LLM_PROVIDER=$(or $(LLM_PROVIDER),ollama) \
 		-w /app \
-		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		blu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
 		ferramentas/evaluation_suite/workflows/boleta_trader/manifest_v2.yaml --db --langfuse
 
 # Export results to CSV with query and node outputs
 experiment-workflow-v2-export:
 	@echo "🔬 Running workflow v2 with CSV export..."
-	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/vizu_llm_service/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_models/src \
+	@docker exec -e PYTHONPATH=/app:/app/ferramentas:/app/libs/blu_llm_service/src:/app/libs/blu_db_connector/src:/app/libs/blu_models/src \
 		-e LLM_PROVIDER=$(or $(LLM_PROVIDER),ollama_cloud) \
 		-w /app \
-		vizu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
+		blu_atendente_core python -m ferramentas.evaluation_suite.workflows.boleta_trader.run_experiment \
 		ferramentas/evaluation_suite/workflows/boleta_trader/manifest_v2.yaml --export-csv
 
 experiment-classify:
@@ -516,8 +516,8 @@ experiment-classify:
 		echo "   Example: make experiment-classify RUN_ID=12345678-1234-1234-1234-123456789012"; \
 		exit 1; \
 	fi && \
-	docker exec -e PYTHONPATH=/app:/app/libs/vizu_experiment_service/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src \
-		vizu_atendente_core python -m vizu_experiment_service.cli classify "$(RUN_ID)"
+	docker exec -e PYTHONPATH=/app:/app/libs/blu_experiment_service/src:/app/libs/blu_models/src:/app/libs/blu_db_connector/src \
+		blu_atendente_core python -m blu_experiment_service.cli classify "$(RUN_ID)"
 
 experiment-export:
 	@echo "📤 Exporting experiment data..."
@@ -526,8 +526,8 @@ experiment-export:
 		echo "   Example: make experiment-export RUN_ID=12345678-1234-1234-1234-123456789012"; \
 		exit 1; \
 	fi && \
-	docker exec -e PYTHONPATH=/app:/app/libs/vizu_experiment_service/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src \
-		vizu_atendente_core python -m vizu_experiment_service.cli export "$(RUN_ID)" --format jsonl
+	docker exec -e PYTHONPATH=/app:/app/libs/blu_experiment_service/src:/app/libs/blu_models/src:/app/libs/blu_db_connector/src \
+		blu_atendente_core python -m blu_experiment_service.cli export "$(RUN_ID)" --format jsonl
 
 experiment-sync:
 	@echo "🔄 Syncing manifest to Langfuse..."
@@ -536,8 +536,8 @@ experiment-sync:
 		echo "   Example: make experiment-sync MANIFEST=ferramentas/evaluation_suite/workflows/atendente/example_manifest.yaml"; \
 		exit 1; \
 	fi && \
-	docker exec -e PYTHONPATH=/app:/app/libs/vizu_experiment_service/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src \
-		vizu_atendente_core python -m vizu_experiment_service.cli sync "$(MANIFEST)"
+	docker exec -e PYTHONPATH=/app:/app/libs/blu_experiment_service/src:/app/libs/blu_models/src:/app/libs/blu_db_connector/src \
+		blu_atendente_core python -m blu_experiment_service.cli sync "$(MANIFEST)"
 
 experiment-ui:
 	@echo "🎨 Launching evaluation suite UI..."
@@ -561,7 +561,7 @@ data-load-whatsapp:
 	fi && \
 	docker exec -e PYTHONPATH=/app:/app/ferramentas/evaluation_suite/src \
 		-w /app \
-		vizu_atendente_core python -m evaluation_suite.data_loaders.whatsapp_loader \
+		blu_atendente_core python -m evaluation_suite.data_loaders.whatsapp_loader \
 		"$(INPUT)" -o "$(or $(OUTPUT),ferramentas/evaluation_suite/workflows/boleta_trader/data/processed/whatsapp_anonymized.csv)" \
 		--add-test-id
 
@@ -576,7 +576,7 @@ data-anonymize:
 	fi && \
 	docker exec -e PYTHONPATH=/app:/app/ferramentas/evaluation_suite/src \
 		-w /app \
-		vizu_atendente_core python -m evaluation_suite.data_loaders.pii_anonymizer \
+		blu_atendente_core python -m evaluation_suite.data_loaders.pii_anonymizer \
 		"$(INPUT)" -o "$(or $(OUTPUT),ferramentas/evaluation_suite/workflows/boleta_trader/data/processed/anonymized.csv)" \
 		--add-test-id
 
@@ -595,11 +595,11 @@ data-whats-amostra:
 	# Slice the first 25% of INPUT to SAMPLE
 	docker exec -e PYTHONPATH=/app:/app/ferramentas/evaluation_suite/src \
 		-w /app \
-		vizu_atendente_core python -c "import pandas as pd; df = pd.read_csv('$(INPUT)'); q = max(1, len(df)//4); df.iloc[:q].to_csv('$$SAMPLE', index=False); print('Saved sample to', '$$SAMPLE')" || exit 1; \
+		blu_atendente_core python -c "import pandas as pd; df = pd.read_csv('$(INPUT)'); q = max(1, len(df)//4); df.iloc[:q].to_csv('$$SAMPLE', index=False); print('Saved sample to', '$$SAMPLE')" || exit 1; \
 	# Run Presidio anonymizer on the sample
 	docker exec -e PYTHONPATH=/app:/app/ferramentas/evaluation_suite/src \
 		-w /app \
-		vizu_atendente_core python -m evaluation_suite.data_loaders.pii_anonymizer "$$SAMPLE" -o "$$OUT" --add-test-id || exit 1; \
+		blu_atendente_core python -m evaluation_suite.data_loaders.pii_anonymizer "$$SAMPLE" -o "$$OUT" --add-test-id || exit 1; \
 	@echo "✅ Anonymized sample saved to $$OUT"
 
 # =============================================================================
@@ -663,14 +663,14 @@ image-list:
 		echo "Run: gcloud config set project YOUR_PROJECT_ID"; \
 		exit 1; \
 	fi
-	@echo "📦 Images in Artifact Registry (us-east1-docker.pkg.dev/$$GCP_PROJECT_ID/vizu)..."
-	@gcloud artifacts docker images list us-east1-docker.pkg.dev/$$GCP_PROJECT_ID/vizu || true
+	@echo "📦 Images in Artifact Registry (us-east1-docker.pkg.dev/$$GCP_PROJECT_ID/blu)..."
+	@gcloud artifacts docker images list us-east1-docker.pkg.dev/$$GCP_PROJECT_ID/blu || true
 	@echo ""
 	@echo "💡 Tip: Set GCP_PROJECT_ID in .env to avoid the prompt above"
 
 langfuse-check:
 	@echo "🔍 Checking Langfuse connection..."
-	@docker exec vizu_atendente_core python /app/scripts/check_langfuse.py
+	@docker exec blu_atendente_core python /app/scripts/check_langfuse.py
 
 langfuse-up:
 	@echo "🚀 Starting local Langfuse..."

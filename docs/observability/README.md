@@ -9,9 +9,9 @@ This folder ships the artefacts for tickets BLU-MVP-070..072:
 
 The OTel spans wired in [services/tool_pool_api/src/tool_pool_api/server/otel_instrumentation.py](../../services/tool_pool_api/src/tool_pool_api/server/otel_instrumentation.py) emit the metrics those panels consume:
 
-- `vizu.tool.duration_ms` (histogram) — labels: `tool_name`, `outcome`, `client_id`, `tier`.
-- `vizu.tool.calls_total` (counter)
-- `vizu.tool.errors_total` (counter)
+- `blu.tool.duration_ms` (histogram) — labels: `tool_name`, `outcome`, `client_id`, `tier`.
+- `blu.tool.calls_total` (counter)
+- `blu.tool.errors_total` (counter)
 
 Span name: `mcp.tool.<tool_name>`, with attributes `tool.name`, `tool_name`, `client_id`, `tier`, `session_id`.
 
@@ -55,12 +55,12 @@ SELECT * FROM cron.job_run_details
 Inbound Twilio webhook lives in `services/tool_pool_api`. Common failure modes:
 
 - Twilio signature mismatch → check `TWILIO_AUTH_TOKEN` envvar.
-- `parse_supplier_reply` LLM call timing out → drop to FAST tier in `vizu_llm_service`.
-- Postgres busy → look at `vizu.tool.duration_ms` for `parse_supplier_reply` in the dashboard.
+- `parse_supplier_reply` LLM call timing out → drop to FAST tier in `blu_llm_service`.
+- Postgres busy → look at `blu.tool.duration_ms` for `parse_supplier_reply` in the dashboard.
 
 ### Langfuse outage
 
-Prompts auto-fall back to the in-repo files under `libs/vizu_prompt_management/prompts/<domain>/<slug>.md`, so the agent keeps responding. Restore steps:
+Prompts auto-fall back to the in-repo files under `libs/blu_prompt_management/prompts/<domain>/<slug>.md`, so the agent keeps responding. Restore steps:
 
 1. Confirm Langfuse status — https://status.langfuse.com.
 2. Inspect `langfuse/worker` container logs.

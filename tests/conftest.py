@@ -25,7 +25,7 @@ def client_id() -> str:
 @pytest.fixture(autouse=True)
 def _cleanup_test_data(client_id: str):
     """Delete rows created during each test so the DB stays clean."""
-    from vizu_supabase_client import get_supabase_client
+    from blu_supabase_client import get_supabase_client
 
     yield  # run the test
 
@@ -35,7 +35,7 @@ def _cleanup_test_data(client_id: str):
     # but ON DELETE SET NULL, so order doesn't strictly matter.  Delete files
     # first anyway to avoid transient FK issues.
     db.table("uploaded_files_metadata").delete().eq(
-        "cliente_vizu_id", client_id
+        "cliente_blu_id", client_id
     ).execute()
 
     db.table("standalone_agent_sessions").delete().eq(

@@ -2,7 +2,7 @@
 name = "atendente-core"
 version = "0.1.0"
 description = "API responsável por orquestrar a lógica conversacional em tempo real (Core)."
-authors = ["Lucas Cid <lucas@vizubr.com>"]
+authors = ["Lucas Cid <lucas@blubr.com>"]
 packages = [{include = "atendente_core", from = "src"}]
 
 [tool.poetry.dependencies]
@@ -26,20 +26,20 @@ langfuse = ">=4.0.0"
 # Service-specific dependencies
 redis = "^5.0.4"
 
-# --- Dependências internas do monorepo Vizu (apenas as usadas diretamente) ---
-vizu-auth = { path = "../../libs/vizu_auth", develop = true }
-vizu-observability-bootstrap = { path = "../../libs/vizu_observability_bootstrap" }
-vizu-db-connector = { path = "../../libs/vizu_db_connector" }
-vizu-models = { path = "../../libs/vizu_models", develop = true }
-vizu-context-service = {path = "../../libs/vizu_context_service", develop = true}
-vizu-llm-service = {path = "../../libs/vizu_llm_service", develop = true}
-vizu-hitl-service = {path = "../../libs/vizu_hitl_service", develop = true}
-vizu-tool-registry = {path = "../../libs/vizu_tool_registry", develop = true}
-vizu-prompt-management = {path = "../../libs/vizu_prompt_management", develop = true}
-vizu-elicitation-service = {path = "../../libs/vizu_elicitation_service", develop = true}
-vizu-agent-framework = {path = "../../libs/vizu_agent_framework", develop = true}
-vizu-sql-factory = {path = "../../libs/vizu_sql_factory", develop = true}
-vizu-twilio-client = {path = "../../libs/vizu_twilio_client", develop = true}
+# --- Dependências internas do monorepo Blu (apenas as usadas diretamente) ---
+blu-auth = { path = "../../libs/blu_auth", develop = true }
+blu-observability-bootstrap = { path = "../../libs/blu_observability_bootstrap" }
+blu-db-connector = { path = "../../libs/blu_db_connector" }
+blu-models = { path = "../../libs/blu_models", develop = true }
+blu-context-service = {path = "../../libs/blu_context_service", develop = true}
+blu-llm-service = {path = "../../libs/blu_llm_service", develop = true}
+blu-hitl-service = {path = "../../libs/blu_hitl_service", develop = true}
+blu-tool-registry = {path = "../../libs/blu_tool_registry", develop = true}
+blu-prompt-management = {path = "../../libs/blu_prompt_management", develop = true}
+blu-elicitation-service = {path = "../../libs/blu_elicitation_service", develop = true}
+blu-agent-framework = {path = "../../libs/blu_agent_framework", develop = true}
+blu-sql-factory = {path = "../../libs/blu_sql_factory", develop = true}
+blu-twilio-client = {path = "../../libs/blu_twilio_client", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.0"

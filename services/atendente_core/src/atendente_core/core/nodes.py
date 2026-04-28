@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 if TYPE_CHECKING:
-    from vizu_context_service import ContextService
+    from blu_context_service import ContextService
 
 # Stream error handling for MCP reconnection
 from anyio import BrokenResourceError, ClosedResourceError
@@ -23,33 +23,33 @@ from atendente_core.core.worker_tools import build_worker_tools, is_delegation_t
 # Importamos o gerenciador de conexão MCP
 from atendente_core.services.mcp_client import mcp_manager
 
-# Phase 3: Use vizu_elicitation_service instead of local module
-from vizu_elicitation_service import (
+# Phase 3: Use blu_elicitation_service instead of local module
+from blu_elicitation_service import (
     ElicitationRequired,
     format_elicitation_for_llm,
     validate_elicitation_response,
 )
 
 # Importa o cliente LLM centralizado
-from vizu_llm_service import ModelTier, TokenBudget, get_model
+from blu_llm_service import ModelTier, TokenBudget, get_model
 
 # Context 2.0: Import ContextSection for selective injection
-from vizu_models.enums import ContextSection
+from blu_models.enums import ContextSection
 
 # Importa o contexto seguro para tipagem
-from vizu_models.safe_client_context import SafeClientContext
+from blu_models.safe_client_context import SafeClientContext
 
-# Context 2.0: Import VizuClientContext for full context access
-from vizu_models.vizu_client_context import VizuClientContext
+# Context 2.0: Import BluClientContext for full context access
+from blu_models.blu_client_context import BluClientContext
 
-# PHASE 3+5: Use vizu_prompt_management unified dynamic builder
-from vizu_prompt_management import (
+# PHASE 3+5: Use blu_prompt_management unified dynamic builder
+from blu_prompt_management import (
     build_prompt,
     compose_prompt,
 )
 
-# PHASE 3: Use vizu_tool_registry for tool filtering
-from vizu_tool_registry import ToolRegistry
+# PHASE 3: Use blu_tool_registry for tool filtering
+from blu_tool_registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -261,7 +261,7 @@ def sanitize_tools_for_llm(tools: list[BaseTool]) -> list[BaseTool]:
 
 # ============================================================================
 # TOOL FILTERING - Dynamic tool availability based on client permissions
-# Phase 3: Uses vizu_tool_registry instead of hardcoded mapping
+# Phase 3: Uses blu_tool_registry instead of hardcoded mapping
 # ============================================================================
 
 
@@ -300,7 +300,7 @@ def filter_tools_for_client(
     """
     Filtra as ferramentas disponíveis baseado nas permissões do cliente.
 
-    Phase 3: Uses vizu_tool_registry for validation.
+    Phase 3: Uses blu_tool_registry for validation.
 
     Args:
         all_tools: Lista de todas as ferramentas do MCP
@@ -355,7 +355,7 @@ async def build_dynamic_system_prompt(
     safe_context: SafeClientContext | None,
     available_tools: list[BaseTool],
     context_service: "ContextService | None" = None,
-    vizu_context: VizuClientContext | None = None,
+    blu_context: BluClientContext | None = None,
 ) -> str:
     """
     Build the supervisor system prompt using lightweight routing fragments.
@@ -373,12 +373,12 @@ async def build_dynamic_system_prompt(
         safe_context: Safe client context with permissions
         available_tools: List of tools (worker meta-tools + public tools)
         context_service: Optional ContextService for Redis caching
-        vizu_context: Full VizuClientContext with all sections (Context 2.0)
+        blu_context: Full BluClientContext with all sections (Context 2.0)
 
     Returns:
         Rendered system prompt
     """
-    nome_empresa = safe_context.nome_empresa if safe_context else "Vizu"
+    nome_empresa = safe_context.nome_empresa if safe_context else "Blu"
     tier = _get_tier_from_context(safe_context)
 
     # Build workers description from registry (tier-filtered)
@@ -386,9 +386,9 @@ async def build_dynamic_system_prompt(
 
     # Context 2.0: Build modular context sections (includes business hours, policies, etc.)
     context_sections_text = ""
-    if vizu_context:
-        logger.info("[PROMPT_BUILD] vizu_context available, converting to safe context")
-        llm_safe_context = vizu_context.to_safe_context()
+    if blu_context:
+        logger.info("[PROMPT_BUILD] blu_context available, converting to safe context")
+        llm_safe_context = blu_context.to_safe_context()
         logger.info(
             f"[PROMPT_BUILD] Safe context loaded_sections: {llm_safe_context.loaded_sections}"
         )
@@ -407,7 +407,7 @@ async def build_dynamic_system_prompt(
         )
     else:
         logger.warning(
-            "[PROMPT_BUILD] No vizu_context provided - prompt will rely on Langfuse template"
+            "[PROMPT_BUILD] No blu_context provided - prompt will rely on Langfuse template"
         )
 
     variables = {
@@ -453,7 +453,7 @@ async def build_dynamic_system_prompt(
 
 def get_llm(model_override: str | None = None):
     """
-    Configura o cliente LLM usando o vizu_llm_service.
+    Configura o cliente LLM usando o blu_llm_service.
 
     Args:
         model_override: Nome do modelo a usar (sobrescreve o padrão).
@@ -533,22 +533,22 @@ async def supervisor_node(state: AgentState) -> dict:
     # Fetch context on-demand using ContextService (cached per-request)
     context_service = get_node_context_service()
     safe_ctx = None
-    vizu_ctx = None
+    blu_ctx = None
 
     if cliente_id and cliente_id in _supervisor_context_cache:
-        vizu_ctx, safe_ctx = _supervisor_context_cache[cliente_id]
+        blu_ctx, safe_ctx = _supervisor_context_cache[cliente_id]
         logger.debug(f"[SUPERVISOR] Using cached context for cliente_id={cliente_id}")
     elif cliente_id and context_service:
         try:
-            vizu_ctx = await context_service.get_client_context_by_id(cliente_id)
-            if vizu_ctx:
-                from vizu_models.safe_client_context import InternalClientContext
+            blu_ctx = await context_service.get_client_context_by_id(cliente_id)
+            if blu_ctx:
+                from blu_models.safe_client_context import InternalClientContext
 
-                internal_ctx = InternalClientContext.from_vizu_client_context(vizu_ctx)
+                internal_ctx = InternalClientContext.from_blu_client_context(blu_ctx)
                 safe_ctx = internal_ctx.get_safe_context()
-                _supervisor_context_cache[cliente_id] = (vizu_ctx, safe_ctx)
+                _supervisor_context_cache[cliente_id] = (blu_ctx, safe_ctx)
                 logger.debug(
-                    f"[SUPERVISOR] Fetched context for cliente_id={cliente_id}: {vizu_ctx.nome_empresa}"
+                    f"[SUPERVISOR] Fetched context for cliente_id={cliente_id}: {blu_ctx.nome_empresa}"
                 )
             else:
                 logger.warning(f"[SUPERVISOR] No context found for cliente_id={cliente_id}")
@@ -561,10 +561,10 @@ async def supervisor_node(state: AgentState) -> dict:
 
     # DEBUG: Log context state (demoted to DEBUG level for production)
     logger.debug(f"[SUPERVISOR] safe_context present: {safe_ctx is not None}")
-    logger.debug(f"[SUPERVISOR] vizu_context present: {vizu_ctx is not None}")
-    if vizu_ctx:
+    logger.debug(f"[SUPERVISOR] blu_context present: {blu_ctx is not None}")
+    if blu_ctx:
         logger.debug(
-            f"[SUPERVISOR] vizu_context.nome_empresa: {getattr(vizu_ctx, 'nome_empresa', 'N/A')}"
+            f"[SUPERVISOR] blu_context.nome_empresa: {getattr(blu_ctx, 'nome_empresa', 'N/A')}"
         )
 
     # 2+3. Get tools (use cached on subsequent supervisor calls within same request)
@@ -577,12 +577,12 @@ async def supervisor_node(state: AgentState) -> dict:
         logger.debug(f"[SUPERVISOR] Using cached tools ({len(cached_tools)})")
     else:
         tier = _get_tier_from_context(safe_ctx)
-        nome_empresa = safe_ctx.nome_empresa if safe_ctx else "Vizu"
+        nome_empresa = safe_ctx.nome_empresa if safe_ctx else "Blu"
 
         # Context 2.0: compile context sections for worker prompts
         context_sections_text = ""
-        if vizu_ctx:
-            llm_safe_ctx = vizu_ctx.to_safe_context()
+        if blu_ctx:
+            llm_safe_ctx = blu_ctx.to_safe_context()
             respond_sections = [ContextSection.COMPANY_PROFILE, ContextSection.DATA_SCHEMA]
             context_sections_text = llm_safe_ctx.get_compiled_context(
                 sections=respond_sections, include_header=False,
@@ -620,13 +620,13 @@ async def supervisor_node(state: AgentState) -> dict:
         logger.debug(f"[SUPERVISOR] Using cached system prompt ({len(system_prompt)} chars)")
     else:
         logger.debug(
-            f"[SUPERVISOR] Building system prompt with vizu_context={vizu_ctx is not None}"
+            f"[SUPERVISOR] Building system prompt with blu_context={blu_ctx is not None}"
         )
         system_prompt = await build_dynamic_system_prompt(
             safe_ctx,
             available_tools,
             context_service=get_node_context_service(),
-            vizu_context=vizu_ctx,
+            blu_context=blu_ctx,
         )
         logger.debug(f"[SUPERVISOR] System prompt generated: {len(system_prompt)} chars")
 
@@ -643,7 +643,7 @@ async def supervisor_node(state: AgentState) -> dict:
     recent_msgs = past_messages[-history_window:]
 
     # Apply token budgeting to prevent "prompt too long" errors
-    # Uses shared TokenBudget from vizu_llm_service
+    # Uses shared TokenBudget from blu_llm_service
     token_budget = TokenBudget(
         max_tokens=getattr(get_settings(), "MAX_PROMPT_TOKENS", 120000),
         chars_per_token=getattr(get_settings(), "CHARS_PER_TOKEN", 4),

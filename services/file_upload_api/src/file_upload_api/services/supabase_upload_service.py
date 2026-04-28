@@ -12,8 +12,8 @@ from fastapi import UploadFile
 from opentelemetry import trace
 
 from file_upload_api.schemas.upload_schemas import FileUploadResponse
-from vizu_models.enums import TipoFonte
-from vizu_supabase_client import SupabaseStorage, get_storage, get_supabase_client
+from blu_models.enums import TipoFonte
+from blu_supabase_client import SupabaseStorage, get_storage, get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class SupabaseUploadService:
 
         This ensures:
         - Proper tracking of all uploaded files
-        - RLS security (only cliente_vizu can access their own files)
+        - RLS security (only cliente_blu can access their own files)
         - Metadata for downstream processing
 
         Args:

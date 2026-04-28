@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "file-upload-api"
 version = "0.1.0"
-description = "API síncrona para upload e enfileiramento de arquivos na Vizu."
-authors = ["Lucas Cid <lucas@vizubr.com>"]
+description = "API síncrona para upload e enfileiramento de arquivos na Blu."
+authors = ["Lucas Cid <lucas@blubr.com>"]
 readme = "README.md"
 packages = [{include = "file_upload_api", from = "src"}]
 
@@ -14,17 +14,17 @@ pydantic-settings = "^2.2.1"
 python-multipart = "^0.0.9" # Essencial para FastAPI lidar com UploadFile
 
 # --- Supabase Storage ---
-vizu-supabase-client = { path = "../../libs/vizu_supabase_client" }
+blu-supabase-client = { path = "../../libs/blu_supabase_client" }
 
 # --- Authentication ---
-vizu-auth = { path = "../../libs/vizu_auth" }
+blu-auth = { path = "../../libs/blu_auth" }
 
 # --- File parsing (with docling for complex documents) ---
-vizu-parsers = { path = "../../libs/vizu_parsers", extras = ["docling"] }
+blu-parsers = { path = "../../libs/blu_parsers", extras = ["docling"] }
 
-# --- Dependências internas do monorepo Vizu ---
-vizu-observability-bootstrap = { path = "../../libs/vizu_observability_bootstrap" }
-vizu_models = { path = "../../libs/vizu_models" }
+# --- Dependências internas do monorepo Blu ---
+blu-observability-bootstrap = { path = "../../libs/blu_observability_bootstrap" }
+blu_models = { path = "../../libs/blu_models" }
 
 
 [tool.poetry.group.dev.dependencies]

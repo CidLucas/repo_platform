@@ -37,7 +37,7 @@ class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
         try:
             from sqlalchemy import text
 
-            from vizu_db_connector.database import SessionLocal
+            from blu_db_connector.database import SessionLocal
 
             session = SessionLocal()
             try:
@@ -98,7 +98,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown observability
     try:
-        from vizu_observability_bootstrap import shutdown_observability
+        from blu_observability_bootstrap import shutdown_observability
 
         await shutdown_observability(timeout=5.0)
     except Exception as e:
@@ -110,13 +110,13 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app with combined lifespan
 app = FastAPI(
     title="Tool Pool API",
-    description="MCP Server for Vizu Tools",
+    description="MCP Server for Blu Tools",
     lifespan=lifespan,
 )
 
 # Configure observability
 try:
-    from vizu_observability_bootstrap import setup_observability
+    from blu_observability_bootstrap import setup_observability
 
     setup_observability(app, service_name="tool_pool_api", log_min_level=logging.INFO)
 except ImportError as e:
@@ -183,7 +183,7 @@ async def server_info():
         modules = get_available_modules()
 
         return {
-            "name": "Vizu Tool Pool API",
+            "name": "Blu Tool Pool API",
             "version": "1.0.0",
             "transport": "http",
             "modules": list(modules.keys()),

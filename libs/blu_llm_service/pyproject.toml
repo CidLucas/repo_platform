@@ -1,0 +1,41 @@
+[tool.poetry]
+name = "blu-llm-service"
+version = "0.2.0"
+description = "Cliente centralizado para LLMs locais e comerciais (Ollama, OpenAI, Anthropic, Google)"
+authors = ["Blu DevOps <devops@blu.ai>"]
+readme = "README.md"
+packages = [{include = "blu_llm_service", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+# Core LangChain
+langchain-core = ">=0.3.0"
+langchain-community = ">=0.3.0"
+langchain-ollama = ">=0.2.0"  # Para Ollama local e Cloud
+# Langfuse para observabilidade (v3 OTEL-native)
+langfuse = ">=4.0.0"
+# HTTP client para embedding API
+requests = "^2.31.0"
+# Settings
+pydantic-settings = "^2.0.0"
+
+# Providers opcionais - instale com: poetry install -E openai -E anthropic -E google
+langchain-openai = {version = ">=0.2.0", optional = true}
+langchain-anthropic = {version = ">=0.2.0", optional = true}
+langchain-google-genai = {version = ">=2.0.0", optional = true}
+
+[tool.poetry.extras]
+# Providers opcionais - instale conforme necessário
+openai = ["langchain-openai"]
+anthropic = ["langchain-anthropic"]
+google = ["langchain-google-genai"]
+all = ["langchain-openai", "langchain-anthropic", "langchain-google-genai"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-asyncio = "^0.21.0"
+ruff = "^0.14.7"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

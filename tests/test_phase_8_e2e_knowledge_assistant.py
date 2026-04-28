@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from vizu_supabase_client import get_supabase_client
+from blu_supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 

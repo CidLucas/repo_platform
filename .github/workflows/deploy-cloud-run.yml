@@ -18,7 +18,7 @@ on:
           - all
           - atendente-core
           - tool-pool-api
-          - vizu-dashboard
+          - blu-dashboard
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -88,7 +88,7 @@ jobs:
         id: services
         run: |
           if [ "${{ github.event.inputs.service }}" == "all" ] || [ -z "${{ github.event.inputs.service }}" ]; then
-            echo 'list=["atendente-core", "tool-pool-api", "vizu-dashboard"]' >> $GITHUB_OUTPUT
+            echo 'list=["atendente-core", "tool-pool-api", "blu-dashboard"]' >> $GITHUB_OUTPUT
           else
             echo 'list=["${{ github.event.inputs.service }}"]' >> $GITHUB_OUTPUT
           fi
@@ -124,11 +124,11 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           MCP_AUTH_GOOGLE_CLIENT_ID: ${{ secrets.MCP_AUTH_GOOGLE_CLIENT_ID }}
         run: |
-          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/vizu-mono"
+          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/blu-mono"
           SERVICE="${{ matrix.service }}"
           # Convert service name to image name (underscores for image)
           IMAGE_NAME=$(echo "${SERVICE}" | tr '-' '_')
-          IMAGE="${REGISTRY}/vizu-${IMAGE_NAME}:latest"
+          IMAGE="${REGISTRY}/blu-${IMAGE_NAME}:latest"
 
           echo "### 🚀 Deploying ${SERVICE}" >> $GITHUB_STEP_SUMMARY
           echo "Image: ${IMAGE}" >> $GITHUB_STEP_SUMMARY
@@ -151,7 +151,7 @@ jobs:
                 --memory 2Gi --cpu 2 \
                 --concurrency 10 --timeout 3600 \
                 --max-instances 50 --min-instances 0 \
-                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=ollama_cloud,OLLAMA_CLOUD_BASE_URL=https://ollama.com,LANGFUSE_HOST=https://us.cloud.langfuse.com,TOOL_POOL_URL=https://tool-pool-api-858493958314.southamerica-east1.run.app,MCP_SERVER_URL=https://tool-pool-api-858493958314.southamerica-east1.run.app/mcp/,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL}" \
+                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=ollama_cloud,OLLAMA_CLOUD_BASE_URL=https://ollama.com,LANGFUSE_HOST=https://us.cloud.langfuse.com,TOOL_POOL_URL=https://tool-pool-api-858493958314.southamerica-east1.run.app,MCP_SERVER_URL=https://tool-pool-api-858493958314.southamerica-east1.run.app/mcp/,CORS_ORIGINS=https://blu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL}" \
                 --set-secrets "SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,SUPABASE_JWT_SECRET=SUPABASE_JWT_SECRET:latest,SUPABASE_JWT_JWK=SUPABASE_JWT_JWK:latest,OLLAMA_CLOUD_API_KEY=OLLAMA_CLOUD_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,DATABASE_URL=DATABASE_URL_PROD:latest,REDIS_URL=REDIS_URL:latest,OTEL_EXPORTER_OTLP_ENDPOINT=OTEL_EXPORTER_OTLP_ENDPOINT:latest,OTEL_EXPORTER_OTLP_HEADERS=OTEL_EXPORTER_OTLP_HEADERS:latest" \
                 --quiet
               ;;
@@ -165,12 +165,12 @@ jobs:
                 --memory 2Gi --cpu 2 \
                 --concurrency 5 --timeout 3600 \
                 --max-instances 20 --min-instances 0 \
-                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=ollama_cloud,OLLAMA_CLOUD_BASE_URL=https://ollama.com,LANGFUSE_HOST=https://us.cloud.langfuse.com,CORS_ORIGINS=https://vizu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},MCP_AUTH_GOOGLE_CLIENT_ID=${MCP_AUTH_GOOGLE_CLIENT_ID}" \
+                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=ollama_cloud,OLLAMA_CLOUD_BASE_URL=https://ollama.com,LANGFUSE_HOST=https://us.cloud.langfuse.com,CORS_ORIGINS=https://blu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},MCP_AUTH_GOOGLE_CLIENT_ID=${MCP_AUTH_GOOGLE_CLIENT_ID}" \
                 --set-secrets "SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,OLLAMA_CLOUD_API_KEY=OLLAMA_CLOUD_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,CREDENTIALS_ENCRYPTION_KEY=CREDENTIALS_ENCRYPTION_KEY:latest,DATABASE_URL=DATABASE_URL_PROD:latest,REDIS_URL=REDIS_URL:latest,OTEL_EXPORTER_OTLP_ENDPOINT=OTEL_EXPORTER_OTLP_ENDPOINT:latest,OTEL_EXPORTER_OTLP_HEADERS=OTEL_EXPORTER_OTLP_HEADERS:latest" \
                 --quiet
               ;;
 
-            vizu-dashboard)
+            blu-dashboard)
               gcloud run deploy "${SERVICE}" \
                 --image "${IMAGE}" \
                 --region "${GCP_REGION}" \
@@ -217,11 +217,11 @@ jobs:
           ATENDENTE_URL=$(gcloud run services describe atendente-core --region "${GCP_REGION}" --format 'value(status.url)' 2>/dev/null || echo "not deployed")
           TOOL_POOL_URL=$(gcloud run services describe tool-pool-api --region "${GCP_REGION}" --format 'value(status.url)' 2>/dev/null || echo "not deployed")
 
-          DASHBOARD_URL=$(gcloud run services describe vizu-dashboard --region \"${GCP_REGION}\" --format 'value(status.url)' 2>/dev/null || echo \"not deployed\")
+          DASHBOARD_URL=$(gcloud run services describe blu-dashboard --region \"${GCP_REGION}\" --format 'value(status.url)' 2>/dev/null || echo \"not deployed\")
 
           echo \"| atendente-core | ${ATENDENTE_URL} |\" >> $GITHUB_STEP_SUMMARY
           echo \"| tool-pool-api | ${TOOL_POOL_URL} |\" >> $GITHUB_STEP_SUMMARY
-          echo "| vizu-dashboard | ${DASHBOARD_URL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| blu-dashboard | ${DASHBOARD_URL} |" >> $GITHUB_STEP_SUMMARY
 
           # Update atendente-core with tool-pool-api URL (MCP_SERVER_URL)
           if [ "${TOOL_POOL_URL}" != "not deployed" ] && [ "${ATENDENTE_URL}" != "not deployed" ]; then

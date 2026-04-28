@@ -35,7 +35,7 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture(scope="module")
 def db():
-    from vizu_supabase_client import get_supabase_client
+    from blu_supabase_client import get_supabase_client
 
     return get_supabase_client(use_service_role=True)
 
@@ -161,7 +161,7 @@ def _make_mock_db(tenant_id: str, *, tier: str = "BASIC", routine: dict | None =
         tbl.in_.return_value = tbl
         tbl.limit.return_value = tbl
 
-        if name == "clientes_vizu":
+        if name == "clientes_blu":
             tbl.execute.return_value = SimpleNamespace(
                 data=[{"client_id": tenant_id, "nome_empresa": "Tenant Test", "tier": tier}]
             )
@@ -246,21 +246,21 @@ def fake_llm_response(monkeypatch):
     fake_model = MagicMock()
     fake_model.invoke.return_value = fake_msg
 
-    from vizu_agent_framework.routines import daily_insights as di
+    from blu_agent_framework.routines import daily_insights as di
 
     monkeypatch.setattr(di, "get_model", lambda **_: fake_model, raising=False)
 
     # Patch the deferred import inside _ask_llm by patching the module-level
-    # import path used in `from vizu_llm_service import ...`.
-    import vizu_llm_service as llm
+    # import path used in `from blu_llm_service import ...`.
+    import blu_llm_service as llm
 
     monkeypatch.setattr(llm, "get_model", lambda **_: fake_model)
 
     # Bypass Langfuse: force the loader's fallback path.
-    from vizu_prompt_management.loader import PromptLoader
+    from blu_prompt_management.loader import PromptLoader
 
     async def _stub_load(self, name, variables=None, allow_fallback=True):  # noqa: ARG001
-        from vizu_prompt_management.loader import LoadedPrompt
+        from blu_prompt_management.loader import LoadedPrompt
 
         return LoadedPrompt(name=name, content="stub", source="builtin", version=1)
 
@@ -269,7 +269,7 @@ def fake_llm_response(monkeypatch):
 
 
 def test_run_for_client_writes_insights_skips_whatsapp_for_basic(mock_tenant_id, fake_llm_response):
-    from vizu_agent_framework.routines import daily_insights
+    from blu_agent_framework.routines import daily_insights
 
     db = _make_mock_db(mock_tenant_id, tier="BASIC")
     twilio = MagicMock()
@@ -303,7 +303,7 @@ def test_run_for_client_writes_insights_skips_whatsapp_for_basic(mock_tenant_id,
 
 
 def test_run_for_client_sends_whatsapp_for_pro_tenant(mock_tenant_id, fake_llm_response):
-    from vizu_agent_framework.routines import daily_insights
+    from blu_agent_framework.routines import daily_insights
 
     db = _make_mock_db(
         mock_tenant_id,
@@ -335,7 +335,7 @@ def test_run_for_client_sends_whatsapp_for_pro_tenant(mock_tenant_id, fake_llm_r
 
 
 def test_run_for_client_handles_unknown_tenant_gracefully(fake_llm_response):
-    from vizu_agent_framework.routines import daily_insights
+    from blu_agent_framework.routines import daily_insights
 
     bogus_id = str(uuid.uuid4())
     db = MagicMock()
@@ -355,28 +355,28 @@ def test_run_for_client_handles_unknown_tenant_gracefully(fake_llm_response):
 
 
 def test_parse_insights_json_strips_markdown_fences():
-    from vizu_agent_framework.routines.daily_insights import _parse_insights_json
+    from blu_agent_framework.routines.daily_insights import _parse_insights_json
 
     raw = '```json\n{"insights": [{"kpi": "x"}]}\n```'
     assert _parse_insights_json(raw) == [{"kpi": "x"}]
 
 
 def test_parse_insights_json_salvages_embedded_object():
-    from vizu_agent_framework.routines.daily_insights import _parse_insights_json
+    from blu_agent_framework.routines.daily_insights import _parse_insights_json
 
     raw = 'Aqui está o resultado: {"insights": [{"kpi": "x"}]} -- fim'
     assert _parse_insights_json(raw) == [{"kpi": "x"}]
 
 
 def test_parse_insights_json_returns_empty_on_garbage():
-    from vizu_agent_framework.routines.daily_insights import _parse_insights_json
+    from blu_agent_framework.routines.daily_insights import _parse_insights_json
 
     assert _parse_insights_json("not json at all") == []
     assert _parse_insights_json("") == []
 
 
 def test_format_whatsapp_digest_orders_by_severity():
-    from vizu_agent_framework.routines.daily_insights import _format_whatsapp_digest
+    from blu_agent_framework.routines.daily_insights import _format_whatsapp_digest
 
     body = _format_whatsapp_digest(
         "Empresa X",

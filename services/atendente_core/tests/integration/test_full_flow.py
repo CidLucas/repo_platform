@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 # Importa apenas os modelos
-from vizu_models import ClienteVizu, TierCliente, TipoCliente
+from blu_models import ClienteBlu, TierCliente, TipoCliente
 
 
 @pytest.mark.integration
@@ -28,7 +28,7 @@ def test_e2e_flow_with_db_and_redis_cache(
     test_phone_number = "whatsapp:+5521999998888"
     cliente_id = uuid.uuid4()
 
-    novo_cliente = ClienteVizu(
+    novo_cliente = ClienteBlu(
         id=cliente_id,
         api_key=test_api_key,
         nome_empresa="Padaria Teste",
@@ -49,7 +49,7 @@ def test_e2e_flow_with_db_and_redis_cache(
         }
         response1 = client.post(
             "/api/v1/incoming",
-            headers={"X-Vizu-API-Key": test_api_key},
+            headers={"X-Blu-API-Key": test_api_key},
             data={"From": test_phone_number, "Body": "Bom dia"},
         )
         assert response1.status_code == 200
@@ -66,7 +66,7 @@ def test_e2e_flow_with_db_and_redis_cache(
         mock_agent_graph.invoke.return_value = {"messages": [MagicMock(content="Pois não?")]}
         response2 = client.post(
             "/api/v1/incoming",
-            headers={"X-Vizu-API-Key": test_api_key},
+            headers={"X-Blu-API-Key": test_api_key},
             data={"From": test_phone_number, "Body": "Queria um pão"},
         )
         assert response2.status_code == 200

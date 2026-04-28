@@ -12,8 +12,8 @@ from uuid import UUID
 import pandas as pd
 import streamlit as st
 
-from vizu_hitl_service import HitlQueue
-from vizu_models import (
+from blu_hitl_service import HitlQueue
+from blu_models import (
     HitlCriteriaType,
     HitlFeedbackType,
     HitlReviewRead,
@@ -37,7 +37,7 @@ def get_settings() -> Settings:
 
 # Page config
 st.set_page_config(
-    page_title="Vizu HITL Dashboard",
+    page_title="Blu HITL Dashboard",
     page_icon="👁️",
     layout="wide",
     initial_sidebar_state="expanded",

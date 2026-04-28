@@ -503,7 +503,7 @@ wheels = [
 ]
 
 [[package]]
-name = "vizu-mono-devtools"
+name = "Blu-mono-devtools"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [

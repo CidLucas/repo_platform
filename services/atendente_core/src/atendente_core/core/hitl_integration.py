@@ -12,7 +12,7 @@ import os
 from typing import Any
 from uuid import UUID
 
-from vizu_models import (
+from blu_models import (
     HitlConfig,
     HitlCriteriaType,
     HitlCriterion,
@@ -88,7 +88,7 @@ class HitlIntegration:
         """Lazy load do serviço HITL."""
         if self._service is None and self._enabled:
             try:
-                from vizu_hitl_service import HitlQueue, HitlService
+                from blu_hitl_service import HitlQueue, HitlService
 
                 redis_url = os.getenv("REDIS_URL")
                 if not redis_url:
@@ -99,7 +99,7 @@ class HitlIntegration:
                 self._service = HitlService(self._queue, self._default_config)
                 logger.info("HITL Service initialized")
             except ImportError:
-                logger.warning("vizu_hitl_service not installed, HITL disabled")
+                logger.warning("blu_hitl_service not installed, HITL disabled")
                 self._enabled = False
             except Exception as e:
                 logger.error(f"Failed to initialize HITL: {e}")

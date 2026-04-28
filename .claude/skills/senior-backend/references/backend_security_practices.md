@@ -9,7 +9,7 @@ This repo's security posture depends on a few shared conventions: JWT decoding i
 ### Pattern 1: Centralize JWT decoding and auth result construction
 
 **Description:**
-Sampled services do not manually parse JWTs inside business logic. They depend on `vizu_auth` and convert tokens into typed auth results at the API boundary.
+Sampled services do not manually parse JWTs inside business logic. They depend on `blu_auth` and convert tokens into typed auth results at the API boundary.
 
 **When to Use:**
 
@@ -87,7 +87,7 @@ Sampled internal automation endpoints in `tool_pool_api` use shared bearer secre
 
 ### Security Best Practices
 
-- Reuse `vizu_auth` instead of homegrown JWT handling
+- Reuse `blu_auth` instead of homegrown JWT handling
 - Be explicit about service-role usage
 - Validate webhook signatures or internal bearer secrets on non-user entrypoints
 - Avoid leaking raw exceptions in auth-sensitive paths
@@ -127,9 +127,9 @@ Cron, webhook, and admin surfaces need explicit protection.
 
 ### Recommended Tools
 
-- `vizu_auth`
-- `vizu_supabase_client`
-- `vizu_context_service`
+- `blu_auth`
+- `blu_supabase_client`
+- `blu_context_service`
 - Service health and observability helpers
 
 ### Further Reading
@@ -137,7 +137,7 @@ Cron, webhook, and admin surfaces need explicit protection.
 - `services/atendente_core/src/atendente_core/api/auth.py`
 - `services/atendente_core/src/atendente_core/api/router.py`
 - `services/tool_pool_api/src/tool_pool_api/main.py`
-- `/memories/repo/vizu-mono-architecture.md`
+- `/memories/repo/blu-mono-architecture.md`
 
 ## Unknowns To Verify Before Security-Sensitive Refactors
 

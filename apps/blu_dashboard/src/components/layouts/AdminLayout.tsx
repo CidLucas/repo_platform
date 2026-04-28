@@ -1,0 +1,35 @@
+// filepath: /Users/tarsobarreto/Documents/blu-mono/apps/blu_dashboard/src/components/layouts/AdminLayout.tsx
+import { Box, Flex } from '@chakra-ui/react';
+import { Header } from '../Header';
+import AdminSidebar from '../admin/AdminSidebar';
+import { ChatPanel } from '../ChatPanel';
+import { useChat } from '../../contexts/ChatContext';
+import React from 'react';
+
+interface AdminLayoutProps {
+  children: React.ReactNode;
+}
+
+export const AdminLayout = ({ children }: AdminLayoutProps) => {
+  const { isChatOpen, closeChat, initialMessage, consumeInitialMessage } = useChat();
+
+  return (
+    <Flex direction="column" minHeight="100vh" bg="#0d0e1f" color="white">
+      <Header />
+      <Flex flex="1" minH="calc(100vh - 4rem)">
+        <AdminSidebar />
+        <Box as="main" flex="1" overflowY="auto" bg="#0d0e1f">
+          {children}
+        </Box>
+      </Flex>
+      <ChatPanel
+        isOpen={isChatOpen}
+        onClose={closeChat}
+        initialMessage={initialMessage}
+        onInitialMessageConsumed={consumeInitialMessage}
+      />
+    </Flex>
+  );
+};
+
+export default AdminLayout;

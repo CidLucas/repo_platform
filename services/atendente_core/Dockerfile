@@ -10,20 +10,20 @@ WORKDIR /app
 RUN pip install poetry
 
 # Copia libs necessárias (diretas + transitivas)
-COPY libs/vizu_models ./libs/vizu_models
-COPY libs/vizu_db_connector ./libs/vizu_db_connector
-COPY libs/vizu_supabase_client ./libs/vizu_supabase_client
-COPY libs/vizu_context_service ./libs/vizu_context_service
-COPY libs/vizu_auth ./libs/vizu_auth
-COPY libs/vizu_tool_registry ./libs/vizu_tool_registry
-COPY libs/vizu_prompt_management ./libs/vizu_prompt_management
-COPY libs/vizu_elicitation_service ./libs/vizu_elicitation_service
-COPY libs/vizu_observability_bootstrap ./libs/vizu_observability_bootstrap
-COPY libs/vizu_agent_framework ./libs/vizu_agent_framework
-COPY libs/vizu_llm_service ./libs/vizu_llm_service
-COPY libs/vizu_hitl_service ./libs/vizu_hitl_service
-COPY libs/vizu_sql_factory ./libs/vizu_sql_factory
-COPY libs/vizu_twilio_client ./libs/vizu_twilio_client
+COPY libs/blu_models ./libs/blu_models
+COPY libs/blu_db_connector ./libs/blu_db_connector
+COPY libs/blu_supabase_client ./libs/blu_supabase_client
+COPY libs/blu_context_service ./libs/blu_context_service
+COPY libs/blu_auth ./libs/blu_auth
+COPY libs/blu_tool_registry ./libs/blu_tool_registry
+COPY libs/blu_prompt_management ./libs/blu_prompt_management
+COPY libs/blu_elicitation_service ./libs/blu_elicitation_service
+COPY libs/blu_observability_bootstrap ./libs/blu_observability_bootstrap
+COPY libs/blu_agent_framework ./libs/blu_agent_framework
+COPY libs/blu_llm_service ./libs/blu_llm_service
+COPY libs/blu_hitl_service ./libs/blu_hitl_service
+COPY libs/blu_sql_factory ./libs/blu_sql_factory
+COPY libs/blu_twilio_client ./libs/blu_twilio_client
 
 # Copia pyproject e instala dependências
 COPY services/atendente_core/pyproject.toml services/atendente_core/poetry.lock* ./services/atendente_core/
@@ -41,27 +41,27 @@ WORKDIR /app
 COPY --from=builder /app/services/atendente_core/.venv /app/services/atendente_core/.venv
 
 # Copia apenas os src/ das libs (não o pyproject.toml)
-COPY libs/vizu_models/src ./libs/vizu_models/src
-COPY libs/vizu_db_connector/src ./libs/vizu_db_connector/src
-COPY libs/vizu_supabase_client/src ./libs/vizu_supabase_client/src
-COPY libs/vizu_context_service/src ./libs/vizu_context_service/src
-COPY libs/vizu_auth/src ./libs/vizu_auth/src
-COPY libs/vizu_tool_registry/src ./libs/vizu_tool_registry/src
-COPY libs/vizu_prompt_management/src ./libs/vizu_prompt_management/src
-COPY libs/vizu_elicitation_service/src ./libs/vizu_elicitation_service/src
-COPY libs/vizu_observability_bootstrap/src ./libs/vizu_observability_bootstrap/src
-COPY libs/vizu_agent_framework/src ./libs/vizu_agent_framework/src
-COPY libs/vizu_llm_service/src ./libs/vizu_llm_service/src
-COPY libs/vizu_hitl_service/src ./libs/vizu_hitl_service/src
-COPY libs/vizu_sql_factory/src ./libs/vizu_sql_factory/src
-COPY libs/vizu_twilio_client/src ./libs/vizu_twilio_client/src
+COPY libs/blu_models/src ./libs/blu_models/src
+COPY libs/blu_db_connector/src ./libs/blu_db_connector/src
+COPY libs/blu_supabase_client/src ./libs/blu_supabase_client/src
+COPY libs/blu_context_service/src ./libs/blu_context_service/src
+COPY libs/blu_auth/src ./libs/blu_auth/src
+COPY libs/blu_tool_registry/src ./libs/blu_tool_registry/src
+COPY libs/blu_prompt_management/src ./libs/blu_prompt_management/src
+COPY libs/blu_elicitation_service/src ./libs/blu_elicitation_service/src
+COPY libs/blu_observability_bootstrap/src ./libs/blu_observability_bootstrap/src
+COPY libs/blu_agent_framework/src ./libs/blu_agent_framework/src
+COPY libs/blu_llm_service/src ./libs/blu_llm_service/src
+COPY libs/blu_hitl_service/src ./libs/blu_hitl_service/src
+COPY libs/blu_sql_factory/src ./libs/blu_sql_factory/src
+COPY libs/blu_twilio_client/src ./libs/blu_twilio_client/src
 
 # Copia código fonte do serviço
 COPY services/atendente_core/src ./src
 
 # PYTHONPATH para imports
 ENV PATH="/app/services/atendente_core/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/src:/app/libs/vizu_models/src:/app/libs/vizu_db_connector/src:/app/libs/vizu_supabase_client/src:/app/libs/vizu_context_service/src:/app/libs/vizu_auth/src:/app/libs/vizu_tool_registry/src:/app/libs/vizu_prompt_management/src:/app/libs/vizu_elicitation_service/src:/app/libs/vizu_observability_bootstrap/src:/app/libs/vizu_agent_framework/src:/app/libs/vizu_llm_service/src:/app/libs/vizu_hitl_service/src:/app/libs/vizu_sql_factory/src:/app/libs/vizu_twilio_client/src"
+ENV PYTHONPATH="/app/src:/app/libs/blu_models/src:/app/libs/blu_db_connector/src:/app/libs/blu_supabase_client/src:/app/libs/blu_context_service/src:/app/libs/blu_auth/src:/app/libs/blu_tool_registry/src:/app/libs/blu_prompt_management/src:/app/libs/blu_elicitation_service/src:/app/libs/blu_observability_bootstrap/src:/app/libs/blu_agent_framework/src:/app/libs/blu_llm_service/src:/app/libs/blu_hitl_service/src:/app/libs/blu_sql_factory/src:/app/libs/blu_twilio_client/src"
 
 EXPOSE 8000
 

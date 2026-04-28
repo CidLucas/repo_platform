@@ -249,7 +249,7 @@ class TestGenerateReportCore:
         fake_msg = SimpleNamespace(content="# Relatório\n\nConteúdo")
         fake_model = SimpleNamespace(ainvoke=AsyncMock(return_value=fake_msg))
         monkeypatch.setattr(
-            "vizu_llm_service.get_model", lambda **_kw: fake_model
+            "blu_llm_service.get_model", lambda **_kw: fake_model
         )
 
         result = await report_module.generate_report_core(
@@ -288,7 +288,7 @@ class TestGenerateReportCore:
             ainvoke=AsyncMock(side_effect=RuntimeError("boom"))
         )
         monkeypatch.setattr(
-            "vizu_llm_service.get_model", lambda **_kw: fake_model
+            "blu_llm_service.get_model", lambda **_kw: fake_model
         )
 
         with pytest.raises(ToolError):

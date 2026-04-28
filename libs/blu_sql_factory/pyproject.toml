@@ -1,0 +1,38 @@
+[tool.poetry]
+name = "blu_sql_factory"
+version = "0.1.0"
+description = "Factory para criar SQL agents/tools da Blu"
+authors = ["Lucas Cid <lucas@blubr.com>"]
+readme = "README.md"
+packages = [{include = "blu_sql_factory", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+# --- DEFINIÇÕES ATUALIZADAS E CORRIGIDAS ---
+# Esta lib usa o 'core' e o 'community' (para o SQLDatabase e create_sql_agent)
+# Usa >=0.3.0 para compatibilidade com outras libs do monorepo
+langchain-core = ">=0.3.0"
+langchain-community = ">=0.3.0"
+sqlalchemy = "^2.0.31"
+sqlglot = "^24.0.0"  # Phase 2: SQL parsing and transformation
+# (langchain e langchain-openai removidos)
+
+# Dependências locais
+blu_llm_service = {path = "../../libs/blu_llm_service", develop = true}
+blu_context_service = {path = "../../libs/blu_context_service", develop = true}
+blu_models = {path = "../../libs/blu_models", develop = true}
+blu_supabase_client = {path = "../../libs/blu_supabase_client", develop = true}  # Phase 3: Execution
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.2"
+pytest-mock = "^3.14.0"
+pytest-cov = "^5.0.0"
+
+# Configuração de PYTHONPATH para testes
+ruff = "^0.14.7"
+[tool.pytest.ini_options]
+pythonpath = [
+    "src",
+    "../../libs"
+]

@@ -8,7 +8,7 @@ metadata:
 
 # Supabase
 
-Repo-adapted guidance for Supabase work in `vizu-mono`.
+Repo-adapted guidance for Supabase work in `blu-mono`.
 
 ## Core Principles
 
@@ -27,7 +27,7 @@ When a change fails, inspect RLS, `verify_jwt`, tenant mapping, service-role vs 
 **5. Prefer existing repo primitives over new ad hoc patterns.**
 Common boundaries already exist:
 
-- `vizu_supabase_client` for Python service access
+- `blu_supabase_client` for Python service access
 - `public.get_my_client_id()` for client scoping in SQL/RLS
 - root `supabase/migrations/` for schema history
 - `supabase/config.toml` for Edge Function `verify_jwt` posture
@@ -38,7 +38,7 @@ Common boundaries already exist:
 
 - `supabase/migrations/`: canonical schema and RLS history
 - `supabase/functions/`: Edge Functions, some JWT-protected and some intentionally public
-- `libs/vizu_supabase_client`: shared client access for Python services
+- `libs/blu_supabase_client`: shared client access for Python services
 - `tests/test_dashboard_rpcs.py` and `tests/test_rls_regression.py`: focused validation anchors
 - service code in `services/` that mixes user-scoped and service-role clients depending on the operation
 

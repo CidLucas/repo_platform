@@ -108,7 +108,7 @@ def build_worker_tools(
     *,
     session_id: str,
     cliente_id: UUID | None = None,
-    nome_empresa: str = "Vizu",
+    nome_empresa: str = "Blu",
     context_sections: str = "",
     context_service: Any | None = None,
 ) -> list[StructuredTool]:

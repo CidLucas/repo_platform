@@ -31,7 +31,7 @@ class AgentState(TypedDict):
     SEGURANÇA: O estado pode ser serializado e logado. Apenas dados
     mínimos devem estar aqui para evitar trace bloat.
 
-    OTIMIZAÇÃO: Contextos (vizu_context, safe_context, _internal_context)
+    OTIMIZAÇÃO: Contextos (blu_context, safe_context, _internal_context)
     são buscados on-demand no supervisor_node usando cliente_id.
     Isso reduz o tamanho do estado serializado em traces.
 

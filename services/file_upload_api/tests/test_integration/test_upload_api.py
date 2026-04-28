@@ -41,7 +41,7 @@ def test_upload_file_success(
         return_value="integration-test-trace-id",
     )
 
-    # O cliente (DUMMY_CLIENTE_VIZU_ID) é mockado em dependencies.py
+    # O cliente (DUMMY_CLIENTE_BLU_ID) é mockado em dependencies.py
     expected_cliente_id_str = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
 
     # --- 2. Act (Execução) ---

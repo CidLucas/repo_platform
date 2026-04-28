@@ -10,19 +10,19 @@ WORKDIR /app
 RUN pip install poetry==1.8.0
 
 # Copy only needed libs (direct + transitive dependencies)
-COPY libs/vizu_models ./libs/vizu_models
-COPY libs/vizu_agent_framework ./libs/vizu_agent_framework
-COPY libs/vizu_prompt_management ./libs/vizu_prompt_management
-COPY libs/vizu_llm_service ./libs/vizu_llm_service
-COPY libs/vizu_tool_registry ./libs/vizu_tool_registry
-COPY libs/vizu_rag_factory ./libs/vizu_rag_factory
-COPY libs/vizu_auth ./libs/vizu_auth
-COPY libs/vizu_context_service ./libs/vizu_context_service
-COPY libs/vizu_db_connector ./libs/vizu_db_connector
-COPY libs/vizu_supabase_client ./libs/vizu_supabase_client
-COPY libs/vizu_observability_bootstrap ./libs/vizu_observability_bootstrap
-COPY libs/vizu_sql_factory ./libs/vizu_sql_factory
-COPY libs/vizu_parsers ./libs/vizu_parsers
+COPY libs/blu_models ./libs/blu_models
+COPY libs/blu_agent_framework ./libs/blu_agent_framework
+COPY libs/blu_prompt_management ./libs/blu_prompt_management
+COPY libs/blu_llm_service ./libs/blu_llm_service
+COPY libs/blu_tool_registry ./libs/blu_tool_registry
+COPY libs/blu_rag_factory ./libs/blu_rag_factory
+COPY libs/blu_auth ./libs/blu_auth
+COPY libs/blu_context_service ./libs/blu_context_service
+COPY libs/blu_db_connector ./libs/blu_db_connector
+COPY libs/blu_supabase_client ./libs/blu_supabase_client
+COPY libs/blu_observability_bootstrap ./libs/blu_observability_bootstrap
+COPY libs/blu_sql_factory ./libs/blu_sql_factory
+COPY libs/blu_parsers ./libs/blu_parsers
 
 # Copy pyproject and install deps
 COPY services/standalone_agent_api/pyproject.toml services/standalone_agent_api/poetry.lock* ./services/standalone_agent_api/
@@ -42,19 +42,19 @@ WORKDIR /app
 COPY --from=builder /app/services/standalone_agent_api/.venv /app/services/standalone_agent_api/.venv
 
 # Copy only src/ folders of libs (not pyproject.toml)
-COPY libs/vizu_models/src ./libs/vizu_models/src
-COPY libs/vizu_agent_framework/src ./libs/vizu_agent_framework/src
-COPY libs/vizu_prompt_management/src ./libs/vizu_prompt_management/src
-COPY libs/vizu_llm_service/src ./libs/vizu_llm_service/src
-COPY libs/vizu_tool_registry/src ./libs/vizu_tool_registry/src
-COPY libs/vizu_rag_factory/src ./libs/vizu_rag_factory/src
-COPY libs/vizu_auth/src ./libs/vizu_auth/src
-COPY libs/vizu_context_service/src ./libs/vizu_context_service/src
-COPY libs/vizu_db_connector/src ./libs/vizu_db_connector/src
-COPY libs/vizu_supabase_client/src ./libs/vizu_supabase_client/src
-COPY libs/vizu_observability_bootstrap/src ./libs/vizu_observability_bootstrap/src
-COPY libs/vizu_sql_factory/src ./libs/vizu_sql_factory/src
-COPY libs/vizu_parsers/src ./libs/vizu_parsers/src
+COPY libs/blu_models/src ./libs/blu_models/src
+COPY libs/blu_agent_framework/src ./libs/blu_agent_framework/src
+COPY libs/blu_prompt_management/src ./libs/blu_prompt_management/src
+COPY libs/blu_llm_service/src ./libs/blu_llm_service/src
+COPY libs/blu_tool_registry/src ./libs/blu_tool_registry/src
+COPY libs/blu_rag_factory/src ./libs/blu_rag_factory/src
+COPY libs/blu_auth/src ./libs/blu_auth/src
+COPY libs/blu_context_service/src ./libs/blu_context_service/src
+COPY libs/blu_db_connector/src ./libs/blu_db_connector/src
+COPY libs/blu_supabase_client/src ./libs/blu_supabase_client/src
+COPY libs/blu_observability_bootstrap/src ./libs/blu_observability_bootstrap/src
+COPY libs/blu_sql_factory/src ./libs/blu_sql_factory/src
+COPY libs/blu_parsers/src ./libs/blu_parsers/src
 
 # Copy service source code
 COPY services/standalone_agent_api/src ./src

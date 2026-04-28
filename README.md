@@ -1,6 +1,6 @@
-# Vizu Mono
+# Blu Mono
 
-Monorepo for Vizu platform services, shared libraries, dashboards, and infrastructure.
+Monorepo for Blu platform services, shared libraries, dashboards, and infrastructure.
 
 This repository combines:
 
@@ -12,7 +12,7 @@ This repository combines:
 
 ## What This Platform Does
 
-Vizu is a multi-tenant AI data platform focused on:
+Blu is a multi-tenant AI data platform focused on:
 
 - Data analysis workflows for business teams
 - Natural language to SQL with safety controls
@@ -26,7 +26,7 @@ Vizu is a multi-tenant AI data platform focused on:
 apps/
   hitl_dashboard/         Streamlit app for human-in-the-loop operations
   landing/                Landing web app
-  vizu_dashboard/         Main React dashboard
+  blu_dashboard/         Main React dashboard
 
 services/
   atendente_core/         Main orchestration API (LangGraph-based)
@@ -35,26 +35,26 @@ services/
   tool_pool_api/          MCP tool server API
 
 libs/
-  vizu_agent_framework/
-  vizu_auth/
-  vizu_context_service/
-  vizu_data_connectors/
-  vizu_db_connector/
-  vizu_elicitation_service/
-  vizu_experiment_service/
-  vizu_google_suite_client/
-  vizu_hitl_service/
-  vizu_llm_service/
-  vizu_models/
-  vizu_observability_bootstrap/
-  vizu_parsers/
-  vizu_prompt_management/
-  vizu_rag_factory/
-  vizu_shared_utils/
-  vizu_sql_factory/
-  vizu_supabase_client/
-  vizu_tool_registry/
-  vizu_twilio_client/
+  blu_agent_framework/
+  blu_auth/
+  blu_context_service/
+  blu_data_connectors/
+  blu_db_connector/
+  blu_elicitation_service/
+  blu_experiment_service/
+  blu_google_suite_client/
+  blu_hitl_service/
+  blu_llm_service/
+  blu_models/
+  blu_observability_bootstrap/
+  blu_parsers/
+  blu_prompt_management/
+  blu_rag_factory/
+  blu_shared_utils/
+  blu_sql_factory/
+  blu_supabase_client/
+  blu_tool_registry/
+  blu_twilio_client/
 
 supabase/
   migrations/             SQL migrations
@@ -194,7 +194,7 @@ Run `make help` for the full command catalog.
 ## Working with Supabase
 
 - SQL migrations live in `supabase/migrations`.
-- Additional migration support exists in `libs/vizu_db_connector/alembic`.
+- Additional migration support exists in `libs/blu_db_connector/alembic`.
 - Root `supabase/config.toml` and `supabase/seed.sql` support local/managed workflows.
 
 ## Running Observability Components

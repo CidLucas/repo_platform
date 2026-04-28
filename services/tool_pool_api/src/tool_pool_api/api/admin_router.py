@@ -1,7 +1,7 @@
 """
 Admin API Router for Client Management.
 
-Provides CRUD endpoints for managing cliente_vizu records.
+Provides CRUD endpoints for managing cliente_blu records.
 Protected by JWT authentication - requires ADMIN tier.
 """
 
@@ -13,12 +13,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
-from vizu_auth.core.exceptions import AuthError, InvalidTokenError, TokenExpiredError
-from vizu_auth.core.jwt_decoder import decode_jwt
-from vizu_supabase_client import get_supabase_client
-from vizu_supabase_client.crud import SupabaseCRUD, get_crud
-from vizu_tool_registry.registry import ToolRegistry
-from vizu_tool_registry.tool_metadata import TierLevel
+from blu_auth.core.exceptions import AuthError, InvalidTokenError, TokenExpiredError
+from blu_auth.core.jwt_decoder import decode_jwt
+from blu_supabase_client import get_supabase_client
+from blu_supabase_client.crud import SupabaseCRUD, get_crud
+from blu_tool_registry.registry import ToolRegistry
+from blu_tool_registry.tool_metadata import TierLevel
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ async def verify_admin_access(
         is_jwt_admin = isinstance(app_metadata, dict) and app_metadata.get("role") == "admin"
 
         # Look up client by external_user_id (JWT sub = Supabase auth UUID)
-        client_data = crud.get_cliente_vizu_by_external_user_id(auth_user_id)
+        client_data = crud.get_cliente_blu_by_external_user_id(auth_user_id)
         if not client_data:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -271,12 +271,12 @@ async def create_client(
     crud: SupabaseCRUD = Depends(get_crud),
 ):
     """
-    Create a new cliente_vizu in the database.
+    Create a new cliente_blu in the database.
     """
     # Build data dict (exclude None values)
     data = payload.model_dump(exclude_none=True)
 
-    result = crud.create_cliente_vizu(data)
+    result = crud.create_cliente_blu(data)
 
     if not result:
         raise HTTPException(
@@ -300,9 +300,9 @@ async def list_clients(
     crud: SupabaseCRUD = Depends(get_crud),
 ):
     """
-    List all clientes_vizu with pagination.
+    List all clientes_blu with pagination.
     """
-    clients = crud.list_clientes_vizu(limit=limit, offset=offset)
+    clients = crud.list_clientes_blu(limit=limit, offset=offset)
 
     return ClientListResponse(
         clients=[_dict_to_response(c) for c in clients],
@@ -327,7 +327,7 @@ async def get_activation_funnel(
     now = datetime.now(UTC)
 
     tenants_rows = (
-        db.table("clientes_vizu")
+        db.table("clientes_blu")
         .select("client_id,nome_empresa,created_at,onboarding_state")
         .order("created_at", desc=True)
         .limit(limit)
@@ -440,9 +440,9 @@ async def get_client(
     crud: SupabaseCRUD = Depends(get_crud),
 ):
     """
-    Get a single cliente_vizu by ID.
+    Get a single cliente_blu by ID.
     """
-    result = crud.get_cliente_vizu_by_id(client_id)
+    result = crud.get_cliente_blu_by_id(client_id)
 
     if not result:
         raise HTTPException(
@@ -465,10 +465,10 @@ async def update_client(
     crud: SupabaseCRUD = Depends(get_crud),
 ):
     """
-    Update a cliente_vizu. Only provided fields will be updated.
+    Update a cliente_blu. Only provided fields will be updated.
     """
     # First, check if client exists
-    existing = crud.get_cliente_vizu_by_id(client_id)
+    existing = crud.get_cliente_blu_by_id(client_id)
     if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -482,7 +482,7 @@ async def update_client(
         # Nothing to update
         return _dict_to_response(existing)
 
-    result = crud.update_cliente_vizu(client_id, data)
+    result = crud.update_cliente_blu(client_id, data)
 
     if not result:
         raise HTTPException(
@@ -505,19 +505,19 @@ async def delete_client(
     crud: SupabaseCRUD = Depends(get_crud),
 ):
     """
-    Delete a cliente_vizu by ID.
+    Delete a cliente_blu by ID.
 
     WARNING: This is a hard delete. Consider soft delete in production.
     """
     # Check if exists first
-    existing = crud.get_cliente_vizu_by_id(client_id)
+    existing = crud.get_cliente_blu_by_id(client_id)
     if not existing:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Client not found: {client_id}",
         )
 
-    success = crud.delete_cliente_vizu(client_id)
+    success = crud.delete_cliente_blu(client_id)
 
     if not success:
         raise HTTPException(

@@ -32,13 +32,13 @@ import sys
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT_DIR / "libs" / "vizu_supabase_client" / "src"))
+sys.path.insert(0, str(ROOT_DIR / "libs" / "blu_supabase_client" / "src"))
 
 from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv(ROOT_DIR / ".env")
 
-from vizu_supabase_client import get_supabase_client  # noqa: E402
+from blu_supabase_client import get_supabase_client  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)

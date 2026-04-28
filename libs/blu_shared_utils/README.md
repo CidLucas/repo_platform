@@ -1,0 +1,12 @@
+# Blu Shared Utils
+
+This library provides a collection of shared utility functions for the Blu application.
+
+## Overview
+
+The Blu Shared Utils library contains functions for common tasks such as data transformation, normalization, and other utilities. It is used by various services in the Blu monorepo to avoid code duplication and promote code reuse.
+
+### Key Technologies
+
+- **Data Manipulation:** Pandas
+- **Package Manager:** Poetry

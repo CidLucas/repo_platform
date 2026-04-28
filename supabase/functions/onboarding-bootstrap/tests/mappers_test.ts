@@ -13,7 +13,6 @@ import {
   mapBusinessDNAToCompanyProfile,
   mapContactToTeamStructure,
   mapRulesToPolicies,
-  mapStateToCurrentMoment,
   type OnboardingState,
 } from "../mappers.ts";
 
@@ -83,39 +82,3 @@ Deno.test("mapRulesToPolicies partitions approval vs autonomous", () => {
   assert(!appr.autonomous.includes("Realizar pagamentos"));
 });
 
-Deno.test("mapStateToCurrentMoment records systems + agents priorities", () => {
-  const out = mapStateToCurrentMoment(BASE);
-  const priorities = out.current_priorities ?? [];
-  assert(
-    priorities.some((p) =>
-      p.includes("Integrar sistemas operacionais: shopify, bigquery")
-    ),
-  );
-  assert(priorities.some((p) => p.includes("Ativar agentes: analytics, crm")));
-  assert(typeof out.last_updated === "string");
-});
-
-Deno.test("mapStateToCurrentMoment emits files/scratch labels", () => {
-  const filesOut = mapStateToCurrentMoment({
-    ...BASE,
-    dataPath: "files",
-    systems: [],
-    agents: [],
-  });
-  assert(
-    filesOut.current_priorities!.includes(
-      "Operar a partir de planilhas e documentos",
-    ),
-  );
-  const scratchOut = mapStateToCurrentMoment({
-    ...BASE,
-    dataPath: "scratch",
-    systems: [],
-    agents: [],
-  });
-  assert(
-    scratchOut.current_priorities!.includes(
-      "Começar a estruturar dados do zero",
-    ),
-  );
-});

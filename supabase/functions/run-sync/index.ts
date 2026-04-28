@@ -71,11 +71,11 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Ownership check ──
-    // clientes_vizu.client_id is UUID while reg_jobs.client_id is TEXT.
+    // clientes_blu.client_id is UUID while reg_jobs.client_id is TEXT.
     // Query by user first, then compare IDs in application code to avoid
     // Postgres uuid=text operator mismatch.
     const { data: userClients, error: userClientsError } = await supabase
-      .from("clientes_vizu")
+      .from("clientes_blu")
       .select("client_id")
       .eq("external_user_id", userId);
 

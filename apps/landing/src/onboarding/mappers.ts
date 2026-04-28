@@ -15,13 +15,12 @@
 import type { OnboardingState, Vertical } from "./state";
 import type {
   CompanyProfile,
-  CurrentMoment,
   Policies,
   TeamStructure,
 } from "./types";
 
 // Labels used in Context 2.0 industry field. Keep in sync with
-// libs/vizu_models/src/vizu_models/context_schemas.py (free-form string,
+// libs/blu_models/src/blu_models/context_schemas.py (free-form string,
 // but these match the landing's vertical enum 1:1).
 const VERTICAL_LABEL: Record<Exclude<Vertical, null>, string> = {
   ecommerce: "E-commerce / Varejo",
@@ -146,32 +145,3 @@ export function mapRulesToPolicies(state: OnboardingState): Partial<Policies> {
  * DataFork + agents -> CurrentMoment seed. We only populate what the
  * wizard actually collected so the agent context reflects real answers.
  */
-export function mapStateToCurrentMoment(
-  state: OnboardingState,
-): Partial<CurrentMoment> {
-  const priorities: string[] = [];
-  if (state.dataPath === "systems" && state.systems.length > 0) {
-    priorities.push(
-      `Integrar sistemas operacionais: ${state.systems.join(", ")}`,
-    );
-  }
-  if (state.dataPath === "files") {
-    priorities.push("Operar a partir de planilhas e documentos");
-  }
-  if (state.dataPath === "scratch") {
-    priorities.push("Começar a estruturar dados do zero");
-  }
-  if (state.agents.length > 0) {
-    priorities.push(`Ativar agentes: ${state.agents.join(", ")}`);
-  }
-
-  return {
-    current_priorities: priorities,
-    current_challenges: [],
-    recent_wins: [],
-    key_metrics: {},
-    active_campaigns: [],
-    upcoming_events: [],
-    last_updated: new Date().toISOString(),
-  };
-}

@@ -5,7 +5,7 @@ Resources são diferentes de Tools:
 - Tools: executam ações (RAG search, SQL query)
 - Resources: expõem dados estáticos/semi-estáticos (knowledge base, config, prompts)
 
-Phase 3: Refactored to use vizu_tool_registry for dynamic tool filtering.
+Phase 3: Refactored to use blu_tool_registry for dynamic tool filtering.
 Phase 4: Prompts now use Langfuse-first strategy via PromptLoader.
 
 Referência: https://fastmcp.mintlify.app/servers/resources
@@ -26,14 +26,14 @@ from tool_pool_api.server.dependencies import (
 from tool_pool_api.server.tool_helpers import (
     get_tier_for_context,
 )
-from vizu_db_connector.database import SessionLocal
-from vizu_models import KnowledgeBaseConfig, PromptTemplate
-from vizu_models.vizu_client_context import VizuClientContext
-from vizu_prompt_management import PromptLoader
-from vizu_supabase_client import get_supabase_client
+from blu_db_connector.database import SessionLocal
+from blu_models import KnowledgeBaseConfig, PromptTemplate
+from blu_models.blu_client_context import BluClientContext
+from blu_prompt_management import PromptLoader
+from blu_supabase_client import get_supabase_client
 
-# Phase 3: Use vizu_tool_registry for dynamic tool filtering
-from vizu_tool_registry import ToolRegistry
+# Phase 3: Use blu_tool_registry for dynamic tool filtering
+from blu_tool_registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 async def _resolve_client_context(
     cliente_id: str | None = None,
-) -> VizuClientContext:
+) -> BluClientContext:
     """
     Resolve o contexto do cliente via ID explícito ou AccessToken do MCP.
 
@@ -53,7 +53,7 @@ async def _resolve_client_context(
         cliente_id: ID do cliente (opcional, usado pelo atendente_core)
 
     Returns:
-        VizuClientContext do cliente
+        BluClientContext do cliente
 
     Raises:
         ResourceError: Se não conseguir resolver o contexto
@@ -238,7 +238,7 @@ async def _get_client_config(cliente_id: str | None = None) -> str:
     """
     Retorna a configuração do cliente em formato legível.
 
-    Phase 3: Uses vizu_tool_registry for dynamic tool information.
+    Phase 3: Uses blu_tool_registry for dynamic tool information.
 
     Inclui:
     - Nome da empresa

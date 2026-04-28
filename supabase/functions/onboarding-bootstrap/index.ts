@@ -20,7 +20,6 @@ import {
   mapBusinessDNAToCompanyProfile,
   mapContactToTeamStructure,
   mapRulesToPolicies,
-  mapStateToCurrentMoment,
   type OnboardingState,
 } from "./mappers.ts";
 
@@ -205,7 +204,6 @@ Deno.serve(async (req: Request) => {
     // ── Build bootstrap payload (Context 2.0 sections + agents/routines) ──
     const payload = {
       company_profile: mapBusinessDNAToCompanyProfile(state),
-      current_moment: mapStateToCurrentMoment(state),
       team_structure: mapContactToTeamStructure(state),
       policies: mapRulesToPolicies(state),
       agents: Array.isArray(state.agents) ? state.agents : [],

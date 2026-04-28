@@ -5,13 +5,13 @@ description: Comprehensive backend development skill for building scalable backe
 
 # Senior Backend
 
-Repo-adapted backend guidance for `vizu-mono`.
+Repo-adapted backend guidance for `blu-mono`.
 
 This skill is tuned to the backend patterns that actually appear in this monorepo today:
 
 - Python-first backend services with FastAPI
 - Supabase/Postgres as the main data boundary
-- JWT auth through `vizu_auth`
+- JWT auth through `blu_auth`
 - RLS-aware reads plus service-role bypass where appropriate
 - analytics-heavy SQL exposed through RPCs and views
 - shared libraries under `libs/`
@@ -52,10 +52,10 @@ Use this skill when you are:
 
 ### Cross-cutting concerns
 
-- `vizu_observability_bootstrap` is the standard observability entrypoint when available
+- `blu_observability_bootstrap` is the standard observability entrypoint when available
 - Database timeout middleware is used in at least `atendente_core` and `tool_pool_api`
-- JWT validation is centralized through `vizu_auth`
-- Shared DB/context helpers live in `vizu_supabase_client`, `vizu_context_service`, and `vizu_db_connector`
+- JWT validation is centralized through `blu_auth`
+- Shared DB/context helpers live in `blu_supabase_client`, `blu_context_service`, and `blu_db_connector`
 
 ## How To Use This Skill In This Repo
 
@@ -79,7 +79,7 @@ Use this skill when you are:
 
 ### Api Design Patterns
 
-See `references/api_design_patterns.md` for concrete service and library patterns in `vizu-mono`.
+See `references/api_design_patterns.md` for concrete service and library patterns in `blu-mono`.
 
 ### Database Optimization Guide
 
@@ -95,8 +95,8 @@ See `references/backend_security_practices.md` for repo-specific auth, RLS, inte
 **HTTP framework:** FastAPI
 **Database platform:** Supabase/Postgres
 **ORM / DB access:** SQLAlchemy/SQLModel in some services, Supabase client wrappers in others
-**Auth:** JWT via `vizu_auth`
-**Observability:** `vizu_observability_bootstrap`, OTLP, Langfuse in selected flows
+**Auth:** JWT via `blu_auth`
+**Observability:** `blu_observability_bootstrap`, OTLP, Langfuse in selected flows
 **Agent orchestration:** LangGraph/LangChain in `atendente_core`
 **Tool protocol:** MCP in `tool_pool_api`
 **Async integrations:** Google suite clients, Twilio, background async tasks

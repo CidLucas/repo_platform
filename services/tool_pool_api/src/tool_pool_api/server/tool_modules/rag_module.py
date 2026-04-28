@@ -4,7 +4,7 @@ Módulo RAG - Ferramentas de Retrieval-Augmented Generation
 
 Este módulo contém tools para busca em bases de conhecimento dos clientes.
 
-Phase 3: Updated to use vizu_tool_registry for tool validation.
+Phase 3: Updated to use blu_tool_registry for tool validation.
 """
 
 import logging
@@ -17,8 +17,8 @@ from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.dependencies import get_context_service
 from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
-from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
-from vizu_models.vizu_client_context import VizuClientContext
+from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_models.blu_client_context import BluClientContext
 
 from . import register_module
 
@@ -84,9 +84,9 @@ async def _executar_rag_cliente_logic(
         logger.exception(f"Erro ao obter serviço de contexto: {e}")
         raise ToolError(f"Erro interno no serviço de ferramentas: {type(e).__name__}: {e}")
 
-    # 2. Resolver o Contexto Vizu
+    # 2. Resolver o Contexto Blu
     # Priority: 1) cliente_id param, 2) request meta, 3) access token
-    vizu_context: VizuClientContext | None = None
+    blu_context: BluClientContext | None = None
 
     # Try to get cliente_id and document_ids from request meta (passed by atendente_core via _meta)
     document_ids: list[str] | None = None
@@ -113,16 +113,16 @@ async def _executar_rag_cliente_logic(
             except ValueError:
                 raise ToolError(f"ID de cliente inválido: {cliente_id}")
 
-            vizu_context = await ctx_service.get_client_context_by_id(uuid_obj)
+            blu_context = await ctx_service.get_client_context_by_id(uuid_obj)
 
-            if not vizu_context:
+            if not blu_context:
                 raise ToolError(f"Contexto não encontrado para o ID: {cliente_id}")
 
         else:
             # Fallback to JWT auth (direct API calls)
-            # Uses vizu_auth for token validation from MCP request headers
+            # Uses blu_auth for token validation from MCP request headers
             jwt_claims = server_tools.get_jwt_claims_from_mcp()
-            vizu_context = await server_tools.load_context_from_jwt_claims(ctx_service, jwt_claims)
+            blu_context = await server_tools.load_context_from_jwt_claims(ctx_service, jwt_claims)
 
     except ToolError as e:
         logger.warning(f"[RAG] Falha na autorização: {e}")
@@ -132,10 +132,10 @@ async def _executar_rag_cliente_logic(
         raise ToolError("Erro interno ao carregar contexto do cliente.")
 
     # 3. Validations - Using ToolRegistry (Phase 3)
-    real_client_id = vizu_context.id
+    real_client_id = blu_context.id
     logger.info(f"[RAG] Executando para cliente {real_client_id}...")
 
-    if not is_tool_accessible_by_tier("executar_rag_cliente", vizu_context):
+    if not is_tool_accessible_by_tier("executar_rag_cliente", blu_context):
         logger.warning(f"[RAG] Ferramenta desabilitada para {real_client_id}.")
         raise ToolError("Ferramenta RAG não está habilitada para este cliente.")
 
@@ -144,7 +144,7 @@ async def _executar_rag_cliente_logic(
     # eliminating one redundant DEFAULT-tier LLM call per RAG query.
     try:
         rag_retriever = await server_tools.create_rag_retriever(
-            vizu_context, document_ids=document_ids
+            blu_context, document_ids=document_ids
         )
 
         if not rag_retriever:

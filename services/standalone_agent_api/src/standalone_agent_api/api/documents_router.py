@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from standalone_agent_api.api.auth import AuthResult, get_auth_result
 from standalone_agent_api.core.factory import get_factory
 from standalone_agent_api.core.service import SessionService
-from vizu_supabase_client import get_storage, get_supabase_client
+from blu_supabase_client import get_storage, get_supabase_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

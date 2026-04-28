@@ -7,7 +7,7 @@ All 16 tests pass (down from 49 — dead code removed). Below is every issue dis
 ## Issues Fixed (Round 1 — Bug Fixes)
 
 ### 1. Wrong import module
-- **Fix**: `vizu_db_connector.supabase` → `vizu_supabase_client`
+- **Fix**: `blu_db_connector.supabase` → `blu_supabase_client`
 
 ### 2. Missing test fixtures
 - **Fix**: Created `tests/conftest.py` with `client_id` fixture.
@@ -19,10 +19,10 @@ All 16 tests pass (down from 49 — dead code removed). Below is every issue dis
 - **Fix**: Removed all `await` from `db.table()` chains (24 occurrences).
 
 ### 5. FK constraint — fake client IDs
-- **Fix**: Used real `client_id` from `clientes_vizu`.
+- **Fix**: Used real `client_id` from `clientes_blu`.
 
 ### 6. Column name mismatches — `uploaded_files_metadata`
-- **Fix**: `client_id` → `cliente_vizu_id`, `file_size` → `file_size_bytes`.
+- **Fix**: `client_id` → `cliente_blu_id`, `file_size` → `file_size_bytes`.
 
 ### 7. Schema access API — `vector_db.documents`
 - **Fix**: `db.table("documents", schema="vector_db")` → `db.schema("vector_db").table("documents")`.
@@ -62,8 +62,8 @@ All 16 tests pass (down from 49 — dead code removed). Below is every issue dis
 - **Fix**: Removed from knowledge_assistant test.
 
 ### 17. Migration files don't match production schema
-- **Symptom**: `20260105_create_uploaded_files_metadata.sql` used `client_id REFERENCES clientes_vizu(id)` but production has `cliente_vizu_id REFERENCES clientes_vizu(client_id)`. Had extra `content_type` column and wrong `storage_bucket` default.
-- **Fix**: Updated both migration files to match production: corrected FK column names, references, removed `content_type`, fixed `'file-uploads'` → `'vizu-uploads'`, fixed RLS policies.
+- **Symptom**: `20260105_create_uploaded_files_metadata.sql` used `client_id REFERENCES clientes_blu(id)` but production has `cliente_blu_id REFERENCES clientes_blu(client_id)`. Had extra `content_type` column and wrong `storage_bucket` default.
+- **Fix**: Updated both migration files to match production: corrected FK column names, references, removed `content_type`, fixed `'file-uploads'` → `'blu-uploads'`, fixed RLS policies.
 
 ### 18. Dead Phase 8 documentation files
 - **Fix**: Deleted `PHASE_8_QUICK_REFERENCE.md`, `PHASE_8_SUMMARY.md`, `PHASE_8_TEST_EXECUTION_GUIDE.md`, and `tests/PHASE_8_INTEGRATION_CHECKLIST.md` (~1,716 lines total, all outdated after rewrites).

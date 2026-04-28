@@ -32,10 +32,10 @@ from tool_pool_api.server.dependencies import (
     get_context_service,
     load_context_from_token,
 )
-from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
-from vizu_llm_service import ModelTier, get_model
-from vizu_models.enums import ContextSection
-from vizu_models.vizu_client_context import VizuClientContext
+from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_llm_service import ModelTier, get_model
+from blu_models.enums import ContextSection
+from blu_models.blu_client_context import BluClientContext
 
 from . import register_module
 
@@ -268,7 +268,7 @@ VIEWS:
 """
 
 
-def _build_context_guidance(vizu_context: VizuClientContext) -> str:
+def _build_context_guidance(blu_context: BluClientContext) -> str:
     """
     Build context-aware guidance for SQL generation using Context 2.0 sections.
 
@@ -283,7 +283,7 @@ def _build_context_guidance(vizu_context: VizuClientContext) -> str:
     guidance_parts = []
 
     # Extract company context for industry understanding
-    company = vizu_context.company_profile
+    company = blu_context.company_profile
     if company:
         industry = company.get("industry", "")
         business_type = company.get("business_archetype", "")
@@ -293,7 +293,7 @@ def _build_context_guidance(vizu_context: VizuClientContext) -> str:
             )
 
     # Extract data schema guidance
-    data_schema = vizu_context.data_schema
+    data_schema = blu_context.data_schema
     if data_schema:
         key_metrics = data_schema.get("key_metrics", [])
         if key_metrics:
@@ -308,7 +308,7 @@ def _build_context_guidance(vizu_context: VizuClientContext) -> str:
             guidance_parts.append(f"DATA NOTES: {data_notes}")
 
     # Extract policies for data handling
-    policies = vizu_context.policies
+    policies = blu_context.policies
     if policies:
         data_rules = policies.get("data_handling_rules", [])
         if data_rules:
@@ -469,9 +469,9 @@ async def _executar_sql_agent_logic(
         # Include cause in error for better debugging
         raise ToolError(f"Erro interno no serviço de ferramentas: {type(e).__name__}: {e}")
 
-    # 2. Resolver o Contexto Vizu
+    # 2. Resolver o Contexto Blu
     # Priority: 1) cliente_id param (injected by decorator), 2) access token
-    vizu_context: VizuClientContext | None = None
+    blu_context: BluClientContext | None = None
 
     try:
         if cliente_id:
@@ -481,14 +481,14 @@ async def _executar_sql_agent_logic(
             except ValueError:
                 raise ToolError(f"ID de cliente inválido: {cliente_id}")
 
-            vizu_context = await ctx_service.get_client_context_by_id(uuid_obj)
+            blu_context = await ctx_service.get_client_context_by_id(uuid_obj)
 
-            if not vizu_context:
+            if not blu_context:
                 raise ToolError(f"Contexto não encontrado para o ID: {cliente_id}")
         else:
             # Fallback to FastMCP access token (direct API calls)
             access_token: AccessToken | None = get_access_token()
-            vizu_context = await load_context_from_token(ctx_service, access_token)
+            blu_context = await load_context_from_token(ctx_service, access_token)
 
     except ToolError as e:
         logger.warning(f"[SQL] Falha na autorização: {e}")
@@ -498,10 +498,10 @@ async def _executar_sql_agent_logic(
         raise ToolError("Erro interno ao carregar contexto do cliente.")
 
     # 3. Validations - Using ToolRegistry (Phase 3)
-    real_client_id = vizu_context.id
+    real_client_id = blu_context.id
     logger.info(f"[SQL] Executando para {real_client_id}...")
 
-    if not is_tool_accessible_by_tier("executar_sql_agent", vizu_context):
+    if not is_tool_accessible_by_tier("executar_sql_agent", blu_context):
         logger.warning(f"[SQL] Ferramenta desabilitada para {real_client_id}.")
         raise ToolError("Ferramenta SQL não está habilitada para este cliente.")
 
@@ -512,7 +512,7 @@ async def _executar_sql_agent_logic(
         from langchain_core.messages import SystemMessage
         from sqlalchemy import text as sa_text
 
-        from vizu_sql_factory.factory import get_shared_engine
+        from blu_sql_factory.factory import get_shared_engine
 
         llm = get_model(
             tier=ModelTier.DEFAULT,
@@ -530,7 +530,7 @@ async def _executar_sql_agent_logic(
         )
 
         # Context 2.0: Get client-specific guidance from context sections
-        context_guidance = _build_context_guidance(vizu_context)
+        context_guidance = _build_context_guidance(blu_context)
 
         logger.debug(f"[SQL] Schema loaded in {(time.perf_counter() - schema_start) * 1000:.1f}ms")
 
@@ -549,7 +549,7 @@ async def _executar_sql_agent_logic(
         # SECURITY: LLM should NOT see or handle client_id, UUIDs, or sensitive identifiers
         # The client_id filter is HARD-INJECTED after SQL generation
         # Prompt loaded from Langfuse (with Redis cache) → builtin fallback
-        from vizu_prompt_management import build_prompt as _build_prompt
+        from blu_prompt_management import build_prompt as _build_prompt
 
         sql_generation_prompt = await _build_prompt(
             name="tool/sql-generation",
@@ -696,7 +696,7 @@ async def _executar_sql_agent_logic(
                 # The cache ref_id allows retrieval for exports without
                 # storing massive datasets in conversation history
                 try:
-                    from vizu_context_service.tool_cache import get_tool_cache
+                    from blu_context_service.tool_cache import get_tool_cache
 
                     cache = get_tool_cache()
                     session_id = ctx.request_context.lifespan_context.get("session_id", "default")
@@ -728,7 +728,7 @@ async def _executar_sql_agent_logic(
                 logger.debug(f"[SQL] Query executed in {exec_duration:.1f}ms")
 
                 # Flush Langfuse traces before returning
-                from vizu_observability_bootstrap.langfuse import flush_langfuse_async
+                from blu_observability_bootstrap.langfuse import flush_langfuse_async
 
                 await flush_langfuse_async()
 
@@ -746,7 +746,7 @@ async def _executar_sql_agent_logic(
             logger.error(f"[SQL] Execution error: {exec_error}")
 
             # Flush Langfuse traces before returning error
-            from vizu_observability_bootstrap.langfuse import flush_langfuse_async
+            from blu_observability_bootstrap.langfuse import flush_langfuse_async
 
             await flush_langfuse_async()
 
@@ -761,7 +761,7 @@ async def _executar_sql_agent_logic(
         logger.exception(f"[SQL] Erro ao executar para {real_client_id}: {e}")
 
         # Flush Langfuse traces before raising error
-        from vizu_observability_bootstrap.langfuse import flush_langfuse_async
+        from blu_observability_bootstrap.langfuse import flush_langfuse_async
 
         await flush_langfuse_async()
 
@@ -806,7 +806,7 @@ async def _execute_sql_logic(
         raise ToolError(f"Internal error: {type(e).__name__}: {e}")
 
     # 2. Resolve client context
-    vizu_context: VizuClientContext | None = None
+    blu_context: BluClientContext | None = None
 
     try:
         if cliente_id:
@@ -816,14 +816,14 @@ async def _execute_sql_logic(
             except ValueError:
                 raise ToolError(f"Invalid client ID: {cliente_id}")
 
-            vizu_context = await ctx_service.get_client_context_by_id(uuid_obj)
+            blu_context = await ctx_service.get_client_context_by_id(uuid_obj)
 
-            if not vizu_context:
+            if not blu_context:
                 raise ToolError(f"Context not found for ID: {cliente_id}")
         else:
             # Fallback to FastMCP access token
             access_token: AccessToken | None = get_access_token()
-            vizu_context = await load_context_from_token(ctx_service, access_token)
+            blu_context = await load_context_from_token(ctx_service, access_token)
 
     except ToolError:
         raise
@@ -831,13 +831,13 @@ async def _execute_sql_logic(
         logger.exception(f"[execute_sql] Unexpected context error: {e}")
         raise ToolError("Internal error loading client context.")
 
-    real_client_id = vizu_context.id
+    real_client_id = blu_context.id
     logger.info(f"[execute_sql] Executing for client {real_client_id}")
 
     # 3. Tool access validation
-    if not is_tool_accessible_by_tier("execute_sql", vizu_context):
+    if not is_tool_accessible_by_tier("execute_sql", blu_context):
         # Fallback: check if executar_sql_agent is enabled (same tier)
-        if not is_tool_accessible_by_tier("executar_sql_agent", vizu_context):
+        if not is_tool_accessible_by_tier("executar_sql_agent", blu_context):
             logger.warning(f"[execute_sql] Tool disabled for {real_client_id}")
             raise ToolError("SQL tools are not enabled for this client.")
 
@@ -898,7 +898,7 @@ async def _execute_sql_logic(
     try:
         from sqlalchemy import text as sa_text
 
-        from vizu_sql_factory.factory import get_shared_engine
+        from blu_sql_factory.factory import get_shared_engine
 
         from .structured_data_formatter import format_sql_result
 
@@ -942,7 +942,7 @@ async def _execute_sql_logic(
 
             # Cache full result for exports
             try:
-                from vizu_context_service.tool_cache import get_tool_cache
+                from blu_context_service.tool_cache import get_tool_cache
 
                 cache = get_tool_cache()
                 session_id = ctx.request_context.lifespan_context.get("session_id", "default")

@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from vizu_google_suite_client.docs.client import GoogleDocsClient
-from vizu_google_suite_client.docs.models import DocReadResult, DocWriteResult
+from blu_google_suite_client.docs.client import GoogleDocsClient
+from blu_google_suite_client.docs.models import DocReadResult, DocWriteResult
 
 
 @pytest.fixture

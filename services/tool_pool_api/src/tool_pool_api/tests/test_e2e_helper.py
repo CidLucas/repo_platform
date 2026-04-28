@@ -9,9 +9,9 @@ from redis import Redis
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from vizu_auth.oauth2.models import TokenResponse
-from vizu_context_service.context_service import ContextService
-from vizu_context_service.redis_service import RedisService
+from blu_auth.oauth2.models import TokenResponse
+from blu_context_service.context_service import ContextService
+from blu_context_service.redis_service import RedisService
 
 
 async def main():
@@ -28,7 +28,7 @@ async def main():
 
     # SQLAlchemy session to local Postgres (compose service)
     # Force the compose service hostname to ensure the container connects to the Postgres service
-    DATABASE_URL = "postgresql://user:password@postgres:5432/vizu_db"
+    DATABASE_URL = "postgresql://user:password@postgres:5432/blu_db"
     engine = create_engine(DATABASE_URL)
     SessionLocal = sessionmaker(bind=engine)
     db_session = SessionLocal()
@@ -36,12 +36,12 @@ async def main():
     # Instantiate ContextService using the SQLAlchemy backend
     ctx = ContextService(cache_service=cache, db_session=db_session, use_supabase=False)
 
-    # Try to pick an existing cliente_vizu ID from the database (required by FK)
+    # Try to pick an existing cliente_blu ID from the database (required by FK)
     from sqlalchemy import text
 
-    row = db_session.execute(text("SELECT id FROM cliente_vizu LIMIT 1")).fetchone()
+    row = db_session.execute(text("SELECT id FROM cliente_blu LIMIT 1")).fetchone()
     if not row:
-        print("No existing cliente_vizu found in DB. Please seed a client first.")
+        print("No existing cliente_blu found in DB. Please seed a client first.")
         return
 
     cliente_id = uuid.UUID(row[0]) if isinstance(row[0], str) else row[0]

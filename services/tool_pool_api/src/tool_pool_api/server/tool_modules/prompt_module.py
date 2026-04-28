@@ -12,7 +12,7 @@ Key advantages over tool-based approach:
 - Better client integration
 
 Singleton patterns:
-- PromptLoader: Shared via get_prompt_loader() from vizu_prompt_management
+- PromptLoader: Shared via get_prompt_loader() from blu_prompt_management
 - ContextService: Uses singleton Redis pool and Supabase client
 """
 
@@ -22,8 +22,8 @@ from fastmcp import Context, FastMCP
 from fastmcp.prompts import Message
 
 from tool_pool_api.server.dependencies import get_context_service
-from vizu_prompt_management import build_prompt as _build_prompt
-from vizu_prompt_management import get_prompt_loader
+from blu_prompt_management import build_prompt as _build_prompt
+from blu_prompt_management import get_prompt_loader
 
 from . import register_module
 

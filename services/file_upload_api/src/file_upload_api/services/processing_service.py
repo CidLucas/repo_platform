@@ -1,6 +1,6 @@
 """Service for processing complex files (docling) that are already in Supabase Storage.
 
-Downloads the file from Storage → parses with vizu_parsers (docling for complex
+Downloads the file from Storage → parses with blu_parsers (docling for complex
 formats) → chunks → inserts into vector_db.document_chunks (without embedding).
 The pgmq queue + embed Edge Function handles embedding asynchronously.
 """
@@ -8,9 +8,9 @@ The pgmq queue + embed Edge Function handles embedding asynchronously.
 import logging
 from io import BytesIO
 
-from vizu_parsers.chunker.models import Chunk
-from vizu_parsers.pipeline import parse_and_chunk
-from vizu_supabase_client import get_storage, get_supabase_client
+from blu_parsers.chunker.models import Chunk
+from blu_parsers.pipeline import parse_and_chunk
+from blu_supabase_client import get_storage, get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ class DocumentProcessingService:
         Pipeline:
         1. Update document status to 'processing'
         2. Download file from Supabase Storage
-        3. Parse and chunk using vizu_parsers (docling for complex formats)
+        3. Parse and chunk using blu_parsers (docling for complex formats)
         4. Batch insert chunks into vector_db.document_chunks (no embedding)
         5. Update document status to 'completed'
 

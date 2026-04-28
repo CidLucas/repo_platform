@@ -3,7 +3,7 @@
 > **Status:** Implemented (Phases 1–6 landed 2026-04-23/24).
 > **Plan of record:** [`docs/plans/2026-04-23-landing-onboarding-wireup.md`](./plans/2026-04-23-landing-onboarding-wireup.md)
 
-This document is the **one-stop reference** for how the landing onboarding wizard turns a fresh signup into a fully provisioned Vizu tenant. It maps every moving piece — UI step → service call → SQL/edge-function artefact → downstream consumer — so engineers extending the flow know exactly where to hook in.
+This document is the **one-stop reference** for how the landing onboarding wizard turns a fresh signup into a fully provisioned Blu tenant. It maps every moving piece — UI step → service call → SQL/edge-function artefact → downstream consumer — so engineers extending the flow know exactly where to hook in.
 
 ---
 
@@ -22,19 +22,18 @@ This document is the **one-stop reference** for how the landing onboarding wizar
                 └─────┼────────────────────────┬────────┼─────────────────────┬─────────┘
                       │                        │        │                     │
                       ▼                        ▼        ▼                     ▼
-                 auth.users              clientes_vizu   integration_tokens   client_enabled_agents
+                 auth.users              clientes_blu   integration_tokens   client_enabled_agents
                    (trigger)              .onboarding_state                   client_routines
-                      │                   .company_profile                    clientes_vizu.*
+                      │                   .company_profile                    clientes_blu.*
                       ▼                   .team_structure                     (Langfuse prompts)
-             clientes_vizu (stub)         .policies
-                                          .current_moment
+             clientes_blu (stub)         .policies
                                           .nome_empresa
                                           .onboarding_completed_at
 ```
 
 **Two invariants that the whole design leans on:**
 
-1. A `clientes_vizu` row **always exists** by the time any landing step runs, because the `handle_new_auth_user()` trigger fires `AFTER INSERT ON auth.users`. This closes the chicken-and-egg with `public.get_my_client_id()` (which resolves `external_user_id = auth.uid()::text`).
+1. A `clientes_blu` row **always exists** by the time any landing step runs, because the `handle_new_auth_user()` trigger fires `AFTER INSERT ON auth.users`. This closes the chicken-and-egg with `public.get_my_client_id()` (which resolves `external_user_id = auth.uid()::text`).
 2. **Nothing except LaunchPad creates tenant-scoped side-effects.** Steps 2–5 only patch `onboarding_state` (JSONB blob) and, for BusinessDNA, the `company_profile` Context 2.0 section. `client_enabled_agents` + `client_routines` are written atomically inside `onboarding_bootstrap_tx()`. If the user bails before LaunchPad, nothing to roll back.
 
 ---
@@ -46,8 +45,8 @@ State is owned by `useOnboarding()` in [`apps/landing/src/onboarding/state.ts`](
 
 | #   | Route                 | Component                                                                         | Writes triggered on `handleNext` / effect                                                                                                                                                                                                          | Source of truth after step                                 |
 | --- | --------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| 0   | `/onboarding/auth`    | [`Auth.tsx`](../apps/landing/src/onboarding/steps/Auth.tsx)                       | `supabase.auth.signUp` / `signInWithOAuth('google')` → trigger creates `clientes_vizu` row                                                                                                                                                         | `auth.users` + stub `clientes_vizu`                        |
-| 1   | `/onboarding/welcome` | [`Welcome.tsx`](../apps/landing/src/onboarding/steps/Welcome.tsx)                 | OAuth code exchange → hydrate name/email; `ensureTenantRow()` self-heal if row missing; `patchOnboardingState({nome,email,authMethod})`                                                                                                            | `clientes_vizu.onboarding_state.{nome,email,authMethod}`   |
+| 0   | `/onboarding/auth`    | [`Auth.tsx`](../apps/landing/src/onboarding/steps/Auth.tsx)                       | `supabase.auth.signUp` / `signInWithOAuth('google')` → trigger creates `clientes_blu` row                                                                                                                                                          | `auth.users` + stub `clientes_blu`                         |
+| 1   | `/onboarding/welcome` | [`Welcome.tsx`](../apps/landing/src/onboarding/steps/Welcome.tsx)                 | OAuth code exchange → hydrate name/email; `ensureTenantRow()` self-heal if row missing; `patchOnboardingState({nome,email,authMethod})`                                                                                                            | `clientes_blu.onboarding_state.{nome,email,authMethod}`    |
 | 2   | `/onboarding/dna`     | [`BusinessDNA.tsx`](../apps/landing/src/onboarding/steps/BusinessDNA.tsx)         | **Three parallel writes:** `patchOnboardingState`, `saveContextSections({company_profile})`, `updateClientColumn('nome_empresa')`                                                                                                                  | `onboarding_state` + `company_profile` + `nome_empresa`    |
 | 3   | `/onboarding/data`    | [`DataFork.tsx`](../apps/landing/src/onboarding/steps/DataFork.tsx)               | `patchOnboardingState({dataPath,systems,csvUploaded,googleDriveConnected})`. Drive OAuth post-redirect: `captureDriveToken()` → `integration_tokens`. ERP/e-commerce: hand off to dashboard `/admin/fontes?connect=<slug>&return=/onboarding/data` | `onboarding_state.*` + (optional) `integration_tokens` row |
 | 4   | `/onboarding/agents`  | [`AgentActivation.tsx`](../apps/landing/src/onboarding/steps/AgentActivation.tsx) | `patchOnboardingState({agents})` **only** — no `client_enabled_agents` write yet                                                                                                                                                                   | `onboarding_state.agents`                                  |
@@ -63,15 +62,15 @@ State is owned by `useOnboarding()` in [`apps/landing/src/onboarding/state.ts`](
 
 [`apps/landing/src/onboarding/services/onboardingService.ts`](../apps/landing/src/onboarding/services/onboardingService.ts) — every wizard step goes through here. Never accepts a `client_id` argument; RLS resolves tenant from the JWT.
 
-| Function                                    | Backing RPC / endpoint                                                               | Used by                                               |
-| ------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------- |
-| `getOnboardingState()`                      | `SELECT onboarding_state, onboarding_completed_at FROM clientes_vizu` (RLS)          | `useOnboarding` hydrate                               |
-| `patchOnboardingState(patch)`               | `merge_onboarding_state(p_patch jsonb)` RPC                                          | Every step's autosave + explicit `handleNext` flushes |
-| `saveContextSections(partial)`              | `UPDATE clientes_vizu SET company_profile=… WHERE external_user_id=auth.uid()::text` | BusinessDNA only                                      |
-| `updateClientColumn('nome_empresa', value)` | `UPDATE clientes_vizu SET nome_empresa=…`                                            | BusinessDNA                                           |
-| `runBootstrap(state)`                       | Edge fn `onboarding-bootstrap` (POST, JWT-verified)                                  | LaunchPad                                             |
-| `captureDriveToken()`                       | Edge fn `onboarding-capture-drive-token` (POST, JWT-verified)                        | DataFork `?drive=connected` handler                   |
-| `ensureTenantRow()`                         | `public.ensure_tenant_row()` RPC (`SECURITY DEFINER`)                                | Welcome self-heal                                     |
+| Function                                    | Backing RPC / endpoint                                                              | Used by                                               |
+| ------------------------------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `getOnboardingState()`                      | `SELECT onboarding_state, onboarding_completed_at FROM clientes_blu` (RLS)          | `useOnboarding` hydrate                               |
+| `patchOnboardingState(patch)`               | `merge_onboarding_state(p_patch jsonb)` RPC                                         | Every step's autosave + explicit `handleNext` flushes |
+| `saveContextSections(partial)`              | `UPDATE clientes_blu SET company_profile=… WHERE external_user_id=auth.uid()::text` | BusinessDNA only                                      |
+| `updateClientColumn('nome_empresa', value)` | `UPDATE clientes_blu SET nome_empresa=…`                                            | BusinessDNA                                           |
+| `runBootstrap(state)`                       | Edge fn `onboarding-bootstrap` (POST, JWT-verified)                                 | LaunchPad                                             |
+| `captureDriveToken()`                       | Edge fn `onboarding-capture-drive-token` (POST, JWT-verified)                       | DataFork `?drive=connected` handler                   |
+| `ensureTenantRow()`                         | `public.ensure_tenant_row()` RPC (`SECURITY DEFINER`)                               | Welcome self-heal                                     |
 
 **Mappers:** [`mappers.ts`](../apps/landing/src/onboarding/mappers.ts) (pure, unit-tested in `mappers.test.ts`). The edge function has a **parity copy** at [`supabase/functions/onboarding-bootstrap/mappers.ts`](../supabase/functions/onboarding-bootstrap/mappers.ts) — any change to the landing mapper must be mirrored there.
 
@@ -85,7 +84,7 @@ All migrations live in [`supabase/migrations/`](../supabase/migrations/) and are
 
 | Object                         | Defined in                                       | Purpose                                                                                                                                                   | RLS                                                            |
 | ------------------------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `clientes_vizu` (new columns)  | `20260423130100_onboarding_state_column.sql`     | `onboarding_state jsonb NOT NULL DEFAULT '{}'`, `onboarding_completed_at timestamptz`, partial index `idx_clientes_vizu_onboarding_incomplete`            | existing                                                       |
+| `clientes_blu` (new columns)   | `20260423130100_onboarding_state_column.sql`     | `onboarding_state jsonb NOT NULL DEFAULT '{}'`, `onboarding_completed_at timestamptz`, partial index `idx_clientes_blu_onboarding_incomplete`             | existing                                                       |
 | `public.client_enabled_agents` | `20260423130200_client_enabled_agents.sql`       | Per-tenant enabled agents. `PRIMARY KEY (client_id, agent_slug)`; FK to `agent_catalog.slug`                                                              | 5 policies scoped via `get_my_client_id()` + service_role full |
 | `public.client_routines`       | `20260423130300_client_routines.sql`             | Per-tenant built-in automations. `UNIQUE (client_id, routine_id)`; `notify_channel` CHECK                                                                 | Same pattern                                                   |
 | `public.agent_catalog` (seed)  | `20260423130400_agent_catalog_landing_slugs.sql` | Upserts the 8 canonical landing slugs: `analytics, inventory, marketing, crm, scheduling, projects, documents, finance`. `prompt_name` = `landing/<slug>` | existing                                                       |
@@ -101,7 +100,7 @@ All migrations live in [`supabase/migrations/`](../supabase/migrations/) and are
 
 ### Row-level security
 
-All three writable tables (`clientes_vizu`, `client_enabled_agents`, `client_routines`) are scoped to the caller's tenant via the single resolver `public.get_my_client_id()` (defined upstream in `20260225_fix_analytics_v2_rls_policies.sql`, which resolves `external_user_id = auth.uid()::text`). Service role gets full access everywhere.
+All three writable tables (`clientes_blu`, `client_enabled_agents`, `client_routines`) are scoped to the caller's tenant via the single resolver `public.get_my_client_id()` (defined upstream in `20260225_fix_analytics_v2_rls_policies.sql`, which resolves `external_user_id = auth.uid()::text`). Service role gets full access everywhere.
 
 ---
 
@@ -113,8 +112,8 @@ Final atomic provisioning. Called by LaunchPad.
 
 1. Verify JWT via `${SUPABASE_URL}/auth/v1/user`.
 2. Parse body as `OnboardingState` (wizard's full state).
-3. Build Context 2.0 payload via mappers (`mapBusinessDNAToCompanyProfile`, `mapStateToCurrentMoment`, `mapContactToTeamStructure`, `mapRulesToPolicies`) + pass through `agents`, `routines`, `notify_channel`, `nome_empresa`.
-4. Call `public.onboarding_bootstrap_tx(p_payload jsonb)` **with the caller's JWT** (user-scoped client, SECURITY INVOKER, RLS applies). The RPC UPDATEs `clientes_vizu`, UPSERTs `client_enabled_agents`, UPSERTs `client_routines`, stamps `onboarding_completed_at`, all in one transaction.
+3. Build Context 2.0 payload via mappers (`mapBusinessDNAToCompanyProfile`, ``, `mapContactToTeamStructure`, `mapRulesToPolicies`) + pass through `agents`, `routines`, `notify_channel`, `nome_empresa`.
+4. Call `public.onboarding_bootstrap_tx(p_payload jsonb)` **with the caller's JWT** (user-scoped client, SECURITY INVOKER, RLS applies). The RPC UPDATEs `clientes_blu`, UPSERTs `client_enabled_agents`, UPSERTs `client_routines`, stamps `onboarding_completed_at`, all in one transaction.
 5. **Best-effort** Langfuse prompt seeding (outside the TX): for each selected agent slug, GET `landing/<slug>` @ `label=production` and POST a `tenant/<client_id>/<slug>` copy tagged `client:<id>`, `agent:<slug>`. Uses `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY`. Failures are logged and recorded to `onboarding_state.langfuse_seed_status` via `merge_onboarding_state` so a retry job can re-run.
 6. Return `{ client_id, agents, routines, prompts_seeded }`.
 
@@ -126,7 +125,7 @@ Captures the Google Drive refresh token that `supabase.auth.getSession()` expose
 
 1. Verify JWT.
 2. Resolve `client_id` via `get_my_client_id()` RPC under the caller's JWT.
-3. Fernet-encrypt `provider_refresh_token` (and `provider_token` if present) using `CREDENTIALS_ENCRYPTION_KEY` — same scheme as `libs/vizu_context_service` + `google-calendar-events`.
+3. Fernet-encrypt `provider_refresh_token` (and `provider_token` if present) using `CREDENTIALS_ENCRYPTION_KEY` — same scheme as `libs/blu_context_service` + `google-calendar-events`.
 4. Upsert into `integration_tokens` via service role with `onConflict: "client_id,provider,account_email"`, scopes default to Drive + Sheets read-only.
 5. Return `{ connected, account_email }`. **No token material ever returned or logged.**
 
@@ -134,27 +133,27 @@ Captures the Google Drive refresh token that `supabase.auth.getSession()` expose
 
 ## 6. Downstream consumers
 
-| Consumer                                                                                                                | Reads                                                                                    | Notes                                                                                                                                       |
-| ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`apps/vizu_dashboard/src/components/OnboardingBanner.tsx`](../apps/vizu_dashboard/src/components/OnboardingBanner.tsx) | `clientes_vizu.onboarding_completed_at`                                                  | "Continuar onboarding →" banner on HomePage; links back to landing origin `/onboarding/dna` (no redirect loop). `VITE_LANDING_URL` env var. |
-| [`libs/vizu_context_service`](../libs/vizu_context_service/)                                                            | `clientes_vizu.{company_profile,current_moment,team_structure,policies,available_tools}` | Already reads these JSONB columns; no code change needed — LaunchPad just populates them.                                                   |
-| [`libs/vizu_tool_registry`](../libs/vizu_tool_registry/)                                                                | `agent_catalog.agent_config.enabled_tools`                                               | Source of truth for which tool names are valid. Landing seed validated against `BUILTIN_TOOLS`.                                             |
-| [`libs/vizu_prompt_management`](../libs/vizu_prompt_management/)                                                        | Langfuse `tenant/<client_id>/<slug>` @ `label=production`                                | `PromptLoader` resolves per-tenant prompts. Falls back to `landing/<slug>` if tenant copy missing (Langfuse seeding is best-effort).        |
-| Future scheduler                                                                                                        | `client_routines WHERE enabled`                                                          | Table is contract-first; backing scheduler TBD.                                                                                             |
-| Future agent gallery (dashboard)                                                                                        | `client_enabled_agents`                                                                  | Source of truth for "which agents does this client have".                                                                                   |
+| Consumer                                                                                                              | Reads                                                                    | Notes                                                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`apps/blu_dashboard/src/components/OnboardingBanner.tsx`](../apps/blu_dashboard/src/components/OnboardingBanner.tsx) | `clientes_blu.onboarding_completed_at`                                   | "Continuar onboarding →" banner on HomePage; links back to landing origin `/onboarding/dna` (no redirect loop). `VITE_LANDING_URL` env var. |
+| [`libs/blu_context_service`](../libs/blu_context_service/)                                                            | `clientes_blu.{company_profile,team_structure,policies,available_tools}` | Already reads these JSONB columns; no code change needed — LaunchPad just populates them.                                                   |
+| [`libs/blu_tool_registry`](../libs/blu_tool_registry/)                                                                | `agent_catalog.agent_config.enabled_tools`                               | Source of truth for which tool names are valid. Landing seed validated against `BUILTIN_TOOLS`.                                             |
+| [`libs/blu_prompt_management`](../libs/blu_prompt_management/)                                                        | Langfuse `tenant/<client_id>/<slug>` @ `label=production`                | `PromptLoader` resolves per-tenant prompts. Falls back to `landing/<slug>` if tenant copy missing (Langfuse seeding is best-effort).        |
+| Future scheduler                                                                                                      | `client_routines WHERE enabled`                                          | Table is contract-first; backing scheduler TBD.                                                                                             |
+| Future agent gallery (dashboard)                                                                                      | `client_enabled_agents`                                                  | Source of truth for "which agents does this client have".                                                                                   |
 
 ---
 
 ## 7. Environment variables
 
-| Var                                                                                    | Where                      | Purpose                                                                           |
-| -------------------------------------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------- |
-| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`                                          | `apps/landing/.env`        | Supabase client ([`lib/supabase.ts`](../apps/landing/src/lib/supabase.ts))        |
-| `VITE_DASHBOARD_URL`                                                                   | `apps/landing/.env`        | DataFork connector handoff + LaunchPad redirect target (defaults to `/dashboard`) |
-| `VITE_LANDING_URL`                                                                     | `apps/vizu_dashboard/.env` | OnboardingBanner's link back to `/onboarding/dna`                                 |
-| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`                       | Supabase edge runtime      | Both edge fns                                                                     |
-| `CREDENTIALS_ENCRYPTION_KEY`                                                           | Supabase edge runtime      | Fernet key (same value used by `libs/vizu_context_service`)                       |
-| `LANGFUSE_HOST` (or `LANGFUSE_BASE_URL`), `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | Supabase edge runtime      | `onboarding-bootstrap` prompt seeding (keys optional — skipped if missing)        |
+| Var                                                                                    | Where                     | Purpose                                                                           |
+| -------------------------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------- |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`                                          | `apps/landing/.env`       | Supabase client ([`lib/supabase.ts`](../apps/landing/src/lib/supabase.ts))        |
+| `VITE_DASHBOARD_URL`                                                                   | `apps/landing/.env`       | DataFork connector handoff + LaunchPad redirect target (defaults to `/dashboard`) |
+| `VITE_LANDING_URL`                                                                     | `apps/blu_dashboard/.env` | OnboardingBanner's link back to `/onboarding/dna`                                 |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`                       | Supabase edge runtime     | Both edge fns                                                                     |
+| `CREDENTIALS_ENCRYPTION_KEY`                                                           | Supabase edge runtime     | Fernet key (same value used by `libs/blu_context_service`)                        |
+| `LANGFUSE_HOST` (or `LANGFUSE_BASE_URL`), `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | Supabase edge runtime     | `onboarding-bootstrap` prompt seeding (keys optional — skipped if missing)        |
 
 ---
 

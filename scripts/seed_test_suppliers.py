@@ -31,7 +31,7 @@ from pathlib import Path
 from uuid import uuid4
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT_DIR / "libs" / "vizu_supabase_client" / "src"))
+sys.path.insert(0, str(ROOT_DIR / "libs" / "blu_supabase_client" / "src"))
 
 from dotenv import load_dotenv  # noqa: E402
 
@@ -96,7 +96,7 @@ TEST_SUPPLIERS = [
 
 
 def get_default_client_id() -> str | None:
-    """Try to find a client_id from clientes_vizu."""
+    """Try to find a client_id from clientes_blu."""
     try:
         from supabase import create_client
 
@@ -104,7 +104,7 @@ def get_default_client_id() -> str | None:
         key = os.environ["SUPABASE_SERVICE_KEY"]
         db = create_client(url, key)
 
-        result = db.table("clientes_vizu").select("client_id").limit(1).execute()
+        result = db.table("clientes_blu").select("client_id").limit(1).execute()
         if result.data:
             return result.data[0]["client_id"]
     except Exception as e:
@@ -160,7 +160,7 @@ def main():
         client_id = get_default_client_id()
         if not client_id:
             logger.error(
-                "No client_id provided and none found in clientes_vizu.\n"
+                "No client_id provided and none found in clientes_blu.\n"
                 "Usage: python scripts/seed_test_suppliers.py --client-id YOUR_UUID"
             )
             sys.exit(1)

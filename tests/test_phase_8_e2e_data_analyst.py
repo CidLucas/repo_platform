@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from vizu_supabase_client import get_supabase_client
+from blu_supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ def _upload_csv(db, client_id: str, session_id: str) -> dict:
     file_id = str(uuid4())
     result = db.table("uploaded_files_metadata").insert({
         "id": file_id,
-        "cliente_vizu_id": client_id,
+        "cliente_blu_id": client_id,
         "file_name": "vendas.csv",
         "file_type": "text/csv",
         "storage_path": f"{client_id}/{file_id}-vendas.csv",

@@ -9,10 +9,10 @@ from fastmcp.server.dependencies import AccessToken
 
 from tool_pool_api.core.config import Settings, get_settings
 
-# Importações Vizu
-from vizu_context_service.context_service import ContextService
-from vizu_context_service.redis_service import RedisService
-from vizu_models.vizu_client_context import VizuClientContext
+# Importações Blu
+from blu_context_service.context_service import ContextService
+from blu_context_service.redis_service import RedisService
+from blu_models.blu_client_context import BluClientContext
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ def get_context_service() -> ContextService:
         pool = _get_redis_pool()
         redis_client = redis.Redis(connection_pool=pool)
         redis_service = RedisService(redis_client=redis_client)
-        _context_service = ContextService(cache_service=redis_service, use_supabase=True)
+        _context_service = ContextService(cache_service=redis_service)
         logger.info("ContextService singleton created (tool_pool_api)")
     return _context_service
 
@@ -69,16 +69,16 @@ def get_context_service() -> ContextService:
 
 async def load_context_from_token(
     ctx_service: ContextService, access_token: AccessToken | None
-) -> VizuClientContext:
+) -> BluClientContext:
     """
-    Função helper para carregar VizuClientContext com base no token de acesso.
+    Função helper para carregar BluClientContext com base no token de acesso.
 
     Args:
         ctx_service: Instância do ContextService
         access_token: Token JWT do usuário
 
     Returns:
-        VizuClientContext do cliente associado
+        BluClientContext do cliente associado
 
     Raises:
         ToolError: Se autenticação falhar ou cliente não for encontrado
@@ -99,22 +99,22 @@ async def load_context_from_token(
     )
 
     try:
-        vizu_context = await ctx_service.get_client_context_by_external_user_id(
+        blu_context = await ctx_service.get_client_context_by_external_user_id(
             external_user_id=external_user_id
         )
 
-        if not vizu_context:
-            logger.error(f"Contexto Vizu não encontrado para external_user_id: {external_user_id}")
+        if not blu_context:
+            logger.error(f"Contexto Blu não encontrado para external_user_id: {external_user_id}")
             raise ToolError(
-                f"Nenhum cliente Vizu associado a este usuário. (ID: {external_user_id})"
+                f"Nenhum cliente Blu associado a este usuário. (ID: {external_user_id})"
             )
 
-        return vizu_context
+        return blu_context
 
     except ToolError:
         raise
     except Exception as e:
-        logger.error(f"Falha ao carregar VizuClientContext: {e}", exc_info=True)
+        logger.error(f"Falha ao carregar BluClientContext: {e}", exc_info=True)
         raise ToolError("Erro interno ao autorizar o contexto do cliente.")
 
 

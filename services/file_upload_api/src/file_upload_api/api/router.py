@@ -55,7 +55,7 @@ def upload_file(
     service: SupabaseUploadService = Depends(get_supabase_upload_service),
 ):
     """
-    Recebe um arquivo (via multipart/form-data) para um cliente Vizu autenticado.
+    Recebe um arquivo (via multipart/form-data) para um cliente Blu autenticado.
 
     O serviço irá:
     1. Autenticar o cliente (via `get_client_id_from_token`).

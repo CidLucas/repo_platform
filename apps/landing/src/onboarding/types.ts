@@ -2,9 +2,9 @@
  * Onboarding types — Context 2.0 shapes + landing wizard contracts.
  *
  * These mirror the dashboard copy at
- *   apps/vizu_dashboard/src/types/onboarding.ts
+ *   apps/blu_dashboard/src/types/onboarding.ts
  * which itself mirrors the Pydantic schemas in
- *   libs/vizu_models/src/vizu_models/context_schemas.py
+ *   libs/blu_models/src/blu_models/context_schemas.py
  *
  * We duplicate rather than cross-import because Vite / tsconfig in each
  * app only includes `./src`. If a third surface needs these, lift them
@@ -29,18 +29,6 @@ export interface CompanyProfile {
   employee_count_range?: string | null;
 }
 
-// ===== CURRENT MOMENT =====
-export interface CurrentMoment {
-  stage?: string | null;
-  current_priorities: string[];
-  current_challenges: string[];
-  recent_wins: string[];
-  key_metrics: Record<string, string | number>;
-  active_campaigns: string[];
-  upcoming_events: string[];
-  period?: string | null;
-  last_updated?: string | null;
-}
 
 // ===== TEAM =====
 export interface TeamMember {
@@ -77,7 +65,6 @@ export interface Policies {
 // ===== AGGREGATE =====
 export interface OnboardingData {
   company_profile: CompanyProfile;
-  current_moment: CurrentMoment;
   team_structure: TeamStructure;
   policies: Policies;
 }

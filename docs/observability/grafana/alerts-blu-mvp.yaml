@@ -151,10 +151,10 @@ groups:
         annotations:
           summary: "Langfuse 5xx rate elevated"
           description: |
-            Langfuse responses to outbound HTTP calls from any Vizu service
+            Langfuse responses to outbound HTTP calls from any Blu service
             show a 5xx error rate over 1 % during the last 5 min. Prompts
             will fall back to in-repo defaults
-            (`libs/vizu_prompt_management/prompts/...`) but versioning &
+            (`libs/blu_prompt_management/prompts/...`) but versioning &
             traces are degraded. Check Langfuse status & worker logs.
           runbook_url: "https://github.com/CidLucas/platform/blob/main/docs/observability/README.md#langfuse-outage"
         labels:

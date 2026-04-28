@@ -2,52 +2,14 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
 
 from atendente_core.api.router import router as api_router
 from atendente_core.core.config import get_settings
 from atendente_core.services.mcp_client import mcp_manager
 
 logger = logging.getLogger(__name__)
-
-
-# --- Database Connection Timeout Middleware ---
-class DatabaseTimeoutMiddleware(BaseHTTPMiddleware):
-    """
-    Sets PostgreSQL session timeouts on every request to prevent connection leaks.
-
-    Protects against:
-    - Long-running queries blocking connection pool
-    - Idle transactions holding locks
-    - Frontend disconnections leaving transactions open
-    """
-
-    async def dispatch(self, request: Request, call_next):
-        # Skip for OPTIONS preflight requests (no DB needed)
-        if request.method == "OPTIONS":
-            return await call_next(request)
-
-        # Skip for health checks
-        if request.url.path == "/health":
-            return await call_next(request)
-
-        # Try to set session timeouts, but don't fail the request if DB is unavailable
-        try:
-            from sqlalchemy import text  # noqa: I001
-            from vizu_db_connector.database import SessionLocal  # noqa: I001
-
-            session = SessionLocal()
-            try:
-                session.execute(text("SET statement_timeout = '30s'"))
-                session.execute(text("SET idle_in_transaction_session_timeout = '5min'"))
-            finally:
-                session.close()
-        except Exception as e:
-            logger.warning(f"Could not set session timeouts (non-fatal): {e}")
-
-        return await call_next(request)
 
 
 # Health check functions for dependencies
@@ -62,11 +24,11 @@ async def check_mcp_connection() -> bool:
 async def check_database() -> bool:
     """Check database connectivity via Supabase REST API."""
     try:
-        from vizu_supabase_client import get_supabase_client
+        from blu_supabase_client import get_supabase_client
 
         client = get_supabase_client()
-        # Simple health check: query clientes_vizu with limit 1
-        response = client.table("clientes_vizu").select("client_id").limit(1).execute()
+        # Simple health check: query clientes_blu with limit 1
+        response = client.table("clientes_blu").select("client_id").limit(1).execute()
         return response is not None
     except Exception as e:
         logger.warning(f"Database health check failed: {e}")
@@ -78,7 +40,7 @@ async def lifespan(app: FastAPI):
     """Gerencia o ciclo de vida da aplicação (Startup/Shutdown)"""
 
     # --- STARTUP ---
-    logger.info("Starting Vizu Atendente Core...")
+    logger.info("Starting Blu Atendente Core...")
 
     # Pre-warm MCP connection in background (non-blocking to avoid Cloud Run startup timeout)
     # First request may have latency if MCP isn't ready yet, but server starts immediately
@@ -102,7 +64,7 @@ async def lifespan(app: FastAPI):
 
     # Flush observability data
     try:
-        from vizu_observability_bootstrap import shutdown_observability
+        from blu_observability_bootstrap import shutdown_observability
 
         await shutdown_observability(timeout=5.0)
     except Exception as e:
@@ -118,7 +80,7 @@ async def lifespan(app: FastAPI):
 # Inicializa a App
 settings = get_settings()
 app = FastAPI(
-    title="Vizu Atendente Core",
+    title="Blu Atendente Core",
     description="Cérebro do Agente de IA (LangGraph + MCP)",
     version="2.0.0",
     lifespan=lifespan,
@@ -148,8 +110,6 @@ else:
 # --- Middleware Stack ---
 # IMPORTANT: Middleware is processed in REVERSE order of addition.
 # Add CORS LAST so it's the OUTERMOST layer (wraps all responses including errors)
-app.add_middleware(DatabaseTimeoutMiddleware)
-logger.debug("Database timeout middleware configured (30s query, 5min idle)")
 
 # CORS MUST be added LAST to be outermost (process first on request, last on response)
 app.add_middleware(
@@ -164,7 +124,7 @@ logger.info(f"CORS configured (outermost middleware): {origins}")
 
 # Configure observability (OTLP + Langfuse)
 try:
-    from vizu_observability_bootstrap import create_health_router, setup_observability
+    from blu_observability_bootstrap import create_health_router, setup_observability
 
     setup_observability(app, service_name=settings.SERVICE_NAME, log_min_level=logging.INFO)
 

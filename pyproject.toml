@@ -1,5 +1,5 @@
 # pyproject.toml
-# Root-level development tools for vizu-mono monorepo
+# Root-level development tools for blu-mono monorepo
 #
 # This is NOT a Python package - it only defines dev tools and linter configs
 # used across the entire monorepo. Each service/lib has its own pyproject.toml.
@@ -10,9 +10,9 @@
 #   ruff format .             # Format all Python
 
 [project]
-name = "vizu-mono-devtools"
+name = "blu-mono-devtools"
 version = "0.0.0"
-description = "Development tools for vizu-mono monorepo"
+description = "Development tools for blu-mono monorepo"
 requires-python = ">=3.11"
 readme = "README.md"
 
@@ -98,24 +98,24 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = [
-    "vizu_agent_framework",
-    "vizu_auth",
-    "vizu_context_service",
-    "vizu_db_connector",
-    "vizu_elicitation_service",
-    "vizu_experiment_service",
-    "vizu_google_suite_client",
-    "vizu_hitl_service",
-    "vizu_llm_service",
-    "vizu_models",
-    "vizu_observability_bootstrap",
-    "vizu_parsers",
-    "vizu_prompt_management",
-    "vizu_rag_factory",
-    "vizu_shared_utils",
-    "vizu_sql_factory",
-    "vizu_supabase_client",
-    "vizu_tool_registry",
+    "blu_agent_framework",
+    "blu_auth",
+    "blu_context_service",
+    "blu_db_connector",
+    "blu_elicitation_service",
+    "blu_experiment_service",
+    "blu_google_suite_client",
+    "blu_hitl_service",
+    "blu_llm_service",
+    "blu_models",
+    "blu_observability_bootstrap",
+    "blu_parsers",
+    "blu_prompt_management",
+    "blu_rag_factory",
+    "blu_shared_utils",
+    "blu_sql_factory",
+    "blu_supabase_client",
+    "blu_tool_registry",
 ]
 
 [tool.ruff.format]

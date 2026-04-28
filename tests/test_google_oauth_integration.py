@@ -50,7 +50,7 @@ from uuid import uuid4  # noqa: E402
 
 import pytest  # noqa: E402
 
-from vizu_auth.oauth2.models import OAuthConfig, TokenResponse  # noqa: E402
+from blu_auth.oauth2.models import OAuthConfig, TokenResponse  # noqa: E402
 
 
 @pytest.fixture
@@ -135,7 +135,7 @@ class TestTokenRefreshWithVaultFallback:
     @pytest.mark.asyncio
     async def test_refresh_uses_vault_when_no_per_client_config(self):
         """Token refresh should work with Vault platform credentials."""
-        from vizu_context_service.context_service import ContextService
+        from blu_context_service.context_service import ContextService
 
         ctx = MagicMock(spec=ContextService)
         ctx._use_supabase = True
@@ -153,7 +153,7 @@ class TestTokenRefreshWithVaultFallback:
             scope="openid email",
         )
 
-        with patch("vizu_auth.oauth2.oauth_manager.OAuthManager") as MockManager:
+        with patch("blu_auth.oauth2.oauth_manager.OAuthManager") as MockManager:
             mock_manager = AsyncMock()
             mock_manager.refresh = AsyncMock(return_value=mock_new_tokens)
             MockManager.return_value = mock_manager
@@ -187,7 +187,7 @@ class TestVaultRPCIntegration:
 
     def test_get_platform_oauth_config_calls_rpc(self):
         """Verify the CRUD method calls the correct RPC function."""
-        from vizu_supabase_client.crud import SupabaseCRUD
+        from blu_supabase_client.crud import SupabaseCRUD
 
         mock_client = MagicMock()
         mock_client.rpc().execute.return_value = MagicMock(
@@ -202,7 +202,7 @@ class TestVaultRPCIntegration:
 
     def test_get_platform_oauth_config_returns_none_for_non_google(self):
         """Non-google providers should return None immediately."""
-        from vizu_supabase_client.crud import SupabaseCRUD
+        from blu_supabase_client.crud import SupabaseCRUD
 
         mock_client = MagicMock()
         crud = SupabaseCRUD(client=mock_client)

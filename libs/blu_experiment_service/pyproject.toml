@@ -1,0 +1,41 @@
+[tool.poetry]
+name = "blu-experiment-service"
+version = "0.1.0"
+description = "Experiment orchestration service for dataset generation and evaluation"
+authors = ["Blu <dev@blubr.com>"]
+readme = "README.md"
+packages = [{include = "blu_experiment_service", from = "src"}]
+
+[tool.poetry.scripts]
+experiment = "blu_experiment_service.cli:main"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+httpx = "^0.27.0"
+pydantic = "^2.0"
+pydantic-settings = "^2.0"
+pyyaml = "^6.0"
+sqlmodel = "^0.0.27"
+asyncpg = "^0.29.0"
+blu-models = {path = "../blu_models", develop = true}
+# blu-hitl-service = {path = "../blu_hitl_service", develop = true}  # TODO: create if needed
+blu-db-connector = {path = "../blu_db_connector", develop = true}
+langfuse = ">=4.0.0"
+greenlet = "^3.2.4"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-asyncio = "^0.23"
+ruff = "^0.4"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["src"]

@@ -6,7 +6,7 @@
  * Resolves the caller's tenant through RLS helpers; never accepts a
  * client_id argument from the UI.
  *
- * Reference: apps/vizu_dashboard/src/services/onboardingService.ts
+ * Reference: apps/blu_dashboard/src/services/onboardingService.ts
  */
 
 import { supabase } from "../../lib/supabase";
@@ -18,7 +18,7 @@ import type {
   OnboardingStateRecord,
 } from "../types";
 
-const TABLE = "clientes_vizu";
+const TABLE = "clientes_blu";
 const MERGE_RPC = "merge_onboarding_state";
 const BOOTSTRAP_FN = "onboarding-bootstrap";
 const DRIVE_TOKEN_FN = "onboarding-capture-drive-token";
@@ -60,7 +60,7 @@ export async function getOnboardingState(): Promise<OnboardingStateRecord | null
 // ---------------------------------------------------------------------------
 
 /**
- * Race-free JSONB merge into `clientes_vizu.onboarding_state` via the
+ * Race-free JSONB merge into `clientes_blu.onboarding_state` via the
  * `merge_onboarding_state(jsonb)` RPC. No-op when not authenticated.
  */
 export async function patchOnboardingState(
@@ -90,8 +90,6 @@ export async function saveContextSections(
   const payload: Record<string, unknown> = {};
   if (partial.company_profile !== undefined)
     payload.company_profile = partial.company_profile;
-  if (partial.current_moment !== undefined)
-    payload.current_moment = partial.current_moment;
   if (partial.team_structure !== undefined)
     payload.team_structure = partial.team_structure;
   if (partial.policies !== undefined) payload.policies = partial.policies;
@@ -118,7 +116,7 @@ export async function saveContextSections(
 }
 
 /**
- * Update a top-level column on `clientes_vizu` for the current tenant.
+ * Update a top-level column on `clientes_blu` for the current tenant.
  * Used for `nome_empresa` (BusinessDNA) and similar scalar fields that
  * aren't part of the JSONB sections.
  */
@@ -298,7 +296,7 @@ export async function captureDriveToken(): Promise<{ connected: boolean }> {
 // ---------------------------------------------------------------------------
 
 /**
- * Idempotent "make sure my clientes_vizu row exists" RPC. Safe to call
+ * Idempotent "make sure my clientes_blu row exists" RPC. Safe to call
  * after any session-present event; no-ops when the row already exists.
  */
 export async function ensureTenantRow(): Promise<void> {

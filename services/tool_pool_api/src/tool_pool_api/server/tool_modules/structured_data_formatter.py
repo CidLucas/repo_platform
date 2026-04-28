@@ -22,7 +22,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from vizu_models.structured_data import (
+from blu_models.structured_data import (
     ColumnType,
     StructuredDataColumn,
     StructuredDataResponse,

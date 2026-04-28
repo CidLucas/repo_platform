@@ -62,7 +62,7 @@ def test_kpi_catalog_table_created(sql: str) -> None:
 
 def test_kpi_tier_rank_helper(sql: str) -> None:
     assert "CREATE OR REPLACE FUNCTION public.kpi_tier_rank(p_tier text)" in sql
-    # Numeric ranks must agree with vizu_agent_framework.approval._TIER_DEFAULTS.
+    # Numeric ranks must agree with blu_agent_framework.approval._TIER_DEFAULTS.
     for tier, rank in [
         ("BASIC", 10),
         ("SME", 20),

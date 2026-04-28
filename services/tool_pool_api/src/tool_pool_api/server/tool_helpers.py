@@ -7,19 +7,19 @@ to avoid duplication and ensure consistency.
 
 import logging
 
-from vizu_models.vizu_client_context import VizuClientContext
-from vizu_tool_registry import ToolRegistry
+from blu_models.blu_client_context import BluClientContext
+from blu_tool_registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
 
-def is_tool_accessible_by_tier(tool_name: str, context: VizuClientContext) -> bool:
+def is_tool_accessible_by_tier(tool_name: str, context: BluClientContext) -> bool:
     """
     Check if a tool is accessible by the client's tier.
 
     Args:
         tool_name: Name of the tool (e.g., "executar_sql_agent")
-        context: VizuClientContext
+        context: BluClientContext
 
     Returns:
         True if tool is accessible by client's tier
@@ -32,14 +32,14 @@ def is_tool_accessible_by_tier(tool_name: str, context: VizuClientContext) -> bo
     return True
 
 
-def get_tier_for_context(context: VizuClientContext) -> str:
+def get_tier_for_context(context: BluClientContext) -> str:
     """
     Get tier string from client context.
 
     Handles both string tier values and enum types.
 
     Args:
-        context: VizuClientContext
+        context: BluClientContext
 
     Returns:
         Tier string ("BASIC", "SME", "ENTERPRISE")

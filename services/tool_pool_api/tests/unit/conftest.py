@@ -18,9 +18,9 @@ def mock_mcp_context():
 
 
 @pytest.fixture
-def mock_vizu_context():
+def mock_blu_context():
     """
-    Fornece um mock do VizuClientContext com os campos mínimos
+    Fornece um mock do BluClientContext com os campos mínimos
     necessários para que os testes das tools passem.
 
     Isso é o que esperamos que 'load_context_from_token' retorne.
@@ -43,7 +43,7 @@ def mock_vizu_context():
     # --- Atributos de Configuração ---
     mock_ctx.collection_rag = "colecao_de_teste_rag"
 
-    # (Adicione outros campos do VizuClientContext conforme
+    # (Adicione outros campos do BluClientContext conforme
     # sua lógica de tool for precisando deles)
 
     return mock_ctx

@@ -13,7 +13,7 @@ from file_upload_api.main import create_app
 from google.cloud import storage
 from google.cloud.pubsub_v1 import PublisherClient
 
-# --- Fixture 1: Configurações de Teste (Padrão Vizu: Agnóstico) ---
+# --- Fixture 1: Configurações de Teste (Padrão Blu: Agnóstico) ---
 
 
 @pytest.fixture  # Removido o 'scope="session"'
@@ -33,7 +33,7 @@ def settings(monkeypatch):  # Corrigido para 'monkeypatch'
     return get_settings()
 
 
-# --- Fixtures 2 & 3: Mocks para Testes Unitários (Padrão Vizu: Testabilidade) ---
+# --- Fixtures 2 & 3: Mocks para Testes Unitários (Padrão Blu: Testabilidade) ---
 
 
 @pytest.fixture

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     """
 
     # --- Configuração do Ambiente ---
-    VIZU_ENV: str = "production"
+    BLU_ENV: str = "production"
 
     # --- Conexões de Infraestrutura ---
     # Necessárias para o ContextService (via dependencies.py)
@@ -52,7 +52,7 @@ def get_settings() -> Settings:
     log.info("Carregando configurações da aplicação...")
     try:
         settings = Settings()
-        log.info(f"Configurações carregadas para o ambiente: {settings.VIZU_ENV}")
+        log.info(f"Configurações carregadas para o ambiente: {settings.BLU_ENV}")
         return settings
     except Exception as e:
         log.error(f"Erro fatal ao carregar configurações: {e}")

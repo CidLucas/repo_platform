@@ -4,8 +4,8 @@ from uuid import UUID
 
 from mcp.server import Server
 
-from vizu_context_service import ContextService
-from vizu_google_suite_client import (
+from blu_context_service import ContextService
+from blu_google_suite_client import (
     GoogleCalendarClient,
     GoogleGmailClient,
     GoogleSheetsClient,
@@ -20,7 +20,7 @@ class GoogleSuiteTool:
         self.context_service = context_service
 
     async def _get_user_tokens(self, client_id: UUID) -> dict:
-        """Recupera tokens OAuth do vizu_context_service"""
+        """Recupera tokens OAuth do blu_context_service"""
         integration = await self.context_service.get_integration_tokens(
             client_id=client_id, provider="google"
         )

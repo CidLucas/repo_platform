@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "blu-observability-bootstrap"
+version = "0.2.0"
+description = "Unified observability for Blu services: OTLP (traces, logs, metrics) + Langfuse (LLM tracing)"
+authors = ["Blu DevOps <devops@blu.ai>"]
+readme = "README.md"
+packages = [{include = "blu_observability_bootstrap", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+# === OpenTelemetry Core ===
+opentelemetry-api = "^1.38.0"
+opentelemetry-sdk = "^1.38.0"
+opentelemetry-instrumentation-fastapi = "^0.59b0"
+opentelemetry-exporter-otlp = "^1.38.0"
+
+# === Logging ===
+python-json-logger = "^2.0.7"
+
+# === Langfuse (LLM Observability) ===
+# v3 OTEL-native with ClickHouse backend
+langfuse = ">=4.0.0"
+langchain-core = ">=0.3.0"  # For callback types
+
+# === Web Framework ===
+fastapi = ">=0.111.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

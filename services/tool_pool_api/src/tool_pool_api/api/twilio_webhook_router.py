@@ -34,9 +34,9 @@ from fastmcp.exceptions import ToolError
 from tool_pool_api.server.tool_modules.rfq_whatsapp_module import (
     parse_supplier_reply_core,
 )
-from vizu_agent_framework import record_audit
-from vizu_supabase_client import get_supabase_client
-from vizu_twilio_client.webhook import (
+from blu_agent_framework import record_audit
+from blu_supabase_client import get_supabase_client
+from blu_twilio_client.webhook import (
     create_twiml_response,
     validate_twilio_signature,
 )
@@ -146,7 +146,7 @@ def _record_audit(
     payload: dict[str, Any],
     outcome: str = "success",
 ) -> None:
-    """Domain wrapper around :func:`vizu_agent_framework.record_audit` that
+    """Domain wrapper around :func:`blu_agent_framework.record_audit` that
     fixes the ``rfq-agent`` / ``webhook`` defaults for Twilio inbound events.
     """
     record_audit(

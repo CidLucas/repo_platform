@@ -9,7 +9,7 @@ import os
 
 import streamlit as st
 
-from vizu_hitl_service import HitlQueue, LangfuseDatasetManager
+from blu_hitl_service import HitlQueue, LangfuseDatasetManager
 
 
 class Settings:

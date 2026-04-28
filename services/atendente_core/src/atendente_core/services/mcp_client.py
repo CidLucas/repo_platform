@@ -1,14 +1,14 @@
 """
 MCP Client for atendente_core.
 
-Uses the shared MCPConnectionManager from vizu_agent_framework.
+Uses the shared MCPConnectionManager from blu_agent_framework.
 """
 
 import asyncio
 import logging
 import os
 
-from vizu_agent_framework.mcp_client import MCPConnectionManager
+from blu_agent_framework.mcp_client import MCPConnectionManager
 
 logger = logging.getLogger(__name__)
 

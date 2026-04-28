@@ -23,7 +23,7 @@ from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.csv_engine import DuckDBQueryEngine
 from tool_pool_api.server.dependencies import get_context_service
-from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
 
 from . import register_module
 

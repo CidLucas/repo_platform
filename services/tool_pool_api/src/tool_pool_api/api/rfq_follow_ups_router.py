@@ -9,7 +9,7 @@ Internal endpoint scanned by pg_cron every 30 minutes. For every RFQ that:
   thresholds (T-12h or T-2h),
 - has a low enough ``follow_up_count`` to receive the next reminder,
 
-we dispatch a short WhatsApp reminder via :class:`vizu_twilio_client.TwilioClient`,
+we dispatch a short WhatsApp reminder via :class:`blu_twilio_client.TwilioClient`,
 increment ``follow_up_count``, and write an ``audit_log`` entry.
 
 The endpoint is idempotent: each (rfq_id, milestone) is dispatched at most
@@ -30,8 +30,8 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, status
 
-from vizu_agent_framework import record_audit
-from vizu_supabase_client import get_supabase_client
+from blu_agent_framework import record_audit
+from blu_supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +107,7 @@ def _record_audit(
     outcome: str,
     payload: dict[str, Any],
 ) -> None:
-    """Domain wrapper around :func:`vizu_agent_framework.record_audit` that
+    """Domain wrapper around :func:`blu_agent_framework.record_audit` that
     fixes the ``rfq-agent`` / ``cron`` defaults for follow-up dispatches.
     """
     record_audit(
@@ -162,8 +162,8 @@ async def run_follow_ups(
         return summary
 
     # Lazy imports — keeps the endpoint cheap when nothing is due.
-    from vizu_twilio_client import TwilioClient
-    from vizu_twilio_client.config import get_twilio_settings
+    from blu_twilio_client import TwilioClient
+    from blu_twilio_client.config import get_twilio_settings
 
     twilio = TwilioClient(get_twilio_settings())
 

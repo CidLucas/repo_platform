@@ -27,8 +27,8 @@ from fastmcp.exceptions import ToolError
 from pydantic import BaseModel, Field
 
 from tool_pool_api.api.integrations_router import _get_auth_result
-from vizu_auth.core.models import AuthResult
-from vizu_supabase_client import get_supabase_client
+from blu_auth.core.models import AuthResult
+from blu_supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 

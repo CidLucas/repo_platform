@@ -7,7 +7,7 @@ with the FastMCP server.
 Supported Docker MCP integrations:
 - GitHub (read repos, issues, PRs)
 - Slack (send messages, read channels)
-- Google Suite (Calendar, Docs, etc.) - via vizu_google_suite_client
+- Google Suite (Calendar, Docs, etc.) - via blu_google_suite_client
 - Stripe (payments)
 - And more from the Docker MCP catalog
 """
@@ -16,7 +16,7 @@ import logging
 import os
 from typing import Any
 
-from vizu_tool_registry import DockerMCPBridge, ToolRegistry
+from blu_tool_registry import DockerMCPBridge, ToolRegistry
 
 logger = logging.getLogger(__name__)
 

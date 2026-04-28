@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide documents the agent system patterns that are actually visible in `vizu-mono`: LangGraph supervisors, worker delegation, session-scoped standalone agents, shared state reducers, and context/prompt assembly before execution.
+This guide documents the agent system patterns that are actually visible in `blu-mono`: LangGraph supervisors, worker delegation, session-scoped standalone agents, shared state reducers, and context/prompt assembly before execution.
 
 ## Core Principles
 
@@ -11,7 +11,7 @@ This guide documents the agent system patterns that are actually visible in `viz
 There is no single agent architecture for the entire repo. The main sampled patterns are:
 
 - `atendente_core`: supervisor + worker delegation + parallel fan-out
-- `vizu_agent_framework`: reusable agent builder/runtime primitives
+- `blu_agent_framework`: reusable agent builder/runtime primitives
 - `standalone_agent_api`: catalog-driven session agents with factory-based context injection
 
 ### Keep orchestration, context, and prompt responsibilities separate
@@ -99,7 +99,7 @@ Parallel fan-out, elicitation pauses, and tool loops are graph concerns.
 ## Unknowns To Verify
 
 - Some agent families outside the sampled services may use different graph conventions.
-- The long-term unification path between `atendente_core` and `vizu_agent_framework` is not fully documented here.
+- The long-term unification path between `atendente_core` and `blu_agent_framework` is not fully documented here.
 
 ## Further Reading
 
@@ -107,4 +107,4 @@ Parallel fan-out, elicitation pauses, and tool loops are graph concerns.
 - `/memories/repo/agent-configuration-context-flow.md`
 - `services/atendente_core/src/atendente_core/core/`
 - `services/standalone_agent_api/src/standalone_agent_api/core/`
-- `libs/vizu_agent_framework`
+- `libs/blu_agent_framework`

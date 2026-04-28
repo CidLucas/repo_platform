@@ -54,7 +54,7 @@ function encryptFernet(plaintext: string): string {
   if (!CREDENTIALS_ENCRYPTION_KEY) {
     throw new Error("CREDENTIALS_ENCRYPTION_KEY not set");
   }
-  // Same scheme as libs/vizu_context_service + google-calendar-events:
+  // Same scheme as libs/blu_context_service + google-calendar-events:
   // Python's cryptography.fernet.Fernet with urlsafe-base64 32-byte key.
   const secret = new Fernet.Secret(CREDENTIALS_ENCRYPTION_KEY);
   const token = new Fernet.Token({ secret, time: Date.now() });
@@ -139,7 +139,7 @@ Deno.serve(async (req: Request) => {
     const clientId = await resolveClientId(token);
     if (!clientId) {
       return json(
-        { connected: false, error: "no clientes_vizu row for this user" },
+        { connected: false, error: "no clientes_blu row for this user" },
         403,
       );
     }

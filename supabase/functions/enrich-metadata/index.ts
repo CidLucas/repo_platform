@@ -16,13 +16,13 @@ const DB_URL = Deno.env.get("SUPABASE_DB_URL")!;
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 const MAX_RETRIES = 3;
 
-// ── LLM Config (env-driven, defaults match vizu_llm_service.LLMSettings) ──
+// ── LLM Config (env-driven, defaults match blu_llm_service.LLMSettings) ──
 const LLM_MODEL = Deno.env.get("METADATA_ENRICHMENT_MODEL") ?? "gpt-4.1-mini";
 const LLM_MAX_TOKENS = Number(Deno.env.get("METADATA_ENRICHMENT_MAX_TOKENS") ?? "500");
 const LLM_TEMPERATURE = Number(Deno.env.get("METADATA_ENRICHMENT_TEMPERATURE") ?? "0");
 
 // ── System Prompt ──────────────────────────────────────────
-// IMPORTANT: This prompt is mirrored in vizu_prompt_management.templates.METADATA_ENRICHMENT_PROMPT.
+// IMPORTANT: This prompt is mirrored in blu_prompt_management.templates.METADATA_ENRICHMENT_PROMPT.
 // Keep both in sync when editing. The Python version is the source of truth for documentation,
 // but this Edge Function reads the prompt directly for performance (no cross-language import).
 const SYSTEM_PROMPT = Deno.env.get("METADATA_ENRICHMENT_SYSTEM_PROMPT") ?? `You are a document metadata classifier. Given a text chunk, extract structured metadata.

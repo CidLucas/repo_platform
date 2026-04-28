@@ -41,7 +41,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(scope="module")
 def db():
     """Service-role Supabase client (bypasses RLS)."""
-    from vizu_supabase_client import get_supabase_client
+    from blu_supabase_client import get_supabase_client
 
     return get_supabase_client()
 

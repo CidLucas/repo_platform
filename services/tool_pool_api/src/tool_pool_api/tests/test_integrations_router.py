@@ -121,7 +121,7 @@ def app(monkeypatch):
     # We'll use FastAPI's dependency_overrides to replace dependencies
 
     # Patch OAuthManager methods to avoid external calls
-    from vizu_auth.oauth2.oauth_manager import OAuthManager
+    from blu_auth.oauth2.oauth_manager import OAuthManager
 
     async def fake_get_authorization_url(self, config, state):
         return f"https://auth.example/?state={state}"

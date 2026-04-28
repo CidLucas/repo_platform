@@ -31,8 +31,8 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, status
 
-from vizu_agent_framework import record_audit
-from vizu_supabase_client import get_supabase_client
+from blu_agent_framework import record_audit
+from blu_supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -207,10 +207,10 @@ def _html_for(message: str) -> str:
     return (
         f'<html><body style="font-family:sans-serif;color:#111;padding:24px">'
         f"<p>{escaped}</p>"
-        f'<p style="margin-top:32px"><a href="https://app.vizu.ai/dashboard" '
+        f'<p style="margin-top:32px"><a href="https://app.blu.ai/dashboard" '
         f'style="background:#6366f1;color:#fff;padding:12px 24px;border-radius:8px;'
         f'text-decoration:none">Abrir Mission Control →</a></p>'
-        f'<p style="color:#888;font-size:12px;margin-top:24px">Blu por Vizu.ai</p>'
+        f'<p style="color:#888;font-size:12px;margin-top:24px">Blu por Blu.ai</p>'
         f"</body></html>"
     )
 
@@ -222,7 +222,7 @@ async def _send_gmail(*, to: str, subject: str, body_text: str, body_html: str) 
         return None  # env not configured — caller falls back to queued_only
 
     try:
-        from vizu_google_suite_client.gmail.client import GoogleGmailClient
+        from blu_google_suite_client.gmail.client import GoogleGmailClient
 
         client = GoogleGmailClient(
             access_token=access_token,
@@ -255,8 +255,8 @@ def _deliver(
     if channel == "whatsapp" and phone:
         try:
             if twilio is None:
-                from vizu_twilio_client import TwilioClient
-                from vizu_twilio_client.config import get_twilio_settings
+                from blu_twilio_client import TwilioClient
+                from blu_twilio_client.config import get_twilio_settings
 
                 twilio = TwilioClient(get_twilio_settings())
             sid = twilio.send_whatsapp(to=phone, body=message)
@@ -264,7 +264,7 @@ def _deliver(
                 db,
                 p_action=action,
                 p_payload={"channel": "whatsapp", "phone": phone, "sid": sid, "message": message},
-                p_resource="clientes_vizu",
+                p_resource="clientes_blu",
                 p_resource_id=client_id,
                 p_actor_kind="cron",
                 p_agent_slug="engagement-agent",
@@ -278,7 +278,7 @@ def _deliver(
                 db,
                 p_action=action,
                 p_payload={"channel": "whatsapp", "phone": phone, "error": str(exc)[:400]},
-                p_resource="clientes_vizu",
+                p_resource="clientes_blu",
                 p_resource_id=client_id,
                 p_actor_kind="cron",
                 p_agent_slug="engagement-agent",
@@ -294,7 +294,7 @@ def _deliver(
             db,
             p_action=action,
             p_payload={"channel": "email", "status": "skipped_no_address", "message": message},
-            p_resource="clientes_vizu",
+            p_resource="clientes_blu",
             p_resource_id=client_id,
             p_actor_kind="cron",
             p_agent_slug="engagement-agent",
@@ -340,7 +340,7 @@ def _deliver(
             db,
             p_action=action,
             p_payload={"channel": "email", "email": recipient, "status": "send_error", "error": str(exc)[:400]},
-            p_resource="clientes_vizu",
+            p_resource="clientes_blu",
             p_resource_id=client_id,
             p_actor_kind="cron",
             p_agent_slug="engagement-agent",
@@ -355,7 +355,7 @@ def _deliver(
             db,
             p_action=action,
             p_payload={"channel": "email", "email": recipient, "status": "queued_only", "message": message},
-            p_resource="clientes_vizu",
+            p_resource="clientes_blu",
             p_resource_id=client_id,
             p_actor_kind="cron",
             p_agent_slug="engagement-agent",
@@ -368,7 +368,7 @@ def _deliver(
         db,
         p_action=action,
         p_payload={"channel": "email", "email": recipient, "status": "sent", "gmail_id": gmail_id, "subject": subject},
-        p_resource="clientes_vizu",
+        p_resource="clientes_blu",
         p_resource_id=client_id,
         p_actor_kind="cron",
         p_agent_slug="engagement-agent",
@@ -390,7 +390,7 @@ async def dispatch_engagement_triggers(
 
     try:
         tenants = (
-            db.table("clientes_vizu")
+            db.table("clientes_blu")
             .select("client_id,nome_empresa,created_at")
             .order("created_at", desc=False)
             .limit(200)

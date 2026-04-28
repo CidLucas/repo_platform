@@ -2,7 +2,7 @@
 name = "standalone_agent_api"
 version = "0.1.0"
 description = "Standalone Agent API - Runtime service for user-initialized standalone agents"
-authors = ["Lucas Cid <lucas@vizubr.com>"]
+authors = ["Lucas Cid <lucas@blubr.com>"]
 readme = "README.md"
 packages = [{ include = "standalone_agent_api", from = "src" }]
 
@@ -21,18 +21,18 @@ langchain = "^0.3.0"
 langgraph-checkpoint-redis = "^0.1.3"
 
 # --- Internal libs ---
-vizu-models = { path = "../../libs/vizu_models", develop = true }
-vizu-agent-framework = { path = "../../libs/vizu_agent_framework", develop = true }
-vizu-prompt-management = { path = "../../libs/vizu_prompt_management", develop = true }
-vizu-llm-service = { path = "../../libs/vizu_llm_service", develop = true, extras = ["openai"] }
-vizu-tool-registry = { path = "../../libs/vizu_tool_registry", develop = true }
-vizu-rag-factory = { path = "../../libs/vizu_rag_factory", develop = true }
-vizu-auth = { path = "../../libs/vizu_auth", develop = true }
-vizu-context-service = { path = "../../libs/vizu_context_service", develop = true }
-vizu-db-connector = { path = "../../libs/vizu_db_connector", develop = true }
-vizu-supabase-client = { path = "../../libs/vizu_supabase_client", develop = true }
-vizu-parsers = { path = "../../libs/vizu_parsers", develop = true }
-vizu-observability-bootstrap = { path = "../../libs/vizu_observability_bootstrap" }
+blu-models = { path = "../../libs/blu_models", develop = true }
+blu-agent-framework = { path = "../../libs/blu_agent_framework", develop = true }
+blu-prompt-management = { path = "../../libs/blu_prompt_management", develop = true }
+blu-llm-service = { path = "../../libs/blu_llm_service", develop = true, extras = ["openai"] }
+blu-tool-registry = { path = "../../libs/blu_tool_registry", develop = true }
+blu-rag-factory = { path = "../../libs/blu_rag_factory", develop = true }
+blu-auth = { path = "../../libs/blu_auth", develop = true }
+blu-context-service = { path = "../../libs/blu_context_service", develop = true }
+blu-db-connector = { path = "../../libs/blu_db_connector", develop = true }
+blu-supabase-client = { path = "../../libs/blu_supabase_client", develop = true }
+blu-parsers = { path = "../../libs/blu_parsers", develop = true }
+blu-observability-bootstrap = { path = "../../libs/blu_observability_bootstrap" }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"

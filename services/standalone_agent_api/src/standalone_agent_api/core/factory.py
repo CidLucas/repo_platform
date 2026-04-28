@@ -9,15 +9,15 @@ import redis as redis_lib
 from langgraph.checkpoint.redis import RedisSaver
 
 from standalone_agent_api.config import get_settings
-from vizu_agent_framework import AgentBuilder, AgentConfig
-from vizu_agent_framework.mcp_executor import MCPToolExecutor
-from vizu_agent_framework.state import AgentState, create_initial_state
-from vizu_context_service import ContextService
-from vizu_context_service.redis_service import RedisService
-from vizu_llm_service import get_model
-from vizu_prompt_management import compose_prompt
-from vizu_prompt_management.dynamic_builder import build_prompt_full
-from vizu_supabase_client import get_supabase_client
+from blu_agent_framework import AgentBuilder, AgentConfig
+from blu_agent_framework.mcp_executor import MCPToolExecutor
+from blu_agent_framework.state import AgentState, create_initial_state
+from blu_context_service import ContextService
+from blu_context_service.redis_service import RedisService
+from blu_llm_service import get_model
+from blu_prompt_management import compose_prompt
+from blu_prompt_management.dynamic_builder import build_prompt_full
+from blu_supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ def get_context_service() -> ContextService:
         redis_client = redis_lib.Redis(connection_pool=pool)
         redis_service = RedisService(redis_client=redis_client)
         _context_service = ContextService(
-            cache_service=redis_service, use_supabase=True
+            cache_service=redis_service
         )
         logger.info("ContextService singleton created (standalone_agent_api)")
     return _context_service
@@ -189,8 +189,8 @@ class StandaloneAgentFactory:
         self._agent_cache: dict[str, BuiltAgent] = {}
 
     async def _resolve_client_id(self, auth_user_id: UUID) -> UUID:
-        """Resolve Supabase auth user ID to clientes_vizu.client_id."""
-        result = self.db.table("clientes_vizu").select("client_id").eq(
+        """Resolve Supabase auth user ID to clientes_blu.client_id."""
+        result = self.db.table("clientes_blu").select("client_id").eq(
             "external_user_id", str(auth_user_id)
         ).limit(1).execute()
         if result.data:
@@ -214,7 +214,7 @@ class StandaloneAgentFactory:
             logger.info(f"[Factory] Returning cached agent for session {session_id}")
             return self._agent_cache[session_id]
 
-        # Resolve auth user ID to clientes_vizu.client_id
+        # Resolve auth user ID to clientes_blu.client_id
         client_id = await self._resolve_client_id(client_id)
 
         logger.info(f"[Factory] Building agent for session {session_id}")
@@ -259,11 +259,11 @@ class StandaloneAgentFactory:
         context_service = get_context_service()
         client_context_data = {}
         try:
-            vizu_ctx = await context_service.get_client_context_by_id(client_id)
-            if vizu_ctx:
+            blu_ctx = await context_service.get_client_context_by_id(client_id)
+            if blu_ctx:
                 client_context_data = {
-                    "nome_empresa": getattr(vizu_ctx, "nome_empresa", ""),
-                    "tier": getattr(vizu_ctx, "tier", "BASIC"),
+                    "nome_empresa": getattr(blu_ctx, "nome_empresa", ""),
+                    "tier": getattr(blu_ctx, "tier", "BASIC"),
                 }
                 logger.info(
                     f"[Factory] Client context loaded: tier={client_context_data['tier']}, "
@@ -273,7 +273,7 @@ class StandaloneAgentFactory:
             logger.warning(f"[Factory] ContextService lookup failed for {client_id}: {e}")
             # Fallback: direct DB query
             try:
-                client_result = self.db.table("clientes_vizu").select(
+                client_result = self.db.table("clientes_blu").select(
                     "client_id,tier,nome_empresa"
                 ).eq("client_id", str(client_id)).maybe_single().execute()
                 if client_result.data:

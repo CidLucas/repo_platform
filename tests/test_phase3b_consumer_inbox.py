@@ -284,7 +284,7 @@ class TestDraftConsumerReplyCore:
         fake_model.ainvoke = AsyncMock(
             return_value=SimpleNamespace(content="Olá! O pacote azul custa R$ 199.")
         )
-        with patch("vizu_llm_service.get_model", return_value=fake_model):
+        with patch("blu_llm_service.get_model", return_value=fake_model):
             from tool_pool_api.server.tool_modules.consumer_inbox_module import (
                 draft_consumer_reply_core,
             )
@@ -365,7 +365,7 @@ class TestSendConsumerReplyCore:
             lambda: db,
         )
 
-        from vizu_agent_framework.approval import PolicyDecision
+        from blu_agent_framework.approval import PolicyDecision
 
         approval_row = {"id": str(uuid.uuid4()), "status": "pending"}
 
@@ -383,7 +383,7 @@ class TestSendConsumerReplyCore:
                 reason="BASIC tier always-approval",
             ),
         ), patch(
-            "vizu_agent_framework.approval.ApprovalEngine.request",
+            "blu_agent_framework.approval.ApprovalEngine.request",
             new=fake_request,
         ):
             from tool_pool_api.server.tool_modules.consumer_inbox_module import (
@@ -419,7 +419,7 @@ class TestSendConsumerReplyCore:
             lambda: db,
         )
 
-        from vizu_agent_framework.approval import PolicyDecision
+        from blu_agent_framework.approval import PolicyDecision
 
         fake_twilio = MagicMock()
         fake_twilio.send_whatsapp = MagicMock(return_value="SMsentSID")
@@ -435,9 +435,9 @@ class TestSendConsumerReplyCore:
                 reason="ADMIN bypass",
             ),
         ), patch(
-            "vizu_twilio_client.TwilioClient", return_value=fake_twilio
+            "blu_twilio_client.TwilioClient", return_value=fake_twilio
         ), patch(
-            "vizu_twilio_client.config.get_twilio_settings",
+            "blu_twilio_client.config.get_twilio_settings",
             return_value=SimpleNamespace(
                 account_sid="AC", auth_token="tok", whatsapp_from="whatsapp:+1"
             ),
@@ -464,7 +464,7 @@ class TestSendConsumerReplyCore:
 
 @pytest.fixture(scope="module")
 def db():
-    from vizu_supabase_client import get_supabase_client
+    from blu_supabase_client import get_supabase_client
 
     return get_supabase_client(use_service_role=True)
 

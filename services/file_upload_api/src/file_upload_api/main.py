@@ -11,7 +11,7 @@ from file_upload_api.core.config import get_settings
 # Logger inicial
 logger = logging.getLogger(__name__)
 
-# --- Padrão Vizu: Application Factory ---
+# --- Padrão Blu: Application Factory ---
 
 
 @asynccontextmanager
@@ -31,30 +31,30 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     """
     Cria e configura uma nova instância da aplicação FastAPI.
-    Este é o padrão "Application Factory" usado em todos os serviços Vizu.
+    Este é o padrão "Application Factory" usado em todos os serviços Blu.
     """
     settings = get_settings()
 
     # Cria a instância principal da aplicação
     app = FastAPI(
         title=settings.SERVICE_NAME,
-        description="API síncrona para upload e enfileiramento de arquivos na Vizu.",
+        description="API síncrona para upload e enfileiramento de arquivos na Blu.",
         version="0.1.0",
         lifespan=lifespan,  # Adiciona o gerenciador de ciclo de vida
     )
 
-    # --- Padrão Vizu: Observabilidade Mandatória ---
+    # --- Padrão Blu: Observabilidade Mandatória ---
     # 1. Configura a telemetria (OpenTelemetry) se o endpoint estiver definido.
     # Isso é um pilar da nossa arquitetura[cite: 13, 133].
     if settings.OTEL_EXPORTER_OTLP_ENDPOINT:
         logger.info(f"Configurando observabilidade para '{settings.SERVICE_NAME}'...")
         try:
-            from vizu_observability_bootstrap import setup_observability
+            from blu_observability_bootstrap import setup_observability
 
             setup_observability(app, service_name=settings.SERVICE_NAME, log_min_level=logging.INFO)
         except ImportError:
             logger.warning(
-                "Falha ao importar 'vizu_observability_bootstrap'. Observabilidade nao configurada."
+                "Falha ao importar 'blu_observability_bootstrap'. Observabilidade nao configurada."
             )
     else:
         logger.info("Observabilidade nao configurada (OTEL_EXPORTER_OTLP_ENDPOINT nao definido).")

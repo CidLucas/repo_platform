@@ -135,7 +135,7 @@ services:
     command: >
       --requirepass ${REDIS_AUTH:-myredissecret}
       --maxmemory-policy noeviction
-    # Porta desabilitada para evitar conflito com vizu-mono redis
+    # Porta desabilitada para evitar conflito com Blu-mono redis
     # ports:
     #   - 127.0.0.1:6379:6379
     healthcheck:
@@ -158,7 +158,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-postgres}
       TZ: UTC
       PGTZ: UTC
-    # Porta desabilitada para evitar conflito com vizu-mono postgres
+    # Porta desabilitada para evitar conflito com Blu-mono postgres
     # ports:
     #   - 127.0.0.1:5432:5432
     volumes:

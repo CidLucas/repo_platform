@@ -112,10 +112,10 @@ jobs:
         service:
           - atendente_core
           - tool_pool_api
-          - vizu_dashboard
+          - blu_dashboard
         include:
-          - service: vizu_dashboard
-            dockerfile_path: apps/vizu_dashboard/Dockerfile
+          - service: blu_dashboard
+            dockerfile_path: apps/blu_dashboard/Dockerfile
 
     steps:
       - uses: actions/checkout@v4
@@ -144,9 +144,9 @@ jobs:
 
           REGISTRY="southamerica-east1-docker.pkg.dev"
           PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
-          REPO="vizu-mono"
+          REPO="blu-mono"
 
-          IMAGE_BASE="${REGISTRY}/${PROJECT_ID}/${REPO}/vizu-${{ matrix.service }}"
+          IMAGE_BASE="${REGISTRY}/${PROJECT_ID}/${REPO}/blu-${{ matrix.service }}"
 
           echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
           echo "image_latest=${IMAGE_BASE}:latest" >> $GITHUB_OUTPUT
@@ -160,7 +160,7 @@ jobs:
 
           # Build arguments for dashboard (Vite environment variables)
           BUILD_ARGS=""
-          if [[ "${{ matrix.service }}" == "vizu_dashboard" ]]; then
+          if [[ "${{ matrix.service }}" == "blu_dashboard" ]]; then
             if [ -z "${{ secrets.VITE_SUPABASE_URL }}" ] || [ -z "${{ secrets.VITE_SUPABASE_ANON_KEY }}" ]; then
               echo "❌ VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY secrets are required for dashboard build" >> $GITHUB_STEP_SUMMARY
               exit 1

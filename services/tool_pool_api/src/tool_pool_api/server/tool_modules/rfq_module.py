@@ -25,16 +25,16 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.dependencies import get_context_service
-from vizu_agent_framework.approval import (
+from blu_agent_framework.approval import (
     ApprovalEngine,
     ApprovalError,
     resolve_policy,
 )
-from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
-from vizu_elicitation_service.exceptions import ElicitationRequired
-from vizu_google_suite_client import GoogleSheetsClient
-from vizu_models import ElicitationOption, ElicitationType
-from vizu_supabase_client import get_supabase_client
+from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_elicitation_service.exceptions import ElicitationRequired
+from blu_google_suite_client import GoogleSheetsClient
+from blu_models import ElicitationOption, ElicitationType
+from blu_supabase_client import get_supabase_client
 
 from . import register_module
 

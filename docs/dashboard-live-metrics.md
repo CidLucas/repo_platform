@@ -4,13 +4,13 @@ This document catalogs every **UI element on the user-facing dashboard** (`/dash
 
 All queries run against the `analytics_v2` schema over PostgREST (`supabase.schema('analytics_v2').from(...)`) and are constrained by RLS (`client_id = public.get_my_client_id()`). The schema was slimmed and refactored in the Apr 2026 cleanup — see [`memories/repo/analytics-v2-cleanup-apr2026.md`](../memories/repo/analytics-v2-cleanup-apr2026.md).
 
-Code citations point at files under [`apps/vizu_dashboard/src`](../apps/vizu_dashboard/src).
+Code citations point at files under [`apps/blu_dashboard/src`](../apps/blu_dashboard/src).
 
 ---
 
-## 1. Home — `/dashboard` → [`HomePage.tsx`](../apps/vizu_dashboard/src/pages/HomePage.tsx)
+## 1. Home — `/dashboard` → [`HomePage.tsx`](../apps/blu_dashboard/src/pages/HomePage.tsx)
 
-Hook: `useHomeMetrics()` → calls [`getHomeMetrics()`](../apps/vizu_dashboard/src/services/analyticsService.ts#L919) in `analyticsService.ts`.
+Hook: `useHomeMetrics()` → calls [`getHomeMetrics()`](../apps/blu_dashboard/src/services/analyticsService.ts#L919) in `analyticsService.ts`.
 
 ### 1.1 Revenue header ("Revenue" big number + month number)
 
@@ -45,7 +45,7 @@ Field: `ticket_medio` from same `v_resumo_dashboard` row.
 
 ### 1.4 Domain Expansion Modal (click on a Domain card)
 
-Opened by `DomainExpansionModal` → [`getDomainAnalytics(domain)`](../apps/vizu_dashboard/src/services/analyticsService.ts#L1468).
+Opened by `DomainExpansionModal` → [`getDomainAnalytics(domain)`](../apps/blu_dashboard/src/services/analyticsService.ts#L1468).
 
 Two queries per click:
 
@@ -71,12 +71,12 @@ KPI mapping per domain (all fields come from `v_resumo_dashboard`):
 
 ---
 
-## 2. Pedidos — `/dashboard/pedidos` → [`PedidosPage.tsx`](../apps/vizu_dashboard/src/pages/PedidosPage.tsx)
+## 2. Pedidos — `/dashboard/pedidos` → [`PedidosPage.tsx`](../apps/blu_dashboard/src/pages/PedidosPage.tsx)
 
 Two parallel calls on mount / period change:
 
-- [`getPedidosOverview()`](../apps/vizu_dashboard/src/services/analyticsService.ts#L362)
-- [`getOrderIndicators(period)`](../apps/vizu_dashboard/src/services/analyticsService.ts#L973)
+- [`getPedidosOverview()`](../apps/blu_dashboard/src/services/analyticsService.ts#L362)
+- [`getOrderIndicators(period)`](../apps/blu_dashboard/src/services/analyticsService.ts#L973)
 
 ### 2.1 Header scorecards — "Total de Pedidos" / "Concluídos" / "Pendentes"
 
@@ -125,7 +125,7 @@ Each item renders `pedido_id`, `cliente_cpf_cnpj`, `valor_pedido`, `qtd_produtos
 
 ### 2.5 Pedido Details Modal
 
-Triggered by click on a ListCard item → [`getPedidoDetails(order_id)`](../apps/vizu_dashboard/src/services/analyticsService.ts#L436):
+Triggered by click on a ListCard item → [`getPedidoDetails(order_id)`](../apps/blu_dashboard/src/services/analyticsService.ts#L436):
 
 ```sql
 SELECT
@@ -146,7 +146,7 @@ The legacy pages `/dashboard/clientes`, `/dashboard/fornecedores`, `/dashboard/p
 Current behavior:
 
 - All these legacy paths now redirect to `/dashboard`.
-- The primary analytical interaction is now the expandable domain card flow in [`HomePage.tsx`](../apps/vizu_dashboard/src/pages/HomePage.tsx) via [`DomainExpansionModal.tsx`](../apps/vizu_dashboard/src/components/DomainExpansionModal.tsx).
+- The primary analytical interaction is now the expandable domain card flow in [`HomePage.tsx`](../apps/blu_dashboard/src/pages/HomePage.tsx) via [`DomainExpansionModal.tsx`](../apps/blu_dashboard/src/components/DomainExpansionModal.tsx).
 
 The underlying analytics sources remain in `analyticsService.ts` and `analytics_v2`, but they are no longer surfaced through dedicated per-dimension pages.
 
@@ -163,7 +163,7 @@ FROM analytics_v2.dim_clientes;
 
 Implementation reference:
 
-- [`getGeoClusters(groupBy)`](../apps/vizu_dashboard/src/services/analyticsService.ts#L1561)
+- [`getGeoClusters(groupBy)`](../apps/blu_dashboard/src/services/analyticsService.ts#L1561)
 
 ---
 

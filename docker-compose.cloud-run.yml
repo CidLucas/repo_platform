@@ -1,5 +1,5 @@
 # ===============================================
-# VIZU Cloud Run Docker Compose
+# BLU Cloud Run Docker Compose
 # For Google Cloud Run deployment testing
 # ===============================================
 # Usage:
@@ -12,7 +12,7 @@
 #
 # Deploy to Cloud Run:
 #   gcloud run deploy <service> \
-#     --image=<region>-docker.pkg.dev/<project>/vizu-mono/<service>:latest \
+#     --image=<region>-docker.pkg.dev/<project>/blu-mono/<service>:latest \
 #     --platform=managed \
 #     --region=<region> \
 #     --allow-unauthenticated
@@ -38,7 +38,7 @@ x-common-env: &common-env
   # OpenTelemetry (Grafana Cloud or Langfuse)
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
   OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
-  OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-vizu-cloudrun}
+  OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-blu-cloudrun}
 
 x-llm-env: &llm-env
   # LLM Provider config
@@ -72,7 +72,7 @@ services:
     build:
       context: .
       dockerfile: ./services/atendente_core/Dockerfile
-    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/atendente-core:${IMAGE_TAG:-latest}
+    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-bludev}/blu-mono/atendente-core:${IMAGE_TAG:-latest}
     env_file:
       - .env.cloudrun
     environment:
@@ -92,7 +92,7 @@ services:
     build:
       context: .
       dockerfile: ./services/tool_pool_api/Dockerfile
-    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/tool-pool-api:${IMAGE_TAG:-latest}
+    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-bludev}/blu-mono/tool-pool-api:${IMAGE_TAG:-latest}
     env_file:
       - .env.cloudrun
     environment:
@@ -120,7 +120,7 @@ services:
     build:
       context: .
       dockerfile: ./services/vendas_agent/Dockerfile
-    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/vendas-agent:${IMAGE_TAG:-latest}
+    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-bludev}/blu-mono/vendas-agent:${IMAGE_TAG:-latest}
     env_file:
       - .env.cloudrun
     environment:
@@ -138,7 +138,7 @@ services:
     build:
       context: .
       dockerfile: ./services/support_agent/Dockerfile
-    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/support-agent:${IMAGE_TAG:-latest}
+    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-bludev}/blu-mono/support-agent:${IMAGE_TAG:-latest}
     env_file:
       - .env.cloudrun
     environment:
@@ -154,18 +154,18 @@ services:
   # FRONTEND (Dashboard)
   # =========================================
 
-  vizu_dashboard:
-    container_name: cloudrun_vizu_dashboard
+  blu_dashboard:
+    container_name: cloudrun_blu_dashboard
     <<: *build-args
     build:
       context: .
-      dockerfile: ./apps/vizu_dashboard/Dockerfile
+      dockerfile: ./apps/blu_dashboard/Dockerfile
       args:
         VITE_SUPABASE_URL: ${SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8003}
         VITE_ATENDENTE_CORE: ${VITE_ATENDENTE_CORE:-http://localhost:8003}
-    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-vizudev}/vizu-mono/vizu-dashboard:${IMAGE_TAG:-latest}
+    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-bludev}/blu-mono/blu-dashboard:${IMAGE_TAG:-latest}
     environment:
       PORT: "80"
     ports:
@@ -173,4 +173,4 @@ services:
 
 networks:
   default:
-    name: vizu_cloudrun_network
+    name: blu_cloudrun_network

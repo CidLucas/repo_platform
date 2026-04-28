@@ -46,7 +46,7 @@ def register_tools(mcp: FastMCP) -> None:
     stats = register_all_tools(mcp)
 
     logger.info(
-        f"Ferramentas Vizu registradas com sucesso: "
+        f"Ferramentas Blu registradas com sucesso: "
         f"{stats['total']} tools de {len(stats['modules'])} módulos "
         f"({', '.join(stats['modules'])})"
     )
@@ -73,4 +73,4 @@ from tool_pool_api.server.dependencies import (
     get_context_service,
     load_context_from_token,
 )
-from vizu_rag_factory.factory import create_rag_retriever, create_rag_runnable
+from blu_rag_factory.factory import create_rag_retriever, create_rag_runnable

@@ -4,9 +4,9 @@ Run this script in CI (and on demand) to verify that every Blu MVP prompt
 referenced by application code has:
 
 1. a built-in fallback registered in
-   ``libs/vizu_prompt_management/.../templates.py`` (``BUILTIN_TEMPLATES``);
+   ``libs/blu_prompt_management/.../templates.py`` (``BUILTIN_TEMPLATES``);
 2. an in-repo Markdown fallback under
-   ``libs/vizu_prompt_management/prompts/<domain>/<slug>.md`` so that
+   ``libs/blu_prompt_management/prompts/<domain>/<slug>.md`` so that
    reviewers can diff prompt content without parsing Python; and
 3. a ``production``-labeled version in Langfuse.
 
@@ -42,7 +42,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PM_PKG = REPO_ROOT / "libs" / "vizu_prompt_management" / "src" / "vizu_prompt_management"
+PM_PKG = REPO_ROOT / "libs" / "blu_prompt_management" / "src" / "blu_prompt_management"
 FALLBACK_DIR = PM_PKG / "prompts"
 
 if str(PM_PKG.parent) not in sys.path:
@@ -50,14 +50,14 @@ if str(PM_PKG.parent) not in sys.path:
 
 
 def _load_builtin_templates() -> dict[str, Any]:
-    from vizu_prompt_management.templates import BUILTIN_TEMPLATES  # type: ignore
+    from blu_prompt_management.templates import BUILTIN_TEMPLATES  # type: ignore
 
     return BUILTIN_TEMPLATES
 
 
 # ---------------------------------------------------------------------------
 # MVP prompt inventory — must match docs/internal/kpi-catalog.md and the
-# fragments composed by libs/vizu_prompt_management/.../dynamic_builder.py.
+# fragments composed by libs/blu_prompt_management/.../dynamic_builder.py.
 # ---------------------------------------------------------------------------
 
 #: Prompts the MVP is allowed to ship without a production label in Langfuse
@@ -272,7 +272,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--write-fallbacks",
         action="store_true",
-        help="Write/refresh in-repo Markdown fallbacks under libs/vizu_prompt_management/prompts/.",
+        help="Write/refresh in-repo Markdown fallbacks under libs/blu_prompt_management/prompts/.",
     )
     parser.add_argument(
         "--no-langfuse",

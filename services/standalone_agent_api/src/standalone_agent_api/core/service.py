@@ -9,9 +9,9 @@ from uuid import UUID, uuid4
 from langchain_core.messages import AIMessage, HumanMessage
 
 from standalone_agent_api.core.factory import get_factory
-from vizu_agent_framework.state import create_initial_state
-from vizu_parsers.csv_ingestion import ingest_csv
-from vizu_supabase_client import get_supabase_client
+from blu_agent_framework.state import create_initial_state
+from blu_parsers.csv_ingestion import ingest_csv
+from blu_supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -235,13 +235,13 @@ class SessionService:
         self.db = get_supabase_client()
 
     async def _resolve_client_id(self, auth_user_id: UUID) -> str:
-        """Resolve Supabase auth user ID to clientes_vizu.client_id.
+        """Resolve Supabase auth user ID to clientes_blu.client_id.
 
         The JWT 'sub' claim is the auth.users.id, but standalone_agent_sessions
-        FK references clientes_vizu.client_id which may differ (linked via
+        FK references clientes_blu.client_id which may differ (linked via
         external_user_id).
         """
-        result = self.db.table("clientes_vizu").select("client_id").eq(
+        result = self.db.table("clientes_blu").select("client_id").eq(
             "external_user_id", str(auth_user_id)
         ).limit(1).execute()
 
@@ -506,7 +506,7 @@ class CsvUploadService:
         """Upload CSV file and register in database."""
         try:
             # Get Supabase Storage instance
-            from vizu_supabase_client import get_storage
+            from blu_supabase_client import get_storage
 
             supabase_storage = get_storage(bucket="file-uploads")
 

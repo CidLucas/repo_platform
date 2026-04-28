@@ -6,8 +6,8 @@ Tools for sending RFQs via WhatsApp and parsing supplier replies
 using LLM extraction from free-text messages.
 
 **Architecture**:
-- Uses vizu_twilio_client for WhatsApp messaging
-- Uses vizu_llm_service (FAST tier) for parsing unstructured replies
+- Uses blu_twilio_client for WhatsApp messaging
+- Uses blu_llm_service (FAST tier) for parsing unstructured replies
 - client_id injected via mcp_inject_cliente_id
 - All message content sanitized before Langfuse logging
 """
@@ -20,8 +20,8 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.dependencies import get_context_service
-from vizu_auth.mcp.auth_middleware import mcp_inject_cliente_id
-from vizu_supabase_client import get_supabase_client
+from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_supabase_client import get_supabase_client
 
 from . import register_module
 
@@ -117,8 +117,8 @@ async def _dispatch_rfq_whatsapp_logic(
 
         # Send via Twilio
         try:
-            from vizu_twilio_client import TwilioClient
-            from vizu_twilio_client.config import get_twilio_settings
+            from blu_twilio_client import TwilioClient
+            from blu_twilio_client.config import get_twilio_settings
 
             twilio = TwilioClient(get_twilio_settings())
             message_sid = twilio.send_whatsapp(to=phone, body=message_template)
@@ -128,7 +128,7 @@ async def _dispatch_rfq_whatsapp_logic(
 
         except ImportError:
             raise ToolError(
-                "Módulo vizu_twilio_client não disponível. "
+                "Módulo blu_twilio_client não disponível. "
                 "Configure TWILIO_ACCOUNT_SID e TWILIO_AUTH_TOKEN."
             )
 
@@ -259,8 +259,8 @@ async def parse_supplier_reply_core(
         # Use FAST tier LLM for parsing
         from langchain_core.messages import HumanMessage, SystemMessage
 
-        from vizu_llm_service import get_model
-        from vizu_llm_service.client import ModelTier
+        from blu_llm_service import get_model
+        from blu_llm_service.client import ModelTier
 
         model = get_model(tier=ModelTier.FAST, tags=["rfq", "whatsapp-parse"])
 

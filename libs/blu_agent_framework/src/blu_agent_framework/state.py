@@ -1,0 +1,227 @@
+"""
+Agent state definition using TypedDict for LangGraph compatibility.
+"""
+
+from operator import add
+from typing import Annotated, Any
+
+from langchain_core.messages import BaseMessage
+from typing_extensions import TypedDict
+
+
+def add_messages(left: list[BaseMessage], right: list[BaseMessage]) -> list[BaseMessage]:
+    """Reducer for messages: appends new messages to existing list."""
+    return left + right
+
+
+def merge_dict(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
+    """Reducer for dicts: merges right into left."""
+    return {**left, **right}
+
+
+class ToolCallSendState(TypedDict, total=False):
+    """
+    State passed to each fan-out tool execution node via LangGraph Send.
+
+    Each Send dispatches one tool call to execute_single_tool_node
+    with this minimal state. Results are aggregated back via reducers.
+    """
+
+    tool_call: dict[str, Any]  # Single tool call: {name, id, args}
+    cliente_id: str
+    session_id: str
+    channel: str
+    metadata: dict[str, Any]
+    available_tools_metadata: list[dict[str, Any]]
+
+
+class AgentState(TypedDict, total=False):
+    """
+    Base state for all Blu agents.
+
+    This TypedDict defines the common state fields that all agents share.
+    Agent-specific extensions can add additional fields.
+
+    Annotated fields use reducers for proper state updates in LangGraph.
+    """
+
+    # =========================================================================
+    # Core Identifiers
+    # =========================================================================
+
+    session_id: str  # Unique session identifier
+    cliente_id: str  # Client UUID (from context)
+    thread_id: str  # LangGraph thread ID for checkpointing
+    channel: str  # Channel: "whatsapp", "web", "api"
+
+    # =========================================================================
+    # Messages (with reducer for accumulation)
+    # =========================================================================
+
+    messages: Annotated[list[BaseMessage], add_messages]
+
+    # =========================================================================
+    # Tool Configuration
+    # =========================================================================
+
+    available_tools_metadata: list[dict[str, Any]]  # Full tool metadata
+
+    # =========================================================================
+    # Elicitation State
+    # =========================================================================
+
+    pending_elicitation: dict[str, Any] | None  # Current pending elicitation
+    elicitation_response: Any | None  # User's response to elicitation
+    elicitation_history: list[dict[str, Any]]  # Past elicitations
+
+    # =========================================================================
+    # Tool Execution State
+    # =========================================================================
+
+    tool_to_execute: str | None  # Next tool to execute (legacy single-tool)
+    tool_args: dict[str, Any] | None  # Arguments for next tool (legacy)
+    tool_results: Annotated[list[dict[str, Any]], add]  # Accumulated tool results
+    last_tool_result: dict[str, Any] | None  # Most recent result
+
+    # Fan-out tool execution (Send-based parallel dispatch)
+    pending_tool_calls: list[dict[str, Any]]  # Tool calls to fan-out via Send
+
+    # =========================================================================
+    # Conversation Control
+    # =========================================================================
+
+    turn_count: int  # Current turn number
+    max_turns: int  # Maximum allowed turns
+    ended: bool  # Whether conversation has ended
+    end_reason: str | None  # Reason for ending
+
+    # =========================================================================
+    # Agent Context
+    # =========================================================================
+
+    system_prompt: str  # System prompt for LLM
+    agent_name: str  # Agent identifier
+    agent_role: str  # Agent role description
+
+    # =========================================================================
+    # Client Context (from blu_context_service)
+    # =========================================================================
+
+    client_context: dict[str, Any]  # Full client context
+    nome_empresa: str  # Company name
+    tier: str  # Client tier
+
+    # =========================================================================
+    # Error Handling
+    # =========================================================================
+
+    error: str | None  # Current error message
+    errors: Annotated[list[str], add]  # Accumulated errors
+
+    # =========================================================================
+    # Metadata
+    # =========================================================================
+
+    metadata: Annotated[dict[str, Any], merge_dict]  # Additional metadata
+
+
+def create_initial_state(
+    session_id: str,
+    cliente_id: str,
+    messages: list[BaseMessage] | None = None,
+    system_prompt: str = "",
+    agent_name: str = "agent",
+    agent_role: str = "Assistant",
+    max_turns: int = 20,
+    channel: str = "api",
+    client_context: dict[str, Any] | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> AgentState:
+    """
+    Create initial agent state with required fields populated.
+
+    Args:
+        session_id: Unique session identifier
+        cliente_id: Client UUID
+        messages: Initial messages (optional)
+        system_prompt: System prompt for LLM
+        agent_name: Agent identifier
+        agent_role: Agent role description
+        max_turns: Maximum conversation turns
+        channel: Communication channel
+        client_context: Full client context dict
+        metadata: Additional metadata
+
+    Returns:
+        AgentState with initial values
+    """
+    return AgentState(
+        # Core identifiers
+        session_id=session_id,
+        cliente_id=cliente_id,
+        thread_id=f"{session_id}:{cliente_id}",
+        channel=channel,
+        # Messages
+        messages=messages or [],
+        # Tools
+        available_tools_metadata=[],
+        # Elicitation
+        pending_elicitation=None,
+        elicitation_response=None,
+        elicitation_history=[],
+        # Tool execution
+        tool_to_execute=None,
+        tool_args=None,
+        tool_results=[],
+        last_tool_result=None,
+        pending_tool_calls=[],
+        # Conversation control
+        turn_count=0,
+        max_turns=max_turns,
+        ended=False,
+        end_reason=None,
+        # Agent context
+        system_prompt=system_prompt,
+        agent_name=agent_name,
+        agent_role=agent_role,
+        # Client context
+        client_context=client_context or {},
+        nome_empresa=client_context.get("nome_empresa", "") if client_context else "",
+        tier=client_context.get("tier", "BASIC") if client_context else "BASIC",
+        # Error handling
+        error=None,
+        errors=[],
+        # Metadata
+        metadata=metadata or {},
+    )
+
+
+class MinimalState(TypedDict, total=False):
+    """
+    Minimal state for simple agents that don't need full state.
+    """
+
+    messages: Annotated[list[BaseMessage], add_messages]
+    session_id: str
+    ended: bool
+
+
+class ToolExecutionState(TypedDict, total=False):
+    """
+    State subset for tool execution context.
+    """
+
+    tool_to_execute: str
+    tool_args: dict[str, Any]
+    cliente_id: str
+    last_tool_result: dict[str, Any] | None
+
+
+class ElicitationState(TypedDict, total=False):
+    """
+    State subset for elicitation handling.
+    """
+
+    pending_elicitation: dict[str, Any] | None
+    elicitation_response: Any | None
+    elicitation_history: list[dict[str, Any]]

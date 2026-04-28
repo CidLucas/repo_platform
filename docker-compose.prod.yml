@@ -1,5 +1,5 @@
 # ===============================================
-# VIZU Production Docker Compose
+# BLU Production Docker Compose
 # For DigitalOcean Droplet deployment
 # ===============================================
 # Usage:
@@ -12,7 +12,7 @@
 #
 # Image Registry:
 #   Images are pulled from GitHub Container Registry (ghcr.io)
-#   Set GHCR_OWNER in .env.production (default: vizubr)
+#   Set GHCR_OWNER in .env.production (default: blubr)
 # ===============================================
 
 x-common-env: &common-env
@@ -38,7 +38,7 @@ x-common-env: &common-env
   # Grafana Cloud OTLP (direct export, no local collector)
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
   OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS}
-  OTEL_SERVICE_NAME: vizu-prod
+  OTEL_SERVICE_NAME: blu-prod
 
 x-atendente-env: &atendente-env
   # LLM Provider config
@@ -87,9 +87,9 @@ services:
   # =========================================
 
   atendente_core:
-    container_name: vizu_atendente_core
+    container_name: blu_atendente_core
     platform: linux/amd64
-    image: ${USE_GHCR:+ghcr.io/${GHCR_OWNER:-vizubr}/vizu-atendente_core:${IMAGE_TAG:-latest}}
+    image: ${USE_GHCR:+ghcr.io/${GHCR_OWNER:-blubr}/blu-atendente_core:${IMAGE_TAG:-latest}}
     build:
       context: .
       dockerfile: ./services/atendente_core/Dockerfile
@@ -110,9 +110,9 @@ services:
         condition: service_healthy
 
   tool_pool_api:
-    container_name: vizu_tool_pool_api
+    container_name: blu_tool_pool_api
     platform: linux/amd64
-    image: ${USE_GHCR:+ghcr.io/${GHCR_OWNER:-vizubr}/vizu-tool_pool_api:${IMAGE_TAG:-latest}}
+    image: ${USE_GHCR:+ghcr.io/${GHCR_OWNER:-blubr}/blu-tool_pool_api:${IMAGE_TAG:-latest}}
     build:
       context: .
       dockerfile: ./services/tool_pool_api/Dockerfile
@@ -141,9 +141,9 @@ services:
   # =========================================
 
   vendas_agent:
-    container_name: vizu_vendas_agent
+    container_name: blu_vendas_agent
     platform: linux/amd64
-    image: ${USE_GHCR:+ghcr.io/${GHCR_OWNER:-vizubr}/vizu-vendas_agent:${IMAGE_TAG:-latest}}
+    image: ${USE_GHCR:+ghcr.io/${GHCR_OWNER:-blubr}/blu-vendas_agent:${IMAGE_TAG:-latest}}
     build:
       context: .
       dockerfile: ./services/vendas_agent/Dockerfile
@@ -165,9 +165,9 @@ services:
         condition: service_healthy
 
   support_agent:
-    container_name: vizu_support_agent
+    container_name: blu_support_agent
     platform: linux/amd64
-    image: ${USE_GHCR:+ghcr.io/${GHCR_OWNER:-vizubr}/vizu-support_agent:${IMAGE_TAG:-latest}}
+    image: ${USE_GHCR:+ghcr.io/${GHCR_OWNER:-blubr}/blu-support_agent:${IMAGE_TAG:-latest}}
     build:
       context: .
       dockerfile: ./services/support_agent/Dockerfile
@@ -193,9 +193,9 @@ services:
   # =========================================
 
   embedding_service:
-    container_name: vizu_embedding_service
+    container_name: blu_embedding_service
     platform: linux/amd64
-    image: ${USE_GHCR:+ghcr.io/${GHCR_OWNER:-vizubr}/vizu-embedding_service:${IMAGE_TAG:-latest}}
+    image: ${USE_GHCR:+ghcr.io/${GHCR_OWNER:-blubr}/blu-embedding_service:${IMAGE_TAG:-latest}}
     build:
       context: .
       dockerfile: ./services/embedding_service/Dockerfile
@@ -224,7 +224,7 @@ services:
 
   caddy:
     image: caddy:2-alpine
-    container_name: vizu_caddy
+    container_name: blu_caddy
     ports:
       - "80:80"
       - "443:443"
@@ -243,4 +243,4 @@ volumes:
 
 networks:
   default:
-    name: vizu_network
+    name: blu_network

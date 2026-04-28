@@ -22,7 +22,7 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, status
 from fastmcp.exceptions import ToolError
 
-from vizu_supabase_client import get_supabase_client
+from blu_supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 

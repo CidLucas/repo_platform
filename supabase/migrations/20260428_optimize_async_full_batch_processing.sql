@@ -117,7 +117,7 @@ BEGIN
             RAISE EXCEPTION 'No foreign table found for this data source';
         END IF;
 
-        IF v_column_mapping IS NULL OR jsonb_object_keys(v_column_mapping) IS NULL THEN
+        IF v_column_mapping IS NULL OR v_column_mapping = '{}'::jsonb THEN
             RAISE EXCEPTION 'No column mapping found for this data source';
         END IF;
 

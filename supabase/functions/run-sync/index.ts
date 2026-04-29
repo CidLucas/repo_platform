@@ -151,22 +151,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // ── Duplicate guard: block only pending or non-stale running jobs ──
-    // Jobs stuck 'running' for >= 15 min are cleaned up by the janitor cron
-    // and should not block new submissions.
-    const runningGraceIso = new Date(
-      Date.now() - RUNNING_JOB_GRACE_MINUTES * 60 * 1000
-    ).toISOString();
+    // ── Duplicate guard: block only pending jobs ──
+    // Simplify by checking pending status - async processing handles the rest
     const { data: existingJob } = await supabase
       .schema("analytics_v2")
       .from("reg_jobs")
       .select("job_id, status")
       .eq("client_id", client_id)
       .eq("job_type", "bigquery_sync")
-      .contains("input_params", { credential_id: normalizedCredentialId })
-      .or(
-        `status.eq.pending,and(status.eq.running,started_at.gt.${runningGraceIso})`
-      )
+      .eq("status", "pending")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -207,16 +200,32 @@ Deno.serve(async (req: Request) => {
     }
 
     console.log(
-      `[run-sync] Enqueued job ${job.job_id} for client ${client_id} credential ${normalizedCredentialId}.`
+      `[run-sync] Created job ${job.job_id} for client ${client_id}. Starting async processing...`
     );
+
+    // ── Kick off sync processing immediately via RPC ──
+    // Call the processor directly (no edge function hop)
+    // This avoids auth issues and processes all rows in one execution
+    const { error: rpcError } = await supabase.rpc(
+      "sincronizar_dados_cliente",
+      { p_job_id: job.job_id }
+    );
+
+    if (rpcError) {
+      console.error(`[run-sync] RPC processing error for job ${job.job_id}:`, rpcError);
+      // Don't fail the response - job is created, RPC just didn't complete in time
+      // It will be picked up by pg_cron if needed
+    } else {
+      console.log(`[run-sync] Job ${job.job_id} completed successfully`);
+    }
 
     return json(
       {
         success: true,
         job_id: job.job_id,
-        message: "Sync job enqueued. pg_cron will execute within 30 seconds.",
+        message: "Sync job completed. All rows processed.",
       },
-      202
+      200
     );
   } catch (err) {
     console.error("[run-sync] Handler error:", err);

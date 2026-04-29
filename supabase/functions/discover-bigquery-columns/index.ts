@@ -226,7 +226,7 @@ Deno.serve(async (req: Request) => {
 
     // 4. Create the foreign table with properly typed columns
     // First, update bigquery_foreign_tables with the full BigQuery table reference
-    const bigqueryTableRef = `${project_id}.${dataset_id}.${table_name}`;
+    const bigqueryTableRef = `${project_id}:${dataset_id}.${table_name}`;
 
     const { data: dataSource } = await supabase
       .from("client_data_sources")

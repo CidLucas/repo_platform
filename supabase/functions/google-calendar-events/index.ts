@@ -16,33 +16,18 @@
 // Failure modes are surfaced as `disabled: true` + a typed `reason` so the
 // dashboard can render an onboarding/CTA empty state without leaking errors.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Fernet from "npm:fernet@0.4.0";
+import {
+  requireAuth,
+  createServiceClient,
+  AuthError,
+} from "../_shared/blu_auth.ts";
+import { corsHeaders, json } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const CREDENTIALS_ENCRYPTION_KEY = Deno.env.get("CREDENTIALS_ENCRYPTION_KEY");
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-function getServiceClient() {
-  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
 
 function decryptFernet(ciphertext: string): string {
   if (!CREDENTIALS_ENCRYPTION_KEY) {
@@ -125,26 +110,11 @@ Deno.serve(async (req: Request) => {
   let calendarIdLog: string | null = null;
 
   try {
-    // ── Auth: validate JWT via Auth API (supports ES256) ──
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
-      return json({ error: "Missing authorization header" }, 401);
-    }
-    const token = authHeader.replace(/^[Bb]earer\s+/, "");
-    const userResp = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: SUPABASE_ANON_KEY,
-      },
-    });
-    if (!userResp.ok) {
-      return json({ error: "Invalid or expired token" }, 401);
-    }
-    const userPayload = await userResp.json();
-    const userId = userPayload?.id as string | undefined;
-    if (!userId) return json({ error: "Invalid auth payload" }, 401);
+    // ── 1. Auth: validate JWT, extract user context ──────────────────────────
+    const ctx = await requireAuth(req, SUPABASE_URL, SUPABASE_ANON_KEY);
+    const userId = ctx.userId;
 
-    // ── Body (optional rangeDays override) ──
+    // ── 2. Body (optional rangeDays override) ────────────────────────────────
     let body: { rangeDays?: number } = {};
     if (req.method === "POST") {
       try {
@@ -154,7 +124,10 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const supabase = getServiceClient();
+    // Service client is appropriate here: reading encrypted OAuth tokens and
+    // decrypting credentials are inherently admin-level operations. Ownership
+    // is enforced by looking up clientes_blu by external_user_id below.
+    const supabase = createServiceClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
     // ── Resolve client_id from authenticated user ──
     const { data: clientRow, error: clientErr } = await supabase
@@ -373,6 +346,9 @@ Deno.serve(async (req: Request) => {
         error: e instanceof Error ? e.message : String(e),
       }),
     );
+    if (e instanceof AuthError) {
+      return json({ error: e.message }, e.status);
+    }
     return json(
       {
         error: "internal_error",

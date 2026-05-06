@@ -16,6 +16,7 @@
 // matching the process-document EF that generates stored vectors.
 
 import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
+import { corsHeaders, json } from "../_shared/cors.ts";
 
 const DB_URL = Deno.env.get("SUPABASE_DB_URL")!;
 const CO_API_KEY = Deno.env.get("CO_API_KEY")!;
@@ -49,13 +50,6 @@ async function generateEmbedding(text: string): Promise<number[]> {
     return data.embeddings.float[0];
 }
 
-const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers":
-        "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
 Deno.serve(async (req: Request) => {
     // CORS preflight
     if (req.method === "OPTIONS") {
@@ -85,37 +79,19 @@ Deno.serve(async (req: Request) => {
 
         // Validate required fields
         if (!query || !client_id) {
-            return new Response(
-                JSON.stringify({ error: "Missing required fields: query, client_id" }),
-                {
-                    status: 400,
-                    headers: { ...corsHeaders, "Content-Type": "application/json" },
-                }
-            );
+            return json({ error: "Missing required fields: query, client_id" }, 400);
         }
 
         // Validate search_mode
         const validModes = new Set(["semantic", "hybrid"]);
         if (!validModes.has(search_mode)) {
-            return new Response(
-                JSON.stringify({ error: `Invalid search_mode: ${search_mode}. Must be 'semantic' or 'hybrid'.` }),
-                {
-                    status: 400,
-                    headers: { ...corsHeaders, "Content-Type": "application/json" },
-                }
-            );
+            return json({ error: `Invalid search_mode: ${search_mode}. Must be 'semantic' or 'hybrid'.` }, 400);
         }
 
         // Validate fusion_strategy
         const validStrategies = new Set(["rrf", "weighted"]);
         if (!validStrategies.has(fusion_strategy)) {
-            return new Response(
-                JSON.stringify({ error: `Invalid fusion_strategy: ${fusion_strategy}. Must be 'rrf' or 'weighted'.` }),
-                {
-                    status: 400,
-                    headers: { ...corsHeaders, "Content-Type": "application/json" },
-                }
-            );
+            return json({ error: `Invalid fusion_strategy: ${fusion_strategy}. Must be 'rrf' or 'weighted'.` }, 400);
         }
 
         // ── Logging: incoming parameters ──────────────────────────
@@ -224,24 +200,12 @@ Deno.serve(async (req: Request) => {
             }));
         }
 
-        return new Response(
-            JSON.stringify({ results }),
-            {
-                status: 200,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-        );
+        return json({ results });
     } catch (err) {
         console.error("[search-documents] Handler error:", err);
-        return new Response(
-            JSON.stringify({
-                error: "Internal error",
-                details: err instanceof Error ? err.message : String(err),
-            }),
-            {
-                status: 500,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
+        return json(
+            { error: "Internal error", details: err instanceof Error ? err.message : String(err) },
+            500,
         );
     } finally {
         await sql.end();

@@ -1,0 +1,129 @@
+- generic [ref=e3]:
+  - navigation "Navegação principal" [ref=e4]:
+    - generic [ref=e6]: blu
+    - button "Início" [ref=e8] [cursor=pointer]:
+      - img [ref=e10]
+      - generic [ref=e13]: Início
+    - generic [ref=e15]:
+      - paragraph [ref=e16]: Agentes
+      - button "Compras" [ref=e17] [cursor=pointer]:
+        - img [ref=e20]
+        - generic [ref=e23]: Compras
+      - button "Financeiro" [ref=e24] [cursor=pointer]:
+        - img [ref=e27]
+        - generic [ref=e30]: Financeiro
+      - button "Agenda" [ref=e31] [cursor=pointer]:
+        - img [ref=e34]
+        - generic [ref=e37]: Agenda
+      - button "Documentos" [ref=e38] [cursor=pointer]:
+        - img [ref=e41]
+        - generic [ref=e44]: Documentos
+      - button "Estratégia" [ref=e45] [cursor=pointer]:
+        - img [ref=e48]
+        - generic [ref=e51]: Estratégia
+      - button "Clientes" [ref=e52] [cursor=pointer]:
+        - img [ref=e55]
+        - generic [ref=e58]: Clientes
+    - generic [ref=e60]:
+      - button "Personalizar Agente" [ref=e61] [cursor=pointer]:
+        - img [ref=e63]
+        - generic [ref=e66]: Personalizar Agente
+      - button "Admin" [ref=e67] [cursor=pointer]:
+        - img [ref=e69]
+        - generic [ref=e72]: Admin
+  - generic [ref=e73]:
+    - banner [ref=e74]:
+      - generic [ref=e75]:
+        - generic [ref=e76]: blu
+        - generic [ref=e77]: /
+        - generic [ref=e78]: Compras
+      - generic [ref=e79]:
+        - button "Abrir busca" [ref=e80] [cursor=pointer]:
+          - img [ref=e81]
+        - button "Notificações" [ref=e85] [cursor=pointer]:
+          - img [ref=e86]
+        - button "Menu do usuário" [ref=e90] [cursor=pointer]: CI
+    - main [ref=e91]:
+      - generic [ref=e92]:
+        - generic [ref=e93]:
+          - button "Início" [ref=e94] [cursor=pointer]:
+            - img [ref=e95]
+            - generic [ref=e97]: Início
+          - generic [ref=e98]:
+            - img [ref=e101]
+            - generic [ref=e104]:
+              - heading "Compras" [level=1] [ref=e105]
+              - paragraph [ref=e106]: Gestão de fornecedores, cotações e estoque
+        - generic [ref=e107]:
+          - main [ref=e108]:
+            - generic [ref=e109]:
+              - generic [ref=e110]:
+                - generic [ref=e112]:
+                  - heading "Mesa — Compras" [level=2] [ref=e114]
+                  - tablist [ref=e115]:
+                    - tab "Decisões" [selected] [ref=e116] [cursor=pointer]
+                    - tab "Tarefas" [ref=e117] [cursor=pointer]
+                    - tab "Histórico" [ref=e118] [cursor=pointer]
+                - generic [ref=e121]:
+                  - generic [ref=e123]: ✓
+                  - paragraph [ref=e124]: Compras está monitorando.
+                  - paragraph [ref=e125]: Quando houver algo para decidir em Compras, vai aparecer aqui.
+                  - button "Ver histórico" [ref=e126] [cursor=pointer]:
+                    - text: Ver histórico
+                    - img [ref=e127]
+              - generic [ref=e129]:
+                - paragraph [ref=e130]: Insights
+                - paragraph [ref=e131]: Nenhum insight disponível.
+              - generic [ref=e132]:
+                - button "Rotinas e Configurações Disponível em breve" [ref=e133] [cursor=pointer]:
+                  - img [ref=e134]
+                  - generic [ref=e136]: Rotinas e Configurações
+                  - generic "Aprove as primeiras decisões para desbloquear automações personalizadas" [ref=e137]:
+                    - img [ref=e138]
+                    - text: Disponível em breve
+                - generic [ref=e144]:
+                  - paragraph [ref=e146]: Rotinas e automações são desbloqueadas conforme você aprova decisões. Quanto mais o Blu conhece seu negócio, mais autônomo ele fica.
+                  - generic [ref=e148]:
+                    - paragraph [ref=e149]: Alertas
+                    - paragraph [ref=e150]: Configure limites de estoque e cotações automáticas abaixo.
+                  - generic [ref=e151]:
+                    - paragraph [ref=e152]: Rotinas
+                    - paragraph [ref=e153]: Nenhuma rotina configurada.
+                  - generic [ref=e155]:
+                    - img [ref=e156]
+                    - paragraph [ref=e159]: Regras avançadas desbloqueadas após 25 aprovações.
+                  - generic [ref=e161]:
+                    - generic [ref=e162]:
+                      - paragraph [ref=e163]: Notificações
+                      - generic [ref=e164]:
+                        - generic [ref=e165]:
+                          - paragraph [ref=e166]: Alertas urgentes
+                          - paragraph [ref=e167]: Receba alertas quando houver decisões urgentes
+                        - generic [ref=e168]: Em breve
+                    - generic [ref=e169]:
+                      - paragraph [ref=e170]: Agente
+                      - generic [ref=e171]:
+                        - generic [ref=e172]:
+                          - paragraph [ref=e173]: Relatórios automáticos
+                          - paragraph [ref=e174]: Gere relatórios semanais automaticamente
+                        - generic [ref=e175]: Em breve
+          - complementary [ref=e176]:
+            - generic [ref=e177]:
+              - heading "Fornecedores" [level=3] [ref=e179]
+              - generic [ref=e181]:
+                - img [ref=e183]
+                - paragraph [ref=e187]: Nenhum fornecedor cadastrado ainda.
+                - button "Adicionar primeiro fornecedor" [ref=e188] [cursor=pointer]:
+                  - img [ref=e189]
+                  - text: Adicionar primeiro fornecedor
+              - button "Ver menos" [ref=e190] [cursor=pointer]:
+                - generic [ref=e191]: Ver menos
+                - img [ref=e192]
+            - generic [ref=e194]:
+              - heading "Histórico" [level=3] [ref=e196]
+              - generic [ref=e198]:
+                - img [ref=e200]
+                - paragraph [ref=e204]: Nenhuma compra registrada ainda.
+              - button "Ver menos" [ref=e205] [cursor=pointer]:
+                - generic [ref=e206]: Ver menos
+                - img [ref=e207]

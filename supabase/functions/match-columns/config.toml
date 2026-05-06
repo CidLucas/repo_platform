@@ -1,6 +1,5 @@
-# Edge Function configuration
-# Setting verify_jwt = false allows unauthenticated access
-# This is appropriate for this function as it's called from the frontend
-# which sends the anon key in the Authorization header
-
-verify_jwt = false
+# match-columns: stateless fuzzy schema matcher — pure computation, no DB writes.
+# verify_jwt = true: Supabase edge validates the caller's JWT before invoking
+# the function. No auth code is needed inside the function body because it
+# performs no database operations and holds no tenant data.
+verify_jwt = true

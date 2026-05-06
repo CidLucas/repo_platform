@@ -1,0 +1,131 @@
+- generic [ref=e3]:
+  - navigation "Navegação principal" [ref=e4]:
+    - generic [ref=e6]: blu
+    - button "Início" [ref=e8] [cursor=pointer]:
+      - img [ref=e10]
+      - generic [ref=e13]: Início
+    - generic [ref=e15]:
+      - paragraph [ref=e16]: Agentes
+      - button "Compras" [ref=e17] [cursor=pointer]:
+        - img [ref=e20]
+        - generic [ref=e23]: Compras
+      - button "Financeiro" [ref=e24] [cursor=pointer]:
+        - img [ref=e27]
+        - generic [ref=e30]: Financeiro
+      - button "Agenda" [ref=e31] [cursor=pointer]:
+        - img [ref=e34]
+        - generic [ref=e37]: Agenda
+      - button "Documentos" [ref=e38] [cursor=pointer]:
+        - img [ref=e41]
+        - generic [ref=e44]: Documentos
+      - button "Estratégia" [ref=e45] [cursor=pointer]:
+        - img [ref=e48]
+        - generic [ref=e51]: Estratégia
+      - button "Clientes" [ref=e52] [cursor=pointer]:
+        - img [ref=e55]
+        - generic [ref=e58]: Clientes
+    - generic [ref=e60]:
+      - button "Atividade" [ref=e61] [cursor=pointer]:
+        - img [ref=e63]
+        - generic [ref=e65]: Atividade
+      - button "Biblioteca" [ref=e66] [cursor=pointer]:
+        - img [ref=e68]
+        - generic [ref=e70]: Biblioteca
+      - button "Admin" [ref=e71] [cursor=pointer]:
+        - img [ref=e73]
+        - generic [ref=e76]: Admin
+  - generic [ref=e77]:
+    - banner [ref=e78]:
+      - generic [ref=e79]:
+        - generic [ref=e80]: blu
+        - generic [ref=e81]: /
+        - generic [ref=e82]: Financeiro
+      - generic [ref=e83]:
+        - button "Abrir busca" [ref=e84] [cursor=pointer]:
+          - img [ref=e85]
+        - button "Notificações" [ref=e89] [cursor=pointer]:
+          - img [ref=e90]
+        - 'generic "Usuário: cid.lucas@gmail.com" [ref=e93]': CI
+    - main [ref=e94]:
+      - generic [ref=e96]:
+        - generic [ref=e97]:
+          - button "Início" [ref=e98] [cursor=pointer]:
+            - img [ref=e99]
+            - generic [ref=e101]: Início
+          - img [ref=e104]
+          - generic [ref=e107]:
+            - heading "Financeiro" [level=1] [ref=e108]
+            - paragraph [ref=e109]: Fluxo de caixa, pagamentos e relatórios
+        - generic [ref=e110]:
+          - complementary [ref=e111]:
+            - heading "Contas" [level=3] [ref=e113]
+            - generic [ref=e115]:
+              - img [ref=e117]
+              - paragraph [ref=e119]: Nenhuma conta conectada.
+          - main [ref=e120]:
+            - generic [ref=e121]:
+              - generic [ref=e122]:
+                - generic [ref=e123]:
+                  - heading "Mesa — Financeiro" [level=2] [ref=e125]
+                  - tablist [ref=e126]:
+                    - tab "Decisões" [selected] [ref=e127] [cursor=pointer]
+                    - tab "Tarefas" [ref=e128] [cursor=pointer]
+                    - tab "Histórico" [ref=e129] [cursor=pointer]
+                - generic [ref=e132]:
+                  - generic [ref=e134]: ✓
+                  - paragraph [ref=e135]: Nada urgente agora.
+                  - paragraph [ref=e136]: Seu time está trabalhando.
+                  - button "Ver histórico" [ref=e137] [cursor=pointer]:
+                    - text: Ver histórico
+                    - img [ref=e138]
+              - generic [ref=e140]:
+                - paragraph [ref=e141]: Insights
+                - paragraph [ref=e142]: Nenhum insight disponível.
+                - region "Analytics financeiro" [ref=e143]:
+                  - button "Analytics" [ref=e144] [cursor=pointer]:
+                    - img [ref=e145]
+                    - paragraph [ref=e147]: Analytics
+                    - img [ref=e148]
+                  - generic [ref=e150]:
+                    - generic [ref=e151]:
+                      - generic [ref=e152]: Período de análise
+                      - group "Selecionar período" [ref=e153]:
+                        - button "7 dias" [ref=e154] [cursor=pointer]
+                        - button "30 dias" [pressed] [ref=e155] [cursor=pointer]
+                        - button "90 dias" [ref=e156] [cursor=pointer]
+                        - button "1 ano" [ref=e157] [cursor=pointer]
+                    - heading "Atividade recente" [level=4] [ref=e262]
+              - generic [ref=e319]:
+                - button "Rotinas e Configurações Iniciando" [ref=e320] [cursor=pointer]:
+                  - img [ref=e321]
+                  - generic [ref=e323]: Rotinas e Configurações
+                  - generic [ref=e324]:
+                    - img [ref=e325]
+                    - text: Iniciando
+                - generic [ref=e331]:
+                  - generic [ref=e332]:
+                    - paragraph [ref=e333]: Rotinas
+                    - paragraph [ref=e334]: Nenhuma rotina configurada.
+                  - generic [ref=e336]:
+                    - img [ref=e337]
+                    - paragraph [ref=e340]: Regras avançadas desbloqueadas após 25 aprovações.
+                  - generic [ref=e342]:
+                    - generic [ref=e343]:
+                      - paragraph [ref=e344]: Notificações
+                      - generic [ref=e345]:
+                        - generic [ref=e346]:
+                          - paragraph [ref=e347]: Alertas urgentes
+                          - paragraph [ref=e348]: Receba alertas quando houver decisões urgentes
+                        - generic [ref=e349]: Em breve
+                    - generic [ref=e350]:
+                      - paragraph [ref=e351]: Agente
+                      - generic [ref=e352]:
+                        - generic [ref=e353]:
+                          - paragraph [ref=e354]: Relatórios automáticos
+                          - paragraph [ref=e355]: Gere relatórios semanais automaticamente
+                        - generic [ref=e356]: Em breve
+          - complementary [ref=e357]:
+            - heading "Relatórios" [level=3] [ref=e359]
+            - generic [ref=e361]:
+              - img [ref=e363]
+              - paragraph [ref=e366]: Nenhum relatório gerado.

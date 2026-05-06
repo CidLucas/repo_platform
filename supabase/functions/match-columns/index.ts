@@ -2,8 +2,8 @@
 // Port of services/data_ingestion_api/src/data_ingestion_api/services/schema_matcher_service.py
 // Uses string-similarity for fuzzy matching (equivalent to Python's difflib.SequenceMatcher)
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { compareTwoStrings } from "https://esm.sh/string-similarity@4.0.4";
+import { corsHeaders, json } from "../_shared/cors.ts";
 
 // =============================================================================
 // Structured Logging Utility
@@ -132,17 +132,23 @@ const COLUMN_ALIASES: Record<string, string[]> = {
     documento: [
         "id_operatorinvoice", "id_invoice", "invoice_id", "order_id", "orderid",
         "pedido_id", "id_pedido", "numero_pedido", "order_number",
+        // Conta Azul
+        "number", "numero_nota", "chave_nfe", "document_number", "numero_nf",
     ],
     data_competencia_id: [
         "emittedat_operatorinvoice", "createdat_operatorinvoice", "data_emissao",
         "emission_date", "order_date", "data_pedido", "data_transacao",
         "transaction_date", "date", "created_at", "purchase_date",
+        // Conta Azul
+        "issue_date", "competencia", "dt_emissao",
     ],
     quantidade: ["quantitytraded_product", "quantity", "qty", "qtd", "quantitytraded"],
     valor_unitario: ["unitprice_product", "unit_price", "preco_unitario", "unitprice"],
     valor: [
         "totalprice_product", "total_price", "grand_total", "valor_total",
         "price", "preco", "total",
+        // Conta Azul
+        "total_value", "value", "vl_total", "valor_liquido",
     ],
     status: ["status_operatorinvoice", "order_status", "status_order"],
 
@@ -150,10 +156,14 @@ const COLUMN_ALIASES: Record<string, string[]> = {
     cliente_cpf_cnpj: [
         "receiverlegaldoc", "receiver_cnpj", "customer_doc",
         "cpf_cnpj", "cpf", "cnpj_cliente",
+        // Conta Azul
+        "customer_cnpj", "cnpj_destinatario", "destinatario_cnpj", "recipient_cnpj",
     ],
     cliente_nome: [
         "receiverlegalname", "nome_receiver", "customer_name",
         "nome_cliente", "receiver_name",
+        // Conta Azul
+        "customer_name",
     ],
     cliente_telefone: [
         "receiverphone", "receiver_phone", "customer_phone",
@@ -172,10 +182,14 @@ const COLUMN_ALIASES: Record<string, string[]> = {
     fornecedor_cnpj: [
         "emitterlegaldoc", "emitter_cnpj", "supplier_cnpj",
         "cnpj_fornecedor", "emitter_doc",
+        // Conta Azul
+        "cnpj_emitente", "issuer_cnpj", "emitente_cnpj",
     ],
     fornecedor_nome: [
         "emitterlegalname", "nome_emitter", "supplier_name",
         "nome_fornecedor", "emittername",
+        // Conta Azul
+        "nome_emitente", "issuer_name", "razao_social_emitente",
     ],
     fornecedor_telefone: [
         "emitterphone", "emitter_phone", "supplier_phone",
@@ -304,6 +318,14 @@ const CONTEXT_SIGNAL_COLUMNS: Record<string, EntityContext> = {
     emitter: "supplier",
     emitterlegalname: "supplier",
     emitterlegaldoc: "supplier",
+    // Conta Azul supplier signals
+    cnpj_emitente: "supplier",
+    issuer_cnpj: "supplier",
+    emitente_cnpj: "supplier",
+    // Conta Azul customer signals
+    cnpj_destinatario: "customer",
+    destinatario_cnpj: "customer",
+    destinatario: "customer",
 
     // Product signals
     produto: "product",
@@ -619,7 +641,23 @@ function autoMatch(
     }> = [];
 
     for (const sourceCol of sourceColumns) {
-        // Try context-aware resolution first for ambiguous columns
+        const normalized = normalizeColumnName(sourceCol);
+
+        // Exact alias/canonical match takes absolute priority — prevents context resolution
+        // from hijacking columns that already have a perfect match (e.g. "documento" → "documento",
+        // not "cliente_cpf_cnpj" via CONTEXT_SPECIFIC_MAPPINGS).
+        const exactMatch = aliasCache.get(normalized);
+        if (exactMatch) {
+            allMatches.push({
+                source: sourceCol,
+                canonical: exactMatch,
+                confidence: 1.0,
+                context_resolved: false,
+            });
+            continue;
+        }
+
+        // Try context-aware resolution for genuinely ambiguous columns
         const contextResolved = resolveWithContext(sourceCol, schemaType, tableContext);
 
         if (contextResolved && canonicalColumns.includes(contextResolved)) {
@@ -631,7 +669,7 @@ function autoMatch(
                 context_resolved: true,
             });
         } else {
-            // Fall back to standard matching
+            // Fall back to fuzzy matching
             const { canonical, confidence } = findBestMatch(sourceCol, canonicalColumns, aliasCache);
             allMatches.push({ source: sourceCol, canonical, confidence, context_resolved: false });
         }
@@ -737,16 +775,9 @@ function processMatch(
 // HTTP Handler
 // =============================================================================
 
-serve(async (req) => {
+Deno.serve(async (req) => {
     const requestId = crypto.randomUUID();
     const startTime = Date.now();
-
-    // Shared CORS headers for all responses
-    const corsHeaders: Record<string, string> = {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
-    };
 
     logInfo("Incoming request", {
         requestId,
@@ -764,10 +795,7 @@ serve(async (req) => {
 
     if (req.method !== "POST") {
         logError("Method not allowed", undefined, { requestId, method: req.method });
-        return new Response(JSON.stringify({ error: "Method not allowed" }), {
-            status: 405,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-        });
+        return json({ error: "Method not allowed" }, 405);
     }
 
     try {
@@ -790,24 +818,18 @@ serve(async (req) => {
                 requestId,
                 receivedType: typeof source_columns,
             });
-            return new Response(
-                JSON.stringify({
+            return json({
                     error: "source_columns must be an array of strings",
                     error_code: "INVALID_INPUT",
-                }),
-                { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-            );
+                }, 400);
         }
 
         if (source_columns.length === 0) {
             logError("Invalid request: source_columns array is empty", undefined, { requestId });
-            return new Response(
-                JSON.stringify({
+            return json({
                     error: "source_columns array cannot be empty",
                     error_code: "EMPTY_INPUT",
-                }),
-                { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-            );
+                }, 400);
         }
 
         // Backwards compatibility: map legacy schema names to new names
@@ -837,13 +859,10 @@ serve(async (req) => {
                 normalizedSchemaType,
                 validTypes: validSchemaTypes,
             });
-            return new Response(
-                JSON.stringify({
+            return json({
                     error: `Invalid schema_type. Must be one of: ${validSchemaTypes.join(", ")} (legacy aliases: ${legacyNames.join(", ")})`,
                     error_code: "INVALID_SCHEMA_TYPE",
-                }),
-                { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-            );
+                }, 400);
         }
 
         logInfo("Starting column matching", {
@@ -882,15 +901,10 @@ serve(async (req) => {
             statusCode: 200,
         });
 
-        return new Response(JSON.stringify(result), {
-            status: 200,
-            headers: {
-                "Content-Type": "application/json",
-                ...corsHeaders,
+        return json(result, 200, {
                 "X-Request-Id": requestId,
                 "X-Duration-Ms": totalDuration.toString(),
-            },
-        });
+            });
     } catch (error) {
         const totalDuration = Date.now() - startTime;
 
@@ -899,21 +913,11 @@ serve(async (req) => {
             totalDuration,
         });
 
-        return new Response(
-            JSON.stringify({
+        return json({
                 error: "Internal server error",
                 error_code: "INTERNAL_ERROR",
                 details: error instanceof Error ? error.message : String(error),
                 request_id: requestId,
-            }),
-            {
-                status: 500,
-                headers: {
-                    "Content-Type": "application/json",
-                    ...corsHeaders,
-                    "X-Request-Id": requestId,
-                }
-            }
-        );
+            }, 500, { "X-Request-Id": requestId });
     }
 });

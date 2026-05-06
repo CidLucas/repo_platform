@@ -1,22 +1,18 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  requireAuth,
+  createUserClient,
+  createServiceClient,
+  AuthError,
+} from "../_shared/blu_auth.ts";
+import { corsHeaders, json } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY")!;
+const SERVICE_ROLE_KEY =
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SERVICE_ROLE_KEY")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+// ── Google helpers ───────────────────────────────────────────────────────────
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-// base64url-encode an ArrayBuffer
 function b64url(buf: ArrayBuffer): string {
   return btoa(String.fromCharCode(...new Uint8Array(buf)))
     .replace(/\+/g, "-")
@@ -24,20 +20,14 @@ function b64url(buf: ArrayBuffer): string {
     .replace(/=/g, "");
 }
 
-// base64url-encode a plain string (via UTF-8 bytes)
 function strB64url(str: string): string {
   return b64url(new TextEncoder().encode(str).buffer);
 }
 
-/**
- * Exchange a service account JSON key for a Google OAuth2 access token.
- * Signs a JWT with the SA private key (RS256) and POSTs it to Google's token endpoint.
- */
 async function getGoogleAccessToken(
   serviceAccountJson: Record<string, string>,
 ): Promise<string> {
   const { client_email, private_key } = serviceAccountJson;
-
   if (!client_email || !private_key) {
     throw new Error("service_account_json is missing client_email or private_key");
   }
@@ -55,7 +45,6 @@ async function getGoogleAccessToken(
   );
   const signingInput = `${headerB64}.${payloadB64}`;
 
-  // Strip PEM headers and whitespace, then decode to binary
   const pemBody = private_key
     .replace(/-----BEGIN PRIVATE KEY-----/g, "")
     .replace(/-----END PRIVATE KEY-----/g, "")
@@ -91,7 +80,9 @@ async function getGoogleAccessToken(
 
   const tokenData = await tokenResp.json();
   if (!tokenData.access_token) {
-    throw new Error(`Google token response missing access_token: ${JSON.stringify(tokenData)}`);
+    throw new Error(
+      `Google token response missing access_token: ${JSON.stringify(tokenData)}`,
+    );
   }
   return tokenData.access_token as string;
 }
@@ -102,10 +93,6 @@ interface BqColumn {
   nullable: boolean;
 }
 
-/**
- * Fetch BigQuery table schema via REST API.
- * Returns array of { name, type, nullable } objects.
- */
 async function getBigQuerySchema(
   accessToken: string,
   projectId: string,
@@ -129,7 +116,9 @@ async function getBigQuerySchema(
     tableData.schema?.fields ?? [];
 
   if (fields.length === 0) {
-    throw new Error(`BigQuery table ${projectId}.${datasetId}.${tableId} returned no schema fields`);
+    throw new Error(
+      `BigQuery table ${projectId}.${datasetId}.${tableId} returned no schema fields`,
+    );
   }
 
   return fields.map((f) => ({
@@ -139,22 +128,21 @@ async function getBigQuerySchema(
   }));
 }
 
+// ── Handler ──────────────────────────────────────────────────────────────────
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    // Get Authorization header to verify user
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return json({ error: "Missing authorization header" }, 401);
-    }
+    // ── 1. Auth: validate JWT, extract user context ──────────────────────────
+    const ctx = await requireAuth(req, SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    // ── 2. Parse body ────────────────────────────────────────────────────────
     const body = await req.json();
     const {
       credential_id,
-      // deno-lint-ignore no-explicit-any
       service_account_json,
       project_id,
       dataset_id,
@@ -167,51 +155,78 @@ Deno.serve(async (req: Request) => {
       table_name: string;
     };
 
-    if (!credential_id || !service_account_json || !project_id || !dataset_id || !table_name) {
+    if (
+      !credential_id ||
+      !service_account_json ||
+      !project_id ||
+      !dataset_id ||
+      !table_name
+    ) {
       return json(
-        { error: "credential_id, service_account_json, project_id, dataset_id, table_name are required" },
+        {
+          error:
+            "credential_id, service_account_json, project_id, dataset_id, table_name are required",
+        },
         400,
       );
     }
 
-    // Verify user owns this credential via service role check
-    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    // ── 3. Ownership check via userClient (SECURITY INVOKER / RLS-scoped) ───
+    // userClient runs under the caller's JWT. If RLS on credencial_servico_externo
+    // restricts rows to the user's tenant, this lookup automatically enforces it.
+    // We also cross-verify via clientes_blu to cover envs without full RLS yet.
+    const userClient = createUserClient(ctx.token, SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Extract token and verify ownership
-    const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return json({ error: "Invalid authorization token" }, 401);
-    }
-
-    // Verify credential belongs to user's client
-    const { data: cred, error: credError } = await supabase
+    const { data: cred, error: credError } = await userClient
       .from("credencial_servico_externo")
       .select("client_id")
       .eq("id", credential_id)
       .maybeSingle();
 
-    if (credError || !cred) {
-      return json({ error: "Credential not found" }, 404);
+    if (credError) {
+      console.error("[discover-bigquery-columns] Credential lookup failed:", credError);
+      return json({ error: "Failed to verify credential" }, 500);
+    }
+    if (!cred) {
+      return json({ error: "Credential not found or access denied" }, 404);
     }
 
-    // Verify user has access to this client (via client context)
-    // This is enforced at the app level - the user's session should be scoped to a client
-    console.log(`[discover-bigquery-columns] User ${user.id} discovering schema for credential ${credential_id}`);
-    console.log(`[discover-bigquery-columns] Discovering schema for ${project_id}.${dataset_id}.${table_name}`);
+    // Explicit cross-check: confirm the credential's client belongs to this user.
+    // Works even in envs where RLS on credencial_servico_externo isn't fully set up.
+    const { data: ownership } = await userClient
+      .from("clientes_blu")
+      .select("client_id")
+      .eq("external_user_id", ctx.userId)
+      .eq("client_id", cred.client_id)
+      .maybeSingle();
 
-    // 1. Get Google access token
+    if (!ownership) {
+      console.warn(
+        `[discover-bigquery-columns] User ${ctx.userId} attempted access to credential ${credential_id} owned by client ${cred.client_id}`,
+      );
+      return json({ error: "Unauthorized: credential belongs to another tenant" }, 403);
+    }
+
+    console.log(
+      `[discover-bigquery-columns] User ${ctx.userId} discovering schema for credential ${credential_id} (client ${cred.client_id})`,
+    );
+    console.log(
+      `[discover-bigquery-columns] Target: ${project_id}.${dataset_id}.${table_name}`,
+    );
+
+    // ── 4. Google BigQuery schema discovery (external I/O) ──────────────────
     const accessToken = await getGoogleAccessToken(service_account_json);
-
-    // 2. Fetch BigQuery table schema
     const columns = await getBigQuerySchema(accessToken, project_id, dataset_id, table_name);
     console.log(`[discover-bigquery-columns] Found ${columns.length} columns`);
 
-    // 3. Persist discovered columns to client_data_sources
-    const { error: updateError } = await supabase
+    // ── 5. Persist results via service client (DDL + cross-schema writes) ───
+    // Ownership has been verified above. Service role is required here because:
+    //   a) client_data_sources and bigquery_foreign_tables may not have user-level
+    //      RLS write policies that allow the anon role to update them.
+    //   b) create_bigquery_foreign_table_from_schema is a DDL-level admin RPC.
+    const serviceClient = createServiceClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+    const { error: updateError } = await serviceClient
       .from("client_data_sources")
       .update({
         source_columns: columns,
@@ -221,26 +236,27 @@ Deno.serve(async (req: Request) => {
       .eq("credential_id", credential_id);
 
     if (updateError) {
-      console.error("[discover-bigquery-columns] Failed to update source_columns:", updateError);
+      console.error(
+        "[discover-bigquery-columns] Failed to update source_columns:",
+        updateError,
+      );
     }
 
-    // 4. Create the foreign table with properly typed columns
-    // First, update bigquery_foreign_tables with the full BigQuery table reference
-    const bigqueryTableRef = `${project_id}:${dataset_id}.${table_name}`;
+    // Store canonical dot-notation reference as metadata.
+    // The FDW constructs the full path (project.dataset.table) from server config;
+    // the FT OPTIONS use only the bare table_name.
+    const bigqueryTableRef = `${project_id}.${dataset_id}.${table_name}`;
 
-    const { data: dataSource } = await supabase
+    const { data: dataSource } = await serviceClient
       .from("client_data_sources")
       .select("client_id")
       .eq("credential_id", credential_id)
       .maybeSingle();
 
     if (dataSource?.client_id) {
-      // Update the bigquery_foreign_tables with the full table reference
-      const { error: updateMetadataError } = await supabase
+      const { error: updateMetadataError } = await serviceClient
         .from("bigquery_foreign_tables")
-        .update({
-          bigquery_table: bigqueryTableRef,
-        })
+        .update({ bigquery_table: bigqueryTableRef })
         .eq("client_id", dataSource.client_id);
 
       if (updateMetadataError) {
@@ -254,29 +270,29 @@ Deno.serve(async (req: Request) => {
         );
       }
 
-      const { error: rpcError } = await supabase.rpc(
+      const { error: rpcError } = await serviceClient.rpc(
         "create_bigquery_foreign_table_from_schema",
-        {
-          p_client_id: dataSource.client_id,
-          p_columns: columns,
-        },
+        { p_client_id: dataSource.client_id, p_columns: columns },
       );
+
       if (rpcError) {
         console.error(
           "[discover-bigquery-columns] FT creation failed:",
           rpcError.message,
         );
-        return json(
-          { error: `Failed to create foreign table: ${rpcError.message}` },
-          500,
-        );
-      } else {
-        console.log("[discover-bigquery-columns] Foreign table created with typed columns and full BigQuery reference");
+        return json({ error: `Failed to create foreign table: ${rpcError.message}` }, 500);
       }
+
+      console.log(
+        "[discover-bigquery-columns] Foreign table created with typed columns and full BigQuery reference",
+      );
     }
 
     return json({ success: true, columns });
   } catch (err) {
+    if (err instanceof AuthError) {
+      return json({ error: err.message }, err.status);
+    }
     console.error("[discover-bigquery-columns] Error:", err);
     return json(
       { error: err instanceof Error ? err.message : "Unknown error" },

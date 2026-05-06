@@ -15,7 +15,13 @@
 // Request:  POST { ...OnboardingState }   (full wizard state; server re-validates)
 // Response: 200 { client_id, agents, routines, prompts_seeded }
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  requireAuth,
+  createUserClient,
+  createServiceClient,
+  AuthError,
+} from "../_shared/blu_auth.ts";
+import { corsHeaders, json } from "../_shared/cors.ts";
 import {
   mapBusinessDNAToCompanyProfile,
   mapContactToTeamStructure,
@@ -25,6 +31,7 @@ import {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const LANGFUSE_BASE_URL =
   Deno.env.get("LANGFUSE_HOST") ??
@@ -32,29 +39,6 @@ const LANGFUSE_BASE_URL =
   "https://us.cloud.langfuse.com";
 const LANGFUSE_PUBLIC_KEY = Deno.env.get("LANGFUSE_PUBLIC_KEY") ?? "";
 const LANGFUSE_SECRET_KEY = Deno.env.get("LANGFUSE_SECRET_KEY") ?? "";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
-// Build a Supabase client that forwards the caller's JWT so RPCs run
-// with RLS + SECURITY INVOKER scoped to the right tenant.
-function getUserClient(token: string) {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
 
 interface BootstrapTxResult {
   client_id: string;
@@ -173,24 +157,11 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // ── Auth: validate JWT via Auth API ──
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
-      return json({ error: "Missing authorization header" }, 401);
-    }
-    const token = authHeader.replace(/^[Bb]earer\s+/, "");
-    const userResp = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: SUPABASE_ANON_KEY,
-      },
-    });
-    if (!userResp.ok) {
-      return json({ error: "Invalid or expired token" }, 401);
-    }
+    // ── 1. Auth: validate JWT, extract user context ──────────────────────────
+    const ctx = await requireAuth(req, SUPABASE_URL, SUPABASE_ANON_KEY);
+    const userClient = createUserClient(ctx.token, SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // ── Parse body ──
+    // ── 2. Parse body ────────────────────────────────────────────────────────
     let state: OnboardingState;
     try {
       state = (await req.json()) as OnboardingState;
@@ -212,8 +183,7 @@ Deno.serve(async (req: Request) => {
       nome_empresa: (state.empresa ?? "").trim() || null,
     };
 
-    // ── Call the atomic RPC with the caller's JWT (RLS scope) ──
-    const userClient = getUserClient(token);
+    // ── 3. Call the atomic RPC with the caller's JWT (RLS scope) ────────────
     const { data: txData, error: txError } = await userClient.rpc(
       "onboarding_bootstrap_tx",
       { p_payload: payload },
@@ -226,6 +196,23 @@ Deno.serve(async (req: Request) => {
       );
     }
     const result = txData as BootstrapTxResult;
+
+    // ── Best-effort knowledge document bootstrap ──────────────────────────────
+    // Seeds initial client_knowledge_documents rows from onboarding data so
+    // coverage scores are non-zero from day one.
+    if (SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        const svc = createServiceClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const { error: kbErr } = await svc.rpc("bootstrap_knowledge_from_onboarding", {
+          p_client_id: result.client_id,
+        });
+        if (kbErr) {
+          console.warn("[onboarding-bootstrap] bootstrap_knowledge_from_onboarding failed:", kbErr.message);
+        }
+      } catch (err) {
+        console.warn("[onboarding-bootstrap] Knowledge bootstrap error:", err);
+      }
+    }
 
     // ── Best-effort Langfuse prompt seeding (outside the transaction) ──
     let promptsSeeded = 0;
@@ -253,6 +240,41 @@ Deno.serve(async (req: Request) => {
       console.warn("[onboarding-bootstrap] Failed to stamp seed status:", err);
     }
 
+    // ── 4. Fire website-context-builder if a website was provided ────────────
+    if (state.website && SUPABASE_SERVICE_ROLE_KEY) {
+      const ctxPayload = {
+        client_id: result.client_id,
+        website: state.website,
+        onboarding_state: {
+          nome: state.nome,
+          empresa: state.empresa,
+          website: state.website,
+          vertical: state.vertical,
+          teamSize: state.teamSize,
+          email: state.email,
+        },
+      };
+      EdgeRuntime.waitUntil(
+        fetch(`${SUPABASE_URL}/functions/v1/website-context-builder`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+          body: JSON.stringify(ctxPayload),
+        }).then(async (r) => {
+          if (!r.ok) {
+            const txt = await r.text().catch(() => "");
+            console.warn(`[onboarding-bootstrap] website-context-builder responded ${r.status}: ${txt}`);
+          } else {
+            console.log(`[onboarding-bootstrap] website-context-builder triggered for ${result.client_id}`);
+          }
+        }).catch((err) => {
+          console.warn("[onboarding-bootstrap] website-context-builder fire failed:", err);
+        }),
+      );
+    }
+
     return json({
       client_id: result.client_id,
       agents: result.agents,
@@ -260,6 +282,9 @@ Deno.serve(async (req: Request) => {
       prompts_seeded: promptsSeeded,
     });
   } catch (err) {
+    if (err instanceof AuthError) {
+      return json({ error: err.message }, err.status);
+    }
     console.error("[onboarding-bootstrap] Unhandled error:", err);
     return json(
       { error: "internal error", details: (err as Error).message },

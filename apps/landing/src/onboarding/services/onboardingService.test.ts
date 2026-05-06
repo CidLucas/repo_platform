@@ -184,6 +184,10 @@ describe("runBootstrap", () => {
       error: null,
     });
     const payload = {
+      persona: null,
+      painPoint: null,
+      teamSize: null,
+      firstApprovalDecision: null,
       authMethod: "email",
       nome: "",
       email: "",
@@ -196,6 +200,7 @@ describe("runBootstrap", () => {
       systems: [],
       csvUploaded: false,
       googleDriveConnected: false,
+      columnMapping: [],
       agents: [],
       approvalTasks: [],
       alwaysRequireApproval: true,

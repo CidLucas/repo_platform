@@ -17,25 +17,25 @@ You want 100k rows to process **immediately** after clicking "Sincronizar", not 
                        │
                        ▼
          ┌─────────────────────────────┐
-         │ run-sync Edge Function (v15)│
+         │ run-sync-etl Edge Function (v15)│
          │  - Validate user            │
          │  - Check mapping exists     │
          │  - Create job in DB         │ ← FAILS HERE
          │  - Call process-job-async   │
          └─────────────────────────────┘
-         
+
          ❌ ERROR: "supabaseKey is required"
-         
+
          Root Cause: Cannot initialize Supabase client with SERVICE_ROLE_KEY
                      (env var not properly injected or named differently)
 ```
 
-### What Should Happen Next (If run-sync Worked)
+### What Should Happen Next (If run-sync-etl Worked)
 
 ```
          ┌─────────────────────────────────────┐
          │ process-job-async Edge Function     │
-         │  - Receive job_id from run-sync     │
+         │  - Receive job_id from run-sync-etl     │
          │  - Call sincronizar_dados_cliente() │
          │  - Process 100k rows in one loop    │
          │  - Update job progress              │
@@ -63,7 +63,7 @@ You want 100k rows to process **immediately** after clicking "Sincronizar", not 
 
 **The problem is NOT process-job-async** (it's fine).
 
-**The problem IS run-sync**: It cannot authenticate to Supabase with SERVICE_ROLE_KEY to even create the job.
+**The problem IS run-sync-etl**: It cannot authenticate to Supabase with SERVICE_ROLE_KEY to even create the job.
 
 This happens BEFORE process-job-async is ever called.
 
@@ -72,6 +72,7 @@ This happens BEFORE process-job-async is ever called.
 ## Why This Happens
 
 Supabase Edge Functions have limited env var injection:
+
 - Some projects inject `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
 - Some don't, or name them differently
 - JWT auth works (other functions use it), but service role key access is project-specific
@@ -86,7 +87,7 @@ Instead of edge function calling edge function, use what already works:
 USER CLICKS "SINCRONIZAR"
          │
          ▼
-    run-sync (v15)
+    run-sync-etl (v15)
     - Validate user ✓ (works, uses auth header)
     - Check mapping exists ✓ (works, reads table)
     - Create job in DB ← Change this part
@@ -98,16 +99,17 @@ USER CLICKS "SINCRONIZAR"
             (Simpler, uses existing infrastructure)
 ```
 
-### Option A: Direct RPC Call from run-sync
+### Option A: Direct RPC Call from run-sync-etl
 
-run-sync creates the job, then immediately executes the processor RPC:
+run-sync-etl creates the job, then immediately executes the processor RPC:
+
 - Advantage: No inter-function auth issues, completes synchronously
 - Disadvantage: Might timeout if 100k rows > 60 seconds
 
 ### Option B: Create Job + Use pg_cron (Keep Existing)
 
-- run-sync creates the job
-- pg_cron still calls `process_pending_sync_jobs()` 
+- run-sync-etl creates the job
+- pg_cron still calls `process_pending_sync_jobs()`
 - But now the processor is optimized to handle 100k rows in one execution
 - **Trade-off**: Still waits for next pg_cron tick (~30 seconds)
 
@@ -116,8 +118,9 @@ run-sync creates the job, then immediately executes the processor RPC:
 ## Recommendation
 
 **Go with Option A** but with a guard:
-1. run-sync creates the job
-2. run-sync calls the RPC `sincronizar_dados_cliente(job_id)` directly
+
+1. run-sync-etl creates the job
+2. run-sync-etl calls the RPC `sincronizar_dados_cliente(job_id)` directly
 3. If it completes within timeout → Done in 1-2 min ✓
 4. If it times out → Job stays "running", pg_cron picks it up later
 

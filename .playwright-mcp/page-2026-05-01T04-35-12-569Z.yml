@@ -1,0 +1,196 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - navigation "Navegação principal" [ref=e4]:
+      - generic [ref=e6]: blu
+      - button "Início" [ref=e8] [cursor=pointer]:
+        - img [ref=e10]
+        - generic [ref=e13]: Início
+      - generic [ref=e15]:
+        - paragraph [ref=e16]: Agentes
+        - button "Compras" [ref=e17] [cursor=pointer]:
+          - img [ref=e20]
+          - generic [ref=e23]: Compras
+        - button "Financeiro" [active] [ref=e24] [cursor=pointer]:
+          - img [ref=e27]
+          - generic [ref=e30]: Financeiro
+        - button "Agenda" [ref=e31] [cursor=pointer]:
+          - img [ref=e34]
+          - generic [ref=e37]: Agenda
+        - button "Documentos" [ref=e38] [cursor=pointer]:
+          - img [ref=e41]
+          - generic [ref=e44]: Documentos
+        - button "Estratégia" [ref=e45] [cursor=pointer]:
+          - img [ref=e48]
+          - generic [ref=e51]: Estratégia
+        - button "Clientes" [ref=e52] [cursor=pointer]:
+          - img [ref=e55]
+          - generic [ref=e58]: Clientes
+      - generic [ref=e60]:
+        - button "Atividade" [ref=e61] [cursor=pointer]:
+          - img [ref=e63]
+          - generic [ref=e65]: Atividade
+        - button "Biblioteca" [ref=e66] [cursor=pointer]:
+          - img [ref=e68]
+          - generic [ref=e70]: Biblioteca
+        - button "Admin" [ref=e71] [cursor=pointer]:
+          - img [ref=e73]
+          - generic [ref=e76]: Admin
+    - generic [ref=e77]:
+      - banner [ref=e78]:
+        - generic [ref=e79]:
+          - generic [ref=e80]: blu
+          - generic [ref=e81]: /
+          - generic [ref=e82]: Financeiro
+        - generic [ref=e83]:
+          - button "Abrir busca" [ref=e84] [cursor=pointer]:
+            - img [ref=e85]
+          - button "Notificações" [ref=e89] [cursor=pointer]:
+            - img [ref=e90]
+          - 'generic "Usuário: cid.lucas@gmail.com" [ref=e93]': CI
+      - main [ref=e94]:
+        - generic [ref=e206]:
+          - generic [ref=e207]:
+            - button "Início" [ref=e208] [cursor=pointer]:
+              - img [ref=e209]
+              - generic [ref=e211]: Início
+            - img [ref=e214]
+            - generic [ref=e217]:
+              - heading "Financeiro" [level=1] [ref=e218]
+              - paragraph [ref=e219]: Fluxo de caixa, pagamentos e relatórios
+          - generic [ref=e220]:
+            - complementary [ref=e221]:
+              - heading "Contas" [level=3] [ref=e223]
+              - generic [ref=e225]:
+                - img [ref=e227]
+                - paragraph [ref=e229]: Nenhuma conta conectada.
+            - main [ref=e230]:
+              - generic [ref=e231]:
+                - generic [ref=e232]:
+                  - generic [ref=e233]:
+                    - paragraph [ref=e234]: Faturamento (30d)
+                    - generic [ref=e236]: R$ 0,00
+                  - generic [ref=e237]:
+                    - paragraph [ref=e238]: Despesas (30d)
+                    - generic [ref=e240]: R$ 0,00
+                  - generic [ref=e241]:
+                    - paragraph [ref=e242]: Margem Bruta
+                    - generic [ref=e244]: 0.0%
+                - generic [ref=e245]:
+                  - generic [ref=e246]:
+                    - heading "Mesa — Financeiro" [level=2] [ref=e248]
+                    - tablist [ref=e249]:
+                      - tab "Decisões" [selected] [ref=e250] [cursor=pointer]
+                      - tab "Tarefas" [ref=e251] [cursor=pointer]
+                      - tab "Histórico" [ref=e252] [cursor=pointer]
+                  - generic [ref=e255]:
+                    - generic [ref=e257]: ✓
+                    - paragraph [ref=e258]: Nada urgente agora.
+                    - paragraph [ref=e259]: Seu time está trabalhando.
+                    - button "Ver histórico" [ref=e260] [cursor=pointer]:
+                      - text: Ver histórico
+                      - img [ref=e261]
+                - generic [ref=e263]:
+                  - paragraph [ref=e264]: Insights
+                  - paragraph [ref=e265]: Nenhum insight disponível.
+                  - region "Analytics financeiro" [ref=e266]:
+                    - 'button "Analytics Faturamento: R$ 949,3M" [ref=e267] [cursor=pointer]':
+                      - img [ref=e268]
+                      - generic [ref=e269]:
+                        - paragraph [ref=e270]: Analytics
+                        - paragraph [ref=e271]: "Faturamento: R$ 949,3M"
+                      - img [ref=e272]
+                    - generic [ref=e274]:
+                      - generic [ref=e275]:
+                        - generic [ref=e276]: Período de análise
+                        - group "Selecionar período" [ref=e277]:
+                          - button "7 dias" [ref=e278] [cursor=pointer]
+                          - button "30 dias" [pressed] [ref=e279] [cursor=pointer]
+                          - button "90 dias" [ref=e280] [cursor=pointer]
+                          - button "1 ano" [ref=e281] [cursor=pointer]
+                      - generic [ref=e282]:
+                        - generic [ref=e283]:
+                          - paragraph [ref=e284]: Faturamento
+                          - paragraph [ref=e285]: R$ 949,3M
+                          - img [ref=e287]
+                        - generic [ref=e290]:
+                          - paragraph [ref=e291]: Ticket Médio
+                          - paragraph [ref=e292]: R$ 8,9K
+                      - generic [ref=e293]:
+                        - generic [ref=e294]:
+                          - img [ref=e296]
+                          - generic [ref=e300]:
+                            - paragraph [ref=e301]: Pedidos
+                            - paragraph [ref=e302]: "106.575"
+                        - generic [ref=e303]:
+                          - img [ref=e305]
+                          - generic [ref=e310]:
+                            - paragraph [ref=e311]: Clientes
+                            - paragraph [ref=e312]: "313"
+                        - generic [ref=e313]:
+                          - img [ref=e315]
+                          - generic [ref=e320]:
+                            - paragraph [ref=e321]: Fornecedores
+                            - paragraph [ref=e322]: "526"
+                        - generic [ref=e323]:
+                          - img [ref=e325]
+                          - generic [ref=e329]:
+                            - paragraph [ref=e330]: Produtos
+                            - paragraph [ref=e331]: "105.574"
+                      - generic [ref=e332]:
+                        - tablist "Tipo de gráfico" [ref=e333]:
+                          - tab "Receita" [selected] [ref=e334] [cursor=pointer]
+                          - tab "Despesas" [ref=e335] [cursor=pointer]
+                          - tab "Fluxo de Caixa" [ref=e336] [cursor=pointer]
+                        - tabpanel [ref=e337]:
+                          - application [ref=e340]:
+                            - generic [ref=e346]:
+                              - generic [ref=e347]:
+                                - generic [ref=e349]: 30 de set.
+                                - generic [ref=e351]: 31 de jan.
+                                - generic [ref=e353]: 31 de mai.
+                                - generic [ref=e355]: 30 de set.
+                                - generic [ref=e357]: 31 de mai.
+                              - generic [ref=e358]:
+                                - generic [ref=e360]: R$ 0,00
+                                - generic [ref=e362]: R$ 1M
+                                - generic [ref=e364]: R$ 2M
+                                - generic [ref=e366]: R$ 3M
+                                - generic [ref=e368]: R$ 4M
+                      - generic [ref=e369]:
+                        - heading "Atividade recente" [level=4] [ref=e370]
+                        - paragraph [ref=e371]: Nenhuma atividade recente
+                - generic [ref=e372]:
+                  - button "Rotinas e Configurações Iniciando" [ref=e373] [cursor=pointer]:
+                    - img [ref=e374]
+                    - generic [ref=e376]: Rotinas e Configurações
+                    - generic [ref=e377]:
+                      - img [ref=e378]
+                      - text: Iniciando
+                  - generic [ref=e384]:
+                    - generic [ref=e385]:
+                      - paragraph [ref=e386]: Rotinas
+                      - paragraph [ref=e387]: Nenhuma rotina configurada.
+                    - generic [ref=e389]:
+                      - img [ref=e390]
+                      - paragraph [ref=e393]: Regras avançadas desbloqueadas após 25 aprovações.
+                    - generic [ref=e395]:
+                      - generic [ref=e396]:
+                        - paragraph [ref=e397]: Notificações
+                        - generic [ref=e398]:
+                          - generic [ref=e399]:
+                            - paragraph [ref=e400]: Alertas urgentes
+                            - paragraph [ref=e401]: Receba alertas quando houver decisões urgentes
+                          - generic [ref=e402]: Em breve
+                      - generic [ref=e403]:
+                        - paragraph [ref=e404]: Agente
+                        - generic [ref=e405]:
+                          - generic [ref=e406]:
+                            - paragraph [ref=e407]: Relatórios automáticos
+                            - paragraph [ref=e408]: Gere relatórios semanais automaticamente
+                          - generic [ref=e409]: Em breve
+            - complementary [ref=e410]:
+              - heading "Relatórios" [level=3] [ref=e412]
+              - generic [ref=e414]:
+                - img [ref=e416]
+                - paragraph [ref=e419]: Nenhum relatório gerado.
+  - generic [ref=e420]: R$ 0,00

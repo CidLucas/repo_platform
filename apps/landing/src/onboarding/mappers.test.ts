@@ -8,6 +8,10 @@ import {
 import type { OnboardingState } from "./state";
 
 const BASE: OnboardingState = {
+  persona: null,
+  painPoint: null,
+  teamSize: null,
+  firstApprovalDecision: null,
   authMethod: "email",
   nome: "Fulana de Tal",
   email: "fulana@acme.com",
@@ -20,6 +24,7 @@ const BASE: OnboardingState = {
   systems: ["shopify", "bigquery"],
   csvUploaded: false,
   googleDriveConnected: false,
+  columnMapping: [],
   agents: ["analytics", "crm"],
   approvalTasks: ["make_payment", "supplier_order"],
   alwaysRequireApproval: true,

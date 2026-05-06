@@ -70,3 +70,4 @@ pull-github-push-gcp.sh
 # Seeds and project data (large files, local only)
 seeds/
 projetos/
+open-design/

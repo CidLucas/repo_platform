@@ -1,0 +1,132 @@
+/* Blu App — Global Styles */
+@import './tokens.css';
+@import './animations.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Body defaults ─────────────────────────────────────────── */
+body {
+  background-color: var(--base);
+  color: var(--white);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ambient blue glow — matches blu-v3.html atmosphere */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 55% 45% at 8% -5%, rgba(30, 64, 175, 0.14) 0%, transparent 100%),
+    radial-gradient(ellipse 50% 40% at 92% 108%, rgba(99, 102, 241, 0.08) 0%, transparent 100%),
+    radial-gradient(ellipse 40% 30% at 50% 0%, rgba(30, 58, 138, 0.07) 0%, transparent 100%);
+}
+
+/* Ensure content sits above the fixed glow layer */
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Touch — eliminate 300ms tap delay on all interactive elements ── */
+button,
+a,
+[role="button"],
+[role="tab"],
+[role="menuitem"],
+[role="option"],
+label,
+select,
+summary {
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+/* ─── Scroll containers — prevent pull-to-refresh hijack ─────── */
+.scroll-container {
+  overscroll-behavior: contain;
+}
+
+/* ─── Reduced motion — disable all animations/transitions ────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── Focus — visible ring for keyboard navigation ───────────── */
+:focus-visible {
+  outline: 2px solid var(--blu-500);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ─── Custom scrollbar ───────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gray-600);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-500);
+}
+
+/* ─── Selection ──────────────────────────────────────────────── */
+::selection {
+  background-color: rgba(140, 95, 219, 0.3);
+  color: var(--white);
+}
+
+/* ─── Dashboard-style section labels ────────────────────────── */
+.text-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+}
+
+/* ─── Icon boxes (colored icon containers) ───────────────────── */
+.icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  padding: 8px;
+  flex-shrink: 0;
+}
+.icon-box-sm {
+  border-radius: 6px;
+  padding: 6px;
+}
+.icon-box-blu     { background-color: rgba(140, 95, 219, 0.15); color: var(--blu-400); }
+.icon-box-ok      { background-color: rgba(16, 185, 129, 0.15); color: var(--ok); }
+.icon-box-urgent  { background-color: rgba(224, 122, 95, 0.15);  color: var(--urgent); }
+.icon-box-attention { background-color: rgba(212, 168, 67, 0.15); color: var(--attention); }
+
+/* ─── Severity subtle backgrounds ────────────────────────────── */
+.bg-urgent-subtle    { background-color: rgba(224, 122, 95, 0.12); }
+.bg-ok-subtle        { background-color: rgba(16, 185, 129, 0.12); }
+.bg-attention-subtle { background-color: rgba(212, 168, 67, 0.12); }
+.bg-blu-subtle       { background-color: rgba(140, 95, 219, 0.12); }

@@ -465,30 +465,6 @@ services:
       - tool_pool_api
 
   # =========================================
-  # FRONTEND DASHBOARD (SPA React + Nginx)
-  # =========================================
-  blu_dashboard:
-    container_name: blu_dashboard
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: apps/blu_dashboard/Dockerfile
-      args:
-        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
-        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
-        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID}
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8003}
-        VITE_ATENDENTE_CORE: ${VITE_ATENDENTE_CORE:-http://localhost:8003}
-        VITE_TOOL_POOL_API_URL: ${VITE_TOOL_POOL_API_URL:-http://localhost:8006}
-    ports:
-      - "8081:8080"
-    environment:
-      # Runtime environment (not used by Vite build, just for reference)
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:8003}
-    #  depends_on:
-    #    - atendente_core
-    restart: unless-stopped
-
   # =========================================
   # LANDING PAGE (React + Nginx)
   # =========================================
@@ -504,8 +480,6 @@ services:
         VITE_DASHBOARD_URL: ${VITE_DASHBOARD_URL:-/dashboard}
     ports:
       - "8080:8080"
-    depends_on:
-      - blu_dashboard
     restart: unless-stopped
 
   # =========================================

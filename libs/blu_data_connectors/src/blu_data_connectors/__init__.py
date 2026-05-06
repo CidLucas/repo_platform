@@ -17,6 +17,9 @@ from blu_data_connectors.base.ecommerce_base_connector import (
     RateLimitError,
 )
 
+# Accounting connectors
+from blu_data_connectors.accounting import ContaAzulConnector
+
 # E-commerce connectors
 from blu_data_connectors.ecommerce import (
     LojaIntegradaConnector,
@@ -38,6 +41,8 @@ __all__ = [
     "EcommerceConnectorError",
     "AuthenticationError",
     "RateLimitError",
+    # Accounting connectors
+    "ContaAzulConnector",
     # E-commerce connectors
     "ShopifyConnector",
     "VTEXConnector",

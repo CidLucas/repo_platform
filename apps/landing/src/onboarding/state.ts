@@ -9,6 +9,11 @@ import { supabase } from "../lib/supabase";
 // ========== ONBOARDING STATE (persisted in localStorage) ==========
 export type DataPath = "systems" | "files" | "scratch" | null;
 
+export type Persona = "distribuidora" | "consultoria" | "varejo" | null;
+export type PainPoint = "fluxo_caixa" | "estoque" | "atendimento" | null;
+export type TeamSize = "solo" | "pequeno" | "estruturado" | null;
+export type FirstApprovalDecision = "approved" | "edited" | "rejected" | null;
+
 export type Vertical =
   | "ecommerce"
   | "servicos"
@@ -19,6 +24,13 @@ export type Vertical =
   | "agro"
   | "outro"
   | null;
+
+export function personaToVertical(persona: Persona): Vertical {
+  if (persona === "distribuidora") return "industria";
+  if (persona === "consultoria") return "servicos";
+  if (persona === "varejo") return "ecommerce";
+  return null;
+}
 
 export type NotifyChannel = "email" | "whatsapp" | "app";
 
@@ -54,7 +66,20 @@ export type RoutineId =
   | "appointment_reminder"
   | "churn_signal";
 
+// ===== COLUMN MAPPING (Step 4 – after DataFork) =====
+export interface ColumnMappingDecision {
+  sourceColumn: string;
+  bluField: string | null; // null = ignored
+  status: "auto" | "confirmed" | "ignored" | "flagged";
+  confidence?: number; // 0-100, present on auto rows
+}
+
 export interface OnboardingState {
+  // Pre-auth persona (v2)
+  persona: Persona;
+  painPoint: PainPoint;
+  teamSize: TeamSize;
+  firstApprovalDecision: FirstApprovalDecision;
   // Step 0 – Auth
   authMethod: "google" | "email" | null;
   nome: string;
@@ -70,9 +95,11 @@ export interface OnboardingState {
   systems: string[]; // shopify, vtex, bigquery, postgres, mysql, api
   csvUploaded: boolean;
   googleDriveConnected: boolean;
-  // Step 4 – Agents
+  // Step 4 – Column mapping
+  columnMapping: ColumnMappingDecision[];
+  // Step 5 – Agents
   agents: string[];
-  // Step 5 – Command rules
+  // Step 6 – Command rules
   approvalTasks: ApprovalTaskId[]; // tasks that require human approval
   alwaysRequireApproval: boolean;
   routines: RoutineId[]; // built-in routines to activate
@@ -81,6 +108,10 @@ export interface OnboardingState {
 }
 
 const DEFAULT: OnboardingState = {
+  persona: null,
+  painPoint: null,
+  teamSize: null,
+  firstApprovalDecision: null,
   authMethod: null,
   nome: "",
   email: "",
@@ -93,6 +124,7 @@ const DEFAULT: OnboardingState = {
   systems: [],
   csvUploaded: false,
   googleDriveConnected: false,
+  columnMapping: [],
   agents: [],
   approvalTasks: ["supplier_order", "make_payment", "update_prices"],
   alwaysRequireApproval: true,

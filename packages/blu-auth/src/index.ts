@@ -1,0 +1,6 @@
+export { supabase } from './client'
+export { resolveClientId, getAuthToken, buildAuthHeaders } from './auth'
+export { AuthContext, AuthProvider } from './AuthContext'
+export type { AuthContextValue, AuthProviderProps } from './AuthContext'
+export { useAuth } from './useAuth'
+export type { ClienteBlu } from './types'

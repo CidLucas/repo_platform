@@ -1,0 +1,2334 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blu — Escritório Virtual</title>
+<style>
+:root {
+  --bg:    #03071C;
+  --glass: rgba(255,255,255,0.045);
+  --gl2:   rgba(255,255,255,0.07);
+  --gb:    rgba(255,255,255,0.08);
+  --gb2:   rgba(255,255,255,0.13);
+  --fg:    #DFE3EE;
+  --mu:    rgba(223,227,238,0.42);
+  --mu2:   rgba(223,227,238,0.64);
+  --ac:    #8C5FDB;
+  --adim:  rgba(140,95,219,0.15);
+  --urg:   #EF4444;
+  --udim:  rgba(239,68,68,0.13);
+  --att:   #F59E0B;
+  --adm2:  rgba(245,158,11,0.13);
+  --ok:    #10B981;
+  --odim:  rgba(16,185,129,0.13);
+  --r:     8px;
+  --rl:    12px;
+  --sw:    48px;
+  --th:    46px;
+  --body:  -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  --mono:  'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;}
+body{font-family:var(--body);background:var(--bg);color:var(--fg);font-size:13px;line-height:1.5;}
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 70% 55% at 18% -5%,rgba(37,99,235,.18) 0%,transparent 100%),radial-gradient(ellipse 55% 45% at 88% 108%,rgba(79,70,229,.14) 0%,transparent 100%),radial-gradient(ellipse 40% 30% at 55% 50%,rgba(30,58,138,.08) 0%,transparent 100%);}
+button{cursor:pointer;border:none;background:none;font:inherit;color:inherit;}
+svg{flex-shrink:0;}
+
+/* ── SHELL ── */
+.shell{position:relative;z-index:1;display:grid;grid-template-columns:var(--sw) 1fr;grid-template-rows:var(--th) 1fr;height:100vh;overflow:hidden;}
+
+/* ── TOPBAR ── */
+.topbar{grid-column:1/-1;display:flex;align-items:center;padding:0 18px 0 0;background:rgba(5,7,14,.82);backdrop-filter:blur(24px);border-bottom:1px solid var(--gb);z-index:50;}
+.logo{width:var(--sw);flex-shrink:0;display:flex;align-items:center;gap:9px;padding:0 18px;}
+.logo-mark{width:24px;height:24px;border-radius:6px;background:var(--ac);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;}
+.logo-name{font-size:15px;font-weight:700;letter-spacing:-.4px;}
+.topbar-mid{flex:1;padding:0 14px;}
+.topbar-mid span{font-size:11.5px;color:var(--mu);}
+.topbar-end{display:flex;align-items:center;gap:7px;}
+.ibtn{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--mu);transition:background .12s,color .12s;position:relative;}
+.ibtn:hover{background:var(--glass);color:var(--fg);}
+.rdot{position:absolute;top:4px;right:4px;width:5px;height:5px;border-radius:50%;background:var(--urg);border:1.5px solid var(--bg);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4);}50%{box-shadow:0 0 0 3px rgba(239,68,68,0);}}
+.av{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--ac),#B08AE8);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;color:#fff;cursor:pointer;}
+
+/* ── SIDEBAR ── */
+.sidebar{background:rgba(3,7,28,.72);backdrop-filter:blur(20px);border-right:1px solid var(--gb);display:flex;flex-direction:column;padding:8px 5px;overflow:visible;position:relative;z-index:30;}
+.nav-lbl{display:none;}
+.ni{display:flex;align-items:center;justify-content:center;padding:7px 6px;border-radius:8px;cursor:pointer;transition:background .1s;font-size:16px;color:var(--mu2);position:relative;}
+.ni:hover{background:var(--glass);color:var(--fg);}
+.ni.on{background:var(--gl2);color:var(--fg);}
+.ni.on::before{content:'';position:absolute;left:-5px;top:50%;transform:translateY(-50%);width:2px;height:16px;background:var(--ac);border-radius:1px;}
+.ni>span:not(.ni-icon):not(.nb){display:none;}
+.ni-icon{font-size:16px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+/* dot badge */
+.nb{position:absolute;top:3px;right:3px;width:7px;height:7px;padding:0;border-radius:50%;background:var(--urg);font-size:0;min-width:0;}
+.nb.y{background:var(--att);}
+/* tooltip */
+.ni[data-tip]:hover::after{content:attr(data-tip);position:absolute;left:calc(100% + 10px);top:50%;transform:translateY(-50%);background:rgba(8,12,30,.95);backdrop-filter:blur(16px);border:1px solid var(--gb2);color:var(--fg);font-size:11.5px;font-weight:500;padding:4px 10px;border-radius:7px;white-space:nowrap;z-index:200;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.5);}
+.sb-foot{margin-top:auto;border-top:1px solid var(--gb);padding-top:7px;}
+/* logo narrow */
+.logo{justify-content:center;padding:0 12px;}
+.logo-name{display:none;}
+
+/* ── MAIN ── */
+.main{overflow:hidden;}
+
+/* ── SCREENS ── */
+.screen{display:none;height:100%;flex-direction:column;overflow:hidden;}
+.screen.on{display:flex;animation:fi .15s ease-out;}
+@keyframes fi{from{opacity:0;}to{opacity:1;}}
+
+/* ── HOME GRID (also used as room-grid) ── */
+.home-grid,.room-grid{flex:1;min-height:0;display:grid;grid-template-columns:1fr 260px;grid-template-rows:1fr 106px;gap:9px;padding:11px;overflow:hidden;}
+
+/* ── PANEL ── */
+.panel{background:var(--glass);border:1px solid var(--gb);border-radius:var(--rl);backdrop-filter:blur(16px);display:flex;flex-direction:column;overflow:hidden;min-height:0;transition:border-color .15s;}
+.panel:hover{border-color:var(--gb2);}
+.ph{display:flex;align-items:center;gap:6px;padding:10px 13px 8px;border-bottom:1px solid var(--gb);flex-shrink:0;}
+.ph-ico{font-size:12px;}
+.ph-ttl{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu2);}
+.ph-cnt{margin-left:auto;font-size:10px;color:var(--mu);font-variant-numeric:tabular-nums;}
+.ph-lnk{margin-left:auto;font-size:10px;color:var(--ac);opacity:.7;cursor:pointer;display:flex;align-items:center;gap:2px;transition:opacity .1s;}
+.ph-lnk:hover{opacity:1;}
+.ph-add{color:var(--mu);opacity:.5;cursor:pointer;font-size:15px;transition:opacity .1s,color .1s;margin-left:auto;}
+.ph-add:hover{opacity:1;color:var(--ac);}
+.pb{flex:1;overflow-y:auto;min-height:0;}
+.pb::-webkit-scrollbar{width:3px;}
+.pb::-webkit-scrollbar-thumb{background:var(--gb2);border-radius:2px;}
+
+/* ── TABS INSIDE PANEL ── */
+.panel .rtabs{display:flex;padding:0;border-bottom:1px solid var(--gb);flex-shrink:0;}
+.panel .rtab{padding:7px 13px;font-size:11.5px;font-weight:500;color:var(--mu);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .1s,border-color .1s;display:flex;align-items:center;gap:4px;}
+.panel .rtab:hover{color:var(--fg);}
+.panel .rtab.on{color:var(--fg);border-bottom-color:var(--ac);}
+.tbdg{font-size:9px;font-weight:700;background:var(--urg);color:#fff;padding:1px 4px;border-radius:3px;}
+
+/* ── DECISION CARDS ── */
+.dl{padding:7px 9px;display:flex;flex-direction:column;gap:3px;}
+.dc{background:transparent;border:1px solid transparent;border-left:2.5px solid transparent;border-radius:var(--r);transition:background .1s,border-color .1s;overflow:hidden;}
+.dc:hover .dc-row{background:rgba(255,255,255,.04);}
+.dc.urg{border-left-color:var(--urg);}
+.dc.warn{border-left-color:var(--att);}
+.dc.done{opacity:.35;pointer-events:none;}
+.dc.done .dc-expand{display:none!important;}
+.dc.done .dc-row .dc-ok-inline{display:flex;}
+.dc.done .dc-row .dc-chev{display:none;}
+/* collapsed row */
+.dc-row{display:flex;align-items:center;gap:8px;padding:8px 11px;cursor:pointer;border-radius:calc(var(--r) - 1px);transition:background .1s;user-select:none;}
+.dc-row-summary{flex:1;font-size:12px;color:var(--mu2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.dc-row-summary strong{color:var(--fg);font-weight:600;}
+.dc-chev{font-size:10px;color:var(--mu);transition:transform .18s;flex-shrink:0;line-height:1;}
+.dc.expanded .dc-chev{transform:rotate(90deg);}
+.dc-ok-inline{display:none;font-size:11px;color:var(--ok);font-weight:500;align-items:center;gap:4px;flex-shrink:0;}
+/* expanded body */
+.dc-expand{display:none;padding:0 11px 11px 11px;border-top:1px solid var(--gb);margin-top:0;}
+.dc.expanded .dc-expand{display:block;animation:fi .15s ease-out;}
+.ag{font-size:10px;font-weight:600;letter-spacing:.04em;color:var(--mu);text-transform:uppercase;display:flex;align-items:center;gap:4px;flex-shrink:0;}
+.agd{width:5px;height:5px;border-radius:50%;}
+.bdg{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:1.5px 5px;border-radius:3px;}
+.bu{background:var(--udim);color:var(--urg);}
+.bw{background:var(--adm2);color:var(--att);}
+.bo{background:var(--odim);color:var(--ok);}
+.dt{font-family:var(--mono);font-size:10px;color:var(--mu);}
+.db{font-size:12.5px;color:var(--fg);line-height:1.45;margin-bottom:7px;padding-top:9px;}
+.db strong{font-weight:600;}
+.dbl{list-style:none;margin-bottom:8px;display:flex;flex-direction:column;gap:2px;}
+.dbl li{font-size:11.5px;color:var(--mu2);padding-left:9px;position:relative;}
+.dbl li::before{content:'·';position:absolute;left:0;color:var(--mu);}
+.dc-act{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;}
+.btn{padding:5px 10px;border-radius:5px;font-size:11.5px;font-weight:600;display:flex;align-items:center;gap:4px;transition:all .1s;white-space:nowrap;}
+.bp{background:var(--ac);color:#fff;}
+.bp:hover{background:#7A4FC9;}
+.bs{background:rgba(255,255,255,.08);color:var(--fg);border:1px solid var(--gb);}
+.bs:hover{background:rgba(255,255,255,.12);}
+.bg{color:var(--mu);padding:5px 8px;}
+.bg:hover{color:var(--fg);background:var(--glass);}
+.brd{background:var(--udim);color:var(--urg);}
+.dc-ins{background:rgba(0,0,0,.25);border:1px solid var(--gb);border-radius:5px;padding:7px 10px;font-size:11px;color:var(--mu2);line-height:1.4;display:flex;gap:5px;}
+.dc-ok{display:none;font-size:11.5px;color:var(--ok);font-weight:500;align-items:center;gap:5px;padding-top:6px;}
+
+/* ── RIGHT COLUMN (shared by Home and rooms) ── */
+.rcol{grid-column:2;grid-row:1;display:grid;grid-template-rows:1fr 1fr;gap:9px;min-height:0;}
+
+/* ── PLANO / SEMANA ── */
+.plano-list,.semana-list{padding:7px 12px;}
+.pl-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--gb);font-size:11.5px;}
+.pl-item:last-child{border:none;}
+.pl-t{font-family:var(--mono);font-size:10px;color:var(--mu);min-width:36px;}
+.pl-d{width:4px;height:4px;border-radius:50%;flex-shrink:0;}
+.pl-txt{color:var(--mu2);flex:1;font-size:11.5px;}
+.sw-item{display:flex;align-items:center;gap:7px;padding:7px 0;border-bottom:1px solid var(--gb);cursor:pointer;}
+.sw-item:last-child{border:none;}
+.sw-day{font-size:10.5px;font-weight:600;min-width:28px;color:var(--mu);}
+.sw-day.today{color:var(--ac);}
+.sw-desc{flex:1;font-size:11px;color:var(--mu2);}
+.sw-cnt{font-size:9.5px;font-weight:600;padding:1.5px 6px;border-radius:3px;font-variant-numeric:tabular-nums;font-family:var(--mono);}
+.sw-h{background:var(--adm2);color:var(--att);}
+.sw-ok{background:var(--odim);color:var(--ok);}
+
+/* ── BOTTOM STRIP ── */
+.bstrip{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:9px;min-height:0;}
+.ich{background:var(--glass);border:1px solid var(--gb);border-radius:var(--rl);backdrop-filter:blur(16px);padding:10px 13px;display:flex;align-items:flex-start;gap:9px;cursor:pointer;transition:border-color .12s,background .12s;overflow:hidden;min-width:0;}
+.ich:hover{border-color:var(--gb2);background:var(--gl2);}
+.ich-em{font-size:16px;flex-shrink:0;margin-top:1px;}
+.ich-body{flex:1;min-width:0;}
+.ich-tag{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;display:block;margin-bottom:2px;}
+.tg-c{color:#818cf8;}
+.tg-s{color:var(--att);}
+.tg-f{color:var(--ok);}
+.tg-a{color:#f472b6;}
+.tg-d{color:#2dd4bf;}
+.tg-e{color:#fbbf24;}
+.ich-txt{font-size:11.5px;color:var(--mu2);line-height:1.4;}
+.nums-chip{background:var(--glass);border:1px solid var(--gb);border-radius:var(--rl);backdrop-filter:blur(16px);padding:10px 14px;cursor:pointer;transition:border-color .12s;display:flex;flex-direction:column;justify-content:center;min-width:190px;}
+.nums-chip:hover{border-color:var(--gb2);}
+.nums-head{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:7px;display:flex;align-items:center;gap:4px;}
+.nums-row{display:flex;gap:14px;}
+.nkpi{display:flex;flex-direction:column;}
+.nv{font-size:15px;font-weight:700;font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.5px;line-height:1.1;}
+.nl{font-size:10px;color:var(--mu);margin-top:1px;}
+.nd{font-size:9px;font-family:var(--mono);margin-top:2px;}
+.up{color:var(--ok);}
+.dn{color:var(--urg);}
+
+/* ── ROOM HEADER ── */
+.rh{display:flex;align-items:center;gap:11px;padding:11px 14px 10px;border-bottom:1px solid var(--gb);background:rgba(5,7,14,.45);backdrop-filter:blur(16px);flex-shrink:0;}
+.rav{width:32px;height:32px;border-radius:var(--r);background:var(--glass);border:1px solid var(--gb);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.rn{font-size:14px;font-weight:700;letter-spacing:-.3px;}
+.rd{font-size:11px;color:var(--mu);}
+.ra{margin-left:auto;display:flex;gap:6px;}
+
+/* ── DRAWER LIST ITEMS ── */
+.dr-ttl{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:7px;}
+.dr-sec{padding:11px 12px;border-bottom:1px solid var(--gb);}
+.dr-sec:last-child{border:none;}
+.sup-row{display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:5px;cursor:pointer;transition:background .1s;}
+.sup-row:hover{background:var(--glass);}
+.sup-n{font-size:12px;flex:1;}
+.sup-c{font-size:10px;color:var(--mu);}
+.stars{font-size:10px;color:var(--att);}
+.pills{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:9px;}
+.pill{font-size:10.5px;padding:2px 8px;border-radius:8px;background:var(--glass);border:1px solid var(--gb);color:var(--mu2);cursor:pointer;transition:all .1s;}
+.pill:hover,.pill.on{background:var(--adim);border-color:rgba(140,95,219,.4);color:var(--ac);}
+.hi{display:flex;flex-direction:column;gap:2px;padding:7px 0;border-bottom:1px solid var(--gb);cursor:pointer;}
+.hi:last-child{border:none;}
+.hi-n{font-size:12px;}
+.hi-m{font-size:10.5px;color:var(--mu);display:flex;gap:7px;}
+.hi-a{font-family:var(--mono);font-variant-numeric:tabular-nums;}
+
+/* ── TAB CONTENT ── */
+.tc{display:none;overflow-y:auto;height:100%;padding:11px 12px;}
+.tc.on{display:block;}
+.tc::-webkit-scrollbar{width:3px;}
+.tc::-webkit-scrollbar-thumb{background:var(--gb2);border-radius:2px;}
+
+/* ── TASK ROW ── */
+.task-row{background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:10px 12px;display:flex;align-items:center;gap:9px;margin-bottom:7px;}
+
+/* ── KPI CELL ── */
+.kpi-cell{background:rgba(0,0,0,.25);border:1px solid var(--gb);border-radius:var(--r);padding:11px 12px;}
+.kpi-lbl{font-size:9.5px;color:var(--mu);margin-bottom:3px;text-transform:uppercase;letter-spacing:.06em;}
+.kpi-val{font-size:18px;font-weight:700;font-family:var(--mono);font-variant-numeric:tabular-nums;}
+.kpi-d{font-size:10px;margin-top:2px;}
+
+/* ── ACCOUNT ROW ── */
+.acc-row{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--gb);}
+.acc-row:last-child{border:none;}
+.acc-name{flex:1;font-size:12px;}
+.acc-val{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;}
+
+/* ── AGENDA EVENT ROW ── */
+.ev-row{display:flex;align-items:flex-start;gap:9px;padding:9px 0;border-bottom:1px solid var(--gb);}
+.ev-row:last-child{border:none;}
+.ev-time{font-family:var(--mono);font-size:10px;color:var(--mu);min-width:38px;padding-top:2px;}
+.ev-dot{width:6px;height:6px;border-radius:50%;margin-top:4px;flex-shrink:0;}
+.ev-body{flex:1;}
+.ev-title{font-size:12px;font-weight:500;}
+.ev-desc{font-size:10.5px;color:var(--mu);margin-top:1px;}
+
+/* ── DOC ROW ── */
+.doc-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--gb);cursor:pointer;transition:background .1s;}
+.doc-row:last-child{border:none;}
+.doc-icon{font-size:14px;flex-shrink:0;}
+.doc-name{flex:1;font-size:12px;}
+.doc-date{font-size:10.5px;color:var(--mu);}
+.doc-status{font-size:10px;font-weight:600;padding:1.5px 6px;border-radius:3px;}
+
+/* ── CLIENT ROW ── */
+.cli-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--gb);cursor:pointer;}
+.cli-row:last-child{border:none;}
+.cli-av{width:26px;height:26px;border-radius:50%;background:var(--glass);border:1px solid var(--gb);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;}
+.cli-name{flex:1;font-size:12px;font-weight:500;}
+.cli-val{font-family:var(--mono);font-size:11px;color:var(--mu2);}
+.cli-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+
+/* ── EMPTY STATE ── */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:32px;text-align:center;}
+.ei{font-size:28px;margin-bottom:10px;}
+.et{font-size:13px;font-weight:600;color:var(--mu2);margin-bottom:5px;}
+.eb{font-size:11.5px;color:var(--mu);max-width:180px;line-height:1.5;}
+
+/* ── TOASTS ── */
+.toasts{position:fixed;bottom:18px;right:18px;z-index:200;display:flex;flex-direction:column;gap:6px;}
+.toast{background:rgba(14,18,30,.96);backdrop-filter:blur(20px);border:1px solid var(--gb2);border-radius:var(--r);padding:10px 13px;display:flex;align-items:center;gap:9px;font-size:12.5px;min-width:230px;box-shadow:0 8px 28px rgba(0,0,0,.5);animation:ts .16s ease-out;}
+.toast.ok{border-left:2px solid var(--ok);}
+.toast.no{border-left:2px solid var(--urg);}
+.toast.sn{border-left:2px solid var(--att);}
+/* ── INTEGRATION MODAL ── */
+.intg-modal{display:none;position:fixed;inset:0;z-index:400;background:rgba(3,7,28,.85);backdrop-filter:blur(18px);align-items:center;justify-content:center;}
+.intg-modal.open{display:flex;}
+.intg-box{background:#0b1230;border:1px solid var(--gb2);border-radius:var(--rl);padding:22px 24px;width:420px;max-width:93vw;box-shadow:0 24px 64px rgba(0,0,0,.65);}
+.intg-box h3{font-size:15px;font-weight:700;margin-bottom:3px;}
+.intg-box .msub{font-size:11.5px;color:var(--mu);margin-bottom:17px;}
+.intg-field{margin-bottom:11px;}
+.intg-field label{display:block;font-size:9.5px;font-weight:700;letter-spacing:.06em;color:var(--mu2);text-transform:uppercase;margin-bottom:4px;}
+.intg-field input,.intg-field select{width:100%;background:rgba(255,255,255,.055);border:1px solid var(--gb2);border-radius:6px;padding:7px 10px;font:inherit;font-size:12.5px;color:var(--fg);outline:none;transition:border-color .12s;}
+.intg-field input:focus,.intg-field select:focus{border-color:var(--ac);}
+.modal-acts{display:flex;gap:7px;margin-top:18px;justify-content:flex-end;}
+.modal-sep{border:none;border-top:1px solid var(--gb);margin:16px 0;}
+/* ── LOG DETAIL ── */
+.log-wrap{border-bottom:1px solid var(--gb);}
+.log-wrap:last-child{border-bottom:none;}
+.log-row{border-bottom:none !important;user-select:none;}
+.log-row.expanded{background:rgba(255,255,255,.04);}
+.log-det{display:none;background:rgba(255,255,255,.022);padding:10px 14px 13px 30px;border-top:1px solid var(--gb);}
+.log-det.open{display:block;}
+.ld-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin-bottom:10px;}
+.ld-lbl{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--mu);margin-bottom:1px;}
+.ld-val{font-size:12px;color:var(--fg);}
+.ld-just{background:rgba(255,255,255,.04);border:1px solid var(--gb);border-radius:6px;padding:9px 11px;font-size:11.5px;color:var(--mu2);line-height:1.5;margin-top:6px;}
+@keyframes ts{from{transform:translateX(14px);opacity:0;}to{transform:none;opacity:1;}}
+.t-ttl{font-weight:600;margin-bottom:1px;}
+.t-msg{font-size:11px;color:var(--mu2);}
+
+/* ── ANALYTICS CARD ── */
+.anl-card{background:rgba(0,0,0,.2);border:1px solid var(--gb);border-radius:var(--r);margin-top:10px;overflow:hidden;}
+.anl-hd{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;transition:background .1s;user-select:none;}
+.anl-hd:hover{background:rgba(255,255,255,.03);}
+.anl-ttl{font-size:9.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mu2);flex:1;}
+.anl-nums{display:flex;gap:16px;margin-right:8px;}
+.anl-kpi{display:flex;flex-direction:column;align-items:flex-end;}
+.anl-v{font-family:var(--mono);font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.3px;}
+.anl-l{font-size:9px;color:var(--mu);margin-top:1px;}
+.anl-chev{color:var(--mu);font-size:10px;transition:transform .2s;flex-shrink:0;line-height:1;}
+.anl-chev.open{transform:rotate(90deg);}
+.anl-body{display:none;padding:12px;border-top:1px solid var(--gb);}
+.anl-body.open{display:block;animation:fi .15s ease-out;}
+.anl-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px;}
+.anl-kc{background:rgba(0,0,0,.3);border:1px solid var(--gb);border-radius:5px;padding:8px 10px;}
+.anl-kl{font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
+.anl-kv{font-family:var(--mono);font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;}
+.anl-kd{font-size:9px;margin-top:2px;}
+.bar-label{font-size:10.5px;color:var(--mu2);display:flex;justify-content:space-between;margin-bottom:3px;}
+.bar-track{background:var(--gb);border-radius:2px;height:4px;margin-bottom:8px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:2px;}
+
+/* ── GANTT ── */
+.gantt{padding:10px 12px;overflow-x:auto;}
+.gantt-header{display:flex;margin-left:70px;margin-bottom:5px;border-bottom:1px solid var(--gb);padding-bottom:5px;}
+.gantt-wk{font-size:9px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;flex:1;text-align:center;}
+.gantt-row{display:flex;align-items:center;margin-bottom:6px;min-height:22px;}
+.gantt-label{width:70px;flex-shrink:0;font-size:10px;color:var(--mu2);font-weight:500;padding-right:8px;}
+.gantt-track{flex:1;background:rgba(255,255,255,.02);border-radius:3px;height:18px;position:relative;border:1px solid var(--gb);}
+.gantt-block{position:absolute;top:2px;height:14px;border-radius:2px;font-size:8.5px;color:#fff;display:flex;align-items:center;padding:0 5px;font-weight:500;white-space:nowrap;overflow:hidden;cursor:default;transition:opacity .1s;}
+.gantt-block:hover{opacity:.8;}
+.gantt-today{position:absolute;top:-3px;bottom:-3px;width:1.5px;background:var(--ac);z-index:3;border-radius:1px;}
+.gantt-today::before{content:'▼';position:absolute;top:-8px;left:-4px;font-size:7px;color:var(--ac);}
+.gantt-divider{width:1px;position:absolute;top:0;bottom:0;background:var(--gb);z-index:1;}
+
+/* ── DOC EDITOR OVERLAY ── */
+.ed-overlay{display:none;position:fixed;inset:0;z-index:300;background:rgba(5,7,14,.92);backdrop-filter:blur(20px);flex-direction:column;animation:fi .18s ease-out;}
+.ed-overlay.open{display:flex;}
+.ed-topbar{display:flex;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid var(--gb);background:rgba(14,18,30,.7);flex-shrink:0;}
+.ed-title{font-size:13px;font-weight:700;flex:1;}
+.ed-meta{font-size:10.5px;color:var(--mu);}
+.ed-tabs{display:flex;gap:3px;margin-right:8px;}
+.ed-tab{padding:4px 10px;font-size:11px;border-radius:4px;cursor:pointer;color:var(--mu);transition:all .1s;}
+.ed-tab.on{background:var(--gl2);color:var(--fg);}
+.ed-body{flex:1;display:grid;grid-template-columns:1fr 1fr;overflow:hidden;gap:0;}
+.ed-pane{display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+.ed-pane:first-child{border-right:1px solid var(--gb);}
+.ed-pane-hd{padding:7px 14px;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);border-bottom:1px solid var(--gb);flex-shrink:0;display:flex;align-items:center;gap:6px;}
+.ed-content{flex:1;overflow-y:auto;padding:16px 20px;font-size:13px;line-height:1.75;color:var(--mu2);}
+.ed-textarea{flex:1;resize:none;border:none;outline:none;background:transparent;color:var(--fg);font-size:13px;line-height:1.75;padding:16px 20px;font-family:var(--body);}
+.ed-content::-webkit-scrollbar,.ed-textarea::-webkit-scrollbar{width:3px;}
+.ed-content::-webkit-scrollbar-thumb,.ed-textarea::-webkit-scrollbar-thumb{background:var(--gb2);border-radius:2px;}
+.diff-add{background:rgba(16,185,129,.12);color:var(--ok);border-left:2px solid rgba(16,185,129,.5);padding:0 4px;border-radius:0 3px 3px 0;}
+.diff-del{background:rgba(239,68,68,.1);color:rgba(239,68,68,.7);text-decoration:line-through;padding:0 3px;border-radius:2px;}
+.ed-footer{display:flex;align-items:center;gap:8px;padding:9px 18px;border-top:1px solid var(--gb);background:rgba(14,18,30,.7);flex-shrink:0;}
+.ed-status{font-size:11px;color:var(--mu);flex:1;}
+.ed-diff-badge{font-size:9.5px;font-weight:600;padding:2px 7px;border-radius:3px;background:var(--adim);color:var(--ac);}
+/* ── ADMIN ──────────────────────────────────────────────────────────────── */
+.ad-tabs{display:flex;padding:0 18px;border-bottom:1px solid var(--gb);flex-shrink:0;background:rgba(3,7,28,.35);}
+.ad-tab{padding:9px 14px;font-size:12px;font-weight:500;color:var(--mu);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .1s,border-color .1s;display:flex;align-items:center;gap:6px;}
+.ad-tab:hover{color:var(--fg);}.ad-tab.on{color:var(--fg);border-bottom-color:var(--ac);}
+.ad-tc{display:none;}.ad-tc.on{display:block;flex:1;min-height:0;overflow-y:auto;padding:16px 20px;}
+.ad-tc::-webkit-scrollbar{width:3px;}.ad-tc::-webkit-scrollbar-thumb{background:var(--gb2);border-radius:2px;}
+.intg-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--glass);border:1px solid var(--gb);border-left-width:2.5px;border-left-color:transparent;border-radius:var(--r);margin-bottom:6px;transition:border-color .12s;}
+.intg-row:hover{border-color:var(--gb2);}.intg-row.conn{border-left-color:var(--ok);}
+.intg-ico{font-size:22px;width:34px;text-align:center;flex-shrink:0;position:relative;}
+.conn-dot{position:absolute;bottom:-2px;right:-2px;width:12px;height:12px;border-radius:50%;background:var(--ok);border:1.5px solid var(--bg);display:none;align-items:center;justify-content:center;font-size:8px;color:#fff;}
+.intg-row.conn .conn-dot{display:flex;}.intg-nm{font-size:12.5px;font-weight:600;margin-bottom:1px;}.intg-dc{font-size:11px;color:var(--mu);}
+.conn-pill{font-size:10px;font-weight:600;padding:2px 7px;border-radius:8px;background:var(--odim);color:var(--ok);white-space:nowrap;}
+.int-lane{margin-bottom:18px;}
+.int-lane-hd{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.int-lane-lbl{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu2);}
+.int-lane-ct{font-size:10px;color:var(--mu);margin-left:auto;}
+.int-carousel{display:flex;gap:9px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;}
+.int-carousel::-webkit-scrollbar{height:3px;}.int-carousel::-webkit-scrollbar-thumb{background:var(--gb2);border-radius:2px;}
+.int-card{flex-shrink:0;width:156px;background:var(--glass);border:1px solid var(--gb);border-left:2.5px solid transparent;border-radius:var(--r);padding:12px 12px 10px;display:flex;flex-direction:column;gap:5px;scroll-snap-align:start;transition:border-color .12s;}
+.int-card:hover{border-color:var(--gb2);}.int-card.conn{border-left-color:var(--ok);}
+.int-card-ico{font-size:22px;position:relative;width:28px;margin-bottom:2px;}
+.ic-dot{position:absolute;bottom:-2px;right:-4px;width:12px;height:12px;border-radius:50%;background:var(--ok);border:1.5px solid var(--bg);display:none;align-items:center;justify-content:center;font-size:8px;color:#fff;}
+.int-card.conn .ic-dot{display:flex;}
+.int-card-nm{font-size:12px;font-weight:600;line-height:1.3;}
+.int-card-dc{font-size:10.5px;color:var(--mu);flex:1;line-height:1.3;}
+.int-card-ft{margin-top:6px;display:flex;align-items:center;gap:5px;}
+.usr-row{display:flex;align-items:center;gap:11px;padding:11px 12px;background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);margin-bottom:6px;cursor:pointer;transition:border-color .12s;}
+.usr-row:hover{border-color:var(--gb2);}.usr-row.open{border-radius:var(--r) var(--r) 0 0;margin-bottom:0;}
+.usr-av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;}
+.usr-perm{margin-left:auto;font-size:10.5px;color:var(--mu);}
+.perm-box{display:none;background:rgba(0,0,0,.25);border:1px solid var(--gb);border-top:none;border-radius:0 0 var(--r) var(--r);padding:12px 13px;margin-bottom:6px;}
+.perm-box.open{display:block;}
+.perm-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--gb);font-size:12px;color:var(--mu2);}
+.perm-row:last-child{border:none;}.perm-nm{flex:1;}
+.ptog{width:30px;height:16px;border-radius:8px;background:var(--gb);cursor:pointer;position:relative;transition:background .14s;flex-shrink:0;}
+.ptog.on{background:var(--ok);}
+.ptog::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:2px;left:2px;transition:left .14s;}
+.ptog.on::after{left:16px;}
+.aud-search{display:flex;align-items:center;gap:8px;background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:7px 11px;margin-bottom:12px;}
+.aud-search input{background:none;border:none;outline:none;color:var(--fg);font:13px var(--body);flex:1;}
+.aud-search input::placeholder{color:var(--mu);}
+.log-row{display:flex;align-items:center;gap:9px;padding:8px 10px;border-bottom:1px solid var(--gb);font-size:11.5px;cursor:pointer;transition:background .1s;}
+.log-row:hover{background:var(--glass);}.log-ts{font-family:var(--mono);font-size:10px;color:var(--mu);min-width:102px;flex-shrink:0;}
+.log-ag{width:5px;height:5px;border-radius:50%;flex-shrink:0;}.log-act{flex:1;color:var(--mu2);}
+.log-usr{font-size:10.5px;color:var(--mu);white-space:nowrap;margin:0 8px;}
+.log-st{font-size:9.5px;font-weight:600;padding:1.5px 5px;border-radius:3px;flex-shrink:0;}.lok{background:var(--odim);color:var(--ok);}
+.lno{background:var(--udim);color:var(--urg);}.lwrn{background:var(--adim2);color:var(--att);}
+.lgpd-sec{background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:14px 16px;}
+.lgpd-ttl{font-size:13px;font-weight:600;margin-bottom:3px;}.lgpd-desc{font-size:11.5px;color:var(--mu);margin-bottom:10px;line-height:1.5;}
+.lgpd-act{display:flex;gap:7px;flex-wrap:wrap;}
+/* ── CONTEXT MAP ── */
+.ctx-grid{display:grid;grid-template-columns:1fr 280px;height:100%;overflow:hidden;}
+.ctx-map-wrap{display:flex;flex-direction:column;padding:12px 14px;gap:9px;overflow:hidden;}
+.ctx-svg-cont{flex:1;min-height:0;border:1px solid var(--gb);border-radius:var(--rl);background:var(--glass);overflow:hidden;backdrop-filter:blur(12px);}
+.ctx-detail{flex-shrink:0;background:rgba(255,255,255,.03);border:1px solid var(--gb);border-radius:var(--r);padding:10px 13px;display:none;}
+.ctx-detail.vis{display:block;}
+.ctx-detail-ttl{font-size:12px;font-weight:700;margin-bottom:8px;color:var(--fg);}
+.ctx-sub-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.ctx-sub{background:rgba(255,255,255,.03);border:1px solid var(--gb);border-radius:5px;padding:7px 9px;}
+.ctx-sub-name{font-size:11px;color:var(--mu2);margin-bottom:4px;}
+.ctx-sub-bar{height:3px;background:rgba(255,255,255,.08);border-radius:2px;margin-bottom:3px;}
+.ctx-sub-fill{height:100%;border-radius:2px;}
+.ctx-sub-meta{font-size:10px;color:var(--mu);display:flex;justify-content:space-between;}
+.ctx-right{border-left:1px solid var(--gb);padding:12px;overflow-y:auto;display:flex;flex-direction:column;gap:9px;}
+.ctx-right::-webkit-scrollbar{width:3px;}.ctx-right::-webkit-scrollbar-thumb{background:var(--gb2);border-radius:2px;}
+.ctx-overall{text-align:center;background:var(--glass);border:1px solid var(--gb);border-radius:var(--rl);padding:13px;backdrop-filter:blur(12px);}
+.ctx-score{font-size:34px;font-weight:800;font-family:var(--mono);letter-spacing:-1px;line-height:1;}
+.ctx-score-lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--mu);margin-top:4px;}
+.ctx-cov-sec,.ctx-agents{background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:10px 12px;backdrop-filter:blur(12px);}
+.ctx-cov-ttl{font-size:9.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mu);margin-bottom:8px;}
+.ctx-dom-row{display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 0;border-radius:4px;transition:background .1s;}
+.ctx-dom-row:hover{background:rgba(255,255,255,.03);}
+.ctx-dom-icon{font-size:12px;width:16px;text-align:center;flex-shrink:0;}
+.ctx-dom-name{font-size:11px;color:var(--mu2);flex:1;}
+.ctx-dom-bar{width:70px;height:3px;background:rgba(255,255,255,.08);border-radius:2px;flex-shrink:0;}
+.ctx-dom-fill{height:100%;border-radius:2px;}
+.ctx-dom-pct{font-size:9.5px;font-family:var(--mono);width:28px;text-align:right;flex-shrink:0;}
+.ctx-agent-row{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--gb);font-size:12px;}
+.ctx-agent-row:last-child{border:none;}
+.ctx-agent-ic{font-size:13px;width:18px;text-align:center;}
+.ctx-agent-name{flex:1;}
+.ctx-agent-status{font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;}
+.sts-ok{background:var(--odim);color:var(--ok);}.sts-par{background:var(--adm2);color:var(--att);}.sts-blk{background:var(--udim);color:var(--urg);}
+.ctx-node{transition:opacity .15s;}.ctx-node:hover{opacity:.8;}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="logo"><div class="logo-mark">B</div><span class="logo-name">blu</span></div>
+  <div class="topbar-mid"><span id="bc">Bom dia, Carlos ☀️</span></div>
+  <div class="topbar-end">
+    <button class="ibtn"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+    <button class="ibtn"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><span class="rdot"></span></button>
+    <div class="av">CL</div>
+  </div>
+</header>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="ni on" data-s="home" data-tip="Início" onclick="go('home',this,'Início')"><span class="ni-icon">🏠</span></div>
+  <div class="ni" data-s="compras" data-tip="Compras" onclick="go('compras',this,'Compras')"><span class="ni-icon">🛒</span><span class="nb"></span></div>
+  <div class="ni" data-s="financeiro" data-tip="Financeiro" onclick="go('financeiro',this,'Financeiro')"><span class="ni-icon">📊</span><span class="nb y"></span></div>
+  <div class="ni" data-s="agenda" data-tip="Agenda" onclick="go('agenda',this,'Agenda')"><span class="ni-icon">📅</span></div>
+  <div class="ni" data-s="documentos" data-tip="Documentos" onclick="go('documentos',this,'Documentos')"><span class="ni-icon">✍️</span></div>
+  <div class="ni" data-s="estrategia" data-tip="Estratégia" onclick="go('estrategia',this,'Estratégia')"><span class="ni-icon">🎯</span></div>
+  <div class="ni" data-s="clientes" data-tip="Clientes" onclick="go('clientes',this,'Clientes')"><span class="ni-icon">👥</span></div>
+  <div class="sb-foot">
+    <div class="ni" data-s="atividade" data-tip="Atividade" onclick="go('atividade',this,'Atividade')"><span class="ni-icon">🔔</span></div>
+    <div class="ni" data-s="admin" data-tip="Admin" onclick="go('admin',this,'Admin')"><span class="ni-icon">⚙️</span></div>
+  </div>
+</aside>
+
+<main class="main">
+
+<!-- ═══════════════════ HOME ═══════════════════ -->
+<div class="screen on" id="s-home">
+  <div class="home-grid">
+
+    <div class="panel" style="grid-column:1;grid-row:1">
+      <div class="ph">
+        <span class="ph-ico">⚡</span>
+        <span class="ph-ttl">Decidir Agora</span>
+        <span class="ph-cnt" id="cnt">5 pendentes</span>
+        <span class="ph-lnk" onclick="go('compras',null,'Compras')">Ver todas →</span>
+      </div>
+      <div class="pb">
+        <div class="dl">
+          <div class="dc urg" id="dc1">
+            <div class="dc-row" onclick="toggleDc('dc1')">
+              <div class="ag"><div class="agd" style="background:#818cf8"></div>Compras</div>
+              <span class="bdg bu">Urgente</span>
+              <span class="dc-row-summary"><strong>3 cotações prontas</strong> — Fornecedor Silva, R$ 1.240</span>
+              <span class="dt">10:32</span>
+              <span class="dc-ok-inline"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Aprovado</span>
+              <span class="dc-chev">▶</span>
+            </div>
+            <div class="dc-expand">
+              <div class="db"><strong>3 cotações prontas.</strong> Recomendação: Fornecedor Silva, entrega 2 dias, <strong>R$ 1.240</strong>.</div>
+              <ul class="dbl"><li>Toner HP 107A — estoque crítico (1 dia)</li><li>Papel A4 — estoque baixo (5 dias)</li><li>Café — estoque baixo (2 dias)</li></ul>
+              <div class="dc-act">
+                <button class="btn bp" onclick="approve('dc1','Compras aprovadas. Pedido com Fornecedor Silva.')">👍 Aprovar</button>
+                <button class="btn bs" onclick="go('compras',null,'Compras')">👁 Ver</button>
+                <button class="btn bg" onclick="snooze('dc1')">⏰ Depois</button>
+              </div>
+              <div class="dc-ins"><span>💡</span>Silva 15% mais caro, mas 0 atrasos em 6 meses vs. Gamma (2 atrasos).</div>
+              <div class="dc-ok"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Aprovado — pedido com Fornecedor Silva</div>
+            </div>
+          </div>
+          <div class="dc warn" id="dc2">
+            <div class="dc-row" onclick="toggleDc('dc2')">
+              <div class="ag"><div class="agd" style="background:#34d399"></div>Financeiro</div>
+              <span class="bdg bw">Amanhã</span>
+              <span class="dc-row-summary"><strong>Boleto Claro Empresas</strong> — R$ 847,50 vence amanhã</span>
+              <span class="dt">09:15</span>
+              <span class="dc-ok-inline"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Agendado</span>
+              <span class="dc-chev">▶</span>
+            </div>
+            <div class="dc-expand">
+              <div class="db"><strong>Boleto Claro Empresas</strong> vence amanhã. <strong>R$ 847,50</strong>. Itaú: R$ 12.340 disponível.</div>
+              <ul class="dbl"><li>Vencimento: 06/05 · Conta Itaú 0001</li></ul>
+              <div class="dc-act">
+                <button class="btn bp" onclick="approve('dc2','Pagamento agendado. R$ 847,50 para 06/05.')">👍 Agendar</button>
+                <button class="btn bg" onclick="snooze('dc2')">⏰ Depois</button>
+              </div>
+              <div class="dc-ok"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Agendado — Itaú · 06/05</div>
+            </div>
+          </div>
+          <div class="dc warn" id="dc3">
+            <div class="dc-row" onclick="toggleDc('dc3')">
+              <div class="ag"><div class="agd" style="background:#818cf8"></div>Compras</div>
+              <span class="bdg bw">2 dias</span>
+              <span class="dc-row-summary"><strong>Estoque de café</strong> crítico — Café do Sul, 3 kg, R$ 282</span>
+              <span class="dt">08:47</span>
+              <span class="dc-ok-inline"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Aprovado</span>
+              <span class="dc-chev">▶</span>
+            </div>
+            <div class="dc-expand">
+              <div class="db"><strong>Estoque de café</strong> crítico. Café do Sul: 3 kg, <strong>R$ 282</strong> (★★★★☆).</div>
+              <div class="dc-act">
+                <button class="btn bp" onclick="approve('dc3','Café do Sul — 3 kg autorizado.')">👍 Aprovar</button>
+                <button class="btn bg" onclick="snooze('dc3')">⏰ Depois</button>
+              </div>
+              <div class="dc-ok"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Aprovado — Café do Sul</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rcol">
+      <div class="panel">
+        <div class="ph"><span class="ph-ico">📋</span><span class="ph-ttl">Plano de Hoje</span><span class="ph-lnk" onclick="go('agenda',null,'Agenda')">Agenda →</span></div>
+        <div class="pb"><div class="plano-list">
+          <div class="pl-item"><span class="pl-t">08:00</span><div class="pl-d" style="background:#818cf8"></div><span class="pl-txt">Revisar cotações de suprimentos</span></div>
+          <div class="pl-item"><span class="pl-t">10:00</span><div class="pl-d" style="background:#34d399"></div><span class="pl-txt">Aprovar NF-e</span></div>
+          <div class="pl-item"><span class="pl-t">11:30</span><div class="pl-d" style="background:#f472b6"></div><span class="pl-txt">Assinar proposta — Cliente Central</span></div>
+          <div class="pl-item"><span class="pl-t">14:00</span><div class="pl-d" style="background:#2dd4bf"></div><span class="pl-txt">Follow-up clientes</span></div>
+          <div class="pl-item"><span class="pl-t">16:30</span><div class="pl-d" style="background:#fbbf24"></div><span class="pl-txt">Análise de margem</span></div>
+        </div></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-ico">🔮</span><span class="ph-ttl">Visão da Semana</span></div>
+        <div class="pb"><div class="semana-list">
+          <div class="sw-item"><span class="sw-day today">Seg</span><span class="sw-desc">Hoje — cotações + boleto</span><span class="sw-cnt sw-h">5</span></div>
+          <div class="sw-item"><span class="sw-day">Ter</span><span class="sw-desc">Fornecedores — 3 pendentes</span><span class="sw-cnt sw-h">2</span></div>
+          <div class="sw-item"><span class="sw-day">Qua</span><span class="sw-desc">Fechamento mensal</span><span class="sw-cnt sw-h">1</span></div>
+          <div class="sw-item"><span class="sw-day">Qui</span><span class="sw-desc">Análise de margem</span><span class="sw-cnt sw-ok">✓</span></div>
+          <div class="sw-item"><span class="sw-day">Sex</span><span class="sw-desc">Relatório semanal</span><span class="sw-cnt sw-ok">✓</span></div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="bstrip">
+      <div class="ich"><span class="ich-em">📈</span><div class="ich-body"><span class="ich-tag tg-c">Clientes</span><div class="ich-txt">Cliente Central +40% este mês — considere desconto de fidelidade</div></div></div>
+      <div class="ich"><span class="ich-em">⏱️</span><div class="ich-body"><span class="ich-tag tg-s">Compras</span><div class="ich-txt">2 fornecedores com prazo crescendo: Max (+3d) e Gamma (+2d)</div></div></div>
+      <div class="ich"><span class="ich-em">💰</span><div class="ich-body"><span class="ich-tag tg-f">Financeiro</span><div class="ich-txt">Internet +15% em 3 meses — contrato vence em 90 dias</div></div></div>
+      <div class="nums-chip" onclick="go('financeiro',null,'Financeiro')">
+        <div class="nums-head">📊 Números <span style="margin-left:auto;opacity:.45">→</span></div>
+        <div class="nums-row">
+          <div class="nkpi"><span class="nv">543,8K</span><span class="nl">Faturamento</span><span class="nd up">↑ 12%</span></div>
+          <div class="nkpi"><span class="nv">42,5%</span><span class="nl">Margem</span><span class="nd up">↑ 2,1pp</span></div>
+          <div class="nkpi"><span class="nv">313</span><span class="nl">Clientes</span><span class="nd up">↑ 23</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div><!-- /home -->
+
+<!-- ═══════════════════ COMPRAS ═══════════════════ -->
+<div class="screen" id="s-compras">
+  <div class="rh">
+    <div class="rav">🛒</div>
+    <div><div class="rn">Compras</div><div class="rd">Cotações, fornecedores e estoque</div></div>
+    <div class="ra">
+      <button class="btn bs" style="font-size:11px" onclick="go('home',null,'Início')">← Início</button>
+      <button class="btn bp" style="font-size:11px">+ Nova Missão</button>
+    </div>
+  </div>
+  <div class="room-grid">
+
+    <div class="panel" style="grid-column:1;grid-row:1">
+      <div class="ph"><span class="ph-ttl">Mesa de Trabalho</span><span class="ph-cnt" id="cCnt">3 pendentes</span></div>
+      <div class="rtabs" id="cTabs">
+        <div class="rtab on" onclick="stab('cTabs','c','decisoes',this)">Decisões <span class="tbdg">3</span></div>
+        <div class="rtab" onclick="stab('cTabs','c','tarefas',this)">Tarefas</div>
+        <div class="rtab" onclick="stab('cTabs','c','historico',this)">Histórico</div>
+        <div class="rtab" onclick="stab('cTabs','c','config',this)">Config</div>
+      </div>
+      <div class="pb">
+        <div class="tc on" id="c-decisoes">
+          <div class="dl">
+            <div class="dc urg" id="rc1">
+              <div class="dc-row" onclick="toggleDc('rc1')">
+                <div class="ag"><div class="agd" style="background:#818cf8"></div>Toner HP 107A</div>
+                <span class="bdg bu">Crítico</span>
+                <span class="dc-row-summary"><strong>Estoque: 1 dia</strong> — Silva R$ 420 vs. Gamma R$ 380</span>
+                <span class="dt">10:32</span>
+                <span class="dc-ok-inline"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Aprovado</span>
+                <span class="dc-chev">▶</span>
+              </div>
+              <div class="dc-expand">
+                <div class="db"><strong>Estoque: 1 dia.</strong> Silva: R$ 420, entrega 2 dias. Gamma: R$ 380, 4 dias.</div>
+                <ul class="dbl"><li>Silva: R$ 420, nota 5/5, 0 atrasos</li><li>Gamma: R$ 380, nota 3/5, 2 atrasos</li></ul>
+                <div class="dc-act">
+                  <button class="btn bp" onclick="approve('rc1','Pedido com Fornecedor Silva autorizado.')">👍 Aprovar Silva</button>
+                  <button class="btn bs">✏️ Editar</button>
+                  <button class="btn brd" onclick="reject('rc1')">👎 Rejeitar</button>
+                  <button class="btn bg" onclick="snooze('rc1')">⏰ Depois</button>
+                </div>
+                <div class="dc-ins"><span>💡</span>Silva 10% mais caro mas 0 atrasos nos últimos 6 meses.</div>
+                <div class="dc-ok"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Aprovado — Fornecedor Silva</div>
+              </div>
+            </div>
+            <div class="dc warn" id="rc2">
+              <div class="dc-row" onclick="toggleDc('rc2')">
+                <div class="ag"><div class="agd" style="background:#818cf8"></div>Papel A4</div>
+                <span class="bdg bw">5 dias</span>
+                <span class="dc-row-summary"><strong>Estoque baixo</strong> — Gamma: 10 resmas, R$ 378, entrega 4d</span>
+                <span class="dt">09:45</span>
+                <span class="dc-ok-inline"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Aprovado</span>
+                <span class="dc-chev">▶</span>
+              </div>
+              <div class="dc-expand">
+                <div class="db"><strong>Estoque baixo.</strong> Gamma: 10 resmas, R$ 378, entrega 4 dias.</div>
+                <div class="dc-act">
+                  <button class="btn bp" onclick="approve('rc2','Papel A4 aprovado com Gamma.')">👍 Aprovar</button>
+                  <button class="btn bg" onclick="snooze('rc2')">⏰ Depois</button>
+                </div>
+                <div class="dc-ok"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Aprovado — Gamma</div>
+              </div>
+            </div>
+            <div class="dc warn" id="rc3">
+              <div class="dc-row" onclick="toggleDc('rc3')">
+                <div class="ag"><div class="agd" style="background:#818cf8"></div>Café</div>
+                <span class="bdg bw">2 dias</span>
+                <span class="dc-row-summary"><strong>Estoque acabando</strong> — Café do Sul: 3 kg, R$ 282</span>
+                <span class="dt">08:47</span>
+                <span class="dc-ok-inline"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Aprovado</span>
+                <span class="dc-chev">▶</span>
+              </div>
+              <div class="dc-expand">
+                <div class="db"><strong>Estoque acabando.</strong> Café do Sul: 3 kg, R$ 282 (★★★★☆).</div>
+                <div class="dc-act">
+                  <button class="btn bp" onclick="approve('rc3','Café do Sul — 3 kg aprovado.')">👍 Aprovar</button>
+                  <button class="btn bs">✏️ Editar</button>
+                  <button class="btn bg" onclick="snooze('rc3')">⏰ Depois</button>
+                </div>
+                <div class="dc-ok"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Aprovado — Café do Sul</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tc" id="c-tarefas">
+          <div class="task-row"><span>🔄</span><div style="flex:1"><div style="font-size:12.5px;font-weight:500">Monitoramento semanal de estoque</div><div style="font-size:10.5px;color:var(--mu);margin-top:1px">Seg 07/05 às 08:00</div></div><span class="pill on" style="pointer-events:none">Ativa</span></div>
+          <div class="task-row"><span>📨</span><div style="flex:1"><div style="font-size:12.5px;font-weight:500">Cotação mensal de suprimentos</div><div style="font-size:10.5px;color:var(--mu);margin-top:1px">Aguardando 2 respostas</div></div><span class="pill" style="background:var(--adm2);border-color:rgba(245,158,11,.3);color:var(--att);pointer-events:none">Pendente</span></div>
+          <div class="task-row"><span>📊</span><div style="flex:1"><div style="font-size:12.5px;font-weight:500">Análise de desempenho de fornecedores</div><div style="font-size:10.5px;color:var(--mu);margin-top:1px">Max e Gamma com alerta</div></div><span class="pill" style="pointer-events:none">Concluída</span></div>
+        </div>
+        <div class="tc" id="c-historico">
+          <div class="hi"><div class="hi-n">Toner HP 107A × 2 — Silva</div><div class="hi-m"><span>22 Abr</span><span class="hi-a">R$ 840</span><span style="color:var(--ok)">✓</span></div></div>
+          <div class="hi"><div class="hi-n">Papel A4 × 10 — Gamma</div><div class="hi-m"><span>15 Abr</span><span class="hi-a">R$ 378</span><span style="color:var(--ok)">✓</span></div></div>
+          <div class="hi"><div class="hi-n">Café 5 kg — Café do Sul</div><div class="hi-m"><span>20 Abr</span><span class="hi-a">R$ 470</span><span style="color:var(--ok)">✓</span></div></div>
+          <div class="hi"><div class="hi-n">Material limpeza — Gamma</div><div class="hi-m"><span>10 Abr</span><span class="hi-a">R$ 234</span><span style="color:var(--ok)">✓</span></div></div>
+          <div class="hi"><div class="hi-n">Papel A4 × 5 — TechPaper</div><div class="hi-m"><span>02 Abr</span><span class="hi-a">R$ 205</span><span style="color:var(--urg)">✗ Atraso 2d</span></div></div>
+        </div>
+        <div class="tc" id="c-config">
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:11px 12px"><div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Limite para aprovação automática</div><div style="font-size:11px;color:var(--mu);margin-bottom:8px">Compras com fornecedor preferido abaixo deste valor aprovadas automaticamente.</div><div style="display:flex;align-items:center;gap:7px"><div style="background:rgba(0,0,0,.3);border:1px solid var(--gb);border-radius:5px;padding:5px 10px;font-family:var(--mono);font-size:12px;flex:1">R$ 500</div><button class="btn bs" style="font-size:11px">Editar</button></div></div>
+            <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:11px 12px"><div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Alerta de estoque baixo</div><div style="font-size:11px;color:var(--mu);margin-bottom:7px">Notificar quando restar X dias de estoque.</div><div class="pills"><span class="pill on">3 dias</span><span class="pill" onclick="activePill(this)">5 dias</span><span class="pill" onclick="activePill(this)">7 dias</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rcol">
+      <div class="panel">
+        <div class="ph"><span class="ph-ico">📁</span><span class="ph-ttl">Fornecedores</span><button class="ph-add">＋</button></div>
+        <div class="pb">
+          <div class="dr-sec">
+            <div class="pills"><span class="pill on">Todos</span><span class="pill" onclick="activePill(this)">Escritório</span><span class="pill" onclick="activePill(this)">Insumos</span></div>
+            <div class="sup-row"><span>🏪</span><div><div class="sup-n">Fornecedor Silva</div><div class="sup-c">Suprimentos</div></div><span class="stars">★★★★★</span></div>
+            <div class="sup-row"><span>🏪</span><div><div class="sup-n">Café do Sul</div><div class="sup-c">Alimentos</div></div><span class="stars">★★★★☆</span></div>
+            <div class="sup-row"><span>🏪</span><div><div class="sup-n">Gamma</div><div class="sup-c">Escritório</div></div><span class="stars">★★★☆☆</span></div>
+            <div class="sup-row"><span>🏪</span><div><div class="sup-n">Max Distribuidora</div><div class="sup-c" style="color:var(--urg)">⚠ Prazo crescendo</div></div><span class="stars">★★★☆☆</span></div>
+          </div>
+          <div class="dr-sec">
+            <div class="dr-ttl">Este mês</div>
+            <div style="display:flex;flex-direction:column;gap:5px;font-size:11.5px">
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--mu)">Total gasto</span><span style="font-family:var(--mono)">R$ 8.420</span></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--mu)">Aprovadas</span><span style="font-family:var(--mono);color:var(--ok)">24</span></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--mu)">Economia IA</span><span style="font-family:var(--mono);color:var(--ok)">R$ 640</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-ico">🕐</span><span class="ph-ttl">Histórico recente</span></div>
+        <div class="pb">
+          <div class="dr-sec">
+            <div class="hi"><div class="hi-n">Toner HP 107A × 2</div><div class="hi-m"><span>22 Abr</span><span class="hi-a">R$ 840</span></div></div>
+            <div class="hi"><div class="hi-n">Papel A4 × 10</div><div class="hi-m"><span>15 Abr</span><span class="hi-a">R$ 378</span></div></div>
+            <div class="hi"><div class="hi-n">Café 5 kg</div><div class="hi-m"><span>20 Abr</span><span class="hi-a">R$ 470</span></div></div>
+          </div>
+          <div class="dr-sec">
+            <div class="dr-ttl">Por categoria</div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--mu2);margin-bottom:3px"><span>Escritório</span><span style="font-family:var(--mono)">R$ 1.218</span></div><div style="background:var(--gb);border-radius:2px;height:3px"><div style="background:var(--ac);width:58%;height:100%;border-radius:2px"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--mu2);margin-bottom:3px"><span>Alimentação</span><span style="font-family:var(--mono)">R$ 470</span></div><div style="background:var(--gb);border-radius:2px;height:3px"><div style="background:#818cf8;width:22%;height:100%;border-radius:2px"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--mu2);margin-bottom:3px"><span>Limpeza</span><span style="font-family:var(--mono)">R$ 234</span></div><div style="background:var(--gb);border-radius:2px;height:3px"><div style="background:#34d399;width:11%;height:100%;border-radius:2px"></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bstrip">
+      <div class="ich"><span class="ich-em">🔍</span><div class="ich-body"><span class="ich-tag tg-s">Insight</span><div class="ich-txt">Fornecedores de café na região com preço menor. Ver alternativas?</div></div></div>
+      <div class="ich"><span class="ich-em">⚠️</span><div class="ich-body"><span class="ich-tag tg-s">Alerta</span><div class="ich-txt">Max Distribuidora: atraso em 40% dos pedidos. Criar política de substituição?</div></div></div>
+      <div class="ich"><span class="ich-em">💡</span><div class="ich-body"><span class="ich-tag tg-f">Otimização</span><div class="ich-txt">Pedidos de escritório e limpeza são simultâneos — unificar gera desconto de volume</div></div></div>
+      <div class="nums-chip">
+        <div class="nums-head">⚙️ Rotinas ativas</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><div style="width:4px;height:4px;border-radius:50%;background:var(--ok);flex-shrink:0"></div><span style="color:var(--mu2)">Estoque</span><span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mu)">Seg 08:00</span></div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><div style="width:4px;height:4px;border-radius:50%;background:var(--ok);flex-shrink:0"></div><span style="color:var(--mu2)">Cotação mensal</span><span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mu)">Dia 1</span></div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><div style="width:4px;height:4px;border-radius:50%;background:var(--att);flex-shrink:0"></div><span style="color:var(--mu2)">Alerta crítico</span><span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mu)">Tempo real</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div><!-- /compras -->
+
+<!-- ═══════════════════ FINANCEIRO ═══════════════════ -->
+<div class="screen" id="s-financeiro">
+  <div class="rh">
+    <div class="rav">📊</div>
+    <div><div class="rn">Financeiro</div><div class="rd">Fluxo de caixa, pagamentos e relatórios</div></div>
+    <div class="ra">
+      <button class="btn bs" style="font-size:11px" onclick="go('home',null,'Início')">← Início</button>
+      <button class="btn bp" style="font-size:11px">+ Nova Missão</button>
+    </div>
+  </div>
+  <div class="room-grid">
+
+    <div class="panel" style="grid-column:1;grid-row:1">
+      <div class="ph"><span class="ph-ttl">Mesa de Trabalho</span><span class="ph-cnt">1 pendente</span></div>
+      <div class="rtabs" id="fTabs">
+        <div class="rtab on" onclick="stab('fTabs','f','decisoes',this)">Decisões <span class="tbdg">1</span></div>
+        <div class="rtab" onclick="stab('fTabs','f','tarefas',this)">Tarefas</div>
+        <div class="rtab" onclick="stab('fTabs','f','relatorios',this)">Relatórios</div>
+        <div class="rtab" onclick="stab('fTabs','f','config',this)">Config</div>
+      </div>
+      <div class="pb">
+        <div class="tc on" id="f-decisoes">
+          <div class="dl">
+            <div class="dc warn" id="fd1">
+              <div class="dc-row" onclick="toggleDc('fd1')">
+                <div class="ag"><div class="agd" style="background:#34d399"></div>Boleto</div>
+                <span class="bdg bw">Amanhã</span>
+                <span class="dc-row-summary"><strong>Boleto Claro Empresas</strong> — R$ 847,50 vence 06/05</span>
+                <span class="dt">09:15</span>
+                <span class="dc-ok-inline"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Agendado</span>
+                <span class="dc-chev">▶</span>
+              </div>
+              <div class="dc-expand">
+                <div class="db"><strong>Boleto Claro Empresas</strong> vence amanhã. <strong>R$ 847,50</strong>. Itaú: R$ 12.340 disponível.</div>
+                <ul class="dbl"><li>Vencimento: 06/05 · Conta Itaú 0001 / CC 12345-6</li><li>Saldo atual cobre o pagamento com folga</li></ul>
+                <div class="dc-act">
+                  <button class="btn bp" onclick="approve('fd1','Pagamento agendado. R$ 847,50 para 06/05.')">👍 Agendar</button>
+                  <button class="btn bs">✏️ Editar</button>
+                  <button class="btn bg" onclick="snooze('fd1')">⏰ Depois</button>
+                </div>
+                <div class="dc-ok"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Agendado — Itaú · 06/05</div>
+              </div>
+            </div>
+          </div>
+          <!-- ANALYTICS EXPANDABLE CARD -->
+          <div class="anl-card" id="anlCard">
+            <div class="anl-hd" onclick="expandAnalytics()">
+              <span class="anl-ttl">📊 Analytics</span>
+              <div class="anl-nums">
+                <div class="anl-kpi"><span class="anl-v">543,8K</span><span class="anl-l">Faturamento</span></div>
+                <div class="anl-kpi"><span class="anl-v" style="color:var(--ok)">42,5%</span><span class="anl-l">Margem</span></div>
+                <div class="anl-kpi"><span class="anl-v">R$ 18,4K</span><span class="anl-l">Caixa</span></div>
+              </div>
+              <span class="anl-chev" id="anlChev">▶</span>
+            </div>
+            <div class="anl-body" id="anlBody">
+              <div class="anl-kpi-grid">
+                <div class="anl-kc"><div class="anl-kl">Faturamento</div><div class="anl-kv">543,8K</div><div class="anl-kd up">↑ 12% vs. abr</div></div>
+                <div class="anl-kc"><div class="anl-kl">Despesas</div><div class="anl-kv">312,4K</div><div class="anl-kd dn">↑ 7%</div></div>
+                <div class="anl-kc"><div class="anl-kl">Margem bruta</div><div class="anl-kv" style="color:var(--ok)">42,5%</div><div class="anl-kd up">↑ 2,1pp</div></div>
+                <div class="anl-kc"><div class="anl-kl">Caixa consolidado</div><div class="anl-kv">R$ 18,4K</div><div class="anl-kd up">↑ 8%</div></div>
+                <div class="anl-kc"><div class="anl-kl">Ticket médio</div><div class="anl-kv">R$ 509</div><div class="anl-kd up">↑ 3,5%</div></div>
+                <div class="anl-kc"><div class="anl-kl">Pedidos</div><div class="anl-kv">1.067</div><div class="anl-kd up">↑ 8%</div></div>
+              </div>
+              <div style="margin-bottom:11px">
+                <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin-bottom:7px">Despesas por categoria</div>
+                <div class="bar-label"><span>Folha</span><span style="font-family:var(--mono)">R$ 148K · 47%</span></div>
+                <div class="bar-track"><div class="bar-fill" style="width:47%;background:#818cf8"></div></div>
+                <div class="bar-label"><span>Fornecedores</span><span style="font-family:var(--mono)">R$ 72K · 23%</span></div>
+                <div class="bar-track"><div class="bar-fill" style="width:23%;background:var(--ac)"></div></div>
+                <div class="bar-label"><span>Aluguel</span><span style="font-family:var(--mono)">R$ 38K · 12%</span></div>
+                <div class="bar-track"><div class="bar-fill" style="width:12%;background:#34d399"></div></div>
+                <div class="bar-label"><span>Operacional</span><span style="font-family:var(--mono)">R$ 54K · 17%</span></div>
+                <div class="bar-track" style="margin-bottom:0"><div class="bar-fill" style="width:17%;background:var(--att)"></div></div>
+              </div>
+              <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin-bottom:5px">Tendência faturamento — 8 meses</div>
+              <svg viewBox="0 0 280 44" width="100%" height="44" style="display:block;overflow:visible">
+                <defs><linearGradient id="spGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(140,95,219,.25)"/><stop offset="100%" stop-color="rgba(140,95,219,0)"/></linearGradient></defs>
+                <path d="M0,40 L40,36 L80,32 L120,28 L160,22 L200,16 L240,10 L280,6" stroke="var(--ac)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                <path d="M0,40 L40,36 L80,32 L120,28 L160,22 L200,16 L240,10 L280,6 L280,44 L0,44Z" fill="url(#spGrad)"/>
+                <circle cx="280" cy="6" r="2.5" fill="var(--ac)"/>
+              </svg>
+              <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--mu);font-family:var(--mono);margin-top:3px">
+                <span>Out</span><span>Nov</span><span>Dez</span><span>Jan</span><span>Fev</span><span>Mar</span><span>Abr</span><span>Mai</span>
+              </div>
+              <div class="pills" style="margin-top:9px;margin-bottom:0">
+                <span class="pill on" onclick="activePill(this)">30d</span>
+                <span class="pill" onclick="activePill(this)">90d</span>
+                <span class="pill" onclick="activePill(this)">1 ano</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tc" id="f-tarefas">
+          <div class="task-row"><span>📅</span><div style="flex:1"><div style="font-size:12.5px;font-weight:500">Fechamento mensal automático</div><div style="font-size:10.5px;color:var(--mu);margin-top:1px">Agendado para 31/05</div></div><span class="pill on" style="pointer-events:none">Ativa</span></div>
+          <div class="task-row"><span>📊</span><div style="flex:1"><div style="font-size:12.5px;font-weight:500">DRE mensal — geração automática</div><div style="font-size:10.5px;color:var(--mu);margin-top:1px">Gerado em 01/05, enviado ao contador</div></div><span class="pill" style="pointer-events:none">Concluída</span></div>
+          <div class="task-row"><span>🔔</span><div style="flex:1"><div style="font-size:12.5px;font-weight:500">Alerta de variação de custos</div><div style="font-size:10.5px;color:var(--mu);margin-top:1px">Dispara se variação &gt; 10%</div></div><span class="pill on" style="pointer-events:none">Ativa</span></div>
+        </div>
+        <div class="tc" id="f-relatorios">
+          <div class="hi"><div class="hi-n">DRE Abril 2026</div><div class="hi-m"><span>01 Mai</span><span class="hi-a" style="color:var(--ok)">✓ Enviado</span></div></div>
+          <div class="hi"><div class="hi-n">Fluxo de Caixa — Abr</div><div class="hi-m"><span>01 Mai</span><span class="hi-a">PDF</span></div></div>
+          <div class="hi"><div class="hi-n">Análise de Margem Q1</div><div class="hi-m"><span>03 Abr</span><span class="hi-a">PDF</span></div></div>
+          <div class="hi"><div class="hi-n">DRE Março 2026</div><div class="hi-m"><span>01 Abr</span><span class="hi-a" style="color:var(--ok)">✓ Enviado</span></div></div>
+        </div>
+        <div class="tc" id="f-config">
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:11px 12px"><div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Alerta de variação de custos</div><div style="font-size:11px;color:var(--mu);margin-bottom:7px">Notificar quando uma categoria variar mais que:</div><div class="pills"><span class="pill on">10%</span><span class="pill" onclick="activePill(this)">15%</span><span class="pill" onclick="activePill(this)">20%</span></div></div>
+            <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:11px 12px"><div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Geração automática de DRE</div><div style="font-size:11px;color:var(--mu);margin-bottom:7px">Gerar e enviar ao contador no dia:</div><div class="pills"><span class="pill">1</span><span class="pill on">2</span><span class="pill" onclick="activePill(this)">5</span><span class="pill" onclick="activePill(this)">10</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rcol">
+      <div class="panel">
+        <div class="ph"><span class="ph-ico">🏦</span><span class="ph-ttl">Contas</span><button class="ph-add">＋</button></div>
+        <div class="pb">
+          <div class="dr-sec">
+            <div class="acc-row"><span style="font-size:13px">🏦</span><div class="acc-name"><div style="font-size:12px;font-weight:500">Itaú Empresas</div><div style="font-size:10px;color:var(--mu)">CC 12345-6</div></div><div><div class="acc-val">R$ 12.340</div><div style="font-size:9.5px;color:var(--ok);font-family:var(--mono)">↑ sincronizado</div></div></div>
+            <div class="acc-row"><span style="font-size:13px">🏦</span><div class="acc-name"><div style="font-size:12px;font-weight:500">Bradesco</div><div style="font-size:10px;color:var(--mu)">CC 98765-4</div></div><div><div class="acc-val">R$ 8.210</div><div style="font-size:9.5px;color:var(--ok);font-family:var(--mono)">↑ sincronizado</div></div></div>
+            <div class="acc-row"><span style="font-size:13px">💳</span><div class="acc-name"><div style="font-size:12px;font-weight:500">Cartão Corp.</div><div style="font-size:10px;color:var(--mu)">Itaú Visa</div></div><div><div class="acc-val" style="color:var(--urg)">−R$ 2.180</div><div style="font-size:9.5px;color:var(--att);font-family:var(--mono)">Fatura 12/05</div></div></div>
+          </div>
+          <div class="dr-sec">
+            <div class="dr-ttl">Saldo consolidado</div>
+            <div style="font-size:18px;font-weight:700;font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--fg)">R$ 18.370</div>
+            <div style="font-size:10px;color:var(--ok);margin-top:2px">↑ 8% vs mês anterior</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-ico">📄</span><span class="ph-ttl">Próximos pagamentos</span></div>
+        <div class="pb">
+          <div class="dr-sec">
+            <div class="hi"><div class="hi-n">Claro Empresas</div><div class="hi-m"><span>06/05</span><span class="hi-a" style="color:var(--att)">R$ 847,50</span><span style="color:var(--att)">Amanhã</span></div></div>
+            <div class="hi"><div class="hi-n">Aluguel sala</div><div class="hi-m"><span>10/05</span><span class="hi-a">R$ 3.200</span></div></div>
+            <div class="hi"><div class="hi-n">Fornecedor Silva</div><div class="hi-m"><span>15/05</span><span class="hi-a">R$ 1.240</span></div></div>
+            <div class="hi"><div class="hi-n">Folha de pagamento</div><div class="hi-m"><span>20/05</span><span class="hi-a">R$ 18.400</span></div></div>
+            <div class="hi"><div class="hi-n">Cartão corporativo</div><div class="hi-m"><span>12/05</span><span class="hi-a">R$ 2.180</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bstrip">
+      <div class="ich"><span class="ich-em">📈</span><div class="ich-body"><span class="ich-tag tg-f">Tendência</span><div class="ich-txt">Receita em crescimento consistente: +8%, +10%, +12% nos últimos 3 meses</div></div></div>
+      <div class="ich"><span class="ich-em">💡</span><div class="ich-body"><span class="ich-tag tg-f">Insight</span><div class="ich-txt">Internet +15% em 3 meses — contrato vence em 90 dias, boa janela para renegociar</div></div></div>
+      <div class="ich"><span class="ich-em">⚠️</span><div class="ich-body"><span class="ich-tag tg-s">Atenção</span><div class="ich-txt">Despesas crescendo 7% vs. receita 12% — margem em melhora mas custo fixo subindo</div></div></div>
+      <div class="nums-chip" onclick="stab('fTabs','f','relatorios',document.querySelector('#fTabs .rtab:nth-child(3)'))">
+        <div class="nums-head">📊 KPIs do mês</div>
+        <div class="nums-row">
+          <div class="nkpi"><span class="nv">543,8K</span><span class="nl">Faturamento</span><span class="nd up">↑ 12%</span></div>
+          <div class="nkpi"><span class="nv">42,5%</span><span class="nl">Margem</span><span class="nd up">↑ 2,1pp</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════ AGENDA ═══════════════════ -->
+<div class="screen" id="s-agenda">
+  <div class="rh">
+    <div class="rav">📅</div>
+    <div><div class="rn">Agenda</div><div class="rd">Reuniões, rotinas e planejamento semanal</div></div>
+    <div class="ra">
+      <button class="btn bs" style="font-size:11px" onclick="go('home',null,'Início')">← Início</button>
+      <button class="btn bp" style="font-size:11px">+ Novo evento</button>
+    </div>
+  </div>
+  <div class="room-grid">
+
+    <div class="panel" style="grid-column:1;grid-row:1">
+      <div class="ph"><span class="ph-ttl">Mesa de Trabalho</span><span class="ph-cnt">5 eventos hoje</span></div>
+      <div class="rtabs" id="agTabs">
+        <div class="rtab on" onclick="stab('agTabs','ag','gantt',this)">Visão Mensal</div>
+        <div class="rtab" onclick="stab('agTabs','ag','hoje',this)">Hoje</div>
+        <div class="rtab" onclick="stab('agTabs','ag','pendentes',this)">Pendentes</div>
+        <div class="rtab" onclick="stab('agTabs','ag','config',this)">Config</div>
+      </div>
+      <div class="pb">
+        <div class="tc on" id="ag-gantt">
+          <div class="gantt">
+            <div class="gantt-header">
+              <div class="gantt-wk">6–12 Mai</div>
+              <div class="gantt-wk">13–19 Mai</div>
+              <div class="gantt-wk">20–26 Mai</div>
+              <div class="gantt-wk">27–5 Jun</div>
+            </div>
+            <div class="gantt-row">
+              <div class="gantt-label">🛒 Compras</div>
+              <div class="gantt-track">
+                <div class="gantt-today" style="left:0%"></div>
+                <div class="gantt-divider" style="left:25%"></div>
+                <div class="gantt-divider" style="left:50%"></div>
+                <div class="gantt-divider" style="left:75%"></div>
+                <div class="gantt-block" style="left:0%;width:20%;background:#818cf8">Cotação mensal</div>
+                <div class="gantt-block" style="left:0%;width:6%;background:rgba(239,68,68,.7)">Toner</div>
+              </div>
+            </div>
+            <div class="gantt-row">
+              <div class="gantt-label">📊 Financeiro</div>
+              <div class="gantt-track">
+                <div class="gantt-today" style="left:0%"></div>
+                <div class="gantt-divider" style="left:25%"></div>
+                <div class="gantt-divider" style="left:50%"></div>
+                <div class="gantt-divider" style="left:75%"></div>
+                <div class="gantt-block" style="left:3%;width:4%;background:var(--att)">Boleto</div>
+                <div class="gantt-block" style="left:74%;width:16%;background:#34d399">Fechamento</div>
+              </div>
+            </div>
+            <div class="gantt-row">
+              <div class="gantt-label">📅 Agenda</div>
+              <div class="gantt-track">
+                <div class="gantt-today" style="left:0%"></div>
+                <div class="gantt-divider" style="left:25%"></div>
+                <div class="gantt-divider" style="left:50%"></div>
+                <div class="gantt-divider" style="left:75%"></div>
+                <div class="gantt-block" style="left:6%;width:4%;background:#fb923c">NF-e</div>
+                <div class="gantt-block" style="left:26%;width:4%;background:rgba(251,146,60,.6)">Fornec.</div>
+                <div class="gantt-block" style="left:37%;width:4%;background:rgba(251,146,60,.6)">Fech. Qua</div>
+              </div>
+            </div>
+            <div class="gantt-row">
+              <div class="gantt-label">✍️ Docs</div>
+              <div class="gantt-track">
+                <div class="gantt-today" style="left:0%"></div>
+                <div class="gantt-divider" style="left:25%"></div>
+                <div class="gantt-divider" style="left:50%"></div>
+                <div class="gantt-divider" style="left:75%"></div>
+                <div class="gantt-block" style="left:0%;width:4%;background:#f472b6">Proposta Q2</div>
+                <div class="gantt-block" style="left:0%;width:30%;background:rgba(244,114,182,.45)">Handover Alpha</div>
+              </div>
+            </div>
+            <div class="gantt-row">
+              <div class="gantt-label">🎯 Estratégia</div>
+              <div class="gantt-track">
+                <div class="gantt-today" style="left:0%"></div>
+                <div class="gantt-divider" style="left:25%"></div>
+                <div class="gantt-divider" style="left:50%"></div>
+                <div class="gantt-divider" style="left:75%"></div>
+                <div class="gantt-block" style="left:0%;width:13%;background:#fbbf24">Análise Y</div>
+                <div class="gantt-block" style="left:47%;width:22%;background:rgba(251,191,36,.5)">Relatório Q2</div>
+              </div>
+            </div>
+            <div class="gantt-row">
+              <div class="gantt-label">👥 Clientes</div>
+              <div class="gantt-track">
+                <div class="gantt-today" style="left:0%"></div>
+                <div class="gantt-divider" style="left:25%"></div>
+                <div class="gantt-divider" style="left:50%"></div>
+                <div class="gantt-divider" style="left:75%"></div>
+                <div class="gantt-block" style="left:0%;width:6%;background:#2dd4bf">Máq. Pesada</div>
+                <div class="gantt-block" style="left:6%;width:4%;background:rgba(45,212,191,.5)">TechFarm</div>
+                <div class="gantt-block" style="left:50%;width:10%;background:rgba(45,212,191,.4)">Renovações</div>
+              </div>
+            </div>
+            <div style="margin-top:9px;display:flex;align-items:center;gap:10px;font-size:10px;color:var(--mu)">
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:2px;background:var(--ac);border-radius:1px;display:inline-block"></span>Hoje (06/05)</span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:8px;background:#818cf8;border-radius:2px;display:inline-block"></span>Em andamento</span>
+              <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:8px;background:var(--att);border-radius:2px;display:inline-block"></span>Urgente</span>
+            </div>
+          </div>
+        </div>
+        <div class="tc" id="ag-hoje">
+          <div style="display:flex;flex-direction:column">
+            <div class="ev-row">
+              <span class="ev-time">08:00</span>
+              <div class="ev-dot" style="background:#818cf8"></div>
+              <div class="ev-body"><div class="ev-title">Revisar cotações de suprimentos</div><div class="ev-desc">Compras — 3 itens pendentes</div></div>
+              <span class="bdg bo" style="margin-top:2px">Feito</span>
+            </div>
+            <div class="ev-row">
+              <span class="ev-time">10:00</span>
+              <div class="ev-dot" style="background:#34d399"></div>
+              <div class="ev-body"><div class="ev-title">Aprovar NF-e do mês anterior</div><div class="ev-desc">Financeiro — 4 notas para revisão</div></div>
+              <span class="bdg bw" style="margin-top:2px">Pendente</span>
+            </div>
+            <div class="ev-row">
+              <span class="ev-time">11:30</span>
+              <div class="ev-dot" style="background:#f472b6"></div>
+              <div class="ev-body"><div class="ev-title">Assinar proposta — Cliente Central</div><div class="ev-desc">Documentos — contrato Q2</div></div>
+              <span class="bdg bw" style="margin-top:2px">Pendente</span>
+            </div>
+            <div class="ev-row">
+              <span class="ev-time">14:00</span>
+              <div class="ev-dot" style="background:#2dd4bf"></div>
+              <div class="ev-body"><div class="ev-title">Follow-up clientes inadimplentes</div><div class="ev-desc">Clientes — 3 contatos</div></div>
+              <span class="bdg" style="background:var(--glass);color:var(--mu2);margin-top:2px">A fazer</span>
+            </div>
+            <div class="ev-row">
+              <span class="ev-time">16:30</span>
+              <div class="ev-dot" style="background:#fbbf24"></div>
+              <div class="ev-body"><div class="ev-title">Análise de margem — Produto Y</div><div class="ev-desc">Estratégia — relatório semanal</div></div>
+              <span class="bdg" style="background:var(--glass);color:var(--mu2);margin-top:2px">A fazer</span>
+            </div>
+          </div>
+        </div>
+        <div class="tc" id="ag-semana">
+          <div style="display:flex;flex-direction:column">
+            <div class="ev-row"><span class="ev-time" style="color:var(--ac);font-weight:600">Seg</span><div class="ev-dot" style="background:var(--ac)"></div><div class="ev-body"><div class="ev-title">Cotações + Boleto Claro</div><div class="ev-desc">5 decisões pendentes</div></div><span class="sw-cnt sw-h" style="margin-top:2px">5</span></div>
+            <div class="ev-row"><span class="ev-time">Ter</span><div class="ev-dot" style="background:#818cf8"></div><div class="ev-body"><div class="ev-title">Reunião com fornecedores</div><div class="ev-desc">3 itens de cotação pendentes</div></div><span class="sw-cnt sw-h" style="margin-top:2px">2</span></div>
+            <div class="ev-row"><span class="ev-time">Qua</span><div class="ev-dot" style="background:#34d399"></div><div class="ev-body"><div class="ev-title">Fechamento mensal Financeiro</div><div class="ev-desc">DRE + conciliação bancária</div></div><span class="sw-cnt sw-h" style="margin-top:2px">1</span></div>
+            <div class="ev-row"><span class="ev-time">Qui</span><div class="ev-dot" style="background:var(--ok)"></div><div class="ev-body"><div class="ev-title">Análise de margem — Estratégia</div><div class="ev-desc">Nenhuma decisão urgente</div></div><span class="sw-cnt sw-ok" style="margin-top:2px">✓</span></div>
+            <div class="ev-row"><span class="ev-time">Sex</span><div class="ev-dot" style="background:var(--ok)"></div><div class="ev-body"><div class="ev-title">Relatório semanal automático</div><div class="ev-desc">Gerado pelo Blu às 08:00</div></div><span class="sw-cnt sw-ok" style="margin-top:2px">✓</span></div>
+          </div>
+        </div>
+        <div class="tc" id="ag-pendentes">
+          <div class="dc warn" id="agd1">
+            <div class="dcr"><div class="ag"><div class="agd" style="background:#fb923c"></div>Agenda</div><span class="bdg bw">Hoje 10:00</span></div>
+            <div class="db"><strong>Aprovar 4 NF-e</strong> do mês de Abril. Valor total: R$ 7.830.</div>
+            <div class="dc-act">
+              <button class="btn bp" onclick="approve('agd1','NF-e aprovadas. Enviadas ao contador.')">👍 Aprovar</button>
+              <button class="btn bg" onclick="snooze('agd1')">⏰ Depois</button>
+            </div>
+            <div class="dc-ok"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Aprovado — NF-e enviadas ao contador</div>
+          </div>
+        </div>
+        <div class="tc" id="ag-config">
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:11px 12px"><div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Planejamento semanal automático</div><div style="font-size:11px;color:var(--mu);margin-bottom:7px">Preparar agenda toda:</div><div class="pills"><span class="pill on">Segunda 07:00</span><span class="pill" onclick="activePill(this)">Domingo 20:00</span></div></div>
+            <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:11px 12px"><div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Lembrete diário</div><div style="font-size:11px;color:var(--mu);margin-bottom:7px">Resumo do dia às:</div><div class="pills"><span class="pill">06:30</span><span class="pill on">07:30</span><span class="pill" onclick="activePill(this)">08:00</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rcol">
+      <div class="panel">
+        <div class="ph"><span class="ph-ico">📆</span><span class="ph-ttl">Calendários</span><button class="ph-add">＋</button></div>
+        <div class="pb">
+          <div class="dr-sec">
+            <div class="dr-ttl">Hoje — 6 Mai</div>
+            <div style="display:flex;flex-direction:column;gap:3px;margin-top:6px">
+              <div style="display:flex;align-items:center;gap:7px;padding:5px 5px;border-radius:5px;opacity:.55">
+                <span style="font-family:var(--mono);font-size:10px;color:var(--mu);width:34px;flex-shrink:0">08:00</span>
+                <div style="width:6px;height:6px;border-radius:50%;background:#818cf8;flex-shrink:0"></div>
+                <span style="font-size:11px;color:var(--mu2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Revisar cotações</span>
+                <span style="font-size:9px;background:var(--odim);color:var(--ok);padding:1px 5px;border-radius:3px;flex-shrink:0">Feito</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:7px;padding:5px 5px;border-radius:5px;background:rgba(245,158,11,.07)">
+                <span style="font-family:var(--mono);font-size:10px;font-weight:700;color:var(--att);width:34px;flex-shrink:0">10:00</span>
+                <div style="width:6px;height:6px;border-radius:50%;background:#fb923c;flex-shrink:0"></div>
+                <span style="font-size:11px;color:var(--fg);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Aprovar NF-e</span>
+                <span style="font-size:9px;background:var(--adm2);color:var(--att);padding:1px 5px;border-radius:3px;flex-shrink:0">Agora</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:7px;padding:5px 5px;border-radius:5px;background:rgba(239,68,68,.06)">
+                <span style="font-family:var(--mono);font-size:10px;color:var(--mu2);width:34px;flex-shrink:0">11:30</span>
+                <div style="width:6px;height:6px;border-radius:50%;background:#f472b6;flex-shrink:0"></div>
+                <span style="font-size:11px;color:var(--fg);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Assinar proposta</span>
+                <span style="font-size:9px;background:var(--udim);color:var(--urg);padding:1px 5px;border-radius:3px;flex-shrink:0">Urgente</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:7px;padding:5px 5px;border-radius:5px">
+                <span style="font-family:var(--mono);font-size:10px;color:var(--mu);width:34px;flex-shrink:0">14:00</span>
+                <div style="width:6px;height:6px;border-radius:50%;background:#34d399;flex-shrink:0"></div>
+                <span style="font-size:11px;color:var(--mu2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Follow-up clientes</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:7px;padding:5px 5px;border-radius:5px">
+                <span style="font-family:var(--mono);font-size:10px;color:var(--mu);width:34px;flex-shrink:0">16:30</span>
+                <div style="width:6px;height:6px;border-radius:50%;background:#fbbf24;flex-shrink:0"></div>
+                <span style="font-size:11px;color:var(--mu2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Análise de margem</span>
+              </div>
+            </div>
+          </div>
+          <div class="dr-sec">
+            <div class="dr-ttl">Fontes</div>
+            <div style="display:flex;flex-direction:column;gap:2px;margin-top:5px">
+              <div style="display:flex;align-items:center;gap:7px;padding:3px 4px"><div style="width:7px;height:7px;border-radius:2px;background:#818cf8;flex-shrink:0"></div><span style="font-size:11px;color:var(--mu2)">Google Calendar</span><span style="margin-left:auto;font-size:9px;color:var(--ok)">●</span></div>
+              <div style="display:flex;align-items:center;gap:7px;padding:3px 4px"><div style="width:7px;height:7px;border-radius:2px;background:#34d399;flex-shrink:0"></div><span style="font-size:11px;color:var(--mu2)">Calendário Empresa</span><span style="margin-left:auto;font-size:9px;color:var(--ok)">●</span></div>
+              <div style="display:flex;align-items:center;gap:7px;padding:3px 4px"><div style="width:7px;height:7px;border-radius:2px;background:#f472b6;flex-shrink:0"></div><span style="font-size:11px;color:var(--mu2)">Feriados BR</span><span style="margin-left:auto;font-size:9px;color:var(--ok)">●</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-ico">🕐</span><span class="ph-ttl">Próximos eventos</span></div>
+        <div class="pb">
+          <div class="dr-sec">
+            <div class="hi"><div class="hi-n">Aprovar NF-e — 4 notas</div><div class="hi-m"><span>Hoje 10:00</span><span style="color:var(--att)">Pendente</span></div></div>
+            <div class="hi"><div class="hi-n">Assinar proposta Cliente Central</div><div class="hi-m"><span>Hoje 11:30</span><span style="color:var(--att)">Pendente</span></div></div>
+            <div class="hi"><div class="hi-n">Reunião com fornecedores</div><div class="hi-m"><span>Ter 10:00</span></div></div>
+            <div class="hi"><div class="hi-n">Fechamento mensal</div><div class="hi-m"><span>Qua 09:00</span></div></div>
+            <div class="hi"><div class="hi-n">Análise de margem</div><div class="hi-m"><span>Qui 14:00</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bstrip">
+      <div class="ich"><span class="ich-em">📅</span><div class="ich-body"><span class="ich-tag tg-a">Agenda</span><div class="ich-txt">Semana cheia — Ter e Qua têm decisões críticas. Revisar prioridades?</div></div></div>
+      <div class="ich"><span class="ich-em">🤝</span><div class="ich-body"><span class="ich-tag tg-c">Clientes</span><div class="ich-txt">Reunião com fornecedores na Ter: 3 itens de cotação pendentes para apresentar</div></div></div>
+      <div class="ich"><span class="ich-em">💡</span><div class="ich-body"><span class="ich-tag tg-f">Financeiro</span><div class="ich-txt">Fechamento Qua: DRE precisará de conciliação bancária — preparar dados antes</div></div></div>
+      <div class="nums-chip">
+        <div class="nums-head">⚙️ Rotinas ativas</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><div style="width:4px;height:4px;border-radius:50%;background:var(--ok);flex-shrink:0"></div><span style="color:var(--mu2)">Planejamento semanal</span><span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mu)">Seg 07:00</span></div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><div style="width:4px;height:4px;border-radius:50%;background:var(--ok);flex-shrink:0"></div><span style="color:var(--mu2)">Resumo diário</span><span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mu)">07:30</span></div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><div style="width:4px;height:4px;border-radius:50%;background:var(--ok);flex-shrink:0"></div><span style="color:var(--mu2)">Relatório semanal</span><span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mu)">Sex 08:00</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════ DOCUMENTOS ═══════════════════ -->
+<div class="screen" id="s-documentos">
+  <div class="rh">
+    <div class="rav">✍️</div>
+    <div><div class="rn">Documentos</div><div class="rd">Rascunhos, modelos e aprovações</div></div>
+    <div class="ra">
+      <button class="btn bs" style="font-size:11px" onclick="go('home',null,'Início')">← Início</button>
+      <button class="btn bp" style="font-size:11px">+ Novo documento</button>
+    </div>
+  </div>
+  <div class="room-grid">
+
+    <div class="panel" style="grid-column:1;grid-row:1">
+      <div class="ph"><span class="ph-ttl">Mesa de Trabalho</span><span class="ph-cnt">1 para assinar</span></div>
+      <div class="rtabs" id="dTabs">
+        <div class="rtab on" onclick="stab('dTabs','d','ativos',this)">Ativos</div>
+        <div class="rtab" onclick="stab('dTabs','d','rascunhos',this)">Rascunhos</div>
+        <div class="rtab" onclick="stab('dTabs','d','arquivados',this)">Arquivados</div>
+        <div class="rtab" onclick="stab('dTabs','d','modelos',this)">Modelos</div>
+      </div>
+      <div class="pb">
+        <div class="tc on" id="d-ativos">
+          <div class="dc warn" id="dd1">
+            <div class="dcr"><div class="ag"><div class="agd" style="background:#f472b6"></div>Documentos</div><span class="bdg bw">Hoje 11:30</span></div>
+            <div class="db"><strong>Proposta Q2 — Cliente Central</strong> aguarda sua assinatura. Valor: <strong>R$ 48.000/mês</strong>.</div>
+            <ul class="dbl"><li>Contrato de prestação de serviços — 12 meses</li><li>Desconto de fidelidade incluído (+40% volume)</li></ul>
+            <div class="dc-act">
+              <button class="btn bp" onclick="approve('dd1','Proposta assinada. Cliente Central notificado.')">✍️ Assinar</button>
+              <button class="btn bs" onclick="openEditor('Proposta Q2 — Cliente Central')">✏️ Editar</button>
+              <button class="btn bg" onclick="snooze('dd1')">⏰ Depois</button>
+            </div>
+            <div class="dc-ins"><span>💡</span>Cliente Central representa 28% da receita mensal. Renovar o contrato consolida a base.</div>
+            <div class="dc-ok"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Assinado — Cliente Central notificado</div>
+          </div>
+          <div style="margin-top:9px;display:flex;flex-direction:column;gap:6px">
+            <div class="doc-row"><span class="doc-icon">📋</span><div class="doc-name">Handover Projeto Alpha</div><span class="doc-date">Em edição</span><span class="doc-status" style="background:var(--adm2);color:var(--att)">Rascunho</span></div>
+            <div class="doc-row"><span class="doc-icon">📝</span><div class="doc-name">Ata reunião fornecedores</div><span class="doc-date">03/05</span><span class="doc-status" style="background:var(--odim);color:var(--ok)">Aprovado</span></div>
+          </div>
+        </div>
+        <div class="tc" id="d-rascunhos">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div class="doc-row"><span class="doc-icon">✏️</span><div class="doc-name">Handover Projeto Alpha</div><span class="doc-date">Editado hoje</span></div>
+            <div class="doc-row"><span class="doc-icon">✏️</span><div class="doc-name">Proposta Fornecedor Novo</div><span class="doc-date">Editado 02/05</span></div>
+            <div class="doc-row"><span class="doc-icon">✏️</span><div class="doc-name">Política de Compras v2</div><span class="doc-date">Editado 28/04</span></div>
+          </div>
+        </div>
+        <div class="tc" id="d-arquivados">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div class="doc-row"><span class="doc-icon">📁</span><div class="doc-name">Contrato Cliente Central Q1</div><span class="doc-date">Abr 2026</span><span class="doc-status" style="background:var(--odim);color:var(--ok)">Finalizado</span></div>
+            <div class="doc-row"><span class="doc-icon">📁</span><div class="doc-name">Proposta Supplier Beta</div><span class="doc-date">Mar 2026</span><span class="doc-status" style="background:var(--udim);color:var(--urg)">Recusado</span></div>
+            <div class="doc-row"><span class="doc-icon">📁</span><div class="doc-name">Ata reunião anual</div><span class="doc-date">Jan 2026</span><span class="doc-status" style="background:var(--odim);color:var(--ok)">Finalizado</span></div>
+            <div class="doc-row"><span class="doc-icon">📁</span><div class="doc-name">Política de Compras v1</div><span class="doc-date">Dez 2025</span><span class="doc-status" style="background:var(--glass);color:var(--mu2)">Substituído</span></div>
+          </div>
+        </div>
+        <div class="tc" id="d-modelos">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div class="doc-row"><span class="doc-icon">🗂️</span><div class="doc-name">Handover de Projeto</div><span class="doc-date">Usado 4×</span><button class="btn bs" style="font-size:10px;padding:3px 7px">Usar</button></div>
+            <div class="doc-row"><span class="doc-icon">🗂️</span><div class="doc-name">Proposta Comercial</div><span class="doc-date">Usado 3×</span><button class="btn bs" style="font-size:10px;padding:3px 7px">Usar</button></div>
+            <div class="doc-row"><span class="doc-icon">🗂️</span><div class="doc-name">Ata de Reunião</div><span class="doc-date">Usado 7×</span><button class="btn bs" style="font-size:10px;padding:3px 7px">Usar</button></div>
+            <div class="doc-row"><span class="doc-icon">🗂️</span><div class="doc-name">Relatório de Entrega</div><span class="doc-date">Usado 2×</span><button class="btn bs" style="font-size:10px;padding:3px 7px">Usar</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rcol">
+      <div class="panel">
+        <div class="ph"><span class="ph-ico">🗂️</span><span class="ph-ttl">Modelos</span><button class="ph-add">＋</button></div>
+        <div class="pb">
+          <div class="dr-sec">
+            <div class="hi"><div class="hi-n">Handover de Projeto</div><div class="hi-m"><span>Usado 4×</span><span style="color:var(--ok)">★ Favorito</span></div></div>
+            <div class="hi"><div class="hi-n">Proposta Comercial</div><div class="hi-m"><span>Usado 3×</span></div></div>
+            <div class="hi"><div class="hi-n">Ata de Reunião</div><div class="hi-m"><span>Usado 7×</span><span style="color:var(--ok)">★ Favorito</span></div></div>
+            <div class="hi"><div class="hi-n">Relatório de Entrega</div><div class="hi-m"><span>Usado 2×</span></div></div>
+          </div>
+          <div class="dr-sec">
+            <div class="dr-ttl">Este mês</div>
+            <div style="display:flex;flex-direction:column;gap:5px;font-size:11.5px">
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--mu)">Documentos criados</span><span style="font-family:var(--mono)">8</span></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--mu)">Aprovados</span><span style="font-family:var(--mono);color:var(--ok)">6</span></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--mu)">Taxa aprovação</span><span style="font-family:var(--mono);color:var(--ok)">75%</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-ico">📂</span><span class="ph-ttl">Arquivados recentes</span></div>
+        <div class="pb">
+          <div class="dr-sec">
+            <div class="hi"><div class="hi-n">Contrato Cliente Central Q1</div><div class="hi-m"><span>Abr 2026</span><span style="color:var(--ok)">Finalizado</span></div></div>
+            <div class="hi"><div class="hi-n">Ata reunião anual</div><div class="hi-m"><span>Jan 2026</span><span style="color:var(--ok)">Finalizado</span></div></div>
+            <div class="hi"><div class="hi-n">Proposta Supplier Beta</div><div class="hi-m"><span>Mar 2026</span><span style="color:var(--urg)">Recusado</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bstrip">
+      <div class="ich"><span class="ich-em">💡</span><div class="ich-body"><span class="ich-tag tg-a">Insight</span><div class="ich-txt">Handover e Relatório de Entrega são 80% similares — unificar em um modelo economiza tempo</div></div></div>
+      <div class="ich"><span class="ich-em">📈</span><div class="ich-body"><span class="ich-tag tg-c">Clientes</span><div class="ich-txt">3 propostas este mês, 100% de aprovação — modelo atual está funcionando bem</div></div></div>
+      <div class="ich"><span class="ich-em">🔄</span><div class="ich-body"><span class="ich-tag tg-a">Sugestão</span><div class="ich-txt">Auto-salvar rascunhos a cada 30 segundos está ativo — nenhum conteúdo perdido hoje</div></div></div>
+      <div class="nums-chip">
+        <div class="nums-head">⚙️ Rotinas ativas</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><div style="width:4px;height:4px;border-radius:50%;background:var(--ok);flex-shrink:0"></div><span style="color:var(--mu2)">Auto-salvar rascunhos</span><span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mu)">30s</span></div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><div style="width:4px;height:4px;border-radius:50%;background:var(--ok);flex-shrink:0"></div><span style="color:var(--mu2)">Backup semanal</span><span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mu)">Seg</span></div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><div style="width:4px;height:4px;border-radius:50%;background:var(--ok);flex-shrink:0"></div><span style="color:var(--mu2)">Fluxo de aprovação</span><span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mu)">Ativo</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════ ESTRATÉGIA ═══════════════════ -->
+<div class="screen" id="s-estrategia">
+  <div class="rh">
+    <div class="rav">🎯</div>
+    <div><div class="rn">Estratégia</div><div class="rd">Análises, KPIs e tendências do negócio</div></div>
+    <div class="ra">
+      <button class="btn bs" style="font-size:11px" onclick="go('home',null,'Início')">← Início</button>
+      <button class="btn bp" style="font-size:11px">+ Nova análise</button>
+    </div>
+  </div>
+  <div class="room-grid">
+
+    <div class="panel" style="grid-column:1;grid-row:1">
+      <div class="ph"><span class="ph-ttl">Mesa de Trabalho</span><span class="ph-cnt">1 análise pronta</span></div>
+      <div class="rtabs" id="eTabs">
+        <div class="rtab on" onclick="stab('eTabs','e','analises',this)">Análises</div>
+        <div class="rtab" onclick="stab('eTabs','e','kpis',this)">KPIs</div>
+        <div class="rtab" onclick="stab('eTabs','e','previsoes',this)">Previsões</div>
+        <div class="rtab" onclick="stab('eTabs','e','docs',this)">Docs</div>
+        <div class="rtab" onclick="stab('eTabs','e','config',this)">Config</div>
+      </div>
+      <div class="pb">
+        <div class="tc on" id="e-analises">
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div class="dc warn" id="ed1">
+              <div class="dcr"><div class="ag"><div class="agd" style="background:#fbbf24"></div>Estratégia</div><span class="bdg bw">Pronta</span><span class="dt">Qui</span></div>
+              <div class="db"><strong>Análise de margem — Produto Y</strong> completa. Margem atual: 38,2% vs. média do setor: 32%. <strong>Acima da média.</strong></div>
+              <ul class="dbl"><li>Produto Y: R$ 84/un, custo R$ 52 → margem 38,2%</li><li>Setor: média 32% (Datadog Q1 2026)</li><li>Sugestão: explorar expansão da linha</li></ul>
+              <div class="dc-act">
+                <button class="btn bp" onclick="approve('ed1','Análise revisada. Explorar expansão da linha Produto Y.')">✅ Revisar e fechar</button>
+                <button class="btn bs">📊 Ver completo</button>
+                <button class="btn bg" onclick="snooze('ed1')">⏰ Depois</button>
+              </div>
+              <div class="dc-ins"><span>💡</span>Expandir linha em 20% poderia adicionar R$ 12K/mês à receita com estrutura atual.</div>
+              <div class="dc-ok"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Análise fechada — decisão registrada</div>
+            </div>
+            <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:10px 12px">
+              <div style="font-size:11px;color:var(--mu);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Em andamento</div>
+              <div class="hi"><div class="hi-n">Análise de concorrentes — preço</div><div class="hi-m"><span>Prazo: Sex</span><span style="color:var(--att)">Em progresso</span></div></div>
+              <div class="hi"><div class="hi-n">Tendência de inadimplência Q2</div><div class="hi-m"><span>Prazo: Seg</span><span style="color:var(--att)">Em progresso</span></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="tc" id="e-kpis">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+            <div class="kpi-cell"><div class="kpi-lbl">Faturamento</div><div class="kpi-val">543,8K</div><div class="kpi-d up">↑ 12% vs. mês ant.</div></div>
+            <div class="kpi-cell"><div class="kpi-lbl">Margem bruta</div><div class="kpi-val">42,5%</div><div class="kpi-d up">↑ 2,1pp</div></div>
+            <div class="kpi-cell"><div class="kpi-lbl">Ticket médio</div><div class="kpi-val">R$ 509</div><div class="kpi-d up">↑ 3,5%</div></div>
+            <div class="kpi-cell"><div class="kpi-lbl">Churn rate</div><div class="kpi-val">2,1%</div><div class="kpi-d dn">↑ 0,3pp</div></div>
+            <div class="kpi-cell"><div class="kpi-lbl">LTV médio</div><div class="kpi-val">R$ 24K</div><div class="kpi-d up">↑ 8%</div></div>
+            <div class="kpi-cell"><div class="kpi-lbl">NPS (último)</div><div class="kpi-val">67</div><div class="kpi-d up">↑ 4 pts</div></div>
+          </div>
+        </div>
+        <div class="tc" id="e-previsoes">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:11px 12px">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin-bottom:6px">Próximo mês (Junho)</div>
+              <div style="display:flex;flex-direction:column;gap:5px;font-size:11.5px">
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--mu)">Faturamento esperado</span><span style="font-family:var(--mono);color:var(--ok)">R$ 582K (↑ 7%)</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--mu)">Despesas previstas</span><span style="font-family:var(--mono)">R$ 328K</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--mu)">Margem projetada</span><span style="font-family:var(--mono);color:var(--ok)">43,6%</span></div>
+              </div>
+            </div>
+            <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:11px 12px">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--mu);margin-bottom:6px">Riscos identificados</div>
+              <div class="hi"><div class="hi-n">Max Distribuidora: atrasos crescentes</div><div class="hi-m"><span style="color:var(--att)">Médio risco</span></div></div>
+              <div class="hi"><div class="hi-n">Churn: leve alta em 2 meses seguidos</div><div class="hi-m"><span style="color:var(--att)">Monitorando</span></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="tc" id="e-docs">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);cursor:pointer;transition:border-color .12s" onmouseenter="this.style.borderColor='var(--gb2)'" onmouseleave="this.style.borderColor='var(--gb)'">
+              <span style="font-size:15px">📘</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:600;margin-bottom:1px">Planejamento Estratégico 2026</div>
+                <div style="font-size:10.5px;color:var(--mu)">Atualizado em 02/05 · 18 páginas</div>
+              </div>
+              <span style="font-size:9px;background:var(--adm2);color:var(--att);padding:2px 7px;border-radius:3px;flex-shrink:0">Em revisão</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);cursor:pointer;transition:border-color .12s" onmouseenter="this.style.borderColor='var(--gb2)'" onmouseleave="this.style.borderColor='var(--gb)'">
+              <span style="font-size:15px">🗺️</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:600;margin-bottom:1px">Mapeamento de Processos — Compras</div>
+                <div style="font-size:10.5px;color:var(--mu)">Atualizado em 28/04 · 7 fluxos</div>
+              </div>
+              <span style="font-size:9px;background:var(--odim);color:var(--ok);padding:2px 7px;border-radius:3px;flex-shrink:0">Aprovado</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);cursor:pointer;transition:border-color .12s" onmouseenter="this.style.borderColor='var(--gb2)'" onmouseleave="this.style.borderColor='var(--gb)'">
+              <span style="font-size:15px">🎯</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:600;margin-bottom:1px">OKRs Q2 2026</div>
+                <div style="font-size:10.5px;color:var(--mu)">3 objetivos · 11 key results · 64% concluídos</div>
+              </div>
+              <span style="font-size:9px;background:var(--adim);color:var(--ac);padding:2px 7px;border-radius:3px;flex-shrink:0">Ativo</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);cursor:pointer;transition:border-color .12s" onmouseenter="this.style.borderColor='var(--gb2)'" onmouseleave="this.style.borderColor='var(--gb)'">
+              <span style="font-size:15px">⚔️</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:600;margin-bottom:1px">Análise SWOT — Q1 2026</div>
+                <div style="font-size:10.5px;color:var(--mu)">Gerada em 15/04 · 4 quadrantes</div>
+              </div>
+              <span style="font-size:9px;background:var(--odim);color:var(--ok);padding:2px 7px;border-radius:3px;flex-shrink:0">Finalizado</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 11px;background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);cursor:pointer;transition:border-color .12s" onmouseenter="this.style.borderColor='var(--gb2)'" onmouseleave="this.style.borderColor='var(--gb)'">
+              <span style="font-size:15px">🧩</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:600;margin-bottom:1px">Canvas de Modelo de Negócio</div>
+                <div style="font-size:10.5px;color:var(--mu)">Revisado em Jan 2026 · 9 blocos</div>
+              </div>
+              <span style="font-size:9px;background:var(--glass);color:var(--mu2);padding:2px 7px;border-radius:3px;flex-shrink:0">Arquivado</span>
+            </div>
+          </div>
+        </div>
+        <div class="tc" id="e-config">
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:11px 12px"><div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Análise de margem</div><div style="font-size:11px;color:var(--mu);margin-bottom:7px">Frequência de geração automática:</div><div class="pills"><span class="pill on">Semanal</span><span class="pill" onclick="activePill(this)">Quinzenal</span><span class="pill" onclick="activePill(this)">Mensal</span></div></div>
+            <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:11px 12px"><div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Alerta de anomalia</div><div style="font-size:11px;color:var(--mu);margin-bottom:7px">Notificar se KPI variar mais que:</div><div class="pills"><span class="pill">2σ</span><span class="pill on">3σ</span><span class="pill" onclick="activePill(this)">4σ</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rcol">
+      <div class="panel">
+        <div class="ph"><span class="ph-ico">📏</span><span class="ph-ttl">KPIs Monitorados</span><button class="ph-add">＋</button></div>
+        <div class="pb">
+          <div class="dr-sec">
+            <div class="hi"><div class="hi-n">Faturamento mensal</div><div class="hi-m"><span style="color:var(--ok)">↑ 12%</span><span>Meta: R$ 500K ✓</span></div></div>
+            <div class="hi"><div class="hi-n">Margem bruta</div><div class="hi-m"><span style="color:var(--ok)">↑ 2,1pp</span><span>Meta: 40% ✓</span></div></div>
+            <div class="hi"><div class="hi-n">Churn rate</div><div class="hi-m"><span style="color:var(--att)">↑ 0,3pp</span><span>Meta: &lt; 2%</span></div></div>
+            <div class="hi"><div class="hi-n">NPS</div><div class="hi-m"><span style="color:var(--ok)">67</span><span>Meta: 60+ ✓</span></div></div>
+          </div>
+          <div class="dr-sec">
+            <div class="dr-ttl">Benchmarks</div>
+            <div style="font-size:11.5px;color:var(--mu2);line-height:1.6">
+              Margem setor: <strong style="color:var(--fg)">32%</strong><br>
+              Churn setor: <strong style="color:var(--fg)">3,2%</strong><br>
+              NPS setor: <strong style="color:var(--fg)">42</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-ico">📊</span><span class="ph-ttl">Análises anteriores</span></div>
+        <div class="pb">
+          <div class="dr-sec">
+            <div class="hi"><div class="hi-n">Análise margem Produto Y</div><div class="hi-m"><span>Qui 05/05</span><span style="color:var(--att)">Aguardando</span></div></div>
+            <div class="hi"><div class="hi-n">Tendência de churn Q1</div><div class="hi-m"><span>30 Abr</span><span style="color:var(--ok)">Fechado</span></div></div>
+            <div class="hi"><div class="hi-n">Análise de pricing</div><div class="hi-m"><span>15 Abr</span><span style="color:var(--ok)">Fechado</span></div></div>
+            <div class="hi"><div class="hi-n">Relatório Q1 completo</div><div class="hi-m"><span>03 Abr</span><span style="color:var(--ok)">Enviado</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bstrip">
+      <div class="ich"><span class="ich-em">📈</span><div class="ich-body"><span class="ich-tag tg-e">KPI</span><div class="ich-txt">Margem Produto Y acima da média do setor por 8pp — oportunidade de expansão da linha</div></div></div>
+      <div class="ich"><span class="ich-em">⏱️</span><div class="ich-body"><span class="ich-tag tg-s">Alerta</span><div class="ich-txt">2 fornecedores com prazo crescendo — pode impactar margem em 60 dias se não resolvido</div></div></div>
+      <div class="ich"><span class="ich-em">📉</span><div class="ich-body"><span class="ich-tag tg-e">Risco</span><div class="ich-txt">Churn subiu 0,3pp em 2 meses seguidos — monitorar proativamente com Clientes</div></div></div>
+      <div class="nums-chip">
+        <div class="nums-head">⚙️ Rotinas ativas</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><div style="width:4px;height:4px;border-radius:50%;background:var(--ok);flex-shrink:0"></div><span style="color:var(--mu2)">Análise de margem</span><span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mu)">Semanal</span></div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><div style="width:4px;height:4px;border-radius:50%;background:var(--ok);flex-shrink:0"></div><span style="color:var(--mu2)">Relatório trimestral</span><span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mu)">Trimestral</span></div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><div style="width:4px;height:4px;border-radius:50%;background:var(--ok);flex-shrink:0"></div><span style="color:var(--mu2)">Monitor concorrentes</span><span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--mu)">Mensal</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════ CLIENTES ═══════════════════ -->
+<div class="screen" id="s-clientes">
+  <div class="rh">
+    <div class="rav">👥</div>
+    <div><div class="rn">Clientes</div><div class="rd">Follow-up, carteira e relacionamento</div></div>
+    <div class="ra">
+      <button class="btn bs" style="font-size:11px" onclick="go('home',null,'Início')">← Início</button>
+      <button class="btn bp" style="font-size:11px" onclick="toast('ok','Novo contato','Contato criado com sucesso')">+ Novo contato</button>
+    </div>
+  </div>
+  <div class="room-grid">
+
+    <div class="panel" style="grid-column:1;grid-row:1">
+      <div class="ph"><span class="ph-ttl">Mesa de Trabalho</span><span class="ph-cnt">2 pendentes</span></div>
+      <div class="rtabs" id="clTabs">
+        <div class="rtab on" onclick="stab('clTabs','cl','followup',this)">Follow-up <span class="tbdg">2</span></div>
+        <div class="rtab" onclick="stab('clTabs','cl','ativos',this)">Ativos</div>
+        <div class="rtab" onclick="stab('clTabs','cl','historico',this)">Histórico</div>
+        <div class="rtab" onclick="stab('clTabs','cl','config',this)">Config</div>
+      </div>
+      <div class="pb">
+        <div class="tc on" id="cl-followup">
+          <div class="dl">
+            <div class="dc urg" id="cl1">
+              <div class="dc-row" onclick="toggleDc('cl1')">
+                <div class="ag"><div class="agd" style="background:#6366f1"></div>Clientes</div>
+                <span class="bdg bu">Urgente</span>
+                <span class="dc-row-summary"><strong>Grupo Máquina Pesada</strong> — proposta R$ 48k, 18d sem contato</span>
+                <span class="dt">18d</span>
+                <span class="dc-ok-inline"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Agendado</span>
+                <span class="dc-chev">▶</span>
+              </div>
+              <div class="dc-expand">
+                <div class="db"><strong>Grupo Máquina Pesada</strong> — proposta de R$ 48.000 em aberto. João Melo aguarda retorno.</div>
+                <ul class="dbl"><li>Último contato: 17 abr — nenhum retorno desde então</li><li>Contrato atual vence em 12 dias</li><li>Potencial renovação: R$ 48.000/mês</li></ul>
+                <div class="dc-act">
+                  <button class="btn bp" onclick="approve('cl1','Retorno agendado com Grupo Máquina Pesada.')">📞 Agendar retorno</button>
+                  <button class="btn bs">✏️ Ver contato</button>
+                  <button class="btn bg" onclick="snooze('cl1')">⏰ Depois</button>
+                </div>
+                <div class="dc-ins"><span>💡</span>Contratos vencendo sem follow-up têm 3× mais chance de churn.</div>
+                <div class="dc-ok"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Retorno agendado</div>
+              </div>
+            </div>
+            <div class="dc warn" id="cl2">
+              <div class="dc-row" onclick="toggleDc('cl2')">
+                <div class="ag"><div class="agd" style="background:#6366f1"></div>Clientes</div>
+                <span class="bdg bw">Oportunidade</span>
+                <span class="dc-row-summary"><strong>Construtora Alvo</strong> — orçamento adicional, R$ 22k/mês</span>
+                <span class="dt">09:14</span>
+                <span class="dc-ok-inline"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Enviado</span>
+                <span class="dc-chev">▶</span>
+              </div>
+              <div class="dc-expand">
+                <div class="db"><strong>Construtora Alvo</strong> solicitou orçamento adicional. Potencial de expansão: R$ 22.000/mês.</div>
+                <ul class="dbl"><li>Ana Ferreira (CEO) — cliente há 2 anos, NPS 95</li><li>Pediu expansão do serviço atual</li></ul>
+                <div class="dc-act">
+                  <button class="btn bp" onclick="approve('cl2','Proposta enviada para Construtora Alvo.')">✅ Enviar proposta</button>
+                  <button class="btn bg" onclick="snooze('cl2')">⏰ Depois</button>
+                </div>
+                <div class="dc-ok"><svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Proposta enviada</div>
+              </div>
+            </div>
+          </div>
+          <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:10px 12px;margin:7px 9px 0">
+            <div style="font-size:11px;color:var(--mu);margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.06em">Em andamento</div>
+            <div class="hi"><div class="hi-n">Indústria Belo · Proposta enviada ontem</div><div class="hi-m"><span>Ontem</span><span style="color:var(--att)">Aguardando</span></div></div>
+            <div class="hi"><div class="hi-n">TechFarm Agrícola · Reunião amanhã 14h</div><div class="hi-m"><span>Amanhã</span><span style="color:var(--ok)">Confirmado</span></div></div>
+            <div class="hi"><div class="hi-n">Distribuidora Norte · Onboarding iniciado</div><div class="hi-m"><span>3d</span><span style="color:var(--ok)">Ativo</span></div></div>
+            <div class="hi"><div class="hi-n">Studio Arquitetura · Negociação em pausa</div><div class="hi-m"><span>1 sem</span><span style="color:var(--mu)">Em pausa</span></div></div>
+          </div>
+        </div>
+        <div class="tc" id="cl-ativos">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+            <div class="kpi-cell"><div class="kpi-lbl">Total ativos</div><div class="kpi-val" style="color:#818cf8">313</div></div>
+            <div class="kpi-cell"><div class="kpi-lbl">Rec. recorrente</div><div class="kpi-val" style="color:var(--ok)">R$ 2,4M</div></div>
+            <div class="kpi-cell"><div class="kpi-lbl">Churn mensal</div><div class="kpi-val" style="color:var(--att)">2,1%</div><div class="kpi-d dn">↑ 0,3pp</div></div>
+            <div class="kpi-cell"><div class="kpi-lbl">NPS médio</div><div class="kpi-val" style="color:var(--ok)">87</div><div class="kpi-d up">↑ 4 pts</div></div>
+          </div>
+          <div class="hi"><div class="hi-n">🏆 Grupo Máquina Pesada · R$ 48.000/mês</div><div class="hi-m"><span style="color:var(--ok)">Premium</span></div></div>
+          <div class="hi"><div class="hi-n">🏆 Construtora Alvo · R$ 35.000/mês</div><div class="hi-m"><span style="color:var(--ok)">Premium</span></div></div>
+          <div class="hi"><div class="hi-n">Indústria Belo · R$ 18.000/mês</div><div class="hi-m"><span style="color:#818cf8">Standard</span></div></div>
+          <div class="hi"><div class="hi-n">TechFarm Agrícola · R$ 12.000/mês</div><div class="hi-m"><span style="color:#818cf8">Standard</span></div></div>
+          <div class="hi"><div class="hi-n">Studio Arquitetura · R$ 4.800/mês</div><div class="hi-m"><span style="color:var(--mu)">Básico</span></div></div>
+        </div>
+        <div class="tc" id="cl-historico">
+          <div class="hi"><div class="hi-n">📞 Grupo Máquina Pesada · Renovação discutida</div><div class="hi-m"><span>Hoje</span><span style="color:var(--att)">Retorno pendente</span></div></div>
+          <div class="hi"><div class="hi-n">📧 Construtora Alvo · Proposta enviada</div><div class="hi-m"><span>Hoje</span><span style="color:var(--ok)">Enviado</span></div></div>
+          <div class="hi"><div class="hi-n">🤝 TechFarm · Alinhamento Q3</div><div class="hi-m"><span>Ontem</span><span style="color:var(--ok)">Concluído</span></div></div>
+          <div class="hi"><div class="hi-n">📞 Indústria Belo · Suporte técnico</div><div class="hi-m"><span>2d atrás</span><span style="color:var(--ok)">Resolvido</span></div></div>
+          <div class="hi"><div class="hi-n">📧 Studio Arquitetura · Cobrança pendente</div><div class="hi-m"><span>3d atrás</span><span style="color:var(--att)">Aguardando</span></div></div>
+          <div class="hi"><div class="hi-n">🤝 Distribuidora Norte · Contrato assinado</div><div class="hi-m"><span>4d atrás</span><span style="color:var(--ok)">Fechado</span></div></div>
+        </div>
+        <div class="tc" id="cl-config">
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:11px 12px"><div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Alerta de follow-up</div><div style="font-size:11px;color:var(--mu);margin-bottom:7px">Notificar após X dias sem contato:</div><div class="pills"><span class="pill on">15 dias</span><span class="pill" onclick="activePill(this)">21 dias</span><span class="pill" onclick="activePill(this)">30 dias</span></div></div>
+            <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:11px 12px"><div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Alerta de contrato vencendo</div><div style="font-size:11px;color:var(--mu);margin-bottom:7px">Avisar com antecedência de:</div><div class="pills"><span class="pill">15 dias</span><span class="pill on">30 dias</span><span class="pill" onclick="activePill(this)">45 dias</span></div></div>
+            <div style="background:var(--glass);border:1px solid var(--gb);border-radius:var(--r);padding:11px 12px"><div style="font-size:12.5px;font-weight:600;margin-bottom:3px">Integrações ativas</div>
+              <div class="hi" style="margin-top:6px"><div class="hi-n">CRM conectado</div><div class="hi-m"><span style="color:var(--ok)">● Ativo</span></div></div>
+              <div class="hi"><div class="hi-n">Score de saúde do cliente</div><div class="hi-m"><span style="color:var(--ok)">Calculado diário</span></div></div>
+              <div class="hi"><div class="hi-n">Segmentação automática</div><div class="hi-m"><span style="color:var(--ok)">● Ativo</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rcol">
+      <div class="panel">
+        <div class="ph"><span class="ph-ico">📊</span><span class="ph-ttl">Segmentos</span></div>
+        <div class="pb">
+          <div class="dr-sec">
+            <div class="hi"><div class="hi-n">🏆 Premium (42 clientes)</div><div class="hi-m"><span style="font-family:var(--mono)">R$ 1,8M</span><span style="color:var(--ok)">58% receita</span></div></div>
+            <div class="hi"><div class="hi-n">⬛ Standard (148 clientes)</div><div class="hi-m"><span style="font-family:var(--mono)">R$ 520k</span><span style="color:#818cf8">Standard</span></div></div>
+            <div class="hi"><div class="hi-n">▪ Básico (123 clientes)</div><div class="hi-m"><span style="font-family:var(--mono)">R$ 82k</span><span style="color:var(--mu)">Básico</span></div></div>
+          </div>
+          <div class="dr-sec">
+            <div class="dr-ttl">Saúde da carteira</div>
+            <div class="hi"><div class="hi-n"><span style="color:var(--ok)">● Saudável</span></div><div class="hi-m"><span>247 clientes</span></div></div>
+            <div class="hi"><div class="hi-n"><span style="color:var(--att)">● Atenção</span></div><div class="hi-m"><span>48 clientes</span></div></div>
+            <div class="hi"><div class="hi-n"><span style="color:var(--urg)">● Risco</span></div><div class="hi-m"><span>18 clientes</span></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-ico">📅</span><span class="ph-ttl">Próximos follow-ups</span></div>
+        <div class="pb">
+          <div class="dr-sec">
+            <div class="hi"><div class="hi-n">Grupo Máquina Pesada</div><div class="hi-m"><span style="color:var(--urg)">Hoje</span><span>Contrato vence 12d</span></div></div>
+            <div class="hi"><div class="hi-n">TechFarm Agrícola</div><div class="hi-m"><span style="color:var(--att)">Amanhã</span><span>Reunião 14h</span></div></div>
+            <div class="hi"><div class="hi-n">Indústria Belo</div><div class="hi-m"><span style="color:var(--att)">Quinta</span><span>Proposta open</span></div></div>
+            <div class="hi"><div class="hi-n">Distribuidora Norte</div><div class="hi-m"><span>Sex</span><span style="color:var(--ok)">Onboarding</span></div></div>
+            <div class="hi"><div class="hi-n">Studio Arquitetura</div><div class="hi-m"><span>Próx. seg</span><span style="color:var(--mu)">Em pausa</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bstrip">
+      <div class="ich"><span class="ich-em">🚨</span><div class="ich-body"><span class="ich-tag tg-s">Risco</span><div class="ich-txt">18 clientes em risco de churn — intervenção proativa pode salvar R$ 120k/mês</div></div></div>
+      <div class="ich"><span class="ich-em">💰</span><div class="ich-body"><span class="ich-tag tg-e">Oportunidade</span><div class="ich-txt">Construtora Alvo quer expandir — proposta +R$ 22k/mês pode ser aprovada hoje</div></div></div>
+      <div class="ich"><span class="ich-em">⏰</span><div class="ich-body"><span class="ich-tag tg-d">Agenda</span><div class="ich-txt">7 contratos vencem este mês — iniciar renovações agora aumenta taxa de retenção</div></div></div>
+      <div class="nums-chip">
+        <div class="nums-head">👥 Carteira</div>
+        <div class="nums-row">
+          <div class="nkpi"><span class="nv">313</span><span class="nl">Ativos</span></div>
+          <div class="nkpi"><span class="nv" style="color:var(--att)">2,1%</span><span class="nl">Churn</span></div>
+          <div class="nkpi"><span class="nv" style="color:var(--ok)">87</span><span class="nl">NPS</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════ ATIVIDADE ═══════════════════ -->
+<div class="screen" id="s-atividade">
+  <div class="rh"><div class="rav">🔔</div><div><div class="rn">Atividade</div><div class="rd">Histórico de ações dos agentes</div></div><div class="ra"><button class="btn bs" style="font-size:11px" onclick="go('home',null,'Início')">← Início</button></div></div>
+  <div style="padding:14px;overflow-y:auto;flex:1">
+    <div style="display:flex;flex-direction:column">
+      <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--gb);font-size:12px"><span style="color:var(--mu);font-family:var(--mono);font-size:10px;min-width:90px">05/05 10:32</span><span style="width:5px;height:5px;border-radius:50%;background:#818cf8;margin-top:5px;flex-shrink:0"></span><div><strong>Compras</strong> — 3 cotações prontas para aprovação</div></div>
+      <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--gb);font-size:12px"><span style="color:var(--mu);font-family:var(--mono);font-size:10px;min-width:90px">05/05 09:15</span><span style="width:5px;height:5px;border-radius:50%;background:#34d399;margin-top:5px;flex-shrink:0"></span><div><strong>Financeiro</strong> — boleto Claro detectado, vence amanhã</div></div>
+      <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--gb);font-size:12px"><span style="color:var(--mu);font-family:var(--mono);font-size:10px;min-width:90px">05/05 08:00</span><span style="width:5px;height:5px;border-radius:50%;background:#818cf8;margin-top:5px;flex-shrink:0"></span><div><strong>Compras</strong> — verificação semanal de estoque executada</div></div>
+      <div style="display:flex;gap:10px;padding:10px 0;font-size:12px"><span style="color:var(--mu);font-family:var(--mono);font-size:10px;min-width:90px">04/05 17:23</span><span style="width:5px;height:5px;border-radius:50%;background:#2dd4bf;margin-top:5px;flex-shrink:0"></span><div><strong>Clientes</strong> — Cliente Central +40% este mês detectado</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ ADMIN ═══════════════════ -->
+<div class="screen" id="s-admin">
+  <div class="rh"><div class="rav">⚙️</div><div><div class="rn">Admin</div><div class="rd">Configurações, integrações e governança</div></div><div class="ra"><button class="btn bs" style="font-size:11px" onclick="go('home',null,'Início')">← Início</button></div></div>
+  <div class="ad-tabs">
+    <div class="ad-tab on" onclick="atab('integracoes',this)">🔗 Integrações <span style="font-size:9.5px;padding:1.5px 5px;background:var(--odim);color:var(--ok);border-radius:3px;font-weight:700">4 ativas</span></div>
+    <div class="ad-tab" onclick="atab('auditoria',this)">📋 Auditoria</div>
+    <div class="ad-tab" onclick="atab('usuarios',this)">👥 Usuários</div>
+    <div class="ad-tab" onclick="atab('lgpd',this)">🔒 LGPD</div>
+    <div class="ad-tab" onclick="atab('contexto',this)">🗺️ Mapa de Contexto</div>
+  </div>
+
+  <!-- ── INTEGRAÇÕES ── -->
+  <div class="ad-tc on" id="ad-integracoes">
+
+    <div class="int-lane">
+      <div class="int-lane-hd"><span class="int-lane-lbl">🏦 Bancos &amp; Financeiro</span><span class="int-lane-ct">5 disponíveis · 1 ativa</span></div>
+      <div class="int-carousel">
+        <div class="int-card conn" id="ic-itau"><div class="int-card-ico">🏦<span class="ic-dot">✓</span></div><div class="int-card-nm">Itaú Empresas</div><div class="int-card-dc">Conta PJ · sync há 5 min</div><div class="int-card-ft"><span class="conn-pill">Ativo</span><button class="btn bs" style="font-size:10px" onclick="intCfg('Itaú','itau')">Config</button></div></div>
+        <div class="int-card" id="ic-brad"><div class="int-card-ico">🏦<span class="ic-dot">✓</span></div><div class="int-card-nm">Bradesco</div><div class="int-card-dc">Conta bancária PJ</div><div class="int-card-ft" id="ic-brad-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('brad','Bradesco')">Conectar</button></div></div>
+        <div class="int-card" id="ic-nub"><div class="int-card-ico">💜<span class="ic-dot">✓</span></div><div class="int-card-nm">Nubank PJ</div><div class="int-card-dc">Conta digital empresarial</div><div class="int-card-ft" id="ic-nub-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('nub','Nubank')">Conectar</button></div></div>
+        <div class="int-card" id="ic-inter"><div class="int-card-ico">🧡<span class="ic-dot">✓</span></div><div class="int-card-nm">Banco Inter PJ</div><div class="int-card-dc">Conta digital empresarial</div><div class="int-card-ft" id="ic-inter-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('inter','Banco Inter')">Conectar</button></div></div>
+        <div class="int-card" id="ic-sicoob"><div class="int-card-ico">💳<span class="ic-dot">✓</span></div><div class="int-card-nm">Sicoob</div><div class="int-card-dc">Cooperativa de crédito</div><div class="int-card-ft" id="ic-sicoob-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('sicoob','Sicoob')">Conectar</button></div></div>
+      </div>
+    </div>
+
+    <div class="int-lane">
+      <div class="int-lane-hd"><span class="int-lane-lbl">📦 ERPs &amp; Plataformas</span><span class="int-lane-ct">6 disponíveis · 1 ativa</span></div>
+      <div class="int-carousel">
+        <div class="int-card conn" id="ic-bling"><div class="int-card-ico">📦<span class="ic-dot">✓</span></div><div class="int-card-nm">Bling</div><div class="int-card-dc">NF-e · 47 notas este mês</div><div class="int-card-ft"><span class="conn-pill">Ativo</span><button class="btn bs" style="font-size:10px" onclick="intCfg('Bling','bling')">Config</button></div></div>
+        <div class="int-card" id="ic-omie"><div class="int-card-ico">📊<span class="ic-dot">✓</span></div><div class="int-card-nm">Omie</div><div class="int-card-dc">ERP completo</div><div class="int-card-ft" id="ic-omie-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('omie','Omie')">Conectar</button></div></div>
+        <div class="int-card" id="ic-tiny"><div class="int-card-ico">🏪<span class="ic-dot">✓</span></div><div class="int-card-nm">Tiny</div><div class="int-card-dc">Gestão de e-commerce</div><div class="int-card-ft" id="ic-tiny-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('tiny','Tiny')">Conectar</button></div></div>
+        <div class="int-card" id="ic-netsuite"><div class="int-card-ico">🔷<span class="ic-dot">✓</span></div><div class="int-card-nm">NetSuite</div><div class="int-card-dc">ERP enterprise</div><div class="int-card-ft" id="ic-netsuite-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('netsuite','NetSuite')">Conectar</button></div></div>
+        <div class="int-card" id="ic-woo"><div class="int-card-ico">🛒<span class="ic-dot">✓</span></div><div class="int-card-nm">WooCommerce</div><div class="int-card-dc">Loja virtual</div><div class="int-card-ft" id="ic-woo-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('woo','WooCommerce')">Conectar</button></div></div>
+        <div class="int-card" id="ic-shopify"><div class="int-card-ico">🛍️<span class="ic-dot">✓</span></div><div class="int-card-nm">Shopify</div><div class="int-card-dc">E-commerce global</div><div class="int-card-ft" id="ic-shopify-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('shopify','Shopify')">Conectar</button></div></div>
+      </div>
+    </div>
+
+    <div class="int-lane">
+      <div class="int-lane-hd"><span class="int-lane-lbl">📅 Agenda &amp; Comunicação</span><span class="int-lane-ct">5 disponíveis · 1 ativa</span></div>
+      <div class="int-carousel">
+        <div class="int-card conn" id="ic-gcal"><div class="int-card-ico">📅<span class="ic-dot">✓</span></div><div class="int-card-nm">Google Calendar</div><div class="int-card-dc">3 calendários · sync 08:02</div><div class="int-card-ft"><span class="conn-pill">Ativo</span><button class="btn bs" style="font-size:10px" onclick="intCfg('Google Calendar','gcal')">Config</button></div></div>
+        <div class="int-card" id="ic-outlook"><div class="int-card-ico">📧<span class="ic-dot">✓</span></div><div class="int-card-nm">Outlook</div><div class="int-card-dc">E-mail e agenda Microsoft</div><div class="int-card-ft" id="ic-outlook-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('outlook','Outlook')">Conectar</button></div></div>
+        <div class="int-card" id="ic-wab"><div class="int-card-ico">💬<span class="ic-dot">✓</span></div><div class="int-card-nm">WhatsApp Business</div><div class="int-card-dc">Mensagens com clientes</div><div class="int-card-ft" id="ic-wab-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('wab','WhatsApp')">Conectar</button></div></div>
+        <div class="int-card" id="ic-slack"><div class="int-card-ico">🔔<span class="ic-dot">✓</span></div><div class="int-card-nm">Slack</div><div class="int-card-dc">Notificações para equipe</div><div class="int-card-ft" id="ic-slack-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('slack','Slack')">Conectar</button></div></div>
+        <div class="int-card" id="ic-teams"><div class="int-card-ico">🔵<span class="ic-dot">✓</span></div><div class="int-card-nm">Microsoft Teams</div><div class="int-card-dc">Reuniões e mensagens</div><div class="int-card-ft" id="ic-teams-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('teams','Teams')">Conectar</button></div></div>
+      </div>
+    </div>
+
+    <div class="int-lane">
+      <div class="int-lane-hd"><span class="int-lane-lbl">📊 Dados &amp; Analytics</span><span class="int-lane-ct">5 disponíveis · 1 ativa</span></div>
+      <div class="int-carousel">
+        <div class="int-card conn" id="ic-gsh"><div class="int-card-ico">📋<span class="ic-dot">✓</span></div><div class="int-card-nm">Google Sheets</div><div class="int-card-dc">Planilhas de estoque</div><div class="int-card-ft"><span class="conn-pill">Ativo</span><button class="btn bs" style="font-size:10px" onclick="intCfg('Google Sheets','gsh')">Config</button></div></div>
+        <div class="int-card" id="ic-pbi"><div class="int-card-ico">📈<span class="ic-dot">✓</span></div><div class="int-card-nm">Power BI</div><div class="int-card-dc">Analytics avançado</div><div class="int-card-ft" id="ic-pbi-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('pbi','Power BI')">Conectar</button></div></div>
+        <div class="int-card" id="ic-gdrive"><div class="int-card-ico">📁<span class="ic-dot">✓</span></div><div class="int-card-nm">Google Drive</div><div class="int-card-dc">Armazenamento e docs</div><div class="int-card-ft" id="ic-gdrive-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('gdrive','Google Drive')">Conectar</button></div></div>
+        <div class="int-card" id="ic-meta"><div class="int-card-ico">📣<span class="ic-dot">✓</span></div><div class="int-card-nm">Meta Ads</div><div class="int-card-dc">Campanhas de marketing</div><div class="int-card-ft" id="ic-meta-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('meta','Meta Ads')">Conectar</button></div></div>
+        <div class="int-card" id="ic-gads"><div class="int-card-ico">🎯<span class="ic-dot">✓</span></div><div class="int-card-nm">Google Ads</div><div class="int-card-dc">Campanhas no Google</div><div class="int-card-ft" id="ic-gads-ft"><button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('gads','Google Ads')">Conectar</button></div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── AUDITORIA ── -->
+  <div class="ad-tc" id="ad-auditoria">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:14px;max-width:720px">
+      <div class="kpi-cell"><div class="kpi-lbl">Ações este mês</div><div class="kpi-val">1.247</div><div class="kpi-d up">↑ 18%</div></div>
+      <div class="kpi-cell"><div class="kpi-lbl">Taxa aprovação</div><div class="kpi-val">87%</div><div class="kpi-d up">↑ 3pp</div></div>
+      <div class="kpi-cell"><div class="kpi-lbl">Economia gerada</div><div class="kpi-val">8,4K</div><div class="kpi-d up">↑ R$ 640</div></div>
+      <div class="kpi-cell"><div class="kpi-lbl">Anomalias</div><div class="kpi-val" style="color:var(--att)">3</div><div class="kpi-d" style="color:var(--mu)">→ 1 resolvida</div></div>
+    </div>
+    <div class="aud-search" style="max-width:540px">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="Buscar nos logs — agente, ação, usuário…" oninput="filterLogs(this.value)">
+    </div>
+    <div id="log-list" style="max-width:820px">
+      <div class="log-wrap">
+        <div class="log-row" onclick="toggleLog(this)"><span class="log-ts">05/05 10:32:14</span><div class="log-ag" style="background:#818cf8"></div><span class="log-act">Compras — 3 cotações aprovadas com Fornecedor Silva</span><span class="log-usr">Carlos Lima</span><span class="log-st lok">Aprovado</span></div>
+        <div class="log-det"><div class="ld-grid"><div><div class="ld-lbl">Agente</div><div class="ld-val">Agente de Compras</div></div><div><div class="ld-lbl">Usuário</div><div class="ld-val">Carlos Lima</div></div><div><div class="ld-lbl">Ação</div><div class="ld-val">Aprovação de cotação</div></div><div><div class="ld-lbl">Valor envolvido</div><div class="ld-val">R$ 1.240 — Fornecedor Silva</div></div><div><div class="ld-lbl">IP / Sessão</div><div class="ld-val" style="font-family:var(--mono);font-size:11px">192.168.1.42 · s_7xk2p</div></div><div><div class="ld-lbl">Status</div><div class="ld-val" style="color:var(--ok)">Aprovado</div></div></div><div class="ld-just">Justificativa: Carlos aprovou a recomendação do Agente de Compras com base no histórico de pontualidade do Fornecedor Silva (0 atrasos em 6 meses) e custo-benefício superior às alternativas cotadas.</div></div>
+      </div>
+      <div class="log-wrap">
+        <div class="log-row" onclick="toggleLog(this)"><span class="log-ts">05/05 10:15:02</span><div class="log-ag" style="background:#34d399"></div><span class="log-act">Financeiro — boleto Claro Empresas detectado, vence amanhã</span><span class="log-usr">Sistema</span><span class="log-st lok">Notificado</span></div>
+        <div class="log-det"><div class="ld-grid"><div><div class="ld-lbl">Agente</div><div class="ld-val">Agente Financeiro</div></div><div><div class="ld-lbl">Origem</div><div class="ld-val">Automação programada</div></div><div><div class="ld-lbl">Detecção</div><div class="ld-val">Scan diário de vencimentos às 10h</div></div><div><div class="ld-lbl">Valor</div><div class="ld-val" style="font-family:var(--mono)">R$ 847,50</div></div><div><div class="ld-lbl">Conta</div><div class="ld-val">Itaú PJ 0001 / CC 12345-6</div></div><div><div class="ld-lbl">Ação tomada</div><div class="ld-val">Notificação enviada ao proprietário</div></div></div><div class="ld-just">Justificativa do sistema: Boleto Claro Empresas detectado com vencimento em 06/05. Notificação enviada automaticamente conforme regra de alerta configurada (vencimentos &lt; 48h).</div></div>
+      </div>
+      <div class="log-wrap">
+        <div class="log-row" onclick="toggleLog(this)"><span class="log-ts">05/05 09:45:31</span><div class="log-ag" style="background:#818cf8"></div><span class="log-act">Compras — Papel A4 aprovado, pedido enviado a Gamma Suprimentos</span><span class="log-usr">Carlos Lima</span><span class="log-st lok">Aprovado</span></div>
+        <div class="log-det"><div class="ld-grid"><div><div class="ld-lbl">Agente</div><div class="ld-val">Agente de Compras</div></div><div><div class="ld-lbl">Usuário</div><div class="ld-val">Carlos Lima</div></div><div><div class="ld-lbl">Fornecedor</div><div class="ld-val">Gamma Suprimentos</div></div><div><div class="ld-lbl">Valor</div><div class="ld-val" style="font-family:var(--mono)">R$ 378,00 (10 resmas)</div></div></div><div class="ld-just">Justificativa: Carlos aprovou o pedido de papel A4 com Gamma Suprimentos pelo menor preço entre os 3 fornecedores cotados (R$ 189/resma). O prazo de 4 dias foi considerado aceitável dado o estoque atual de 5 dias.</div></div>
+      </div>
+      <div class="log-wrap">
+        <div class="log-row" onclick="toggleLog(this)"><span class="log-ts">05/05 09:02:18</span><div class="log-ag" style="background:#fbbf24"></div><span class="log-act">Estratégia — análise de margem Q2 iniciada automaticamente</span><span class="log-usr">Sistema</span><span class="log-st lwrn">Em andamento</span></div>
+        <div class="log-det"><div class="ld-grid"><div><div class="ld-lbl">Agente</div><div class="ld-val">Agente de Estratégia</div></div><div><div class="ld-lbl">Rotina</div><div class="ld-val">Análise de margem trimestral</div></div><div><div class="ld-lbl">Dados analisados</div><div class="ld-val">NF-e Abr + custos variáveis</div></div><div><div class="ld-lbl">Prazo previsto</div><div class="ld-val">08/05 17:00</div></div></div><div class="ld-just">Justificativa do sistema: Rotina de análise de margem Q2 iniciada automaticamente no primeiro dia útil do trimestre, conforme configuração. Dados coletados do Bling + Google Sheets.</div></div>
+      </div>
+      <div class="log-wrap">
+        <div class="log-row" onclick="toggleLog(this)"><span class="log-ts">04/05 17:23:09</span><div class="log-ag" style="background:#2dd4bf"></div><span class="log-act">Clientes — proposta Construtora Alvo rejeitada por Ana Costa</span><span class="log-usr">Ana Costa</span><span class="log-st lno">Rejeitado</span></div>
+        <div class="log-det"><div class="ld-grid"><div><div class="ld-lbl">Agente</div><div class="ld-val">Agente de Clientes</div></div><div><div class="ld-lbl">Usuário</div><div class="ld-val">Ana Costa (Gerente)</div></div><div><div class="ld-lbl">Documento</div><div class="ld-val">Proposta Construtora Alvo v2</div></div><div><div class="ld-lbl">Motivo</div><div class="ld-val">Desconto fora da política</div></div></div><div class="ld-just">Justificativa: Ana Costa rejeitou a proposta porque o desconto sugerido (18%) supera o limite autorizado para gerentes (15%). O agente registrou a regra e submeterá próxima versão com desconto ≤ 15% para revisão de Carlos Lima.</div></div>
+      </div>
+      <div class="log-wrap">
+        <div class="log-row" onclick="toggleLog(this)"><span class="log-ts">04/05 14:11:44</span><div class="log-ag" style="background:#34d399"></div><span class="log-act">Financeiro — DRE de abril gerado e enviado ao contador</span><span class="log-usr">Sistema</span><span class="log-st lok">Concluído</span></div>
+        <div class="log-det"><div class="ld-grid"><div><div class="ld-lbl">Agente</div><div class="ld-val">Agente Financeiro</div></div><div><div class="ld-lbl">Documento</div><div class="ld-val">DRE Abril 2026</div></div><div><div class="ld-lbl">Destinatário</div><div class="ld-val">contador@escritoriojorge.com.br</div></div><div><div class="ld-lbl">Formato</div><div class="ld-val">PDF + XLSX</div></div></div><div class="ld-just">Justificativa do sistema: DRE de abril gerado automaticamente no fechamento mensal (dia 4). Dados consolidados de todas as contas PJ conectadas. Enviado por e-mail ao contador conforme configuração de rotina.</div></div>
+      </div>
+      <div class="log-wrap">
+        <div class="log-row" onclick="toggleLog(this)"><span class="log-ts">04/05 11:30:22</span><div class="log-ag" style="background:#818cf8"></div><span class="log-act">Compras — anomalia detectada: Max Distribuidora prazo 3σ acima da média</span><span class="log-usr">Sistema</span><span class="log-st lno">Alerta</span></div>
+        <div class="log-det"><div class="ld-grid"><div><div class="ld-lbl">Agente</div><div class="ld-val">Agente de Compras</div></div><div><div class="ld-lbl">Fornecedor</div><div class="ld-val">Max Distribuidora</div></div><div><div class="ld-lbl">Desvio</div><div class="ld-val" style="color:var(--att)">+3,2σ da média histórica</div></div><div><div class="ld-lbl">Prazo médio anterior</div><div class="ld-val">3,1 dias</div></div><div><div class="ld-lbl">Prazo atual</div><div class="ld-val" style="color:var(--att)">6,8 dias</div></div><div><div class="ld-lbl">Ação recomendada</div><div class="ld-val">Substituir em próximas cotações</div></div></div><div class="ld-just">Justificativa do sistema: Anomalia detectada pelo monitor de SLA de fornecedores. Max Distribuidora apresentou atraso de 3σ acima da média dos últimos 90 dias. Recomendação de substituição enviada para revisão do proprietário.</div></div>
+      </div>
+      <div class="log-wrap">
+        <div class="log-row" onclick="toggleLog(this)"><span class="log-ts">03/05 16:08:55</span><div class="log-ag" style="background:#f472b6"></div><span class="log-act">Documentos — Proposta Q2 finalizada, exportada em PDF</span><span class="log-usr">Carlos Lima</span><span class="log-st lok">Aprovado</span></div>
+        <div class="log-det"><div class="ld-grid"><div><div class="ld-lbl">Agente</div><div class="ld-val">Agente de Documentos</div></div><div><div class="ld-lbl">Usuário</div><div class="ld-val">Carlos Lima</div></div><div><div class="ld-lbl">Documento</div><div class="ld-val">Proposta Comercial Q2 2026</div></div><div><div class="ld-lbl">Versão</div><div class="ld-val">v3 (final)</div></div></div><div class="ld-just">Justificativa: Carlos finalizou e exportou a Proposta Comercial Q2 após 3 revisões. Documento assinado digitalmente e enviado ao cliente em 03/05 às 16:12. Hash do documento: sha256:a3f7c...</div></div>
+      </div>
+      <div class="log-wrap">
+        <div class="log-row" onclick="toggleLog(this)"><span class="log-ts">03/05 10:00:00</span><div class="log-ag" style="background:#818cf8"></div><span class="log-act">Compras — verificação semanal de estoque executada</span><span class="log-usr">Sistema</span><span class="log-st lok">Concluído</span></div>
+        <div class="log-det"><div class="ld-grid"><div><div class="ld-lbl">Agente</div><div class="ld-val">Agente de Compras</div></div><div><div class="ld-lbl">Itens verificados</div><div class="ld-val">47 SKUs</div></div><div><div class="ld-lbl">Alertas gerados</div><div class="ld-val" style="color:var(--att)">3 (crítico: 1, baixo: 2)</div></div><div><div class="ld-lbl">Cotações iniciadas</div><div class="ld-val">3</div></div></div><div class="ld-just">Justificativa do sistema: Verificação semanal de estoque executada conforme rotina (segunda-feira 08:00). 47 SKUs verificados contra nível mínimo configurado. Alertas gerados para Toner HP, Café e Papel A4.</div></div>
+      </div>
+      <div class="log-wrap">
+        <div class="log-row" onclick="toggleLog(this)"><span class="log-ts">02/05 09:17:33</span><div class="log-ag" style="background:#6366f1"></div><span class="log-act">Admin — Pedro Silva adicionado ao sistema por Carlos Lima</span><span class="log-usr">Carlos Lima</span><span class="log-st lok">Concluído</span></div>
+        <div class="log-det"><div class="ld-grid"><div><div class="ld-lbl">Ação</div><div class="ld-val">Criação de usuário</div></div><div><div class="ld-lbl">Executado por</div><div class="ld-val">Carlos Lima (Proprietário)</div></div><div><div class="ld-lbl">Novo usuário</div><div class="ld-val">Pedro Silva — Operacional</div></div><div><div class="ld-lbl">Permissões</div><div class="ld-val">Compras: visualizar · Clientes: básico</div></div></div><div class="ld-just">Justificativa: Carlos Lima adicionou Pedro Silva como usuário operacional com acesso restrito (sem aprovação de valores, sem exportação). Convite enviado para pedro.silva@deepblue.com.br.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── USUÁRIOS ── -->
+  <div class="ad-tc" id="ad-usuarios">
+    <div style="max-width:660px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:13px">
+        <div style="font-size:12px;color:var(--mu)">3 usuários ativos — plano Business</div>
+        <button class="btn bp" style="font-size:11px" onclick="toast('Convite enviado por e-mail.')">+ Convidar usuário</button>
+      </div>
+
+      <div class="usr-row" id="row-carlos" onclick="togglePerm('perm-carlos','row-carlos')">
+        <div class="usr-av" style="background:linear-gradient(135deg,var(--ac),#B08AE8)">CL</div>
+        <div><div style="font-size:12.5px;font-weight:600">Carlos Lima</div><div style="font-size:11px;color:var(--mu)">Proprietário · carlos@deepblue.com.br</div></div>
+        <div class="usr-perm">Acesso total</div>
+        <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="color:var(--mu);margin-left:6px;transition:transform .15s" id="chev-carlos"><path d="m9 18 6-6-6-6"/></svg>
+      </div>
+      <div class="perm-box" id="perm-carlos">
+        <div style="font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:7px">Acesso aos Agentes</div>
+        <div class="perm-row"><span class="perm-nm">🛒 Compras</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">📊 Financeiro</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">📅 Agenda</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">✍️ Documentos</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">🎯 Estratégia</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">👥 Clientes</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div style="font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin:10px 0 7px">Permissões</div>
+        <div class="perm-row"><span class="perm-nm">Aprovar decisões</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">Exportar dados</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">Gerenciar usuários</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row" style="border:none"><span class="perm-nm">Configurar agentes</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+      </div>
+
+      <div class="usr-row" id="row-ana" onclick="togglePerm('perm-ana','row-ana')">
+        <div class="usr-av" style="background:linear-gradient(135deg,#818cf8,#6366f1)">AC</div>
+        <div><div style="font-size:12.5px;font-weight:600">Ana Costa</div><div style="font-size:11px;color:var(--mu)">Gerente · ana@deepblue.com.br</div></div>
+        <div class="usr-perm">Acesso parcial</div>
+        <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="color:var(--mu);margin-left:6px;transition:transform .15s" id="chev-ana"><path d="m9 18 6-6-6-6"/></svg>
+      </div>
+      <div class="perm-box" id="perm-ana">
+        <div style="font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:7px">Acesso aos Agentes</div>
+        <div class="perm-row"><span class="perm-nm">🛒 Compras</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">📊 Financeiro</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">📅 Agenda</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">✍️ Documentos</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">🎯 Estratégia</span><div class="ptog" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">👥 Clientes</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div style="font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin:10px 0 7px">Permissões</div>
+        <div class="perm-row"><span class="perm-nm">Aprovar decisões</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">Exportar dados</span><div class="ptog" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">Gerenciar usuários</span><div class="ptog" onclick="tog(event,this)"></div></div>
+        <div class="perm-row" style="border:none"><span class="perm-nm">Configurar agentes</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+      </div>
+
+      <div class="usr-row" id="row-pedro" onclick="togglePerm('perm-pedro','row-pedro')">
+        <div class="usr-av" style="background:linear-gradient(135deg,#34d399,#10b981)">PS</div>
+        <div><div style="font-size:12.5px;font-weight:600">Pedro Silva</div><div style="font-size:11px;color:var(--mu)">Operacional · pedro@deepblue.com.br</div></div>
+        <div class="usr-perm">Acesso básico</div>
+        <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="color:var(--mu);margin-left:6px;transition:transform .15s" id="chev-pedro"><path d="m9 18 6-6-6-6"/></svg>
+      </div>
+      <div class="perm-box" id="perm-pedro">
+        <div style="font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin-bottom:7px">Acesso aos Agentes</div>
+        <div class="perm-row"><span class="perm-nm">🛒 Compras</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">📊 Financeiro</span><div class="ptog" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">📅 Agenda</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">✍️ Documentos</span><div class="ptog on" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">🎯 Estratégia</span><div class="ptog" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">👥 Clientes</span><div class="ptog" onclick="tog(event,this)"></div></div>
+        <div style="font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin:10px 0 7px">Permissões</div>
+        <div class="perm-row"><span class="perm-nm">Aprovar decisões</span><div class="ptog" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">Exportar dados</span><div class="ptog" onclick="tog(event,this)"></div></div>
+        <div class="perm-row"><span class="perm-nm">Gerenciar usuários</span><div class="ptog" onclick="tog(event,this)"></div></div>
+        <div class="perm-row" style="border:none"><span class="perm-nm">Configurar agentes</span><div class="ptog" onclick="tog(event,this)"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LGPD ── -->
+  <div class="ad-tc" id="ad-lgpd">
+    <div style="max-width:600px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:9px;padding:11px 14px;background:var(--odim);border:1px solid rgba(16,185,129,.25);border-radius:var(--r);font-size:12px;color:var(--ok)">
+        <span style="font-size:16px">🔒</span>
+        <div><div style="font-weight:600">Dados protegidos — LGPD conforme</div><div style="font-size:11px;opacity:.7">Armazenamento criptografado em servidores no Brasil</div></div>
+        <div style="margin-left:auto;font-size:10px;opacity:.6;white-space:nowrap">Auditoria: 01/05/2026</div>
+      </div>
+
+      <div class="lgpd-sec">
+        <div class="lgpd-ttl">📤 Exportar Dados</div>
+        <div class="lgpd-desc">Gere um arquivo com todos os dados coletados e processados pelo Blu, incluindo decisões, históricos e configurações de agentes.</div>
+        <div class="lgpd-act">
+          <button class="btn bp" style="font-size:11.5px" onclick="toast('Exportação iniciada. Arquivo enviado por e-mail em até 30 minutos.')">Exportar tudo (JSON)</button>
+          <button class="btn bs" style="font-size:11.5px" onclick="toast('Selecione o agente na lista.')">Exportar por agente</button>
+          <button class="btn bs" style="font-size:11.5px" onclick="toast('Planilha CSV gerada e baixada.')">Exportar CSV</button>
+        </div>
+      </div>
+
+      <div class="lgpd-sec">
+        <div class="lgpd-ttl">🗑️ Exclusão de Dados</div>
+        <div class="lgpd-desc">Ações irreversíveis. A exclusão completa remove todos os dados pessoais associados à conta. A anonimização mantém históricos sem identificadores pessoais.</div>
+        <div class="lgpd-act">
+          <button class="btn bs" style="font-size:11.5px" onclick="toast('Usuários inativos anonimizados com sucesso.')">Anonimizar inativos</button>
+          <button class="btn bs" style="font-size:11.5px" onclick="toast('Logs com mais de 1 ano removidos.')">Limpar logs antigos</button>
+          <button class="btn brd" style="font-size:11.5px" onclick="toast('Solicitação registrada. Confirmação enviada por e-mail.')">⚠ Excluir conta</button>
+        </div>
+      </div>
+
+      <div class="lgpd-sec">
+        <div class="lgpd-ttl">⏱️ Retenção de Dados</div>
+        <div class="lgpd-desc">Por quanto tempo decisões e logs são mantidos antes da exclusão automática.</div>
+        <div class="pills" style="margin-bottom:0">
+          <span class="pill" onclick="activePill(this)">6 meses</span>
+          <span class="pill on" onclick="activePill(this)">1 ano</span>
+          <span class="pill" onclick="activePill(this)">2 anos</span>
+          <span class="pill" onclick="activePill(this)">Indefinido</span>
+        </div>
+      </div>
+
+      <div class="lgpd-sec">
+        <div class="lgpd-ttl">📋 Direitos do Titular</div>
+        <div class="lgpd-desc">Solicitações de acesso, correção ou portabilidade de dados pessoais conforme Lei 13.709/2018 (LGPD).</div>
+        <div class="lgpd-act">
+          <button class="btn bs" style="font-size:11.5px" onclick="toast('Nenhuma solicitação pendente.')">Ver solicitações (0)</button>
+          <button class="btn bs" style="font-size:11.5px" onclick="toast('Política de Privacidade aberta.')">Política de Privacidade</button>
+          <button class="btn bs" style="font-size:11.5px" onclick="toast('Relatório de impacto gerado.')">Relatório RIPD</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MAPA DE CONTEXTO ── -->
+  <div class="ad-tc" id="ad-contexto" style="padding:0;overflow:hidden;">
+    <div class="ctx-grid">
+
+      <!-- LEFT: SVG radial map + domain detail panel -->
+      <div class="ctx-map-wrap">
+        <div class="ctx-svg-cont">
+          <svg viewBox="0 0 700 520" width="100%" height="100%" style="display:block">
+            <defs>
+              <radialGradient id="ng-ok"     cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#10B981" stop-opacity=".3"/><stop offset="100%" stop-color="#10B981" stop-opacity=".06"/></radialGradient>
+              <radialGradient id="ng-att"    cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#F59E0B" stop-opacity=".3"/><stop offset="100%" stop-color="#F59E0B" stop-opacity=".06"/></radialGradient>
+              <radialGradient id="ng-urg"    cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#EF4444" stop-opacity=".3"/><stop offset="100%" stop-color="#EF4444" stop-opacity=".06"/></radialGradient>
+              <radialGradient id="ng-center" cx="50%" cy="35%" r="65%"><stop offset="0%" stop-color="#8C5FDB" stop-opacity=".35"/><stop offset="100%" stop-color="#8C5FDB" stop-opacity=".08"/></radialGradient>
+            </defs>
+            <!-- connecting lines -->
+            <line x1="350" y1="265" x2="350" y2="118"  stroke="rgba(255,255,255,.10)" stroke-width="1.5"/>
+            <line x1="350" y1="265" x2="490" y2="215"  stroke="rgba(255,255,255,.10)" stroke-width="1.5"/>
+            <line x1="350" y1="265" x2="438" y2="390"  stroke="rgba(255,255,255,.10)" stroke-width="1.5"/>
+            <line x1="350" y1="265" x2="262" y2="390"  stroke="rgba(255,255,255,.10)" stroke-width="1.5"/>
+            <line x1="350" y1="265" x2="210" y2="215"  stroke="rgba(255,255,255,.10)" stroke-width="1.5"/>
+            <!-- center -->
+            <circle cx="350" cy="265" r="44" fill="url(#ng-center)" stroke="rgba(140,95,219,.35)" stroke-width="1.5"/>
+            <text x="350" y="259" text-anchor="middle" font-size="11" font-weight="700" fill="#DFE3EE" font-family="system-ui" letter-spacing="0.5">NEGÓCIO</text>
+            <text x="350" y="274" text-anchor="middle" font-size="9"  fill="rgba(223,227,238,.45)" font-family="monospace">58% contexto</text>
+            <!-- Estratégia  0° top -->
+            <circle cx="350" cy="118" r="38" fill="url(#ng-ok)"  stroke="rgba(16,185,129,.45)"  stroke-width="1.5" class="ctx-node" onclick="showDomain('estrategia')" style="cursor:pointer"/>
+            <text x="350" y="112" text-anchor="middle" font-size="14" fill="#DFE3EE" style="pointer-events:none">🎯</text>
+            <text x="350" y="124" text-anchor="middle" font-size="9"  font-weight="600" fill="#DFE3EE" font-family="system-ui" style="pointer-events:none">Estratégia</text>
+            <text x="350" y="136" text-anchor="middle" font-size="9"  fill="#10B981" font-family="monospace" style="pointer-events:none">80%</text>
+            <!-- Identidade  72° upper-right -->
+            <circle cx="490" cy="215" r="38" fill="url(#ng-ok)"  stroke="rgba(16,185,129,.45)"  stroke-width="1.5" class="ctx-node" onclick="showDomain('identidade')" style="cursor:pointer"/>
+            <text x="490" y="209" text-anchor="middle" font-size="14" fill="#DFE3EE" style="pointer-events:none">🏢</text>
+            <text x="490" y="221" text-anchor="middle" font-size="9"  font-weight="600" fill="#DFE3EE" font-family="system-ui" style="pointer-events:none">Identidade</text>
+            <text x="490" y="233" text-anchor="middle" font-size="9"  fill="#10B981" font-family="monospace" style="pointer-events:none">80%</text>
+            <!-- Operações  144° lower-right -->
+            <circle cx="438" cy="390" r="38" fill="url(#ng-att)" stroke="rgba(245,158,11,.45)" stroke-width="1.5" class="ctx-node" onclick="showDomain('operacoes')" style="cursor:pointer"/>
+            <text x="438" y="384" text-anchor="middle" font-size="14" fill="#DFE3EE" style="pointer-events:none">⚙️</text>
+            <text x="438" y="396" text-anchor="middle" font-size="9"  font-weight="600" fill="#DFE3EE" font-family="system-ui" style="pointer-events:none">Operações</text>
+            <text x="438" y="408" text-anchor="middle" font-size="9"  fill="#F59E0B" font-family="monospace" style="pointer-events:none">62%</text>
+            <!-- Externo  216° lower-left -->
+            <circle cx="262" cy="390" r="38" fill="url(#ng-urg)" stroke="rgba(239,68,68,.45)"  stroke-width="1.5" class="ctx-node" onclick="showDomain('externo')" style="cursor:pointer"/>
+            <text x="262" y="384" text-anchor="middle" font-size="14" fill="#DFE3EE" style="pointer-events:none">🌐</text>
+            <text x="262" y="396" text-anchor="middle" font-size="9"  font-weight="600" fill="#DFE3EE" font-family="system-ui" style="pointer-events:none">Externo</text>
+            <text x="262" y="408" text-anchor="middle" font-size="9"  fill="#EF4444" font-family="monospace" style="pointer-events:none">30%</text>
+            <!-- Pessoas  288° upper-left -->
+            <circle cx="210" cy="215" r="38" fill="url(#ng-att)" stroke="rgba(245,158,11,.45)" stroke-width="1.5" class="ctx-node" onclick="showDomain('pessoas')" style="cursor:pointer"/>
+            <text x="210" y="209" text-anchor="middle" font-size="14" fill="#DFE3EE" style="pointer-events:none">👥</text>
+            <text x="210" y="221" text-anchor="middle" font-size="9"  font-weight="600" fill="#DFE3EE" font-family="system-ui" style="pointer-events:none">Pessoas</text>
+            <text x="210" y="233" text-anchor="middle" font-size="9"  fill="#F59E0B" font-family="monospace" style="pointer-events:none">50%</text>
+          </svg>
+        </div>
+        <!-- sub-domain detail — appears on click -->
+        <div class="ctx-detail" id="ctx-detail">
+          <div class="ctx-detail-ttl" id="ctx-detail-ttl"></div>
+          <div class="ctx-sub-grid" id="ctx-sub-grid"></div>
+        </div>
+      </div>
+
+      <!-- RIGHT: coverage + agent readiness -->
+      <div class="ctx-right">
+        <div class="ctx-overall">
+          <div class="ctx-score">58<span style="font-size:18px;font-weight:400;color:var(--mu)">%</span></div>
+          <div class="ctx-score-lbl">Cobertura de contexto</div>
+        </div>
+        <div class="ctx-cov-sec">
+          <div class="ctx-cov-ttl">Cobertura por domínio</div>
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <div class="ctx-dom-row" onclick="showDomain('identidade')"><span class="ctx-dom-icon">🏢</span><span class="ctx-dom-name">Identidade</span><div class="ctx-dom-bar"><div class="ctx-dom-fill" style="width:80%;background:#10B981"></div></div><span class="ctx-dom-pct" style="color:#10B981">80%</span></div>
+            <div class="ctx-dom-row" onclick="showDomain('operacoes')"><span class="ctx-dom-icon">⚙️</span><span class="ctx-dom-name">Operações</span><div class="ctx-dom-bar"><div class="ctx-dom-fill" style="width:62%;background:#F59E0B"></div></div><span class="ctx-dom-pct" style="color:#F59E0B">62%</span></div>
+            <div class="ctx-dom-row" onclick="showDomain('pessoas')"><span class="ctx-dom-icon">👥</span><span class="ctx-dom-name">Pessoas</span><div class="ctx-dom-bar"><div class="ctx-dom-fill" style="width:50%;background:#F59E0B"></div></div><span class="ctx-dom-pct" style="color:#F59E0B">50%</span></div>
+            <div class="ctx-dom-row" onclick="showDomain('externo')"><span class="ctx-dom-icon">🌐</span><span class="ctx-dom-name">Externo</span><div class="ctx-dom-bar"><div class="ctx-dom-fill" style="width:30%;background:#EF4444"></div></div><span class="ctx-dom-pct" style="color:#EF4444">30%</span></div>
+            <div class="ctx-dom-row" onclick="showDomain('estrategia')"><span class="ctx-dom-icon">🎯</span><span class="ctx-dom-name">Estratégia</span><div class="ctx-dom-bar"><div class="ctx-dom-fill" style="width:80%;background:#10B981"></div></div><span class="ctx-dom-pct" style="color:#10B981">80%</span></div>
+          </div>
+        </div>
+        <div class="ctx-agents">
+          <div class="ctx-cov-ttl">Prontidão dos agentes</div>
+          <div class="ctx-agent-row"><span class="ctx-agent-ic">🛒</span><span class="ctx-agent-name">Compras</span><span class="ctx-agent-status sts-par">Parcial</span></div>
+          <div class="ctx-agent-row"><span class="ctx-agent-ic">📊</span><span class="ctx-agent-name">Financeiro</span><span class="ctx-agent-status sts-ok">Pronto</span></div>
+          <div class="ctx-agent-row"><span class="ctx-agent-ic">✍️</span><span class="ctx-agent-name">Documentos</span><span class="ctx-agent-status sts-par">Parcial</span></div>
+          <div class="ctx-agent-row"><span class="ctx-agent-ic">🎯</span><span class="ctx-agent-name">Estratégia</span><span class="ctx-agent-status sts-ok">Pronto</span></div>
+          <div class="ctx-agent-row"><span class="ctx-agent-ic">👥</span><span class="ctx-agent-name">Clientes</span><span class="ctx-agent-status sts-ok">Pronto</span></div>
+          <div class="ctx-agent-row"><span class="ctx-agent-ic">📅</span><span class="ctx-agent-name">Agenda</span><span class="ctx-agent-status sts-par">Parcial</span></div>
+        </div>
+        <div style="font-size:10px;color:var(--mu);text-align:center;padding:4px 0;">Clique em um domínio para ver sub-áreas</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+</main>
+</div>
+<!-- Editor overlay -->
+<div class="ed-overlay" id="edOverlay">
+  <div class="ed-topbar">
+    <div class="ed-title" id="edTitle">Documento</div>
+    <button class="btn bs" style="font-size:11px" onclick="toast('ok','Salvo','Rascunho salvo com sucesso.')">💾 Salvar rascunho</button>
+    <button class="btn bp" style="font-size:11px" onclick="approve('dd1','Proposta assinada. Cliente Central notificado.');closeEditor()">✍️ Assinar e fechar</button>
+    <button class="ibtn" onclick="closeEditor()" style="margin-left:4px;color:var(--mu2);width:32px;height:32px;font-size:14px">✕</button>
+  </div>
+  <div class="ed-body">
+    <div class="ed-pane">
+      <div class="ed-pane-hd">✏️ Edição</div>
+      <textarea class="ed-textarea" id="edTextarea" spellcheck="false" oninput="updateDiff()"></textarea>
+    </div>
+    <div class="ed-pane">
+      <div class="ed-pane-hd">🔍 Revisão de alterações</div>
+      <div class="ed-content" id="edDiff"></div>
+    </div>
+  </div>
+  <div class="ed-footer">
+    <span class="ed-status" id="edStatus">Editando — alterações não salvas</span>
+    <span class="ed-diff-badge" id="edBadge">0 alterações</span>
+  </div>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+let pending = 5;
+
+function go(s, navEl, label) {
+  document.querySelectorAll('.screen').forEach(el => el.classList.remove('on'));
+  document.getElementById('s-' + s)?.classList.add('on');
+  document.querySelectorAll('.ni').forEach(el => el.classList.remove('on'));
+  if (navEl) navEl.classList.add('on');
+  else document.querySelector('[data-s="' + s + '"]')?.classList.add('on');
+  const bc = document.getElementById('bc');
+  if (bc) bc.innerHTML = s === 'home'
+    ? 'Bom dia, Carlos ☀️'
+    : '<span style="cursor:pointer;color:var(--mu)" onclick="go(\'home\',null,\'Início\')">Início</span> <span style="color:var(--mu);opacity:.5">/</span> ' + label;
+  localStorage.setItem('blu-v3-s', s);
+  localStorage.setItem('blu-v3-l', label || '');
+}
+
+function toggleDc(id) {
+  const el = document.getElementById(id);
+  if (!el || el.classList.contains('done')) return;
+  const wasOpen = el.classList.contains('expanded');
+  // collapse siblings in the same list
+  const parent = el.closest('.dl');
+  if (parent) parent.querySelectorAll('.dc.expanded').forEach(d => d.classList.remove('expanded'));
+  if (!wasOpen) el.classList.add('expanded');
+}
+function approve(id, msg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('expanded');
+  el.classList.add('done');
+  pending = Math.max(0, pending - 1);
+  const cnt = document.getElementById('cnt');
+  if (cnt) cnt.textContent = pending === 0 ? 'Tudo resolvido ✓' : pending + ' pendentes';
+  toast('ok', 'Aprovado', msg);
+}
+
+function reject(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('done');
+  const ok = el.querySelector('.dc-ok');
+  if (ok) { ok.style.color = 'var(--mu)'; ok.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Rejeitado — Blu não vai sugerir novamente'; }
+  toast('no', 'Rejeitado', 'Blu anotou. Não vou sugerir este tipo de ação novamente.');
+}
+
+function snooze(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.opacity = '0.28';
+  el.style.pointerEvents = 'none';
+  setTimeout(() => { el.style.opacity = ''; el.style.pointerEvents = ''; }, 2800);
+  toast('sn', 'Adiado', 'Lembrete em 2 horas. Voltarei a isso.');
+}
+
+function toast(type, title, msg) {
+  const c = document.getElementById('toasts');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  const ico = { ok: '✅', no: '❌', sn: '⏰' };
+  t.innerHTML = `<span style="font-size:15px">${ico[type]}</span><div><div class="t-ttl">${title}</div><div class="t-msg">${msg}</div></div>`;
+  c.appendChild(t);
+  setTimeout(() => {
+    t.style.transition = 'all .18s'; t.style.opacity = '0'; t.style.transform = 'translateX(12px)';
+    setTimeout(() => t.remove(), 200);
+  }, 3800);
+}
+
+function stab(tabsId, prefix, tabId, el) {
+  document.getElementById(tabsId)?.querySelectorAll('.rtab').forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+  const panel = el.closest('.panel');
+  panel?.querySelectorAll('.tc').forEach(tc => tc.classList.remove('on'));
+  document.getElementById(prefix + '-' + tabId)?.classList.add('on');
+}
+
+function activePill(el) {
+  el.closest('.pills')?.querySelectorAll('.pill').forEach(p => p.classList.remove('on'));
+  el.classList.add('on');
+}
+
+function expandAnalytics() {
+  const body = document.getElementById('anlBody');
+  const chev = document.getElementById('anlChev');
+  if (!body || !chev) return;
+  body.classList.toggle('open');
+  chev.classList.toggle('open');
+}
+
+const _edOriginal = {};
+
+function openEditor(docName) {
+  const overlay = document.getElementById('edOverlay');
+  const textarea = document.getElementById('edTextarea');
+  const title = document.getElementById('edTitle');
+  if (!overlay || !textarea) return;
+  title.textContent = docName;
+  const defaultText = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS
+
+Partes:
+Contratante: Cliente Central Ltda., CNPJ 12.345.678/0001-90
+Contratada: Blu Empresa EIRELI, CNPJ 98.765.432/0001-10
+
+Objeto:
+Prestação de serviços de consultoria e gestão operacional pelo período de 12 (doze) meses, com início em 01/06/2026.
+
+Valor:
+O valor mensal é de R$ 48.000,00 (quarenta e oito mil reais), com reajuste anual pelo IPCA.
+
+Desconto de Fidelidade:
+Em razão do aumento de volume de 40%, aplica-se desconto de fidelidade de 8% sobre a mensalidade base.
+
+Vigência:
+Este contrato vigorará por 12 (doze) meses, podendo ser renovado por igual período mediante acordo entre as partes.
+
+Local e data: São Paulo, 06 de maio de 2026.`;
+  textarea.value = defaultText;
+  _edOriginal[docName] = defaultText;
+  updateDiff();
+  overlay.classList.add('open');
+  setTimeout(() => textarea.focus(), 50);
+}
+
+function closeEditor() {
+  document.getElementById('edOverlay')?.classList.remove('open');
+}
+
+function updateDiff() {
+  const textarea = document.getElementById('edTextarea');
+  const diffEl = document.getElementById('edDiff');
+  const badge = document.getElementById('edBadge');
+  const status = document.getElementById('edStatus');
+  const titleEl = document.getElementById('edTitle');
+  if (!textarea || !diffEl) return;
+  const original = _edOriginal[titleEl?.textContent] || '';
+  const current = textarea.value;
+  if (current === original) {
+    diffEl.innerHTML = '<p style="color:var(--mu);font-size:12px;margin-top:20px;text-align:center">Sem alterações</p>';
+    badge.textContent = '0 alterações';
+    status.textContent = 'Sem alterações';
+    return;
+  }
+  const origLines = original.split('\n');
+  const currLines = current.split('\n');
+  let html = '';
+  let changes = 0;
+  const maxLen = Math.max(origLines.length, currLines.length);
+  for (let i = 0; i < maxLen; i++) {
+    const o = origLines[i] ?? '';
+    const c = currLines[i] ?? '';
+    if (o === c) {
+      html += `<div style="padding:1px 0;color:var(--mu2)">${o || '&nbsp;'}</div>`;
+    } else if (c && !o) {
+      html += `<div class="diff-add" style="margin:1px 0">${c}</div>`;
+      changes++;
+    } else if (o && !c) {
+      html += `<div class="diff-del" style="margin:1px 0">${o}</div>`;
+      changes++;
+    } else {
+      html += `<div class="diff-del" style="margin:1px 0">${o}</div>`;
+      html += `<div class="diff-add" style="margin:1px 0">${c}</div>`;
+      changes++;
+    }
+  }
+  diffEl.innerHTML = html;
+  badge.textContent = changes + ' ' + (changes === 1 ? 'alteração' : 'alterações');
+  status.textContent = 'Editando — alterações não salvas';
+}
+
+(function() {
+  const s = localStorage.getItem('blu-v3-s');
+  const l = localStorage.getItem('blu-v3-l');
+  if (s && s !== 'home') go(s, null, l || s);
+})();
+
+function atab(id, el) {
+  document.querySelectorAll('#s-admin .ad-tab').forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+  document.querySelectorAll('#s-admin .ad-tc').forEach(t => t.classList.remove('on'));
+  document.getElementById('ad-' + id)?.classList.add('on');
+}
+
+function intConn(rowId, name) {
+  const fields = {
+    brad:    [['Cliente ID','text','123456789'],['Client Secret','password','••••••'],['Agência','text','0001'],['Conta PJ','text','']],
+    nub:     [['Chave de API','password','••••••'],['ID Empresa','text','']],
+    omie:    [['App Key','text',''],['App Secret','password',''],['Código Empresa','text','']],
+    tiny:    [['Token de API','password',''],['ID Loja','text','']],
+    outlook: [['Tenant ID','text',''],['Client ID','text',''],['Client Secret','password','']],
+    wab:     [['Número de telefone','tel','+55 11 9 0000-0000'],['API Key','password',''],['Webhook URL','text','https://']],
+    pbi:     [['Workspace ID','text',''],['Client ID','text',''],['Client Secret','password','']],
+    slack:   [['Bot Token','password','xoxb-'],['Canal padrão','text','#blu-alertas']],
+  };
+  const f = fields[rowId] || [['API Key','password',''],['Domínio / URL','text','']];
+  const body = f.map(([lbl,type,ph]) =>
+    `<div class="intg-field"><label>${lbl}</label><input type="${type}" placeholder="${ph}"></div>`
+  ).join('');
+  document.getElementById('m-title').textContent = 'Conectar — ' + name;
+  document.getElementById('m-sub').textContent = 'Informe as credenciais para ativar a integração com ' + name + '.';
+  document.getElementById('m-body').innerHTML = body;
+  document.getElementById('m-acts').innerHTML =
+    `<button class="btn bg" onclick="closeModal()">Cancelar</button>` +
+    `<button class="btn bp" onclick="doConnect('${rowId}','${name}')">Conectar</button>`;
+  document.getElementById('intgModal').classList.add('open');
+}
+
+function doConnect(rowId, name) {
+  closeModal();
+  const card = document.getElementById('ic-' + rowId);
+  if (card) card.classList.add('conn');
+  const ft = document.getElementById('ic-' + rowId + '-ft');
+  if (ft) ft.innerHTML =
+    `<span class="conn-pill">Ativo</span><button class="btn bs" style="font-size:10px" onclick="intCfg('${name}','${rowId}')">Config</button>`;
+  toast(name + ' conectado com sucesso.');
+}
+
+function intCfg(name, rowId) {
+  rowId = rowId || name.toLowerCase().replace(/\s+/g,'');
+  document.getElementById('m-title').textContent = 'Configurar — ' + name;
+  document.getElementById('m-sub').textContent = 'Integração ativa. Revise ou atualize as configurações abaixo.';
+  document.getElementById('m-body').innerHTML =
+    `<div class="intg-field"><label>API Key / Credencial</label><input type="password" value="••••••••••••" readonly></div>` +
+    `<div class="intg-field"><label>Última sincronização</label><input type="text" value="05/05/2026 10:32" readonly></div>` +
+    `<div class="intg-field"><label>Dados sincronizados este mês</label><input type="text" value="1.247 registros" readonly></div>` +
+    `<div style="margin-top:14px"><div class="ld-lbl" style="margin-bottom:6px">Ações</div>` +
+    `<div style="display:flex;gap:6px"><button class="btn bs" style="font-size:11px" onclick="toast('Sincronização iniciada.')">Sincronizar agora</button>` +
+    `<button class="btn brd" style="font-size:11px" onclick="disconnectIntg('${rowId}','${name}')">Desconectar</button></div></div>`;
+  document.getElementById('m-acts').innerHTML =
+    `<button class="btn bg" onclick="closeModal()">Fechar</button>` +
+    `<button class="btn bp" onclick="toast('Configurações salvas.');closeModal()">Salvar</button>`;
+  document.getElementById('intgModal').classList.add('open');
+}
+
+function disconnectIntg(rowId, name) {
+  closeModal();
+  const card = document.getElementById('ic-' + rowId);
+  if (card) card.classList.remove('conn');
+  const ft = document.getElementById('ic-' + rowId + '-ft');
+  if (ft) ft.innerHTML =
+    `<button class="btn bp" style="font-size:10px;width:100%" onclick="intConn('${rowId}','${name}')">Conectar</button>`;
+  toast(name + ' desconectado.');
+}
+
+function closeModal() {
+  document.getElementById('intgModal').classList.remove('open');
+}
+
+function toggleLog(row) {
+  const det = row.nextElementSibling;
+  if (!det) return;
+  const isOpen = det.classList.toggle('open');
+  row.classList.toggle('expanded', isOpen);
+}
+
+function togglePerm(boxId, rowId) {
+  const box = document.getElementById(boxId);
+  const row = document.getElementById(rowId);
+  const chevId = 'chev-' + boxId.replace('perm-', '');
+  const chev = document.getElementById(chevId);
+  if (!box) return;
+  const open = box.classList.toggle('open');
+  if (row) row.classList.toggle('open', open);
+  if (chev) chev.style.transform = open ? 'rotate(90deg)' : '';
+}
+
+function tog(evt, el) {
+  evt.stopPropagation();
+  el.classList.toggle('on');
+}
+
+function filterLogs(val) {
+  document.querySelectorAll('#log-list .log-wrap').forEach(w => {
+    w.style.display = (!val || w.textContent.toLowerCase().includes(val.toLowerCase())) ? '' : 'none';
+  });
+}
+
+/* ── CONTEXT MAP ── */
+const domainData = {
+  identidade: {
+    title: '🏢 Identidade do Negócio',
+    subs: [
+      { name: 'Cadastro',       pct: 100, src: 'ReceitaWS',   col: '#10B981' },
+      { name: 'Perfil',         pct: 80,  src: 'Entrevista',  col: '#10B981' },
+      { name: 'Posicionamento', pct: 70,  src: 'Usuário',     col: '#10B981' },
+      { name: 'Propósito',      pct: 60,  src: 'Conversação', col: '#F59E0B' },
+    ]
+  },
+  operacoes: {
+    title: '⚙️ Operações',
+    subs: [
+      { name: 'Comercial / Vendas', pct: 90, src: 'ERP',      col: '#10B981' },
+      { name: 'Financeiro',         pct: 75, src: 'ERP/Banco', col: '#10B981' },
+      { name: 'Compras',            pct: 40, src: 'ERP',      col: '#F59E0B' },
+      { name: 'Produção / Serviço', pct: 55, src: 'Manual',   col: '#F59E0B' },
+      { name: 'Logística',          pct: 30, src: 'Pendente', col: '#EF4444' },
+    ]
+  },
+  pessoas: {
+    title: '👥 Pessoas',
+    subs: [
+      { name: 'Estrutura org.',  pct: 70, src: 'RH',       col: '#10B981' },
+      { name: 'Folha de pag.',   pct: 60, src: 'ERP',      col: '#F59E0B' },
+      { name: 'Competências',    pct: 30, src: 'Pendente', col: '#EF4444' },
+      { name: 'Jornada / Ponto', pct: 40, src: 'Ponto',   col: '#F59E0B' },
+      { name: 'Clima',           pct: 20, src: 'Pendente', col: '#EF4444' },
+    ]
+  },
+  externo: {
+    title: '🌐 Externo',
+    subs: [
+      { name: 'Clientes (CRM)', pct: 60, src: 'CRM',       col: '#F59E0B' },
+      { name: 'Concorrência',   pct: 20, src: 'Manual',    col: '#EF4444' },
+      { name: 'Fornecedores',   pct: 30, src: 'ERP',       col: '#EF4444' },
+      { name: 'Regulatório',    pct: 40, src: 'Consultor', col: '#F59E0B' },
+      { name: 'Econômico',      pct: 20, src: 'APIs',      col: '#EF4444' },
+    ]
+  },
+  estrategia: {
+    title: '🎯 Estratégia',
+    subs: [
+      { name: 'OKRs / Metas',    pct: 90, src: 'Usuário',     col: '#10B981' },
+      { name: 'Projetos',        pct: 80, src: 'PM tool',     col: '#10B981' },
+      { name: 'Cenários',        pct: 70, src: 'Planejamento', col: '#10B981' },
+      { name: 'Investimentos',   pct: 75, src: 'Financeiro',  col: '#10B981' },
+      { name: 'M&A / Parcerias', pct: 50, src: 'Assessor',   col: '#F59E0B' },
+    ]
+  }
+};
+
+function showDomain(key) {
+  const d = domainData[key]; if (!d) return;
+  const detail = document.getElementById('ctx-detail');
+  const ttl    = document.getElementById('ctx-detail-ttl');
+  const grid   = document.getElementById('ctx-sub-grid');
+  ttl.textContent = d.title;
+  grid.innerHTML = d.subs.map(s =>
+    `<div class="ctx-sub">
+      <div class="ctx-sub-name">${s.name}</div>
+      <div class="ctx-sub-bar"><div class="ctx-sub-fill" style="width:${s.pct}%;background:${s.col}"></div></div>
+      <div class="ctx-sub-meta"><span>${s.src}</span><span style="color:${s.col};font-family:var(--mono)">${s.pct}%</span></div>
+    </div>`
+  ).join('');
+  detail.classList.add('vis');
+}
+</script>
+<!-- Integration Modal -->
+<div class="intg-modal" id="intgModal" onclick="if(event.target===this)closeModal()">
+  <div class="intg-box">
+    <h3 id="m-title">Conectar</h3>
+    <div class="msub" id="m-sub"></div>
+    <div id="m-body"></div>
+    <hr class="modal-sep">
+    <div class="modal-acts" id="m-acts"></div>
+  </div>
+</div>
+</body>
+</html>

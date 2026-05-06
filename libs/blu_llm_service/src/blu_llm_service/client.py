@@ -55,6 +55,43 @@ class LLMProvider(Enum):
     GOOGLE = "google"  # Google Gemini API
 
 
+class OllamaCloudModel(str, Enum):
+    """Available models on Ollama Cloud (https://ollama.com/search?c=cloud).
+
+    Values are the model IDs used when calling the Ollama API.
+    Pass these to get_model(provider=LLMProvider.OLLAMA_CLOUD, model_name=OllamaCloudModel.X).
+    """
+
+    # --- Frontier / Powerful ---
+    DEEPSEEK_V4_PRO = "deepseek-v4-pro"          # DeepSeek; frontier MoE, 1M context
+    DEEPSEEK_V4_FLASH = "deepseek-v4-flash"       # DeepSeek; 284B (13B active), 1M context, fast MoE
+    DEEPSEEK_V3_1 = "deepseek-v3.1:671b"         # DeepSeek; previous flagship (671B)
+    GLM_5 = "glm-5"                               # Z.ai; 744B (40B active), reasoning focus
+    GLM_5_1 = "glm-5.1"                           # Z.ai; improved reasoning
+    COGITO_2_1 = "cogito-2.1"                     # MIT licensed; 671B
+    DEVSTRAL_2 = "devstral-2"                     # Mistral; 123B, software engineering
+    QWEN3_NEXT = "qwen3-next"                     # Alibaba; 80B
+    MINIMAX_M2_7 = "minimax-m2.7"                 # MiniMax; agentic workflows, coding
+    KIMI_K2_6 = "kimi-k2.6"                       # Moonshot; multimodal agentic
+    NEMOTRON_3_SUPER = "nemotron-3-super"         # NVIDIA; 120B (12B active), open MoE
+
+    # --- Balanced / Default ---
+    KIMI_K2_5 = "kimi-k2.5"                       # Moonshot; multimodal agentic
+    DEVSTRAL_SMALL_2 = "devstral-small-2"         # Mistral; 24B, software engineering agents
+    MINIMAX_M2_5 = "minimax-m2.5"                 # MiniMax; productivity and coding
+    GEMMA4 = "gemma4"                             # Google; 26–31B, frontier-level
+    QWEN3_5 = "qwen3.5"                           # Alibaba; multimodal family (0.8B–122B)
+    QWEN3_CODER_NEXT = "qwen3-coder-next"         # Alibaba; coding-focused
+
+    # --- Fast / Lightweight ---
+    GPT_OSS_20B = "gpt-oss:20b"                   # OpenAI OSS; 20B balanced
+    DEEPSEEK_R1_14B = "deepseek-r1:14b"           # DeepSeek R1; 14B reasoning
+    MINISTRAL_3 = "ministral-3"                   # Mistral; 3–14B, edge deployment
+    NEMOTRON_3_NANO = "nemotron-3-nano"           # NVIDIA; 4–30B lightweight
+    RNJ_1 = "rnj-1"                               # Essential AI; 8B
+    GEMINI_3_FLASH_PREVIEW = "gemini-3-flash-preview"  # Google; fast frontier intelligence
+
+
 # ============================================================================
 # LANGFUSE CALLBACKS (delegated to blu_observability_bootstrap)
 # ============================================================================
@@ -261,9 +298,9 @@ def _get_google_model(
 
 MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
     LLMProvider.OLLAMA_CLOUD: {
-        ModelTier.DEFAULT: "gpt-oss:20b",  # Balanced
-        ModelTier.FAST: "gpt-oss:20b",  # Fast/efficient
-        ModelTier.POWERFUL: "deepseek-v3.1:671b",  # Most capable
+        ModelTier.DEFAULT: OllamaCloudModel.QWEN3_5,           # Alibaba; multimodal family
+        ModelTier.FAST: OllamaCloudModel.QWEN3_5,              # Same for fast tier
+        ModelTier.POWERFUL: OllamaCloudModel.QWEN3_5,          # Same for powerful tier
     },
     LLMProvider.OPENAI: {
         ModelTier.DEFAULT: "gpt-4o-mini",
@@ -279,6 +316,16 @@ MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
         ModelTier.DEFAULT: "gemini-1.5-flash",
         ModelTier.FAST: "gemini-1.5-flash",
         ModelTier.POWERFUL: "gemini-1.5-pro",
+    },
+}
+
+# Fallback models used when the primary model is unavailable (Ollama Cloud only).
+# Wired automatically via LangChain's .with_fallbacks() in get_model().
+FALLBACK_MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
+    LLMProvider.OLLAMA_CLOUD: {
+        ModelTier.DEFAULT: OllamaCloudModel.GPT_OSS_20B,  # Fallback: 20B balanced
+        ModelTier.FAST: OllamaCloudModel.GPT_OSS_20B,     # Fallback: 20B balanced
+        ModelTier.POWERFUL: OllamaCloudModel.GPT_OSS_20B, # Fallback: 20B balanced
     },
 }
 
@@ -301,28 +348,38 @@ def get_model(
     """
     Retorna um cliente de LLM configurado.
 
+    For Ollama Cloud, automatically wires a fallback model via LangChain's
+    .with_fallbacks() so that if the primary model is unavailable the request
+    is retried against the fallback transparently.
+
+    Primary / fallback per tier (Ollama Cloud):
+      DEFAULT:  qwen3.5  → gpt-oss:20b
+      FAST:     qwen3.5  → gpt-oss:20b
+      POWERFUL: qwen3.5  → gpt-oss:20b
+
     Args:
         tier: Tier do modelo (default, fast, powerful)
         task: Tipo de tarefa
         provider: Provedor (ollama, openai, anthropic, google).
                   Se None, usa LLM_PROVIDER do settings.
-        model_name: Nome específico do modelo (sobrescreve o mapeamento por tier)
+        model_name: Nome específico do modelo (sobrescreve o mapeamento por tier
+                    e desabilita o fallback automático)
         user_id: ID do usuário para Langfuse
         session_id: ID da sessão para Langfuse
         tags: Tags para Langfuse
         **kwargs: Parâmetros adicionais passados ao modelo
 
     Returns:
-        BaseChatModel configurado
+        BaseChatModel configurado (com fallback quando aplicável)
 
     Example:
-        # Usar Ollama local (padrão)
+        # Default agent model (qwen3.5 → gpt-oss:20b fallback)
         model = get_model()
 
         # Usar OpenAI GPT-4
         model = get_model(provider=LLMProvider.OPENAI, tier=ModelTier.POWERFUL)
 
-        # Modelo específico
+        # Modelo específico (sem fallback automático)
         model = get_model(provider=LLMProvider.OPENAI, model_name="gpt-4-turbo")
     """
     settings = get_llm_settings()
@@ -332,13 +389,13 @@ def get_model(
         provider = LLMProvider(settings.LLM_PROVIDER)
 
     # Determina o modelo
+    explicit_model = model_name is not None
     if model_name is None:
-        model_name = MODEL_MAPPINGS.get(provider, {}).get(tier, "gpt-oss:20b")
+        model_name = MODEL_MAPPINGS.get(provider, {}).get(tier, OllamaCloudModel.GPT_OSS_20B)
 
     # Cria callbacks (Langfuse reads trace attrs from config["metadata"] at invoke time)
     callbacks = get_base_callbacks()
 
-    # Cria o modelo
     factory_map = {
         LLMProvider.OLLAMA_CLOUD: _get_ollama_cloud_model,
         LLMProvider.OPENAI: _get_openai_model,
@@ -350,7 +407,18 @@ def get_model(
     if factory is None:
         raise ValueError(f"Provider não suportado: {provider}")
 
-    return factory(model_name, settings, callbacks, **kwargs)
+    primary = factory(model_name, settings, callbacks, **kwargs)
+
+    # Wire fallback automatically for Ollama Cloud unless caller passed an
+    # explicit model_name (in that case they know what they want).
+    if not explicit_model and provider == LLMProvider.OLLAMA_CLOUD:
+        fallback_name = FALLBACK_MODEL_MAPPINGS.get(provider, {}).get(tier)
+        if fallback_name and fallback_name != model_name:
+            logger.debug(f"Ollama Cloud: primary={model_name}, fallback={fallback_name}")
+            fallback = factory(fallback_name, settings, callbacks, **kwargs)
+            return primary.with_fallbacks([fallback])
+
+    return primary
 
 
 def get_embedding_model() -> Embeddings:

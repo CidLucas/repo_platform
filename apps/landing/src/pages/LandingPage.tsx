@@ -100,7 +100,28 @@ const logosPlaceholders = [
   "+ outras",
 ];
 
-// Demo chips — must match what the seed tenant can actually answer.
+// Demo chips — persona-aware. Each persona gets sector-specific questions.
+type LandingPersona = "distribuidora" | "consultoria" | "varejo" | null;
+
+const demoChipsMap: Record<string, Array<{ id: string; label: string; question: string }>> = {
+  distribuidora: [
+    { id: "estoque", label: "Como está meu estoque?", question: "Quais produtos estão próximos da ruptura?" },
+    { id: "cotacao", label: "Última cotação de fornecedor", question: "Qual foi o resultado da última cotação?" },
+    { id: "top", label: "Clientes que mais compram", question: "Quais foram os top 5 clientes do mês em receita?" },
+  ],
+  consultoria: [
+    { id: "clientes", label: "Clientes sem contato", question: "Quais clientes estão há mais de 30 dias sem contato?" },
+    { id: "projetos", label: "Projetos em atraso", question: "Quais projetos estão fora do prazo?" },
+    { id: "caixa", label: "Faturas em aberto", question: "Qual o valor total das faturas em aberto?" },
+  ],
+  varejo: [
+    { id: "vendas", label: "Quanto vendi essa semana?", question: "Quanto vendi essa semana?" },
+    { id: "atrasos", label: "Quem ainda não pagou?", question: "Quem ainda não pagou esta semana?" },
+    { id: "top", label: "Top 5 produtos do mês", question: "Quais foram os top 5 produtos do mês em receita?" },
+  ],
+};
+
+// Default chips for no persona selected (distribuidora flavour as fallback)
 const demoChips: Array<{ id: string; label: string; question: string }> = [
   {
     id: "vendas",
@@ -183,12 +204,15 @@ type DemoState =
   | { kind: "answer"; chipId: string }
   | { kind: "error" };
 
-const InteractiveDemo: React.FC<{ onSignup: () => void; onTry: () => void }> = ({
+const InteractiveDemo: React.FC<{ onSignup: (persona?: LandingPersona) => void; onTry: () => void; selectedPersona: LandingPersona }> = ({
   onSignup,
   onTry,
+  selectedPersona,
 }) => {
   const [state, setState] = useState<DemoState>({ kind: "idle" });
   const timerRef = useRef<number | null>(null);
+
+  const chips = selectedPersona ? (demoChipsMap[selectedPersona] ?? demoChips) : demoChips;
 
   const runChip = useCallback(
     (chipId: string) => {
@@ -256,7 +280,7 @@ const InteractiveDemo: React.FC<{ onSignup: () => void; onTry: () => void }> = (
       </Heading>
 
       <HStack spacing={2} flexWrap="wrap" mb={6}>
-        {demoChips.map((chip) => {
+        {chips.map((chip) => {
           const active =
             (state.kind === "loading" || state.kind === "answer") &&
             state.chipId === chip.id;
@@ -367,9 +391,9 @@ const InteractiveDemo: React.FC<{ onSignup: () => void; onTry: () => void }> = (
             fontSize="13px"
             rightIcon={<ArrowForwardIcon />}
             _hover={{ filter: "brightness(1.1)" }}
-            onClick={onSignup}
+            onClick={() => onSignup(selectedPersona)}
           >
-            Quero isso com os meus dados
+            Ver isso com os meus dados
           </Button>
         )}
       </HStack>
@@ -501,6 +525,7 @@ const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [demoTried, setDemoTried] = useState(false);
+  const [selectedPersona, setSelectedPersona] = useState<LandingPersona>(null);
   const exitModal = useDisclosure();
 
   // Mobile H1 variant — guideline §2.1
@@ -512,8 +537,11 @@ const LandingPage: React.FC = () => {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Primary CTA — kicks off onboarding.
-  const openOnboarding = () => navigate("/onboarding");
+  // Primary CTA — scrolls to persona selector.
+  const goToPersonaSelector = () => scrollTo("persona-selector");
+
+  // Secondary CTA — kicks off onboarding.
+  const openOnboarding = () => navigate("/onboarding/auth");
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -521,9 +549,19 @@ const LandingPage: React.FC = () => {
     el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // §2.1 secondary CTA + §5 demo-disambiguation rule: every "demo" anchor
-  // resolves to the same block.
   const goToDemo = () => scrollTo("demo");
+
+  // After persona is selected on landing, scroll to demo.
+  const handlePersonaSelect = (persona: LandingPersona) => {
+    setSelectedPersona(persona);
+    setTimeout(() => scrollTo("demo"), 80);
+  };
+
+  // Demo CTA — carries persona context into onboarding.
+  const handleDemoSignup = (persona?: LandingPersona) => {
+    const p = persona ?? selectedPersona;
+    navigate(p ? `/onboarding/auth?persona=${p}` : "/onboarding/auth");
+  };
 
   useExitIntent(
     () => {
@@ -649,30 +687,30 @@ const LandingPage: React.FC = () => {
             >
               {isNarrow ? (
                 <>
-                  Pare de ser o{" "}
+                  Comece a semana{" "}
                   <Text
                     as="span"
                     fontStyle="italic"
                     bgGradient={`linear(to-r, ${C.orangeLight}, ${C.pink})`}
                     bgClip="text"
                   >
-                    gargalo
+                    sabendo
                   </Text>
-                  .
+                  {" "}o que importa.
                 </>
               ) : (
                 <>
-                  Pare de ser o{" "}
+                  Comece a semana{" "}
                   <Text
                     as="span"
                     fontStyle="italic"
                     bgGradient={`linear(to-r, ${C.orangeLight}, ${C.pink})`}
                     bgClip="text"
                   >
-                    gargalo
+                    sabendo
                   </Text>
                   <br />
-                  da sua empresa.
+                  o que importa.
                 </>
               )}
             </Heading>
@@ -704,9 +742,9 @@ const LandingPage: React.FC = () => {
                 _hover={{ filter: "brightness(1.12)", transform: "translateY(-1px)" }}
                 transition="all .2s"
                 boxShadow={`0 12px 40px ${C.blue}44`}
-                onClick={openOnboarding}
+                onClick={goToPersonaSelector}
               >
-                Montar meu escritório virtual
+                Escolha seu setor e veja em 60s
               </Button>
               <Button
                 size="lg"
@@ -719,9 +757,9 @@ const LandingPage: React.FC = () => {
                 fontWeight={500}
                 fontSize="15px"
                 _hover={{ borderColor: "white", bg: "rgba(255,255,255,0.04)" }}
-                onClick={goToDemo}
+                onClick={openOnboarding}
               >
-                Ver demo de 60s
+                Montar meu escritório
               </Button>
             </HStack>
 
@@ -787,6 +825,91 @@ const LandingPage: React.FC = () => {
         </Container>
       </Box>
 
+      {/* ===================== PERSONA SELECTOR ===================== */}
+      <Box as="section" id="persona-selector" py={{ base: "60px", md: "80px" }} position="relative">
+        <Box position="absolute" top="20%" right="-5%" w="320px" h="320px" bg={C.purple} filter="blur(150px)" opacity={0.1} borderRadius="full" pointerEvents="none" />
+        <Container maxW="960px" px={{ base: 5, md: 8 }} position="relative" zIndex={1}>
+          <VStack spacing={8} textAlign="center">
+            <VStack spacing={3}>
+              <Text fontSize="12px" fontWeight={600} letterSpacing="0.14em" textTransform="uppercase" color={C.blueLight}>
+                Qual é o seu mercado?
+              </Text>
+              <Heading
+                fontSize={{ base: "26px", md: "36px" }}
+                fontFamily="'Playfair Display', serif"
+                fontWeight={400}
+                letterSpacing="-0.02em"
+                lineHeight={1.1}
+              >
+                A demo muda conforme o que você vende.
+              </Heading>
+            </VStack>
+            <Grid
+              templateColumns={{ base: "1fr", md: "repeat(3, 1fr)" }}
+              gap={4}
+              w="full"
+              textAlign="left"
+            >
+              {([
+                { id: "distribuidora" as LandingPersona, emoji: "📦", title: "Distribuidora / Atacado", line: "Cotações comparadas. Estoque no radar. Compras aprovadas por você.", accent: C.orange },
+                { id: "consultoria" as LandingPersona, emoji: "🤝", title: "Consultoria / Serviços", line: "Clientes acompanhados. Faturas no prazo. Projetos sem surpresa.", accent: C.purple },
+                { id: "varejo" as LandingPersona, emoji: "🛍", title: "Varejo / E-commerce", line: "Caixa fechado toda segunda. Ruptura avisada antes de acontecer.", accent: C.blue },
+              ] as const).map((tile) => (
+                <Box
+                  key={tile.id}
+                  as="button"
+                  onClick={() => handlePersonaSelect(tile.id)}
+                  textAlign="left"
+                  bg={selectedPersona === tile.id ? `${tile.accent}18` : C.surface}
+                  border="1px solid"
+                  borderColor={selectedPersona === tile.id ? `${tile.accent}66` : C.borderStrong}
+                  borderRadius="16px"
+                  p={5}
+                  cursor="pointer"
+                  position="relative"
+                  overflow="hidden"
+                  transition="all .18s"
+                  _hover={{ borderColor: tile.accent, transform: "translateY(-2px)", boxShadow: `0 12px 30px ${tile.accent}18` }}
+                  _active={{ transform: "translateY(0)" }}
+                >
+                  <Box
+                    position="absolute"
+                    bottom="-20%"
+                    right="-5%"
+                    w="100px"
+                    h="100px"
+                    borderRadius="full"
+                    bg={tile.accent}
+                    opacity={0.06}
+                    filter="blur(25px)"
+                    pointerEvents="none"
+                  />
+                  <VStack align="flex-start" spacing={2.5}>
+                    <Text fontSize="24px" lineHeight={1} role="img" aria-hidden="true">{tile.emoji}</Text>
+                    <Box>
+                      <Text fontSize="14px" fontWeight={600} color="white" mb={1} lineHeight={1.25}>{tile.title}</Text>
+                      <Text fontSize="13px" color={C.textDim}>{tile.line}</Text>
+                    </Box>
+                    {selectedPersona === tile.id && (
+                      <Box w="16px" h="2px" borderRadius="full" bg={tile.accent} />
+                    )}
+                  </VStack>
+                </Box>
+              ))}
+            </Grid>
+            {selectedPersona && (
+              <Text fontSize="13px" color={C.textMuted}>
+                A demo abaixo já está configurada para{" "}
+                <Text as="span" color="white" fontWeight={500}>
+                  {selectedPersona === "distribuidora" ? "Distribuidora / Atacado" : selectedPersona === "consultoria" ? "Consultoria / Serviços" : "Varejo / E-commerce"}
+                </Text>
+                .
+              </Text>
+            )}
+          </VStack>
+        </Container>
+      </Box>
+
       {/* ===================== INTERACTIVE DEMO ===================== */}
       <Box as="section" id="demo" py={{ base: "60px", md: "90px" }} position="relative">
         <Box position="absolute" top="10%" left="-5%" w="380px" h="380px" bg={C.blue} filter="blur(160px)" opacity={0.12} borderRadius="full" pointerEvents="none" />
@@ -816,8 +939,9 @@ const LandingPage: React.FC = () => {
             </Text>
           </VStack>
           <InteractiveDemo
-            onSignup={openOnboarding}
+            onSignup={handleDemoSignup}
             onTry={() => setDemoTried(true)}
+            selectedPersona={selectedPersona}
           />
         </Container>
       </Box>

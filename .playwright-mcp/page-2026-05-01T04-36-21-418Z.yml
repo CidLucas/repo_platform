@@ -1,0 +1,117 @@
+- generic [ref=e3]:
+  - navigation "Navegação principal" [ref=e4]:
+    - generic [ref=e6]: blu
+    - button "Início" [ref=e8] [cursor=pointer]:
+      - img [ref=e10]
+      - generic [ref=e13]: Início
+    - generic [ref=e15]:
+      - paragraph [ref=e16]: Agentes
+      - button "Compras" [ref=e17] [cursor=pointer]:
+        - img [ref=e20]
+        - generic [ref=e23]: Compras
+      - button "Financeiro" [ref=e24] [cursor=pointer]:
+        - img [ref=e27]
+        - generic [ref=e30]: Financeiro
+      - button "Agenda" [ref=e31] [cursor=pointer]:
+        - img [ref=e34]
+        - generic [ref=e37]: Agenda
+      - button "Documentos" [ref=e38] [cursor=pointer]:
+        - img [ref=e41]
+        - generic [ref=e44]: Documentos
+      - button "Estratégia" [active] [ref=e45] [cursor=pointer]:
+        - img [ref=e48]
+        - generic [ref=e51]: Estratégia
+      - button "Clientes" [ref=e52] [cursor=pointer]:
+        - img [ref=e55]
+        - generic [ref=e58]: Clientes
+    - generic [ref=e60]:
+      - button "Atividade" [ref=e61] [cursor=pointer]:
+        - img [ref=e63]
+        - generic [ref=e65]: Atividade
+      - button "Biblioteca" [ref=e66] [cursor=pointer]:
+        - img [ref=e68]
+        - generic [ref=e70]: Biblioteca
+      - button "Admin" [ref=e71] [cursor=pointer]:
+        - img [ref=e73]
+        - generic [ref=e76]: Admin
+  - generic [ref=e77]:
+    - banner [ref=e78]:
+      - generic [ref=e79]:
+        - generic [ref=e80]: blu
+        - generic [ref=e81]: /
+        - generic [ref=e82]: Estratégia
+      - generic [ref=e83]:
+        - button "Abrir busca" [ref=e84] [cursor=pointer]:
+          - img [ref=e85]
+        - button "Notificações" [ref=e89] [cursor=pointer]:
+          - img [ref=e90]
+        - 'generic "Usuário: cid.lucas@gmail.com" [ref=e93]': CI
+    - main [ref=e94]:
+      - generic [ref=e491]:
+        - generic [ref=e492]:
+          - button "Início" [ref=e493] [cursor=pointer]:
+            - img [ref=e494]
+            - generic [ref=e496]: Início
+          - img [ref=e499]
+          - generic [ref=e502]:
+            - heading "Estratégia" [level=1] [ref=e503]
+            - paragraph [ref=e504]: Análises, KPIs e tendências do negócio
+        - generic [ref=e505]:
+          - complementary [ref=e506]:
+            - heading "KPIs Monitorados" [level=3] [ref=e508]
+            - generic [ref=e510]:
+              - img [ref=e512]
+              - paragraph [ref=e516]: Nenhum KPI monitorado ainda.
+          - main [ref=e517]:
+            - generic [ref=e518]:
+              - generic [ref=e519]:
+                - generic [ref=e520]:
+                  - heading "Mesa — Estratégia" [level=2] [ref=e522]
+                  - tablist [ref=e523]:
+                    - tab "Decisões" [selected] [ref=e524] [cursor=pointer]
+                    - tab "Tarefas" [ref=e525] [cursor=pointer]
+                    - tab "Histórico" [ref=e526] [cursor=pointer]
+                - generic [ref=e529]:
+                  - generic [ref=e531]: ✓
+                  - paragraph [ref=e532]: Nada urgente agora.
+                  - paragraph [ref=e533]: Seu time está trabalhando.
+                  - button "Ver histórico" [ref=e534] [cursor=pointer]:
+                    - text: Ver histórico
+                    - img [ref=e535]
+              - generic [ref=e537]:
+                - paragraph [ref=e538]: Insights
+                - paragraph [ref=e539]: Nenhum insight disponível.
+              - generic [ref=e540]:
+                - button "Rotinas e Configurações Iniciando" [ref=e541] [cursor=pointer]:
+                  - img [ref=e542]
+                  - generic [ref=e544]: Rotinas e Configurações
+                  - generic [ref=e545]:
+                    - img [ref=e546]
+                    - text: Iniciando
+                - generic [ref=e552]:
+                  - generic [ref=e553]:
+                    - paragraph [ref=e554]: Rotinas
+                    - paragraph [ref=e555]: Nenhuma rotina configurada.
+                  - generic [ref=e557]:
+                    - img [ref=e558]
+                    - paragraph [ref=e561]: Regras avançadas desbloqueadas após 25 aprovações.
+                  - generic [ref=e563]:
+                    - generic [ref=e564]:
+                      - paragraph [ref=e565]: Notificações
+                      - generic [ref=e566]:
+                        - generic [ref=e567]:
+                          - paragraph [ref=e568]: Alertas urgentes
+                          - paragraph [ref=e569]: Receba alertas quando houver decisões urgentes
+                        - generic [ref=e570]: Em breve
+                    - generic [ref=e571]:
+                      - paragraph [ref=e572]: Agente
+                      - generic [ref=e573]:
+                        - generic [ref=e574]:
+                          - paragraph [ref=e575]: Relatórios automáticos
+                          - paragraph [ref=e576]: Gere relatórios semanais automaticamente
+                        - generic [ref=e577]: Em breve
+          - complementary [ref=e578]:
+            - heading "Análises" [level=3] [ref=e580]
+            - generic [ref=e582]:
+              - img [ref=e584]
+              - paragraph [ref=e585]: Nenhuma análise registrada.

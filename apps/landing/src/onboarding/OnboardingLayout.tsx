@@ -5,11 +5,12 @@ import { C } from "./tokens";
 
 interface OnboardingLayoutProps {
   progress?: number | null; // 0-100 or null to hide
+  maxW?: string; // override container max-width (default "720px")
   children: React.ReactNode;
 }
 
 // Shared shell: dark bg, gradient glows, brand mark, optional progress bar.
-export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({ progress, children }) => {
+export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({ progress, maxW = "720px", children }) => {
   return (
     <Box bg={C.bg} color="white" minH="100vh" position="relative" overflow="hidden">
       {/* Ambient gradient glows */}
@@ -100,7 +101,7 @@ export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({ progress, ch
 
       {/* Body */}
       <Box position="relative" zIndex={1}>
-        <Container maxW="720px" px={{ base: 5, md: 8 }} py={{ base: 10, md: 16 }}>
+        <Container maxW={maxW} px={{ base: 5, md: 8 }} py={{ base: 10, md: 16 }}>
           {children}
         </Container>
       </Box>

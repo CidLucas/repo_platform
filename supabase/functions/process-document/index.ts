@@ -9,21 +9,34 @@
 // Request: POST { document_id, storage_path, client_id, file_name, file_type }
 // Response: 200 OK { document_id, status: "completed", chunk_count }
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "@supabase/supabase-js";
 import postgres from "https://deno.land/x/postgresjs@v3.4.5/mod.js";
 // pdf-parse: import from lib/ subpath to skip test-file loading that breaks in Deno
 import pdfParse from "npm:pdf-parse@1.1.1/lib/pdf-parse.js";
 import mammoth from "npm:mammoth@1.8.0";
+import { corsHeaders, json } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const DB_URL = Deno.env.get("SUPABASE_DB_URL")!;
 
-const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers":
-        "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+// ── Knowledge Document Category Mapping ────────────────────────────────────
+// Maps vector_db.documents.category values → knowledge_document_types.id.
+// Used to auto-populate client_knowledge_documents when a file is processed.
+// Only recognised categories are mapped; unknown ones are silently skipped.
+const CATEGORY_TO_DOC_TYPE: Record<string, string> = {
+  rh:           "folha_pagamento",
+  folha:        "folha_pagamento",
+  contrato:     "contrato_fornecimento",
+  nf:           "fatura_nota_fiscal",
+  fiscal:       "fatura_nota_fiscal",
+  organograma:  "organograma",
+  producao:     "ficha_tecnica",
+  receita:      "ficha_tecnica",
+  dre:          "dre_mensal",
+  financeiro:   "fluxo_caixa_diario",
+  catalogo:     "catalogo_produtos",
+  preco:        "politica_preco",
 };
 
 // ── Token Estimation ────────────────────────────────────────
@@ -49,9 +62,10 @@ interface Chunk {
 }
 
 // Token-aware limits (embed-multilingual-light-v3.0 max_seq_length = 512 tokens)
-// 400 tokens stays within Cohere's 512-token limit while producing more coherent,
-// self-contained chunks (~280 words) that improve retrieval quality.
-const TARGET_TOKENS = 400; // target tokens per chunk (Cohere max = 512)
+// Default is 400. Callers can override via request body `target_tokens` (max 500).
+// Structured docs (e.g. context reports) benefit from smaller values (~100 tokens)
+// for more granular retrieval — roughly one business section per chunk.
+const DEFAULT_TARGET_TOKENS = 400;
 const OVERLAP_SENTENCES = 2; // number of trailing sentences to overlap
 
 // ── Embedding (Cohere) ──────────────────────────────────────
@@ -211,7 +225,8 @@ function splitIntoSentences(text: string): string[] {
 
 function chunkText(
     text: string,
-    metadata: Record<string, unknown> = {}
+    metadata: Record<string, unknown> = {},
+    targetTokens: number = DEFAULT_TARGET_TOKENS
 ): Chunk[] {
     // 1. Split entire text into sentences
     const sentences = splitIntoSentences(text);
@@ -254,7 +269,7 @@ function chunkText(
                 : sentences[sentIdx];
             const candidateTokens = estimateTokens(candidate);
 
-            if (candidateTokens > TARGET_TOKENS && currentText.length > 0) {
+            if (candidateTokens > targetTokens && currentText.length > 0) {
                 // Adding this sentence would exceed target — flush what we have
                 break;
             }
@@ -264,7 +279,7 @@ function chunkText(
             sentIdx++;
 
             // If a single sentence already exceeds the target, flush it alone
-            if (currentTokens > TARGET_TOKENS) {
+            if (currentTokens > targetTokens) {
                 break;
             }
         }
@@ -392,7 +407,9 @@ async function processDocument(
     storagePath: string,
     clientId: string,
     fileName: string,
-    fileType: string
+    fileType: string,
+    targetTokens: number = DEFAULT_TARGET_TOKENS,
+    skipMetadataEnrichment: boolean = false
 ) {
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
         auth: { autoRefreshToken: false, persistSession: false },
@@ -456,7 +473,7 @@ async function processDocument(
             document_id: documentId,
             document_title: fileName.replace(/\.[^.]+$/, ''),
             total_chars: parsedText.length,
-        });
+        }, targetTokens);
         console.log(`[process-document] Chunked: ${chunks.length} chunks`);
 
         if (chunks.length === 0) {
@@ -470,25 +487,30 @@ async function processDocument(
         console.log(`[process-document] Embeddings generated: ${embeddings.length}`);
 
         // 5. Enrich metadata via LLM (5 concurrent calls)
-        console.log(`[process-document] Enriching metadata...`);
-        const METADATA_CONCURRENCY = 5;
+        // Skip when caller sets skip_metadata_enrichment=true (e.g. structured generated docs
+        // like context reports where the category/theme are already known).
         const enrichedMetadata: (EnrichedMetadata | null)[] = new Array(chunks.length).fill(null);
-
-        for (let i = 0; i < chunks.length; i += METADATA_CONCURRENCY) {
-            const batch = chunks.slice(i, i + METADATA_CONCURRENCY);
-            const results = await Promise.allSettled(
-                batch.map((chunk) => callMetadataLLM(chunk.text.slice(0, 2000)))
-            );
-            results.forEach((result, idx) => {
-                if (result.status === "fulfilled") {
-                    enrichedMetadata[i + idx] = result.value;
-                } else {
-                    console.warn(`[process-document] Metadata enrichment failed for chunk ${i + idx}:`, result.reason);
-                    // Non-fatal — chunk will be inserted without enrichment
-                }
-            });
+        if (skipMetadataEnrichment) {
+            console.log(`[process-document] Skipping metadata enrichment (skip_metadata_enrichment=true)`);
+        } else {
+            console.log(`[process-document] Enriching metadata...`);
+            const METADATA_CONCURRENCY = 5;
+            for (let i = 0; i < chunks.length; i += METADATA_CONCURRENCY) {
+                const batch = chunks.slice(i, i + METADATA_CONCURRENCY);
+                const results = await Promise.allSettled(
+                    batch.map((chunk) => callMetadataLLM(chunk.text.slice(0, 2000)))
+                );
+                results.forEach((result, idx) => {
+                    if (result.status === "fulfilled") {
+                        enrichedMetadata[i + idx] = result.value;
+                    } else {
+                        console.warn(`[process-document] Metadata enrichment failed for chunk ${i + idx}:`, result.reason);
+                        // Non-fatal — chunk will be inserted without enrichment
+                    }
+                });
+            }
+            console.log(`[process-document] Metadata enriched: ${enrichedMetadata.filter(Boolean).length}/${chunks.length}`);
         }
-        console.log(`[process-document] Metadata enriched: ${enrichedMetadata.filter(Boolean).length}/${chunks.length}`);
 
         // 6. Transactional insert: delete old chunks, insert new ones with embeddings + metadata
         await sql.begin(async (tx: ReturnType<typeof postgres>) => {
@@ -569,6 +591,33 @@ async function processDocument(
         console.log(
             `[process-document] Completed: ${fileName}, ${chunks.length} chunks inserted with embeddings + metadata`
         );
+
+        // ── Best-effort: upsert knowledge document inventory ──────────────────
+        // Map vector_db.documents.category → knowledge_document_types.id so
+        // coverage scores update automatically when files are processed.
+        if (docCategory) {
+          const docTypeId = CATEGORY_TO_DOC_TYPE[docCategory.toLowerCase()] ?? null;
+          if (docTypeId) {
+            await supabase
+              .from("client_knowledge_documents")
+              .upsert(
+                {
+                  client_id: clientId,
+                  document_type_id: docTypeId,
+                  status: "complete",
+                  source: "upload",
+                  vector_document_id: documentId,
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: "client_id,document_type_id" },
+              )
+              .then(({ error }) => {
+                if (error) {
+                  console.warn("[process-document] Knowledge document upsert failed:", error.message);
+                }
+              });
+          }
+        }
     } catch (err) {
         console.error(`[process-document] Error processing ${fileName}:`, err);
         // Mark document as failed
@@ -607,68 +656,50 @@ Deno.serve(async (req: Request) => {
 
     try {
         const body = await req.json();
-        const { document_id, storage_path, client_id, file_name, file_type } = body;
+        const { document_id, storage_path, client_id, file_name, file_type, target_tokens, skip_metadata_enrichment } = body;
 
         // Validate required fields
         if (!document_id || !storage_path || !client_id || !file_name || !file_type) {
-            return new Response(
-                JSON.stringify({
-                    error:
-                        "Missing required fields: document_id, storage_path, client_id, file_name, file_type",
-                }),
-                {
-                    status: 400,
-                    headers: { ...corsHeaders, "Content-Type": "application/json" },
-                }
+            return json(
+                { error: "Missing required fields: document_id, storage_path, client_id, file_name, file_type" },
+                400,
             );
         }
 
         // Validate file type is supported for simple processing
         const parser = getParser(file_type);
         if (!parser) {
-            return new Response(
-                JSON.stringify({
-                    error: `Unsupported file type for simple processing: ${file_type}. Use file_upload_api for complex files.`,
-                }),
-                {
-                    status: 422,
-                    headers: { ...corsHeaders, "Content-Type": "application/json" },
-                }
+            return json(
+                { error: `Unsupported file type for simple processing: ${file_type}. Use file_upload_api for complex files.` },
+                422,
             );
         }
 
+        // Clamp target_tokens: must be between 50 and 500 (Cohere max = 512)
+        const resolvedTargetTokens = typeof target_tokens === "number"
+            ? Math.min(Math.max(Math.round(target_tokens), 50), 500)
+            : DEFAULT_TARGET_TOKENS;
+        const resolvedSkipEnrichment = skip_metadata_enrichment === true;
+
         // Process synchronously — parse, chunk, embed, enrich, insert in one call
-        console.log(`[process-document] Starting processing for ${file_name}`);
+        console.log(`[process-document] Starting processing for ${file_name} (target_tokens=${resolvedTargetTokens})`);
         await Promise.race([
-            processDocument(document_id, storage_path, client_id, file_name, file_type),
+            processDocument(document_id, storage_path, client_id, file_name, file_type, resolvedTargetTokens, resolvedSkipEnrichment),
             catchUnload(),
         ]);
         console.log(`[process-document] Completed processing for ${file_name}`);
 
-        return new Response(
-            JSON.stringify({
-                document_id,
-                status: "completed",
-                chunk_count: 0, // actual count already persisted in DB
-                message:
-                    "Document processed, embedded, and ready for search.",
-            }),
-            {
-                status: 200,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-        );
+        return json({
+            document_id,
+            status: "completed",
+            chunk_count: 0, // actual count already persisted in DB
+            message: "Document processed, embedded, and ready for search.",
+        });
     } catch (err) {
         console.error("[process-document] Handler error:", err);
-        return new Response(
-            JSON.stringify({
-                error: "Internal error",
-                details: err instanceof Error ? err.message : String(err),
-            }),
-            {
-                status: 500,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
+        return json(
+            { error: "Internal error", details: err instanceof Error ? err.message : String(err) },
+            500,
         );
     }
 });

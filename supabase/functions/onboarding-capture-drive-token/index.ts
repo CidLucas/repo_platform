@@ -23,8 +23,14 @@
 //
 // No token material is returned or logged.
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Fernet from "npm:fernet@0.4.0";
+import {
+  requireAuth,
+  createServiceClient,
+  resolveClientId,
+  AuthError,
+} from "../_shared/blu_auth.ts";
+import { corsHeaders, json } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -36,20 +42,6 @@ const DEFAULT_SCOPES = [
   "https://www.googleapis.com/auth/spreadsheets.readonly",
 ];
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
-
 function encryptFernet(plaintext: string): string {
   if (!CREDENTIALS_ENCRYPTION_KEY) {
     throw new Error("CREDENTIALS_ENCRYPTION_KEY not set");
@@ -59,21 +51,6 @@ function encryptFernet(plaintext: string): string {
   const secret = new Fernet.Secret(CREDENTIALS_ENCRYPTION_KEY);
   const token = new Fernet.Token({ secret, time: Date.now() });
   return token.encode(plaintext);
-}
-
-// Resolve the caller's client_id under RLS (SECURITY INVOKER). We never
-// accept client_id from the wire.
-async function resolveClientId(userJwt: string): Promise<string | null> {
-  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: { headers: { Authorization: `Bearer ${userJwt}` } },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-  const { data, error } = await client.rpc("get_my_client_id");
-  if (error) {
-    console.error("[capture-drive-token] get_my_client_id failed:", error);
-    return null;
-  }
-  return (data as string | null) ?? null;
 }
 
 interface RequestBody {
@@ -92,30 +69,10 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    // ── Auth: validate JWT via Auth API ──
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
-      return json({ connected: false, error: "missing authorization" }, 401);
-    }
-    const token = authHeader.replace(/^[Bb]earer\s+/, "");
-    const userResp = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: SUPABASE_ANON_KEY,
-      },
-    });
-    if (!userResp.ok) {
-      return json({ connected: false, error: "invalid or expired token" }, 401);
-    }
-    const userPayload = (await userResp.json()) as {
-      id?: string;
-      email?: string;
-    };
-    if (!userPayload?.id) {
-      return json({ connected: false, error: "invalid auth payload" }, 401);
-    }
+    // ── 1. Auth: validate JWT, extract user context ──────────────────────────
+    const ctx = await requireAuth(req, SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // ── Body ──
+    // ── 2. Parse body ────────────────────────────────────────────────────────
     let body: RequestBody = {};
     try {
       body = (await req.json()) as RequestBody;
@@ -135,8 +92,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // ── Resolve tenant under RLS ──
-    const clientId = await resolveClientId(token);
+    // ── 3. Resolve tenant client_id (RLS-scoped, never from wire) ───────────
+    // Resolution order: app_metadata → user_metadata → clientes_blu DB lookup.
+    const clientId = await resolveClientId(ctx, SUPABASE_URL, SUPABASE_ANON_KEY);
     if (!clientId) {
       return json(
         { connected: false, error: "no clientes_blu row for this user" },
@@ -144,9 +102,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // ── Encrypt + upsert via service role (RLS policies allow tenant
-    // writes, but service role keeps behavior uniform across envs where
-    // JWT->RLS resolution differs e.g. legacy email-based rows). ──
+    // ── 4. Encrypt + upsert via service client ───────────────────────────────
+    // Service role is appropriate here: writing encrypted credential material
+    // requires bypassing RLS to ensure uniform behavior across envs where
+    // JWT→RLS resolution differs (e.g. legacy email-based rows).
     const refreshEncrypted = encryptFernet(refreshToken);
     const accessEncrypted = body.provider_token?.trim()
       ? encryptFernet(body.provider_token.trim())
@@ -154,7 +113,7 @@ Deno.serve(async (req: Request) => {
 
     const accountEmail = (
       body.account_email?.trim() ||
-      userPayload.email ||
+      ctx.email ||
       "default@unknown.com"
     ).toLowerCase();
 
@@ -163,9 +122,7 @@ Deno.serve(async (req: Request) => {
         ? body.scopes
         : DEFAULT_SCOPES;
 
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
+    const admin = createServiceClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
     const { error: upsertError } = await admin
       .from("integration_tokens")
@@ -195,6 +152,9 @@ Deno.serve(async (req: Request) => {
 
     return json({ connected: true, account_email: accountEmail });
   } catch (err) {
+    if (err instanceof AuthError) {
+      return json({ connected: false, error: err.message }, err.status);
+    }
     console.error("[capture-drive-token] unhandled error:", err);
     return json(
       { connected: false, error: (err as Error).message || "internal error" },

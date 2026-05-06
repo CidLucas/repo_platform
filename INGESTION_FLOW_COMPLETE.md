@@ -21,7 +21,7 @@
 
 ### 3. Job Queueing ✅
 
-- `run-sync` edge function creates job record in `analytics_v2.reg_jobs`
+- `run-sync-etl` edge function creates job record in `analytics_v2.reg_jobs`
 - Job transitions: `pending` → `running` → `completed`
 - Tracks progress (progress_pct, rows_inserted, duration_seconds)
 
@@ -48,7 +48,7 @@
 
 ### 7. Direct Async Processing ✅
 
-- `run-sync` edge function calls `sincronizar_dados_cliente` RPC directly
+- `run-sync-etl` edge function calls `sincronizar_dados_cliente` RPC directly
 - No inter-function communication - eliminates auth complexity
 - Full dataset processes in 1-2 minutes (not 50 minutes)
 - Alternative: pg_cron still available as fallback for recovery
@@ -85,25 +85,25 @@ v_transacao_id := md5(
 
 ### 2. Fix: Environment variable fallback for SERVICE_ROLE_KEY
 
-**Problem**: run-sync failed with "supabaseKey is required" due to env var name mismatch
+**Problem**: run-sync-etl failed with "supabaseKey is required" due to env var name mismatch
 **Solution**: Implement fallback chain to try multiple env var names
 
 ```typescript
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? 
-                         Deno.env.get("SUPABASE_SERVICE_KEY") ?? 
-                         Deno.env.get("SERVICE_ROLE_KEY")!;
+const SERVICE_ROLE_KEY =
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
+  Deno.env.get("SUPABASE_SERVICE_KEY") ??
+  Deno.env.get("SERVICE_ROLE_KEY")!;
 ```
 
 ### 3. Fix: Direct RPC call instead of inter-function communication
 
 **Problem**: Edge function → Edge function auth complexity, environment variable injection issues
-**Solution**: run-sync calls `sincronizar_dados_cliente` RPC directly using existing Supabase client
+**Solution**: run-sync-etl calls `sincronizar_dados_cliente` RPC directly using existing Supabase client
 
 ```typescript
-const { error: rpcError } = await supabase.rpc(
-  "sincronizar_dados_cliente",
-  { p_job_id: job.job_id }
-);
+const { error: rpcError } = await supabase.rpc("sincronizar_dados_cliente", {
+  p_job_id: job.job_id,
+});
 ```
 
 ### 4. Fix: Full-batch processing without LIMIT clause
@@ -146,8 +146,8 @@ END IF;
 3. User adjusts column mapping on mapping page
    ↓
 4. User clicks "Confirmar e Sincronizar"
-   - Frontend sends column_mapping to run-sync
-   - run-sync validates user ownership & mapping readiness
+   - Frontend sends column_mapping to run-sync-etl
+   - run-sync-etl validates user ownership & mapping readiness
    - Creates pending job in reg_jobs
    - IMMEDIATELY calls sincronizar_dados_cliente(job_id) RPC
    ↓
@@ -195,7 +195,7 @@ END IF;
 ## Files Modified
 
 - `supabase/functions/discover-bigquery-columns/index.ts` (v5)
-- `supabase/functions/run-sync/index.ts` (v18 - direct RPC calls + env var fallback)
+- `supabase/functions/run-sync-etl/index.ts` (v18 - direct RPC calls + env var fallback)
 - `supabase/functions/process-job-async/index.ts` (v4 - fallback if needed)
 - `supabase/migrations/20260428210000_fix_bigquery_ft_cleanup_and_column_update.sql`
 - `supabase/migrations/20260428230000_create_sync_processor_function_and_cron.sql`
@@ -206,7 +206,7 @@ END IF;
 ## Next Steps
 
 1. **Test the sync** - Click "Sincronizar" on a connector and verify 100k+ rows process in 1-2 minutes
-2. **Monitor edge function logs** - Check run-sync logs for successful RPC execution
+2. **Monitor edge function logs** - Check run-sync-etl logs for successful RPC execution
 3. **Verify data quality** - Check analytics_v2 tables for correct dimensional data
 4. **Monitor performance** - Track RPC execution time and database load during syncs
 5. **Optional: Disable pg_cron** - If direct RPC is working consistently, pg_cron can remain as fallback
@@ -214,8 +214,8 @@ END IF;
 ## Testing Checklist
 
 - [x] Service role key authentication works (env var fallback chain)
-- [x] run-sync creates jobs successfully
-- [x] Direct RPC call from run-sync executes
+- [x] run-sync-etl creates jobs successfully
+- [x] Direct RPC call from run-sync-etl executes
 - [x] Optimized sincronizar_dados_cliente processes all rows without LIMIT
 - [x] Column mapping extraction works correctly
 - [x] Dimension tables upsert properly (no constraint errors)

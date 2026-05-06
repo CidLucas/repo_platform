@@ -144,7 +144,7 @@ def set_rls_context(client: Client, cliente_id: str) -> None:
         # Subsequent queries will respect RLS policies
     """
     try:
-        client.rpc("set_current_cliente_id", {"cliente_id": cliente_id}).execute()
+        client.rpc("set_current_cliente_id", {"p_client_id": cliente_id}).execute()
         logger.debug(f"RLS context set for cliente_id: {cliente_id}")
     except Exception as e:
         logger.warning(f"Could not set RLS context: {e}")

@@ -70,6 +70,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
         rfq_module,
         rfq_whatsapp_module,
         sql_module,
+        web_crawl_module,
         web_monitor_module,
     )
 
@@ -133,6 +134,11 @@ AVAILABLE_MODULES = {
     "monitoring": {
         "description": "Monitoramento web com crawl4ai e expansão semântica",
         "tools": ["monitor_feature", "monitor_keywords", "monitor_company"],
+        "requires_auth": False,
+    },
+    "web_crawl": {
+        "description": "Deep website crawling for content extraction and company context building",
+        "tools": ["crawl_website", "extract_company_context"],
         "requires_auth": False,
     },
     "google": {

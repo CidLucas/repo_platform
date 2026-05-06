@@ -41,6 +41,13 @@ const EMPLOYEE_RANGE: Record<string, string> = {
   grande: "250+",
 };
 
+// v2 flow captures teamSize instead of porte — map to the same range labels.
+const TEAM_SIZE_RANGE: Record<string, string> = {
+  solo: "1",
+  pequeno: "2-10",
+  estruturado: "10-50",
+};
+
 // Map the ApprovalTaskId enum to short human-readable labels the agent
 // prompt templates use. Keep aligned with supabase/functions/onboarding-
 // bootstrap (Phase 4) — those strings end up in policies.approval_requirements.
@@ -78,6 +85,8 @@ export function mapBusinessDNAToCompanyProfile(
   }
   if (state.porte && EMPLOYEE_RANGE[state.porte]) {
     out.employee_count_range = EMPLOYEE_RANGE[state.porte];
+  } else if (state.teamSize && TEAM_SIZE_RANGE[state.teamSize]) {
+    out.employee_count_range = TEAM_SIZE_RANGE[state.teamSize];
   }
   if (state.website.trim()) {
     // Website has no first-class slot on CompanyProfile; parked on tagline

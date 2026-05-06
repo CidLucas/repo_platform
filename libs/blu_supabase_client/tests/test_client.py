@@ -140,5 +140,5 @@ class TestRLSContext:
 
         mock_client.rpc.assert_called_with(
             "set_current_cliente_id",
-            {"cliente_id": "test-cliente-uuid"}
+            {"p_client_id": "test-cliente-uuid"}
         )

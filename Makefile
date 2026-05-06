@@ -92,6 +92,7 @@ help:
 	@echo "   make data-anonymize     Anonymize CSV with Presidio (INPUT=raw.csv OUTPUT=clean.csv)"
 	@echo ""
 	@echo "🔧 DEVELOPMENT"
+	@echo "   make blu-app-dev     Start blu_app Vite dev server (http://localhost:5174)"
 	@echo "   make shell           Shell into SERVICE=<name> container"
 	@echo "   make fmt             Format code (ruff) - services + libs"
 	@echo "   make lint            Lint code (ruff check) - services + libs"
@@ -117,7 +118,6 @@ help:
 # Core development stack - minimal services for fast iteration
 dev:
 	@echo "🚀 Starting core dev stack..."
-	@echo "   ✓ blu_dashboard (frontend)"
 	@echo "   ✓ landing (landing page)"
 	@echo "   ✓ atendente_core (main backend)"
 	@echo "   ✓ tool_pool_api (MCP tools)"
@@ -128,27 +128,26 @@ dev:
 	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
 	@echo "📋 Services:"
-	@echo "   � Landing:        http://localhost:8080"
-	@echo "   🎨 Dashboard:      http://localhost:8081"
+	@echo "   🌐 Landing:        http://localhost:8080"
 	@echo "   🤖 Atendente:      http://localhost:8003"
 	@echo "   🔧 Tool Pool:      http://localhost:8006"
 	@echo "   📊 Standalone API: http://localhost:8001"
 	@echo ""
 	@echo "🛑 Stop stack:        Ctrl+C then 'make dev-down'"
 	@echo ""
-	$(COMPOSE) up --build redis tool_pool_api atendente_core standalone_agent_api blu_dashboard landing
+	$(COMPOSE) up --build redis tool_pool_api atendente_core standalone_agent_api landing
 
 dev-down:
 	@echo "🛑 Stopping dev stack..."
-	$(COMPOSE) stop blu_dashboard landing atendente_core standalone_agent_api tool_pool_api redis
+	$(COMPOSE) stop landing atendente_core standalone_agent_api tool_pool_api redis
 	@echo "✅ Dev stack stopped (containers preserved, use 'make down' to remove)"
 
 dev-logs:
-	$(COMPOSE) logs -f --tail=100 blu_dashboard landing atendente_core tool_pool_api redis
+	$(COMPOSE) logs -f --tail=100 landing atendente_core tool_pool_api redis
 
 dev-rebuild:
 	@echo "🔨 Rebuilding dev services (no cache)..."
-	$(COMPOSE) build --no-cache blu_dashboard atendente_core tool_pool_api
+	$(COMPOSE) build --no-cache atendente_core tool_pool_api
 	@echo "✅ Rebuild complete. Run 'make dev' to start."
 
 up:
@@ -606,7 +605,16 @@ data-whats-amostra:
 # DEVELOPMENT
 # =============================================================================
 
-.PHONY: shell fmt lint clean
+.PHONY: shell fmt lint clean blu-app-dev
+
+blu-app-dev:
+	@echo "🎨 Starting blu_app dev server..."
+	@echo "   📦 URL: http://localhost:5174"
+	@echo ""
+	cd apps/blu_app && \
+		VITE_SUPABASE_URL="$(VITE_SUPABASE_URL)" \
+		VITE_SUPABASE_ANON_KEY="$(VITE_SUPABASE_ANON_KEY)" \
+		npm run dev
 
 shell:
 	$(COMPOSE) exec $(SERVICE) bash

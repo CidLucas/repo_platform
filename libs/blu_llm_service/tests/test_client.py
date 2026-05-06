@@ -111,5 +111,5 @@ def test_get_model_tier_mapping():
     settings.OLLAMA_CLOUD_API_KEY = "test-api-key"
 
     llm_powerful = get_model(tier=ModelTier.POWERFUL)
-    # POWERFUL maps to deepseek-v3.1:671b for Ollama Cloud
-    assert llm_powerful.model == "deepseek-v3.1:671b"
+    # POWERFUL maps to deepseek-v4-pro for Ollama Cloud
+    assert llm_powerful.bound.model == "deepseek-v4-pro"

@@ -1,0 +1,67 @@
+- generic [ref=e852]:
+  - navigation "Navegação principal" [ref=e853]:
+    - generic [ref=e855]: blu
+    - button "Início" [ref=e857] [cursor=pointer]:
+      - img [ref=e859]
+      - generic [ref=e862]: Início
+    - generic [ref=e864]:
+      - paragraph [ref=e865]: Agentes
+      - button "Compras" [ref=e866] [cursor=pointer]:
+        - img [ref=e869]
+        - generic [ref=e872]: Compras
+      - button "Financeiro" [ref=e873] [cursor=pointer]:
+        - img [ref=e876]
+        - generic [ref=e879]: Financeiro
+      - button "Agenda" [ref=e880] [cursor=pointer]:
+        - img [ref=e883]
+        - generic [ref=e886]: Agenda
+      - button "Documentos" [ref=e887] [cursor=pointer]:
+        - img [ref=e890]
+        - generic [ref=e893]: Documentos
+      - button "Estratégia" [ref=e894] [cursor=pointer]:
+        - img [ref=e897]
+        - generic [ref=e900]: Estratégia
+      - button "Clientes" [ref=e901] [cursor=pointer]:
+        - img [ref=e904]
+        - generic [ref=e907]: Clientes
+    - generic [ref=e909]:
+      - button "Atividade" [ref=e910] [cursor=pointer]:
+        - img [ref=e912]
+        - generic [ref=e914]: Atividade
+      - button "Biblioteca" [ref=e915] [cursor=pointer]:
+        - img [ref=e917]
+        - generic [ref=e919]: Biblioteca
+      - button "Admin" [active] [ref=e920] [cursor=pointer]:
+        - img [ref=e922]
+        - generic [ref=e925]: Admin
+  - generic [ref=e926]:
+    - banner [ref=e927]:
+      - generic [ref=e928]:
+        - generic [ref=e929]: blu
+        - generic [ref=e930]: /
+        - generic [ref=e931]: Admin
+      - generic [ref=e932]:
+        - button "Abrir busca" [ref=e933] [cursor=pointer]:
+          - img [ref=e934]
+        - button "Notificações" [ref=e938] [cursor=pointer]:
+          - img [ref=e939]
+        - 'generic "Usuário: cid.lucas@gmail.com" [ref=e942]': CI
+    - main [ref=e943]:
+      - generic [ref=e1009]:
+        - generic [ref=e1010]:
+          - img [ref=e1012]
+          - generic [ref=e1015]:
+            - heading "Administração" [level=1] [ref=e1016]
+            - paragraph [ref=e1017]: Integrações, usuários, faturamento e configurações
+        - tablist [ref=e1018]:
+          - tab "Integrações" [selected] [ref=e1019] [cursor=pointer]
+          - tab "Usuários" [ref=e1020] [cursor=pointer]
+          - tab "Faturamento" [ref=e1021] [cursor=pointer]
+          - tab "Auditoria" [ref=e1022] [cursor=pointer]
+          - tab "LGPD" [ref=e1023] [cursor=pointer]
+          - tab "Notificações" [ref=e1024] [cursor=pointer]
+        - generic [ref=e1025]:
+          - img [ref=e1026]
+          - heading "Algo deu errado" [level=2] [ref=e1028]
+          - paragraph [ref=e1029]: Ocorreu um erro inesperado nesta área. Tente novamente.
+          - button "Tentar novamente" [ref=e1030] [cursor=pointer]

@@ -25,9 +25,11 @@ Uso rápido:
 
 from .client import (
     MODEL_MAPPINGS,
+    FALLBACK_MODEL_MAPPINGS,
     LLMProvider,
     ModelTask,
     ModelTier,
+    OllamaCloudModel,
     BluEmbeddingAPIClient,
     flush_langfuse,
     get_base_callbacks,
@@ -123,6 +125,7 @@ __all__ = [
     "ModelTier",
     "ModelTask",
     "LLMProvider",
+    "OllamaCloudModel",
     # Classes
     "BluEmbeddingAPIClient",
     # Config
@@ -131,4 +134,5 @@ __all__ = [
     "clear_settings_cache",
     # Mappings
     "MODEL_MAPPINGS",
+    "FALLBACK_MODEL_MAPPINGS",
 ]

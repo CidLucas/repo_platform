@@ -14,30 +14,80 @@ extra_search_path = ["public", "extensions", "vector_db"]
 # for accidental or malicious requests.
 max_rows = 1000
 
-[functions]
-# JWT verification enabled on all edge functions for security
-# Functions that need public access should validate auth internally
+# ── Edge Function auth policy ────────────────────────────────────────────────
+#
+# Two strategies are in use:
+#
+#  verify_jwt = true  (Supabase edge validates before invoking the function)
+#    → Used for pure-computation or service-key-called functions where the
+#      edge layer provides the first line of defence and ES256 is not required.
+#
+#  verify_jwt = false + internal validation via /auth/v1/user
+#    → Used whenever functions need to:
+#        a) Support ES256 tokens (Supabase's newer JWT format) — the edge
+#           layer only handles HS256.
+#        b) Extract custom JWT claims (app_metadata.client_id, aal, etc.)
+#           for tenant scoping / MFA enforcement.
+#        c) Act as internal workers called by pg_net/pg_cron (no user JWT).
+#      All such functions import requireAuth() from _shared/blu_auth.ts which
+#      calls /auth/v1/user and returns a typed UserContext.
+#
+# ─────────────────────────────────────────────────────────────────────────────
 
+[functions]
+
+# ── User-facing: internal validation (verify_jwt=false + blu_auth) ────────────
+
+# run-sync-etl: user triggers BigQuery sync — validates JWT internally for ES256
+# support and to extract client_id from app_metadata before ownership check.
+[functions.run-sync-etl]
+verify_jwt = false
+
+# discover-bigquery-columns: user initiates BQ schema discovery — validates
+# JWT internally, cross-checks credential ownership via clientes_blu.
+[functions.discover-bigquery-columns]
+verify_jwt = false
+
+# onboarding-bootstrap: landing wizard provisioning — validates JWT internally,
+# all RPCs run under SECURITY INVOKER with the caller's JWT.
+[functions.onboarding-bootstrap]
+verify_jwt = false
+
+# onboarding-capture-drive-token: stores encrypted OAuth refresh token for the
+# authenticated tenant — validates JWT, resolves client_id from claims/DB.
+[functions.onboarding-capture-drive-token]
+verify_jwt = false
+
+# google-calendar-events: reads calendar for the authenticated tenant — validates
+# JWT internally, uses service client only for encrypted token decryption.
+[functions.google-calendar-events]
+verify_jwt = false
+
+# ── User-facing: edge-layer validation (verify_jwt=true) ─────────────────────
+
+# match-columns: stateless fuzzy schema matcher — pure computation, no DB writes.
+# Edge validates the JWT; function body needs no auth code.
 [functions.match-columns]
 verify_jwt = true
 
-[functions.embed]
-verify_jwt = true
-
-[functions.process-document]
-verify_jwt = true
-
+# search-documents: hybrid vector search — called by Python backend (service key)
+# or authenticated frontend. Edge validates the token in both cases.
 [functions.search-documents]
 verify_jwt = true
 
-[functions.run-sync]
+# process-document: document ingestion pipeline — called with service key from
+# backend. Edge validates; no user JWT inside the function body.
+[functions.process-document]
+verify_jwt = true
+
+# ── Internal workers (verify_jwt=false, no user JWT) ─────────────────────────
+
+# enrich-metadata: metadata enrichment queue worker — invoked by pg_net from
+# the database scheduler. No user JWT; protected by network isolation only.
+[functions.enrich-metadata]
 verify_jwt = false
 
-[functions.google-calendar-events]
-verify_jwt = true
-
-[functions.onboarding-bootstrap]
-verify_jwt = true
-
-[functions.onboarding-capture-drive-token]
-verify_jwt = true
+# onboarding-website-intel: website scraping helper — invoked server-side
+# during onboarding flow; no direct user JWT required.
+[functions.onboarding-website-intel]
+verify_jwt = false

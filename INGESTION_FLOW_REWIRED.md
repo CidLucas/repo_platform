@@ -132,7 +132,7 @@ Since `source_columns` is now populated by the RPC, this condition is skipped.
    ↓
 9. User clicks "Confirmar e Sincronizar"
    ↓
-10. Sync job runs (run-sync edge function)
+10. Sync job runs (run-sync-etl edge function)
     └─ Loads data from BigQuery into canonical tables
 ```
 

@@ -8,6 +8,7 @@ based on service type at runtime.
 import logging
 from typing import Any
 
+from blu_data_connectors.accounting import ContaAzulConnector
 from blu_data_connectors.ecommerce import (
     LojaIntegradaConnector,
     ShopifyConnector,
@@ -34,6 +35,7 @@ class ConnectorFactory:
         "LOJA_INTEGRADA": "loja_integrada",
         "POSTGRESQL": "postgresql",
         "MYSQL": "mysql",
+        "CONTA_AZUL": "conta_azul",
     }
 
     @classmethod
@@ -91,6 +93,9 @@ class ConnectorFactory:
         elif tipo == "LOJA_INTEGRADA":
             return LojaIntegradaConnector(credentials)
 
+        elif tipo == "CONTA_AZUL":
+            return ContaAzulConnector(credentials)
+
         else:
             raise ValueError(f"Unsupported service type: {tipo_servico}")
 
@@ -106,5 +111,6 @@ class ConnectorFactory:
             "LOJA_INTEGRADA": ["products", "orders", "customers", "inventory", "categories"],
             "POSTGRESQL": ["tables"],
             "MYSQL": ["tables"],
+            "CONTA_AZUL": ["invoices", "accounts_payable", "accounts_receivable"],
         }
         return resources.get(tipo_servico.upper(), [])

@@ -213,7 +213,7 @@ const DataFork: React.FC = () => {
     setSaving(true);
     try {
       await patchOnboardingState(patch);
-      navigate("/onboarding/agents");
+      navigate(path === "systems" ? "/onboarding/mapping" : "/onboarding/launch");
     } catch (err) {
       toast({
         title: "Não foi possível salvar",
@@ -231,7 +231,7 @@ const DataFork: React.FC = () => {
   return (
     <OnboardingLayout progress={50}>
       <StepHeader
-        eyebrow="Passo 2 de 4"
+        eyebrow="Passo 3 de 4"
         title={
           <>
             Qual é a sua{" "}

@@ -1,0 +1,101 @@
+- generic [ref=e852]:
+  - navigation "Navegação principal" [ref=e853]:
+    - generic [ref=e855]: blu
+    - button "Início" [ref=e857] [cursor=pointer]:
+      - img [ref=e859]
+      - generic [ref=e862]: Início
+    - generic [ref=e864]:
+      - paragraph [ref=e865]: Agentes
+      - button "Compras" [ref=e866] [cursor=pointer]:
+        - img [ref=e869]
+        - generic [ref=e872]: Compras
+      - button "Financeiro" [ref=e873] [cursor=pointer]:
+        - img [ref=e876]
+        - generic [ref=e879]: Financeiro
+      - button "Agenda" [ref=e880] [cursor=pointer]:
+        - img [ref=e883]
+        - generic [ref=e886]: Agenda
+      - button "Documentos" [ref=e887] [cursor=pointer]:
+        - img [ref=e890]
+        - generic [ref=e893]: Documentos
+      - button "Estratégia" [ref=e894] [cursor=pointer]:
+        - img [ref=e897]
+        - generic [ref=e900]: Estratégia
+      - button "Clientes" [ref=e901] [cursor=pointer]:
+        - img [ref=e904]
+        - generic [ref=e907]: Clientes
+    - generic [ref=e909]:
+      - button "Atividade" [ref=e910] [cursor=pointer]:
+        - img [ref=e912]
+        - generic [ref=e914]: Atividade
+      - button "Biblioteca" [ref=e915] [cursor=pointer]:
+        - img [ref=e917]
+        - generic [ref=e919]: Biblioteca
+      - button "Admin" [ref=e920] [cursor=pointer]:
+        - img [ref=e922]
+        - generic [ref=e925]: Admin
+  - generic [ref=e926]:
+    - banner [ref=e927]:
+      - generic [ref=e928]:
+        - generic [ref=e929]: blu
+        - generic [ref=e930]: /
+        - generic [ref=e931]: Início
+      - generic [ref=e932]:
+        - button "Abrir busca" [ref=e933] [cursor=pointer]:
+          - img [ref=e934]
+        - button "Notificações" [ref=e938] [cursor=pointer]:
+          - img [ref=e939]
+        - 'generic "Usuário: cid.lucas@gmail.com" [ref=e942]': CI
+    - main [ref=e943]:
+      - generic [ref=e944]:
+        - generic [ref=e945]:
+          - button "Números do período" [ref=e946] [cursor=pointer]:
+            - generic [ref=e947]:
+              - generic [ref=e948]:
+                - generic [ref=e949]: "Faturamento:"
+                - generic [ref=e950]: R$ 949,3M
+              - generic [ref=e951]:
+                - generic [ref=e952]: ·
+                - generic [ref=e953]: "Pedidos:"
+                - generic [ref=e954]: "106.575"
+              - generic [ref=e955]:
+                - generic [ref=e956]: ·
+                - generic [ref=e957]: "Clientes:"
+                - generic [ref=e958]: "313"
+            - img [ref=e960]
+          - generic [ref=e962]:
+            - generic [ref=e963]:
+              - generic [ref=e964]:
+                - paragraph [ref=e965]: Faturamento
+                - paragraph [ref=e966]: R$ 949,3M
+              - generic [ref=e967]:
+                - paragraph [ref=e968]: Pedidos
+                - paragraph [ref=e969]: "106.575"
+              - generic [ref=e970]:
+                - paragraph [ref=e971]: Clientes
+                - paragraph [ref=e972]: "313"
+              - generic [ref=e973]:
+                - paragraph [ref=e974]: Ticket médio
+                - paragraph [ref=e975]: R$ 8,9K
+            - paragraph [ref=e977]: Últimos 30 dias
+        - generic [ref=e978]:
+          - region "Decisões pendentes" [ref=e981]:
+            - heading "Decidir agora" [level=2] [ref=e983]
+            - paragraph [ref=e984]: Erro ao carregar decisões.
+          - generic [ref=e985]:
+            - generic [ref=e986]:
+              - heading "Plano de hoje" [level=2] [ref=e988]
+              - paragraph [ref=e989]: Nenhum item agendado para hoje.
+            - generic [ref=e990]:
+              - heading "Visão da semana" [level=2] [ref=e991]
+              - generic [ref=e992]:
+                - button "Sex" [ref=e993] [cursor=pointer]:
+                  - paragraph [ref=e994]: Sex
+                - button "Seg" [ref=e996] [cursor=pointer]:
+                  - paragraph [ref=e997]: Seg
+                - button "Ter" [ref=e999] [cursor=pointer]:
+                  - paragraph [ref=e1000]: Ter
+                - button "Qua" [ref=e1002] [cursor=pointer]:
+                  - paragraph [ref=e1003]: Qua
+                - button "Qui" [ref=e1005] [cursor=pointer]:
+                  - paragraph [ref=e1006]: Qui

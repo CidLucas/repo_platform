@@ -9,6 +9,14 @@ WORKDIR /app
 
 RUN pip install poetry==1.8.0
 
+# System deps required by Playwright/Chromium
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+    libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+    libgbm1 libasound2 libpango-1.0-0 libpangocairo-1.0-0 \
+    libgtk-3-0 libx11-xcb1 libxcb-dri3-0 wget ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy only needed libs (direct + transitive dependencies)
 COPY libs/blu_models ./libs/blu_models
 COPY libs/blu_db_connector ./libs/blu_db_connector
@@ -32,6 +40,8 @@ COPY services/tool_pool_api/pyproject.toml services/tool_pool_api/poetry.lock* .
 
 WORKDIR /app/services/tool_pool_api
 RUN poetry install --no-root
+# Install Playwright Chromium browser for crawl4ai
+RUN .venv/bin/playwright install chromium --with-deps
 RUN rm -rf /root/.cache/pip /root/.cache/pypoetry || true
 
 # ----------------------------------------------------------------
@@ -40,8 +50,19 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+# Runtime deps for Chromium (crawl4ai)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+    libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+    libgbm1 libasound2 libpango-1.0-0 libpangocairo-1.0-0 \
+    libgtk-3-0 libx11-xcb1 libxcb-dri3-0 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy .venv to the same path it had in the builder (preserves console-script shebangs)
 COPY --from=builder /app/services/tool_pool_api/.venv /app/services/tool_pool_api/.venv
+
+# Copy Playwright browser cache from builder
+COPY --from=builder /root/.cache/ms-playwright /root/.cache/ms-playwright
 
 # Copy only src/ folders of libs (not pyproject.toml)
 COPY libs/blu_models/src ./libs/blu_models/src

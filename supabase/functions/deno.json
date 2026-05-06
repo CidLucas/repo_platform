@@ -9,6 +9,7 @@
     },
     "imports": {
         "std/": "https://deno.land/std@0.168.0/",
-        "string-similarity": "https://esm.sh/string-similarity@4.0.4"
+        "string-similarity": "https://esm.sh/string-similarity@4.0.4",
+        "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2"
     }
 }

@@ -354,8 +354,8 @@ class SupabaseCRUD:
         self,
         client_id: UUID,
         provider: str,
-        access_token_encrypted: str,
-        refresh_token_encrypted: str | None,
+        access_token: str,
+        refresh_token: str | None,
         token_type: str | None,
         expires_at: Any | None,
         scopes: list,
@@ -364,44 +364,25 @@ class SupabaseCRUD:
         account_name: str | None = None,
         is_default: bool = False,
     ) -> dict[str, Any] | None:
-        """Save or update integration tokens for a specific account."""
+        """Save or update integration tokens for a specific account via Vault RPC."""
         try:
-            # Use placeholder for legacy single-account usage
             if not account_email:
                 account_email = "default@unknown.com"
-                account_name = account_name or "Primary Account"
                 is_default = True
 
-            # If setting as default, clear other defaults first
-            if is_default:
-                self.client.table("integration_tokens").update(
-                    {"is_default": False}
-                ).eq("client_id", str(client_id)).eq(
-                    "provider", provider
-                ).eq("is_default", True).execute()
-
-            data = {
-                "client_id": str(client_id),
-                "provider": provider,
-                "access_token_encrypted": access_token_encrypted,
-                "refresh_token_encrypted": refresh_token_encrypted,
-                "token_type": token_type,
-                "expires_at": expires_at.isoformat() if hasattr(expires_at, 'isoformat') else expires_at,
-                "scopes": scopes,
-                "metadata": metadata,
-                "account_email": account_email,
-                "account_name": account_name,
-                "is_default": is_default,
-            }
-            response = (
-                self.client
-                .table("integration_tokens")
-                .upsert(data, on_conflict="client_id,provider,account_email")
-                .execute()
-            )
-            if response.data and len(response.data) > 0:
-                return response.data[0]
-            return None
+            response = self.client.rpc("upsert_user_oauth_tokens", {
+                "p_client_id":     str(client_id),
+                "p_provider":      provider,
+                "p_account_email": account_email,
+                "p_access_token":  access_token or "",
+                "p_refresh_token": refresh_token or "",
+                "p_token_type":    token_type or "Bearer",
+                "p_expires_at":    expires_at.isoformat() if hasattr(expires_at, 'isoformat') else expires_at,
+                "p_scopes":        scopes or [],
+                "p_metadata":      metadata or {},
+                "p_is_default":    is_default,
+            }).execute()
+            return response.data
         except Exception as e:
             logger.error(f"Error saving integration tokens: {e}")
             return None
@@ -412,35 +393,16 @@ class SupabaseCRUD:
         provider: str,
         account_email: str | None = None,
     ) -> dict[str, Any] | None:
-        """Get integration tokens for a specific account or the default account."""
+        """Get integration tokens (plaintext) from Vault via SECURITY DEFINER RPC."""
         try:
+            params: dict[str, Any] = {
+                "p_client_id": str(client_id),
+                "p_provider":  provider,
+            }
             if account_email:
-                response = (
-                    self.client
-                    .table("integration_tokens")
-                    .select("*")
-                    .eq("client_id", str(client_id))
-                    .eq("provider", provider)
-                    .eq("account_email", account_email)
-                    .limit(1)
-                    .execute()
-                )
-            else:
-                # Try default account first, then fall back to any account
-                response = (
-                    self.client
-                    .table("integration_tokens")
-                    .select("*")
-                    .eq("client_id", str(client_id))
-                    .eq("provider", provider)
-                    .order("is_default", desc=True)
-                    .order("created_at")
-                    .limit(1)
-                    .execute()
-                )
-            if response.data and len(response.data) > 0:
-                return response.data[0]
-            return None
+                params["p_account_email"] = account_email
+            response = self.client.rpc("get_user_oauth_tokens", params).execute()
+            return response.data if response.data else None
         except Exception as e:
             logger.error(f"Error getting integration tokens: {e}")
             return None

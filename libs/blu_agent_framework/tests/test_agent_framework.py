@@ -127,12 +127,10 @@ class TestAgentState:
         state = create_initial_state(
             session_id="sess-1",
             cliente_id="client-1",
-            enabled_tools=["tool_a"],
         )
 
         assert state["session_id"] == "sess-1"
         assert state["cliente_id"] == "client-1"
-        assert state["enabled_tools"] == ["tool_a"]
         assert state["turn_count"] == 0
         assert state["ended"] is False
 
@@ -213,14 +211,15 @@ class TestNodes:
         assert result == {}
 
     @pytest.mark.asyncio
-    async def test_execute_tool_node_validates_enabled(self, sample_state):
-        """Test execute tool validates tool is enabled."""
-        sample_state["tool_to_execute"] = "disabled_tool"
+    async def test_execute_tool_node_clears_fields(self, sample_state):
+        """Placeholder execute_tool_node clears tool fields; validation is in AgentBuilder."""
+        sample_state["tool_to_execute"] = "some_tool"
+        sample_state["tool_args"] = {"q": "test"}
 
         result = await execute_tool_node(sample_state)
 
-        assert "error" in result
-        assert "not enabled" in result["error"]
+        assert result["tool_to_execute"] is None
+        assert result["tool_args"] is None
 
     @pytest.mark.asyncio
     async def test_end_node_sets_ended(self, sample_state):
@@ -326,83 +325,49 @@ class TestNodeRegistry:
 
 
 # ============================================================================
-# MCPToolExecutor Tests
+# ToolResult Tests
 # ============================================================================
 
 
-class TestMCPToolExecutor:
-    """Tests for MCPToolExecutor."""
+class TestToolResult:
+    """Tests for the ToolResult dataclass (concrete, no network required)."""
 
-    @pytest.mark.asyncio
-    async def test_execute_success(self):
-        """Test successful tool execution."""
-        from blu_agent_framework.mcp_executor import MockMCPToolExecutor
+    def test_success_result(self):
+        from blu_agent_framework.mcp_executor import ToolResult
 
-        executor = MockMCPToolExecutor(
-            {"test_tool": {"success": True, "result": {"data": "value"}}}
+        r = ToolResult(tool_name="my_tool", success=True, result={"rows": 3})
+        assert r.success is True
+        assert r.error is None
+        assert r.metadata == {}
+
+    def test_failure_result(self):
+        from blu_agent_framework.mcp_executor import ToolResult
+
+        r = ToolResult(tool_name="my_tool", success=False, error="timeout")
+        assert r.success is False
+        assert r.error == "timeout"
+
+    def test_to_dict_roundtrip(self):
+        from blu_agent_framework.mcp_executor import ToolResult
+
+        r = ToolResult(
+            tool_name="t",
+            success=True,
+            result="ok",
+            execution_time_ms=12.5,
         )
+        d = r.to_dict()
+        assert d["tool_name"] == "t"
+        assert d["success"] is True
+        assert d["execution_time_ms"] == 12.5
 
-        result = await executor.execute(
-            tool_name="test_tool",
-            tool_args={"arg": "value"},
-            context={"cliente_id": "123"},
-        )
+    def test_to_dict_is_json_serialisable(self):
+        import json
 
-        assert result.success is True
-        assert result.result == {"data": "value"}
+        from blu_agent_framework.mcp_executor import ToolResult
 
-    @pytest.mark.asyncio
-    async def test_execute_failure(self):
-        """Test failed tool execution."""
-        from blu_agent_framework.mcp_executor import MockMCPToolExecutor
-
-        executor = MockMCPToolExecutor({"failing_tool": {"success": False, "error": "Tool failed"}})
-
-        result = await executor.execute(
-            tool_name="failing_tool",
-            tool_args={},
-            context={},
-        )
-
-        assert result.success is False
-        assert result.error == "Tool failed"
-
-    @pytest.mark.asyncio
-    async def test_execute_parallel(self):
-        """Test parallel tool execution."""
-        from blu_agent_framework.mcp_executor import MockMCPToolExecutor
-
-        executor = MockMCPToolExecutor(
-            {
-                "tool_a": {"success": True, "result": "A"},
-                "tool_b": {"success": True, "result": "B"},
-            }
-        )
-
-        results = await executor.execute_parallel(
-            tool_calls=[
-                {"tool_name": "tool_a", "tool_args": {}},
-                {"tool_name": "tool_b", "tool_args": {}},
-            ],
-            context={},
-        )
-
-        assert len(results) == 2
-        assert all(r.success for r in results)
-
-    def test_mock_executor_call_history(self):
-        """Test mock executor tracks call history."""
-        from blu_agent_framework.mcp_executor import MockMCPToolExecutor
-
-        executor = MockMCPToolExecutor()
-
-        import asyncio
-
-        asyncio.run(executor.execute("tool", {"arg": 1}, {}))
-        asyncio.run(executor.execute("tool", {"arg": 2}, {}))
-
-        history = executor.get_calls("tool")
-        assert len(history) == 2
+        r = ToolResult(tool_name="t", success=True, result={"k": 1})
+        json.dumps(r.to_dict())  # must not raise
 
 
 # ============================================================================
@@ -467,10 +432,8 @@ class TestAgentBuilder:
 
     def test_fluent_api(self, sample_config, mock_redis):
         """Test fluent API chaining."""
-        from blu_agent_framework.mcp_executor import MockMCPToolExecutor
-
         checkpointer = RedisCheckpointer(mock_redis)
-        executor = MockMCPToolExecutor()
+        executor = MagicMock()  # any object — builder just stores the reference
 
         builder = (
             AgentBuilder(sample_config)
@@ -661,3 +624,282 @@ class TestFanOut:
         graph = builder.build()
 
         assert graph is not None
+
+
+# ============================================================================
+# Phase 2: Intent Routing State Fields
+# ============================================================================
+
+
+# ============================================================================
+# Phase 3: classify_intent_node
+# ============================================================================
+
+
+class TestClassifyIntentNode:
+    """Tests for classify_intent_node."""
+
+    @pytest.fixture
+    def base_state(self):
+        return create_initial_state(session_id="s", cliente_id="c")
+
+    def _with_last_message(self, state, msg):
+        state["messages"] = [msg]
+        return state
+
+    # --- HumanMessage guard ---
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_when_no_messages(self, base_state):
+        from blu_agent_framework.nodes import classify_intent_node
+
+        result = await classify_intent_node(base_state)
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_on_tool_message(self, base_state):
+        from langchain_core.messages import ToolMessage
+
+        from blu_agent_framework.nodes import classify_intent_node
+
+        base_state["messages"] = [ToolMessage(content="result", tool_call_id="x")]
+        result = await classify_intent_node(base_state)
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_returns_empty_on_ai_message(self, base_state):
+        from langchain_core.messages import AIMessage
+
+        from blu_agent_framework.nodes import classify_intent_node
+
+        base_state["messages"] = [AIMessage(content="here is the answer")]
+        result = await classify_intent_node(base_state)
+        assert result == {}
+
+    # --- PT-BR keyword detection ---
+
+    @pytest.mark.asyncio
+    async def test_rfq_keywords_set_rfq_domain(self, base_state):
+        from blu_agent_framework.nodes import classify_intent_node
+
+        base_state["messages"] = [HumanMessage(content="Preciso fazer uma cotação com meus fornecedores")]
+        result = await classify_intent_node(base_state)
+
+        assert result["current_domain"] == "rfq"
+        assert "rfq" in result["intent_tags"]
+        assert result["current_intent"].startswith("Preciso")
+
+    @pytest.mark.asyncio
+    async def test_analytics_keywords_set_analytics_domain(self, base_state):
+        from blu_agent_framework.nodes import classify_intent_node
+
+        base_state["messages"] = [HumanMessage(content="Gere um relatório de análise de vendas")]
+        result = await classify_intent_node(base_state)
+
+        assert result["current_domain"] == "analytics"
+        assert any(t in result["intent_tags"] for t in ("analytics", "sql", "csv"))
+
+    @pytest.mark.asyncio
+    async def test_documents_keywords_set_documents_domain(self, base_state):
+        from blu_agent_framework.nodes import classify_intent_node
+
+        base_state["messages"] = [HumanMessage(content="Extraia os dados desse contrato PDF")]
+        result = await classify_intent_node(base_state)
+
+        assert result["current_domain"] == "documents"
+
+    @pytest.mark.asyncio
+    async def test_config_keywords_set_config_domain(self, base_state):
+        from blu_agent_framework.nodes import classify_intent_node
+
+        base_state["messages"] = [HumanMessage(content="Como configurar o agente?")]
+        result = await classify_intent_node(base_state)
+
+        assert result["current_domain"] == "config"
+        assert "config" in result["intent_tags"]
+
+    # --- No-match preserves previous ---
+
+    @pytest.mark.asyncio
+    async def test_no_keywords_returns_empty_dict(self, base_state):
+        from blu_agent_framework.nodes import classify_intent_node
+
+        base_state["current_domain"] = "rfq"
+        base_state["intent_tags"] = ["rfq"]
+        base_state["messages"] = [HumanMessage(content="Oi, tudo bem?")]
+        result = await classify_intent_node(base_state)
+
+        assert result == {}  # previous domain preserved by returning {}
+
+    # --- Intent text is capped ---
+
+    @pytest.mark.asyncio
+    async def test_intent_text_capped_at_200_chars(self, base_state):
+        from blu_agent_framework.nodes import classify_intent_node
+
+        long_text = "cotação " + "x" * 300
+        base_state["messages"] = [HumanMessage(content=long_text)]
+        result = await classify_intent_node(base_state)
+
+        assert len(result["current_intent"]) <= 200
+
+    # --- Multi-tag messages ---
+
+    @pytest.mark.asyncio
+    async def test_mixed_intent_produces_multiple_tags(self, base_state):
+        from blu_agent_framework.nodes import classify_intent_node
+
+        base_state["messages"] = [HumanMessage(content="Análise SQL das cotações rfq dos fornecedores")]
+        result = await classify_intent_node(base_state)
+
+        # Should pick up both rfq and analytics-family tags
+        assert len(result["intent_tags"]) >= 2
+
+
+# ============================================================================
+# Phase 3: graph structure tests
+# ============================================================================
+
+
+class TestGraphWithClassifyIntent:
+    """Verify classify_intent and context_enrichment are wired into both graphs."""
+
+    def test_default_graph_has_classify_intent_node(self, sample_config):
+        builder = AgentBuilder(sample_config)
+        builder.use_default_graph()
+        assert "classify_intent" in builder._nodes
+        assert "context_enrichment" in builder._nodes
+
+    def test_fanout_graph_has_classify_intent_node(self, sample_config):
+        builder = AgentBuilder(sample_config)
+        builder.use_fanout_graph()
+        assert "classify_intent" in builder._nodes
+        assert "context_enrichment" in builder._nodes
+
+    def test_default_graph_compiles_with_new_nodes(self, sample_config):
+        builder = AgentBuilder(sample_config)
+        builder.use_default_graph()
+        graph = builder.build()
+        assert graph is not None
+
+    def test_fanout_graph_compiles_with_new_nodes(self, sample_config):
+        builder = AgentBuilder(sample_config)
+        builder.use_fanout_graph()
+        graph = builder.build()
+        assert graph is not None
+
+    def test_classify_intent_registered_in_node_registry(self):
+        node = NodeRegistry.get("classify_intent")
+        assert node is not None
+
+
+class TestIntentRoutingStateFields:
+    """Tests for the new intent-routing fields added to AgentState."""
+
+    def test_initial_state_has_intent_fields(self):
+        state = create_initial_state(session_id="s", cliente_id="c")
+        assert state["current_intent"] is None
+        assert state["current_domain"] is None
+        assert state["intent_tags"] == []
+        assert state["loaded_context_keys"] == []
+
+    def test_intent_tags_is_list_not_set(self):
+        """list[str] is JSON-serializable; set[str] would break Redis checkpointing."""
+        state = create_initial_state(session_id="s", cliente_id="c")
+        import json
+        # must not raise
+        json.dumps({"intent_tags": state["intent_tags"]})
+
+    def test_loaded_context_keys_is_list_not_set(self):
+        state = create_initial_state(session_id="s", cliente_id="c")
+        import json
+        json.dumps({"loaded_context_keys": state["loaded_context_keys"]})
+
+
+class TestContextEnrichmentNode:
+    """Tests for the extended context_enrichment_node."""
+
+    @pytest.mark.asyncio
+    async def test_computes_loaded_context_keys_from_non_empty_values(self):
+        from blu_agent_framework.nodes import context_enrichment_node
+
+        state = create_initial_state(
+            session_id="s",
+            cliente_id="c",
+            client_context={
+                "nome_empresa": "Acme",
+                "cnpj": "",           # empty string → not loaded
+                "tier": "SME",
+                "segmento": None,     # None → not loaded
+                "logo_url": [],       # empty list → not loaded
+                "extra": {},          # empty dict → not loaded
+                "site": "acme.com",
+            },
+        )
+        result = await context_enrichment_node(state)
+        keys = result["loaded_context_keys"]
+
+        assert "nome_empresa" in keys
+        assert "tier" in keys
+        assert "site" in keys
+        # falsy/empty values must be excluded
+        assert "cnpj" not in keys
+        assert "segmento" not in keys
+        assert "logo_url" not in keys
+        assert "extra" not in keys
+
+    @pytest.mark.asyncio
+    async def test_loaded_context_keys_is_list(self):
+        from blu_agent_framework.nodes import context_enrichment_node
+
+        state = create_initial_state(
+            session_id="s",
+            cliente_id="c",
+            client_context={"nome_empresa": "Test"},
+        )
+        result = await context_enrichment_node(state)
+        assert isinstance(result["loaded_context_keys"], list)
+
+    @pytest.mark.asyncio
+    async def test_empty_client_context_gives_empty_keys(self):
+        from blu_agent_framework.nodes import context_enrichment_node
+
+        state = create_initial_state(session_id="s", cliente_id="c")
+        result = await context_enrichment_node(state)
+        assert result["loaded_context_keys"] == []
+
+    @pytest.mark.asyncio
+    async def test_still_sets_metadata_flags(self):
+        from blu_agent_framework.nodes import context_enrichment_node
+
+        state = create_initial_state(
+            session_id="s",
+            cliente_id="c",
+            client_context={
+                "tier": "SME",
+                "nome_empresa": "Co",
+                "available_tools": {
+                    "enabled_tool_names": ["executar_rag_cliente", "executar_sql_agent"]
+                },
+            },
+        )
+        result = await context_enrichment_node(state)
+        meta = result["metadata"]
+        assert meta["has_rag"] is True
+        assert meta["has_sql"] is True
+        assert meta["tier"] == "SME"
+
+    @pytest.mark.asyncio
+    async def test_loaded_context_keys_json_serialisable(self):
+        """Keys must survive Redis JSON serialisation."""
+        import json
+
+        from blu_agent_framework.nodes import context_enrichment_node
+
+        state = create_initial_state(
+            session_id="s",
+            cliente_id="c",
+            client_context={"nome_empresa": "Co", "tier": "BASIC"},
+        )
+        result = await context_enrichment_node(state)
+        json.dumps(result["loaded_context_keys"])  # must not raise

@@ -226,15 +226,25 @@ class ContextService:
         configs = []
         try:
             supabase = get_supabase_client()
+            # Fetch global (client_id IS NULL) + client-specific rows in one query.
+            # client_id IS NULL → shared analytics_v2 schema, applies to all clients.
+            # client_id = <uuid> → per-client override (e.g. BigQuery FDW tables).
             response = (
                 supabase.table("sql_table_config")
                 .select("*")
-                .eq("client_id", str(cliente_id))
+                .or_(f"client_id.is.null,client_id.eq.{str(cliente_id)}")
                 .eq("is_active", True)
                 .execute()
             )
-            configs = response.data or []
-            logger.debug(f"Loaded {len(configs)} SQL configs from Supabase for {cliente_id}")
+            rows = response.data or []
+            # Client-specific rows win over global ones with the same table_name.
+            by_table: dict[str, dict] = {}
+            for row in rows:
+                name = row["table_name"]
+                if name not in by_table or row["client_id"] is not None:
+                    by_table[name] = row
+            configs = list(by_table.values())
+            logger.debug(f"Loaded {len(configs)} SQL table configs for {cliente_id}")
         except Exception as e:
             logger.error(f"Failed to load SQL configs from Supabase: {e}")
 
@@ -367,17 +377,13 @@ class ContextService:
         account_name: str | None = None,
         is_default: bool = False,
     ):
-        """Encrypt tokens and persist them."""
-        enc_access = await asyncio.to_thread(self._encrypt, access_token)
-        enc_refresh = (
-            await asyncio.to_thread(self._encrypt, refresh_token) if refresh_token else None
-        )
+        """Persist tokens to Vault via RPC (encryption handled by PostgreSQL)."""
         return await asyncio.to_thread(
             self._supabase_crud.save_integration_tokens,
             client_id,
             provider,
-            enc_access,
-            enc_refresh,
+            access_token,
+            refresh_token,
             token_type,
             expires_at,
             scopes,
@@ -413,7 +419,7 @@ class ContextService:
             """Check if token is still valid (not expired)."""
             expires = self._get("expires_at")
             if not expires:
-                return bool(self._get("access_token_encrypted"))
+                return bool(self._get("access_token"))
             if isinstance(expires, str):
                 try:
                     exp_dt = datetime.fromisoformat(expires)
@@ -451,13 +457,9 @@ class ContextService:
             return exp_dt <= now + timedelta(seconds=margin_seconds)
 
         def get_decrypted_tokens(self) -> dict:
-            access = self._get("access_token_encrypted")
-            refresh = self._get("refresh_token_encrypted")
-            dec_access = self._decrypt(access) if access else None
-            dec_refresh = self._decrypt(refresh) if refresh else None
             return {
-                "access_token": dec_access,
-                "refresh_token": dec_refresh,
+                "access_token": self._get("access_token"),
+                "refresh_token": self._get("refresh_token"),
                 "token_type": self._get("token_type"),
                 "expires_at": self._get("expires_at"),
                 "scopes": self._get("scopes"),
@@ -561,7 +563,7 @@ class ContextService:
 
         wrapper = ContextService._IntegrationTokenWrapper(
             row,
-            self._decrypt,
+            lambda x: x,  # no-op: Vault decrypts tokens inside PostgreSQL
             context_service=self,
             cliente_id=client_id,
             provider=provider,

@@ -29,6 +29,7 @@ export interface OnboardingState {
   porte: string;
   website: string;
   primaryFocus?: "vendas" | "operacao" | "atendimento" | "estoque" | "outro" | null;
+  produtoServico?: string;
   dataPath: "systems" | "files" | "scratch" | null;
   systems: string[];
   csvUploaded: boolean;
@@ -91,7 +92,13 @@ export function mapBusinessDNAToCompanyProfile(
     out.employee_count_range = EMPLOYEE_RANGE[state.porte];
   }
   if ((state.website ?? "").trim()) {
-    out.tagline = state.website.trim();
+    out.website = state.website.trim();
+  }
+  if (state.primaryFocus) {
+    out.primary_focus = state.primaryFocus;
+  }
+  if ((state.produtoServico ?? "").trim()) {
+    out.main_product_service = state.produtoServico!.trim();
   }
   return out;
 }

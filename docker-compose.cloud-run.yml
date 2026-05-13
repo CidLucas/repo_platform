@@ -66,23 +66,19 @@ services:
   # CORE SERVICES
   # =========================================
 
-  atendente_core:
-    container_name: cloudrun_atendente_core
+  agent_api:
+    container_name: cloudrun_agent_api
     <<: *build-args
     build:
       context: .
-      dockerfile: ./services/atendente_core/Dockerfile
-    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-bludev}/blu-mono/atendente-core:${IMAGE_TAG:-latest}
+      dockerfile: ./services/agent_api/Dockerfile
+    image: ${GCP_REGION:-southamerica-east1}-docker.pkg.dev/${GCP_PROJECT:-bludev}/blu-mono/agent-api:${IMAGE_TAG:-latest}
     env_file:
       - .env.cloudrun
     environment:
       <<: [*common-env, *llm-env]
-      PORT: "8000"
       PYTHONPATH: /app/src
-      USE_LOCAL_DB: "false"
-      # Inter-service URLs (Cloud Run URLs in production)
       MCP_SERVER_URL: ${MCP_SERVER_URL:-http://tool_pool_api:8000/mcp/}
-      BASE_URL: ${BASE_URL:-http://atendente_core:8000}
     ports:
       - "8003:8000"
 

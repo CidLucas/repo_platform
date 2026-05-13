@@ -12,7 +12,7 @@ the expected structure when storing/retrieving that section.
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # =============================================================================
 # CORE IDENTITY SECTIONS (Quarterly updates)
@@ -196,6 +196,15 @@ class Policies(BaseModel):
 # =============================================================================
 
 
+class JoinKey(BaseModel):
+    """Describes a join relationship from this table's column to another table's column."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_col: str = Field(..., alias="from", description="Column in this table")
+    to: str = Field(..., description="Target table.column (e.g., 'analytics_v2.dim_fornecedores.id')")
+
+
 class TableSchemaInfo(BaseModel):
     """
     Detailed schema information for a single table.
@@ -228,9 +237,9 @@ class TableSchemaInfo(BaseModel):
     )
 
     # Join hints
-    join_keys: list[str] = Field(
+    join_keys: list[JoinKey] = Field(
         default_factory=list,
-        description="Primary/foreign keys for joins (e.g., 'customer_id', 'supplier_id')",
+        description="Join relationships from this table to others",
     )
 
 

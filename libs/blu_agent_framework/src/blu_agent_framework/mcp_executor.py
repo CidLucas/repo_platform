@@ -1,8 +1,8 @@
 """
-DEPRECATED: Legacy MCP Tool Executor - use MCPConnectionManager instead.
+MCP Tool Executor — thin wrapper over MCPConnectionManager.
 
-This module is kept for backward compatibility with AgentBuilder.
-New code should use mcp_client.MCPConnectionManager directly.
+TODO(phase4): Inline MCPConnectionManager calls directly into AgentBuilder
+and remove this module entirely.  All new code should use MCPConnectionManager.
 """
 
 import logging
@@ -40,30 +40,22 @@ class ToolResult:
 
 
 class MCPToolExecutor:
-    """
-    DEPRECATED: Use MCPConnectionManager from mcp_client instead.
-
-    This class is kept for backward compatibility with AgentBuilder.
-    """
+    """Wrapper over MCPConnectionManager used by AgentBuilder's tool execution path."""
 
     def __init__(
         self,
         mcp_url: str = "http://localhost:8000/mcp/",
         timeout: float = 30.0,
         max_retries: int = 3,
+        mcp_manager=None,
     ):
-        """Initialize executor (deprecated)."""
-        import warnings
-
-        warnings.warn(
-            "MCPToolExecutor is deprecated. Use MCPConnectionManager instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
         self.mcp_url = mcp_url.rstrip("/")
         self.timeout = timeout
         self.max_retries = max_retries
-        self._mcp_manager = None
+        # Accept a pre-built MCPConnectionManager so that auth headers set on the
+        # shared singleton (X-Cliente-Id, X-Session-Id) are visible to tool calls.
+        # When None, a private manager is created lazily (legacy / test behaviour).
+        self._mcp_manager = mcp_manager
 
     async def _get_mcp_manager(self):
         """Get or create MCP manager (lazy)."""
@@ -90,7 +82,15 @@ class MCPToolExecutor:
 
         try:
             mcp_manager = await self._get_mcp_manager()
-            if mcp_manager is None or not mcp_manager.is_connected:
+            if mcp_manager is None:
+                return ToolResult(
+                    tool_name=tool_name,
+                    success=False,
+                    error="MCP not connected",
+                    execution_time_ms=(time.time() - start_time) * 1000,
+                )
+            await mcp_manager.ensure_connected()
+            if not mcp_manager.is_connected:
                 return ToolResult(
                     tool_name=tool_name,
                     success=False,
@@ -144,6 +144,20 @@ class MCPToolExecutor:
                 error=str(e),
                 execution_time_ms=(time.time() - start_time) * 1000,
             )
+
+    async def get_lc_tools(self, names: list[str]) -> list[Any]:
+        """Return LangChain BaseTool objects for the requested tool names.
+
+        Replaces direct access to the internal _mcp_manager so callers stay
+        decoupled from the private connection lifecycle.
+        """
+        mcp_mgr = await self._get_mcp_manager()
+        if not mcp_mgr:
+            return []
+        await mcp_mgr.ensure_connected()
+        if not mcp_mgr.is_connected:
+            return []
+        return [t for name in names if (t := mcp_mgr.get_tool_by_name(name)) is not None]
 
     async def close(self):
         """Close MCP connection."""

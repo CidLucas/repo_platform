@@ -1,16 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '@blu/auth'
 
 export default function LandingPage() {
   const navigate = useNavigate()
-  const { user } = useAuth()
   const pricingRef = useRef<HTMLElement>(null)
-
-  // Already authenticated — go straight to the app
-  useEffect(() => {
-    if (user) navigate('/app', { replace: true })
-  }, [user, navigate])
 
   function scrollToPricing() {
     if (pricingRef.current) {
@@ -50,7 +43,9 @@ export default function LandingPage() {
           </a>
           <a href="#precos" onClick={scrollToPricing}>Preços</a>
         </div>
-        <button className="lp-nav-cta" onClick={() => navigate('/onboarding?mode=login')}>Entrar</button>
+        <button className="lp-nav-cta" onClick={() => navigate('/onboarding?mode=login')}>
+          Ir para o app
+        </button>
       </nav>
 
       {/* HERO */}

@@ -370,6 +370,87 @@ class ToolRegistry:
             requires_confirmation=False,
             tags=["rfq", "procurement", "suppliers", "crud"],
         ),
+        "register_transaction": ToolMetadata(
+            name="register_transaction",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "Register a business transaction (venda, compra, despesa) into analytics_v2. "
+                "Routes to fato_transacoes or fato_compras based on tipo_transacao. "
+                "Resolves dim surrogate keys by name lookup."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=True,
+            tags=["context", "transactions", "analytics"],
+        ),
+        "list_data_sources": ToolMetadata(
+            name="list_data_sources",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "Return row counts for analytics_v2 fact/dim tables and the 10 most "
+                "recent ingestion jobs. Used to orient schema-mapping conversations."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["context", "analytics", "data-sources"],
+        ),
+        "query_data_catalog": ToolMetadata(
+            name="query_data_catalog",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "Query client_data_sources: registered files, column-mapping health "
+                "(mapped/unmapped/needs_review), detected entity context, sync status, "
+                "and ingestion quality. Read-only — no confirmation needed."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["context", "schema-mapping", "data-catalog"],
+        ),
+        "suggest_column_mapping": ToolMetadata(
+            name="suggest_column_mapping",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "Call the match-columns engine to suggest canonical field mappings for "
+                "a registered data source. Returns matched, unmatched, needs_review, "
+                "confidence_scores, and detected_context. Read-only."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["context", "schema-mapping", "match-columns"],
+        ),
+        "update_schema_mapping": ToolMetadata(
+            name="update_schema_mapping",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "Persist a user-confirmed column mapping to client_data_sources. "
+                "Sets column_mapping, reviewed_at, unmapped_columns, and user_column_changes."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=True,
+            tags=["context", "schema-mapping", "write"],
+        ),
+        "get_knowledge_status": ToolMetadata(
+            name="get_knowledge_status",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "Return the knowledge completeness status for this client across all "
+                "document types. Filters by agent_slug to surface only relevant types "
+                "and coverage thresholds. Read-only — no confirmation needed."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["context", "knowledge", "completeness"],
+        ),
+        "update_context_document": ToolMetadata(
+            name="update_context_document",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "Upsert a client_knowledge_documents row, merging field_coverage and metadata. "
+                "Internal bookkeeping — no user confirmation needed."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["context", "knowledge", "write"],
+        ),
     }
 
     # =========================================================================
@@ -688,6 +769,58 @@ class ToolRegistry:
                 accessible.append(tool)
 
         return accessible
+
+    @classmethod
+    def get_for_task(
+        cls,
+        enabled_tools: list[str],
+        tier: str,
+        intent_tags: list[str] | None = None,
+        available_context: list[str] | None = None,
+        max_tools: int = 8,
+    ) -> list[str]:
+        """
+        Return up to max_tools tool names ranked by relevance to the current intent.
+
+        When intent_tags is empty or None, returns the first max_tools accessible
+        tools with no relevance filtering (safe default for first-turn / unknown intent).
+
+        When intent_tags is provided, each eligible tool is scored by the fraction of
+        intent tags that appear in its own tags list. Tools are returned highest-score
+        first; zero-score tools fill remaining slots to reach max_tools.
+
+        available_context is accepted for future required_context gating but unused now.
+
+        Args:
+            enabled_tools: Agent whitelist of tool names (from agent_catalog config)
+            tier: Client tier string ("BASIC", "SME", "PREMIUM", "ENTERPRISE")
+            intent_tags: Tags extracted from the current user intent, e.g. ["rfq", "suppliers"]
+            available_context: Keys present in client_context (reserved, not yet filtered on)
+            max_tools: Maximum number of tool names to return
+
+        Returns:
+            Ordered list of tool name strings, up to max_tools, relevance-first
+        """
+        all_tools = cls.get_all_tools()
+        intent_set = set(intent_tags) if intent_tags else set()
+
+        eligible: list[tuple[float, str]] = []
+        for name in enabled_tools:
+            meta = all_tools.get(name)
+            if not meta or not meta.enabled or not meta.is_accessible_by_tier(tier):
+                continue
+            score = (
+                len(intent_set & set(meta.tags)) / len(intent_set)
+                if intent_set
+                else 0.0
+            )
+            eligible.append((score, name))
+
+        if intent_set:
+            # Stable sort: ties preserve insertion (enabled_tools) order
+            eligible.sort(key=lambda x: x[0], reverse=True)
+
+        return [name for _, name in eligible[:max_tools]]
 
     @classmethod
     def get_tools_by_category(cls, category: ToolCategory) -> list[ToolMetadata]:

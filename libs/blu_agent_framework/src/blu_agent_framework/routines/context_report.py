@@ -856,6 +856,22 @@ def _upsert_to_vector_db(
         "context_report: process-document finished for %s — status=%s chunks=%s",
         client_id, result.get("status"), result.get("chunk_count"),
     )
+
+    # Tag chunks with filtering metadata so RAG queries can narrow by type/date.
+    if completed:
+        try:
+            db.schema("vector_db").table("document_chunks").update({
+                "at_date":          today.replace(day=1).isoformat(),
+                "document_type_id": "context_report",
+                "is_current":       True,
+                "language":         "pt-BR",
+            }).eq("document_id", document_id).execute()
+            logger.debug("context_report: tagged chunks for document %s", document_id)
+        except Exception:
+            logger.warning(
+                "context_report: could not tag chunks for %s", document_id, exc_info=True
+            )
+
     return completed
 
 

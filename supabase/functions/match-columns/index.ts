@@ -134,13 +134,14 @@ const COLUMN_ALIASES: Record<string, string[]> = {
         "pedido_id", "id_pedido", "numero_pedido", "order_number",
         // Conta Azul
         "number", "numero_nota", "chave_nfe", "document_number", "numero_nf",
+        "chave_acesso", "numero",
     ],
     data_competencia_id: [
         "emittedat_operatorinvoice", "createdat_operatorinvoice", "data_emissao",
         "emission_date", "order_date", "data_pedido", "data_transacao",
         "transaction_date", "date", "created_at", "purchase_date",
         // Conta Azul
-        "issue_date", "competencia", "dt_emissao",
+        "issue_date", "competencia", "dt_emissao", "data_competencia",
     ],
     quantidade: ["quantitytraded_product", "quantity", "qty", "qtd", "quantitytraded"],
     valor_unitario: ["unitprice_product", "unit_price", "preco_unitario", "unitprice"],
@@ -149,6 +150,7 @@ const COLUMN_ALIASES: Record<string, string[]> = {
         "price", "preco", "total",
         // Conta Azul
         "total_value", "value", "vl_total", "valor_liquido",
+        "valor_total_nfse", "valor_servico",
     ],
     status: ["status_operatorinvoice", "order_status", "status_order"],
 
@@ -158,12 +160,13 @@ const COLUMN_ALIASES: Record<string, string[]> = {
         "cpf_cnpj", "cpf", "cnpj_cliente",
         // Conta Azul
         "customer_cnpj", "cnpj_destinatario", "destinatario_cnpj", "recipient_cnpj",
+        "documento_tomador", "documento_cliente",
     ],
     cliente_nome: [
         "receiverlegalname", "nome_receiver", "customer_name",
         "nome_cliente", "receiver_name",
         // Conta Azul
-        "customer_name",
+        "nome_destinatario", "nome_tomador",
     ],
     cliente_telefone: [
         "receiverphone", "receiver_phone", "customer_phone",
@@ -322,10 +325,17 @@ const CONTEXT_SIGNAL_COLUMNS: Record<string, EntityContext> = {
     cnpj_emitente: "supplier",
     issuer_cnpj: "supplier",
     emitente_cnpj: "supplier",
+    nome_emitente: "supplier",
+    nome_prestador: "supplier",
+    cnpj_prestador: "supplier",
     // Conta Azul customer signals
     cnpj_destinatario: "customer",
     destinatario_cnpj: "customer",
     destinatario: "customer",
+    nome_destinatario: "customer",
+    nome_tomador: "customer",
+    documento_tomador: "customer",
+    documento_cliente: "customer",
 
     // Product signals
     produto: "product",

@@ -242,6 +242,101 @@ class TestToolRegistry:
         del ToolRegistry.BUILTIN_TOOLS["custom_test_tool"]
 
 
+class TestGetForTask:
+    """Tests for ToolRegistry.get_for_task()."""
+
+    # Shared fixture: a mix of tools across domains available to SME tier
+    ENABLED = [
+        "executar_rag_cliente",      # tags: rag, search, knowledge-base
+        "executar_sql_agent",        # tags: sql, database, analytics
+        "execute_csv_query",         # tags: csv, sql, analytics
+        "parse_buying_list",         # tags: rfq, procurement, parsing
+        "dispatch_rfq",              # tags: rfq, procurement, dispatch
+        "check_config_completeness", # tags: config, setup, helper
+        "monitor_feature",           # tags: monitoring, web, feature-pages
+    ]
+    TIER = "SME"
+
+    def test_returns_list_of_strings(self):
+        result = ToolRegistry.get_for_task(self.ENABLED, self.TIER)
+        assert isinstance(result, list)
+        assert all(isinstance(n, str) for n in result)
+
+    def test_no_intent_returns_all_accessible_up_to_max(self):
+        result = ToolRegistry.get_for_task(self.ENABLED, self.TIER, max_tools=10)
+        # All 7 tools are accessible at SME tier — all returned when no intent
+        assert set(result) == set(self.ENABLED)
+
+    def test_max_tools_cap_respected(self):
+        result = ToolRegistry.get_for_task(self.ENABLED, self.TIER, max_tools=3)
+        assert len(result) <= 3
+
+    def test_rfq_intent_ranks_rfq_tools_first(self):
+        result = ToolRegistry.get_for_task(
+            self.ENABLED, self.TIER, intent_tags=["rfq", "procurement"]
+        )
+        rfq_tools = {"parse_buying_list", "dispatch_rfq"}
+        # rfq tools must appear before non-rfq tools
+        rfq_indices = [result.index(t) for t in rfq_tools if t in result]
+        non_rfq = [t for t in result if t not in rfq_tools]
+        non_rfq_indices = [result.index(t) for t in non_rfq]
+        assert max(rfq_indices) < min(non_rfq_indices)
+
+    def test_analytics_intent_ranks_sql_csv_tools_first(self):
+        result = ToolRegistry.get_for_task(
+            self.ENABLED, self.TIER, intent_tags=["analytics", "sql"]
+        )
+        analytics_tools = {"executar_sql_agent", "execute_csv_query"}
+        analytics_indices = [result.index(t) for t in analytics_tools if t in result]
+        others = [t for t in result if t not in analytics_tools]
+        other_indices = [result.index(t) for t in others]
+        assert max(analytics_indices) < min(other_indices)
+
+    def test_tier_filtering_still_applies(self):
+        # executar_sql_agent requires SME; should be excluded for BASIC
+        result = ToolRegistry.get_for_task(
+            self.ENABLED, "BASIC", intent_tags=["analytics", "sql"]
+        )
+        assert "executar_sql_agent" not in result
+
+    def test_unknown_tool_names_silently_skipped(self):
+        tools_with_unknown = self.ENABLED + ["nonexistent_tool_xyz"]
+        result = ToolRegistry.get_for_task(tools_with_unknown, self.TIER)
+        assert "nonexistent_tool_xyz" not in result
+
+    def test_empty_enabled_list_returns_empty(self):
+        result = ToolRegistry.get_for_task([], self.TIER, intent_tags=["rfq"])
+        assert result == []
+
+    def test_available_context_accepted_without_error(self):
+        # available_context is a no-op now but must not raise
+        result = ToolRegistry.get_for_task(
+            self.ENABLED,
+            self.TIER,
+            intent_tags=["rfq"],
+            available_context=["nome_empresa", "cnpj"],
+        )
+        assert isinstance(result, list)
+
+    def test_zero_score_tools_fill_remaining_slots(self):
+        # Only 2 rfq tools in ENABLED; with max_tools=5 the other 3 slots
+        # should be filled with zero-score tools
+        result = ToolRegistry.get_for_task(
+            self.ENABLED, self.TIER, intent_tags=["rfq"], max_tools=5
+        )
+        assert len(result) == 5
+        assert "parse_buying_list" in result
+        assert "dispatch_rfq" in result
+
+    def test_single_intent_tag_partial_match(self):
+        # "rag" only matches executar_rag_cliente — score = 1/1
+        # sql tools have "sql" but not "rag" — score = 0
+        result = ToolRegistry.get_for_task(
+            self.ENABLED, self.TIER, intent_tags=["rag"]
+        )
+        assert result[0] == "executar_rag_cliente"
+
+
 class TestTierValidator:
     """Tests for TierValidator class."""
 

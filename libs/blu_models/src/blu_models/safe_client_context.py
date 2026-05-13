@@ -224,7 +224,11 @@ class SafeClientContext(BaseModel):
                 # Join keys
                 join_keys = table.get("join_keys", [])
                 if join_keys:
-                    lines.append(f"  Join Keys: {', '.join(f'`{k}`' for k in join_keys)}")
+                    def _fmt_join_key(k):
+                        if isinstance(k, dict):
+                            return f"`{k.get('from', '?')}` → `{k.get('to', '?')}`"
+                        return f"`{k}`"
+                    lines.append(f"  Join Keys: {', '.join(_fmt_join_key(k) for k in join_keys)}")
 
                 # Example queries (max 2 per table)
                 examples = table.get("example_queries", [])[:2]

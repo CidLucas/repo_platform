@@ -111,6 +111,6 @@ class ConnectorFactory:
             "LOJA_INTEGRADA": ["products", "orders", "customers", "inventory", "categories"],
             "POSTGRESQL": ["tables"],
             "MYSQL": ["tables"],
-            "CONTA_AZUL": ["invoices", "accounts_payable", "accounts_receivable"],
+            "CONTA_AZUL": ["notas_fiscais", "notas_fiscais_servico", "all"],
         }
         return resources.get(tipo_servico.upper(), [])

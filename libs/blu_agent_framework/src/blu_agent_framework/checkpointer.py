@@ -2,6 +2,7 @@
 Redis checkpointer for LangGraph state persistence.
 """
 
+import asyncio
 import json
 import logging
 from collections.abc import Iterator
@@ -16,6 +17,93 @@ from langgraph.checkpoint.base import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class _CheckpointerAdapter:
+    """Wraps a sync-only RedisSaver so LangGraph's async runtime can use it.
+
+    Uses an explicit allowlist for async wrapping to avoid silently proxying
+    unrelated ``a*`` attributes (e.g. ``aclose``, ``aenter``).
+    """
+
+    _ASYNC_WRAP = frozenset({"aget_tuple", "aput", "aput_writes", "alist"})
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+
+    # --- forwarded sync methods ---
+
+    def get_next_version(self, *args: Any, **kwargs: Any) -> Any:
+        if hasattr(self._inner, "get_next_version"):
+            return self._inner.get_next_version(*args, **kwargs)
+        return None
+
+    # --- explicit async wrappers over sync implementations ---
+
+    async def aget_tuple(self, config: Any) -> Any:
+        if hasattr(self._inner, "get_tuple"):
+            return await asyncio.to_thread(self._inner.get_tuple, config)
+        return None
+
+    async def aput(self, *args: Any, **kwargs: Any) -> Any:
+        if hasattr(self._inner, "put"):
+            return await asyncio.to_thread(self._inner.put, *args, **kwargs)
+        return None
+
+    async def aput_writes(self, *args: Any, **kwargs: Any) -> Any:
+        if hasattr(self._inner, "put_writes"):
+            return await asyncio.to_thread(self._inner.put_writes, *args, **kwargs)
+        return None
+
+    def __getattr__(self, name: str) -> Any:
+        """Proxy to inner; for known async names wrap the sync counterpart."""
+        if hasattr(self._inner, name):
+            return getattr(self._inner, name)
+        if name in self._ASYNC_WRAP:
+            sync_name = name[1:]
+            if hasattr(self._inner, sync_name):
+                sync_fn = getattr(self._inner, sync_name)
+
+                async def _async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                    return await asyncio.to_thread(sync_fn, *args, **kwargs)
+
+                return _async_wrapper
+        raise AttributeError(name)
+
+
+def create_checkpointer(redis_url: str) -> "_CheckpointerAdapter":
+    """Create and initialise a RedisSaver wrapped in _CheckpointerAdapter.
+
+    Handles all three RedisSaver factory patterns seen across langgraph
+    checkpoint versions:
+    - Returns a plain saver object directly.
+    - Returns a context-manager that yields the saver on __enter__.
+
+    Args:
+        redis_url: Redis connection string (e.g. ``redis://localhost:6379``).
+
+    Returns:
+        _CheckpointerAdapter ready to pass to ``workflow.compile()``.
+    """
+    from langgraph.checkpoint.redis import RedisSaver
+
+    cp = RedisSaver.from_conn_string(redis_url)
+
+    # Unwrap context-manager factory variants.
+    if hasattr(cp, "__enter__") and not hasattr(cp, "get_next_version"):
+        try:
+            cp = cp.__enter__()
+        except Exception as exc:
+            logger.warning("[Checkpointer] __enter__ failed (continuing): %s", exc)
+
+    # Create required Redis indexes (newer langgraph-checkpoint-redis versions).
+    if hasattr(cp, "setup"):
+        try:
+            cp.setup()
+        except Exception as exc:
+            logger.warning("[Checkpointer] setup() failed (continuing): %s", exc)
+
+    return _CheckpointerAdapter(cp)
 
 
 class RedisCheckpointer(BaseCheckpointSaver):

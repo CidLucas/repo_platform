@@ -1,0 +1,23 @@
+{
+  "experimentalServices": {
+    "frontend": {
+      "routePrefix": "/"
+    },
+    "atendente_core": {
+      "entrypoint": "services/atendente_core",
+      "routePrefix": "/_/atendente_core"
+    },
+    "file_upload_api": {
+      "entrypoint": "services/file_upload_api",
+      "routePrefix": "/_/file_upload_api"
+    },
+    "standalone_agent_api": {
+      "entrypoint": "services/standalone_agent_api",
+      "routePrefix": "/_/standalone_agent_api"
+    },
+    "tool_pool_api": {
+      "entrypoint": "services/tool_pool_api",
+      "routePrefix": "/_/tool_pool_api"
+    }
+  }
+}

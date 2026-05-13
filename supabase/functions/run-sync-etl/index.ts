@@ -114,7 +114,25 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ── 5. Create job ────────────────────────────────────────────────────────
+    // ── 5. Persist column_mapping to client_data_sources (durable config for recurring syncs) ──
+    const column_mapping = body.column_mapping ?? null;
+    if (column_mapping && Object.keys(column_mapping).length > 0) {
+      const { error: mappingErr } = await svc
+        .from("client_data_sources")
+        .update({
+          column_mapping,
+          sync_status: "mapping_confirmed",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("client_id", client_id)
+        .eq("credential_id", normalizedCredentialId);
+
+      if (mappingErr) {
+        console.warn(`[run-sync-etl] ${requestId} Failed to persist column_mapping:`, mappingErr);
+      }
+    }
+
+    // ── 6. Create job ────────────────────────────────────────────────────────
     let jobId: string | null = null;
     if (!skip_job_tracking) {
       const { data: job, error: jobErr } = await svc
@@ -137,7 +155,7 @@ Deno.serve(async (req: Request) => {
       jobId = job.job_id;
     }
 
-    // ── 6. Return — pg_cron dispatches the ETL within ~1 minute ─────────────
+    // ── 7. Return — pg_cron dispatches the ETL within ~1 minute ─────────────
     const initDuration = Date.now() - startTime;
     console.log(`[run-sync-etl] ${requestId} Queued job=${jobId} in ${initDuration}ms`);
 

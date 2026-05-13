@@ -13,7 +13,7 @@ This library provides:
 __version__ = "0.1.0"
 
 from blu_agent_framework.builder import AgentBuilder
-from blu_agent_framework.checkpointer import RedisCheckpointer
+from blu_agent_framework.checkpointer import RedisCheckpointer, create_checkpointer
 from blu_agent_framework.config import (
     APPOINTMENT_CONFIG,
     ATENDENTE_CONFIG,
@@ -49,7 +49,22 @@ from blu_agent_framework.routing import (
     route_from_tool,
     should_continue,
 )
-from blu_agent_framework.state import AgentState, ToolCallSendState, create_initial_state
+from blu_agent_framework.registry import AgentTypeConfig, AgentTypeRegistry
+from blu_agent_framework.state import AgentState, PendingElicitation, ToolCallSendState, create_initial_state
+from blu_agent_framework.skills import (
+    SKILL_REGISTRY,
+    SkillDefinition,
+    SkillTurnLimitError,
+)
+from blu_agent_framework.skill_factory import (
+    SkillFactory,
+    SkillResult,
+)
+from blu_agent_framework.supervisor import (
+    WorkerResult,
+    WorkerTurnLimitError,
+    build_delegation_tools,
+)
 
 __all__ = [
     "__version__",
@@ -59,8 +74,12 @@ __all__ = [
     "VENDAS_CONFIG",
     "SUPPORT_CONFIG",
     "APPOINTMENT_CONFIG",
+    # Registry
+    "AgentTypeConfig",
+    "AgentTypeRegistry",
     # State
     "AgentState",
+    "PendingElicitation",
     "ToolCallSendState",
     "create_initial_state",
     # Builder
@@ -85,10 +104,21 @@ __all__ = [
     "initialize_mcp",
     # Checkpointing
     "RedisCheckpointer",
+    "create_checkpointer",
     # Approval Engine v1
     "ApprovalEngine",
     "ApprovalError",
     "ApprovalRequest",
     # Audit
     "record_audit",
+    # Skills (Agent-as-Skill pattern)
+    "SkillDefinition",
+    "SkillTurnLimitError",
+    "SKILL_REGISTRY",
+    "SkillFactory",
+    "SkillResult",
+    # Supervisor / worker pattern
+    "WorkerResult",
+    "WorkerTurnLimitError",
+    "build_delegation_tools",
 ]

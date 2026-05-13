@@ -38,6 +38,7 @@ class AgentConfig:
     mcp_url: str = "http://localhost:8000/mcp/v1"
     timeout_seconds: float = 30.0
     metadata: dict[str, Any] = field(default_factory=dict)
+    enable_skills: bool = False  # Enables the complex-path skill escalation fork
 
     def __post_init__(self):
         """Validate configuration after initialization."""

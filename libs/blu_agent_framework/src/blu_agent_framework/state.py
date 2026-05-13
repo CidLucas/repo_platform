@@ -19,6 +19,41 @@ def merge_dict(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
     return {**left, **right}
 
 
+def _cap_errors(left: list[str], right: list[str]) -> list[str]:
+    """Reducer for errors: appends new entries, caps at 20 to prevent unbounded growth."""
+    combined = left + right
+    return combined[-20:] if len(combined) > 20 else combined
+
+
+def _list_reducer(left: list | None, right: list | None) -> list:
+    """
+    Reducer for lists that supports fan-out accumulation and clearing.
+
+    - right is a list → appends to left (accumulates parallel worker results)
+    - right is None → returns [] (clears, used on new user turns)
+    """
+    if right is None:
+        return []
+    return (left or []) + right
+
+
+class PendingElicitation(TypedDict, total=False):
+    """Elicitation waiting for a user response.
+
+    Stores the information needed to resume tool execution after the user
+    replies.  Compatible with both atendente_core (typed) and the framework
+    (previously untyped dict).
+    """
+
+    elicitation_id: str        # unique correlation ID
+    type: str                  # confirmation | selection | text_input | date_time
+    message: str               # prompt shown to the user
+    options: list[dict[str, Any]] | None   # choices for selection type
+    tool_name: str             # tool that raised the elicitation
+    tool_args: dict[str, Any]  # original tool arguments
+    metadata: dict[str, Any] | None
+
+
 class ToolCallSendState(TypedDict, total=False):
     """
     State passed to each fan-out tool execution node via LangGraph Send.
@@ -70,7 +105,7 @@ class AgentState(TypedDict, total=False):
     # Elicitation State
     # =========================================================================
 
-    pending_elicitation: dict[str, Any] | None  # Current pending elicitation
+    pending_elicitation: PendingElicitation | None  # Current pending elicitation
     elicitation_response: Any | None  # User's response to elicitation
     elicitation_history: list[dict[str, Any]]  # Past elicitations
 
@@ -112,17 +147,82 @@ class AgentState(TypedDict, total=False):
     tier: str  # Client tier
 
     # =========================================================================
+    # Intent Routing (maintained by classify_intent_node each new user turn)
+    # =========================================================================
+
+    current_intent: str | None     # Raw user intent text, capped at 200 chars
+    current_domain: str | None     # "rfq" | "analytics" | "documents" | "config" | "rag"
+    intent_tags: list[str]         # Tag list fed to ToolRegistry.get_for_task()
+    loaded_context_keys: list[str] # Non-empty keys in client_context (list, not set — JSON-safe)
+
+    # =========================================================================
+    # Skill Routing (Agent-as-Skill pattern)
+    # =========================================================================
+
+    complexity: str | None         # "simple" | "moderate" | "complex" — set by classify_intent
+    current_skill: str | None      # SKILL_REGISTRY key selected by select_skill_node; cleared after run
+    skill_results: Annotated[list[dict], add]  # Accumulated SkillResult dicts from this session
+
+    # =========================================================================
+    # Orchestrator Planning (Layer 4 meta-skill)
+    # =========================================================================
+
+    # Sequential execution plan — list of steps, each a dict:
+    #   {id, skill_slug, task, depends_on, status, result, is_mutation, requires_confirmation}
+    # None when agent is not an orchestrator.
+    plan: list[dict] | None
+
+    # Results from completed steps: {step_id: result_text}
+    # Injected as context into dependent steps by execute_step_node.
+    step_results: dict[str, str]
+
+    # Domains identified by parse_intent (e.g. ["analytics", "communication"])
+    involved_domains: list[str]
+
+    # Pending user confirmation — set by confirm_node, cleared by parse_intent on response.
+    # {type: "plan" | "clarification" | "mutation", message: str}
+    pending_confirmation: dict | None
+
+    # User approval state — True=approved, False=rejected, None=not yet asked.
+    # Set by parse_intent when it detects a confirmation response.
+    confirmed: bool | None
+
+    # Internal: sub-tasks from decompose_node, consumed by plan_node.
+    # Not user-visible; cleared after plan is built.
+    _sub_tasks: list[dict] | None
+
+    # =========================================================================
     # Error Handling
     # =========================================================================
 
     error: str | None  # Current error message
-    errors: Annotated[list[str], add]  # Accumulated errors
+    errors: Annotated[list[str], _cap_errors]  # Accumulated errors, capped at 20
 
     # =========================================================================
     # Metadata
     # =========================================================================
 
     metadata: Annotated[dict[str, Any], merge_dict]  # Additional metadata
+
+    # =========================================================================
+    # Supervisor-tier fields (atendente_core convergence)
+    # =========================================================================
+
+    # Per-request model override (e.g. "gpt-4o" for a specific turn).
+    model_override: str | None
+
+    # JWT forwarded to tool calls that require caller authentication.
+    user_jwt: str | None
+
+    # Tabular results from SQL queries / worker delegations, kept separate
+    # from the LLM context so the frontend can render them interactively.
+    structured_data: dict[str, Any] | None
+    # Accumulates across parallel fan-out workers; None return clears the list.
+    structured_data_list: Annotated[list[dict[str, Any]], _list_reducer]
+
+    # Intra-turn caches to avoid recomposing on supervisor→tool→supervisor loops.
+    _cached_system_prompt: str | None
+    _cached_tools: list | None
 
 
 def create_initial_state(
@@ -188,11 +288,34 @@ def create_initial_state(
         client_context=client_context or {},
         nome_empresa=client_context.get("nome_empresa", "") if client_context else "",
         tier=client_context.get("tier", "BASIC") if client_context else "BASIC",
+        # Intent routing
+        current_intent=None,
+        current_domain=None,
+        intent_tags=[],
+        loaded_context_keys=[],
+        # Skill routing
+        complexity=None,
+        current_skill=None,
+        skill_results=[],
+        # Orchestrator planning
+        plan=None,
+        step_results={},
+        involved_domains=[],
+        pending_confirmation=None,
+        confirmed=None,
+        _sub_tasks=None,
         # Error handling
         error=None,
         errors=[],
         # Metadata
         metadata=metadata or {},
+        # Supervisor-tier fields
+        model_override=None,
+        user_jwt=None,
+        structured_data=None,
+        structured_data_list=[],
+        _cached_system_prompt=None,
+        _cached_tools=None,
     )
 
 

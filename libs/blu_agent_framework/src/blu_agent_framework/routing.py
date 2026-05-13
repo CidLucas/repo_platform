@@ -3,11 +3,18 @@ Routing functions for agent graph edges.
 """
 
 import logging
+import re
 from typing import Literal
 
 from blu_agent_framework.state import AgentState
 
 logger = logging.getLogger(__name__)
+
+# Matches pure-greeting messages (word boundaries prevent "obrigado pelo contexto"
+# from matching and bypassing elicitation).  Only applied to short messages so a
+# greeting that also contains a question still goes through the normal path.
+_GREETING_RE = re.compile(r"\b(?:oi|ol[aá]|tchau|obrigad[ao])\b", re.IGNORECASE)
+_GREETING_MAX_LEN = 60  # chars; longer = likely contains a real question
 
 
 # Type aliases for routing
@@ -112,15 +119,11 @@ def route_from_init(state: AgentState) -> Literal["elicit", "respond", "end"]:
 
     # If there are messages, we might need to respond directly
     messages = state.get("messages", [])
-    if len(messages) > 0:
-        # Check if this is a simple query that doesn't need elicitation
+    if messages:
         last_message = messages[-1]
-        content = getattr(last_message, "content", "").lower()
-
-        # Simple greetings or farewells can skip elicitation
-        simple_patterns = ["oi", "olá", "tchau", "obrigado", "thanks"]
-        if any(pattern in content for pattern in simple_patterns):
-            logger.debug("route_from_init: simple pattern -> 'respond'")
+        content = getattr(last_message, "content", "")
+        if len(content) <= _GREETING_MAX_LEN and _GREETING_RE.search(content):
+            logger.debug("route_from_init: greeting detected -> 'respond'")
             return "respond"
 
     logger.debug(f"route_from_init: -> 'elicit' (messages={len(messages)})")
@@ -185,6 +188,45 @@ def route_on_error(state: AgentState) -> Literal["recover", "respond", "end"]:
 
     # Default: generate error response
     return "respond"
+
+
+def route_after_enrichment(
+    state: AgentState,
+) -> Literal["elicit", "respond", "select_skill", "end"]:
+    """
+    Route after context_enrichment_node — the main fork between simple and complex paths.
+
+    Simple path  (complexity == "simple" or None) → elicit → respond (Phase-4 binding)
+    Complex path (complexity == "moderate"/"complex") → select_skill → run_skill → respond
+    Greetings bypass elicitation entirely → respond directly.
+    """
+    if state.get("ended"):
+        return "end"
+
+    # Short-circuit for simple greetings — no tool use needed.
+    messages = state.get("messages", [])
+    if messages:
+        content = getattr(messages[-1], "content", "")
+        if len(content) <= _GREETING_MAX_LEN and _GREETING_RE.search(content):
+            return "respond"
+
+    complexity = state.get("complexity")
+    if complexity in ("moderate", "complex"):
+        return "select_skill"
+
+    return "elicit"
+
+
+def route_after_select_skill(state: AgentState) -> Literal["run_skill", "elicit"]:
+    """
+    Route after select_skill_node.
+
+    A skill was selected → run_skill.
+    No match (select_skill cleared current_skill and reset complexity to 'simple') → elicit.
+    """
+    if state.get("current_skill"):
+        return "run_skill"
+    return "elicit"
 
 
 def route_on_elicitation(state: AgentState) -> Literal["wait", "process", "timeout"]:

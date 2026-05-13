@@ -70,6 +70,7 @@ async def build_prompt(
     variables: dict[str, Any],
     context_service: "ContextService | None" = None,
     langfuse_label: str | None = None,
+    allow_fallback: bool | None = None,
 ) -> str:
     """
     Build any prompt dynamically using the unified loading system.
@@ -77,34 +78,23 @@ async def build_prompt(
     This is the single entry point for all prompt building across the platform.
     It handles:
     - Langfuse lookup (primary source of truth)
-    - Builtin fallback
+    - Builtin fallback (controlled by allow_fallback or PROMPT_ALLOW_FALLBACK env var)
     - Redis caching via ContextService (if provided)
-    - Variable substitution via Langfuse's {{variable}} syntax
+    - Variable substitution via Jinja2 / Langfuse's {{variable}} syntax
 
     Args:
-        name: Prompt template name (e.g., "atendente/default", "text_to_sql/system")
+        name: Prompt template name (e.g., "atendente/default", "orchestrator/parse-intent")
         variables: Variables for template rendering (from SafeContext fields)
         context_service: Optional ContextService for Redis caching
         langfuse_label: Override default Langfuse label ("production", "staging")
+        allow_fallback: If explicitly set, overrides the PROMPT_ALLOW_FALLBACK env var.
+                       Use True in internal framework code that ships builtin fallbacks.
 
     Returns:
         Rendered prompt content
-
-    Example:
-        # Agent system prompt
-        content = await build_prompt(
-            name="atendente/default",
-            variables={"nome_empresa": "Acme", "tools_description": "..."},
-            context_service=ctx_service,
-        )
-
-        # Text-to-SQL prompt
-        content = await build_prompt(
-            name="text_to_sql/system/v1",
-            variables={"schema_snapshot": "...", "role": "analyst"},
-        )
     """
     loader = _get_prompt_loader()
+    fallback = PROMPT_ALLOW_FALLBACK if allow_fallback is None else allow_fallback
 
     # Use context_service for Redis caching if available
     if context_service:
@@ -120,12 +110,11 @@ async def build_prompt(
         except Exception as e:
             logger.warning(f"Context service prompt load failed for '{name}': {e}")
 
-    # Direct load (Langfuse is mandatory unless PROMPT_ALLOW_FALLBACK=true)
     loaded = await loader.load(
         name=name,
         variables=variables,
         langfuse_label=langfuse_label,
-        allow_fallback=PROMPT_ALLOW_FALLBACK,
+        allow_fallback=fallback,
     )
     logger.debug(f"Loaded prompt '{name}' directly via PromptLoader (source={loaded.source})")
     return loaded.content

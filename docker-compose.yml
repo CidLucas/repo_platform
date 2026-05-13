@@ -18,8 +18,8 @@ x-common-env: &common-env # Variáveis Padronizadas Supabase (Primary Data Store
   OTEL_METRICS_EXPORTER: ${OTEL_METRICS_EXPORTER:-otlp}
   OTEL_LOGS_EXPORTER: ${OTEL_LOGS_EXPORTER:-otlp}
   EMBEDDING_SERVICE_URL: http://embedding_service:11435
-  # Internal API base (atendente_core is the main entry point)
-  BASE_URL: "http://atendente_core:8000"
+  # Internal API base URL
+  BASE_URL: "http://agent_api:8000"
 
 x-atendente-env: &atendente-env
   REDIS_URL: redis://redis:6379/0
@@ -89,39 +89,24 @@ services:
   # Rodam tanto em local quanto em prod
   # =========================================
 
-  atendente_core:
-    container_name: blu_atendente_core
+  agent_api:
+    container_name: blu_agent_api
     platform: linux/amd64
     build:
       context: .
-      dockerfile: ./services/atendente_core/Dockerfile
-    # Ensure the container loads the repo .env and uses the compose postgres
-    # service as the DB host (avoid 'localhost' inside the container).
+      dockerfile: ./services/agent_api/Dockerfile
     env_file:
       - .env
     environment:
       <<: [*common-env, *atendente-env]
-      PYTHONPATH: /app/services/atendente_core/src
-      # Local dev uses PostgreSQL directly, not Supabase SDK
-      USE_LOCAL_DB: "false"
-      # MCP Tool Pool integration
       MCP_SERVER_URL: http://tool_pool_api:8000/mcp/
     ports:
       - "8003:8000"
-    volumes:
-      - ./services/atendente_core/src:/app/services/atendente_core/src
-      - ./libs:/app/libs
-      - ./seeds:/app/seeds
-      - ./scripts:/app/scripts
-      - ./ferramentas:/app/ferramentas
     depends_on:
       redis:
         condition: service_healthy
       tool_pool_api:
         condition: service_started
-      # Em PROD, o postgres não existe, então removemos a dependência explícita
-      # ou usamos required: false nas versões mais novas do Compose.
-      # Para simplificar, deixamos sem depends_on do banco, a app tenta reconectar.
 
   # =========================================
   # INFRAESTRUTURA DE APOIO (Sempre ativa)
@@ -437,32 +422,6 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-
-  # =========================================
-  # STANDALONE AGENT API SERVICE
-  # =========================================
-  standalone_agent_api:
-    container_name: blu_standalone_agent_api
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/standalone_agent_api/Dockerfile
-    ports:
-      - "8001:8000"
-    volumes:
-      - ./services/standalone_agent_api/src:/app/services/standalone_agent_api/src
-      - ./libs:/app/libs
-    environment:
-      <<: [*common-env, *atendente-env]
-      PYTHONPATH: /app/services/standalone_agent_api/src
-      # Standalone agent config
-      TOOL_POOL_API_URL: http://tool_pool_api:8000/mcp/
-      REDIS_URL: redis://redis:6379
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DEBUG: ${DEBUG:-false}
-    depends_on:
-      - redis
-      - tool_pool_api
 
   # =========================================
   # =========================================

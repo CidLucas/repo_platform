@@ -1,0 +1,55 @@
+[tool.poetry]
+name = "agent-api"
+version = "0.1.0"
+description = "Unified agent API — supervisor + standalone agents in a single service."
+authors = ["Lucas Cid <lucas@blubr.com>"]
+packages = [{include = "agent_api", from = "src"}]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.14"
+fastapi = "^0.115.0"
+uvicorn = {extras = ["standard"], version = "^0.29.0"}
+pydantic-settings = "^2.2.1"
+anyio = "^4.1.1"
+redis = "^5.0.4"
+httpx = "^0.28.1"
+langfuse = ">=4.0.0"
+langgraph = "^0.2"
+langgraph-checkpoint-redis = "^0.1.3"
+mcp = ">=1.9.0"
+langchain-mcp-adapters = "^0.1.13"
+
+# Internal libs
+blu-auth                 = {path = "../../libs/blu_auth", develop = true}
+blu-models               = {path = "../../libs/blu_models", develop = true}
+blu-agent-framework      = {path = "../../libs/blu_agent_framework", develop = true}
+blu-prompt-management    = {path = "../../libs/blu_prompt_management", develop = true}
+blu-llm-service          = {path = "../../libs/blu_llm_service", develop = true}
+blu-tool-registry        = {path = "../../libs/blu_tool_registry", develop = true}
+blu-context-service      = {path = "../../libs/blu_context_service", develop = true}
+blu-db-connector         = {path = "../../libs/blu_db_connector", develop = true}
+blu-supabase-client      = {path = "../../libs/blu_supabase_client", develop = true}
+blu-parsers              = {path = "../../libs/blu_parsers", develop = true}
+blu-rag-factory          = {path = "../../libs/blu_rag_factory", develop = true}
+blu-hitl-service         = {path = "../../libs/blu_hitl_service", develop = true}
+blu-elicitation-service  = {path = "../../libs/blu_elicitation_service", develop = true}
+blu-sql-factory          = {path = "../../libs/blu_sql_factory", develop = true}
+blu-observability-bootstrap = {path = "../../libs/blu_observability_bootstrap"}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+pytest-asyncio = "^0.23.0"
+ruff = "^0.4.4"
+fakeredis = "^2.32.0"
+pytest-cov = "^7.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100

@@ -82,8 +82,12 @@ export function AuthProvider({
       }
 
       setState((s) => ({ ...s, clientId, tier }))
-    } catch {
-      clientIdFetchedRef.current = false
+    } catch (err) {
+      // "Client not found" is a terminal state for new users — don't retry.
+      // Only reset the ref for transient errors (network, timeout) so they can retry.
+      if (!(err instanceof Error && err.message.includes('Client not found'))) {
+        clientIdFetchedRef.current = false
+      }
       setState((s) => ({ ...s, clientId: null, tier: null }))
     }
   }

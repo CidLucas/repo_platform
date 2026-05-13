@@ -374,9 +374,156 @@ async def context_enrichment_node(state: AgentState) -> dict[str, Any]:
         "has_sql": "executar_sql_agent" in tool_names,
     }
 
+    # Keys that have meaningful values — used by get_for_task() for future context gating.
+    # list[str], not set[str]: Redis checkpointer serialises state as JSON.
+    loaded_context_keys = [
+        k for k, v in client_context.items()
+        if v not in (None, "", [], {})
+    ]
+
     return {
         "metadata": {**state.get("metadata", {}), **enriched_metadata},
+        "loaded_context_keys": loaded_context_keys,
     }
+
+
+async def classify_intent_node(state: AgentState) -> dict[str, Any]:
+    """
+    Extract intent domain and tool tags from the latest HumanMessage.
+
+    Guards against multi-turn re-classification: if the most recent message
+    is not a HumanMessage (e.g. a ToolMessage on a tool-result cycle), this
+    node returns {} so the previous intent values persist unchanged.
+
+    When no Portuguese keywords are matched the node also returns {} so the
+    previous domain is preserved rather than reset to None.
+    """
+    from langchain_core.messages import HumanMessage
+
+    messages = state.get("messages", [])
+    if not messages:
+        return {}
+
+    last_msg = messages[-1]
+    if not isinstance(last_msg, HumanMessage):
+        return {}  # Tool-result turn — keep existing intent
+
+    text = last_msg.content.lower()
+
+    # Maps tool-registry tag → Portuguese trigger keywords
+    _TAG_MAP: dict[str, list[str]] = {
+        "rfq":         ["cotação", "cotacao", "rfq", "fornecedor", "cotizar", "licitação", "licitacao"],
+        "procurement": ["compra", "compras", "pedido de compra", "pedido", "orçamento", "orcamento"],
+        "analytics":   ["análise", "analise", "relatório", "relatorio", "métricas", "metricas", "dashboard", "gráfico", "grafico"],
+        "sql":         ["sql", "query", "consulta", "tabela", "banco de dados"],
+        "csv":         ["csv", "planilha"],
+        "documents":   ["documento", "pdf", "contrato", "nota fiscal"],
+        "ocr":         ["extrair", "extração", "extracao", "ocr", "digitalizar"],
+        "rag":         ["pesquisa", "busca", "buscar", "base de conhecimento", "conhecimento"],
+        "search":      ["encontrar", "procurar", "procura"],
+        "config":      ["configurar", "configuração", "configuracao", "setup", "ajuda"],
+        "monitoring":  ["monitorar", "monitoramento", "mencão", "mencao", "rastrear", "marca"],
+    }
+
+    # Maps sets of tags → coarse domain label (first match wins)
+    _DOMAIN_RULES: list[tuple[frozenset[str], str]] = [
+        (frozenset({"rfq", "procurement"}), "rfq"),
+        (frozenset({"analytics", "sql", "csv"}), "analytics"),
+        (frozenset({"documents", "ocr"}), "documents"),
+        (frozenset({"config"}), "config"),
+        (frozenset({"rag", "search"}), "rag"),
+        (frozenset({"monitoring"}), "monitoring"),
+    ]
+
+    found_tags = [
+        tag for tag, keywords in _TAG_MAP.items()
+        if any(kw in text for kw in keywords)
+    ]
+
+    if not found_tags:
+        return {}  # No signal — preserve previous intent
+
+    found_set = frozenset(found_tags)
+    domain: str | None = next(
+        (d for tag_set, d in _DOMAIN_RULES if tag_set & found_set),
+        state.get("current_domain"),  # fallback: keep previous domain
+    )
+
+    # --- Complexity scoring ---
+    # Conjunction words in Portuguese signal a multi-step request.
+    _CONJUNCTIONS = [
+        "e depois", "em seguida", "também", "e então", "e também",
+        "além disso", "e mais", "e ainda", "depois disso", "por fim",
+        "finalmente", "e gere", "e exporte", "e salve", "e envie",
+    ]
+    conjunction_hits = sum(1 for c in _CONJUNCTIONS if c in text)
+    # Multiple distinct top-level domains also indicate complexity.
+    top_domains = {d for tag_set, d in _DOMAIN_RULES if tag_set & found_set}
+    complexity: str = (
+        "moderate" if (conjunction_hits >= 1 or len(top_domains) >= 2) else "simple"
+    )
+
+    return {
+        "current_intent": last_msg.content[:200],
+        "current_domain": domain,
+        "intent_tags": found_tags,
+        "complexity": complexity,
+    }
+
+
+async def select_skill_node(state: AgentState) -> dict[str, Any]:
+    """
+    Choose the best-matching skill from SKILL_REGISTRY for the current intent.
+
+    Scores each skill by the fraction of its tags that appear in intent_tags.
+    A skill is selected only when overlap >= 50 %; otherwise current_skill is
+    left None and the graph falls back to the simple Phase-4 path.
+
+    This node does NOT filter by the agent's enabled_tools — SkillFactory
+    intersects required_tool_names with agent_enabled_tools at runtime.
+    """
+    from blu_agent_framework.skills import SKILL_REGISTRY
+
+    intent_tags = set(state.get("intent_tags") or [])
+    if not intent_tags:
+        return {"current_skill": None}
+
+    best_name: str | None = None
+    best_score = 0.0
+
+    for skill_name, skill_def in SKILL_REGISTRY.items():
+        skill_tags = set(skill_def.tags)
+        if not skill_tags:
+            continue
+        score = len(intent_tags & skill_tags) / len(skill_tags)
+        if score > best_score:
+            best_score = score
+            best_name = skill_name
+
+    if best_name and best_score >= 0.5:
+        logger.info(
+            f"[select_skill] Selected '{best_name}' (overlap={best_score:.0%}, "
+            f"intent_tags={list(intent_tags)})"
+        )
+        return {"current_skill": best_name}
+
+    # No skill matched well enough — fall back to simple path.
+    logger.debug(
+        f"[select_skill] No skill matched (best={best_name}, score={best_score:.0%}); "
+        "falling back to Phase-4 path"
+    )
+    return {"current_skill": None, "complexity": "simple"}
+
+
+async def run_skill_node(state: AgentState) -> dict[str, Any]:
+    """
+    Execute the skill named by state['current_skill'] via SkillFactory.
+
+    The actual execution is injected by AgentBuilder._create_run_skill_node().
+    This placeholder is registered so the node name resolves in the registry.
+    """
+    logger.debug(f"run_skill_node: skill={state.get('current_skill')} (not wired to factory)")
+    return {"current_skill": None}
 
 
 async def rate_limit_node(state: AgentState) -> dict[str, Any]:
@@ -497,7 +644,14 @@ _BUILTIN_NODES = {
         "description": "Enrich state with additional client context",
         "category": "specialized",
         "inputs": ["client_context"],
-        "outputs": ["metadata"],
+        "outputs": ["metadata", "loaded_context_keys"],
+    },
+    "classify_intent": {
+        "handler": classify_intent_node,
+        "description": "Extract intent domain and tool tags from last HumanMessage; no-op on tool-result turns",
+        "category": "core",
+        "inputs": ["messages", "current_intent", "current_domain"],
+        "outputs": ["current_intent", "current_domain", "intent_tags"],
     },
     "rate_limit": {
         "handler": rate_limit_node,
@@ -519,6 +673,20 @@ _BUILTIN_NODES = {
         "category": "core",
         "inputs": ["tool_results"],
         "outputs": ["pending_tool_calls", "last_tool_result"],
+    },
+    "select_skill": {
+        "handler": select_skill_node,
+        "description": "Select best-matching skill from SKILL_REGISTRY based on intent tags",
+        "category": "core",
+        "inputs": ["intent_tags", "complexity"],
+        "outputs": ["current_skill"],
+    },
+    "run_skill": {
+        "handler": run_skill_node,
+        "description": "Execute selected skill via SkillFactory (wired in AgentBuilder)",
+        "category": "core",
+        "inputs": ["current_skill"],
+        "outputs": ["messages", "skill_results", "current_skill"],
     },
 }
 

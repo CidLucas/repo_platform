@@ -7,137 +7,216 @@ description: World-class prompt engineering skill for LLM optimization, prompt p
 
 Repo-adapted prompt and agent design guidance for `blu-mono`.
 
-This skill is tuned to the prompt and agent architecture that actually exists in this monorepo today:
+This skill is tuned to the prompt and agent architecture that actually exists in this monorepo:
 
-- shared prompt loading and composition through `libs/blu_prompt_management`
-- Langfuse-first prompt management with production labels and builtin fallback where supported
-- LangGraph-based agent execution in `services/atendente_core` and `libs/blu_agent_framework`
-- standalone agent factory/session flow in `services/standalone_agent_api`
-- context injection through `blu_context_service`
-- tool execution through MCP and worker delegation patterns
+- Fragment-based and named-prompt composition through `libs/blu_prompt_management`
+- Langfuse-first prompt management with `production` labels and builtin fallback `.md` files
+- LangGraph agents built via `AgentBuilder` in `libs/blu_agent_framework`
+- Layer 3 domain agents registered in `AgentTypeRegistry` (`registry.py`)
+- Layer 2 ephemeral skills registered in `SKILL_REGISTRY` (`skills.py`), executed by `SkillFactory`
+- `UnifiedAgentFactory` in `services/agent_api` — session-scoped agent assembly with context injection
+- Supervisor + worker delegation pattern in `services/atendente_core`
+- Context assembly through `ContextService` (`libs/blu_context_service`)
+- Tool execution via MCP protocol against `services/tool_pool_api`
 
 Use this skill when you are:
 
-- designing or refactoring system prompts, prompt fragments, or agent prompt variables
-- changing agent graph behavior, tool routing, or worker delegation logic
-- evaluating prompt quality for SQL, RAG, reporting, or onboarding/config-helper flows
-- adding or reviewing standalone agents from catalog definition through runtime invocation
-- deciding whether logic belongs in prompts, graph state, tools, or context assembly
+- designing or refactoring system prompts, prompt fragments, or tool prompts
+- adding or changing agent fragment stacks, `AgentTypeConfig`, or `SkillDefinition`
+- evaluating prompt quality for SQL, RAG, reporting, or procurement flows
+- wiring new context variables from `ContextService` into prompt assembly
+- deciding whether logic belongs in prompts, graph nodes, tool contracts, or context assembly
 
-## Core Expertise
+---
 
-This skill covers the repo's concrete prompt and agent concerns:
+## Architecture Layers
 
-- prompt composition from fragments and variables
-- Langfuse prompt lifecycle and production-label usage
-- agent state design and context isolation
-- fan-out/fan-in tool execution in LangGraph
-- evaluation of prompt changes through task-specific tests and runtime traces
-- tradeoffs between prompt instructions, tool contracts, and structured outputs
+| Layer                      | What it is                                   | Config                             | Prompt                                                 |
+| -------------------------- | -------------------------------------------- | ---------------------------------- | ------------------------------------------------------ |
+| **Supervisor**             | Routes to domain agents via delegation tools | `fragment/supervisor-*` stack      | Dynamic `workers_description` from `AgentTypeRegistry` |
+| **Layer 3 — Domain Agent** | Stateful LangGraph agent, Redis checkpointer | `AgentTypeConfig` in `registry.py` | Fragment list or named `prompt_name`                   |
+| **Layer 2 — Skill**        | Ephemeral sub-agent, no checkpointer         | `SkillDefinition` in `skills.py`   | `skill:<name>:system` in Langfuse                      |
+| **Tool prompts**           | Internal LLM calls inside tools              | n/a                                | `tool/<name>` in Langfuse                              |
+
+---
 
 ## Tech Stack
 
-**Primary language:** Python
-**Prompt management:** Langfuse + `blu_prompt_management`
+**Language:** Python
 **Agent runtime:** LangGraph + `blu_agent_framework`
-**Observability:** Langfuse + `blu_observability_bootstrap`
-**Context layer:** `blu_context_service`
-**Data/tool surfaces:** Supabase, analytics SQL, MCP tools, worker delegation, RAG
-**Primary services:** `atendente_core`, `standalone_agent_api`, `tool_pool_api`
+**Prompt management:** Langfuse + `blu_prompt_management` (compose_prompt, build_prompt)
+**Context layer:** `blu_context_service` — Redis cache + Supabase (sql_table_config, agent_sessions)
+**Observability:** Langfuse traces
+**Tool execution:** MCP protocol → `tool_pool_api`
+**Primary services:** `agent_api` (standalone), `atendente_core` (supervisor), `tool_pool_api` (tools)
+
+---
+
+## Key File Locations
+
+### Prompt content (builtin fallbacks)
+
+```
+libs/blu_prompt_management/src/blu_prompt_management/prompts/
+  fragment/          — shared and agent-specific fragments
+  tool/              — internal tool LLM call prompts
+  skill/             — skill system prompt fallbacks (must exist for each SkillDefinition)
+  atendente/         — supervisor prompt variants
+```
+
+### Agent and skill registry
+
+```
+libs/blu_agent_framework/src/blu_agent_framework/
+  registry.py        — AgentTypeConfig + AgentTypeRegistry (Layer 3)
+  skills.py          — SkillDefinition + SKILL_REGISTRY (Layer 2)
+  skill_factory.py   — SkillFactory runtime
+  builder.py         — AgentBuilder fluent API
+  nodes.py           — NodeRegistry decorator pattern
+  state.py           — AgentState dataclass
+  supervisor.py      — Supervisor graph
+```
+
+### Tool registry
+
+```
+libs/blu_tool_registry/src/blu_tool_registry/
+  registry.py        — BUILTIN_TOOLS, GOOGLE_TOOLS, DOCKER_MCP_TOOLS + ToolMetadata
+```
+
+### Factory (session-scoped agent assembly)
+
+```
+services/agent_api/src/agent_api/core/factory.py   — UnifiedAgentFactory
+```
+
+### Context service
+
+```
+libs/blu_context_service/src/blu_context_service/
+  context_service.py — ContextService: get_client_context_by_id, get_sql_table_configs
+```
+
+### Prompt management scripts
+
+```
+scripts/audit_langfuse_prompts.py        — audit production labels across all prompts
+scripts/verify_standalone_prompts.py     — verify fragment composition compiles
+scripts/create_standalone_prompts.py     — seed standalone agent prompts in Langfuse
+scripts/create_analytics_prompts.py      — seed SQL/analytics fragments in Langfuse
+scripts/create_rfq_prompts.py            — seed RFQ fragments in Langfuse
+scripts/create_supervisor_prompts.py     — seed supervisor fragments in Langfuse
+scripts/update_atendente_fragments.py    — update atendente fragment content in Langfuse
+```
+
+---
+
+## How This Repo Wires Prompts
+
+### Fragment-based agent (most agents)
+
+```python
+# registry.py — AgentTypeConfig
+AgentTypeConfig(
+    slug="data-analyst",
+    fragments=[
+        "fragment/standalone-base",     # identity, company context, session metadata
+        "fragment/sql-schema",          # schema (dynamic via schema_description variable)
+        "fragment/sql-rules",           # SQL generation constraints
+        "fragment/sql-examples",        # few-shot SQL patterns
+        "fragment/fallback-strategy",   # what to do when queries fail
+        "fragment/data-analyst-workflow", # step-by-step workflow
+        "fragment/standalone-response", # response quality, language rule
+    ],
+    enabled_tools=["execute_sql", "execute_csv_query", "list_csv_datasets", "peek_csv_columns"],
+)
+
+# factory.py — assembled in UnifiedAgentFactory.get_standalone_agent()
+variables = {
+    "nome_empresa": ...,           # from BluClientContext
+    "agent_name": ...,             # from agent_catalog
+    "agent_description": ...,      # from agent_catalog
+    "collected_context": ...,      # from agent_sessions.collected_context
+    "schema_description": ...,     # rendered from sql_table_config via _render_schema_description()
+    "csv_datasets": ...,           # from collected_context
+    "document_names": ...,         # from collected_context
+    "google_connected": ...,       # from collected_context.google_email
+    ...
+}
+system_prompt = await compose_prompt(fragments=registry_cfg.fragments, variables=variables)
+```
+
+### Named-prompt agent (customer-support)
+
+```python
+AgentTypeConfig(
+    slug="customer-support",
+    prompt_name="agents/customer-support",  # loaded directly from Langfuse, no fragments
+    enabled_tools=[...],
+)
+# factory: system_prompt = await build_prompt(name=prompt_name, variables=variables)
+```
+
+### Skill (Layer 2)
+
+```python
+# skills.py — SkillDefinition
+SkillDefinition(
+    name="analyze_csv",
+    prompt_name="skill:analyze_csv:system",   # Langfuse key
+    required_tool_names=["list_csv_datasets", "peek_csv_columns", "execute_csv_query"],
+    max_turns=5,
+    on_max_turns="return_partial",
+)
+# SkillFactory intersects required_tool_names with parent agent's enabled_tools at runtime
+```
+
+### Tool prompt (internal LLM call inside a tool)
+
+```python
+# Inside executar_sql_agent tool (tool_pool_api):
+PromptLoader.load("tool/sql-generation", variables={"query": nl_query, "table_info": schema})
+# Inside executar_rag_cliente tool:
+PromptLoader.load("tool/rag-query-rewrite", variables={"query": original_query})
+```
+
+---
+
+## Critical Patterns
+
+### Fragment ordering
+
+Order is meaningful — fragments are concatenated top to bottom:
+
+1. **Identity first** (`standalone-base`) — company context, session metadata, language rule
+2. **Domain knowledge** (`sql-schema`, `rag-search`, `document-intelligence-tools`) — what the agent knows
+3. **Workflow** (`*-workflow`) — how the agent should act, which tools to call and in what order
+4. **Response last** (`standalone-response`) — output format, quality standards
+
+Never put tool USAGE instructions in rules/schema fragments — they belong in the workflow fragment.
+
+### Tool ownership per agent
+
+- `data-analyst` generates SQL itself (has schema fragments) → `execute_sql` only, no `executar_sql_agent`
+- `report-generator` has no schema context → `executar_sql_agent` only (NL→SQL internally), no `execute_sql`
+- Tool intersection: `SkillFactory` intersects `skill.required_tool_names` with `agent.enabled_tools` at runtime — a tool missing from the agent is silently dropped
+
+### Dynamic schema injection
+
+`schema_description` variable is populated in the factory from `ContextService.get_sql_table_configs()` → `_render_schema_description()`. The `fragment/sql-schema` uses it when non-empty, falls back to static analytics_v2 schema when empty.
+
+### Supervisor workers list
+
+`fragment/supervisor-workers` renders `{{ workers_description }}` generated by `AgentTypeRegistry.build_supervisor_description(tier)` — dynamic per tier. Do not add a static routing table alongside it; it will drift.
+
+### RAG synthesis boundary
+
+`executar_rag_cliente` returns raw passages. The agent synthesises them. There is no synthesis inside the tool. The `tool/rag-query-rewrite` prompt runs pre-retrieval to rewrite the query for better embedding search.
+
+---
 
 ## Reference Documentation
 
-### 1. Prompt Engineering Patterns
-
-See `references/prompt_engineering_patterns.md` for the repo's actual prompt composition, fragment, fallback, and variable-injection patterns.
-
-### 2. Llm Evaluation Frameworks
-
-See `references/llm_evaluation_frameworks.md` for how to validate prompt and agent behavior in this repo without falling back to vague manual judgment.
-
-### 3. Agentic System Design
-
-See `references/agentic_system_design.md` for the concrete graph, factory, context, and tool-routing patterns already in use.
-
-## Current Repo Patterns
-
-### Pattern 1: Prompt logic is shared infrastructure, not scattered strings
-
-- Prefer `blu_prompt_management` over direct ad hoc prompt assembly.
-- Use fragment composition when the agent family shares reusable prompt blocks.
-- Use production-labeled Langfuse prompts for live runtime behavior.
-- Preserve builtin fallback only where the existing loader already supports it.
-
-### Pattern 2: Context is assembled before graph execution
-
-- `ContextService` loads tenant/client context.
-- standalone sessions add collected context, uploaded file references, document references, and OAuth links.
-- the factory turns that into prompt variables and state metadata before agent execution starts.
-
-### Pattern 3: Tool strategy is architectural, not just prompt wording
-
-- `atendente_core` uses supervisor + worker delegation tools.
-- worker tools are tier-gated and can fan out in parallel.
-- standalone agents use catalog-defined enabled tools plus session metadata.
-- prompt changes should not attempt to paper over missing tool contracts or bad graph structure.
-
-## How To Use This Skill In This Repo
-
-### For prompt changes
-
-1. Identify whether the prompt is fragment-based, monolithic, or builtin fallback.
-2. Preserve existing prompt names when code, scripts, or admin routes depend on them.
-3. Move branching, loops, or stateful behavior into code or graph logic when the prompt starts encoding workflow.
-4. Verify through the actual consuming service or test, not only by reading the text.
-
-### For agent design changes
-
-1. Start from the owning abstraction: `atendente_core`, `blu_agent_framework`, or `standalone_agent_api`.
-2. Decide whether the behavior belongs in graph routing, tool execution, state reducers, context assembly, or prompt text.
-3. Keep tenant/session context boundaries explicit.
-4. Validate the narrowest real slice: prompt loader, graph node, runtime stream, or focused e2e test.
-
-## Best Practices
-
-### Development
-
-- Reuse shared prompt and agent infrastructure before introducing a new abstraction.
-- Keep prompts declarative; keep orchestration in graph or service code.
-- Use real repo vocabulary in prompts, including tenant/context/tool names that actually exist.
-- Document unknowns instead of fabricating prompt behavior contracts.
-
-### Production
-
-- Prefer `label="production"` prompt loading for live behavior.
-- Treat prompt regressions as runtime regressions: verify them where the user experiences them.
-- Preserve graceful degradation where Langfuse or optional integrations are intentionally best-effort.
-
-### Evaluation
-
-- Evaluate prompts by task outcome, not by how polished the prompt text looks.
-- Prefer existing tests and verification scripts over subjective spot checks.
-- When changing SQL or RAG prompts, verify against the real schema and retrieval contracts in the repo.
-
-## High-Signal Repo Anchors
-
-- `libs/blu_prompt_management`
-- `libs/blu_agent_framework`
-- `services/atendente_core/src/atendente_core/core/`
-- `services/standalone_agent_api/src/standalone_agent_api/core/`
-- `scripts/audit_langfuse_prompts.py`
-- `scripts/verify_standalone_prompts.py`
-- `/memories/repo/agent-execution-pipeline.md`
-- `/memories/repo/agent-configuration-context-flow.md`
-- `/memories/repo/langfuse-prompts.md`
-
-## Known Unknowns
-
-- Not every agent implementation in the repo was sampled for this skill.
-- Some older prompt consumers may still rely on builtin templates or legacy loaders.
-- The full evaluation story across all agents is still partly distributed between tests, scripts, and runtime inspection.
-
-## Resources
-
-- `references/prompt_engineering_patterns.md`
-- `references/llm_evaluation_frameworks.md`
-- `references/agentic_system_design.md`
+- `references/prompt_engineering_patterns.md` — fragment rules, variable assembly, anti-patterns
+- `references/agentic_system_design.md` — graph patterns, Layer 2/3, factory, context flow
+- `references/llm_evaluation_frameworks.md` — how to validate prompt changes in this repo

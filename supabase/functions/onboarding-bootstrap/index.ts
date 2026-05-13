@@ -183,7 +183,19 @@ Deno.serve(async (req: Request) => {
       nome_empresa: (state.empresa ?? "").trim() || null,
     };
 
-    // ── 3. Call the atomic RPC with the caller's JWT (RLS scope) ────────────
+    // ── 3. Ensure clientes_blu row exists before the transaction ────────────
+    // ensure_tenant_row() is SECURITY DEFINER — it inserts the row bypassing
+    // RLS if the handle_new_auth_user trigger missed it (e.g. some OAuth flows).
+    const { error: ensureError } = await userClient.rpc("ensure_tenant_row");
+    if (ensureError) {
+      console.error("[onboarding-bootstrap] ensure_tenant_row failed:", ensureError);
+      return json(
+        { error: "Failed to initialize tenant", details: ensureError.message },
+        500,
+      );
+    }
+
+    // ── 4. Call the atomic RPC with the caller's JWT (RLS scope) ────────────
     const { data: txData, error: txError } = await userClient.rpc(
       "onboarding_bootstrap_tx",
       { p_payload: payload },
@@ -240,7 +252,7 @@ Deno.serve(async (req: Request) => {
       console.warn("[onboarding-bootstrap] Failed to stamp seed status:", err);
     }
 
-    // ── 4. Fire website-context-builder if a website was provided ────────────
+    // ── 5. Fire website-context-builder if a website was provided ────────────
     if (state.website && SUPABASE_SERVICE_ROLE_KEY) {
       const ctxPayload = {
         client_id: result.client_id,
@@ -250,7 +262,7 @@ Deno.serve(async (req: Request) => {
           empresa: state.empresa,
           website: state.website,
           vertical: state.vertical,
-          teamSize: state.teamSize,
+          teamSize: state.porte,
           email: state.email,
         },
       };
@@ -271,6 +283,31 @@ Deno.serve(async (req: Request) => {
           }
         }).catch((err) => {
           console.warn("[onboarding-bootstrap] website-context-builder fire failed:", err);
+        }),
+      );
+    }
+
+    // ── 6. Fire generate-context-report (best-effort; skips if no data yet) ─
+    if (SUPABASE_SERVICE_ROLE_KEY) {
+      EdgeRuntime.waitUntil(
+        fetch(`${SUPABASE_URL}/functions/v1/generate-context-report`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+          body: JSON.stringify({ client_id: result.client_id }),
+        }).then(async (r) => {
+          const body = await r.json().catch(() => ({}));
+          if (!r.ok) {
+            console.warn(`[onboarding-bootstrap] generate-context-report ${r.status}:`, body);
+          } else if (body.skipped) {
+            console.log(`[onboarding-bootstrap] generate-context-report skipped (no data yet) for ${result.client_id}`);
+          } else {
+            console.log(`[onboarding-bootstrap] context report generated: doc=${body.document_id}`);
+          }
+        }).catch((err) => {
+          console.warn("[onboarding-bootstrap] generate-context-report fire failed:", err);
         }),
       );
     }

@@ -8,8 +8,11 @@ export type Screen =
   | 'documentos'
   | 'estrategia'
   | 'clientes'
+  | 'agentes'
   | 'atividade'
   | 'admin'
+  | 'biblioteca'
+  | 'blu_ops'
 
 export type ToastType = 'ok' | 'no' | 'sn'
 
@@ -20,6 +23,7 @@ export interface Toast {
   msg: string
 }
 
+// Local-only decision UI state (used by rooms not yet wired to the backend)
 export type DecisionStatus = 'pending' | 'expanded' | 'done' | 'rejected' | 'snoozed'
 
 export interface Decision {
@@ -30,13 +34,16 @@ export interface Decision {
 export interface AppState {
   screen: Screen
   breadcrumb: string
+  // expandedId: used by wired rooms (HomePage, FinanceiroRoom) via React Query
+  expandedId: string | null
+  // decisions: local-only UI state for rooms not yet wired to backend
   decisions: Record<string, Decision>
   toasts: Toast[]
-  pendingCount: number
 
   // actions
   go: (s: Screen, label: string) => void
   toggleDc: (id: string) => void
+  // Local-only approve/reject/snooze for un-wired rooms (no DB writes)
   approve: (id: string, msg: string) => void
   reject: (id: string) => void
   snooze: (id: string) => void
@@ -44,35 +51,35 @@ export interface AppState {
   removeToast: (id: string) => void
 }
 
-const INITIAL_DECISIONS: Record<string, Decision> = {
-  dc1: { id: 'dc1', status: 'pending' },
-  dc2: { id: 'dc2', status: 'pending' },
-  dc3: { id: 'dc3', status: 'pending' },
-}
-
 export const useAppStore = create<AppState>((set, get) => ({
   screen: 'home',
-  breadcrumb: 'Bom dia, Carlos ☀️',
-  decisions: INITIAL_DECISIONS,
+  breadcrumb: 'Bom dia ☀️',
+  expandedId: null,
+  decisions: {},
   toasts: [],
-  pendingCount: 5,
 
   go(s, label) {
     set({
       screen: s,
-      breadcrumb:
-        s === 'home'
-          ? 'Bom dia, Carlos ☀️'
-          : label,
+      breadcrumb: s === 'home' ? 'Bom dia ☀️' : label,
+      expandedId: null,
     })
   },
 
+  // toggleDc works for both modes:
+  // - wired rooms use expandedId
+  // - un-wired rooms use decisions[id].status
   toggleDc(id) {
-    const decisions = { ...get().decisions }
-    const dc = decisions[id]
-    if (!dc || dc.status === 'done' || dc.status === 'rejected') return
+    // Update expandedId (for wired rooms)
+    set(s => ({ expandedId: s.expandedId === id ? null : id }))
 
-    // collapse all siblings
+    // Also update decisions map (for un-wired rooms still using it)
+    const decisions = { ...get().decisions }
+    if (!decisions[id]) {
+      decisions[id] = { id, status: 'pending' }
+    }
+    const dc = decisions[id]
+    if (dc.status === 'done' || dc.status === 'rejected') return
     const wasExpanded = dc.status === 'expanded'
     Object.keys(decisions).forEach(k => {
       if (decisions[k].status === 'expanded') {
@@ -85,18 +92,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ decisions })
   },
 
+  // Local-only — used by un-wired rooms
   approve(id, msg) {
     const decisions = { ...get().decisions }
-    if (!decisions[id]) return
+    if (!decisions[id]) decisions[id] = { id, status: 'pending' }
     decisions[id] = { ...decisions[id], status: 'done' }
-    const pendingCount = Math.max(0, get().pendingCount - 1)
-    set({ decisions, pendingCount })
+    set({ decisions })
     get().addToast('ok', 'Aprovado', msg)
   },
 
   reject(id) {
     const decisions = { ...get().decisions }
-    if (!decisions[id]) return
+    if (!decisions[id]) decisions[id] = { id, status: 'pending' }
     decisions[id] = { ...decisions[id], status: 'rejected' }
     set({ decisions })
     get().addToast('no', 'Rejeitado', 'Blu anotou. Não vou sugerir este tipo de ação novamente.')
@@ -104,7 +111,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   snooze(id) {
     const decisions = { ...get().decisions }
-    if (!decisions[id]) return
+    if (!decisions[id]) decisions[id] = { id, status: 'pending' }
     decisions[id] = { ...decisions[id], status: 'snoozed' }
     set({ decisions })
     setTimeout(() => {

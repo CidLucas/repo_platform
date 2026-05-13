@@ -71,3 +71,4 @@ pull-github-push-gcp.sh
 seeds/
 projetos/
 open-design/
+.vercel

@@ -61,6 +61,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
     from . import (
         common_module,
         config_helper_module,
+        context_module,  # noqa: F401
         csv_module,
         document_intelligence_module,
         ocr_extraction_module,
@@ -69,6 +70,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
         report_module,
         rfq_module,
         rfq_whatsapp_module,
+        routines_module,  # noqa: F401
         sql_module,
         web_crawl_module,
         web_monitor_module,
@@ -203,6 +205,30 @@ AVAILABLE_MODULES = {
         "tools": [
             "dispatch_rfq_whatsapp",
             "parse_supplier_reply",
+        ],
+        "requires_auth": True,
+    },
+    "routines": {
+        "description": "Criação e gestão de rotinas personalizadas e de catálogo via chat",
+        "tools": [
+            "listar_rotinas_catalogo",
+            "listar_rotinas_personalizadas",
+            "criar_rotina_personalizada",
+            "ativar_rotina_catalogo",
+            "enviar_rotina_para_aprovacao",
+        ],
+        "requires_auth": True,
+    },
+    "context": {
+        "description": "Transaction registration, data catalog, schema mapping, and knowledge completeness for the context-gatherer agent",
+        "tools": [
+            "register_transaction",
+            "list_data_sources",
+            "query_data_catalog",
+            "suggest_column_mapping",
+            "update_schema_mapping",
+            "get_knowledge_status",
+            "update_context_document",
         ],
         "requires_auth": True,
     },

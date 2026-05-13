@@ -1,14 +1,57 @@
+import { useRef, useState, useEffect } from 'react'
+import { useAuth } from '@blu/auth'
 import { useAppStore } from '../../store/appStore'
 
-export default function Topbar() {
+interface TopbarProps {
+  onToggleTheme: () => void
+  lightMode: boolean
+}
+
+export default function Topbar({ onToggleTheme, lightMode }: TopbarProps) {
   const { breadcrumb, go } = useAppStore()
+  const { user, signOut } = useAuth()
   const isHome = breadcrumb === 'Bom dia, Carlos ☀️'
+
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
+
+  const initials = user?.email
+    ? user.email.slice(0, 2).toUpperCase()
+    : 'BL'
 
   return (
     <header className="topbar">
       <div className="logo">
-        <div className="logo-mark">B</div>
-        <span className="logo-name">blu</span>
+        <svg className="logo-bubble-svg" width="54" height="48" viewBox="0 0 80 72" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="bluGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#7E5CC8"/>
+              <stop offset="100%" stopColor="#3A80D4"/>
+            </linearGradient>
+            <clipPath id="bluClip">
+              <path d="M12,0 H68 Q80,0 80,12 V48 Q80,60 68,60 H26 L12,72 L18,60 H12 Q0,60 0,48 V12 Q0,0 12,0 Z"/>
+            </clipPath>
+          </defs>
+          <path d="M12,0 H68 Q80,0 80,12 V48 Q80,60 68,60 H26 L12,72 L18,60 H12 Q0,60 0,48 V12 Q0,0 12,0 Z" fill="url(#bluGrad)"/>
+          <ellipse cx="38" cy="10" rx="26" ry="6" fill="rgba(255,255,255,0.18)"/>
+          <g clipPath="url(#bluClip)">
+            <path d="M-2,40 Q20,32 40,40 Q60,48 82,40 L82,74 L-2,74 Z" fill="rgba(255,255,255,0.22)"/>
+            <path d="M-2,50 Q20,42 40,50 Q60,58 82,50 L82,74 L-2,74 Z" fill="rgba(255,255,255,0.13)"/>
+          </g>
+          <text x="40" y="38" textAnchor="middle"
+            fontFamily="'Nunito',-apple-system,BlinkMacSystemFont,system-ui,sans-serif"
+            fontSize="22" fontWeight="900" fill="white" letterSpacing="-0.5">blu</text>
+        </svg>
       </div>
       <div className="topbar-mid">
         {isHome ? (
@@ -29,6 +72,15 @@ export default function Topbar() {
         )}
       </div>
       <div className="topbar-end">
+        {/* Theme toggle */}
+        <button
+          className="ibtn"
+          onClick={onToggleTheme}
+          title={lightMode ? 'Modo escuro' : 'Modo claro'}
+          style={{ fontSize: 13 }}
+        >
+          {lightMode ? '🌙' : '☀️'}
+        </button>
         <button className="ibtn">
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="8" />
@@ -42,7 +94,48 @@ export default function Topbar() {
           </svg>
           <span className="rdot" />
         </button>
-        <div className="av">CL</div>
+
+        {/* User menu */}
+        <div ref={menuRef} style={{ position: 'relative' }}>
+          <div className="av" onClick={() => setMenuOpen(o => !o)} title={user?.email ?? ''}>
+            {initials}
+          </div>
+          {menuOpen && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+              background: 'var(--glass)', backdropFilter: 'blur(20px)',
+              border: '1px solid var(--gb)', borderRadius: 'var(--rl)',
+              minWidth: 180, padding: '6px', zIndex: 200,
+            }}>
+              {user?.email && (
+                <div style={{
+                  padding: '6px 10px 8px', fontSize: 11,
+                  color: 'var(--mu)', borderBottom: '1px solid var(--gb)', marginBottom: 4,
+                }}>
+                  {user.email}
+                </div>
+              )}
+              <button
+                onClick={() => { setMenuOpen(false); void signOut() }}
+                style={{
+                  width: '100%', textAlign: 'left', padding: '7px 10px',
+                  background: 'none', border: 'none', borderRadius: 6,
+                  color: 'var(--fg)', fontSize: 12, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--gb)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                Sair
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   )

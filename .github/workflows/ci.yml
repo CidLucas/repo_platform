@@ -61,6 +61,10 @@ jobs:
         service:
           - atendente_core
           - tool_pool_api
+        include:
+          # atendente_core was renamed to agent_api; keep service name for image compat
+          - service: atendente_core
+            source_dir: agent_api
     steps:
       - uses: actions/checkout@v4
 
@@ -75,14 +79,14 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
-        working-directory: services/${{ matrix.service }}
+        working-directory: services/${{ matrix.source_dir || matrix.service }}
         run: |
           poetry install --with dev
           # Ensure pytest-cov is installed
           poetry add --group dev pytest-cov || true
 
       - name: Run tests
-        working-directory: services/${{ matrix.service }}
+        working-directory: services/${{ matrix.source_dir || matrix.service }}
         run: |
           # Run tests with coverage if pytest-cov is available, otherwise without
           poetry run pytest tests/ -v --cov=src --cov-report=term-missing --cov-report=xml 2>/dev/null || \
@@ -116,6 +120,9 @@ jobs:
         include:
           - service: blu_dashboard
             dockerfile_path: apps/blu_dashboard/Dockerfile
+          # atendente_core was renamed to agent_api; keep image name for deploy compat
+          - service: atendente_core
+            dockerfile_path: services/agent_api/Dockerfile
 
     steps:
       - uses: actions/checkout@v4

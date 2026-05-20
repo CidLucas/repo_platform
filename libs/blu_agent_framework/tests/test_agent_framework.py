@@ -211,8 +211,9 @@ class TestNodes:
         assert result == {}
 
     @pytest.mark.asyncio
-    async def test_execute_tool_node_clears_fields(self, sample_state):
-        """Placeholder execute_tool_node clears tool fields; validation is in AgentBuilder."""
+    async def test_execute_tool_node_clears_fields(self, sample_state, monkeypatch):
+        """Placeholder execute_tool_node clears tool fields when sentinel mode enabled."""
+        monkeypatch.setenv("BLU_AGENT_FAIL_ON_PLACEHOLDERS", "0")
         sample_state["tool_to_execute"] = "some_tool"
         sample_state["tool_args"] = {"q": "test"}
 
@@ -569,8 +570,9 @@ class TestFanOut:
         assert send_state["channel"] == "web"
 
     @pytest.mark.asyncio
-    async def test_execute_single_tool_node_placeholder(self, sample_state):
-        """Test execute_single_tool_node returns error when not wired."""
+    async def test_execute_single_tool_node_placeholder(self, sample_state, monkeypatch):
+        """Test execute_single_tool_node returns sentinel when sentinel mode enabled."""
+        monkeypatch.setenv("BLU_AGENT_FAIL_ON_PLACEHOLDERS", "0")
         from blu_agent_framework.nodes import execute_single_tool_node
 
         state = {"tool_call": {"name": "test_tool", "id": "call-1", "args": {}}}

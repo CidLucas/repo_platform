@@ -3,6 +3,7 @@ Reusable graph nodes for agent workflows.
 """
 
 import logging
+import os
 from collections.abc import Callable
 from functools import wraps
 from typing import Any
@@ -12,6 +13,35 @@ from langgraph.types import Send
 from blu_agent_framework.state import AgentState
 
 logger = logging.getLogger(__name__)
+
+
+_PLACEHOLDER_ENV = "BLU_AGENT_FAIL_ON_PLACEHOLDERS"
+
+
+def _fail_on_placeholders(config: Any = None) -> bool:
+    """Whether placeholder nodes should fail fast instead of returning sentinels.
+
+    Precedence (highest first):
+      1. ``config.fail_on_placeholders`` (AgentConfig field, if config is provided)
+      2. ``BLU_AGENT_FAIL_ON_PLACEHOLDERS`` env var
+      3. Default: True (fail fast)
+    """
+    if config is not None and hasattr(config, "fail_on_placeholders"):
+        return bool(config.fail_on_placeholders)
+    raw = os.getenv(_PLACEHOLDER_ENV)
+    if raw is None:
+        return True
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _placeholder_payload(node: str, message: str, **extra: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "_placeholder": True,
+        "node": node,
+        "message": message,
+    }
+    payload.update(extra)
+    return payload
 
 
 class NodeMetadata:
@@ -202,11 +232,16 @@ async def execute_tool_node(state: AgentState) -> dict[str, Any]:
     # This is a placeholder that will be replaced by AgentBuilder
     logger.debug(f"Executing tool: {tool_name} with args: {tool_args}")
 
-    # Return placeholder - actual execution is wired in AgentBuilder
-    return {
-        "tool_to_execute": None,
-        "tool_args": None,
-    }
+    message = "execute_tool placeholder node is not wired by AgentBuilder"
+    if _fail_on_placeholders():
+        raise NotImplementedError(message)
+
+    return _placeholder_payload(
+        "execute_tool",
+        message,
+        tool_to_execute=None,
+        tool_args=None,
+    )
 
 
 # =============================================================================
@@ -270,9 +305,22 @@ async def execute_single_tool_node(state: dict[str, Any]) -> dict[str, Any]:
     logger.debug(f"execute_single_tool_node: {tool_name}")
 
     # Placeholder - actual execution injected by AgentBuilder
-    return {
-        "tool_results": [{"tool_name": tool_name, "error": "Not wired to executor"}],
-    }
+    message = "execute_single_tool placeholder node is not wired by AgentBuilder"
+    if _fail_on_placeholders():
+        raise NotImplementedError(message)
+
+    return _placeholder_payload(
+        "execute_single_tool",
+        message,
+        tool_results=[
+            {
+                "tool_name": tool_name,
+                "error": message,
+                "success": False,
+                "_placeholder": True,
+            }
+        ],
+    )
 
 
 async def collect_tool_results_node(state: AgentState) -> dict[str, Any]:
@@ -315,9 +363,15 @@ async def respond_node(state: AgentState) -> dict[str, Any]:
         f"Generating response with {len(messages)} messages, tool_result={last_tool_result is not None}"
     )
 
-    return {
-        "last_tool_result": None,  # Clear after processing
-    }
+    message = "respond placeholder node is not wired by AgentBuilder"
+    if _fail_on_placeholders():
+        raise NotImplementedError(message)
+
+    return _placeholder_payload(
+        "respond",
+        message,
+        last_tool_result=None,
+    )
 
 
 async def end_node(state: AgentState) -> dict[str, Any]:

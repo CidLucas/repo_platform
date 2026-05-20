@@ -22,23 +22,99 @@ logger = logging.getLogger(__name__)
 class _CheckpointerAdapter:
     """Wraps a sync-only RedisSaver so LangGraph's async runtime can use it.
 
+    Lifecycle
+    ---------
+    Supports both sync and async context-manager protocols so callers can do::
+
+        with create_checkpointer(url) as cp:
+            graph = workflow.compile(checkpointer=cp)
+
+    or equivalently::
+
+        async with create_checkpointer(url) as cp:
+            ...
+
+    A bare ``close()`` / ``aclose()`` call also works for service teardown.
+
     Uses an explicit allowlist for async wrapping to avoid silently proxying
-    unrelated ``a*`` attributes (e.g. ``aclose``, ``aenter``).
+    unrelated ``a*`` attributes.
     """
 
     _ASYNC_WRAP = frozenset({"aget_tuple", "aput", "aput_writes", "alist"})
 
-    def __init__(self, inner: Any) -> None:
+    def __init__(self, inner: Any, _cm: Any = None) -> None:
         self._inner = inner
+        # Keep the original context-manager so __exit__/__aexit__ can call it.
+        self._cm = _cm
 
-    # --- forwarded sync methods ---
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def close(self) -> None:
+        """Release resources held by the inner saver (sync)."""
+        if self._cm is not None and hasattr(self._cm, "__exit__"):
+            try:
+                self._cm.__exit__(None, None, None)
+            except Exception as exc:
+                logger.warning("[Checkpointer] __exit__ raised: %s", exc)
+            finally:
+                self._cm = None
+        elif hasattr(self._inner, "close"):
+            try:
+                self._inner.close()
+            except Exception as exc:
+                logger.warning("[Checkpointer] inner.close() raised: %s", exc)
+
+    async def aclose(self) -> None:
+        """Release resources held by the inner saver (async)."""
+        if self._cm is not None and hasattr(self._cm, "__aexit__"):
+            try:
+                await self._cm.__aexit__(None, None, None)
+            except Exception as exc:
+                logger.warning("[Checkpointer] __aexit__ raised: %s", exc)
+            finally:
+                self._cm = None
+        elif self._cm is not None:
+            # Sync __exit__ called from async context.
+            self.close()
+        elif hasattr(self._inner, "aclose"):
+            try:
+                await self._inner.aclose()
+            except Exception as exc:
+                logger.warning("[Checkpointer] inner.aclose() raised: %s", exc)
+        elif hasattr(self._inner, "close"):
+            try:
+                self._inner.close()
+            except Exception as exc:
+                logger.warning("[Checkpointer] inner.close() raised: %s", exc)
+
+    # Sync context manager
+    def __enter__(self) -> "_CheckpointerAdapter":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+
+    # Async context manager
+    async def __aenter__(self) -> "_CheckpointerAdapter":
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        await self.aclose()
+
+    # ------------------------------------------------------------------
+    # Forwarded sync methods
+    # ------------------------------------------------------------------
 
     def get_next_version(self, *args: Any, **kwargs: Any) -> Any:
         if hasattr(self._inner, "get_next_version"):
             return self._inner.get_next_version(*args, **kwargs)
         return None
 
-    # --- explicit async wrappers over sync implementations ---
+    # ------------------------------------------------------------------
+    # Explicit async wrappers over sync implementations
+    # ------------------------------------------------------------------
 
     async def aget_tuple(self, config: Any) -> Any:
         if hasattr(self._inner, "get_tuple"):
@@ -74,10 +150,20 @@ class _CheckpointerAdapter:
 def create_checkpointer(redis_url: str) -> "_CheckpointerAdapter":
     """Create and initialise a RedisSaver wrapped in _CheckpointerAdapter.
 
-    Handles all three RedisSaver factory patterns seen across langgraph
-    checkpoint versions:
-    - Returns a plain saver object directly.
-    - Returns a context-manager that yields the saver on __enter__.
+    Handles all RedisSaver factory patterns seen across langgraph-checkpoint
+    versions:
+
+    - Factory returns a plain saver object directly.
+    - Factory returns a context-manager whose ``__enter__`` yields the saver.
+
+    The returned adapter implements both sync and async context-manager
+    protocols so callers can use it with ``with`` / ``async with`` for
+    deterministic teardown::
+
+        with create_checkpointer(redis_url) as cp:
+            graph = workflow.compile(checkpointer=cp)
+            ...
+        # cp.close() called automatically here
 
     Args:
         redis_url: Redis connection string (e.g. ``redis://localhost:6379``).
@@ -87,14 +173,21 @@ def create_checkpointer(redis_url: str) -> "_CheckpointerAdapter":
     """
     from langgraph.checkpoint.redis import RedisSaver
 
-    cp = RedisSaver.from_conn_string(redis_url)
+    raw = RedisSaver.from_conn_string(redis_url)
 
-    # Unwrap context-manager factory variants.
-    if hasattr(cp, "__enter__") and not hasattr(cp, "get_next_version"):
+    # Detect context-manager factory pattern (has __enter__ but not the
+    # final saver API).  We store the original cm so __exit__ can be
+    # forwarded on close().
+    cm: Any = None
+    cp: Any = raw
+    if hasattr(raw, "__enter__") and not hasattr(raw, "get_next_version"):
+        cm = raw
         try:
-            cp = cp.__enter__()
+            cp = raw.__enter__()
         except Exception as exc:
             logger.warning("[Checkpointer] __enter__ failed (continuing): %s", exc)
+            cm = None  # can't close what we couldn't open
+            cp = raw
 
     # Create required Redis indexes (newer langgraph-checkpoint-redis versions).
     if hasattr(cp, "setup"):
@@ -103,7 +196,7 @@ def create_checkpointer(redis_url: str) -> "_CheckpointerAdapter":
         except Exception as exc:
             logger.warning("[Checkpointer] setup() failed (continuing): %s", exc)
 
-    return _CheckpointerAdapter(cp)
+    return _CheckpointerAdapter(cp, _cm=cm)
 
 
 class RedisCheckpointer(BaseCheckpointSaver):

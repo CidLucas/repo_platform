@@ -42,16 +42,32 @@ class TierLevel(Enum):
 
     @classmethod
     def get_order(cls, tier: str) -> int:
-        """Get numeric order for tier comparison."""
+        """Get numeric order for tier comparison.
+
+        Normalises *tier* (strips whitespace, upper-cases) before lookup so
+        callers passing ``"sme"`` or ``"Basic"`` are handled correctly.
+
+        Raises:
+            ValueError: if *tier* is not a known TierLevel value after
+                normalisation.  Callers that want a safe fallback should
+                catch this and decide their own default instead of silently
+                getting FREE-order (0).
+        """
         order = {
             "FREE": 0,
             "BASIC": 1,
             "SME": 2,
             "PREMIUM": 3,
             "ENTERPRISE": 4,
-            "ADMIN": 99,  # Admin has highest access
+            "ADMIN": 99,
         }
-        return order.get(tier, 0)
+        normalised = tier.strip().upper() if isinstance(tier, str) else ""
+        if normalised not in order:
+            raise ValueError(
+                f"Unknown TierLevel {tier!r}. "
+                f"Valid values: {list(order.keys())}"
+            )
+        return order[normalised]
 
     @classmethod
     def is_admin(cls, tier: str) -> bool:

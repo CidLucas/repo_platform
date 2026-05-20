@@ -1,19 +1,36 @@
 name: docs-check
-on: [push, pull_request]
+
+on:
+  push:
+  pull_request:
 
 jobs:
   docs:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-      - name: Install requirements
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-      - name: Run docs generator (check)
-        run: |
-          python scripts/generate_agent_docs.py --check
+          python-version: "3.11"
+
+      # Install only the libs the docs generator needs, in dependency order.
+      # Each lib lives under libs/<name>/ with its own pyproject.toml.
+      - name: Install blu_tool_registry
+        run: pip install -e libs/blu_tool_registry
+
+      - name: Install blu_agent_framework
+        run: pip install -e libs/blu_agent_framework
+
+      - name: Run docs generator (check mode)
+        run: python scripts/generate_agent_docs.py --check
+
+      # Upload generated docs as artifact so reviewers can inspect diffs.
+      - name: Upload generated docs (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-docs
+          path: docs/auto-*.md

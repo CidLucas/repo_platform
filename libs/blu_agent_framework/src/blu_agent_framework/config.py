@@ -24,6 +24,7 @@ class AgentConfig:
         mcp_url: MCP server URL for tool execution
         timeout_seconds: Tool execution timeout
         metadata: Additional metadata for tracing
+        fail_on_placeholders: Placeholder-node policy (True=raise, False=sentinel)
     """
 
     name: str
@@ -39,6 +40,7 @@ class AgentConfig:
     timeout_seconds: float = 30.0
     metadata: dict[str, Any] = field(default_factory=dict)
     enable_skills: bool = False  # Enables the complex-path skill escalation fork
+    fail_on_placeholders: bool = True
 
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -74,6 +76,8 @@ class AgentConfig:
             mcp_url=self.mcp_url,
             timeout_seconds=self.timeout_seconds,
             metadata=self.metadata,
+            enable_skills=self.enable_skills,
+            fail_on_placeholders=self.fail_on_placeholders,
         )
 
     def with_metadata(self, **kwargs) -> "AgentConfig":
@@ -92,6 +96,8 @@ class AgentConfig:
             mcp_url=self.mcp_url,
             timeout_seconds=self.timeout_seconds,
             metadata=new_metadata,
+            enable_skills=self.enable_skills,
+            fail_on_placeholders=self.fail_on_placeholders,
         )
 
 

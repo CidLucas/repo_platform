@@ -337,15 +337,33 @@ class AgentTypeRegistry:
 
     @classmethod
     def for_tier(cls, tier: str) -> list[AgentTypeConfig]:
-        """Return all agent types accessible at *tier*."""
-        tier_order = TierLevel.get_order(tier)
+        """Return all agent types accessible at *tier*.
+
+        Normalises *tier* (case-insensitive, strips whitespace) before
+        comparison so ``"sme"``, ``" SME "`` and ``"SME"`` are equivalent.
+
+        If *tier* is not a recognised TierLevel value a warning is logged and
+        the method returns only BASIC-level agents (safe minimum) instead of
+        silently treating the unknown tier as FREE.
+        """
+        normalised = tier.strip().upper() if isinstance(tier, str) else ""
+        try:
+            tier_order = TierLevel.get_order(normalised)
+        except ValueError:
+            logger.warning(
+                "[AgentTypeRegistry] Unknown tier %r — falling back to BASIC. "
+                "Check that AgentConfig.tier / client_context['tier'] is a valid TierLevel value.",
+                tier,
+            )
+            tier_order = TierLevel.get_order("BASIC")
+
         result = [
             cfg for cfg in _AGENT_TYPES.values()
             if TierLevel.get_order(cfg.tier_required.value) <= tier_order
         ]
         logger.debug(
             "[AgentTypeRegistry] Available for tier %s: %s",
-            tier, [c.slug for c in result],
+            normalised, [c.slug for c in result],
         )
         return result
 

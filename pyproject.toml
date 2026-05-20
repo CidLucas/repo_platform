@@ -95,6 +95,9 @@ ignore = [
 "**/tests/**" = ["F401", "F841"]  # Test files often have unused imports/vars
 "**/alembic/**" = ["F401", "E402"]
 "**/versions.backup/**" = ["ALL"]  # Backup migrations - ignore all
+# alembic/dotenv import order varies across ruff versions (0.4 vs 0.14 classify differently)
+"libs/blu_db_connector/src/blu_db_connector/manager.py" = ["I001"]
+"libs/blu_supabase_client/src/blu_supabase_client/client.py" = ["I001"]
 
 [tool.ruff.lint.isort]
 known-first-party = [

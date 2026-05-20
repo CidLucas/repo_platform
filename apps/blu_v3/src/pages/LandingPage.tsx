@@ -1,9 +1,12 @@
-import { useRef } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+
+type SimState = 'idle' | 'approved' | 'later'
 
 export default function LandingPage() {
   const navigate = useNavigate()
   const pricingRef = useRef<HTMLElement>(null)
+  const [simState, setSimState] = useState<SimState>('idle')
 
   function scrollToPricing() {
     if (pricingRef.current) {
@@ -67,14 +70,36 @@ export default function LandingPage() {
           </button>
         </div>
 
-        {/* LIVE APP EMBED */}
-        <div className="lp-app-embed" id="screens">
-          <iframe
-            src="/blu-v3.html"
-            title="Blu — demonstração interativa"
-            className="lp-app-frame"
-            sandbox="allow-scripts allow-same-origin"
-          />
+        {/* INTERACTIVE SIM CARD */}
+        <div className="lp-sim-wrap" id="screens">
+          <div className="lp-sim-card">
+            <div className="lp-sim-top">
+              <div className="lp-sim-agent">
+                <span className="lp-sim-dot" />
+                Agente de Compras
+              </div>
+              <span className="lp-sim-badge">Decidir agora</span>
+            </div>
+            <div className="lp-sim-body">
+              <strong>3 cotações prontas.</strong> Fornecedor Silva, R$ 1.240 (2 unidades Toner HP 107A). Prazo: 2 dias. Alternativa Gamma: R$ 1.180, prazo 5 dias.
+            </div>
+            {simState === 'idle' && (
+              <div className="lp-sim-actions">
+                <button className="lp-sim-btn-p" onClick={() => setSimState('approved')}>👍 Aprovar Silva</button>
+                <button className="lp-sim-btn-g" onClick={() => alert('Comparativo:\n\nSilva: R$ 1.240 · 2 dias · ★★★★★\nGamma: R$ 1.180 · 5 dias · ★★★☆☆\n\nRecomendação: Silva (menor risco de atraso)')}>👁 Ver comparativo</button>
+                <button className="lp-sim-btn-g" onClick={() => setSimState('later')}>⏰ Depois</button>
+              </div>
+            )}
+            {simState === 'approved' && (
+              <div className="lp-sim-feedback">
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                Pedido enviado. Silva confirmou recebimento. Agente anotou a preferência.
+              </div>
+            )}
+            {simState === 'later' && (
+              <div className="lp-sim-later">⏰ Adiado para amanhã, 08:00</div>
+            )}
+          </div>
         </div>
       </section>
 
@@ -165,9 +190,9 @@ export default function LandingPage() {
         </div>
         <div className="lp-footer-copy">© 2026 Deep Blue · blu é o escritório virtual com IA para empresas brasileiras</div>
         <div className="lp-footer-links">
-          <a href="#">Privacidade</a>
-          <a href="#">Termos</a>
-          <a href="#">LGPD</a>
+          <a href="/privacidade">Privacidade</a>
+          <a href="/termos">Termos</a>
+          <a href="/lgpd">LGPD</a>
         </div>
       </footer>
     </div>

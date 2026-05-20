@@ -14,15 +14,17 @@ import {
   fetchEstrategiaHistory,
   type EstrategiaHistoryItem,
 } from '../../api/estrategia'
-import { fetchRoutines } from '../../api/routines'
 import { getContextMetrics, type ContextMetricRow } from '../../api/analytics'
 import { fetchContextReports, downloadContextReport, type ContextReport } from '../../api/contextReport'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
+import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
+import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
+import { snoozeUntil } from '../../utils/time'
 
-type Tab = 'decisoes' | 'analises' | 'historico'
+type Tab = 'decisoes' | 'analises' | 'historico' | 'config'
 
-// ── Lightweight markdown renderer (no external dependency) ─────────────────
+// ── Lightweight markdown renderer (no external dependency) ─────────────────────────────────
 function renderMarkdownLine(line: string, key: number): React.ReactNode {
   // Apply inline bold: **text**
   const parts = line.split(/(\*\*[^*]+\*\*)/g)
@@ -105,11 +107,7 @@ function MarkdownReport({ content }: { content: string }) {
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>{nodes}</div>
 }
 
-function snoozeUntil() {
-  return new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-}
-
-function formatBRL(v: number) {
+function formatCompactBRL(v: number) {
   if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1)}M`
   if (v >= 1_000) return `R$ ${(v / 1_000).toFixed(1)}k`
   return `R$ ${v.toFixed(0)}`
@@ -124,7 +122,7 @@ function relativeTime(iso: string) {
 }
 
 export default function EstrategiaRoom() {
-  const { go, addToast } = useAppStore()
+  const { go, addToast, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('decisoes')
@@ -133,7 +131,7 @@ export default function EstrategiaRoom() {
   const [reportContent, setReportContent] = useState<string | null>(null)
   const [loadingReport, setLoadingReport] = useState(false)
 
-  const [approvalsQ, insightsQ, historyQ, _routinesQ, contextReportsQ, contextMetricsQ] = useQueries({
+  const [approvalsQ, insightsQ, historyQ, contextReportsQ, contextMetricsQ] = useQueries({
     queries: [
       {
         queryKey: ['approvals', 'estrategia', clientId ?? ''],
@@ -152,12 +150,6 @@ export default function EstrategiaRoom() {
         queryFn: () => fetchEstrategiaHistory(clientId!),
         enabled: !!clientId,
         staleTime: 60_000,
-      },
-      {
-        queryKey: ['routines', 'estrategia', clientId ?? ''],
-        queryFn: () => fetchRoutines(clientId!, 'estrategia'),
-        enabled: !!clientId,
-        staleTime: 120_000,
       },
       {
         queryKey: ['contextReports'],
@@ -232,7 +224,7 @@ export default function EstrategiaRoom() {
           <button className="btn bs" style={{ fontSize: 11 }} onClick={() => go('home', 'Início')}>
             ← Início
           </button>
-          <button className="btn bp" style={{ fontSize: 11 }}>
+          <button className="btn bp" style={{ fontSize: 11 }} onClick={() => openChatWith('Quero criar uma nova análise estratégica')}>
             + Nova Análise
           </button>
         </div>
@@ -245,7 +237,7 @@ export default function EstrategiaRoom() {
             <span className="ph-ttl">Mesa de Trabalho</span>
           </div>
           <div className="rtabs">
-            {(['decisoes', 'analises', 'historico'] as Tab[]).map((t) => (
+            {(['decisoes', 'analises', 'historico', 'config'] as Tab[]).map((t) => (
               <div
                 key={t}
                 className={`rtab${tab === t ? ' on' : ''}`}
@@ -260,8 +252,10 @@ export default function EstrategiaRoom() {
                   </>
                 ) : t === 'analises' ? (
                   'Análises'
-                ) : (
+                ) : t === 'historico' ? (
                   'Histórico'
+                ) : (
+                  'Config'
                 )}
               </div>
             ))}
@@ -332,6 +326,11 @@ export default function EstrategiaRoom() {
                 ))
               )}
             </div>
+
+            {/* CONFIG */}
+            <div className={`tc${tab === 'config' ? ' on' : ''}`}>
+              <RoutineConfigSection domain="estrategia" />
+            </div>
           </div>
 
           {/* ANALYTICS CARD — pinned at panel bottom */}
@@ -359,7 +358,7 @@ export default function EstrategiaRoom() {
                       {m.current_value != null && (
                         <span style={{ fontFamily: 'var(--mono)', color: 'var(--fg)', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
                           {m.unit === 'R$'
-                            ? formatBRL(m.current_value)
+                            ? formatCompactBRL(m.current_value)
                             : m.unit === '%'
                             ? `${m.current_value.toFixed(1)}%`
                             : m.current_value.toLocaleString('pt-BR')}
@@ -383,6 +382,9 @@ export default function EstrategiaRoom() {
         {/* RIGHT COLUMN */}
         <div className="rcol">
           <RColResizeHandle />
+          <CollapsiblePanel id="est-rotinas" icon="⚙️" title="Rotinas ativas">
+            <RoutineStatusWidget domain="estrategia" />
+          </CollapsiblePanel>
           <CollapsiblePanel id="est-analises" icon="📊" title="Análises" badge={contextReports.length > 0 ? <span className="ph-cnt">{contextReports.length}</span> : null}>
               {contextReportsQ.isLoading ? (
                 <div style={{ fontSize: 11, color: 'var(--mu)' }}>…</div>

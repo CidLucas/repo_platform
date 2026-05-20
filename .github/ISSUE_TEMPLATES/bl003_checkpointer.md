@@ -1,0 +1,1 @@
+{"title": "BL-003: Redis checkpointer lifecycle", "body": "Wrap context-manager saver variants safely and add deterministic close API.\n\n- Files: libs/blu_agent_framework/src/blu_agent_framework/checkpointer.py\n- Tests: tests/unit/test_checkpointer_lifecycle.py\n- Estimate: 1-3h\n- Priority: P0\n"}

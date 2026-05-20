@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 def get_langfuse_config(
     session_id: str,
-    cliente_id: str,
+    client_id: str,
     tags: list[str] | None = None,
 ) -> dict:
     """
@@ -29,15 +29,15 @@ def get_langfuse_config(
 
         trace_id = str(uuid.uuid4())
         return {
-            "configurable": {"thread_id": session_id},
+            "configurable": {"thread_id": f"{client_id}:{session_id}"},
             "callbacks": [handler],
             "metadata": {
                 "trace_id": trace_id,
-                "cliente_id": cliente_id,
+                "client_id": client_id,
                 "session_id": session_id,
                 "tags": tags or [],
             },
         }
     except Exception as exc:
         logger.debug("Langfuse not available: %s", exc)
-        return {"configurable": {"thread_id": session_id}}
+        return {"configurable": {"thread_id": f"{client_id}:{session_id}"}}

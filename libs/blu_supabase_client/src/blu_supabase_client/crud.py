@@ -69,12 +69,12 @@ class SupabaseCRUD:
             logger.error(f"Error fetching cliente by API key: {e}")
             return None
 
-    def get_cliente_blu_by_id(self, cliente_id: UUID) -> dict[str, Any] | None:
+    def get_cliente_blu_by_id(self, client_id: UUID) -> dict[str, Any] | None:
         """
         Fetch cliente by ID (internal Blu ID).
 
         Args:
-            cliente_id: UUID of the cliente (internal ID)
+            client_id: UUID of the cliente (internal ID)
 
         Returns:
             Dict with cliente data or None if not found
@@ -84,7 +84,7 @@ class SupabaseCRUD:
                 self.client
                 .table("clientes_blu")
                 .select("*")
-                .eq("client_id", str(cliente_id))
+                .eq("client_id", str(client_id))
                 .limit(1)
                 .execute()
             )
@@ -199,14 +199,14 @@ class SupabaseCRUD:
 
     def update_cliente_blu(
         self,
-        cliente_id: UUID,
+        client_id: UUID,
         data: dict[str, Any]
     ) -> dict[str, Any] | None:
         """
         Update a cliente.
 
         Args:
-            cliente_id: UUID of the cliente to update
+            client_id: UUID of the cliente to update
             data: Dict with fields to update
 
         Returns:
@@ -217,7 +217,7 @@ class SupabaseCRUD:
                 self.client
                 .table("clientes_blu")
                 .update(data)
-                .eq("client_id", str(cliente_id))
+                .eq("client_id", str(client_id))
                 .execute()
             )
 
@@ -229,18 +229,18 @@ class SupabaseCRUD:
             logger.error(f"Error updating cliente: {e}")
             return None
 
-    def delete_cliente_blu(self, cliente_id: UUID) -> bool:
+    def delete_cliente_blu(self, client_id: UUID) -> bool:
         """
         Delete a cliente.
 
         Args:
-            cliente_id: UUID of the cliente to delete
+            client_id: UUID of the cliente to delete
 
         Returns:
             True if deleted, False on error
         """
         try:
-            self.client.table("clientes_blu").delete().eq("client_id", str(cliente_id)).execute()
+            self.client.table("clientes_blu").delete().eq("client_id", str(client_id)).execute()
             return True
 
         except Exception as e:
@@ -507,9 +507,9 @@ def get_cliente_blu_by_api_key(api_key: str) -> dict[str, Any] | None:
     return get_crud().get_cliente_blu_by_api_key(api_key)
 
 
-def get_cliente_blu_by_id(cliente_id: UUID) -> dict[str, Any] | None:
+def get_cliente_blu_by_id(client_id: UUID) -> dict[str, Any] | None:
     """Convenience function matching old crud.py signature."""
-    return get_crud().get_cliente_blu_by_id(cliente_id)
+    return get_crud().get_cliente_blu_by_id(client_id)
 
 
 def get_cliente_blu_by_external_user_id(external_user_id: str | UUID) -> dict[str, Any] | None:

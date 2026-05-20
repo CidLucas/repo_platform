@@ -2,7 +2,7 @@ import { useState, useRef, useMemo } from 'react'
 import { useAppStore } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
 import { useKnowledgeBase } from '../../hooks/useKnowledgeBase'
-import { KB_CATEGORIES, type KBDocument, type KBCategory } from '../../services/knowledgeBaseService'
+import { KB_CATEGORIES, isCsvFile, type KBDocument, type KBCategory } from '../../services/knowledgeBaseService'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 
@@ -276,11 +276,19 @@ export default function BibliotecaRoom() {
     return counts
   }, [kb.documents])
 
+  async function handleUpload(file: File) {
+    if (isCsvFile(file.name)) {
+      await kb.uploadCsv(file)
+    } else {
+      await kb.upload(file, false, 'upload', { category: kbCategory })
+    }
+  }
+
   async function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     setDragging(false)
     const file = e.dataTransfer.files[0]
-    if (file) await kb.upload(file, false, 'upload', { category: kbCategory })
+    if (file) await handleUpload(file)
   }
 
   return (
@@ -303,7 +311,7 @@ export default function BibliotecaRoom() {
             onChange={async e => {
               const file = e.target.files?.[0]
               if (!file) return
-              await kb.upload(file, false, 'upload', { category: kbCategory })
+              await handleUpload(file)
               e.target.value = ''
             }}
           />
@@ -417,6 +425,12 @@ export default function BibliotecaRoom() {
 
           {kb.uploadError && (
             <div style={{ fontSize: 11, color: 'var(--urg)', margin: '0 14px 6px' }}>{kb.uploadError}</div>
+          )}
+
+          {kb.csvResult && (
+            <div style={{ fontSize: 11, color: 'var(--ok)', margin: '0 14px 6px', padding: '6px 10px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 'var(--r)' }}>
+              ✓ <strong>{kb.csvResult.file_name}</strong> adicionado como fonte de dados — {kb.csvResult.columns} coluna{kb.csvResult.columns !== 1 ? 's' : ''} detectada{kb.csvResult.columns !== 1 ? 's' : ''}
+            </div>
           )}
 
           {/* Document list */}

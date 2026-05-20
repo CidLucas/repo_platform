@@ -464,6 +464,27 @@ class LangfusePromptClient:
         self._cooldown_until = time.time() + self._COOLDOWN_SECONDS
         logger.warning(f"Langfuse unreachable, disabling for {self._COOLDOWN_SECONDS}s")
 
+    def _is_connection_error(self, e: Exception) -> bool:
+        """
+        Return True only for real connectivity failures, not 404/not-found responses.
+
+        The Langfuse SDK includes the full HTTP response (including headers like
+        'connection: keep-alive') in exception strings, so a naive 'connection' substring
+        check incorrectly triggers the circuit breaker on 404 responses.
+        """
+        error_str = str(e).lower()
+        # Exclude "prompt not found" / 404 — these are logical errors, not network failures
+        if "404" in error_str or "not found" in error_str or "notfounderror" in error_str:
+            return False
+        return (
+            "connection refused" in error_str
+            or "connectionerror" in error_str
+            or "connection error" in error_str
+            or "connection reset" in error_str
+            or "timeout" in error_str
+            or "timed out" in error_str
+        )
+
     def get_and_compile(
         self,
         name: str,
@@ -506,12 +527,7 @@ class LangfusePromptClient:
             return compiled, prompt
 
         except Exception as e:
-            error_str = str(e).lower()
-            if (
-                "connection refused" in error_str
-                or "connection" in error_str
-                or "timeout" in error_str
-            ):
+            if self._is_connection_error(e):
                 self._trigger_cooldown()
             logger.warning(f"Langfuse prompt '{name}' fetch failed (label={label}): {e}")
             return None
@@ -557,12 +573,7 @@ class LangfusePromptClient:
             return raw_text, prompt
 
         except Exception as e:
-            error_str = str(e).lower()
-            if (
-                "connection refused" in error_str
-                or "connection" in error_str
-                or "timeout" in error_str
-            ):
+            if self._is_connection_error(e):
                 self._trigger_cooldown()
             logger.warning(f"Langfuse template '{name}' fetch failed (label={label}): {e}")
             return None

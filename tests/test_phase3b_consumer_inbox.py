@@ -290,7 +290,7 @@ class TestDraftConsumerReplyCore:
             )
 
             result = await draft_consumer_reply_core(
-                cliente_id=client_id, contact_id=contact_id
+                client_id=client_id, contact_id=contact_id
             )
 
         assert result["draft_text"].startswith("Olá!")
@@ -317,7 +317,7 @@ class TestDraftConsumerReplyCore:
         )
         with pytest.raises(ToolError):
             await draft_consumer_reply_core(
-                cliente_id=str(uuid.uuid4()), contact_id=str(uuid.uuid4())
+                client_id=str(uuid.uuid4()), contact_id=str(uuid.uuid4())
             )
 
 
@@ -391,7 +391,7 @@ class TestSendConsumerReplyCore:
             )
 
             result = await send_consumer_reply_core(
-                cliente_id=client_id, message_id=msg_id
+                client_id=client_id, message_id=msg_id
             )
 
         assert result["status"] == "pending_approval"
@@ -447,7 +447,7 @@ class TestSendConsumerReplyCore:
             )
 
             result = await send_consumer_reply_core(
-                cliente_id=client_id, message_id=msg_id
+                client_id=client_id, message_id=msg_id
             )
 
         assert result["status"] == "sent"

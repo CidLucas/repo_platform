@@ -440,7 +440,7 @@ CREATE TABLE IF NOT EXISTS analytics_v2.dim_datas (
 );
 
 CREATE TABLE IF NOT EXISTS analytics_v2.dim_clientes (
-  cliente_id bigint NOT NULL,
+  client_id bigint NOT NULL,
   client_id uuid,
   cpf_cnpj text,
   nome text,
@@ -458,7 +458,7 @@ CREATE TABLE IF NOT EXISTS analytics_v2.dim_clientes (
   pontuacao_cluster numeric,
   nivel_cluster text,
   atualizado_em timestamp with time zone DEFAULT now()
-  , CONSTRAINT dim_clientes_pkey PRIMARY KEY (cliente_id)
+  , CONSTRAINT dim_clientes_pkey PRIMARY KEY (client_id)
   , CONSTRAINT dim_clientes_client_cpf_uniq UNIQUE (client_id, cpf_cnpj)
   , CONSTRAINT dim_clientes_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clientes_blu(client_id) ON DELETE CASCADE
 );
@@ -513,7 +513,7 @@ CREATE TABLE IF NOT EXISTS analytics_v2.fato_transacoes (
   transacao_id text NOT NULL,
   client_id uuid NOT NULL,
   data_competencia_id bigint,
-  cliente_id bigint,
+  client_id bigint,
   fornecedor_id bigint,
   produto_id bigint,
   documento text,
@@ -524,7 +524,7 @@ CREATE TABLE IF NOT EXISTS analytics_v2.fato_transacoes (
   created_at timestamp with time zone DEFAULT now()
   , CONSTRAINT fato_transacoes_pkey PRIMARY KEY (transacao_id, client_id)
   , CONSTRAINT fato_transacoes_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clientes_blu(client_id) ON DELETE CASCADE
-  , CONSTRAINT fato_transacoes_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES analytics_v2.dim_clientes(cliente_id) ON DELETE SET NULL
+  , CONSTRAINT fato_transacoes_client_id_fkey FOREIGN KEY (client_id) REFERENCES analytics_v2.dim_clientes(client_id) ON DELETE SET NULL
   , CONSTRAINT fato_transacoes_data_competencia_id_fkey FOREIGN KEY (data_competencia_id) REFERENCES analytics_v2.dim_datas(data_id) ON DELETE SET NULL
   , CONSTRAINT fato_transacoes_fornecedor_id_fkey FOREIGN KEY (fornecedor_id) REFERENCES analytics_v2.dim_fornecedores(fornecedor_id) ON DELETE SET NULL
   , CONSTRAINT fato_transacoes_produto_id_fkey FOREIGN KEY (produto_id) REFERENCES analytics_v2.dim_inventory(inventory_id) ON DELETE SET NULL
@@ -623,7 +623,7 @@ CREATE INDEX idx_dim_forn_client ON analytics_v2.dim_fornecedores USING btree (c
 CREATE INDEX idx_dim_inv_client ON analytics_v2.dim_inventory USING btree (client_id);
 CREATE INDEX idx_etl_staging_job_id ON analytics_v2.etl_staging USING btree (job_id);
 CREATE INDEX idx_fato_client ON analytics_v2.fato_transacoes USING btree (client_id);
-CREATE INDEX idx_fato_cliente_dim ON analytics_v2.fato_transacoes USING btree (cliente_id);
+CREATE INDEX idx_fato_cliente_dim ON analytics_v2.fato_transacoes USING btree (client_id);
 CREATE INDEX idx_fato_data ON analytics_v2.fato_transacoes USING btree (data_competencia_id);
 CREATE INDEX idx_fato_fornecedor ON analytics_v2.fato_transacoes USING btree (fornecedor_id);
 CREATE INDEX idx_reg_jobs_client_status ON analytics_v2.reg_jobs USING btree (client_id, status);
@@ -918,7 +918,7 @@ AS $function$
 BEGIN
   WITH agg AS (
     SELECT
-      ft.cliente_id,
+      ft.client_id,
       COUNT(DISTINCT ft.transacao_id)                                     AS total_pedidos,
       COALESCE(SUM(ft.valor), 0)                                          AS receita_total,
       CASE WHEN COUNT(DISTINCT ft.transacao_id) > 0
@@ -939,8 +939,8 @@ BEGIN
     FROM analytics_v2.fato_transacoes ft
     LEFT JOIN analytics_v2.dim_datas dd ON ft.data_competencia_id = dd.data_id
     WHERE ft.client_id = p_client_id
-      AND ft.cliente_id IS NOT NULL
-    GROUP BY ft.cliente_id
+      AND ft.client_id IS NOT NULL
+    GROUP BY ft.client_id
   ),
   scored AS (
     SELECT *,
@@ -968,7 +968,7 @@ BEGIN
     atualizado_em        = clock_timestamp()
   FROM scored s
   WHERE dc.client_id  = p_client_id
-    AND dc.cliente_id = s.cliente_id;
+    AND dc.client_id = s.client_id;
 
   RAISE NOTICE '[atualizar_dim_clientes] client=%: done', p_client_id;
 END;
@@ -1414,7 +1414,7 @@ BEGIN
 
   -- ── Upsert fato_transacoes ────────────────────────────────────────────────────
   INSERT INTO analytics_v2.fato_transacoes
-    (transacao_id, client_id, data_competencia_id, cliente_id, fornecedor_id, produto_id,
+    (transacao_id, client_id, data_competencia_id, client_id, fornecedor_id, produto_id,
      documento, quantidade, valor_unitario, valor, status)
   SELECT
     md5(v_client_id::text || ':' ||
@@ -1423,7 +1423,7 @@ BEGIN
         COALESCE(s.produto_sku, ''))         AS transacao_id,
     v_client_id,
     dd.data_id,
-    dc.cliente_id,
+    dc.client_id,
     df.fornecedor_id,
     di.inventory_id,
     s.documento,
@@ -1446,7 +1446,7 @@ BEGIN
   WHERE s.job_id = p_job_id
   ON CONFLICT (transacao_id, client_id) DO UPDATE SET
     data_competencia_id = EXCLUDED.data_competencia_id,
-    cliente_id          = EXCLUDED.cliente_id,
+    client_id          = EXCLUDED.client_id,
     fornecedor_id       = EXCLUDED.fornecedor_id,
     produto_id          = EXCLUDED.produto_id,
     documento           = EXCLUDED.documento,
@@ -1972,24 +1972,24 @@ DECLARE
 BEGIN
   SELECT client_id INTO v_client_id FROM public.clientes_blu
   WHERE external_user_id = v_user_id;
-  
+
   IF v_client_id IS NULL THEN
     SELECT email INTO v_email FROM auth.users WHERE id = auth.uid();
     v_api_key := gen_random_uuid()::text;
-    
+
     INSERT INTO public.clientes_blu (external_user_id, nome_empresa, api_key)
     VALUES (v_user_id, COALESCE(v_email, 'Empresa'), v_api_key)
     ON CONFLICT (external_user_id) DO NOTHING
     RETURNING client_id INTO v_client_id;
   END IF;
-  
+
   -- Ensure api_key exists (fill in for existing rows without one)
   IF v_client_id IS NOT NULL THEN
     UPDATE public.clientes_blu
     SET api_key = COALESCE(api_key, gen_random_uuid()::text)
     WHERE client_id = v_client_id AND api_key IS NULL;
   END IF;
-  
+
   RETURN jsonb_build_object('client_id', v_client_id);
 END;
 $function$
@@ -2078,7 +2078,7 @@ END;
 $function$
 
 CREATE OR REPLACE FUNCTION public.get_commercial_top_clients()
- RETURNS TABLE(cliente_id bigint, cliente_nome text, total_volume numeric, total_revenue numeric, last_purchase timestamp with time zone)
+ RETURNS TABLE(client_id bigint, cliente_nome text, total_volume numeric, total_revenue numeric, last_purchase timestamp with time zone)
  LANGUAGE plpgsql
  SECURITY DEFINER
 AS $function$
@@ -2091,7 +2091,7 @@ BEGIN
     SUM(f.valor_total)::NUMERIC as total_revenue,
     MAX(f.data_transacao) as last_purchase
   FROM analytics_v2.fato_transacoes f
-  LEFT JOIN analytics_v2.dim_clientes d ON f.cliente_id = d.id
+  LEFT JOIN analytics_v2.dim_clientes d ON f.client_id = d.id
   WHERE f.client_id = public.get_my_client_id()
     AND f.data_transacao >= NOW() - INTERVAL '90 days'
   GROUP BY d.id, d.nome
@@ -2277,7 +2277,7 @@ DECLARE
 BEGIN
   -- Generate a fresh API key
   v_api_key := gen_random_uuid()::text;
-  
+
   -- Insert or update: if row exists (via external_user_id), keep existing api_key
   -- Otherwise create with new api_key
   INSERT INTO public.clientes_blu (
@@ -2602,7 +2602,7 @@ BEGIN
 END;
 $function$
 
-CREATE OR REPLACE FUNCTION public.set_current_cliente_id(p_client_id uuid)
+CREATE OR REPLACE FUNCTION public.set_current_client_id(p_client_id uuid)
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -2744,15 +2744,15 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS analytics_v2.mv_distribuicao_regional AS 
     dc.endereco_uf,
     dc.endereco_cidade,
     COALESCE(sum(ft.valor), 0::numeric) AS receita_total,
-    count(DISTINCT dc.cliente_id)::integer AS total_clientes,
+    count(DISTINCT dc.client_id)::integer AS total_clientes,
     count(DISTINCT ft.transacao_id)::integer AS total_pedidos
    FROM analytics_v2.dim_clientes dc
-     LEFT JOIN analytics_v2.fato_transacoes ft ON dc.cliente_id = ft.cliente_id AND dc.client_id = ft.client_id
+     LEFT JOIN analytics_v2.fato_transacoes ft ON dc.client_id = ft.client_id AND dc.client_id = ft.client_id
   GROUP BY dc.client_id, dc.endereco_uf, dc.endereco_cidade;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS analytics_v2.mv_resumo_dashboard AS WITH base AS (
          SELECT ft.client_id,
-            count(DISTINCT dc.cliente_id)::integer AS total_clientes,
+            count(DISTINCT dc.client_id)::integer AS total_clientes,
             count(DISTINCT df.fornecedor_id)::integer AS total_fornecedores,
             count(DISTINCT di.inventory_id)::integer AS total_produtos,
             count(DISTINCT ft.transacao_id)::integer AS total_pedidos,
@@ -2767,19 +2767,19 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS analytics_v2.mv_resumo_dashboard AS WITH 
                     WHEN count(DISTINCT df.fornecedor_id) > 0 THEN count(DISTINCT ft.transacao_id)::numeric / count(DISTINCT df.fornecedor_id)::numeric
                     ELSE 0::numeric
                 END AS frequencia_media_fornecedores,
-            count(DISTINCT dc.cliente_id) FILTER (WHERE dd.data >= (CURRENT_DATE - 30))::integer AS clientes_ativos,
+            count(DISTINCT dc.client_id) FILTER (WHERE dd.data >= (CURRENT_DATE - 30))::integer AS clientes_ativos,
             COALESCE(sum(ft.valor) FILTER (WHERE date_trunc('month'::text, dd.data::timestamp with time zone)::date = date_trunc('month'::text, CURRENT_DATE::timestamp with time zone)::date), 0::numeric) AS receita_mes_atual,
             COALESCE(sum(ft.quantidade) FILTER (WHERE date_trunc('month'::text, dd.data::timestamp with time zone)::date = date_trunc('month'::text, CURRENT_DATE::timestamp with time zone)::date), 0::numeric) AS quantidade_mes_atual,
-            count(DISTINCT dc.cliente_id) FILTER (WHERE date_trunc('month'::text, dd.data::timestamp with time zone)::date = date_trunc('month'::text, CURRENT_DATE::timestamp with time zone)::date)::integer AS clientes_mes_atual,
+            count(DISTINCT dc.client_id) FILTER (WHERE date_trunc('month'::text, dd.data::timestamp with time zone)::date = date_trunc('month'::text, CURRENT_DATE::timestamp with time zone)::date)::integer AS clientes_mes_atual,
             count(DISTINCT di.inventory_id) FILTER (WHERE date_trunc('month'::text, dd.data::timestamp with time zone)::date = date_trunc('month'::text, CURRENT_DATE::timestamp with time zone)::date)::integer AS produtos_mes_atual,
             count(DISTINCT df.fornecedor_id) FILTER (WHERE date_trunc('month'::text, dd.data::timestamp with time zone)::date = date_trunc('month'::text, CURRENT_DATE::timestamp with time zone)::date)::integer AS fornecedores_mes_atual,
             COALESCE(sum(ft.valor) FILTER (WHERE date_trunc('month'::text, dd.data::timestamp with time zone)::date = (date_trunc('month'::text, CURRENT_DATE::timestamp with time zone) - '1 mon'::interval)::date), 0::numeric) AS receita_mes_anterior,
             COALESCE(sum(ft.quantidade) FILTER (WHERE date_trunc('month'::text, dd.data::timestamp with time zone)::date = (date_trunc('month'::text, CURRENT_DATE::timestamp with time zone) - '1 mon'::interval)::date), 0::numeric) AS quantidade_mes_anterior,
-            count(DISTINCT dc.cliente_id) FILTER (WHERE date_trunc('month'::text, dd.data::timestamp with time zone)::date = (date_trunc('month'::text, CURRENT_DATE::timestamp with time zone) - '1 mon'::interval)::date)::integer AS clientes_mes_anterior,
+            count(DISTINCT dc.client_id) FILTER (WHERE date_trunc('month'::text, dd.data::timestamp with time zone)::date = (date_trunc('month'::text, CURRENT_DATE::timestamp with time zone) - '1 mon'::interval)::date)::integer AS clientes_mes_anterior,
             count(DISTINCT di.inventory_id) FILTER (WHERE date_trunc('month'::text, dd.data::timestamp with time zone)::date = (date_trunc('month'::text, CURRENT_DATE::timestamp with time zone) - '1 mon'::interval)::date)::integer AS produtos_mes_anterior
            FROM analytics_v2.fato_transacoes ft
              LEFT JOIN analytics_v2.dim_datas dd ON ft.data_competencia_id = dd.data_id
-             LEFT JOIN analytics_v2.dim_clientes dc ON ft.cliente_id = dc.cliente_id AND dc.client_id = ft.client_id
+             LEFT JOIN analytics_v2.dim_clientes dc ON ft.client_id = dc.client_id AND dc.client_id = ft.client_id
              LEFT JOIN analytics_v2.dim_fornecedores df ON ft.fornecedor_id = df.fornecedor_id AND df.client_id = ft.client_id
              LEFT JOIN analytics_v2.dim_inventory di ON ft.produto_id = di.inventory_id AND di.client_id = ft.client_id
           GROUP BY ft.client_id
@@ -2787,11 +2787,11 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS analytics_v2.mv_resumo_dashboard AS WITH 
          SELECT sub.client_id,
             count(*)::integer AS clientes_novos
            FROM ( SELECT ft.client_id,
-                    ft.cliente_id
+                    ft.client_id
                    FROM analytics_v2.fato_transacoes ft
                      JOIN analytics_v2.dim_datas dd ON ft.data_competencia_id = dd.data_id
-                  WHERE ft.cliente_id IS NOT NULL AND dd.data IS NOT NULL
-                  GROUP BY ft.client_id, ft.cliente_id
+                  WHERE ft.client_id IS NOT NULL AND dd.data IS NOT NULL
+                  GROUP BY ft.client_id, ft.client_id
                  HAVING min(dd.data) >= date_trunc('month'::text, CURRENT_DATE::timestamp with time zone)::date) sub
           GROUP BY sub.client_id
         )
@@ -2813,8 +2813,8 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS analytics_v2.mv_series_temporal AS WITH b
          SELECT ft.client_id, to_char(dd.data::timestamp with time zone, 'YYYY-MM'::text) AS periodo, dd.data AS data_periodo, 'receita'::text AS tipo_grafico, 'total'::text AS dimensao, COALESCE(sum(ft.valor), 0::numeric) AS total
            FROM analytics_v2.fato_transacoes ft LEFT JOIN analytics_v2.dim_datas dd ON ft.data_competencia_id = dd.data_id WHERE dd.data IS NOT NULL GROUP BY ft.client_id, dd.data
         UNION ALL
-         SELECT ft.client_id, to_char(dd.data::timestamp with time zone, 'YYYY-MM'::text), dd.data, 'clientes'::text, 'total'::text, count(DISTINCT dc.cliente_id)::numeric
-           FROM analytics_v2.fato_transacoes ft LEFT JOIN analytics_v2.dim_datas dd ON ft.data_competencia_id = dd.data_id LEFT JOIN analytics_v2.dim_clientes dc ON ft.cliente_id = dc.cliente_id AND dc.client_id = ft.client_id WHERE dd.data IS NOT NULL GROUP BY ft.client_id, dd.data
+         SELECT ft.client_id, to_char(dd.data::timestamp with time zone, 'YYYY-MM'::text), dd.data, 'clientes'::text, 'total'::text, count(DISTINCT dc.client_id)::numeric
+           FROM analytics_v2.fato_transacoes ft LEFT JOIN analytics_v2.dim_datas dd ON ft.data_competencia_id = dd.data_id LEFT JOIN analytics_v2.dim_clientes dc ON ft.client_id = dc.client_id AND dc.client_id = ft.client_id WHERE dd.data IS NOT NULL GROUP BY ft.client_id, dd.data
         UNION ALL
          SELECT ft.client_id, to_char(dd.data::timestamp with time zone, 'YYYY-MM'::text), dd.data, 'fornecedores'::text, 'total'::text, count(DISTINCT df.fornecedor_id)::numeric
            FROM analytics_v2.fato_transacoes ft LEFT JOIN analytics_v2.dim_datas dd ON ft.data_competencia_id = dd.data_id LEFT JOIN analytics_v2.dim_fornecedores df ON ft.fornecedor_id = df.fornecedor_id AND df.client_id = ft.client_id WHERE dd.data IS NOT NULL GROUP BY ft.client_id, dd.data
@@ -2833,7 +2833,7 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS analytics_v2.mv_ultimos_pedidos AS SELECT
     ft.valor AS valor_pedido, ft.quantidade AS qtd_produtos,
     row_number() OVER (PARTITION BY ft.client_id ORDER BY ft.created_at DESC) AS ordem
    FROM analytics_v2.fato_transacoes ft
-     LEFT JOIN analytics_v2.dim_clientes dc ON ft.cliente_id = dc.cliente_id AND dc.client_id = ft.client_id
+     LEFT JOIN analytics_v2.dim_clientes dc ON ft.client_id = dc.client_id AND dc.client_id = ft.client_id
   WHERE ft.created_at IS NOT NULL;
 
 

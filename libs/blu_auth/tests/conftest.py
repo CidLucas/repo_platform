@@ -62,7 +62,7 @@ def valid_jwt_token(jwt_secret: str, valid_jwt_payload: dict[str, Any]) -> str:
 
 
 @pytest.fixture
-def jwt_without_cliente_id(jwt_secret: str, sample_external_user_id: str) -> str:
+def jwt_without_client_id(jwt_secret: str, sample_external_user_id: str) -> str:
     now = datetime.now(UTC)
     payload = {
         "sub": sample_external_user_id,

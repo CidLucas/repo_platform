@@ -20,11 +20,35 @@ from .redis_service import RedisService
 logger = logging.getLogger(__name__)
 
 
+_ALL_CONTEXT_SECTIONS: frozenset[str] = frozenset({
+    "company_profile", "brand_voice", "team_structure",
+    "policies", "data_schema", "available_tools",
+})
+
+# Maps domain keyword → the sections relevant to that domain.
+# Unlisted domains fall back to all loaded sections.
+_DOMAIN_SECTIONS: dict[str, frozenset[str]] = {
+    "analytics":     frozenset({"data_schema", "available_tools", "company_profile"}),
+    "data":          frozenset({"data_schema", "available_tools", "company_profile"}),
+    "sql":           frozenset({"data_schema", "available_tools", "company_profile"}),
+    "rfq":           frozenset({"brand_voice", "policies", "team_structure", "company_profile"}),
+    "communication": frozenset({"brand_voice", "policies", "team_structure", "company_profile"}),
+    "sales":         frozenset({"brand_voice", "policies", "team_structure", "company_profile"}),
+    "customer":      frozenset({"brand_voice", "policies", "team_structure", "company_profile"}),
+    "knowledge":     frozenset({"company_profile", "policies", "brand_voice"}),
+    "rag":           frozenset({"company_profile", "policies", "brand_voice"}),
+    "documents":     frozenset({"company_profile", "policies", "brand_voice"}),
+    "config":        frozenset({"available_tools", "team_structure", "company_profile"}),
+    "settings":      frozenset({"available_tools", "team_structure", "company_profile"}),
+}
+
+
 class ContextService:
     """Service for fetching and caching client context via Supabase SDK."""
 
     CACHE_KEY_PREFIX = "context:client:"
-    CACHE_TTL_SECONDS = 300  # 5 minutos
+    CACHE_TTL_SECONDS = 300        # 5 minutes — client context
+    CANONICAL_TTL_SECONDS = 3600   # 1 hour — changes only on schema migrations
 
     def __init__(self, cache_service: RedisService):
         """
@@ -49,14 +73,14 @@ class ContextService:
         else:
             self._cipher = None
 
-    def _get_cache_key(self, cliente_id: UUID) -> str:
-        return f"{self.CACHE_KEY_PREFIX}{cliente_id}"
+    def _get_cache_key(self, client_id: UUID) -> str:
+        return f"{self.CACHE_KEY_PREFIX}{client_id}"
 
-    def _set_rls_context(self, cliente_id: UUID) -> None:
+    def _set_rls_context(self, client_id: UUID) -> None:
         try:
             client = get_supabase_client()
-            supabase_set_rls(client, str(cliente_id))
-            logger.debug(f"RLS context set via Supabase RPC for: {cliente_id}")
+            supabase_set_rls(client, str(client_id))
+            logger.debug(f"RLS context set via Supabase RPC for: {client_id}")
         except Exception as e:
             logger.warning(f"Could not set RLS context via Supabase: {e}")
 
@@ -78,14 +102,14 @@ class ContextService:
         )
 
     async def _enrich_data_schema_with_table_schemas(
-        self, context: BluClientContext, cliente_id: UUID
+        self, context: BluClientContext, client_id: UUID
     ) -> BluClientContext:
         """Enrich BluClientContext.data_schema with detailed table schemas from sql_table_config."""
         try:
-            configs = await self.get_sql_table_configs(cliente_id)
+            configs = await self.get_sql_table_configs(client_id)
 
             if not configs:
-                logger.debug(f"No sql_table_config entries for {cliente_id}")
+                logger.debug(f"No sql_table_config entries for {client_id}")
                 return context
 
             from blu_models.context_schemas import DataSchema, TableSchemaInfo
@@ -119,7 +143,7 @@ class ContextService:
                 )
 
             logger.info(
-                f"Enriched data_schema with {len(table_schemas)} table schemas for {cliente_id}"
+                f"Enriched data_schema with {len(table_schemas)} table schemas for {client_id}"
             )
             return context
 
@@ -127,42 +151,53 @@ class ContextService:
             logger.warning(f"Failed to enrich data_schema with table_schemas: {e}")
             return context
 
-    async def get_client_context_by_external_user_id(
-        self, external_user_id: str | UUID
+    async def get_client_context(
+        self,
+        client_id: UUID | None = None,
+        *,
+        external_user_id: str | UUID | None = None,
     ) -> BluClientContext | None:
         """
-        Fetch context using the external_user_id (Supabase Auth user ID / JWT sub claim).
+        Fetch full client context with Redis caching.
 
-        This is the primary entry point for JWT-authenticated requests.
+        Accepts either a direct ``client_id`` (UUID) or an ``external_user_id``
+        (JWT sub / Supabase Auth user ID).  When ``external_user_id`` is given,
+        the internal client UUID is resolved first (one Supabase call, not
+        cached), then the standard Redis → Supabase → enrich path is used.
+
+        Exactly one of the two arguments must be provided.
         """
-        try:
-            cliente_data = await asyncio.to_thread(
-                self._supabase_crud.get_cliente_blu_by_external_user_id, str(external_user_id)
-            )
+        if client_id is None and external_user_id is None:
+            raise ValueError("Provide either client_id or external_user_id")
 
-            if not cliente_data:
-                logger.warning(f"Cliente não encontrado para external_user_id={external_user_id}")
+        # --- resolve external_user_id → client_id ---
+        if client_id is None:
+            try:
+                cliente_data = await asyncio.to_thread(
+                    self._supabase_crud.get_cliente_blu_by_external_user_id,
+                    str(external_user_id),
+                )
+            except Exception as e:
+                logger.error(
+                    f"Erro ao resolver external_user_id={external_user_id}: {e}",
+                    exc_info=True,
+                )
                 return None
 
-            internal_client_id = UUID(cliente_data["client_id"])
+            if not cliente_data:
+                logger.warning(
+                    f"Cliente não encontrado para external_user_id={external_user_id}"
+                )
+                return None
+
+            client_id = UUID(cliente_data["client_id"])
             logger.debug(
-                f"Found cliente: external_user_id={external_user_id} -> client_id={internal_client_id}"
+                f"Resolved external_user_id={external_user_id} → client_id={client_id}"
             )
 
-            return await self.get_client_context_by_id(internal_client_id)
-
-        except Exception as e:
-            logger.error(
-                f"Erro ao buscar contexto por external_user_id={external_user_id}: {e}",
-                exc_info=True,
-            )
-            return None
-
-    async def get_client_context_by_id(self, cliente_id: UUID) -> BluClientContext | None:
-        """Fetch full client context with Redis caching and RLS enforcement."""
-        cache_key = self._get_cache_key(cliente_id)
-
-        await asyncio.to_thread(self._set_rls_context, cliente_id)
+        # --- cached fetch by client_id ---
+        cache_key = self._get_cache_key(client_id)
+        await asyncio.to_thread(self._set_rls_context, client_id)
 
         try:
             cached_data = await asyncio.to_thread(self.cache.get_json, cache_key)
@@ -170,22 +205,24 @@ class ContextService:
                 try:
                     return BluClientContext.model_validate(cached_data)
                 except Exception as e:
-                    logger.warning(f"Cache corrompido para {cliente_id}, invalidando... Erro: {e}")
-                    await self.clear_context_cache(cliente_id)
+                    logger.warning(
+                        f"Cache corrompido para {client_id}, invalidando... Erro: {e}"
+                    )
+                    await self.clear_context_cache(client_id)
         except Exception as e:
             logger.warning(f"Falha ao ler cache Redis: {e}")
 
         try:
             cliente_data = await asyncio.to_thread(
-                self._supabase_crud.get_cliente_blu_by_id, cliente_id
+                self._supabase_crud.get_cliente_blu_by_id, client_id
             )
             if not cliente_data:
-                logger.warning(f"Cliente {cliente_id} não encontrado no banco.")
+                logger.warning(f"Cliente {client_id} não encontrado no banco.")
                 return None
 
             client_context = self._build_context_from_dict(cliente_data)
             client_context = await self._enrich_data_schema_with_table_schemas(
-                client_context, cliente_id
+                client_context, client_id
             )
 
             await asyncio.to_thread(
@@ -198,27 +235,81 @@ class ContextService:
             return client_context
 
         except Exception as e:
-            logger.error(f"Erro crítico ao montar contexto para {cliente_id}: {e}", exc_info=True)
+            logger.error(
+                f"Erro crítico ao montar contexto para {client_id}: {e}", exc_info=True
+            )
             return None
 
-    async def clear_context_cache(self, cliente_id: UUID) -> None:
+    # ------------------------------------------------------------------
+    # Backwards-compat aliases — prefer get_client_context() in new code
+    # ------------------------------------------------------------------
+
+    async def get_client_context_by_id(self, client_id: UUID) -> BluClientContext | None:
+        return await self.get_client_context(client_id)
+
+    async def get_client_context_by_external_user_id(
+        self, external_user_id: str | UUID
+    ) -> BluClientContext | None:
+        return await self.get_client_context(external_user_id=external_user_id)
+
+    async def clear_context_cache(self, client_id: UUID) -> None:
         """Remove context from cache (call after client updates)."""
-        cache_key = self._get_cache_key(cliente_id)
+        cache_key = self._get_cache_key(client_id)
         await asyncio.to_thread(self.cache.delete, cache_key)
-        logger.info(f"Cache invalidado para: {cliente_id}")
+        logger.info(f"Cache invalidado para: {client_id}")
+
+    async def get_domain_projection(self, domain: str, client_id: UUID) -> dict:
+        """
+        Return a filtered view of the cached BluClientContext for a given domain.
+
+        The projection includes only the context sections relevant to the
+        requested domain, plus the identity fields (nome_empresa, tier, id).
+        Uses the cached context from get_client_context_by_id — no extra DB call.
+
+        Args:
+            domain: Specialist domain keyword (e.g. "analytics", "rfq", "rag").
+                    Unknown domains include all loaded sections.
+            client_id: Client UUID.
+
+        Returns:
+            Dict suitable for injection into AgentState.client_context at the
+            specialist level. Empty dict if the context cannot be loaded.
+        """
+        ctx = await self.get_client_context(client_id)
+        if ctx is None:
+            logger.warning("[domain_projection] No context found for client_id=%s", client_id)
+            return {}
+
+        allowed_sections = _DOMAIN_SECTIONS.get(domain.lower(), _ALL_CONTEXT_SECTIONS)
+
+        projection: dict = {
+            "id": str(ctx.id),
+            "nome_empresa": ctx.nome_empresa,
+            "tier": ctx.tier,
+        }
+        for section in allowed_sections:
+            value = ctx.get_section(section)
+            if value:
+                projection[section] = value
+
+        logger.debug(
+            "[domain_projection] domain=%s client=%s sections=%s",
+            domain, client_id, sorted(projection.keys()),
+        )
+        return projection
 
     # --------------------------
     # Resource caching methods
     # --------------------------
 
-    async def get_sql_table_configs(self, cliente_id: UUID) -> list[dict]:
+    async def get_sql_table_configs(self, client_id: UUID) -> list[dict]:
         """Get SQL table configurations for client, with Redis caching."""
-        cache_key = f"sql_configs:{cliente_id}"
+        cache_key = f"sql_configs:{client_id}"
 
         try:
             cached = await asyncio.to_thread(self.cache.get_json, cache_key)
             if cached is not None:
-                logger.debug(f"SQL configs cache hit for {cliente_id}")
+                logger.debug(f"SQL configs cache hit for {client_id}")
                 return cached
         except Exception as e:
             logger.warning(f"Redis cache read failed for sql_configs: {e}")
@@ -232,7 +323,7 @@ class ContextService:
             response = (
                 supabase.table("sql_table_config")
                 .select("*")
-                .or_(f"client_id.is.null,client_id.eq.{str(cliente_id)}")
+                .or_(f"client_id.is.null,client_id.eq.{str(client_id)}")
                 .eq("is_active", True)
                 .execute()
             )
@@ -244,7 +335,7 @@ class ContextService:
                 if name not in by_table or row["client_id"] is not None:
                     by_table[name] = row
             configs = list(by_table.values())
-            logger.debug(f"Loaded {len(configs)} SQL table configs for {cliente_id}")
+            logger.debug(f"Loaded {len(configs)} SQL table configs for {client_id}")
         except Exception as e:
             logger.error(f"Failed to load SQL configs from Supabase: {e}")
 
@@ -297,11 +388,71 @@ class ContextService:
             loaded = loader.load_builtin(name, variables)
             return loaded.content
 
-    async def clear_sql_configs_cache(self, cliente_id: UUID) -> None:
+    async def get_canonical_columns(
+        self,
+        *,
+        category: str | None = None,
+        table_name: str | None = None,
+    ) -> list[dict]:
+        """Return canonical column definitions, optionally filtered by category or table.
+
+        Data is global (not per-client) and cached under a single key with a long TTL.
+        Filter in-memory after retrieval to avoid cache key proliferation.
+
+        Args:
+            category: One of 'mappable', 'aggregation', 'cluster', 'dimension', 'system'.
+            table_name: analytics_v2 table name, e.g. 'fato_transacoes'.
+        """
+        cache_key = "canonical_columns:all"
+
+        rows: list[dict] = []
+        try:
+            cached = await asyncio.to_thread(self.cache.get_json, cache_key)
+            if cached is not None:
+                logger.debug("canonical_columns cache hit")
+                rows = cached
+        except Exception as e:
+            logger.warning("Redis read failed for canonical_columns: %s", e)
+
+        if not rows:
+            try:
+                supabase = get_supabase_client()
+                response = (
+                    supabase.table("canonical_columns")
+                    .select("table_name,column_name,data_type,is_required,category,description,examples")
+                    .order("table_name")
+                    .order("column_name")
+                    .execute()
+                )
+                rows = response.data or []
+                logger.debug("Loaded %d canonical columns from Supabase", len(rows))
+            except Exception as e:
+                logger.error("Failed to load canonical_columns: %s", e)
+                return []
+
+            if rows:
+                try:
+                    await asyncio.to_thread(self.cache.set_json, cache_key, rows, self.CANONICAL_TTL_SECONDS)
+                except Exception as e:
+                    logger.warning("Failed to cache canonical_columns: %s", e)
+
+        if category:
+            rows = [r for r in rows if r.get("category") == category]
+        if table_name:
+            rows = [r for r in rows if r.get("table_name") == table_name]
+
+        return rows
+
+    async def clear_canonical_columns_cache(self) -> None:
+        """Invalidate the canonical columns cache (call after schema migrations)."""
+        await asyncio.to_thread(self.cache.delete, "canonical_columns:all")
+        logger.info("canonical_columns cache invalidated")
+
+    async def clear_sql_configs_cache(self, client_id: UUID) -> None:
         """Clear SQL table configs cache for a client."""
-        cache_key = f"sql_configs:{cliente_id}"
+        cache_key = f"sql_configs:{client_id}"
         await asyncio.to_thread(self.cache.delete, cache_key)
-        logger.info(f"SQL configs cache invalidated for: {cliente_id}")
+        logger.info(f"SQL configs cache invalidated for: {client_id}")
 
     async def clear_prompt_cache(self, name: str, langfuse_label: str = "production") -> None:
         """Clear prompt cache for a specific prompt."""
@@ -396,11 +547,11 @@ class ContextService:
     class _IntegrationTokenWrapper:
         """Wrapper around a DB row exposing token validity and decryption helpers."""
 
-        def __init__(self, row, decrypt_fn, context_service=None, cliente_id=None, provider=None):
+        def __init__(self, row, decrypt_fn, context_service=None, client_id=None, provider=None):
             self._row = row
             self._decrypt = decrypt_fn
             self._context_service = context_service
-            self._cliente_id = cliente_id
+            self._client_id = client_id
             self._provider = provider
 
         def _get(self, key):
@@ -565,7 +716,7 @@ class ContextService:
             row,
             lambda x: x,  # no-op: Vault decrypts tokens inside PostgreSQL
             context_service=self,
-            cliente_id=client_id,
+            client_id=client_id,
             provider=provider,
         )
 

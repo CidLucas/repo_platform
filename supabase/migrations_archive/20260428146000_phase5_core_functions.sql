@@ -42,7 +42,7 @@ END;
 $$;
 
 -- RLS context setter for service-role callers
-CREATE OR REPLACE FUNCTION public.set_current_cliente_id(p_client_id uuid)
+CREATE OR REPLACE FUNCTION public.set_current_client_id(p_client_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
   PERFORM set_config('app.current_client_id', p_client_id::text, true);

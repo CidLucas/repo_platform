@@ -24,15 +24,15 @@ P2 migrations (document versions, conversa agent context, etc.) must be applied 
 
 ## Global Rules (enforced everywhere)
 
-| Rule | Detail |
-|------|--------|
-| **Token names only** | No inline hex in components. Use `bg-surface`, `text-gray-200`, `border-border`. Never `bg-[#111E33]`. |
-| **`dvh` not `vh`** | All full-height layouts use `min-h-dvh` / `h-dvh`. Never `h-screen` or `100vh` — iOS Safari clips content. |
-| **`touch-action: manipulation`** | Applied globally on `button, a, [role="button"]` in `globals.css` to eliminate 300ms tap delay. |
-| **Lucide icons only** | No emojis as UI icons. No mixed icon sets. |
-| **`cursor-pointer`** | All interactive elements: buttons, cards, clickable rows. |
-| **Error boundaries** | Every `RoomContainer` wraps content in `RoomErrorBoundary`. Crash in one room never takes down the shell. |
-| **Mobile-first Tailwind** | Breakpoint order: `base → md → lg → xl`. Desktop enhancements are additive. |
+| Rule                             | Detail                                                                                                     |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Token names only**             | No inline hex in components. Use `bg-surface`, `text-gray-200`, `border-border`. Never `bg-[#111E33]`.     |
+| **`dvh` not `vh`**               | All full-height layouts use `min-h-dvh` / `h-dvh`. Never `h-screen` or `100vh` — iOS Safari clips content. |
+| **`touch-action: manipulation`** | Applied globally on `button, a, [role="button"]` in `globals.css` to eliminate 300ms tap delay.            |
+| **Lucide icons only**            | No emojis as UI icons. No mixed icon sets.                                                                 |
+| **`cursor-pointer`**             | All interactive elements: buttons, cards, clickable rows.                                                  |
+| **Error boundaries**             | Every `RoomContainer` wraps content in `RoomErrorBoundary`. Crash in one room never takes down the shell.  |
+| **Mobile-first Tailwind**        | Breakpoint order: `base → md → lg → xl`. Desktop enhancements are additive.                                |
 
 ---
 
@@ -76,19 +76,19 @@ P2 migrations (document versions, conversa agent context, etc.) must be applied 
 **Goal:** Atomic design tokens expressed as typed, accessible React components.
 All primitives live in `src/components/primitives/`.
 
-| Component | Variants / Key Rules |
-|-----------|----------------------|
-| `Button` | `primary \| secondary \| ghost \| danger` × `sm/md/lg`. Loading state shows `Spinner` + disables. Scale-press animation (`scale-press` keyframe, 100ms). `cursor-pointer`. Visible focus ring (`focus-visible:ring-2 ring-blu-500`). |
-| `IconButton` | Icon-only. `aria-label` required prop. Same hover/focus as Button. Min 44×44px touch target. |
-| `Badge` | `status` (ok/urgent/attention/info) \| `count` (number). Semantic color tokens. |
-| `Card` | Base container (`bg-surface border border-border rounded-md shadow`). Hover lift variant (`hover:bg-elevated hover:shadow-md`). Active border variant (`border-blu glow-blu`). |
-| `Input` | All states: default/hover/focus/filled/error/disabled. Focus: `border-blu-500 shadow-glow-blu`. `inputmode` prop for numeric fields. |
-| `Select` | Styled select. Same state machine as Input. |
-| `Toggle` | On/off switch. Animated thumb slide via CSS `transform` (200ms ease). |
-| `TabGroup` | Horizontal tabs. Active: `border-b-2 border-blu-500`. Accessible: `role="tablist"` + `aria-selected`. |
-| `Avatar` | User photo or initials fallback. `sm/md/lg` sizes. |
-| `Divider` | `1px solid var(--border)`. Horizontal and vertical variants. |
-| `Spinner` | Rotating ring via CSS `@keyframes spin`. Respects `prefers-reduced-motion`. |
+| Component    | Variants / Key Rules                                                                                                                                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Button`     | `primary \| secondary \| ghost \| danger` × `sm/md/lg`. Loading state shows `Spinner` + disables. Scale-press animation (`scale-press` keyframe, 100ms). `cursor-pointer`. Visible focus ring (`focus-visible:ring-2 ring-blu-500`). |
+| `IconButton` | Icon-only. `aria-label` required prop. Same hover/focus as Button. Min 44×44px touch target.                                                                                                                                         |
+| `Badge`      | `status` (ok/urgent/attention/info) \| `count` (number). Semantic color tokens.                                                                                                                                                      |
+| `Card`       | Base container (`bg-surface border border-border rounded-md shadow`). Hover lift variant (`hover:bg-elevated hover:shadow-md`). Active border variant (`border-blu glow-blu`).                                                       |
+| `Input`      | All states: default/hover/focus/filled/error/disabled. Focus: `border-blu-500 shadow-glow-blu`. `inputmode` prop for numeric fields.                                                                                                 |
+| `Select`     | Styled select. Same state machine as Input.                                                                                                                                                                                          |
+| `Toggle`     | On/off switch. Animated thumb slide via CSS `transform` (200ms ease).                                                                                                                                                                |
+| `TabGroup`   | Horizontal tabs. Active: `border-b-2 border-blu-500`. Accessible: `role="tablist"` + `aria-selected`.                                                                                                                                |
+| `Avatar`     | User photo or initials fallback. `sm/md/lg` sizes.                                                                                                                                                                                   |
+| `Divider`    | `1px solid var(--border)`. Horizontal and vertical variants.                                                                                                                                                                         |
+| `Spinner`    | Rotating ring via CSS `@keyframes spin`. Respects `prefers-reduced-motion`.                                                                                                                                                          |
 
 ---
 
@@ -99,15 +99,18 @@ All primitives live in `src/components/primitives/`.
 ### Components
 
 **`AppShell`** — Root layout. `QueryClientProvider` + `AuthProvider` + `NotificationProvider` wrapping everything. No data fetching here.
+
 - Mobile: `AgentNav` hidden by default, opens as slide-in overlay via CSS `transform: translateX`
 - Desktop (`lg:`): persistent `AgentNav` sidebar (240px) + main content area
 
 **`NavBar`** — Top bar, floating style: `fixed top-4 left-4 right-4 z-50`.
+
 - Left: Blu logo + current room name (from route)
 - Right: `GlobalSearch` + `NotificationBell` + `Avatar`
 - Content below accounts for navbar height via `pt-20` on page containers
 
 **`AgentNav`** — Left sidebar / hamburger content.
+
 - Items: Home + 6 agent rooms + Atividade + Biblioteca + Admin
 - Each: agent orb icon + label + `RedDot` badge with `pending_count`
 - Active: `bg-elevated border-l-2 border-blu-500`
@@ -115,15 +118,18 @@ All primitives live in `src/components/primitives/`.
 - On mobile, `AgentStatusRow` at the bottom of Home is **hidden** (`hidden md:flex`) — the nav already covers this
 
 **`AgentBadge`** — Orb SVG + agent name + status dot.
+
 - Orb shape per agent identity (Hexagon/Circle/Triangle/Square/Diamond/Pentagon)
 - Status drives CSS animation class: `animate-orb-idle` / `animate-orb-pulse` / `animate-orb-attention` / `opacity-30` (offline)
 
 **`NotificationBell`** — Bell icon + `Badge` count.
+
 - Unread count from `NotificationContext` (driven by Supabase Realtime, see Phase 4)
 - Click → `NotificationDropdown` (absolutely positioned panel)
 - Critical notifications: red dot with `animate-orb-attention`
 
 **`NotificationDropdown`** — Grouped notification list.
+
 - Groups by type; most recent first
 - Each item links to the relevant room/approval via `react-router` navigate
 - `read_at` marked on open via `UPDATE notifications SET read_at = now()`
@@ -144,18 +150,18 @@ All primitives live in `src/components/primitives/`.
 
 All hooks follow the pattern: `useQuery` / `useMutation` wrapping a Supabase call. Mutations call `queryClient.invalidateQueries` to keep UI consistent across the app after any write.
 
-| Hook | Query Key | Source |
-|------|-----------|--------|
+| Hook                  | Query Key                            | Source                                                                                                                                            |
+| --------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `usePendingApprovals` | `['approvals', 'pending', clientId]` | `approval_requests` WHERE `status='pending'` AND `snooze_until IS NULL OR snooze_until < now()` ORDER BY `priority='urgent' DESC, created_at ASC` |
-| `useApprovalsByAgent` | `['approvals', agentSlug, clientId]` | Same table filtered by `agent_slug` |
-| `useApproveRequest` | — (mutation) | UPDATE + INSERT `audit_log` + invalidate `['approvals']` + `['agents']` |
-| `useSnoozeRequest` | — (mutation) | UPDATE `snooze_until` + invalidate `['approvals']` |
-| `useInsights` | `['insights', clientId]` | `client_insights` WHERE `dismissed=false` ORDER BY `generated_at DESC` |
-| `useDismissInsight` | — (mutation) | UPDATE `dismissed=true` + invalidate `['insights']` |
-| `useAgents` | `['agents', clientId]` | `client_enabled_agents` JOIN `agent_catalog` |
-| `useKpiSnapshot` | `['kpi', period, clientId]` | `client_kpi_snapshot` WHERE `period=?` |
-| `useNotifications` | `['notifications', clientId]` | `notifications` WHERE `dismissed_at IS NULL` ORDER BY `created_at DESC` LIMIT 30 |
-| `useApprovalStats` | `['approval-stats', clientId]` | `client_approval_stats` |
+| `useApprovalsByAgent` | `['approvals', agentSlug, clientId]` | Same table filtered by `agent_slug`                                                                                                               |
+| `useApproveRequest`   | — (mutation)                         | UPDATE + INSERT `audit_log` + invalidate `['approvals']` + `['agents']`                                                                           |
+| `useSnoozeRequest`    | — (mutation)                         | UPDATE `snooze_until` + invalidate `['approvals']`                                                                                                |
+| `useInsights`         | `['insights', clientId]`             | `client_insights` WHERE `dismissed=false` ORDER BY `generated_at DESC`                                                                            |
+| `useDismissInsight`   | — (mutation)                         | UPDATE `dismissed=true` + invalidate `['insights']`                                                                                               |
+| `useAgents`           | `['agents', clientId]`               | `client_enabled_agents` JOIN `agent_catalog`                                                                                                      |
+| `useKpiSnapshot`      | `['kpi', period, clientId]`          | `client_kpi_snapshot` WHERE `period=?`                                                                                                            |
+| `useNotifications`    | `['notifications', clientId]`        | `notifications` WHERE `dismissed_at IS NULL` ORDER BY `created_at DESC` LIMIT 30                                                                  |
+| `useApprovalStats`    | `['approval-stats', clientId]`       | `client_approval_stats`                                                                                                                           |
 
 ### Supabase Realtime Subscriptions (`src/hooks/useRealtime.ts`)
 
@@ -216,23 +222,25 @@ On large desktops (`xl:`), a third column emerges: `[DecidirAgora max-520] [Plan
 
 ```ts
 useQueries([
-  usePendingApprovals(),          // DecidirAgora
-  useInsights(),                  // InsightsPanel
-  useAgents(),                    // AgentStatusRow (desktop) + nav dots
-  useKpiSnapshot('30d'),          // NumbersPanel collapsed line
+  usePendingApprovals(), // DecidirAgora
+  useInsights(), // InsightsPanel
+  useAgents(), // AgentStatusRow (desktop) + nav dots
+  useKpiSnapshot("30d"), // NumbersPanel collapsed line
   // Calendar events via Edge Function if calendar_settings.enabled
-])
+]);
 ```
 
 ### Components
 
 **`DecidirAgora`**
+
 - Fixed-height scrollable container (`max-h-[480px] overflow-y-auto`), does NOT flow into page scroll
 - Maximum 5 cards visible; "Ver todas X decisões →" navigates to `/aprovacoes` (dedicated queue page)
 - Empty state: sand background, "🟢 Nada urgente agora. Seu time está trabalhando."
 - Loading: 3 × `SkeletonCard`
 
 **`DecisionCard`** (home variant — compact)
+
 - Agent orb + name + relative timestamp (`Há 2 min`)
 - `title` field as card header (not parsed from `payload`)
 - Proposal text (2 lines, `line-clamp-2`)
@@ -246,6 +254,7 @@ useQueries([
   - `touch-action: pan-y` on the card to prevent browser back-navigation conflict on iOS
 
 **`ApprovalCard`** (expanded, shown via "Ver" or in desk room)
+
 - Full proposal paragraph from `payload.description`
 - 3-bullet supporting data from `payload.bullets`
 - Actions: `[Aprovar]` `[Editar]` `[Rejeitar]` (primary) + `[Me explique melhor]` `[Depois]` (secondary)
@@ -254,26 +263,31 @@ useQueries([
 - After any action: inline feedback text per concept §6.2 (not a toast — inline, below buttons)
 
 **`SnoozePicker`** (bottom sheet on mobile, popover on desktop)
+
 - Options: `[Em 1 hora]` `[Hoje à tarde]` `[Amanhã]` `[Próxima semana]` `[Escolher data →]`
 - "Escolher data" opens a minimal date+time input (`<input type="datetime-local">`)
 - Writes `snooze_until` to `approval_requests` via `useSnoozeRequest` mutation
 - Toast: "Lembrete agendado. Voltarei a isso [formatted date]."
 
 **`PlanoDeHoje`**
+
 - Time-ordered list (calendar events + `approval_requests.scheduled_for` for today)
 - Each item: time pill + agent orb + description
 - Collapsible on mobile (`max-h-[200px] overflow-hidden` with "Ver mais →")
 
 **`VisaoSemana`**
+
 - 5-day strip. Each day: weekday + decision count badge (attention/urgent color)
 - Tap a day → inline expand (CSS max-height transition) showing that day's items
 
 **`InsightsPanel`**
+
 - 3 visible `InsightCard` items. Dismiss button (×) per card
 - "Ver todos X →" link to `/insights` or inline expand
 - Dismissal → `useDismissInsight` mutation
 
 **`NumbersPanel`**
+
 - Collapsed (default): single line from `client_kpi_snapshot` WHERE `period='30d'`
   - `Faturamento: R$ 543,8K · Despesas: R$ 312K · Margem: 42%`
 - Expand toggle → inline `AnalyticsCard` (CSS max-height accordion, 300ms ease-in-out)
@@ -289,20 +303,22 @@ useQueries([
 
 ### Layout rules
 
-| Viewport | Layout |
-|----------|--------|
+| Viewport                  | Layout                                                                     |
+| ------------------------- | -------------------------------------------------------------------------- |
 | Mobile portrait (`base:`) | Single column: DeskSurface full width → Corkboard → drawer pills at bottom |
-| Tablet (`md:`) | Two-column: Left drawer (1/3) + Desk surface (2/3), right drawer as pill |
-| Desktop (`lg:`) | Three-column: Left (1/4) + Desk (2/4) + Right (1/4). Corkboard below. |
-| Large desktop (`xl:`) | Three-column + persistent `AgentNav` far left (from Phase 2 shell) |
+| Tablet (`md:`)            | Two-column: Left drawer (1/3) + Desk surface (2/3), right drawer as pill   |
+| Desktop (`lg:`)           | Three-column: Left (1/4) + Desk (2/4) + Right (1/4). Corkboard below.      |
+| Large desktop (`xl:`)     | Three-column + persistent `AgentNav` far left (from Phase 2 shell)         |
 
 ### Components
 
 **`DeskSurface`**
+
 - Sections: Urgent decisions (stacked `DecisionCard`) → Active tasks → History tab
 - `bg-surface border border-border rounded-md shadow-md`
 
 **`LeftDrawer` / `RightDrawer`**
+
 - Desktop: flanking panels with `DrawerHeader` (title + collapse toggle). `bg-gray-900` (darker than surface).
 - Mobile: rendered as pill buttons at bottom of screen (`min-h-[44px]`)
 - Tap pill → slides up as bottom sheet: `@radix-ui/react-dialog` for accessibility (focus trap, ARIA, ESC close) with CSS `transform: translateY(0)` / `translateY(100%)` transition (300ms ease-out)
@@ -327,6 +343,7 @@ useQueries([
 ## Phase 6 — Interaction Patterns
 
 **`ApprovalModal`**
+
 - Full-screen on mobile, centered modal on desktop
 - Uses `@radix-ui/react-dialog` (focus trap, ARIA, ESC closes)
 - Full `ApprovalCard` content + expanded payload context
@@ -334,6 +351,7 @@ useQueries([
 - Also handles: `j/k` navigation between multiple approvals (desktop power-user shortcut)
 
 **`ChatOverlay`**
+
 - Slide-up panel from bottom: `@radix-ui/react-dialog` + CSS `transform: translateY`
 - Full chat interface scoped to `conversa.agent_slug` for the current room
 - Message streaming:
@@ -357,13 +375,13 @@ useQueries([
 
 The first complete agent room. All other rooms follow the same pattern — build this one right.
 
-| Zone | Content | Data Source |
-|------|---------|-------------|
-| Desk Surface | Active quotations, pending approvals, urgent stock alerts | `approval_requests` WHERE `agent_slug='compras'` |
-| Left Drawer | Supplier list with star ratings + category pills | `suppliers` table |
-| Right Drawer | Last 10 purchases, approval history, spending by category | `audit_log` + `analytics_v2.fato_transacoes` |
-| Corkboard | Supplier quality/pricing insights | `client_insights` WHERE `dimension='compras'` |
-| Under Desk | Stock check routines, quotation schedules, alert thresholds | `client_routines` WHERE `routine_id LIKE 'compras/%'` |
+| Zone         | Content                                                     | Data Source                                           |
+| ------------ | ----------------------------------------------------------- | ----------------------------------------------------- |
+| Desk Surface | Active quotations, pending approvals, urgent stock alerts   | `approval_requests` WHERE `agent_slug='compras'`      |
+| Left Drawer  | Supplier list with star ratings + category pills            | `suppliers` table                                     |
+| Right Drawer | Last 10 purchases, approval history, spending by category   | `audit_log` + `analytics_v2.fato_transacoes`          |
+| Corkboard    | Supplier quality/pricing insights                           | `client_insights` WHERE `dimension='compras'`         |
+| Under Desk   | Stock check routines, quotation schedules, alert thresholds | `client_routines` WHERE `routine_id LIKE 'compras/%'` |
 
 **Left Drawer specifics:** `ResourceList` showing `suppliers` rows. Each row: star rating (`★★★★☆`), supplier name, category pill, performance summary. `CategoryTags` filter strip at top (`[Todos] [Escritório] [Insumos] [Limpeza]`). Empty state → `EmptyDrawer` with "Adicionar primeiro fornecedor →".
 
@@ -375,57 +393,57 @@ Pattern identical to ComprasRoom. Room-specific content below.
 
 ### FinanceiroRoom
 
-| Zone | Content | Data Source |
-|------|---------|-------------|
+| Zone         | Content                                                                     | Data Source                                                                 |
+| ------------ | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | Desk Surface | `MetricCard` (today's balance) + pending payments list + upcoming due dates | `approval_requests` WHERE `agent_slug='financeiro'` + `client_kpi_snapshot` |
-| Left Drawer | Connected accounts with balances | `credencial_servico_externo` + `integration_tokens` |
-| Right Drawer | Generated reports list (DRE, cash flow, margin) | `report_schedules` + `report_runs` |
-| Corkboard | Cost trend insights | `client_insights` WHERE `dimension='financeiro'` |
-| Under Desk | Monthly close routine, cost variance alert, DRE auto-gen | `client_routines` |
-| **Extra** | `AnalyticsCard` (expandable, full KPI grid + charts) below Corkboard | `analytics_v2` |
+| Left Drawer  | Connected accounts with balances                                            | `credencial_servico_externo` + `integration_tokens`                         |
+| Right Drawer | Generated reports list (DRE, cash flow, margin)                             | `report_schedules` + `report_runs`                                          |
+| Corkboard    | Cost trend insights                                                         | `client_insights` WHERE `dimension='financeiro'`                            |
+| Under Desk   | Monthly close routine, cost variance alert, DRE auto-gen                    | `client_routines`                                                           |
+| **Extra**    | `AnalyticsCard` (expandable, full KPI grid + charts) below Corkboard        | `analytics_v2`                                                              |
 
 ### AgendaRoom
 
-| Zone | Content | Data Source |
-|------|---------|-------------|
+| Zone         | Content                                                     | Data Source                                                              |
+| ------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------ |
 | Desk Surface | Today's schedule (time-ordered) + pending meeting approvals | `approval_requests` WHERE `agent_slug='agenda'` + Calendar Edge Function |
-| Left Drawer | Connected calendars + routine templates | `calendar_settings` + `client_routines` |
-| Right Drawer | Past events + decision history per meeting | `audit_log` filtered by `entity_type='agenda'` |
-| Corkboard | Scheduling insights | `client_insights` WHERE `dimension='agenda'` |
-| Under Desk | Weekly planning, stand-up reminders | `client_routines` |
+| Left Drawer  | Connected calendars + routine templates                     | `calendar_settings` + `client_routines`                                  |
+| Right Drawer | Past events + decision history per meeting                  | `audit_log` filtered by `entity_type='agenda'`                           |
+| Corkboard    | Scheduling insights                                         | `client_insights` WHERE `dimension='agenda'`                             |
+| Under Desk   | Weekly planning, stand-up reminders                         | `client_routines`                                                        |
 
 ### DocumentosRoom
 
-| Zone | Content | Data Source |
-|------|---------|-------------|
-| Desk Surface | Active draft (if editing) OR recent documents list | `vector_db.documents` WHERE `agent_slug='documentos'` |
-| Left Drawer | Template library (`ModelDrawer`) | `doc_templates` (system + client) |
-| Right Drawer | Archived docs + version history (`ArchiveDrawer`) | `vector_db.document_versions` |
-| Corkboard | Document pattern insights | `client_insights` WHERE `dimension='documentos'` |
-| Under Desk | Auto-save config, backup routines, approval workflow rules | `client_routines` |
-| **Extra** | `EditorCanvas` expands full-width when editing | `vector_db.documents.editor_content` |
+| Zone         | Content                                                    | Data Source                                           |
+| ------------ | ---------------------------------------------------------- | ----------------------------------------------------- |
+| Desk Surface | Active draft (if editing) OR recent documents list         | `vector_db.documents` WHERE `agent_slug='documentos'` |
+| Left Drawer  | Template library (`ModelDrawer`)                           | `doc_templates` (system + client)                     |
+| Right Drawer | Archived docs + version history (`ArchiveDrawer`)          | `vector_db.document_versions`                         |
+| Corkboard    | Document pattern insights                                  | `client_insights` WHERE `dimension='documentos'`      |
+| Under Desk   | Auto-save config, backup routines, approval workflow rules | `client_routines`                                     |
+| **Extra**    | `EditorCanvas` expands full-width when editing             | `vector_db.documents.editor_content`                  |
 
 **Editor specifics:** Tiptap (not ContentEditable). Extensions: StarterKit, Placeholder, CharacterCount. Auto-save: debounced 30s → `UPDATE vector_db.documents SET editor_content = ?` + status indicator (`Spinner → CheckCircle`). `DocToolbar` sticky: `[Modelo] [IA escrever] [Revisar] [Salvar] [Exportar PDF]`. EditorCanvas expands to full viewport width when active, collapsing Left/Right drawers.
 
 ### EstrategiaRoom
 
-| Zone | Content | Data Source |
-|------|---------|-------------|
+| Zone         | Content                                                                  | Data Source                                         |
+| ------------ | ------------------------------------------------------------------------ | --------------------------------------------------- |
 | Desk Surface | Current analyses in progress + pending scenario reviews + anomaly alerts | `approval_requests` WHERE `agent_slug='estrategia'` |
-| Left Drawer | Monitored KPIs, benchmarks, goals | `client_dimension_kpis` + `kpi_catalog` |
-| Right Drawer | Past analyses, predictions, decision outcomes | `audit_log` + `analytics_v2` |
-| Corkboard | Strategic insights (margins, supplier trends) | `client_insights` WHERE `dimension='estrategia'` |
-| Under Desk | Monthly margin routine, quarterly trend report | `client_routines` |
+| Left Drawer  | Monitored KPIs, benchmarks, goals                                        | `client_dimension_kpis` + `kpi_catalog`             |
+| Right Drawer | Past analyses, predictions, decision outcomes                            | `audit_log` + `analytics_v2`                        |
+| Corkboard    | Strategic insights (margins, supplier trends)                            | `client_insights` WHERE `dimension='estrategia'`    |
+| Under Desk   | Monthly margin routine, quarterly trend report                           | `client_routines`                                   |
 
 ### ClientesRoom
 
-| Zone | Content | Data Source |
-|------|---------|-------------|
+| Zone         | Content                                        | Data Source                                                                     |
+| ------------ | ---------------------------------------------- | ------------------------------------------------------------------------------- |
 | Desk Surface | Top customers + recent activity + churn alerts | `approval_requests` WHERE `agent_slug='clientes'` + `analytics_v2.dim_clientes` |
-| Left Drawer | Customer segments (Alto/Médio/Baixo cluster) | `analytics_v2.dim_clientes` grouped by `nivel_cluster` |
-| Right Drawer | Customer history + transaction list | `analytics_v2.fato_transacoes` filtered by `cliente_id` |
-| Corkboard | Customer growth and frequency insights | `client_insights` WHERE `dimension='clientes'` |
-| Under Desk | Follow-up routines | `client_routines` |
+| Left Drawer  | Customer segments (Alto/Médio/Baixo cluster)   | `analytics_v2.dim_clientes` grouped by `nivel_cluster`                          |
+| Right Drawer | Customer history + transaction list            | `analytics_v2.fato_transacoes` filtered by `client_id`                          |
+| Corkboard    | Customer growth and frequency insights         | `client_insights` WHERE `dimension='clientes'`                                  |
+| Under Desk   | Follow-up routines                             | `client_routines`                                                               |
 
 ---
 
@@ -440,6 +458,7 @@ Used inside `FinanceiroRoom` (`AnalyticsCard`) and `NumbersPanel` (Home).
 **`AreaCards`** — Icon + metric cards for Pedidos / Clientes / Fornecedores / Produtos from `kpi_snapshot`.
 
 **`ChartContainer`** — Tabbed: `Receita | Despesas | Fluxo de Caixa`. Recharts components:
+
 - Receita: `AreaChart` (blu-500 fill, smooth curves)
 - Despesas: `BarChart` (stacked by category)
 - Fluxo: `LineChart` (two lines: entrada/saída)
@@ -462,11 +481,11 @@ Used inside `FinanceiroRoom` (`AnalyticsCard`) and `NumbersPanel` (Home).
 
 ### Milestone Triggers
 
-| Threshold | Trigger | UI Moment |
-|-----------|---------|-----------|
+| Threshold    | Trigger                                   | UI Moment                                                                                                                                           |
+| ------------ | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 10 approvals | `trust_level` changes to `similar_toggle` | Corkboard insight card appears: "Você aprovou 10 missões. Quer automatizar aprovações similares em Compras?" + [Configurar] CTA → opens `UnderDesk` |
-| 25 approvals | `trust_level` changes to `rules` | Corkboard insight: "Você aprovou 25 missões. Desbloqueou regras avançadas — ex: aprovar automaticamente compras abaixo de R$ 500." |
-| 50 approvals | `trust_level` changes to `full_config` | Corkboard insight + `SuccessToast`: "Configuração completa desbloqueada. Blu conhece o seu negócio." |
+| 25 approvals | `trust_level` changes to `rules`          | Corkboard insight: "Você aprovou 25 missões. Desbloqueou regras avançadas — ex: aprovar automaticamente compras abaixo de R$ 500."                  |
+| 50 approvals | `trust_level` changes to `full_config`    | Corkboard insight + `SuccessToast`: "Configuração completa desbloqueada. Blu conhece o seu negócio."                                                |
 
 ### `RuleBuilder` (in UnderDesk, trust-gated)
 
@@ -481,14 +500,14 @@ Used inside `FinanceiroRoom` (`AnalyticsCard`) and `NumbersPanel` (Home).
 
 Tabbed layout (not desk pattern). `AdminLayout` with `TabGroup` header.
 
-| Tab | Component | Data Source |
-|-----|-----------|-------------|
-| Integrações | `IntegrationCard` × N providers | `credencial_servico_externo` + `integration_tokens` |
-| Usuários | `UserTable` + `PermissionToggle` | Supabase auth + `clientes_blu` |
-| Faturamento | `BillingCard` | `clientes_blu.tier` |
-| Auditoria | `AuditLog` | `audit_log` (paginated, 50/page) |
-| LGPD | `DataPrivacyPanel` | client data export / deletion request |
-| Notificações | `NotificationPreferences` | `client_notification_preferences` |
+| Tab          | Component                        | Data Source                                         |
+| ------------ | -------------------------------- | --------------------------------------------------- |
+| Integrações  | `IntegrationCard` × N providers  | `credencial_servico_externo` + `integration_tokens` |
+| Usuários     | `UserTable` + `PermissionToggle` | Supabase auth + `clientes_blu`                      |
+| Faturamento  | `BillingCard`                    | `clientes_blu.tier`                                 |
+| Auditoria    | `AuditLog`                       | `audit_log` (paginated, 50/page)                    |
+| LGPD         | `DataPrivacyPanel`               | client data export / deletion request               |
+| Notificações | `NotificationPreferences`        | `client_notification_preferences`                   |
 
 **`IntegrationCard`** — Provider logo + status (`✅ Conectado / ⚠️ Erro / ⬜ Não conectado`) + last sync time + `[Sincronizar agora] [Configurar] [Desconectar]`. Status from `credencial_servico_externo.status`.
 
@@ -496,13 +515,13 @@ Tabbed layout (not desk pattern). `AdminLayout` with `TabGroup` header.
 
 ## Phase 12 — Feedback & States
 
-| Component | Trigger | Behavior |
-|-----------|---------|----------|
-| `SkeletonCard` | While fetching | Matches target component dimensions exactly. Animated shimmer via CSS `@keyframes shimmer`. |
-| `LoadingAgent` | Agent orb with `animate-orb-pulse` | "Processando..." text. Used inside `DeskSurface` when agent is `current_status='working'`. |
-| `SuccessToast` | After Aprovar/Rejeitar/save | ok-color, 3s auto-dismiss, slides up from bottom. |
-| `ErrorHuman` | Network/API error (via TanStack Query global handler) | Friendly message + retry button. Never shows stack trace. |
-| `EmptyState` | Generic empty (drawers, lists, rooms) | Icon + title + body + CTA. Warm sand background. |
+| Component      | Trigger                                               | Behavior                                                                                    |
+| -------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `SkeletonCard` | While fetching                                        | Matches target component dimensions exactly. Animated shimmer via CSS `@keyframes shimmer`. |
+| `LoadingAgent` | Agent orb with `animate-orb-pulse`                    | "Processando..." text. Used inside `DeskSurface` when agent is `current_status='working'`.  |
+| `SuccessToast` | After Aprovar/Rejeitar/save                           | ok-color, 3s auto-dismiss, slides up from bottom.                                           |
+| `ErrorHuman`   | Network/API error (via TanStack Query global handler) | Friendly message + retry button. Never shows stack trace.                                   |
+| `EmptyState`   | Generic empty (drawers, lists, rooms)                 | Icon + title + body + CTA. Warm sand background.                                            |
 
 **Toast implementation:** CSS-only slide-up (`transform: translateY(100%) → 0`, 200ms ease-out). Auto-dismiss with `setTimeout`. Stack-aware (multiple toasts stack vertically). No library needed.
 
@@ -510,18 +529,18 @@ Tabbed layout (not desk pattern). `AdminLayout` with `TabGroup` header.
 
 ## Delivery Order — Sprint Sequence
 
-| Sprint | Phases | Output |
-|--------|--------|--------|
-| 0 | Schema P0+P1 migrations | DB ready for frontend |
-| 1 | Phase 0 + Phase 1 | Running app, design tokens, all primitives |
-| 2 | Phase 2 + Phase 3 | App shell, navigation, full data layer + Realtime wired |
-| 3 | Phase 4 | Full Home screen with live approvals, insights, KPI panel |
-| 4 | Phase 5 + Phase 6 | Desk pattern (generic) + all interaction patterns |
-| 5 | Phase 7 | ComprasRoom complete (reference for desk pattern) |
-| 6 | Phase 8 (first 2 rooms) | FinanceiroRoom + AgendaRoom |
-| 7 | Phase 8 (last 3 rooms) + Phase 10 | DocumentosRoom + EstrategiaRoom + ClientesRoom + Progressive Trust |
-| 8 | Phase 9 | Analytics (charts, KPI grid, period selector) |
-| 9 | Phase 11 + Phase 12 | Admin + Feedback states + polish |
+| Sprint | Phases                            | Output                                                             |
+| ------ | --------------------------------- | ------------------------------------------------------------------ |
+| 0      | Schema P0+P1 migrations           | DB ready for frontend                                              |
+| 1      | Phase 0 + Phase 1                 | Running app, design tokens, all primitives                         |
+| 2      | Phase 2 + Phase 3                 | App shell, navigation, full data layer + Realtime wired            |
+| 3      | Phase 4                           | Full Home screen with live approvals, insights, KPI panel          |
+| 4      | Phase 5 + Phase 6                 | Desk pattern (generic) + all interaction patterns                  |
+| 5      | Phase 7                           | ComprasRoom complete (reference for desk pattern)                  |
+| 6      | Phase 8 (first 2 rooms)           | FinanceiroRoom + AgendaRoom                                        |
+| 7      | Phase 8 (last 3 rooms) + Phase 10 | DocumentosRoom + EstrategiaRoom + ClientesRoom + Progressive Trust |
+| 8      | Phase 9                           | Analytics (charts, KPI grid, period selector)                      |
+| 9      | Phase 11 + Phase 12               | Admin + Feedback states + polish                                   |
 
 ---
 

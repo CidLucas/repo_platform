@@ -95,6 +95,25 @@ class TierValidator:
                 "priority_support"
             ],
         },
+        "ADMIN": {
+            "included_tools": [
+                "executar_rag_cliente",
+                "executar_sql_agent",
+                "execute_sql",
+                "agendar_consulta",
+                "google_calendar_list_events",
+                "google_calendar_create_event",
+                "google_drive_list_files",
+            ],
+            "max_queries_per_day": None,  # Unlimited
+            "max_sessions": None,  # Unlimited
+            "description": "Internal admin access — all tools, no limits",
+            "features": [
+                "rag", "sql", "scheduling", "chat", "analytics",
+                "google_integrations", "docker_mcp", "custom_tools",
+                "priority_support", "admin"
+            ],
+        },
     }
 
     # =========================================================================

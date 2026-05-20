@@ -360,19 +360,41 @@ body::before {
 .auth-divider { text-align: center; font-size: 12px; color: var(--muted); margin: 18px 0; }
 
 /* Data source cards */
-.dsrc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+.dsrc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
 .dsrc {
-  background: var(--glass); border: 1.5px solid var(--gb);
-  border-radius: var(--r); padding: 14px 12px;
-  text-align: center; cursor: pointer; transition: all .12s;
+  background: rgba(255,255,255,0.04);
+  border: 1.5px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 16px 12px 14px;
+  text-align: center; cursor: pointer;
+  transition: border-color .15s, background .15s, transform .12s;
   font-size: 12.5px; color: var(--muted2);
+  position: relative;
 }
-.dsrc:hover { border-color: var(--gb2); color: var(--fg); }
-.dsrc.on { border-color: var(--blue3); background: rgba(59,130,246,0.07); color: var(--fg); }
-.dsrc.connected { border-color: var(--ok); background: var(--odim); }
-.dsrc-icon { font-size: 22px; margin-bottom: 7px; display: block; }
-.dsrc-name { font-weight: 600; }
-.dsrc-sub { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+.dsrc:hover {
+  border-color: rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.07);
+  color: var(--fg);
+  transform: translateY(-1px);
+}
+/* open credential form state */
+.dsrc.active, .dsrc.on {
+  border-color: var(--blue3);
+  background: rgba(59,130,246,0.09);
+  color: var(--fg);
+}
+.dsrc.connected {
+  border-color: var(--ok);
+  background: rgba(16,185,129,0.1);
+  color: var(--fg);
+}
+.dsrc.connected::after {
+  content: '✓';
+  position: absolute; top: 7px; right: 9px;
+  font-size: 11px; color: var(--ok); font-weight: 700;
+}
+.dsrc-icon { font-size: 26px; margin-bottom: 9px; display: block; line-height: 1; }
+.dsrc-name { font-size: 13px; font-weight: 600; }
+.dsrc-sub { font-size: 11px; color: var(--muted); margin-top: 3px; }
 
 /* Upload zone */
 .upload-zone {
@@ -615,6 +637,60 @@ tr.map-row.collapsed { display: none; }
 .psc-kpi { text-align: center; }
 .psc-kv { font-size: 11px; font-weight: 700; font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .psc-kl { font-size: 8px; color: rgba(255,255,255,.35); }
+
+/* ── STEP EYEBROW ────────────────────────────────────────────────────────── */
+.fc-step {
+  font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); font-family: var(--mono); margin-bottom: 14px;
+}
+.map-step {
+  font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); font-family: var(--mono); margin-bottom: 10px;
+}
+
+/* ── SCRAPE ANIMATION ────────────────────────────────────────────────────── */
+@keyframes scrapeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.scrape-panel {
+  margin-top: 20px; border-top: 1px solid var(--gb); padding-top: 18px;
+  animation: scrapeIn .4s ease;
+}
+.scrape-h {
+  font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ok); margin-bottom: 14px; display: flex; align-items: center; gap: 6px;
+}
+.scrape-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;
+}
+.scrape-field {
+  background: var(--glass); border: 1px solid var(--gb);
+  border-radius: var(--r); padding: 10px 12px;
+  animation: scrapeIn .4s ease both;
+}
+.slabel {
+  font-size: 10px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 4px;
+}
+.svalue {
+  font-size: 13.5px; color: var(--fg); font-weight: 500; min-height: 20px;
+}
+.svalue.typing::after {
+  content: '|'; animation: cursorBlink .9s infinite; color: var(--accent); font-weight: 300;
+}
+@keyframes cursorBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+.scrape-warn {
+  font-size: 11.5px; color: var(--warn); background: var(--wdim);
+  padding: 5px 10px; border-radius: 6px; margin-bottom: 10px;
+  animation: scrapeIn .35s .05s ease both;
+}
+.spin-sm {
+  width: 14px; height: 14px; border: 2px solid var(--gb);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: onbSpin .8s linear infinite; flex-shrink: 0;
+}
+@keyframes onbSpin { to { transform: rotate(360deg); } }
 
 /* ── RESPONSIVE ─────────────────────────────────────────────────────────── */
 @media (max-width: 780px) {

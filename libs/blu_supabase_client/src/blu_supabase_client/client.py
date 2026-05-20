@@ -128,7 +128,7 @@ def close_supabase_client() -> None:
 # RLS CONTEXT HELPER
 # ============================================================================
 
-def set_rls_context(client: Client, cliente_id: str) -> None:
+def set_rls_context(client: Client, client_id: str) -> None:
     """
     Set RLS context by calling the PostgreSQL function via RPC.
 
@@ -136,7 +136,7 @@ def set_rls_context(client: Client, cliente_id: str) -> None:
 
     Args:
         client: Supabase client instance
-        cliente_id: UUID string of the current cliente_blu
+        client_id: UUID string of the current cliente_blu
 
     Usage:
         client = get_supabase_client()
@@ -144,8 +144,8 @@ def set_rls_context(client: Client, cliente_id: str) -> None:
         # Subsequent queries will respect RLS policies
     """
     try:
-        client.rpc("set_current_cliente_id", {"p_client_id": cliente_id}).execute()
-        logger.debug(f"RLS context set for cliente_id: {cliente_id}")
+        client.rpc("set_current_client_id", {"p_client_id": client_id}).execute()
+        logger.debug(f"RLS context set for client_id: {client_id}")
     except Exception as e:
         logger.warning(f"Could not set RLS context: {e}")
 

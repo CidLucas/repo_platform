@@ -49,7 +49,7 @@ class AgentTypeConfig:
     # ------------------------------------------------------------------
     # Prompt composition
     # ------------------------------------------------------------------
-    # fragment list passed to compose_prompt(); ignored when prompt_name is set
+    # fragment list for legacy agents; ignored when prompt_name is set. New agents use prompt_name.
     fragments: list[str] = field(default_factory=list)
     # Langfuse named-prompt key; when non-empty, loaded instead of fragments
     prompt_name: str = ""
@@ -111,226 +111,28 @@ class AgentTypeConfig:
 
 _AGENT_TYPES: dict[str, AgentTypeConfig] = {
     # ------------------------------------------------------------------
-    # Data Analyst — SQL + CSV analytics
+    # Frontdesk — entry point specialist
+    # Handles simple RAG/SQL inline; routes complex tasks to orchestrator
+    # or context-gatherer.
     # ------------------------------------------------------------------
-    "data-analyst": AgentTypeConfig(
-        name="Data Analyst",
-        slug="data-analyst",
+    "frontdesk": AgentTypeConfig(
+        name="Frontdesk",
+        slug="frontdesk",
         description=(
-            "Analyses structured data by generating and executing SQL queries on "
-            "the client's analytics database. Use for revenue, rankings, trends, "
-            "aggregations, comparisons, and any question about business metrics."
+            "Entry point specialist. Handles simple RAG and SQL queries directly. "
+            "Routes complex or multi-domain tasks to the appropriate specialist via handoff tool. "
+            "Use as the first point of contact for all user requests."
         ),
+        prompt_name="agents/frontdesk",
         enabled_tools=[
+            "executar_rag_cliente",
             "execute_sql",
-            "execute_csv_query",
-            "list_csv_datasets",
-            "peek_csv_columns",
-            "get_knowledge_status",
-        ],
-        fragments=[
-            "fragment/standalone-base",
-            "fragment/sql-schema",
-            "fragment/sql-rules",
-            "fragment/sql-examples",
-            "fragment/fallback-strategy",
-            "fragment/data-analyst-workflow",
-            "fragment/standalone-response",
-        ],
-        tier_required=TierLevel.SME,
-        routing_hint="Questions about numbers, totals, rankings, revenue, suppliers, clients, products.",
-        max_turns=3,
-        tags=["analytics", "sql", "csv"],
-    ),
-    # ------------------------------------------------------------------
-    # Knowledge Assistant — RAG search
-    # ------------------------------------------------------------------
-    "knowledge-assistant": AgentTypeConfig(
-        name="Knowledge Assistant",
-        slug="knowledge-assistant",
-        description=(
-            "Searches the client's knowledge base (RAG) to answer questions "
-            "about policies, processes, company information, and documents."
-        ),
-        enabled_tools=[
-            "executar_rag_cliente",
-            "get_knowledge_status",
-        ],
-        fragments=[
-            "fragment/standalone-base",
-            "fragment/rag-search",
-            "fragment/knowledge-assistant-workflow",
-            "fragment/standalone-response",
+            "ferramenta_publica_de_teste",
         ],
         tier_required=TierLevel.BASIC,
-        routing_hint="Questions about policies, processes, company info, documentation, how-to.",
-        max_turns=3,
-        tags=["rag", "knowledge-base", "search"],
-    ),
-    # ------------------------------------------------------------------
-    # Report Generator — SQL + RAG + Google Sheets export
-    # ------------------------------------------------------------------
-    "report-generator": AgentTypeConfig(
-        name="Report Generator",
-        slug="report-generator",
-        description=(
-            "Combines data analysis and knowledge to produce comprehensive reports. "
-            "Can query SQL, search RAG, and export results to Google Sheets/Docs."
-        ),
-        enabled_tools=[
-            "executar_sql_agent",
-            "executar_rag_cliente",
-            "execute_csv_query",
-            "list_csv_datasets",
-            "peek_csv_columns",
-            "write_to_sheet",
-            "export_to_sheet",
-            "create_spreadsheet_with_data",
-            "google_docs_create",
-            "google_docs_write",
-            "get_knowledge_status",
-        ],
-        fragments=[
-            "fragment/standalone-base",
-            "fragment/csv-tools",
-            "fragment/rag-search",
-            "fragment/google-export",
-            "fragment/report-generator-workflow",
-            "fragment/standalone-response",
-        ],
-        tier_required=TierLevel.SME,
-        routing_hint="Requests for reports, exports, combined data+knowledge analyses.",
-        max_turns=4,
-        tags=["analytics", "rag", "google", "report"],
-    ),
-    # ------------------------------------------------------------------
-    # Document Intelligence — OCR + extraction + time-series
-    # ------------------------------------------------------------------
-    "document-intelligence": AgentTypeConfig(
-        name="Document Intelligence",
-        slug="document-intelligence",
-        description=(
-            "Extracts text, tables, and structured data from uploaded documents "
-            "using OCR. Compiles time series and saves summaries to the knowledge base."
-        ),
-        enabled_tools=[
-            "extract_document_with_ocr",
-            "summarize_document_sections",
-            "extract_structured_data",
-            "compile_time_series",
-            "write_summary_to_kb",
-            "executar_rag_cliente",
-        ],
-        fragments=[
-            "fragment/standalone-base",
-            "fragment/rag-search",
-            "fragment/document-intelligence-tools",
-            "fragment/document-intelligence-workflow",
-            "fragment/standalone-response",
-        ],
-        tier_required=TierLevel.SME,
-        routing_hint="Requests involving uploaded documents, OCR, extraction, time-series compilation.",
-        max_turns=4,
-        tags=["ocr", "documents", "extraction"],
-    ),
-    # ------------------------------------------------------------------
-    # Customer Support — routine management (no fragments; uses a named prompt)
-    # ------------------------------------------------------------------
-    "customer-support": AgentTypeConfig(
-        name="Customer Support",
-        slug="customer-support",
-        description=(
-            "Helps users manage their automation routines: lists catalog and custom "
-            "routines, creates new custom routines step-by-step, activates catalog "
-            "routines, and submits drafts for approval."
-        ),
-        enabled_tools=[
-            "listar_rotinas_catalogo",
-            "listar_rotinas_personalizadas",
-            "criar_rotina_personalizada",
-            "ativar_rotina_catalogo",
-            "enviar_rotina_para_aprovacao",
-        ],
-        prompt_name="agents/customer-support",
-        tier_required=TierLevel.BASIC,
-        routing_hint=(
-            "Requests about creating, listing, activating, or managing automation "
-            "routines. Rotinas, automações, criar rotina, ativar rotina."
-        ),
-        max_turns=5,
-        tags=["routines", "automation", "support"],
-    ),
-    # ------------------------------------------------------------------
-    # RFQ Agent — full procurement cycle
-    # ------------------------------------------------------------------
-    "rfq-agent": AgentTypeConfig(
-        name="Procurement / RFQ Agent",
-        slug="rfq-agent",
-        description=(
-            "Handles the full procurement cycle: parses buying lists, manages the "
-            "supplier roster, dispatches RFQs to multiple suppliers, collects and "
-            "compares quotes, optimises allocation across suppliers with concentration "
-            "caps, generates purchase orders, and exports results to Google Sheets."
-        ),
-        enabled_tools=[
-            "parse_buying_list",
-            "validate_buying_list",
-            "list_suppliers",
-            "add_supplier",
-            "update_supplier",
-            "remove_supplier",
-            "dispatch_rfq",
-            "dispatch_rfq_whatsapp",
-            "check_rfq_responses",
-            "submit_mock_response",
-            "parse_supplier_reply",
-            "suggest_counter_offer",
-            "optimize_allocation",
-            "generate_po_report",
-            "create_purchase_order",
-            "approve_purchase_order",
-            "import_buying_list_from_sheets",
-            "export_po_to_sheets",
-        ],
-        fragments=[
-            "fragment/standalone-base",
-            "fragment/rfq-orchestrator",
-            "fragment/rfq-supplier-liaison",
-            "fragment/rfq-optimizer",
-            "fragment/rfq-report-composer",
-            "fragment/google-export",
-            "fragment/standalone-response",
-        ],
-        tier_required=TierLevel.BASIC,
-        routing_hint=(
-            "Buying lists, purchasing, quotations, supplier management, RFQs, "
-            "purchase orders, procurement, cotações, compras, fornecedores."
-        ),
-        max_turns=6,
-        on_max_turns="raise",  # Transactional: partial dispatch is invalid
-        tags=["rfq", "procurement", "dispatch"],
-    ),
-    # ------------------------------------------------------------------
-    # Config Helper — onboarding / configuration assistant
-    # Only in standalone_agent_api today; added here for Phase 5 parity.
-    # ------------------------------------------------------------------
-    "config-helper": AgentTypeConfig(
-        name="Configuration Assistant",
-        slug="config-helper",
-        description=(
-            "Guides users through account setup, integration configuration, and "
-            "onboarding workflows."
-        ),
-        enabled_tools=[],  # config tools TBD
-        fragments=[
-            "fragment/standalone-base",
-            "fragment/config-helper-workflow",
-            "fragment/standalone-response",
-        ],
-        tier_required=TierLevel.BASIC,
-        routing_hint="Account setup, integration configuration, onboarding.",
-        max_turns=5,
-        tags=["config", "onboarding", "setup"],
+        routing_hint="Entry point. Simple knowledge questions, basic data queries.",
+        max_turns=10,
+        tags=["frontdesk", "routing", "rag", "sql"],
     ),
     # ------------------------------------------------------------------
     # Context Gatherer — data mapping, transaction registration,
@@ -383,6 +185,134 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         ),
         max_turns=6,
         tags=["context", "mapping", "transactions", "routines", "knowledge"],
+    ),
+    # ------------------------------------------------------------------
+    # CRM — client relationship and communication specialist
+    # Used by routine skill steps: reengagement emails, client outreach.
+    # ------------------------------------------------------------------
+    "crm": AgentTypeConfig(
+        name="CRM Specialist",
+        slug="crm",
+        description=(
+            "Client relationship and communication specialist. Writes personalised "
+            "outreach emails, analyses client segments, and recommends engagement "
+            "strategies. Used in routines for reengagement campaigns and follow-ups."
+        ),
+        prompt_name="agents/frontdesk",
+        enabled_tools=[
+            "executar_rag_cliente",
+            "execute_sql",
+        ],
+        tier_required=TierLevel.BASIC,
+        routing_hint="Writing client emails, personalised outreach, CRM campaigns.",
+        max_turns=5,
+        tags=["crm", "email", "clients", "reengagement"],
+    ),
+    # ------------------------------------------------------------------
+    # Estratégia — business strategy and performance analysis specialist
+    # Used by routine skill steps: strategic briefs, recommendations.
+    # ------------------------------------------------------------------
+    "estrategia": AgentTypeConfig(
+        name="Strategy Specialist",
+        slug="estrategia",
+        description=(
+            "Business strategy and performance analysis specialist. Analyses KPIs, "
+            "identifies growth opportunities, and writes strategic briefs. Used in "
+            "routines for monthly reviews and low-acquisition alerts."
+        ),
+        prompt_name="agents/frontdesk",
+        enabled_tools=[
+            "executar_rag_cliente",
+            "execute_sql",
+        ],
+        tier_required=TierLevel.BASIC,
+        routing_hint="Strategic analysis, business performance reviews, growth recommendations.",
+        max_turns=5,
+        tags=["strategy", "analytics", "kpi", "growth"],
+    ),
+    # ------------------------------------------------------------------
+    # Compras — procurement and supplier analysis specialist
+    # ------------------------------------------------------------------
+    "compras": AgentTypeConfig(
+        name="Procurement Specialist",
+        slug="compras",
+        description=(
+            "Procurement and supplier analysis specialist. Analyses purchase patterns, "
+            "identifies supplier risks, and recommends cost optimisation strategies. "
+            "Used in routines for monthly procurement reviews."
+        ),
+        prompt_name="agents/frontdesk",
+        enabled_tools=[
+            "executar_rag_cliente",
+            "execute_sql",
+        ],
+        tier_required=TierLevel.BASIC,
+        routing_hint="Procurement analysis, supplier reviews, purchasing cost optimisation.",
+        max_turns=5,
+        tags=["procurement", "suppliers", "purchases", "cost"],
+    ),
+    # ------------------------------------------------------------------
+    # Financeiro — financial health and reporting specialist
+    # ------------------------------------------------------------------
+    "financeiro": AgentTypeConfig(
+        name="Financial Specialist",
+        slug="financeiro",
+        description=(
+            "Financial health and reporting specialist. Analyses revenue trends, "
+            "ticket averages, and cash flow indicators. Used in routines for weekly "
+            "financial snapshots and alerts."
+        ),
+        prompt_name="agents/frontdesk",
+        enabled_tools=[
+            "executar_rag_cliente",
+            "execute_sql",
+        ],
+        tier_required=TierLevel.BASIC,
+        routing_hint="Financial reports, revenue analysis, cash flow monitoring.",
+        max_turns=5,
+        tags=["finance", "revenue", "reporting", "cashflow"],
+    ),
+    # ------------------------------------------------------------------
+    # Agenda — scheduling and follow-up planning specialist
+    # ------------------------------------------------------------------
+    "agenda": AgentTypeConfig(
+        name="Scheduling Specialist",
+        slug="agenda",
+        description=(
+            "Scheduling and follow-up planning specialist. Creates structured follow-up "
+            "schedules, prioritises client contacts, and recommends engagement timing. "
+            "Used in routines for weekly follow-up reminders."
+        ),
+        prompt_name="agents/frontdesk",
+        enabled_tools=[
+            "executar_rag_cliente",
+            "execute_sql",
+        ],
+        tier_required=TierLevel.BASIC,
+        routing_hint="Follow-up scheduling, client contact prioritisation, calendar planning.",
+        max_turns=5,
+        tags=["scheduling", "follow-up", "calendar", "clients"],
+    ),
+    # ------------------------------------------------------------------
+    # Documentos — knowledge base and document analysis specialist
+    # ------------------------------------------------------------------
+    "documentos": AgentTypeConfig(
+        name="Documents Specialist",
+        slug="documentos",
+        description=(
+            "Knowledge base and document analysis specialist. Searches and summarises "
+            "stored documents, identifies knowledge gaps, and produces weekly digests. "
+            "Used in routines for knowledge base maintenance."
+        ),
+        prompt_name="agents/frontdesk",
+        enabled_tools=[
+            "executar_rag_cliente",
+            "execute_sql",
+        ],
+        tier_required=TierLevel.BASIC,
+        routing_hint="Document search, knowledge base digests, content gap analysis.",
+        max_turns=5,
+        tags=["documents", "knowledge-base", "rag", "digest"],
     ),
 }
 

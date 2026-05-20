@@ -43,7 +43,8 @@ const DEFAULT_AGENTS = ['compras', 'financeiro', 'clientes', 'agenda', 'document
 const DEFAULT_APPROVAL_TASKS = ['make_payment', 'supplier_order']
 
 // All cross_agent_routines enabled by default for every new client
-const DEFAULT_ROUTINES = ['monthly_close', 'project_wrap', 'new_event_confirmed', 'churn_prevention', 'price_spike_response']
+// Kept empty — the auto_enroll_system_routines DB trigger handles this automatically.
+const DEFAULT_ROUTINES: string[] = []
 
 export function initialDraft(email: string): OnboardingDraft {
   return {

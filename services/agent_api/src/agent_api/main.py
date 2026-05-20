@@ -73,12 +73,31 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     _setup_observability(settings)
 
+    # Suppress anyio cross-task cancel-scope RuntimeError that fires during MCP
+    # streamablehttp_client teardown when the connection is closed from a different
+    # asyncio task than the one that created it. This is a known anyio/MCP SDK
+    # issue — the routine output is unaffected.
+    loop = asyncio.get_running_loop()
+    _prev_handler = loop.get_exception_handler()
+
+    def _exception_handler(loop: asyncio.AbstractEventLoop, context: dict) -> None:
+        exc = context.get("exception")
+        if isinstance(exc, RuntimeError) and "cancel scope" in str(exc).lower():
+            return
+        if _prev_handler is not None:
+            _prev_handler(loop, context)
+        else:
+            loop.default_exception_handler(context)
+
+    loop.set_exception_handler(_exception_handler)
+
     # Pre-warm MCP in background — don't block startup
     asyncio.create_task(_prewarm_mcp())
 
     logger.info("[Startup] %s ready", settings.SERVICE_NAME)
     yield
 
+    loop.set_exception_handler(_prev_handler)
     _shutdown_observability()
     logger.info("[Shutdown] %s stopped", settings.SERVICE_NAME)
 

@@ -11,7 +11,7 @@ collecting responses, optimizing allocation, and generating POs.
 - session_id from lifespan context for scoping RFQ data
 
 **Security**:
-- client_id: Injected server-side via mcp_inject_cliente_id
+- client_id: Injected server-side via mcp_inject_client_id
 - RLS on all tables ensures tenant isolation
 - PO creation/approval requires explicit confirmation
 """
@@ -30,7 +30,7 @@ from blu_agent_framework.approval import (
     ApprovalError,
     resolve_policy,
 )
-from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_elicitation_service.exceptions import ElicitationRequired
 from blu_google_suite_client import GoogleSheetsClient
 from blu_models import ElicitationOption, ElicitationType
@@ -50,7 +50,7 @@ async def _parse_buying_list_logic(
     ctx: Context,
     raw_text: str | None = None,
     file_id: str | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Parse a buying list from raw text or uploaded CSV/XLSX into structured items.
@@ -205,7 +205,7 @@ def _find_column(columns: list[str], candidates: list[str]) -> str | None:
 async def _validate_buying_list_logic(
     ctx: Context,
     items: list[dict],
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Validate a parsed buying list for completeness and correctness.
@@ -270,7 +270,7 @@ async def _validate_buying_list_logic(
 async def _list_suppliers_logic(
     ctx: Context,
     category: str | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     List available suppliers for the current tenant.
@@ -281,15 +281,15 @@ async def _list_suppliers_logic(
     Returns:
         dict with suppliers list and total count
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
-    if not cliente_id:
-        raise ToolError("Missing cliente_id in context")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
+    if not client_id:
+        raise ToolError("Missing client_id in context")
 
     try:
         db = get_supabase_client()
         query = db.table("supplier_roster").select(
             "id,name,contact_email,contact_phone,categories"
-        ).eq("client_id", cliente_id).eq("is_active", True)
+        ).eq("client_id", client_id).eq("is_active", True)
 
         if category:
             query = query.contains("categories", [category])
@@ -316,7 +316,7 @@ async def _dispatch_rfq_logic(
     supplier_id: str,
     items: list[dict],
     deadline: str | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
     session_id: str | None = None,
 ) -> dict:
     """
@@ -333,11 +333,11 @@ async def _dispatch_rfq_logic(
     Returns:
         dict with rfq_id, supplier_name, status, items_count, deadline
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
     session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
 
-    if not cliente_id or not session_id:
-        raise ToolError("Missing cliente_id or session_id in context")
+    if not client_id or not session_id:
+        raise ToolError("Missing client_id or session_id in context")
 
     if not items:
         raise ToolError("Lista de itens vazia. Não é possível enviar cotação.")
@@ -348,7 +348,7 @@ async def _dispatch_rfq_logic(
         # Verify supplier belongs to this tenant
         supplier_result = db.table("supplier_roster").select(
             "id,name"
-        ).eq("id", supplier_id).eq("client_id", cliente_id).eq(
+        ).eq("id", supplier_id).eq("client_id", client_id).eq(
             "is_active", True
         ).maybe_single().execute()
 
@@ -369,7 +369,7 @@ async def _dispatch_rfq_logic(
         db.table("rfq_requests").insert({
             "id": rfq_id,
             "session_id": session_id,
-            "client_id": cliente_id,
+            "client_id": client_id,
             "supplier_id": supplier_id,
             "items": items,
             "status": "sent",
@@ -399,7 +399,7 @@ async def _dispatch_rfq_logic(
 
 async def _check_rfq_responses_logic(
     ctx: Context,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
     session_id: str | None = None,
 ) -> dict:
     """
@@ -408,11 +408,11 @@ async def _check_rfq_responses_logic(
     Returns:
         dict with responses list, total, responded, pending, all_responded
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
     session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
 
-    if not cliente_id or not session_id:
-        raise ToolError("Missing cliente_id or session_id in context")
+    if not client_id or not session_id:
+        raise ToolError("Missing client_id or session_id in context")
 
     try:
         db = get_supabase_client()
@@ -420,7 +420,7 @@ async def _check_rfq_responses_logic(
         result = db.table("rfq_requests").select(
             "id,supplier_id,status,response_data,deadline,"
             "supplier_roster(name)"
-        ).eq("session_id", session_id).eq("client_id", cliente_id).execute()
+        ).eq("session_id", session_id).eq("client_id", client_id).execute()
 
         rfqs = result.data or []
         responded_list = [r for r in rfqs if r["status"] == "responded"]
@@ -457,7 +457,7 @@ async def _submit_mock_response_logic(
     delivery_days: int = 7,
     payment_terms: str = "30 dias",
     notes: str = "",
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Submit a mock supplier response for testing (Phase 1 only).
@@ -472,10 +472,10 @@ async def _submit_mock_response_logic(
     Returns:
         dict with rfq_id and updated status
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
 
-    if not cliente_id:
-        raise ToolError("Missing cliente_id in context")
+    if not client_id:
+        raise ToolError("Missing client_id in context")
 
     if not prices:
         raise ToolError("Lista de preços vazia.")
@@ -485,7 +485,7 @@ async def _submit_mock_response_logic(
 
         rfq_result = db.table("rfq_requests").select(
             "id,status,items"
-        ).eq("id", rfq_id).eq("client_id", cliente_id).maybe_single().execute()
+        ).eq("id", rfq_id).eq("client_id", client_id).maybe_single().execute()
 
         rfq = rfq_result.data
         if not rfq:
@@ -536,7 +536,7 @@ async def _optimize_allocation_logic(
     max_delivery_days: int | None = None,
     required_payment_terms: str | None = None,
     enforce_moq: bool = True,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
     session_id: str | None = None,
 ) -> dict:
     """
@@ -558,11 +558,11 @@ async def _optimize_allocation_logic(
     Returns:
         dict with allocations, summary, rationale, unallocated, constraint_warnings
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
     session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
 
-    if not cliente_id or not session_id:
-        raise ToolError("Missing cliente_id or session_id in context")
+    if not client_id or not session_id:
+        raise ToolError("Missing client_id or session_id in context")
 
     try:
         db = get_supabase_client()
@@ -570,7 +570,7 @@ async def _optimize_allocation_logic(
         rfqs_result = db.table("rfq_requests").select(
             "id,supplier_id,items,response_data,"
             "supplier_roster(id,name)"
-        ).eq("session_id", session_id).eq("client_id", cliente_id).eq(
+        ).eq("session_id", session_id).eq("client_id", client_id).eq(
             "status", "responded"
         ).execute()
 
@@ -859,7 +859,7 @@ async def _optimize_allocation_logic(
 async def _generate_po_report_logic(
     ctx: Context,
     allocation_result: dict,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Generate a Markdown procurement report from optimization results.
@@ -955,7 +955,7 @@ async def _create_purchase_order_logic(
     total_amount: float,
     currency: str = "BRL",
     confirmed: bool = False,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
     session_id: str | None = None,
 ) -> dict:
     """
@@ -974,18 +974,18 @@ async def _create_purchase_order_logic(
     Returns:
         dict with po_id, supplier_name, total, status
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
     session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
 
-    if not cliente_id or not session_id:
-        raise ToolError("Missing cliente_id or session_id in context")
+    if not client_id or not session_id:
+        raise ToolError("Missing client_id or session_id in context")
 
     try:
         db = get_supabase_client()
 
         supplier_result = db.table("supplier_roster").select(
             "name"
-        ).eq("id", supplier_id).eq("client_id", cliente_id).maybe_single().execute()
+        ).eq("id", supplier_id).eq("client_id", client_id).maybe_single().execute()
 
         supplier_name = (
             supplier_result.data.get("name", supplier_id)
@@ -1037,7 +1037,7 @@ async def _create_purchase_order_logic(
         # on PRO+), park the PO as `pending_approval` and enqueue an
         # `approval_requests` row for the dashboard Approvals Tray.
         decision = resolve_policy(
-            client_id=cliente_id,
+            client_id=client_id,
             agent_slug="rfq-agent",
             action="create_purchase_order",
             payload={"total_amount": total_amount, "supplier_id": supplier_id},
@@ -1049,7 +1049,7 @@ async def _create_purchase_order_logic(
         db.table("purchase_orders").insert({
             "id": po_id,
             "session_id": session_id,
-            "client_id": cliente_id,
+            "client_id": client_id,
             "supplier_id": supplier_id,
             "items": items,
             "total_amount": total_amount,
@@ -1111,7 +1111,7 @@ async def _approve_purchase_order_logic(
     ctx: Context,
     po_id: str,
     confirmed: bool = False,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Approve a draft Purchase Order, moving it to 'approved' status.
@@ -1127,10 +1127,10 @@ async def _approve_purchase_order_logic(
     Returns:
         dict with po_id, updated status, and approval timestamp
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
 
-    if not cliente_id:
-        raise ToolError("Missing cliente_id in context")
+    if not client_id:
+        raise ToolError("Missing client_id in context")
 
     try:
         db = get_supabase_client()
@@ -1138,7 +1138,7 @@ async def _approve_purchase_order_logic(
         po_result = db.table("purchase_orders").select(
             "id,status,supplier_id,total_amount,currency,items,"
             "supplier_roster(name)"
-        ).eq("id", po_id).eq("client_id", cliente_id).maybe_single().execute()
+        ).eq("id", po_id).eq("client_id", client_id).maybe_single().execute()
 
         po = po_result.data
         if not po:
@@ -1196,7 +1196,7 @@ async def _approve_purchase_order_logic(
         # row instead and surface the deferred state to the agent so it can
         # tell the operator a finance-responsible needs to sign off.
         decision = resolve_policy(
-            client_id=cliente_id,
+            client_id=client_id,
             agent_slug="rfq-agent",
             action="approve_purchase_order",
             payload={"total_amount": float(total), "po_id": po_id},
@@ -1244,11 +1244,11 @@ async def _approve_purchase_order_logic(
 
         db.table("purchase_orders").update({
             "status": "approved",
-            "approved_by": cliente_id,
+            "approved_by": client_id,
             "approved_at": now,
         }).eq("id", po_id).execute()
 
-        logger.info(f"[RFQ] PO {po_id} approved by {cliente_id}")
+        logger.info(f"[RFQ] PO {po_id} approved by {client_id}")
 
         return {
             "po_id": po_id,
@@ -1275,7 +1275,7 @@ async def _suggest_counter_offer_logic(
     ctx: Context,
     supplier_id: str,
     items: list[dict],
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Suggest counter-offer prices by comparing current quotes against historical data.
@@ -1291,10 +1291,10 @@ async def _suggest_counter_offer_logic(
     Returns:
         dict with suggestions list and summary
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
 
-    if not cliente_id:
-        raise ToolError("Missing cliente_id in context")
+    if not client_id:
+        raise ToolError("Missing client_id in context")
 
     if not items:
         raise ToolError("Lista de itens vazia para contra-proposta.")
@@ -1305,7 +1305,7 @@ async def _suggest_counter_offer_logic(
         # Get supplier name
         supplier_result = db.table("supplier_roster").select(
             "name"
-        ).eq("id", supplier_id).eq("client_id", cliente_id).maybe_single().execute()
+        ).eq("id", supplier_id).eq("client_id", client_id).maybe_single().execute()
         supplier_name = (
             supplier_result.data.get("name", supplier_id)
             if supplier_result.data else supplier_id
@@ -1314,7 +1314,7 @@ async def _suggest_counter_offer_logic(
         # Fetch historical responded RFQs for this tenant
         historical_result = db.table("rfq_requests").select(
             "response_data"
-        ).eq("client_id", cliente_id).eq("status", "responded").execute()
+        ).eq("client_id", client_id).eq("status", "responded").execute()
 
         # Build historical price database: item_name -> [prices]
         historical_prices: dict[str, list[float]] = {}
@@ -1406,10 +1406,10 @@ async def _suggest_counter_offer_logic(
 # =============================================================================
 
 
-async def _get_google_tokens(cliente_id: str, account_email: str | None = None) -> dict:
+async def _get_google_tokens(client_id: str, account_email: str | None = None) -> dict:
     """Retrieve and refresh Google tokens for a client."""
     ctx_service = get_context_service()
-    cliente_uuid = UUID(cliente_id)
+    cliente_uuid = UUID(client_id)
     token_wrapper = await ctx_service.get_integration_tokens(
         cliente_uuid,
         "google",
@@ -1429,7 +1429,7 @@ async def _import_buying_list_from_sheets_logic(
     spreadsheet_id: str,
     range_name: str = "A1:Z1000",
     account_email: str | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Import a buying list from Google Sheets and parse into structured items.
@@ -1445,12 +1445,12 @@ async def _import_buying_list_from_sheets_logic(
     Returns:
         dict with items, warnings, total_items, source_spreadsheet
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
-    if not cliente_id:
-        raise ToolError("Missing cliente_id in context")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
+    if not client_id:
+        raise ToolError("Missing client_id in context")
 
     try:
-        tokens = await _get_google_tokens(cliente_id, account_email)
+        tokens = await _get_google_tokens(client_id, account_email)
         client = GoogleSheetsClient(access_token=tokens["access_token"])
 
         sheet_result = await client.read_values(spreadsheet_id, range_name)
@@ -1511,7 +1511,7 @@ async def _import_buying_list_from_sheets_logic(
 
 async def export_po_to_sheets_core(
     *,
-    cliente_id: str,
+    client_id: str,
     po_id: str | None = None,
     session_id: str | None = None,
     spreadsheet_id: str | None = None,
@@ -1524,8 +1524,8 @@ async def export_po_to_sheets_core(
     Exposed so REST handlers (e.g. the dashboard "Exportar para Sheets" button)
     can reuse the same logic without going through the MCP `Context` object.
     """
-    if not cliente_id:
-        raise ToolError("Missing cliente_id in context")
+    if not client_id:
+        raise ToolError("Missing client_id in context")
 
     try:
         db = get_supabase_client()
@@ -1534,7 +1534,7 @@ async def export_po_to_sheets_core(
         query = db.table("purchase_orders").select(
             "id,supplier_id,items,total_amount,currency,status,approved_at,"
             "supplier_roster(name)"
-        ).eq("client_id", cliente_id)
+        ).eq("client_id", client_id)
 
         if po_id:
             query = query.eq("id", po_id)
@@ -1577,7 +1577,7 @@ async def export_po_to_sheets_core(
                     po.get("approved_at", ""),
                 ])
 
-        tokens = await _get_google_tokens(cliente_id, account_email)
+        tokens = await _get_google_tokens(client_id, account_email)
         client = GoogleSheetsClient(access_token=tokens["access_token"])
 
         if spreadsheet_id:
@@ -1623,16 +1623,16 @@ async def _export_po_to_sheets_logic(
     spreadsheet_id: str | None = None,
     sheet_name: str = "Pedidos de Compra",
     account_email: str | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
     session_id: str | None = None,
 ) -> dict:
     """MCP wrapper around :func:`export_po_to_sheets_core`."""
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
     session_id = session_id or ctx.request_context.lifespan_context.get("session_id")
-    if not cliente_id:
-        raise ToolError("Missing cliente_id in context")
+    if not client_id:
+        raise ToolError("Missing client_id in context")
     return await export_po_to_sheets_core(
-        cliente_id=cliente_id,
+        client_id=client_id,
         po_id=po_id,
         session_id=session_id,
         spreadsheet_id=spreadsheet_id,
@@ -1654,7 +1654,7 @@ async def _add_supplier_logic(
     categories: list[str] | None = None,
     payment_terms: str | None = None,
     delivery_days_avg: int | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Add a new supplier to the tenant's roster.
@@ -1670,9 +1670,9 @@ async def _add_supplier_logic(
     Returns:
         dict with supplier_id, name, and status
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
-    if not cliente_id:
-        raise ToolError("Missing cliente_id in context")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
+    if not client_id:
+        raise ToolError("Missing client_id in context")
 
     if not name or not name.strip():
         raise ToolError("Nome do fornecedor é obrigatório.")
@@ -1681,7 +1681,7 @@ async def _add_supplier_logic(
         db = get_supabase_client()
 
         supplier_data = {
-            "client_id": cliente_id,
+            "client_id": client_id,
             "name": name.strip(),
             "contact_email": (contact_email or "").strip() or None,
             "contact_phone": (contact_phone or "").strip() or None,
@@ -1717,7 +1717,7 @@ async def _update_supplier_logic(
     payment_terms: str | None = None,
     delivery_days_avg: int | None = None,
     is_active: bool | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Update an existing supplier's information.
@@ -1737,9 +1737,9 @@ async def _update_supplier_logic(
     Returns:
         dict with supplier_id and updated fields
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
-    if not cliente_id:
-        raise ToolError("Missing cliente_id in context")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
+    if not client_id:
+        raise ToolError("Missing client_id in context")
 
     try:
         db = get_supabase_client()
@@ -1747,7 +1747,7 @@ async def _update_supplier_logic(
         # Verify supplier belongs to tenant
         existing = db.table("supplier_roster").select(
             "id"
-        ).eq("id", supplier_id).eq("client_id", cliente_id).maybe_single().execute()
+        ).eq("id", supplier_id).eq("client_id", client_id).maybe_single().execute()
 
         if not existing.data:
             raise ToolError(f"Fornecedor não encontrado: {supplier_id}")
@@ -1790,7 +1790,7 @@ async def _update_supplier_logic(
 async def _remove_supplier_logic(
     ctx: Context,
     supplier_id: str,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Deactivate a supplier (soft-delete). Sets is_active=False.
@@ -1801,16 +1801,16 @@ async def _remove_supplier_logic(
     Returns:
         dict with supplier_id and status
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
-    if not cliente_id:
-        raise ToolError("Missing cliente_id in context")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
+    if not client_id:
+        raise ToolError("Missing client_id in context")
 
     try:
         db = get_supabase_client()
 
         existing = db.table("supplier_roster").select(
             "id,name"
-        ).eq("id", supplier_id).eq("client_id", cliente_id).maybe_single().execute()
+        ).eq("id", supplier_id).eq("client_id", client_id).maybe_single().execute()
 
         if not existing.data:
             raise ToolError(f"Fornecedor não encontrado: {supplier_id}")
@@ -1852,7 +1852,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Use raw_text para lista digitada ou file_id para arquivo enviado.\n"
             "Exemplo raw_text: 'Parafuso M6, 500, aço inox\\nPorca M6, 500'"
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_parse_buying_list_logic))
+    )(mcp_inject_client_id(get_context_service)(_parse_buying_list_logic))
 
     mcp.tool(
         name="validate_buying_list",
@@ -1861,7 +1861,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "duplicatas e quantidades. Retorna itens limpos prontos para cotação.\n\n"
             "Use APÓS parse_buying_list."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_validate_buying_list_logic))
+    )(mcp_inject_client_id(get_context_service)(_validate_buying_list_logic))
 
     mcp.tool(
         name="list_suppliers",
@@ -1870,7 +1870,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Opcionalmente filtra por categoria.\n\n"
             "Exemplo: list_suppliers(category='alimentos')"
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_list_suppliers_logic))
+    )(mcp_inject_client_id(get_context_service)(_list_suppliers_logic))
 
     mcp.tool(
         name="dispatch_rfq",
@@ -1880,7 +1880,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "⚠️ Fase 1: envio simulado. Use submit_mock_response para simular resposta.\n"
             "Passe os itens limpos de validate_buying_list."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_dispatch_rfq_logic))
+    )(mcp_inject_client_id(get_context_service)(_dispatch_rfq_logic))
 
     mcp.tool(
         name="check_rfq_responses",
@@ -1888,7 +1888,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Verifica o status de todas as cotações enviadas na sessão atual. "
             "Mostra quais fornecedores responderam e quais estão pendentes."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_check_rfq_responses_logic))
+    )(mcp_inject_client_id(get_context_service)(_check_rfq_responses_logic))
 
     mcp.tool(
         name="submit_mock_response",
@@ -1897,7 +1897,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Passe rfq_id e uma lista de preços:\n"
             '[{"name": "Parafuso M6", "unit_price": 0.45, "available": true}]'
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_submit_mock_response_logic))
+    )(mcp_inject_client_id(get_context_service)(_submit_mock_response_logic))
 
     mcp.tool(
         name="optimize_allocation",
@@ -1911,7 +1911,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "- enforce_moq: respeitar quantidades mínimas (MOQ) dos fornecedores\n\n"
             "Requer que ao menos um fornecedor tenha respondido."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_optimize_allocation_logic))
+    )(mcp_inject_client_id(get_context_service)(_optimize_allocation_logic))
 
     mcp.tool(
         name="generate_po_report",
@@ -1921,7 +1921,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "racional das decisões e próximos passos.\n\n"
             "Passe o resultado completo de optimize_allocation."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_generate_po_report_logic))
+    )(mcp_inject_client_id(get_context_service)(_generate_po_report_logic))
 
     mcp.tool(
         name="create_purchase_order",
@@ -1930,7 +1930,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Passe supplier_id, items e total_amount do relatório de otimização.\n"
             "O PO começa em status 'draft' e precisa de aprovação."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_create_purchase_order_logic))
+    )(mcp_inject_client_id(get_context_service)(_create_purchase_order_logic))
 
     mcp.tool(
         name="approve_purchase_order",
@@ -1939,7 +1939,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "⚠️ Ação irreversível. O sistema pedirá confirmação automática via chat.\n"
             "O diálogo de confirmação mostra fornecedor, itens e total antes de aprovar."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_approve_purchase_order_logic))
+    )(mcp_inject_client_id(get_context_service)(_approve_purchase_order_logic))
 
     mcp.tool(
         name="suggest_counter_offer",
@@ -1950,7 +1950,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Para cada item, recomenda: aceitar, contra-propor ou sem dados.\n\n"
             "Passe supplier_id e items [{name, unit_price}] da cotação recebida."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_suggest_counter_offer_logic))
+    )(mcp_inject_client_id(get_context_service)(_suggest_counter_offer_logic))
 
     # Phase 3: Google Sheets Integration (Step 11)
     mcp.tool(
@@ -1961,7 +1961,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Passe spreadsheet_id (do URL da planilha) e opcionalmente range_name.\n\n"
             "Requer integração Google conectada."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_import_buying_list_from_sheets_logic))
+    )(mcp_inject_client_id(get_context_service)(_import_buying_list_from_sheets_logic))
 
     mcp.tool(
         name="export_po_to_sheets",
@@ -1972,7 +1972,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Se spreadsheet_id não for informado, cria uma nova planilha.\n\n"
             "Requer integração Google conectada."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_export_po_to_sheets_logic))
+    )(mcp_inject_client_id(get_context_service)(_export_po_to_sheets_logic))
 
     # Phase 3: Supplier Roster Management (Step 14)
     mcp.tool(
@@ -1982,7 +1982,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Campos: name (obrigatório), contact_email, contact_phone, "
             "categories (lista), payment_terms, delivery_days_avg."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_add_supplier_logic))
+    )(mcp_inject_client_id(get_context_service)(_add_supplier_logic))
 
     mcp.tool(
         name="update_supplier",
@@ -1991,7 +1991,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Apenas campos informados são alterados. Campos omitidos não são modificados.\n"
             "Passe supplier_id e os campos a atualizar."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_update_supplier_logic))
+    )(mcp_inject_client_id(get_context_service)(_update_supplier_logic))
 
     mcp.tool(
         name="remove_supplier",
@@ -2000,7 +2000,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "O fornecedor não é apagado, apenas marcado como inativo. "
             "Ele não aparecerá mais em list_suppliers."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_remove_supplier_logic))
+    )(mcp_inject_client_id(get_context_service)(_remove_supplier_logic))
 
     logger.info(
         "[RFQ Module] Tools registered: parse_buying_list, validate_buying_list, "

@@ -7,7 +7,7 @@ import {
   approveRequest,
   snoozeApproval,
 } from '../../api/approvals'
-import { fetchInsights } from '../../api/insights'
+import { fetchInsights, formatKpi } from '../../api/insights'
 import {
   fetchTodaySchedule,
   fetchCalendarSettings,
@@ -16,13 +16,11 @@ import {
 } from '../../api/agenda'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
-import RoutinesPanel from '../../components/shared/RoutinesPanel'
+import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
+import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
+import { snoozeUntil } from '../../utils/time'
 
 type Tab = 'gantt' | 'hoje' | 'pendentes' | 'config'
-
-function snoozeUntil() {
-  return new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-}
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -39,7 +37,7 @@ const DOT_COLORS: Record<string, string> = {
 }
 
 export default function AgendaRoom() {
-  const { go, toggleDc, expandedId, addToast } = useAppStore()
+  const { go, toggleDc, expandedId, addToast, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('gantt')
@@ -114,7 +112,7 @@ export default function AgendaRoom() {
         <div><div className="rn">Agenda</div><div className="rd">Reuniões, rotinas e planejamento semanal</div></div>
         <div className="ra">
           <button className="btn bs" style={{ fontSize: 11 }} onClick={() => go('home', 'Início')}>← Início</button>
-          <button className="btn bp" style={{ fontSize: 11 }}>+ Novo evento</button>
+          <button className="btn bp" style={{ fontSize: 11 }} onClick={() => openChatWith('Quero agendar um novo evento')}>+ Novo evento</button>
         </div>
       </div>
       <div className="room-grid">
@@ -251,21 +249,7 @@ export default function AgendaRoom() {
 
             {/* CONFIG */}
             <div className={`tc${tab === 'config' ? ' on' : ''}`} id="ag-config">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                <div style={{ background: 'var(--glass)', border: '1px solid var(--gb)', borderRadius: 'var(--r)', padding: '11px 12px' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 3 }}>Planejamento semanal automático</div>
-                  <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 7 }}>Preparar agenda toda:</div>
-                  <div className="pills"><span className="pill on">Segunda 07:00</span><span className="pill">Domingo 20:00</span></div>
-                </div>
-                <div style={{ background: 'var(--glass)', border: '1px solid var(--gb)', borderRadius: 'var(--r)', padding: '11px 12px' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 3 }}>Lembrete diário</div>
-                  <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 7 }}>Resumo do dia às:</div>
-                  <div className="pills"><span className="pill">06:30</span><span className="pill on">07:30</span><span className="pill">08:00</span></div>
-                </div>
-                <div style={{ marginTop: 4 }}>
-                  <RoutinesPanel domain="agenda" />
-                </div>
-              </div>
+              <RoutineConfigSection domain="agenda" />
             </div>
 
           </div>
@@ -273,6 +257,9 @@ export default function AgendaRoom() {
 
         <div className="rcol">
           <RColResizeHandle />
+          <CollapsiblePanel id="agenda-rotinas" icon="⚙️" title="Rotinas ativas">
+            <RoutineStatusWidget domain="agenda" />
+          </CollapsiblePanel>
           <CollapsiblePanel id="agenda-calendarios" icon="📆" title="Calendários" action={<button className="ph-add">＋</button>}>
             <div className="dr-sec">
                 <div className="dr-ttl">Hoje</div>
@@ -346,7 +333,7 @@ export default function AgendaRoom() {
                 {ins.severity === 'error' ? '⚠️' : ins.severity === 'warning' ? '🤝' : '📅'}
               </span>
               <div className="ich-body">
-                <span className="ich-tag tg-a">{ins.kpi ?? 'Agenda'}</span>
+                <span className="ich-tag tg-a">{formatKpi(ins.kpi)}</span>
                 <div className="ich-txt">{ins.title}</div>
               </div>
             </div>

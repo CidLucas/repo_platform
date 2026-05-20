@@ -1,0 +1,139 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e36]:
+    - banner [ref=e37]:
+      - img [ref=e39]:
+        - generic [ref=e45]: blu
+      - generic [ref=e47]: Início / Clientes
+      - generic [ref=e48]:
+        - button "🌙" [ref=e242] [cursor=pointer]
+        - button [ref=e50] [cursor=pointer]:
+          - img [ref=e51]
+        - button [ref=e54] [cursor=pointer]:
+          - img [ref=e55]
+        - generic "cid.lucas@gmail.com" [ref=e60] [cursor=pointer]: CI
+    - complementary [ref=e61]:
+      - img [ref=e64] [cursor=pointer]
+      - img [ref=e68] [cursor=pointer]
+      - img [ref=e72] [cursor=pointer]
+      - img [ref=e76] [cursor=pointer]
+      - img [ref=e80] [cursor=pointer]
+      - img [ref=e84] [cursor=pointer]
+      - generic [ref=e86] [cursor=pointer]:
+        - img [ref=e88]
+        - text: Clientes
+      - img [ref=e92] [cursor=pointer]
+      - generic [ref=e94]:
+        - img [ref=e97] [cursor=pointer]
+        - img [ref=e101] [cursor=pointer]
+        - img [ref=e105] [cursor=pointer]
+    - main [ref=e107]:
+      - text: ▼ ▼ ▼ ▼ ▼ ▼
+      - generic [ref=e3575]:
+        - generic [ref=e3576]:
+          - generic [ref=e3577]: 👥
+          - generic [ref=e3578]:
+            - generic [ref=e3579]: Clientes
+            - generic [ref=e3580]: CRM, follow-up e relacionamento
+          - generic [ref=e3581]:
+            - button "← Início" [ref=e3582] [cursor=pointer]
+            - button "+ Novo contato" [ref=e3583] [cursor=pointer]
+        - generic [ref=e3584]:
+          - generic [ref=e3585]:
+            - generic [ref=e3587]: Mesa de Trabalho
+            - generic [ref=e3588]:
+              - generic [ref=e3589] [cursor=pointer]: Follow-up
+              - generic [ref=e3590] [cursor=pointer]: Ativos
+              - generic [ref=e3591] [cursor=pointer]: Histórico
+              - generic [ref=e3592] [cursor=pointer]: Config
+            - generic [ref=e3595]: Nenhum follow-up pendente.
+            - generic [ref=e3596]:
+              - generic [ref=e3597] [cursor=pointer]:
+                - generic [ref=e3598]: 📊 Analytics Comercial
+                - generic [ref=e3599]:
+                  - generic [ref=e3600]:
+                    - generic [ref=e3601]: "2214"
+                    - generic [ref=e3602]: Total clientes
+                  - generic [ref=e3603]:
+                    - generic [ref=e3604]: "336"
+                    - generic [ref=e3605]: Ativos 30d
+                  - generic [ref=e3606]:
+                    - generic [ref=e3607]: "+157"
+                    - generic [ref=e3608]: Novos 30d
+                - generic [ref=e3609]: ▶
+              - generic [ref=e3610]:
+                - generic [ref=e3611] [cursor=pointer]: 30d
+                - generic [ref=e3612] [cursor=pointer]: 90d
+                - generic [ref=e3613] [cursor=pointer]: 1 ano
+          - generic [ref=e3614]:
+            - generic "Arraste para redimensionar" [ref=e3615]
+            - generic [ref=e3616]:
+              - generic [ref=e3617] [cursor=pointer]:
+                - generic [ref=e3618]: ⚙️
+                - generic [ref=e3619]: Rotinas ativas
+                - generic [ref=e3620]: ▾
+              - generic [ref=e3622]: Nenhuma rotina ativa. Configure em Configurar.
+            - generic [ref=e3623]:
+              - generic [ref=e3624] [cursor=pointer]:
+                - generic [ref=e3625]: 📊
+                - generic [ref=e3626]: Segmentos
+                - generic [ref=e3627]: ▾
+              - generic [ref=e3628]:
+                - generic [ref=e3629]:
+                  - generic [ref=e3631]:
+                    - generic [ref=e3632]: Alto
+                    - generic [ref=e3633]: 885 clientes
+                  - generic [ref=e3637]:
+                    - generic [ref=e3638]: Médio
+                    - generic [ref=e3639]: 1151 clientes
+                  - generic [ref=e3643]:
+                    - generic [ref=e3644]: Baixo
+                    - generic [ref=e3645]: 178 clientes
+                - generic [ref=e3648]:
+                  - generic [ref=e3649]: Receita por segmento
+                  - generic [ref=e3650]:
+                    - generic [ref=e3651]:
+                      - generic [ref=e3652]: Alto
+                      - generic [ref=e3653]: 97%
+                    - generic [ref=e3654]:
+                      - generic [ref=e3655]: Médio
+                      - generic [ref=e3656]: 3%
+                    - generic [ref=e3657]:
+                      - generic [ref=e3658]: Baixo
+                      - generic [ref=e3659]: 0%
+            - generic [ref=e3660]:
+              - generic [ref=e3661] [cursor=pointer]:
+                - generic [ref=e3662]: 📅
+                - generic [ref=e3663]: Últimas ações
+                - generic [ref=e3664]: ▾
+              - generic [ref=e3667]: Nenhuma ação recente.
+          - generic [ref=e3668]:
+            - generic [ref=e3669] [cursor=pointer]:
+              - generic [ref=e3670]: ⚠️
+              - generic [ref=e3671]:
+                - generic [ref=e3672]: Clientes
+                - generic [ref=e3673]: Alto crescimento da receita de 193%
+            - generic [ref=e3674] [cursor=pointer]:
+              - generic [ref=e3675]: ⚠️
+              - generic [ref=e3676]:
+                - generic [ref=e3677]: Clientes
+                - generic [ref=e3678]: Taxa de recorrência estável em 60%
+            - generic [ref=e3679] [cursor=pointer]:
+              - generic [ref=e3680]: ⚠️
+              - generic [ref=e3681]:
+                - generic [ref=e3682]: Clientes
+                - generic [ref=e3683]: Número de novos clientes estático
+            - generic [ref=e3684] [cursor=pointer]:
+              - generic [ref=e3685]: ⚙️ Rotinas ativas
+              - generic [ref=e3686]: Ver na aba Config →
+            - generic [ref=e3687] [cursor=pointer]:
+              - generic [ref=e3688]: 👥 Carteira
+              - generic [ref=e3689]:
+                - generic [ref=e3690]:
+                  - generic [ref=e3691]: "2214"
+                  - generic [ref=e3692]: total
+                  - generic [ref=e3693]: ↑ 157 novos
+                - generic [ref=e3694]:
+                  - generic [ref=e3695]: "336"
+                  - generic [ref=e3696]: ativos 30d
+  - button "Abrir assistente" [ref=e235] [cursor=pointer]:
+    - img [ref=e236]

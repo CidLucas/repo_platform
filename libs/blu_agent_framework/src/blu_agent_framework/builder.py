@@ -2,17 +2,15 @@
 Agent builder factory for creating LangGraph agents.
 """
 
-import asyncio
 import logging
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.graph import CompiledGraph
-from langgraph.types import Send
 
 from blu_agent_framework.checkpointer import RedisCheckpointer
 from blu_agent_framework.config import AgentConfig
@@ -96,14 +94,13 @@ class AgentBuilder:
         self._skill_factory = None          # SkillFactory instance for run_skill_node
         self._tool_filter: list[str] | None = None  # When set, skips get_for_task()
 
-        # Supervisor graph support (set via use_supervisor_graph)
-        self._supervisor_tier: str = "BASIC"
-        self._supervisor_prompt_name: str = ""
-        self._supervisor_fragments: list[str] = []
         self._context_service: Any = None
 
         # Orchestrator graph support (set via use_orchestrator_graph)
         self._orchestrator_tier: str = ""   # non-empty ↔ orchestrator mode
+
+        # Specialist graph support (set via use_specialist_graph)
+        self._specialist_cfg: Any = None    # AgentTypeConfig when in specialist mode
 
         # Langfuse configuration
         self._langfuse_enabled = config.use_langfuse
@@ -194,10 +191,11 @@ class AgentBuilder:
 
     def with_context_service(self, context_service: Any) -> "AgentBuilder":
         """
-        Attach a ContextService for supervisor prompt caching and context fetching.
+        Attach a ContextService for prompt building and context fetching.
 
-        Used by use_supervisor_graph() to inject per-request context without
-        threading non-serializable objects through LangGraph state.
+        Used by use_orchestrator_graph() and use_default_graph() to inject
+        per-request context without threading non-serializable objects through
+        LangGraph state.
         """
         self._context_service = context_service
         return self
@@ -283,65 +281,33 @@ class AgentBuilder:
         """
         Use the default agent graph structure.
 
-        Default structure (simple path):
-            START → init → classify_intent → context_enrichment
-                  → [route_after_enrichment] → elicit | respond | select_skill | end
+        Default structure:
+            START → init → [route_from_init] → elicit | respond | end
             elicit → [route_from_elicit] → execute_tool | elicit | respond | end
             execute_tool → [route_from_tool] → respond | elicit | end
             respond → [route_from_respond] → init | END
 
-        Complex path (when complexity >= "moderate" and enable_skills=True):
-            context_enrichment → select_skill → [route_after_select_skill]
-                               → run_skill → respond → END
-                               → elicit (fallback when no skill matched)
-
-        classify_intent is a no-op on tool-result turns (HumanMessage guard).
-        context_enrichment always runs to keep loaded_context_keys current.
-
         Returns:
             Self for chaining
         """
-        from blu_agent_framework.routing import (
-            route_after_enrichment,
-            route_after_select_skill,
-        )
-
         # Add nodes
         self.add_node("init", "init")
-        self.add_node("classify_intent", "classify_intent")
-        self.add_node("context_enrichment", "context_enrichment")
         self.add_node("elicit", "elicit")
         self.add_node("execute_tool", "execute_tool")
         self.add_node("respond", "respond")
         self.add_node("end", "end")
 
-        # Skill nodes — always present; run_skill is a no-op when _skill_factory is None
-        self.add_node("select_skill", "select_skill")
-        self.add_node("run_skill", "run_skill")
-
         # Add edges
         self.add_edge(START, "init")
-        self.add_edge("init", "classify_intent")
-        self.add_edge("classify_intent", "context_enrichment")
         self.add_conditional_edge(
-            "context_enrichment",
-            route_after_enrichment,
+            "init",
+            route_from_init,
             {
                 "elicit": "elicit",
                 "respond": "respond",
-                "select_skill": "select_skill",
                 "end": "end",
             },
         )
-        self.add_conditional_edge(
-            "select_skill",
-            route_after_select_skill,
-            {
-                "run_skill": "run_skill",
-                "elicit": "elicit",
-            },
-        )
-        self.add_edge("run_skill", "respond")
         self.add_conditional_edge(
             "elicit",
             route_from_elicit,
@@ -379,8 +345,7 @@ class AgentBuilder:
         Use a graph structure with Send-based fan-out for parallel tool execution.
 
         Structure:
-            START -> init -> classify_intent -> context_enrichment
-                  -> [route_from_init] -> elicit | respond | end
+            START -> init -> [route_from_init] -> elicit | respond | end
             elicit -> [route_from_elicit] -> execute_single_tool | elicit | respond | end
             execute_single_tool (parallel via Send) -> collect_tool_results (fan-in)
             collect_tool_results -> [route_from_tool] -> respond | elicit | end
@@ -391,8 +356,6 @@ class AgentBuilder:
         """
         # Add nodes
         self.add_node("init", "init")
-        self.add_node("classify_intent", "classify_intent")
-        self.add_node("context_enrichment", "context_enrichment")
         self.add_node("elicit", "elicit")
         self.add_node("execute_single_tool", "execute_single_tool")
         self.add_node("collect_tool_results", "collect_tool_results")
@@ -404,10 +367,8 @@ class AgentBuilder:
 
         # Add edges
         self.add_edge(START, "init")
-        self.add_edge("init", "classify_intent")
-        self.add_edge("classify_intent", "context_enrichment")
         self.add_conditional_edge(
-            "context_enrichment",
+            "init",
             route_from_init,
             {
                 "elicit": "elicit",
@@ -487,97 +448,6 @@ class AgentBuilder:
             },
         )
         self.add_edge("end", END)
-        return self
-
-    def use_supervisor_graph(
-        self,
-        tier: str = "BASIC",
-        prompt_name: str = "",
-        fragments: list[str] | None = None,
-    ) -> "AgentBuilder":
-        """
-        Use the supervisor+worker graph structure.
-
-        The supervisor LLM routes user requests to specialist workers via
-        ``delegate_to_*`` tool calls.  Workers run as parallel in-process
-        LLM+tool loops (fan-out via Send) and their results are aggregated
-        before the supervisor generates a final response.
-
-        Structure::
-
-            START → supervisor → [route_after_supervisor]
-                ↓ (Send ×N)
-            execute_worker → collect_worker_results
-                ↓ [route_after_workers]
-            supervisor (loop) | elicit | end → END
-
-        Args:
-            tier: Default client tier for worker filtering when not in state.
-            prompt_name: Named Langfuse prompt for the supervisor system prompt.
-                         When set, overrides ``fragments``.
-            fragments: Fragment list for compose_prompt.  Defaults to the four
-                       standard supervisor fragments when omitted.
-
-        Returns:
-            Self for chaining.
-        """
-        from blu_agent_framework.nodes import elicit_node, end_node
-        from blu_agent_framework.supervisor import (
-            collect_worker_results_node,
-            route_after_supervisor,
-            route_after_workers,
-        )
-
-        self._supervisor_tier = tier
-        self._supervisor_prompt_name = prompt_name
-        self._supervisor_fragments = fragments or [
-            "fragment/supervisor-role",
-            "fragment/supervisor-workers",
-            "fragment/supervisor-rules",
-            "fragment/response-format",
-        ]
-
-        # Sentinel callables replaced by actual implementations in _wrap_nodes()
-        async def _supervisor_sentinel(state: Any) -> dict:
-            return {}
-
-        async def _execute_worker_sentinel(state: Any) -> dict:
-            return {}
-
-        self._nodes["supervisor"] = _supervisor_sentinel
-        self._nodes["execute_worker"] = _execute_worker_sentinel
-        self._nodes["collect_worker_results"] = collect_worker_results_node
-        self._nodes["elicit"] = elicit_node
-        self._nodes["end"] = end_node
-
-        # Entry point
-        self.add_edge(START, "supervisor")
-
-        # Fan-out: route_after_supervisor returns list[Send] | str.
-        # Pass a list of possible target names (LangGraph Send fan-out API).
-        self._edges.append(EdgeDefinition(
-            from_node="supervisor",
-            to_node="",
-            is_conditional=True,
-            router=route_after_supervisor,
-            routes=["execute_worker", "elicit", "end"],
-        ))
-
-        # Fan-in: all parallel execute_worker completions → collect_worker_results
-        self.add_edge("execute_worker", "collect_worker_results")
-
-        # After collection: loop back to supervisor or terminate
-        self._edges.append(EdgeDefinition(
-            from_node="collect_worker_results",
-            to_node="",
-            is_conditional=True,
-            router=route_after_workers,
-            routes={"supervisor": "supervisor", "elicit": "elicit", "end": "end"},
-        ))
-
-        self.add_edge("elicit", "end")
-        self.add_edge("end", END)
-
         return self
 
     def use_orchestrator_graph(self, tier: str = "BASIC") -> "AgentBuilder":
@@ -664,6 +534,77 @@ class AgentBuilder:
         self.add_edge("synthesize", "end")
         self.add_edge("confirm",    "end")
         self.add_edge("escalate",   "end")
+        self.add_edge("end", END)
+
+        return self
+
+    def use_specialist_graph(self, cfg: Any) -> "AgentBuilder":
+        """
+        Build a Layer-3 specialist subgraph.
+
+        Topology::
+
+            START → init → classify_skill_intent → [route_after_classify_skill]
+                ↓ run_skill                         ↓ respond (no-skill fallback)
+            run_skill → respond → [route_from_respond]
+                ↓ init (tool call loop)             ↓ end
+            execute_tool → [route_from_tool] → respond | end
+
+        ``classify_skill_intent`` is replaced at build time by
+        ``_create_classify_skill_intent_node()`` which binds the LLM and filters
+        SKILL_REGISTRY to skills whose tags intersect ``cfg.tags``.
+
+        ``run_skill`` is replaced by ``_create_run_skill_node()`` — a
+        ``SkillFactory`` must be attached via ``with_skill_factory()`` before
+        ``build()`` is called, or ``run_skill`` becomes a pass-through no-op.
+
+        Args:
+            cfg: ``AgentTypeConfig`` for this specialist. Used to filter skills
+                 by tag and to pass the specialist context to the classify node.
+
+        Returns:
+            Self for chaining.
+        """
+        from blu_agent_framework.routing import route_after_classify_skill
+
+        self._specialist_cfg = cfg
+
+        self.add_node("init", "init")
+        self.add_node("classify_skill_intent", "classify_skill_intent")
+        self.add_node("run_skill", "run_skill")
+        self.add_node("respond", "respond")
+        self.add_node("execute_tool", "execute_tool")
+        self.add_node("end", "end")
+
+        self.add_edge(START, "init")
+        self.add_edge("init", "classify_skill_intent")
+        self.add_conditional_edge(
+            "classify_skill_intent",
+            route_after_classify_skill,
+            {
+                "run_skill": "run_skill",
+                "respond": "respond",
+            },
+        )
+        self.add_edge("run_skill", "respond")
+        self.add_conditional_edge(
+            "respond",
+            route_from_respond,
+            {
+                "init": "execute_tool",   # tool call → execute → respond loop
+                "end": "end",
+            },
+        )
+        self.add_conditional_edge(
+            "execute_tool",
+            route_from_tool,
+            {
+                "success": "respond",
+                "error": "respond",
+                "needs_elicitation": "end",
+                "end": "end",
+            },
+        )
         self.add_edge("end", END)
 
         return self
@@ -838,10 +779,8 @@ class AgentBuilder:
                 wrapped[name] = self._create_respond_node(handler)
             elif name == "run_skill":
                 wrapped[name] = self._create_run_skill_node(handler)
-            elif name == "supervisor":
-                wrapped[name] = self._create_supervisor_node()
-            elif name == "execute_worker":
-                wrapped[name] = self._create_worker_executor_node()
+            elif name == "classify_skill_intent":
+                wrapped[name] = self._create_classify_skill_intent_node()
             else:
                 wrapped[name] = handler
 
@@ -853,6 +792,9 @@ class AgentBuilder:
 
         Static nodes (confirm, escalate, end) are passed through as-is.
         LLM-dependent nodes get closures via the make_* factories in orchestrator.py.
+
+        execute_step now builds real specialist subgraphs (use_specialist_graph)
+        instead of running in-process LLM loops.
         """
         from blu_agent_framework.orchestrator import (
             make_decompose_node,
@@ -862,20 +804,17 @@ class AgentBuilder:
             make_plan_node,
             make_synthesize_node,
         )
-        from blu_agent_framework.supervisor import _WorkerInvoker
 
         tier    = self._orchestrator_tier
         llm     = self._llm_client
         ctx_svc = self._context_service
-
-        invoker = _WorkerInvoker(llm=llm, mcp_executor=self.mcp_executor)
 
         llm_nodes: dict[str, Callable] = {
             "parse_intent":   make_parse_intent_node(llm, tier),
             "gather_context": make_gather_context_node(ctx_svc),
             "decompose":      make_decompose_node(llm, tier),
             "plan":           make_plan_node(llm, tier),
-            "execute_step":   make_execute_step_node(invoker, ctx_svc),
+            "execute_step":   make_execute_step_node(llm, self.mcp_executor, ctx_svc),
             "synthesize":     make_synthesize_node(llm),
         }
 
@@ -883,265 +822,6 @@ class AgentBuilder:
         for name, handler in self._nodes.items():
             wrapped[name] = llm_nodes.get(name, handler)
         return wrapped
-
-    def _create_supervisor_node(self) -> Callable:
-        """
-        Create the supervisor node closure for use_supervisor_graph().
-
-        Builds delegation StructuredTools from AgentTypeRegistry, composes the
-        system prompt (fragments or named prompt), binds tools to the LLM, and
-        stores tool_calls in pending_tool_calls for route_after_supervisor.
-        """
-        from blu_agent_framework.supervisor import (
-            _is_transient_error,
-            build_delegation_tools,
-        )
-
-        llm_client = self._llm_client
-        supervisor_tier = self._supervisor_tier
-        supervisor_fragments = self._supervisor_fragments
-        supervisor_prompt_name = self._supervisor_prompt_name
-        context_service = self._context_service
-
-        async def supervisor_node_impl(state: AgentState) -> dict[str, Any]:
-            nome_empresa = state.get("nome_empresa", "")
-            tier = state.get("tier") or supervisor_tier
-            model_override = state.get("model_override")
-
-            messages = state.get("messages", [])
-            last_msg = messages[-1] if messages else None
-            is_tool_result_turn = isinstance(last_msg, ToolMessage)
-
-            # Inject elicitation response context into conversation
-            pending_elicit = state.get("pending_elicitation")
-            elicit_resp = state.get("elicitation_response")
-            if pending_elicit and elicit_resp:
-                ctx_msg = (
-                    f"The user replied '{elicit_resp.get('response')}' "
-                    f"to: {pending_elicit.get('message')}"
-                )
-                messages = list(messages) + [HumanMessage(content=ctx_msg)]
-
-            # Build / cache delegation tools
-            cached_tools = state.get("_cached_tools")
-            delegation_tools = cached_tools if cached_tools else build_delegation_tools(tier)
-
-            # Build / cache system prompt
-            cached_prompt = state.get("_cached_system_prompt")
-            if cached_prompt:
-                system_prompt = cached_prompt
-            else:
-                from blu_agent_framework.registry import AgentTypeRegistry
-
-                workers_description = AgentTypeRegistry.build_supervisor_description(tier)
-                variables: dict[str, Any] = {
-                    "nome_empresa": nome_empresa,
-                    "workers_description": workers_description,
-                    "context_sections": "",
-                    "tools_description": "",
-                }
-                system_prompt = ""
-
-                if supervisor_prompt_name:
-                    try:
-                        from blu_prompt_management import build_prompt  # type: ignore[import]
-                        system_prompt = await build_prompt(
-                            name=supervisor_prompt_name,
-                            variables=variables,
-                            context_service=context_service,
-                        )
-                    except Exception as exc:
-                        logger.warning("[Supervisor] build_prompt failed: %s", exc)
-
-                if not system_prompt and supervisor_fragments:
-                    try:
-                        from blu_prompt_management import compose_prompt  # type: ignore[import]
-                        system_prompt = await compose_prompt(
-                            fragments=supervisor_fragments,
-                            variables=variables,
-                            context_service=context_service,
-                        )
-                    except Exception as exc:
-                        logger.warning("[Supervisor] compose_prompt failed: %s", exc)
-
-                if not system_prompt:
-                    workers_list = "\n".join(
-                        f"- delegate_to_{cfg.slug.replace('-', '_')}: {cfg.description}"
-                        for cfg in AgentTypeRegistry.for_tier(tier)
-                    )
-                    system_prompt = (
-                        f"You are a supervisor assistant"
-                        f"{f' for {nome_empresa}' if nome_empresa else ''}.\n"
-                        f"Delegate tasks to specialist workers:\n{workers_list}\n"
-                        "Answer simple questions directly. Respond in the user's language."
-                    )
-
-            # Apply history window and build LLM input
-            history_window = 10
-            recent = messages[-history_window:]
-            llm_messages = [SystemMessage(content=system_prompt)] + recent
-
-            # Resolve LLM (with optional model override)
-            llm = llm_client
-            if model_override and llm is not None:
-                try:
-                    from blu_llm_service import get_model  # type: ignore[import]
-                    llm = get_model(model_name=model_override)
-                except Exception:
-                    pass
-
-            if llm is None:
-                return {
-                    "messages": [AIMessage(content="No LLM configured for supervisor.")],
-                    "ended": True,
-                }
-
-            bound_llm = llm.bind_tools(delegation_tools) if delegation_tools else llm
-
-            # Invoke with transient-error retry
-            response: AIMessage | None = None
-            for attempt in range(3):
-                try:
-                    response = await bound_llm.ainvoke(llm_messages)
-                    break
-                except Exception as exc:
-                    if attempt < 2 and _is_transient_error(exc):
-                        logger.warning(
-                            "[Supervisor] Transient error attempt %d: %s", attempt + 1, exc
-                        )
-                        await asyncio.sleep(1.0 * (attempt + 1))
-                    else:
-                        logger.error("[Supervisor] LLM error: %s", exc)
-                        return {
-                            "messages": [AIMessage(content="Internal supervisor error.")],
-                            "ended": True,
-                        }
-
-            if response is None:
-                return {
-                    "messages": [AIMessage(content="Internal supervisor error.")],
-                    "ended": True,
-                }
-
-            updates: dict[str, Any] = {
-                "messages": [response],
-                "_cached_system_prompt": system_prompt,
-                "_cached_tools": delegation_tools,
-            }
-
-            # On new user turns, clear structured data from previous interactions
-            if not is_tool_result_turn:
-                updates["structured_data"] = None
-                updates["structured_data_list"] = None  # _list_reducer: None → clear
-
-            # Parse delegation tool_calls → pending_tool_calls for route_after_supervisor
-            tool_calls = getattr(response, "tool_calls", None) or []
-            if tool_calls:
-                pending = [
-                    {"name": tc["name"], "id": tc["id"], "args": tc.get("args", {})}
-                    for tc in tool_calls
-                ]
-                updates["pending_tool_calls"] = pending
-                logger.info(
-                    "[Supervisor] Delegating to %d worker(s): %s",
-                    len(pending),
-                    [p["name"] for p in pending],
-                )
-            else:
-                updates["pending_tool_calls"] = []
-                logger.info("[Supervisor] Final response (no tool calls)")
-
-            return updates
-
-        return supervisor_node_impl
-
-    def _create_worker_executor_node(self) -> Callable:
-        """
-        Create the execute_worker node closure for use_supervisor_graph().
-
-        Receives a ToolCallSendState-like dict dispatched via Send, extracts
-        the worker slug from the delegation tool name, and runs the worker
-        loop via _WorkerInvoker.  Returns a ToolMessage plus optional
-        structured_data_list update for fan-in aggregation.
-        """
-        _MAX_CONTENT = 4_000
-
-        from blu_agent_framework.supervisor import _WorkerInvoker
-
-        llm_client = self._llm_client
-        mcp_executor = self.mcp_executor  # already resolved in _wrap_nodes
-        context_service = self._context_service
-
-        invoker = _WorkerInvoker(llm=llm_client, mcp_executor=mcp_executor)
-
-        async def execute_worker_node_impl(state: dict[str, Any]) -> dict[str, Any]:
-            from blu_agent_framework.registry import AgentTypeRegistry
-
-            tool_call = state.get("tool_call", {})
-            tool_name = tool_call.get("name", "")
-            tool_call_id = tool_call.get("id", "")
-            args = tool_call.get("args", {})
-            task = args.get("task", "")
-            nome_empresa = state.get("nome_empresa", "")
-
-            if not tool_name.startswith("delegate_to_"):
-                return {
-                    "messages": [
-                        ToolMessage(
-                            content=f"Invalid delegation tool: {tool_name}",
-                            tool_call_id=tool_call_id,
-                            name=tool_name,
-                        )
-                    ]
-                }
-
-            slug = tool_name[len("delegate_to_"):].replace("_", "-")
-            cfg = AgentTypeRegistry.get(slug)
-
-            if cfg is None:
-                return {
-                    "messages": [
-                        ToolMessage(
-                            content=f"Unknown worker slug: {slug}",
-                            tool_call_id=tool_call_id,
-                            name=tool_name,
-                        )
-                    ]
-                }
-
-            logger.info("[execute_worker] Invoking '%s', task: %.100s...", slug, task)
-
-            result = await invoker.invoke(
-                cfg=cfg,
-                task=task,
-                nome_empresa=nome_empresa,
-                context_service=context_service,
-            )
-
-            content = result.summary
-            if result.error:
-                content = f"Worker error: {result.error}\n{result.summary}"
-            if len(content) > _MAX_CONTENT:
-                content = content[:_MAX_CONTENT] + "\n[truncated]"
-
-            updates: dict[str, Any] = {
-                "messages": [
-                    ToolMessage(
-                        content=content,
-                        tool_call_id=tool_call_id,
-                        name=tool_name,
-                    )
-                ]
-            }
-
-            if result.structured_data:
-                sd = dict(result.structured_data)
-                sd["source_worker"] = slug
-                updates["structured_data_list"] = [sd]
-
-            return updates
-
-        return execute_worker_node_impl
 
     def _create_run_skill_node(self, original_handler: Callable) -> Callable:
         """
@@ -1210,6 +890,120 @@ class AgentBuilder:
 
         return run_skill_node_impl
 
+    def _create_classify_skill_intent_node(self) -> Callable:
+        """
+        Create the classify_skill_intent node for use_specialist_graph().
+
+        Calls the LLM with the ``specialists/classify-skill-intent`` prompt (Langfuse-first,
+        builtin fallback) and parses a single skill name from the response.
+        Filters SKILL_REGISTRY to skills whose tags intersect the specialist
+        cfg's tags so only relevant skills are offered to the LLM.
+
+        Falls back to tag-overlap scoring when the LLM call fails or returns
+        an unrecognised name, and returns ``current_skill=None`` when no match
+        meets the 50 % threshold — routing the graph to the direct respond path.
+        """
+        from langchain_core.messages import HumanMessage as _HumanMessage
+        from langchain_core.messages import SystemMessage as _SystemMessage
+
+        llm_client = self._llm_client
+        specialist_cfg = self._specialist_cfg
+
+        async def classify_skill_intent_node_impl(state: AgentState) -> dict[str, Any]:
+            from blu_agent_framework.skills import SKILL_REGISTRY
+
+            # Filter skills to those whose tags intersect the specialist's tags
+            specialist_tags = set(getattr(specialist_cfg, "tags", []) if specialist_cfg else [])
+            if specialist_tags:
+                candidate_skills = {
+                    name: skill
+                    for name, skill in SKILL_REGISTRY.items()
+                    if set(skill.tags) & specialist_tags
+                }
+            else:
+                candidate_skills = dict(SKILL_REGISTRY)
+
+            if not candidate_skills:
+                return {"current_skill": None}
+
+            # Resolve task from the last HumanMessage or current_intent
+            messages = state.get("messages", [])
+            last_human = next(
+                (m for m in reversed(messages) if isinstance(m, _HumanMessage)), None
+            )
+            task = (
+                last_human.content
+                if last_human
+                else (state.get("current_intent") or "")
+            )
+            if not task:
+                return {"current_skill": None}
+
+            skills_desc = "\n".join(
+                f"- {name}: {skill.description}"
+                for name, skill in candidate_skills.items()
+            )
+
+            # --- LLM-based classification ---
+            if llm_client:
+                try:
+                    from blu_prompt_management import build_prompt  # type: ignore[import]
+
+                    system_prompt = await build_prompt(
+                        "specialists/classify-skill-intent",
+                        variables={"skills_description": skills_desc, "task": task},
+                        allow_fallback=True,
+                    )
+                    response = await llm_client.ainvoke([
+                        _SystemMessage(content=system_prompt),
+                        _HumanMessage(content=task),
+                    ])
+                    answer = str(response.content).strip().lower()
+                    # Match first skill name that appears in the answer
+                    for skill_name in candidate_skills:
+                        if skill_name in answer:
+                            logger.info(
+                                "[classify_skill_intent] LLM selected '%s' for task: %.80s",
+                                skill_name, task,
+                            )
+                            return {"current_skill": skill_name}
+                    if "none" in answer:
+                        logger.debug("[classify_skill_intent] LLM returned 'none'")
+                        return {"current_skill": None}
+                except Exception as exc:
+                    logger.warning(
+                        "[classify_skill_intent] LLM classification failed: %s — "
+                        "falling back to tag overlap", exc,
+                    )
+
+            # --- Tag-overlap fallback (no LLM or LLM failed) ---
+            intent_tags = set(state.get("intent_tags") or [])
+            if not intent_tags:
+                return {"current_skill": None}
+
+            best_name: str | None = None
+            best_score = 0.0
+            for skill_name, skill in candidate_skills.items():
+                skill_tags = set(skill.tags)
+                if not skill_tags:
+                    continue
+                score = len(intent_tags & skill_tags) / len(skill_tags)
+                if score > best_score:
+                    best_score = score
+                    best_name = skill_name
+
+            if best_name and best_score >= 0.5:
+                logger.info(
+                    "[classify_skill_intent] Tag fallback selected '%s' (overlap=%.0f%%)",
+                    best_name, best_score * 100,
+                )
+                return {"current_skill": best_name}
+
+            logger.debug("[classify_skill_intent] No skill matched; routing to direct respond")
+            return {"current_skill": None}
+
+        return classify_skill_intent_node_impl
+
     def _create_tool_executor_node(self, original_handler: Callable) -> Callable:
         """
         Create tool executor node with MCP integration.
@@ -1233,7 +1027,7 @@ class AgentBuilder:
 
             # Build context
             context = {
-                "cliente_id": state.get("cliente_id", ""),
+                "client_id": state.get("client_id", ""),
                 "session_id": state.get("session_id", ""),
                 "channel": state.get("channel", "api"),
                 **(state.get("metadata") or {}),
@@ -1309,7 +1103,7 @@ class AgentBuilder:
 
             # Build context from Send state
             context = {
-                "cliente_id": state.get("cliente_id", ""),
+                "client_id": state.get("client_id", ""),
                 "session_id": state.get("session_id", ""),
                 "channel": state.get("channel", "api"),
                 **(state.get("metadata") or {}),
@@ -1396,6 +1190,25 @@ class AgentBuilder:
                 llm_messages.append(SystemMessage(content=system_prompt))
             llm_messages.extend(messages)
 
+            # Guard context window: truncate history if over token budget.
+            # TokenBudget operates on the history slice (excluding the leading
+            # SystemMessage so it is never removed).
+            try:
+                from blu_llm_service import TokenBudget
+                budget = TokenBudget()
+                result = budget.apply(
+                    history_messages=messages,
+                    system_prompt=system_prompt,
+                    log_prefix=f"[TOKEN_BUDGET] session={state.get('session_id', '?')}",
+                )
+                if result.was_truncated:
+                    llm_messages = []
+                    if system_prompt:
+                        llm_messages.append(SystemMessage(content=system_prompt))
+                    llm_messages.extend(result.messages)
+            except Exception as _tb_err:
+                logger.warning(f"[respond] TokenBudget failed, using untruncated messages: {_tb_err}")
+
             # last_tool_result is only present on legacy single-tool turns that did
             # not produce a ToolMessage (e.g., when no tool_call_id was available).
             # Proper function-calling turns already appended a ToolMessage to messages.
@@ -1421,7 +1234,13 @@ class AgentBuilder:
 
                         intent_tags: list[str] = state.get("intent_tags") or []
                         loaded_ctx: list[str] = state.get("loaded_context_keys") or []
-                        tier: str = state.get("metadata", {}).get("tier", "BASIC")
+                        # tier lives at the top-level state field; metadata.tier was set by
+                        # context_enrichment_node (now removed). Fall back to metadata if somehow present.
+                        tier: str = (
+                            state.get("tier")
+                            or state.get("metadata", {}).get("tier")
+                            or "BASIC"
+                        )
                         max_tools = 4 if len(loaded_ctx) < 3 else 8
 
                         # Cache tool selection by (tags, tier, ctx) so we skip

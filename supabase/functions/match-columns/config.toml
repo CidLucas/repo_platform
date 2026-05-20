@@ -1,5 +1,5 @@
 # match-columns: stateless fuzzy schema matcher — pure computation, no DB writes.
-# verify_jwt = true: Supabase edge validates the caller's JWT before invoking
-# the function. No auth code is needed inside the function body because it
-# performs no database operations and holds no tenant data.
-verify_jwt = true
+# verify_jwt = false: called by both authenticated frontend users and server-to-server
+# from other edge functions (upload-csv-source, run-sync-etl). No sensitive data
+# is accessed or returned, so no auth gate is needed.
+verify_jwt = false

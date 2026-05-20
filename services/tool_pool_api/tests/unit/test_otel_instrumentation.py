@@ -31,8 +31,8 @@ def test_instrument_mcp_tools_wraps_registered_callables(monkeypatch):
     mcp = _make_fake_mcp()
     instrument_mcp_tools(mcp)
 
-    async def my_logic(*, cliente_id: str | None = None) -> str:
-        return f"hello-{cliente_id}"
+    async def my_logic(*, client_id: str | None = None) -> str:
+        return f"hello-{client_id}"
 
     mcp.tool(name="probe_tool", description="probe")(my_logic)
 
@@ -40,7 +40,7 @@ def test_instrument_mcp_tools_wraps_registered_callables(monkeypatch):
     assert wrapped is not my_logic, "tool callable must be wrapped"
 
     # Wrapper must remain awaitable & return the original result.
-    result = asyncio.run(wrapped(cliente_id="abc-123"))
+    result = asyncio.run(wrapped(client_id="abc-123"))
     assert result == "hello-abc-123"
 
 

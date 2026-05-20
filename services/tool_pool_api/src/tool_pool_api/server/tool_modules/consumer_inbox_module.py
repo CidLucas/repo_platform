@@ -88,7 +88,7 @@ def _load_thread_messages(db: Any, *, contact_id: str, client_id: str) -> list[d
 
 async def draft_consumer_reply_core(
     *,
-    cliente_id: str,
+    client_id: str,
     contact_id: str,
     hint: str | None = None,
 ) -> dict[str, Any]:
@@ -96,8 +96,8 @@ async def draft_consumer_reply_core(
 
     Returns ``{"message_id", "draft_text", "channel"}``.
     """
-    if not cliente_id:
-        raise ToolError("Missing cliente_id")
+    if not client_id:
+        raise ToolError("Missing client_id")
     if not contact_id:
         raise ToolError("Missing contact_id")
 
@@ -107,7 +107,7 @@ async def draft_consumer_reply_core(
         db.table("consumer_contacts")
         .select("id,client_id,channel,external_id,display_name")
         .eq("id", contact_id)
-        .eq("client_id", cliente_id)
+        .eq("client_id", client_id)
         .single()
         .execute()
     )
@@ -115,7 +115,7 @@ async def draft_consumer_reply_core(
     if not contact:
         raise ToolError("Contact not found or not owned")
 
-    history = _load_thread_messages(db, contact_id=contact_id, client_id=cliente_id)
+    history = _load_thread_messages(db, contact_id=contact_id, client_id=client_id)
     if not history:
         raise ToolError("Thread has no messages — nothing to reply to")
 
@@ -132,7 +132,7 @@ async def draft_consumer_reply_core(
     insert = (
         db.table("consumer_messages")
         .insert({
-            "client_id":  cliente_id,
+            "client_id":  client_id,
             "contact_id": contact_id,
             "channel":    contact["channel"],
             "direction":  "outbound",
@@ -156,7 +156,7 @@ async def draft_consumer_reply_core(
         p_actor_kind="agent",
         p_agent_slug="comercial-agent",
         p_outcome="success",
-        p_client_id=cliente_id,
+        p_client_id=client_id,
     )
 
     return {
@@ -168,7 +168,7 @@ async def draft_consumer_reply_core(
 
 async def send_consumer_reply_core(
     *,
-    cliente_id: str,
+    client_id: str,
     message_id: str,
     edited_body: str | None = None,
 ) -> dict[str, Any]:
@@ -178,15 +178,15 @@ async def send_consumer_reply_core(
       ``{"status": "pending_approval", "approval_id": ...}``
       ``{"status": "sent", "external_id": ...}``
     """
-    if not cliente_id or not message_id:
-        raise ToolError("Missing cliente_id or message_id")
+    if not client_id or not message_id:
+        raise ToolError("Missing client_id or message_id")
 
     db = get_supabase_client()
     msg_resp = (
         db.table("consumer_messages")
         .select("id,client_id,contact_id,channel,status,body")
         .eq("id", message_id)
-        .eq("client_id", cliente_id)
+        .eq("client_id", client_id)
         .single()
         .execute()
     )
@@ -214,7 +214,7 @@ async def send_consumer_reply_core(
         raise ToolError("Contact missing for message")
 
     decision = resolve_policy(
-        client_id=cliente_id,
+        client_id=client_id,
         agent_slug="comercial-agent",
         action="send_consumer_reply",
         payload={"message_id": message_id, "channel": msg["channel"]},
@@ -249,14 +249,14 @@ async def send_consumer_reply_core(
             p_actor_kind="agent",
             p_agent_slug="comercial-agent",
             p_outcome="success",
-            p_client_id=cliente_id,
+            p_client_id=client_id,
         )
         return {"status": "pending_approval", "approval_id": request.id}
 
     # Direct send — chat elicitation has already approved.
     return await _dispatch_consumer_message(
         db,
-        cliente_id=cliente_id,
+        client_id=client_id,
         message_id=message_id,
         channel=msg["channel"],
         external_to=contact["external_id"],
@@ -267,7 +267,7 @@ async def send_consumer_reply_core(
 async def _dispatch_consumer_message(
     db: Any,
     *,
-    cliente_id: str,
+    client_id: str,
     message_id: str,
     channel: str,
     external_to: str,
@@ -305,7 +305,7 @@ async def _dispatch_consumer_message(
             p_actor_kind="user",
             p_agent_slug="comercial-agent",
             p_outcome="success",
-            p_client_id=cliente_id,
+            p_client_id=client_id,
         )
         return {"status": "sent", "external_id": sid}
 

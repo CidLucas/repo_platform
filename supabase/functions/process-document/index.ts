@@ -409,7 +409,8 @@ async function processDocument(
     fileName: string,
     fileType: string,
     targetTokens: number = DEFAULT_TARGET_TOKENS,
-    skipMetadataEnrichment: boolean = false
+    skipMetadataEnrichment: boolean = false,
+    preExtractedText: string | null = null
 ) {
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
         auth: { autoRefreshToken: false, persistSession: false },
@@ -433,38 +434,45 @@ async function processDocument(
         const docScope = docRow?.scope ?? 'client';
         const docCategory = docRow?.category ?? null;
 
-        // 1. Download file from Storage
-        console.log(`[process-document] Downloading from storage: ${storagePath}`);
-        const { data: fileData, error: downloadError } = await supabase.storage
-            .from("knowledge-base")
-            .download(storagePath);
+        // 1 & 2. Get text: either from pre_extracted_text or by downloading + parsing
+        let parsedText: string;
+        if (preExtractedText && preExtractedText.trim().length > 0) {
+            console.log(`[process-document] Using pre_extracted_text: ${preExtractedText.length} chars (skipping download+parse)`);
+            parsedText = preExtractedText;
+        } else {
+            // 1. Download file from Storage
+            console.log(`[process-document] Downloading from storage: ${storagePath}`);
+            const { data: fileData, error: downloadError } = await supabase.storage
+                .from("knowledge-base")
+                .download(storagePath);
 
-        if (downloadError || !fileData) {
-            throw new Error(
-                `Failed to download file: ${downloadError?.message || "no data"}`
-            );
+            if (downloadError || !fileData) {
+                throw new Error(
+                    `Failed to download file: ${downloadError?.message || "no data"}`
+                );
+            }
+
+            const buffer = new Uint8Array(await fileData.arrayBuffer());
+            console.log(`[process-document] Downloaded: ${buffer.byteLength} bytes`);
+
+            // 2. Parse file
+            const parser = getParser(fileType);
+            if (!parser) {
+                throw new Error(`Unsupported file type: ${fileType}`);
+            }
+            console.log(`[process-document] Parsing with ${fileType} parser...`);
+            parsedText = await parser(buffer);
+
+            if (!parsedText || parsedText.trim().length === 0) {
+                const hint = fileType.toLowerCase() === "pdf"
+                    ? " O PDF pode conter apenas imagens/gráficos sem texto extraível. Tente enviar um PDF com texto selecionável."
+                    : "";
+                throw new Error(
+                    `Nenhum conteúdo de texto extraído do arquivo.${hint}`
+                );
+            }
+            console.log(`[process-document] Parsed: ${parsedText.length} chars`);
         }
-
-        const buffer = new Uint8Array(await fileData.arrayBuffer());
-        console.log(`[process-document] Downloaded: ${buffer.byteLength} bytes`);
-
-        // 2. Parse file
-        const parser = getParser(fileType);
-        if (!parser) {
-            throw new Error(`Unsupported file type: ${fileType}`);
-        }
-        console.log(`[process-document] Parsing with ${fileType} parser...`);
-        const parsedText = await parser(buffer);
-
-        if (!parsedText || parsedText.trim().length === 0) {
-            const hint = fileType.toLowerCase() === "pdf"
-                ? " O PDF pode conter apenas imagens/gráficos sem texto extraível. Tente enviar um PDF com texto selecionável."
-                : "";
-            throw new Error(
-                `Nenhum conteúdo de texto extraído do arquivo.${hint}`
-            );
-        }
-        console.log(`[process-document] Parsed: ${parsedText.length} chars`);
 
         // 3. Chunk text
         const chunks = chunkText(parsedText, {
@@ -656,7 +664,7 @@ Deno.serve(async (req: Request) => {
 
     try {
         const body = await req.json();
-        const { document_id, storage_path, client_id, file_name, file_type, target_tokens, skip_metadata_enrichment } = body;
+        const { document_id, storage_path, client_id, file_name, file_type, target_tokens, skip_metadata_enrichment, pre_extracted_text = null } = body;
 
         // Validate required fields
         if (!document_id || !storage_path || !client_id || !file_name || !file_type) {
@@ -666,13 +674,15 @@ Deno.serve(async (req: Request) => {
             );
         }
 
-        // Validate file type is supported for simple processing
-        const parser = getParser(file_type);
-        if (!parser) {
-            return json(
-                { error: `Unsupported file type for simple processing: ${file_type}. Use file_upload_api for complex files.` },
-                422,
-            );
+        // Validate file type — skip parser check when pre_extracted_text is provided
+        if (!pre_extracted_text) {
+            const parser = getParser(file_type);
+            if (!parser) {
+                return json(
+                    { error: `Unsupported file type for direct processing: ${file_type}. Upload complex files (PPTX, XLSX, scanned PDFs) via the document intelligence tools.` },
+                    422,
+                );
+            }
         }
 
         // Clamp target_tokens: must be between 50 and 500 (Cohere max = 512)
@@ -684,7 +694,7 @@ Deno.serve(async (req: Request) => {
         // Process synchronously — parse, chunk, embed, enrich, insert in one call
         console.log(`[process-document] Starting processing for ${file_name} (target_tokens=${resolvedTargetTokens})`);
         await Promise.race([
-            processDocument(document_id, storage_path, client_id, file_name, file_type, resolvedTargetTokens, resolvedSkipEnrichment),
+            processDocument(document_id, storage_path, client_id, file_name, file_type, resolvedTargetTokens, resolvedSkipEnrichment, pre_extracted_text),
             catchUnload(),
         ]);
         console.log(`[process-document] Completed processing for ${file_name}`);

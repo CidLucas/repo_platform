@@ -1,0 +1,1 @@
+{"title": "BL-007: Auto-generate docs from code + CI check", "body": "Generate docs from SKILL_REGISTRY/AgentTypeRegistry and add CI check.\n\n- Files: scripts/generate_agent_docs.py, docs/auto-skills.md, docs/auto-agent-types.md\n- CI: .github/workflows/docs_check.yml\n- Estimate: 2-4h\n- Priority: P1\n"}

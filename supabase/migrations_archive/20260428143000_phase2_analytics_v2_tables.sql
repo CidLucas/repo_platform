@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS analytics_v2.dim_datas (
 -- dim_clientes
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS analytics_v2.dim_clientes (
-  cliente_id           BIGINT  PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  client_id           BIGINT  PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
   client_id            UUID    REFERENCES public.clientes_blu(client_id) ON DELETE CASCADE,
   cpf_cnpj             TEXT,
   nome                 TEXT,
@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS analytics_v2.fato_transacoes (
   transacao_id          TEXT    NOT NULL,
   client_id             UUID    NOT NULL REFERENCES public.clientes_blu(client_id) ON DELETE CASCADE,
   data_competencia_id   BIGINT  REFERENCES analytics_v2.dim_datas(data_id) ON DELETE SET NULL,
-  cliente_id            BIGINT  REFERENCES analytics_v2.dim_clientes(cliente_id) ON DELETE SET NULL,
+  client_id            BIGINT  REFERENCES analytics_v2.dim_clientes(client_id) ON DELETE SET NULL,
   fornecedor_id         BIGINT  REFERENCES analytics_v2.dim_fornecedores(fornecedor_id) ON DELETE SET NULL,
   produto_id            BIGINT  REFERENCES analytics_v2.dim_inventory(inventory_id) ON DELETE SET NULL,
   documento             TEXT,
@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS analytics_v2.fato_transacoes (
 );
 CREATE INDEX IF NOT EXISTS idx_fato_client ON analytics_v2.fato_transacoes(client_id);
 CREATE INDEX IF NOT EXISTS idx_fato_data ON analytics_v2.fato_transacoes(data_competencia_id);
-CREATE INDEX IF NOT EXISTS idx_fato_cliente_dim ON analytics_v2.fato_transacoes(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_fato_cliente_dim ON analytics_v2.fato_transacoes(client_id);
 CREATE INDEX IF NOT EXISTS idx_fato_fornecedor ON analytics_v2.fato_transacoes(fornecedor_id);
 
 -- -----------------------------------------------------------------------------

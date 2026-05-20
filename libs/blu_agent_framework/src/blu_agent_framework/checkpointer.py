@@ -118,7 +118,7 @@ class RedisCheckpointer(BaseCheckpointSaver):
         self,
         redis_client: Any,
         key_prefix: str = "blu:checkpoint:",
-        ttl_seconds: int = 86400,  # 24 hours
+        ttl_seconds: int = 300,  # 5 minutes
     ):
         """
         Initialize checkpointer.

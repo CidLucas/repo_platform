@@ -15,7 +15,7 @@ from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.dependencies import get_context_service
 from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
-from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 
 from . import register_module
 
@@ -49,10 +49,10 @@ def _extract_document_ids(ctx: Context) -> list[str] | None:
     return None
 
 
-def _extract_cliente_id(ctx: Context) -> str | None:
-    """Extract cliente_id from context metadata."""
+def _extract_client_id(ctx: Context) -> str | None:
+    """Extract client_id from context metadata."""
     meta = _extract_meta(ctx)
-    return meta.get("cliente_id") or meta.get("client_id")
+    return meta.get("client_id") or meta.get("client_id")
 
 
 # =============================================================================
@@ -79,7 +79,7 @@ async def _extract_structured_data_logic(
     query: str,
     fields: str,
     ctx: Context,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> str:
     """
     **Tool: extract_structured_data**
@@ -129,15 +129,15 @@ async def _extract_structured_data_logic(
         )
 
     # 3. Resolve client context for auth
-    if not cliente_id:
-        cliente_id = _extract_cliente_id(ctx)
-    if not cliente_id:
+    if not client_id:
+        client_id = _extract_client_id(ctx)
+    if not client_id:
         raise ToolError("Could not determine client identity.")
 
     ctx_service = get_context_service()
-    blu_context = await ctx_service.get_client_context_by_id(UUID(cliente_id))
+    blu_context = await ctx_service.get_client_context_by_id(UUID(client_id))
     if not blu_context:
-        raise ToolError(f"Client context not found: {cliente_id}")
+        raise ToolError(f"Client context not found: {client_id}")
 
     if not is_tool_accessible_by_tier("extract_structured_data", blu_context):
         raise ToolError("Tool 'extract_structured_data' is not enabled for this client.")
@@ -242,7 +242,7 @@ async def _compile_time_series_logic(
     time_field: str,
     value_fields: str,
     ctx: Context,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> str:
     """
     **Tool: compile_time_series**
@@ -381,7 +381,7 @@ async def _write_summary_to_kb_logic(
     content: str,
     ctx: Context,
     category: str = "agent_summary",
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> str:
     """
     **Tool: write_summary_to_kb**
@@ -416,15 +416,15 @@ async def _write_summary_to_kb_logic(
         raise ToolError("Content is required.")
 
     # 1. Resolve client
-    if not cliente_id:
-        cliente_id = _extract_cliente_id(ctx)
-    if not cliente_id:
+    if not client_id:
+        client_id = _extract_client_id(ctx)
+    if not client_id:
         raise ToolError("Could not determine client identity.")
 
     ctx_service = get_context_service()
-    blu_context = await ctx_service.get_client_context_by_id(UUID(cliente_id))
+    blu_context = await ctx_service.get_client_context_by_id(UUID(client_id))
     if not blu_context:
-        raise ToolError(f"Client context not found: {cliente_id}")
+        raise ToolError(f"Client context not found: {client_id}")
 
     if not is_tool_accessible_by_tier("write_summary_to_kb", blu_context):
         raise ToolError("Tool 'write_summary_to_kb' is not enabled for this client.")
@@ -538,7 +538,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Returns JSON array of extracted records. "
             "Documents must be uploaded to the session first."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_extract_structured_data_logic))
+    )(mcp_inject_client_id(get_context_service)(_extract_structured_data_logic))
 
     mcp.tool(
         name="compile_time_series",
@@ -550,7 +550,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Returns sorted series + stats (min, max, avg, trend, change%). "
             "Use after extract_structured_data to organize temporal data."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_compile_time_series_logic))
+    )(mcp_inject_client_id(get_context_service)(_compile_time_series_logic))
 
     mcp.tool(
         name="write_summary_to_kb",
@@ -562,7 +562,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Only use when user asks to save/persist results or when you have "
             "a valuable artifact to store."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_write_summary_to_kb_logic))
+    )(mcp_inject_client_id(get_context_service)(_write_summary_to_kb_logic))
 
     logger.info(
         "[Document Intelligence Module] 3 tools registered: "

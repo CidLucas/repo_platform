@@ -167,22 +167,6 @@ class ToolRegistry:
             requires_confirmation=False,
             tags=["knowledge-base", "persistence", "documents"],
         ),
-        "execute_csv_query": ToolMetadata(
-            name="execute_csv_query",
-            category=ToolCategory.SQL,
-            description="Execute DuckDB SQL queries on uploaded CSV datasets.",
-            tier_required=TierLevel.SME,
-            requires_confirmation=False,
-            tags=["csv", "sql", "analytics"],
-        ),
-        "list_csv_datasets": ToolMetadata(
-            name="list_csv_datasets",
-            category=ToolCategory.SQL,
-            description="List available CSV datasets for the current client.",
-            tier_required=TierLevel.SME,
-            requires_confirmation=False,
-            tags=["csv", "datasets", "analytics"],
-        ),
         "check_config_completeness": ToolMetadata(
             name="check_config_completeness",
             category=ToolCategory.PUBLIC,

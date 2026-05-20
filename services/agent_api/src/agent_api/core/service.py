@@ -19,6 +19,8 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from blu_context_service import ContextService
 from blu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
+from blu_prompt_management import build_prompt
+from blu_prompt_management.variables import VariableExtractor
 
 from agent_api.config import get_settings
 from agent_api.core.factory import (
@@ -32,6 +34,65 @@ logger = logging.getLogger(__name__)
 
 # Fire-and-forget task registry (prevents GC of background tasks)
 _background_tasks: set = set()
+
+
+def _render_company_profile(company_profile: dict | None) -> str:
+    """Render company_profile JSONB dict to a markdown string for prompt injection."""
+    if not company_profile or not isinstance(company_profile, dict):
+        return ""
+    lines = []
+    for key, value in company_profile.items():
+        if value:
+            label = key.replace("_", " ").title()
+            lines.append(f"- **{label}**: {value}")
+    return "\n".join(lines)
+
+
+async def _build_frontdesk_prompt(
+    client_ctx: Any,
+    context_service: ContextService,
+) -> str:
+    """Assemble variables from client_ctx and call build_prompt for agents/frontdesk."""
+    from blu_agent_framework.registry import AgentTypeRegistry
+
+    cfg = AgentTypeRegistry.get("frontdesk")
+    prompt_name = cfg.prompt_name if cfg else "agents/frontdesk"
+    nome_empresa: str = getattr(client_ctx, "nome_empresa", "") or ""
+
+    # SQL schema: use per-client table configs; fall back to static analytics_v2 schema.
+    sql_schema_context = VariableExtractor.render_sql_schema(
+        getattr(client_ctx, "data_schema", None)
+    )
+    if not sql_schema_context:
+        try:
+            sql_schema_context = await build_prompt(
+                "fragment/sql-schema", {}, context_service=context_service
+            )
+        except Exception:
+            sql_schema_context = ""
+
+    company_profile = _render_company_profile(
+        getattr(client_ctx, "company_profile", None)
+    )
+
+    variables: dict = {
+        "nome_empresa": nome_empresa,
+        "sql_schema_context": sql_schema_context,
+        "company_profile": company_profile,
+    }
+
+    try:
+        return await build_prompt(
+            name=prompt_name,
+            variables=variables,
+            context_service=context_service,
+        )
+    except Exception as exc:
+        logger.warning("[ChatService] build_prompt(%s) failed: %s", prompt_name, exc)
+        return (
+            f"You are the Frontdesk assistant for {nome_empresa}. "
+            "Answer in the user's language. Use available tools when appropriate."
+        )
 
 
 def _fire_and_forget(coro) -> None:
@@ -71,7 +132,7 @@ class ChatService:
     Handles supervisor-mode chat (sync + streaming).
 
     The supervisor graph is built once per tier and shared across all sessions.
-    Per-session conversation state lives in the Redis checkpointer (thread_id=session_id).
+    Per-session conversation state lives in the Redis checkpointer (thread_id="{client_id}:{session_id}").
     """
 
     def __init__(self) -> None:
@@ -91,10 +152,10 @@ class ChatService:
             raise ValueError(f"Client not found for user_id={external_user_id}")
         return client_context
 
-    async def _connect_mcp(self, cliente_id: str, session_id: str, user_jwt: str | None = None) -> None:
+    async def _connect_mcp(self, client_id: str, session_id: str, user_jwt: str | None = None) -> None:
         """Ensure MCP is connected with correct client headers."""
         mcp_mgr = get_mcp_manager()
-        mcp_mgr.set_cliente_id(cliente_id)
+        mcp_mgr.set_client_id(client_id)
         mcp_mgr.set_session_id(session_id)
         if user_jwt:
             mcp_mgr.set_auth_token(user_jwt)
@@ -106,12 +167,12 @@ class ChatService:
             except Exception as exc:
                 logger.warning("[ChatService] MCP connect failed (will retry on tool call): %s", exc)
 
-    def _build_langfuse_config(self, session_id: str, cliente_id: str, tags: list[str]) -> dict:
+    def _build_langfuse_config(self, session_id: str, client_id: str, tags: list[str]) -> dict:
         try:
             from agent_api.core.observability import get_langfuse_config
-            return get_langfuse_config(session_id=session_id, cliente_id=cliente_id, tags=tags)
+            return get_langfuse_config(session_id=session_id, client_id=client_id, tags=tags)
         except Exception:
-            return {"configurable": {"thread_id": session_id}}
+            return {"configurable": {"thread_id": f"{client_id}:{session_id}"}}
 
     async def process_message(
         self,
@@ -123,43 +184,48 @@ class ChatService:
         elicitation_response: dict[str, Any] | None = None,
         user_jwt: str | None = None,
     ) -> ChatResult:
-        """Run supervisor graph and return a sync ChatResult."""
+        """Run frontdesk graph and return a sync ChatResult."""
         client_ctx = await self._get_client_context(str(client_id), context_service)
         tier: str = getattr(client_ctx, "tier", "BASIC") or "BASIC"
         nome_empresa: str = getattr(client_ctx, "nome_empresa", "") or ""
-        cliente_id = str(client_ctx.id)
+        client_id = str(client_ctx.id)
 
         logger.info("[ChatService] %s | session=%s", nome_empresa, session_id)
 
-        await self._connect_mcp(cliente_id=cliente_id, session_id=session_id, user_jwt=user_jwt)
+        await self._connect_mcp(client_id=client_id, session_id=session_id, user_jwt=user_jwt)
+
+        factory = get_factory()
+        system_prompt = await _build_frontdesk_prompt(
+            client_ctx=client_ctx,
+            context_service=context_service,
+        )
 
         # Build initial state
         from blu_agent_framework.state import AgentState
         initial_state = AgentState(
             messages=[HumanMessage(content=message)],
             session_id=session_id,
-            cliente_id=cliente_id,
+            client_id=client_id,
             nome_empresa=nome_empresa,
             tier=tier,
             model_override=model_override,
             user_jwt=user_jwt,
+            system_prompt=system_prompt,
             pending_elicitation=None,
             elicitation_response=elicitation_response,
             ended=False,
             turn_count=0,
             structured_data=None,
             structured_data_list=[],
-            _cached_system_prompt=None,
-            _cached_tools=None,
         )
 
-        graph = get_factory().get_supervisor_graph(tier=tier, context_service=context_service)
+        graph = factory.get_frontdesk_graph(tier=tier, context_service=context_service)
         config = self._build_langfuse_config(
             session_id=session_id,
-            cliente_id=cliente_id,
-            tags=["supervisor", nome_empresa],
+            client_id=client_id,
+            tags=["frontdesk", nome_empresa],
         )
-        config.setdefault("configurable", {})["thread_id"] = session_id
+        config.setdefault("configurable", {})["thread_id"] = f"{client_id}:{session_id}"
 
         start = time.time()
         final_state = await graph.ainvoke(initial_state, config)
@@ -191,42 +257,47 @@ class ChatService:
         model_override: str | None = None,
         user_jwt: str | None = None,
     ) -> AsyncIterator[str]:
-        """Stream supervisor graph response as SSE events."""
+        """Stream frontdesk graph response as SSE events."""
         client_ctx = await self._get_client_context(str(client_id), context_service)
         tier: str = getattr(client_ctx, "tier", "BASIC") or "BASIC"
         nome_empresa: str = getattr(client_ctx, "nome_empresa", "") or ""
-        cliente_id = str(client_ctx.id)
+        client_id = str(client_ctx.id)
 
         logger.info("[ChatService/stream] %s | session=%s", nome_empresa, session_id)
 
-        await self._connect_mcp(cliente_id=cliente_id, session_id=session_id, user_jwt=user_jwt)
+        await self._connect_mcp(client_id=client_id, session_id=session_id, user_jwt=user_jwt)
+
+        factory = get_factory()
+        system_prompt = await _build_frontdesk_prompt(
+            client_ctx=client_ctx,
+            context_service=context_service,
+        )
 
         from blu_agent_framework.state import AgentState
         initial_state = AgentState(
             messages=[HumanMessage(content=message)],
             session_id=session_id,
-            cliente_id=cliente_id,
+            client_id=client_id,
             nome_empresa=nome_empresa,
             tier=tier,
             model_override=model_override,
             user_jwt=user_jwt,
+            system_prompt=system_prompt,
             pending_elicitation=None,
             elicitation_response=None,
             ended=False,
             turn_count=0,
             structured_data=None,
             structured_data_list=[],
-            _cached_system_prompt=None,
-            _cached_tools=None,
         )
 
-        graph = get_factory().get_supervisor_graph(tier=tier, context_service=context_service)
+        graph = factory.get_frontdesk_graph(tier=tier, context_service=context_service)
         config = self._build_langfuse_config(
             session_id=session_id,
-            cliente_id=cliente_id,
-            tags=["supervisor", "stream", nome_empresa],
+            client_id=client_id,
+            tags=["frontdesk", "stream", nome_empresa],
         )
-        config.setdefault("configurable", {})["thread_id"] = session_id
+        config.setdefault("configurable", {})["thread_id"] = f"{client_id}:{session_id}"
 
         full_response_parts: list[str] = []
         model_used = self._resolve_model_used(model_override)
@@ -303,17 +374,17 @@ class AgentService:
 
         ctx_service = get_context_service()
         client_ctx = await ctx_service.get_client_context_by_external_user_id(str(client_id))
-        cliente_id = str(client_ctx.id) if client_ctx else ""
+        client_id = str(client_ctx.id) if client_ctx else ""
 
         # Set MCP headers for this session
         mcp_mgr = get_mcp_manager()
-        if cliente_id:
-            mcp_mgr.set_cliente_id(cliente_id)
+        if client_id:
+            mcp_mgr.set_client_id(client_id)
             mcp_mgr.set_session_id(session_id)
 
         initial_state = create_initial_state(
             session_id=session_id,
-            cliente_id=cliente_id,
+            client_id=client_id,
             messages=[HumanMessage(content=user_message)],
             system_prompt=built.system_prompt,
             agent_name=built.agent_name,
@@ -325,7 +396,7 @@ class AgentService:
         from agent_api.core.observability import get_langfuse_config
         config = get_langfuse_config(
             session_id=session_id,
-            cliente_id=cliente_id,
+            client_id=client_id,
             tags=["standalone", built.agent_name or ""],
         )
 

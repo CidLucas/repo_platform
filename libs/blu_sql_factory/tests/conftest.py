@@ -9,9 +9,9 @@ from blu_models.blu_client_context import BluClientContext
 @pytest.fixture
 def mock_blu_client_context() -> BluClientContext:
     """Retorna uma instância de modelo Pydantic BluClientContext."""
-    cliente_id = uuid.uuid4()
+    client_id = uuid.uuid4()
     return BluClientContext(
-        id=cliente_id,
+        id=client_id,
         api_key="test_api_key",
         nome_empresa="test_empresa",
         prompt_base="test_prompt",
@@ -21,7 +21,7 @@ def mock_blu_client_context() -> BluClientContext:
         credenciais=[
             CredencialServicoExternoCreate(
                 nome_servico="sql_service_mock",
-                client_id=cliente_id,
+                client_id=client_id,
                 credenciais={
                     "db_dialeto": "postgresql",
                     "db_user": "user_mock",

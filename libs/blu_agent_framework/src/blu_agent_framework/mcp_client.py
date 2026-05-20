@@ -84,13 +84,13 @@ class MCPConnectionManager:
 
         self._connected = False
 
-    def set_cliente_id(self, cliente_id: str) -> None:
+    def set_client_id(self, client_id: str) -> None:
         """
         Set the X-Cliente-Id header for server-side client identification.
 
         This is the preferred authentication method for internal service-to-service
         calls where the caller (atendente_core) has already validated the JWT and
-        resolved the cliente_id.
+        resolved the client_id.
 
         Header changes invalidate the MCP connection because streamablehttp_client
         captures headers at connection time (httpx copies them). A reconnect is
@@ -98,9 +98,9 @@ class MCPConnectionManager:
         unnecessary reconnections when the same client sends multiple requests.
 
         Args:
-            cliente_id: The resolved Blu client UUID
+            client_id: The resolved Blu client UUID
         """
-        if not cliente_id:
+        if not client_id:
             if "X-Cliente-Id" in self.headers:
                 del self.headers["X-Cliente-Id"]
                 self._connected = False
@@ -108,21 +108,21 @@ class MCPConnectionManager:
             return
 
         # Skip if header unchanged (avoids unnecessary reconnection)
-        current_cliente_id = self.headers.get("X-Cliente-Id")
-        if current_cliente_id == cliente_id:
+        current_client_id = self.headers.get("X-Cliente-Id")
+        if current_client_id == client_id:
             return
 
         # Update header and mark connection stale
-        self.headers["X-Cliente-Id"] = cliente_id
+        self.headers["X-Cliente-Id"] = client_id
         self._connected = False
-        logger.debug(f"[MCP] X-Cliente-Id header set: {cliente_id}, will reconnect")
+        logger.debug(f"[MCP] X-Cliente-Id header set: {client_id}, will reconnect")
 
     def set_session_id(self, session_id: str) -> None:
         """
         Set the X-Session-Id header for session scoping in tool_pool_api.
 
         Tools use session_id to scope data (CSV engines, RFQ queries, etc.).
-        Like set_cliente_id, header changes invalidate the connection.
+        Like set_client_id, header changes invalidate the connection.
 
         Args:
             session_id: The session UUID
@@ -243,7 +243,7 @@ class MCPConnectionManager:
             tool_name: Name of the tool to call
             arguments: Arguments to pass to the tool
             meta: Optional metadata (passed as _meta, not visible to LLM schema)
-                  Use for auth info like cliente_id
+                  Use for auth info like client_id
 
         Returns:
             Tool result

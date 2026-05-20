@@ -30,6 +30,12 @@ export interface AuthProviderProps {
     accessToken: string
     email: string
   }) => Promise<void>
+  /** Called on SIGNED_IN when provider_refresh_token is present (drive OAuth) */
+  onDriveToken?: (params: {
+    refreshToken: string
+    accessToken: string
+    email: string
+  }) => Promise<void>
   /** Called after sign-in to identify the user in analytics/telemetry */
   onIdentifyUser?: (id: string, properties?: Record<string, unknown>) => void
   /** Called after sign-out to reset analytics/telemetry */
@@ -45,6 +51,7 @@ export interface AuthProviderProps {
 export function AuthProvider({
   children,
   onCalendarToken,
+  onDriveToken,
   onIdentifyUser,
   onResetUser,
   loginRedirectPath = '/login',
@@ -131,6 +138,20 @@ export function AuthProvider({
             email: session.user.email ?? '',
           }).then(() => {
             sessionStorage.setItem('cal_oauth_done', '1')
+          })
+        }
+
+        if (
+          session?.provider_refresh_token &&
+          sessionStorage.getItem('drive_oauth_pending') === '1'
+        ) {
+          sessionStorage.removeItem('drive_oauth_pending')
+          void onDriveToken?.({
+            refreshToken: session.provider_refresh_token,
+            accessToken: session.provider_token ?? '',
+            email: session.user.email ?? '',
+          }).then(() => {
+            sessionStorage.setItem('drive_oauth_done', '1')
           })
         }
       }

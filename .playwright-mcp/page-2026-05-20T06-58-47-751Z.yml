@@ -1,0 +1,144 @@
+- generic [ref=e1]:
+  - generic [ref=e36]:
+    - banner [ref=e37]:
+      - img [ref=e39]:
+        - generic [ref=e45]: blu
+      - generic [ref=e47]: Início / Bom dia ☀️
+      - generic [ref=e48]:
+        - button "🌙" [ref=e242] [cursor=pointer]
+        - button [ref=e50] [cursor=pointer]:
+          - img [ref=e51]
+        - button [active] [ref=e54] [cursor=pointer]:
+          - img [ref=e55]
+        - generic "cid.lucas@gmail.com" [ref=e60] [cursor=pointer]: CI
+    - complementary [ref=e61]:
+      - img [ref=e64] [cursor=pointer]
+      - img [ref=e68] [cursor=pointer]
+      - img [ref=e72] [cursor=pointer]
+      - img [ref=e76] [cursor=pointer]
+      - img [ref=e80] [cursor=pointer]
+      - img [ref=e84] [cursor=pointer]
+      - img [ref=e88] [cursor=pointer]
+      - img [ref=e92] [cursor=pointer]
+      - generic [ref=e94]:
+        - img [ref=e97] [cursor=pointer]
+        - img [ref=e101] [cursor=pointer]
+        - img [ref=e105] [cursor=pointer]
+    - main [ref=e107]:
+      - generic [ref=e109]:
+        - generic [ref=e110]:
+          - generic [ref=e111]:
+            - generic [ref=e112]: ⚡
+            - generic [ref=e113]: Decidir Agora
+            - generic [ref=e114]: Tudo resolvido ✓
+            - generic [ref=e115] [cursor=pointer]: Ver todas →
+          - generic [ref=e118]:
+            - generic [ref=e119]: ✓
+            - generic [ref=e120]: Tudo em dia
+            - generic [ref=e121]: Nenhuma decisão pendente no momento. O Blu irá notificá-lo quando precisar de sua atenção.
+        - generic [ref=e122]:
+          - generic "Arraste para redimensionar" [ref=e123]
+          - generic [ref=e124]:
+            - generic [ref=e125] [cursor=pointer]:
+              - generic [ref=e126]: 📋
+              - generic [ref=e127]: Plano de Hoje
+              - generic [ref=e128]: Agenda →
+              - generic [ref=e129]: ▾
+            - generic [ref=e132]:
+              - generic [ref=e133]: Conecte o Google Calendar para ver seus compromissos de hoje.
+              - button "Conectar Google Calendar" [ref=e134] [cursor=pointer]:
+                - img [ref=e135]
+                - text: Conectar Google Calendar
+          - generic [ref=e138]:
+            - generic [ref=e139] [cursor=pointer]:
+              - generic [ref=e140]: 🔮
+              - generic [ref=e141]: Visão da Semana
+              - generic [ref=e142]: ▾
+            - generic [ref=e144]:
+              - generic [ref=e243] [cursor=pointer]:
+                - generic [ref=e244]: Qua
+                - generic [ref=e245]: Hoje
+                - generic [ref=e246]: —
+              - generic [ref=e247] [cursor=pointer]:
+                - generic [ref=e248]: Qui
+                - generic [ref=e249]: —
+                - generic [ref=e250]: —
+              - generic [ref=e251] [cursor=pointer]:
+                - generic [ref=e252]: Sex
+                - generic [ref=e253]: —
+                - generic [ref=e254]: —
+              - generic [ref=e255] [cursor=pointer]:
+                - generic [ref=e256]: Sáb
+                - generic [ref=e257]: —
+                - generic [ref=e258]: —
+              - generic [ref=e259] [cursor=pointer]:
+                - generic [ref=e260]: Dom
+                - generic [ref=e261]: —
+                - generic [ref=e262]: —
+              - button "Conectar Google Calendar" [ref=e165] [cursor=pointer]:
+                - img [ref=e166]
+                - text: Conectar Google Calendar
+        - generic [ref=e169]:
+          - generic [ref=e170] [cursor=pointer]:
+            - generic [ref=e171]: 📈
+            - generic [ref=e172]:
+              - generic [ref=e173]: commercial
+              - generic [ref=e174]: Taxa de recorrência estável em 60%
+          - generic [ref=e175] [cursor=pointer]:
+            - generic [ref=e176]: ⚠️
+            - generic [ref=e177]:
+              - generic [ref=e178]: inventory
+              - generic [ref=e179]: Ausência de dados de estoque
+          - generic [ref=e180] [cursor=pointer]:
+            - generic [ref=e181]: 💡
+            - generic [ref=e182]:
+              - generic [ref=e183]: commercial
+              - generic [ref=e184]: Alto crescimento da receita de 193%
+          - generic [ref=e185] [cursor=pointer]:
+            - generic [ref=e186]:
+              - text: 📊 Números
+              - generic [ref=e187]: →
+            - generic [ref=e188]:
+              - generic [ref=e189]:
+                - generic [ref=e190]: 149157.6K
+                - generic [ref=e191]: Faturamento
+                - generic [ref=e192]: ↑ 118.8%
+              - generic [ref=e193]:
+                - generic [ref=e194]: —
+                - generic [ref=e195]: Margem
+              - generic [ref=e196]:
+                - generic [ref=e197]: "336"
+                - generic [ref=e198]: Clientes
+                - generic [ref=e199]: ↑ 157
+          - generic [ref=e200] [cursor=pointer]:
+            - generic [ref=e201]: ⚙ Rotinas
+            - generic [ref=e202]:
+              - generic [ref=e204]: Plano do Dia
+              - generic [ref=e205]: estrategia
+            - generic [ref=e206]:
+              - generic [ref=e208]: Radar de Prazos
+              - generic [ref=e209]: agenda
+            - generic [ref=e210]:
+              - generic [ref=e212]: Digest do Fim de Dia
+              - generic [ref=e213]: estrategia
+            - generic [ref=e214]:
+              - generic [ref=e216]: Sincronização da Manhã
+              - generic [ref=e217]: estrategia
+    - generic [ref=e219]:
+      - generic [ref=e220]:
+        - generic [ref=e221]: 🤖
+        - generic [ref=e222]:
+          - generic [ref=e223]: Agente blu
+          - generic [ref=e224]: Configuração inicial
+        - button "✕" [ref=e225] [cursor=pointer]
+      - generic [ref=e226]:
+        - generic [ref=e227]: Oi, Cid! Sou seu agente. Vou te ajudar a configurar seu escritório. Pode ser rápido?
+        - generic [ref=e228]:
+          - button "Só eu" [ref=e229] [cursor=pointer]
+          - button "Eu e um sócio" [ref=e230] [cursor=pointer]
+          - button "Tenho uma equipe" [ref=e231] [cursor=pointer]
+      - generic [ref=e232]:
+        - textbox "Responda ou escolha acima…" [ref=e233]
+        - button "➤" [ref=e234] [cursor=pointer]
+  - button "Abrir assistente" [ref=e235] [cursor=pointer]:
+    - img [ref=e236]

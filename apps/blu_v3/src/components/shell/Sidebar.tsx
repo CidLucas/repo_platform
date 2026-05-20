@@ -1,29 +1,36 @@
 import { useState, useMemo } from 'react'
+import {
+  House, ShoppingCart, ChartBar, CalendarDots,
+  PencilSimpleLine, Target, UsersThree, Books,
+  Bell, Gear, Monitor,
+} from '@phosphor-icons/react'
 import { useAppStore, Screen } from '../../store/appStore'
 import { usePendingApprovals } from '../../hooks/useApprovals'
 
 interface NavItem {
   s: Screen
-  icon: string
+  icon: React.ReactNode
   label: string
 }
 
+const ICON_SIZE = 22
+const ICON_WEIGHT = 'regular' as const
+
 const NAV_ITEMS: NavItem[] = [
-  { s: 'home',       icon: '🏠', label: 'Início' },
-  { s: 'compras',    icon: '🛒', label: 'Compras' },
-  { s: 'financeiro', icon: '📊', label: 'Financeiro' },
-  { s: 'agenda',     icon: '📅', label: 'Agenda' },
-  { s: 'documentos', icon: '✍️', label: 'Documentos' },
-  { s: 'estrategia', icon: '🎯', label: 'Estratégia' },
-  { s: 'agentes',    icon: '🤖', label: 'Agentes' },
-  { s: 'clientes',   icon: '👥', label: 'Clientes' },
-  { s: 'biblioteca', icon: '📚', label: 'Biblioteca' },
+  { s: 'home',       icon: <House       size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Início' },
+  { s: 'compras',    icon: <ShoppingCart size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Compras' },
+  { s: 'financeiro', icon: <ChartBar    size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Financeiro' },
+  { s: 'agenda',     icon: <CalendarDots size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Agenda' },
+  { s: 'documentos', icon: <PencilSimpleLine size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Documentos' },
+  { s: 'estrategia', icon: <Target      size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Estratégia' },
+  { s: 'clientes',   icon: <UsersThree  size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Clientes' },
+  { s: 'biblioteca', icon: <Books       size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Biblioteca' },
 ]
 
 const FOOT_ITEMS: NavItem[] = [
-  { s: 'atividade', icon: '🔔', label: 'Atividade' },
-  { s: 'admin',     icon: '⚙️', label: 'Admin' },
-  { s: 'blu_ops',   icon: '🖥️', label: 'AgentOps' },
+  { s: 'atividade', icon: <Bell    size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Atividade' },
+  { s: 'admin',     icon: <Gear    size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Admin' },
+  { s: 'blu_ops',   icon: <Monitor size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'AgentOps' },
 ]
 
 export default function Sidebar() {
@@ -61,7 +68,7 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className="sidebar">
+      <aside className="sidebar" data-spotlight-target="sidebar">
         {NAV_ITEMS.map(renderDesktopItem)}
         <div className="sb-foot">
           {FOOT_ITEMS.map(renderDesktopItem)}

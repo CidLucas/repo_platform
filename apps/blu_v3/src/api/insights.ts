@@ -1,5 +1,53 @@
 import { supabase } from './client'
 
+// ─── KPI label formatter ──────────────────────────────────────────────────────
+
+const KPI_LABELS: Record<string, string> = {
+  // Finance
+  receita_liquida: 'Receita Líquida',
+  receita_bruta: 'Receita Bruta',
+  margem_bruta: 'Margem Bruta',
+  margem_liquida: 'Margem Líquida',
+  crescimento_receita_perc: 'Crescimento de Receita',
+  lucro_liquido: 'Lucro Líquido',
+  ebitda: 'EBITDA',
+  cac: 'Custo de Aquisição',
+  churn_rate: 'Taxa de Churn',
+  inadimplencia: 'Inadimplência',
+  fluxo_caixa: 'Fluxo de Caixa',
+  ticket_medio: 'Ticket Médio',
+  // Supply / Inventory
+  stockout_rate_perc: 'Taxa de Ruptura',
+  giro_estoque: 'Giro de Estoque',
+  prazo_reposicao: 'Prazo de Reposição',
+  cobertura_estoque: 'Cobertura de Estoque',
+  pedidos_atrasados: 'Pedidos Atrasados',
+  nivel_servico: 'Nível de Serviço',
+  // Commercial / Clients
+  clientes_ativos: 'Clientes Ativos',
+  novos_clientes: 'Novos Clientes',
+  clientes_inativos: 'Clientes Inativos',
+  retencao: 'Retenção',
+  nps: 'NPS',
+  taxa_conversao: 'Taxa de Conversão',
+  // Strategy
+  roi: 'ROI',
+  payback: 'Payback',
+  market_share: 'Market Share',
+}
+
+/** Convert a raw KPI slug to a human-readable Portuguese label. */
+export function formatKpi(kpi: string | null | undefined): string {
+  if (!kpi) return 'Insight'
+  if (KPI_LABELS[kpi]) return KPI_LABELS[kpi]
+  // Fallback: snake_case → Title Case
+  return kpi
+    .replace(/_perc$/, ' %')
+    .split('_')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
 export interface ClientInsight {
   id: string
   dimension: string | null

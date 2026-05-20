@@ -20,45 +20,59 @@ Blu is a multi-tenant AI data platform focused on:
 - Agent orchestration with tool calling through MCP
 - Secure tenant isolation through JWT and RLS
 
+## Agent System Architecture
+
+The platform uses a **4-layer progressive context disclosure** model:
+
+```
+L4  Orchestrator    decomposes multi-step requests → plans → routes to specialists
+L3  Specialists     domain experts (frontdesk, context-gatherer, …)
+L2  Skills          ephemeral tool bundles dispatched by L3 via SkillFactory
+L1  Tools           stateless MCP tools called through tool_pool_api
+```
+
+Entry point is the **Frontdesk** L3 agent. Simple requests are resolved inline;
+complex multi-domain requests are handed to the L4 Orchestrator which plans and
+executes steps sequentially across multiple L3 specialists.
+
+See `docs/agent_system_map.md` for the full reference (graphs, nodes, prompts, tools).
+
 ## Repository Layout
 
 ```text
 apps/
+  blu_v3/                 Main React frontend (dashboard + chat)
   hitl_dashboard/         Streamlit app for human-in-the-loop operations
   landing/                Landing web app
-  blu_dashboard/         Main React dashboard
 
 services/
-  atendente_core/         Main orchestration API (LangGraph-based)
+  agent_api/              Primary agent orchestration service (LangGraph-based)
   file_upload_api/        File upload and document processing API
-  standalone_agent_api/   Standalone agent API
   tool_pool_api/          MCP tool server API
 
 libs/
-  blu_agent_framework/
-  blu_auth/
-  blu_context_service/
-  blu_data_connectors/
-  blu_db_connector/
-  blu_elicitation_service/
-  blu_experiment_service/
-  blu_google_suite_client/
-  blu_hitl_service/
-  blu_llm_service/
-  blu_models/
-  blu_observability_bootstrap/
-  blu_parsers/
-  blu_prompt_management/
-  blu_rag_factory/
-  blu_shared_utils/
-  blu_sql_factory/
-  blu_supabase_client/
-  blu_tool_registry/
-  blu_twilio_client/
+  blu_agent_framework/    4-layer agent framework (builder, nodes, orchestrator, skills)
+  blu_auth/               JWT auth and MCP middleware
+  blu_context_service/    Redis-cached client context loader
+  blu_data_connectors/    External data source connectors
+  blu_db_connector/       Database client and SQL safety
+  blu_elicitation_service/ Structured user input collection
+  blu_google_suite_client/ Google Sheets / Drive integration
+  blu_llm_service/        LLM client factory (multi-provider)
+  blu_models/             Shared Pydantic models
+  blu_observability_bootstrap/ Langfuse + OpenTelemetry setup
+  blu_parsers/            Document parsers
+  blu_prompt_management/  Langfuse-first prompt loader with builtin fallback
+  blu_rag_factory/        Hybrid RAG pipeline
+  blu_shared_utils/       Shared utilities
+  blu_sql_factory/        Text-to-SQL with safety controls
+  blu_supabase_client/    Supabase client wrapper
+  blu_tool_registry/      Tool catalog and tier-based access control
+  blu_twilio_client/      WhatsApp (Twilio) integration
 
 supabase/
   migrations/             SQL migrations
-  functions/              Edge Functions
+  functions/              Edge Functions (Deno)
 
 docs/                     Internal documentation and plans
 scripts/                  Utility, seed, and automation scripts
@@ -67,12 +81,15 @@ tests/                    Cross-service and integration tests
 
 ## Architecture at a Glance
 
-1. Frontend apps call service APIs.
-2. `atendente_core` orchestrates requests, context, and agent/tool routes.
-3. `tool_pool_api` exposes MCP tools used by agents.
-4. Shared libraries provide reusable logic for auth, SQL safety, RAG, and connectors.
-5. Supabase stores application data and enforces tenant isolation (RLS).
-6. Redis supports caching and agent runtime state.
+1. Frontend (`apps/blu_v3`) calls `agent_api` for chat and agent interactions.
+2. `agent_api` builds and caches LangGraph graphs via `UnifiedAgentFactory`.
+3. Agents call tools through `tool_pool_api` via MCP protocol.
+4. `blu_agent_framework` provides the graph nodes, orchestrator, skill system, and state.
+5. `blu_tool_registry` enforces tier-based tool access.
+6. `blu_prompt_management` loads prompts from Langfuse with builtin fallback.
+7. `blu_context_service` provides Redis-cached client context to every agent turn.
+8. Supabase stores application data and enforces tenant isolation (RLS).
+9. Redis supports agent state checkpointing and context caching.
 
 ## Tech Stack
 

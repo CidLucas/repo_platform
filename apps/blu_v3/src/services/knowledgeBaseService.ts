@@ -55,6 +55,7 @@ export type KBCategory = (typeof KB_CATEGORIES)[number]['value']
 
 const STORAGE_BUCKET = 'knowledge-base'
 const ALWAYS_COMPLEX_EXTENSIONS = new Set(['.pptx', '.xlsx'])
+const CSV_EXTENSIONS = new Set(['.csv', '.tsv'])
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -68,6 +69,10 @@ export function isComplexFile(fileName: string, forceComplex = false): boolean {
   if (ALWAYS_COMPLEX_EXTENSIONS.has(ext)) return true
   if (forceComplex && (ext === '.pdf' || ext === '.docx')) return true
   return false
+}
+
+export function isCsvFile(fileName: string): boolean {
+  return CSV_EXTENSIONS.has(getExtension(fileName))
 }
 
 export function getAcceptedExtensions(): string {
@@ -275,6 +280,36 @@ export async function uploadFile(
     return uploadComplexFile(file, clientId, source, { ...options, forceComplex })
   }
   return uploadSimpleFile(file, clientId, source, options)
+}
+
+export interface CsvUploadResult {
+  source_id: string
+  columns: number
+  file_name: string
+}
+
+export async function uploadCsvDataSource(
+  file: File,
+  clientId: string,
+): Promise<CsvUploadResult> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('client_id', clientId)
+  form.append('schema_type', 'invoices')
+
+  const { data, error } = await supabase.functions.invoke('upload-csv-source', {
+    body: form,
+  })
+
+  if (error || !data?.source_id) {
+    throw new Error(error?.message ?? 'Erro ao processar CSV como fonte de dados')
+  }
+
+  return {
+    source_id: data.source_id,
+    columns: (data.columns as unknown[])?.length ?? 0,
+    file_name: data.file_name ?? file.name,
+  }
 }
 
 export async function retryDocument(doc: KBDocument): Promise<void> {

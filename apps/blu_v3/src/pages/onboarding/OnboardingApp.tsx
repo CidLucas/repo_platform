@@ -2,8 +2,51 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import * as XLSX from 'xlsx'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth, supabase } from '@blu/auth'
+import { connectGoogleDrive } from '../../api/agenda'
 import { useOnboardingDraft, VERTICAL_MAP, PORTE_MAP, type OnboardingDraft } from '../../hooks/useOnboardingDraft'
 import { createCredential, createBigQueryCredentialWithDiscovery, type ConnectorPlatform, type CredentialPayload, type BigQueryCredentials } from '../../api/connectors'
+import { useAppStore } from '../../store/appStore'
+
+// Google Picker API — loaded dynamically, minimal types
+declare global {
+  interface Window {
+    gapi: { load: (api: string, cb: () => void) => void }
+    google: {
+      picker: {
+        PickerBuilder: new () => {
+          addView: (v: unknown) => unknown
+          setOAuthToken: (t: string) => unknown
+          setDeveloperKey: (k: string) => unknown
+          setCallback: (cb: (data: { action: string; docs?: { id: string; name: string }[] }) => void) => unknown
+          build: () => { setVisible: (v: boolean) => void }
+        }
+        DocsView: new () => {
+          setIncludeFolders: (v: boolean) => unknown
+          setMimeTypes: (m: string) => unknown
+        }
+        Action: { PICKED: string; CANCEL: string }
+      }
+    }
+  }
+}
+
+const DRIVE_PICKER_MIME_TYPES = [
+  'application/vnd.google-apps.spreadsheet',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'text/csv',
+].join(',')
+
+function loadGapiScript(): Promise<void> {
+  if (typeof window.gapi !== 'undefined') return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://apis.google.com/js/api.js'
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Falha ao carregar Google API'))
+    document.head.appendChild(script)
+  })
+}
 
 interface PendingCredential {
   platform: ConnectorPlatform
@@ -27,12 +70,13 @@ const PRIMARY_FOCUS = [
   { id: 'outro',      label: 'Outro' },
 ]
 
-// Canonical field names for manual mapping in StepMapping unknown column dropdown
+// Canonical field names for manual mapping — must match CANONICAL_SCHEMAS.invoices in match-columns
 const CANONICAL_FIELDS = [
-  'date', 'customer_name', 'customer_id', 'product_name', 'product_id',
-  'sku', 'quantity', 'unit_price', 'total_amount', 'discount',
-  'invoice_number', 'supplier_name', 'supplier_id', 'category',
-  'payment_method', 'status', 'notes', 'city', 'state', 'country',
+  'documento', 'data_competencia_id', 'quantidade', 'valor_unitario', 'valor', 'status',
+  'tipo_lancamento', 'categoria', 'subcategoria',
+  'cliente_cpf_cnpj', 'cliente_nome', 'cliente_telefone', 'cliente_cidade', 'cliente_uf',
+  'fornecedor_cnpj', 'fornecedor_nome', 'fornecedor_telefone', 'fornecedor_cidade', 'fornecedor_uf',
+  'produto_sku', 'produto_nome',
 ]
 
 const VERTICAL_DISPLAY: Record<string, string> = {
@@ -63,11 +107,13 @@ type SystemConfig = {
 }
 
 const SYSTEMS: SystemConfig[] = [
-  { id: 'bigquery', icon: '📊', name: 'BigQuery', sub: 'Data warehouse', connector: 'bigquery' },
-  { id: 'shopify', icon: '🛍', name: 'Shopify', sub: 'E-commerce', connector: 'shopify', comingSoon: true },
-  { id: 'vtex', icon: '🔷', name: 'VTEX', sub: 'E-commerce', connector: 'vtex', comingSoon: true },
-  { id: 'postgresql', icon: '🐘', name: 'PostgreSQL', sub: 'Banco de dados', connector: 'postgresql', comingSoon: true },
-  { id: 'conta_azul', icon: '📋', name: 'Conta Azul', sub: 'ERP / NF-e', connector: 'conta_azul', comingSoon: true },
+  { id: 'bigquery',   icon: '📊', name: 'BigQuery',   sub: 'Data warehouse', connector: 'bigquery' },
+  { id: 'bling',      icon: '📦', name: 'Bling',      sub: 'ERP / NF-e',     connector: null, comingSoon: true },
+  { id: 'omie',       icon: '⚙️', name: 'Omie',       sub: 'ERP',            connector: null, comingSoon: true },
+  { id: 'shopify',    icon: '🛍', name: 'Shopify',    sub: 'E-commerce',     connector: 'shopify', comingSoon: true },
+  { id: 'vtex',       icon: '🔷', name: 'VTEX',       sub: 'E-commerce',     connector: 'vtex', comingSoon: true },
+  { id: 'postgresql', icon: '🐘', name: 'PostgreSQL', sub: 'Banco de dados',  connector: 'postgresql', comingSoon: true },
+  { id: 'conta_azul', icon: '📋', name: 'Conta Azul', sub: 'ERP / NF-e',     connector: 'conta_azul', comingSoon: true },
 ]
 
 // ─── Column mapping types (from match-columns edge function) ──────────────────
@@ -109,7 +155,21 @@ async function callMatchColumns(sourceColumns: string[]): Promise<ColumnMappingR
   }
 }
 
-function parseSpreadsheetHeaders(file: File): Promise<string[]> {
+// Keywords that strongly suggest "main transaction sheet".
+// Accent-stripped, lowercase — compared against normalised sheet names.
+const TRANSACTION_SHEET_KEYWORDS = [
+  'lancamentos', 'lancamento', 'faturamento', 'fatura', 'faturas',
+  'transacoes', 'transacao', 'entradas', 'saidas', 'movimentacao',
+  'movimentacoes', 'despesas', 'receitas', 'vendas', 'compras',
+  'financeiro', 'pagamentos', 'pagamento', 'notas', 'registros',
+]
+
+function scoreSheetName(name: string): number {
+  const n = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  return TRANSACTION_SHEET_KEYWORDS.some(kw => n.includes(kw)) ? 1 : 0
+}
+
+function parseSpreadsheetHeaders(file: File): Promise<{ headers: string[]; sheetName: string }> {
   const isXlsx = /\.(xlsx|xls)$/i.test(file.name)
 
   if (isXlsx) {
@@ -118,33 +178,87 @@ function parseSpreadsheetHeaders(file: File): Promise<string[]> {
       reader.onload = (e) => {
         try {
           const data = new Uint8Array(e.target?.result as ArrayBuffer)
-          const wb = XLSX.read(data, { type: 'array', sheetRows: 1 })
-          const ws = wb.Sheets[wb.SheetNames[0]]
-          const rows = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, defval: '' })
-          const headers = (rows[0] ?? []).map((h: unknown) => String(h).trim()).filter(Boolean)
-          resolve(headers)
+          const wb = XLSX.read(data, { type: 'array', sheetRows: 12 })
+          // Score each sheet: name-keyword match wins; row count breaks ties.
+          // sheetRows: 12 caps all large sheets at 12, so name score must be primary.
+          const sheetScores = wb.SheetNames.map(name => {
+            const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: '' })
+            return { name, score: scoreSheetName(name), rowCount: rows.length }
+          })
+          sheetScores.sort((a, b) => b.score - a.score || b.rowCount - a.rowCount)
+          const bestSheet = sheetScores[0]?.name ?? wb.SheetNames[0]
+          const ws = wb.Sheets[bestSheet]
+          const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+          // Find the row with the most non-empty cells in the first 10 rows
+          const searchRows = rows.slice(0, 10)
+          const headerIdx = searchRows.reduce((bestIdx, row, i) => {
+            const count = (row as unknown[]).filter((c) => String(c).trim() !== '').length
+            const bestCount = (searchRows[bestIdx] as unknown[]).filter((c) => String(c).trim() !== '').length
+            return count > bestCount ? i : bestIdx
+          }, 0)
+          const headers = ((rows[headerIdx] ?? []) as unknown[]).map((h: unknown) => String(h).trim()).filter(Boolean)
+          resolve({ headers, sheetName: bestSheet })
         } catch {
-          resolve([])
+          resolve({ headers: [], sheetName: '' })
         }
       }
-      reader.onerror = () => resolve([])
+      reader.onerror = () => resolve({ headers: [], sheetName: '' })
       reader.readAsArrayBuffer(file)
     })
   }
 
-  // CSV — detect delimiter (semicolon or comma) and strip quotes
+  // CSV — detect delimiter (semicolon or comma) and strip quotes, skip title row
   return new Promise((resolve) => {
     const reader = new FileReader()
     reader.onload = (e) => {
       const text = e.target?.result as string ?? ''
-      const firstLine = text.split(/\r?\n/)[0] ?? ''
-      const delim = firstLine.includes(';') ? ';' : ','
-      const headers = firstLine.split(delim).map(h => h.replace(/^"|"$/g, '').trim()).filter(Boolean)
-      resolve(headers)
+      const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '')
+      const candidate = lines.length > 1 ? lines[1] : lines[0] ?? ''
+      const delim = candidate.includes(';') ? ';' : ','
+      // Find the row with the most non-empty columns in the first 10 lines
+      const searchLines = lines.slice(0, 10)
+      const headerLineIdx = searchLines.reduce((bestIdx, line, i) => {
+        const count = line.split(delim).filter((c) => c.replace(/^"|"$/g, '').trim() !== '').length
+        const bestCount = searchLines[bestIdx].split(delim).filter((c) => c.replace(/^"|"$/g, '').trim() !== '').length
+        return count > bestCount ? i : bestIdx
+      }, 0)
+      const headers = (searchLines[headerLineIdx] ?? '').split(delim).map(h => h.replace(/^"|"$/g, '').trim()).filter(Boolean)
+      resolve({ headers, sheetName: '' })
     }
-    reader.onerror = () => resolve([])
+    reader.onerror = () => resolve({ headers: [], sheetName: '' })
     reader.readAsText(file)
   })
+}
+
+// ─── ScrapeField ─────────────────────────────────────────────────────────────
+// Animated typing reveal for website intel results
+
+function ScrapeField({ label, value, delay = 0 }: { label: string; value: string; delay?: number }) {
+  const [displayed, setDisplayed] = useState('')
+  const [typing, setTyping] = useState(false)
+
+  useEffect(() => {
+    if (!value) { setDisplayed(''); return }
+    setDisplayed('')
+    setTyping(true)
+    const startTimer = setTimeout(() => {
+      let i = 0
+      const interval = setInterval(() => {
+        i++
+        setDisplayed(value.slice(0, i))
+        if (i >= value.length) { clearInterval(interval); setTyping(false) }
+      }, 22)
+      return () => clearInterval(interval)
+    }, delay)
+    return () => clearTimeout(startTimer)
+  }, [value, delay])
+
+  return (
+    <div className="scrape-field">
+      <div className="slabel">{label}</div>
+      <div className={`svalue${typing ? ' typing' : ''}`}>{displayed || ' '}</div>
+    </div>
+  )
 }
 
 // ─── FlowTop ──────────────────────────────────────────────────────────────────
@@ -221,6 +335,7 @@ function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signu
       <FlowTop step="auth" />
       <div className="flow-body">
         <div className="flow-card">
+          <div className="fc-step">PASSO 1 DE 4</div>
           <div className="fc-h">{isLogin ? 'Bem-vindo de volta' : 'Boas-vindas ao blu'}</div>
           <div className="fc-sub">
             {isLogin
@@ -383,6 +498,7 @@ function StepInfo({
       <FlowTop step="info" onBack={onBack} />
       <div className="flow-body">
         <div className="flow-card">
+          <div className="fc-step">PASSO 2 DE 4</div>
           <div className="fc-h">Sobre a sua empresa</div>
           <div className="fc-sub">O blu usa estas informações para calibrar os agentes ao seu negócio.</div>
           <div className="row2">
@@ -404,45 +520,63 @@ function StepInfo({
               onChange={e => { setWebsite(e.target.value); setSiteContext(null) }}
               onBlur={handleWebsiteBlur}
             />
-            {detecting && <div style={{ fontSize: 11.5, color: 'var(--muted)', marginTop: 4 }}>Analisando site…</div>}
+            {detecting && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 8, fontSize: 12.5, color: 'var(--muted2)' }}>
+                <div className="spin-sm" />
+                Seu agente está olhando seu site…
+              </div>
+            )}
           </div>
 
-          {/* Context card: shown after website-intel returns results */}
+          {/* Scrape panel: shown after website-intel returns results */}
           {siteContext && (
-            <div style={{
-              margin: '4px 0 8px',
-              padding: '12px 14px',
-              background: 'var(--blue-tint, rgba(59,130,246,.06))',
-              border: '1px solid rgba(59,130,246,.18)',
-              borderRadius: 'var(--rl)',
-            }}>
-              <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--blue3)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                ✦ Encontramos algumas informações sobre sua empresa
-                <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--muted)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 10 }}>
+            <div className="scrape-panel" style={{ margin: '0 0 4px' }}>
+              <div className="scrape-h">
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Encontrei sua empresa. Já anotei.
+                <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--muted)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 10, marginLeft: 2 }}>
                   {Math.round(siteContext.confidence * 100)}% de confiança
                 </span>
               </div>
-              {siteContext.company_name && (
-                <div style={{ fontSize: 12.5, color: 'var(--muted2)', marginBottom: 4 }}>
-                  Empresa detectada: <strong style={{ color: 'var(--fg)' }}>{siteContext.company_name}</strong>
+
+              {siteContext.confidence < 0.5 && (
+                <div className="scrape-warn">
+                  Confiança baixa — revise os campos abaixo
                 </div>
               )}
-              {siteContext.vertical && (
-                <div style={{ fontSize: 12.5, color: 'var(--muted2)', marginBottom: 10 }}>
-                  Setor sugerido: <strong style={{ color: 'var(--fg)' }}>{VERTICAL_DISPLAY[siteContext.vertical] ?? siteContext.vertical}</strong>
-                  <span style={{ marginLeft: 6, color: 'var(--muted)', fontSize: 11.5 }}>— confirme abaixo se correto</span>
-                </div>
-              )}
-              {/* Contextual questions — these seed the mind map via the context-gatherer post-launch */}
-              <div style={{ borderTop: '1px solid rgba(59,130,246,.12)', paddingTop: 10, marginTop: 2 }}>
-                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 8 }}>
-                  Duas perguntas rápidas para contextualizar seus agentes:
+
+              <div className="scrape-grid">
+                {siteContext.company_name && (
+                  <ScrapeField label="Empresa" value={siteContext.company_name} delay={0} />
+                )}
+                {siteContext.vertical && (
+                  <ScrapeField
+                    label="Setor detectado"
+                    value={VERTICAL_DISPLAY[siteContext.vertical] ?? siteContext.vertical}
+                    delay={250}
+                  />
+                )}
+                {siteContext.suggested_agents && siteContext.suggested_agents.length > 0 && (
+                  <ScrapeField
+                    label="Agentes sugeridos"
+                    value={siteContext.suggested_agents.slice(0, 3).join(', ')}
+                    delay={500}
+                  />
+                )}
+              </div>
+
+              {/* Contextual questions — feed saveDraft via produtoServico + primaryFocus */}
+              <div style={{ borderTop: '1px solid var(--gb)', paddingTop: 14, marginTop: 4 }}>
+                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 10 }}>
+                  Duas perguntas para calibrar seus agentes:
                 </div>
                 <div className="field" style={{ marginBottom: 10 }}>
-                  <label style={{ fontSize: 12 }}>Qual é o principal produto ou serviço que você oferece?</label>
+                  <label style={{ fontSize: 12 }}>Principal produto ou serviço</label>
                   <input
                     type="text"
-                    placeholder="ex: Software de gestão, Móveis planejados, Consultoria financeira"
+                    placeholder="ex: Software de gestão, Móveis planejados, Consultoria"
                     value={produtoServico}
                     onChange={e => setProdutoServico(e.target.value)}
                     style={{ marginTop: 4 }}
@@ -452,11 +586,7 @@ function StepInfo({
                   <label style={{ fontSize: 12 }}>Foco atual do negócio</label>
                   <div className="radio-pills" style={{ marginTop: 4 }}>
                     {PRIMARY_FOCUS.map(f => (
-                      <div
-                        key={f.id}
-                        className={`rp${primaryFocus === f.id ? ' on' : ''}`}
-                        onClick={() => setPrimaryFocus(f.id)}
-                      >
+                      <div key={f.id} className={`rp${primaryFocus === f.id ? ' on' : ''}`} onClick={() => setPrimaryFocus(f.id)}>
                         {f.label}
                       </div>
                     ))}
@@ -753,7 +883,7 @@ function CredentialForm({
 // ─── StepData ─────────────────────────────────────────────────────────────────
 
 function StepData({
-  onNext, onBack, onSkip, saveDraft, onMappingReady, onCredentialCollected,
+  onNext, onBack, onSkip, saveDraft, onMappingReady, onCredentialCollected, onCsvFileReady, onDriveFileReady,
 }: {
   onNext: () => void
   onBack: () => void
@@ -761,6 +891,8 @@ function StepData({
   saveDraft: (patch: Partial<OnboardingDraft>) => Promise<void>
   onMappingReady: (result: ColumnMappingResult | null) => void
   onCredentialCollected: (platform: ConnectorPlatform, nomServico: string, credentials: CredentialPayload) => void
+  onCsvFileReady: (file: File | null, sheetName?: string) => void
+  onDriveFileReady: (fileId: string) => void
 }) {
   const [connected, setConnected] = useState<Record<string, boolean>>({})
   const [interested, setInterested] = useState<Record<string, boolean>>({})
@@ -769,6 +901,101 @@ function StepData({
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   const [csvFileName, setCsvFileName] = useState<string>('')
   const csvRef = useRef<HTMLInputElement>(null)
+  const [driveOpen, setDriveOpen] = useState(false)
+  const [driveUrl, setDriveUrl] = useState('')
+  const [driveConnected, setDriveConnected] = useState(false)
+  const [driveFileLabel, setDriveFileLabel] = useState('')
+  const [driveError, setDriveError] = useState<string | null>(null)
+  const [pickerLoading, setPickerLoading] = useState(false)
+
+  function extractDriveFileId(urlOrId: string): string | null {
+    const dMatch = urlOrId.match(/\/d\/([a-zA-Z0-9_-]{25,})/)
+    if (dMatch) return dMatch[1]
+    const idMatch = urlOrId.match(/[?&]id=([a-zA-Z0-9_-]{25,})/)
+    if (idMatch) return idMatch[1]
+    if (/^[a-zA-Z0-9_-]{25,44}$/.test(urlOrId.trim())) return urlOrId.trim()
+    return null
+  }
+
+  function handleDriveUrlSubmit() {
+    const fileId = extractDriveFileId(driveUrl.trim())
+    if (!fileId) {
+      setDriveError('URL inválida. Cole o link de compartilhamento do Google Sheets ou Drive.')
+      return
+    }
+    setDriveError(null)
+    setDriveConnected(true)
+    setDriveFileLabel(fileId.slice(0, 24) + '…')
+    setDriveOpen(false)
+    onDriveFileReady(fileId)
+  }
+
+  async function handleOpenPicker() {
+    setPickerLoading(true)
+    setDriveError(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.provider_token
+
+      if (!accessToken) {
+        setDriveError('Sessão Google não encontrada. Cole o link do arquivo abaixo ou conecte o Google Drive na página Admin → Integrações.')
+        setPickerLoading(false)
+        return
+      }
+
+      // Test if the token actually has Drive scope before opening Picker.
+      // Regular Google sign-in only grants openid+email+profile — no Drive scope → Picker 403.
+      const scopeTest = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      if (!scopeTest.ok) {
+        // Token lacks Drive scope — redirect to OAuth with drive.readonly.
+        // The auth step will detect onboarding_returning_to_data on return
+        // and route back to this step instead of navigating to /app.
+        sessionStorage.setItem('onboarding_returning_to_data', '1')
+        await connectGoogleDrive(window.location.href)
+        return
+      }
+
+      await loadGapiScript()
+
+      await new Promise<void>((resolve) => window.gapi.load('picker', resolve))
+
+      const apiKey = import.meta.env.VITE_GOOGLE_PICKER_API_KEY ?? ''
+
+      await new Promise<void>((resolve) => {
+        const view = new window.google.picker.DocsView()
+          .setIncludeFolders(false)
+          .setMimeTypes(DRIVE_PICKER_MIME_TYPES)
+
+        const picker = new window.google.picker.PickerBuilder()
+          .addView(view)
+          .setOAuthToken(accessToken)
+          .setDeveloperKey(apiKey)
+          .setCallback((data) => {
+            if (data.action === window.google.picker.Action.PICKED && data.docs?.[0]) {
+              const { id, name } = data.docs[0]
+              setDriveConnected(true)
+              setDriveFileLabel(name)
+              setDriveOpen(false)
+              setDriveError(null)
+              onDriveFileReady(id)
+              resolve()
+            } else if (data.action === window.google.picker.Action.CANCEL) {
+              resolve()
+            }
+          })
+          .build()
+
+        picker.setVisible(true)
+      })
+    } catch (e) {
+      console.warn('[drive-picker]', e)
+      setDriveError('Falha ao abrir o Drive. Tente colar o link manualmente.')
+    } finally {
+      setPickerLoading(false)
+    }
+  }
 
   function handleTileClick(system: SystemConfig) {
     if (connected[system.id]) return
@@ -790,8 +1017,9 @@ function StepData({
     if (!file) return
     setCsvUploaded(true)
     setCsvFileName(file.name)
-    const headers = await parseSpreadsheetHeaders(file)
+    const { headers, sheetName } = await parseSpreadsheetHeaders(file)
     setCsvHeaders(headers)
+    onCsvFileReady(file, sheetName)
   }
 
   async function handleNext() {
@@ -813,6 +1041,7 @@ function StepData({
       <FlowTop step="data" onBack={onBack} />
       <div className="flow-body">
         <div className="flow-card" style={{ maxWidth: 600 }}>
+          <div className="fc-step">PASSO 3 DE 4</div>
           <div className="fc-h">Conecte seus dados</div>
           <div className="fc-sub">O blu aprende sobre seu negócio a partir dos seus dados. Escolha de onde vêm.</div>
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 10 }}>Sistemas</div>
@@ -870,15 +1099,62 @@ function StepData({
                   : 'CSV · XLSX · XLS'}
               </div>
             </div>
-            <div className="dsrc" style={{ position: 'relative', cursor: 'default', opacity: 0.7 }}>
-              <div style={{ position: 'absolute', top: 6, right: 6, fontSize: 9, fontWeight: 700, background: 'var(--surface2)', color: 'var(--muted)', padding: '2px 5px', borderRadius: 4 }}>
-                EM BREVE
-              </div>
+            <div
+              className={`dsrc${driveConnected ? ' connected' : ''}${driveOpen ? ' active' : ''}`}
+              onClick={() => { if (!driveConnected) setDriveOpen(prev => !prev) }}
+              style={{ cursor: driveConnected ? 'default' : 'pointer' }}
+            >
               <span className="dsrc-icon">🗂</span>
               <div className="dsrc-name">Google Drive</div>
-              <div className="dsrc-sub">Sheets · Docs</div>
+              <div className="dsrc-sub">
+                {driveConnected
+                  ? `✓ ${driveFileLabel || 'Arquivo pronto'}`
+                  : 'Sheets · Excel'}
+              </div>
             </div>
           </div>
+          {driveOpen && (
+            <div style={{ marginTop: 16, padding: 16, background: 'var(--surface)', border: '1px solid var(--gb)', borderRadius: 'var(--rl)' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Conectar Google Drive</div>
+
+              {/* Primary action: open the file picker */}
+              <button
+                className="btn btn-primary"
+                style={{ width: '100%', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                onClick={handleOpenPicker}
+                disabled={pickerLoading}
+              >
+                {pickerLoading ? 'Abrindo Drive…' : '📂 Navegar no Drive'}
+              </button>
+
+              {/* Divider */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <div style={{ flex: 1, height: 1, background: 'var(--gb)' }} />
+                <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>ou cole o link</span>
+                <div style={{ flex: 1, height: 1, background: 'var(--gb)' }} />
+              </div>
+
+              <input
+                type="url"
+                placeholder="https://docs.google.com/spreadsheets/d/…"
+                value={driveUrl}
+                onChange={e => { setDriveUrl(e.target.value); setDriveError(null) }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 'var(--rl)', border: '1px solid var(--gb)', background: 'var(--surface2)', color: 'var(--fg)', fontSize: 13, marginBottom: 8 }}
+              />
+              {driveError && <div style={{ fontSize: 12, color: 'var(--urg)', marginBottom: 8 }}>{driveError}</div>}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-ghost" onClick={() => { setDriveOpen(false); setDriveError(null) }}>Cancelar</button>
+                <button
+                  className="btn btn-primary"
+                  style={{ flex: 1 }}
+                  disabled={!driveUrl.trim()}
+                  onClick={handleDriveUrlSubmit}
+                >
+                  Confirmar arquivo
+                </button>
+              </div>
+            </div>
+          )}
           <input
             ref={csvRef}
             type="file"
@@ -903,7 +1179,7 @@ function StepData({
 // ─── StepMapping ──────────────────────────────────────────────────────────────
 
 function StepMapping({
-  onNext, onBack, saveDraft, mappingResult, credentialId, clientId,
+  onNext, onBack, saveDraft, mappingResult, credentialId, clientId, csvSourceId,
 }: {
   onNext: () => void
   onBack: () => void
@@ -911,11 +1187,19 @@ function StepMapping({
   mappingResult: ColumnMappingResult | null
   credentialId: number | null
   clientId: string | null
+  csvSourceId: string | null
 }) {
-  const [openGroup, setOpenGroup] = useState<'auto' | 'warn' | 'unknown' | null>(null)
-  const [warnSelections, setWarnSelections] = useState<Record<string, string>>({})
+  const [openGroup, setOpenGroup] = useState<'auto' | 'warn' | 'unknown' | null>(() => {
+    if ((mappingResult?.needs_review?.length ?? 0) > 0) return 'warn'
+    if (Object.keys(mappingResult?.matched ?? {}).length > 0) return 'auto'
+    return null
+  })
+  // Pre-populate warn selections with each row's top candidate so they're included
+  // even if the user never opens the warn group.
+  const [warnSelections, setWarnSelections] = useState<Record<string, string>>(() =>
+    Object.fromEntries((mappingResult?.needs_review ?? []).map(r => [r.source, r.candidates[0]?.canonical ?? '']))
+  )
   const [unknownSelections, setUnknownSelections] = useState<Record<string, string>>({})
-  const [flagged, setFlagged] = useState<Record<string, boolean>>({})
   const [confirming, setConfirming] = useState(false)
 
   async function handleConfirm() {
@@ -924,21 +1208,55 @@ function StepMapping({
       await saveDraft({ mapping_confirmed: true })
 
       // Fire ETL job — non-blocking, navigate immediately
-      if (clientId && credentialId) {
-        const autoMatched: Record<string, string> = {}
-        for (const d of (mappingResult?.details ?? [])) {
-          if (d.auto_matched && d.canonical_column) autoMatched[d.source_column] = d.canonical_column
-        }
-        // Merge: auto → warn selections → manual unknown selections (skip 'ignorar')
-        const manualMapped = Object.fromEntries(
-          Object.entries(unknownSelections).filter(([, v]) => v && v !== 'ignorar')
-        )
-        const column_mapping = { ...autoMatched, ...warnSelections, ...manualMapped }
+      // Backend expects { canonical_field: source_column }
+      // match-columns returns matched as { source: canonical } — flip it
+      const autoMatched: Record<string, string> = {}
+      for (const [source, canonical] of Object.entries(mappingResult?.matched ?? {})) {
+        autoMatched[canonical] = source
+      }
+      // warnSelections state: { source_col: canonical } — flip to { canonical: source_col }
+      const warnMapped: Record<string, string> = {}
+      for (const [src, canonical] of Object.entries(warnSelections)) {
+        if (canonical && canonical !== 'ignorar') warnMapped[canonical] = src
+      }
+      // unknownSelections state: { source_col: canonical } — flip to { canonical: source_col }
+      const manualMapped = Object.fromEntries(
+        Object.entries(unknownSelections)
+          .filter(([, v]) => v && v !== 'ignorar')
+          .map(([src, canonical]) => [canonical, src])
+      )
+      const column_mapping = { ...autoMatched, ...warnMapped, ...manualMapped }
+
+      if (csvSourceId && clientId) {
+        supabase.functions
+          .invoke('run-csv-etl', {
+            body: { client_id: clientId, source_id: csvSourceId, column_mapping },
+          })
+          .then(({ error }) => {
+            if (error) {
+              console.error('[onboarding] run-csv-etl:', error)
+              useAppStore.getState().addToast('no', 'Erro ao importar planilha', 'Os dados não foram carregados. Acesse Configurações > Fontes para tentar novamente.')
+            }
+          })
+          .catch((e: unknown) => {
+            console.error('[onboarding] run-csv-etl:', e)
+            useAppStore.getState().addToast('no', 'Erro ao importar planilha', 'Os dados não foram carregados. Acesse Configurações > Fontes para tentar novamente.')
+          })
+      } else if (clientId && credentialId) {
         supabase.functions
           .invoke('run-sync-etl', {
             body: { client_id: clientId, credential_id: credentialId, column_mapping },
           })
-          .catch((e: unknown) => console.warn('[onboarding] run-sync-etl:', e))
+          .then(({ error }) => {
+            if (error) {
+              console.error('[onboarding] run-sync-etl:', error)
+              useAppStore.getState().addToast('no', 'Erro ao sincronizar dados', 'A sincronização falhou. Acesse Configurações > Fontes para tentar novamente.')
+            }
+          })
+          .catch((e: unknown) => {
+            console.error('[onboarding] run-sync-etl:', e)
+            useAppStore.getState().addToast('no', 'Erro ao sincronizar dados', 'A sincronização falhou. Acesse Configurações > Fontes para tentar novamente.')
+          })
       }
 
       onNext()
@@ -950,7 +1268,12 @@ function StepMapping({
   const toggle = (g: 'auto' | 'warn' | 'unknown') => setOpenGroup(prev => prev === g ? null : g)
 
   // Derive rows from real mapping result, or fall back to empty state
-  const autoRows = (mappingResult?.details ?? []).filter(d => d.auto_matched)
+  const autoRows = Object.entries(mappingResult?.matched ?? {}).map(([source, canonical]) => ({
+    source_column: source,
+    canonical_column: canonical as string,
+    confidence: mappingResult?.confidence_scores?.[source] ?? 0,
+    auto_matched: true,
+  }))
   const warnRows = (mappingResult?.needs_review ?? [])
   const unknownCols = mappingResult?.unmatched ?? []
 
@@ -960,17 +1283,18 @@ function StepMapping({
     <div className="flow-page map-page on">
       <FlowTop step="mapping" onBack={onBack} />
       <div className="map-body">
-        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-.03em', marginBottom: 5 }}>Revisão de mapeamento</div>
+        <div className="map-step">PASSO 4 DE 4</div>
+        <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-.03em', marginBottom: 7 }}>Confirmar mapeamento de colunas</div>
         <div style={{ fontSize: 14, color: 'var(--muted2)', marginBottom: 20 }}>
           {hasData
-            ? 'O blu mapeou automaticamente as colunas do seu arquivo para o esquema interno. Revise, corrija ou sinalize qualquer erro.'
+            ? 'Verificamos sua base e mapeamos automaticamente a maioria dos campos. Revise os que precisam de atenção.'
             : 'Nenhum arquivo conectado. Você pode confirmar e continuar, ou voltar para conectar uma fonte de dados.'}
         </div>
         <div className="map-summary">
           {hasData ? (
             <>
-              <div className="ms-chip ms-ok">✓ {autoRows.length} mapeados automaticamente</div>
-              {warnRows.length > 0 && <div className="ms-chip ms-warn">⚠ {warnRows.length} precisam de confirmação</div>}
+              <div className="ms-chip ms-ok">✓ {autoRows.length} mapeados</div>
+              {warnRows.length > 0 && <div className="ms-chip ms-warn">⚠ {warnRows.length} {warnRows.length === 1 ? 'pendente' : 'pendentes'}</div>}
               {unknownCols.length > 0 && <div className="ms-chip ms-err">✗ {unknownCols.length} não reconhecido{unknownCols.length !== 1 ? 's' : ''}</div>}
             </>
           ) : (
@@ -978,7 +1302,7 @@ function StepMapping({
           )}
           <div className="ms-sep" />
           <button className="btn btn-primary ms-cta" onClick={handleConfirm} disabled={confirming}>
-            {confirming ? 'Confirmando…' : 'Confirmar e continuar →'}
+            {confirming ? 'Confirmando…' : 'Confirmar mapeamento →'}
           </button>
         </div>
 
@@ -1106,16 +1430,7 @@ function StepMapping({
                       <td className="map-status" style={{ color: isMapped ? 'var(--ok)' : isIgnored ? 'var(--muted)' : 'var(--urg)' }}>
                         {isMapped ? '✓ Mapeado' : isIgnored ? '— Ignorado' : '✗ Desconhecido'}
                       </td>
-                      <td>
-                        {!isMapped && !isIgnored && (
-                          <button
-                            className={`map-flag${flagged[col] ? ' flagged' : ''}`}
-                            onClick={() => setFlagged(p => ({ ...p, [col]: !p[col] }))}
-                          >
-                            {flagged[col] ? 'Sinalizado' : 'Sinalizar erro'}
-                          </button>
-                        )}
-                      </td>
+                      <td></td>
                     </tr>
                   )
                 })}
@@ -1142,11 +1457,14 @@ function StepMapping({
 
 // ─── StepLaunch ───────────────────────────────────────────────────────────────
 
-function StepLaunch({ bootstrap, pendingCredentials, onDone, website }: {
+function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, csvSheetName, driveFileId }: {
   bootstrap: () => Promise<{ client_id: string; agents: number; routines: number; prompts_seeded: number }>
   pendingCredentials: PendingCredential[]
-  onDone: (mappingResult: ColumnMappingResult | null, credentialId: number | null, clientId: string) => void
+  onDone: (mappingResult: ColumnMappingResult | null, credentialId: number | null, clientId: string, csvSourceId: string | null) => void
   website?: string
+  csvFile?: File | null
+  csvSheetName?: string
+  driveFileId?: string | null
 }) {
   const [attempt, setAttempt] = useState(0)
   const [progress, setProgress] = useState(0)
@@ -1156,6 +1474,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website }: {
   const [bqMappingResult, setBqMappingResult] = useState<ColumnMappingResult | null>(null)
   const [bqCredentialId, setBqCredentialId] = useState<number | null>(null)
   const [resolvedClientId, setResolvedClientId] = useState<string>('')
+  const [csvSourceId, setCsvSourceId] = useState<string | null>(null)
   const rafRef = useRef<number>(0)
 
   useEffect(() => {
@@ -1239,6 +1558,83 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website }: {
           }
         }
 
+        // Upload CSV file if one was selected
+        let uploadedSourceId: string | null = null
+        if (csvFile && result.client_id) {
+          setLogs(prev => [...prev, '▸ Enviando planilha…'])
+          try {
+            const form = new FormData()
+            form.append('file', csvFile)
+            form.append('client_id', result.client_id)
+            form.append('schema_type', 'invoices')
+            if (csvSheetName) form.append('sheet_name', csvSheetName)
+            const { data: uploadData, error: uploadErr } = await supabase.functions.invoke('upload-csv-source', {
+              body: form,
+            })
+            if (!uploadErr && uploadData?.source_id) {
+              if (!cancelled) {
+                uploadedSourceId = uploadData.source_id
+                setCsvSourceId(uploadData.source_id)
+                setLogs(prev => [...prev, `▸ Planilha carregada — ${uploadData.columns?.length ?? 0} colunas.`])
+              }
+            } else {
+              if (!cancelled) setLogs(prev => [...prev, '⚠ Falha ao enviar planilha. Você pode reconectar depois.'])
+            }
+          } catch (e) {
+            if (!cancelled) setLogs(prev => [...prev, '⚠ Falha ao enviar planilha. Você pode reconectar depois.'])
+            console.warn('[onboarding] upload-csv-source:', e)
+          }
+        }
+
+        // Import Google Drive file if one was linked in StepData (CSV takes precedence)
+        if (driveFileId && result.client_id && !uploadedSourceId) {
+          setLogs(prev => [...prev, '▸ Importando arquivo do Google Drive…'])
+          try {
+            // The Drive token capture via AuthContext fires before the profile exists,
+            // so it fails silently. Re-attempt capture now that the profile is created.
+            const { data: { session: currentSession } } = await supabase.auth.getSession()
+            if (currentSession?.provider_refresh_token) {
+              await supabase.functions.invoke('onboarding-capture-drive-token', {
+                body: {
+                  provider_refresh_token: currentSession.provider_refresh_token,
+                  provider_token: currentSession.provider_token ?? '',
+                  account_email: currentSession.user?.email ?? '',
+                  scopes: [
+                    'https://www.googleapis.com/auth/drive.readonly',
+                    'https://www.googleapis.com/auth/calendar.readonly',
+                  ],
+                },
+              })
+            }
+          } catch {
+            // Ignore — token may already be stored, or no Google session available
+          }
+          try {
+            const { data: driveData, error: driveErr } = await supabase.functions.invoke('upload-drive-source', {
+              body: { client_id: result.client_id, drive_file_id: driveFileId, schema_type: 'invoices' },
+            })
+            if (!driveErr && driveData?.source_id) {
+              if (!cancelled) {
+                const driveMappingResult: ColumnMappingResult = {
+                  matched: driveData.matched ?? {},
+                  unmatched: driveData.unmatched ?? [],
+                  needs_review: driveData.needs_review ?? [],
+                  confidence_scores: driveData.confidence_scores ?? {},
+                  details: driveData.details ?? [],
+                }
+                setCsvSourceId(driveData.source_id)
+                setBqMappingResult(driveMappingResult)
+                setLogs(prev => [...prev, `▸ Drive importado — ${driveData.columns?.length ?? 0} colunas.`])
+              }
+            } else {
+              if (!cancelled) setLogs(prev => [...prev, '⚠ Falha ao importar do Drive. Você pode reconectar depois.'])
+            }
+          } catch (e) {
+            if (!cancelled) setLogs(prev => [...prev, '⚠ Falha ao importar do Drive. Você pode reconectar depois.'])
+            console.warn('[onboarding] upload-drive-source:', e)
+          }
+        }
+
         setProgress(100)
         setLogs(prev => [
           ...prev,
@@ -1299,7 +1695,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website }: {
           ))}
         </div>
         {done && (
-          <button className="btn btn-primary btn-lg" style={{ marginTop: 28 }} onClick={() => onDone(bqMappingResult, bqCredentialId, resolvedClientId)}>
+          <button className="btn btn-primary btn-lg" style={{ marginTop: 28 }} onClick={() => onDone(bqMappingResult, bqCredentialId, resolvedClientId, csvSourceId)}>
             Entrar no blu →
           </button>
         )}
@@ -1319,6 +1715,10 @@ export default function OnboardingApp() {
   const [pendingCredentials, setPendingCredentials] = useState<PendingCredential[]>([])
   const [bqCredentialId, setBqCredentialId] = useState<number | null>(null)
   const [bqClientId, setBqClientId] = useState<string | null>(null)
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvSheetName, setCsvSheetName] = useState<string>('')
+  const [csvSourceId, setCsvSourceId] = useState<string | null>(null)
+  const [driveFileId, setDriveFileId] = useState<string | null>(null)
 
   const { draft, saveDraft, bootstrap } = useOnboardingDraft(user?.email ?? '')
 
@@ -1334,13 +1734,33 @@ export default function OnboardingApp() {
     clientIdChecked.current = true
     let cancelled = false
     supabase.rpc('get_my_client_id').then(
-      ({ data }) => {
+      async ({ data: clientId }) => {
         if (cancelled) return
-        if (data) {
-          navigate('/app', { replace: true })
+        if (clientId) {
+          // Profile exists — but it may be a provisional row (ensure_tenant_row)
+          // created mid-onboarding. Only redirect to /app when onboarding is done.
+          const { data: row } = await supabase
+            .from('clientes_blu')
+            .select('onboarding_completed_at')
+            .eq('client_id', clientId)
+            .maybeSingle()
+
+          if (row?.onboarding_completed_at) {
+            navigate('/app', { replace: true })
+          } else if (sessionStorage.getItem('onboarding_returning_to_data') === '1') {
+            // User came back from Drive OAuth during the data step — restore it.
+            sessionStorage.removeItem('onboarding_returning_to_data')
+            if (!cancelled) setStep('data')
+          } else {
+            // Provisional profile without completed onboarding — resume from info.
+            if (!cancelled) setStep('info')
+          }
         } else {
-          // No client profile yet — continue through onboarding (info step)
-          setStep('info')
+          // New user — provision the clientes_blu row immediately so that Drive
+          // OAuth token capture (which happens during the data step) finds a valid
+          // tenant. onboarding_bootstrap_tx will update it later with full info.
+          try { await supabase.rpc('ensure_tenant_row') } catch { /* best-effort */ }
+          if (!cancelled) setStep('info')
         }
       },
       () => {
@@ -1390,6 +1810,8 @@ export default function OnboardingApp() {
         onSkip={() => go('launch')}
         saveDraft={saveDraft}
         onMappingReady={setMappingResult}
+        onCsvFileReady={(file, sheetName) => { setCsvFile(file); setCsvSheetName(sheetName ?? '') }}
+        onDriveFileReady={(fileId) => setDriveFileId(fileId)}
         onCredentialCollected={(platform, nomServico, credentials) =>
           setPendingCredentials(prev => [
             ...prev.filter(c => c.platform !== platform),
@@ -1408,6 +1830,7 @@ export default function OnboardingApp() {
         mappingResult={mappingResult}
         credentialId={bqCredentialId}
         clientId={bqClientId}
+        csvSourceId={csvSourceId}
       />
     )
   }
@@ -1416,12 +1839,17 @@ export default function OnboardingApp() {
       bootstrap={bootstrap}
       pendingCredentials={pendingCredentials}
       website={draft.website || undefined}
-      onDone={(bqMapping, credentialId, clientId) => {
-        // BQ mapping (if discovered) takes priority over CSV mapping
+      csvFile={csvFile}
+      csvSheetName={csvSheetName}
+      driveFileId={driveFileId}
+      onDone={(bqMapping, credentialId, clientId, uploadedCsvSourceId) => {
+        try { localStorage.removeItem('blu_first_run_done') } catch {}
+        useAppStore.setState({ firstRun: true })
         const finalMapping = bqMapping ?? mappingResult
         setBqCredentialId(credentialId)
         setBqClientId(clientId)
-        if (finalMapping) {
+        if (uploadedCsvSourceId) setCsvSourceId(uploadedCsvSourceId)
+        if (finalMapping || uploadedCsvSourceId) {
           setMappingResult(finalMapping)
           go('mapping')
         } else {

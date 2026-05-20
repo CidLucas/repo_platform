@@ -49,7 +49,7 @@ response = client.table("cliente_blu").delete().eq("id", "uuid").execute()
 
 ```python
 # Definir contexto RLS (antes de queries que precisam de isolamento)
-client.rpc("set_current_cliente_id", {"cliente_id": "uuid-aqui"}).execute()
+client.rpc("set_current_client_id", {"client_id": "uuid-aqui"}).execute()
 ```
 
 ### Operações assíncronas
@@ -57,9 +57,9 @@ client.rpc("set_current_cliente_id", {"cliente_id": "uuid-aqui"}).execute()
 ```python
 from blu_supabase_client import get_async_supabase_client
 
-async def fetch_cliente(cliente_id: str):
+async def fetch_cliente(client_id: str):
     client = await get_async_supabase_client()
-    response = await client.table("cliente_blu").select("*").eq("id", cliente_id).execute()
+    response = await client.table("cliente_blu").select("*").eq("id", client_id).execute()
     return response.data
 ```
 
@@ -67,17 +67,17 @@ async def fetch_cliente(cliente_id: str):
 
 - **Singleton Pattern**: Uma única instância do client por processo
 - **Service Role**: Usa a service_role key por padrão (bypassa RLS quando necessário)
-- **RLS Context**: Para queries que precisam respeitar RLS, chame `set_current_cliente_id` via RPC
+- **RLS Context**: Para queries que precisam respeitar RLS, chame `set_current_client_id` via RPC
 
 ## Diferenças do SQLAlchemy
 
-| SQLAlchemy | Supabase SDK |
-|------------|--------------|
-| `session.execute(select(Model))` | `client.table("table").select("*")` |
-| `session.add(obj)` | `client.table("table").insert({...})` |
+| SQLAlchemy                         | Supabase SDK                                |
+| ---------------------------------- | ------------------------------------------- |
+| `session.execute(select(Model))`   | `client.table("table").select("*")`         |
+| `session.add(obj)`                 | `client.table("table").insert({...})`       |
 | `session.query(Model).filter(...)` | `client.table("table").select("*").eq(...)` |
-| Conexão PostgreSQL direta | API REST via HTTP |
-| `DATABASE_URL=postgresql://...` | `SUPABASE_URL=https://...` |
+| Conexão PostgreSQL direta          | API REST via HTTP                           |
+| `DATABASE_URL=postgresql://...`    | `SUPABASE_URL=https://...`                  |
 
 ## Migrations
 

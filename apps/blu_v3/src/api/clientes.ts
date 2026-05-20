@@ -63,7 +63,7 @@ export async function fetchTopCustomers(clientId: string): Promise<CustomerRecor
   }
 
   return (data ?? []).map((row: Record<string, unknown>) => ({
-    id: String(row.cliente_id ?? row.id ?? ''),
+    id: String(row.client_id ?? row.id ?? ''),
     name: String(row.nome ?? row.name ?? 'Cliente'),
     cluster: (row.nivel_cluster as CustomerCluster) ?? null,
     total_purchases: Number(row.total_purchases ?? 0),
@@ -83,7 +83,7 @@ export async function fetchRecentTransactions(clientId: string): Promise<Custome
 
   return (data ?? []).map((row: Record<string, unknown>) => ({
     id: String(row.id ?? ''),
-    customer_id: String(row.cliente_id ?? ''),
+    customer_id: String(row.client_id ?? ''),
     customer_name: String(row.nome ?? 'Cliente'),
     description: String(row.descricao ?? row.description ?? 'Transação'),
     amount: Number(row.valor ?? row.amount ?? 0),

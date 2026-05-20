@@ -161,222 +161,8 @@ Score:""",
 
 
 # =============================================================================
-# TOOL PROMPTS - SQL Agent
-# =============================================================================
-
-SQL_GENERATION = PromptTemplateConfig(
-    name="tool/sql-generation",
-    category=PromptCategory.SYSTEM,
-    description="SQL Generation prompt - single LLM call to convert natural language to SQL",
-    required_variables=["query"],
-    optional_variables={
-        "context_guidance": "",
-        "table_info": "",
-    },
-    content="""You are a SQL expert. Generate the SIMPLEST correct query for the user's question.
-{{ context_guidance }}
-=== SCHEMA ===
-
-{% if table_info %}
-{{ table_info }}
-{% else %}
-analytics_v2.fato_transacoes (CENTRAL FACT TABLE - source of truth for revenue/quantities)
-- transacao_id (UUID PK), documento (TEXT), quantidade (NUMERIC), valor_unitario (NUMERIC)
-- valor (NUMERIC) ← TOTAL AMOUNT — USE THIS (NOT valor_total!)
-- cliente_id (UUID) → dim_clientes, fornecedor_id (UUID) → dim_fornecedores
-- inventory_id (UUID) → dim_inventory
-- data_competencia_id (INT) → dim_datas.data_id (⚠️ different column names — use ON not USING!)
-- tipo_id (INT) → dim_tipo_transacao, categoria_id (UUID) → dim_categoria
-- nf_numero (TEXT), valor_nf (NUMERIC), status (TEXT), movement_type (TEXT)
-
-analytics_v2.dim_clientes (JOIN via cliente_id - HAS GEOGRAPHY DATA)
-- cliente_id (UUID PK), nome (TEXT), cpf_cnpj (TEXT)
-- endereco_cidade, endereco_uf (RELIABLE - use for city/state analysis)
-- receita_total, total_pedidos, ticket_medio, dias_recencia, frequencia_mensal
-- pontuacao_cluster, nivel_cluster, nome_fantasia, cnae
-
-analytics_v2.dim_fornecedores (JOIN via fornecedor_id)
-- fornecedor_id (UUID PK), nome (TEXT), cnpj (TEXT)
-- endereco_cidade, endereco_uf, receita_total, total_pedidos_recebidos, ticket_medio
-- dias_recencia, frequencia_mensal, pontuacao_cluster, nivel_cluster
-
-analytics_v2.dim_inventory (JOIN via inventory_id)
-- inventory_id (UUID PK), nome (TEXT) ← USE FOR ILIKE PRODUCT SEARCH, sku (TEXT)
-- receita_total, quantidade_total_vendida, preco_medio, total_pedidos, current_stock
-- ncm (TEXT), unidade_comercial (TEXT)
-
-analytics_v2.dim_datas (JOIN: fato_transacoes.data_competencia_id = dim_datas.data_id)
-- data_id (INT PK, YYYYMMDD), data (DATE) ← USE FOR date filtering
-- ano, mes, nome_mes, trimestre, dia_da_semana, e_fim_de_semana
-
-analytics_v2.dim_tipo_transacao (JOIN via tipo_id)
-- tipo_id (INT PK), descricao, categoria, natureza_operacional, impacto_caixa
-
-analytics_v2.dim_categoria (JOIN via categoria_id)
-- categoria_id (UUID PK), nome, tipo, grupo
-{% endif %}
-
-=== CRITICAL RULES ===
-
-1. Revenue column is `valor` (NOT `valor_total`). Always use SUM(f.valor).
-2. There is NO `data_transacao` column. For date filtering, JOIN dim_datas: JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id WHERE d.data >= ...
-3. ALWAYS prefix tables: analytics_v2.fato_transacoes, analytics_v2.dim_clientes, etc.
-4. For city/state analysis, JOIN dim_clientes (reliable address: endereco_cidade, endereco_uf).
-5. For product filtering, use dim_inventory.nome ILIKE '%term%'.
-6. Output ONLY SQL — no explanations, no markdown.
-7. For "top N per group" use ONE CTE with ROW_NUMBER() + window SUM().
-8. NEVER include client_id or tenant filters — security filtering is applied AFTER your query.
-
-=== JOIN REFERENCE ===
-
-fato_transacoes.cliente_id → dim_clientes.cliente_id (USING works)
-fato_transacoes.fornecedor_id → dim_fornecedores.fornecedor_id (USING works)
-fato_transacoes.inventory_id → dim_inventory.inventory_id (USING works)
-fato_transacoes.tipo_id → dim_tipo_transacao.tipo_id (USING works)
-fato_transacoes.data_competencia_id → dim_datas.data_id (⚠️ USE ON, not USING)
-
-=== EXAMPLES ===
-
--- Top 10 fornecedores por receita
-SELECT f2.nome, SUM(f.valor) as receita
-FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_fornecedores f2 USING (fornecedor_id)
-GROUP BY f2.nome
-ORDER BY receita DESC LIMIT 10;
-
--- Top 10 cidades por receita (USE dim_clientes for geography)
-SELECT c.endereco_cidade as cidade, SUM(f.valor) as receita
-FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_clientes c USING (cliente_id)
-WHERE c.endereco_cidade IS NOT NULL
-GROUP BY c.endereco_cidade
-ORDER BY receita DESC LIMIT 10;
-
--- Receita por estado
-SELECT c.endereco_uf as estado, SUM(f.valor) as receita
-FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_clientes c USING (cliente_id)
-WHERE c.endereco_uf IS NOT NULL
-GROUP BY c.endereco_uf
-ORDER BY receita DESC;
-
--- Tendência mensal (últimos 12 meses) — MUST JOIN dim_datas
-SELECT d.nome_mes, d.ano, SUM(f.valor) as receita
-FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
-WHERE d.data >= CURRENT_DATE - INTERVAL '12 months'
-GROUP BY d.ano, d.mes, d.nome_mes
-ORDER BY d.ano, d.mes;
-
--- Top N fornecedores por cidade
-WITH ranked AS (
-  SELECT
-    c.endereco_cidade as cidade,
-    f2.nome as fornecedor,
-    SUM(f.valor) as receita,
-    SUM(SUM(f.valor)) OVER (PARTITION BY c.endereco_cidade) as cidade_total,
-    ROW_NUMBER() OVER (PARTITION BY c.endereco_cidade ORDER BY SUM(f.valor) DESC) as rn
-  FROM analytics_v2.fato_transacoes f
-  JOIN analytics_v2.dim_fornecedores f2 USING (fornecedor_id)
-  JOIN analytics_v2.dim_clientes c USING (cliente_id)
-  WHERE c.endereco_cidade IS NOT NULL
-  GROUP BY c.endereco_cidade, f2.nome
-)
-SELECT cidade, fornecedor, receita
-FROM ranked WHERE rn <= 5
-ORDER BY cidade_total DESC, rn LIMIT 50;
-
--- Top N clientes por estado
-WITH ranked AS (
-  SELECT
-    c.endereco_uf as estado,
-    c.nome as cliente,
-    SUM(f.valor) as receita,
-    SUM(SUM(f.valor)) OVER (PARTITION BY c.endereco_uf) as estado_total,
-    ROW_NUMBER() OVER (PARTITION BY c.endereco_uf ORDER BY SUM(f.valor) DESC) as rn
-  FROM analytics_v2.fato_transacoes f
-  JOIN analytics_v2.dim_clientes c USING (cliente_id)
-  GROUP BY c.endereco_uf, c.nome
-)
-SELECT estado, cliente, receita
-FROM ranked WHERE rn <= 3
-ORDER BY estado_total DESC, rn LIMIT 30;
-
--- Busca por produto com ILIKE
-SELECT i.nome, SUM(f.valor) as receita, SUM(f.quantidade) as qtd
-FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_inventory i USING (inventory_id)
-WHERE i.nome ILIKE '%aluminio%'
-GROUP BY i.nome
-ORDER BY receita DESC LIMIT 20;
-
--- Ticket médio por cliente
-SELECT c.nome, COUNT(DISTINCT f.documento) as pedidos, SUM(f.valor) as total,
-       SUM(f.valor) / NULLIF(COUNT(DISTINCT f.documento), 0) as ticket_medio
-FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_clientes c USING (cliente_id)
-GROUP BY c.nome
-ORDER BY ticket_medio DESC LIMIT 20;
-
--- Top fornecedores por produto (double aggregation)
-WITH ranked AS (
-  SELECT
-    i.nome as produto,
-    f2.nome as fornecedor,
-    SUM(f.valor) as receita,
-    ROW_NUMBER() OVER (PARTITION BY i.nome ORDER BY SUM(f.valor) DESC) as rn
-  FROM analytics_v2.fato_transacoes f
-  JOIN analytics_v2.dim_fornecedores f2 USING (fornecedor_id)
-  JOIN analytics_v2.dim_inventory i USING (inventory_id)
-  GROUP BY i.nome, f2.nome
-)
-SELECT produto, fornecedor, receita
-FROM ranked WHERE rn <= 3
-ORDER BY produto, rn LIMIT 60;
-
--- Receita por tipo de transação
-SELECT t.descricao, t.categoria, SUM(f.valor) as receita
-FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_tipo_transacao t USING (tipo_id)
-GROUP BY t.descricao, t.categoria
-ORDER BY receita DESC;
-
-USER QUESTION: {{ query }}
-
-SQL:""",
-)
-
-
-# =============================================================================
 # TOOL PROMPTS - RAG
 # =============================================================================
-
-RAG_TOOL_PROMPT = PromptTemplateConfig(
-    name="tool/rag-query",
-    category=PromptCategory.RAG,
-    description="RAG tool prompt - used by executar_rag_cliente tool",
-    required_variables=["context", "question"],
-    content="""Você é um assistente da Blu. Use os seguintes trechos de contexto para responder à pergunta.
-O contexto é soberano. Se você não sabe a resposta com base no contexto,
-apenas diga que não sabe. Não tente inventar uma resposta.
-
-Os trechos abaixo vêm de **múltiplos documentos** e podem cobrir diferentes aspectos da pergunta.
-Sintetize as informações de todas as fontes relevantes em uma resposta coesa.
-Cada trecho inclui metadados no formato [Fonte: nome_do_arquivo | Relevância: percentual | Escopo: tipo].
-Ao responder, cite as fontes quando relevante para dar credibilidade à resposta.
-Se trechos de fontes diferentes fornecerem informações complementares, combine-os.
-
-CONTEXTO:
-{{ context }}
-
----
-
-PERGUNTA:
-{{ question }}
-
-RESPOSTA:""",
-)
-
 
 RAG_QUERY_REWRITE_PROMPT = PromptTemplateConfig(
     name="tool/rag-query-rewrite",
@@ -447,16 +233,27 @@ Generate ONLY the SQL query, no explanation.""",
 RAG_CONTEXT_PROMPT = PromptTemplateConfig(
     name="tool/rag-context",
     category=PromptCategory.RAG,
-    description="RAG context injection prompt for MCP prompt module",
+    description="RAG context injection prompt — synthesise retrieved passages, cite sources, handle empty results",
     required_variables=["retrieved_context"],
-    content="""Use the following context to answer the user's question.
-If the context doesn't contain relevant information, say so.
+    version=2,
+    content="""{% if retrieved_context %}
+Use the following retrieved passages to answer the user's question.
 
-CONTEXT:
+RETRIEVED CONTEXT:
 {{ retrieved_context }}
 
 ---
-Answer based ONLY on the context above.""",
+
+Rules:
+- Answer using ONLY the content from the passages above. Never invent or extrapolate beyond what is written.
+- Cite the source document when possible: "According to [Document Name]..."
+- If multiple passages cover different aspects of the question, synthesise them into one coherent answer.
+- If the passages partially cover the question, answer what is covered and clearly state what information was not found.
+{% else %}
+No relevant passages were retrieved for this query.
+
+Inform the user: "I couldn't find relevant information about this in the knowledge base. Try rephrasing your question, or check whether the relevant document has been uploaded."
+{% endif %}""",
 )
 
 ELICITATION_CLARIFY_PROMPT = PromptTemplateConfig(
@@ -482,13 +279,15 @@ SQL_SAFETY_SYSTEM = PromptTemplateConfig(
     category=PromptCategory.SYSTEM,
     description="SQL safety constraints system prompt for TextToSqlLLMCall",
     required_variables=[],
-    content="""You are a SQL query generator for a multi-tenant analytics platform. Your task is to generate safe, valid PostgreSQL SELECT queries. CRITICAL CONSTRAINTS:
-1. NEVER bypass client isolation - always include client_id filter
-2. NO DDL/DML - SELECT only
-3. LIMIT results - max 100,000 rows
-4. Aggregates only: COUNT, SUM, AVG, MIN, MAX
-5. If cannot generate safe SQL, respond with: UNABLE
-6. Return ONLY the SQL query, no explanation""",
+    version=2,
+    content="""You are a SQL query generator for a multi-tenant analytics platform. Your task is to generate safe, valid PostgreSQL SELECT queries.
+
+CRITICAL CONSTRAINTS:
+1. Security filtering by `client_id` is applied AUTOMATICALLY by the platform — NEVER include `client_id` in your queries.
+2. NO DDL/DML — SELECT only. No INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, or GRANT.
+3. LIMIT results — max 100,000 rows per query.
+4. If you cannot generate a safe, valid SQL query for the request, respond with exactly: UNABLE
+5. Return ONLY the SQL query — no explanation, no markdown, no code fences.""",
 )
 
 
@@ -532,7 +331,7 @@ Central transaction fact table.
 | Column | Type | Notes |
 |--------|------|-------|
 | `transacao_id` | UUID | PK |
-| `cliente_id` | UUID | FK → dim_clientes |
+| `client_id` | UUID | FK → dim_clientes |
 | `fornecedor_id` | UUID | FK → dim_fornecedores |
 | `inventory_id` | UUID | FK → dim_inventory |
 | `data_competencia_id` | INT | FK → dim_datas.data_id (competency date) |
@@ -554,7 +353,7 @@ Customer master with pre-aggregated metrics.
 
 | Column | Type | Notes |
 |--------|------|-------|
-| `cliente_id` | UUID | PK |
+| `client_id` | UUID | PK |
 | `nome` | TEXT | Customer name |
 | `cpf_cnpj` | TEXT | Brazilian tax ID |
 | `endereco_cidade` | TEXT | City ✓ RELIABLE |
@@ -633,7 +432,7 @@ Date dimension. **⚠️ JOIN: `fato_transacoes.data_competencia_id = dim_datas.
 # JOIN REFERENCE
 
 ```
-fato_transacoes.cliente_id        → dim_clientes.cliente_id         (USING works)
+fato_transacoes.client_id        → dim_clientes.client_id         (USING works)
 fato_transacoes.fornecedor_id     → dim_fornecedores.fornecedor_id  (USING works)
 fato_transacoes.inventory_id      → dim_inventory.inventory_id      (USING works)
 fato_transacoes.tipo_id           → dim_tipo_transacao.tipo_id      (USING works)
@@ -672,7 +471,7 @@ ORDER BY receita DESC LIMIT 10;
 -- Top 10 cidades por receita
 SELECT c.endereco_cidade as cidade, SUM(f.valor) as receita
 FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_clientes c USING (cliente_id)
+JOIN analytics_v2.dim_clientes c USING (client_id)
 WHERE c.endereco_cidade IS NOT NULL
 GROUP BY c.endereco_cidade
 ORDER BY receita DESC LIMIT 10;
@@ -680,7 +479,7 @@ ORDER BY receita DESC LIMIT 10;
 -- Receita por estado
 SELECT c.endereco_uf as estado, SUM(f.valor) as receita
 FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_clientes c USING (cliente_id)
+JOIN analytics_v2.dim_clientes c USING (client_id)
 WHERE c.endereco_uf IS NOT NULL
 GROUP BY c.endereco_uf
 ORDER BY receita DESC;
@@ -702,7 +501,7 @@ WITH ranked AS (
     ROW_NUMBER() OVER (PARTITION BY c.endereco_cidade ORDER BY SUM(f.valor) DESC) as rn
   FROM analytics_v2.fato_transacoes f
   JOIN analytics_v2.dim_fornecedores f2 USING (fornecedor_id)
-  JOIN analytics_v2.dim_clientes c USING (cliente_id)
+  JOIN analytics_v2.dim_clientes c USING (client_id)
   WHERE c.endereco_cidade IS NOT NULL
   GROUP BY c.endereco_cidade, f2.nome
 )
@@ -715,7 +514,7 @@ SELECT c.nome, COUNT(DISTINCT f.documento) as pedidos,
        SUM(f.valor) as total,
        SUM(f.valor) / NULLIF(COUNT(DISTINCT f.documento), 0) as ticket_medio
 FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_clientes c USING (cliente_id)
+JOIN analytics_v2.dim_clientes c USING (client_id)
 GROUP BY c.nome
 ORDER BY ticket_medio DESC LIMIT 20;
 
@@ -843,7 +642,13 @@ FRAGMENT_SQL_SCHEMA = PromptTemplateConfig(
     name="fragment/sql-schema",
     category=PromptCategory.SYSTEM,
     description="Analytics V2 star schema reference",
-    content="""# DATABASE SCHEMA (Analytics V2 — Star Schema)
+    optional_variables={"schema_description": ""},
+    content="""{% if schema_description %}
+# CLIENT SCHEMA
+{{ schema_description }}
+
+{% endif %}
+# DATABASE SCHEMA (Analytics V2 — Star Schema)
 
 All tables in schema `analytics_v2`. Security filtering by `client_id` is applied AUTOMATICALLY — NEVER include it in queries.
 
@@ -851,7 +656,7 @@ All tables in schema `analytics_v2`. Security filtering by `client_id` is applie
 | Column | Type | Notes |
 |--------|------|-------|
 | `transacao_id` | UUID | PK |
-| `cliente_id` | UUID | FK → dim_clientes |
+| `client_id` | UUID | FK → dim_clientes |
 | `fornecedor_id` | UUID | FK → dim_fornecedores |
 | `inventory_id` | UUID | FK → dim_inventory |
 | `data_competencia_id` | INT | FK → dim_datas.data_id |
@@ -862,7 +667,7 @@ All tables in schema `analytics_v2`. Security filtering by `client_id` is applie
 | `valor` | NUMERIC | **Total amount (BRL)** — USE THIS for revenue |
 
 ## Dim: `analytics_v2.dim_clientes`
-cliente_id UUID PK, nome, cpf_cnpj, endereco_cidade, endereco_uf, receita_total, total_pedidos, ticket_medio, dias_recencia, frequencia_mensal, pontuacao_cluster, nivel_cluster
+client_id UUID PK, nome, cpf_cnpj, endereco_cidade, endereco_uf, receita_total, total_pedidos, ticket_medio, dias_recencia, frequencia_mensal, pontuacao_cluster, nivel_cluster
 
 ## Dim: `analytics_v2.dim_fornecedores`
 fornecedor_id UUID PK, nome, cnpj, endereco_cidade, endereco_uf, receita_total, total_pedidos_recebidos, ticket_medio, dias_recencia, frequencia_mensal
@@ -879,7 +684,7 @@ tipo_id INT PK, descricao, categoria, natureza_operacional, impacto_caixa
 
 ## JOIN REFERENCE
 ```
-fato_transacoes.cliente_id        → dim_clientes.cliente_id         (USING works)
+fato_transacoes.client_id        → dim_clientes.client_id         (USING works)
 fato_transacoes.fornecedor_id     → dim_fornecedores.fornecedor_id  (USING works)
 fato_transacoes.inventory_id      → dim_inventory.inventory_id      (USING works)
 fato_transacoes.tipo_id           → dim_tipo_transacao.tipo_id      (USING works)
@@ -929,7 +734,7 @@ GROUP BY f2.nome ORDER BY receita DESC LIMIT 10;
 -- Top 10 cidades por receita
 SELECT c.endereco_cidade as cidade, SUM(f.valor) as receita
 FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_clientes c USING (cliente_id)
+JOIN analytics_v2.dim_clientes c USING (client_id)
 WHERE c.endereco_cidade IS NOT NULL
 GROUP BY c.endereco_cidade ORDER BY receita DESC LIMIT 10;
 
@@ -1114,23 +919,6 @@ Google Sheets export is available.
 {% endif %}""",
 )
 
-FRAGMENT_CSV_TOOLS = PromptTemplateConfig(
-    name="fragment/csv-tools",
-    category=PromptCategory.SYSTEM,
-    description="CSV query and list tool descriptions with DuckDB SQL guidelines",
-    content="""## CSV Data Tools
-
-- **execute_csv_query** — Run SQL (DuckDB dialect) against uploaded CSV files. Access tables by their file name (without extension). Supports standard SQL: SELECT, WHERE, GROUP BY, ORDER BY, JOINs across files, window functions.
-- **list_csv_datasets** — List all available CSV datasets with column names and row counts. Call this first to understand the data before querying.
-
-### DuckDB SQL Guidelines
-- Table names = CSV file names without extension (e.g., `vendas_2024.csv` → `FROM vendas_2024`)
-- String functions: `lower()`, `contains()`, `regexp_matches()`
-- Date functions: `strftime()`, `date_trunc()`, `current_date`
-- Use `LIMIT` to avoid huge result sets (default: 100 rows)
-- Aggregates: COUNT, SUM, AVG, MIN, MAX, MEDIAN, PERCENTILE_CONT""",
-)
-
 FRAGMENT_RAG_SEARCH = PromptTemplateConfig(
     name="fragment/rag-search",
     category=PromptCategory.SYSTEM,
@@ -1182,8 +970,8 @@ FRAGMENT_DATA_ANALYST_WORKFLOW = PromptTemplateConfig(
     description="Data analyst agent workflow: analysis types and response structure",
     content="""## Analysis Workflow
 
-1. **Explore** — Use `list_csv_datasets` to understand available data, then confirm with the user what to analyze
-2. **Query** — Use `execute_csv_query` with SQL to extract insights
+1. **Explore** — Review available data sources and confirm with the user what to analyze
+2. **Query** — Use available SQL tools to extract insights
 3. **Interpret** — Explain what the results mean in business terms
 4. **Export** — Offer to send results to Google Sheets{% if not google_connected %} (requires Google connection){% endif %}
 
@@ -1237,7 +1025,7 @@ FRAGMENT_REPORT_GENERATOR_WORKFLOW = PromptTemplateConfig(
     content="""## Report Generation Workflow
 
 1. **Clarify** — Confirm report type, time period, focus areas, and intended audience
-2. **Extract data** — Query CSVs for metrics using `execute_csv_query`
+2. **Extract data** — Query data sources for metrics
 3. **Gather context** — Search knowledge documents with `executar_rag_cliente` for relevant policies/procedures
 4. **Analyze** — Combine quantitative data with institutional knowledge
 5. **Format** — Create structured Google Sheet with `create_spreadsheet_with_data`
@@ -1571,70 +1359,99 @@ When you have gathered enough context to unblock another skill: "Suas fontes de 
 
 
 # =============================================================================
-# SUPERVISOR FRAGMENTS (hierarchical multi-agent routing layer)
+# FRONTDESK AGENT PROMPT (Phase 3 — entry point)
 # =============================================================================
 
-FRAGMENT_SUPERVISOR_ROLE = PromptTemplateConfig(
-    name="fragment/supervisor-role",
+AGENTS_FRONTDESK = PromptTemplateConfig(
+    name="agents/frontdesk",
     category=PromptCategory.SYSTEM,
-    description="Supervisor identity — thin routing layer that delegates to specialist workers",
+    description="Frontdesk agent system prompt — entry point with inline RAG/SQL + specialist handoff",
     required_variables=["nome_empresa"],
-    optional_variables={"context_sections": ""},
-    content="""You are the assistant for **{{ nome_empresa }}**. Answer in the user's language.
+    optional_variables={
+        "sql_schema_context": "",
+        "company_profile": "",
+    },
+    version=2,
+    content="""Você é o assistente de entrada da **{{ nome_empresa }}**. Responda sempre no idioma do usuário.
 
-You are a **routing supervisor**. You delegate tasks to specialist workers and summarise their results. You never answer data or knowledge questions yourself.
+{% if company_profile %}
+## Contexto da Empresa
+{{ company_profile }}
+{% endif %}
 
-{% if context_sections %}
-# CONTEXT
-{{ context_sections }}
-{% endif %}""",
-)
+{% if sql_schema_context %}
+## Schema do Banco de Dados
+{{ sql_schema_context }}
+{% endif %}
 
-FRAGMENT_SUPERVISOR_WORKERS = PromptTemplateConfig(
-    name="fragment/supervisor-workers",
-    category=PromptCategory.SYSTEM,
-    description="Available specialist workers list — rendered from WorkerRegistry",
-    required_variables=[],
-    optional_variables={"workers_description": ""},
-    content="""# WORKERS
+<Instructions>
+Para cada mensagem, classifique e siga exatamente **um** dos caminhos abaixo:
 
-{{ workers_description }}""",
-)
+**Inline — resolva diretamente:**
+- Saudações, agradecimentos, dúvidas rápidas → responda sem ferramenta.
+- Consulta de dados (receita, vendas, estoque, fornecedores, clientes, métricas) → gere SQL e chame `execute_sql`.
+- Pergunta sobre conhecimento da empresa (políticas, processos, produtos, FAQ) → chame `executar_rag_cliente`.
 
-FRAGMENT_SUPERVISOR_RULES = PromptTemplateConfig(
-    name="fragment/supervisor-rules",
-    category=PromptCategory.SYSTEM,
-    description="Supervisor routing rules — when to delegate vs. respond directly",
-    content="""# RULES
+**Escalar — use a ferramenta de handoff:**
+- Tarefa envolve dois ou mais domínios em sequência (ex: "analise clientes E envie email para os top 10").
+- Automações, rotinas recorrentes, agendamentos ou alertas.
+- Configuração de integrações, mapeamento de esquema, ou setup de agentes.
+- Qualquer tarefa que exija planejamento multi-etapa entre domínios.
 
-CRITICAL — PARALLEL TOOL CALLS:
-- When the user asks about MORE THAN ONE topic, you MUST call ALL relevant workers in a SINGLE response.
-- Each distinct topic maps to one worker. Call them ALL at once — they execute in parallel.
-- NEVER handle multi-topic requests one worker at a time. ALWAYS emit all tool calls together.
+**Elicitar — faça UMA pergunta de clarificação:**
+- Solicitação vaga demais para classificar com segurança.
+- Exemplo: "ajuda com meus clientes" → "Claro! Você quer ver dados de compras e receita dos clientes, ou consultar políticas e processos relacionados a atendimento?"
 
-# ROUTING TABLE
+Não combine caminhos. Execute o caminho classificado e pare.
+</Instructions>
 
-| Question type | Worker tool |
-|---|---|
-| Numbers, revenue, rankings, trends | `delegate_to_data_analyst` |
-| Policies, processes, company info | `delegate_to_knowledge_assistant` |
-| Reports, exports, combined analyses | `delegate_to_report_generator` |
-| Uploaded files, OCR, extraction | `delegate_to_document_intelligence` |
-| Buying lists, quotations, procurement | `delegate_to_rfq_agent` |
+<Tool Rules>
+**`execute_sql` — consultas de dados estruturados:**
+1. Gere SQL usando o schema disponível.
+2. Chame `execute_sql(sql="SELECT ...")`.
+3. Se retornar vazio: "Não encontrei dados para esse período/filtro. Quer ajustar os critérios de busca?"
+4. Se retornar erro: cite o erro exato e explique em linguagem simples o que provavelmente ocorreu. Não tente novamente automaticamente.
 
-# HANDLE DIRECTLY (no delegation)
-- Greetings ("olá", "obrigado")
-- Clarification questions
-- Follow-ups that need no new data
+**`executar_rag_cliente` — conhecimento da empresa:**
+1. Reescreva a query antes de chamar: decomponha em conceitos-chave, expanda com sinônimos, remova filler conversacional.
+2. Chame com a query reescrita.
+3. Se retornar vazio: "Não encontrei informações sobre isso na base de conhecimento."
+4. Se retornar resultado: sintetize usando apenas o conteúdo recuperado. Cite a fonte: "Conforme [Nome do Documento]...". Nunca invente.
 
-# AFTER WORKERS REPLY
-- Write a short summary (2-3 sentences). Tables are rendered automatically — do NOT repeat table data.
+**Regras SQL críticas:**
+- Coluna de receita: `valor` — nunca `valor_total`. Sempre `SUM(f.valor)`.
+- Data: não existe `data_transacao`. Use `JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id` e filtre por `d.data`.
+- Prefixe sempre: `analytics_v2.fato_transacoes`, `analytics_v2.dim_clientes`, etc.
+- Filtro por `client_id` é aplicado **automaticamente** pela camada de segurança — nunca inclua nas queries.
+- Sem período especificado → últimos 6 meses. Sem limite → TOP 10.
+</Tool Rules>
 
-# ERROR RECOVERY
-- If a worker returns an error or "maximum turns" message, tell the user what happened and suggest rephrasing.
-- NEVER respond with a greeting after receiving worker results or errors. Always acknowledge the user's original question.
-- If some workers succeeded and others failed, summarise the successful results and explain what failed.""",
+<Constraints>
+- Use apenas as ferramentas presentes no contexto. Este é o conjunto autorizado completo.
+- Se o usuário solicitar uma capacidade sem ferramenta correspondente, informe que não está disponível no momento. Não especule sobre o motivo da ausência.
+- Nunca invente dados ou responda sobre fatos sem consultar uma ferramenta primeiro.
+- Ao atingir o limite de turnos, retorne o que já foi obtido com uma nota clara do que ficou pendente.
+</Constraints>
 
+<Output Format>
+⚠️ Os dados detalhados já aparecem em tabela interativa para o usuário.
+
+Seu texto deve ser um **resumo de 2-3 frases**:
+1. **Visão geral** — total, média ou métrica principal
+2. **Destaque** — quem lidera ou anomalia relevante
+3. **Próximo passo** — pergunta de follow-up (opcional)
+
+**✅ BOM:**
+> **5 cidades** com receita de **R$ 85M** nos últimos 6 meses.
+>
+> **Pindamonhangaba** concentra 78% do volume, seguida por Ipúja (14%).
+>
+> Quer ver a evolução mensal?
+
+**❌ RUIM:** Listar todas as linhas com detalhes completos (a tabela já exibe isso).
+
+Formatação: moeda **R$ 1.234,56** ou **R$ 2,5M** | percentuais **78%** | nunca exponha IDs técnicos.
+</Output Format>""",
 )
 
 
@@ -1810,6 +1627,38 @@ You receive the user's original request and the outputs of one or more specialis
 
 
 # =============================================================================
+# CLASSIFY NODE PROMPTS — specialist subgraph skill dispatch (Phase 4)
+# =============================================================================
+
+SPECIALISTS_CLASSIFY_SKILL_INTENT = PromptTemplateConfig(
+    name="specialists/classify-skill-intent",
+    category=PromptCategory.SYSTEM,
+    description="Classify a specialist task into a single SKILL_REGISTRY skill name or none",
+    required_variables=["skills_description", "task"],
+    content="""You are a **skill classifier** inside a specialist AI agent.
+
+Your only job: read the task below and decide which skill should handle it.
+
+## Available Skills
+
+{{ skills_description }}
+
+## Rules
+
+1. Output **exactly one** skill name from the list above — or the literal string `none` if no skill is a good fit.
+2. Do not explain. Do not add prose. Output only the skill name or `none`.
+3. Pick the most specific skill. When the task matches multiple skills, prefer the one whose description is most precise.
+4. If uncertain, output `none` — the agent will respond directly without a skill.
+
+## Task
+
+{{ task }}
+
+## Your answer (skill name or "none"):""",
+)
+
+
+# =============================================================================
 # TEMPLATE REGISTRY
 # =============================================================================
 
@@ -1820,10 +1669,7 @@ BUILTIN_TEMPLATES: dict[str, PromptTemplateConfig] = {
     ATENDENTE_SQL_DIRECT.name: ATENDENTE_SQL_DIRECT,
     # RAG prompts
     RAG_RERANK_PROMPT.name: RAG_RERANK_PROMPT,
-    # Tool prompts - SQL
-    SQL_GENERATION.name: SQL_GENERATION,
-    # Tool prompts - RAG
-    RAG_TOOL_PROMPT.name: RAG_TOOL_PROMPT,
+    # Tool prompts - RAG (rewrite only; synthesis is done by the agent)
     RAG_QUERY_REWRITE_PROMPT.name: RAG_QUERY_REWRITE_PROMPT,
     # MCP prompt module templates
     TEXT_TO_SQL_SYSTEM.name: TEXT_TO_SQL_SYSTEM,
@@ -1842,7 +1688,6 @@ BUILTIN_TEMPLATES: dict[str, PromptTemplateConfig] = {
     FRAGMENT_TOOL_USAGE_GENERAL.name: FRAGMENT_TOOL_USAGE_GENERAL,
     # Fragment prompts — standalone agents (shared)
     FRAGMENT_STANDALONE_BASE.name: FRAGMENT_STANDALONE_BASE,
-    FRAGMENT_CSV_TOOLS.name: FRAGMENT_CSV_TOOLS,
     FRAGMENT_RAG_SEARCH.name: FRAGMENT_RAG_SEARCH,
     FRAGMENT_GOOGLE_EXPORT.name: FRAGMENT_GOOGLE_EXPORT,
     FRAGMENT_STANDALONE_RESPONSE.name: FRAGMENT_STANDALONE_RESPONSE,
@@ -1853,15 +1698,15 @@ BUILTIN_TEMPLATES: dict[str, PromptTemplateConfig] = {
     FRAGMENT_DOCUMENT_INTELLIGENCE_TOOLS.name: FRAGMENT_DOCUMENT_INTELLIGENCE_TOOLS,
     FRAGMENT_DOCUMENT_INTELLIGENCE_WORKFLOW.name: FRAGMENT_DOCUMENT_INTELLIGENCE_WORKFLOW,
     FRAGMENT_CONFIG_HELPER_WORKFLOW.name: FRAGMENT_CONFIG_HELPER_WORKFLOW,
-    # Fragment prompts — supervisor (hierarchical routing layer)
-    FRAGMENT_SUPERVISOR_ROLE.name: FRAGMENT_SUPERVISOR_ROLE,
-    FRAGMENT_SUPERVISOR_WORKERS.name: FRAGMENT_SUPERVISOR_WORKERS,
-    FRAGMENT_SUPERVISOR_RULES.name: FRAGMENT_SUPERVISOR_RULES,
+    # Frontdesk agent prompt (Phase 3)
+    AGENTS_FRONTDESK.name: AGENTS_FRONTDESK,
     # Orchestrator node prompts (Layer 4 meta-skill)
     ORCHESTRATOR_PARSE_INTENT.name: ORCHESTRATOR_PARSE_INTENT,
     ORCHESTRATOR_DECOMPOSE.name: ORCHESTRATOR_DECOMPOSE,
     ORCHESTRATOR_PLAN.name: ORCHESTRATOR_PLAN,
     ORCHESTRATOR_SYNTHESIZE.name: ORCHESTRATOR_SYNTHESIZE,
+    # Classify node prompts — specialist subgraph skill dispatch (Phase 4)
+    SPECIALISTS_CLASSIFY_SKILL_INTENT.name: SPECIALISTS_CLASSIFY_SKILL_INTENT,
     # Context Gatherer fragments (Layer 3 domain skill)
     FRAGMENT_CONTEXT_GATHERER_BASE.name: FRAGMENT_CONTEXT_GATHERER_BASE,
     FRAGMENT_TRANSACTION_EXTRACTION_RULES.name: FRAGMENT_TRANSACTION_EXTRACTION_RULES,

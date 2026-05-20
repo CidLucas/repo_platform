@@ -14,7 +14,7 @@ Design
 - Span attributes prefixed with ``tool.*`` to keep them grouped in Tempo.
 - ``client_id``/``tier`` are best-effort: read from the X-Cliente-Id /
   X-Tier headers when present, else from kwargs after the
-  ``mcp_inject_cliente_id`` middleware ran.
+  ``mcp_inject_client_id`` middleware ran.
 - Errors are surfaced as span status + recorded via ``span.record_exception``.
 """
 
@@ -103,11 +103,11 @@ def _wrap_tool_callable(tool_name: str, fn: Callable[..., Any]) -> Callable[...,
                 _emit_metrics(tool_name, started, outcome, span_attrs)
                 raise
             else:
-                # The mcp_inject_cliente_id middleware mutates kwargs in-place,
-                # so cliente_id may have been resolved after entry.
-                if "cliente_id" in kwargs and "client_id" not in span_attrs:
-                    span.set_attribute("client_id", str(kwargs["cliente_id"]))
-                    span_attrs["client_id"] = str(kwargs["cliente_id"])
+                # The mcp_inject_client_id middleware mutates kwargs in-place,
+                # so client_id may have been resolved after entry.
+                if "client_id" in kwargs and "client_id" not in span_attrs:
+                    span.set_attribute("client_id", str(kwargs["client_id"]))
+                    span_attrs["client_id"] = str(kwargs["client_id"])
                 _emit_metrics(tool_name, started, outcome, span_attrs)
                 return result
 

@@ -1,15 +1,15 @@
 """
-Adapter for resolving cliente_id from external_user_id via ContextService.
+Adapter for resolving client_id from external_user_id via ContextService.
 
 With JWT-only authentication (Supabase):
 - external_user_id (JWT sub claim) = Supabase Auth user ID
-- cliente_id (internal) = Blu's internal client ID
+- client_id (internal) = Blu's internal client ID
 
 These are intentionally different:
 - external_user_id: Used for authentication with external providers (Supabase Auth)
-- cliente_id (id): Used internally for data isolation (RLS, caching, etc.)
+- client_id (id): Used internally for data isolation (RLS, caching, etc.)
 
-This adapter queries the database to resolve external_user_id -> cliente_id.
+This adapter queries the database to resolve external_user_id -> client_id.
 """
 
 import logging
@@ -23,7 +23,7 @@ def external_user_lookup_from_context_service(
     context_service: object,
 ) -> Callable[[str], Awaitable[str | None]]:
     """
-    Returns an async lookup function that resolves external_user_id to cliente_id.
+    Returns an async lookup function that resolves external_user_id to client_id.
 
     Looks up the cliente_blu record by external_user_id and returns the internal id.
 
@@ -31,18 +31,18 @@ def external_user_lookup_from_context_service(
         context_service: ContextService instance (used to lookup cliente by external_user_id)
 
     Returns:
-        Async function: (external_user_id: str) -> cliente_id: str | None
+        Async function: (external_user_id: str) -> client_id: str | None
     """
 
     async def lookup(external_user_id: str) -> str | None:
         """
-        Resolve external_user_id to cliente_id by querying the database.
+        Resolve external_user_id to client_id by querying the database.
 
         Args:
             external_user_id: The external user identifier (JWT sub claim / Supabase Auth user ID)
 
         Returns:
-            The internal cliente_id, or None if not found
+            The internal client_id, or None if not found
         """
         if not external_user_id:
             return None
@@ -61,11 +61,11 @@ def external_user_lookup_from_context_service(
             )
 
             if client_context:
-                cliente_id = str(client_context.id)
+                client_id = str(client_context.id)
                 logger.debug(
-                    f"Resolved external_user_id={external_user_id} -> cliente_id={cliente_id}"
+                    f"Resolved external_user_id={external_user_id} -> client_id={client_id}"
                 )
-                return cliente_id
+                return client_id
 
             logger.warning(f"No cliente found for external_user_id: {external_user_id}")
             return None

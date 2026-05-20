@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><script>(function(){
+  function makeStore(){
+    var data = {};
+    var api = {
+      getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+      setItem: function(k, v){ data[k] = String(v); },
+      removeItem: function(k){ delete data[k]; },
+      clear: function(){ data = {}; },
+      key: function(i){ return Object.keys(data)[i] || null; }
+    };
+    Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+    return api;
+  }
+  function tryShim(name){
+    var works = false;
+    try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+    catch (_) { works = false; }
+    if (works) return;
+    try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+    catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+  }
+  tryShim('localStorage');
+  tryShim('sessionStorage');
+})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>blu — Escritório Virtual com IA</title>
+<style>
+/* ── TOKENS ─────────────────────────────────────────────────────────────── */
+:root {
+  --bg:       #030818;
+  --bg2:      #060D24;
+  --surface:  rgba(8,18,48,0.72);
+  --surface2: rgba(12,24,60,0.65);
+  --glass:    rgba(255,255,255,0.045);
+  --glass2:   rgba(255,255,255,0.075);
+  --gb:       rgba(255,255,255,0.08);
+  --gb2:      rgba(255,255,255,0.13);
+  --fg:    #E8EDF8;
+  --muted: rgba(232,237,248,0.45);
+  --muted2:rgba(232,237,248,0.68);
+  --accent:  #8C5FDB;
+  --adim:    rgba(140,95,219,0.14);
+  --blue1:   #1E40AF;
+  --blue2:   #1D4ED8;
+  --blue3:   #3B82F6;
+  --ok:      #10B981;
+  --odim:    rgba(16,185,129,0.13);
+  --warn:    #F59E0B;
+  --wdim:    rgba(245,158,11,0.13);
+  --urg:     #EF4444;
+  --udim:    rgba(239,68,68,0.13);
+  --r:   8px;
+  --rl:  14px;
+  --body: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { font-family: var(--body); background: var(--bg); color: var(--fg); font-size: 15px; line-height: 1.6; overflow-x: hidden; }
+button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
+a { color: inherit; text-decoration: none; }
+input, select, textarea { font: inherit; color: inherit; outline: none; }
+::placeholder { color: var(--muted); }
+
+/* ── AMBIENT BG ─────────────────────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 60% at 0% 0%,   rgba(30,64,175,0.18) 0%, transparent 70%),
+    radial-gradient(ellipse 55% 45% at 100% 90%, rgba(29,78,216,0.13) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 35% at 55% 50%,  rgba(37,99,235,0.06) 0%, transparent 70%);
+}
+
+/* ── SCREENS ─────────────────────────────────────────────────────────────── */
+.page { display: none; position: relative; z-index: 1; min-height: 100vh; }
+.page.on { display: flex; flex-direction: column; }
+
+/* ── BUTTONS ─────────────────────────────────────────────────────────────── */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 20px; border-radius: var(--r); font-size: 14px; font-weight: 600; transition: all .15s; white-space: nowrap; cursor: pointer; border: none; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: #7c4ec7; transform: translateY(-1px); }
+.btn-blue { background: var(--blue2); color: #fff; }
+.btn-blue:hover { background: #2563EB; }
+.btn-ghost { border: 1px solid var(--gb); color: var(--muted2); background: var(--glass); }
+.btn-ghost:hover { border-color: var(--gb2); color: var(--fg); background: var(--glass2); }
+.btn-sm { padding: 6px 13px; font-size: 12.5px; }
+.btn-lg { padding: 14px 28px; font-size: 16px; border-radius: 10px; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   LANDING — SIMULAÇÃO INTERATIVA
+   ════════════════════════════════════════════════════════════════════════ */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; padding: 0 7%;
+  height: 60px;
+  background: rgba(3,8,24,0.82); backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--gb);
+}
+.nav-logo { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 700; letter-spacing: -.4px; }
+.logo-mark { width: 30px; height: 30px; border-radius: 8px; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; color: #fff; }
+.logo-sub { font-size: 10px; font-weight: 500; color: var(--muted); letter-spacing: .04em; margin-left: -2px; }
+.nav-links { display: flex; align-items: center; gap: 28px; margin-left: auto; }
+.nav-link { font-size: 13.5px; color: var(--muted2); transition: color .12s; }
+.nav-link:hover { color: var(--fg); }
+
+.hero {
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 100px 7% 60px;
+}
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--blue3); margin-bottom: 22px;
+  background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2);
+  padding: 5px 14px; border-radius: 20px;
+}
+.hero-h1 {
+  font-size: clamp(36px, 5.5vw, 68px); font-weight: 800; letter-spacing: -.03em; line-height: 1.08;
+  max-width: 840px; margin-bottom: 22px;
+}
+.hero-h1 em { font-style: normal; color: var(--accent); }
+.hero-sub {
+  font-size: clamp(16px, 2vw, 20px); color: var(--muted2); max-width: 520px;
+  line-height: 1.55; margin-bottom: 36px;
+}
+
+/* ── SIMULAÇÃO INTERATIVA ──────────────────────────────────────────────── */
+.sim-card {
+  width: 100%; max-width: 480px;
+  background: var(--surface); border: 1px solid var(--gb);
+  border-radius: var(--rl); backdrop-filter: blur(16px);
+  overflow: hidden; text-align: left;
+  box-shadow: 0 24px 80px rgba(0,0,0,.4);
+  animation: floatIn .8s ease-out;
+}
+@keyframes floatIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.sim-top {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 16px; border-bottom: 1px solid var(--gb);
+  font-size: 12px; color: var(--muted);
+}
+.sim-agent { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--muted2); text-transform: uppercase; letter-spacing: .05em; }
+.sim-agent .dot { width: 6px; height: 6px; border-radius: 50%; background: #818cf8; }
+.sim-urg { margin-left: auto; font-size: 10px; font-weight: 700; background: var(--udim); color: var(--urg); padding: 2px 7px; border-radius: 3px; letter-spacing: .04em; text-transform: uppercase; }
+.sim-body { padding: 14px 16px; font-size: 14px; line-height: 1.55; }
+.sim-body strong { font-weight: 600; }
+.sim-actions { display: flex; gap: 8px; padding: 0 16px 14px; }
+.sim-feedback {
+  display: none; align-items: center; gap: 7px;
+  padding: 0 16px 14px; font-size: 13px; color: var(--ok); font-weight: 600;
+}
+.sim-feedback.on { display: flex; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   MOMENTO 1 — PRIMEIRO ENCONTRO (Scrape Visível)
+   ════════════════════════════════════════════════════════════════════════ */
+.m1-wrap {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 40px 7%; min-height: 100vh;
+}
+.m1-card {
+  width: 100%; max-width: 560px;
+  background: var(--surface); border: 1px solid var(--gb);
+  border-radius: var(--rl); backdrop-filter: blur(16px);
+  padding: 40px 40px 36px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.35);
+}
+.m1-h { font-size: 26px; font-weight: 800; letter-spacing: -.03em; margin-bottom: 6px; }
+.m1-sub { font-size: 14px; color: var(--muted2); margin-bottom: 28px; line-height: 1.5; }
+
+.field { margin-bottom: 18px; }
+.field label { display: block; font-size: 12.5px; font-weight: 600; color: var(--muted2); margin-bottom: 7px; letter-spacing: .02em; }
+.field input {
+  width: 100%; background: rgba(255,255,255,0.05);
+  border: 1px solid var(--gb); border-radius: var(--r);
+  padding: 12px 14px; font-size: 15px; color: var(--fg);
+  transition: border-color .12s;
+}
+.field input:focus { border-color: var(--blue3); }
+
+.g-btn {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 12px; border-radius: var(--r);
+  background: rgba(255,255,255,0.06); border: 1px solid var(--gb);
+  font-size: 15px; font-weight: 600; color: var(--fg);
+  transition: all .15s; cursor: pointer; margin-bottom: 20px;
+}
+.g-btn:hover { background: rgba(255,255,255,0.1); border-color: var(--gb2); }
+.g-icon { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; background: #fff; color: #333; }
+
+/* Scrape results panel */
+.scrape-panel {
+  display: none;
+  margin-top: 24px;
+  border-top: 1px solid var(--gb);
+  padding-top: 20px;
+  animation: fadeIn .4s ease;
+}
+.scrape-panel.on { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+.scrape-h {
+  font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ok); margin-bottom: 14px;
+  display: flex; align-items: center; gap: 6px;
+}
+.scrape-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+.scrape-field {
+  background: var(--glass); border: 1px solid var(--gb);
+  border-radius: var(--r); padding: 10px 12px;
+}
+.scrape-field .slabel {
+  font-size: 10px; font-weight: 600; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 4px;
+}
+.scrape-field .svalue {
+  font-size: 14px; color: var(--fg); font-weight: 500;
+  min-height: 20px;
+}
+.scrape-field .svalue.typing::after {
+  content: '|'; animation: blink 1s infinite; color: var(--accent);
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+.scrape-loading {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: var(--muted2);
+  margin-bottom: 16px;
+}
+.spinner {
+  width: 16px; height: 16px; border: 2px solid var(--gb);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ════════════════════════════════════════════════════════════════════════
+   MOMENTO 2 — A MESA (Home / Desk)
+   ════════════════════════════════════════════════════════════════════════ */
+.desk-wrap { flex: 1; display: flex; flex-direction: column; }
+.desk-topbar {
+  height: 56px; background: rgba(3,8,24,0.85); backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--gb); display: flex; align-items: center;
+  padding: 0 4%; gap: 16px; flex-shrink: 0;
+}
+.desk-logo { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
+.desk-logo .logo-mark { width: 26px; height: 26px; font-size: 12px; }
+.desk-nav { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.desk-nav-item {
+  padding: 6px 12px; border-radius: 6px; font-size: 13px; color: var(--muted2);
+  cursor: default; transition: all .12s;
+}
+.desk-nav-item:hover { background: var(--glass); color: var(--fg); }
+.desk-nav-item.active { background: var(--adim); color: var(--accent); font-weight: 600; }
+.desk-user {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #B08AE8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #fff;
+}
+
+.desk-body {
+  flex: 1; padding: 24px 4%; overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  grid-template-rows: auto 1fr;
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .desk-body { grid-template-columns: 1fr; grid-template-rows: auto; }
+}
+
+/* Cards */
+.dcard {
+  background: var(--glass); border: 1px solid var(--gb);
+  border-radius: var(--rl); backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+.dcard-h {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; border-bottom: 1px solid var(--gb);
+  font-size: 11px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted);
+}
+.dcard-h .icon { font-size: 14px; }
+.dcard-body { padding: 16px; }
+
+/* Decision cards inside Decidir Agora */
+.deci-card {
+  border-radius: 8px; padding: 12px 14px;
+  border: 1px solid var(--gb);
+  border-left: 3px solid transparent;
+  background: rgba(255,255,255,.025);
+  margin-bottom: 10px;
+  transition: all .15s;
+}
+.deci-card:hover { background: rgba(255,255,255,.04); }
+.deci-urg { border-left-color: var(--urg); }
+.deci-warn { border-left-color: var(--warn); }
+.deci-ok { border-left-color: var(--ok); }
+.deci-hd {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+}
+.deci-dot { width: 6px; height: 6px; border-radius: 50%; }
+.deci-ag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); flex: 1; }
+.deci-bdg {
+  font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.deci-bdg-u { background: var(--udim); color: var(--urg); }
+.deci-bdg-w { background: var(--wdim); color: var(--warn); }
+.deci-time { margin-left: auto; font-size: 10px; color: var(--muted); font-family: var(--mono); }
+.deci-body { font-size: 13px; color: var(--muted2); line-height: 1.45; }
+.deci-body strong { color: var(--fg); font-weight: 600; }
+.deci-actions { display: flex; gap: 5px; margin-top: 8px; }
+.deci-btn-p {
+  font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: 4px;
+  background: var(--accent); color: #fff; cursor: pointer; border: none;
+}
+.deci-btn-p:hover { background: #7c4ec7; }
+.deci-btn-s {
+  font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: 4px;
+  background: rgba(255,255,255,.08); color: var(--muted2); cursor: pointer;
+  border: 1px solid var(--gb);
+}
+.deci-btn-s:hover { background: rgba(255,255,255,.12); color: var(--fg); }
+
+/* Setup cards */
+.setup-card {
+  background: var(--glass); border: 1px solid var(--gb);
+  border-radius: var(--r); padding: 14px 16px;
+  margin-bottom: 10px; cursor: pointer; transition: all .15s;
+}
+.setup-card:hover { border-color: var(--gb2); background: var(--glass2); }
+.setup-card.done { border-color: var(--ok); background: var(--odim); }
+.setup-h { font-size: 14px; font-weight: 600; margin-bottom: 3px; display: flex; align-items: center; gap: 6px; }
+.setup-desc { font-size: 12.5px; color: var(--muted2); line-height: 1.4; }
+.setup-action { margin-top: 8px; }
+
+/* Connector modal */
+.conn-modal {
+  display: none; position: fixed; inset: 0; z-index: 200;
+  background: rgba(3,8,24,0.7); backdrop-filter: blur(8px);
+  align-items: center; justify-content: center; padding: 20px;
+}
+.conn-modal.on { display: flex; }
+.conn-box {
+  width: 100%; max-width: 480px;
+  background: var(--surface); border: 1px solid var(--gb);
+  border-radius: var(--rl); backdrop-filter: blur(16px);
+  padding: 28px 28px 24px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.4);
+  animation: floatIn .3s ease;
+}
+.conn-h { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+.conn-sub { font-size: 13px; color: var(--muted2); margin-bottom: 20px; }
+.conn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.conn-opt {
+  background: var(--glass); border: 1.5px solid var(--gb);
+  border-radius: var(--r); padding: 14px 12px; text-align: center;
+  cursor: pointer; transition: all .12s; font-size: 12.5px; color: var(--muted2);
+}
+.conn-opt:hover { border-color: var(--blue3); background: rgba(59,130,246,0.07); color: var(--fg); }
+.conn-opt .cicon { font-size: 22px; margin-bottom: 6px; display: block; }
+.conn-opt .cname { font-weight: 600; }
+.conn-opt .csub { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+
+/* Floating connector card on desk */
+.float-conn {
+  position: fixed; bottom: 24px; right: 24px; z-index: 50;
+  width: 320px;
+  background: var(--surface); border: 1px solid var(--gb);
+  border-radius: var(--rl); backdrop-filter: blur(16px);
+  padding: 18px 20px;
+  box-shadow: 0 16px 50px rgba(0,0,0,.45);
+  animation: slideUp .5s ease .3s both;
+  display: none;
+}
+.float-conn.on { display: block; }
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.float-h { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.float-sub { font-size: 12px; color: var(--muted2); line-height: 1.4; margin-bottom: 12px; }
+.float-actions { display: flex; gap: 6px; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   CHAT DE ENRIQUECIMENTO (Momento 4)
+   ════════════════════════════════════════════════════════════════════════ */
+.chat-overlay {
+  display: none; position: fixed; inset: 0; z-index: 150;
+  background: rgba(3,8,24,0.6); backdrop-filter: blur(4px);
+  align-items: flex-end; justify-content: flex-end;
+  padding: 20px;
+}
+.chat-overlay.on { display: flex; }
+.chat-box {
+  width: 100%; max-width: 400px; max-height: 70vh;
+  background: var(--surface); border: 1px solid var(--gb);
+  border-radius: var(--rl); backdrop-filter: blur(16px);
+  display: flex; flex-direction: column;
+  box-shadow: 0 24px 80px rgba(0,0,0,.5);
+  animation: slideUp .4s ease;
+}
+.chat-head {
+  padding: 14px 18px; border-bottom: 1px solid var(--gb);
+  display: flex; align-items: center; gap: 10px;
+}
+.chat-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--accent); display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+.chat-title { font-size: 14px; font-weight: 700; }
+.chat-subtitle { font-size: 11px; color: var(--muted); }
+.chat-body {
+  flex: 1; overflow-y: auto; padding: 14px 18px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.chat-msg {
+  max-width: 85%; padding: 10px 13px; border-radius: 12px;
+  font-size: 13px; line-height: 1.45;
+  animation: msgIn .25s ease;
+}
+@keyframes msgIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+.chat-msg.bot { align-self: flex-start; background: var(--glass2); border: 1px solid var(--gb); color: var(--fg); border-bottom-left-radius: 3px; }
+.chat-msg.user { align-self: flex-end; background: var(--adim); border: 1px solid rgba(140,95,219,.3); color: var(--fg); border-bottom-right-radius: 3px; }
+.chat-input-wrap {
+  padding: 10px 14px 14px; border-top: 1px solid var(--gb);
+  display: flex; gap: 8px;
+}
+.chat-input {
+  flex: 1; background: rgba(255,255,255,0.05); border: 1px solid var(--gb);
+  border-radius: 20px; padding: 8px 14px; font-size: 13px;
+}
+.chat-input:focus { border-color: var(--blue3); }
+.chat-send {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--accent); color: #fff; display: flex;
+  align-items: center; justify-content: center; font-size: 14px;
+  flex-shrink: 0;
+}
+.chat-send:hover { background: #7c4ec7; }
+
+/* Quick reply pills */
+.qpills { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+.qpill {
+  padding: 4px 10px; border-radius: 12px;
+  background: var(--glass); border: 1px solid var(--gb);
+  font-size: 11.5px; color: var(--muted2); cursor: pointer; transition: all .1s;
+}
+.qpill:hover { border-color: var(--accent); color: var(--accent); background: var(--adim); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 780px) {
+  .scrape-grid { grid-template-columns: 1fr; }
+  .conn-grid { grid-template-columns: 1fr; }
+  .desk-body { grid-template-columns: 1fr; }
+  .float-conn { left: 16px; right: 16px; width: auto; bottom: 16px; }
+  .m1-card { padding: 24px 20px 20px; }
+  .nav-links { display: none; }
+}
+</style>
+<base target="_blank">
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     LANDING — SIMULAÇÃO INTERATIVA
+     ════════════════════════════════════════════════════════════════════════ -->
+<div class="page on" id="p-landing">
+  <nav class="nav">
+    <div class="nav-logo">
+      <div class="logo-mark">B</div>
+      <div>
+        <div style="line-height:1">blu</div>
+        <div class="logo-sub">by deep blue</div>
+      </div>
+    </div>
+    <div class="nav-links">
+      <span class="nav-link" style="cursor:default">Como funciona</span>
+      <span class="nav-link" style="cursor:default">Preços</span>
+      <button class="btn btn-ghost btn-sm" onclick="goToWelcome()">Entrar</button>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-eyebrow">
+      <svg width="10" height="10" fill="currentColor" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5"/></svg>
+      Escritório virtual com IA · Deep Blue
+    </div>
+    <h1 class="hero-h1">
+      Seu negócio trabalhando<br>enquanto você <em>decide</em>.
+    </h1>
+    <p class="hero-sub">
+      Um bureau de agentes de IA que trabalha para você. Cada proposta espera sua aprovação. Cada decisão fica registrada.
+    </p>
+
+    <!-- SIMULAÇÃO INTERATIVA -->
+    <div class="sim-card" id="sim-card">
+      <div class="sim-top">
+        <div class="sim-agent"><span class="dot"></span> Agente de Compras</div>
+        <span class="sim-urg">Decidir agora</span>
+      </div>
+      <div class="sim-body">
+        <strong>3 cotações prontas.</strong> Fornecedor Silva, R$ 1.240 (2 unidades Toner HP 107A). Prazo: 2 dias. Alternativa Gamma: R$ 1.180, prazo 5 dias.
+      </div>
+      <div class="sim-actions" id="sim-actions">
+        <button class="btn btn-primary btn-sm" onclick="simApprove()">👍 Aprovar Silva</button>
+        <button class="btn btn-ghost btn-sm" onclick="simView()">👁 Ver comparativo</button>
+        <button class="btn btn-ghost btn-sm" onclick="simLater()">⏰ Depois</button>
+      </div>
+      <div class="sim-feedback" id="sim-feedback">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        Pedido enviado. Silva confirmou recebimento. Seu agente anotou a preferência.
+      </div>
+    </div>
+
+    <div style="margin-top:32px">
+      <button class="btn btn-primary btn-lg" onclick="goToWelcome()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        Quero um agente assim →
+      </button>
+    </div>
+    <p style="margin-top:14px;font-size:12px;color:var(--muted)">Continuação com Google · Grátis para começar</p>
+  </section>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MOMENTO 1 — PRIMEIRO ENCONTRO
+     ════════════════════════════════════════════════════════════════════════ -->
+<div class="page" id="p-welcome">
+  <div class="m1-wrap">
+    <div class="m1-card">
+      <div class="m1-h">Bem-vindo ao blu</div>
+      <div class="m1-sub">Seu agente chega hoje. Para ele começar a trabalhar, precisa saber onde fica sua empresa.</div>
+
+      <button class="g-btn" onclick="simulateGoogleLogin()">
+        <div class="g-icon">G</div>
+        Continuar com Google
+      </button>
+
+      <div id="step1-form" style="display:none">
+        <div class="field">
+          <label>Nome da empresa</label>
+          <input type="text" id="f-empresa" placeholder="Distribuidora Alvo" oninput="checkSiteOrName()">
+        </div>
+        <div style="text-align:center;font-size:13px;color:var(--muted);margin-bottom:16px">— ou —</div>
+        <div class="field">
+          <label>Website <span style="color:var(--muted);font-weight:400">(seu agente chega sabendo mais)</span></label>
+          <input type="url" id="f-site" placeholder="https://suaempresa.com.br" oninput="checkSiteOrName()">
+        </div>
+        <button class="btn btn-primary" style="width:100%" id="btn-scrape" onclick="startScrape()" disabled>
+          Meu agente está chegando…
+        </button>
+      </div>
+
+      <!-- Scrape results -->
+      <div class="scrape-panel" id="scrape-panel">
+        <div class="scrape-loading" id="scrape-loading">
+          <div class="spinner"></div>
+          <span>Seu agente está olhando seu site…</span>
+        </div>
+        <div class="scrape-h" id="scrape-h" style="display:none">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          Encontrei sua empresa. Já anotei tudo.
+        </div>
+        <div class="scrape-grid" id="scrape-grid">
+          <div class="scrape-field">
+            <div class="slabel">Nome Fantasia</div>
+            <div class="svalue" id="sv-nome"></div>
+          </div>
+          <div class="scrape-field">
+            <div class="slabel">CNPJ</div>
+            <div class="svalue" id="sv-cnpj"></div>
+          </div>
+          <div class="scrape-field">
+            <div class="slabel">Setor</div>
+            <div class="svalue" id="sv-setor"></div>
+          </div>
+          <div class="scrape-field">
+            <div class="slabel">Cidade</div>
+            <div class="svalue" id="sv-cidade"></div>
+          </div>
+          <div class="scrape-field" style="grid-column:1/-1">
+            <div class="slabel">O que fazem</div>
+            <div class="svalue" id="sv-tagline"></div>
+          </div>
+        </div>
+        <div style="margin-top:20px;display:flex;gap:8px">
+          <button class="btn btn-ghost" style="flex:1" onclick="editScrape()">✏️ Ajustar</button>
+          <button class="btn btn-primary" style="flex:2" onclick="goToDesk()">Está certo → Entrar no escritório</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MOMENTO 2 — A MESA (Home / Desk)
+     ════════════════════════════════════════════════════════════════════════ -->
+<div class="page" id="p-desk">
+  <div class="desk-wrap">
+    <div class="desk-topbar">
+      <div class="desk-logo">
+        <div class="logo-mark">B</div>
+        <span>blu</span>
+      </div>
+      <div class="desk-nav">
+        <div class="desk-nav-item active">🏠 Início</div>
+        <div class="desk-nav-item">🛒 Compras</div>
+        <div class="desk-nav-item">📊 Financeiro</div>
+        <div class="desk-nav-item">📅 Agenda</div>
+      </div>
+      <div style="flex:1"></div>
+      <div class="desk-user" id="desk-user-avatar">CL</div>
+    </div>
+
+    <div class="desk-body">
+      <!-- Left: Decidir Agora + Setup -->
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="dcard">
+          <div class="dcard-h"><span class="icon">⚡</span>Decidir Agora</div>
+          <div class="dcard-body" id="decisions-area">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <div class="dcard">
+          <div class="dcard-h"><span class="icon">🎯</span>Configure seu escritório</div>
+          <div class="dcard-body">
+            <div class="setup-card" id="setup-plano" onclick="openSetup('plano')">
+              <div class="setup-h">📋 Plano de Hoje</div>
+              <div class="setup-desc">Que horas seu agente entrega o relatório diário?</div>
+              <div class="setup-action" id="setup-plano-action">
+                <span style="font-size:12px;color:var(--warn)">⚠ Pendente</span>
+              </div>
+            </div>
+            <div class="setup-card" id="setup-dados" onclick="openConnector()">
+              <div class="setup-h">📦 Como você compra hoje?</div>
+              <div class="setup-desc">Seu agente precisa saber quem são seus fornecedores.</div>
+              <div class="setup-action" id="setup-dados-action">
+                <span style="font-size:12px;color:var(--warn)">⚠ Pendente</span>
+              </div>
+            </div>
+            <div class="setup-card" id="setup-time" onclick="openSetup('time')">
+              <div class="setup-h">👥 Como seu time trabalha?</div>
+              <div class="setup-desc">Quem mais pode aprovar decisões?</div>
+              <div class="setup-action" id="setup-time-action">
+                <span style="font-size:12px;color:var(--muted)">✓ Só eu por enquanto</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Sidebar panels -->
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="dcard">
+          <div class="dcard-h"><span class="icon">📋</span>Plano de Hoje</div>
+          <div class="dcard-body" style="padding:10px 14px">
+            <div style="display:flex;flex-direction:column;gap:0">
+              <div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--gb)">
+                <span style="font-size:11px;font-family:var(--mono);color:var(--muted);min-width:36px">08:00</span>
+                <span style="font-size:12px;color:var(--muted2)">Relatório do agente</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid var(--gb)">
+                <span style="font-size:11px;font-family:var(--mono);color:var(--muted);min-width:36px">10:00</span>
+                <span style="font-size:12px;color:var(--muted2)">Revisar cotações</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;padding:6px 0">
+                <span style="font-size:11px;font-family:var(--mono);color:var(--muted);min-width:36px">14:00</span>
+                <span style="font-size:12px;color:var(--muted2)">Follow-up pendentes</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dcard">
+          <div class="dcard-h"><span class="icon">🔮</span>Visão da Semana</div>
+          <div class="dcard-body" style="padding:10px 14px">
+            <div style="display:flex;flex-direction:column;gap:0">
+              <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--gb)">
+                <span style="font-size:11px;font-weight:600;color:var(--accent);min-width:28px">Seg</span>
+                <span style="font-size:12px;color:var(--muted2);flex:1">Cotações + boleto</span>
+                <span style="font-size:10px;background:var(--wdim);color:var(--warn);padding:1px 5px;border-radius:3px">2</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--gb)">
+                <span style="font-size:11px;font-weight:600;color:var(--muted);min-width:28px">Ter</span>
+                <span style="font-size:12px;color:var(--muted2);flex:1">Reunião fornecedores</span>
+                <span style="font-size:10px;background:var(--odim);color:var(--ok);padding:1px 5px;border-radius:3px">✓</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;padding:5px 0">
+                <span style="font-size:11px;font-weight:600;color:var(--muted);min-width:28px">Qua</span>
+                <span style="font-size:12px;color:var(--muted2);flex:1">Fechamento mensal</span>
+                <span style="font-size:10px;background:var(--wdim);color:var(--warn);padding:1px 5px;border-radius:3px">1</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating connector card -->
+  <div class="float-conn" id="float-conn">
+    <div class="float-h">🤖 Seu agente está pronto</div>
+    <div class="float-sub" id="float-conn-text">Ele já sabe que você é uma distribuidora. Quando conectar seus dados, ele vai encontrar cotações pendentes e pagamentos a vencer.</div>
+    <div class="float-actions">
+      <button class="btn btn-primary btn-sm" style="flex:1" onclick="openConnector()">Conectar agora</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeFloatConn()">Depois</button>
+    </div>
+  </div>
+</div>
+
+<!-- Connector Modal -->
+<div class="conn-modal" id="conn-modal" onclick="if(event.target===this)closeConnector()">
+  <div class="conn-box">
+    <div class="conn-h">Conectar seus dados</div>
+    <div class="conn-sub">Seu agente aprende sobre seu negócio a partir dos seus dados. Escolha de onde vêm.</div>
+    <div class="conn-grid">
+      <div class="conn-opt" onclick="connectData('bling')">
+        <span class="cicon">📦</span>
+        <div class="cname">Bling</div>
+        <div class="csub">ERP / NF-e</div>
+      </div>
+      <div class="conn-opt" onclick="connectData('omie')">
+        <span class="cicon">⚙️</span>
+        <div class="cname">Omie</div>
+        <div class="csub">ERP</div>
+      </div>
+      <div class="conn-opt" onclick="connectData('gdrive')">
+        <span class="cicon">📁</span>
+        <div class="cname">Google Drive</div>
+        <div class="csub">Planilhas</div>
+      </div>
+      <div class="conn-opt" onclick="connectData('csv')">
+        <span class="cicon">📄</span>
+        <div class="cname">Planilha CSV</div>
+        <div class="csub">Excel / CSV</div>
+      </div>
+    </div>
+    <div style="margin-top:16px;text-align:center">
+      <span style="font-size:12px;color:var(--muted);cursor:pointer" onclick="closeConnector();startDemoMode()">Prefiro ver uma demonstração primeiro →</span>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:12px" onclick="closeConnector()">← Voltar</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     MOMENTO 4 — CHAT DE ENRIQUECIMENTO
+     ════════════════════════════════════════════════════════════════════════ -->
+<div class="chat-overlay" id="chat-overlay" onclick="if(event.target===this)toggleChat()">
+  <div class="chat-box">
+    <div class="chat-head">
+      <div class="chat-avatar">🤖</div>
+      <div>
+        <div class="chat-title">Agente de Compras</div>
+        <div class="chat-subtitle">Aprendendo sobre você</div>
+      </div>
+      <button style="margin-left:auto;font-size:16px;color:var(--muted)" onclick="toggleChat()">✕</button>
+    </div>
+    <div class="chat-body" id="chat-body">
+      <!-- Messages injected by JS -->
+    </div>
+    <div class="chat-input-wrap">
+      <input class="chat-input" id="chat-input" placeholder="Responda seu agente…" onkeydown="if(event.key==='Enter')sendChat()">
+      <button class="chat-send" onclick="sendChat()">➤</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════
+   STATE
+   ════════════════════════════════════════════════════════════════════════ */
+let state = {
+  user: { name: '', email: '', avatar: '' },
+  company: { name: '', site: '', segment: '', cnpj: '', city: '', tagline: '' },
+  setup: { plano: false, dados: false, time: false },
+  demoMode: false,
+  chatStep: 0,
+  chatOpen: false
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+   NAVIGATION
+   ════════════════════════════════════════════════════════════════════════ */
+function show(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+  const t = document.getElementById(id);
+  if (t) { t.classList.add('on'); window.scrollTo(0,0); }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   LANDING — SIMULAÇÃO
+   ════════════════════════════════════════════════════════════════════════ */
+function simApprove() {
+  document.getElementById('sim-actions').style.display = 'none';
+  document.getElementById('sim-feedback').classList.add('on');
+  setTimeout(() => {
+    document.getElementById('sim-card').style.transform = 'scale(0.98)';
+    setTimeout(() => document.getElementById('sim-card').style.transform = '', 150);
+  }, 200);
+}
+function simView() {
+  alert('Comparativo:\n\nSilva: R$ 1.240 · 2 dias · ★★★★★\nGamma: R$ 1.180 · 5 dias · ★★★☆☆\n\nRecomendação: Silva (menor risco de atraso)');
+}
+function simLater() {
+  document.getElementById('sim-actions').innerHTML = '<div style="font-size:13px;color:var(--muted)">⏰ Adiado para amanhã, 08:00</div>';
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   MOMENTO 1 — WELCOME / SCRAPE
+   ════════════════════════════════════════════════════════════════════════ */
+function goToWelcome() {
+  show('p-welcome');
+  setTimeout(() => {
+    document.getElementById('step1-form').style.display = 'block';
+    document.getElementById('step1-form').style.animation = 'fadeIn .4s ease';
+  }, 400);
+}
+
+function simulateGoogleLogin() {
+  state.user = { name: 'Carlos Lima', email: 'carlos@distribuidoraalvo.com.br', avatar: 'CL' };
+  document.querySelector('.g-btn').style.display = 'none';
+  document.getElementById('step1-form').style.display = 'block';
+  document.getElementById('step1-form').style.animation = 'fadeIn .4s ease';
+}
+
+function checkSiteOrName() {
+  const site = document.getElementById('f-site').value.trim();
+  const nome = document.getElementById('f-empresa').value.trim();
+  document.getElementById('btn-scrape').disabled = !(site || nome);
+}
+
+function startScrape() {
+  const site = document.getElementById('f-site').value.trim();
+  const nome = document.getElementById('f-empresa').value.trim();
+
+  state.company.name = nome || 'Distribuidora Alvo';
+  state.company.site = site || '';
+
+  document.getElementById('step1-form').style.display = 'none';
+  document.getElementById('scrape-panel').classList.add('on');
+
+  setTimeout(() => {
+    document.getElementById('scrape-loading').style.display = 'none';
+    document.getElementById('scrape-h').style.display = 'flex';
+
+    const data = site ? {
+      nome: 'Distribuidora Alvo Ltda',
+      cnpj: '12.345.678/0001-90',
+      setor: 'Comércio · Materiais de Escritório',
+      cidade: 'Campinas, SP',
+      tagline: 'Distribuidora de materiais de escritório, escolar e limpeza para empresas e escolas na região de Campinas.'
+    } : {
+      nome: nome,
+      cnpj: '—',
+      setor: '—',
+      cidade: '—',
+      tagline: '—'
+    };
+
+    state.company = { ...state.company, name: data.nome, cnpj: data.cnpj, segment: data.setor, city: data.cidade, tagline: data.tagline };
+
+    typeOut('sv-nome',    data.nome,    0);
+    typeOut('sv-cnpj',    data.cnpj,    400);
+    typeOut('sv-setor',   data.setor,   800);
+    typeOut('sv-cidade',  data.cidade,  1200);
+    typeOut('sv-tagline', data.tagline, 1600);
+
+  }, 1800);
+}
+
+function typeOut(id, text, delay) {
+  setTimeout(() => {
+    const el = document.getElementById(id);
+    el.classList.add('typing');
+    let i = 0;
+    const interval = setInterval(() => {
+      el.textContent = text.slice(0, i);
+      i++;
+      if (i > text.length) {
+        clearInterval(interval);
+        el.classList.remove('typing');
+      }
+    }, 25);
+  }, delay);
+}
+
+function editScrape() {
+  document.getElementById('scrape-panel').classList.remove('on');
+  document.getElementById('step1-form').style.display = 'block';
+  document.getElementById('f-empresa').value = state.company.name;
+  document.getElementById('f-site').value = state.company.site;
+  checkSiteOrName();
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   MOMENTO 2 — DESK / HOME
+   ════════════════════════════════════════════════════════════════════════ */
+function goToDesk() {
+  show('p-desk');
+  document.getElementById('desk-user-avatar').textContent = state.user.avatar || 'EU';
+
+  populateDecisions();
+
+  setTimeout(() => {
+    if (!state.setup.dados && !state.demoMode) {
+      document.getElementById('float-conn').classList.add('on');
+    }
+  }, 3000);
+
+  setTimeout(() => {
+    if (!state.chatOpen) toggleChat();
+    const firstName = state.user.name ? state.user.name.split(' ')[0] : 'você';
+    const companyName = state.company.name || 'sua empresa';
+    const city = state.company.city || 'sua região';
+    addBotMsg(`Oi ${firstName}, fui olhar seu site. Vi que a ${companyName} atende escritórios e escolas em ${city}. Acertei?`);
+    addQuickReplies(['Sim, perfeito', 'Quase — ajustar', 'Errado total']);
+  }, 6000);
+}
+
+function populateDecisions() {
+  const area = document.getElementById('decisions-area');
+  const segment = state.company.segment || '';
+
+  let decisions = [];
+
+  if (segment.includes('Comércio') || segment.includes('Distribuidora') || state.demoMode) {
+    decisions = [
+      {
+        agent: 'Compras', color: '#818cf8', badge: 'Urgente', badgeClass: 'deci-bdg-u',
+        time: '10:32', body: '<strong>3 cotações prontas.</strong> Fornecedor Silva, R$ 1.240 (Toner HP 107A × 2). Prazo: 2 dias.',
+        actions: ['👍 Aprovar Silva', '👁 Ver', '⏰ Depois'],
+        type: 'urg'
+      },
+      {
+        agent: 'Financeiro', color: '#34d399', badge: 'Amanhã', badgeClass: 'deci-bdg-w',
+        time: '09:15', body: 'Boleto Claro Empresas vence amanhã — <strong>R$ 847,50</strong>',
+        actions: ['👍 Agendar', '⏰ Depois'],
+        type: 'warn'
+      },
+      {
+        agent: 'Compras', color: '#818cf8', badge: '2 dias', badgeClass: 'deci-bdg-w',
+        time: '08:47', body: 'Estoque de café crítico. Café do Sul — <strong>R$ 282</strong>',
+        actions: ['👍 Aprovar', '⏰ Depois'],
+        type: 'warn'
+      }
+    ];
+  } else if (segment.includes('Saúde')) {
+    decisions = [
+      { agent: 'Compras', color: '#818cf8', badge: 'Crítico', badgeClass: 'deci-bdg-u', time: '09:00', body: '<strong>Luvas de procedimento</strong> — estoque para 3 dias. Fornecedor MedSupply: R$ 340/caixa.', actions: ['👍 Aprovar', '👁 Ver'], type: 'urg' },
+      { agent: 'Clientes', color: '#f472b6', badge: 'Hoje', badgeClass: 'deci-bdg-w', time: '08:30', body: '3 pacientes com retorno pendente de confirmação.', actions: ['👍 Confirmar', '⏰ Depois'], type: 'warn' }
+    ];
+  } else if (segment.includes('Restaurante') || segment.includes('Alimentação')) {
+    decisions = [
+      { agent: 'Compras', color: '#818cf8', badge: 'Ruptura', badgeClass: 'deci-bdg-u', time: '08:00', body: '<strong>Tomate caixa 20kg</strong> — estoque zero. CEASA: R$ 387. Entrega hoje?', actions: ['👍 Cotar agora', '⏰ Depois'], type: 'urg' },
+      { agent: 'Financeiro', color: '#34d399', badge: 'Hoje', badgeClass: 'deci-bdg-w', time: '07:30', body: 'Pagamento iFood semanal: <strong>R$ 2.140</strong>. Confirmar repasse?', actions: ['👍 Confirmar', '✏️ Editar'], type: 'warn' }
+    ];
+  } else {
+    decisions = [
+      { agent: 'Compras', color: '#818cf8', badge: 'Urgente', badgeClass: 'deci-bdg-u', time: '10:00', body: '<strong>Material de escritório</strong> — 3 cotações pendentes de aprovação.', actions: ['👍 Aprovar', '👁 Ver'], type: 'urg' },
+      { agent: 'Financeiro', color: '#34d399', badge: 'Amanhã', badgeClass: 'deci-bdg-w', time: '09:00', body: 'Boleto a vencer amanhã — <strong>R$ 847,50</strong>', actions: ['👍 Agendar', '⏰ Depois'], type: 'warn' }
+    ];
+  }
+
+  area.innerHTML = decisions.map((d, i) => `
+    <div class="deci-card deci-${d.type}" id="deci-${i}">
+      <div class="deci-hd">
+        <span class="deci-dot" style="background:${d.color}"></span>
+        <span class="deci-ag">${d.agent}</span>
+        <span class="deci-bdg ${d.badgeClass}">${d.badge}</span>
+        <span class="deci-time">${d.time}</span>
+      </div>
+      <div class="deci-body">${d.body}</div>
+      <div class="deci-actions">
+        ${d.actions.map((a, ai) => `<button class="${ai===0?'deci-btn-p':'deci-btn-s'}" onclick="decide(${i}, ${ai})">${a}</button>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function decide(cardIdx, actionIdx) {
+  const card = document.getElementById(`deci-${cardIdx}`);
+  if (actionIdx === 0) {
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 0;font-size:13px;color:var(--ok);font-weight:600">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        Blu anotou. Ação registrada.
+      </div>`;
+    card.style.borderLeftColor = 'var(--ok)';
+    card.style.background = 'var(--odim)';
+  } else if (actionIdx === 2) {
+    card.style.opacity = '0.5';
+  }
+}
+
+function openSetup(type) {
+  if (type === 'plano') {
+    const horario = prompt('Que horas seu agente entrega o relatório diário?\n\nEx: 08:00, 09:00, 17:00') || '08:00';
+    document.getElementById('setup-plano').classList.add('done');
+    document.getElementById('setup-plano-action').innerHTML = `<span style="font-size:12px;color:var(--ok)">✓ Configurado para ${horario}</span>`;
+    state.setup.plano = true;
+  } else if (type === 'time') {
+    const resp = confirm('Quer adicionar um colaborador agora?\n\n(Você pode fazer isso depois em Admin)');
+    document.getElementById('setup-time').classList.add('done');
+    document.getElementById('setup-time-action').innerHTML = resp
+      ? '<span style="font-size:12px;color:var(--ok)">✓ Convite enviado</span>'
+      : '<span style="font-size:12px;color:var(--ok)">✓ Só eu por enquanto</span>';
+    state.setup.time = true;
+  }
+}
+
+function openConnector() {
+  document.getElementById('conn-modal').classList.add('on');
+}
+function closeConnector() {
+  document.getElementById('conn-modal').classList.remove('on');
+}
+function closeFloatConn() {
+  document.getElementById('float-conn').classList.remove('on');
+}
+
+function connectData(source) {
+  closeConnector();
+  document.getElementById('float-conn').classList.remove('on');
+
+  setTimeout(() => {
+    state.setup.dados = true;
+    document.getElementById('setup-dados').classList.add('done');
+    document.getElementById('setup-dados-action').innerHTML = `<span style="font-size:12px;color:var(--ok)">✓ ${source === 'csv' ? 'Planilha' : source} conectado</span>`;
+
+    populateDecisions();
+    alert('Dados conectados! Seu agente está processando…\n\n(Em produção: decisões reais apareceriam em 10–30s)');
+  }, 600);
+}
+
+function startDemoMode() {
+  state.demoMode = true;
+  closeConnector();
+  document.getElementById('float-conn').classList.remove('on');
+  populateDecisions();
+
+  const area = document.getElementById('decisions-area');
+  area.insertAdjacentHTML('afterbegin', `
+    <div style="background:var(--adim);border:1px solid rgba(140,95,219,.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12.5px;color:var(--fg)">
+      📌 <strong>Modo demonstração:</strong> Estas decisões são simuladas com dados típicos do seu setor. Conecte seus dados reais para seu agente trabalhar de verdade.
+      <span style="color:var(--accent);cursor:pointer;margin-left:6px;text-decoration:underline" onclick="openConnector()">Conectar agora →</span>
+    </div>
+  `);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   CHAT DE ENRIQUECIMENTO
+   ════════════════════════════════════════════════════════════════════════ */
+function toggleChat() {
+  state.chatOpen = !state.chatOpen;
+  document.getElementById('chat-overlay').classList.toggle('on', state.chatOpen);
+}
+
+function addBotMsg(text) {
+  const body = document.getElementById('chat-body');
+  const div = document.createElement('div');
+  div.className = 'chat-msg bot';
+  div.textContent = text;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+}
+
+function addUserMsg(text) {
+  const body = document.getElementById('chat-body');
+  const div = document.createElement('div');
+  div.className = 'chat-msg user';
+  div.textContent = text;
+  body.appendChild(div);
+  body.scrollTop = body.scrollHeight;
+}
+
+function addQuickReplies(options) {
+  const body = document.getElementById('chat-body');
+  const wrap = document.createElement('div');
+  wrap.className = 'qpills';
+  options.forEach(opt => {
+    const pill = document.createElement('span');
+    pill.className = 'qpill';
+    pill.textContent = opt;
+    pill.onclick = () => handleReply(opt);
+    wrap.appendChild(pill);
+  });
+  body.appendChild(wrap);
+  body.scrollTop = body.scrollHeight;
+}
+
+function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  addUserMsg(text);
+  input.value = '';
+  setTimeout(() => handleBotResponse(text), 800);
+}
+
+function handleReply(text) {
+  addUserMsg(text);
+  setTimeout(() => handleBotResponse(text), 600);
+}
+
+function handleBotResponse(userText) {
+  const lower = userText.toLowerCase();
+  state.chatStep++;
+
+  if (state.chatStep === 1) {
+    if (lower.includes('sim') || lower.includes('perfeito')) {
+      addBotMsg('Ótimo! Vou usar isso para calibrar minhas recomendações. Uma dúvida: quem são seus 3 principais fornecedores de material de escritório?');
+      addQuickReplies(['Silva Materiais', 'Gamma Suprimentos', 'Max Distribuidora', 'Outros — vou digitar']);
+    } else if (lower.includes('ajustar') || lower.includes('quase')) {
+      addBotMsg('Sem problema. O que preciso corrigir?');
+    } else {
+      addBotMsg(`Entendido. Me conta então: o que a ${state.company.name || 'sua empresa'} faz e quem são os clientes principais?`);
+    }
+  } else if (state.chatStep === 2) {
+    if (lower.includes('silva') || lower.includes('gamma') || lower.includes('max')) {
+      addBotMsg('Anotado. Vi no seu histórico que a Silva tem 0 atrasos em 6 meses. Vou priorizar as cotações deles quando o prazo for curto.\n\nOutra coisa: sempre que o café estiver acabando, quer que eu já cote automaticamente e mande pra aprovação?');
+      addQuickReplies(['Sim, automatiza', 'Não, prefiro aprovar cada uma', 'Só para café']);
+    } else {
+      addBotMsg('Anotado. Estou aprendendo seus padrões. Quer que eu sugira alguma rotina automática?');
+      addQuickReplies(['Cotação mensal de café', 'Alerta de estoque baixo', 'Ainda não']);
+    }
+  } else if (state.chatStep === 3) {
+    if (lower.includes('sim') || lower.includes('automatiza')) {
+      addBotMsg('Perfeito! Para eu fazer isso sozinho, você precisa do Blu Analista (R$ 87/mês). Quer ativar?');
+      addQuickReplies(['Quero ativar', 'Ainda não', 'Me fala mais']);
+    } else if (lower.includes('não') || lower.includes('prefiro')) {
+      addBotMsg('Sem problema. Vou continuar mandando tudo pra aprovação. Você muda de ideia a qualquer momento.');
+    } else {
+      addBotMsg('Entendido. Vou continuar aprendendo com suas aprovações. Quanto mais você usar, mais eu acerto.');
+    }
+  } else {
+    addBotMsg('Anotado. Estou sempre por aqui quando precisar. Bem-vindo ao blu! 🎉');
+  }
+}
+</script>
+</body>
+</html>

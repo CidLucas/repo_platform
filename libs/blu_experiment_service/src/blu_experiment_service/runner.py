@@ -195,13 +195,13 @@ class ExperimentRunner:
             # Add generic cases for this client
             for case in manifest.cases:
                 # Skip if case has specific client that doesn't match
-                if case.cliente_id and case.cliente_id != client.cliente_id:
+                if case.client_id and case.client_id != client.client_id:
                     continue
                 all_cases.append((client, case))
 
             # Add client-specific cases
             if manifest.client_specific_cases:
-                client_cases = manifest.client_specific_cases.get(client.cliente_id, [])
+                client_cases = manifest.client_specific_cases.get(client.client_id, [])
                 for case in client_cases:
                     all_cases.append((client, case))
 
@@ -232,7 +232,7 @@ class ExperimentRunner:
             experiment_case = ExperimentCase(
                 run_id=run.id,
                 case_id=case.id,
-                cliente_id=uuid.UUID(client.cliente_id),
+                client_id=uuid.UUID(client.client_id),
                 cliente_name=client.name,
                 input_message=case.message,
                 expected_tool=case.expected_tool,

@@ -122,7 +122,7 @@ class SkillFactory:
         4. Return SkillResult; raise SkillTurnLimitError if on_max_turns='raise'.
         """
         from blu_agent_framework.skills import SKILL_REGISTRY, SkillTurnLimitError
-        from blu_prompt_management import get_prompt_loader
+        from blu_prompt_management import build_prompt
 
         if skill_name not in SKILL_REGISTRY:
             return SkillResult(
@@ -134,20 +134,20 @@ class SkillFactory:
 
         skill = SKILL_REGISTRY[skill_name]
 
-        # --- 1. Load system prompt from Langfuse ---
+        # --- 1. Load system prompt via build_prompt (Langfuse-first, builtin fallback) ---
         system_prompt = ""
-        try:
-            loaded = await get_prompt_loader().load(
-                skill.prompt_name,
-                variables={"max_turns": skill.max_turns},
-                allow_fallback=False,
-            )
-            system_prompt = loaded.content
-        except Exception as exc:
-            logger.warning(
-                f"[SkillFactory] Could not load prompt '{skill.prompt_name}': {exc}. "
-                "Proceeding with empty system prompt."
-            )
+        if skill.prompt_name:
+            try:
+                system_prompt = await build_prompt(
+                    skill.prompt_name,
+                    variables={"max_turns": skill.max_turns},
+                    allow_fallback=True,
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"[SkillFactory] Could not load prompt '{skill.prompt_name}': {exc}. "
+                    "Proceeding with empty system prompt."
+                )
 
         # --- 2. Build isolated state ---
         from langchain_core.messages import SystemMessage
@@ -159,7 +159,7 @@ class SkillFactory:
         skill_state: dict = {
             # Immutable scalars — pass through directly
             "session_id": parent_state.get("session_id", ""),
-            "cliente_id": parent_state.get("cliente_id", ""),
+            "client_id": parent_state.get("client_id", ""),
             "thread_id": parent_state.get("thread_id", ""),
             "channel": parent_state.get("channel", "api"),
             "agent_name": parent_state.get("agent_name", ""),

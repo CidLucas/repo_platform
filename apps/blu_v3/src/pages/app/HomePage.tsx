@@ -1,5 +1,7 @@
-import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAppStore } from '../../store/appStore'
+import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { useQueries, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useAppStore, type Screen } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
 import {
   fetchPendingApprovals,
@@ -8,21 +10,27 @@ import {
   snoozeApproval,
   type ApprovalRequest,
 } from '../../api/approvals'
-import { getFinanceIndicators, getAgendaEvents, getInsights, getCommercialIndicators } from '../../api/analytics'
+import { getFinanceIndicators, getAgendaEvents, getInsights, getCommercialIndicators, type InsightItem } from '../../api/analytics'
 import { connectGoogleCalendar } from '../../api/agenda'
+import { fetchRoutines, activateRoutine, type ClientRoutine } from '../../api/routines'
 import { useTracking } from '../../hooks/useTracking'
+import DecisionCard from '../../components/shared/DecisionCard'
+import { useApprovalStats } from '../../hooks/useApprovalStats'
+import { snoozeUntil } from '../../utils/time'
+import { AGENT_COLORS } from '../../utils/constants'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 
-const AGENT_COLORS: Record<string, string> = {
-  compras: '#818cf8',
-  financeiro: '#34d399',
-  clientes: '#f472b6',
-  estoque: '#fbbf24',
-  documentos: '#2dd4bf',
-}
-
 const DAY_ABBR = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+const DOMAIN_SCREEN: Record<string, { screen: Screen; label: string }> = {
+  compras: { screen: 'compras', label: 'Compras' },
+  financeiro: { screen: 'financeiro', label: 'Financeiro' },
+  clientes: { screen: 'clientes', label: 'Clientes' },
+  documentos: { screen: 'documentos', label: 'Documentos' },
+  estrategia: { screen: 'estrategia', label: 'Estratégia' },
+  agenda: { screen: 'agenda', label: 'Agenda' },
+}
 
 function getNextWorkDays(count = 5): Date[] {
   const today = new Date()
@@ -39,89 +47,163 @@ function agentColor(slug: string) {
   return AGENT_COLORS[slug] ?? '#94a3b8'
 }
 
-function agentLabel(slug: string) {
-  return slug.charAt(0).toUpperCase() + slug.slice(1)
-}
-
-function priorityBadge(priority: ApprovalRequest['priority']): { cls: string; label: string } {
-  switch (priority) {
-    case 'urgent': return { cls: 'bdg bu', label: 'Urgente' }
-    case 'high':   return { cls: 'bdg bu', label: 'Alto' }
-    case 'medium': return { cls: 'bdg bw', label: 'Médio' }
-    default:       return { cls: 'bdg bw', label: 'Normal' }
-  }
-}
-
-function dcClass(priority: ApprovalRequest['priority']) {
-  return priority === 'urgent' || priority === 'high' ? 'urg' : 'warn'
-}
-
-function snoozeUntil() {
-  return new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-}
-
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
-function DecisionCard({
-  approval,
-  onApprove,
-  onReject,
-  onSnooze,
-}: {
-  approval: ApprovalRequest
-  onApprove: () => void
-  onReject: () => void
-  onSnooze: () => void
-}) {
-  const { expandedId, toggleDc, addToast } = useAppStore()
-  const isExpanded = expandedId === approval.id
-  const badge = priorityBadge(approval.priority)
-  const cls = ['dc', dcClass(approval.priority), isExpanded ? 'expanded' : ''].filter(Boolean).join(' ')
+function routineStatusColor(status: ClientRoutine['status']): string {
+  switch (status) {
+    case 'active': return '#34d399'
+    case 'pending_approval': return '#fbbf24'
+    default: return '#475569'
+  }
+}
 
-  function handleApprove() {
-    onApprove()
-    addToast('ok', 'Aprovado', approval.title)
-  }
-  function handleReject() {
-    onReject()
-    addToast('no', 'Rejeitado', 'Blu anotou. Não vou sugerir novamente.')
-  }
-  function handleSnooze() {
-    onSnooze()
-    addToast('sn', 'Adiado', 'Lembrete em 2 horas.')
+function insightPrompts(ins: InsightItem): [string, string, string] {
+  const ctx = `Insight de ${ins.dimension} — "${ins.title}".\n\n${ins.observation}`
+  return [
+    `${ctx}\n\nExplique em detalhes o que está acontecendo e o impacto no negócio.`,
+    `${ctx}\n\n${ins.recommendation ? `Recomendação: ${ins.recommendation}\n\n` : ''}Quais ações concretas devo tomar agora?`,
+    `${ctx}\n\nAnalise a tendência de ${ins.kpi} e projete os próximos 30 dias.`,
+  ]
+}
+
+// ── Insight popover (portal, position:fixed to avoid overflow clip) ────────────
+interface InsightPopoverProps {
+  ins: InsightItem
+  anchorRect: DOMRect
+  onClose: () => void
+  onPrompt: (ctx: string) => void
+}
+
+function InsightPopover({ ins, anchorRect, onClose, onPrompt }: InsightPopoverProps) {
+  const prompts = insightPrompts(ins)
+  const labels = ['Explique este insight', 'Como agir?', 'Analisar tendência']
+  const ref = useRef<HTMLDivElement>(null)
+
+  // position above the anchor; fall back to below if too close to top
+  const popW = 240
+  const popH = 130
+  const spaceAbove = anchorRect.top
+  const above = spaceAbove > popH + 12
+  const top = above ? anchorRect.top - popH - 8 : anchorRect.bottom + 8
+  const left = Math.min(
+    Math.max(8, anchorRect.left + anchorRect.width / 2 - popW / 2),
+    window.innerWidth - popW - 8
+  )
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [onClose])
+
+  return createPortal(
+    <div
+      ref={ref}
+      style={{
+        position: 'fixed',
+        top,
+        left,
+        width: popW,
+        zIndex: 300,
+        background: 'rgba(8,13,32,0.97)',
+        border: '1px solid rgba(140,95,219,0.35)',
+        borderRadius: 10,
+        boxShadow: '0 12px 40px rgba(0,0,0,0.6), 0 0 0 0.5px rgba(140,95,219,0.15)',
+        backdropFilter: 'blur(24px)',
+        padding: '10px 10px 8px',
+        animation: 'fi .12s ease-out',
+      }}
+    >
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(140,95,219,0.85)', letterSpacing: '.06em', textTransform: 'uppercase', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>Falar com Blu sobre</span>
+        <button onClick={onClose} style={{ fontSize: 13, color: 'var(--mu)', lineHeight: 1, padding: '0 2px' }}>×</button>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--mu2)', marginBottom: 8, lineHeight: 1.4 }}>{ins.title}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {labels.map((label, i) => (
+          <button
+            key={i}
+            onClick={() => { onPrompt(prompts[i]); onClose() }}
+            style={{
+              textAlign: 'left',
+              padding: '6px 9px',
+              borderRadius: 6,
+              fontSize: 11,
+              color: 'var(--fg)',
+              background: 'rgba(140,95,219,0.10)',
+              border: '1px solid rgba(140,95,219,0.20)',
+              cursor: 'pointer',
+              transition: 'background .1s, border-color .1s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(140,95,219,0.22)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(140,95,219,0.10)' }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// ── Routines bstrip chip ───────────────────────────────────────────────────────
+function RoutinesHomeChip({ clientId }: { clientId: string }) {
+  const { goWithTab } = useAppStore()
+
+  const routinesQ = useQuery({
+    queryKey: ['routines', 'home', clientId],
+    queryFn: () => fetchRoutines(clientId),
+    staleTime: 300_000,
+    enabled: !!clientId,
+  })
+
+  const routines = (routinesQ.data ?? []).filter(r => r.status === 'active').slice(0, 4)
+
+  function handleRoutineClick(r: ClientRoutine) {
+    const domain = r.cross_agent_routines?.room ?? ''
+    const dst = DOMAIN_SCREEN[domain] ?? { screen: 'compras' as Screen, label: 'Compras' }
+    goWithTab(dst.screen, dst.label, 'config')
   }
 
   return (
-    <div className={cls} id={approval.id}>
-      <div className="dc-row" onClick={() => toggleDc(approval.id)}>
-        <div className="ag">
-          <div className="agd" style={{ background: agentColor(approval.agent_slug) }} />
-          {agentLabel(approval.agent_slug)}
+    <div className="routines-chip">
+      <div className="routines-head">⚙ Rotinas</div>
+      {routinesQ.isLoading && (
+        <div style={{ fontSize: 10.5, color: 'var(--mu)' }}>Carregando…</div>
+      )}
+      {!routinesQ.isLoading && routines.length === 0 && (
+        <div style={{ fontSize: 10.5, color: 'var(--mu)' }}>Nenhuma rotina ativa</div>
+      )}
+      {routines.map(r => (
+        <div key={r.id} className="routine-item" onClick={() => handleRoutineClick(r)}>
+          <div className="routine-dot" style={{ background: routineStatusColor(r.status) }} />
+          <span className="routine-name">{r.cross_agent_routines?.name ?? r.routine_id}</span>
+          <span className="routine-time">{r.cross_agent_routines?.room ?? ''}</span>
         </div>
-        <span className={badge.cls}>{badge.label}</span>
-        <span className="dc-row-summary">{approval.title}</span>
-        <span className="dt">{formatTime(approval.created_at)}</span>
-        <span className="dc-chev">▶</span>
-      </div>
-      <div className="dc-expand">
-        <div className="db">{approval.body}</div>
-        <div className="dc-act">
-          <button className="btn bp" onClick={handleApprove}>👍 Aprovar</button>
-          <button className="btn bg" onClick={handleSnooze}>⏰ Depois</button>
-          <button className="btn bs" onClick={handleReject}>✗ Rejeitar</button>
-        </div>
-      </div>
+      ))}
     </div>
   )
 }
 
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function HomePage() {
-  const { go } = useAppStore()
+  const { go, openChatWith, addToast } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const { track } = useTracking()
+
+  // expand state
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
+  const [expandedDayIdx, setExpandedDayIdx] = useState<number | null>(null)
+
+  // insight portal state
+  const [openInsightId, setOpenInsightId] = useState<string | null>(null)
+  const [insightAnchor, setInsightAnchor] = useState<DOMRect | null>(null)
 
   const [approvalsQ, insightsQ, kpiQ, agendaQ, commercialQ, weekAgendaQ] = useQueries({
     queries: [
@@ -164,24 +246,45 @@ export default function HomePage() {
     ],
   })
 
+  const approvalStatsQ = useApprovalStats()
+
   const invalidateApprovals = () => qc.invalidateQueries({ queryKey: ['approvals'] })
 
   const approveMut = useMutation({
     mutationFn: (id: string) => approveRequest(id, clientId!),
     onSuccess: invalidateApprovals,
+    onError: () => addToast('no', 'Erro', 'Não foi possível aprovar. Tente novamente.'),
+  })
+  const approveRoutineMut = useMutation({
+    mutationFn: async ({ approvalId, routineId }: { approvalId: string; routineId: string }) => {
+      await approveRequest(approvalId, clientId!)
+      await activateRoutine(routineId, clientId!)
+    },
+    onSuccess: () => {
+      invalidateApprovals()
+      qc.invalidateQueries({ queryKey: ['active-routines'] })
+    },
+    onError: () => addToast('no', 'Erro', 'Não foi possível ativar a rotina.'),
   })
   const rejectMut = useMutation({
     mutationFn: (id: string) => rejectRequest(id, clientId!),
     onSuccess: invalidateApprovals,
+    onError: () => addToast('no', 'Erro', 'Não foi possível rejeitar. Tente novamente.'),
   })
   const snoozeMut = useMutation({
     mutationFn: (id: string) => snoozeApproval(id, clientId!, snoozeUntil()),
     onSuccess: invalidateApprovals,
+    onError: () => addToast('no', 'Erro', 'Não foi possível adiar. Tente novamente.'),
   })
 
   const approvals = approvalsQ.data ?? []
   const pendingCount = approvals.length
   const cntText = pendingCount === 0 ? 'Tudo resolvido ✓' : `${pendingCount} pendentes`
+
+  const approvalStats = approvalStatsQ.data
+  const trustLabel = approvalStats
+    ? { manual: 'Todas manual', similar_toggle: 'Auto similar', rules: 'Regras ativas', full_config: 'Auto completo' }[approvalStats.trust_level]
+    : null
 
   const insights = insightsQ.data ?? []
   const fin = kpiQ.data
@@ -191,14 +294,33 @@ export default function HomePage() {
   const weekEvents = weekAgendaQ.data?.disabled ? [] : (weekAgendaQ.data?.events ?? [])
   const workDays = getNextWorkDays(5)
 
+  const openInsight = insights.find(i => i.id === openInsightId) ?? null
+
+  function handleIchClick(e: React.MouseEvent<HTMLDivElement>, ins: InsightItem) {
+    track('insight_click', { id: ins.id, dimension: ins.dimension })
+    if (openInsightId === ins.id) {
+      setOpenInsightId(null)
+      setInsightAnchor(null)
+      return
+    }
+    setInsightAnchor(e.currentTarget.getBoundingClientRect())
+    setOpenInsightId(ins.id)
+  }
+
+  function closeInsightPopover() {
+    setOpenInsightId(null)
+    setInsightAnchor(null)
+  }
+
   return (
     <div className="home-grid">
 
-      <div className="panel" style={{ gridColumn: 1, gridRow: 1 }}>
+      <div className="panel" style={{ gridColumn: 1, gridRow: 1 }} data-spotlight-target="decisions">
         <div className="ph">
           <span className="ph-ico">⚡</span>
           <span className="ph-ttl">Decidir Agora</span>
           <span className="ph-cnt" id="cnt">{cntText}</span>
+          {trustLabel && <span className="ph-cnt" style={{ marginLeft: 6, opacity: 0.7, fontSize: 10 }}>· {trustLabel}</span>}
           <span className="ph-lnk" onClick={() => go('compras', 'Compras')}>Ver todas →</span>
         </div>
         <div className="pb">
@@ -217,7 +339,14 @@ export default function HomePage() {
               <DecisionCard
                 key={approval.id}
                 approval={approval}
-                onApprove={() => approveMut.mutate(approval.id)}
+                onApprove={() => {
+                  const routineId = approval.payload?.client_routine_id as string | undefined
+                  if (approval.action_type === 'routine_activation' && routineId) {
+                    approveRoutineMut.mutate({ approvalId: approval.id, routineId })
+                  } else {
+                    approveMut.mutate(approval.id)
+                  }
+                }}
                 onReject={() => rejectMut.mutate(approval.id)}
                 onSnooze={() => snoozeMut.mutate(approval.id)}
               />
@@ -246,15 +375,52 @@ export default function HomePage() {
                   </button>
                 </div>
               )}
-              {agendaEvents.map(ev => (
-                <div key={ev.id} className="pl-item">
-                  <span className="pl-t">
-                    {new Date(ev.startsAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  <div className="pl-d" style={{ background: agentColor(ev.type) }} />
-                  <span className="pl-txt">{ev.title}</span>
-                </div>
-              ))}
+              {agendaEvents.map(ev => {
+                const isOpen = expandedEventId === ev.id
+                return (
+                  <div key={ev.id} className="pl-wrap">
+                    <div
+                      className={`pl-item${isOpen ? ' evt-open' : ''}`}
+                      onClick={() => setExpandedEventId(isOpen ? null : ev.id)}
+                    >
+                      <span className="pl-t">
+                        {formatTime(ev.startsAt)}
+                      </span>
+                      <div className="pl-d" style={{ background: agentColor(ev.type) }} />
+                      <span className="pl-txt">{ev.title}</span>
+                      <span className="pl-chev">▶</span>
+                    </div>
+                    <div className={`pl-detail${isOpen ? ' open' : ''}`}>
+                      <div className="pl-d-title">{ev.title}</div>
+                      <div className="pl-d-meta">
+                        <span>🕐 {formatTime(ev.startsAt)} – {formatTime(ev.endsAt)}</span>
+                        {ev.location && <span>📍 {ev.location}</span>}
+                      </div>
+                      {ev.attendeesCount > 0 && (
+                        <div className="pl-d-participants">
+                          {Array.from({ length: Math.min(ev.attendeesCount, 4) }).map((_, i) => (
+                            <div key={i} className="pl-d-av">{String.fromCharCode(65 + i)}</div>
+                          ))}
+                          {ev.attendeesCount > 4 && (
+                            <span style={{ fontSize: 10, color: 'var(--mu)', marginLeft: 2 }}>+{ev.attendeesCount - 4}</span>
+                          )}
+                        </div>
+                      )}
+                      <div className="pl-d-acts">
+                        {ev.hangoutLink && (
+                          <a href={ev.hangoutLink} target="_blank" rel="noopener noreferrer" className="btn bp" style={{ fontSize: 10.5, padding: '4px 9px', textDecoration: 'none' }}>
+                            📹 Entrar
+                          </a>
+                        )}
+                        <button className="btn bg" style={{ fontSize: 10.5, padding: '4px 9px' }}
+                          onClick={() => openChatWith(`Reunião: ${ev.title} às ${formatTime(ev.startsAt)}. Me ajude a preparar uma pauta.`)}>
+                          💬 Preparar pauta
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
               {!agendaQ.isLoading && !calendarDisabled && agendaEvents.length === 0 && (
                 <div style={{ color: 'var(--mu)', fontSize: 12 }}>Nenhum evento hoje ✓</div>
               )}
@@ -265,6 +431,7 @@ export default function HomePage() {
               {!calendarDisabled ? (
                 workDays.map((day, i) => {
                   const isToday = i === 0
+                  const isOpen = expandedDayIdx === i
                   const dayEvents = weekEvents.filter(ev => {
                     const evDate = new Date(ev.startsAt)
                     return (
@@ -280,12 +447,30 @@ export default function HomePage() {
                       : 'Sem eventos'
                   const cnt = dayEvents.length > 0 ? dayEvents.length : null
                   return (
-                    <div key={day.toISOString()} className="sw-item">
-                      <span className={`sw-day${isToday ? ' today' : ''}`}>{DAY_ABBR[day.getDay()]}</span>
-                      <span className="sw-desc">{isToday && pendingCount > 0 ? `Hoje — ${pendingCount} pendentes` : desc}</span>
-                      <span className={`sw-cnt${cnt ? ' sw-h' : ' sw-ok'}`}>
-                        {isToday && pendingCount > 0 ? pendingCount : cnt ?? '—'}
-                      </span>
+                    <div key={day.toISOString()} className="sw-wrap">
+                      <div
+                        className={`sw-item${isOpen ? ' sw-open' : ''}`}
+                        onClick={() => setExpandedDayIdx(isOpen ? null : i)}
+                        style={{ cursor: dayEvents.length > 0 ? 'pointer' : 'default' }}
+                      >
+                        <span className={`sw-day${isToday ? ' today' : ''}`}>{DAY_ABBR[day.getDay()]}</span>
+                        <span className="sw-desc">{isToday && pendingCount > 0 ? `Hoje — ${pendingCount} pendentes` : desc}</span>
+                        <span className={`sw-cnt${cnt ? ' sw-h' : ' sw-ok'}`}>
+                          {isToday && pendingCount > 0 ? pendingCount : cnt ?? '—'}
+                        </span>
+                        {dayEvents.length > 0 && <span className="sw-chev">▶</span>}
+                      </div>
+                      {isOpen && dayEvents.length > 0 && (
+                        <div className="sw-detail open">
+                          {dayEvents.map(ev => (
+                            <div key={ev.id} className="sw-ev-row">
+                              <span className="sw-ev-t">{formatTime(ev.startsAt)}</span>
+                              <div className="sw-ev-d" style={{ background: agentColor(ev.type) }} />
+                              <span className="sw-ev-txt">{ev.title}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )
                 })
@@ -314,7 +499,11 @@ export default function HomePage() {
 
       <div className="bstrip">
         {insights.length > 0 ? insights.map(ins => (
-          <div key={ins.id} className="ich" onClick={() => track('insight_click', { id: ins.id, dimension: ins.dimension })}>
+          <div
+            key={ins.id}
+            className={`ich${openInsightId === ins.id ? ' ich-open' : ''}`}
+            onClick={(e) => handleIchClick(e, ins)}
+          >
             <span className="ich-em">
               {ins.severity === 'error' ? '⚠️' : ins.severity === 'warning' ? '💡' : '📈'}
             </span>
@@ -326,9 +515,13 @@ export default function HomePage() {
             </div>
           </div>
         )) : (
-          <>
-            <div className="ich"><span className="ich-em">📈</span><div className="ich-body"><span className="ich-tag tg-c">Clientes</span><div className="ich-txt">Carregando insights…</div></div></div>
-          </>
+          <div className="ich">
+            <span className="ich-em">📈</span>
+            <div className="ich-body">
+              <span className="ich-tag tg-c">Clientes</span>
+              <div className="ich-txt">Carregando insights…</div>
+            </div>
+          </div>
         )}
         <div className="nums-chip" onClick={() => go('financeiro', 'Financeiro')}>
           <div className="nums-head">📊 Números <span style={{ marginLeft: 'auto', opacity: 0.45 }}>→</span></div>
@@ -361,7 +554,17 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+        {clientId && <RoutinesHomeChip clientId={clientId} />}
       </div>
+
+      {openInsight && insightAnchor && (
+        <InsightPopover
+          ins={openInsight}
+          anchorRect={insightAnchor}
+          onClose={closeInsightPopover}
+          onPrompt={ctx => { openChatWith(ctx); track('insight_prompt', { id: openInsight.id }) }}
+        />
+      )}
 
     </div>
   )

@@ -70,7 +70,7 @@ class SupabaseStorage:
 
         Args:
             file_content: File bytes or file-like object
-            path: Path within the bucket (e.g., "cliente_id/filename.pdf")
+            path: Path within the bucket (e.g., "client_id/filename.pdf")
             content_type: MIME type of the file
             upsert: If True, overwrite existing file
 
@@ -103,17 +103,17 @@ class SupabaseStorage:
         self,
         file_content: bytes | BinaryIO,
         filename: str,
-        cliente_id: str | uuid.UUID,
+        client_id: str | uuid.UUID,
         content_type: str | None = None,
         job_id: str | uuid.UUID | None = None,
     ) -> UploadResult:
         """
-        Upload a file with standard Blu path convention: {cliente_id}/{job_id}-{filename}
+        Upload a file with standard Blu path convention: {client_id}/{job_id}-{filename}
 
         Args:
             file_content: File bytes or file-like object
             filename: Original filename
-            cliente_id: UUID of the cliente_blu
+            client_id: UUID of the cliente_blu
             content_type: MIME type
             job_id: Optional job ID (generated if not provided)
 
@@ -123,8 +123,8 @@ class SupabaseStorage:
         if job_id is None:
             job_id = uuid.uuid4()
 
-        # Standard path: {cliente_id}/{job_id}-{filename}
-        path = f"{cliente_id}/{job_id}-{filename}"
+        # Standard path: {client_id}/{job_id}-{filename}
+        path = f"{client_id}/{job_id}-{filename}"
 
         return self.upload_file(file_content, path, content_type)
 

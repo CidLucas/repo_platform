@@ -69,7 +69,7 @@ class TextToSqlPrompt:
         """
         # Build variables using centralized builder
         builder = ContextVariableBuilder()
-        builder.with_cliente_id(client_id)
+        builder.with_client_id(client_id)
         builder.with_custom("role", role)
         builder.with_custom("question", question)
 
@@ -96,7 +96,7 @@ class TextToSqlPrompt:
         variables = builder.build_dict()
 
         # Load and render prompt using centralized loader
-        # Note: No cliente_id parameter - context is injected via variables
+        # Note: No client_id parameter - context is injected via variables
         loaded_prompt = await self.loader.load(
             "text-to-sql/v1",
             variables=variables,

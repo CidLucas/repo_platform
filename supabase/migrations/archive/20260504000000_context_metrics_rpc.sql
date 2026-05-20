@@ -54,7 +54,7 @@ all_monthly AS (
     COALESCE(SUM(ft.valor),                    0)    AS receita,
     COUNT(DISTINCT ft.transacao_id)::numeric          AS total_pedidos,
     COALESCE(SUM(ft.quantidade),               0)    AS quantidade,
-    COUNT(DISTINCT ft.cliente_id)::numeric            AS clientes_unicos,
+    COUNT(DISTINCT ft.client_id)::numeric            AS clientes_unicos,
     COUNT(DISTINCT ft.fornecedor_id)::numeric         AS fornecedores_ativos,
     COUNT(DISTINCT ft.produto_id)::numeric            AS skus_ativos,
     CASE
@@ -63,14 +63,14 @@ all_monthly AS (
       ELSE 0
     END                                               AS ticket_medio,
     CASE
-      WHEN COUNT(DISTINCT ft.cliente_id) > 0
+      WHEN COUNT(DISTINCT ft.client_id) > 0
         THEN COUNT(DISTINCT ft.transacao_id)::numeric
-             / COUNT(DISTINCT ft.cliente_id)
+             / COUNT(DISTINCT ft.client_id)
       ELSE 0
     END                                               AS frequencia_media,
     CASE
-      WHEN COUNT(DISTINCT ft.cliente_id) > 0
-        THEN SUM(ft.valor) / COUNT(DISTINCT ft.cliente_id)
+      WHEN COUNT(DISTINCT ft.client_id) > 0
+        THEN SUM(ft.valor) / COUNT(DISTINCT ft.client_id)
       ELSE 0
     END                                               AS receita_por_cliente,
     CASE
@@ -92,17 +92,17 @@ all_monthly AS (
   GROUP BY date_trunc('month', dd.data)::date
 ),
 
--- ── 2. (mes, cliente_id) used to compute novos and recorrentes.
+-- ── 2. (mes, client_id) used to compute novos and recorrentes.
 --       Covers all months including current.
 monthly_buyers AS (
   SELECT DISTINCT
     date_trunc('month', dd.data)::date AS mes,
-    ft.cliente_id
+    ft.client_id
   FROM analytics_v2.fato_transacoes ft
   JOIN analytics_v2.dim_datas       dd
     ON  ft.data_competencia_id = dd.data_id
   WHERE ft.client_id     = p_client_id
-    AND ft.cliente_id    IS NOT NULL
+    AND ft.client_id    IS NOT NULL
     AND dd.data          IS NOT NULL
     AND dd.data           < CURRENT_DATE
 ),
@@ -110,15 +110,15 @@ monthly_buyers AS (
 -- ── 3. First purchase month per customer → used for clientes_novos.
 first_purchases AS (
   SELECT
-    ft.cliente_id,
+    ft.client_id,
     date_trunc('month', MIN(dd.data))::date AS first_month
   FROM analytics_v2.fato_transacoes ft
   JOIN analytics_v2.dim_datas       dd
     ON  ft.data_competencia_id = dd.data_id
   WHERE ft.client_id  = p_client_id
-    AND ft.cliente_id IS NOT NULL
+    AND ft.client_id IS NOT NULL
     AND dd.data       IS NOT NULL
-  GROUP BY ft.cliente_id
+  GROUP BY ft.client_id
 ),
 
 -- ── 4. Count novos per month.
@@ -135,7 +135,7 @@ recorrentes_por_mes AS (
     COUNT(*)::numeric AS clientes_recorrentes
   FROM monthly_buyers a
   JOIN monthly_buyers b
-    ON  b.cliente_id = a.cliente_id
+    ON  b.client_id = a.client_id
     AND b.mes = (a.mes - INTERVAL '1 month')::date
   GROUP BY a.mes
 ),

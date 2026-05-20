@@ -579,7 +579,7 @@ export const getCommercialRevenueByChannel = async (period: string = '30d'): Pro
 }
 
 export interface TopClientRow {
-  cliente_id: number
+  client_id: number
   nome: string | null
   receita: number
   pedidos: number
@@ -593,7 +593,7 @@ export const getCommercialTopClients = async (period: string = '30d', limit = 10
     .rpc('get_commercial_top_clients', { p_period: period, p_limit: limit })
   if (error) throw new Error(`get_commercial_top_clients: ${error.message}`)
   return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
-    cliente_id: num(r?.cliente_id),
+    client_id: num(r?.client_id),
     nome: r?.nome == null ? null : String(r.nome),
     receita: num(r?.receita),
     pedidos: num(r?.pedidos),

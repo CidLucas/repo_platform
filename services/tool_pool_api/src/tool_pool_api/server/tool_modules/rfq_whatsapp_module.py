@@ -8,7 +8,7 @@ using LLM extraction from free-text messages.
 **Architecture**:
 - Uses blu_twilio_client for WhatsApp messaging
 - Uses blu_llm_service (FAST tier) for parsing unstructured replies
-- client_id injected via mcp_inject_cliente_id
+- client_id injected via mcp_inject_client_id
 - All message content sanitized before Langfuse logging
 """
 
@@ -20,7 +20,7 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.dependencies import get_context_service
-from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_supabase_client import get_supabase_client
 
 from . import register_module
@@ -37,7 +37,7 @@ async def _dispatch_rfq_whatsapp_logic(
     ctx: Context,
     rfq_id: str,
     message_template: str | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Send an RFQ to a supplier via WhatsApp.
@@ -53,10 +53,10 @@ async def _dispatch_rfq_whatsapp_logic(
     Returns:
         dict with rfq_id, supplier_name, whatsapp_status, message_sid
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
 
-    if not cliente_id:
-        raise ToolError("Missing cliente_id in context")
+    if not client_id:
+        raise ToolError("Missing client_id in context")
 
     try:
         db = get_supabase_client()
@@ -65,7 +65,7 @@ async def _dispatch_rfq_whatsapp_logic(
         rfq_result = db.table("rfq_requests").select(
             "id,status,items,deadline,"
             "supplier_roster(id,name,contact_phone,contact_email)"
-        ).eq("id", rfq_id).eq("client_id", cliente_id).maybe_single().execute()
+        ).eq("id", rfq_id).eq("client_id", client_id).maybe_single().execute()
 
         rfq = rfq_result.data
         if not rfq:
@@ -190,7 +190,7 @@ async def _parse_supplier_reply_logic(
     ctx: Context,
     rfq_id: str,
     reply_text: str,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Parse a free-text supplier reply (e.g. from WhatsApp) into structured quote data
@@ -203,13 +203,13 @@ async def _parse_supplier_reply_logic(
     Returns:
         dict with rfq_id, parsed_data, confidence, status
     """
-    cliente_id = cliente_id or ctx.request_context.lifespan_context.get("cliente_id")
+    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
 
-    if not cliente_id:
-        raise ToolError("Missing cliente_id in context")
+    if not client_id:
+        raise ToolError("Missing client_id in context")
 
     return await parse_supplier_reply_core(
-        cliente_id=cliente_id,
+        client_id=client_id,
         rfq_id=rfq_id,
         reply_text=reply_text,
     )
@@ -217,7 +217,7 @@ async def _parse_supplier_reply_logic(
 
 async def parse_supplier_reply_core(
     *,
-    cliente_id: str,
+    client_id: str,
     rfq_id: str,
     reply_text: str,
 ) -> dict:
@@ -238,7 +238,7 @@ async def parse_supplier_reply_core(
         rfq_result = db.table("rfq_requests").select(
             "id,status,items,supplier_id,"
             "supplier_roster(name)"
-        ).eq("id", rfq_id).eq("client_id", cliente_id).maybe_single().execute()
+        ).eq("id", rfq_id).eq("client_id", client_id).maybe_single().execute()
 
         rfq = rfq_result.data
         if not rfq:
@@ -375,7 +375,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "message_template para personalizar.\n\n"
             "Passe o rfq_id de uma cotação já criada com dispatch_rfq."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_dispatch_rfq_whatsapp_logic))
+    )(mcp_inject_client_id(get_context_service)(_dispatch_rfq_whatsapp_logic))
 
     mcp.tool(
         name="parse_supplier_reply",
@@ -385,7 +385,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Passe rfq_id e o texto da resposta do fornecedor.\n"
             "Retorna dados parseados com nível de confiança (high/medium/low)."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_parse_supplier_reply_logic))
+    )(mcp_inject_client_id(get_context_service)(_parse_supplier_reply_logic))
 
     logger.info(
         "[RFQ WhatsApp Module] Tools registered: "

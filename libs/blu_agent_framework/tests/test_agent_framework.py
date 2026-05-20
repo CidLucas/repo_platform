@@ -47,7 +47,7 @@ def sample_state() -> AgentState:
     """Sample agent state."""
     return create_initial_state(
         session_id="session-123",
-        cliente_id="client-456",
+        client_id="client-456",
         messages=[HumanMessage(content="Hello")],
         system_prompt="You are a test agent.",
         agent_name="test_agent",
@@ -126,11 +126,11 @@ class TestAgentState:
         """Test creating initial state."""
         state = create_initial_state(
             session_id="sess-1",
-            cliente_id="client-1",
+            client_id="client-1",
         )
 
         assert state["session_id"] == "sess-1"
-        assert state["cliente_id"] == "client-1"
+        assert state["client_id"] == "client-1"
         assert state["turn_count"] == 0
         assert state["ended"] is False
 
@@ -139,7 +139,7 @@ class TestAgentState:
         messages = [HumanMessage(content="Hi")]
         state = create_initial_state(
             session_id="sess-1",
-            cliente_id="client-1",
+            client_id="client-1",
             messages=messages,
         )
 
@@ -151,7 +151,7 @@ class TestAgentState:
         context = {"nome_empresa": "Test Co", "tier": "SME"}
         state = create_initial_state(
             session_id="sess-1",
-            cliente_id="client-1",
+            client_id="client-1",
             client_context=context,
         )
 
@@ -178,7 +178,7 @@ class TestNodes:
         """Test init node ends when max turns exceeded."""
         state = create_initial_state(
             session_id="sess-1",
-            cliente_id="client-1",
+            client_id="client-1",
             max_turns=5,
         )
         state["turn_count"] = 5  # Already at max
@@ -556,7 +556,7 @@ class TestFanOut:
         sample_state["pending_tool_calls"] = [
             {"name": "tool_a", "id": "call-1", "args": {}},
         ]
-        sample_state["cliente_id"] = "client-123"
+        sample_state["client_id"] = "client-123"
         sample_state["session_id"] = "session-456"
         sample_state["channel"] = "web"
 
@@ -564,7 +564,7 @@ class TestFanOut:
 
         assert len(result) == 1
         send_state = result[0].arg
-        assert send_state["cliente_id"] == "client-123"
+        assert send_state["client_id"] == "client-123"
         assert send_state["session_id"] == "session-456"
         assert send_state["channel"] == "web"
 
@@ -586,7 +586,7 @@ class TestFanOut:
 
         state = create_initial_state(
             session_id="sess-1",
-            cliente_id="client-1",
+            client_id="client-1",
         )
         state["tool_results"] = [
             {"tool_name": "tool_a", "result": "A", "success": True},
@@ -641,7 +641,7 @@ class TestClassifyIntentNode:
 
     @pytest.fixture
     def base_state(self):
-        return create_initial_state(session_id="s", cliente_id="c")
+        return create_initial_state(session_id="s", client_id="c")
 
     def _with_last_message(self, state, msg):
         state["messages"] = [msg]
@@ -797,7 +797,7 @@ class TestIntentRoutingStateFields:
     """Tests for the new intent-routing fields added to AgentState."""
 
     def test_initial_state_has_intent_fields(self):
-        state = create_initial_state(session_id="s", cliente_id="c")
+        state = create_initial_state(session_id="s", client_id="c")
         assert state["current_intent"] is None
         assert state["current_domain"] is None
         assert state["intent_tags"] == []
@@ -805,13 +805,13 @@ class TestIntentRoutingStateFields:
 
     def test_intent_tags_is_list_not_set(self):
         """list[str] is JSON-serializable; set[str] would break Redis checkpointing."""
-        state = create_initial_state(session_id="s", cliente_id="c")
+        state = create_initial_state(session_id="s", client_id="c")
         import json
         # must not raise
         json.dumps({"intent_tags": state["intent_tags"]})
 
     def test_loaded_context_keys_is_list_not_set(self):
-        state = create_initial_state(session_id="s", cliente_id="c")
+        state = create_initial_state(session_id="s", client_id="c")
         import json
         json.dumps({"loaded_context_keys": state["loaded_context_keys"]})
 
@@ -825,7 +825,7 @@ class TestContextEnrichmentNode:
 
         state = create_initial_state(
             session_id="s",
-            cliente_id="c",
+            client_id="c",
             client_context={
                 "nome_empresa": "Acme",
                 "cnpj": "",           # empty string → not loaded
@@ -854,7 +854,7 @@ class TestContextEnrichmentNode:
 
         state = create_initial_state(
             session_id="s",
-            cliente_id="c",
+            client_id="c",
             client_context={"nome_empresa": "Test"},
         )
         result = await context_enrichment_node(state)
@@ -864,7 +864,7 @@ class TestContextEnrichmentNode:
     async def test_empty_client_context_gives_empty_keys(self):
         from blu_agent_framework.nodes import context_enrichment_node
 
-        state = create_initial_state(session_id="s", cliente_id="c")
+        state = create_initial_state(session_id="s", client_id="c")
         result = await context_enrichment_node(state)
         assert result["loaded_context_keys"] == []
 
@@ -874,7 +874,7 @@ class TestContextEnrichmentNode:
 
         state = create_initial_state(
             session_id="s",
-            cliente_id="c",
+            client_id="c",
             client_context={
                 "tier": "SME",
                 "nome_empresa": "Co",
@@ -898,8 +898,258 @@ class TestContextEnrichmentNode:
 
         state = create_initial_state(
             session_id="s",
-            cliente_id="c",
+            client_id="c",
             client_context={"nome_empresa": "Co", "tier": "BASIC"},
         )
         result = await context_enrichment_node(state)
         json.dumps(result["loaded_context_keys"])  # must not raise
+
+
+# ============================================================================
+# Phase 3 — Frontdesk Specialist Tests
+# ============================================================================
+
+
+class TestFrontdeskRegistry:
+    """Verify frontdesk entry in AgentTypeRegistry."""
+
+    def test_frontdesk_registered(self):
+        from blu_agent_framework.registry import AgentTypeRegistry
+
+        cfg = AgentTypeRegistry.get("frontdesk")
+        assert cfg is not None
+
+    def test_frontdesk_slug(self):
+        from blu_agent_framework.registry import AgentTypeRegistry
+
+        cfg = AgentTypeRegistry.get("frontdesk")
+        assert cfg.slug == "frontdesk"
+
+    def test_frontdesk_uses_prompt_name(self):
+        from blu_agent_framework.registry import AgentTypeRegistry
+
+        cfg = AgentTypeRegistry.get("frontdesk")
+        assert cfg.prompt_name == "agents/frontdesk"
+        assert cfg.fragments == []
+
+    def test_frontdesk_enabled_tools(self):
+        from blu_agent_framework.registry import AgentTypeRegistry
+
+        cfg = AgentTypeRegistry.get("frontdesk")
+        assert "executar_rag_cliente" in cfg.enabled_tools
+        assert "execute_sql" in cfg.enabled_tools
+
+    def test_frontdesk_tier(self):
+        from blu_agent_framework.registry import AgentTypeRegistry
+        from blu_tool_registry.tool_metadata import TierLevel
+
+        cfg = AgentTypeRegistry.get("frontdesk")
+        assert cfg.tier_required == TierLevel.BASIC
+
+    def test_frontdesk_tags(self):
+        from blu_agent_framework.registry import AgentTypeRegistry
+
+        cfg = AgentTypeRegistry.get("frontdesk")
+        assert "frontdesk" in cfg.tags
+        assert "rag" in cfg.tags
+        assert "sql" in cfg.tags
+
+    def test_frontdesk_visible_to_basic_tier(self):
+        from blu_agent_framework.registry import AgentTypeRegistry
+
+        configs = AgentTypeRegistry.for_tier("BASIC")
+        slugs = [c.slug for c in configs]
+        assert "frontdesk" in slugs
+
+
+class TestSimpleSqlQuerySkill:
+    """Verify simple_sql_query entry in SKILL_REGISTRY."""
+
+    def test_skill_registered(self):
+        from blu_agent_framework.skills import SKILL_REGISTRY
+
+        assert "simple_sql_query" in SKILL_REGISTRY
+
+    def test_skill_prompt_name(self):
+        from blu_agent_framework.skills import SKILL_REGISTRY
+
+        skill = SKILL_REGISTRY["simple_sql_query"]
+        assert skill.prompt_name == "skill:simple_sql_query:system"
+
+    def test_skill_required_tools(self):
+        from blu_agent_framework.skills import SKILL_REGISTRY
+
+        skill = SKILL_REGISTRY["simple_sql_query"]
+        assert skill.required_tool_names == ["execute_sql"]
+
+    def test_skill_max_turns(self):
+        from blu_agent_framework.skills import SKILL_REGISTRY
+
+        skill = SKILL_REGISTRY["simple_sql_query"]
+        assert skill.max_turns == 2
+
+    def test_skill_on_max_turns(self):
+        from blu_agent_framework.skills import SKILL_REGISTRY
+
+        skill = SKILL_REGISTRY["simple_sql_query"]
+        assert skill.on_max_turns == "return_partial"
+
+    def test_skill_tags_intersect_frontdesk(self):
+        from blu_agent_framework.registry import AgentTypeRegistry
+        from blu_agent_framework.skills import SKILL_REGISTRY
+
+        skill = SKILL_REGISTRY["simple_sql_query"]
+        cfg = AgentTypeRegistry.get("frontdesk")
+        assert set(skill.tags) & set(cfg.tags), "skill tags must intersect frontdesk tags"
+
+
+class TestFrontdeskPromptTemplates:
+    """Verify frontdesk builtin prompt templates exist and are registered."""
+
+    def test_fragment_frontdesk_routing_in_builtins(self):
+        from blu_prompt_management.templates import BUILTIN_TEMPLATES
+
+        assert "specialists/frontdesk-routing" in BUILTIN_TEMPLATES
+
+    def test_agents_frontdesk_in_builtins(self):
+        from blu_prompt_management.templates import BUILTIN_TEMPLATES
+
+        assert "agents/frontdesk" in BUILTIN_TEMPLATES
+
+    def test_agents_frontdesk_has_required_variables(self):
+        from blu_prompt_management.templates import BUILTIN_TEMPLATES
+
+        tpl = BUILTIN_TEMPLATES["agents/frontdesk"]
+        assert "nome_empresa" in tpl.required_variables
+
+    def test_fragment_frontdesk_routing_langfuse_managed(self):
+        from blu_prompt_management.dynamic_builder import _is_langfuse_managed
+
+        assert _is_langfuse_managed("specialists/frontdesk-routing")
+
+    def test_agents_frontdesk_langfuse_managed(self):
+        from blu_prompt_management.dynamic_builder import _is_langfuse_managed
+
+        assert _is_langfuse_managed("agents/frontdesk")
+
+
+# ============================================================================
+# Phase 4 — Universal Specialist Subgraph Tests
+# ============================================================================
+
+
+class TestUseSpecialistGraph:
+    """Verify use_specialist_graph() builds and compiles correctly."""
+
+    @pytest.fixture
+    def specialist_config(self):
+        return AgentConfig(
+            name="data-analyst",
+            role="data-analyst",
+            enabled_tools=["execute_sql"],
+            max_turns=4,
+            use_langfuse=False,
+            model="test:model",
+        )
+
+    def test_specialist_graph_nodes(self, specialist_config):
+        """Nodes init, classify_skill_intent, run_skill, respond, end are wired."""
+        from blu_agent_framework.registry import AgentTypeRegistry
+
+        cfg = AgentTypeRegistry.get("data-analyst")
+        assert cfg is not None
+
+        builder = AgentBuilder(specialist_config)
+        builder.use_specialist_graph(cfg)
+
+        assert "init" in builder._nodes
+        assert "classify_skill_intent" in builder._nodes
+        assert "run_skill" in builder._nodes
+        assert "respond" in builder._nodes
+        assert "end" in builder._nodes
+
+    def test_specialist_graph_compiles(self, specialist_config):
+        """use_specialist_graph() graph must compile without error."""
+        from blu_agent_framework.registry import AgentTypeRegistry
+
+        cfg = AgentTypeRegistry.get("data-analyst")
+        builder = AgentBuilder(specialist_config)
+        builder.use_specialist_graph(cfg)
+        graph = builder.build()
+
+        assert graph is not None
+
+    def test_classify_skill_intent_in_registry(self):
+        """classify_skill_intent node is registered in NodeRegistry."""
+        node = NodeRegistry.get("classify_skill_intent")
+        assert node is not None
+
+    def test_specialist_graph_topology_flag(self, specialist_config):
+        """Builder stores specialist cfg when use_specialist_graph() is called."""
+        from blu_agent_framework.registry import AgentTypeRegistry
+
+        cfg = AgentTypeRegistry.get("data-analyst")
+        builder = AgentBuilder(specialist_config)
+        builder.use_specialist_graph(cfg)
+
+        assert builder._specialist_cfg is cfg
+
+
+class TestClassifySkillIntentTemplate:
+    """Verify specialists/classify-skill-intent builtin template and Langfuse management."""
+
+    def test_classify_skill_intent_in_builtins(self):
+        from blu_prompt_management.templates import BUILTIN_TEMPLATES
+
+        assert "specialists/classify-skill-intent" in BUILTIN_TEMPLATES
+
+    def test_classify_skill_intent_langfuse_managed(self):
+        from blu_prompt_management.dynamic_builder import _is_langfuse_managed
+
+        assert _is_langfuse_managed("specialists/classify-skill-intent")
+
+    def test_classify_skill_intent_has_required_variables(self):
+        from blu_prompt_management.templates import BUILTIN_TEMPLATES
+
+        tpl = BUILTIN_TEMPLATES["specialists/classify-skill-intent"]
+        assert "skills_description" in tpl.required_variables
+        assert "task" in tpl.required_variables
+
+
+class TestWorkerExecutorSpecialistGraph:
+    """Verify supervisor machinery was removed and specialist graph pattern is in place."""
+
+    def test_worker_invoker_removed(self):
+        """_WorkerInvoker must no longer exist in supervisor.py."""
+        import blu_agent_framework.supervisor as sup
+
+        assert not hasattr(sup, "_WorkerInvoker")
+
+    def test_build_delegation_tools_removed(self):
+        """build_delegation_tools must no longer exist in supervisor.py."""
+        import blu_agent_framework.supervisor as sup
+
+        assert not hasattr(sup, "build_delegation_tools")
+
+    def test_use_supervisor_graph_removed(self):
+        """use_supervisor_graph must no longer exist on AgentBuilder."""
+        assert not hasattr(AgentBuilder, "use_supervisor_graph")
+
+
+class TestRouteAfterClassifySkill:
+    """Verify route_after_classify_skill routes correctly."""
+
+    def test_routes_to_run_skill_when_current_skill_set(self):
+        from blu_agent_framework.routing import route_after_classify_skill
+
+        state = create_initial_state(session_id="s", client_id="c")
+        state["current_skill"] = "simple_sql_query"
+        assert route_after_classify_skill(state) == "run_skill"
+
+    def test_routes_to_respond_when_no_skill(self):
+        from blu_agent_framework.routing import route_after_classify_skill
+
+        state = create_initial_state(session_id="s", client_id="c")
+        state["current_skill"] = None
+        assert route_after_classify_skill(state) == "respond"
+

@@ -57,11 +57,11 @@ INSERT INTO public.sql_table_config
     (client_id, table_name, display_name, description, is_primary, column_descriptions, join_keys)
 VALUES
 (NULL, 'analytics_v2.fato_transacoes', 'Transações', 'Tabela de fatos: pedidos de compra e linhas de item. Uma linha por item de pedido.', true,
- '{"id":"Identificador único da linha","cliente_id":"FK para dim_clientes (filtrado por RLS)","fornecedor_id":"FK para dim_fornecedores","data_id":"FK para dim_datas","produto":"Nome ou código do produto","quantidade":"Quantidade pedida","valor_unitario":"Preço unitário","valor_total":"Valor total da linha","status":"Status: pending, confirmed, delivered, cancelled","created_at":"Data de criação"}',
- '[{"from":"fornecedor_id","to":"analytics_v2.dim_fornecedores.id"},{"from":"data_id","to":"analytics_v2.dim_datas.id"},{"from":"cliente_id","to":"analytics_v2.dim_clientes.cliente_id"}]'
+ '{"transacao_id":"Identificador único da linha","customer_id":"FK para dim_clientes (o cliente que realizou a transação)","fornecedor_id":"FK para dim_fornecedores","data_competencia_id":"FK para dim_datas","documento":"Número do documento/NF","quantidade":"Quantidade pedida","valor_unitario":"Preço unitário","valor":"Valor total da linha","status":"Status: pending, confirmed, delivered, cancelled","created_at":"Data de criação"}',
+ '[{"from":"fornecedor_id","to":"analytics_v2.dim_fornecedores.fornecedor_id"},{"from":"data_competencia_id","to":"analytics_v2.dim_datas.data_id"},{"from":"customer_id","to":"analytics_v2.dim_clientes.customer_id"}]'
 ),
 (NULL, 'analytics_v2.dim_clientes', 'Clientes', 'Dimensão de clientes. Cada tenant vê apenas seus próprios clientes via RLS.', false,
- '{"cliente_id":"Identificador único","nome":"Razão social ou nome","cnpj":"CNPJ","segmento":"Segmento de mercado","regiao":"Região geográfica","ativo":"Se o cliente está ativo"}',
+ '{"customer_id":"Identificador único do cliente final (BIGINT)","nome":"Razão social ou nome","cpf_cnpj":"CPF ou CNPJ","endereco_cidade":"Cidade","endereco_uf":"Estado","receita_total":"Receita total acumulada","total_pedidos":"Total de pedidos","ticket_medio":"Ticket médio","dias_recencia":"Dias desde a última compra","frequencia_mensal":"Frequência mensal de compras","nivel_cluster":"Nível de cluster (ex: alto, médio, baixo)"}',
  '[]'
 ),
 (NULL, 'analytics_v2.dim_fornecedores', 'Fornecedores', 'Dimensão de fornecedores cadastrados pelo tenant.', false,

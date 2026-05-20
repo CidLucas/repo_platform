@@ -27,8 +27,12 @@ class PromptVariables:
     # Context 2.0: compiled sections
     context_sections: str | None = None
 
+    # Schema / KB context injection
+    sql_schema_context: str | None = None  # Rendered client DB schema for SQL agents
+    kb_context: str | None = None          # Rendered KB metadata for RAG agents
+
     # Metadata
-    cliente_id: str | None = None
+    client_id: str | None = None
     tier: str | None = None
 
     # Custom variables
@@ -43,7 +47,9 @@ class PromptVariables:
             "agent_personality": self.agent_personality or "",
             "agent_name": self.agent_name or "Assistente",
             "context_sections": self.context_sections or "",
-            "cliente_id": self.cliente_id or "",
+            "sql_schema_context": self.sql_schema_context or "",
+            "kb_context": self.kb_context or "",
+            "client_id": self.client_id or "",
             "tier": self.tier or "",
         }
 
@@ -98,9 +104,128 @@ class VariableExtractor:
 
         # Client ID
         if hasattr(context, "id"):
-            variables.cliente_id = str(context.id)
+            variables.client_id = str(context.id)
+
+        # SQL schema context — rendered from per-client sql_table_config rows
+        data_schema = getattr(context, "data_schema", None)
+        variables.sql_schema_context = VariableExtractor.render_sql_schema(data_schema)
+
+        # KB / knowledge base context
+        variables.kb_context = VariableExtractor.render_kb_context(context)
 
         return variables
+
+    @staticmethod
+    def render_sql_schema(data_schema: Any) -> str:
+        """
+        Render DataSchema.table_schemas into a markdown string for SQL prompt injection.
+
+        Returns empty string when no per-client table configs exist (the prompt
+        template's own hardcoded fallback schema will be used in that case).
+        """
+        if not data_schema:
+            return ""
+
+        table_schemas = getattr(data_schema, "table_schemas", [])
+        if not table_schemas:
+            return ""
+
+        lines: list[str] = [
+            "# DATABASE SCHEMA\n",
+            "Security filtering by `client_id` is applied automatically"
+            " — NEVER include it in queries.\n",
+        ]
+
+        for table in table_schemas:
+            label = "PRIMARY" if getattr(table, "is_primary", False) else "Dim"
+            display = getattr(table, "display_name", None)
+            header = f"## {label}: `{table.table_name}`"
+            if display:
+                header += f" ({display})"
+            lines.append(header)
+
+            description = getattr(table, "description", None)
+            if description:
+                lines.append(description)
+
+            columns: dict = getattr(table, "columns", {}) or {}
+            if columns:
+                lines.append("\n| Column | Description |")
+                lines.append("|--------|-------------|")
+                for col, desc in columns.items():
+                    # Skip PK/FK ID columns — join mechanics belong in JOIN REFERENCE,
+                    # not the business-facing column listing.
+                    if col == "id" or col.endswith("_id"):
+                        continue
+                    lines.append(f"| `{col}` | {desc} |")
+
+            enum_values: dict = getattr(table, "enum_values", {}) or {}
+            if enum_values:
+                lines.append("\n**Valid values:**")
+                for col, vals in enum_values.items():
+                    formatted = ", ".join(f"`{v}`" for v in vals)
+                    lines.append(f"- `{col}`: {formatted}")
+
+            join_keys: list = getattr(table, "join_keys", []) or []
+            if join_keys:
+                lines.append("\n**Joins:**")
+                for jk in join_keys:
+                    from_ = getattr(jk, "from_", None) or getattr(jk, "from", "")
+                    to = getattr(jk, "to", "")
+                    lines.append(f"- `{from_}` → `{to}`")
+
+            example_queries: list = getattr(table, "example_queries", []) or []
+            for ex in example_queries[:2]:
+                question = ex.get("question", "")
+                sql = ex.get("sql", "")
+                if question and sql:
+                    lines.append(f"\n*{question}*")
+                    lines.append(f"```sql\n{sql}\n```")
+
+            lines.append("")
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def render_kb_context(context: Any) -> str:
+        """
+        Render knowledge base metadata from BluClientContext for RAG prompt injection.
+
+        Returns empty string when no relevant metadata is available.
+        """
+        if not context:
+            return ""
+
+        lines: list[str] = []
+
+        # Data freshness and sources from data_schema
+        data_schema = getattr(context, "data_schema", None)
+        if data_schema:
+            freshness = getattr(data_schema, "data_freshness", None)
+            if freshness:
+                lines.append(f"- Atualização dos dados: {freshness}")
+            sources: list = getattr(data_schema, "data_sources", []) or []
+            if sources:
+                lines.append(f"- Fontes de dados: {', '.join(sources)}")
+
+        # Policy topics available in KB
+        policies = getattr(context, "policies", None)
+        if policies and isinstance(policies, dict):
+            topics = [k for k in policies if policies[k]]
+            if topics:
+                lines.append(f"- Tópicos na base de conhecimento: {', '.join(topics)}")
+
+        # Company profile signals for domain-aware RAG
+        company_profile = getattr(context, "company_profile", None)
+        if company_profile and isinstance(company_profile, dict):
+            sector = company_profile.get("sector") or company_profile.get("setor")
+            if sector:
+                lines.append(f"- Setor do cliente: {sector}")
+
+        if not lines:
+            return ""
+
+        return "# BASE DE CONHECIMENTO\n" + "\n".join(lines)
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> PromptVariables:
@@ -123,7 +248,7 @@ class VariableExtractor:
             "enabled_tools": "enabled_tools",
             "agent_personality": "agent_personality",
             "agent_name": "agent_name",
-            "cliente_id": "cliente_id",
+            "client_id": "client_id",
             "tier": "tier",
             "context_sections": "context_sections",
         }
@@ -228,9 +353,9 @@ class ContextVariableBuilder:
         self._variables.tier = tier
         return self
 
-    def with_cliente_id(self, cliente_id: str) -> "ContextVariableBuilder":
+    def with_client_id(self, client_id: str) -> "ContextVariableBuilder":
         """Set client ID."""
-        self._variables.cliente_id = cliente_id
+        self._variables.client_id = client_id
         return self
 
     def with_custom(self, key: str, value: Any) -> "ContextVariableBuilder":

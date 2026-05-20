@@ -63,7 +63,6 @@ from blu_agent_framework.skill_factory import (
 from blu_agent_framework.supervisor import (
     WorkerResult,
     WorkerTurnLimitError,
-    build_delegation_tools,
 )
 
 __all__ = [
@@ -117,8 +116,7 @@ __all__ = [
     "SKILL_REGISTRY",
     "SkillFactory",
     "SkillResult",
-    # Supervisor / worker pattern
+    # Supervisor / worker result types
     "WorkerResult",
     "WorkerTurnLimitError",
-    "build_delegation_tools",
 ]

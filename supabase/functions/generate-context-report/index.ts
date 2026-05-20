@@ -586,6 +586,7 @@ Deno.serve(async (req: Request) => {
           storage_path: storagePath,
           client_id,
           file_name: `context-report-${monthSuffix}.md`,
+          file_type: "md",
           target_tokens: 300,
           skip_metadata_enrichment: true,
         }),

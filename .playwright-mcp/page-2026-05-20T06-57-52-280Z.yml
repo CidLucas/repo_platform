@@ -1,0 +1,97 @@
+- generic [ref=e3]:
+  - navigation [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: B
+      - generic [ref=e7]: blu
+      - generic [ref=e8]: by deep blue
+    - generic [ref=e9]:
+      - link "Produto" [ref=e10] [cursor=pointer]:
+        - /url: "#screens"
+      - link "Como funciona" [ref=e11] [cursor=pointer]:
+        - /url: "#como-funciona"
+      - link "Preços" [ref=e12] [cursor=pointer]:
+        - /url: "#precos"
+    - button "Ir para o app" [ref=e13] [cursor=pointer]
+  - generic [ref=e14]:
+    - generic [ref=e15]: Escritório virtual com IA para empresas brasileiras
+    - heading "Comece a semana sabendo o que importa" [level=1] [ref=e16]:
+      - text: Comece a semana
+      - emphasis [ref=e17]: sabendo
+      - text: o que importa
+    - paragraph [ref=e18]: Um bureau de agentes de IA que trabalha para você — cuida das cotações, dos boletos, dos clientes, da estratégia — e espera sua aprovação antes de agir.
+    - generic [ref=e19]:
+      - button "Criar conta grátis" [ref=e20] [cursor=pointer]
+      - button "Ver planos ↓" [ref=e21] [cursor=pointer]
+    - generic [ref=e23]:
+      - generic [ref=e24]:
+        - generic [ref=e25]: Agente de Compras
+        - generic [ref=e27]: Decidir agora
+      - generic [ref=e28]:
+        - strong [ref=e29]: 3 cotações prontas.
+        - text: "Fornecedor Silva, R$ 1.240 (2 unidades Toner HP 107A). Prazo: 2 dias. Alternativa Gamma: R$ 1.180, prazo 5 dias."
+      - generic [ref=e30]:
+        - button "👍 Aprovar Silva" [ref=e31] [cursor=pointer]
+        - button "👁 Ver comparativo" [ref=e32] [cursor=pointer]
+        - button "⏰ Depois" [ref=e33] [cursor=pointer]
+  - generic [ref=e34]:
+    - heading "Do caos ao controle em três passos" [level=2] [ref=e35]
+    - generic [ref=e36]:
+      - generic [ref=e37]:
+        - img [ref=e39]
+        - heading "Conecte suas fontes" [level=3] [ref=e42]
+        - paragraph [ref=e43]: ERP, banco, planilhas, agenda. Seus dados já existem — o Blu só precisa de acesso.
+      - generic [ref=e44]:
+        - img [ref=e46]
+        - heading "Os agentes trabalham" [level=3] [ref=e49]
+        - paragraph [ref=e50]: Cada agente cuida do seu domínio — compras, finanças, clientes — e prepara as decisões para você.
+      - generic [ref=e51]:
+        - img [ref=e53]
+        - heading "Você aprova e segue" [level=3] [ref=e56]
+        - paragraph [ref=e57]: Nada acontece sem seu aval. Uma aprovação, e o agente executa — com o contexto certo, no momento certo.
+  - generic [ref=e58]:
+    - heading "Planos simples, sem surpresas" [level=2] [ref=e59]
+    - generic [ref=e60]:
+      - generic [ref=e61]:
+        - generic [ref=e62]: Starter
+        - generic [ref=e63]: R$ 297/mês
+        - generic [ref=e64]: Para quem está começando.
+        - list [ref=e65]:
+          - listitem [ref=e66]: ✓ 3 agentes ativos
+          - listitem [ref=e67]: ✓ 500 aprovações/mês
+          - listitem [ref=e68]: ✓ 2 integrações
+          - listitem [ref=e69]: ✓ Suporte por e-mail
+        - button "Começar grátis" [ref=e70] [cursor=pointer]
+      - generic [ref=e71]:
+        - generic [ref=e72]: Pro
+        - generic [ref=e73]: R$ 697/mês
+        - generic [ref=e74]: Para negócios em crescimento.
+        - list [ref=e75]:
+          - listitem [ref=e76]: ✓ Todos os agentes
+          - listitem [ref=e77]: ✓ Aprovações ilimitadas
+          - listitem [ref=e78]: ✓ 10 integrações
+          - listitem [ref=e79]: ✓ Suporte prioritário
+          - listitem [ref=e80]: ✓ Relatórios avançados
+        - button "Começar grátis" [ref=e81] [cursor=pointer]
+      - generic [ref=e82]:
+        - generic [ref=e83]: Enterprise
+        - generic [ref=e84]: Sob consulta
+        - generic [ref=e85]: Para operações complexas.
+        - list [ref=e86]:
+          - listitem [ref=e87]: ✓ Multi-empresa
+          - listitem [ref=e88]: ✓ Agentes customizados
+          - listitem [ref=e89]: ✓ Integrações ilimitadas
+          - listitem [ref=e90]: ✓ SLA dedicado
+          - listitem [ref=e91]: ✓ Onboarding guiado
+        - button "Falar com vendas" [ref=e92] [cursor=pointer]
+  - contentinfo [ref=e93]:
+    - generic [ref=e94]:
+      - generic [ref=e95]: B
+      - generic [ref=e96]: blu
+    - generic [ref=e97]: © 2026 Deep Blue · blu é o escritório virtual com IA para empresas brasileiras
+    - generic [ref=e98]:
+      - link "Privacidade" [ref=e99] [cursor=pointer]:
+        - /url: "#"
+      - link "Termos" [ref=e100] [cursor=pointer]:
+        - /url: "#"
+      - link "LGPD" [ref=e101] [cursor=pointer]:
+        - /url: "#"

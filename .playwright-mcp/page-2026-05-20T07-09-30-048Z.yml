@@ -1,0 +1,43 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e36]:
+    - banner [ref=e37]:
+      - img [ref=e39]:
+        - generic [ref=e45]: blu
+      - generic [ref=e47]: Início / AgentOps
+      - generic [ref=e48]:
+        - button "🌙" [ref=e242] [cursor=pointer]
+        - button [ref=e50] [cursor=pointer]:
+          - img [ref=e51]
+        - button [ref=e54] [cursor=pointer]:
+          - img [ref=e55]
+        - generic "cid.lucas@gmail.com" [ref=e60] [cursor=pointer]: CI
+    - complementary [ref=e61]:
+      - img [ref=e64] [cursor=pointer]
+      - img [ref=e68] [cursor=pointer]
+      - img [ref=e72] [cursor=pointer]
+      - img [ref=e76] [cursor=pointer]
+      - img [ref=e80] [cursor=pointer]
+      - img [ref=e84] [cursor=pointer]
+      - img [ref=e88] [cursor=pointer]
+      - img [ref=e92] [cursor=pointer]
+      - generic [ref=e94]:
+        - img [ref=e97] [cursor=pointer]
+        - img [ref=e101] [cursor=pointer]
+        - generic [ref=e103] [cursor=pointer]:
+          - img [ref=e105]
+          - text: AgentOps
+    - main [ref=e107]:
+      - text: ▼ ▼ ▼ ▼ ▼ ▼
+      - generic [ref=e3918]:
+        - generic [ref=e3919]:
+          - img [ref=e3921]
+          - generic [ref=e3924]:
+            - generic [ref=e3925]: AgentOps
+            - generic [ref=e3926]: Sessões, jobs de sincronização e credenciais
+        - generic [ref=e3927]:
+          - button "Sessões" [ref=e3928] [cursor=pointer]
+          - button "Sync Jobs" [ref=e3929] [cursor=pointer]
+          - button "Credenciais" [ref=e3930] [cursor=pointer]
+        - generic [ref=e3932]: Nenhuma sessão registrada ainda.
+  - button "Abrir assistente" [ref=e235] [cursor=pointer]:
+    - img [ref=e236]

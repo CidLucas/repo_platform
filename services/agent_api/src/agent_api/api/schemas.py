@@ -95,14 +95,6 @@ class AgentChatRequest(BaseModel):
     stream: bool = True
 
 
-class CsvUploadResponse(BaseModel):
-    file_id: str
-    file_name: str
-    columns: list[dict]
-    row_count: int
-    sample_rows: list[dict] | None = None
-
-
 # ---------------------------------------------------------------------------
 # Admin catalog management
 # ---------------------------------------------------------------------------

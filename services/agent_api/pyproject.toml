@@ -13,6 +13,7 @@ pydantic-settings = "^2.2.1"
 anyio = "^4.1.1"
 redis = "^5.0.4"
 httpx = "^0.28.1"
+croniter = "^5.0"
 langfuse = ">=4.0.0"
 langgraph = "^0.2"
 langgraph-checkpoint-redis = "^0.1.3"
@@ -29,6 +30,7 @@ blu-tool-registry        = {path = "../../libs/blu_tool_registry", develop = tru
 blu-context-service      = {path = "../../libs/blu_context_service", develop = true}
 blu-db-connector         = {path = "../../libs/blu_db_connector", develop = true}
 blu-supabase-client      = {path = "../../libs/blu_supabase_client", develop = true}
+blu-google-suite-client  = {path = "../../libs/blu_google_suite_client", develop = true}
 blu-parsers              = {path = "../../libs/blu_parsers", develop = true}
 blu-rag-factory          = {path = "../../libs/blu_rag_factory", develop = true}
 blu-hitl-service         = {path = "../../libs/blu_hitl_service", develop = true}

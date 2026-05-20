@@ -79,7 +79,8 @@ function WrenchIcon() {
 }
 
 export default function ChatPanel() {
-  const screen = useAppStore(s => s.screen)
+  const screen      = useAppStore(s => s.screen)
+  const chatTrigger = useAppStore(s => s.chatTrigger)
   const [open, setOpen] = useState(false)
 
   const { messages, streamBuffer, activeToolName, isStreaming, error, sendMessage, cancelStream } =
@@ -89,6 +90,14 @@ export default function ChatPanel() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef  = useRef<HTMLTextAreaElement>(null)
   const panelRef  = useRef<HTMLDivElement>(null)
+
+  // Open panel and send context when an insight triggers a chat
+  useEffect(() => {
+    if (!chatTrigger) return
+    setOpen(true)
+    // Slight delay so the panel is mounted before sending
+    setTimeout(() => sendMessage(chatTrigger.context, screen), 120)
+  }, [chatTrigger?.ts]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {

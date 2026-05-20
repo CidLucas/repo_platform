@@ -76,9 +76,9 @@ description: "Baseline evaluation for all clients"
 api_url: http://localhost:8003
 
 clients:
-  - cliente_id: "550e8400-e29b-41d4-a716-446655440001"
+  - client_id: "550e8400-e29b-41d4-a716-446655440001"
     name: "Studio J"
-  - cliente_id: "550e8400-e29b-41d4-a716-446655440002"
+  - client_id: "550e8400-e29b-41d4-a716-446655440002"
     name: "Casa com Alma"
 
 cases:
@@ -166,6 +166,7 @@ Path("training_data.jsonl").write_text(jsonl)
 ### ExperimentRun
 
 Armazena informações de uma execução de experimento:
+
 - `manifest_name`, `manifest_version`: Identificação do manifesto
 - `status`: PENDING, RUNNING, COMPLETED, FAILED, CANCELLED
 - `total_cases`, `success_cases`, `failure_cases`, `error_cases`
@@ -174,6 +175,7 @@ Armazena informações de uma execução de experimento:
 ### ExperimentCase
 
 Armazena cada caso de teste individual:
+
 - `input_message`: Mensagem enviada ao atendente
 - `actual_response`: Resposta recebida
 - `outcome`: SUCCESS, FAILURE, ERROR, NEEDS_REVIEW, REVIEWED
@@ -189,10 +191,12 @@ Armazena cada caso de teste individual:
 ## Migrations
 
 A migration `007_add_experiment_tables.py` cria as tabelas necessárias:
+
 - `experiment_run`
 - `experiment_case`
 
 Execute com:
+
 ```bash
 cd libs/blu_db_connector
 poetry run alembic upgrade head

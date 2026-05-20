@@ -178,7 +178,7 @@ async def generate_report(
 
     try:
         return await generate_report_core(
-            cliente_id=str(auth.client_id),
+            client_id=str(auth.client_id),
             template_id=payload.template_id,
             period=payload.period,
             format=payload.format,

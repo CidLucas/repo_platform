@@ -23,6 +23,7 @@ COPY libs/blu_hitl_service ./libs/blu_hitl_service
 COPY libs/blu_elicitation_service ./libs/blu_elicitation_service
 COPY libs/blu_sql_factory ./libs/blu_sql_factory
 COPY libs/blu_observability_bootstrap ./libs/blu_observability_bootstrap
+COPY libs/blu_google_suite_client ./libs/blu_google_suite_client
 
 # Copy service manifest and install deps into .venv
 COPY services/agent_api/pyproject.toml services/agent_api/poetry.lock* ./services/agent_api/
@@ -55,12 +56,13 @@ COPY libs/blu_hitl_service/src ./libs/blu_hitl_service/src
 COPY libs/blu_elicitation_service/src ./libs/blu_elicitation_service/src
 COPY libs/blu_sql_factory/src ./libs/blu_sql_factory/src
 COPY libs/blu_observability_bootstrap/src ./libs/blu_observability_bootstrap/src
+COPY libs/blu_google_suite_client/src ./libs/blu_google_suite_client/src
 
 # Copy service source
 COPY services/agent_api/src ./src
 
 ENV PATH="/app/services/agent_api/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/src:/app/libs/blu_auth/src:/app/libs/blu_models/src:/app/libs/blu_agent_framework/src:/app/libs/blu_prompt_management/src:/app/libs/blu_llm_service/src:/app/libs/blu_tool_registry/src:/app/libs/blu_context_service/src:/app/libs/blu_db_connector/src:/app/libs/blu_supabase_client/src:/app/libs/blu_parsers/src:/app/libs/blu_rag_factory/src:/app/libs/blu_hitl_service/src:/app/libs/blu_elicitation_service/src:/app/libs/blu_sql_factory/src:/app/libs/blu_observability_bootstrap/src"
+ENV PYTHONPATH="/app/src:/app/libs/blu_auth/src:/app/libs/blu_models/src:/app/libs/blu_agent_framework/src:/app/libs/blu_prompt_management/src:/app/libs/blu_llm_service/src:/app/libs/blu_tool_registry/src:/app/libs/blu_context_service/src:/app/libs/blu_db_connector/src:/app/libs/blu_supabase_client/src:/app/libs/blu_parsers/src:/app/libs/blu_rag_factory/src:/app/libs/blu_hitl_service/src:/app/libs/blu_elicitation_service/src:/app/libs/blu_sql_factory/src:/app/libs/blu_observability_bootstrap/src:/app/libs/blu_google_suite_client/src"
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000

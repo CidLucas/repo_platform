@@ -192,13 +192,13 @@ def route_on_error(state: AgentState) -> Literal["recover", "respond", "end"]:
 
 def route_after_enrichment(
     state: AgentState,
-) -> Literal["elicit", "respond", "select_skill", "end"]:
+) -> Literal["elicit", "respond", "end"]:
     """
-    Route after context_enrichment_node — the main fork between simple and complex paths.
+    Route after context_enrichment_node.
 
-    Simple path  (complexity == "simple" or None) → elicit → respond (Phase-4 binding)
-    Complex path (complexity == "moderate"/"complex") → select_skill → run_skill → respond
-    Greetings bypass elicitation entirely → respond directly.
+    Always defaults to the simple path (elicit → respond) so the LLM's dynamic
+    tool binding in respond_node drives tool selection. Greetings short-circuit
+    directly to respond.
     """
     if state.get("ended"):
         return "end"
@@ -210,11 +210,19 @@ def route_after_enrichment(
         if len(content) <= _GREETING_MAX_LEN and _GREETING_RE.search(content):
             return "respond"
 
-    complexity = state.get("complexity")
-    if complexity in ("moderate", "complex"):
-        return "select_skill"
-
     return "elicit"
+
+
+def route_after_classify_skill(state: AgentState) -> Literal["run_skill", "respond"]:
+    """
+    Route after classify_skill_intent_node inside a specialist subgraph.
+
+    A skill was classified → run_skill.
+    No match (current_skill is None) → respond directly (LLM handles it without a skill).
+    """
+    if state.get("current_skill"):
+        return "run_skill"
+    return "respond"
 
 
 def route_after_select_skill(state: AgentState) -> Literal["run_skill", "elicit"]:

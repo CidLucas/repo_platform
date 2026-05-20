@@ -62,7 +62,7 @@ class ElicitationContext:
     """Context for elicitation execution."""
 
     session_id: str
-    cliente_id: str | None = None
+    client_id: str | None = None
     thread_id: str | None = None
     user_id: str | None = None
     channel: str | None = None  # whatsapp, web, api

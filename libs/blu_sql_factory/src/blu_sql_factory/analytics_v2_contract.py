@@ -95,7 +95,7 @@ ALLOWED_COLUMNS: dict[str, list[str]] = {
         "quantidade",
         "valor_unitario",
         "valor",
-        "cliente_id",
+        "customer_id",
         "fornecedor_id",
         "inventory_id",
         "data_competencia_id",
@@ -107,7 +107,7 @@ ALLOWED_COLUMNS: dict[str, list[str]] = {
         "movement_type",
     ],
     DIM_CLIENTES: [
-        "cliente_id",
+        "customer_id",
         "nome",
         "cpf_cnpj",
         "endereco_cidade",

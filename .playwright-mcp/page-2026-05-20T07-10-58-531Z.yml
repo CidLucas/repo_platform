@@ -1,0 +1,80 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e36]:
+    - banner [ref=e37]:
+      - img [ref=e39]:
+        - generic [ref=e45]: blu
+      - generic [ref=e47]: Início / Documentos
+      - generic [ref=e48]:
+        - button "🌙" [ref=e242] [cursor=pointer]
+        - button [ref=e50] [cursor=pointer]:
+          - img [ref=e51]
+        - button [ref=e54] [cursor=pointer]:
+          - img [ref=e55]
+        - generic "cid.lucas@gmail.com" [ref=e60] [cursor=pointer]: CI
+    - complementary [ref=e61]:
+      - img [ref=e64] [cursor=pointer]
+      - img [ref=e68] [cursor=pointer]
+      - img [ref=e72] [cursor=pointer]
+      - img [ref=e76] [cursor=pointer]
+      - generic [ref=e78] [cursor=pointer]:
+        - img [ref=e80]
+        - text: Documentos
+      - img [ref=e84] [cursor=pointer]
+      - img [ref=e88] [cursor=pointer]
+      - img [ref=e92] [cursor=pointer]
+      - generic [ref=e94]:
+        - img [ref=e97] [cursor=pointer]
+        - img [ref=e101] [cursor=pointer]
+        - img [ref=e105] [cursor=pointer]
+    - main [ref=e107]:
+      - text: ▼ ▼ ▼ ▼ ▼ ▼
+      - generic [ref=e3934]:
+        - generic [ref=e3935]:
+          - generic [ref=e3936]: ✍️
+          - generic [ref=e3937]:
+            - generic [ref=e3938]: Documentos
+            - generic [ref=e3939]: Rascunhos, modelos e aprovações
+          - generic [ref=e3940]:
+            - button "← Início" [ref=e3941] [cursor=pointer]
+            - button "+ Novo documento" [ref=e3942] [cursor=pointer]
+        - generic [ref=e3943]:
+          - generic [ref=e3944]:
+            - generic [ref=e3946]: Mesa de Trabalho
+            - generic [ref=e3947]:
+              - generic [ref=e3948] [cursor=pointer]: Ativos
+              - generic [ref=e3949] [cursor=pointer]: Rascunhos
+              - generic [ref=e3950] [cursor=pointer]: Modelos
+              - generic [ref=e3951] [cursor=pointer]: Config
+            - generic [ref=e3955]: Nenhum documento ainda. Crie um ou use um modelo.
+          - generic [ref=e3956]:
+            - generic "Arraste para redimensionar" [ref=e3957]
+            - generic [ref=e3958]:
+              - generic [ref=e3959] [cursor=pointer]:
+                - generic [ref=e3960]: ⚙️
+                - generic [ref=e3961]: Rotinas ativas
+                - generic [ref=e3962]: ▾
+              - generic [ref=e3964]: Nenhuma rotina ativa. Configure em Configurar.
+            - generic [ref=e3965]:
+              - generic [ref=e3966] [cursor=pointer]:
+                - generic [ref=e3967]: 🗂️
+                - generic [ref=e3968]: Modelos
+                - button "＋" [ref=e3970]
+                - generic [ref=e3971]: ▾
+              - generic [ref=e3974]:
+                - generic [ref=e3975]: Este mês
+                - generic [ref=e3976]:
+                  - generic [ref=e3977]:
+                    - generic [ref=e3978]: Documentos criados
+                    - generic [ref=e3979]: "0"
+                  - generic [ref=e3980]:
+                    - generic [ref=e3981]: Com conteúdo
+                    - generic [ref=e3982]: "0"
+            - generic [ref=e3984] [cursor=pointer]:
+              - generic [ref=e3985]: 📂
+              - generic [ref=e3986]: Recentes
+              - generic [ref=e3987]: ▾
+          - generic [ref=e3991] [cursor=pointer]:
+            - generic [ref=e3992]: ⚙️ Rotinas ativas
+            - generic [ref=e3993]: Ver na aba Config →
+  - button "Abrir assistente" [ref=e235] [cursor=pointer]:
+    - img [ref=e236]

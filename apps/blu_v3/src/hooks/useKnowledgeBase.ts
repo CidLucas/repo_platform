@@ -4,11 +4,13 @@ import {
   listDocuments,
   deleteDocument,
   uploadFile,
+  uploadCsvDataSource,
   retryDocument,
   getDocumentProgress,
   type KBDocument,
   type UploadOptions,
   type KBDocumentSource,
+  type CsvUploadResult,
 } from '../services/knowledgeBaseService'
 
 interface KBState {
@@ -17,6 +19,7 @@ interface KBState {
   error: string | null
   uploading: boolean
   uploadError: string | null
+  csvResult: CsvUploadResult | null
 }
 
 export function useKnowledgeBase() {
@@ -28,6 +31,7 @@ export function useKnowledgeBase() {
     error: null,
     uploading: false,
     uploadError: null,
+    csvResult: null,
   })
 
   const load = useCallback(async () => {
@@ -81,6 +85,21 @@ export function useKnowledgeBase() {
     [clientId, load],
   )
 
+  const uploadCsv = useCallback(
+    async (file: File) => {
+      if (!clientId) return
+      try {
+        setState((prev) => ({ ...prev, uploading: true, uploadError: null, csvResult: null }))
+        const result = await uploadCsvDataSource(file, clientId)
+        setState((prev) => ({ ...prev, uploading: false, csvResult: result }))
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Erro ao fazer upload do CSV'
+        setState((prev) => ({ ...prev, uploading: false, uploadError: message }))
+      }
+    },
+    [clientId],
+  )
+
   const remove = useCallback(
     async (documentId: string, storagePath: string | null) => {
       try {
@@ -119,6 +138,7 @@ export function useKnowledgeBase() {
     ...state,
     reload: load,
     upload,
+    uploadCsv,
     remove,
     retry,
     getDocumentProgress,

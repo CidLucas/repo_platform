@@ -12,7 +12,7 @@ unless "paragraphs" is specified in the replacements for that shape.
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from inventory import InventoryData, extract_text_inventory
 from pptx import Presentation

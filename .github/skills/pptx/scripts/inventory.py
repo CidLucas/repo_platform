@@ -28,7 +28,7 @@ import platform
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 from pptx import Presentation
@@ -36,10 +36,10 @@ from pptx.enum.text import PP_ALIGN
 from pptx.shapes.base import BaseShape
 
 # Type aliases for cleaner signatures
-JsonValue = Union[str, int, float, bool, None]
+JsonValue = str | int | float | bool | None
 ParagraphDict = dict[str, JsonValue]
 ShapeDict = dict[
-    str, Union[str, float, bool, list[ParagraphDict], list[str], dict[str, Any], None]
+    str, str | float | bool | list[ParagraphDict] | list[str] | dict[str, Any] | None
 ]
 InventoryData = dict[
     str, dict[str, "ShapeData"]
@@ -145,18 +145,18 @@ class ParagraphData:
         """
         self.text: str = paragraph.text.strip()
         self.bullet: bool = False
-        self.level: Optional[int] = None
-        self.alignment: Optional[str] = None
-        self.space_before: Optional[float] = None
-        self.space_after: Optional[float] = None
-        self.font_name: Optional[str] = None
-        self.font_size: Optional[float] = None
-        self.bold: Optional[bool] = None
-        self.italic: Optional[bool] = None
-        self.underline: Optional[bool] = None
-        self.color: Optional[str] = None
-        self.theme_color: Optional[str] = None
-        self.line_spacing: Optional[float] = None
+        self.level: int | None = None
+        self.alignment: str | None = None
+        self.space_before: float | None = None
+        self.space_after: float | None = None
+        self.font_name: str | None = None
+        self.font_size: float | None = None
+        self.bold: bool | None = None
+        self.italic: bool | None = None
+        self.underline: bool | None = None
+        self.color: str | None = None
+        self.theme_color: str | None = None
+        self.line_spacing: float | None = None
 
         # Check for bullet formatting
         if (
@@ -277,7 +277,7 @@ class ShapeData:
         return int(inches * dpi)
 
     @staticmethod
-    def get_font_path(font_name: str) -> Optional[str]:
+    def get_font_path(font_name: str) -> str | None:
         """Get the font file path for a given font name.
 
         Args:
@@ -343,7 +343,7 @@ class ShapeData:
         return None
 
     @staticmethod
-    def get_slide_dimensions(slide: Any) -> tuple[Optional[int], Optional[int]]:
+    def get_slide_dimensions(slide: Any) -> tuple[int | None, int | None]:
         """Get slide dimensions from slide object.
 
         Args:
@@ -359,7 +359,7 @@ class ShapeData:
             return None, None
 
     @staticmethod
-    def get_default_font_size(shape: BaseShape, slide_layout: Any) -> Optional[float]:
+    def get_default_font_size(shape: BaseShape, slide_layout: Any) -> float | None:
         """Extract default font size from slide layout for a placeholder shape.
 
         Args:
@@ -388,9 +388,9 @@ class ShapeData:
     def __init__(
         self,
         shape: BaseShape,
-        absolute_left: Optional[int] = None,
-        absolute_top: Optional[int] = None,
-        slide: Optional[Any] = None,
+        absolute_left: int | None = None,
+        absolute_top: int | None = None,
+        slide: Any | None = None,
     ):
         """Initialize from a PowerPoint shape object.
 
@@ -409,8 +409,8 @@ class ShapeData:
         )
 
         # Get placeholder type if applicable
-        self.placeholder_type: Optional[str] = None
-        self.default_font_size: Optional[float] = None
+        self.placeholder_type: str | None = None
+        self.default_font_size: float | None = None
         if hasattr(shape, "is_placeholder") and shape.is_placeholder:  # type: ignore
             if shape.placeholder_format and shape.placeholder_format.type:  # type: ignore
                 self.placeholder_type = (
@@ -454,9 +454,9 @@ class ShapeData:
         self.height_emu = shape.height if hasattr(shape, "height") else 0
 
         # Calculate overflow status
-        self.frame_overflow_bottom: Optional[float] = None
-        self.slide_overflow_right: Optional[float] = None
-        self.slide_overflow_bottom: Optional[float] = None
+        self.frame_overflow_bottom: float | None = None
+        self.slide_overflow_right: float | None = None
+        self.slide_overflow_bottom: float | None = None
         self.overlapping_shapes: dict[
             str, float
         ] = {}  # Dict of shape_id -> overlap area in sq inches
@@ -912,7 +912,7 @@ def detect_overlaps(shapes: list[ShapeData]) -> None:
 
 
 def extract_text_inventory(
-    pptx_path: Path, prs: Optional[Any] = None, issues_only: bool = False
+    pptx_path: Path, prs: Any | None = None, issues_only: bool = False
 ) -> InventoryData:
     """Extract text content from all slides in a PowerPoint presentation.
 

@@ -84,9 +84,10 @@ async def get_routine_catalog() -> dict:
     - skills     : all agent slugs from AgentTypeRegistry (with descriptions)
     - triggers   : available trigger types with config schemas
     """
-    from agent_api.core.routine_functions import list_functions_with_meta
-    from agent_api.core.routine_artifacts import list_artifacts_with_meta
     from blu_agent_framework.registry import AgentTypeRegistry
+
+    from agent_api.core.routine_artifacts import list_artifacts_with_meta
+    from agent_api.core.routine_functions import list_functions_with_meta
 
     _SKILL_DESCRIPTIONS: dict[str, str] = {
         "financeiro": "Analisa dados financeiros, fluxo de caixa e rentabilidade. Gera insights e recomendações.",

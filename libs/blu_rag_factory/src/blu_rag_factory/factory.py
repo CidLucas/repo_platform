@@ -7,9 +7,10 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_core.runnables.base import Runnable
 
+from blu_models.blu_client_context import BluClientContext
+
 # Dependências de outras libs Blu
 from blu_models.knowledge_base_config import RagSearchConfig
-from blu_models.blu_client_context import BluClientContext
 from blu_prompt_management import build_prompt
 from blu_rag_factory.diversity import MMRDiversifier
 from blu_rag_factory.query_preprocessor import QueryPreprocessor

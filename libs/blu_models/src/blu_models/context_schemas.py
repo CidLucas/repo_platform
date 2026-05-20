@@ -9,7 +9,6 @@ Each schema corresponds to a ContextSection enum value and defines
 the expected structure when storing/retrieving that section.
 """
 
-from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field

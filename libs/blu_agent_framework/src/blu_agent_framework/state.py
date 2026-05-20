@@ -7,7 +7,6 @@ from typing import Annotated, Any
 from langchain_core.messages import BaseMessage
 from typing_extensions import TypedDict
 
-
 _MAX_MESSAGES = 60  # Rolling window stored in Redis per session
 
 

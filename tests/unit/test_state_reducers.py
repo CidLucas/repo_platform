@@ -1,6 +1,12 @@
 import pytest
-from blu_agent_framework.state import add_messages, _cap_tool_results, _cap_skill_results, create_initial_state
 from langchain_core.messages import HumanMessage
+
+from blu_agent_framework.state import (
+    _cap_skill_results,
+    _cap_tool_results,
+    add_messages,
+    create_initial_state,
+)
 
 
 def test_add_messages_cap_and_order():

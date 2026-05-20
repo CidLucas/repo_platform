@@ -8,9 +8,8 @@ import logging
 
 import pytest
 
-from blu_tool_registry.tool_metadata import TierLevel
 from blu_agent_framework.registry import AgentTypeRegistry
-
+from blu_tool_registry.tool_metadata import TierLevel
 
 # ---------------------------------------------------------------------------
 # TierLevel.get_order — normalisation

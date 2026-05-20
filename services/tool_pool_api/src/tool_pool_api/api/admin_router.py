@@ -6,7 +6,7 @@ Protected by JWT authentication - requires ADMIN tier.
 """
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status

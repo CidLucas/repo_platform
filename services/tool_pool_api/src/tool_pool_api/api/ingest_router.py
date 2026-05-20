@@ -16,11 +16,11 @@ from uuid import UUID
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from supabase import create_client
 
 from blu_auth.core.models import AuthResult
 from blu_auth.fastapi.dependencies import get_auth_result
 from blu_parsers.parsers.docling_parser import DoclingParser
+from supabase import create_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/ingest", tags=["Document Ingestion"])

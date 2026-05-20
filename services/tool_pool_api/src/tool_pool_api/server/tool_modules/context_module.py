@@ -9,7 +9,8 @@ Gives the context-gatherer agent the ability to:
 
 import logging
 import os
-from datetime import date as date_type, datetime, timezone
+from datetime import UTC, datetime
+from datetime import date as date_type
 from uuid import uuid4
 
 import httpx
@@ -617,7 +618,7 @@ async def _update_schema_mapping_logic(
             if auto_val != source_col:
                 user_changes[canonical] = {"auto": auto_val, "confirmed": source_col}
 
-        now = datetime.now(tz=timezone.utc).isoformat()
+        now = datetime.now(tz=UTC).isoformat()
         update_payload = {
             "column_mapping": confirmed_mapping,
             "unmapped_columns": unmapped,
@@ -893,7 +894,7 @@ async def _update_context_document_logic(
         current_meta: dict = (existing or {}).get("metadata") or {}
         merged_meta = {**current_meta, **(metadata_updates or {})}
 
-        now = datetime.now(tz=timezone.utc).isoformat()
+        now = datetime.now(tz=UTC).isoformat()
         payload = {
             "client_id": client_id,
             "document_type_id": document_type_id,

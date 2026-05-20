@@ -18,7 +18,6 @@ import json
 import re
 from typing import Optional
 
-
 FENCED_JSON_RE = re.compile(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", re.IGNORECASE | re.DOTALL)
 
 

@@ -36,7 +36,7 @@ import argparse
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -97,7 +97,7 @@ class MetricRow:
     streak_months: int
 
     @classmethod
-    def from_dict(cls, row: dict[str, Any]) -> "MetricRow":
+    def from_dict(cls, row: dict[str, Any]) -> MetricRow:
         return cls(
             dimension=row["dimension"],
             kpi=row["kpi"],
@@ -138,7 +138,7 @@ async def run_for_client(
 ) -> RoutineRunResult:
     """Run the context report pipeline for a single tenant."""
 
-    start = datetime.now(timezone.utc)
+    start = datetime.now(UTC)
     today = today or start.date()
     result = RoutineRunResult(client_id=client_id)
 
@@ -446,7 +446,7 @@ def _build_phrases(rows: list[MetricRow], today: date | None = None) -> dict[str
 
 def _build_snapshot_phrase(
     row: MetricRow,
-    kpi_map: dict[str, "MetricRow"],
+    kpi_map: dict[str, MetricRow],
     today: date | None,
 ) -> str:
     """Compose a contextualised phrase for a snapshot (current-state) KPI."""
@@ -721,7 +721,7 @@ def _render_report(
         empresa=tenant.get("nome_empresa", "Empresa"),
         tier=tenant.get("tier", "BASIC"),
         month_label=today.strftime("%B %Y"),
-        generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        generated_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
         data_ref=today.strftime("%d/%m/%Y"),
         freshness=freshness_fmt,
         dimensions=DIMENSION_ORDER,
@@ -886,7 +886,7 @@ def _finalise(
     db: Any | None,
     today: date,
 ) -> RoutineRunResult:
-    result.duration_ms = int((datetime.now(timezone.utc) - start).total_seconds() * 1000)
+    result.duration_ms = int((datetime.now(UTC) - start).total_seconds() * 1000)
     if db is None:
         return result
     try:

@@ -6,8 +6,8 @@ import pytest
 from langchain_community.chat_models import ChatOllama
 
 from blu_llm_service.client import (
-    ModelTier,
     BluEmbeddingAPIClient,
+    ModelTier,
     get_embedding_model,
     get_model,
 )

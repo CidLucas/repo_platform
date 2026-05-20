@@ -19,13 +19,6 @@ from fastmcp.exceptions import ResourceError
 from fastmcp.server.dependencies import get_access_token
 from sqlmodel import select
 
-from tool_pool_api.server.dependencies import (
-    get_context_service,
-    load_context_from_token,
-)
-from tool_pool_api.server.tool_helpers import (
-    get_tier_for_context,
-)
 from blu_db_connector.database import SessionLocal
 from blu_models import KnowledgeBaseConfig, PromptTemplate
 from blu_models.blu_client_context import BluClientContext
@@ -34,6 +27,13 @@ from blu_supabase_client import get_supabase_client
 
 # Phase 3: Use blu_tool_registry for dynamic tool filtering
 from blu_tool_registry import ToolRegistry
+from tool_pool_api.server.dependencies import (
+    get_context_service,
+    load_context_from_token,
+)
+from tool_pool_api.server.tool_helpers import (
+    get_tier_for_context,
+)
 
 logger = logging.getLogger(__name__)
 

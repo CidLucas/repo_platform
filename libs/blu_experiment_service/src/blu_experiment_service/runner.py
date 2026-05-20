@@ -407,8 +407,8 @@ class ExperimentRunner:
         Returns:
             API key string
         """
-        from sqlalchemy import create_engine, select
         from blu_models import ClienteBlu
+        from sqlalchemy import create_engine, select
 
         # Create a synchronous engine for this one-time query
         sync_engine = create_engine(settings.DATABASE_URL)

@@ -7,12 +7,11 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.auth.providers.google import GoogleProvider
 from fastmcp.server.dependencies import AccessToken
 
-from tool_pool_api.core.config import Settings, get_settings
-
 # Importações Blu
 from blu_context_service.context_service import ContextService
 from blu_context_service.redis_service import RedisService
 from blu_models.blu_client_context import BluClientContext
+from tool_pool_api.core.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
 

@@ -21,14 +21,14 @@ import logging
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastmcp.exceptions import ToolError
 from pydantic import BaseModel, Field
 
-from tool_pool_api.api.integrations_router import _get_auth_result
 from blu_auth.core.models import AuthResult
 from blu_supabase_client import get_supabase_client
+from tool_pool_api.api.integrations_router import _get_auth_result
 
 logger = logging.getLogger(__name__)
 

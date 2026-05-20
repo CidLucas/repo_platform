@@ -118,7 +118,7 @@ def _fetch_langfuse(prompt_name: str, *, host: str, headers: dict[str, str], lab
 
     labels = data.get("labels") or []
     if isinstance(data.get("versions"), list):
-        versions = [int(v) for v in data["versions"] if isinstance(v, (int, str))]
+        versions = [int(v) for v in data["versions"] if isinstance(v, int | str)]
     else:
         versions = [int(data["version"])] if data.get("version") is not None else []
     return LangfuseStatus(

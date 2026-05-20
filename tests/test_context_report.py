@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pytest
 
+
 # Override the root conftest autouse DB-cleanup fixture — these are pure unit
 # tests and have no Supabase dependency.
 @pytest.fixture(autouse=True)
@@ -26,25 +27,24 @@ from blu_agent_framework.routines.context_report import (
     _fmt_change,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 def _row(**kwargs) -> MetricRow:
     """Build a MetricRow with sensible defaults; override via kwargs."""
-    defaults = dict(
-        dimension="finance",
-        kpi="receita_liquida",
-        label="Receita Líquida",
-        unit="BRL",
-        current_value=100_000.0,
-        prev_month_value=90_000.0,
-        avg_6m=95_000.0,
-        mom_pct=11.1,
-        vs_6m_avg_pct=5.3,
-        streak_months=3,
-    )
+    defaults = {
+        "dimension": "finance",
+        "kpi": "receita_liquida",
+        "label": "Receita Líquida",
+        "unit": "BRL",
+        "current_value": 100_000.0,
+        "prev_month_value": 90_000.0,
+        "avg_6m": 95_000.0,
+        "mom_pct": 11.1,
+        "vs_6m_avg_pct": 5.3,
+        "streak_months": 3,
+    }
     defaults.update(kwargs)
     return MetricRow(**defaults)
 

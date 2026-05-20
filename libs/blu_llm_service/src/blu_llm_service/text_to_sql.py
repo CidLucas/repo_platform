@@ -12,7 +12,6 @@ Key changes:
 """
 
 import logging
-from uuid import UUID
 
 from blu_models import BluClientContext
 from blu_prompt_management import ContextVariableBuilder, PromptLoader

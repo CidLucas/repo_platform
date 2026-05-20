@@ -19,11 +19,12 @@ import logging
 import re
 import sys
 import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
 _PURE_PLACEHOLDER_RE = re.compile(r"^\{\{\s*(\w+)\s*\}\}$")
 _INLINE_PLACEHOLDER_RE = re.compile(r"\{\{\s*(\w+)\s*\}\}")
-from datetime import datetime, timezone
-from typing import Any
 
 # ── logging: show INFO so we can follow execution ─────────────────────────────
 logging.basicConfig(
@@ -38,7 +39,7 @@ for noisy in ("httpx", "httpcore", "openai", "anthropic", "langfuse", "urllib3")
 logger = logging.getLogger("routine_runner")
 
 # ── env: load .env so the script works without the full compose stack ─────────
-from pathlib import Path
+
 _env_file = Path(__file__).parent.parent.parent / ".env"
 if _env_file.exists():
     from dotenv import load_dotenv
@@ -91,7 +92,6 @@ def _resolve_templates(obj: Any, state: dict[str, Any]) -> Any:
 
 async def run_routine(routine_id: str, client_id: str) -> None:
     from blu_supabase_client import get_supabase_client
-    from blu_context_service import ContextService
 
     db = get_supabase_client(use_service_role=True)
 
@@ -160,8 +160,8 @@ async def run_routine(routine_id: str, client_id: str) -> None:
     }
 
     # ── 6. Execute steps ──────────────────────────────────────────────────────
-    from agent_api.core.routine_functions import call as call_function
     from agent_api.core.routine_artifacts import call as call_artifact
+    from agent_api.core.routine_functions import call as call_function
 
     step_results: list[dict] = []
 
@@ -206,8 +206,8 @@ async def run_routine(routine_id: str, client_id: str) -> None:
             elif step_type == "skill":
                 print(f"\n  → invoking skill worker: {step.get('skill_slug')}")
                 print("  (this may take 10-30s — LLM is running)")
-                from agent_api.core.routines import _execute_skill_step
                 from agent_api.core.factory import get_context_service, get_mcp_manager
+                from agent_api.core.routines import _execute_skill_step
                 get_mcp_manager().set_client_id(client_id)
                 step_outputs, slug = await _execute_skill_step(
                     step, resolved_inputs, state, nome_empresa, get_context_service()

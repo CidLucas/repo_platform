@@ -27,7 +27,7 @@ from .context_schemas import (
     Policies,
     TeamStructure,
 )
-from .enums import ContextSection, TierCliente
+from .enums import ContextSection
 
 
 class SafeClientContext(BaseModel):

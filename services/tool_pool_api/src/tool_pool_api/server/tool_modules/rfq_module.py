@@ -18,13 +18,12 @@ collecting responses, optimizing allocation, and generating POs.
 
 import json
 import logging
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
-from tool_pool_api.server.dependencies import get_context_service
 from blu_agent_framework.approval import (
     ApprovalEngine,
     ApprovalError,
@@ -35,6 +34,7 @@ from blu_elicitation_service.exceptions import ElicitationRequired
 from blu_google_suite_client import GoogleSheetsClient
 from blu_models import ElicitationOption, ElicitationType
 from blu_supabase_client import get_supabase_client
+from tool_pool_api.server.dependencies import get_context_service
 
 from . import register_module
 
@@ -242,7 +242,7 @@ async def _validate_buying_list_logic(
             warnings.append(f"Item {i} ({name}): duplicado na lista")
         seen_names.add(name.lower())
 
-        if not isinstance(qty, (int, float)) or qty <= 0:
+        if not isinstance(qty, int | float) or qty <= 0:
             errors.append(f"Item {i} ({name}): quantidade deve ser > 0")
             continue
 

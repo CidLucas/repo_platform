@@ -4,14 +4,12 @@ Prompt Optimizer
 Production-grade tool for senior prompt engineer
 """
 
-import os
-import sys
+import argparse
 import json
 import logging
-import argparse
-from pathlib import Path
-from typing import Dict, List, Optional
+import sys
 from datetime import datetime
+from typing import Dict
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,7 +20,7 @@ logger = logging.getLogger(__name__)
 class PromptOptimizer:
     """Production-grade prompt optimizer"""
     
-    def __init__(self, config: Dict):
+    def __init__(self, config: dict):
         self.config = config
         self.results = {
             'status': 'initialized',
@@ -38,7 +36,7 @@ class PromptOptimizer:
         logger.info("Configuration validated")
         return True
     
-    def process(self) -> Dict:
+    def process(self) -> dict:
         """Main processing logic"""
         logger.info("Starting processing...")
         
@@ -60,7 +58,7 @@ class PromptOptimizer:
             logger.error(f"Processing failed: {e}")
             raise
     
-    def _execute(self) -> Dict:
+    def _execute(self) -> dict:
         """Execute main logic"""
         # Implementation here
         return {'success': True}

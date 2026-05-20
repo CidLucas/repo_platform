@@ -26,16 +26,15 @@ from uuid import UUID
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
-from fastmcp.server.dependencies import AccessToken, get_access_token, get_http_headers
+from fastmcp.server.dependencies import AccessToken, get_access_token
 
+from blu_auth.mcp.auth_middleware import mcp_inject_client_id
+from blu_llm_service import ModelTier, get_model
+from blu_models.blu_client_context import BluClientContext
 from tool_pool_api.server.dependencies import (
     get_context_service,
     load_context_from_token,
 )
-from blu_auth.mcp.auth_middleware import mcp_inject_client_id
-from blu_llm_service import ModelTier, get_model
-from blu_models.enums import ContextSection
-from blu_models.blu_client_context import BluClientContext
 
 from . import register_module
 

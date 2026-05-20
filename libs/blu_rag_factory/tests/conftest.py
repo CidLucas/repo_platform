@@ -2,8 +2,8 @@ import uuid
 
 import pytest
 
-from blu_models.credencial_servico_externo import CredencialServicoExternoBase
 from blu_models.blu_client_context import BluClientContext
+from blu_models.credencial_servico_externo import CredencialServicoExternoBase
 
 
 @pytest.fixture

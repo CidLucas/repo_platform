@@ -3,8 +3,8 @@ from datetime import datetime
 
 import pandas as pd
 
-from blu_models.ingestion.schema_config import ColumnConfig, ColumnFormat
 from blu_models.ingestion.blu_schema import BluCanonicalColumn
+from blu_models.ingestion.schema_config import ColumnConfig, ColumnFormat
 from blu_shared_utils.data_transformers import transform_data
 
 

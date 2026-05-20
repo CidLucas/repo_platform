@@ -175,7 +175,7 @@ def to_xlsx(
 def _stringify(value: Any) -> Any:
     if value is None:
         return ""
-    if isinstance(value, (int, float, str, bool)):
+    if isinstance(value, int | float | str | bool):
         return value
     return str(value)
 

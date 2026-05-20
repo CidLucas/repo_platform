@@ -146,6 +146,7 @@ async def _compose_markdown(
 ) -> str:
     """Use the FAST-tier LLM to render a Markdown report."""
     from langchain_core.messages import HumanMessage, SystemMessage
+
     from blu_llm_service import get_model
     from blu_llm_service.client import ModelTier
 

@@ -169,7 +169,6 @@ def twilio_app(monkeypatch):
     monkeypatch.setenv("TWILIO_AUTH_TOKEN", "")
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
-
     from tool_pool_api.api.twilio_webhook_router import router
 
     app = FastAPI()

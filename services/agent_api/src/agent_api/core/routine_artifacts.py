@@ -345,6 +345,7 @@ async def _save_context_document(inputs: dict, client_id: str) -> dict:
         storage_path   — path in the knowledge-base bucket
     """
     import os
+
     import httpx
     from blu_supabase_client import get_supabase_client
 
@@ -507,7 +508,8 @@ async def _save_insights(inputs: dict, client_id: str) -> dict:
     outputs:
         insights_written — int
     """
-    from datetime import date, timezone, datetime
+    from datetime import date, datetime, timezone
+
     from blu_supabase_client import get_supabase_client
 
     insights: list[dict] = inputs.get("insights", [])

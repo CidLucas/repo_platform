@@ -202,8 +202,8 @@ class TestFormatAdapters:
         assert body.decode("utf-8").startswith("# Olá")
 
     def test_pdf_raises_when_reportlab_missing(self, monkeypatch):
-        from tool_pool_api.server.tool_modules import report_format_adapters as adapters
         from fastmcp.exceptions import ToolError
+        from tool_pool_api.server.tool_modules import report_format_adapters as adapters
 
         # Force ImportError by hiding reportlab
         monkeypatch.setitem(sys.modules, "reportlab", None)
@@ -211,8 +211,8 @@ class TestFormatAdapters:
             adapters.to_pdf(markdown_body="# x", title="t")
 
     def test_xlsx_raises_when_openpyxl_missing(self, monkeypatch):
-        from tool_pool_api.server.tool_modules import report_format_adapters as adapters
         from fastmcp.exceptions import ToolError
+        from tool_pool_api.server.tool_modules import report_format_adapters as adapters
 
         monkeypatch.setitem(sys.modules, "openpyxl", None)
         with pytest.raises(ToolError):
@@ -275,8 +275,8 @@ class TestGenerateReportCore:
 
     @pytest.mark.asyncio
     async def test_failure_marks_run_failed_with_error_message(self, monkeypatch):
-        from tool_pool_api.server.tool_modules import report_module
         from fastmcp.exceptions import ToolError
+        from tool_pool_api.server.tool_modules import report_module
 
         client_id = str(uuid.uuid4())
         db = _DB(rpc_responses={"get_indicator_block_for": {}})

@@ -18,7 +18,6 @@ import logging
 import os
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
-from uuid import uuid4
 
 if TYPE_CHECKING:
     import redis

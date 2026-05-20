@@ -15,10 +15,10 @@ from uuid import UUID
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
-from tool_pool_api.server.dependencies import get_context_service
-from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_models.blu_client_context import BluClientContext
+from tool_pool_api.server.dependencies import get_context_service
+from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
 
 from . import register_module
 

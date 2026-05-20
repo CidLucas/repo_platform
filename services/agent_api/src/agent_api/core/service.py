@@ -15,12 +15,11 @@ from collections.abc import AsyncIterator
 from typing import Any
 from uuid import UUID
 
-from langchain_core.messages import AIMessage, HumanMessage
-
 from blu_context_service import ContextService
 from blu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
 from blu_prompt_management import build_prompt
 from blu_prompt_management.variables import VariableExtractor
+from langchain_core.messages import AIMessage, HumanMessage
 
 from agent_api.config import get_settings
 from agent_api.core.factory import (

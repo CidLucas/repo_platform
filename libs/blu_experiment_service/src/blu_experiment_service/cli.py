@@ -177,10 +177,10 @@ async def classify_run(run_id: str, route_to_hitl: bool = True):
     """Classify all cases in a run and optionally route to HITL."""
     from uuid import UUID
 
+    from blu_models import ExperimentRun
     from sqlalchemy.ext.asyncio import create_async_engine
     from sqlmodel import select
     from sqlmodel.ext.asyncio.session import AsyncSession
-    from blu_models import ExperimentRun
 
     from .classifier import ResponseClassifier
     from .config import settings

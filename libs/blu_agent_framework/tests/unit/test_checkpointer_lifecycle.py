@@ -9,7 +9,6 @@ import pytest
 
 from blu_agent_framework.checkpointer import _CheckpointerAdapter
 
-
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
 # ---------------------------------------------------------------------------

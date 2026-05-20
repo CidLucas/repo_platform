@@ -254,7 +254,7 @@ class PPTXSchemaValidator(BaseSchemaValidator):
                 errors.append(
                     f"  Notes slide '{target}' is referenced by multiple slides: {', '.join(slide_names)}"
                 )
-                for slide_name, rels_file in references:
+                for _, rels_file in references:
                     errors.append(f"    - {rels_file.relative_to(self.unpacked_dir)}")
 
         if errors:

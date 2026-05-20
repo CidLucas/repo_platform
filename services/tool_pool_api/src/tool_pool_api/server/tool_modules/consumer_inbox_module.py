@@ -21,7 +21,6 @@ Both cores write ``audit_log`` entries.
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import UTC, datetime
 from typing import Any

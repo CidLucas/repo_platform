@@ -4,7 +4,6 @@ import hmac
 import logging
 from hashlib import sha1
 from typing import Any
-from urllib.parse import urljoin
 
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.twiml.voice_response import VoiceResponse

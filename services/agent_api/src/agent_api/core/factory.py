@@ -18,7 +18,6 @@ from blu_agent_framework.checkpointer import create_checkpointer
 from blu_agent_framework.mcp_client import MCPConnectionManager
 from blu_agent_framework.mcp_executor import MCPToolExecutor
 from blu_agent_framework.registry import AgentTypeRegistry
-from blu_agent_framework.state import create_initial_state
 from blu_context_service import ContextService
 from blu_context_service.redis_service import RedisService
 from blu_llm_service import get_model
@@ -41,7 +40,7 @@ _mcp_manager: MCPConnectionManager | None = None
 _mcp_executor: MCPToolExecutor | None = None
 _frontdesk_graphs: dict[str, Any] = {}   # "frontdesk:{tier}" → CompiledGraph
 _standalone_graphs: dict[str, Any] = {}  # session_id → CompiledGraph
-_factory_instance: "UnifiedAgentFactory | None" = None
+_factory_instance: UnifiedAgentFactory | None = None
 
 
 def get_mcp_manager() -> MCPConnectionManager:

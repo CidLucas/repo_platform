@@ -8,13 +8,13 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
-from tool_pool_api.core.config import get_settings
-from tool_pool_api.server.dependencies import get_context_service
 from blu_auth.core.models import AuthResult
 from blu_auth.fastapi.dependencies import get_auth_result
 from blu_auth.oauth2.models import OAuthConfig
 from blu_auth.oauth2.oauth_manager import OAuthManager
 from blu_context_service.context_service import ContextService
+from tool_pool_api.core.config import get_settings
+from tool_pool_api.server.dependencies import get_context_service
 
 logger = logging.getLogger(__name__)
 

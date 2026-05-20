@@ -9,8 +9,6 @@ from uuid import UUID
 
 from fastmcp import Context, FastMCP
 
-from tool_pool_api.server.dependencies import get_context_service
-from tool_pool_api.server.tool_modules import register_module
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_google_suite_client import (
     GoogleCalendarClient,
@@ -18,6 +16,8 @@ from blu_google_suite_client import (
     GoogleGmailClient,
     GoogleSheetsClient,
 )
+from tool_pool_api.server.dependencies import get_context_service
+from tool_pool_api.server.tool_modules import register_module
 
 logger = logging.getLogger(__name__)
 

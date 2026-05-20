@@ -17,7 +17,6 @@ from blu_agent_framework.config import AgentConfig
 from blu_agent_framework.mcp_executor import MCPToolExecutor
 from blu_agent_framework.nodes import (
     NodeRegistry,
-    fan_out_tool_calls,
 )
 from blu_agent_framework.routing import (
     route_from_elicit,

@@ -11,9 +11,9 @@ import logging
 import pathlib
 import re
 import unicodedata
-from typing import Any
 from uuid import UUID, uuid4
 
+from blu_supabase_client import get_supabase_client
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 
@@ -39,7 +39,6 @@ from agent_api.api.schemas import (
 )
 from agent_api.core.factory import get_context_service, get_factory
 from agent_api.core.service import get_agent_service, get_chat_service
-from blu_supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

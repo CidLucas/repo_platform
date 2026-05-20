@@ -37,14 +37,14 @@ from pptx.shapes.base import BaseShape
 
 # Type aliases for cleaner signatures
 JsonValue = Union[str, int, float, bool, None]
-ParagraphDict = Dict[str, JsonValue]
-ShapeDict = Dict[
-    str, Union[str, float, bool, List[ParagraphDict], List[str], Dict[str, Any], None]
+ParagraphDict = dict[str, JsonValue]
+ShapeDict = dict[
+    str, Union[str, float, bool, list[ParagraphDict], list[str], dict[str, Any], None]
 ]
-InventoryData = Dict[
-    str, Dict[str, "ShapeData"]
+InventoryData = dict[
+    str, dict[str, "ShapeData"]
 ]  # Dict of slide_id -> {shape_id -> ShapeData}
-InventoryDict = Dict[str, Dict[str, ShapeDict]]  # JSON-serializable inventory
+InventoryDict = dict[str, dict[str, ShapeDict]]  # JSON-serializable inventory
 
 
 def main():
@@ -457,16 +457,16 @@ class ShapeData:
         self.frame_overflow_bottom: Optional[float] = None
         self.slide_overflow_right: Optional[float] = None
         self.slide_overflow_bottom: Optional[float] = None
-        self.overlapping_shapes: Dict[
+        self.overlapping_shapes: dict[
             str, float
         ] = {}  # Dict of shape_id -> overlap area in sq inches
-        self.warnings: List[str] = []
+        self.warnings: list[str] = []
         self._estimate_frame_overflow()
         self._calculate_slide_overflow()
         self._detect_bullet_issues()
 
     @property
-    def paragraphs(self) -> List[ParagraphData]:
+    def paragraphs(self) -> list[ParagraphData]:
         """Calculate paragraphs from the shape's text frame."""
         if not self.shape or not hasattr(self.shape, "text_frame"):
             return []
@@ -506,7 +506,7 @@ class ShapeData:
 
         return 14  # Conservative default for body text
 
-    def _get_usable_dimensions(self, text_frame) -> Tuple[int, int]:
+    def _get_usable_dimensions(self, text_frame) -> tuple[int, int]:
         """Get usable width and height in pixels after accounting for margins."""
         # Default PowerPoint margins in inches
         margins = {"top": 0.05, "bottom": 0.05, "left": 0.1, "right": 0.1}
@@ -531,7 +531,7 @@ class ShapeData:
             self.inches_to_pixels(usable_height),
         )
 
-    def _wrap_text_line(self, line: str, max_width_px: int, draw, font) -> List[str]:
+    def _wrap_text_line(self, line: str, max_width_px: int, draw, font) -> list[str]:
         """Wrap a single line of text to fit within max_width_px."""
         if not line:
             return [""]
@@ -765,7 +765,7 @@ def is_valid_shape(shape: BaseShape) -> bool:
 
 def collect_shapes_with_absolute_positions(
     shape: BaseShape, parent_left: int = 0, parent_top: int = 0
-) -> List[ShapeWithPosition]:
+) -> list[ShapeWithPosition]:
     """Recursively collect all shapes with valid text, calculating absolute positions.
 
     For shapes within groups, their positions are relative to the group.
@@ -816,7 +816,7 @@ def collect_shapes_with_absolute_positions(
     return []
 
 
-def sort_shapes_by_position(shapes: List[ShapeData]) -> List[ShapeData]:
+def sort_shapes_by_position(shapes: list[ShapeData]) -> list[ShapeData]:
     """Sort shapes by visual position (top-to-bottom, left-to-right).
 
     Shapes within 0.5 inches vertically are considered on the same row.
@@ -847,10 +847,10 @@ def sort_shapes_by_position(shapes: List[ShapeData]) -> List[ShapeData]:
 
 
 def calculate_overlap(
-    rect1: Tuple[float, float, float, float],
-    rect2: Tuple[float, float, float, float],
+    rect1: tuple[float, float, float, float],
+    rect2: tuple[float, float, float, float],
     tolerance: float = 0.05,
-) -> Tuple[bool, float]:
+) -> tuple[bool, float]:
     """Calculate if and how much two rectangles overlap.
 
     Args:
@@ -879,7 +879,7 @@ def calculate_overlap(
     return False, 0
 
 
-def detect_overlaps(shapes: List[ShapeData]) -> None:
+def detect_overlaps(shapes: list[ShapeData]) -> None:
     """Detect overlapping shapes and update their overlapping_shapes dictionaries.
 
     This function requires each ShapeData to have its shape_id already set.

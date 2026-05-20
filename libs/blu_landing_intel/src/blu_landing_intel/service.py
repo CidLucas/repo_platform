@@ -7,7 +7,6 @@ import httpx
 
 from .models import LandingIntel
 
-
 DEFAULT_SUGGESTED_KPIS: dict[str, list[str]] = {
     "commercial": [
         "com.receita_periodo",

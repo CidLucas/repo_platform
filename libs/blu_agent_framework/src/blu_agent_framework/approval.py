@@ -61,7 +61,7 @@ class ApprovalRequest:
         return self.status in {"approved", "rejected", "expired", "cancelled"}
 
     @classmethod
-    def from_row(cls, row: dict[str, Any]) -> "ApprovalRequest":
+    def from_row(cls, row: dict[str, Any]) -> ApprovalRequest:
         """Build from a Supabase RPC row (snake_case keys)."""
 
         def _ts(value: Any) -> datetime | None:
@@ -375,7 +375,7 @@ def resolve_policy(
         elif total is None:
             # Cannot evaluate threshold safely → require approval.
             requires = True
-            reason = f"policy.mode=threshold; payload missing total_amount"
+            reason = "policy.mode=threshold; payload missing total_amount"
         elif total >= float(threshold):
             requires = True
             reason = f"total_amount {total:.2f} ≥ threshold {float(threshold):.2f}"

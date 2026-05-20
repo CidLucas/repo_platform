@@ -5,7 +5,6 @@ from pathlib import Path
 
 from blu_parsers.parsers.base_parser import BaseParser
 from blu_parsers.parsers.csv_parser import CSVParser
-from blu_parsers.parsers.pdf_parser import PDFParser
 from blu_parsers.parsers.txt_parser import TXTParser
 
 logger = logging.getLogger(__name__)

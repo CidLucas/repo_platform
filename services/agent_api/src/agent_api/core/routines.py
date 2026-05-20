@@ -34,7 +34,7 @@ import asyncio
 import json
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -801,8 +801,6 @@ async def _invoke_worker(
     context_service: Any,
     output_tool_schema: dict | list | None = None,
 ):
-    from langchain_core.messages import AIMessage as _AIMessage
-    from langchain_core.messages import HumanMessage as _HumanMessage
     from blu_agent_framework.builder import AgentBuilder
     from blu_agent_framework.config import AgentConfig
     from blu_agent_framework.registry import AgentTypeRegistry
@@ -810,6 +808,9 @@ async def _invoke_worker(
     from blu_agent_framework.state import create_initial_state
     from blu_agent_framework.supervisor import WorkerResult
     from blu_llm_service import get_model
+    from langchain_core.messages import AIMessage as _AIMessage
+    from langchain_core.messages import HumanMessage as _HumanMessage
+
     from agent_api.core.factory import get_mcp_executor
 
     cfg = AgentTypeRegistry.get(slug)

@@ -19,9 +19,9 @@ import logging
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
-from tool_pool_api.server.dependencies import get_context_service
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_supabase_client import get_supabase_client
+from tool_pool_api.server.dependencies import get_context_service
 
 from . import register_module
 

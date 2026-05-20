@@ -10,6 +10,7 @@ GET  /v1/context      — client context & tool availability
 import json
 import logging
 
+from blu_context_service import ContextService
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 
@@ -23,7 +24,6 @@ from agent_api.api.schemas import (
 )
 from agent_api.core.factory import get_context_service, get_mcp_manager
 from agent_api.core.service import get_chat_service
-from blu_context_service import ContextService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -75,7 +75,7 @@ async def chat_endpoint(
         )
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
-    except Exception as exc:
+    except Exception:
         logger.exception("Error in POST /chat")
         raise HTTPException(status_code=500, detail="Internal processing error")
 
@@ -150,7 +150,7 @@ async def chat_stream_endpoint(
                 user_jwt=authorization,
             ):
                 yield chunk
-        except Exception as exc:
+        except Exception:
             logger.exception("Error in POST /chat/stream generator")
             yield f"data: {json.dumps({'event': 'error', 'data': {'message': 'Internal error'}})}\n\n"
 

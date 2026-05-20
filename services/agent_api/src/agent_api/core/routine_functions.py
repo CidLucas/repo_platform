@@ -581,6 +581,7 @@ async def _get_pending_approvals(inputs: dict, client_id: str) -> dict:
     Returns a count, raw list, and pre-formatted markdown summary.
     """
     from datetime import datetime, timezone
+
     from blu_supabase_client import get_supabase_client
 
     limit = int(inputs.get("limit", 10))
@@ -643,6 +644,7 @@ async def _get_overdue_approvals(inputs: dict, client_id: str) -> dict:
     Returns alert_priority='high' when items exist, 'low' otherwise.
     """
     from datetime import datetime, timedelta, timezone
+
     from blu_supabase_client import get_supabase_client
 
     threshold_hours = int(inputs.get("threshold_hours", 24))
@@ -709,6 +711,7 @@ async def _check_integration_health(inputs: dict, client_id: str) -> dict:
     Flags sources that are errored or stale (last_synced_at older than stale_hours).
     """
     from datetime import datetime, timedelta, timezone
+
     from blu_supabase_client import get_supabase_client
 
     stale_hours = int(inputs.get("stale_hours", 8))
@@ -807,6 +810,7 @@ async def _get_daily_activity(inputs: dict, client_id: str) -> dict:
     Count routine executions, resolved approvals, and completed data jobs for today.
     """
     from datetime import datetime, timezone
+
     from blu_supabase_client import get_supabase_client
 
     today_z = datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00Z")
@@ -887,6 +891,7 @@ async def _get_weekly_activity(inputs: dict, client_id: str) -> dict:
     Count routine executions, resolved approvals, and completed data jobs for the last 7 days.
     """
     from datetime import datetime, timedelta, timezone
+
     from blu_supabase_client import get_supabase_client
 
     week_ago_z = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%dT00:00:00Z")
@@ -954,8 +959,10 @@ async def _build_calendar_client(client_id: str):
     Returns None if Google is not connected or the token is invalid.
     """
     from uuid import UUID
-    from agent_api.core.factory import get_context_service
+
     from blu_google_suite_client import GoogleCalendarClient
+
+    from agent_api.core.factory import get_context_service
 
     ctx = get_context_service()
     try:

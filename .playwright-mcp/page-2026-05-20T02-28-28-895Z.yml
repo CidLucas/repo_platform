@@ -1,0 +1,322 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]:
+        - link "Polp" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - img "Polp" [ref=e8]
+        - generic [ref=e9]:
+          - button "Principais recursos expand_more" [ref=e11] [cursor=pointer]:
+            - text: Principais recursos
+            - generic [ref=e12]: expand_more
+          - link "Devs" [ref=e13] [cursor=pointer]:
+            - /url: /docs
+          - link "Guia" [ref=e14] [cursor=pointer]:
+            - /url: /guia-integracoes
+          - link "Preços" [ref=e15] [cursor=pointer]:
+            - /url: /#pricing
+          - link "Sobre" [ref=e16] [cursor=pointer]:
+            - /url: /sobre
+          - link "Contato" [ref=e17] [cursor=pointer]:
+            - /url: /contato
+        - link "Acessar Painel" [ref=e19] [cursor=pointer]:
+          - /url: /acesso
+    - generic [ref=e20]:
+      - complementary [ref=e21]:
+        - generic [ref=e22]:
+          - generic [ref=e23]: API REFERENCE
+          - generic [ref=e24]: v1.4.2-stable
+        - generic [ref=e25]:
+          - paragraph [ref=e26]: Getting Started
+          - navigation [ref=e27]:
+            - link "info Introduction" [ref=e28] [cursor=pointer]:
+              - /url: /docs
+              - generic [ref=e29]: info
+              - text: Introduction
+            - link "lock Authentication" [ref=e30] [cursor=pointer]:
+              - /url: /docs/authentication
+              - generic [ref=e31]: lock
+              - text: Authentication
+        - generic [ref=e32]:
+          - paragraph [ref=e33]: Institutions
+          - navigation [ref=e34]:
+            - link "account_balance List Institutions" [ref=e35] [cursor=pointer]:
+              - /url: /docs/institutions
+              - generic [ref=e36]: account_balance
+              - text: List Institutions
+        - generic [ref=e37]:
+          - paragraph [ref=e38]: Categories
+          - navigation [ref=e39]:
+            - link "category List Categories" [ref=e40] [cursor=pointer]:
+              - /url: /docs/categories
+              - generic [ref=e41]: category
+              - text: List Categories
+        - generic [ref=e42]:
+          - paragraph [ref=e43]: Integrations
+          - navigation [ref=e44]:
+            - link "list List Integrations" [ref=e45] [cursor=pointer]:
+              - /url: /docs/integrations
+              - generic [ref=e46]: list
+              - text: List Integrations
+            - link "add_circle Create Integration" [ref=e47] [cursor=pointer]:
+              - /url: /docs/integrations/create
+              - generic [ref=e48]: add_circle
+              - text: Create Integration
+            - link "search Get Integration" [ref=e49] [cursor=pointer]:
+              - /url: /docs/integrations/show
+              - generic [ref=e50]: search
+              - text: Get Integration
+            - link "delete Delete Integration" [ref=e51] [cursor=pointer]:
+              - /url: /docs/integrations/destroy
+              - generic [ref=e52]: delete
+              - text: Delete Integration
+            - link "speed Limits & Plans" [ref=e53] [cursor=pointer]:
+              - /url: /docs/integrations/limits
+              - generic [ref=e54]: speed
+              - text: Limits & Plans
+            - link "account_balance_wallet List Accounts" [ref=e55] [cursor=pointer]:
+              - /url: /docs/integrations/accounts
+              - generic [ref=e56]: account_balance_wallet
+              - text: List Accounts
+            - link "credit_card List Loans" [ref=e57] [cursor=pointer]:
+              - /url: /docs/integrations/loans
+              - generic [ref=e58]: credit_card
+              - text: List Loans
+            - link "trending_up List Investments" [ref=e59] [cursor=pointer]:
+              - /url: /docs/integrations/investments
+              - generic [ref=e60]: trending_up
+              - text: List Investments
+        - generic [ref=e61]:
+          - paragraph [ref=e62]: Accounts
+          - navigation [ref=e63]:
+            - link "manage_accounts Get Account" [ref=e64] [cursor=pointer]:
+              - /url: /docs/accounts
+              - generic [ref=e65]: manage_accounts
+              - text: Get Account
+            - link "account_balance_wallet Get Balance" [ref=e66] [cursor=pointer]:
+              - /url: /docs/accounts/balance
+              - generic [ref=e67]: account_balance_wallet
+              - text: Get Balance
+            - link "receipt_long List Transactions" [ref=e68] [cursor=pointer]:
+              - /url: /docs/accounts/transactions
+              - generic [ref=e69]: receipt_long
+              - text: List Transactions
+            - link "description List Bills" [ref=e70] [cursor=pointer]:
+              - /url: /docs/accounts/bills
+              - generic [ref=e71]: description
+              - text: List Bills
+            - link "splitscreen List Installments" [ref=e72] [cursor=pointer]:
+              - /url: /docs/installments/by-account
+              - generic [ref=e73]: splitscreen
+              - text: List Installments
+        - generic [ref=e74]:
+          - paragraph [ref=e75]: Transactions
+          - navigation [ref=e76]:
+            - link "payments Get Transaction" [ref=e77] [cursor=pointer]:
+              - /url: /docs/transactions
+              - generic [ref=e78]: payments
+              - text: Get Transaction
+        - generic [ref=e79]:
+          - paragraph [ref=e80]: Recurrings
+          - navigation [ref=e81]:
+            - link "autorenew List by Integration" [ref=e82] [cursor=pointer]:
+              - /url: /docs/recurrings
+              - generic [ref=e83]: autorenew
+              - text: List by Integration
+            - link "repeat List by Account" [ref=e84] [cursor=pointer]:
+              - /url: /docs/recurrings/by-account
+              - generic [ref=e85]: repeat
+              - text: List by Account
+            - link "event_repeat Get Recurring" [ref=e86] [cursor=pointer]:
+              - /url: /docs/recurrings/show
+              - generic [ref=e87]: event_repeat
+              - text: Get Recurring
+            - link "receipt_long List Transactions" [ref=e88] [cursor=pointer]:
+              - /url: /docs/recurrings/transactions
+              - generic [ref=e89]: receipt_long
+              - text: List Transactions
+        - generic [ref=e90]:
+          - paragraph [ref=e91]: Installments
+          - navigation [ref=e92]:
+            - link "splitscreen List by Account" [ref=e93] [cursor=pointer]:
+              - /url: /docs/installments/by-account
+              - generic [ref=e94]: splitscreen
+              - text: List by Account
+            - link "view_week Get Installment" [ref=e95] [cursor=pointer]:
+              - /url: /docs/installments/show
+              - generic [ref=e96]: view_week
+              - text: Get Installment
+            - link "receipt_long List Transactions" [ref=e97] [cursor=pointer]:
+              - /url: /docs/installments/transactions
+              - generic [ref=e98]: receipt_long
+              - text: List Transactions
+        - generic [ref=e99]:
+          - paragraph [ref=e100]: Loans
+          - navigation [ref=e101]:
+            - link "savings Get Loan" [ref=e102] [cursor=pointer]:
+              - /url: /docs/loans
+              - generic [ref=e103]: savings
+              - text: Get Loan
+        - generic [ref=e104]:
+          - paragraph [ref=e105]: Investments
+          - navigation [ref=e106]:
+            - link "trending_up Get Investment" [ref=e107] [cursor=pointer]:
+              - /url: /docs/investments
+              - generic [ref=e108]: trending_up
+              - text: Get Investment
+        - generic [ref=e109]:
+          - paragraph [ref=e110]: Bills
+          - navigation [ref=e111]:
+            - link "receipt Get Bill" [ref=e112] [cursor=pointer]:
+              - /url: /docs/bills
+              - generic [ref=e113]: receipt
+              - text: Get Bill
+            - link "receipt_long List Transactions" [ref=e114] [cursor=pointer]:
+              - /url: /docs/bills/transactions
+              - generic [ref=e115]: receipt_long
+              - text: List Transactions
+        - generic [ref=e116]:
+          - paragraph [ref=e117]: Webhooks
+          - navigation [ref=e118]:
+            - link "webhook Overview" [ref=e119] [cursor=pointer]:
+              - /url: /docs/webhooks
+              - generic [ref=e120]: webhook
+              - text: Overview
+            - link "bolt Events" [ref=e121] [cursor=pointer]:
+              - /url: /docs/webhooks/events
+              - generic [ref=e122]: bolt
+              - text: Events
+      - generic [ref=e123]:
+        - main [ref=e125]:
+          - generic [ref=e126]:
+            - generic [ref=e127]:
+              - generic [ref=e128]:
+                - generic [ref=e129]: GET
+                - code [ref=e130]: "/accounts/{id}/installments"
+              - heading "List Installments by Account" [level=1] [ref=e131]
+              - paragraph [ref=e132]:
+                - text: Retorna as compras parceladas detectadas em uma conta de cartão de crédito, ordenadas pela data de compra mais recente. Cada item agrupa todas as transações de uma mesma compra, calculando automaticamente quantas parcelas já foram cobradas (
+                - code [ref=e133]: paid_installments
+                - text: ) e qual o valor total estimado. Paginado em 25 resultados por página.
+            - generic [ref=e134]:
+              - generic [ref=e135]:
+                - heading "Path Parameters" [level=2] [ref=e136]
+                - table [ref=e138]:
+                  - rowgroup [ref=e139]:
+                    - row "Parameter Type Description" [ref=e140]:
+                      - columnheader "Parameter" [ref=e141]
+                      - columnheader "Type" [ref=e142]
+                      - columnheader "Description" [ref=e143]
+                  - rowgroup [ref=e144]:
+                    - row "id integer ID da conta." [ref=e145]:
+                      - cell "id" [ref=e146]
+                      - cell "integer" [ref=e147]
+                      - cell "ID da conta." [ref=e148]
+              - generic [ref=e149]:
+                - heading "Response Fields" [level=2] [ref=e150]
+                - table [ref=e152]:
+                  - rowgroup [ref=e153]:
+                    - row "Field Type Description" [ref=e154]:
+                      - columnheader "Field" [ref=e155]
+                      - columnheader "Type" [ref=e156]
+                      - columnheader "Description" [ref=e157]
+                  - rowgroup [ref=e158]:
+                    - row "id integer Identificador único da compra parcelada." [ref=e159]:
+                      - cell "id" [ref=e160]
+                      - cell "integer" [ref=e161]
+                      - cell "Identificador único da compra parcelada." [ref=e162]
+                    - row "account_id integer ID da conta (cartão) onde a compra foi feita." [ref=e163]:
+                      - cell "account_id" [ref=e164]
+                      - cell "integer" [ref=e165]
+                      - cell "ID da conta (cartão) onde a compra foi feita." [ref=e166]
+                    - row "description string Descrição da compra normalizada (sufixo \"X/Y\" removido)." [ref=e167]:
+                      - cell "description" [ref=e168]
+                      - cell "string" [ref=e169]
+                      - cell "Descrição da compra normalizada (sufixo \"X/Y\" removido)." [ref=e170]
+                    - row "installment_amount float Valor de cada parcela." [ref=e171]:
+                      - cell "installment_amount" [ref=e172]
+                      - cell "float" [ref=e173]
+                      - cell "Valor de cada parcela." [ref=e174]
+                    - row "total_amount float | null Valor total da compra. Quando não fornecido pelo provedor, calculamos como installment_amount × total_installments." [ref=e175]:
+                      - cell "total_amount" [ref=e176]
+                      - cell "float | null" [ref=e177]
+                      - cell "Valor total da compra. Quando não fornecido pelo provedor, calculamos como installment_amount × total_installments." [ref=e178]
+                    - row "currency_code string Código ISO 4217 da moeda." [ref=e179]:
+                      - cell "currency_code" [ref=e180]
+                      - cell "string" [ref=e181]
+                      - cell "Código ISO 4217 da moeda." [ref=e182]
+                    - row "total_installments integer Total de parcelas combinadas na compra." [ref=e183]:
+                      - cell "total_installments" [ref=e184]
+                      - cell "integer" [ref=e185]
+                      - cell "Total de parcelas combinadas na compra." [ref=e186]
+                    - row "paid_installments integer Quantidade de parcelas já cobradas (transações observadas)." [ref=e187]:
+                      - cell "paid_installments" [ref=e188]
+                      - cell "integer" [ref=e189]
+                      - cell "Quantidade de parcelas já cobradas (transações observadas)." [ref=e190]
+                    - row "purchase_date string Timestamp da compra original (ISO 8601, precisão de milissegundos)." [ref=e191]:
+                      - cell "purchase_date" [ref=e192]
+                      - cell "string" [ref=e193]
+                      - cell "Timestamp da compra original (ISO 8601, precisão de milissegundos)." [ref=e194]
+                    - row "first_installment_date string | null Data da primeira parcela observada (YYYY-MM-DD)." [ref=e195]:
+                      - cell "first_installment_date" [ref=e196]
+                      - cell "string | null" [ref=e197]
+                      - cell "Data da primeira parcela observada (YYYY-MM-DD)." [ref=e198]
+                    - row "last_installment_date string | null Data da última parcela observada (YYYY-MM-DD)." [ref=e199]:
+                      - cell "last_installment_date" [ref=e200]
+                      - cell "string | null" [ref=e201]
+                      - cell "Data da última parcela observada (YYYY-MM-DD)." [ref=e202]
+                    - row "card_last_digits string | null 4 últimos dígitos do cartão usado (pode ser cartão adicional ou virtual, distinto da conta)." [ref=e203]:
+                      - cell "card_last_digits" [ref=e204]
+                      - cell "string | null" [ref=e205]
+                      - cell "4 últimos dígitos do cartão usado (pode ser cartão adicional ou virtual, distinto da conta)." [ref=e206]
+                    - row "payee_mcc string | null Merchant Category Code do estabelecimento." [ref=e207]:
+                      - cell "payee_mcc" [ref=e208]
+                      - cell "string | null" [ref=e209]
+                      - cell "Merchant Category Code do estabelecimento." [ref=e210]
+                    - row "status string ACTIVE (parcelas restantes), COMPLETED (todas pagas) ou CANCELLED." [ref=e211]:
+                      - cell "status" [ref=e212]
+                      - cell "string" [ref=e213]
+                      - cell "ACTIVE (parcelas restantes), COMPLETED (todas pagas) ou CANCELLED." [ref=e214]
+                    - row "metadata object | null Dados internos adicionais." [ref=e215]:
+                      - cell "metadata" [ref=e216]
+                      - cell "object | null" [ref=e217]
+                      - cell "Dados internos adicionais." [ref=e218]
+                    - row "category object | null Categoria enriquecida (quando disponível)." [ref=e219]:
+                      - cell "category" [ref=e220]
+                      - cell "object | null" [ref=e221]
+                      - cell "Categoria enriquecida (quando disponível)." [ref=e222]
+                    - row "merchant object | null Estabelecimento enriquecido (quando disponível)." [ref=e223]:
+                      - cell "merchant" [ref=e224]
+                      - cell "object | null" [ref=e225]
+                      - cell "Estabelecimento enriquecido (quando disponível)." [ref=e226]
+          - complementary [ref=e227]:
+            - generic [ref=e228]:
+              - generic [ref=e229]:
+                - generic [ref=e230]:
+                  - generic [ref=e231]: cURL Request
+                  - button "COPY" [ref=e232] [cursor=pointer]
+                - code [ref=e235]: "curl https://dev.polp.com.br/api/v1/accounts/2/installments \\ -H \"x-api-client: client_abc123\" \\ -H \"x-api-secret: secret_xyz789\""
+              - generic [ref=e236]:
+                - generic [ref=e238]: JSON Response
+                - code [ref=e241]: "{ \"data\": [ { \"id\": 51, \"account_id\": 2, \"description\": \"Mlp*Magalu-Philco Ofic\", \"installment_amount\": 229.99, \"total_amount\": 2299.90, \"currency_code\": \"BRL\", \"total_installments\": 10, \"paid_installments\": 6, \"purchase_date\": \"2025-11-09T19:43:24.001000Z\", \"first_installment_date\": \"2026-02-22\", \"last_installment_date\": \"2026-02-27\", \"card_last_digits\": \"7563\", \"payee_mcc\": \"5722\", \"status\": \"ACTIVE\", \"metadata\": null, \"category\": { ... }, \"merchant\": { ... }, \"created_at\": \"2026-04-23T21:31:38.000000Z\", \"updated_at\": \"2026-04-23T21:31:38.000000Z\" } ], \"links\": { ... }, \"meta\": { \"current_page\": 1, \"last_page\": 2, \"per_page\": 25, \"total\": 31 } }"
+        - contentinfo [ref=e242]:
+          - paragraph [ref=e243]: © 2024 Polp Technologies Inc.
+          - navigation [ref=e244]:
+            - link "Privacy" [ref=e245] [cursor=pointer]:
+              - /url: "#"
+            - link "Terms" [ref=e246] [cursor=pointer]:
+              - /url: "#"
+            - link "Status" [ref=e247] [cursor=pointer]:
+              - /url: "#"
+  - generic [ref=e249]:
+    - generic [ref=e250]:
+      - generic [ref=e251]: cookie
+      - generic [ref=e252]:
+        - paragraph [ref=e253]: Usamos cookies
+        - paragraph [ref=e254]:
+          - text: Cookies de sessão garantem o funcionamento do login. O widget de feedback Featurebase só é ativado com seu aceite.
+          - link "Política de Privacidade" [ref=e255] [cursor=pointer]:
+            - /url: /privacidade
+    - generic [ref=e256]:
+      - button "Recusar" [ref=e257] [cursor=pointer]
+      - button "Aceitar" [ref=e258] [cursor=pointer]

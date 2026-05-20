@@ -1,0 +1,130 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e36]:
+    - banner [ref=e37]:
+      - img [ref=e39]:
+        - generic [ref=e45]: blu
+      - generic [ref=e47]: Início / Atividade
+      - generic [ref=e48]:
+        - button "🌙" [ref=e242] [cursor=pointer]
+        - button [ref=e50] [cursor=pointer]:
+          - img [ref=e51]
+        - button [ref=e54] [cursor=pointer]:
+          - img [ref=e55]
+        - generic "cid.lucas@gmail.com" [ref=e60] [cursor=pointer]: CI
+    - complementary [ref=e61]:
+      - img [ref=e64] [cursor=pointer]
+      - img [ref=e68] [cursor=pointer]
+      - img [ref=e72] [cursor=pointer]
+      - img [ref=e76] [cursor=pointer]
+      - img [ref=e80] [cursor=pointer]
+      - img [ref=e84] [cursor=pointer]
+      - img [ref=e88] [cursor=pointer]
+      - img [ref=e92] [cursor=pointer]
+      - generic [ref=e94]:
+        - generic [ref=e95] [cursor=pointer]:
+          - img [ref=e97]
+          - text: Atividade
+        - img [ref=e101] [cursor=pointer]
+        - img [ref=e105] [cursor=pointer]
+    - main [ref=e107]:
+      - text: ▼ ▼ ▼ ▼ ▼ ▼
+      - generic [ref=e3698]:
+        - generic [ref=e3699]:
+          - generic [ref=e3700]: 🔔
+          - generic [ref=e3701]:
+            - generic [ref=e3702]: Atividade
+            - generic [ref=e3703]: Log em tempo real de todos os agentes
+          - button "← Início" [ref=e3705] [cursor=pointer]
+        - generic [ref=e3706]:
+          - generic [ref=e3707]:
+            - generic [ref=e3708]:
+              - generic [ref=e3709]: ⚡
+              - generic [ref=e3710]: Feed de atividades
+              - generic [ref=e3711]: 0 eventos
+            - generic [ref=e3713]: Nenhuma atividade registrada
+          - generic [ref=e3714]:
+            - generic "Arraste para redimensionar" [ref=e3715]
+            - generic [ref=e3716]:
+              - generic [ref=e3717]:
+                - generic [ref=e3718]: 🤖
+                - generic [ref=e3719]: Agentes ativos
+              - generic [ref=e3721]:
+                - generic [ref=e3722] [cursor=pointer]:
+                  - generic [ref=e3723]: 🛒
+                  - generic [ref=e3724]:
+                    - generic [ref=e3725]: Compras
+                    - generic [ref=e3726]: Nada urgente
+                - generic [ref=e3727] [cursor=pointer]:
+                  - generic [ref=e3728]: 📊
+                  - generic [ref=e3729]:
+                    - generic [ref=e3730]: Financeiro
+                    - generic [ref=e3731]: Nada urgente
+                - generic [ref=e3732] [cursor=pointer]:
+                  - generic [ref=e3733]: 📅
+                  - generic [ref=e3734]:
+                    - generic [ref=e3735]: Agenda
+                    - generic [ref=e3736]: Nada urgente
+                - generic [ref=e3737] [cursor=pointer]:
+                  - generic [ref=e3738]: ✍️
+                  - generic [ref=e3739]:
+                    - generic [ref=e3740]: Documentos
+                    - generic [ref=e3741]: Nada urgente
+                - generic [ref=e3742] [cursor=pointer]:
+                  - generic [ref=e3743]: 🎯
+                  - generic [ref=e3744]:
+                    - generic [ref=e3745]: Estratégia
+                    - generic [ref=e3746]: Nada urgente
+                - generic [ref=e3747] [cursor=pointer]:
+                  - generic [ref=e3748]: 👥
+                  - generic [ref=e3749]:
+                    - generic [ref=e3750]: Clientes
+                    - generic [ref=e3751]: Nada urgente
+            - generic [ref=e3752]:
+              - generic [ref=e3753]:
+                - generic [ref=e3754]: 📊
+                - generic [ref=e3755]: Resumo do dia
+              - generic [ref=e3757]:
+                - generic [ref=e3758]:
+                  - generic [ref=e3759]: Decisões pendentes
+                  - generic [ref=e3760]: "0"
+                - generic [ref=e3761]:
+                  - generic [ref=e3762]: Aprovadas hoje
+                  - generic [ref=e3763]: "0"
+                - generic [ref=e3764]:
+                  - generic [ref=e3765]: Ações do agente
+                  - generic [ref=e3766]: "0"
+                - generic [ref=e3767]:
+                  - generic [ref=e3768]: NPS
+                  - generic [ref=e3769]: "0"
+          - generic [ref=e3770]:
+            - generic [ref=e3771] [cursor=pointer]:
+              - generic [ref=e3772]: 🟢
+              - generic [ref=e3773]:
+                - generic [ref=e3774]: OK
+                - generic [ref=e3775]: Nenhuma decisão urgente no momento
+            - generic [ref=e3776] [cursor=pointer]:
+              - generic [ref=e3777]: ⚠️
+              - generic [ref=e3778]:
+                - generic [ref=e3779]: Sistema
+                - generic [ref=e3780]: "Bigquery Sync: table"
+            - generic [ref=e3781] [cursor=pointer]:
+              - generic [ref=e3782]: ⚠️
+              - generic [ref=e3783]:
+                - generic [ref=e3784]: Sistema
+                - generic [ref=e3785]: "Bigquery Sync: table"
+            - generic [ref=e3786] [cursor=pointer]:
+              - generic [ref=e3787]: 🟢
+              - generic [ref=e3788]:
+                - generic [ref=e3789]: Concluído
+                - generic [ref=e3790]: 0 decisãoões aprovadas hoje
+            - generic [ref=e3791] [cursor=pointer]:
+              - generic [ref=e3792]: 🔔 Hoje
+              - generic [ref=e3793]:
+                - generic [ref=e3794]:
+                  - generic [ref=e3795]: "0"
+                  - generic [ref=e3796]: pendentes
+                - generic [ref=e3797]:
+                  - generic [ref=e3798]: "0"
+                  - generic [ref=e3799]: aprovadas
+  - button "Abrir assistente" [ref=e235] [cursor=pointer]:
+    - img [ref=e236]

@@ -23,12 +23,10 @@ import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
+import { snoozeUntil } from '../../utils/time'
+import { formatBRL } from '../../utils/formatters'
 
 type Tab = 'followup' | 'ativos' | 'historico' | 'config'
-
-function snoozeUntil() {
-  return new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-}
 
 function relativeTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
@@ -38,13 +36,8 @@ function relativeTime(iso: string) {
   return `${d}d atrás`
 }
 
-function formatBRL(value: number | null) {
-  if (value === null) return '—'
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
-}
-
 export default function ClientesRoom() {
-  const { go, addToast } = useAppStore()
+  const { go, addToast, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('followup')
@@ -152,7 +145,7 @@ export default function ClientesRoom() {
           <button className="btn bs" style={{ fontSize: 11 }} onClick={() => go('home', 'Início')}>
             ← Início
           </button>
-          <button className="btn bp" style={{ fontSize: 11 }}>
+          <button className="btn bp" style={{ fontSize: 11 }} onClick={() => openChatWith('Quero adicionar um novo contato de cliente')}>
             + Novo contato
           </button>
         </div>
@@ -221,8 +214,8 @@ export default function ClientesRoom() {
                 <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 12 }}>Carregando segmentos…</div>
               ) : segments.length > 0 ? (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 7, marginBottom: 12 }}>
-                  {segments.map((seg) => (
-                    <div key={seg.cluster} className="kpi-cell">
+                  {segments.map((seg, idx) => (
+                    <div key={`kpi-${seg.cluster}-${idx}`} className="kpi-cell">
                       <div className="kpi-lbl">{seg.cluster}</div>
                       <div className="kpi-val">{seg.count}</div>
                       {seg.avg_ticket !== null && (
@@ -431,11 +424,11 @@ export default function ClientesRoom() {
                     Sem dados de segmento.
                   </div>
                 ) : (
-                  segments.map((seg) => {
+                  segments.map((seg, idx) => {
                     const pct = totalCustomers > 0 ? Math.round((seg.count / totalCustomers) * 100) : 0
                     const color = seg.cluster === 'Alto' ? '#818cf8' : seg.cluster === 'Médio' ? 'var(--ac)' : 'var(--mu)'
                     return (
-                      <div key={seg.cluster} style={{ marginBottom: 10 }}>
+                      <div key={`panel-${seg.cluster}-${idx}`} style={{ marginBottom: 10 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--mu2)', marginBottom: 3 }}>
                           <span>{seg.cluster}</span>
                           <span style={{ fontFamily: 'var(--mono)', color: 'var(--mu)' }}>{seg.count} clientes</span>
@@ -452,8 +445,8 @@ export default function ClientesRoom() {
                 <div className="dr-sec">
                   <div className="dr-ttl">Receita por segmento</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11.5 }}>
-                    {segments.map((seg) => (
-                      <div key={seg.cluster} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    {segments.map((seg, idx) => (
+                      <div key={`rev-${seg.cluster}-${idx}`} style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ color: 'var(--mu)' }}>{seg.cluster}</span>
                         <span style={{ fontFamily: 'var(--mono)', color: 'var(--mu2)' }}>
                           {seg.revenue_share !== null ? `${seg.revenue_share.toFixed(0)}%` : '—'}

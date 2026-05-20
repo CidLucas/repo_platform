@@ -112,7 +112,7 @@ svg{flex-shrink:0;}
 .logo-name{display:block;font-size:14px;font-weight:700;letter-spacing:-.4px;}
 
 /* ── MAIN ── */
-.main{overflow:hidden;}
+.main{overflow:hidden;height:100%;}
 
 /* ── SCREENS ── */
 .screen{display:none;height:100%;flex-direction:column;overflow:hidden;}

@@ -18,12 +18,9 @@ import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
+import { snoozeUntil } from '../../utils/time'
 
 type Tab = 'gantt' | 'hoje' | 'pendentes' | 'config'
-
-function snoozeUntil() {
-  return new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-}
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -40,7 +37,7 @@ const DOT_COLORS: Record<string, string> = {
 }
 
 export default function AgendaRoom() {
-  const { go, toggleDc, expandedId, addToast } = useAppStore()
+  const { go, toggleDc, expandedId, addToast, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('gantt')
@@ -115,7 +112,7 @@ export default function AgendaRoom() {
         <div><div className="rn">Agenda</div><div className="rd">Reuniões, rotinas e planejamento semanal</div></div>
         <div className="ra">
           <button className="btn bs" style={{ fontSize: 11 }} onClick={() => go('home', 'Início')}>← Início</button>
-          <button className="btn bp" style={{ fontSize: 11 }}>+ Novo evento</button>
+          <button className="btn bp" style={{ fontSize: 11 }} onClick={() => openChatWith('Quero agendar um novo evento')}>+ Novo evento</button>
         </div>
       </div>
       <div className="room-grid">

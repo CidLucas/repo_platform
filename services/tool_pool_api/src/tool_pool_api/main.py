@@ -11,6 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from .api.admin_router import router as admin_router
 from .api.inbox_dispatch_router import router as inbox_dispatch_router
+from .api.ingest_router import router as ingest_router
 from .api.integrations_router import router as integrations_router
 from .api.reports_router import router as reports_router
 from .api.twilio_webhook_router import router as twilio_webhook_router
@@ -125,6 +126,7 @@ app.include_router(integrations_router)
 app.include_router(twilio_webhook_router)
 app.include_router(inbox_dispatch_router)
 app.include_router(reports_router)
+app.include_router(ingest_router)
 
 # Add database timeout middleware
 app.add_middleware(DatabaseTimeoutMiddleware)

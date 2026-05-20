@@ -1,0 +1,331 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]:
+        - link "Polp" [ref=e7] [cursor=pointer]:
+          - /url: /
+          - img "Polp" [ref=e8]
+        - generic [ref=e9]:
+          - button "Principais recursos expand_more" [ref=e11] [cursor=pointer]:
+            - text: Principais recursos
+            - generic [ref=e12]: expand_more
+          - link "Devs" [ref=e13] [cursor=pointer]:
+            - /url: /docs
+          - link "Guia" [ref=e14] [cursor=pointer]:
+            - /url: /guia-integracoes
+          - link "Preços" [ref=e15] [cursor=pointer]:
+            - /url: /#pricing
+          - link "Sobre" [ref=e16] [cursor=pointer]:
+            - /url: /sobre
+          - link "Contato" [ref=e17] [cursor=pointer]:
+            - /url: /contato
+        - link "Acessar Painel" [ref=e19] [cursor=pointer]:
+          - /url: /acesso
+    - generic [ref=e20]:
+      - complementary [ref=e21]:
+        - generic [ref=e22]:
+          - generic [ref=e23]: API REFERENCE
+          - generic [ref=e24]: v1.4.2-stable
+        - generic [ref=e25]:
+          - paragraph [ref=e26]: Getting Started
+          - navigation [ref=e27]:
+            - link "info Introduction" [ref=e28] [cursor=pointer]:
+              - /url: /docs
+              - generic [ref=e29]: info
+              - text: Introduction
+            - link "lock Authentication" [ref=e30] [cursor=pointer]:
+              - /url: /docs/authentication
+              - generic [ref=e31]: lock
+              - text: Authentication
+        - generic [ref=e32]:
+          - paragraph [ref=e33]: Institutions
+          - navigation [ref=e34]:
+            - link "account_balance List Institutions" [ref=e35] [cursor=pointer]:
+              - /url: /docs/institutions
+              - generic [ref=e36]: account_balance
+              - text: List Institutions
+        - generic [ref=e37]:
+          - paragraph [ref=e38]: Categories
+          - navigation [ref=e39]:
+            - link "category List Categories" [ref=e40] [cursor=pointer]:
+              - /url: /docs/categories
+              - generic [ref=e41]: category
+              - text: List Categories
+        - generic [ref=e42]:
+          - paragraph [ref=e43]: Integrations
+          - navigation [ref=e44]:
+            - link "list List Integrations" [ref=e45] [cursor=pointer]:
+              - /url: /docs/integrations
+              - generic [ref=e46]: list
+              - text: List Integrations
+            - link "add_circle Create Integration" [ref=e47] [cursor=pointer]:
+              - /url: /docs/integrations/create
+              - generic [ref=e48]: add_circle
+              - text: Create Integration
+            - link "search Get Integration" [ref=e49] [cursor=pointer]:
+              - /url: /docs/integrations/show
+              - generic [ref=e50]: search
+              - text: Get Integration
+            - link "delete Delete Integration" [ref=e51] [cursor=pointer]:
+              - /url: /docs/integrations/destroy
+              - generic [ref=e52]: delete
+              - text: Delete Integration
+            - link "speed Limits & Plans" [ref=e53] [cursor=pointer]:
+              - /url: /docs/integrations/limits
+              - generic [ref=e54]: speed
+              - text: Limits & Plans
+            - link "account_balance_wallet List Accounts" [ref=e55] [cursor=pointer]:
+              - /url: /docs/integrations/accounts
+              - generic [ref=e56]: account_balance_wallet
+              - text: List Accounts
+            - link "credit_card List Loans" [ref=e57] [cursor=pointer]:
+              - /url: /docs/integrations/loans
+              - generic [ref=e58]: credit_card
+              - text: List Loans
+            - link "trending_up List Investments" [ref=e59] [cursor=pointer]:
+              - /url: /docs/integrations/investments
+              - generic [ref=e60]: trending_up
+              - text: List Investments
+        - generic [ref=e61]:
+          - paragraph [ref=e62]: Accounts
+          - navigation [ref=e63]:
+            - link "manage_accounts Get Account" [ref=e64] [cursor=pointer]:
+              - /url: /docs/accounts
+              - generic [ref=e65]: manage_accounts
+              - text: Get Account
+            - link "account_balance_wallet Get Balance" [ref=e66] [cursor=pointer]:
+              - /url: /docs/accounts/balance
+              - generic [ref=e67]: account_balance_wallet
+              - text: Get Balance
+            - link "receipt_long List Transactions" [ref=e68] [cursor=pointer]:
+              - /url: /docs/accounts/transactions
+              - generic [ref=e69]: receipt_long
+              - text: List Transactions
+            - link "description List Bills" [ref=e70] [cursor=pointer]:
+              - /url: /docs/accounts/bills
+              - generic [ref=e71]: description
+              - text: List Bills
+            - link "splitscreen List Installments" [ref=e72] [cursor=pointer]:
+              - /url: /docs/installments/by-account
+              - generic [ref=e73]: splitscreen
+              - text: List Installments
+        - generic [ref=e74]:
+          - paragraph [ref=e75]: Transactions
+          - navigation [ref=e76]:
+            - link "payments Get Transaction" [ref=e77] [cursor=pointer]:
+              - /url: /docs/transactions
+              - generic [ref=e78]: payments
+              - text: Get Transaction
+        - generic [ref=e79]:
+          - paragraph [ref=e80]: Recurrings
+          - navigation [ref=e81]:
+            - link "autorenew List by Integration" [ref=e82] [cursor=pointer]:
+              - /url: /docs/recurrings
+              - generic [ref=e83]: autorenew
+              - text: List by Integration
+            - link "repeat List by Account" [ref=e84] [cursor=pointer]:
+              - /url: /docs/recurrings/by-account
+              - generic [ref=e85]: repeat
+              - text: List by Account
+            - link "event_repeat Get Recurring" [ref=e86] [cursor=pointer]:
+              - /url: /docs/recurrings/show
+              - generic [ref=e87]: event_repeat
+              - text: Get Recurring
+            - link "receipt_long List Transactions" [ref=e88] [cursor=pointer]:
+              - /url: /docs/recurrings/transactions
+              - generic [ref=e89]: receipt_long
+              - text: List Transactions
+        - generic [ref=e90]:
+          - paragraph [ref=e91]: Installments
+          - navigation [ref=e92]:
+            - link "splitscreen List by Account" [ref=e93] [cursor=pointer]:
+              - /url: /docs/installments/by-account
+              - generic [ref=e94]: splitscreen
+              - text: List by Account
+            - link "view_week Get Installment" [ref=e95] [cursor=pointer]:
+              - /url: /docs/installments/show
+              - generic [ref=e96]: view_week
+              - text: Get Installment
+            - link "receipt_long List Transactions" [ref=e97] [cursor=pointer]:
+              - /url: /docs/installments/transactions
+              - generic [ref=e98]: receipt_long
+              - text: List Transactions
+        - generic [ref=e99]:
+          - paragraph [ref=e100]: Loans
+          - navigation [ref=e101]:
+            - link "savings Get Loan" [ref=e102] [cursor=pointer]:
+              - /url: /docs/loans
+              - generic [ref=e103]: savings
+              - text: Get Loan
+        - generic [ref=e104]:
+          - paragraph [ref=e105]: Investments
+          - navigation [ref=e106]:
+            - link "trending_up Get Investment" [ref=e107] [cursor=pointer]:
+              - /url: /docs/investments
+              - generic [ref=e108]: trending_up
+              - text: Get Investment
+        - generic [ref=e109]:
+          - paragraph [ref=e110]: Bills
+          - navigation [ref=e111]:
+            - link "receipt Get Bill" [ref=e112] [cursor=pointer]:
+              - /url: /docs/bills
+              - generic [ref=e113]: receipt
+              - text: Get Bill
+            - link "receipt_long List Transactions" [ref=e114] [cursor=pointer]:
+              - /url: /docs/bills/transactions
+              - generic [ref=e115]: receipt_long
+              - text: List Transactions
+        - generic [ref=e116]:
+          - paragraph [ref=e117]: Webhooks
+          - navigation [ref=e118]:
+            - link "webhook Overview" [ref=e119] [cursor=pointer]:
+              - /url: /docs/webhooks
+              - generic [ref=e120]: webhook
+              - text: Overview
+            - link "bolt Events" [ref=e121] [cursor=pointer]:
+              - /url: /docs/webhooks/events
+              - generic [ref=e122]: bolt
+              - text: Events
+      - generic [ref=e123]:
+        - main [ref=e125]:
+          - generic [ref=e126]:
+            - generic [ref=e127]:
+              - generic [ref=e128]:
+                - generic [ref=e129]: GET
+                - code [ref=e130]: "/integrations/{id}/recurrings"
+              - heading "List Recurrings by Integration" [level=1] [ref=e131]
+              - paragraph [ref=e132]: Retorna todas as assinaturas e cobranças recorrentes detectadas para uma integração, ordenadas pela próxima data prevista. Nossa pipeline combina análise estatística de cadência (mediana + desvio padrão dos intervalos) com validação via IA para casos ambíguos — resultado é a frequência canônica, confidence score e merchant enriquecido. Paginado em 25 resultados por página.
+            - generic [ref=e133]:
+              - generic [ref=e134]:
+                - heading "Path Parameters" [level=2] [ref=e135]
+                - table [ref=e137]:
+                  - rowgroup [ref=e138]:
+                    - row "Parameter Type Description" [ref=e139]:
+                      - columnheader "Parameter" [ref=e140]
+                      - columnheader "Type" [ref=e141]
+                      - columnheader "Description" [ref=e142]
+                  - rowgroup [ref=e143]:
+                    - row "id integer ID da integração." [ref=e144]:
+                      - cell "id" [ref=e145]
+                      - cell "integer" [ref=e146]
+                      - cell "ID da integração." [ref=e147]
+              - generic [ref=e148]:
+                - heading "Response Fields" [level=2] [ref=e149]
+                - table [ref=e151]:
+                  - rowgroup [ref=e152]:
+                    - row "Field Type Description" [ref=e153]:
+                      - columnheader "Field" [ref=e154]
+                      - columnheader "Type" [ref=e155]
+                      - columnheader "Description" [ref=e156]
+                  - rowgroup [ref=e157]:
+                    - row "id integer Identificador único do recurring." [ref=e158]:
+                      - cell "id" [ref=e159]
+                      - cell "integer" [ref=e160]
+                      - cell "Identificador único do recurring." [ref=e161]
+                    - row "integration_id integer ID da integração de origem." [ref=e162]:
+                      - cell "integration_id" [ref=e163]
+                      - cell "integer" [ref=e164]
+                      - cell "ID da integração de origem." [ref=e165]
+                    - row "account_id integer ID da conta à qual o recurring pertence." [ref=e166]:
+                      - cell "account_id" [ref=e167]
+                      - cell "integer" [ref=e168]
+                      - cell "ID da conta à qual o recurring pertence." [ref=e169]
+                    - row "description string Descrição representativa (amostra de uma das transações)." [ref=e170]:
+                      - cell "description" [ref=e171]
+                      - cell "string" [ref=e172]
+                      - cell "Descrição representativa (amostra de uma das transações)." [ref=e173]
+                    - row "amount float Valor recorrente. Negativo = débito, positivo = crédito." [ref=e174]:
+                      - cell "amount" [ref=e175]
+                      - cell "float" [ref=e176]
+                      - cell "Valor recorrente. Negativo = débito, positivo = crédito." [ref=e177]
+                    - row "currency_code string Código ISO 4217 da moeda." [ref=e178]:
+                      - cell "currency_code" [ref=e179]
+                      - cell "string" [ref=e180]
+                      - cell "Código ISO 4217 da moeda." [ref=e181]
+                    - row "frequency string DAILY, WEEKLY, BIWEEKLY, MONTHLY, BIMONTHLY, QUARTERLY, SEMIANNUAL, YEARLY ou CUSTOM." [ref=e182]:
+                      - cell "frequency" [ref=e183]
+                      - cell "string" [ref=e184]
+                      - cell "DAILY, WEEKLY, BIWEEKLY, MONTHLY, BIMONTHLY, QUARTERLY, SEMIANNUAL, YEARLY ou CUSTOM." [ref=e185]
+                    - row "frequency_interval integer Intervalo da frequência (padrão 1)." [ref=e186]:
+                      - cell "frequency_interval" [ref=e187]
+                      - cell "integer" [ref=e188]
+                      - cell "Intervalo da frequência (padrão 1)." [ref=e189]
+                    - row "day_of_month integer | null Dia do mês (1–31) quando MONTHLY." [ref=e190]:
+                      - cell "day_of_month" [ref=e191]
+                      - cell "integer | null" [ref=e192]
+                      - cell "Dia do mês (1–31) quando MONTHLY." [ref=e193]
+                    - row "day_of_week integer | null Dia da semana (0–6) quando WEEKLY." [ref=e194]:
+                      - cell "day_of_week" [ref=e195]
+                      - cell "integer | null" [ref=e196]
+                      - cell "Dia da semana (0–6) quando WEEKLY." [ref=e197]
+                    - row "first_seen_at string Data da primeira ocorrência detectada (YYYY-MM-DD)." [ref=e198]:
+                      - cell "first_seen_at" [ref=e199]
+                      - cell "string" [ref=e200]
+                      - cell "Data da primeira ocorrência detectada (YYYY-MM-DD)." [ref=e201]
+                    - row "last_seen_at string Data da última ocorrência (YYYY-MM-DD)." [ref=e202]:
+                      - cell "last_seen_at" [ref=e203]
+                      - cell "string" [ref=e204]
+                      - cell "Data da última ocorrência (YYYY-MM-DD)." [ref=e205]
+                    - row "next_expected_date string Previsão da próxima cobrança (YYYY-MM-DD)." [ref=e206]:
+                      - cell "next_expected_date" [ref=e207]
+                      - cell "string" [ref=e208]
+                      - cell "Previsão da próxima cobrança (YYYY-MM-DD)." [ref=e209]
+                    - row "occurrences_count integer Quantidade de transações já associadas." [ref=e210]:
+                      - cell "occurrences_count" [ref=e211]
+                      - cell "integer" [ref=e212]
+                      - cell "Quantidade de transações já associadas." [ref=e213]
+                    - row "status string ACTIVE, PAUSED ou CANCELLED." [ref=e214]:
+                      - cell "status" [ref=e215]
+                      - cell "string" [ref=e216]
+                      - cell "ACTIVE, PAUSED ou CANCELLED." [ref=e217]
+                    - row "confidence float Confiança da detecção (0..1). Quanto maior, mais estável é a cadência." [ref=e218]:
+                      - cell "confidence" [ref=e219]
+                      - cell "float" [ref=e220]
+                      - cell "Confiança da detecção (0..1). Quanto maior, mais estável é a cadência." [ref=e221]
+                    - row "detected_at string Timestamp da última execução do detector (ISO 8601)." [ref=e222]:
+                      - cell "detected_at" [ref=e223]
+                      - cell "string" [ref=e224]
+                      - cell "Timestamp da última execução do detector (ISO 8601)." [ref=e225]
+                    - 'row "metadata object Dados internos: median_gap_days, stddev_days, anchor_days, type." [ref=e226]':
+                      - cell "metadata" [ref=e227]
+                      - cell "object" [ref=e228]
+                      - 'cell "Dados internos: median_gap_days, stddev_days, anchor_days, type." [ref=e229]'
+                    - row "category object | null Categoria enriquecida (quando disponível)." [ref=e230]:
+                      - cell "category" [ref=e231]
+                      - cell "object | null" [ref=e232]
+                      - cell "Categoria enriquecida (quando disponível)." [ref=e233]
+                    - row "merchant object | null Estabelecimento enriquecido (quando disponível)." [ref=e234]:
+                      - cell "merchant" [ref=e235]
+                      - cell "object | null" [ref=e236]
+                      - cell "Estabelecimento enriquecido (quando disponível)." [ref=e237]
+          - complementary [ref=e238]:
+            - generic [ref=e239]:
+              - generic [ref=e240]:
+                - generic [ref=e241]:
+                  - generic [ref=e242]: cURL Request
+                  - button "COPY" [ref=e243] [cursor=pointer]
+                - code [ref=e246]: "curl https://dev.polp.com.br/api/v1/integrations/42/recurrings \\ -H \"x-api-client: client_abc123\" \\ -H \"x-api-secret: secret_xyz789\""
+              - generic [ref=e247]:
+                - generic [ref=e249]: JSON Response
+                - code [ref=e252]: "{ \"data\": [ { \"id\": 18, \"integration_id\": 42, \"account_id\": 10, \"description\": \"NETFLIX.COM\", \"amount\": -55.90, \"currency_code\": \"BRL\", \"frequency\": \"MONTHLY\", \"frequency_interval\": 1, \"day_of_month\": 14, \"day_of_week\": null, \"first_seen_at\": \"2023-05-14\", \"last_seen_at\": \"2026-04-14\", \"next_expected_date\": \"2026-05-14\", \"occurrences_count\": 36, \"status\": \"ACTIVE\", \"confidence\": 0.972, \"detected_at\": \"2026-04-24T03:00:00.000000Z\", \"metadata\": { \"median_gap_days\": 30, \"stddev_days\": 0.83, \"anchor_days\": 30, \"type\": \"DEBIT\" }, \"category\": { \"id\": 61, \"description\": \"Streaming\", \"color\": \"#E50914\", \"icon\": \"subscriptions\", \"parent_id\": 12 }, \"merchant\": { \"name\": \"Netflix\", \"business_name\": \"NETFLIX ENTRETENIMENTO BRASIL LTDA\", \"cnpj\": \"13.590.585/0001-99\", \"cnae\": \"5911-1/99\", \"domain\": \"netflix.com\", \"logo_url\": \"https://assets.polp.io/netflix.png\" }, \"created_at\": \"2026-04-24T03:00:00.000000Z\", \"updated_at\": \"2026-04-24T03:00:00.000000Z\" } ], \"links\": { ... }, \"meta\": { \"current_page\": 1, \"last_page\": 3, \"per_page\": 25, \"total\": 62 } }"
+        - contentinfo [ref=e253]:
+          - paragraph [ref=e254]: © 2024 Polp Technologies Inc.
+          - navigation [ref=e255]:
+            - link "Privacy" [ref=e256] [cursor=pointer]:
+              - /url: "#"
+            - link "Terms" [ref=e257] [cursor=pointer]:
+              - /url: "#"
+            - link "Status" [ref=e258] [cursor=pointer]:
+              - /url: "#"
+  - generic [ref=e260]:
+    - generic [ref=e261]:
+      - generic [ref=e262]: cookie
+      - generic [ref=e263]:
+        - paragraph [ref=e264]: Usamos cookies
+        - paragraph [ref=e265]:
+          - text: Cookies de sessão garantem o funcionamento do login. O widget de feedback Featurebase só é ativado com seu aceite.
+          - link "Política de Privacidade" [ref=e266] [cursor=pointer]:
+            - /url: /privacidade
+    - generic [ref=e267]:
+      - button "Recusar" [ref=e268] [cursor=pointer]
+      - button "Aceitar" [ref=e269] [cursor=pointer]

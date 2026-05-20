@@ -1,0 +1,110 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e36]:
+    - banner [ref=e37]:
+      - img [ref=e39]:
+        - generic [ref=e45]: blu
+      - generic [ref=e47]: Início / Estratégia
+      - generic [ref=e48]:
+        - button "🌙" [ref=e242] [cursor=pointer]
+        - button [ref=e50] [cursor=pointer]:
+          - img [ref=e51]
+        - button [ref=e54] [cursor=pointer]:
+          - img [ref=e55]
+        - generic "cid.lucas@gmail.com" [ref=e60] [cursor=pointer]: CI
+    - complementary [ref=e61]:
+      - img [ref=e64] [cursor=pointer]
+      - img [ref=e68] [cursor=pointer]
+      - img [ref=e72] [cursor=pointer]
+      - img [ref=e76] [cursor=pointer]
+      - img [ref=e80] [cursor=pointer]
+      - generic [ref=e82] [cursor=pointer]:
+        - img [ref=e84]
+        - text: Estratégia
+      - img [ref=e88] [cursor=pointer]
+      - img [ref=e92] [cursor=pointer]
+      - generic [ref=e94]:
+        - img [ref=e97] [cursor=pointer]
+        - img [ref=e101] [cursor=pointer]
+        - img [ref=e105] [cursor=pointer]
+    - main [ref=e107]:
+      - text: ▼ ▼ ▼ ▼ ▼ ▼
+      - generic [ref=e3484]:
+        - generic [ref=e3485]:
+          - generic [ref=e3486]: 🎯
+          - generic [ref=e3487]:
+            - generic [ref=e3488]: Estratégia
+            - generic [ref=e3489]: Análises, KPIs e planejamento
+          - generic [ref=e3490]:
+            - button "← Início" [ref=e3491] [cursor=pointer]
+            - button "+ Nova Análise" [ref=e3492] [cursor=pointer]
+        - generic [ref=e3493]:
+          - generic [ref=e3494]:
+            - generic [ref=e3496]: Mesa de Trabalho
+            - generic [ref=e3497]:
+              - generic [ref=e3498] [cursor=pointer]: Decisões
+              - generic [ref=e3499] [cursor=pointer]: Análises
+              - generic [ref=e3500] [cursor=pointer]: Histórico
+              - generic [ref=e3501] [cursor=pointer]: Config
+            - generic [ref=e3504]: Nenhuma decisão pendente.
+            - generic [ref=e3506] [cursor=pointer]:
+              - generic [ref=e3507]: 📊 Analytics Estratégia
+              - generic [ref=e3508]:
+                - generic [ref=e3509]:
+                  - generic [ref=e3510]: "0"
+                  - generic [ref=e3511]: Pendentes
+                - generic [ref=e3512]:
+                  - generic [ref=e3513]: "0"
+                  - generic [ref=e3514]: Aprovadas
+              - generic [ref=e3515]: ▶
+          - generic [ref=e3516]:
+            - generic "Arraste para redimensionar" [ref=e3517]
+            - generic [ref=e3518]:
+              - generic [ref=e3519] [cursor=pointer]:
+                - generic [ref=e3520]: ⚙️
+                - generic [ref=e3521]: Rotinas ativas
+                - generic [ref=e3522]: ▾
+              - generic [ref=e3524]:
+                - generic [ref=e3525]:
+                  - generic [ref=e3527]:
+                    - generic [ref=e3528]: Plano do Dia
+                    - generic [ref=e3529]: "última: há 1d"
+                  - button "Ver →" [ref=e3530] [cursor=pointer]
+                - generic [ref=e3531]:
+                  - generic [ref=e3533]:
+                    - generic [ref=e3534]: Sincronização da Manhã
+                    - generic [ref=e3535]: "última: há 1d"
+                  - button "Ver →" [ref=e3536] [cursor=pointer]
+                - generic [ref=e3537]:
+                  - generic [ref=e3539]:
+                    - generic [ref=e3540]: Revisão de Decisões Pendentes
+                    - generic [ref=e3541]: "última: há 1d"
+                  - button "Ver →" [ref=e3542] [cursor=pointer]
+                - generic [ref=e3543]:
+                  - generic [ref=e3545]:
+                    - generic [ref=e3546]: Digest do Fim de Dia
+                    - generic [ref=e3547]: "última: há 1d"
+                  - button "Ver →" [ref=e3548] [cursor=pointer]
+                - generic [ref=e3549]:
+                  - generic [ref=e3551]:
+                    - generic [ref=e3552]: Resumo Semanal
+                    - generic [ref=e3553]: "última: há 1d"
+                  - button "Ver →" [ref=e3554] [cursor=pointer]
+            - generic [ref=e3555]:
+              - generic [ref=e3556] [cursor=pointer]:
+                - generic [ref=e3557]: 📊
+                - generic [ref=e3558]: Análises
+                - generic [ref=e3559]: "2"
+                - generic [ref=e3560]: ▾
+              - generic [ref=e3562]:
+                - generic [ref=e3563] [cursor=pointer]:
+                  - generic [ref=e3564]: 📄
+                  - generic [ref=e3565]:
+                    - generic [ref=e3566]: Relatório de Contexto — 2026-05
+                    - generic [ref=e3567]: mai. de 2026
+                - generic [ref=e3568] [cursor=pointer]:
+                  - generic [ref=e3569]: 📄
+                  - generic [ref=e3570]:
+                    - generic [ref=e3571]: Relatório de Contexto — 2026-05
+                    - generic [ref=e3572]: mai. de 2026
+  - button "Abrir assistente" [ref=e235] [cursor=pointer]:
+    - img [ref=e236]

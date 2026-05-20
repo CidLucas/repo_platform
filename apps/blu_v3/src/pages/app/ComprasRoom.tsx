@@ -17,17 +17,11 @@ import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
 import RoutineExecutionFeed from '../../components/shared/RoutineExecutionFeed'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
+import DecisionCard from '../../components/shared/DecisionCard'
+import { snoozeUntil } from '../../utils/time'
+import { formatBRL } from '../../utils/formatters'
 
 type Tab = 'decisoes' | 'tarefas' | 'historico' | 'config'
-
-function snoozeUntil() {
-  return new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-}
-
-function formatBRL(value: number | null) {
-  if (value === null) return '—'
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
-}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
@@ -44,7 +38,7 @@ function ratingStars(rating: number | null) {
 }
 
 export default function ComprasRoom() {
-  const { go, toggleDc, expandedId, addToast, initialTab, clearInitialTab } = useAppStore()
+  const { go, toggleDc, expandedId, addToast, initialTab, clearInitialTab, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('decisoes')
@@ -141,7 +135,7 @@ export default function ComprasRoom() {
         <div><div className="rn">Compras</div><div className="rd">Cotações, fornecedores e estoque</div></div>
         <div className="ra">
           <button className="btn bs" style={{ fontSize: 11 }} onClick={() => go('home', 'Início')}>← Início</button>
-          <button className="btn bp" style={{ fontSize: 11 }}>+ Nova Missão</button>
+          <button className="btn bp" style={{ fontSize: 11 }} onClick={() => openChatWith('Quero criar uma nova missão de compras')}>+ Nova Missão</button>
         </div>
       </div>
       <div className="room-grid">
@@ -175,34 +169,15 @@ export default function ComprasRoom() {
                     <div className="eb">Nenhuma decisão pendente em Compras. O Blu irá notificá-lo quando houver algo para resolver.</div>
                   </div>
                 )}
-                {approvals.map(approval => {
-                  const isExpanded = expandedId === approval.id
-                  const isUrgent = approval.priority === 'urgent' || approval.priority === 'high'
-                  const cls = ['dc', isUrgent ? 'urg' : 'warn', isExpanded ? 'expanded' : ''].filter(Boolean).join(' ')
-                  return (
-                    <div key={approval.id} className={cls} id={approval.id}>
-                      <div className="dc-row" onClick={() => toggleDc(approval.id)}>
-                        <div className="ag">
-                          <div className="agd" style={{ background: '#818cf8' }} />Compras
-                        </div>
-                        <span className={isUrgent ? 'bdg bu' : 'bdg bw'}>
-                          {isUrgent ? 'Crítico' : formatTime(approval.created_at)}
-                        </span>
-                        <span className="dc-row-summary">{approval.title}</span>
-                        <span className="dt">{formatTime(approval.created_at)}</span>
-                        <span className="dc-chev">▶</span>
-                      </div>
-                      <div className="dc-expand">
-                        <div className="db">{approval.body}</div>
-                        <div className="dc-act">
-                          <button className="btn bp" onClick={() => approveMut.mutate(approval.id)}>👍 Aprovar</button>
-                          <button className="btn brd" onClick={() => rejectMut.mutate(approval.id)}>👎 Rejeitar</button>
-                          <button className="btn bg" onClick={() => snoozeMut.mutate(approval.id)}>⏰ Depois</button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
+                {approvals.map(approval => (
+                  <DecisionCard
+                    key={approval.id}
+                    approval={approval}
+                    onApprove={() => approveMut.mutate(approval.id)}
+                    onReject={() => rejectMut.mutate(approval.id)}
+                    onSnooze={() => snoozeMut.mutate(approval.id)}
+                  />
+                ))}
               </div>
 
             </div>
@@ -353,7 +328,7 @@ export default function ComprasRoom() {
           <CollapsiblePanel id="compras-rotinas" icon="⚙️" title="Rotinas ativas">
             <RoutineStatusWidget domain="compras" />
           </CollapsiblePanel>
-          <CollapsiblePanel id="compras-fornecedores" icon="📁" title="Fornecedores" action={<button className="ph-add">＋</button>}>
+          <CollapsiblePanel id="compras-fornecedores" icon="📁" title="Fornecedores" action={<button className="ph-add" onClick={() => openChatWith('Quero cadastrar um novo fornecedor')}>＋</button>}>
             <div className="dr-sec">
                 <div className="pills"><span className="pill on">Todos</span><span className="pill">Escritório</span><span className="pill">Insumos</span></div>
                 {suppliersQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12, marginTop: 8 }}>Carregando…</div>}

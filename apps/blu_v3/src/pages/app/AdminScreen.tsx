@@ -1,4 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
+import {
+  Gear, Link, UsersThree, ClipboardText, Bell, CreditCard, Lock, MapTrifold,
+  CheckCircle, FileArrowDown, ChartBar, Table, Broom, Trash, Warning, Bank,
+  CalendarDots, HardDrive, Database, Receipt, Target, ShoppingCart, PencilSimpleLine,
+  Globe, Buildings,
+} from '@phosphor-icons/react'
 import { useAppStore } from '../../store/appStore'
 import { useIntegrations, useDisconnectIntegration, useAuditLog, useRequestDataExport, useRequestDataDeletion, useTeamMembers, useUpdateUserPermissions, useInviteUser } from '../../hooks/useAdmin'
 import { useStartSync } from '../../hooks/useConnectorStatus'
@@ -38,49 +45,71 @@ const POLP_INSTITUTIONS = [
   { id: 0,   name: 'Outro (inserir ID manualmente)' },
 ]
 
-type AdminTab = 'integracoes' | 'usuarios' | 'auditoria' | 'notificacoes' | 'faturamento' | 'lgpd' | 'contexto' | 'rotinas'
+type AdminTab = 'integracoes' | 'usuarios' | 'auditoria' | 'notificacoes' | 'faturamento' | 'lgpd' | 'contexto'
 
 // ── Static catalogs ──────────────────────────────────────────────────────────
 
 interface CatalogIntegration {
   id: string
-  icon: string
   name: string
   desc: string
-  provider: string // matches credencial_servico_externo.tipo normalized
+  provider: string
 }
 
 const LANES: { label: string; integrations: CatalogIntegration[] }[] = [
   {
     label: 'ERPs & Gestão',
     integrations: [
-      { id: 'ic-conta-azul', icon: '📋', name: 'Conta Azul', desc: 'NF-e e financeiro', provider: 'conta_azul' },
+      { id: 'ic-conta-azul', name: 'Conta Azul', desc: 'NF-e e financeiro', provider: 'conta_azul' },
     ],
   },
   {
     label: 'Google',
     integrations: [
-      { id: 'ic-gcal',  icon: '📅', name: 'Google Calendar', desc: 'Agenda',        provider: 'google_calendar' },
-      { id: 'ic-gdrive', icon: '📂', name: 'Google Drive',    desc: 'Planilhas',     provider: 'google_drive' },
+      { id: 'ic-gcal',  name: 'Google Calendar', desc: 'Agenda',        provider: 'google_calendar' },
+      { id: 'ic-gdrive', name: 'Google Drive',    desc: 'Planilhas',     provider: 'google_drive' },
     ],
   },
   {
     label: 'Open Finance',
     integrations: [
-      { id: 'ic-polp', icon: '🏦', name: 'Open Finance', desc: 'Contas bancárias reais', provider: 'polp' },
+      { id: 'ic-polp', name: 'Open Finance', desc: 'Contas bancárias reais', provider: 'polp' },
     ],
   },
   {
     label: 'Dados & Analytics',
     integrations: [
-      { id: 'ic-bigquery', icon: '🗄️', name: 'BigQuery',   desc: 'Data warehouse',  provider: 'bigquery' },
-      { id: 'ic-postgres', icon: '🐘', name: 'PostgreSQL', desc: 'Banco relacional', provider: 'postgresql' },
+      { id: 'ic-bigquery', name: 'BigQuery',   desc: 'Data warehouse',  provider: 'bigquery' },
+      { id: 'ic-postgres', name: 'PostgreSQL', desc: 'Banco relacional', provider: 'postgresql' },
     ],
   },
 ]
 
 // Providers that use OAuth redirect instead of API key forms
 const OAUTH_PROVIDERS = new Set(['google_calendar', 'google_drive'])
+
+function getProviderIcon(provider: string, size = 20): ReactNode {
+  switch (provider) {
+    case 'conta_azul':      return <Receipt size={size} />
+    case 'google_calendar': return <CalendarDots size={size} />
+    case 'google_drive':    return <HardDrive size={size} />
+    case 'polp':            return <Bank size={size} />
+    case 'bigquery':
+    case 'postgresql':      return <Database size={size} />
+    default:                return <Link size={size} />
+  }
+}
+
+function getDomainIcon(name: string): ReactNode {
+  switch (name) {
+    case 'Identidade': return <Buildings size={13} />
+    case 'Operações':  return <Gear size={13} />
+    case 'Pessoas':    return <UsersThree size={13} />
+    case 'Externo':    return <Globe size={13} />
+    case 'Estratégia': return <Target size={13} />
+    default:           return null
+  }
+}
 
 function getDbIntegration(provider: string, dbList: Integration[]): Integration | undefined {
   return dbList.find(i => i.provider === provider)
@@ -90,7 +119,7 @@ function isConnected(provider: string, dbList: Integration[]): boolean {
   return getDbIntegration(provider, dbList)?.status === 'connected'
 }
 
-function agentReadiness(dbList: Integration[]): { icon: string; name: string; status: string; st: string }[] {
+function agentReadiness(dbList: Integration[]): { icon: ReactNode; name: string; status: string; st: string }[] {
   const AGENT_PROVIDERS: Record<string, string[]> = {
     financeiro: ['conta_azul'],
     estrategia: ['bigquery', 'postgresql'],
@@ -99,7 +128,14 @@ function agentReadiness(dbList: Integration[]): { icon: string; name: string; st
     documentos: ['google_calendar'],
     agenda:     ['google_calendar'],
   }
-  const ICONS: Record<string, string> = { financeiro: '📊', estrategia: '🎯', clientes: '👥', compras: '🛒', documentos: '✍️', agenda: '📅' }
+  const ICONS: Record<string, ReactNode> = {
+    financeiro: <ChartBar size={13} />,
+    estrategia: <Target size={13} />,
+    clientes:   <UsersThree size={13} />,
+    compras:    <ShoppingCart size={13} />,
+    documentos: <PencilSimpleLine size={13} />,
+    agenda:     <CalendarDots size={13} />,
+  }
   const NAMES: Record<string, string> = { financeiro: 'Financeiro', estrategia: 'Estratégia', clientes: 'Clientes', compras: 'Compras', documentos: 'Documentos', agenda: 'Agenda' }
 
   return Object.keys(AGENT_PROVIDERS).map(slug => {
@@ -121,20 +157,16 @@ function agentColor(slug: string | null): string {
   return (slug && MAP[slug]) ? MAP[slug] : '#94a3b8'
 }
 
-// Static catalog mirrors cross_agent_routines seed data
-const ROUTINE_CATALOG = [
-  { id: 'new_event_confirmed', name: 'Novo Evento Confirmado', domain: 'operacoes', trigger: 'Contrato de venda assinado' },
-  { id: 'project_wrap',        name: 'Encerramento de Projeto', domain: 'agenda',    trigger: 'Cronograma do evento concluído' },
-  { id: 'churn_prevention',    name: 'Prevenção de Churn',      domain: 'operacoes', trigger: '45 dias sem compra' },
-  { id: 'price_spike_response',name: 'Resposta a Alta de Preço',domain: 'operacoes', trigger: 'Alta de preço > 15%' },
-  { id: 'monthly_close',       name: 'Fechamento Mensal',       domain: 'system',    trigger: 'Último dia do mês (cron)' },
-]
+
+
+
 
 
 
 export default function AdminScreen() {
   const go = useAppStore(s => s.go)
   const [tab, setTab] = useState<AdminTab>('integracoes')
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [expandedLog, setExpandedLog] = useState<string | null>(null)
   const [expandedUser, setExpandedUser] = useState<string | null>(null)
   const [modalIntgId, setModalIntgId] = useState<string | null>(null) // catalog id
@@ -142,8 +174,6 @@ export default function AdminScreen() {
   const [logSearch, setLogSearch] = useState('')
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteForm, setInviteForm] = useState({ name: '', email: '', role: 'member' })
-  const [enqueuingRoutine, setEnqueuingRoutine] = useState<string | null>(null)
-  const [routineResult, setRoutineResult] = useState<Record<string, 'ok' | 'err' | 'dup'>>({})
 
 
   const { data: dbIntegrations = [], refetch: refetchIntegrations } = useIntegrations()
@@ -268,28 +298,14 @@ export default function AdminScreen() {
     setModalIntgId(null)
   }
 
-  async function doEnqueueRoutine(routineId: string) {
-    setEnqueuingRoutine(routineId)
-    try {
-      const { data, error } = await supabase.rpc('enqueue_routine_for_me', { p_routine_id: routineId })
-      if (error) throw error
-      setRoutineResult(r => ({ ...r, [routineId]: data ? 'ok' : 'dup' }))
-    } catch {
-      setRoutineResult(r => ({ ...r, [routineId]: 'err' }))
-    } finally {
-      setEnqueuingRoutine(null)
-    }
-  }
-
-  const TABS: { id: AdminTab; label: string }[] = [
-    { id: 'integracoes',  label: '🔗 Integrações' },
-    { id: 'usuarios',     label: '👥 Usuários' },
-    { id: 'auditoria',   label: '📋 Auditoria' },
-    { id: 'notificacoes', label: '🔔 Notificações' },
-    { id: 'faturamento',  label: '💳 Faturamento' },
-    { id: 'lgpd',         label: '🔒 LGPD' },
-    { id: 'contexto',     label: '🗺️ Contexto' },
-    { id: 'rotinas',      label: '⚡ Rotinas' },
+  const TABS: { id: AdminTab; icon: ReactNode; label: string }[] = [
+    { id: 'integracoes',  icon: <Link size={13} />,          label: 'Integrações' },
+    { id: 'usuarios',     icon: <UsersThree size={13} />,    label: 'Usuários' },
+    { id: 'auditoria',   icon: <ClipboardText size={13} />, label: 'Auditoria' },
+    { id: 'notificacoes', icon: <Bell size={13} />,          label: 'Notificações' },
+    { id: 'faturamento',  icon: <CreditCard size={13} />,    label: 'Faturamento' },
+    { id: 'lgpd',         icon: <Lock size={13} />,          label: 'LGPD' },
+    { id: 'contexto',     icon: <MapTrifold size={13} />,    label: 'Contexto' },
   ]
 
   const agentReadinessData = agentReadiness(dbIntegrations)
@@ -320,7 +336,7 @@ export default function AdminScreen() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div className="rh">
-        <div className="rav">⚙️</div>
+        <div className="rav"><Gear size={16} /></div>
         <div><div className="rn">Admin</div><div className="rd">Configurações, integrações e controles</div></div>
         <div className="ra">
           <button className="btn bs" style={{ fontSize: 11 }} onClick={() => go('home', 'Início')}>← Início</button>
@@ -329,7 +345,7 @@ export default function AdminScreen() {
 
       <div className="ad-tabs">
         {TABS.map(t => (
-          <div key={t.id} className={`ad-tab${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>{t.label}</div>
+          <div key={t.id} className={`ad-tab${tab === t.id ? ' on' : ''}`} onClick={() => setTab(t.id)}>{t.icon}{t.label}</div>
         ))}
       </div>
 
@@ -349,7 +365,7 @@ export default function AdminScreen() {
                 return (
                   <div key={intg.id} className={`int-card${conn ? ' conn' : ''}`}>
                     <div className="int-card-ico">
-                      {intg.icon}
+                      {getProviderIcon(intg.provider, 20)}
                       <div className="ic-dot">✓</div>
                     </div>
                     <div className="int-card-nm">{intg.name}</div>
@@ -584,31 +600,61 @@ export default function AdminScreen() {
       <div className={`ad-tc${tab === 'lgpd' ? ' on' : ''}`}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 640 }}>
           <div style={{ background: 'var(--odim)', border: '1px solid rgba(16,185,129,.3)', borderRadius: 'var(--r)', padding: '12px 16px', display: 'flex', gap: 10, alignItems: 'center' }}>
-            <span style={{ fontSize: 20 }}>✅</span>
+            <CheckCircle size={20} weight="fill" color="var(--ok)" />
             <div><div style={{ fontWeight: 600, fontSize: 13 }}>LGPD em conformidade</div><div style={{ fontSize: 11.5, color: 'var(--mu)', marginTop: 2 }}>Políticas ativas de retenção e portabilidade</div></div>
           </div>
           <div className="lgpd-sec">
             <div className="lgpd-ttl">Exportar dados</div>
             <div className="lgpd-desc">Baixe uma cópia de todos os dados processados pelo Blu para auditoria ou portabilidade.</div>
             <div className="lgpd-act">
-              <button className="btn bs" style={{ fontSize: 11.5 }} disabled={exportData.isPending} onClick={() => exportData.mutate()}>
-                {exportData.isPending ? 'Gerando…' : '📁 Exportar tudo (JSON)'}
+              <button className="btn bs" style={{ fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 5 }} disabled={exportData.isPending} onClick={() => exportData.mutate()}>
+                <FileArrowDown size={12} />
+                {exportData.isPending ? 'Gerando…' : 'Exportar tudo (JSON)'}
               </button>
-              <button className="btn bs" style={{ fontSize: 11.5 }}>📊 Por agente</button>
-              <button className="btn bs" style={{ fontSize: 11.5 }}>📋 CSV resumido</button>
+              <button className="btn bs" style={{ fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 5 }}><ChartBar size={12} />Por agente</button>
+              <button className="btn bs" style={{ fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 5 }}><Table size={12} />CSV resumido</button>
             </div>
           </div>
           <div className="lgpd-sec">
             <div className="lgpd-ttl">Exclusão e anonimização</div>
             <div className="lgpd-desc">Remova ou anonimize dados específicos conforme solicitações de titulares ou fins de retenção.</div>
             <div className="lgpd-act">
-              <button className="btn bs" style={{ fontSize: 11.5 }}>🧹 Anonimizar usuários inativos</button>
-              <button className="btn bs" style={{ fontSize: 11.5 }}>🗑️ Limpar logs antigos (&gt;2 anos)</button>
-              <button className="btn brd" style={{ fontSize: 11.5 }} disabled={deleteData.isPending} onClick={() => deleteData.mutate()}>
-                {deleteData.isPending ? 'Processando…' : '⚠️ Excluir conta'}
+              <button className="btn bs" style={{ fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 5 }}><Broom size={12} />Anonimizar usuários inativos</button>
+              <button className="btn bs" style={{ fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 5 }}><Trash size={12} />Limpar logs antigos (&gt;2 anos)</button>
+              <button className="btn brd" style={{ fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 5 }} disabled={deleteData.isPending} onClick={() => setConfirmDelete(true)}>
+                <Warning size={12} />
+                {deleteData.isPending ? 'Processando…' : 'Excluir conta'}
               </button>
             </div>
           </div>
+
+          {confirmDelete && (
+            <div
+              role="presentation"
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={() => setConfirmDelete(false)}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="del-title"
+                tabIndex={-1}
+                autoFocus
+                style={{ background: 'var(--bg)', border: '1px solid var(--gb)', borderRadius: 'var(--rl)', padding: 24, maxWidth: 360, width: '90%' }}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => { if (e.key === 'Escape') setConfirmDelete(false) }}
+              >
+                <div id="del-title" style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Excluir conta permanentemente?</div>
+                <div style={{ fontSize: 12, color: 'var(--mu)', marginBottom: 20 }}>Esta ação não pode ser desfeita. Todos os dados serão removidos.</div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button className="btn bs" onClick={() => setConfirmDelete(false)}>Cancelar</button>
+                  <button className="btn brd" style={{ display: 'flex', alignItems: 'center', gap: 5 }} onClick={() => { setConfirmDelete(false); deleteData.mutate() }}>
+                    <Warning size={12} />Excluir
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="lgpd-sec">
             <div className="lgpd-ttl">Retenção de dados</div>
             <div className="lgpd-desc">Define por quanto tempo o Blu mantém logs de decisão e dados operacionais.</div>
@@ -663,7 +709,7 @@ export default function AdminScreen() {
               <div className="ctx-cov-ttl">Por domínio</div>
               {domainData.map((d, i) => (
                 <div key={i} className="ctx-dom-row">
-                  <span className="ctx-dom-icon">{d.icon}</span>
+                  <span className="ctx-dom-icon">{getDomainIcon(d.name)}</span>
                   <span className="ctx-dom-name">{d.name}</span>
                   <div className="ctx-dom-bar"><div className="ctx-dom-fill" style={{ width: `${d.pct}%`, background: d.color }} /></div>
                   <span className="ctx-dom-pct" style={{ color: d.color }}>{d.pct}%</span>
@@ -833,60 +879,12 @@ export default function AdminScreen() {
         </div>
       </div>
 
-      {/* ROTINAS */}
-      <div className={`ad-tc${tab === 'rotinas' ? ' on' : ''}`} style={{ maxWidth: 640 }}>
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Rotinas Automáticas</div>
-          <div style={{ fontSize: 11.5, color: 'var(--mu)' }}>
-            Rotinas multi-agente que geram tarefas na mesa de trabalho quando acionadas.
-            Use "Disparar" para testar manualmente.
-          </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {ROUTINE_CATALOG.map(r => {
-            const result = routineResult[r.id]
-            const isBusy = enqueuingRoutine === r.id
-            return (
-              <div
-                key={r.id}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '10px 14px', borderRadius: 'var(--r)',
-                  background: 'var(--sb)', border: '1px solid var(--gb)',
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600 }}>{r.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--mu)', marginTop: 2 }}>
-                    Gatilho: {r.trigger}
-                  </div>
-                </div>
-                {result === 'ok'  && <span style={{ fontSize: 11, color: 'var(--ok)' }}>Disparado ✓</span>}
-                {result === 'dup' && <span style={{ fontSize: 11, color: 'var(--mu)' }}>Já na fila</span>}
-                {result === 'err' && <span style={{ fontSize: 11, color: 'var(--urg)' }}>Erro</span>}
-                <button
-                  className="btn bp"
-                  style={{ fontSize: 11, padding: '4px 12px', whiteSpace: 'nowrap' }}
-                  disabled={isBusy}
-                  onClick={() => doEnqueueRoutine(r.id)}
-                >
-                  {isBusy ? '…' : '⚡ Disparar'}
-                </button>
-              </div>
-            )
-          })}
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--mu)', marginTop: 14 }}>
-          Após disparar, as tarefas aparecem na mesa de trabalho em até 1 minuto (processamento via cron).
-        </div>
-      </div>
-
       {/* POLP BANK AUTH — waiting banner */}
       {(polpAuthUrl || polpPendingIntgId) && (
         <div className="intg-modal open">
           <div className="intg-box" style={{ width: 420, maxWidth: '95vw' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={{ fontWeight: 600, fontSize: 13 }}>🏦 Autenticação bancária</span>
+              <span style={{ fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}><Bank size={14} /> Autenticação bancária</span>
               <button className="btn bg" style={{ fontSize: 11, padding: '3px 10px' }} onClick={() => { setPolpAuthUrl(null); setPolpPendingIntgId(null); void refetchIntegrations() }}>Fechar</button>
             </div>
             {polpPendingIntgId && !polpAuthUrl ? (
@@ -926,7 +924,7 @@ export default function AdminScreen() {
           <div className="intg-box" onClick={e => e.stopPropagation()}>
             {modalMode === 'connect' ? (
               <>
-                <h3>{modalCatalogIntg.icon} Conectar {modalCatalogIntg.name}</h3>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{getProviderIcon(modalCatalogIntg.provider, 16)} Conectar {modalCatalogIntg.name}</h3>
                 {OAUTH_PROVIDERS.has(modalCatalogIntg.provider) ? (
                   <>
                     <div className="msub">
@@ -1049,7 +1047,7 @@ export default function AdminScreen() {
               </>
             ) : (
               <>
-                <h3>{modalCatalogIntg.icon} {modalCatalogIntg.name} — Configuração</h3>
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{getProviderIcon(modalCatalogIntg.provider, 16)} {modalCatalogIntg.name} — Configuração</h3>
                 <div className="msub">Conectado e sincronizando normalmente.</div>
                 {modalDbIntg?.connection_detail && (
                   <div className="intg-field"><label>Conexão</label><input value={modalDbIntg.connection_detail} readOnly style={{ opacity: .7 }} /></div>

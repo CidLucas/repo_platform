@@ -7,26 +7,21 @@ import {
   approveRequest,
   rejectRequest,
   snoozeApproval,
+  createPaymentApproval,
 } from '../../api/approvals'
 import { fetchInsights, formatKpi } from '../../api/insights'
-import { fetchConnectedAccounts, fetchPolpAccounts, fetchPolpTransactions, fetchPolpBills } from '../../api/financeiro'
+import { fetchConnectedAccounts, fetchPolpAccounts, fetchPolpTransactions, fetchPolpBills, fetchCnpjEnrichments, type PolpBill, type PolpTransaction } from '../../api/financeiro'
 import { getFinanceIndicators, getContextMetrics, type ContextMetricRow } from '../../api/analytics'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
 import RoutineExecutionFeed from '../../components/shared/RoutineExecutionFeed'
+import { snoozeUntil } from '../../utils/time'
+import { formatBRL } from '../../utils/formatters'
 
-type Tab = 'decisoes' | 'tarefas' | 'historico' | 'config'
+type Tab = 'decisoes' | 'compromissos' | 'tarefas' | 'historico' | 'config'
 
-function snoozeUntil() {
-  return new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-}
-
-function formatBRL(value: number | null) {
-  if (value === null) return '—'
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
-}
 
 function fmtCompact(value: number | null): string {
   if (value === null) return '—'
@@ -44,15 +39,67 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
+const BANK_ICONS: Record<string, string> = {
+  '260': '🟣', '104': '🏛', '033': '🔴', '341': '🟠',
+  '001': '🟡', '077': '🟠', '237': '🔵', '323': '💙', '336': '🟢',
+}
+const SERVICE_ICONS: [RegExp, string][] = [
+  [/netflix/i, '🎬'], [/spotify/i, '🎵'], [/uber/i, '🚗'],
+  [/ifood|iFood/i, '🍕'], [/amazon/i, '📦'], [/apple/i, '🍎'],
+  [/google/i, '🔵'], [/microsoft/i, '🪟'], [/rappi/i, '🛵'],
+  [/99\s*(pop|taxi)/i, '🚕'], [/nubank/i, '🟣'], [/inter\b/i, '🟠'],
+  [/ita[uú]/i, '🟠'], [/bradesco/i, '🔵'], [/santander/i, '🔴'],
+  [/mercado\s*pago/i, '💙'], [/caixa/i, '🏛'], [/banco\s*do\s*brasil|bb\b/i, '🟡'],
+]
+const MCC_ICONS: Record<string, string> = {
+  '5812': '🍽', '5814': '🍔', '5411': '🛒', '5912': '💊',
+  '4121': '🚗', '4511': '✈', '7011': '🏨', '5732': '💻',
+  '7372': '💻', '4814': '📱', '7991': '🎭', '8099': '🏥',
+}
+function getTxIcon(tx: PolpTransaction): string {
+  const searchStr = `${tx.description ?? ''} ${tx.payment_data?.receiver?.name ?? ''}`.toLowerCase()
+  for (const [re, icon] of SERVICE_ICONS) {
+    if (re.test(searchStr)) return icon
+  }
+  const routing = tx.payment_data?.receiver?.routingNumber ?? tx.payment_data?.payer?.routingNumber ?? ''
+  if (routing && BANK_ICONS[routing]) return BANK_ICONS[routing]
+  const mcc = tx.credit_card_metadata?.payeeMCC
+  if (mcc && MCC_ICONS[mcc]) return MCC_ICONS[mcc]
+  return tx.type === 'CREDIT' ? '↑' : '↓'
+}
 
+const TX_CATEGORIES = [
+  'Restaurante', 'Fast food', 'Supermercado', 'Delivery',
+  'Transporte', 'Passagens', 'Combustível', 'Estacionamento',
+  'Saúde', 'Farmácia', 'Academia',
+  'Lazer', 'Streaming', 'Entretenimento',
+  'Telefone', 'Internet', 'Assinatura',
+  'Educação', 'Software',
+  'Aluguel', 'Serviços', 'Fornecedor',
+  'Salário', 'Transferência', 'PIX recebido',
+  'Imposto', 'Tarifa bancária',
+  'Outro',
+]
+
+function getTxFingerprint(tx: PolpTransaction): string {
+  const m = tx.merchant as Record<string, unknown> | null
+  if (m?.id) return `merchant:${m.id}`
+  if (tx.description) return `desc:${tx.description}`
+  return `id:${tx.id}`
+}
 
 export default function FinanceiroRoom() {
-  const { go, toggleDc, expandedId, addToast } = useAppStore()
+  const { go, toggleDc, expandedId, addToast, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('decisoes')
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'30d' | '90d' | '1y'>('30d')
+  const [queuedBillIds, setQueuedBillIds] = useState<Set<string>>(new Set())
+  const [editingTxId, setEditingTxId] = useState<string | null>(null)
+  const [localCategories, setLocalCategories] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem('tx-categories') ?? '{}') } catch { return {} }
+  })
 
   const [approvalsQ, insightsQ, kpiQ, accountsQ, contextMetricsQ, polpAccountsQ, polpTxQ, polpBillsQ] = useQueries({
     queries: [
@@ -108,6 +155,28 @@ export default function FinanceiroRoom() {
     ],
   })
 
+  const polpTransactions = polpTxQ.data ?? []
+
+  // Extract unique CNPJs from transaction payment data, then enrich in one batch
+  const cnpjsFromTx = [...new Set(
+    polpTransactions.flatMap(tx => {
+      const pd = tx.payment_data
+      const docs = [pd?.receiver, pd?.payer]
+        .filter(p => p?.documentType === 'CNPJ' && p?.document)
+        .map(p => p!.document!.replace(/\D/g, ''))
+        .filter(d => d.length === 14)
+      return docs
+    })
+  )]
+  const { data: cnpjEnrichments } = useQueries({
+    queries: [{
+      queryKey: ['cnpj-enrichments', cnpjsFromTx.sort().join(',')],
+      queryFn: () => fetchCnpjEnrichments(cnpjsFromTx),
+      enabled: cnpjsFromTx.length > 0,
+      staleTime: 24 * 60 * 60_000, // logos don't change often
+    }],
+  })[0]
+
   const invalidateApprovals = () => qc.invalidateQueries({ queryKey: ['approvals'] })
 
   const approveMut = useMutation({
@@ -121,6 +190,16 @@ export default function FinanceiroRoom() {
   const snoozeMut = useMutation({
     mutationFn: (id: string) => snoozeApproval(id, clientId!, snoozeUntil()),
     onSuccess: () => { invalidateApprovals(); addToast('sn', 'Adiado', 'Lembrete em 2 horas.') },
+  })
+  const payBillMut = useMutation({
+    mutationFn: ({ bill, cardName }: { bill: PolpBill; cardName: string }) =>
+      createPaymentApproval(clientId!, bill, cardName),
+    onSuccess: (_data, { bill, cardName }) => {
+      setQueuedBillIds(prev => new Set([...prev, bill.id]))
+      invalidateApprovals()
+      addToast('ok', 'Aprovação criada', `Fatura ${cardName} aguarda confirmação.`)
+    },
+    onError: () => addToast('no', 'Erro', 'Não foi possível criar a aprovação.'),
   })
   const approvals = approvalsQ.data ?? []
   const pendingCount = approvals.length
@@ -136,12 +215,18 @@ export default function FinanceiroRoom() {
 
   const accounts = accountsQ.data ?? []
   const polpAccounts = polpAccountsQ.data ?? []
-  const polpTransactions = polpTxQ.data ?? []
   const polpBills = polpBillsQ.data ?? []
 
   const consolidatedBalance = polpAccounts.length > 0
     ? polpAccounts.filter(a => a.type === 'BANK').reduce((sum, a) => sum + a.balance, 0)
     : accounts.reduce((sum, a) => sum + (a.balance ?? 0), 0)
+
+  const creditInUse = polpAccounts
+    .filter(a => a.type === 'CREDIT')
+    .reduce((sum, a) => {
+      const cd = a.credit_data
+      return sum + (cd?.creditLimit != null && cd?.availableCreditLimit != null ? cd.creditLimit - cd.availableCreditLimit : 0)
+    }, 0)
 
 
   return (
@@ -151,7 +236,7 @@ export default function FinanceiroRoom() {
         <div><div className="rn">Financeiro</div><div className="rd">Fluxo de caixa, pagamentos e relatórios</div></div>
         <div className="ra">
           <button className="btn bs" style={{ fontSize: 11 }} onClick={() => go('home', 'Início')}>← Início</button>
-          <button className="btn bp" style={{ fontSize: 11 }}>+ Nova Missão</button>
+          <button className="btn bp" style={{ fontSize: 11 }} onClick={() => openChatWith('Quero criar uma nova missão financeira')}>+ Nova Missão</button>
         </div>
       </div>
       <div className="room-grid">
@@ -162,9 +247,12 @@ export default function FinanceiroRoom() {
             <span className="ph-cnt">{pendingCount} pendente{pendingCount !== 1 ? 's' : ''}</span>
           </div>
           <div className="rtabs" id="fTabs">
-            {(['decisoes', 'tarefas', 'historico', 'config'] as Tab[]).map(t => (
+            {(['decisoes', 'compromissos', 'tarefas', 'historico', 'config'] as Tab[]).map(t => (
               <div key={t} className={`rtab${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>
-                {t === 'decisoes' ? <>Decisões {pendingCount > 0 && <span className="tbdg">{pendingCount}</span>}</> : t === 'historico' ? 'Histórico' : t.charAt(0).toUpperCase() + t.slice(1)}
+                {t === 'decisoes' ? <>Decisões {pendingCount > 0 && <span className="tbdg">{pendingCount}</span>}</>
+                  : t === 'compromissos' ? <>Compromissos {polpBills.filter(b => b.status !== 'CLOSED').length > 0 && <span className="tbdg">{polpBills.filter(b => b.status !== 'CLOSED').length}</span>}</>
+                  : t === 'historico' ? 'Histórico'
+                  : t.charAt(0).toUpperCase() + t.slice(1)}
               </div>
             ))}
           </div>
@@ -208,6 +296,152 @@ export default function FinanceiroRoom() {
               </div>
             </div>
 
+            {/* COMPROMISSOS */}
+            <div className={`tc${tab === 'compromissos' ? ' on' : ''}`} id="f-compromissos">
+              {polpBillsQ.isLoading && (
+                <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>
+              )}
+              {!polpBillsQ.isLoading && polpBills.length === 0 && (
+                <div style={{ padding: '12px 0', color: 'var(--mu)', fontSize: 12 }}>
+                  Nenhuma fatura encontrada. Conecte suas contas em Integrações.
+                </div>
+              )}
+              {(() => {
+                // Deduplicate: show only the most recent cycle per card
+                const latestPerAccount = polpBills.reduce<Map<number, PolpBill>>((map, bill) => {
+                  const ex = map.get(bill.polp_account_id)
+                  if (!ex || bill.due_date > ex.due_date) map.set(bill.polp_account_id, bill)
+                  return map
+                }, new Map())
+                const dedupedBills = [...latestPerAccount.values()].sort((a, b) => a.due_date.localeCompare(b.due_date))
+
+                // Older open cycles per account (to show summary)
+                const olderCycles = (acctId: number, latestDue: string) =>
+                  polpBills.filter(b => b.polp_account_id === acctId && b.due_date < latestDue)
+
+                const today = new Date(); today.setHours(0, 0, 0, 0)
+                const overdue = dedupedBills.filter(b => new Date(b.due_date) < today)
+                const upcoming = dedupedBills.filter(b => new Date(b.due_date) >= today)
+
+                const BillRow = ({ bill }: { bill: PolpBill }) => {
+                  const dueDate = new Date(bill.due_date)
+                  const todayMs = new Date().setHours(0, 0, 0, 0)
+                  const daysUntil = Math.round((dueDate.getTime() - todayMs) / 86400000)
+                  const isOverdue = daysUntil < 0
+                  const isSoon = daysUntil <= 3 && !isOverdue
+                  const isClosed = bill.status === 'CLOSED'
+                  const cardName = polpAccounts.find(a => a.polp_account_id === bill.polp_account_id)?.marketing_name ?? 'Cartão'
+                  const older = olderCycles(bill.polp_account_id, bill.due_date)
+                  const olderTotal = older.reduce((s, b) => s + b.total_amount, 0)
+                  const paidSum = Array.isArray(bill.payments)
+                    ? bill.payments.reduce((s, p) => s + p.amount, 0)
+                    : 0
+                  const remaining = bill.total_amount - paidSum
+                  const partiallyPaid = paidSum > 0 && remaining > 0
+                  const isQueued = queuedBillIds.has(bill.id)
+
+                  const WINDOW_MS = 7 * 86400000
+                  const matchedTx = polpTransactions.filter(tx => {
+                    if (tx.polp_account_id !== bill.polp_account_id) return false
+                    if (tx.type !== 'CREDIT') return false
+                    const diff = Math.abs(new Date(tx.date).getTime() - dueDate.getTime())
+                    if (diff > WINDOW_MS) return false
+                    const amt = Math.abs(tx.amount)
+                    const tol = 0.01
+                    const matchesTotal = bill.total_amount > 0 && Math.abs(amt - bill.total_amount) / bill.total_amount < tol
+                    const matchesMin = bill.minimum_payment_amount != null && bill.minimum_payment_amount > 0
+                      && Math.abs(amt - bill.minimum_payment_amount) / bill.minimum_payment_amount < tol
+                    return matchesTotal || matchesMin
+                  })
+
+                  const showFooter = partiallyPaid || bill.minimum_payment_amount != null || matchedTx.length > 0 || older.length > 0
+                  return (
+                    <div className="dc warn" style={{ padding: '10px 12px', marginBottom: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: showFooter ? 6 : 0 }}>
+                        <span style={{ fontSize: 16, marginTop: 1 }}>💳</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 600 }}>{cardName}</div>
+                          <div style={{ fontSize: 10, color: 'var(--mu)' }}>
+                            Venc. {dueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                            {' '}·{' '}
+                            <span style={{ color: isOverdue ? 'var(--urg)' : isSoon ? 'var(--att)' : 'var(--mu)' }}>
+                              {isOverdue
+                                ? `${Math.abs(daysUntil)}d atrasada`
+                                : daysUntil === 0
+                                  ? 'vence hoje'
+                                  : `${daysUntil}d`}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--mono)', color: isOverdue ? 'var(--urg)' : 'var(--fg)' }}>
+                            {formatBRL(bill.total_amount)}
+                          </div>
+                          {partiallyPaid && (
+                            <div style={{ fontSize: 9.5, color: 'var(--ok)' }}>{formatBRL(paidSum)} pago</div>
+                          )}
+                          {!isClosed && (
+                            <button
+                              className="btn bp"
+                              style={{ fontSize: 10, padding: '2px 8px', opacity: isQueued ? 0.55 : 1 }}
+                              disabled={isQueued || payBillMut.isPending}
+                              onClick={() => payBillMut.mutate({ bill, cardName })}
+                            >
+                              {isQueued ? '✓ Enviado' : 'Pagar agora'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {showFooter && (
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 10, color: 'var(--mu)', borderTop: '1px solid var(--bd)', paddingTop: 6 }}>
+                          {partiallyPaid && (
+                            <span style={{ color: 'var(--ok)' }}>
+                              ✓ {formatBRL(paidSum)} pago · restante {formatBRL(remaining)}
+                            </span>
+                          )}
+                          {bill.minimum_payment_amount != null && bill.minimum_payment_amount < bill.total_amount && (
+                            <span>mín. {formatBRL(bill.minimum_payment_amount)}</span>
+                          )}
+                          {bill.allows_installments && <span>parcelável</span>}
+                          {older.length > 0 && (
+                            <span style={{ color: 'var(--urg)' }}>
+                              ⚠ +{older.length} ciclo{older.length > 1 ? 's' : ''} anterior{older.length > 1 ? 'es' : ''} em aberto · {formatBRL(olderTotal)}
+                            </span>
+                          )}
+                          {matchedTx.map((tx, i) => (
+                            <span key={i} style={{ color: 'var(--ok)' }}>
+                              💚 conciliada: {formatBRL(Math.abs(tx.amount))} em {new Date(tx.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
+
+                return (
+                  <div className="dl">
+                    {overdue.length > 0 && (
+                      <>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--urg)', letterSpacing: '0.06em', textTransform: 'uppercase', padding: '8px 0 4px' }}>
+                          Atrasadas ({overdue.length})
+                        </div>
+                        {overdue.map(b => <BillRow key={b.id} bill={b} />)}
+                      </>
+                    )}
+                    {upcoming.length > 0 && (
+                      <>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--mu)', letterSpacing: '0.06em', textTransform: 'uppercase', padding: '8px 0 4px' }}>
+                          Próximas ({upcoming.length})
+                        </div>
+                        {upcoming.map(b => <BillRow key={b.id} bill={b} />)}
+                      </>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+
             {/* TAREFAS */}
             <div className={`tc${tab === 'tarefas' ? ' on' : ''}`} id="f-tarefas">
               <RoutineExecutionFeed domain="financeiro" />
@@ -221,26 +455,102 @@ export default function FinanceiroRoom() {
               )}
               {polpTransactions.map(tx => {
                 const isCredit = tx.type === 'CREDIT'
-                const catName = tx.category ? (tx.category as Record<string, unknown>).description as string | undefined : undefined
-                const merchantName = tx.merchant ? (tx.merchant as Record<string, unknown>).name as string | undefined : undefined
+                const isPending = tx.status === 'PENDING'
+
+                const pd = tx.payment_data
+                const pixReceiverName = pd?.paymentMethod === 'PIX' ? pd?.receiver?.name ?? null : null
+                const merchant = tx.merchant as Record<string, unknown> | null
+                const receiverCnpj = pd?.receiver?.documentType === 'CNPJ'
+                  ? pd?.receiver?.document?.replace(/\D/g, '') ?? null : null
+                const payerCnpj = pd?.payer?.documentType === 'CNPJ'
+                  ? pd?.payer?.document?.replace(/\D/g, '') ?? null : null
+                const cnpj = receiverCnpj ?? payerCnpj
+                const enrichment = cnpj ? cnpjEnrichments?.[cnpj] ?? null : null
+                const merchantLogo = enrichment?.logo_url ?? (merchant?.logo_url as string | null) ?? null
+                const label = pixReceiverName ?? enrichment?.brand ?? (merchant?.name as string | null) ?? tx.description ?? '—'
+
+                const MCC: Record<string, string> = {
+                  '4121': 'Transporte', '4511': 'Passagens', '4814': 'Telecom',
+                  '5411': 'Supermercado', '5732': 'Eletrônicos', '5812': 'Restaurante',
+                  '5814': 'Fast food', '5912': 'Farmácia', '7011': 'Hotel',
+                  '7372': 'Software', '7991': 'Lazer', '8099': 'Saúde',
+                }
+                const ccm = tx.credit_card_metadata
+                const mccLabel = ccm?.payeeMCC ? MCC[ccm.payeeMCC] ?? null : null
+                const pluggyCat = tx.category ? (tx.category as Record<string,unknown>).description as string | undefined : undefined
+                const fingerprint = getTxFingerprint(tx)
+                const categoryLabel = localCategories[fingerprint] ?? mccLabel ?? pluggyCat ?? null
+                const isEditing = editingTxId === tx.id
+
+                const saveCategory = (val: string) => {
+                  const trimmed = val.trim()
+                  if (trimmed) {
+                    const next = { ...localCategories, [fingerprint]: trimmed }
+                    setLocalCategories(next)
+                    try { localStorage.setItem('tx-categories', JSON.stringify(next)) } catch {}
+                  }
+                  setEditingTxId(null)
+                }
+
                 return (
-                  <div key={tx.id} className="hi" style={{ alignItems: 'center' }}>
-                    <div className="hi-n" style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {tx.description ?? merchantName ?? '—'}
-                      </div>
-                      <div style={{ display: 'flex', gap: 4, marginTop: 2, alignItems: 'center' }}>
-                        <span style={{ fontSize: 10, color: 'var(--mu)' }}>{new Date(tx.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
-                        {catName && (
-                          <span style={{ fontSize: 9.5, background: 'color-mix(in srgb,var(--fg) 10%,transparent)', border: '1px solid color-mix(in srgb,var(--fg) 15%,transparent)', borderRadius: 3, padding: '1px 4px', color: 'var(--mu)' }}>
-                            {catName}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', color: isCredit ? 'var(--ok)' : 'var(--fg)', flexShrink: 0 }}>
-                      {isCredit ? '+' : '-'}{formatBRL(Math.abs(tx.amount))}
-                    </div>
+                  <div key={tx.id} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 6,
+                    padding: '5px 0',
+                    borderBottom: '1px solid var(--gb)',
+                    overflow: 'hidden',
+                  }}>
+                    {/* Icon */}
+                    <span style={{ position: 'relative', width: 16, height: 16, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontSize: 13, lineHeight: 1 }}>{getTxIcon(tx)}</span>
+                      {merchantLogo && (
+                        <img src={merchantLogo} alt=""
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                          style={{ position: 'absolute', inset: 0, width: 16, height: 16, borderRadius: 3, objectFit: 'contain', background: 'var(--sb)' }}
+                        />
+                      )}
+                    </span>
+                    {/* Name */}
+                    <span style={{ flex: '1 1 0', minWidth: 0, maxWidth: '42%', fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isPending ? 'var(--mu)' : 'var(--fg)' }}>
+                      {label}
+                    </span>
+                    {/* Category — dropdown */}
+                    {isEditing ? (
+                      <select
+                        autoFocus
+                        value={categoryLabel ?? ''}
+                        style={{ width: 100, fontSize: 11, background: 'var(--sb)', border: '1px solid var(--ac)', borderRadius: 3, padding: '2px 4px', color: 'var(--fg)', outline: 'none', flexShrink: 0, cursor: 'pointer' }}
+                        onChange={(e) => saveCategory(e.currentTarget.value)}
+                        onBlur={() => setEditingTxId(null)}
+                        onKeyDown={(e) => { if (e.key === 'Escape') setEditingTxId(null) }}
+                      >
+                        <option value="">— categoria —</option>
+                        {TX_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    ) : (
+                      <button
+                        onClick={() => setEditingTxId(tx.id)}
+                        style={{
+                          fontSize: 11, flexShrink: 0, cursor: 'pointer', whiteSpace: 'nowrap',
+                          background: categoryLabel ? 'color-mix(in srgb,var(--fg) 8%,transparent)' : 'transparent',
+                          border: categoryLabel ? '1px solid color-mix(in srgb,var(--fg) 12%,transparent)' : '1px dashed color-mix(in srgb,var(--fg) 22%,transparent)',
+                          borderRadius: 3, padding: '2px 6px',
+                          color: categoryLabel ? 'var(--mu)' : 'color-mix(in srgb,var(--fg) 28%,transparent)',
+                        }}
+                      >
+                        {categoryLabel ?? '+ cat'}
+                      </button>
+                    )}
+                    {/* Date */}
+                    <span style={{ fontSize: 11, color: 'var(--mu)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                      {new Date(tx.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                    </span>
+                    {/* Amount */}
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0, minWidth: 72, textAlign: 'right', color: isCredit ? 'var(--ok)' : isPending ? 'var(--mu)' : 'var(--fg)' }}>
+                      {isCredit ? '+' : '−'}{formatBRL(Math.abs(tx.amount))}
+                    </span>
                   </div>
                 )
               })}
@@ -378,27 +688,50 @@ export default function FinanceiroRoom() {
           <CollapsiblePanel id="fin-rotinas" icon="⚙️" title="Rotinas ativas">
             <RoutineStatusWidget domain="financeiro" />
           </CollapsiblePanel>
-          <CollapsiblePanel id="fin-contas" icon="🏦" title="Contas" action={<button className="ph-add">＋</button>}>
+          <CollapsiblePanel id="fin-contas" icon="🏦" title="Contas" action={<button className="ph-add" onClick={() => openChatWith('Quero adicionar uma nova conta bancária')}>＋</button>}>
             <div className="dr-sec">
               {polpAccountsQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>}
               {!polpAccountsQ.isLoading && polpAccounts.length === 0 && accounts.length === 0 && (
                 <div style={{ color: 'var(--mu)', fontSize: 12 }}>Nenhuma conta conectada.</div>
               )}
-              {polpAccounts.length > 0 ? polpAccounts.map(acc => (
-                <div key={acc.id} className="acc-row">
-                  <span style={{ fontSize: 13 }}>{acc.type === 'CREDIT' ? '💳' : '🏦'}</span>
-                  <div className="acc-name">
-                    <div style={{ fontSize: 12, fontWeight: 500 }}>{acc.marketing_name ?? acc.name ?? acc.subtype ?? acc.type}</div>
-                    <div style={{ fontSize: 10, color: 'var(--mu)' }}>{acc.number ?? acc.subtype ?? ''}</div>
-                  </div>
-                  <div>
-                    <div className="acc-val" style={acc.balance < 0 ? { color: 'var(--urg)' } : undefined}>
-                      {formatBRL(acc.balance)}
+              {polpAccounts.length > 0 ? polpAccounts.map(acc => {
+                const cd = acc.credit_data
+                const creditLimit = cd?.creditLimit ?? null
+                const creditUsed = creditLimit != null && cd?.availableCreditLimit != null
+                  ? creditLimit - cd.availableCreditLimit
+                  : null
+                const usedPct = creditUsed != null && creditLimit != null && creditLimit > 0
+                  ? Math.min(100, (creditUsed / creditLimit) * 100)
+                  : null
+                const subtitle = acc.number ?? acc.owner ?? acc.subtype ?? ''
+                return (
+                  <div key={acc.id} className="acc-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 13 }}>{acc.type === 'CREDIT' ? '💳' : '🏦'}</span>
+                      <div className="acc-name" style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 500 }}>{acc.marketing_name ?? acc.name ?? acc.subtype ?? acc.type}</div>
+                        {subtitle && <div style={{ fontSize: 10, color: 'var(--mu)' }}>{subtitle}</div>}
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div className="acc-val" style={acc.balance < 0 ? { color: 'var(--urg)' } : undefined}>
+                          {formatBRL(acc.balance)}
+                        </div>
+                        <div style={{ fontSize: 9.5, color: 'var(--ok)', fontFamily: 'var(--mono)' }}>↑ sincronizado</div>
+                      </div>
                     </div>
-                    <div style={{ fontSize: 9.5, color: 'var(--ok)', fontFamily: 'var(--mono)' }}>↑ sincronizado</div>
+                    {acc.type === 'CREDIT' && creditUsed != null && creditLimit != null && (
+                      <div style={{ paddingLeft: 19 }}>
+                        <div style={{ height: 3, background: 'var(--bd)', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${usedPct}%`, background: usedPct != null && usedPct > 80 ? 'var(--urg)' : 'var(--att)', borderRadius: 2 }} />
+                        </div>
+                        <div style={{ fontSize: 9.5, color: 'var(--mu)', marginTop: 2 }}>
+                          {formatBRL(creditUsed)} de {formatBRL(creditLimit)} usados
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )) : accounts.map(acc => (
+                )
+              }) : accounts.map(acc => (
                 <div key={acc.id} className="acc-row">
                   <span style={{ fontSize: 13 }}>{acc.provider.includes('cartão') || acc.provider.includes('card') ? '💳' : '🏦'}</span>
                   <div className="acc-name">
@@ -422,6 +755,11 @@ export default function FinanceiroRoom() {
                 <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--fg)' }}>
                   {formatBRL(consolidatedBalance)}
                 </div>
+                {creditInUse > 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--mu)', marginTop: 2 }}>
+                    Caixa {formatBRL(consolidatedBalance)} · Crédito {formatBRL(creditInUse)} em uso
+                  </div>
+                )}
               </div>
             )}
           </CollapsiblePanel>
@@ -431,25 +769,62 @@ export default function FinanceiroRoom() {
               {!polpBillsQ.isLoading && polpBills.length === 0 && approvals.length === 0 && (
                 <div style={{ color: 'var(--mu)', fontSize: 12 }}>Nenhum pagamento pendente.</div>
               )}
-              {polpBills.length > 0 ? polpBills.map(bill => {
-                const dueDate = new Date(bill.due_date + 'T00:00:00')
-                const daysUntil = Math.round((dueDate.getTime() - Date.now()) / 86400000)
+              {polpBills.length > 0 ? (() => {
+                const latest = [...polpBills.reduce<Map<number, PolpBill>>((m, b) => {
+                  const ex = m.get(b.polp_account_id)
+                  if (!ex || b.due_date > ex.due_date) m.set(b.polp_account_id, b)
+                  return m
+                }, new Map()).values()].sort((a, b) => a.due_date.localeCompare(b.due_date))
+                const todayMs = new Date().setHours(0, 0, 0, 0)
+                return latest.map(bill => {
+                const rawDueDate = new Date(bill.due_date + 'T00:00:00')
+                const isCurrentOverdue = rawDueDate.getTime() < todayMs
+
+                // Project next cycle when the latest bill is already overdue
+                const acc = polpAccounts.find(a => a.polp_account_id === bill.polp_account_id)
+                const cd = acc?.credit_data
+                let dueDate = rawDueDate
+                let displayAmount = bill.total_amount
+                let isProjected = false
+                if (isCurrentOverdue) {
+                  const next = new Date(rawDueDate)
+                  next.setMonth(next.getMonth() + 1)
+                  dueDate = next
+                  isProjected = true
+                  if (cd?.creditLimit != null && cd?.availableCreditLimit != null) {
+                    displayAmount = cd.creditLimit - cd.availableCreditLimit
+                  }
+                }
+
+                const daysUntil = Math.round((dueDate.getTime() - todayMs) / 86400000)
                 const isOverdue = daysUntil < 0
                 const isSoon = daysUntil <= 3 && !isOverdue
+                const cardName = acc?.marketing_name ?? 'Fatura cartão'
+                const partiallyPaid = !isProjected && Array.isArray(bill.payments) && bill.payments.length > 0
                 return (
                   <div key={bill.id} className="hi">
-                    <div className="hi-n">Fatura cartão</div>
+                    <div className="hi-n">
+                      {cardName}
+                      {isProjected && <span style={{ marginLeft: 4, fontSize: 9, color: 'var(--mu)', fontStyle: 'italic' }}>projetada</span>}
+                      {partiallyPaid && <span style={{ marginLeft: 4, fontSize: 9, color: 'var(--ok)' }}>✓ parcialmente pago</span>}
+                    </div>
                     <div className="hi-m">
                       <span style={{ color: isOverdue ? 'var(--urg)' : isSoon ? 'var(--att)' : 'var(--mu)' }}>
                         {isOverdue ? `${Math.abs(daysUntil)}d atraso` : daysUntil === 0 ? 'hoje' : `${daysUntil}d`} · {dueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                       </span>
                       <span className="hi-a" style={{ color: isOverdue ? 'var(--urg)' : 'var(--att)' }}>
-                        {formatBRL(bill.total_amount)}
+                        {formatBRL(displayAmount)}
                       </span>
                     </div>
+                    {!isProjected && bill.minimum_payment_amount != null && bill.minimum_payment_amount < bill.total_amount && (
+                      <div style={{ fontSize: 9.5, color: 'var(--mu)', marginTop: 1 }}>
+                        mínimo {formatBRL(bill.minimum_payment_amount)}
+                      </div>
+                    )}
                   </div>
                 )
-              }) : approvals.map(a => (
+                })
+              })() : approvals.map(a => (
                 <div key={a.id} className="hi">
                   <div className="hi-n">{a.title}</div>
                   <div className="hi-m">

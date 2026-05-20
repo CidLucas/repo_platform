@@ -1,0 +1,212 @@
+import { useState } from 'react'
+import { useAppStore } from '../../store/appStore'
+import type { ApprovalRequest } from '../../api/approvals'
+import { AGENT_COLORS } from '../../utils/constants'
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function agentColor(slug: string) {
+  return AGENT_COLORS[slug] ?? '#94a3b8'
+}
+
+function agentLabel(slug: string) {
+  const labels: Record<string, string> = {
+    compras: 'Compras',
+    financeiro: 'Financeiro',
+    clientes: 'Clientes',
+    documentos: 'Documentos',
+    estrategia: 'Estratégia',
+    agenda: 'Agenda',
+    estoque: 'Estoque',
+  }
+  return labels[slug] ?? slug.charAt(0).toUpperCase() + slug.slice(1)
+}
+
+function priorityBadge(priority: ApprovalRequest['priority']): { cls: string; label: string } {
+  switch (priority) {
+    case 'urgent': return { cls: 'bdg bu', label: 'Urgente' }
+    case 'high':   return { cls: 'bdg bu', label: 'Alto' }
+    case 'medium': return { cls: 'bdg bw', label: 'Médio' }
+    default:       return { cls: 'bdg bw', label: 'Normal' }
+  }
+}
+
+function dcClass(priority: ApprovalRequest['priority']) {
+  return priority === 'urgent' || priority === 'high' ? 'urg' : 'warn'
+}
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+}
+
+function renderBody(text: string) {
+  return text.split('\n').map((line, i, arr) => {
+    const parts = line.split(/(\*\*[\s\S]+?\*\*)/g)
+    return (
+      <span key={i}>
+        {parts.map((p, j) =>
+          p.startsWith('**') && p.endsWith('**')
+            ? <strong key={j}>{p.slice(2, -2)}</strong>
+            : p
+        )}
+        {i < arr.length - 1 && <br />}
+      </span>
+    )
+  })
+}
+
+// ── Routine Activation Card (nested) ───────────────────────────────────────────
+
+function RoutineActivationCard({
+  approval,
+  onApprove,
+  onReject,
+}: {
+  approval: ApprovalRequest
+  onApprove: () => void
+  onReject: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const payload = approval.payload ?? {}
+  const steps = (payload.steps as { label?: string; type?: string; skill_slug?: string; function?: string; action?: string }[] | undefined) ?? []
+  const routineName = (payload.routine_name as string | undefined) ?? approval.title
+
+  return (
+    <div className={`dc warn${expanded ? ' expanded' : ''}`}>
+      <div className="dc-row" onClick={() => setExpanded(!expanded)}>
+        <div className="ag">
+          <div className="agd" style={{ background: '#818cf8' }} />
+          <span>Rotina</span>
+        </div>
+        <span className="bdg bw" style={{ fontSize: 9, background: 'rgba(129,140,248,.12)', color: '#818cf8' }}>✦ IA</span>
+        <span className="dc-row-summary">{routineName}</span>
+        <span className="dt">{new Date(approval.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+        <span className="dc-chev">{expanded ? '▼' : '▶'}</span>
+      </div>
+      <div className="dc-expand">
+        {steps.length > 0 && (
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 10, color: 'var(--mu)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+              {steps.length} passo{steps.length !== 1 ? 's' : ''}
+            </div>
+            {steps.map((step, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6 }}>
+                <div style={{ width: 18, height: 18, borderRadius: 9, background: '#6366f1', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>
+                  {i + 1}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 500, color: 'var(--mu2)' }}>{step.label ?? step.skill_slug ?? step.function ?? step.action ?? 'Passo'}</div>
+                  {step.type && <div style={{ fontSize: 10, color: 'var(--mu)' }}>{step.type}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="dc-act">
+          <button className="btn bp" onClick={(e) => { e.stopPropagation(); onApprove() }}>👍 Ativar</button>
+          <button className="btn bs" onClick={(e) => { e.stopPropagation(); onReject() }}>✗ Rejeitar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Main Decision Card ─────────────────────────────────────────────────────────
+
+export interface DecisionCardProps {
+  approval: ApprovalRequest
+  onApprove: () => void
+  onReject: () => void
+  onSnooze: () => void
+}
+
+export default function DecisionCard({
+  approval,
+  onApprove,
+  onReject,
+  onSnooze,
+}: DecisionCardProps) {
+  const { toggleDc, expandedId, addToast, go, openChatWith, setPendingDocId } = useAppStore()
+
+  if (approval.action_type === 'routine_activation') {
+    return (
+      <RoutineActivationCard
+        approval={approval}
+        onApprove={() => { onApprove(); addToast('ok', 'Rotina ativada', approval.title) }}
+        onReject={() => { onReject(); addToast('no', 'Rejeitado', 'Rotina não ativada.') }}
+      />
+    )
+  }
+
+  const isExpanded = expandedId === approval.id
+  const badge = priorityBadge(approval.priority)
+  const cls = ['dc', dcClass(approval.priority), isExpanded ? 'expanded' : ''].filter(Boolean).join(' ')
+
+  const artifactType = (approval.metadata?.artifact_type as string) ?? ''
+  const artifactId = (approval.metadata?.artifact_id as string) ?? ''
+  const artifactUrl = (approval.metadata?.artifact_url as string) ?? ''
+
+  function handleApprove() {
+    onApprove()
+    addToast('ok', 'Aprovado', approval.title)
+  }
+  function handleReject() {
+    onReject()
+    if (artifactType === 'document' && artifactId) {
+      setPendingDocId(artifactId)
+      go('documentos', 'Documentos')
+      addToast('no', 'Rejeitado', 'Abrindo documento para edição.')
+    } else {
+      const ctx = [approval.title, approval.body].filter(Boolean).join('\n')
+      openChatWith(`Rejeitei: ${ctx}\n\nO que fazemos?`)
+      addToast('no', 'Rejeitado', 'Blu anotou.')
+    }
+  }
+  function handleSnooze() {
+    onSnooze()
+    addToast('sn', 'Adiado', 'Lembrete em 2 horas.')
+  }
+
+  return (
+    <div className={cls} id={approval.id}>
+      <div className="dc-row" onClick={() => toggleDc(approval.id)}>
+        <div className="ag">
+          <div className="agd" style={{ background: agentColor(approval.agent_slug) }} />
+          {agentLabel(approval.agent_slug)}
+        </div>
+        <span className={badge.cls}>{badge.label}</span>
+        <span className="dc-row-summary">{approval.title}</span>
+        <span className="dt">{formatTime(approval.created_at)}</span>
+        <span className="dc-chev">{isExpanded ? '▼' : '▶'}</span>
+      </div>
+      <div className="dc-expand">
+        {approval.body && <div className="db">{renderBody(approval.body)}</div>}
+        {artifactType === 'document' && artifactId && (
+          <button
+            className="btn bg"
+            style={{ marginBottom: 8, fontSize: 11 }}
+            onClick={(e) => { e.stopPropagation(); setPendingDocId(artifactId); go('documentos', 'Documentos') }}
+          >
+            Ver documento →
+          </button>
+        )}
+        {artifactType === 'report' && artifactUrl && (
+          <a
+            href={artifactUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn bg"
+            style={{ marginBottom: 8, fontSize: 11, display: 'inline-block' }}
+          >
+            Ver relatório →
+          </a>
+        )}
+        <div className="dc-act">
+          <button className="btn bp" onClick={(e) => { e.stopPropagation(); handleApprove() }}>👍 Aprovar</button>
+          <button className="btn bg" onClick={(e) => { e.stopPropagation(); handleSnooze() }}>⏰ Depois</button>
+          <button className="btn bs" onClick={(e) => { e.stopPropagation(); handleReject() }}>✗ Rejeitar</button>
+        </div>
+      </div>
+    </div>
+  )
+}

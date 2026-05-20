@@ -20,10 +20,11 @@ import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
 import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
+import { snoozeUntil } from '../../utils/time'
 
 type Tab = 'decisoes' | 'analises' | 'historico' | 'config'
 
-// ── Lightweight markdown renderer (no external dependency) ─────────────────
+// ── Lightweight markdown renderer (no external dependency) ─────────────────────────────────
 function renderMarkdownLine(line: string, key: number): React.ReactNode {
   // Apply inline bold: **text**
   const parts = line.split(/(\*\*[^*]+\*\*)/g)
@@ -106,11 +107,7 @@ function MarkdownReport({ content }: { content: string }) {
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>{nodes}</div>
 }
 
-function snoozeUntil() {
-  return new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-}
-
-function formatBRL(v: number) {
+function formatCompactBRL(v: number) {
   if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1)}M`
   if (v >= 1_000) return `R$ ${(v / 1_000).toFixed(1)}k`
   return `R$ ${v.toFixed(0)}`
@@ -125,7 +122,7 @@ function relativeTime(iso: string) {
 }
 
 export default function EstrategiaRoom() {
-  const { go, addToast } = useAppStore()
+  const { go, addToast, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('decisoes')
@@ -227,7 +224,7 @@ export default function EstrategiaRoom() {
           <button className="btn bs" style={{ fontSize: 11 }} onClick={() => go('home', 'Início')}>
             ← Início
           </button>
-          <button className="btn bp" style={{ fontSize: 11 }}>
+          <button className="btn bp" style={{ fontSize: 11 }} onClick={() => openChatWith('Quero criar uma nova análise estratégica')}>
             + Nova Análise
           </button>
         </div>
@@ -361,7 +358,7 @@ export default function EstrategiaRoom() {
                       {m.current_value != null && (
                         <span style={{ fontFamily: 'var(--mono)', color: 'var(--fg)', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
                           {m.unit === 'R$'
-                            ? formatBRL(m.current_value)
+                            ? formatCompactBRL(m.current_value)
                             : m.unit === '%'
                             ? `${m.current_value.toFixed(1)}%`
                             : m.current_value.toLocaleString('pt-BR')}

@@ -37,7 +37,7 @@ def is_complex_file(filename: str) -> bool:
     """Returns True if the file likely needs Python/docling processing.
 
     Used by frontend/backend to decide upload path:
-    - True  → TUS resumable upload → file_upload_api /v1/upload/process
+    - True  → Docling extraction via document intelligence tools
     - False → standard upload → process-document Edge Function
 
     Note: .pdf and .docx can be either simple or complex.

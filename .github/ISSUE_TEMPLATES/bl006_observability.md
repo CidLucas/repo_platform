@@ -1,0 +1,1 @@
+{"title": "BL-006: Observability & LLM logging wrapper", "body": "Add structured logging and correlation ids for LLM calls and parse failures.\n\n- Files: libs/blu_agent_framework/src/blu_agent_framework/utils/observability.py, libs/blu_agent_framework/src/blu_agent_framework/orchestrator.py\n- Tests: tests/unit/test_orchestrator_logging.py\n- Estimate: 2-4h\n- Priority: P1\n"}

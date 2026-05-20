@@ -1,0 +1,146 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e36]:
+    - banner [ref=e37]:
+      - img [ref=e39]:
+        - generic [ref=e45]: blu
+      - generic [ref=e47]: Início / Agenda
+      - generic [ref=e48]:
+        - button "🌙" [ref=e242] [cursor=pointer]
+        - button [ref=e50] [cursor=pointer]:
+          - img [ref=e51]
+        - button [ref=e54] [cursor=pointer]:
+          - img [ref=e55]
+        - generic "cid.lucas@gmail.com" [ref=e60] [cursor=pointer]: CI
+    - complementary [ref=e61]:
+      - img [ref=e64] [cursor=pointer]
+      - img [ref=e68] [cursor=pointer]
+      - img [ref=e72] [cursor=pointer]
+      - generic [ref=e74] [cursor=pointer]:
+        - img [ref=e76]
+        - text: Agenda
+      - img [ref=e80] [cursor=pointer]
+      - img [ref=e84] [cursor=pointer]
+      - img [ref=e88] [cursor=pointer]
+      - img [ref=e92] [cursor=pointer]
+      - generic [ref=e94]:
+        - img [ref=e97] [cursor=pointer]
+        - img [ref=e101] [cursor=pointer]
+        - img [ref=e105] [cursor=pointer]
+    - main [ref=e107]:
+      - generic [ref=e3335]:
+        - generic [ref=e3336]:
+          - generic [ref=e3337]: 📅
+          - generic [ref=e3338]:
+            - generic [ref=e3339]: Agenda
+            - generic [ref=e3340]: Reuniões, rotinas e planejamento semanal
+          - generic [ref=e3341]:
+            - button "← Início" [ref=e3342] [cursor=pointer]
+            - button "+ Novo evento" [ref=e3343] [cursor=pointer]
+        - generic [ref=e3344]:
+          - generic [ref=e3345]:
+            - generic [ref=e3346]:
+              - generic [ref=e3347]: Mesa de Trabalho
+              - generic [ref=e3348]: 2 eventos hoje
+            - generic [ref=e3349]:
+              - generic [ref=e3350] [cursor=pointer]: Visão Mensal
+              - generic [ref=e3351] [cursor=pointer]: Hoje
+              - generic [ref=e3352] [cursor=pointer]: Pendentes
+              - generic [ref=e3353] [cursor=pointer]: Config
+            - generic [ref=e3356]:
+              - generic [ref=e3357]:
+                - generic [ref=e3358]: 6–12 Mai
+                - generic [ref=e3359]: 13–19 Mai
+                - generic [ref=e3360]: 20–26 Mai
+                - generic [ref=e3361]: 27–5 Jun
+              - generic [ref=e3362]:
+                - generic [ref=e3363]: 🛒 Compras
+                - generic [ref=e3364]:
+                  - generic [ref=e3365]: ▼
+                  - generic [ref=e3369]: Cotação mensal
+                  - generic [ref=e3370]: Toner
+              - generic [ref=e3371]:
+                - generic [ref=e3372]: 📊 Financeiro
+                - generic [ref=e3373]:
+                  - generic [ref=e3374]: ▼
+                  - generic [ref=e3378]: Boleto
+                  - generic [ref=e3379]: Fechamento
+              - generic [ref=e3380]:
+                - generic [ref=e3381]: 📅 Agenda
+                - generic [ref=e3382]:
+                  - generic [ref=e3383]: ▼
+                  - generic [ref=e3387]: NF-e
+                  - generic [ref=e3388]: Fornec.
+                  - generic [ref=e3389]: Fech. Qua
+              - generic [ref=e3390]:
+                - generic [ref=e3391]: ✍️ Docs
+                - generic [ref=e3392]:
+                  - generic [ref=e3393]: ▼
+                  - generic [ref=e3397]: Proposta Q2
+                  - generic [ref=e3398]: Handover Alpha
+              - generic [ref=e3399]:
+                - generic [ref=e3400]: 🎯 Estratégia
+                - generic [ref=e3401]:
+                  - generic [ref=e3402]: ▼
+                  - generic [ref=e3406]: Análise Y
+                  - generic [ref=e3407]: Relatório Q2
+              - generic [ref=e3408]:
+                - generic [ref=e3409]: 👥 Clientes
+                - generic [ref=e3410]:
+                  - generic [ref=e3411]: ▼
+                  - generic [ref=e3415]: Máq. Pesada
+                  - generic [ref=e3416]: TechFarm
+                  - generic [ref=e3417]: Renovações
+              - generic [ref=e3418]:
+                - generic [ref=e3419]: Hoje
+                - generic [ref=e3421]: Em andamento
+                - generic [ref=e3423]: Urgente
+          - generic [ref=e3425]:
+            - generic "Arraste para redimensionar" [ref=e3426]
+            - generic [ref=e3427]:
+              - generic [ref=e3428] [cursor=pointer]:
+                - generic [ref=e3429]: ⚙️
+                - generic [ref=e3430]: Rotinas ativas
+                - generic [ref=e3431]: ▾
+              - generic [ref=e3434]:
+                - generic [ref=e3436]:
+                  - generic [ref=e3437]: Radar de Prazos
+                  - generic [ref=e3438]: "última: há 1d"
+                - button "Ver →" [ref=e3439] [cursor=pointer]
+            - generic [ref=e3440]:
+              - generic [ref=e3441] [cursor=pointer]:
+                - generic [ref=e3442]: 📆
+                - generic [ref=e3443]: Calendários
+                - button "＋" [ref=e3445]
+                - generic [ref=e3446]: ▾
+              - generic [ref=e3447]:
+                - generic [ref=e3448]:
+                  - generic [ref=e3449]: Hoje
+                  - generic [ref=e3450]:
+                    - generic [ref=e3451]:
+                      - generic [ref=e3452]: 08:00
+                      - generic [ref=e3454]: Exercício
+                    - generic [ref=e3455]:
+                      - generic [ref=e3456]: 15:00
+                      - generic [ref=e3458]: Linkedin
+                - generic [ref=e3459]:
+                  - generic [ref=e3460]: Fontes
+                  - generic [ref=e3462]:
+                    - generic [ref=e3464]: cid.lucas@gmail.com
+                    - generic [ref=e3465]: ●
+            - generic [ref=e3466]:
+              - generic [ref=e3467] [cursor=pointer]:
+                - generic [ref=e3468]: 🕐
+                - generic [ref=e3469]: Histórico
+                - generic [ref=e3470]: ▾
+              - generic [ref=e3473]: Nenhum histórico ainda.
+          - generic [ref=e3474]:
+            - generic [ref=e3475] [cursor=pointer]:
+              - generic [ref=e3476]: 📅
+              - generic [ref=e3477]:
+                - generic [ref=e3478]: Agenda
+                - generic [ref=e3479]: Carregando insights da agenda…
+            - generic [ref=e3480] [cursor=pointer]:
+              - generic [ref=e3481]: ⚙️ Rotinas ativas
+              - generic [ref=e3482]: Ver na aba Config →
+  - button "Abrir assistente" [ref=e235] [cursor=pointer]:
+    - img [ref=e236]

@@ -1,0 +1,187 @@
+- generic [ref=e1]:
+  - generic [ref=e36]:
+    - banner [ref=e37]:
+      - img [ref=e39]:
+        - generic [ref=e45]: blu
+      - generic [ref=e47]: Início / Biblioteca
+      - generic [ref=e48]:
+        - button "🌙" [ref=e242] [cursor=pointer]
+        - button [ref=e50] [cursor=pointer]:
+          - img [ref=e51]
+        - button [ref=e54] [cursor=pointer]:
+          - img [ref=e55]
+        - generic "cid.lucas@gmail.com" [ref=e60] [cursor=pointer]: CI
+    - complementary [ref=e61]:
+      - img [ref=e64] [cursor=pointer]
+      - img [ref=e68] [cursor=pointer]
+      - img [ref=e72] [cursor=pointer]
+      - img [ref=e76] [cursor=pointer]
+      - img [ref=e80] [cursor=pointer]
+      - img [ref=e84] [cursor=pointer]
+      - img [ref=e88] [cursor=pointer]
+      - img [ref=e92] [cursor=pointer]
+      - generic [ref=e94]:
+        - img [ref=e97] [cursor=pointer]
+        - img [ref=e101] [cursor=pointer]
+        - img [ref=e105] [cursor=pointer]
+    - main [ref=e107]:
+      - text: ▼ ▼ ▼ ▼ ▼ ▼
+      - generic [ref=e3995]:
+        - generic [ref=e3996]:
+          - generic [ref=e3997]: 📚
+          - generic [ref=e3998]:
+            - generic [ref=e3999]: Biblioteca de Conhecimento
+            - generic [ref=e4000]: Documentos indexados para os agentes
+          - generic [ref=e4001]:
+            - button "← Início" [ref=e4002] [cursor=pointer]
+            - combobox [ref=e4003] [cursor=pointer]:
+              - option "Dados de Negócio" [selected]
+              - option "Contexto da Empresa"
+              - option "Documentos"
+              - option "Conhecimento da IA"
+            - button "+ Adicionar arquivo" [ref=e4004] [cursor=pointer]
+        - generic [ref=e4005]:
+          - generic [ref=e4006]:
+            - generic [ref=e4007]:
+              - generic [ref=e4008]: Documentos
+              - generic [ref=e4009]: 4 arquivos
+              - generic [ref=e4010]:
+                - button "⊞" [ref=e4011] [cursor=pointer]
+                - button "≡" [ref=e4012] [cursor=pointer]
+            - generic [ref=e4013]:
+              - textbox "Buscar documento…" [ref=e4014]
+              - combobox [ref=e4015]:
+                - option "Todas as categorias" [selected]
+                - option "Dados de Negócio"
+                - option "Contexto da Empresa"
+                - option "Documentos"
+                - option "Conhecimento da IA"
+              - combobox [ref=e4016]:
+                - option "Todos os status" [selected]
+                - option "Processado"
+                - option "Processando"
+                - option "Pendente"
+                - option "Erro"
+                - option "Parcial"
+            - generic [ref=e4017] [cursor=pointer]: Arraste arquivos aqui ou clique para selecionar (PDF, DOCX, CSV, XLSX, TXT…)
+            - generic [ref=e4019]:
+              - generic [ref=e4020]:
+                - generic [ref=e4021]:
+                  - generic [ref=e4023]: TXT
+                  - generic [ref=e4024]: Processado
+                - generic [ref=e4025]: context-report-2026-05.md
+                - generic [ref=e4026]:
+                  - generic [ref=e4027]: business_context
+                  - generic [ref=e4028]: 4d atrás
+                - button "Remover" [ref=e4030] [cursor=pointer]
+              - generic [ref=e4031]:
+                - generic [ref=e4032]:
+                  - generic [ref=e4034]: TXT
+                  - generic [ref=e4035]: Processado
+                - generic [ref=e4036]: context-report-2026-05.md
+                - generic [ref=e4037]:
+                  - generic [ref=e4038]: business_context
+                  - generic [ref=e4039]: 4d atrás
+                - button "Remover" [ref=e4041] [cursor=pointer]
+              - generic [ref=e4042]:
+                - generic [ref=e4043]:
+                  - generic [ref=e4045]: TXT
+                  - generic [ref=e4046]: Processado
+                - generic [ref=e4047]: context-report-2026-05.md
+                - generic [ref=e4048]:
+                  - generic [ref=e4049]: business_context
+                  - generic [ref=e4050]: 5d atrás
+                - button "Remover" [ref=e4052] [cursor=pointer]
+              - generic [ref=e4053]:
+                - generic [ref=e4054]:
+                  - generic [ref=e4056]: TXT
+                  - generic [ref=e4057]: Processado
+                - generic [ref=e4058]: context_map.md
+                - generic [ref=e4059]:
+                  - generic [ref=e4060]: business_context
+                  - generic [ref=e4061]: 6d atrás
+                - button "Remover" [ref=e4063] [cursor=pointer]
+          - generic [ref=e4064]:
+            - generic "Arraste para redimensionar" [ref=e4065]
+            - generic [ref=e4066]:
+              - generic [ref=e4067] [cursor=pointer]:
+                - generic [ref=e4068]: 📤
+                - generic [ref=e4069]: Upload
+                - generic [ref=e4070]: ▾
+              - generic [ref=e4072]:
+                - generic [ref=e4073]: Categoria padrão
+                - combobox [ref=e4074]:
+                  - option "Dados de Negócio" [selected]
+                  - option "Contexto da Empresa"
+                  - option "Documentos"
+                  - option "Conhecimento da IA"
+                - button "+ Escolher arquivo" [ref=e4075] [cursor=pointer]
+                - generic [ref=e4076]: PDF · DOCX · XLSX · PPTX · CSV · TXT · MD · JSON
+            - generic [ref=e4077]:
+              - generic [ref=e4078] [cursor=pointer]:
+                - generic [ref=e4079]: 📊
+                - generic [ref=e4080]: Resumo
+                - generic [ref=e4081]: ▾
+              - generic [ref=e4083]:
+                - generic [ref=e4084]:
+                  - generic [ref=e4085]: Total de arquivos
+                  - generic [ref=e4086]: "4"
+                - generic [ref=e4087]:
+                  - generic [ref=e4088]: Processados
+                  - generic [ref=e4089]: "4"
+                - generic [ref=e4090]:
+                  - generic [ref=e4091]: Em processamento
+                  - generic [ref=e4092]: "0"
+                - generic [ref=e4093]:
+                  - generic [ref=e4094]: Com erro
+                  - generic [ref=e4095]: "0"
+            - generic [ref=e4096]:
+              - generic [ref=e4097] [cursor=pointer]:
+                - generic [ref=e4098]: 🗂️
+                - generic [ref=e4099]: Por categoria
+                - generic [ref=e4100]: ▾
+              - generic [ref=e4102]:
+                - generic [ref=e4104]:
+                  - generic [ref=e4105]: Dados de Negócio
+                  - generic [ref=e4106]: "0"
+                - generic [ref=e4109]:
+                  - generic [ref=e4110]: Contexto da Empresa
+                  - generic [ref=e4111]: "0"
+                - generic [ref=e4114]:
+                  - generic [ref=e4115]: Documentos
+                  - generic [ref=e4116]: "0"
+                - generic [ref=e4119]:
+                  - generic [ref=e4120]: Conhecimento da IA
+                  - generic [ref=e4121]: "0"
+          - generic [ref=e4124] [cursor=pointer]:
+            - generic [ref=e4125]: 📚 Base de Conhecimento
+            - generic [ref=e4126]:
+              - generic [ref=e4127]:
+                - generic [ref=e4128]: Chunks indexados
+                - generic [ref=e4129]: "22"
+              - generic [ref=e4130]:
+                - generic [ref=e4131]: Cobertura
+                - generic [ref=e4132]: 100%
+  - dialog "Chat com o assistente" [ref=e4133]:
+    - generic [ref=e4134]:
+      - img [ref=e4135]
+      - generic [ref=e4141]:
+        - generic [ref=e4142]: Conversar com Blu
+        - generic [ref=e4143]: bureau of AI agents · deepblue
+      - button "Fechar chat" [ref=e4144] [cursor=pointer]:
+        - img [ref=e4145]
+    - generic [ref=e4148]:
+      - img [ref=e4149]
+      - generic [ref=e4156]:
+        - paragraph [ref=e4157]: Olá! Sou o Blu
+        - paragraph [ref=e4158]: Peça análises, explique decisões ou tire dúvidas sobre o seu negócio.
+      - generic [ref=e4159]:
+        - button "Resuma as decisões pendentes" [ref=e4160] [cursor=pointer]
+        - button "Quais agentes estão ativos?" [ref=e4161] [cursor=pointer]
+        - button "O que devo priorizar hoje?" [ref=e4162] [cursor=pointer]
+    - generic [ref=e4163]:
+      - generic [ref=e4164]:
+        - textbox "Pergunte ao Blu..." [active] [ref=e4165]
+        - button "Enviar mensagem" [disabled] [ref=e4167] [cursor=pointer]:
+          - img [ref=e4168]
+      - paragraph [ref=e4171]: Enter para enviar · Shift+Enter para nova linha

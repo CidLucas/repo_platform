@@ -190,9 +190,9 @@ export default function LandingPage() {
         </div>
         <div className="lp-footer-copy">© 2026 Deep Blue · blu é o escritório virtual com IA para empresas brasileiras</div>
         <div className="lp-footer-links">
-          <a href="#">Privacidade</a>
-          <a href="#">Termos</a>
-          <a href="#">LGPD</a>
+          <a href="/privacidade">Privacidade</a>
+          <a href="/termos">Termos</a>
+          <a href="/lgpd">LGPD</a>
         </div>
       </footer>
     </div>

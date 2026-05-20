@@ -1,0 +1,1 @@
+{"name": "Generate agent docs", "body": "Script to generate docs from SKILL_REGISTRY and AgentTypeRegistry (auto-generated).\n\nSteps:\n1) Run scripts/generate_agent_docs.py -> writes docs/auto-skills.md and docs/auto-agent-types.md\n2) Add to CI as --check mode to detect drift."}

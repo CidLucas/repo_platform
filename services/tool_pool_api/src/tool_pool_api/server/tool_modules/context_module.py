@@ -16,7 +16,7 @@ import httpx
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
-from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_supabase_client import get_supabase_client
 from tool_pool_api.server.dependencies import get_context_service
 
@@ -48,19 +48,19 @@ async def _resolve_data_id(db, data_str: str) -> int | None:
     return result.data["data_id"] if result.data else None
 
 
-async def _resolve_cliente_id(db, client_id: str, nome: str) -> int | None:
-    """Return dim_clientes.cliente_id by partial name match (ILIKE)."""
+async def _resolve_customer_id(db, client_id: str, nome: str) -> int | None:
+    """Return dim_clientes.customer_id (BIGINT PK) by partial name match (ILIKE)."""
     result = (
         await db.schema("analytics_v2")
         .table("dim_clientes")
-        .select("cliente_id")
+        .select("customer_id")
         .eq("client_id", client_id)
         .ilike("nome", f"%{nome}%")
         .limit(1)
         .execute()
     )
     rows = result.data or []
-    return rows[0]["cliente_id"] if rows else None
+    return rows[0]["customer_id"] if rows else None
 
 
 async def _resolve_fornecedor_id(db, client_id: str, nome: str) -> int | None:
@@ -109,7 +109,7 @@ async def _register_transaction_logic(
     quantidade: float | None = None,
     valor_unitario: float | None = None,
     documento: str | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Register a business transaction into analytics_v2.
@@ -127,8 +127,8 @@ async def _register_transaction_logic(
         valor_unitario: Unit price.
         documento: Document reference (NF number, invoice ID, etc.).
     """
-    if not cliente_id:
-        raise ToolError("cliente_id não encontrado. Certifique-se de estar autenticado.")
+    if not client_id:
+        raise ToolError("client_id não encontrado. Certifique-se de estar autenticado.")
 
     if not tipo_transacao:
         raise ToolError("tipo_transacao é obrigatório.")
@@ -154,21 +154,21 @@ async def _register_transaction_logic(
         if data_competencia_id is None:
             logger.warning("[Context] dim_datas sem entrada para %s — data_competencia_id será nulo", data)
 
-        dim_cliente_id: int | None = None
+        dim_customer_id: int | None = None
         if cliente_nome:
-            dim_cliente_id = await _resolve_cliente_id(db, cliente_id, cliente_nome)
-            if dim_cliente_id is None:
+            dim_customer_id = await _resolve_customer_id(db, client_id, cliente_nome)
+            if dim_customer_id is None:
                 logger.warning("[Context] dim_clientes: nenhum match para '%s'", cliente_nome)
 
         dim_fornecedor_id: int | None = None
         if fornecedor_nome:
-            dim_fornecedor_id = await _resolve_fornecedor_id(db, cliente_id, fornecedor_nome)
+            dim_fornecedor_id = await _resolve_fornecedor_id(db, client_id, fornecedor_nome)
             if dim_fornecedor_id is None:
                 logger.warning("[Context] dim_fornecedores: nenhum match para '%s'", fornecedor_nome)
 
         dim_produto_id: int | None = None
         if produto_nome:
-            dim_produto_id = await _resolve_produto_id(db, cliente_id, produto_nome)
+            dim_produto_id = await _resolve_produto_id(db, client_id, produto_nome)
             if dim_produto_id is None:
                 logger.warning("[Context] dim_inventory: nenhum match para '%s'", produto_nome)
 
@@ -176,7 +176,7 @@ async def _register_transaction_logic(
             record_id = str(uuid4())
             row = {
                 "compra_id": record_id,
-                "client_id": cliente_id,
+                "client_id": client_id,
                 "data_competencia_id": data_competencia_id,
                 "fornecedor_id": dim_fornecedor_id,
                 "produto_id": dim_produto_id,
@@ -193,9 +193,9 @@ async def _register_transaction_logic(
             record_id = str(uuid4())
             row = {
                 "transacao_id": record_id,
-                "client_id": cliente_id,
+                "client_id": client_id,
                 "data_competencia_id": data_competencia_id,
-                "cliente_id": dim_cliente_id,
+                "customer_id": dim_customer_id,
                 "fornecedor_id": dim_fornecedor_id,
                 "produto_id": dim_produto_id,
                 "documento": documento,
@@ -211,7 +211,7 @@ async def _register_transaction_logic(
 
         logger.info(
             "[Context] Transação registrada: %s=%s tipo=%s valor=%s cliente=%s",
-            pk_field, record_id, tipo_transacao, valor, cliente_id,
+            pk_field, record_id, tipo_transacao, valor, client_id,
         )
         return {
             pk_field: record_id,
@@ -220,7 +220,7 @@ async def _register_transaction_logic(
             "valor": valor,
             "data": data,
             "data_competencia_id": data_competencia_id,
-            "cliente_id_dim": dim_cliente_id,
+            "client_id_dim": dim_customer_id,
             "fornecedor_id_dim": dim_fornecedor_id,
             "produto_id_dim": dim_produto_id,
             "message": f"Transação registrada em {table} com sucesso.",
@@ -240,7 +240,7 @@ async def _register_transaction_logic(
 
 async def _list_data_sources_logic(
     ctx: Context,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Return an overview of data already ingested for this client.
@@ -248,8 +248,8 @@ async def _list_data_sources_logic(
     Queries analytics_v2 fact and dimension tables to surface row counts and
     the most recent ingestion job recorded in reg_jobs.
     """
-    if not cliente_id:
-        raise ToolError("cliente_id não encontrado. Certifique-se de estar autenticado.")
+    if not client_id:
+        raise ToolError("client_id não encontrado. Certifique-se de estar autenticado.")
 
     try:
         db = get_supabase_client()
@@ -260,7 +260,7 @@ async def _list_data_sources_logic(
             result = (
                 await schema.table(table)
                 .select(fk, count="exact")
-                .eq(fk, cliente_id)
+                .eq(fk, client_id)
                 .limit(0)
                 .execute()
             )
@@ -278,14 +278,14 @@ async def _list_data_sources_logic(
         jobs_result = (
             await schema.table("reg_jobs")
             .select("*")
-            .eq("client_id", cliente_id)
+            .eq("client_id", client_id)
             .order("created_at", desc=True)
             .limit(10)
             .execute()
         )
         recent_jobs = jobs_result.data or []
 
-        logger.info("[Context] list_data_sources para %s: %s", cliente_id, counts)
+        logger.info("[Context] list_data_sources para %s: %s", client_id, counts)
         return {
             "row_counts": counts,
             "recent_ingestion_jobs": recent_jobs,
@@ -314,7 +314,7 @@ async def _query_data_catalog_logic(
     ctx: Context,
     source_id: str | None = None,
     resource_type: str | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Query the client's data catalog: what spreadsheets/files are registered,
@@ -335,8 +335,8 @@ async def _query_data_catalog_logic(
         mapped_columns (canonical → source), unmapped_columns,
         needs_review_columns, ingestion_quality
     """
-    if not cliente_id:
-        raise ToolError("cliente_id não encontrado. Certifique-se de estar autenticado.")
+    if not client_id:
+        raise ToolError("client_id não encontrado. Certifique-se de estar autenticado.")
 
     try:
         db = get_supabase_client()
@@ -354,7 +354,7 @@ async def _query_data_catalog_logic(
                     "user_column_changes, watermark_column, last_watermark_value, "
                     "source_columns, created_at, updated_at"
                 )
-                .eq("client_id", cliente_id)
+                .eq("client_id", client_id)
                 .eq("id", source_id)
                 .maybe_single()
                 .execute()
@@ -376,7 +376,7 @@ async def _query_data_catalog_logic(
                 "column_mapping, unmapped_columns, needs_review_columns, "
                 "ingestion_quality, is_auto_generated, reviewed_at, created_at"
             )
-            .eq("client_id", cliente_id)
+            .eq("client_id", client_id)
             .order("updated_at", desc=True)
         )
         if resource_type:
@@ -390,7 +390,7 @@ async def _query_data_catalog_logic(
         needs_review_count = sum(1 for s in sources if s["needs_review_count"] > 0)
         unmapped_count = sum(1 for s in sources if s["unmapped_count"] > 0)
 
-        logger.info("[Context] query_data_catalog para %s: %d fontes", cliente_id, total)
+        logger.info("[Context] query_data_catalog para %s: %d fontes", client_id, total)
         return {
             "total_sources": total,
             "needs_review_count": needs_review_count,
@@ -461,7 +461,7 @@ async def _suggest_column_mapping_logic(
     source_id: str,
     ctx: Context,
     schema_type: str = "invoices",
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Suggest canonical-field mappings for a registered data source by calling
@@ -478,8 +478,8 @@ async def _suggest_column_mapping_logic(
     unmatched (source columns with no good match), needs_review (low-confidence
     candidates), confidence_scores, and detected_context.
     """
-    if not cliente_id:
-        raise ToolError("cliente_id não encontrado. Certifique-se de estar autenticado.")
+    if not client_id:
+        raise ToolError("client_id não encontrado. Certifique-se de estar autenticado.")
     if not source_id:
         raise ToolError("source_id é obrigatório.")
     if not _SUPABASE_URL or not _SUPABASE_SERVICE_KEY:
@@ -492,7 +492,7 @@ async def _suggest_column_mapping_logic(
         ds_result = (
             await db.table("client_data_sources")
             .select("id, source_columns, storage_location")
-            .eq("client_id", cliente_id)
+            .eq("client_id", client_id)
             .eq("id", source_id)
             .maybe_single()
             .execute()
@@ -514,7 +514,7 @@ async def _suggest_column_mapping_logic(
                 json={
                     "source_columns": source_columns,
                     "schema_type": schema_type,
-                    "client_id": cliente_id,
+                    "client_id": client_id,
                 },
                 headers={
                     "Authorization": f"Bearer {_SUPABASE_SERVICE_KEY}",
@@ -560,7 +560,7 @@ async def _update_schema_mapping_logic(
     confirmed_mapping: dict,
     ctx: Context,
     ignored_columns: list | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Persist a user-confirmed column mapping to client_data_sources.
@@ -579,8 +579,8 @@ async def _update_schema_mapping_logic(
     IMPORTANT: always present the full mapping table to the user and receive
     explicit confirmation before calling this tool.
     """
-    if not cliente_id:
-        raise ToolError("cliente_id não encontrado. Certifique-se de estar autenticado.")
+    if not client_id:
+        raise ToolError("client_id não encontrado. Certifique-se de estar autenticado.")
     if not source_id:
         raise ToolError("source_id é obrigatório.")
     if not confirmed_mapping or not isinstance(confirmed_mapping, dict):
@@ -593,7 +593,7 @@ async def _update_schema_mapping_logic(
         ds_result = (
             await db.table("client_data_sources")
             .select("id, source_columns, auto_column_mapping, storage_location")
-            .eq("client_id", cliente_id)
+            .eq("client_id", client_id)
             .eq("id", source_id)
             .maybe_single()
             .execute()
@@ -630,7 +630,7 @@ async def _update_schema_mapping_logic(
         await (
             db.table("client_data_sources")
             .update(update_payload)
-            .eq("client_id", cliente_id)
+            .eq("client_id", client_id)
             .eq("id", source_id)
             .execute()
         )
@@ -668,7 +668,7 @@ async def _update_schema_mapping_logic(
 async def _get_knowledge_status_logic(
     ctx: Context,
     agent_slug: str | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Return the knowledge completeness status for this client.
@@ -684,8 +684,8 @@ async def _get_knowledge_status_logic(
     and lists of missing required documents and documents below threshold.
     Call this at session start to orient what context is already available.
     """
-    if not cliente_id:
-        raise ToolError("cliente_id não encontrado. Certifique-se de estar autenticado.")
+    if not client_id:
+        raise ToolError("client_id não encontrado. Certifique-se de estar autenticado.")
 
     try:
         db = get_supabase_client()
@@ -721,7 +721,7 @@ async def _get_knowledge_status_logic(
         kd_result = (
             await db.table("client_knowledge_documents")
             .select("document_type_id, status, field_coverage, vector_document_id, updated_at")
-            .eq("client_id", cliente_id)
+            .eq("client_id", client_id)
             .execute()
         )
         kd_map: dict[str, dict] = {r["document_type_id"]: r for r in (kd_result.data or [])}
@@ -781,7 +781,7 @@ async def _get_knowledge_status_logic(
 
         logger.info(
             "[Context] get_knowledge_status client=%s agent=%s score=%.2f missing=%d",
-            cliente_id, agent_slug, overall, len(missing_required),
+            client_id, agent_slug, overall, len(missing_required),
         )
         return {
             "completeness_score": overall,
@@ -814,7 +814,7 @@ async def _update_context_document_logic(
     ctx: Context,
     metadata_updates: dict | None = None,
     vector_document_id: str | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Upsert a client_knowledge_documents row, merging new knowledge into the
@@ -834,8 +834,8 @@ async def _update_context_document_logic(
     This tool is internal bookkeeping — call it whenever a conversation reveals
     new information about the client. No user confirmation needed.
     """
-    if not cliente_id:
-        raise ToolError("cliente_id não encontrado. Certifique-se de estar autenticado.")
+    if not client_id:
+        raise ToolError("client_id não encontrado. Certifique-se de estar autenticado.")
     if not document_type_id:
         raise ToolError("document_type_id é obrigatório.")
     if not field_updates or not isinstance(field_updates, dict):
@@ -862,7 +862,7 @@ async def _update_context_document_logic(
         existing_result = (
             await db.table("client_knowledge_documents")
             .select("id, field_coverage, metadata, status")
-            .eq("client_id", cliente_id)
+            .eq("client_id", client_id)
             .eq("document_type_id", document_type_id)
             .maybe_single()
             .execute()
@@ -895,7 +895,7 @@ async def _update_context_document_logic(
 
         now = datetime.now(tz=timezone.utc).isoformat()
         payload = {
-            "client_id": cliente_id,
+            "client_id": client_id,
             "document_type_id": document_type_id,
             "status": status,
             "field_coverage": merged_coverage,
@@ -910,7 +910,7 @@ async def _update_context_document_logic(
             await (
                 db.table("client_knowledge_documents")
                 .update(payload)
-                .eq("client_id", cliente_id)
+                .eq("client_id", client_id)
                 .eq("document_type_id", document_type_id)
                 .execute()
             )
@@ -919,7 +919,7 @@ async def _update_context_document_logic(
 
         logger.info(
             "[Context] update_context_document: client=%s type=%s status=%s score=%.2f",
-            cliente_id, document_type_id, status, avg,
+            client_id, document_type_id, status, avg,
         )
         return {
             "document_type_id": document_type_id,
@@ -959,7 +959,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Vendas/despesas go to fato_transacoes; compras go to fato_compras. "
             "IMPORTANT: always present a confirmation summary to the user BEFORE calling this tool."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_register_transaction_logic))
+    )(mcp_inject_client_id(get_context_service)(_register_transaction_logic))
 
     mcp.tool(
         name="list_data_sources",
@@ -970,7 +970,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "ingestion jobs from reg_jobs. Use to answer 'what data do we have?' "
             "and to orient schema-mapping conversations."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_list_data_sources_logic))
+    )(mcp_inject_client_id(get_context_service)(_list_data_sources_logic))
 
     mcp.tool(
         name="query_data_catalog",
@@ -984,7 +984,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Use before suggest_column_mapping to understand what is already mapped "
             "and what still needs attention."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_query_data_catalog_logic))
+    )(mcp_inject_client_id(get_context_service)(_query_data_catalog_logic))
 
     mcp.tool(
         name="suggest_column_mapping",
@@ -998,7 +998,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "candidates), confidence_scores, and detected_context. "
             "Always call query_data_catalog first to confirm source_columns exist."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_suggest_column_mapping_logic))
+    )(mcp_inject_client_id(get_context_service)(_suggest_column_mapping_logic))
 
     mcp.tool(
         name="update_schema_mapping",
@@ -1011,7 +1011,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "IMPORTANT: always present the full mapping table and receive explicit confirmation "
             "before calling this tool."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_update_schema_mapping_logic))
+    )(mcp_inject_client_id(get_context_service)(_update_schema_mapping_logic))
 
     mcp.tool(
         name="get_knowledge_status",
@@ -1023,7 +1023,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "needs_attention (below threshold), and per-document field_coverage. "
             "Call at session start to orient what context is already available before querying or writing."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_get_knowledge_status_logic))
+    )(mcp_inject_client_id(get_context_service)(_get_knowledge_status_logic))
 
     mcp.tool(
         name="update_context_document",
@@ -1037,7 +1037,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Call whenever a conversation reveals new information about the client. "
             "No user confirmation needed — this is internal bookkeeping."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_update_context_document_logic))
+    )(mcp_inject_client_id(get_context_service)(_update_context_document_logic))
 
     registered = [
         "register_transaction",

@@ -249,7 +249,6 @@ class TestGetForTask:
     ENABLED = [
         "executar_rag_cliente",      # tags: rag, search, knowledge-base
         "executar_sql_agent",        # tags: sql, database, analytics
-        "execute_csv_query",         # tags: csv, sql, analytics
         "parse_buying_list",         # tags: rfq, procurement, parsing
         "dispatch_rfq",              # tags: rfq, procurement, dispatch
         "check_config_completeness", # tags: config, setup, helper
@@ -264,7 +263,7 @@ class TestGetForTask:
 
     def test_no_intent_returns_all_accessible_up_to_max(self):
         result = ToolRegistry.get_for_task(self.ENABLED, self.TIER, max_tools=10)
-        # All 7 tools are accessible at SME tier — all returned when no intent
+        # All 6 tools are accessible at SME tier — all returned when no intent
         assert set(result) == set(self.ENABLED)
 
     def test_max_tools_cap_respected(self):
@@ -282,11 +281,11 @@ class TestGetForTask:
         non_rfq_indices = [result.index(t) for t in non_rfq]
         assert max(rfq_indices) < min(non_rfq_indices)
 
-    def test_analytics_intent_ranks_sql_csv_tools_first(self):
+    def test_analytics_intent_ranks_sql_tools_first(self):
         result = ToolRegistry.get_for_task(
             self.ENABLED, self.TIER, intent_tags=["analytics", "sql"]
         )
-        analytics_tools = {"executar_sql_agent", "execute_csv_query"}
+        analytics_tools = {"executar_sql_agent"}
         analytics_indices = [result.index(t) for t in analytics_tools if t in result]
         others = [t for t in result if t not in analytics_tools]
         other_indices = [result.index(t) for t in others]

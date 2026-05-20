@@ -14,13 +14,14 @@ import {
   fetchEstrategiaHistory,
   type EstrategiaHistoryItem,
 } from '../../api/estrategia'
-import { fetchRoutines } from '../../api/routines'
 import { getContextMetrics, type ContextMetricRow } from '../../api/analytics'
 import { fetchContextReports, downloadContextReport, type ContextReport } from '../../api/contextReport'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
+import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
+import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
 
-type Tab = 'decisoes' | 'analises' | 'historico'
+type Tab = 'decisoes' | 'analises' | 'historico' | 'config'
 
 // ── Lightweight markdown renderer (no external dependency) ─────────────────
 function renderMarkdownLine(line: string, key: number): React.ReactNode {
@@ -133,7 +134,7 @@ export default function EstrategiaRoom() {
   const [reportContent, setReportContent] = useState<string | null>(null)
   const [loadingReport, setLoadingReport] = useState(false)
 
-  const [approvalsQ, insightsQ, historyQ, _routinesQ, contextReportsQ, contextMetricsQ] = useQueries({
+  const [approvalsQ, insightsQ, historyQ, contextReportsQ, contextMetricsQ] = useQueries({
     queries: [
       {
         queryKey: ['approvals', 'estrategia', clientId ?? ''],
@@ -152,12 +153,6 @@ export default function EstrategiaRoom() {
         queryFn: () => fetchEstrategiaHistory(clientId!),
         enabled: !!clientId,
         staleTime: 60_000,
-      },
-      {
-        queryKey: ['routines', 'estrategia', clientId ?? ''],
-        queryFn: () => fetchRoutines(clientId!, 'estrategia'),
-        enabled: !!clientId,
-        staleTime: 120_000,
       },
       {
         queryKey: ['contextReports'],
@@ -245,7 +240,7 @@ export default function EstrategiaRoom() {
             <span className="ph-ttl">Mesa de Trabalho</span>
           </div>
           <div className="rtabs">
-            {(['decisoes', 'analises', 'historico'] as Tab[]).map((t) => (
+            {(['decisoes', 'analises', 'historico', 'config'] as Tab[]).map((t) => (
               <div
                 key={t}
                 className={`rtab${tab === t ? ' on' : ''}`}
@@ -260,8 +255,10 @@ export default function EstrategiaRoom() {
                   </>
                 ) : t === 'analises' ? (
                   'Análises'
-                ) : (
+                ) : t === 'historico' ? (
                   'Histórico'
+                ) : (
+                  'Config'
                 )}
               </div>
             ))}
@@ -332,6 +329,11 @@ export default function EstrategiaRoom() {
                 ))
               )}
             </div>
+
+            {/* CONFIG */}
+            <div className={`tc${tab === 'config' ? ' on' : ''}`}>
+              <RoutineConfigSection domain="estrategia" />
+            </div>
           </div>
 
           {/* ANALYTICS CARD — pinned at panel bottom */}
@@ -383,6 +385,9 @@ export default function EstrategiaRoom() {
         {/* RIGHT COLUMN */}
         <div className="rcol">
           <RColResizeHandle />
+          <CollapsiblePanel id="est-rotinas" icon="⚙️" title="Rotinas ativas">
+            <RoutineStatusWidget domain="estrategia" />
+          </CollapsiblePanel>
           <CollapsiblePanel id="est-analises" icon="📊" title="Análises" badge={contextReports.length > 0 ? <span className="ph-cnt">{contextReports.length}</span> : null}>
               {contextReportsQ.isLoading ? (
                 <div style={{ fontSize: 11, color: 'var(--mu)' }}>…</div>

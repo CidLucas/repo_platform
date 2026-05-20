@@ -42,7 +42,7 @@ def mock_prompt_loader():
 def mock_context():
     """Create mock BluClientContext."""
     context = Mock(spec=BluClientContext)
-    context.cliente_id = UUID("550e8400-e29b-41d4-a716-446655440000")
+    context.client_id = UUID("550e8400-e29b-41d4-a716-446655440000")
     context.user_role = "analyst"
     context.tenant_name = "Acme Corp"
     context.empresa_id = UUID("660e8400-e29b-41d4-a716-446655440001")
@@ -116,7 +116,7 @@ class TestTextToSqlPrompt:
 
         # Check context was extracted
         variables = call_kwargs["variables"]
-        assert variables["cliente_id"] == str(mock_context.cliente_id)
+        assert variables["client_id"] == str(mock_context.client_id)
         assert variables["user_role"] == "analyst"
         assert variables["question"] == "List all active customers"
 
@@ -278,7 +278,7 @@ class TestTextToSqlPromptIntegration:
         variables = call_kwargs["variables"]
 
         # Should have expected keys from builder
-        assert "cliente_id" in variables
+        assert "client_id" in variables
         assert "client_id" in variables
         assert "user_role" in variables
         assert "question" in variables

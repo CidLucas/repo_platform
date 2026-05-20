@@ -14,7 +14,7 @@ Architecture (simplified):
 4. Variables injected from SafeContext fields via {{}} syntax
 
 Key changes:
-- Removed cliente_id parameter (no per-client prompts in DB)
+- Removed client_id parameter (no per-client prompts in DB)
 - Context is injected via variables (company_profile, nome_empresa, etc.)
 - Added build_prompt_full() for access to LoadedPrompt + langfuse_prompt
 - Builtin fallback disabled by default (set PROMPT_ALLOW_FALLBACK=true to enable)
@@ -34,6 +34,45 @@ logger = logging.getLogger(__name__)
 
 # Environment flag to allow builtin fallback (default: False in production)
 PROMPT_ALLOW_FALLBACK = os.environ.get("PROMPT_ALLOW_FALLBACK", "false").lower() == "true"
+
+# =============================================================================
+# LANGFUSE-MANAGED PROMPT REGISTRY
+#
+# Only prompts listed here are fetched from Langfuse. Everything else loads
+# directly from builtins — no Langfuse call, no 404 noise.
+# =============================================================================
+
+# Prompt name prefixes managed in Langfuse
+_LANGFUSE_MANAGED_PREFIXES: frozenset[str] = frozenset({
+    "orchestrator/",
+    "agents/",
+    "skill:",
+    "specialists/",  # Phase 5: specialist-layer prompts (routing, classify, standalone fragments)
+})
+
+# Explicit prompt names managed in Langfuse (context-gatherer and rfq fragments)
+_LANGFUSE_MANAGED_NAMES: frozenset[str] = frozenset({
+    "fragment/context-gatherer-base",
+    "fragment/transaction-extraction-rules",
+    "fragment/schema-mapping-workflow",
+    "fragment/routine-definition-workflow",
+    "fragment/knowledge-curation-workflow",
+    "fragment/confirmation-patterns",
+    # rfq-agent fragments — managed in Langfuse with builtin fallback
+    "fragment/rfq-orchestrator",
+    "fragment/rfq-supplier-liaison",
+    "fragment/rfq-optimizer",
+    "fragment/rfq-report-composer",
+})
+
+
+def _is_langfuse_managed(name: str) -> bool:
+    """Return True if this prompt is managed in Langfuse (and worth fetching there)."""
+    return (
+        any(name.startswith(prefix) for prefix in _LANGFUSE_MANAGED_PREFIXES)
+        or name in _LANGFUSE_MANAGED_NAMES
+    )
+
 
 # =============================================================================
 # SINGLETON PROMPT LOADER
@@ -94,7 +133,13 @@ async def build_prompt(
         Rendered prompt content
     """
     loader = _get_prompt_loader()
-    fallback = PROMPT_ALLOW_FALLBACK if allow_fallback is None else allow_fallback
+
+    # Non-managed prompts bypass Langfuse entirely — load from builtins directly.
+    # This eliminates 404 noise for fragment/* and other prompts not in Langfuse.
+    if not _is_langfuse_managed(name):
+        return loader.load_builtin(name, variables).content
+
+    fallback = True if allow_fallback is None else allow_fallback  # managed → always allow fallback
 
     # Use context_service for Redis caching if available
     if context_service:
@@ -152,12 +197,16 @@ async def build_prompt_full(
     """
     loader = _get_prompt_loader()
 
-    # Direct load (Langfuse is mandatory unless PROMPT_ALLOW_FALLBACK=true)
+    if not _is_langfuse_managed(name):
+        loaded = loader.load_builtin(name, variables)
+        logger.debug(f"Loaded prompt '{name}' from builtin (not Langfuse-managed)")
+        return loaded
+
     loaded = await loader.load(
         name=name,
         variables=variables,
         langfuse_label=langfuse_label,
-        allow_fallback=PROMPT_ALLOW_FALLBACK,
+        allow_fallback=True,
     )
     logger.debug(f"Loaded prompt '{name}' (source={loaded.source}, version={loaded.version})")
     return loaded
@@ -261,7 +310,7 @@ def build_tools_description(
     return VariableExtractor.build_tools_description(available_tools, tool_registry)
 
 
-async def compose_prompt(
+async def _join_fragments(
     fragments: list[str],
     variables: dict[str, Any],
     context_service: "ContextService | None" = None,
@@ -269,41 +318,16 @@ async def compose_prompt(
     separator: str = "\n\n",
 ) -> str:
     """
-    Compose a prompt from multiple Langfuse fragment prompts.
+    Internal helper: join fragment prompts into one string via build_prompt().
 
-    Loads each fragment via build_prompt() (Langfuse-first with caching)
-    and concatenates them. This enables modular prompt design where
-    fragments like base-role, sql-schema, rag-rules can be mixed per-client.
-
-    Args:
-        fragments: List of Langfuse prompt names (e.g., ["fragment/base-role", "fragment/sql-rules"])
-        variables: Shared variables dict passed to all fragments
-        context_service: Optional ContextService for Redis caching
-        langfuse_label: Override Langfuse label for all fragments
-        separator: String to join fragments (default: double newline)
-
-    Returns:
-        Concatenated rendered prompt
-
-    Example:
-        prompt = await compose_prompt(
-            fragments=[
-                "fragment/base-role",
-                "fragment/sql-schema",
-                "fragment/sql-rules",
-                "fragment/sql-examples",
-                "fragment/tool-usage-general",
-                "fragment/response-format",
-            ],
-            variables={"nome_empresa": "Acme", "tools_description": "..."},
-            context_service=ctx_service,
-        )
+    Only for legacy agents whose AgentTypeConfig still declares a fragments
+    list. New agents must declare a single prompt_name instead.
     """
     parts: list[str] = []
-    for fragment_name in fragments:
+    for name in fragments:
         try:
             content = await build_prompt(
-                name=fragment_name,
+                name=name,
                 variables=variables,
                 context_service=context_service,
                 langfuse_label=langfuse_label,
@@ -311,12 +335,7 @@ async def compose_prompt(
             if content and content.strip():
                 parts.append(content.strip())
         except Exception as e:
-            logger.warning(f"Failed to load fragment '{fragment_name}': {e}")
-            continue
-
+            logger.warning(f"Fragment '{name}' failed: {e}")
     result = separator.join(parts)
-    logger.info(
-        f"Composed prompt from {len(parts)}/{len(fragments)} fragments "
-        f"({len(result)} chars)"
-    )
+    logger.debug(f"Joined {len(parts)}/{len(fragments)} fragments ({len(result)} chars)")
     return result

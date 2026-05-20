@@ -26,7 +26,7 @@ from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.dependencies import get_context_service
 from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
-from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 
 from . import register_module
 
@@ -60,10 +60,10 @@ def _extract_document_ids(ctx: Context) -> list[str] | None:
     return None
 
 
-def _extract_cliente_id(ctx: Context) -> str | None:
-    """Extract cliente_id from context metadata."""
+def _extract_client_id(ctx: Context) -> str | None:
+    """Extract client_id from context metadata."""
     meta = _extract_meta(ctx)
-    return meta.get("cliente_id") or meta.get("client_id")
+    return meta.get("client_id") or meta.get("client_id")
 
 
 def _parse_brazilian_number(val: str) -> float | None:
@@ -90,7 +90,7 @@ async def _extract_document_with_ocr_logic(
     ocr_languages: str,
     table_mode: str,
     ctx: Context,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> str:
     """
     **Tool: extract_document_with_ocr**
@@ -140,15 +140,15 @@ async def _extract_document_with_ocr_logic(
         )
 
     # 3. Resolve client context
-    if not cliente_id:
-        cliente_id = _extract_cliente_id(ctx)
-    if not cliente_id:
+    if not client_id:
+        client_id = _extract_client_id(ctx)
+    if not client_id:
         raise ToolError("Could not determine client identity.")
 
     ctx_service = get_context_service()
-    blu_context = await ctx_service.get_client_context_by_id(UUID(cliente_id))
+    blu_context = await ctx_service.get_client_context_by_id(UUID(client_id))
     if not blu_context:
-        raise ToolError(f"Client context not found: {cliente_id}")
+        raise ToolError(f"Client context not found: {client_id}")
 
     if not is_tool_accessible_by_tier("extract_document_with_ocr", blu_context):
         raise ToolError("Tool 'extract_document_with_ocr' is not enabled for this client.")
@@ -271,7 +271,7 @@ async def _summarize_document_sections_logic(
     sections_json: str,
     language: str,
     ctx: Context,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> str:
     """
     **Tool: summarize_document_sections**
@@ -313,15 +313,15 @@ async def _summarize_document_sections_logic(
         language = "auto"
 
     # 2. Resolve client context
-    if not cliente_id:
-        cliente_id = _extract_cliente_id(ctx)
-    if not cliente_id:
+    if not client_id:
+        client_id = _extract_client_id(ctx)
+    if not client_id:
         raise ToolError("Could not determine client identity.")
 
     ctx_service = get_context_service()
-    blu_context = await ctx_service.get_client_context_by_id(UUID(cliente_id))
+    blu_context = await ctx_service.get_client_context_by_id(UUID(client_id))
     if not blu_context:
-        raise ToolError(f"Client context not found: {cliente_id}")
+        raise ToolError(f"Client context not found: {client_id}")
 
     # 3. Summarize with LLM
     from langchain_core.messages import HumanMessage, SystemMessage
@@ -399,7 +399,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Documents must be uploaded to the session first. "
             "Use 'pt,en' for Brazilian documents, 'accurate' for complex tables."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_extract_document_with_ocr_logic))
+    )(mcp_inject_client_id(get_context_service)(_extract_document_with_ocr_logic))
 
     mcp.tool(
         name="summarize_document_sections",
@@ -411,7 +411,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Returns sections with added 'summary' field. "
             "Use after extract_document_with_ocr to get quick overviews."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_summarize_document_sections_logic))
+    )(mcp_inject_client_id(get_context_service)(_summarize_document_sections_logic))
 
     logger.info(
         "[OCR Extraction Module] 2 tools registered: "

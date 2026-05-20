@@ -6,7 +6,6 @@ Admin routes        → /v1/catalog/agents (CRUD), /v1/catalog/prompts, /v1/cata
 """
 
 import asyncio
-import io
 import json
 import logging
 import pathlib
@@ -28,7 +27,6 @@ from agent_api.api.schemas import (
     CatalogAgentUpdateRequest,
     ConfigFieldUpdate,
     CreateSessionRequest,
-    CsvUploadResponse,
     DocumentUploadResponse,
     LinkDocumentRequest,
     PromptDetailResponse,
@@ -196,57 +194,6 @@ async def activate_session(
     if not result.data:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
     return result.data[0]
-
-
-# ---------------------------------------------------------------------------
-# CSV upload
-# ---------------------------------------------------------------------------
-
-
-@router.post("/sessions/{session_id}/csv", response_model=CsvUploadResponse)
-async def upload_csv(
-    session_id: str,
-    auth_result: AuthResult = Depends(get_auth_result),
-    file: UploadFile = File(...),
-):
-    """Upload a CSV or XLSX file to the session."""
-    if not file.filename.endswith((".csv", ".xlsx")):
-        raise HTTPException(status_code=400, detail="Only CSV and XLSX files allowed")
-
-    content = await file.read()
-    file_stream = io.BytesIO(content)
-
-    try:
-        from blu_parsers.csv_ingestion import ingest_csv
-        metadata = await ingest_csv(
-            session_id=session_id,
-            client_id=str(auth_result.client_id),
-            file_stream=file_stream,
-            file_name=file.filename,
-        )
-        get_factory().clear_session_cache(session_id)
-
-        return CsvUploadResponse(
-            file_id=str(metadata.get("file_id", "")),
-            file_name=metadata.get("file_name", file.filename),
-            columns=metadata.get("columns", []),
-            row_count=metadata.get("row_count", 0),
-            sample_rows=metadata.get("sample_rows"),
-        )
-    except Exception as exc:
-        logger.error("Error uploading CSV: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc))
-
-
-@router.get("/sessions/{session_id}/csvs")
-async def list_session_csvs(session_id: str):
-    """List CSV files uploaded to the session."""
-    try:
-        from blu_parsers.csv_ingestion import list_session_csvs as _list
-        return await _list(session_id=session_id)
-    except Exception as exc:
-        logger.error("Error listing CSVs: %s", exc)
-        raise HTTPException(status_code=500, detail=str(exc))
 
 
 # ---------------------------------------------------------------------------

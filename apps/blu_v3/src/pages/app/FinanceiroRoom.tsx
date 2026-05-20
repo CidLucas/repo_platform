@@ -8,15 +8,16 @@ import {
   rejectRequest,
   snoozeApproval,
 } from '../../api/approvals'
-import { fetchInsights } from '../../api/insights'
-import { fetchConnectedAccounts, fetchReportRuns } from '../../api/financeiro'
-import { fetchRoutineConfig, upsertRoutineConfig } from '../../api/routines'
+import { fetchInsights, formatKpi } from '../../api/insights'
+import { fetchConnectedAccounts, fetchPolpAccounts, fetchPolpTransactions, fetchPolpBills } from '../../api/financeiro'
 import { getFinanceIndicators, getContextMetrics, type ContextMetricRow } from '../../api/analytics'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
-import RoutinesPanel from '../../components/shared/RoutinesPanel'
+import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
+import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
+import RoutineExecutionFeed from '../../components/shared/RoutineExecutionFeed'
 
-type Tab = 'decisoes' | 'tarefas' | 'relatorios' | 'config'
+type Tab = 'decisoes' | 'tarefas' | 'historico' | 'config'
 
 function snoozeUntil() {
   return new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
@@ -43,20 +44,7 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
-function relativeTime(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime()
-  const d = Math.floor(diff / 86400000)
-  if (d === 0) return 'hoje'
-  if (d === 1) return 'ontem'
-  return `${d} dias atrás`
-}
 
-const REPORT_LABELS: Record<string, string> = {
-  dre: 'DRE',
-  cash_flow: 'Fluxo de Caixa',
-  margin: 'Análise de Margem',
-  custom: 'Personalizado',
-}
 
 export default function FinanceiroRoom() {
   const { go, toggleDc, expandedId, addToast } = useAppStore()
@@ -66,7 +54,7 @@ export default function FinanceiroRoom() {
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'30d' | '90d' | '1y'>('30d')
 
-  const [approvalsQ, insightsQ, kpiQ, accountsQ, reportsQ, configQ, contextMetricsQ] = useQueries({
+  const [approvalsQ, insightsQ, kpiQ, accountsQ, contextMetricsQ, polpAccountsQ, polpTxQ, polpBillsQ] = useQueries({
     queries: [
       {
         queryKey: ['approvals', 'financeiro', clientId ?? ''],
@@ -94,22 +82,28 @@ export default function FinanceiroRoom() {
         staleTime: 60_000,
       },
       {
-        queryKey: ['financeiro-reports', clientId ?? ''],
-        queryFn: () => fetchReportRuns(clientId!),
-        enabled: !!clientId,
-        staleTime: 60_000,
-      },
-      {
-        queryKey: ['config', 'financeiro', clientId ?? ''],
-        queryFn: () => fetchRoutineConfig(clientId!, 'financeiro'),
-        enabled: !!clientId,
-        staleTime: 60_000,
-      },
-      {
         queryKey: ['analytics', 'contextMetrics', clientId ?? '', analyticsPeriod],
         queryFn: () => getContextMetrics(analyticsPeriod),
         enabled: !!clientId,
         staleTime: 120_000,
+      },
+      {
+        queryKey: ['polp-accounts', clientId ?? ''],
+        queryFn: () => fetchPolpAccounts(clientId!),
+        enabled: !!clientId,
+        staleTime: 60_000,
+      },
+      {
+        queryKey: ['polp-transactions', clientId ?? ''],
+        queryFn: () => fetchPolpTransactions(clientId!),
+        enabled: !!clientId,
+        staleTime: 60_000,
+      },
+      {
+        queryKey: ['polp-bills', clientId ?? ''],
+        queryFn: () => fetchPolpBills(clientId!),
+        enabled: !!clientId,
+        staleTime: 60_000,
       },
     ],
   })
@@ -128,16 +122,11 @@ export default function FinanceiroRoom() {
     mutationFn: (id: string) => snoozeApproval(id, clientId!, snoozeUntil()),
     onSuccess: () => { invalidateApprovals(); addToast('sn', 'Adiado', 'Lembrete em 2 horas.') },
   })
-  const configMut = useMutation({
-    mutationFn: (cfg: Record<string, unknown>) => upsertRoutineConfig(clientId!, 'financeiro', cfg),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['config', 'financeiro', clientId ?? ''] }),
-  })
-
   const approvals = approvalsQ.data ?? []
   const pendingCount = approvals.length
 
   const finInsights = (insightsQ.data ?? []).filter(
-    i => !i.dimension || i.dimension === 'financeiro'
+    i => !i.dimension || i.dimension === 'financeiro' || i.dimension === 'finance'
   )
   const financeiroContextMetrics: ContextMetricRow[] = (contextMetricsQ.data ?? []).filter(
     (m) => m.dimension === 'finance'
@@ -146,12 +135,14 @@ export default function FinanceiroRoom() {
   const fin = kpiQ.data
 
   const accounts = accountsQ.data ?? []
-  const consolidatedBalance = accounts.reduce((sum, a) => sum + (a.balance ?? 0), 0)
+  const polpAccounts = polpAccountsQ.data ?? []
+  const polpTransactions = polpTxQ.data ?? []
+  const polpBills = polpBillsQ.data ?? []
 
-  const reports = reportsQ.data ?? []
-  const cfg = configQ.data ?? {}
-  const costVariancePct = typeof cfg.cost_variance_pct === 'number' ? cfg.cost_variance_pct : 10
-  const dreDay = typeof cfg.dre_day === 'number' ? cfg.dre_day : 2
+  const consolidatedBalance = polpAccounts.length > 0
+    ? polpAccounts.filter(a => a.type === 'BANK').reduce((sum, a) => sum + a.balance, 0)
+    : accounts.reduce((sum, a) => sum + (a.balance ?? 0), 0)
+
 
   return (
     <div>
@@ -171,9 +162,9 @@ export default function FinanceiroRoom() {
             <span className="ph-cnt">{pendingCount} pendente{pendingCount !== 1 ? 's' : ''}</span>
           </div>
           <div className="rtabs" id="fTabs">
-            {(['decisoes', 'tarefas', 'relatorios', 'config'] as Tab[]).map(t => (
+            {(['decisoes', 'tarefas', 'historico', 'config'] as Tab[]).map(t => (
               <div key={t} className={`rtab${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>
-                {t === 'decisoes' ? <>Decisões {pendingCount > 0 && <span className="tbdg">{pendingCount}</span>}</> : t === 'relatorios' ? 'Relatórios' : t.charAt(0).toUpperCase() + t.slice(1)}
+                {t === 'decisoes' ? <>Decisões {pendingCount > 0 && <span className="tbdg">{pendingCount}</span>}</> : t === 'historico' ? 'Histórico' : t.charAt(0).toUpperCase() + t.slice(1)}
               </div>
             ))}
           </div>
@@ -219,79 +210,45 @@ export default function FinanceiroRoom() {
 
             {/* TAREFAS */}
             <div className={`tc${tab === 'tarefas' ? ' on' : ''}`} id="f-tarefas">
-              <RoutinesPanel domain="financeiro" />
+              <RoutineExecutionFeed domain="financeiro" />
             </div>
 
-            {/* RELATÓRIOS */}
-            <div className={`tc${tab === 'relatorios' ? ' on' : ''}`} id="f-relatorios">
-              {reportsQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12, padding: '12px 0' }}>Carregando…</div>}
-              {!reportsQ.isLoading && reports.length === 0 && (
-                <div style={{ color: 'var(--mu)', fontSize: 12, padding: '12px 0' }}>Nenhum relatório gerado.</div>
+            {/* HISTÓRICO */}
+            <div className={`tc${tab === 'historico' ? ' on' : ''}`} id="f-historico">
+              {polpTxQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12, padding: '12px 0' }}>Carregando…</div>}
+              {!polpTxQ.isLoading && polpTransactions.length === 0 && (
+                <div style={{ color: 'var(--mu)', fontSize: 12, padding: '12px 0' }}>Nenhuma transação encontrada. Conecte suas contas bancárias em Integrações.</div>
               )}
-              {reports.map(r => (
-                <div key={r.id} className="hi">
-                  <div className="hi-n">{REPORT_LABELS[r.report_type] ?? 'Relatório'} — {r.period}</div>
-                  <div className="hi-m">
-                    <span>{relativeTime(r.created_at)}</span>
-                    {r.file_url && r.status === 'ready' ? (
-                      <a
-                        className="hi-a"
-                        href={r.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ color: 'var(--ok)' }}
-                      >
-                        ✓ Baixar
-                      </a>
-                    ) : (
-                      <span className="hi-a" style={{ color: r.status === 'error' ? 'var(--urg)' : 'var(--att)' }}>
-                        {r.status === 'generating' ? 'Gerando…' : r.status === 'error' ? 'Erro' : 'PDF'}
-                      </span>
-                    )}
+              {polpTransactions.map(tx => {
+                const isCredit = tx.type === 'CREDIT'
+                const catName = tx.category ? (tx.category as Record<string, unknown>).description as string | undefined : undefined
+                const merchantName = tx.merchant ? (tx.merchant as Record<string, unknown>).name as string | undefined : undefined
+                return (
+                  <div key={tx.id} className="hi" style={{ alignItems: 'center' }}>
+                    <div className="hi-n" style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {tx.description ?? merchantName ?? '—'}
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, marginTop: 2, alignItems: 'center' }}>
+                        <span style={{ fontSize: 10, color: 'var(--mu)' }}>{new Date(tx.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+                        {catName && (
+                          <span style={{ fontSize: 9.5, background: 'color-mix(in srgb,var(--fg) 10%,transparent)', border: '1px solid color-mix(in srgb,var(--fg) 15%,transparent)', borderRadius: 3, padding: '1px 4px', color: 'var(--mu)' }}>
+                            {catName}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', color: isCredit ? 'var(--ok)' : 'var(--fg)', flexShrink: 0 }}>
+                      {isCredit ? '+' : '-'}{formatBRL(Math.abs(tx.amount))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* CONFIG */}
             <div className={`tc${tab === 'config' ? ' on' : ''}`} id="f-config">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                <div style={{ background: 'var(--glass)', border: '1px solid var(--gb)', borderRadius: 'var(--r)', padding: '11px 12px' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 3 }}>Alerta de variação de custos</div>
-                  <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 7 }}>Notificar quando uma categoria variar mais que:</div>
-                  <div className="pills">
-                    {[10, 15, 20].map(pct => (
-                      <span
-                        key={pct}
-                        className={`pill${costVariancePct === pct ? ' on' : ''}`}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => configMut.mutate({ ...cfg, cost_variance_pct: pct })}
-                      >
-                        {pct}%
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ background: 'var(--glass)', border: '1px solid var(--gb)', borderRadius: 'var(--r)', padding: '11px 12px' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 3 }}>Geração automática de DRE</div>
-                  <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 7 }}>Gerar e enviar ao contador no dia:</div>
-                  <div className="pills">
-                    {[1, 2, 5, 10].map(d => (
-                      <span
-                        key={d}
-                        className={`pill${dreDay === d ? ' on' : ''}`}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => configMut.mutate({ ...cfg, dre_day: d })}
-                      >
-                        {d}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ marginTop: 4 }}>
-                  <RoutinesPanel domain="financeiro" />
-                </div>
-              </div>
+              <RoutineConfigSection domain="financeiro" />
             </div>
             <div className="anl-hd" onClick={() => setAnalyticsOpen(o => !o)}>
               <span className="anl-ttl">📊 Analytics</span>
@@ -418,55 +375,94 @@ export default function FinanceiroRoom() {
         {/* SIDEBAR */}
         <div className="rcol">
           <RColResizeHandle />
+          <CollapsiblePanel id="fin-rotinas" icon="⚙️" title="Rotinas ativas">
+            <RoutineStatusWidget domain="financeiro" />
+          </CollapsiblePanel>
           <CollapsiblePanel id="fin-contas" icon="🏦" title="Contas" action={<button className="ph-add">＋</button>}>
             <div className="dr-sec">
-                {accountsQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>}
-                {accounts.map(acc => (
-                  <div key={acc.id} className="acc-row">
-                    <span style={{ fontSize: 13 }}>{acc.provider.includes('cartão') || acc.provider.includes('card') ? '💳' : '🏦'}</span>
-                    <div className="acc-name">
-                      <div style={{ fontSize: 12, fontWeight: 500 }}>{acc.account_name ?? acc.provider}</div>
-                      <div style={{ fontSize: 10, color: 'var(--mu)' }}>{acc.provider}</div>
-                    </div>
-                    <div>
-                      <div className="acc-val" style={acc.balance !== null && acc.balance < 0 ? { color: 'var(--urg)' } : undefined}>
-                        {formatBRL(acc.balance)}
-                      </div>
-                      <div style={{ fontSize: 9.5, color: acc.status === 'active' ? 'var(--ok)' : 'var(--att)', fontFamily: 'var(--mono)' }}>
-                        {acc.status === 'active' ? '↑ sincronizado' : acc.status === 'error' ? '⚠ erro' : 'desconectado'}
-                      </div>
-                    </div>
+              {polpAccountsQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>}
+              {!polpAccountsQ.isLoading && polpAccounts.length === 0 && accounts.length === 0 && (
+                <div style={{ color: 'var(--mu)', fontSize: 12 }}>Nenhuma conta conectada.</div>
+              )}
+              {polpAccounts.length > 0 ? polpAccounts.map(acc => (
+                <div key={acc.id} className="acc-row">
+                  <span style={{ fontSize: 13 }}>{acc.type === 'CREDIT' ? '💳' : '🏦'}</span>
+                  <div className="acc-name">
+                    <div style={{ fontSize: 12, fontWeight: 500 }}>{acc.marketing_name ?? acc.name ?? acc.subtype ?? acc.type}</div>
+                    <div style={{ fontSize: 10, color: 'var(--mu)' }}>{acc.number ?? acc.subtype ?? ''}</div>
                   </div>
-                ))}
-              </div>
-              {accounts.length > 0 && (
-                <div className="dr-sec">
-                  <div className="dr-ttl">Saldo consolidado</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--fg)' }}>
-                    {formatBRL(consolidatedBalance)}
+                  <div>
+                    <div className="acc-val" style={acc.balance < 0 ? { color: 'var(--urg)' } : undefined}>
+                      {formatBRL(acc.balance)}
+                    </div>
+                    <div style={{ fontSize: 9.5, color: 'var(--ok)', fontFamily: 'var(--mono)' }}>↑ sincronizado</div>
                   </div>
                 </div>
-              )}
+              )) : accounts.map(acc => (
+                <div key={acc.id} className="acc-row">
+                  <span style={{ fontSize: 13 }}>{acc.provider.includes('cartão') || acc.provider.includes('card') ? '💳' : '🏦'}</span>
+                  <div className="acc-name">
+                    <div style={{ fontSize: 12, fontWeight: 500 }}>{acc.account_name ?? acc.provider}</div>
+                    <div style={{ fontSize: 10, color: 'var(--mu)' }}>{acc.provider}</div>
+                  </div>
+                  <div>
+                    <div className="acc-val" style={acc.balance !== null && acc.balance < 0 ? { color: 'var(--urg)' } : undefined}>
+                      {formatBRL(acc.balance)}
+                    </div>
+                    <div style={{ fontSize: 9.5, color: acc.status === 'active' ? 'var(--ok)' : 'var(--att)', fontFamily: 'var(--mono)' }}>
+                      {acc.status === 'active' ? '↑ sincronizado' : acc.status === 'error' ? '⚠ erro' : 'desconectado'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {(polpAccounts.length > 0 || accounts.length > 0) && (
+              <div className="dr-sec">
+                <div className="dr-ttl">Saldo consolidado</div>
+                <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--mono)', fontVariantNumeric: 'tabular-nums', color: 'var(--fg)' }}>
+                  {formatBRL(consolidatedBalance)}
+                </div>
+              </div>
+            )}
           </CollapsiblePanel>
           <CollapsiblePanel id="fin-pagamentos" icon="📄" title="Próximos pagamentos">
             <div className="dr-sec">
-                {approvals.length === 0 && !approvalsQ.isLoading && (
-                  <div style={{ color: 'var(--mu)', fontSize: 12 }}>Nenhum pagamento pendente.</div>
-                )}
-                {approvals.map(a => (
-                  <div key={a.id} className="hi">
-                    <div className="hi-n">{a.title}</div>
+              {polpBillsQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>}
+              {!polpBillsQ.isLoading && polpBills.length === 0 && approvals.length === 0 && (
+                <div style={{ color: 'var(--mu)', fontSize: 12 }}>Nenhum pagamento pendente.</div>
+              )}
+              {polpBills.length > 0 ? polpBills.map(bill => {
+                const dueDate = new Date(bill.due_date + 'T00:00:00')
+                const daysUntil = Math.round((dueDate.getTime() - Date.now()) / 86400000)
+                const isOverdue = daysUntil < 0
+                const isSoon = daysUntil <= 3 && !isOverdue
+                return (
+                  <div key={bill.id} className="hi">
+                    <div className="hi-n">Fatura cartão</div>
                     <div className="hi-m">
-                      <span>{formatDate(a.created_at)}</span>
-                      {(a.metadata as Record<string, unknown> | null)?.amount != null && (
-                        <span className="hi-a" style={{ color: 'var(--att)' }}>
-                          {formatBRL(Number((a.metadata as Record<string, unknown>).amount))}
-                        </span>
-                      )}
+                      <span style={{ color: isOverdue ? 'var(--urg)' : isSoon ? 'var(--att)' : 'var(--mu)' }}>
+                        {isOverdue ? `${Math.abs(daysUntil)}d atraso` : daysUntil === 0 ? 'hoje' : `${daysUntil}d`} · {dueDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                      </span>
+                      <span className="hi-a" style={{ color: isOverdue ? 'var(--urg)' : 'var(--att)' }}>
+                        {formatBRL(bill.total_amount)}
+                      </span>
                     </div>
                   </div>
-                ))}
-              </div>
+                )
+              }) : approvals.map(a => (
+                <div key={a.id} className="hi">
+                  <div className="hi-n">{a.title}</div>
+                  <div className="hi-m">
+                    <span>{formatDate(a.created_at)}</span>
+                    {(a.metadata as Record<string, unknown> | null)?.amount != null && (
+                      <span className="hi-a" style={{ color: 'var(--att)' }}>
+                        {formatBRL(Number((a.metadata as Record<string, unknown>).amount))}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </CollapsiblePanel>
         </div>
 
@@ -478,7 +474,7 @@ export default function FinanceiroRoom() {
                 {ins.severity === 'error' ? '⚠️' : ins.severity === 'warning' ? '💡' : '📈'}
               </span>
               <div className="ich-body">
-                <span className="ich-tag tg-f">{ins.kpi ?? 'Insight'}</span>
+                <span className="ich-tag tg-f">{formatKpi(ins.kpi)}</span>
                 <div className="ich-txt">{ins.title}</div>
               </div>
             </div>
@@ -491,7 +487,7 @@ export default function FinanceiroRoom() {
             <div className="nums-head">⚙️ Rotinas ativas</div>
             <div style={{ fontSize: 11, color: 'var(--mu)' }}>Ver na aba Tarefas →</div>
           </div>
-          <div className="nums-chip" onClick={() => setTab('relatorios')}>
+          <div className="nums-chip" onClick={() => setTab('historico')}>
             <div className="nums-head">📊 KPIs do mês</div>
             <div className="nums-row">
               <div className="nkpi">

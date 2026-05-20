@@ -448,7 +448,7 @@ async def export_po_to_sheets_endpoint(
 
     try:
         return await export_po_to_sheets_core(
-            cliente_id=str(auth.client_id),
+            client_id=str(auth.client_id),
             po_id=payload.po_id,
             spreadsheet_id=payload.spreadsheet_id,
             sheet_name=payload.sheet_name,
@@ -546,7 +546,7 @@ async def draft_inbox_reply(
 
     try:
         return await draft_consumer_reply_core(
-            cliente_id=str(auth.client_id),
+            client_id=str(auth.client_id),
             contact_id=payload.contact_id,
             hint=payload.hint,
         )
@@ -568,7 +568,7 @@ async def send_inbox_reply(
 
     try:
         return await send_consumer_reply_core(
-            cliente_id=str(auth.client_id),
+            client_id=str(auth.client_id),
             message_id=payload.message_id,
             edited_body=payload.edited_body,
         )

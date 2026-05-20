@@ -6,9 +6,7 @@ Engine trigger flips them there once an approver decides) and sends
 them via the appropriate channel, transitioning to ``sent`` or
 ``failed``.
 
-Auth: shared bearer secret in ``CONSUMER_DISPATCH_TOKEN`` (or
-``RFQ_FOLLOW_UPS_TOKEN`` / ``DAILY_INSIGHTS_RUNNER_TOKEN`` as fallbacks
-so Ops can re-use the same Vault entry).
+Auth: shared bearer secret in ``CONSUMER_DISPATCH_TOKEN``.
 """
 
 from __future__ import annotations
@@ -29,11 +27,7 @@ router = APIRouter(prefix="/internal/inbox", tags=["Inbox Internal"])
 
 
 def _verify_token(authorization: str | None) -> None:
-    expected = (
-        os.getenv("CONSUMER_DISPATCH_TOKEN")
-        or os.getenv("RFQ_FOLLOW_UPS_TOKEN")
-        or os.getenv("DAILY_INSIGHTS_RUNNER_TOKEN")
-    )
+    expected = os.getenv("CONSUMER_DISPATCH_TOKEN")
     if not expected:
         return
     if not authorization or not authorization.lower().startswith("bearer "):

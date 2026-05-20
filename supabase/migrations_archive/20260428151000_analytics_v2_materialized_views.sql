@@ -11,7 +11,7 @@ CREATE MATERIALIZED VIEW analytics_v2.mv_resumo_dashboard AS
 SELECT
   ft.client_id,
   -- Totals from dimension tables (count of unique entities)
-  COUNT(DISTINCT dc.cliente_id)::INTEGER AS total_clientes,
+  COUNT(DISTINCT dc.client_id)::INTEGER AS total_clientes,
   COUNT(DISTINCT df.fornecedor_id)::INTEGER AS total_fornecedores,
   COUNT(DISTINCT di.inventory_id)::INTEGER AS total_produtos,
   COUNT(DISTINCT ft.transacao_id)::INTEGER AS total_pedidos,
@@ -30,7 +30,7 @@ SELECT
   -- Current month metrics (competencia = current month)
   COALESCE(SUM(CASE WHEN DATE_TRUNC('month', dd.data)::DATE = DATE_TRUNC('month', CURRENT_DATE)::DATE THEN ft.total_value ELSE 0 END), 0)::NUMERIC AS receita_mes_atual,
   COALESCE(SUM(CASE WHEN DATE_TRUNC('month', dd.data)::DATE = DATE_TRUNC('month', CURRENT_DATE)::DATE THEN ft.quantity ELSE 0 END), 0)::NUMERIC AS quantidade_mes_atual,
-  COUNT(DISTINCT CASE WHEN DATE_TRUNC('month', dd.data)::DATE = DATE_TRUNC('month', CURRENT_DATE)::DATE THEN dc.cliente_id ELSE NULL END)::INTEGER AS clientes_mes_atual,
+  COUNT(DISTINCT CASE WHEN DATE_TRUNC('month', dd.data)::DATE = DATE_TRUNC('month', CURRENT_DATE)::DATE THEN dc.client_id ELSE NULL END)::INTEGER AS clientes_mes_atual,
   COUNT(DISTINCT CASE WHEN DATE_TRUNC('month', dd.data)::DATE = DATE_TRUNC('month', CURRENT_DATE)::DATE THEN di.inventory_id ELSE NULL END)::INTEGER AS produtos_mes_atual,
   COUNT(DISTINCT CASE WHEN DATE_TRUNC('month', dd.data)::DATE = DATE_TRUNC('month', CURRENT_DATE)::DATE THEN df.fornecedor_id ELSE NULL END)::INTEGER AS fornecedores_mes_atual,
 
@@ -44,10 +44,10 @@ SELECT
   END AS crescimento_receita,
 
   CASE
-    WHEN COUNT(DISTINCT CASE WHEN DATE_TRUNC('month', dd.data)::DATE = (DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month')::DATE THEN dc.cliente_id ELSE NULL END) > 0
-    THEN ((COUNT(DISTINCT CASE WHEN DATE_TRUNC('month', dd.data)::DATE = DATE_TRUNC('month', CURRENT_DATE)::DATE THEN dc.cliente_id ELSE NULL END) -
-           COUNT(DISTINCT CASE WHEN DATE_TRUNC('month', dd.data)::DATE = (DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month')::DATE THEN dc.cliente_id ELSE NULL END)) /
-          COUNT(DISTINCT CASE WHEN DATE_TRUNC('month', dd.data)::DATE = (DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month')::DATE THEN dc.cliente_id ELSE NULL END) * 100)::NUMERIC
+    WHEN COUNT(DISTINCT CASE WHEN DATE_TRUNC('month', dd.data)::DATE = (DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month')::DATE THEN dc.client_id ELSE NULL END) > 0
+    THEN ((COUNT(DISTINCT CASE WHEN DATE_TRUNC('month', dd.data)::DATE = DATE_TRUNC('month', CURRENT_DATE)::DATE THEN dc.client_id ELSE NULL END) -
+           COUNT(DISTINCT CASE WHEN DATE_TRUNC('month', dd.data)::DATE = (DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month')::DATE THEN dc.client_id ELSE NULL END)) /
+          COUNT(DISTINCT CASE WHEN DATE_TRUNC('month', dd.data)::DATE = (DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month')::DATE THEN dc.client_id ELSE NULL END) * 100)::NUMERIC
     ELSE 0::NUMERIC
   END AS crescimento_clientes,
 
@@ -81,7 +81,7 @@ SELECT
   TO_CHAR(CURRENT_DATE - INTERVAL '1 month', 'Mon/YYYY') AS ultimo_mes,
 
   -- Active customers (those with transactions in last 30 days)
-  COUNT(DISTINCT CASE WHEN dd.data >= CURRENT_DATE - INTERVAL '30 days' THEN dc.cliente_id ELSE NULL END)::INTEGER AS clientes_ativos,
+  COUNT(DISTINCT CASE WHEN dd.data >= CURRENT_DATE - INTERVAL '30 days' THEN dc.client_id ELSE NULL END)::INTEGER AS clientes_ativos,
 
   -- New customers (first transaction in current month)
   COUNT(DISTINCT CASE
@@ -91,14 +91,14 @@ SELECT
       JOIN analytics_v2.dim_datas dd2 ON ft2.data_competencia_id = dd2.data_id
       WHERE dd2.data < DATE_TRUNC('month', CURRENT_DATE)::DATE
     )
-    THEN dc.cliente_id ELSE NULL END)::INTEGER AS clientes_novos,
+    THEN dc.client_id ELSE NULL END)::INTEGER AS clientes_novos,
 
   -- Generation timestamp
   CURRENT_TIMESTAMP AS gerado_em
 
 FROM analytics_v2.fato_transacoes ft
 LEFT JOIN analytics_v2.dim_datas dd ON ft.data_competencia_id = dd.data_id
-LEFT JOIN analytics_v2.dim_clientes dc ON ft.cliente_id = dc.cliente_id AND dc.client_id = ft.client_id
+LEFT JOIN analytics_v2.dim_clientes dc ON ft.client_id = dc.client_id AND dc.client_id = ft.client_id
 LEFT JOIN analytics_v2.dim_fornecedores df ON ft.fornecedor_id = df.fornecedor_id AND df.client_id = ft.client_id
 LEFT JOIN analytics_v2.dim_inventory di ON ft.produto_id = di.inventory_id AND di.client_id = ft.client_id
 GROUP BY ft.client_id;
@@ -143,12 +143,12 @@ SELECT
   dd.data AS data_periodo,
   'clientes'::TEXT AS tipo_grafico,
   'total'::TEXT AS dimensao,
-  COUNT(DISTINCT dc.cliente_id)::NUMERIC AS total,
-  COALESCE(COUNT(DISTINCT dc.cliente_id) OVER (PARTITION BY ft.client_id ORDER BY dd.data), 0)::NUMERIC AS total_cumulativo
+  COUNT(DISTINCT dc.client_id)::NUMERIC AS total,
+  COALESCE(COUNT(DISTINCT dc.client_id) OVER (PARTITION BY ft.client_id ORDER BY dd.data), 0)::NUMERIC AS total_cumulativo
 
 FROM analytics_v2.fato_transacoes ft
 LEFT JOIN analytics_v2.dim_datas dd ON ft.data_competencia_id = dd.data_id
-LEFT JOIN analytics_v2.dim_clientes dc ON ft.cliente_id = dc.cliente_id AND dc.client_id = ft.client_id
+LEFT JOIN analytics_v2.dim_clientes dc ON ft.client_id = dc.client_id AND dc.client_id = ft.client_id
 WHERE dd.data IS NOT NULL
 GROUP BY ft.client_id, dd.data
 
@@ -224,7 +224,7 @@ SELECT
   ROW_NUMBER() OVER (PARTITION BY ft.client_id ORDER BY ft.created_at DESC) AS ordem
 
 FROM analytics_v2.fato_transacoes ft
-LEFT JOIN analytics_v2.dim_clientes dc ON ft.cliente_id = dc.cliente_id AND dc.client_id = ft.client_id
+LEFT JOIN analytics_v2.dim_clientes dc ON ft.client_id = dc.client_id AND dc.client_id = ft.client_id
 WHERE ft.created_at IS NOT NULL
 ORDER BY ft.client_id, ft.created_at DESC;
 
@@ -242,11 +242,11 @@ SELECT
   dc.endereco_uf,
   dc.endereco_cidade,
   COALESCE(SUM(ft.total_value), 0)::NUMERIC AS receita_total,
-  COUNT(DISTINCT dc.cliente_id)::INTEGER AS total_clientes,
+  COUNT(DISTINCT dc.client_id)::INTEGER AS total_clientes,
   COUNT(DISTINCT ft.transacao_id)::INTEGER AS total_pedidos
 
 FROM analytics_v2.dim_clientes dc
-LEFT JOIN analytics_v2.fato_transacoes ft ON dc.cliente_id = ft.cliente_id AND dc.client_id = ft.client_id
+LEFT JOIN analytics_v2.fato_transacoes ft ON dc.client_id = ft.client_id AND dc.client_id = ft.client_id
 GROUP BY dc.client_id, dc.endereco_uf, dc.endereco_cidade;
 
 CREATE INDEX idx_mv_distribuicao_regional_client_id ON analytics_v2.mv_distribuicao_regional(client_id);

@@ -112,12 +112,12 @@ class DockerMCPAdapter:
         integration = tool_metadata.docker_mcp_integration
         tool_name = tool_metadata.name
 
-        async def docker_mcp_wrapper(cliente_id: str = "", **kwargs) -> dict[str, Any]:
+        async def docker_mcp_wrapper(client_id: str = "", **kwargs) -> dict[str, Any]:
             """
             Wrapper that calls the Docker MCP container.
 
             Args:
-                cliente_id: Client ID for context (injected by MCP)
+                client_id: Client ID for context (injected by MCP)
                 **kwargs: Tool-specific arguments
             """
             try:

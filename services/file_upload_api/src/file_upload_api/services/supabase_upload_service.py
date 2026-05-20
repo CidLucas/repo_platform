@@ -132,7 +132,7 @@ class SupabaseUploadService:
             result = self.storage.upload_file_for_cliente(
                 file_content=file_content,
                 filename=file.filename,
-                cliente_id=client_id,
+                client_id=client_id,
                 content_type=file.content_type,
                 job_id=job_id,
             )

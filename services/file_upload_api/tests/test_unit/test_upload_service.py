@@ -33,7 +33,7 @@ def test_process_upload_success(
     )
 
     # Simular os dados de entrada
-    cliente_id = uuid.uuid4()
+    client_id = uuid.uuid4()
     mock_file_content = b"Este e um arquivo de teste"
 
     # Criar um UploadFile mockado
@@ -56,7 +56,7 @@ def test_process_upload_success(
 
     # --- 2. Act (Execução) ---
 
-    response = service.process_upload(file=mock_file, client_id=cliente_id)
+    response = service.process_upload(file=mock_file, client_id=client_id)
 
     # --- 3. Assert (Verificação) ---
 
@@ -66,7 +66,7 @@ def test_process_upload_success(
     assert response.file_name == "teste.txt"
 
     # 3.2. Verificar chamada ao GCS (Storage)
-    expected_gcs_path = f"{cliente_id}/{test_job_id}-teste.txt"
+    expected_gcs_path = f"{client_id}/{test_job_id}-teste.txt"
     assert response.gcs_path == expected_gcs_path
 
     # Verifica a cadeia de chamadas no mock do GCS
@@ -84,7 +84,7 @@ def test_process_upload_success(
     # O payload da mensagem deve ser serializado corretamente
     expected_payload = {
         "job_id": str(test_job_id),
-        "client_id": str(cliente_id),
+        "client_id": str(client_id),
         "gcs_path": expected_gcs_path,
         "original_filename": "teste.txt",
         "content_type": "text/plain",

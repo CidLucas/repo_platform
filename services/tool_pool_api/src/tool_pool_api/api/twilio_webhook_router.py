@@ -274,7 +274,7 @@ async def twilio_inbound(
 
     try:
         result = await parse_supplier_reply_core(
-            cliente_id=str(supplier["client_id"]),
+            client_id=str(supplier["client_id"]),
             rfq_id=rfq["id"],
             reply_text=Body,
         )

@@ -8,7 +8,7 @@ and synthesizes their outputs into a coherent response.
 Skill hierarchy
 ---------------
 Layer 4  ORCHESTRATOR          this module — plans and coordinates
-Layer 3  DOMAIN SKILLS         AgentTypeRegistry entries, run via _WorkerInvoker
+Layer 3  DOMAIN SKILLS         AgentTypeRegistry entries, run via specialist subgraphs
                                (data-analyst, knowledge-assistant, customer-communication, …)
 Layer 2  TOOL SKILLS           deterministic single-purpose wrappers (future)
 Layer 1  PRIMITIVE TOOLS       MCP-exposed functions (supabase.query, bigquery.run_query, …)
@@ -23,7 +23,7 @@ parse_intent   classify request: simple | complex | uncertain; detect confirmati
 gather_context load tier, company, available Layer-3 skills
 decompose      (complex only) identify sub-tasks and their domains
 plan           (complex only) map sub-tasks to Layer-3 skills, order, flag mutations
-execute_step   run one Layer-3 skill via _WorkerInvoker; loops until plan is complete
+execute_step   run one Layer-3 skill via specialist subgraph; loops until plan is complete
 synthesize     combine step results into final user-facing response
 confirm        gate mutations / show plan; waits for user approval
 escalate       handle failures gracefully
@@ -48,7 +48,6 @@ from pydantic import BaseModel, Field
 
 from blu_agent_framework.registry import AgentTypeRegistry
 from blu_agent_framework.state import AgentState
-from blu_agent_framework.supervisor import _WorkerInvoker
 
 logger = logging.getLogger(__name__)
 
@@ -338,28 +337,39 @@ def make_plan_node(llm: Any, tier: str):
     return plan_node
 
 
-def make_execute_step_node(invoker: _WorkerInvoker, context_service: Any | None):
+def make_execute_step_node(llm: Any, mcp_executor: Any, context_service: Any | None):
     """
-    Executes the next pending Layer-3 skill in the plan.
+    Executes the next pending Layer-3 skill in the plan via a specialist subgraph.
 
     Finds the first step whose dependencies are all done, enriches its task
-    description with prior-step outputs, runs _WorkerInvoker.invoke(), and
+    description with prior-step outputs, compiles a cached specialist subgraph
+    (``use_specialist_graph``), invokes it with an isolated initial state, and
     updates the plan step status.
 
     Loops: route_after_step sends control back here until the plan is complete.
+
+    Args:
+        llm: LLM client shared with the orchestrator graph.
+        mcp_executor: MCPToolExecutor shared with the orchestrator graph.
+        context_service: Optional ContextService for client context loading.
     """
+    # Per-orchestrator-instance cache: slug → compiled specialist CompiledGraph
+    _compiled_specialists: dict[str, Any] = {}
 
     async def execute_step_node(state: AgentState) -> dict:
-        plan: list[dict]       = list(state.get("plan") or [])
-        step_results: dict     = dict(state.get("step_results") or {})
-        nome_empresa: str      = state.get("nome_empresa", "")
+        from langchain_core.messages import AIMessage as _AIMessage
+        from langchain_core.messages import HumanMessage as _HumanMessage
+
+        plan: list[dict]   = list(state.get("plan") or [])
+        step_results: dict = dict(state.get("step_results") or {})
 
         step = _get_next_step(plan)
         if not step:
             logger.warning("[execute_step] No executable pending step in plan")
             return {}
 
-        slug = step["skill_slug"]
+        raw  = step.get("skill_slug", "")
+        slug = raw.removeprefix("delegate_to_").replace("_", "-")
         cfg  = AgentTypeRegistry.get(slug)
         if cfg is None:
             logger.error("[execute_step] Unknown Layer-3 skill slug: '%s'", slug)
@@ -370,25 +380,84 @@ def make_execute_step_node(invoker: _WorkerInvoker, context_service: Any | None)
             return {"plan": plan}
 
         task = _enrich_task(step["task"], step, step_results)
-        logger.info("[execute_step] Step '%s' → skill '%s'", step["id"], slug)
+        logger.info("[execute_step] Step '%s' → specialist '%s'", step["id"], slug)
 
-        result = await invoker.invoke(
-            cfg=cfg,
-            task=task,
-            nome_empresa=nome_empresa,
-            context_service=context_service,
+        # Build and cache the specialist subgraph (no checkpointer — ephemeral)
+        if slug not in _compiled_specialists:
+            from blu_agent_framework.builder import AgentBuilder
+            from blu_agent_framework.config import AgentConfig
+            from blu_agent_framework.skill_factory import SkillFactory
+
+            agent_cfg = AgentConfig(
+                name=cfg.name,
+                role=cfg.slug,
+                enabled_tools=cfg.enabled_tools,
+                max_turns=cfg.max_turns,
+            )
+            skill_factory = SkillFactory(
+                llm=llm,
+                mcp_executor=mcp_executor,
+                agent_enabled_tools=cfg.enabled_tools,
+            )
+            compiled = (
+                AgentBuilder(agent_cfg, mcp_executor=mcp_executor, checkpointer=None)
+                .with_llm(llm)
+                .with_skill_factory(skill_factory)
+                .use_specialist_graph(cfg)
+                .build()
+            )
+            _compiled_specialists[slug] = compiled
+            logger.info("[execute_step] Compiled specialist graph for '%s'", slug)
+
+        graph = _compiled_specialists[slug]
+
+        # Build isolated initial state for the specialist invocation
+        from blu_agent_framework.state import create_initial_state
+
+        client_context = state.get("client_context")
+        initial_state = create_initial_state(
+            session_id=f"orchestrator-step-{step['id']}",
+            client_id=str(state.get("client_id") or ""),
+            messages=[_HumanMessage(content=task)],
+            agent_name=cfg.name,
+            agent_role=cfg.slug,
+            max_turns=cfg.max_turns,
+            client_context=client_context if isinstance(client_context, dict) else {},
+        )
+
+        error_summary: str | None = None
+        try:
+            result_state = await graph.ainvoke(initial_state)
+        except Exception as exc:
+            logger.exception(
+                "[execute_step] Specialist '%s' raised during ainvoke: %s", slug, exc
+            )
+            error_summary = str(exc)
+            result_state = {}
+
+        # Extract final AI message as the step summary
+        final_messages = result_state.get("messages", [])
+        last_ai = next(
+            (m for m in reversed(final_messages) if isinstance(m, _AIMessage) and m.content),
+            None,
+        )
+        summary = (
+            str(last_ai.content)
+            if last_ai
+            else (error_summary or "Specialist completed without a final response.")
         )
 
         for s in plan:
             if s["id"] == step["id"]:
-                s["status"] = "done" if not result.error else "failed"
-                s["result"] = result.summary
+                s["status"] = "done" if not error_summary else "failed"
+                s["result"] = summary
 
-        step_results[step["id"]] = result.summary
+        step_results[step["id"]] = summary
 
         updates: dict = {"plan": plan, "step_results": step_results}
-        if result.structured_data:
-            updates["structured_data"] = result.structured_data
+        structured_data = result_state.get("structured_data")
+        if structured_data:
+            updates["structured_data"] = structured_data
 
         return updates
 

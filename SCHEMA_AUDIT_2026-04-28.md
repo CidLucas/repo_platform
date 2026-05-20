@@ -440,7 +440,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ```sql
 CREATE OR REPLACE FUNCTION public.get_commercial_top_clients()
 RETURNS TABLE (
-  cliente_id BIGINT,
+  client_id BIGINT,
   cliente_nome TEXT,
   total_volume NUMERIC,
   total_revenue NUMERIC,
@@ -455,7 +455,7 @@ BEGIN
     SUM(f.valor_total)::NUMERIC as total_revenue,
     MAX(f.data_transacao) as last_purchase
   FROM analytics_v2.fato_transacoes f
-  LEFT JOIN analytics_v2.dim_clientes d ON f.cliente_id = d.id
+  LEFT JOIN analytics_v2.dim_clientes d ON f.client_id = d.id
   WHERE f.client_id = public.get_my_client_id()
     AND f.data_transacao >= NOW() - INTERVAL '90 days'
   GROUP BY d.id, d.nome

@@ -7,7 +7,7 @@ import {
   approveRequest,
   snoozeApproval,
 } from '../../api/approvals'
-import { fetchInsights } from '../../api/insights'
+import { fetchInsights, formatKpi } from '../../api/insights'
 import {
   fetchTodaySchedule,
   fetchCalendarSettings,
@@ -16,7 +16,8 @@ import {
 } from '../../api/agenda'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
-import RoutinesPanel from '../../components/shared/RoutinesPanel'
+import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
+import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
 
 type Tab = 'gantt' | 'hoje' | 'pendentes' | 'config'
 
@@ -251,21 +252,7 @@ export default function AgendaRoom() {
 
             {/* CONFIG */}
             <div className={`tc${tab === 'config' ? ' on' : ''}`} id="ag-config">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                <div style={{ background: 'var(--glass)', border: '1px solid var(--gb)', borderRadius: 'var(--r)', padding: '11px 12px' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 3 }}>Planejamento semanal automático</div>
-                  <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 7 }}>Preparar agenda toda:</div>
-                  <div className="pills"><span className="pill on">Segunda 07:00</span><span className="pill">Domingo 20:00</span></div>
-                </div>
-                <div style={{ background: 'var(--glass)', border: '1px solid var(--gb)', borderRadius: 'var(--r)', padding: '11px 12px' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 3 }}>Lembrete diário</div>
-                  <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 7 }}>Resumo do dia às:</div>
-                  <div className="pills"><span className="pill">06:30</span><span className="pill on">07:30</span><span className="pill">08:00</span></div>
-                </div>
-                <div style={{ marginTop: 4 }}>
-                  <RoutinesPanel domain="agenda" />
-                </div>
-              </div>
+              <RoutineConfigSection domain="agenda" />
             </div>
 
           </div>
@@ -273,6 +260,9 @@ export default function AgendaRoom() {
 
         <div className="rcol">
           <RColResizeHandle />
+          <CollapsiblePanel id="agenda-rotinas" icon="⚙️" title="Rotinas ativas">
+            <RoutineStatusWidget domain="agenda" />
+          </CollapsiblePanel>
           <CollapsiblePanel id="agenda-calendarios" icon="📆" title="Calendários" action={<button className="ph-add">＋</button>}>
             <div className="dr-sec">
                 <div className="dr-ttl">Hoje</div>
@@ -346,7 +336,7 @@ export default function AgendaRoom() {
                 {ins.severity === 'error' ? '⚠️' : ins.severity === 'warning' ? '🤝' : '📅'}
               </span>
               <div className="ich-body">
-                <span className="ich-tag tg-a">{ins.kpi ?? 'Agenda'}</span>
+                <span className="ich-tag tg-a">{formatKpi(ins.kpi)}</span>
                 <div className="ich-txt">{ins.title}</div>
               </div>
             </div>

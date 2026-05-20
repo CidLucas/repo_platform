@@ -31,8 +31,8 @@ async def main():
         print("No existing clientes_blu found. Please seed a client first.")
         return
 
-    cliente_id = uuid.UUID(row.data[0]["client_id"])
-    print("Using existing client_id:", cliente_id)
+    client_id = uuid.UUID(row.data[0]["client_id"])
+    print("Using existing client_id:", client_id)
 
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
@@ -42,7 +42,7 @@ async def main():
     ]
 
     await ctx.save_integration_config(
-        client_id=cliente_id,
+        client_id=client_id,
         provider="google",
         config_type="oauth2_client",
         oauth_client_id="test-client-id",
@@ -63,7 +63,7 @@ async def main():
     expires_at = datetime.utcnow() + timedelta(seconds=tokens.expires_in or 0)
 
     await ctx.save_integration_tokens(
-        client_id=cliente_id,
+        client_id=client_id,
         provider="google",
         access_token=tokens.access_token,
         refresh_token=tokens.refresh_token,
@@ -74,7 +74,7 @@ async def main():
     )
     print("Saved integration tokens")
 
-    wrapper = await ctx.get_integration_tokens(cliente_id, "google", auto_refresh=False)
+    wrapper = await ctx.get_integration_tokens(client_id, "google", auto_refresh=False)
     if not wrapper:
         print("ERROR: tokens not found")
         return

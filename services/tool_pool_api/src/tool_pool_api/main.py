@@ -10,12 +10,9 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .api.admin_router import router as admin_router
-from .api.engagement_dispatch_router import router as engagement_dispatch_router
 from .api.inbox_dispatch_router import router as inbox_dispatch_router
 from .api.integrations_router import router as integrations_router
-from .api.reports_dispatch_router import router as reports_dispatch_router
 from .api.reports_router import router as reports_router
-from .api.rfq_follow_ups_router import router as rfq_follow_ups_router
 from .api.twilio_webhook_router import router as twilio_webhook_router
 
 logger = logging.getLogger(__name__)
@@ -126,11 +123,8 @@ except ImportError as e:
 app.include_router(admin_router)
 app.include_router(integrations_router)
 app.include_router(twilio_webhook_router)
-app.include_router(rfq_follow_ups_router)
 app.include_router(inbox_dispatch_router)
-app.include_router(engagement_dispatch_router)
 app.include_router(reports_router)
-app.include_router(reports_dispatch_router)
 
 # Add database timeout middleware
 app.add_middleware(DatabaseTimeoutMiddleware)

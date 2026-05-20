@@ -1,49 +1,17 @@
 # blu_prompt_management
 
-Simplified prompt management for Blu services using Langfuse as source of truth.
+Prompt management for Blu services — Langfuse as source of truth with builtin fallback.
 
-## Purpose
-
-This library centralizes all prompt-related functionality:
-- Loading prompts from Langfuse (primary) with builtin fallback
-- Variable substitution via Langfuse's `{{variable}}` syntax
-- Redis caching via ContextService
-- Unified dynamic prompt building
-
-## Architecture (Simplified)
+## How It Works
 
 ```
-1. Langfuse (source of truth)
-   - Version control via Langfuse UI
-   - A/B testing via labels (production, staging, etc.)
-   - Variables: {{nome_empresa}}, {{tools_description}}, etc.
-
-2. Builtin templates (fallback)
-   - Jinja2-based rendering for {% if %}, {% for %}
-   - Used when Langfuse is unavailable
+build_prompt(name, variables)
+  ├─ 1. Try Langfuse SDK get_prompt(name) + compile(variables)
+  └─ 2. Fallback → BUILTIN_TEMPLATES in templates.py (Jinja2)
 ```
 
-## Features
-
-### Prompt Loader (`loader.py`)
-- Load prompts from Langfuse with SDK's native `get_prompt()` + `compile()`
-- Fallback to builtin templates
-- Circuit breaker for connection failures
-- Returns `LoadedPrompt` with `langfuse_prompt` for trace linking
-
-### Dynamic Builder (`dynamic_builder.py`)
-- `build_prompt()` - Unified entry point for all prompts
-- `build_prompt_full()` - Returns full `LoadedPrompt` with metadata
-- Redis caching via ContextService
-
-### Templates (`templates.py`)
-- Built-in prompt templates (system prompts, RAG, etc.)
-- Jinja2-based rendering for complex logic
-
-### Variables (`variables.py`)
-- Variable extraction from client context (`SafeClientContext`)
-- Safe variable substitution
-- Default value handling
+All prompts go through **one entry point**: `build_prompt(name, variables)`.
+Never use `compose_prompt` — it has been removed.
 
 ## Installation
 
@@ -53,79 +21,117 @@ poetry add blu_prompt_management
 
 ## Usage
 
-### Load Prompt (Async)
 ```python
 from blu_prompt_management import build_prompt
 
-# Simple usage
 content = await build_prompt(
-    name="atendente/default",
-    variables={"nome_empresa": "Acme", "tools_description": "..."},
-)
-
-# With Redis caching
-content = await build_prompt(
-    name="atendente/default",
-    variables={"nome_empresa": "Acme"},
-    context_service=ctx_service,
-)
-
-# With custom Langfuse label
-content = await build_prompt(
-    name="atendente/default",
-    variables={"nome_empresa": "Acme"},
-    langfuse_label="staging",
+    name="agents/frontdesk",
+    variables={"nome_empresa": "Acme", "tier": "SME"},
 )
 ```
 
-### Get Full LoadedPrompt (for trace linking)
 ```python
+# With full metadata (for Langfuse trace linking)
 from blu_prompt_management import build_prompt_full
 
 loaded = await build_prompt_full(
-    name="atendente/default",
-    variables={"nome_empresa": "Acme"},
+    name="orchestrator/synthesize",
+    variables={"step_results": "..."},
 )
-
-# Use for trace linking
-print(loaded.langfuse_prompt)  # Langfuse prompt object
-print(loaded.get_trace_metadata())  # {prompt_name, prompt_version, ...}
+print(loaded.langfuse_prompt)        # Langfuse prompt object
+print(loaded.get_trace_metadata())   # {prompt_name, prompt_version, …}
 ```
 
-### Direct Loader Access
+## Prompt Naming Conventions
+
+All prompt names follow a structured namespace:
+
+| Prefix          | Used By                                    | Examples                                                                                              |
+| --------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `agents/`       | L3 specialist system prompts               | `agents/frontdesk`                                                                                    |
+| `orchestrator/` | L4 orchestrator nodes                      | `orchestrator/parse-intent`, `orchestrator/decompose`, `orchestrator/plan`, `orchestrator/synthesize` |
+| `skill:`        | L2 skill system prompts                    | `skill:analyze_csv:system`, `skill:rag_search:system`                                                 |
+| `fragment/`     | Modular prompt blocks composed into agents | `fragment/sql-schema`, `fragment/rag-rules`, `fragment/context-gatherer-base`                         |
+| `specialists/`  | Internal routing classifiers               | `specialists/classify-skill-intent`                                                                   |
+| `tool/`         | Tool-level prompt helpers                  | `tool/rag-query-rewrite`, `tool/elicitation-clarify`, `tool/sql-safety-system`                        |
+
+## All Registered Prompts
+
+### Orchestrator
+
+- `orchestrator/parse-intent` — classifies request as simple / complex / uncertain
+- `orchestrator/decompose` — breaks request into domain sub-tasks
+- `orchestrator/plan` — maps sub-tasks to L3 skill slugs with dependency ordering
+- `orchestrator/synthesize` — combines step results into a final cohesive response
+
+### Agent System Prompts
+
+- `agents/frontdesk` — entry-point agent with inline RAG/SQL and routing instructions
+
+### Skill System Prompts
+
+- `skill:analyze_csv:system`
+- `skill:rag_search:system`
+- `skill:extract_document:system`
+- `skill:write_to_kb:system`
+
+### Fragment Prompts (Context Gatherer)
+
+- `fragment/context-gatherer-base`
+- `fragment/transaction-extraction-rules`
+- `fragment/schema-mapping-workflow`
+- `fragment/routine-definition-workflow`
+- `fragment/knowledge-curation-workflow`
+- `fragment/confirmation-patterns`
+
+### General Fragments
+
+- `fragment/standalone-base` — base identity for standalone agents
+- `fragment/sql-schema` — DB schema injection
+- `fragment/sql-rules` — SQL generation rules
+- `fragment/sql-examples` — query patterns
+- `fragment/rag-rules` — RAG query rewriting
+
+### Tool Helpers
+
+- `tool/rag-query-rewrite`
+- `tool/rag-context`
+- `tool/elicitation-clarify`
+- `tool/sql-safety-system`
+
+### Internal Classifiers
+
+- `specialists/classify-skill-intent`
+
+## Template Variables
+
+Builtin templates use flat Jinja2 syntax. Common variables:
+
+| Variable                   | Source                        |
+| -------------------------- | ----------------------------- |
+| `{{ nome_empresa }}`       | `client_context.nome_empresa` |
+| `{{ tier }}`               | `client_context.tier`         |
+| `{{ schema_description }}` | DB schema for SQL agents      |
+| `{{ tools_description }}`  | Formatted tool list           |
+| `{{ step_results }}`       | Orchestrator step outputs     |
+
+## Adding a New Prompt
+
+1. Create the prompt in Langfuse under the appropriate namespace (e.g., `agents/my-agent`).
+2. Add a builtin fallback in `templates.py`:
+
 ```python
-from blu_prompt_management import PromptLoader
-
-loader = PromptLoader()
-loaded = await loader.load("atendente/default", variables={"nome_empresa": "Blu"})
-print(loaded.content)
+BUILTIN_TEMPLATES["agents/my-agent"] = """
+You are {{ nome_empresa }}'s assistant for domain X.
+…
+"""
 ```
 
-### Builtin Templates (Sync)
-```python
-from blu_prompt_management import build_prompt_sync
-
-# For contexts where async is not available
-content = build_prompt_sync(
-    name="atendente/default",
-    variables={"nome_empresa": "Blu"},
-)
-```
-
-### Render with Jinja2 (for builtin templates)
-```python
-from blu_prompt_management import TemplateRenderer
-
-renderer = TemplateRenderer()
-content = renderer.render(
-    template="Hello {{ nome_empresa }}!",
-    variables={"nome_empresa": "Blu"}
-)
-# Output: "Hello Blu!"
-```
+3. Reference the prompt name in the agent's `AgentTypeConfig.prompt_name` field in
+   `libs/blu_agent_framework/src/blu_agent_framework/registry.py`.
 
 ## Dependencies
 
-- `blu_observability_bootstrap` - Langfuse client
-- `blu_context_service` - Redis caching (optional)
-- `jinja2` - Template rendering for builtins
+- `blu_observability_bootstrap` — Langfuse client
+- `blu_context_service` — Redis caching (optional)
+- `jinja2` — Template rendering for builtins

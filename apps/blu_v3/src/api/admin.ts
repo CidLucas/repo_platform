@@ -58,17 +58,30 @@ function buildConnectionDetail(provider: string, meta: Record<string, unknown>):
 // ── Integrations ───────────────────────────────────────────────────────────
 
 export async function fetchIntegrations(clientId: string): Promise<Integration[]> {
-  const { data, error } = await supabase
-    .from('credencial_servico_externo')
-    .select('id, client_id, tipo, nome, tipo_servico, nome_servico, status, ativo, connection_metadata, created_at, updated_at')
-    .eq('client_id', clientId)
-    .order('created_at', { ascending: false })
+  const [credResult, tokenResult, polpResult] = await Promise.all([
+    supabase
+      .from('credencial_servico_externo')
+      .select('id, client_id, tipo, nome, tipo_servico, nome_servico, status, ativo, connection_metadata, created_at, updated_at')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('integration_tokens')
+      .select('id, client_id, provider, account_email, scopes, updated_at, created_at')
+      .eq('client_id', clientId),
+    supabase
+      .from('polp_integrations')
+      .select('id, client_id, polp_integration_id, institution_id, status, execution_status, error, last_updated_at, created_at, updated_at')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
 
-  if (error) throw error
+  if (credResult.error) throw credResult.error
 
-  // Deduplicate by provider — keep latest row per provider type
+  // Deduplicate credentials by provider — keep latest row per provider type
   const seenProviders = new Set<string>()
-  const deduped = (data ?? []).filter((row) => {
+  const deduped = (credResult.data ?? []).filter((row) => {
     const provider = (
       (row.tipo as string | null) ??
       (row.tipo_servico as string | null) ??
@@ -81,7 +94,7 @@ export async function fetchIntegrations(clientId: string): Promise<Integration[]
     return true
   })
 
-  return deduped.map((row) => {
+  const credIntegrations: Integration[] = deduped.map((row) => {
     const rawProvider =
       (row.tipo as string | null) ??
       (row.tipo_servico as string | null) ??
@@ -101,9 +114,80 @@ export async function fetchIntegrations(clientId: string): Promise<Integration[]
       connection_detail: buildConnectionDetail(rawProvider.toLowerCase(), meta),
     }
   })
+
+  // Synthesize OAuth token integrations from integration_tokens
+  const oauthIntegrations: Integration[] = []
+  for (const token of (tokenResult.data ?? [])) {
+    if (token.provider !== 'google') continue
+    const scopes = (token.scopes as string[] | null) ?? []
+    const tokenId = String(token.id)
+
+    if (scopes.some((s: string) => s.includes('drive'))) {
+      oauthIntegrations.push({
+        id: `oauth:${tokenId}`,
+        client_id: token.client_id as string,
+        provider: 'google_drive',
+        name: token.account_email as string | null,
+        status: 'connected',
+        last_synced_at: token.updated_at as string | null,
+        error_message: null,
+        created_at: token.created_at as string,
+        connection_detail: token.account_email as string | null,
+      })
+    }
+
+    if (scopes.some((s: string) => s.includes('calendar'))) {
+      oauthIntegrations.push({
+        id: `oauth:${tokenId}`,
+        client_id: token.client_id as string,
+        provider: 'google_calendar',
+        name: token.account_email as string | null,
+        status: 'connected',
+        last_synced_at: token.updated_at as string | null,
+        error_message: null,
+        created_at: token.created_at as string,
+        connection_detail: token.account_email as string | null,
+      })
+    }
+  }
+
+  // Exclude credential rows whose provider is now covered by an OAuth token
+  const oauthProviderSet = new Set(oauthIntegrations.map((i) => i.provider))
+  const filteredCreds = credIntegrations.filter((i) => !oauthProviderSet.has(i.provider))
+
+  // Synthesize Polp Open Finance integration entry from polp_integrations table
+  const polpIntegrations: Integration[] = []
+  const polpRow = polpResult.data
+  if (polpRow) {
+    const polpStatus = polpRow.status as string
+    let status: IntegrationStatus = 'disconnected'
+    if (polpStatus === 'UPDATED') status = 'connected'
+    else if (polpStatus === 'LOGIN_ERROR' || polpRow.error) status = 'error'
+    else if (polpStatus === 'UPDATING' || polpStatus === 'WAITING_USER_INPUT') status = 'disconnected'
+    polpIntegrations.push({
+      id: String(polpRow.id),
+      client_id: polpRow.client_id as string,
+      provider: 'polp',
+      name: 'Open Finance',
+      status,
+      last_synced_at: (polpRow.last_updated_at as string | null) ?? (polpRow.updated_at as string | null),
+      error_message: (polpRow.error as string | null) ?? null,
+      created_at: polpRow.created_at as string,
+      connection_detail: polpStatus === 'UPDATING' ? 'Sincronizando…' : polpStatus === 'WAITING_USER_INPUT' ? 'Aguardando autenticação' : null,
+    })
+  }
+
+  return [...filteredCreds, ...oauthIntegrations, ...polpIntegrations]
 }
 
 export async function disconnectIntegration(integrationId: string): Promise<void> {
+  // OAuth token integrations use the `oauth:<uuid>` prefix
+  if (integrationId.startsWith('oauth:')) {
+    const tokenId = integrationId.slice(6)
+    const { error } = await supabase.from('integration_tokens').delete().eq('id', tokenId)
+    if (error) throw error
+    return
+  }
   const { error } = await supabase
     .from('credencial_servico_externo')
     .update({ status: 'disconnected', ativo: false })

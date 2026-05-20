@@ -27,7 +27,7 @@ DECLARE
     v_ft_record RECORD;
     v_column_mapping JSONB;
     v_data_source_id UUID;
-    v_cliente_id BIGINT;
+    v_client_id BIGINT;
     v_fornecedor_id BIGINT;
     v_produto_id BIGINT;
     v_data_id BIGINT;
@@ -182,7 +182,7 @@ BEGIN
                     endereco_uf = COALESCE(EXCLUDED.endereco_uf, analytics_v2.dim_clientes.endereco_uf),
                     atualizado_em = now();
 
-                SELECT cliente_id INTO v_cliente_id FROM analytics_v2.dim_clientes
+                SELECT client_id INTO v_client_id FROM analytics_v2.dim_clientes
                 WHERE client_id = v_client_id AND cpf_cnpj = v_cliente_cpf_cnpj
                 LIMIT 1;
             END IF;
@@ -250,14 +250,14 @@ BEGIN
 
             -- Insert into fato_transacoes
             INSERT INTO analytics_v2.fato_transacoes (
-                transacao_id, client_id, data_competencia_id, cliente_id, fornecedor_id, produto_id,
+                transacao_id, client_id, data_competencia_id, client_id, fornecedor_id, produto_id,
                 documento, quantidade, valor_unitario, valor, status
             ) VALUES (
-                v_transacao_id, v_client_id, v_data_id, v_cliente_id, v_fornecedor_id, v_produto_id,
+                v_transacao_id, v_client_id, v_data_id, v_client_id, v_fornecedor_id, v_produto_id,
                 v_documento, v_quantidade, v_valor_unitario, v_valor, v_status
             )
             ON CONFLICT (transacao_id, client_id) DO UPDATE SET
-                cliente_id = EXCLUDED.cliente_id,
+                client_id = EXCLUDED.client_id,
                 fornecedor_id = EXCLUDED.fornecedor_id,
                 produto_id = EXCLUDED.produto_id,
                 quantidade = EXCLUDED.quantidade,

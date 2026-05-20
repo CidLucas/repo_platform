@@ -31,7 +31,7 @@ from blu_prompt_management.loader import PromptLoader
 def mock_context():
     """Create realistic mock BluClientContext."""
     context = Mock(spec=BluClientContext)
-    context.cliente_id = UUID("550e8400-e29b-41d4-a716-446655440000")
+    context.client_id = UUID("550e8400-e29b-41d4-a716-446655440000")
     context.user_role = "analyst"
     context.tenant_name = "Acme Analytics"
     context.empresa_id = UUID("660e8400-e29b-41d4-a716-446655440001")
@@ -273,7 +273,7 @@ class TestPipelineSecurityValidation:
         )
 
         # Tenant ID must be in the prompt
-        assert str(mock_context.cliente_id) in assembled_prompt or "client_id" in assembled_prompt
+        assert str(mock_context.client_id) in assembled_prompt or "client_id" in assembled_prompt
 
     @pytest.mark.asyncio
     async def test_pipeline_enforces_role_based_access(

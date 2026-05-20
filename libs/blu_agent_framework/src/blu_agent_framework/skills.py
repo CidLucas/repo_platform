@@ -94,13 +94,11 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
     "analyze_csv": SkillDefinition(
         name="analyze_csv",
         description=(
-            "Execute DuckDB SQL queries on uploaded CSV datasets and return "
+            "Execute SQL queries on uploaded CSV datasets and return "
             "structured results (tables, aggregates, trends)."
         ),
         required_tool_names=[
-            "list_csv_datasets",
             "peek_csv_columns",
-            "execute_csv_query",
         ],
         prompt_name="skill:analyze_csv:system",
         max_turns=5,
@@ -142,27 +140,6 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
         tags=["ocr", "documents", "extraction"],
     ),
     # ------------------------------------------------------------------
-    # RFQ / Procurement
-    # ------------------------------------------------------------------
-    "generate_rfq": SkillDefinition(
-        name="generate_rfq",
-        description=(
-            "Parse a buying list, validate it, select suppliers, and dispatch "
-            "RFQ requests. Transactional — partial output is invalid."
-        ),
-        required_tool_names=[
-            "parse_buying_list",
-            "validate_buying_list",
-            "list_suppliers",
-            "dispatch_rfq",
-            "check_rfq_responses",
-        ],
-        prompt_name="skill:generate_rfq:system",
-        max_turns=6,
-        on_max_turns="raise",  # Transactional: all suppliers must be dispatched
-        tags=["rfq", "procurement", "dispatch"],
-    ),
-    # ------------------------------------------------------------------
     # Knowledge-base persistence
     # ------------------------------------------------------------------
     "write_to_kb": SkillDefinition(
@@ -176,26 +153,5 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
         max_turns=2,
         on_max_turns="return_partial",
         tags=["knowledge-base", "persistence", "documents"],
-    ),
-    # ------------------------------------------------------------------
-    # Report generation (multi-source)
-    # ------------------------------------------------------------------
-    "generate_report": SkillDefinition(
-        name="generate_report",
-        description=(
-            "Build an executive report by combining CSV data, knowledge-base "
-            "context, and optionally exporting to Google Sheets."
-        ),
-        required_tool_names=[
-            "list_csv_datasets",
-            "execute_csv_query",
-            "executar_rag_cliente",
-            "create_spreadsheet_with_data",
-            "write_to_sheet",
-        ],
-        prompt_name="skill:generate_report:system",
-        max_turns=6,
-        on_max_turns="return_partial",
-        tags=["analytics", "rag", "google", "report"],
     ),
 }

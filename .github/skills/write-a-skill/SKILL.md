@@ -52,6 +52,23 @@ description: Brief description of capability. Use when [specific triggers].
 
 [Step-by-step processes with checklists for complex tasks]
 
+## When to Use
+
+Trigger conditions for this skill.
+
+## Procedure
+
+1. Step one
+2. Step two
+
+## Pitfalls
+
+- Known failure modes and fixes
+
+## Verification
+
+How to confirm it worked.
+
 ## Advanced features
 
 [Link to separate files: See [REFERENCE.md](REFERENCE.md)]

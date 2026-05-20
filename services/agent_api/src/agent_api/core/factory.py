@@ -2,7 +2,7 @@
 UnifiedAgentFactory — builds and caches compiled LangGraph agents.
 
 Two graph modes:
-  supervisor  — AgentBuilder.use_supervisor_graph(); one graph per tier cached indefinitely.
+  frontdesk   — AgentBuilder.use_default_graph(); one graph per tier cached indefinitely.
   standalone  — AgentBuilder.use_default_graph() or custom graph; one graph per session_id.
 """
 
@@ -22,58 +22,13 @@ from blu_agent_framework.state import create_initial_state
 from blu_context_service import ContextService
 from blu_context_service.redis_service import RedisService
 from blu_llm_service import get_model
-from blu_prompt_management import build_prompt, compose_prompt
+from blu_prompt_management import build_prompt
+from blu_prompt_management.dynamic_builder import _join_fragments
 from blu_supabase_client import get_supabase_client
 
 from agent_api.config import get_settings
 
 logger = logging.getLogger(__name__)
-
-
-def _render_schema_description(data_schema) -> str:
-    """
-    Render a BluClientContext.data_schema (DataSchema) into a markdown string
-    suitable for injection into the fragment/sql-schema prompt variable.
-
-    Returns an empty string if data_schema has no table_schemas, so the
-    fragment can fall back to its static analytics_v2 content.
-    """
-    try:
-        schemas = getattr(data_schema, "table_schemas", None)
-        if not schemas:
-            return ""
-
-        lines: list[str] = []
-        for ts in schemas:
-            table_name: str = getattr(ts, "table_name", "")
-            display: str = getattr(ts, "display_name", None) or table_name
-            description: str = getattr(ts, "description", None) or ""
-            is_primary: bool = getattr(ts, "is_primary", False)
-            columns: dict = getattr(ts, "columns", {}) or {}
-            join_keys: list = getattr(ts, "join_keys", []) or []
-
-            heading = f"## {table_name}" + (" (Primary)" if is_primary else "")
-            if display and display != table_name:
-                heading += f" — {display}"
-            lines.append(heading)
-
-            if description:
-                lines.append(description)
-
-            if columns:
-                lines.append("| Column | Description |")
-                lines.append("|--------|-------------|")
-                for col, col_desc in columns.items():
-                    lines.append(f"| `{col}` | {col_desc} |")
-
-            if join_keys:
-                lines.append(f"Join keys: {', '.join(join_keys)}")
-
-            lines.append("")
-
-        return "\n".join(lines).strip()
-    except Exception:
-        return ""
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +39,7 @@ _checkpointer = None
 _context_service: ContextService | None = None
 _mcp_manager: MCPConnectionManager | None = None
 _mcp_executor: MCPToolExecutor | None = None
-_supervisor_graphs: dict[str, Any] = {}   # tier → CompiledGraph
+_frontdesk_graphs: dict[str, Any] = {}   # "frontdesk:{tier}" → CompiledGraph
 _standalone_graphs: dict[str, Any] = {}  # session_id → CompiledGraph
 _factory_instance: "UnifiedAgentFactory | None" = None
 
@@ -163,38 +118,46 @@ class UnifiedAgentFactory:
     Standalone graphs are per-session (rebuilt when catalog config changes).
     """
 
-    def get_supervisor_graph(self, tier: str, context_service: ContextService) -> Any:
+    def get_frontdesk_graph(self, tier: str, context_service: ContextService) -> Any:
         """
-        Return a cached compiled supervisor graph for *tier*, building it if needed.
+        Return a cached compiled Frontdesk graph for *tier*, building it if needed.
 
-        The graph is built once and reused; per-session state is managed by the
-        Redis checkpointer via LangGraph thread_id.
+        Uses use_default_graph() — same topology as standalone agents.
+        One compiled graph per tier; per-session state lives in the Redis checkpointer.
         """
-        if tier not in _supervisor_graphs:
+        cache_key = f"frontdesk:{tier}"
+        if cache_key not in _frontdesk_graphs:
             settings = get_settings()
             llm = get_model()
             mcp_exec = get_mcp_executor()
             checkpointer = get_checkpointer()
 
+            cfg = AgentTypeRegistry.get("frontdesk")
+            enabled_tools = cfg.enabled_tools if cfg else ["executar_rag_cliente", "execute_sql"]
+            max_turns = cfg.max_turns if cfg else 4
+
             graph = (
                 AgentBuilder(
                     AgentConfig(
-                        name="supervisor",
-                        role="Supervisor agent",
+                        name="Frontdesk",
+                        role="Entry point specialist",
                         mcp_url=settings.MCP_SERVER_URL,
+                        enabled_tools=enabled_tools,
+                        max_turns=max_turns,
+                        use_langfuse=True,
                     ),
                     mcp_executor=mcp_exec,
                 )
                 .with_llm(llm)
                 .with_checkpointer(checkpointer)
                 .with_context_service(context_service)
-                .use_supervisor_graph(tier=tier)
+                .use_default_graph()
                 .build()
             )
-            _supervisor_graphs[tier] = graph
-            logger.info("[Factory] Built supervisor graph for tier=%s", tier)
+            _frontdesk_graphs[cache_key] = graph
+            logger.info("[Factory] Built frontdesk graph for tier=%s", tier)
 
-        return _supervisor_graphs[tier]
+        return _frontdesk_graphs[cache_key]
 
     async def get_standalone_agent(
         self,
@@ -254,11 +217,14 @@ class UnifiedAgentFactory:
         # Use AgentTypeRegistry fragments if available, otherwise prompt_name
         registry_cfg = AgentTypeRegistry.get(slug)
 
-        # Render dynamic SQL schema if this agent uses the sql-schema fragment
-        schema_description = ""
-        if registry_cfg and "fragment/sql-schema" in (registry_cfg.fragments or []):
-            if client_context_obj and getattr(client_context_obj, "data_schema", None):
-                schema_description = _render_schema_description(client_context_obj.data_schema)
+        from blu_prompt_management.variables import VariableExtractor
+
+        # Render dynamic SQL schema if this agent uses execute_sql
+        sql_schema_context = ""
+        if registry_cfg and "execute_sql" in (registry_cfg.enabled_tools or []):
+            sql_schema_context = VariableExtractor.render_sql_schema(
+                getattr(client_context_obj, "data_schema", None)
+            )
 
         variables: dict = {
             "nome_empresa": nome_empresa,
@@ -276,7 +242,7 @@ class UnifiedAgentFactory:
             "google_connected": bool(collected_context.get("google_email")),
             "knowledge_updated_at": "",
             "document_count": 0,
-            "schema_description": schema_description,
+            "sql_schema_context": sql_schema_context,
         }
 
         if prompt_name:
@@ -289,12 +255,12 @@ class UnifiedAgentFactory:
 
         if not system_prompt and registry_cfg and registry_cfg.fragments:
             try:
-                system_prompt = await compose_prompt(
+                system_prompt = await _join_fragments(
                     fragments=registry_cfg.fragments, variables=variables,
                     context_service=ctx_service
                 )
             except Exception as exc:
-                logger.warning("[Factory] compose_prompt failed: %s", exc)
+                logger.warning("[Factory] fragment join failed: %s", exc)
 
         if not system_prompt:
             system_prompt = (
@@ -347,8 +313,8 @@ class UnifiedAgentFactory:
     def clear_session_cache(self, session_id: str) -> None:
         _standalone_graphs.pop(session_id, None)
 
-    def clear_supervisor_cache(self) -> None:
-        _supervisor_graphs.clear()
+    def clear_frontdesk_cache(self) -> None:
+        _frontdesk_graphs.clear()
 
 
 # Module-level factory singleton

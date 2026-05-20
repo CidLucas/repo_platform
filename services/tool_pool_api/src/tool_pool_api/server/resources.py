@@ -44,13 +44,13 @@ logger = logging.getLogger(__name__)
 
 
 async def _resolve_client_context(
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> BluClientContext:
     """
     Resolve o contexto do cliente via ID explícito ou AccessToken do MCP.
 
     Args:
-        cliente_id: ID do cliente (opcional, usado pelo atendente_core)
+        client_id: ID do cliente (opcional, usado pelo atendente_core)
 
     Returns:
         BluClientContext do cliente
@@ -60,15 +60,15 @@ async def _resolve_client_context(
     """
     ctx_service = get_context_service()
 
-    if cliente_id:
+    if client_id:
         try:
-            uuid_obj = UUID(cliente_id)
+            uuid_obj = UUID(client_id)
             context = await ctx_service.get_client_context_by_id(uuid_obj)
             if not context:
-                raise ResourceError(f"Cliente não encontrado: {cliente_id}")
+                raise ResourceError(f"Cliente não encontrado: {client_id}")
             return context
         except ValueError:
-            raise ResourceError(f"ID de cliente inválido: {cliente_id}")
+            raise ResourceError(f"ID de cliente inválido: {client_id}")
     else:
         # Fallback to AccessToken from MCP request
         access_token = get_access_token()
@@ -80,13 +80,13 @@ async def _resolve_client_context(
 # =============================================================================
 
 
-async def _get_knowledge_summary(cliente_id: str | None = None) -> str:
+async def _get_knowledge_summary(client_id: str | None = None) -> str:
     """
     Retorna um resumo da base de conhecimento do cliente.
 
     Queries ``vector_db.documents`` via Supabase REST API.
     """
-    context = await _resolve_client_context(cliente_id)
+    context = await _resolve_client_context(client_id)
 
     enabled_tools = context.get_enabled_tools_list()
     if "executar_rag_cliente" not in enabled_tools:
@@ -153,7 +153,7 @@ async def _get_knowledge_summary(cliente_id: str | None = None) -> str:
         )
 
 
-async def _search_knowledge(query: str, cliente_id: str | None = None, limit: int = 5) -> str:
+async def _search_knowledge(query: str, client_id: str | None = None, limit: int = 5) -> str:
     """
     Busca documentos na base de conhecimento (read-only, sem LLM).
 
@@ -162,7 +162,7 @@ async def _search_knowledge(query: str, cliente_id: str | None = None, limit: in
 
     Args:
         query: Texto de busca
-        cliente_id: ID do cliente
+        client_id: ID do cliente
         limit: Número máximo de resultados
 
     Returns:
@@ -172,7 +172,7 @@ async def _search_knowledge(query: str, cliente_id: str | None = None, limit: in
 
     import httpx
 
-    context = await _resolve_client_context(cliente_id)
+    context = await _resolve_client_context(client_id)
 
     enabled = context.get_enabled_tools_list()
     if "executar_rag_cliente" not in enabled:
@@ -234,7 +234,7 @@ async def _search_knowledge(query: str, cliente_id: str | None = None, limit: in
 # =============================================================================
 
 
-async def _get_client_config(cliente_id: str | None = None) -> str:
+async def _get_client_config(client_id: str | None = None) -> str:
     """
     Retorna a configuração do cliente em formato legível.
 
@@ -247,7 +247,7 @@ async def _get_client_config(cliente_id: str | None = None) -> str:
     - Tier do cliente
     - Prompt base (se configurado)
     """
-    context = await _resolve_client_context(cliente_id)
+    context = await _resolve_client_context(client_id)
 
     # Get enabled tools and tier
     enabled_tools = context.get_enabled_tools_list()
@@ -326,14 +326,14 @@ async def _get_client_config(cliente_id: str | None = None) -> str:
     return result
 
 
-async def _get_client_prompt(cliente_id: str | None = None) -> str:
+async def _get_client_prompt(client_id: str | None = None) -> str:
     """
     Retorna o prompt base configurado para o cliente.
 
     Note: Prompts are now managed via Langfuse. This resource shows
     the fallback prompt from available_tools.default_system_prompt if set.
     """
-    context = await _resolve_client_context(cliente_id)
+    context = await _resolve_client_context(client_id)
 
     default_prompt = (
         context.available_tools.get("default_system_prompt") if context.available_tools else None
@@ -401,7 +401,7 @@ async def _load_prompt(name: str, langfuse_label: str = "production") -> dict:
 
 
 def _get_prompt_template(
-    name: str, version: int | None = None, cliente_id: str | None = None
+    name: str, version: int | None = None, client_id: str | None = None
 ) -> PromptTemplate | None:
     """
     Busca um prompt template do banco de dados (legacy, for version-specific lookups).
@@ -412,16 +412,16 @@ def _get_prompt_template(
     Args:
         name: Nome do prompt (ex: 'atendente/system')
         version: Versão específica (None = mais recente ativa)
-        cliente_id: ID do cliente para buscar override
+        client_id: ID do cliente para buscar override
 
     Returns:
         PromptTemplate ou None se não encontrado
     """
     with SessionLocal() as db:
-        # Se cliente_id fornecido, tenta buscar prompt específico primeiro
-        if cliente_id:
+        # Se client_id fornecido, tenta buscar prompt específico primeiro
+        if client_id:
             try:
-                uuid_obj = UUID(cliente_id)
+                uuid_obj = UUID(client_id)
 
                 # Query para prompt específico do cliente
                 query = select(PromptTemplate).where(
@@ -440,7 +440,7 @@ def _get_prompt_template(
                     return result
 
             except ValueError:
-                logger.warning(f"cliente_id inválido: {cliente_id}")
+                logger.warning(f"client_id inválido: {client_id}")
 
         # Fallback: busca prompt global
         query = select(PromptTemplate).where(
@@ -457,7 +457,7 @@ def _get_prompt_template(
         return db.exec(query).first()
 
 
-def _list_prompt_templates(cliente_id: str | None = None) -> list[PromptTemplate]:
+def _list_prompt_templates(client_id: str | None = None) -> list[PromptTemplate]:
     """
     Lista todos os prompts disponíveis (globais + específicos do cliente).
     """
@@ -465,9 +465,9 @@ def _list_prompt_templates(cliente_id: str | None = None) -> list[PromptTemplate
         # Busca prompts globais
         query = select(PromptTemplate).where(PromptTemplate.is_active == True)
 
-        if cliente_id:
+        if client_id:
             try:
-                uuid_obj = UUID(cliente_id)
+                uuid_obj = UUID(client_id)
                 # Inclui prompts do cliente também
                 query = query.where(
                     (PromptTemplate.client_id == None) | (PromptTemplate.client_id == uuid_obj)
@@ -487,20 +487,20 @@ def _list_prompt_templates(cliente_id: str | None = None) -> list[PromptTemplate
 # =============================================================================
 
 
-def _get_knowledge_base_configs(cliente_id: str) -> list[KnowledgeBaseConfig]:
+def _get_knowledge_base_configs(client_id: str) -> list[KnowledgeBaseConfig]:
     """
     Lista as configurações de knowledge bases de um cliente.
     """
     with SessionLocal() as db:
         try:
-            uuid_obj = UUID(cliente_id)
+            uuid_obj = UUID(client_id)
             query = select(KnowledgeBaseConfig).where(
                 KnowledgeBaseConfig.client_id == uuid_obj,
                 KnowledgeBaseConfig.is_active == True,
             )
             return list(db.exec(query).all())
         except ValueError:
-            logger.warning(f"cliente_id inválido: {cliente_id}")
+            logger.warning(f"client_id inválido: {client_id}")
             return []
 
 
@@ -524,28 +524,28 @@ def register_resources(mcp: FastMCP) -> None:
         """Resumo da base de conhecimento do cliente autenticado."""
         return await _get_knowledge_summary()
 
-    @mcp.resource("knowledge://{cliente_id}/summary")
-    async def knowledge_summary_by_id(cliente_id: str) -> str:
+    @mcp.resource("knowledge://{client_id}/summary")
+    async def knowledge_summary_by_id(client_id: str) -> str:
         """Resumo da base de conhecimento de um cliente específico."""
-        return await _get_knowledge_summary(cliente_id)
+        return await _get_knowledge_summary(client_id)
 
-    @mcp.resource("knowledge://{cliente_id}/search/{query}")
-    async def knowledge_search(cliente_id: str, query: str) -> str:
+    @mcp.resource("knowledge://{client_id}/search/{query}")
+    async def knowledge_search(client_id: str, query: str) -> str:
         """
         Busca documentos na base de conhecimento (sem LLM).
         Retorna documentos brutos encontrados.
         """
-        return await _search_knowledge(query, cliente_id)
+        return await _search_knowledge(query, client_id)
 
-    @mcp.resource("knowledge://{cliente_id}/configs")
-    def knowledge_configs(cliente_id: str) -> str:
+    @mcp.resource("knowledge://{client_id}/configs")
+    def knowledge_configs(client_id: str) -> str:
         """
         Lista as configurações de knowledge bases do cliente (do banco de dados).
         """
-        configs = _get_knowledge_base_configs(cliente_id)
+        configs = _get_knowledge_base_configs(client_id)
 
         if not configs:
-            return f"# Knowledge Bases\n\nNenhuma base de conhecimento configurada para o cliente `{cliente_id}`."
+            return f"# Knowledge Bases\n\nNenhuma base de conhecimento configurada para o cliente `{client_id}`."
 
         result = f"# Knowledge Bases ({len(configs)})\n\n"
         for cfg in configs:
@@ -570,15 +570,15 @@ def register_resources(mcp: FastMCP) -> None:
         """Configuração do cliente autenticado."""
         return await _get_client_config()
 
-    @mcp.resource("config://{cliente_id}/settings")
-    async def client_config_by_id(cliente_id: str) -> str:
+    @mcp.resource("config://{client_id}/settings")
+    async def client_config_by_id(client_id: str) -> str:
         """Configuração de um cliente específico."""
-        return await _get_client_config(cliente_id)
+        return await _get_client_config(client_id)
 
-    @mcp.resource("config://{cliente_id}/prompt")
-    async def client_prompt(cliente_id: str) -> str:
+    @mcp.resource("config://{client_id}/prompt")
+    async def client_prompt(client_id: str) -> str:
         """Prompt personalizado do cliente (legado, do campo prompt_base)."""
-        return await _get_client_prompt(cliente_id)
+        return await _get_client_prompt(client_id)
 
     # --- Tools Registry Resources (Phase 3) ---
 
@@ -616,14 +616,14 @@ def register_resources(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.resource("tools://{cliente_id}/available")
-    async def tools_available_for_client(cliente_id: str) -> str:
+    @mcp.resource("tools://{client_id}/available")
+    async def tools_available_for_client(client_id: str) -> str:
         """
         List tools available for a specific client.
 
         Takes into account the client's tier configuration.
         """
-        context = await _resolve_client_context(cliente_id)
+        context = await _resolve_client_context(client_id)
 
         enabled_tools = context.get_enabled_tools_list()
         tier = get_tier_for_context(context)
@@ -709,13 +709,13 @@ def register_resources(mcp: FastMCP) -> None:
 
         return result
 
-    @mcp.resource("prompts://{cliente_id}/list")
-    def prompt_list_for_client(cliente_id: str) -> str:
+    @mcp.resource("prompts://{client_id}/list")
+    def prompt_list_for_client(client_id: str) -> str:
         """Lista prompts disponíveis para um cliente (globais + específicos)."""
-        templates = _list_prompt_templates(cliente_id)
+        templates = _list_prompt_templates(client_id)
 
         if not templates:
-            return f"# Prompt Templates\n\nNenhum prompt template encontrado para cliente `{cliente_id}`."
+            return f"# Prompt Templates\n\nNenhum prompt template encontrado para cliente `{client_id}`."
 
         result = f"# Prompt Templates para Cliente ({len(templates)})\n\n"
 

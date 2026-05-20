@@ -66,9 +66,10 @@ verify_jwt = false
 # ── User-facing: edge-layer validation (verify_jwt=true) ─────────────────────
 
 # match-columns: stateless fuzzy schema matcher — pure computation, no DB writes.
-# Edge validates the JWT; function body needs no auth code.
+# verify_jwt = false: called server-to-server from other edge functions and by the
+# frontend. No sensitive data accessed, so no auth gate needed.
 [functions.match-columns]
-verify_jwt = true
+verify_jwt = false
 
 # search-documents: hybrid vector search — called by Python backend (service key)
 # or authenticated frontend. Edge validates the token in both cases.
@@ -79,6 +80,15 @@ verify_jwt = true
 # backend. Edge validates; no user JWT inside the function body.
 [functions.process-document]
 verify_jwt = true
+
+# run-csv-etl: CSV sync orchestrator — validates JWT internally via blu_auth for
+# ES256 support and client_id extraction from app_metadata.
+[functions.run-csv-etl]
+verify_jwt = false
+
+# upload-csv-source: CSV/XLSX upload and schema matching — validates JWT internally.
+[functions.upload-csv-source]
+verify_jwt = false
 
 # ── Internal workers (verify_jwt=false, no user JWT) ─────────────────────────
 

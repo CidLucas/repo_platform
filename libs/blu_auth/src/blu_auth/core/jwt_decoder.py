@@ -93,14 +93,14 @@ def decode_jwt(
             options=options,
         )
 
-        cliente_id_claim = settings.jwt_client_id_claim
-        if cliente_id_claim in payload:
-            raw_id = payload[cliente_id_claim]
+        client_id_claim = settings.jwt_client_id_claim
+        if client_id_claim in payload:
+            raw_id = payload[client_id_claim]
             try:
-                payload[cliente_id_claim] = UUID(str(raw_id))
+                payload[client_id_claim] = UUID(str(raw_id))
             except (ValueError, TypeError):
                 logger.warning(f"Invalid client_id in token: {raw_id}")
-                payload[cliente_id_claim] = None
+                payload[client_id_claim] = None
 
         logger.debug(f"JWT decoded successfully for sub: {payload.get('sub', 'unknown')}")
         return JWTClaims(**payload)

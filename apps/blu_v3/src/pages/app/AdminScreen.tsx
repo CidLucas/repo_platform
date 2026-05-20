@@ -1,12 +1,42 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAppStore } from '../../store/appStore'
 import { useIntegrations, useDisconnectIntegration, useAuditLog, useRequestDataExport, useRequestDataDeletion, useTeamMembers, useUpdateUserPermissions, useInviteUser } from '../../hooks/useAdmin'
 import { useStartSync } from '../../hooks/useConnectorStatus'
 import { useNotificationPreferences, useSaveNotificationPreferences } from '../../hooks/useNotifications'
-import { connectGoogleCalendar } from '../../api/agenda'
+import { connectGoogleCalendar, connectGoogleDrive } from '../../api/agenda'
 import { createCredential } from '../../api/connectors'
 import { supabase } from '@blu/auth'
 import type { Integration, AuditEntry } from '../../api/admin'
+
+// Polp institution IDs (from GET /api/v1/institutions — Polp sequential IDs, not bank codes)
+const POLP_INSTITUTIONS = [
+  { id: 56,  name: 'Itaú' },
+  { id: 60,  name: 'Itaú Empresas' },
+  { id: 24,  name: 'Bradesco' },
+  { id: 25,  name: 'Bradesco Empresas' },
+  { id: 95,  name: 'Santander' },
+  { id: 100, name: 'Santander Empresas' },
+  { id: 11,  name: 'Banco do Brasil' },
+  { id: 12,  name: 'Banco do Brasil Empresas' },
+  { id: 36,  name: 'Caixa Econômica Federal' },
+  { id: 37,  name: 'Caixa Econômica Federal Empresas' },
+  { id: 71,  name: 'Nubank' },
+  { id: 72,  name: 'Nubank Empresas' },
+  { id: 52,  name: 'Inter' },
+  { id: 53,  name: 'Inter Empresas' },
+  { id: 73,  name: 'PagBank' },
+  { id: 74,  name: 'PagBank Empresas' },
+  { id: 26,  name: 'BTG Pactual' },
+  { id: 27,  name: 'BTG Pactual Empresas' },
+  { id: 113, name: 'XP Banking' },
+  { id: 114, name: 'XP Banking Empresas' },
+  { id: 34,  name: 'C6 Bank' },
+  { id: 35,  name: 'C6 Bank Empresas' },
+  { id: 101, name: 'Sicoob' },
+  { id: 103, name: 'Sicredi' },
+  { id: 105, name: 'Stone Pagamentos' },
+  { id: 0,   name: 'Outro (inserir ID manualmente)' },
+]
 
 type AdminTab = 'integracoes' | 'usuarios' | 'auditoria' | 'notificacoes' | 'faturamento' | 'lgpd' | 'contexto' | 'rotinas'
 
@@ -28,9 +58,16 @@ const LANES: { label: string; integrations: CatalogIntegration[] }[] = [
     ],
   },
   {
-    label: 'Agenda',
+    label: 'Google',
     integrations: [
-      { id: 'ic-gcal', icon: '📅', name: 'Google Calendar', desc: 'Agenda', provider: 'google_calendar' },
+      { id: 'ic-gcal',  icon: '📅', name: 'Google Calendar', desc: 'Agenda',        provider: 'google_calendar' },
+      { id: 'ic-gdrive', icon: '📂', name: 'Google Drive',    desc: 'Planilhas',     provider: 'google_drive' },
+    ],
+  },
+  {
+    label: 'Open Finance',
+    integrations: [
+      { id: 'ic-polp', icon: '🏦', name: 'Open Finance', desc: 'Contas bancárias reais', provider: 'polp' },
     ],
   },
   {
@@ -43,7 +80,7 @@ const LANES: { label: string; integrations: CatalogIntegration[] }[] = [
 ]
 
 // Providers that use OAuth redirect instead of API key forms
-const OAUTH_PROVIDERS = new Set(['google_calendar'])
+const OAUTH_PROVIDERS = new Set(['google_calendar', 'google_drive'])
 
 function getDbIntegration(provider: string, dbList: Integration[]): Integration | undefined {
   return dbList.find(i => i.provider === provider)
@@ -124,6 +161,34 @@ export default function AdminScreen() {
   const [connSaving, setConnSaving] = useState(false)
   const [connError, setConnError] = useState<string | null>(null)
 
+  // Polp Open Finance auth URL modal (Pluggy widget)
+  const [polpAuthUrl, setPolpAuthUrl] = useState<string | null>(null)
+  // Polling for url_to_authenticate after UPDATING status (webhook delivers it async)
+  const [polpPendingIntgId, setPolpPendingIntgId] = useState<number | null>(null)
+  const polpClientIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!polpPendingIntgId || !polpClientIdRef.current) return
+    const clientId = polpClientIdRef.current
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from('polp_integrations')
+        .select('url_to_authenticate, status')
+        .eq('polp_integration_id', polpPendingIntgId)
+        .eq('client_id', clientId)
+        .maybeSingle()
+      if (data?.url_to_authenticate) {
+        setPolpAuthUrl(data.url_to_authenticate)
+        setPolpPendingIntgId(null)
+      } else if (data?.status === 'UPDATED' || data?.status === 'DELETED') {
+        setPolpPendingIntgId(null)
+        void refetchIntegrations()
+      }
+    }, 3000)
+    const timeout = setTimeout(() => setPolpPendingIntgId(null), 5 * 60 * 1000)
+    return () => { clearInterval(interval); clearTimeout(timeout) }
+  }, [polpPendingIntgId])
+
   // Notifications tab
   const { data: notifPrefs, isLoading: notifLoading } = useNotificationPreferences()
   const saveNotifPrefs = useSaveNotificationPreferences()
@@ -152,15 +217,41 @@ export default function AdminScreen() {
     if (!modalCatalogIntg) return
     setConnSaving(true)
     setConnError(null)
+
     try {
       const { data: clientId } = await supabase.rpc('get_my_client_id')
       if (!clientId) throw new Error('Cliente não encontrado.')
+
       if (modalCatalogIntg.provider === 'conta_azul') {
         await createCredential(clientId, 'conta_azul', 'Conta Azul', {
           username: connFormData.username ?? '',
           password: connFormData.password ?? '',
         })
+      } else if (modalCatalogIntg.provider === 'polp') {
+        const institutionId = parseInt(connFormData.institution_id ?? '0', 10)
+        if (!institutionId) throw new Error('Selecione uma instituição.')
+        const { data, error } = await supabase.functions.invoke('polp-connect', {
+          body: {
+            client_id: clientId,
+            institution_id: institutionId,
+            cpf: connFormData.cpf || undefined,
+            cnpj: connFormData.cnpj || undefined,
+          },
+        })
+        if (error) throw new Error(error.message)
+        setModalIntgId(null)
+        if (data?.url_to_authenticate) {
+          // URL is ready immediately — user must click to open (can't auto-open after async)
+          setPolpAuthUrl(data.url_to_authenticate)
+        } else if (data?.polp_integration_id) {
+          // Status is UPDATING — url_to_authenticate arrives via webhook. Poll for it.
+          polpClientIdRef.current = clientId
+          setPolpPendingIntgId(data.polp_integration_id)
+        }
+        await refetchIntegrations()
+        return
       }
+
       await refetchIntegrations()
       setModalIntgId(null)
     } catch (e: any) {
@@ -790,6 +881,45 @@ export default function AdminScreen() {
         </div>
       </div>
 
+      {/* POLP BANK AUTH — waiting banner */}
+      {(polpAuthUrl || polpPendingIntgId) && (
+        <div className="intg-modal open">
+          <div className="intg-box" style={{ width: 420, maxWidth: '95vw' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>🏦 Autenticação bancária</span>
+              <button className="btn bg" style={{ fontSize: 11, padding: '3px 10px' }} onClick={() => { setPolpAuthUrl(null); setPolpPendingIntgId(null); void refetchIntegrations() }}>Fechar</button>
+            </div>
+            {polpPendingIntgId && !polpAuthUrl ? (
+              <p style={{ fontSize: 12, color: 'var(--mu)', margin: '0 0 16px' }}>
+                Aguardando URL de autenticação do banco… (pode levar alguns segundos)
+              </p>
+            ) : (
+              <>
+                <p style={{ fontSize: 12, color: 'var(--mu)', margin: '0 0 16px' }}>
+                  Clique no botão abaixo para acessar a página do seu banco e autorizar o acesso. Volte aqui quando concluir.
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="btn bp"
+                    style={{ flex: 1, fontSize: 12 }}
+                    onClick={() => window.open(polpAuthUrl!, '_blank', 'noopener,noreferrer')}
+                  >
+                    Ir para o banco →
+                  </button>
+                  <button
+                    className="btn bs"
+                    style={{ flex: 1, fontSize: 12 }}
+                    onClick={() => { setPolpAuthUrl(null); void refetchIntegrations() }}
+                  >
+                    Já autorizei ✓
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* MODAL */}
       {modalIntgId && modalCatalogIntg && (
         <div className="intg-modal open" onClick={() => setModalIntgId(null)}>
@@ -802,7 +932,9 @@ export default function AdminScreen() {
                     <div className="msub">
                       {modalCatalogIntg.provider === 'google_calendar'
                         ? 'Autorize o acesso à sua conta Google para sincronizar a agenda. Você será redirecionado para o Google e voltará aqui automaticamente.'
-                        : 'Autorize o acesso via OAuth. Você será redirecionado e voltará aqui automaticamente.'}
+                        : modalCatalogIntg.provider === 'google_drive'
+                          ? 'Autorize o acesso ao Google Drive para importar planilhas diretamente. Concede acesso a Drive e Calendar na mesma autorização.'
+                          : 'Autorize o acesso via OAuth. Você será redirecionado e voltará aqui automaticamente.'}
                     </div>
                     <div className="modal-acts">
                       <button className="btn bg" onClick={() => setModalIntgId(null)}>Cancelar</button>
@@ -813,6 +945,8 @@ export default function AdminScreen() {
                           setModalIntgId(null)
                           if (modalCatalogIntg.provider === 'google_calendar') {
                             void connectGoogleCalendar(window.location.href)
+                          } else if (modalCatalogIntg.provider === 'google_drive') {
+                            void connectGoogleDrive(window.location.href)
                           }
                         }}
                       >
@@ -851,6 +985,63 @@ export default function AdminScreen() {
                         onClick={doConnect}
                       >
                         {connSaving ? 'Conectando…' : 'Conectar'}
+                      </button>
+                    </div>
+                  </>
+                ) : modalCatalogIntg.provider === 'polp' ? (
+                  <>
+                    <div className="msub">Conecte sua conta bancária via Open Finance. Você será redirecionado para autenticação segura com o banco.</div>
+                    <div className="intg-field">
+                      <label>Banco / Instituição</label>
+                      <select
+                        value={connFormData.institution_id ?? ''}
+                        onChange={e => setConnFormData(d => ({ ...d, institution_id: e.target.value }))}
+                        style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--gb)', background: 'var(--bg)', color: 'var(--fg)', fontSize: 12 }}
+                      >
+                        <option value="">Selecione o banco…</option>
+                        {POLP_INSTITUTIONS.map(inst => (
+                          <option key={inst.id} value={inst.id}>{inst.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {connFormData.institution_id === '0' && (
+                      <div className="intg-field">
+                        <label>ID da Instituição (manual)</label>
+                        <input
+                          type="number"
+                          placeholder="ex: 341"
+                          value={connFormData.institution_id_manual ?? ''}
+                          onChange={e => setConnFormData(d => ({ ...d, institution_id: e.target.value, institution_id_manual: e.target.value }))}
+                        />
+                      </div>
+                    )}
+                    <div className="intg-field">
+                      <label>CPF do titular (opcional)</label>
+                      <input
+                        type="text"
+                        placeholder="000.000.000-00"
+                        value={connFormData.cpf ?? ''}
+                        onChange={e => setConnFormData(d => ({ ...d, cpf: e.target.value }))}
+                      />
+                    </div>
+                    <div className="intg-field">
+                      <label>CNPJ da empresa (opcional)</label>
+                      <input
+                        type="text"
+                        placeholder="00.000.000/0000-00"
+                        value={connFormData.cnpj ?? ''}
+                        onChange={e => setConnFormData(d => ({ ...d, cnpj: e.target.value }))}
+                      />
+                    </div>
+                    {connError && <div style={{ fontSize: 12, color: 'var(--urg)', margin: '4px 0' }}>{connError}</div>}
+                    <div className="modal-acts">
+                      <button className="btn bg" onClick={() => setModalIntgId(null)}>Cancelar</button>
+                      <button
+                        className="btn bp"
+                        disabled={connSaving || !connFormData.institution_id}
+                        onClick={doConnect}
+                      >
+                        {connSaving ? 'Conectando…' : 'Conectar banco →'}
                       </button>
                     </div>
                   </>

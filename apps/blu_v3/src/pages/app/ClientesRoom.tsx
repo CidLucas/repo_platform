@@ -21,7 +21,8 @@ import {
 import { getCommercialIndicators, getContextMetrics, type ContextMetricRow } from '../../api/analytics'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
-import RoutinesPanel from '../../components/shared/RoutinesPanel'
+import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
+import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
 
 type Tab = 'followup' | 'ativos' | 'historico' | 'config'
 
@@ -129,7 +130,7 @@ export default function ClientesRoom() {
   const history: ClientesHistoryItem[] = historyQ.data ?? []
   const commercial = commercialQ.data
   const insights: ClientInsight[] = (insightsQ.data ?? []).filter(
-    (i) => !i.dimension || i.dimension === 'clientes'
+    (i) => !i.dimension || i.dimension === 'clientes' || i.dimension === 'commercial'
   )
   const clientesContextMetrics: ContextMetricRow[] = (contextMetricsQ.data ?? []).filter(
     (m) => m.dimension === 'commercial'
@@ -299,20 +300,7 @@ export default function ClientesRoom() {
 
             {/* CONFIG */}
             <div className={`tc${tab === 'config' ? ' on' : ''}`}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                <div style={{ background: 'var(--glass)', border: '1px solid var(--gb)', borderRadius: 'var(--r)', padding: '11px 12px' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 3 }}>Frequência de alertas de churn</div>
-                  <div className="pills">
-                    <span className="pill on">Semanal</span>
-                    <span className="pill">Quinzenal</span>
-                    <span className="pill">Mensal</span>
-                  </div>
-                </div>
-                <div style={{ background: 'var(--glass)', border: '1px solid var(--gb)', borderRadius: 'var(--r)', padding: '11px 12px' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Rotinas ativas</div>
-                  <RoutinesPanel domain="clientes" />
-                </div>
-              </div>
+              <RoutineConfigSection domain="clientes" />
             </div>
           </div>
 
@@ -431,6 +419,9 @@ export default function ClientesRoom() {
         {/* RIGHT COLUMN */}
         <div className="rcol">
           <RColResizeHandle />
+          <CollapsiblePanel id="clientes-rotinas" icon="⚙️" title="Rotinas ativas">
+            <RoutineStatusWidget domain="clientes" />
+          </CollapsiblePanel>
           <CollapsiblePanel id="clientes-segmentos" icon="📊" title="Segmentos">
             <div className="dr-sec">
                 {segmentsQ.isLoading ? (

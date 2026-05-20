@@ -34,7 +34,7 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
 from blu_agent_framework import record_audit as _record_audit
-from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_supabase_client import get_supabase_client
 
 from . import register_module
@@ -233,7 +233,7 @@ async def _emit_format(
     template: ReportTemplate,
     markdown_body: str,
     indicators: dict[str, Any],
-    cliente_id: str,
+    client_id: str,
 ) -> dict[str, Any]:
     """Convert the markdown body to the requested format. Returns a metadata
     dict that will be merged into the ``report_runs`` row."""
@@ -256,14 +256,14 @@ async def _emit_format(
 
     if fmt == "gdoc":
         return await _export_gdoc(
-            cliente_id=cliente_id,
+            client_id=client_id,
             template=template,
             markdown_body=markdown_body,
         )
 
     if fmt == "gsheet":
         return await _export_gsheet(
-            cliente_id=cliente_id,
+            client_id=client_id,
             template=template,
             indicators=indicators,
             markdown_body=markdown_body,
@@ -286,13 +286,13 @@ def _inline_payload(*, body: bytes, mime: str, filename: str) -> dict[str, Any]:
 
 async def _export_gdoc(
     *,
-    cliente_id: str,
+    client_id: str,
     template: ReportTemplate,
     markdown_body: str,
 ) -> dict[str, Any]:
     from blu_google_suite_client import GoogleDocsClient
 
-    tokens = await _get_google_tokens(cliente_id)
+    tokens = await _get_google_tokens(client_id)
     client = GoogleDocsClient(access_token=tokens["access_token"])
 
     title = f"{template.title} — {datetime.now(UTC).strftime('%Y-%m-%d')}"
@@ -313,14 +313,14 @@ async def _export_gdoc(
 
 async def _export_gsheet(
     *,
-    cliente_id: str,
+    client_id: str,
     template: ReportTemplate,
     indicators: dict[str, Any],
     markdown_body: str,
 ) -> dict[str, Any]:
     from blu_google_suite_client import GoogleSheetsClient
 
-    tokens = await _get_google_tokens(cliente_id)
+    tokens = await _get_google_tokens(client_id)
     client = GoogleSheetsClient(access_token=tokens["access_token"])
 
     title = f"{template.title} — {datetime.now(UTC).strftime('%Y-%m-%d')}"
@@ -348,7 +348,7 @@ async def _export_gsheet(
     }
 
 
-async def _get_google_tokens(cliente_id: str) -> dict[str, Any]:
+async def _get_google_tokens(client_id: str) -> dict[str, Any]:
     """Re-uses the integration_tokens path the RFQ module already wired."""
     from uuid import UUID
 
@@ -356,7 +356,7 @@ async def _get_google_tokens(cliente_id: str) -> dict[str, Any]:
 
     ctx_service = get_context_service()
     wrapper = await ctx_service.get_integration_tokens(
-        UUID(cliente_id), "google", auto_refresh=True,
+        UUID(client_id), "google", auto_refresh=True,
     )
     if not wrapper or not wrapper.is_valid():
         raise ToolError(
@@ -373,7 +373,7 @@ async def _get_google_tokens(cliente_id: str) -> dict[str, Any]:
 
 async def generate_report_core(
     *,
-    cliente_id: str,
+    client_id: str,
     template_id: str,
     period: str | None = None,
     format: str | None = None,
@@ -385,8 +385,8 @@ async def generate_report_core(
     Returns a dict with at least ``run_id, status, format, template_id,
     output_url, output_metadata``.
     """
-    if not cliente_id:
-        raise ToolError("Missing cliente_id")
+    if not client_id:
+        raise ToolError("Missing client_id")
 
     template = get_template(template_id)
     fmt = validate_format(format or template.default_format)
@@ -396,7 +396,7 @@ async def generate_report_core(
 
     # Insert pending run.
     insert_payload = {
-        "client_id":    cliente_id,
+        "client_id":    client_id,
         "template_id":  template_id,
         "period":       period,
         "format":       fmt,
@@ -413,12 +413,12 @@ async def generate_report_core(
 
     try:
         indicators = _fetch_indicator_block(
-            db, client_id=cliente_id, template_id=template_id, period=period,
+            db, client_id=client_id, template_id=template_id, period=period,
         )
 
         kb = []
         if template.include_kb_summaries:
-            kb = _fetch_kb_context(db, client_id=cliente_id, period=period, limit=5)
+            kb = _fetch_kb_context(db, client_id=client_id, period=period, limit=5)
 
         markdown_body = await _compose_markdown(
             template=template,
@@ -432,7 +432,7 @@ async def generate_report_core(
             template=template,
             markdown_body=markdown_body,
             indicators=indicators,
-            cliente_id=cliente_id,
+            client_id=client_id,
         )
 
         # Always preserve the markdown body in metadata so the dashboard
@@ -469,7 +469,7 @@ async def generate_report_core(
             p_actor_kind="agent" if not requested_by else "user",
             p_agent_slug="report-composer",
             p_outcome="success",
-            p_client_id=cliente_id,
+            p_client_id=client_id,
         )
 
         return {
@@ -505,12 +505,12 @@ async def generate_report_core(
             p_actor_kind="agent",
             p_agent_slug="report-composer",
             p_outcome="failure",
-            p_client_id=cliente_id,
+            p_client_id=client_id,
         )
 
         if isinstance(exc, ToolError):
             raise
-        logger.exception("report_module: generation failed for client=%s", cliente_id)
+        logger.exception("report_module: generation failed for client=%s", client_id)
         raise ToolError(f"Falha ao gerar relatório: {message}") from exc
 
 
@@ -528,17 +528,17 @@ async def _generate_report_logic(
     template_id: str,
     period: str | None = None,
     format: str | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict[str, Any]:
     """MCP wrapper around :func:`generate_report_core`.
 
-    The MCP layer injects ``cliente_id`` via the lifespan context middleware
+    The MCP layer injects ``client_id`` via the lifespan context middleware
     (same pattern as the rfq tools).
     """
-    if not cliente_id:
-        raise ToolError("Missing cliente_id in context")
+    if not client_id:
+        raise ToolError("Missing client_id in context")
     return await generate_report_core(
-        cliente_id=cliente_id,
+        client_id=client_id,
         template_id=template_id,
         period=period,
         format=format,
@@ -564,6 +564,6 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Google Sheets para o tenant atual. Templates suportados: "
             + ", ".join(REPORT_TEMPLATES.keys())
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_generate_report_logic))
+    )(mcp_inject_client_id(get_context_service)(_generate_report_logic))
 
     return ["list_report_templates", "generate_report"]

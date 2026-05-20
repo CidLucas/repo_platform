@@ -27,6 +27,11 @@ def is_tool_accessible_by_tier(tool_name: str, context: BluClientContext) -> boo
     tier = get_tier_for_context(context)
     tool_meta = ToolRegistry.get_tool(tool_name)
     if tool_meta and not tool_meta.is_accessible_by_tier(tier):
+        logger.warning(
+            f"[tier_check] Tool '{tool_name}' blocked for tier='{tier}' "
+            f"(client_id={getattr(context, 'client_id', '?')}). "
+            "If the client's tier is NULL in Supabase, fix clients_blu.tier for this client."
+        )
         return False
 
     return True
@@ -42,11 +47,15 @@ def get_tier_for_context(context: BluClientContext) -> str:
         context: BluClientContext
 
     Returns:
-        Tier string ("BASIC", "SME", "ENTERPRISE")
+        Tier string ("BASIC", "SME", "ENTERPRISE", "ADMIN", …)
     """
     raw_tier = getattr(context, "tier", None)
     if isinstance(raw_tier, str) and raw_tier:
-        return raw_tier
+        return raw_tier.upper()
     elif hasattr(raw_tier, "value") and isinstance(raw_tier.value, str) and raw_tier.value:
-        return raw_tier.value
+        return raw_tier.value.upper()
+    logger.warning(
+        f"[tier_check] tier is null/empty for client_id={getattr(context, 'client_id', '?')}; "
+        "defaulting to BASIC. Ensure clients_blu.tier is set in Supabase."
+    )
     return "BASIC"

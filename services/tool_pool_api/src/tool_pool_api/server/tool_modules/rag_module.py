@@ -17,7 +17,7 @@ from fastmcp.exceptions import ToolError
 
 from tool_pool_api.server.dependencies import get_context_service
 from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
-from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_models.blu_client_context import BluClientContext
 
 from . import register_module
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 async def _executar_rag_cliente_logic(
     query: str,
     ctx: Context,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> str:
     """
        **Tool: executar_rag_cliente**
@@ -85,19 +85,19 @@ async def _executar_rag_cliente_logic(
         raise ToolError(f"Erro interno no serviço de ferramentas: {type(e).__name__}: {e}")
 
     # 2. Resolver o Contexto Blu
-    # Priority: 1) cliente_id param, 2) request meta, 3) access token
+    # Priority: 1) client_id param, 2) request meta, 3) access token
     blu_context: BluClientContext | None = None
 
-    # Try to get cliente_id and document_ids from request meta (passed by atendente_core via _meta)
+    # Try to get client_id and document_ids from request meta (passed by atendente_core via _meta)
     document_ids: list[str] | None = None
     if ctx and hasattr(ctx, "request_context"):
         meta = getattr(ctx.request_context, "meta", None)
         if meta:
             meta_dict = meta.model_dump() if hasattr(meta, "model_dump") else dict(meta)
-            if not cliente_id:
-                cliente_id = meta_dict.get("cliente_id")
-                if cliente_id:
-                    logger.info(f"[RAG] Using cliente_id from request meta: {cliente_id}")
+            if not client_id:
+                client_id = meta_dict.get("client_id")
+                if client_id:
+                    logger.info(f"[RAG] Using client_id from request meta: {client_id}")
             # Extract document_ids for scoped RAG search
             # Standalone agents use "uploaded_document_ids", atendente_core uses "attached_document_ids"
             raw_doc_ids = meta_dict.get("uploaded_document_ids") or meta_dict.get("attached_document_ids")
@@ -106,17 +106,17 @@ async def _executar_rag_cliente_logic(
                 logger.info(f"[RAG] Scoping search to {len(document_ids)} attached documents")
 
     try:
-        if cliente_id:
-            logger.info(f"[RAG] Usando cliente_id: {cliente_id}")
+        if client_id:
+            logger.info(f"[RAG] Usando client_id: {client_id}")
             try:
-                uuid_obj = UUID(cliente_id)
+                uuid_obj = UUID(client_id)
             except ValueError:
-                raise ToolError(f"ID de cliente inválido: {cliente_id}")
+                raise ToolError(f"ID de cliente inválido: {client_id}")
 
             blu_context = await ctx_service.get_client_context_by_id(uuid_obj)
 
             if not blu_context:
-                raise ToolError(f"Contexto não encontrado para o ID: {cliente_id}")
+                raise ToolError(f"Contexto não encontrado para o ID: {client_id}")
 
         else:
             # Fallback to JWT auth (direct API calls)
@@ -169,7 +169,7 @@ async def _executar_rag_cliente_logic(
 @register_module
 def register_tools(mcp: FastMCP) -> list[str]:
     """Registra as tools do módulo RAG."""
-    # Register using mcp_inject_cliente_id decorator to inject cliente_id from auth
+    # Register using mcp_inject_client_id decorator to inject client_id from auth
     mcp.tool(
         name="executar_rag_cliente",
         description=(
@@ -180,7 +180,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "decompose multi-topic queries into key concepts, add synonyms and "
             "related terms, remove conversational filler)."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_executar_rag_cliente_logic))
+    )(mcp_inject_client_id(get_context_service)(_executar_rag_cliente_logic))
 
     logger.info("[RAG Module] Tool registered: executar_rag_cliente")
     return ["executar_rag_cliente"]

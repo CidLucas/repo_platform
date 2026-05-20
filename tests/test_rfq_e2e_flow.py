@@ -76,7 +76,7 @@ def make_mock_ctx() -> MagicMock:
     ctx = MagicMock()
     ctx.request_context.lifespan_context = {
         "session_id": SESSION_ID,
-        "cliente_id": CLIENT_ID,
+        "client_id": CLIENT_ID,
     }
     return ctx
 
@@ -128,7 +128,7 @@ async def run_full_flow():
     parsed = await _parse_buying_list_logic(
         ctx=ctx,
         raw_text=GROCERY_LIST,
-        cliente_id=CLIENT_ID,
+        client_id=CLIENT_ID,
     )
 
     items = parsed["items"]
@@ -149,7 +149,7 @@ async def run_full_flow():
     validated = await _validate_buying_list_logic(
         ctx=ctx,
         items=items,
-        cliente_id=CLIENT_ID,
+        client_id=CLIENT_ID,
     )
 
     logger.info(f"  Valid: {validated['valid']}")
@@ -168,7 +168,7 @@ async def run_full_flow():
 
     suppliers_result = await _list_suppliers_logic(
         ctx=ctx,
-        cliente_id=CLIENT_ID,
+        client_id=CLIENT_ID,
     )
 
     suppliers = suppliers_result["suppliers"]
@@ -193,7 +193,7 @@ async def run_full_flow():
             ctx=ctx,
             supplier_id=s["id"],
             items=cleaned_items,
-            cliente_id=CLIENT_ID,
+            client_id=CLIENT_ID,
         )
         rfq_ids.append(result["rfq_id"])
         logger.info(
@@ -283,7 +283,7 @@ async def run_full_flow():
             delivery_days=profile["delivery_days"],
             payment_terms=profile["payment_terms"],
             notes=profile["notes"],
-            cliente_id=CLIENT_ID,
+            client_id=CLIENT_ID,
         )
         logger.info(
             f"  📩 Response for RFQ {rfq_id[:8]}... "
@@ -300,7 +300,7 @@ async def run_full_flow():
 
     responses = await _check_rfq_responses_logic(
         ctx=ctx,
-        cliente_id=CLIENT_ID,
+        client_id=CLIENT_ID,
     )
 
     logger.info(f"  Total: {responses['total']}, Responded: {responses['responded']}, Pending: {responses['pending']}")
@@ -317,7 +317,7 @@ async def run_full_flow():
         ctx=ctx,
         max_concentration_pct=60,
         enforce_moq=False,  # Test suppliers may have MOQ
-        cliente_id=CLIENT_ID,
+        client_id=CLIENT_ID,
     )
 
     summary = allocation["summary"]
@@ -351,7 +351,7 @@ async def run_full_flow():
     report = await _generate_po_report_logic(
         ctx=ctx,
         allocation_result=allocation,
-        cliente_id=CLIENT_ID,
+        client_id=CLIENT_ID,
     )
 
     markdown = report["report_markdown"]
@@ -380,7 +380,7 @@ async def run_full_flow():
                 total_amount=po_preview["total"],
                 currency=summary.get("currency", "BRL"),
                 confirmed=False,
-                cliente_id=CLIENT_ID,
+                client_id=CLIENT_ID,
             )
             logger.warning("  ⚠️ Expected ElicitationRequired but didn't get one!")
         except ElicitationRequired as e:
@@ -399,7 +399,7 @@ async def run_full_flow():
             total_amount=po_preview["total"],
             currency=summary.get("currency", "BRL"),
             confirmed=True,
-            cliente_id=CLIENT_ID,
+            client_id=CLIENT_ID,
         )
         created_pos.append(result)
         logger.info(
@@ -422,7 +422,7 @@ async def run_full_flow():
                 ctx=ctx,
                 po_id=po["po_id"],
                 confirmed=False,
-                cliente_id=CLIENT_ID,
+                client_id=CLIENT_ID,
             )
             logger.warning("  ⚠️ Expected ElicitationRequired but didn't get one!")
         except ElicitationRequired as e:
@@ -434,7 +434,7 @@ async def run_full_flow():
             ctx=ctx,
             po_id=po["po_id"],
             confirmed=True,
-            cliente_id=CLIENT_ID,
+            client_id=CLIENT_ID,
         )
         logger.info(
             f"  ✅ PO {po['po_id'][:8]}... approved → {result.get('supplier_name', '?')} "
@@ -457,7 +457,7 @@ async def run_full_flow():
         categories=["alimentos", "bebidas"],
         payment_terms="45 dias",
         delivery_days_avg=4,
-        cliente_id=CLIENT_ID,
+        client_id=CLIENT_ID,
     )
     logger.info(f"  ➕ Added: {new_supplier['name']} (id={new_supplier['supplier_id'][:8]}...)")
 
@@ -468,7 +468,7 @@ async def run_full_flow():
         payment_terms="30/60 dias",
         delivery_days_avg=3,
         categories=["alimentos", "bebidas", "limpeza"],
-        cliente_id=CLIENT_ID,
+        client_id=CLIENT_ID,
     )
     logger.info(f"  ✏️  Updated: {updated['supplier_id'][:8]}... fields={updated['updated_fields']}")
 
@@ -476,7 +476,7 @@ async def run_full_flow():
     removed = await _remove_supplier_logic(
         ctx=ctx,
         supplier_id=new_supplier["supplier_id"],
-        cliente_id=CLIENT_ID,
+        client_id=CLIENT_ID,
     )
     logger.info(f"  🗑️  Removed: {removed['name']} (status={removed['status']})")
     logger.info("  ✅ CRUD OK")

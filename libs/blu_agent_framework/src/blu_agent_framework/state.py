@@ -2,16 +2,24 @@
 Agent state definition using TypedDict for LangGraph compatibility.
 """
 
-from operator import add
 from typing import Annotated, Any
 
 from langchain_core.messages import BaseMessage
 from typing_extensions import TypedDict
 
 
+_MAX_MESSAGES = 60  # Rolling window stored in Redis per session
+
+
 def add_messages(left: list[BaseMessage], right: list[BaseMessage]) -> list[BaseMessage]:
-    """Reducer for messages: appends new messages to existing list."""
-    return left + right
+    """Reducer for messages: appends new messages and caps at _MAX_MESSAGES.
+
+    Keeps the most recent messages so the Redis checkpoint never grows unbounded.
+    The TokenBudget in respond_node provides a second layer of protection before
+    the LLM call itself.
+    """
+    combined = left + right
+    return combined[-_MAX_MESSAGES:] if len(combined) > _MAX_MESSAGES else combined
 
 
 def merge_dict(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
@@ -21,6 +29,18 @@ def merge_dict(left: dict[str, Any], right: dict[str, Any]) -> dict[str, Any]:
 
 def _cap_errors(left: list[str], right: list[str]) -> list[str]:
     """Reducer for errors: appends new entries, caps at 20 to prevent unbounded growth."""
+    combined = left + right
+    return combined[-20:] if len(combined) > 20 else combined
+
+
+def _cap_tool_results(left: list[dict], right: list[dict]) -> list[dict]:
+    """Reducer for tool_results: appends and caps at 30 to prevent unbounded growth."""
+    combined = left + right
+    return combined[-30:] if len(combined) > 30 else combined
+
+
+def _cap_skill_results(left: list[dict], right: list[dict]) -> list[dict]:
+    """Reducer for skill_results: appends and caps at 20 per session."""
     combined = left + right
     return combined[-20:] if len(combined) > 20 else combined
 
@@ -63,7 +83,7 @@ class ToolCallSendState(TypedDict, total=False):
     """
 
     tool_call: dict[str, Any]  # Single tool call: {name, id, args}
-    cliente_id: str
+    client_id: str
     session_id: str
     channel: str
     metadata: dict[str, Any]
@@ -85,7 +105,7 @@ class AgentState(TypedDict, total=False):
     # =========================================================================
 
     session_id: str  # Unique session identifier
-    cliente_id: str  # Client UUID (from context)
+    client_id: str  # Client UUID (from context)
     thread_id: str  # LangGraph thread ID for checkpointing
     channel: str  # Channel: "whatsapp", "web", "api"
 
@@ -115,7 +135,7 @@ class AgentState(TypedDict, total=False):
 
     tool_to_execute: str | None  # Next tool to execute (legacy single-tool)
     tool_args: dict[str, Any] | None  # Arguments for next tool (legacy)
-    tool_results: Annotated[list[dict[str, Any]], add]  # Accumulated tool results
+    tool_results: Annotated[list[dict[str, Any]], _cap_tool_results]  # Accumulated tool results, capped at 30
     last_tool_result: dict[str, Any] | None  # Most recent result
 
     # Fan-out tool execution (Send-based parallel dispatch)
@@ -147,21 +167,12 @@ class AgentState(TypedDict, total=False):
     tier: str  # Client tier
 
     # =========================================================================
-    # Intent Routing (maintained by classify_intent_node each new user turn)
-    # =========================================================================
-
-    current_intent: str | None     # Raw user intent text, capped at 200 chars
-    current_domain: str | None     # "rfq" | "analytics" | "documents" | "config" | "rag"
-    intent_tags: list[str]         # Tag list fed to ToolRegistry.get_for_task()
-    loaded_context_keys: list[str] # Non-empty keys in client_context (list, not set — JSON-safe)
-
-    # =========================================================================
     # Skill Routing (Agent-as-Skill pattern)
     # =========================================================================
 
     complexity: str | None         # "simple" | "moderate" | "complex" — set by classify_intent
     current_skill: str | None      # SKILL_REGISTRY key selected by select_skill_node; cleared after run
-    skill_results: Annotated[list[dict], add]  # Accumulated SkillResult dicts from this session
+    skill_results: Annotated[list[dict], _cap_skill_results]  # Accumulated SkillResult dicts, capped at 20
 
     # =========================================================================
     # Orchestrator Planning (Layer 4 meta-skill)
@@ -220,14 +231,10 @@ class AgentState(TypedDict, total=False):
     # Accumulates across parallel fan-out workers; None return clears the list.
     structured_data_list: Annotated[list[dict[str, Any]], _list_reducer]
 
-    # Intra-turn caches to avoid recomposing on supervisor→tool→supervisor loops.
-    _cached_system_prompt: str | None
-    _cached_tools: list | None
-
 
 def create_initial_state(
     session_id: str,
-    cliente_id: str,
+    client_id: str,
     messages: list[BaseMessage] | None = None,
     system_prompt: str = "",
     agent_name: str = "agent",
@@ -242,7 +249,7 @@ def create_initial_state(
 
     Args:
         session_id: Unique session identifier
-        cliente_id: Client UUID
+        client_id: Client UUID
         messages: Initial messages (optional)
         system_prompt: System prompt for LLM
         agent_name: Agent identifier
@@ -258,8 +265,8 @@ def create_initial_state(
     return AgentState(
         # Core identifiers
         session_id=session_id,
-        cliente_id=cliente_id,
-        thread_id=f"{session_id}:{cliente_id}",
+        client_id=client_id,
+        thread_id=f"{session_id}:{client_id}",
         channel=channel,
         # Messages
         messages=messages or [],
@@ -288,11 +295,6 @@ def create_initial_state(
         client_context=client_context or {},
         nome_empresa=client_context.get("nome_empresa", "") if client_context else "",
         tier=client_context.get("tier", "BASIC") if client_context else "BASIC",
-        # Intent routing
-        current_intent=None,
-        current_domain=None,
-        intent_tags=[],
-        loaded_context_keys=[],
         # Skill routing
         complexity=None,
         current_skill=None,
@@ -314,8 +316,6 @@ def create_initial_state(
         user_jwt=None,
         structured_data=None,
         structured_data_list=[],
-        _cached_system_prompt=None,
-        _cached_tools=None,
     )
 
 
@@ -336,7 +336,7 @@ class ToolExecutionState(TypedDict, total=False):
 
     tool_to_execute: str
     tool_args: dict[str, Any]
-    cliente_id: str
+    client_id: str
     last_tool_result: dict[str, Any] | None
 
 

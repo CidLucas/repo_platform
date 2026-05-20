@@ -4,6 +4,7 @@ export interface ApprovalRequest {
   id: string
   client_id: string
   agent_slug: string
+  action_type: string
   title: string
   body: string | null
   priority: 'urgent' | 'high' | 'medium' | 'low'
@@ -12,6 +13,7 @@ export interface ApprovalRequest {
   created_at: string
   updated_at: string
   metadata: Record<string, unknown> | null
+  payload?: Record<string, unknown> | null
 }
 
 export async function fetchPendingApprovals(clientId: string): Promise<ApprovalRequest[]> {

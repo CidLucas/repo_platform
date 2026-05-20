@@ -26,6 +26,9 @@ export interface AgendaHistoryItem {
 }
 
 const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly'
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
+// Request both scopes together so the single integration_tokens row covers both.
+const DRIVE_AND_CALENDAR_SCOPES = `${DRIVE_SCOPE} ${CALENDAR_SCOPE}`
 
 /** Redirects to Google OAuth requesting calendar read scope. */
 export async function connectGoogleCalendar(redirectTo: string): Promise<void> {
@@ -79,6 +82,39 @@ export async function captureCalendarToken(opts: {
       { onConflict: 'client_id' },
     )
   if (upsertErr) throw upsertErr
+}
+
+/** Redirects to Google OAuth requesting drive + calendar read scopes. */
+export async function connectGoogleDrive(redirectTo: string): Promise<void> {
+  sessionStorage.setItem('drive_oauth_pending', '1')
+  await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo,
+      scopes: DRIVE_AND_CALENDAR_SCOPES,
+      queryParams: { access_type: 'offline', prompt: 'consent' },
+    },
+  })
+}
+
+/**
+ * Called after Drive OAuth return. Stores the encrypted token via
+ * onboarding-capture-drive-token with both drive and calendar scopes.
+ */
+export async function captureDriveToken(opts: {
+  refreshToken: string
+  accessToken: string
+  email: string
+}): Promise<void> {
+  const { error } = await supabase.functions.invoke('onboarding-capture-drive-token', {
+    body: {
+      provider_refresh_token: opts.refreshToken,
+      provider_token: opts.accessToken,
+      account_email: opts.email,
+      scopes: [DRIVE_SCOPE, CALENDAR_SCOPE],
+    },
+  })
+  if (error) throw error
 }
 
 /** Fetch today's schedule — approval_requests.scheduled_for + Google Calendar events */

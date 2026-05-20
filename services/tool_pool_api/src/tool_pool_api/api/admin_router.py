@@ -15,10 +15,12 @@ from pydantic import BaseModel, Field
 
 from blu_auth.core.exceptions import AuthError, InvalidTokenError, TokenExpiredError
 from blu_auth.core.jwt_decoder import decode_jwt
+from blu_context_service.context_service import ContextService
 from blu_supabase_client import get_supabase_client
 from blu_supabase_client.crud import SupabaseCRUD, get_crud
 from blu_tool_registry.registry import ToolRegistry
 from blu_tool_registry.tool_metadata import TierLevel
+from tool_pool_api.server.dependencies import get_context_service
 
 logger = logging.getLogger(__name__)
 
@@ -463,9 +465,13 @@ async def update_client(
     payload: ClientUpdateRequest,
     admin: AdminAuthResult = Depends(verify_admin_access),
     crud: SupabaseCRUD = Depends(get_crud),
+    ctx_service: ContextService = Depends(get_context_service),
 ):
     """
     Update a cliente_blu. Only provided fields will be updated.
+
+    Automatically clears the Redis context cache when tier or available_tools
+    change, so the agent picks up the new values immediately.
     """
     # First, check if client exists
     existing = crud.get_cliente_blu_by_id(client_id)
@@ -490,8 +496,39 @@ async def update_client(
             detail="Failed to update client",
         )
 
+    # Invalidate context cache whenever tier or available_tools changes so that
+    # tool_pool_api picks up the new values on the very next request.
+    if "tier" in data or "available_tools" in data:
+        await ctx_service.clear_context_cache(client_id)
+        logger.info(
+            f"Context cache cleared for client {client_id} "
+            f"(changed fields: {list(data.keys())})"
+        )
+
     logger.info(f"Updated client: {client_id}")
     return _dict_to_response(result)
+
+
+@router.post(
+    "/{client_id}/clear-cache",
+    status_code=status.HTTP_200_OK,
+    summary="Clear Redis context cache for a client",
+)
+async def clear_client_cache(
+    client_id: UUID,
+    admin: AdminAuthResult = Depends(verify_admin_access),
+    ctx_service: ContextService = Depends(get_context_service),
+):
+    """
+    Force-invalidate the Redis context cache for a client.
+
+    Use this when Supabase data was changed outside the API (e.g., direct DB
+    edit) and you need the agent to pick up the new values immediately without
+    waiting for the 5-minute TTL to expire.
+    """
+    await ctx_service.clear_context_cache(client_id)
+    logger.info(f"Admin manually cleared context cache for client {client_id}")
+    return {"client_id": str(client_id), "cache_cleared": True}
 
 
 @router.delete(

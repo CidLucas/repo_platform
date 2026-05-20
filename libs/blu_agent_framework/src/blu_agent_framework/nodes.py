@@ -112,8 +112,14 @@ async def init_node(state: AgentState) -> dict[str, Any]:
     - Validates required fields
     - Sets up initial context
     """
-    logger.debug(
-        f"init_node: session={state.get('session_id')}, messages={len(state.get('messages', []))}"
+    messages = state.get("messages", [])
+    tool_results = state.get("tool_results", [])
+    skill_results = state.get("skill_results", [])
+
+    logger.info(
+        f"[CONTEXT_MONITOR] session={state.get('session_id', '?')} "
+        f"messages={len(messages)} tool_results={len(tool_results)} "
+        f"skill_results={len(skill_results)}"
     )
 
     turn_count = state.get("turn_count", 0) + 1
@@ -232,7 +238,7 @@ def fan_out_tool_calls(state: AgentState) -> list[Send]:
                 "execute_single_tool",
                 {
                     "tool_call": tool_call,
-                    "cliente_id": state.get("cliente_id", ""),
+                    "client_id": state.get("client_id", ""),
                     "session_id": state.get("session_id", ""),
                     "channel": state.get("channel", "api"),
                     "metadata": state.get("metadata", {}),
@@ -361,24 +367,50 @@ async def error_recovery_node(state: AgentState) -> dict[str, Any]:
 async def context_enrichment_node(state: AgentState) -> dict[str, Any]:
     """
     Enrich state with additional context from client configuration.
+
+    Applies domain projection so that only sections relevant to the current intent
+    are reported as loaded.  This prevents brand_voice / policies / team_structure
+    from inflating the tool-selection window for pure data queries and keeps the
+    LLM context lean.
     """
     client_context = state.get("client_context", {})
 
     # Extract useful fields from client context
     available_tools = client_context.get("available_tools", {})
     tool_names = available_tools.get("enabled_tool_names", []) if available_tools else []
+    # Tier resolution: client_context wins if set, then top-level state["tier"], then BASIC.
+    tier = client_context.get("tier") or state.get("tier") or "BASIC"
     enriched_metadata = {
         "nome_empresa": client_context.get("nome_empresa", ""),
-        "tier": client_context.get("tier", "BASIC"),
+        "tier": tier,
         "has_rag": "executar_rag_cliente" in tool_names,
         "has_sql": "executar_sql_agent" in tool_names,
     }
 
-    # Keys that have meaningful values — used by get_for_task() for future context gating.
+    # Domain-aware section filtering.
+    # Only mark sections as loaded if they are relevant to the current intent domain.
+    # This prevents irrelevant sections from widening tool selection in get_for_task().
+    _DOMAIN_SECTIONS: dict[str, set[str]] = {
+        "analytics":  {"data_schema", "available_tools", "company_profile"},
+        "sql":        {"data_schema", "available_tools", "company_profile"},
+        "rag":        {"company_profile", "policies", "brand_voice"},
+        "knowledge":  {"company_profile", "policies", "brand_voice"},
+        "documents":  {"company_profile", "policies"},
+        "rfq":        {"brand_voice", "policies", "team_structure", "company_profile"},
+        "config":     {"available_tools", "team_structure", "company_profile"},
+        "monitoring": {"company_profile", "brand_voice"},
+    }
+
+    current_domain: str | None = state.get("current_domain")
+    relevant_sections: set[str] = _DOMAIN_SECTIONS.get(
+        current_domain or "",
+        set(client_context.keys()),  # unknown domain → include all
+    )
+
     # list[str], not set[str]: Redis checkpointer serialises state as JSON.
     loaded_context_keys = [
         k for k, v in client_context.items()
-        if v not in (None, "", [], {})
+        if k in relevant_sections and v not in (None, "", [], {})
     ]
 
     return {
@@ -414,8 +446,21 @@ async def classify_intent_node(state: AgentState) -> dict[str, Any]:
     _TAG_MAP: dict[str, list[str]] = {
         "rfq":         ["cotação", "cotacao", "rfq", "fornecedor", "cotizar", "licitação", "licitacao"],
         "procurement": ["compra", "compras", "pedido de compra", "pedido", "orçamento", "orcamento"],
-        "analytics":   ["análise", "analise", "relatório", "relatorio", "métricas", "metricas", "dashboard", "gráfico", "grafico"],
-        "sql":         ["sql", "query", "consulta", "tabela", "banco de dados"],
+        "analytics":   [
+            "análise", "analise", "relatório", "relatorio", "métricas", "metricas",
+            "dashboard", "gráfico", "grafico",
+            # Financial / revenue signals — should always route to SQL
+            "faturamento", "fatura", "receita", "vendas", "lucro", "margem",
+            "crescimento", "ticket médio", "ticket medio", "cmv", "total vendido",
+            "trimestre", "semestre", "mensal", "anual", "período", "periodo",
+        ],
+        "sql":         [
+            "sql", "query", "consulta", "tabela", "banco de dados", "base de dados",
+            # Financial data keywords — these always need a database query
+            "faturamento", "receita", "vendas", "pedidos", "transações", "transacoes",
+            "estoque", "fatura", "nota fiscal", "últimos meses", "ultimos meses",
+            "último trimestre", "ultimo trimestre", "últimos 3 meses", "ultimos 3 meses",
+        ],
         "csv":         ["csv", "planilha"],
         "documents":   ["documento", "pdf", "contrato", "nota fiscal"],
         "ocr":         ["extrair", "extração", "extracao", "ocr", "digitalizar"],
@@ -523,6 +568,21 @@ async def run_skill_node(state: AgentState) -> dict[str, Any]:
     This placeholder is registered so the node name resolves in the registry.
     """
     logger.debug(f"run_skill_node: skill={state.get('current_skill')} (not wired to factory)")
+    return {"current_skill": None}
+
+
+async def classify_skill_intent_node(state: AgentState) -> dict[str, Any]:
+    """
+    Map the current task to a skill in SKILL_REGISTRY for specialist subgraphs.
+
+    Placeholder — replaced by AgentBuilder._create_classify_skill_intent_node()
+    which binds an LLM and the specialist's tag-filtered skill set at graph-build
+    time.  Falls back to None so the graph routes directly to 'respond'.
+    """
+    logger.debug(
+        "classify_skill_intent_node: not wired to LLM (placeholder); "
+        "current_skill will remain None"
+    )
     return {"current_skill": None}
 
 
@@ -687,6 +747,13 @@ _BUILTIN_NODES = {
         "category": "core",
         "inputs": ["current_skill"],
         "outputs": ["messages", "skill_results", "current_skill"],
+    },
+    "classify_skill_intent": {
+        "handler": classify_skill_intent_node,
+        "description": "Map task to a SKILL_REGISTRY skill inside a specialist subgraph (wired in AgentBuilder)",
+        "category": "core",
+        "inputs": ["messages", "current_intent"],
+        "outputs": ["current_skill"],
     },
 }
 

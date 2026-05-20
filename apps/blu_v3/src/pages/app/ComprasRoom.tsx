@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
@@ -8,12 +8,13 @@ import {
   rejectRequest,
   snoozeApproval,
 } from '../../api/approvals'
-import { fetchInsights } from '../../api/insights'
+import { fetchInsights, formatKpi } from '../../api/insights'
 import { fetchSuppliers, fetchComprasHistory } from '../../api/suppliers'
-import { fetchRoutineConfig, upsertRoutineConfig } from '../../api/routines'
 import { getSupplyIndicators, getContextMetrics, type ContextMetricRow } from '../../api/analytics'
 import { useApprovalStats } from '../../hooks/useApprovalStats'
-import RoutinesPanel from '../../components/shared/RoutinesPanel'
+import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
+import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
+import RoutineExecutionFeed from '../../components/shared/RoutineExecutionFeed'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 
@@ -43,18 +44,24 @@ function ratingStars(rating: number | null) {
 }
 
 export default function ComprasRoom() {
-  const { go, toggleDc, expandedId, addToast } = useAppStore()
+  const { go, toggleDc, expandedId, addToast, initialTab, clearInitialTab } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('decisoes')
-  const [editingLimit, setEditingLimit] = useState(false)
-  const [limitInput, setLimitInput] = useState('')
   const [analyticsOpen, setAnalyticsOpen] = useState(false)
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'30d' | '90d' | '1y'>('30d')
 
+  // Navigate to the tab requested via goWithTab() from another screen
+  useEffect(() => {
+    if (!initialTab) return
+    const validTabs: Tab[] = ['decisoes', 'tarefas', 'historico', 'config']
+    if (validTabs.includes(initialTab as Tab)) setTab(initialTab as Tab)
+    clearInitialTab()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const { data: approvalStats } = useApprovalStats()
 
-  const [approvalsQ, insightsQ, suppliersQ, historyQ, configQ, supplyQ, contextMetricsQ] = useQueries({
+  const [approvalsQ, insightsQ, suppliersQ, historyQ, supplyQ, contextMetricsQ] = useQueries({
     queries: [
       {
         queryKey: ['approvals', 'compras', clientId ?? ''],
@@ -77,12 +84,6 @@ export default function ComprasRoom() {
       {
         queryKey: ['compras-history', clientId ?? ''],
         queryFn: () => fetchComprasHistory(clientId!),
-        enabled: !!clientId,
-        staleTime: 60_000,
-      },
-      {
-        queryKey: ['config', 'compras', clientId ?? ''],
-        queryFn: () => fetchRoutineConfig(clientId!, 'compras'),
         enabled: !!clientId,
         staleTime: 60_000,
       },
@@ -116,21 +117,13 @@ export default function ComprasRoom() {
     mutationFn: (id: string) => snoozeApproval(id, clientId!, snoozeUntil()),
     onSuccess: () => { invalidateApprovals(); addToast('sn', 'Adiado', 'Lembrete em 2 horas.') },
   })
-  const configMut = useMutation({
-    mutationFn: (cfg: Record<string, unknown>) => upsertRoutineConfig(clientId!, 'compras', cfg),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['config', 'compras', clientId ?? ''] }),
-  })
-
   const approvals = approvalsQ.data ?? []
   const pendingCount = approvals.length
   const suppliers = suppliersQ.data ?? []
   const history = historyQ.data ?? []
-  const cfg = configQ.data ?? {}
   const supply = supplyQ.data
-  const autoApprovalLimit = typeof cfg.auto_approval_limit === 'number' ? cfg.auto_approval_limit : 500
-  const stockAlertDays = typeof cfg.stock_alert_days === 'number' ? cfg.stock_alert_days : 3
   const comprasInsights = (insightsQ.data ?? []).filter(
-    i => !i.dimension || i.dimension === 'compras'
+    i => !i.dimension || i.dimension === 'compras' || i.dimension === 'supply' || i.dimension === 'inventory'
   )
   const comprasContextMetrics: ContextMetricRow[] = (contextMetricsQ.data ?? []).filter(
     (m) => m.dimension === 'supply' || m.dimension === 'inventory'
@@ -216,7 +209,7 @@ export default function ComprasRoom() {
 
             {/* TAREFAS */}
             <div className={`tc${tab === 'tarefas' ? ' on' : ''}`} id="c-tarefas">
-              <RoutinesPanel domain="compras" />
+              <RoutineExecutionFeed domain="compras" />
             </div>
 
             {/* HISTÓRICO */}
@@ -241,66 +234,7 @@ export default function ComprasRoom() {
 
             {/* CONFIG */}
             <div className={`tc${tab === 'config' ? ' on' : ''}`} id="c-config">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-                <div style={{ background: 'var(--glass)', border: '1px solid var(--gb)', borderRadius: 'var(--r)', padding: '11px 12px' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 3 }}>Limite para aprovação automática</div>
-                  <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 8 }}>Compras com fornecedor preferido abaixo deste valor aprovadas automaticamente.</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    {editingLimit ? (
-                      <>
-                        <input
-                          type="number"
-                          value={limitInput}
-                          onChange={e => setLimitInput(e.target.value)}
-                          style={{ background: 'rgba(0,0,0,.3)', border: '1px solid var(--gb)', borderRadius: 5, padding: '5px 10px', fontFamily: 'var(--mono)', fontSize: 12, flex: 1, color: 'inherit' }}
-                          autoFocus
-                        />
-                        <button
-                          className="btn bp"
-                          style={{ fontSize: 11 }}
-                          disabled={configMut.isPending}
-                          onClick={() => {
-                            const val = parseFloat(limitInput)
-                            if (!isNaN(val) && val >= 0) {
-                              configMut.mutate({ ...cfg, auto_approval_limit: val })
-                            }
-                            setEditingLimit(false)
-                          }}
-                        >
-                          Salvar
-                        </button>
-                        <button className="btn bs" style={{ fontSize: 11 }} onClick={() => setEditingLimit(false)}>✕</button>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ background: 'rgba(0,0,0,.3)', border: '1px solid var(--gb)', borderRadius: 5, padding: '5px 10px', fontFamily: 'var(--mono)', fontSize: 12, flex: 1 }}>
-                          {autoApprovalLimit.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}
-                        </div>
-                        <button className="btn bs" style={{ fontSize: 11 }} onClick={() => { setLimitInput(String(autoApprovalLimit)); setEditingLimit(true) }}>Editar</button>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div style={{ background: 'var(--glass)', border: '1px solid var(--gb)', borderRadius: 'var(--r)', padding: '11px 12px' }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 3 }}>Alerta de estoque baixo</div>
-                  <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 7 }}>Notificar quando restar X dias de estoque.</div>
-                  <div className="pills">
-                    {[3, 5, 7].map(d => (
-                      <span
-                        key={d}
-                        className={`pill${stockAlertDays === d ? ' on' : ''}`}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => configMut.mutate({ ...cfg, stock_alert_days: d })}
-                      >
-                        {d} dias
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ marginTop: 4 }}>
-                  <RoutinesPanel domain="compras" />
-                </div>
-              </div>
+              <RoutineConfigSection domain="compras" />
             </div>
 
           </div>
@@ -416,6 +350,9 @@ export default function ComprasRoom() {
 
         <div className="rcol">
           <RColResizeHandle />
+          <CollapsiblePanel id="compras-rotinas" icon="⚙️" title="Rotinas ativas">
+            <RoutineStatusWidget domain="compras" />
+          </CollapsiblePanel>
           <CollapsiblePanel id="compras-fornecedores" icon="📁" title="Fornecedores" action={<button className="ph-add">＋</button>}>
             <div className="dr-sec">
                 <div className="pills"><span className="pill on">Todos</span><span className="pill">Escritório</span><span className="pill">Insumos</span></div>
@@ -470,7 +407,7 @@ export default function ComprasRoom() {
                 {ins.severity === 'error' ? '⚠️' : ins.severity === 'warning' ? '💡' : '🔍'}
               </span>
               <div className="ich-body">
-                <span className="ich-tag tg-s">{ins.kpi ?? 'Insight'}</span>
+                <span className="ich-tag tg-s">{formatKpi(ins.kpi)}</span>
                 <div className="ich-txt">{ins.title}</div>
               </div>
             </div>

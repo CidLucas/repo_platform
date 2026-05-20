@@ -32,7 +32,7 @@ from tool_pool_api.server.dependencies import (
     get_context_service,
     load_context_from_token,
 )
-from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_llm_service import ModelTier, get_model
 from blu_models.enums import ContextSection
 from blu_models.blu_client_context import BluClientContext
@@ -70,7 +70,7 @@ def _strip_markdown_code_block(text: str) -> str:
 
 
 async def _get_enriched_schema_context(
-    cliente_id: UUID,
+    client_id: UUID,
     engine,
     include_tables: list[str] | None = None,
     context_service=None,
@@ -84,7 +84,7 @@ async def _get_enriched_schema_context(
     3. Adds semantic metadata (descriptions, enum values, examples)
 
     Args:
-        cliente_id: UUID of the client
+        client_id: UUID of the client
         engine: SQLAlchemy engine
         include_tables: Optional list of tables to include
         context_service: Optional ContextService for cached config retrieval
@@ -100,7 +100,7 @@ async def _get_enriched_schema_context(
         if context_service is None:
             context_service = get_context_service()
 
-        configs = await context_service.get_sql_table_configs(cliente_id)
+        configs = await context_service.get_sql_table_configs(client_id)
 
         if configs:
             # Build enriched schema from configs
@@ -216,7 +216,7 @@ TABLE: analytics_v2.fato_transacoes (grain: transacao_id)
 - documento (TEXT) - Order/document identifier
 - data_competencia_id (INTEGER) - FK to dim_datas (format YYYYMMDD)
 - tipo_id (INTEGER) - FK to dim_tipo_transacao
-- cliente_id (UUID) - FK to dim_clientes
+- client_id (UUID) - FK to dim_clientes
 - fornecedor_id (UUID) - FK to dim_fornecedores
 - inventory_id (UUID) - FK to dim_inventory
 - quantidade (NUMERIC) - Quantity
@@ -225,7 +225,7 @@ TABLE: analytics_v2.fato_transacoes (grain: transacao_id)
 - status (TEXT) - Transaction status
 
 TABLE: analytics_v2.dim_clientes
-- cliente_id (UUID) - Primary key
+- client_id (UUID) - Primary key
 - nome (TEXT), cpf_cnpj (TEXT)
 - endereco_cidade (TEXT), endereco_uf (TEXT)
 - total_pedidos (INTEGER), receita_total (NUMERIC), ticket_medio (NUMERIC)
@@ -252,7 +252,7 @@ TABLE: analytics_v2.dim_tipo_transacao  -- GLOBAL SHARED TABLE (no client_id)
 - codigo (TEXT), descricao (TEXT), categoria (TEXT)
 
 JOINS:
-  fato_transacoes -> dim_clientes via cliente_id
+  fato_transacoes -> dim_clientes via client_id
   fato_transacoes -> dim_fornecedores via fornecedor_id
   fato_transacoes -> dim_inventory via inventory_id
   fato_transacoes -> dim_datas via data_competencia_id = data_id
@@ -438,7 +438,7 @@ def _inject_client_id_filter(sql: str, client_id: str) -> str:
 async def _executar_sql_agent_logic(
     query: str,
     ctx: Context,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Executes a natural language query against the database.
@@ -456,7 +456,7 @@ async def _executar_sql_agent_logic(
     Args:
         query: Natural language query (e.g., "How many laptop products?")
         ctx: MCP context
-        cliente_id: Client ID (injected by middleware)
+        client_id: Client ID (injected by middleware)
 
     Returns:
         Dict with SQL query results
@@ -470,21 +470,21 @@ async def _executar_sql_agent_logic(
         raise ToolError(f"Erro interno no serviço de ferramentas: {type(e).__name__}: {e}")
 
     # 2. Resolver o Contexto Blu
-    # Priority: 1) cliente_id param (injected by decorator), 2) access token
+    # Priority: 1) client_id param (injected by decorator), 2) access token
     blu_context: BluClientContext | None = None
 
     try:
-        if cliente_id:
-            logger.info(f"[SQL] Usando cliente_id injetado: {cliente_id}")
+        if client_id:
+            logger.info(f"[SQL] Usando client_id injetado: {client_id}")
             try:
-                uuid_obj = UUID(cliente_id)
+                uuid_obj = UUID(client_id)
             except ValueError:
-                raise ToolError(f"ID de cliente inválido: {cliente_id}")
+                raise ToolError(f"ID de cliente inválido: {client_id}")
 
             blu_context = await ctx_service.get_client_context_by_id(uuid_obj)
 
             if not blu_context:
-                raise ToolError(f"Contexto não encontrado para o ID: {cliente_id}")
+                raise ToolError(f"Contexto não encontrado para o ID: {client_id}")
         else:
             # Fallback to FastMCP access token (direct API calls)
             access_token: AccessToken | None = get_access_token()
@@ -655,8 +655,8 @@ async def _executar_sql_agent_logic(
                 # Set RLS context for this session (defense in depth with hard-injected filter)
                 # Use 'true' for local (transaction-scoped) setting
                 conn.execute(
-                    sa_text("SELECT set_config('app.current_cliente_id', :cliente_id, true)"),
-                    {"cliente_id": client_id_str},
+                    sa_text("SELECT set_config('app.current_client_id', :client_id, true)"),
+                    {"client_id": client_id_str},
                 )
                 # NOTE: Do NOT commit here - keep RLS context and query in same transaction
 
@@ -705,7 +705,7 @@ async def _executar_sql_agent_logic(
                     cache_ref_id = cache.store(
                         session_id=session_id,
                         tool_name="executar_sql_agent",
-                        args={"query": query, "cliente_id": client_id_str},
+                        args={"query": query, "client_id": client_id_str},
                         result={
                             "all_rows": rows_as_dicts,
                             "columns": columns,
@@ -713,7 +713,7 @@ async def _executar_sql_agent_logic(
                             "row_count": len(rows_as_dicts),
                         },
                         metadata={
-                            "cliente_id": client_id_str,
+                            "client_id": client_id_str,
                             "query_preview": title_query,
                         },
                     )
@@ -776,7 +776,7 @@ async def _executar_sql_agent_logic(
 async def _execute_sql_logic(
     sql: str,
     ctx: Context,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Execute pre-generated SQL query against the database.
@@ -793,7 +793,7 @@ async def _execute_sql_logic(
     Args:
         sql: Pre-generated SQL query from supervisor
         ctx: MCP context
-        cliente_id: Client ID (injected by middleware)
+        client_id: Client ID (injected by middleware)
 
     Returns:
         Dict with SQL query results and structured_data
@@ -809,17 +809,17 @@ async def _execute_sql_logic(
     blu_context: BluClientContext | None = None
 
     try:
-        if cliente_id:
-            logger.info(f"[execute_sql] Using injected cliente_id: {cliente_id}")
+        if client_id:
+            logger.info(f"[execute_sql] Using injected client_id: {client_id}")
             try:
-                uuid_obj = UUID(cliente_id)
+                uuid_obj = UUID(client_id)
             except ValueError:
-                raise ToolError(f"Invalid client ID: {cliente_id}")
+                raise ToolError(f"Invalid client ID: {client_id}")
 
             blu_context = await ctx_service.get_client_context_by_id(uuid_obj)
 
             if not blu_context:
-                raise ToolError(f"Context not found for ID: {cliente_id}")
+                raise ToolError(f"Context not found for ID: {client_id}")
         else:
             # Fallback to FastMCP access token
             access_token: AccessToken | None = get_access_token()
@@ -908,8 +908,8 @@ async def _execute_sql_logic(
         with engine.connect() as conn:
             # Set RLS context
             conn.execute(
-                sa_text("SELECT set_config('app.current_cliente_id', :cliente_id, true)"),
-                {"cliente_id": client_id_str},
+                sa_text("SELECT set_config('app.current_client_id', :client_id, true)"),
+                {"client_id": client_id_str},
             )
 
             # Execute query
@@ -950,14 +950,14 @@ async def _execute_sql_logic(
                 cache_ref_id = cache.store(
                     session_id=session_id,
                     tool_name="execute_sql",
-                    args={"sql": sql[:500], "cliente_id": client_id_str},
+                    args={"sql": sql[:500], "client_id": client_id_str},
                     result={
                         "all_rows": rows_as_dicts,
                         "columns": columns,
                         "sql": final_sql,
                         "row_count": len(rows_as_dicts),
                     },
-                    metadata={"cliente_id": client_id_str},
+                    metadata={"client_id": client_id_str},
                 )
                 logger.info(f"[execute_sql] Cached: ref_id={cache_ref_id}, rows={len(rows_as_dicts)}")
             except Exception as cache_err:
@@ -992,7 +992,7 @@ async def _execute_sql_logic(
 def register_tools(mcp: FastMCP) -> list[str]:
     """Registra as tools do módulo SQL."""
     # Register executar_sql_agent - simple natural language to SQL tool
-    # Uses mcp_inject_cliente_id decorator to inject cliente_id from auth
+    # Uses mcp_inject_client_id decorator to inject client_id from auth
     mcp.tool(
         name="executar_sql_agent",
         description=(
@@ -1007,7 +1007,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "WHEN TO USE: Any question about data, analytics, rankings, trends, totals, comparisons. "
             "ALWAYS try this tool for data questions - it knows the schema and will figure out the right query."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_executar_sql_agent_logic))
+    )(mcp_inject_client_id(get_context_service)(_executar_sql_agent_logic))
 
     # Register execute_sql - lightweight tool for pre-generated SQL
     # Supervisor generates SQL directly, this tool only validates + executes
@@ -1024,7 +1024,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "\n\n"
             "USE THIS when you have generated the SQL yourself based on the schema in your system prompt."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_execute_sql_logic))
+    )(mcp_inject_client_id(get_context_service)(_execute_sql_logic))
 
     logger.info("[SQL Module] Tools registered: executar_sql_agent, execute_sql")
     return ["executar_sql_agent", "execute_sql"]

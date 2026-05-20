@@ -17,16 +17,14 @@ import {
   type BluDocument,
   type DocTemplate,
 } from '../../api/documents'
-import { fetchRoutines, type ClientRoutine } from '../../api/routines'
+import { snoozeUntil } from '../../utils/time'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
+import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
+import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
 
-type Tab = 'ativos' | 'rascunhos' | 'modelos'
+type Tab = 'ativos' | 'rascunhos' | 'modelos' | 'config'
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
-
-function snoozeUntil() {
-  return new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-}
 
 function relativeTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
@@ -41,14 +39,22 @@ interface DocumentosRoomProps {
 }
 
 export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
-  const { go, addToast } = useAppStore()
+  const { go, addToast, pendingDocId, setPendingDocId } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('ativos')
   const [activeDocId, setActiveDocId] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
 
-  const [approvalsQ, insightsQ, docsQ, templatesQ, routinesQ] = useQueries({
+  useEffect(() => {
+    if (pendingDocId) {
+      setActiveDocId(pendingDocId)
+      setPendingDocId(null)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const [approvalsQ, insightsQ, docsQ, templatesQ] = useQueries({
     queries: [
       {
         queryKey: ['approvals', 'documentos', clientId ?? ''],
@@ -73,12 +79,6 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
         queryFn: () => fetchDocTemplates(clientId!),
         enabled: !!clientId,
         staleTime: 300_000,
-      },
-      {
-        queryKey: ['routines', 'documentos', clientId ?? ''],
-        queryFn: () => fetchRoutines(clientId!, 'documentos'),
-        enabled: !!clientId,
-        staleTime: 120_000,
       },
     ],
   })
@@ -121,7 +121,6 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
   const approvals: ApprovalRequest[] = approvalsQ.data ?? []
   const docs: BluDocument[] = docsQ.data ?? []
   const templates: DocTemplate[] = templatesQ.data ?? []
-  const routines: ClientRoutine[] = routinesQ.data ?? []
   const insights: ClientInsight[] = (insightsQ.data ?? []).filter(
     (i) => !i.dimension || i.dimension === 'documentos'
   )
@@ -169,13 +168,13 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
             </span>
           </div>
           <div className="rtabs" id="dTabs">
-            {(['ativos', 'rascunhos', 'modelos'] as Tab[]).map((t) => (
+            {(['ativos', 'rascunhos', 'modelos', 'config'] as Tab[]).map((t) => (
               <div
                 key={t}
                 className={`rtab${tab === t ? ' on' : ''}`}
                 onClick={() => { setActiveDocId(null); setTab(t) }}
               >
-                {t === 'ativos' ? 'Ativos' : t === 'rascunhos' ? 'Rascunhos' : 'Modelos'}
+                {t === 'ativos' ? 'Ativos' : t === 'rascunhos' ? 'Rascunhos' : t === 'modelos' ? 'Modelos' : 'Config'}
               </div>
             ))}
           </div>
@@ -294,12 +293,20 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
                 </div>
               )}
             </div>
+
+            {/* CONFIG */}
+            <div className={`tc${tab === 'config' ? ' on' : ''}`} id="d-config">
+              <RoutineConfigSection domain="documentos" />
+            </div>
           </div>
         </div>
 
         {/* RIGHT COLUMN */}
         <div className="rcol">
           <RColResizeHandle />
+          <CollapsiblePanel id="docs-rotinas" icon="⚙️" title="Rotinas ativas">
+            <RoutineStatusWidget domain="documentos" />
+          </CollapsiblePanel>
           <CollapsiblePanel id="docs-modelos" icon="🗂️" title="Modelos" action={<button className="ph-add">＋</button>}>
             <div className="dr-sec">
                 {templatesQ.isLoading ? (
@@ -365,35 +372,9 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
               </div>
             </div>
           ))}
-          <div className="nums-chip">
+          <div className="nums-chip" onClick={() => setTab('config')} style={{ cursor: 'pointer' }}>
             <div className="nums-head">⚙️ Rotinas ativas</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {routinesQ.isLoading ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)' }}>…</div>
-              ) : routines.filter((r) => r.active).length === 0 ? (
-                <div style={{ fontSize: 11, color: 'var(--mu)' }}>Nenhuma rotina ativa.</div>
-              ) : (
-                routines
-                  .filter((r) => r.active)
-                  .map((r) => (
-                    <div
-                      key={r.id}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}
-                    >
-                      <div
-                        style={{
-                          width: 4,
-                          height: 4,
-                          borderRadius: '50%',
-                          background: 'var(--ok)',
-                          flexShrink: 0,
-                        }}
-                      />
-                      <span style={{ color: 'var(--mu2)' }}>{r.routine_id}</span>
-                    </div>
-                  ))
-              )}
-            </div>
+            <div style={{ fontSize: 11, color: 'var(--mu)' }}>Ver na aba Config →</div>
           </div>
         </div>
       </div>

@@ -290,7 +290,7 @@ class InternalClientContext(BaseModel):
     Contexto interno do cliente com dados sensíveis.
 
     Este modelo é usado APENAS para operações internas do servidor
-    (autenticação, injeção de cliente_id em tools, etc.)
+    (autenticação, injeção de client_id em tools, etc.)
 
     NUNCA deve ser exposto à LLM ou incluído em prompts.
     """

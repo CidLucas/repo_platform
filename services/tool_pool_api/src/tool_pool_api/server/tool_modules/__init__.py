@@ -62,7 +62,6 @@ def register_all_tools(mcp: FastMCP) -> dict:
         common_module,
         config_helper_module,
         context_module,  # noqa: F401
-        csv_module,
         document_intelligence_module,
         ocr_extraction_module,
         prompt_module,
@@ -107,14 +106,6 @@ AVAILABLE_MODULES = {
     "sql": {
         "description": "SQL Agent para dados estruturados",
         "tools": ["executar_sql_agent"],
-        "requires_auth": True,
-    },
-    "csv": {
-        "description": "CSV analytics with DuckDB",
-        "tools": [
-            "execute_csv_query",
-            "list_csv_datasets",
-        ],
         "requires_auth": True,
     },
     "config_helper": {

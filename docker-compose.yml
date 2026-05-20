@@ -66,24 +66,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Serviço efêmero que roda as migrações no banco local e morre
-  migrator:
-    profiles: ["local"]
-    build:
-      context: .
-      # Usa um Dockerfile simples que tem Python + Poetry
-      dockerfile: ./services/migration_runner/Dockerfile
-    environment:
-      # Aponta para o container postgres local
-      DATABASE_URL: postgresql://user:password@postgres:5432/blu_db
-    depends_on:
-      postgres:
-        condition: service_healthy
-    # Comando mágico: usa a CLI que acabamos de criar
-    command: ["poetry", "run", "blu-db", "migrate"]
-    volumes:
-      - ./libs:/app/libs # Mapeia as libs para ter o código mais recente
-
   # =========================================
   # SERVIÇOS DA APLICAÇÃO (Perfil: padrão)
   # Rodam tanto em local quanto em prod
@@ -364,34 +346,6 @@ services:
   #     # Dá 5 minutos (300s) de carência para o container iniciar.
   #     # Falhas de healthcheck durante este período não contam.
   #     start_period: 300s
-
-  file_upload_api:
-    container_name: blu_file_upload_api
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/file_upload_api/Dockerfile
-    ports:
-      - "8001:8000"
-    volumes:
-      - ./services/file_upload_api/src:/app/src
-      - ./libs:/app/libs
-    environment:
-      <<: *common-env
-      # --- CORREÇÃO DE IMPORTAÇÃO ---
-      PYTHONPATH: /app/src
-      # MUDANÇA: Substituído por referência a variáveis de ambiente (ENV)
-      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
-      GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
-      PUBSUB_TOPIC_ID: ${PUBSUB_TOPIC_ID}
-      # FIM DA MUDANÇA
-    # Note: Uses Supabase REST API, no local postgres needed
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # NOTE: analytics_api and data_ingestion_api REMOVED (deprecated)
   # All functionality now handled via Supabase PostgREST + RPCs
 
@@ -440,60 +394,6 @@ services:
     ports:
       - "8080:8080"
     restart: unless-stopped
-
-  # =========================================
-  # NEW AGENTS (Phase 4)
-  # =========================================
-
-  vendas_agent:
-    container_name: blu_vendas_agent
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/vendas_agent/Dockerfile
-    env_file:
-      - .env
-    environment:
-      <<: [*common-env, *atendente-env]
-      DATABASE_URL: "postgresql://user:password@postgres:5432/blu_db"
-      PYTHONPATH: /app/src
-      MCP_SERVER_URL: http://tool_pool_api:8000/mcp/
-      USE_LOCAL_DB: "true"
-    ports:
-      - "8009:8000"
-    volumes:
-      - ./services/vendas_agent/src:/app/src
-      - ./libs:/app/libs
-    depends_on:
-      redis:
-        condition: service_healthy
-      tool_pool_api:
-        condition: service_started
-
-  support_agent:
-    container_name: blu_support_agent
-    platform: linux/amd64
-    build:
-      context: .
-      dockerfile: ./services/support_agent/Dockerfile
-    env_file:
-      - .env
-    environment:
-      <<: [*common-env, *atendente-env]
-      DATABASE_URL: "postgresql://user:password@postgres:5432/blu_db"
-      PYTHONPATH: /app/src
-      MCP_SERVER_URL: http://tool_pool_api:8000/mcp/
-      USE_LOCAL_DB: "true"
-    ports:
-      - "8010:8000"
-    volumes:
-      - ./services/support_agent/src:/app/src
-      - ./libs:/app/libs
-    depends_on:
-      redis:
-        condition: service_healthy
-      tool_pool_api:
-        condition: service_started
 
 # Definição de volumes persistentes
 volumes:

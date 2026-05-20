@@ -131,16 +131,16 @@ class LangfuseExperimentRunner:
             for client in manifest.clients:
                 # Generic cases
                 for case in manifest.cases:
-                    if case.cliente_id and case.cliente_id != client.cliente_id:
+                    if case.client_id and case.client_id != client.client_id:
                         continue
 
-                    item_id = f"{client.cliente_id}:{case.id}"
+                    item_id = f"{client.client_id}:{case.id}"
                     self.langfuse.create_dataset_item(
                         dataset_name=dataset_name,
                         id=item_id,
                         input={
                             "message": case.message,
-                            "client_id": client.cliente_id,
+                            "client_id": client.client_id,
                             "client_name": client.name,
                         },
                         expected_output={
@@ -157,14 +157,14 @@ class LangfuseExperimentRunner:
 
                 # Client-specific cases
                 if manifest.client_specific_cases:
-                    for case in manifest.client_specific_cases.get(client.cliente_id, []):
-                        item_id = f"{client.cliente_id}:{case.id}"
+                    for case in manifest.client_specific_cases.get(client.client_id, []):
+                        item_id = f"{client.client_id}:{case.id}"
                         self.langfuse.create_dataset_item(
                             dataset_name=dataset_name,
                             id=item_id,
                             input={
                                 "message": case.message,
-                                "client_id": client.cliente_id,
+                                "client_id": client.client_id,
                                 "client_name": client.name,
                             },
                             expected_output={

@@ -12,7 +12,7 @@ from uuid import uuid4
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
-from blu_auth.mcp.auth_middleware import mcp_inject_cliente_id
+from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_supabase_client import get_supabase_client
 from tool_pool_api.server.dependencies import get_context_service
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 async def _listar_rotinas_catalogo_logic(
     ctx: Context,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     List all catalog routines available for the client's domain, along with
@@ -41,8 +41,8 @@ async def _listar_rotinas_catalogo_logic(
       - status: client's status for this routine (null = not configured)
       - config: client's custom config for this routine
     """
-    if not cliente_id:
-        raise ToolError("cliente_id não encontrado. Certifique-se de estar autenticado.")
+    if not client_id:
+        raise ToolError("client_id não encontrado. Certifique-se de estar autenticado.")
 
     try:
         db = get_supabase_client()
@@ -55,7 +55,7 @@ async def _listar_rotinas_catalogo_logic(
 
         client_result = await db.table("client_routines").select(
             "routine_id, active, status, config"
-        ).eq("client_id", cliente_id).eq("source", "catalog").execute()
+        ).eq("client_id", client_id).eq("source", "catalog").execute()
 
         client_map = {r["routine_id"]: r for r in (client_result.data or [])}
 
@@ -72,7 +72,7 @@ async def _listar_rotinas_catalogo_logic(
                 "config_schema": routine.get("config_schema", []),
             })
 
-        logger.info(f"[Rotinas] Listou {len(enriched)} rotinas de catálogo para {cliente_id}")
+        logger.info(f"[Rotinas] Listou {len(enriched)} rotinas de catálogo para {client_id}")
         return {"rotinas": enriched, "total": len(enriched)}
 
     except ToolError:
@@ -84,7 +84,7 @@ async def _listar_rotinas_catalogo_logic(
 
 async def _listar_rotinas_personalizadas_logic(
     ctx: Context,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     List the client's custom (non-catalog) routines with their current status.
@@ -92,18 +92,18 @@ async def _listar_rotinas_personalizadas_logic(
     Returns routines created by the client (via chat or QuickBuilder), including
     draft, pending_approval, and active routines.
     """
-    if not cliente_id:
-        raise ToolError("cliente_id não encontrado. Certifique-se de estar autenticado.")
+    if not client_id:
+        raise ToolError("client_id não encontrado. Certifique-se de estar autenticado.")
 
     try:
         db = get_supabase_client()
 
         result = await db.table("client_routines").select(
             "id, name, description, status, active, steps, trigger_type, trigger_config, created_by_ai, created_at"
-        ).eq("client_id", cliente_id).eq("source", "custom").order("created_at", desc=True).execute()
+        ).eq("client_id", client_id).eq("source", "custom").order("created_at", desc=True).execute()
 
         rotinas = result.data or []
-        logger.info(f"[Rotinas] Listou {len(rotinas)} rotinas personalizadas para {cliente_id}")
+        logger.info(f"[Rotinas] Listou {len(rotinas)} rotinas personalizadas para {client_id}")
         return {"rotinas": rotinas, "total": len(rotinas)}
 
     except ToolError:
@@ -119,7 +119,7 @@ async def _criar_rotina_personalizada_logic(
     ctx: Context,
     description: str | None = None,
     trigger_type: str = "manual",
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Create a new custom routine as a draft.
@@ -133,8 +133,8 @@ async def _criar_rotina_personalizada_logic(
     The routine is created with status="draft". Call enviar_rotina_para_aprovacao
     to submit it for activation.
     """
-    if not cliente_id:
-        raise ToolError("cliente_id não encontrado. Certifique-se de estar autenticado.")
+    if not client_id:
+        raise ToolError("client_id não encontrado. Certifique-se de estar autenticado.")
 
     if not name or not name.strip():
         raise ToolError("O nome da rotina é obrigatório.")
@@ -152,7 +152,7 @@ async def _criar_rotina_personalizada_logic(
         routine_id = str(uuid4())
         row = {
             "id": routine_id,
-            "client_id": cliente_id,
+            "client_id": client_id,
             "routine_id": routine_id,
             "source": "custom",
             "status": "draft",
@@ -167,7 +167,7 @@ async def _criar_rotina_personalizada_logic(
         result = await db.table("client_routines").insert(row).execute()
 
         created = result.data[0] if result.data else row
-        logger.info(f"[Rotinas] Rotina personalizada criada: {routine_id} para {cliente_id}")
+        logger.info(f"[Rotinas] Rotina personalizada criada: {routine_id} para {client_id}")
         return {
             "id": created.get("id", routine_id),
             "name": name,
@@ -190,7 +190,7 @@ async def _ativar_rotina_catalogo_logic(
     active: bool,
     ctx: Context,
     config: dict | None = None,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Toggle a catalog routine on or off for this client.
@@ -202,8 +202,8 @@ async def _ativar_rotina_catalogo_logic(
 
     Creates or updates the client's subscription to a catalog routine.
     """
-    if not cliente_id:
-        raise ToolError("cliente_id não encontrado. Certifique-se de estar autenticado.")
+    if not client_id:
+        raise ToolError("client_id não encontrado. Certifique-se de estar autenticado.")
 
     if not routine_id or not routine_id.strip():
         raise ToolError("routine_id é obrigatório.")
@@ -219,7 +219,7 @@ async def _ativar_rotina_catalogo_logic(
         new_status = "active" if active else "inactive"
 
         upsert_row = {
-            "client_id": cliente_id,
+            "client_id": client_id,
             "routine_id": routine_id,
             "source": "catalog",
             "active": active,
@@ -233,7 +233,7 @@ async def _ativar_rotina_catalogo_logic(
         ).execute()
 
         action = "ativada" if active else "desativada"
-        logger.info(f"[Rotinas] Rotina catálogo '{routine_id}' {action} para {cliente_id}")
+        logger.info(f"[Rotinas] Rotina catálogo '{routine_id}' {action} para {client_id}")
         return {
             "routine_id": routine_id,
             "name": routine_name,
@@ -252,7 +252,7 @@ async def _ativar_rotina_catalogo_logic(
 async def _enviar_rotina_para_aprovacao_logic(
     routine_id: str,
     ctx: Context,
-    cliente_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Submit a draft custom routine to the approval queue.
@@ -263,8 +263,8 @@ async def _enviar_rotina_para_aprovacao_logic(
     Updates status to 'pending_approval' and creates an approval_requests entry
     so the client or admin can review and activate it.
     """
-    if not cliente_id:
-        raise ToolError("cliente_id não encontrado. Certifique-se de estar autenticado.")
+    if not client_id:
+        raise ToolError("client_id não encontrado. Certifique-se de estar autenticado.")
 
     if not routine_id or not routine_id.strip():
         raise ToolError("routine_id é obrigatório.")
@@ -274,7 +274,7 @@ async def _enviar_rotina_para_aprovacao_logic(
 
         routine_result = await db.table("client_routines").select(
             "id, name, description, steps, status, source, client_id"
-        ).eq("id", routine_id).eq("client_id", cliente_id).maybe_single().execute()
+        ).eq("id", routine_id).eq("client_id", client_id).maybe_single().execute()
 
         if not routine_result.data:
             raise ToolError(f"Rotina não encontrada ou sem permissão: {routine_id}")
@@ -297,7 +297,7 @@ async def _enviar_rotina_para_aprovacao_logic(
 
         routine_name = routine.get("name") or "Rotina Personalizada"
         await db.table("approval_requests").insert({
-            "client_id": cliente_id,
+            "client_id": client_id,
             "action_type": "routine_activation",
             "agent_slug": "customer-support",
             "title": f"Ativar rotina: {routine_name}",
@@ -311,7 +311,7 @@ async def _enviar_rotina_para_aprovacao_logic(
             },
         }).execute()
 
-        logger.info(f"[Rotinas] Rotina {routine_id} enviada para aprovação por {cliente_id}")
+        logger.info(f"[Rotinas] Rotina {routine_id} enviada para aprovação por {client_id}")
         return {
             "routine_id": routine_id,
             "name": routine_name,
@@ -345,7 +345,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "activation status. Returns routine id, name, active flag, and config schema. "
             "Use this to show clients what automations are available before activating them."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_listar_rotinas_catalogo_logic))
+    )(mcp_inject_client_id(get_context_service)(_listar_rotinas_catalogo_logic))
 
     mcp.tool(
         name="listar_rotinas_personalizadas",
@@ -354,7 +354,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Includes draft, pending_approval, and active routines. "
             "Use to show what custom automations the client has built."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_listar_rotinas_personalizadas_logic))
+    )(mcp_inject_client_id(get_context_service)(_listar_rotinas_personalizadas_logic))
 
     mcp.tool(
         name="criar_rotina_personalizada",
@@ -365,7 +365,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "Each step: {step: <int>, agent: <slug>, action: <action_id>, input: {...}}. "
             "After creation, call enviar_rotina_para_aprovacao to submit it for activation."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_criar_rotina_personalizada_logic))
+    )(mcp_inject_client_id(get_context_service)(_criar_rotina_personalizada_logic))
 
     mcp.tool(
         name="ativar_rotina_catalogo",
@@ -375,7 +375,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "config (object, optional — custom config overrides for the routine). "
             "Use listar_rotinas_catalogo first to get valid routine_id values."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_ativar_rotina_catalogo_logic))
+    )(mcp_inject_client_id(get_context_service)(_ativar_rotina_catalogo_logic))
 
     mcp.tool(
         name="enviar_rotina_para_aprovacao",
@@ -385,7 +385,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "The routine must have status='draft'. Updates status to 'pending_approval' and "
             "notifies the client for review."
         ),
-    )(mcp_inject_cliente_id(get_context_service)(_enviar_rotina_para_aprovacao_logic))
+    )(mcp_inject_client_id(get_context_service)(_enviar_rotina_para_aprovacao_logic))
 
     registered = [
         "listar_rotinas_catalogo",

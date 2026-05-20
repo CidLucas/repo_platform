@@ -8,7 +8,6 @@ export type Screen =
   | 'documentos'
   | 'estrategia'
   | 'clientes'
-  | 'agentes'
   | 'atividade'
   | 'admin'
   | 'biblioteca'
@@ -39,9 +38,21 @@ export interface AppState {
   // decisions: local-only UI state for rooms not yet wired to backend
   decisions: Record<string, Decision>
   toasts: Toast[]
+  // chatTrigger: set by openChatWith(); ChatPanel watches and opens + sends context
+  chatTrigger: { context: string; ts: number } | null
+  // initialTab: consumed once by room on mount via goWithTab()
+  initialTab: string | null
+  // pendingDocId: consumed once by DocumentosRoom on mount to auto-open a document
+  pendingDocId: string | null
+  // firstRun: true until user completes or dismisses the guided onboarding tour
+  firstRun: boolean
 
   // actions
   go: (s: Screen, label: string) => void
+  goWithTab: (s: Screen, label: string, tab: string) => void
+  clearInitialTab: () => void
+  setPendingDocId: (id: string | null) => void
+  openChatWith: (context: string) => void
   toggleDc: (id: string) => void
   // Local-only approve/reject/snooze for un-wired rooms (no DB writes)
   approve: (id: string, msg: string) => void
@@ -49,6 +60,7 @@ export interface AppState {
   snooze: (id: string) => void
   addToast: (type: ToastType, title: string, msg: string) => void
   removeToast: (id: string) => void
+  dismissFirstRun: () => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -57,6 +69,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   expandedId: null,
   decisions: {},
   toasts: [],
+  chatTrigger: null,
+  initialTab: null,
+  pendingDocId: null,
+  firstRun: (() => { try { return !localStorage.getItem('blu_first_run_done') } catch { return true } })(),
 
   go(s, label) {
     set({
@@ -64,6 +80,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       breadcrumb: s === 'home' ? 'Bom dia ☀️' : label,
       expandedId: null,
     })
+  },
+
+  goWithTab(s, label, tab) {
+    set({ initialTab: tab })
+    get().go(s, label)
+  },
+
+  clearInitialTab() {
+    set({ initialTab: null })
+  },
+
+  setPendingDocId(id) {
+    set({ pendingDocId: id })
+  },
+
+  openChatWith(context) {
+    set({ chatTrigger: { context, ts: Date.now() } })
   },
 
   // toggleDc works for both modes:
@@ -133,5 +166,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   removeToast(id) {
     set(s => ({ toasts: s.toasts.filter(t => t.id !== id) }))
+  },
+
+  dismissFirstRun() {
+    try { localStorage.setItem('blu_first_run_done', '1') } catch {}
+    set({ firstRun: false })
   },
 }))

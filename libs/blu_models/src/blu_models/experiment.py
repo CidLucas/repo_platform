@@ -70,7 +70,7 @@ class TestCaseDefinition(BaseModel):
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     message: str = Field(..., description="Input message to send")
-    cliente_id: str | None = Field(
+    client_id: str | None = Field(
         None, description="Specific client ID (overrides manifest default)"
     )
     expected_tool: str | None = Field(None, description="Expected tool to be called")
@@ -89,7 +89,7 @@ class TestCaseDefinition(BaseModel):
 class ClientVariant(BaseModel):
     """A client configuration variant for the experiment."""
 
-    cliente_id: str = Field(..., description="UUID of the ClienteBlu")
+    client_id: str = Field(..., description="UUID of the ClienteBlu")
     name: str = Field(..., description="Human-readable name for this variant")
     description: str | None = None
 
@@ -148,7 +148,7 @@ class ExperimentManifest(BaseModel):
 
     # Optional: Cases per client (different questions per client)
     client_specific_cases: dict[str, list[TestCaseDefinition]] | None = Field(
-        None, description="Client-specific test cases (keyed by cliente_id)"
+        None, description="Client-specific test cases (keyed by client_id)"
     )
 
     # Execution config
@@ -235,7 +235,7 @@ class ExperimentCase(SQLModel, table=True):
 
     # Test case info
     case_id: str = SQLField(index=True)  # From manifest
-    cliente_id: uuid.UUID = SQLField(index=True)
+    client_id: uuid.UUID = SQLField(index=True)
     cliente_name: str  # Denormalized for easy querying
 
     # Input

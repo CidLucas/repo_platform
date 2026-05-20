@@ -25,7 +25,6 @@ from blu_prompt_management.renderer import TemplateRenderer
 from blu_prompt_management.templates import (
     BUILTIN_TEMPLATES,
     RAG_RERANK_PROMPT,
-    RAG_TOOL_PROMPT,
     get_builtin_template,
     list_builtin_templates,
 )
@@ -41,7 +40,6 @@ from blu_prompt_management.dynamic_builder import (
     build_prompt_full,
     build_prompt_sync,
     build_tools_description,
-    compose_prompt,
     filter_prompt_tools,
     get_prompt_loader,
 )
@@ -65,14 +63,12 @@ __all__ = [
     "get_builtin_template",
     "list_builtin_templates",
     # Tool prompts (commonly used)
-    "RAG_TOOL_PROMPT",
     "RAG_RERANK_PROMPT",
     # Unified Dynamic Builder
     "build_prompt",
     "build_prompt_full",
     "build_prompt_sync",
     "build_tools_description",
-    "compose_prompt",
     "filter_prompt_tools",
     "get_prompt_loader",
 ]

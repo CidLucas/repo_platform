@@ -5,7 +5,6 @@ Covers:
   • generate_report_core happy path (LLM + supabase mocked)
   • generate_report_core failure path (LLM raises → status='failed')
   • _fetch_indicator_block dispatches via get_indicator_block_for RPC
-  • reports_dispatch_router: scans due schedules + advances next_run_at
 """
 
 from __future__ import annotations
@@ -253,7 +252,7 @@ class TestGenerateReportCore:
         )
 
         result = await report_module.generate_report_core(
-            cliente_id=client_id,
+            client_id=client_id,
             template_id="mensal_comercial",
             format="markdown",
             period="30d",
@@ -293,7 +292,7 @@ class TestGenerateReportCore:
 
         with pytest.raises(ToolError):
             await report_module.generate_report_core(
-                cliente_id=client_id,
+                client_id=client_id,
                 template_id="estoque_critico",
                 format="markdown",
                 period="30d",
@@ -337,94 +336,3 @@ class TestIndicatorDispatcher:
             "p_template_id": "caixa_semanal",
             "p_period": "7d",
         }
-
-
-# ---------------------------------------------------------------------------
-# Section 4 · reports_dispatch_router scans + advances next_run_at
-# ---------------------------------------------------------------------------
-
-
-class TestReportsDispatchRouter:
-    def test_run_scheduled_advances_next_run_at(self, monkeypatch):
-        from fastapi import FastAPI
-        from fastapi.testclient import TestClient
-        from tool_pool_api.api import reports_dispatch_router as rdr
-
-        client_id = str(uuid.uuid4())
-        schedule_id = str(uuid.uuid4())
-        due = [
-            {
-                "id": schedule_id,
-                "client_id": client_id,
-                "template_id": "mensal_comercial",
-                "period": "30d",
-                "format": "markdown",
-                "cadence": "monthly",
-            }
-        ]
-        db = _DB(rpc_responses={"list_due_report_schedules": due})
-        db.store["report_schedules"] = [
-            {
-                "id": schedule_id,
-                "client_id": client_id,
-                "template_id": "mensal_comercial",
-                "cadence": "monthly",
-                "enabled": True,
-                "last_run_at": None,
-                "next_run_at": "2020-01-01T00:00:00+00:00",
-            }
-        ]
-        monkeypatch.setattr(rdr, "get_supabase_client", lambda: db)
-
-        # Stub the core so we don't hit LLM/network. The dispatch router
-        # imports `generate_report_core` lazily from the report_module, so
-        # we patch the source module directly.
-        async def _fake_core(**kwargs):
-            return {
-                "run_id": str(uuid.uuid4()),
-                "status": "success",
-                "template_id": kwargs["template_id"],
-                "format": kwargs.get("format") or "markdown",
-                "period": kwargs.get("period") or "30d",
-                "output_url": None,
-                "output_metadata": {},
-            }
-
-        from tool_pool_api.server.tool_modules import report_module
-        monkeypatch.setattr(report_module, "generate_report_core", _fake_core)
-        monkeypatch.setenv("REPORTS_DISPATCH_TOKEN", "secret")
-
-        app = FastAPI()
-        app.include_router(rdr.router)
-        client = TestClient(app)
-
-        resp = client.post(
-            "/internal/reports/run-scheduled",
-            headers={"Authorization": "Bearer secret"},
-        )
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["scanned"] == 1
-        assert body["generated"] == 1
-
-        # last_run_at + next_run_at were advanced
-        sched = db.store["report_schedules"][0]
-        assert sched["last_run_at"] is not None
-        assert sched["next_run_at"] != "2020-01-01T00:00:00+00:00"
-
-    def test_run_scheduled_rejects_bad_token(self, monkeypatch):
-        from fastapi import FastAPI
-        from fastapi.testclient import TestClient
-        from tool_pool_api.api import reports_dispatch_router as rdr
-
-        monkeypatch.setenv("REPORTS_DISPATCH_TOKEN", "secret")
-
-        app = FastAPI()
-        app.include_router(rdr.router)
-        client = TestClient(app)
-
-        resp = client.post(
-            "/internal/reports/run-scheduled",
-            headers={"Authorization": "Bearer wrong"},
-        )
-        assert resp.status_code == 401

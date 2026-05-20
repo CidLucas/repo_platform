@@ -186,7 +186,7 @@ class TrainingDatasetGenerator:
                 metadata={
                     "source": "experiment",
                     "trace_id": case.langfuse_trace_id,
-                    "client_id": str(case.cliente_id),
+                    "client_id": str(case.client_id),
                     "client_name": case.cliente_name,
                     "tools_called": case.tools_called,
                     "expected_tool": case.expected_tool,
@@ -248,7 +248,7 @@ class TrainingDatasetGenerator:
                         "input": case.input_message,
                         "output": case.actual_response,
                         "metadata": {
-                            "client_id": str(case.cliente_id),
+                            "client_id": str(case.client_id),
                             "client_name": case.cliente_name,
                             "tools_called": case.tools_called,
                             "classification": case.classification.value

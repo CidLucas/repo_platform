@@ -340,7 +340,7 @@ BEGIN
 
   -- ── Upsert fato_transacoes ────────────────────────────────────────────────────
   INSERT INTO analytics_v2.fato_transacoes
-    (transacao_id, client_id, data_competencia_id, cliente_id, fornecedor_id, produto_id,
+    (transacao_id, client_id, data_competencia_id, client_id, fornecedor_id, produto_id,
      documento, quantidade, valor_unitario, valor, status)
   SELECT
     md5(v_client_id::text || ':' ||
@@ -349,7 +349,7 @@ BEGIN
         COALESCE(s.produto_sku, ''))       AS transacao_id,
     v_client_id,
     dd.data_id,
-    dc.cliente_id,
+    dc.client_id,
     df.fornecedor_id,
     di.inventory_id,
     s.documento,
@@ -376,7 +376,7 @@ BEGIN
   WHERE s.job_id = p_job_id
   ON CONFLICT (transacao_id, client_id) DO UPDATE SET
     data_competencia_id = EXCLUDED.data_competencia_id,
-    cliente_id          = EXCLUDED.cliente_id,
+    client_id          = EXCLUDED.client_id,
     fornecedor_id       = EXCLUDED.fornecedor_id,
     produto_id          = EXCLUDED.produto_id,
     documento           = EXCLUDED.documento,

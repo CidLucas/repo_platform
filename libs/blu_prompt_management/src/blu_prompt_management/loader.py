@@ -258,7 +258,14 @@ class PromptLoader:
             return None
         except Exception as e:
             logger.warning(f"Langfuse prompt '{name}' fetch failed (label={label}): {e}")
-            if "Connection refused" in str(e) or "connection" in str(e).lower():
+            error_str = str(e).lower()
+            is_not_found = "404" in error_str or "not found" in error_str or "notfounderror" in error_str
+            if not is_not_found and (
+                "connection refused" in error_str
+                or "connectionerror" in error_str
+                or "connection error" in error_str
+                or "connection reset" in error_str
+            ):
                 self._langfuse_cooldown_until = _time.time() + self._LANGFUSE_COOLDOWN_SECONDS
                 logger.info(
                     f"Langfuse unreachable, disabling for {self._LANGFUSE_COOLDOWN_SECONDS}s"

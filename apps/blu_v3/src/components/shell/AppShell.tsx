@@ -7,6 +7,8 @@ import Sidebar from './Sidebar'
 import ToastContainer from '../shared/Toast'
 import EditorOverlay from '../shared/EditorOverlay'
 import ChatPanel from '../chat/ChatPanel'
+import FirstRunOverlay from '../onboarding/FirstRunOverlay'
+import ConnectionsModal from '../onboarding/ConnectionsModal'
 import HomePage from '../../pages/app/HomePage'
 import ComprasRoom from '../../pages/app/ComprasRoom'
 import FinanceiroRoom from '../../pages/app/FinanceiroRoom'
@@ -16,15 +18,16 @@ import EstrategiaRoom from '../../pages/app/EstrategiaRoom'
 import ClientesRoom from '../../pages/app/ClientesRoom'
 import AtividadeScreen from '../../pages/app/AtividadeScreen'
 import AdminScreen from '../../pages/app/AdminScreen'
-import AgentesScreen from '../../pages/app/AgentesScreen'
 import BibliotecaRoom from '../../pages/app/BibliotecaRoom'
 import AgentOpsRoom from '../../pages/app/AgentOpsRoom'
 
 export default function AppShell() {
   const screen = useAppStore(s => s.screen)
+  const firstRun = useAppStore(s => s.firstRun)
   const qc = useQueryClient()
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorDoc, setEditorDoc] = useState('Proposta — Cliente Central')
+  const [connectionsOpen, setConnectionsOpen] = useState(false)
   const [lightMode, setLightMode] = useState(() => {
     try { return localStorage.getItem('blu-theme') === 'light' } catch { return false }
   })
@@ -111,9 +114,6 @@ export default function AppShell() {
         <div className={`screen${on('atividade')}`} id="s-atividade">
           {show('atividade') && <AtividadeScreen />}
         </div>
-        <div className={`screen${on('agentes')}`} id="s-agentes">
-          {show('agentes') && <AgentesScreen />}
-        </div>
         <div className={`screen${on('admin')}`} id="s-admin">
           {show('admin') && <AdminScreen />}
         </div>
@@ -132,6 +132,8 @@ export default function AppShell() {
       />
       <ToastContainer />
       <ChatPanel />
+      {firstRun && <FirstRunOverlay onOpenConnections={() => setConnectionsOpen(true)} />}
+      <ConnectionsModal open={connectionsOpen} onClose={() => setConnectionsOpen(false)} />
     </div>
   )
 }

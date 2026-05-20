@@ -10,19 +10,19 @@ Old migrations archived to `supabase/migrations/archived/`. New baseline consist
 
 ## Migration Files
 
-| File | Purpose |
-|---|---|
-| `20260428000000_cleanup_legacy_analytics.sql` | Drops all `analytics_gold_*` and `analytics_silver` legacy tables |
-| `20260428141000_phase1_public_core_tables.sql` | Core tenant, credential, integration, audit, and event tables |
-| `20260428141001_phase1_agent_conversation_tables.sql` | `conversa` and `mensagem` tables for agent chat history |
-| `20260428142000_phase1_public_additional_tables.sql` | Business, reporting, agent catalog, and session tables |
-| `20260428143000_phase2_analytics_v2_tables.sql` | analytics_v2 star schema (fact + dimensions + job registry) |
-| `20260428144000_phase3_vector_db_tables.sql` | vector_db schema for RAG (documents + chunks with HNSW) |
-| `20260428145000_phase4_bigquery_fdw_tables.sql` | BigQuery FDW server and table registry |
-| `20260428146000_phase5_core_functions.sql` | All RPCs: tenant resolution, onboarding, KPI, audit, RAG search |
-| `20260428147000_phase6_rls_policies.sql` | RLS enabled on all tables; tenant isolation via `get_my_client_id()` |
-| `20260428148000_phase7_storage_buckets.sql` | `knowledge-base` and `file-uploads` storage buckets with RLS |
-| `20260428149000_post_baseline_messaging_cleanup.sql` | Drop consumer_contacts, consumer_messages, twilio_inbound_routes, mensagem, purchase_orders, rfq_requests; create unified messages table |
+| File                                                  | Purpose                                                                                                                                  |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `20260428000000_cleanup_legacy_analytics.sql`         | Drops all `analytics_gold_*` and `analytics_silver` legacy tables                                                                        |
+| `20260428141000_phase1_public_core_tables.sql`        | Core tenant, credential, integration, audit, and event tables                                                                            |
+| `20260428141001_phase1_agent_conversation_tables.sql` | `conversa` and `mensagem` tables for agent chat history                                                                                  |
+| `20260428142000_phase1_public_additional_tables.sql`  | Business, reporting, agent catalog, and session tables                                                                                   |
+| `20260428143000_phase2_analytics_v2_tables.sql`       | analytics_v2 star schema (fact + dimensions + job registry)                                                                              |
+| `20260428144000_phase3_vector_db_tables.sql`          | vector_db schema for RAG (documents + chunks with HNSW)                                                                                  |
+| `20260428145000_phase4_bigquery_fdw_tables.sql`       | BigQuery FDW server and table registry                                                                                                   |
+| `20260428146000_phase5_core_functions.sql`            | All RPCs: tenant resolution, onboarding, KPI, audit, RAG search                                                                          |
+| `20260428147000_phase6_rls_policies.sql`              | RLS enabled on all tables; tenant isolation via `get_my_client_id()`                                                                     |
+| `20260428148000_phase7_storage_buckets.sql`           | `knowledge-base` and `file-uploads` storage buckets with RLS                                                                             |
+| `20260428149000_post_baseline_messaging_cleanup.sql`  | Drop consumer_contacts, consumer_messages, twilio_inbound_routes, mensagem, purchase_orders, rfq_requests; create unified messages table |
 
 ---
 
@@ -31,12 +31,14 @@ Old migrations archived to `supabase/migrations/archived/`. New baseline consist
 ### clientes_blu (tenant anchor)
 
 **Kept:**
+
 - `client_id`, `external_user_id`, `api_key`
 - `nome_empresa`, `tier`, `collection_rag`
 - `company_profile`, `team_structure`, `policies` (Context 2.0 JSONB blobs)
 - `onboarding_state`, `onboarding_completed_at`
 
 **Removed:**
+
 - `tipo_cliente` — was a free-text field with no downstream enforcement; tier system covers this
 - `prompt_base` — prompts live in the agent catalog and edge function code, not in the DB
 - `horario_funcionamento` — operational detail that belongs in `company_profile` if needed
@@ -45,6 +47,7 @@ Old migrations archived to `supabase/migrations/archived/`. New baseline consist
 ### connector_sync_history → merged into analytics_v2.reg_jobs
 
 `reg_jobs` is the central async job registry. It was extended with:
+
 - `credential_id`, `resource_type`, `sync_mode` (incremental/full)
 - `rows_inserted`, `progress_pct`, `error_message`, `duration_seconds`
 - `job_type` CHECK includes `'connector_sync'`
@@ -74,6 +77,7 @@ Route config belongs in application config or agent catalog metadata, not in the
 ### consumer_messages + mensagem → merged into messages
 
 Both tables stored messages but for different channels. `consumer_messages` (Twilio/WhatsApp) and `mensagem` (agent chat) are now unified as `public.messages`:
+
 - `channel` column: `chat | whatsapp | sms | email | api`
 - `direction`: `inbound | outbound` (null for system/agent messages)
 - `role`: `user | assistant | system | tool` (for agent chat threads)
@@ -96,15 +100,18 @@ Both tables stored messages but for different channels. `consumer_messages` (Twi
 ## Schemas
 
 ### public — tenant operations
+
 Core multi-tenant data: clients, integrations, agents, sessions, files, messages, approvals, events.
 
 ### analytics_v2 — star schema
+
 - `fato_transacoes` — transaction fact table, populated from BigQuery FDW
 - `dim_clientes`, `dim_fornecedores`, `dim_inventory` — dimension tables
 - `dim_datas` — date dimension (static)
 - `reg_jobs` — unified async job registry
 
 ### vector_db — RAG storage
+
 - `documents` — file metadata and processing status
 - `document_chunks` — chunked content with `halfvec(384)` embeddings (HNSW index) and Portuguese FTS
 
@@ -112,21 +119,21 @@ Core multi-tenant data: clients, integrations, agents, sessions, files, messages
 
 ## Key Functions (phase5)
 
-| Function | Role |
-|---|---|
-| `get_my_client_id()` | Resolves JWT `uid` → `client_id`; used in all RLS policies |
-| `ensure_tenant_row()` | Idempotent first-login provisioning |
-| `set_current_cliente_id(uuid)` | Sets `app.current_client_id` config for service-role callers |
-| `merge_onboarding_state(jsonb)` | Race-free JSONB patch merge into `clientes_blu.onboarding_state` |
-| `onboarding_bootstrap_tx(jsonb)` | Atomic tenant provisioning: updates profile, enables agents + routines |
-| `list_kpi_catalog(dimension, only_enabled)` | Returns catalog joined with client enablement |
-| `set_client_dimension_kpis(dimension, slugs[])` | Replaces KPI selection for a dimension |
-| `record_audit(action, ...)` | Writes to `audit_log` with current client/user context |
-| `request_approval(action_type, payload)` | Creates approval request |
-| `decide_approval(id, decision)` | Resolves pending approval |
-| `dismiss_insight(id)` | Marks insight as dismissed |
-| `hybrid_match_documents(...)` | Semantic + FTS hybrid search over `vector_db.document_chunks` |
-| `get_platform_google_oauth_config()` | Reads `google_oauth_config` from Vault |
+| Function                                        | Role                                                                   |
+| ----------------------------------------------- | ---------------------------------------------------------------------- |
+| `get_my_client_id()`                            | Resolves JWT `uid` → `client_id`; used in all RLS policies             |
+| `ensure_tenant_row()`                           | Idempotent first-login provisioning                                    |
+| `set_current_client_id(uuid)`                   | Sets `app.current_client_id` config for service-role callers           |
+| `merge_onboarding_state(jsonb)`                 | Race-free JSONB patch merge into `clientes_blu.onboarding_state`       |
+| `onboarding_bootstrap_tx(jsonb)`                | Atomic tenant provisioning: updates profile, enables agents + routines |
+| `list_kpi_catalog(dimension, only_enabled)`     | Returns catalog joined with client enablement                          |
+| `set_client_dimension_kpis(dimension, slugs[])` | Replaces KPI selection for a dimension                                 |
+| `record_audit(action, ...)`                     | Writes to `audit_log` with current client/user context                 |
+| `request_approval(action_type, payload)`        | Creates approval request                                               |
+| `decide_approval(id, decision)`                 | Resolves pending approval                                              |
+| `dismiss_insight(id)`                           | Marks insight as dismissed                                             |
+| `hybrid_match_documents(...)`                   | Semantic + FTS hybrid search over `vector_db.document_chunks`          |
+| `get_platform_google_oauth_config()`            | Reads `google_oauth_config` from Vault                                 |
 
 ---
 
@@ -164,10 +171,10 @@ Canonical schema types it knows: `invoices`, `fato_transacoes`, `dim_clientes`, 
 
 ## Storage Buckets
 
-| Bucket | Public | Size limit | MIME filter |
-|---|---|---|---|
-| `knowledge-base` | No | 50 MB | PDF, TXT, MD, DOCX, PPTX |
-| `file-uploads` | No | 50 MB | None |
+| Bucket           | Public | Size limit | MIME filter              |
+| ---------------- | ------ | ---------- | ------------------------ |
+| `knowledge-base` | No     | 50 MB      | PDF, TXT, MD, DOCX, PPTX |
+| `file-uploads`   | No     | 50 MB      | None                     |
 
 Both buckets use folder-based client isolation: `/{client_id}/...` enforced by RLS on `storage.objects`.
 
@@ -175,13 +182,13 @@ Both buckets use folder-based client isolation: `/{client_id}/...` enforced by R
 
 ## Extensions Required
 
-| Extension | Schema | Purpose |
-|---|---|---|
-| `vector` | `extensions` | `halfvec(384)` type + HNSW index for RAG |
-| `pgcrypto` | `extensions` | UUID generation |
-| `pg_net` | `extensions` | Async HTTP from DB |
-| `pg_cron` | `pg_catalog` | Scheduled sync workers |
-| `wrappers` | `extensions` | BigQuery FDW |
-| `supabase_vault` | `vault` | Encrypted secret storage |
-| `uuid-ossp` | `extensions` | Legacy UUID functions |
-| `pg_stat_statements` | `extensions` | Query analytics |
+| Extension            | Schema       | Purpose                                  |
+| -------------------- | ------------ | ---------------------------------------- |
+| `vector`             | `extensions` | `halfvec(384)` type + HNSW index for RAG |
+| `pgcrypto`           | `extensions` | UUID generation                          |
+| `pg_net`             | `extensions` | Async HTTP from DB                       |
+| `pg_cron`            | `pg_catalog` | Scheduled sync workers                   |
+| `wrappers`           | `extensions` | BigQuery FDW                             |
+| `supabase_vault`     | `vault`      | Encrypted secret storage                 |
+| `uuid-ossp`          | `extensions` | Legacy UUID functions                    |
+| `pg_stat_statements` | `extensions` | Query analytics                          |

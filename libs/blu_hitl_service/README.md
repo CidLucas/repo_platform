@@ -10,17 +10,17 @@ Serviço de Human-in-the-Loop para criação de datasets e controle de qualidade
 
 ## Critérios Disponíveis
 
-| Critério | Descrição | Params |
-|----------|-----------|--------|
-| `low_confidence` | Confiança da LLM abaixo do threshold | `threshold: float` |
-| `elicitation_pending` | Elicitation em andamento | — |
-| `tool_call_failed` | Ferramenta retornou erro | — |
-| `keyword_trigger` | Palavras-chave detectadas | `keywords: List[str]` |
-| `first_n_messages` | Primeiras N mensagens | `n: int` |
-| `random_sample` | Amostragem aleatória | `rate: float (0-1)` |
-| `manual_flag` | Marcação manual | — |
-| `sentiment_negative` | Sentimento negativo | `patterns: List[str]` |
-| `long_response_time` | Resposta demorada | `threshold_seconds: float` |
+| Critério              | Descrição                            | Params                     |
+| --------------------- | ------------------------------------ | -------------------------- |
+| `low_confidence`      | Confiança da LLM abaixo do threshold | `threshold: float`         |
+| `elicitation_pending` | Elicitation em andamento             | —                          |
+| `tool_call_failed`    | Ferramenta retornou erro             | —                          |
+| `keyword_trigger`     | Palavras-chave detectadas            | `keywords: List[str]`      |
+| `first_n_messages`    | Primeiras N mensagens                | `n: int`                   |
+| `random_sample`       | Amostragem aleatória                 | `rate: float (0-1)`        |
+| `manual_flag`         | Marcação manual                      | —                          |
+| `sentiment_negative`  | Sentimento negativo                  | `patterns: List[str]`      |
+| `long_response_time`  | Resposta demorada                    | `threshold_seconds: float` |
 
 ## Uso
 
@@ -49,7 +49,7 @@ service = HitlService(queue, config)
 decision = service.evaluate(
     user_message="Quero agendar um corte",
     agent_response="Claro! Para qual dia?",
-    client_id=cliente_id,
+    client_id=client_id,
     confidence_score=0.65,  # < 0.7 → vai para HITL
 )
 
@@ -58,7 +58,7 @@ if decision.should_review:
         decision=decision,
         user_message="...",
         agent_response="...",
-        client_id=cliente_id,
+        client_id=client_id,
         session_id="session-123",
     )
 ```

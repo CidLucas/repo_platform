@@ -108,10 +108,12 @@ class MCPToolExecutor:
                     execution_time_ms=(time.time() - start_time) * 1000,
                 )
 
-            # Inject context into args
+            # Build call arguments — do NOT inject client_id here.
+            # client_id is set as X-Cliente-Id on the MCPConnectionManager's HTTP
+            # headers (via set_client_id) and is injected server-side by
+            # mcp_inject_client_id. Passing it in args would conflict with the
+            # pydantic schema that hides it from the LLM.
             args = dict(tool_args)
-            if "cliente_id" not in args and context.get("cliente_id"):
-                args["cliente_id"] = context["cliente_id"]
 
             # Execute via call_tool with full context as meta
             raw_result = await mcp_manager.call_tool(tool_name, args, meta=context)

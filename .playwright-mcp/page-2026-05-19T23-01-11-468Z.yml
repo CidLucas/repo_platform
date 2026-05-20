@@ -1,0 +1,34 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: B
+      - generic [ref=e6]: blu
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e9]: "1"
+        - text: Conta
+      - generic [ref=e11]:
+        - generic [ref=e12]: "2"
+        - text: Empresa
+      - generic [ref=e14]:
+        - generic [ref=e15]: "3"
+        - text: Dados
+      - generic [ref=e17]:
+        - generic [ref=e18]: "4"
+        - text: Mapeamento
+  - generic [ref=e20]:
+    - generic [ref=e21]: PASSO 1 DE 4
+    - generic [ref=e22]: Bem-vindo de volta
+    - generic [ref=e23]: Entre na sua conta para acessar o bureau.
+    - button "G Entrar com Google" [ref=e24] [cursor=pointer]:
+      - generic [ref=e25]: G
+      - text: Entrar com Google
+    - generic [ref=e26]: — ou —
+    - generic [ref=e27]:
+      - generic [ref=e28]: Email
+      - textbox "carlos@suaempresa.com.br" [ref=e29]
+    - generic [ref=e30]:
+      - generic [ref=e31]: Senha
+      - textbox "••••••••" [ref=e32]
+    - button "Entrar" [disabled] [ref=e33] [cursor=pointer]
+    - generic [ref=e34]: Não tem uma conta? Criar conta grátis →

@@ -97,46 +97,46 @@ Use these as the canonical names when documenting the system. Prefer the platfor
 
 Use the canonical lib name in code blocks; in prose, refer to the platform capability (e.g. "the prompt management library" rather than the literal package).
 
-| Library                        | Purpose                                                                                                         | Key entry points                                                                                                                   |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `blu_auth`                    | JWT-only auth (Supabase, ES256 default), FastAPI deps, FastMCP middleware, Google Cloud Secret Manager          | `get_auth_result`, `get_jwt_claims`, `decode_jwt`, `mcp_inject_cliente_id`, `AuthResult`                                           |
-| `blu_supabase_client`         | Sync/async Supabase client, CRUD helpers, Storage, PostgREST executor, JWT context extractor                    | `get_supabase_client`, `get_async_supabase_client`, `set_rls_context`, `SupabaseCRUD`, `SupabaseStorage`, `PostgRESTQueryExecutor` |
-| `blu_db_connector`            | SQLAlchemy/Alembic engine + `blu-db migrate` CLI used by the migrator container                                | `BluDBConnector`, `blu-db migrate`                                                                                               |
-| `blu_models`                  | Shared SQLModel tables and enums (`ClienteBlu`, `TierCliente`, `ToolCategory`, `ContextSection`, `HitlConfig`) | `ClienteBlu`, `TierCliente`, `ContextSection`, `HitlConfig`                                                                       |
+| Library                       | Purpose                                                                                                        | Key entry points                                                                                                                   |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `blu_auth`                    | JWT-only auth (Supabase, ES256 default), FastAPI deps, FastMCP middleware, Google Cloud Secret Manager         | `get_auth_result`, `get_jwt_claims`, `decode_jwt`, `mcp_inject_client_id`, `AuthResult`                                            |
+| `blu_supabase_client`         | Sync/async Supabase client, CRUD helpers, Storage, PostgREST executor, JWT context extractor                   | `get_supabase_client`, `get_async_supabase_client`, `set_rls_context`, `SupabaseCRUD`, `SupabaseStorage`, `PostgRESTQueryExecutor` |
+| `blu_db_connector`            | SQLAlchemy/Alembic engine + `blu-db migrate` CLI used by the migrator container                                | `BluDBConnector`, `blu-db migrate`                                                                                                 |
+| `blu_models`                  | Shared SQLModel tables and enums (`ClienteBlu`, `TierCliente`, `ToolCategory`, `ContextSection`, `HitlConfig`) | `ClienteBlu`, `TierCliente`, `ContextSection`, `HitlConfig`                                                                        |
 | `blu_context_service`         | Client context loading + Redis cache (`BluClientContext`, Context 2.0 sections)                                | `get_context_service`, `ContextService.get_context_by_client_id`, `RedisService`, `get_tool_cache`                                 |
-| `blu_prompt_management`       | Langfuse-first prompt loading with builtin Jinja2 fallback, Redis cache, A/B labels                             | `build_prompt`, `build_prompt_full`, `build_prompt_sync`, `PromptLoader`, `LoadedPrompt`, `TemplateRenderer`                       |
-| `blu_llm_service`             | Multi-provider LLM router + embeddings + Langfuse callback                                                      | `get_model`, `get_embedding_model`, `LLMProvider`, `ModelTier`                                                                     |
-| `blu_agent_framework`         | LangGraph agent scaffolding (state, builder, registry, MCP client, Redis checkpointer)                          | `AgentBuilder`, `AgentConfig`, `AgentState`, `NodeRegistry`                                                                        |
-| `blu_tool_registry`           | Central tool catalog + tier gating + Docker MCP bridge                                                          | `ToolRegistry.get_available_tools`, `ToolRegistry.validate_client_tools`, `TierValidator`, `DockerMCPBridge`                       |
-| `blu_elicitation_service`     | Pause/resume HITL elicitation (confirmation, selection, text, datetime) backed by Redis                         | `ElicitationManager`, `PendingElicitationStore`, `ElicitationResponseHandler`                                                      |
-| `blu_hitl_service`            | Auto-routing of interactions into a Redis review queue + Langfuse dataset writer                                | `HitlService`, `HitlQueue`, `HitlConfig`, `HitlCriterion`                                                                          |
-| `blu_sql_factory`             | Safe text-to-SQL: parse → validate → rewrite (LIMIT, client filter, SELECT \* expansion) → execute              | `SqlParser`, `SqlValidator`, `SqlRewriter`, `TextToSqlExecutor`, `ExecutionConfig`, `ExecutionResult`                              |
-| `blu_rag_factory`             | Hybrid retriever (pgvector + FTS), LLM reranker, query rewrite, RAG runnable factory                            | `create_rag_runnable`, retriever helpers (Langfuse keys: `tool/rag-query`, `rag/rerank`)                                           |
-| `blu_parsers`                 | CSV (auto-sep), PDF (`SmartPDFParser`), TXT, `TextChunker`, `parse_and_chunk`, `ParserRouter`                   | `CSVParser`, `SmartPDFParser`, `TextChunker`, `ChunkingStrategy`, `parse_and_chunk`                                                |
-| `blu_data_connectors`         | Read-only connectors for external systems (factory pattern, e-commerce specialization)                          | `ConnectorFactory.create_connector(tipo_servico=...)`, `AbstractDataConnector`                                                     |
-| `blu_google_suite_client`     | OAuth-aware async clients for Sheets, Gmail, Calendar (lazy refresh via callback)                               | `GoogleSheetsClient`, `GoogleGmailClient`, `GoogleCalendarClient`, `BaseGoogleClient`                                              |
-| `blu_twilio_client`           | WhatsApp/SMS Conversations, participants, phone numbers, webhook helpers                                        | `TwilioClient`, `TwilioSettings`                                                                                                   |
-| `blu_observability_bootstrap` | Single-call OTel + Grafana (Tempo/Loki/Mimir) + Langfuse setup; health router                                   | `setup_observability`, `shutdown_observability`, `create_health_router`, `LangfusePromptClient`                                    |
-| `blu_experiment_service`      | Experiment/feature flag scaffolding (early stage)                                                               | (see lib README)                                                                                                                   |
-| `blu_shared_utils`            | Canonical column mapping, text normalization                                                                    | `transform_data`, `normalize_text`, `BluCanonicalColumn`                                                                          |
+| `blu_prompt_management`       | Langfuse-first prompt loading with builtin Jinja2 fallback, Redis cache, A/B labels                            | `build_prompt`, `build_prompt_full`, `build_prompt_sync`, `PromptLoader`, `LoadedPrompt`, `TemplateRenderer`                       |
+| `blu_llm_service`             | Multi-provider LLM router + embeddings + Langfuse callback                                                     | `get_model`, `get_embedding_model`, `LLMProvider`, `ModelTier`                                                                     |
+| `blu_agent_framework`         | LangGraph agent scaffolding (state, builder, registry, MCP client, Redis checkpointer)                         | `AgentBuilder`, `AgentConfig`, `AgentState`, `NodeRegistry`                                                                        |
+| `blu_tool_registry`           | Central tool catalog + tier gating + Docker MCP bridge                                                         | `ToolRegistry.get_available_tools`, `ToolRegistry.validate_client_tools`, `TierValidator`, `DockerMCPBridge`                       |
+| `blu_elicitation_service`     | Pause/resume HITL elicitation (confirmation, selection, text, datetime) backed by Redis                        | `ElicitationManager`, `PendingElicitationStore`, `ElicitationResponseHandler`                                                      |
+| `blu_hitl_service`            | Auto-routing of interactions into a Redis review queue + Langfuse dataset writer                               | `HitlService`, `HitlQueue`, `HitlConfig`, `HitlCriterion`                                                                          |
+| `blu_sql_factory`             | Safe text-to-SQL: parse → validate → rewrite (LIMIT, client filter, SELECT \* expansion) → execute             | `SqlParser`, `SqlValidator`, `SqlRewriter`, `TextToSqlExecutor`, `ExecutionConfig`, `ExecutionResult`                              |
+| `blu_rag_factory`             | Hybrid retriever (pgvector + FTS), LLM reranker, query rewrite, RAG runnable factory                           | `create_rag_runnable`, retriever helpers (Langfuse keys: `tool/rag-query`, `rag/rerank`)                                           |
+| `blu_parsers`                 | CSV (auto-sep), PDF (`SmartPDFParser`), TXT, `TextChunker`, `parse_and_chunk`, `ParserRouter`                  | `CSVParser`, `SmartPDFParser`, `TextChunker`, `ChunkingStrategy`, `parse_and_chunk`                                                |
+| `blu_data_connectors`         | Read-only connectors for external systems (factory pattern, e-commerce specialization)                         | `ConnectorFactory.create_connector(tipo_servico=...)`, `AbstractDataConnector`                                                     |
+| `blu_google_suite_client`     | OAuth-aware async clients for Sheets, Gmail, Calendar (lazy refresh via callback)                              | `GoogleSheetsClient`, `GoogleGmailClient`, `GoogleCalendarClient`, `BaseGoogleClient`                                              |
+| `blu_twilio_client`           | WhatsApp/SMS Conversations, participants, phone numbers, webhook helpers                                       | `TwilioClient`, `TwilioSettings`                                                                                                   |
+| `blu_observability_bootstrap` | Single-call OTel + Grafana (Tempo/Loki/Mimir) + Langfuse setup; health router                                  | `setup_observability`, `shutdown_observability`, `create_health_router`, `LangfusePromptClient`                                    |
+| `blu_experiment_service`      | Experiment/feature flag scaffolding (early stage)                                                              | (see lib README)                                                                                                                   |
+| `blu_shared_utils`            | Canonical column mapping, text normalization                                                                   | `transform_data`, `normalize_text`, `BluCanonicalColumn`                                                                           |
 
 All first-party libs are wired in `pyproject.toml` (`tool.ruff.lint.isort.known-first-party`). Always add a new lib to that list when introducing one.
 
 ### 2.6 Service Catalog (`services/`)
 
-| Service                | Role                                                                                                                  | Entry point                                                                             | Key collaborators                                                                                                                               |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Service                | Role                                                                                                                  | Entry point                                                                             | Key collaborators                                                                                                                         |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `atendente_core`       | LangGraph supervisor orchestrating Context 2.0 agents, MCP tool calls, elicitation, streaming responses, HITL routing | `services/atendente_core/src/atendente_core/main.py` (FastAPI `lifespan` pre-warms MCP) | `blu_agent_framework`, `blu_prompt_management`, `blu_context_service`, `blu_elicitation_service`, `blu_hitl_service`, `blu_tool_registry` |
-| `tool_pool_api`        | FastMCP server exposing tools (RAG, SQL, scheduling, Google, etc.) mounted at `/mcp`                                  | `services/tool_pool_api/.../main.py`                                                    | `blu_rag_factory`, `blu_sql_factory`, `blu_google_suite_client`, `blu_auth.mcp`                                                             |
-| `standalone_agent_api` | Per-agent runners (RFQ Buyer Agent, Document Intelligence, etc.) using `AgentBuilder`                                 | `services/standalone_agent_api/.../main.py`                                             | `blu_agent_framework`, `blu_twilio_client`                                                                                                    |
-| `file_upload_api`      | Upload + async processing pipeline (Storage → parser → chunker → `vector_db.document_chunks`)                         | `services/file_upload_api/.../main.py`                                                  | `blu_supabase_client`, `blu_parsers`, FastAPI `BackgroundTasks`                                                                               |
+| `tool_pool_api`        | FastMCP server exposing tools (RAG, SQL, scheduling, Google, etc.) mounted at `/mcp`                                  | `services/tool_pool_api/.../main.py`                                                    | `blu_rag_factory`, `blu_sql_factory`, `blu_google_suite_client`, `blu_auth.mcp`                                                           |
+| `standalone_agent_api` | Per-agent runners (RFQ Buyer Agent, Document Intelligence, etc.) using `AgentBuilder`                                 | `services/standalone_agent_api/.../main.py`                                             | `blu_agent_framework`, `blu_twilio_client`                                                                                                |
+| `file_upload_api`      | Upload + async processing pipeline (Storage → parser → chunker → `vector_db.document_chunks`)                         | `services/file_upload_api/.../main.py`                                                  | `blu_supabase_client`, `blu_parsers`, FastAPI `BackgroundTasks`                                                                           |
 
 ### 2.7 Apps (`apps/`)
 
 | App              | Stack                                                                                            | Purpose                                                                                                              |
 | ---------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `blu_dashboard` | React 18, Vite, Chakra UI, TanStack Query, react-router 7, Recharts, react-leaflet, Grafana Faro | Operator dashboard for Blu (dark navy theme); reads from Supabase via PostgREST/RPCs and from atendente_core via SSE |
-| `hitl_dashboard` | Streamlit                                                                                        | Reviewer console for HITL queue (uses `blu_hitl_service`)                                                           |
+| `blu_dashboard`  | React 18, Vite, Chakra UI, TanStack Query, react-router 7, Recharts, react-leaflet, Grafana Faro | Operator dashboard for Blu (dark navy theme); reads from Supabase via PostgREST/RPCs and from atendente_core via SSE |
+| `hitl_dashboard` | Streamlit                                                                                        | Reviewer console for HITL queue (uses `blu_hitl_service`)                                                            |
 | `landing`        | (see app README)                                                                                 | Marketing landing + onboarding flow entry                                                                            |
 
 ### Reference: High-Level Topology
@@ -273,20 +273,20 @@ result = await TextToSqlExecutor().execute(sql, cfg, validate=True, rewrite=True
 from blu_supabase_client import get_supabase_client, set_rls_context
 
 client = get_supabase_client(use_service_role=False)  # respects RLS
-set_rls_context(client, cliente_id=str(auth.client_id))
+set_rls_context(client, client_id=str(auth.client_id))
 rows = client.table("fato_transacoes").select("*").limit(100).execute()
 ```
 
 Use `use_service_role=True` only for trusted backend operations that explicitly bypass RLS — and document why.
 
-**MCP tool with auto-injected `cliente_id`**:
+**MCP tool with auto-injected `client_id`**:
 
 ```python
-from blu_auth.mcp import mcp_inject_cliente_id
+from blu_auth.mcp import mcp_inject_client_id
 from my_service.dependencies import get_context_service
 
-@mcp_inject_cliente_id(get_context_service)
-async def executar_rag_cliente(query: str, cliente_id: str | None = None):
+@mcp_inject_client_id(get_context_service)
+async def executar_rag_cliente(query: str, client_id: str | None = None):
     ...
 ```
 

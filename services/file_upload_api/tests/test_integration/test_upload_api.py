@@ -42,7 +42,7 @@ def test_upload_file_success(
     )
 
     # O cliente (DUMMY_CLIENTE_BLU_ID) é mockado em dependencies.py
-    expected_cliente_id_str = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
+    expected_client_id_str = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11"
 
     # --- 2. Act (Execução) ---
 
@@ -55,7 +55,7 @@ def test_upload_file_success(
     assert response.status_code == 201
 
     json_response = response.json()
-    expected_gcs_path = f"{expected_cliente_id_str}/{test_job_id}-{file_name}"
+    expected_gcs_path = f"{expected_client_id_str}/{test_job_id}-{file_name}"
 
     assert json_response["job_id"] == str(test_job_id)
     assert json_response["file_name"] == file_name
@@ -72,7 +72,7 @@ def test_upload_file_success(
     # Verificar Pub/Sub (através do mock injetado no 'client')
     expected_payload = {
         "job_id": str(test_job_id),
-        "client_id": expected_cliente_id_str,
+        "client_id": expected_client_id_str,
         "gcs_path": expected_gcs_path,
         "original_filename": file_name,
         "content_type": content_type,

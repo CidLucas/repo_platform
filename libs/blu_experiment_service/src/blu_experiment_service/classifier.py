@@ -220,7 +220,7 @@ class ResponseClassifier:
                 metadata={
                     "experiment_run_id": str(run.id),
                     "experiment_case_id": str(case.id),
-                    "client_id": str(case.cliente_id),
+                    "client_id": str(case.client_id),
                     "client_name": case.cliente_name,
                     "input_message": case.input_message,
                     "response_text": case.actual_response,

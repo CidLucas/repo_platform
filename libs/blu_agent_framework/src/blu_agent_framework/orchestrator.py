@@ -49,6 +49,13 @@ from pydantic import BaseModel, Field
 from blu_agent_framework.registry import AgentTypeRegistry
 from blu_agent_framework.state import AgentState
 from blu_agent_framework.utils.llm_parse import parse_first_json
+from blu_agent_framework.utils.observability import (
+    LLMCallTimer,
+    generate_correlation_id,
+    log_llm_call,
+    log_llm_response,
+    log_parse_failure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -214,18 +221,28 @@ def make_parse_intent_node(llm: Any, tier: str):
         skills_desc  = AgentTypeRegistry.build_supervisor_description(cur_tier)
         system_prompt = await _load_prompt("parse-intent", {"workers_description": skills_desc})
 
+        cid = generate_correlation_id()
+        log_llm_call(logger, cid, node="parse_intent", prompt_preview=system_prompt[:300])
         try:
-            response: AIMessage = await llm.ainvoke([
-                SystemMessage(content=system_prompt),
-                last_msg,
-            ])
+            async with LLMCallTimer() as timer:
+                response: AIMessage = await llm.ainvoke([
+                    SystemMessage(content=system_prompt),
+                    last_msg,
+                ])
+            log_llm_response(
+                logger, cid, node="parse_intent",
+                latency_ms=timer.elapsed_ms,
+                response_preview=str(response.content)[:300],
+            )
         except Exception as exc:
             logger.error("[parse_intent] LLM call failed: %s", exc)
             return {"complexity": "uncertain", "involved_domains": [], "confirmed": None}
 
-        parsed = _parse_json(str(response.content), ParseIntentResult)
+        raw_content = str(response.content)
+        parsed = _parse_json(raw_content, ParseIntentResult)
         if not parsed:
-            logger.warning("[parse_intent] Could not parse LLM response; defaulting to uncertain")
+            log_parse_failure(logger, cid, node="parse_intent", raw_response=raw_content,
+                              reason="Could not parse intent JSON; defaulting to uncertain")
             return {"complexity": "uncertain", "involved_domains": [], "confirmed": None}
 
         updates: dict = {
@@ -293,16 +310,25 @@ def make_decompose_node(llm: Any, tier: str):
 
         system_prompt = await _load_prompt("decompose")
 
+        cid = generate_correlation_id()
+        log_llm_call(logger, cid, node="decompose", prompt_preview=system_prompt[:300])
         try:
-            response: AIMessage = await llm.ainvoke([
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=last_msg.content),
-            ])
+            async with LLMCallTimer() as timer:
+                response: AIMessage = await llm.ainvoke([
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=last_msg.content),
+                ])
+            log_llm_response(logger, cid, node="decompose", latency_ms=timer.elapsed_ms,
+                             response_preview=str(response.content)[:300])
         except Exception as exc:
             logger.error("[decompose] LLM call failed: %s", exc)
             return {"_sub_tasks": []}
 
-        parsed = _parse_json(str(response.content), DecomposeResult)
+        raw_content = str(response.content)
+        parsed = _parse_json(raw_content, DecomposeResult)
+        if not parsed:
+            log_parse_failure(logger, cid, node="decompose", raw_response=raw_content,
+                              reason="Could not parse DecomposeResult")
         sub_tasks = parsed.sub_tasks if parsed else []
         logger.info("[decompose] %d sub-tasks identified", len(sub_tasks))
         return {"_sub_tasks": sub_tasks}
@@ -327,18 +353,25 @@ def make_plan_node(llm: Any, tier: str):
         skills_desc = AgentTypeRegistry.build_supervisor_description(cur_tier)
         system_prompt = await _load_prompt("plan", {"workers_description": skills_desc})
 
+        cid = generate_correlation_id()
+        log_llm_call(logger, cid, node="plan", prompt_preview=system_prompt[:300])
         try:
-            response: AIMessage = await llm.ainvoke([
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=json.dumps(sub_tasks, ensure_ascii=False)),
-            ])
+            async with LLMCallTimer() as timer:
+                response: AIMessage = await llm.ainvoke([
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=json.dumps(sub_tasks, ensure_ascii=False)),
+                ])
+            log_llm_response(logger, cid, node="plan", latency_ms=timer.elapsed_ms,
+                             response_preview=str(response.content)[:300])
         except Exception as exc:
             logger.error("[plan] LLM call failed: %s", exc)
             return {"plan": [], "_sub_tasks": None}
 
-        parsed = _parse_json(str(response.content), PlanResult)
+        raw_content = str(response.content)
+        parsed = _parse_json(raw_content, PlanResult)
         if not parsed or not parsed.plan:
-            logger.warning("[plan] Could not parse plan from LLM response")
+            log_parse_failure(logger, cid, node="plan", raw_response=raw_content,
+                              reason="Could not parse PlanResult")
             return {"plan": [], "_sub_tasks": None}
 
         plan = [_step_to_dict(s) for s in parsed.plan]

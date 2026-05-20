@@ -172,7 +172,6 @@ Deno.serve(async (req: Request) => {
                 ${fusion_strategy},
                 ${keyword_weight}::float,
                 ${vector_weight}::float,
-                false,
                 ${themesParam}::text[]
               )
             `;

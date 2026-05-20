@@ -7,6 +7,7 @@ Replaces the deprecated file_upload_api /process endpoint.
 Flow: request -> Docling (via blu_parsers) -> extracted text -> process-document EF.
 """
 
+import asyncio
 import io
 import logging
 import os
@@ -15,9 +16,11 @@ from uuid import UUID
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from supabase import create_client
 
 from blu_auth.core.models import AuthResult
 from blu_auth.fastapi.dependencies import get_auth_result
+from blu_parsers.parsers.docling_parser import DoclingParser
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/ingest", tags=["Document Ingestion"])
@@ -67,20 +70,18 @@ async def ingest_document(
         )
 
     try:
-        from blu_parsers.parsers.docling_parser import DoclingParser
-        from supabase import create_client
-
         supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-        # 1. Download from Storage
+        # 1. Download from Storage (run in thread — sync client must not block event loop)
         logger.info("Downloading %s for Docling parsing", body.storage_path)
-        file_bytes = supabase.storage.from_("knowledge-base").download(body.storage_path)
+        bucket = supabase.storage.from_("knowledge-base")
+        file_bytes = await asyncio.to_thread(bucket.download, body.storage_path)
         if not file_bytes:
             raise ValueError(f"Failed to download {body.storage_path}")
 
-        # 2. Parse with Docling
+        # 2. Parse with Docling (CPU-bound — run in thread to avoid blocking event loop)
         parser = DoclingParser()
-        extracted_text = parser.parse(io.BytesIO(file_bytes))
+        extracted_text = await asyncio.to_thread(parser.parse, io.BytesIO(file_bytes))
         logger.info("Docling extracted %d chars from %s", len(extracted_text), body.file_name)
 
         if not extracted_text or not extracted_text.strip():

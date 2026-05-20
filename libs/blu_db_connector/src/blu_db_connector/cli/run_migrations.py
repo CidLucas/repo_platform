@@ -12,13 +12,13 @@ You can also pass an explicit DB URL:
   python tools/run_migrations.py --db "postgresql://..."
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import argparse
 import os
 import sys
 
-from alembic import command  # noqa: I001
+from alembic import command
 from alembic.config import Config
 
 

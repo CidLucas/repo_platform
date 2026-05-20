@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Optional
 
 FENCED_JSON_RE = re.compile(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", re.IGNORECASE | re.DOTALL)
 
@@ -27,7 +26,7 @@ def _remove_trailing_commas(s: str) -> str:
     return s
 
 
-def _try_load_json(s: str) -> Optional[dict]:
+def _try_load_json(s: str) -> dict | None:
     try:
         return json.loads(s)
     except Exception:
@@ -39,7 +38,7 @@ def _try_load_json(s: str) -> Optional[dict]:
             return None
 
 
-def _extract_balanced_braces(text: str) -> Optional[str]:
+def _extract_balanced_braces(text: str) -> str | None:
     start = text.find("{")
     if start == -1:
         return None
@@ -55,7 +54,7 @@ def _extract_balanced_braces(text: str) -> Optional[str]:
     return None
 
 
-def parse_first_json(text: str) -> Optional[dict]:
+def parse_first_json(text: str) -> dict | None:
     """Parse and return the first JSON object found in `text`.
 
     Returns parsed dict on success, or None if no valid JSON could be extracted.

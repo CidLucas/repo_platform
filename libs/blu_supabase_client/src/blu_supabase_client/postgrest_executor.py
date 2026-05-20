@@ -188,7 +188,7 @@ class PostgRESTQueryExecutor:
         Returns:
             Supabase client with JWT authentication.
         """
-        from supabase import create_client
+        from supabase import create_client  # noqa: I001
         from supabase.lib.client_options import SyncClientOptions
 
         config_url = get_supabase_client().url

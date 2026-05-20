@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from functools import lru_cache
 
 import httpx
-
 from supabase import Client, create_client
 from supabase.lib.client_options import SyncClientOptions
 

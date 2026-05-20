@@ -15,14 +15,14 @@ To generate SQL without applying (for Supabase or review):
   python run_migrations.py --db "$DATABASE_URL" --sql-file /tmp/migration.sql
 """
 
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001
 
 import argparse
 import os
 import sys
 from contextlib import redirect_stdout
 
-from alembic import command  # noqa: I001
+from alembic import command
 from alembic.config import Config
 
 

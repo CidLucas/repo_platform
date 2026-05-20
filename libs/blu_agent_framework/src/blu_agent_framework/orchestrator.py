@@ -48,6 +48,7 @@ from pydantic import BaseModel, Field
 
 from blu_agent_framework.registry import AgentTypeRegistry
 from blu_agent_framework.state import AgentState
+from blu_agent_framework.utils.llm_parse import parse_first_json
 
 logger = logging.getLogger(__name__)
 
@@ -140,16 +141,26 @@ def _enrich_task(task: str, step: dict, step_results: dict[str, str]) -> str:
     return task + "\n\nContext from prior steps:\n" + "\n\n".join(ctx_lines)
 
 
-def _parse_json(text: str, model_cls: type) -> Any | None:
-    """Extract the first JSON object from an LLM response and parse it."""
+def _parse_json_with_model(text: str, model_cls: type) -> Any | None:
+    """Extract the first JSON object from an LLM response and validate with a pydantic model.
+
+    Uses parse_first_json for tolerant extraction (fenced blocks, balanced braces,
+    trailing-comma cleanup) then delegates to model_cls.model_validate for schema
+    validation. Logs the raw response on failure.
+    """
+    raw = parse_first_json(text)
+    if raw is None:
+        logger.warning("[orchestrator] Could not extract JSON from LLM response: %.200s", text)
+        return None
     try:
-        start = text.find("{")
-        end   = text.rfind("}") + 1
-        if start >= 0 and end > start:
-            return model_cls.model_validate_json(text[start:end])
-    except Exception:
-        pass
-    return None
+        return model_cls.model_validate(raw)
+    except Exception as exc:
+        logger.warning("[orchestrator] JSON schema validation failed (%s): %.200s", exc, text)
+        return None
+
+
+# Keep the old name as an alias so any external callers are not broken.
+_parse_json = _parse_json_with_model
 
 
 def _step_to_dict(step: PlanStep) -> dict:

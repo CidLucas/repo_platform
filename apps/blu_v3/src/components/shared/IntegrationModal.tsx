@@ -17,6 +17,11 @@ const FIELDS: IntgFields = {
   wab:     [['Número de telefone','tel','+55 11 9 0000-0000'],['API Key','password',''],['Webhook URL','text','https://']].map(([l,t,p]) => ({ label: l, type: t, placeholder: p })),
   pbi:     [['Workspace ID','text',''],['Client ID','text',''],['Client Secret','password','']].map(([l,t,p]) => ({ label: l, type: t, placeholder: p })),
   slack:   [['Bot Token','password','xoxb-'],['Canal padrão','text','#blu-alertas']].map(([l,t,p]) => ({ label: l, type: t, placeholder: p })),
+  'ic-monday': [['Token de API','password','eyJhbGci...']].map(([l,t,p]) => ({ label: l, type: t, placeholder: p })),
+  'ic-notion':  [['Token de integração','password','secret_...']].map(([l,t,p]) => ({ label: l, type: t, placeholder: p })),
+  'ic-asana':   [['Token pessoal','password','0/...']].map(([l,t,p]) => ({ label: l, type: t, placeholder: p })),
+  'ic-clickup': [['API Key','password','pk_...']].map(([l,t,p]) => ({ label: l, type: t, placeholder: p })),
+  'ic-linear':  [['API Key','password','lin_api_...']].map(([l,t,p]) => ({ label: l, type: t, placeholder: p })),
 }
 
 const DEFAULT_FIELDS: ModalField[] = [

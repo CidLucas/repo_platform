@@ -211,14 +211,14 @@ async def _build_rag_pipeline(
         # --- Optional query preprocessor (Phase 3 — RAG Overhaul) ---
         preprocessor: QueryPreprocessor | None = None
         if cfg.query_preprocessing:
-            from blu_llm_service.client import ModelTier, get_model
+            from blu_llm_service.client import ModelTask, ModelTier, get_model
 
             try:
                 preprocessor_prompt = await build_prompt(
                     name="tool/rag-query-rewrite",
                     variables={},
                 )
-                fast_llm = get_model(tier=ModelTier.FAST)
+                fast_llm = get_model(tier=ModelTier.FAST, task=ModelTask.RAG)
                 preprocessor = QueryPreprocessor(llm=fast_llm, system_prompt=preprocessor_prompt)
                 logger.debug(f"Using QueryPreprocessor (FAST tier) for client {contexto.id}")
             except Exception:

@@ -8,8 +8,6 @@ Phase 3: Updated to use blu_tool_registry for tool validation.
 """
 
 import logging
-from importlib import import_module
-from types import ModuleType
 from uuid import UUID
 
 from fastmcp import Context, FastMCP
@@ -17,6 +15,7 @@ from fastmcp.exceptions import ToolError
 
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_models.blu_client_context import BluClientContext
+from blu_rag_factory.factory import create_rag_retriever
 from tool_pool_api.server.dependencies import get_context_service
 from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
 
@@ -64,25 +63,7 @@ async def _executar_rag_cliente_logic(
     **IMPORTANT:** This tool accesses the specific company's knowledge base. The company context is automatically injected - do NOT ask the user for company ID.
     """
     # 1. Obter dependências
-
-    def _resolve_server_tools_module() -> ModuleType:
-        """Resolve o módulo de compatibilidade de tools, considerando aliases de importação."""
-
-        for module_name in ("src.tool_pool_api.server.tools", "tool_pool_api.server.tools"):
-            try:
-                return import_module(module_name)
-            except ModuleNotFoundError:
-                continue
-
-        raise ImportError("Não foi possível importar tool_pool_api.server.tools")
-
-    server_tools = _resolve_server_tools_module()
-
-    try:
-        ctx_service = server_tools.get_context_service()
-    except Exception as e:
-        logger.exception(f"Erro ao obter serviço de contexto: {e}")
-        raise ToolError(f"Erro interno no serviço de ferramentas: {type(e).__name__}: {e}")
+    ctx_service = get_context_service()
 
     # 2. Resolver o Contexto Blu
     # Priority: 1) client_id param, 2) request meta, 3) access token
@@ -120,9 +101,9 @@ async def _executar_rag_cliente_logic(
 
         else:
             # Fallback to JWT auth (direct API calls)
-            # Uses blu_auth for token validation from MCP request headers
-            jwt_claims = server_tools.get_jwt_claims_from_mcp()
-            blu_context = await server_tools.load_context_from_jwt_claims(ctx_service, jwt_claims)
+            # mcp_inject_client_id injects client_id from the Authorization header;
+            # this branch only triggers in edge cases where the header is absent.
+            raise ToolError("client_id não encontrado no contexto da requisição.")
 
     except ToolError as e:
         logger.warning(f"[RAG] Falha na autorização: {e}")
@@ -143,7 +124,7 @@ async def _executar_rag_cliente_logic(
     # The calling agent LLM will synthesise the answer from the retrieved context,
     # eliminating one redundant DEFAULT-tier LLM call per RAG query.
     try:
-        rag_retriever = await server_tools.create_rag_retriever(
+        rag_retriever = await create_rag_retriever(
             blu_context, document_ids=document_ids
         )
 

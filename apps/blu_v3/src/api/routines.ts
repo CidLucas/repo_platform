@@ -45,10 +45,11 @@ export interface ClientRoutine {
 export interface ConfigSchemaField {
   key: string
   label: string
-  type: 'text' | 'number' | 'boolean' | 'select'
+  type: 'text' | 'number' | 'boolean' | 'select' | 'dict'
   default?: unknown
   required?: boolean
   options?: { value: string; label: string }[]
+  max_entries?: number
 }
 
 // ─── Custom routine ───────────────────────────────────────────────────────────
@@ -101,6 +102,9 @@ export interface SkillDef {
   id: string
   label: string
   description: string
+  tags?: string[]
+  /** 'l3_skill' for SKILL_REGISTRY entries; undefined for agent-executor slugs */
+  kind?: 'l3_skill'
 }
 
 export interface TriggerDef {
@@ -114,6 +118,8 @@ export interface RoutineCatalog {
   functions: ActionDef[]
   artifacts: ActionDef[]
   skills: SkillDef[]
+  /** L3 narrative skills from SKILL_REGISTRY — invoked by orchestrator/context-gatherer */
+  l3_skills: SkillDef[]
   triggers: TriggerDef[]
   /** @deprecated use skills */
   skill_slugs: string[]

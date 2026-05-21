@@ -498,7 +498,17 @@ export default function HomePage() {
       </div>
 
       <div className="bstrip">
-        {insights.length > 0 ? insights.map(ins => (
+        {insightsQ.isLoading ? (
+          [0,1,2].map(i => (
+            <div key={i} className="ich" style={{ opacity: 0.4 }}>
+              <span className="ich-em" style={{ background: 'var(--gb)', borderRadius: 4, color: 'transparent' }}>📈</span>
+              <div className="ich-body">
+                <span className="ich-tag tg-c" style={{ background: 'var(--gb)', color: 'transparent', borderRadius: 4 }}>──────</span>
+                <div className="ich-txt" style={{ background: 'var(--gb)', color: 'transparent', borderRadius: 3, height: 13 }} />
+              </div>
+            </div>
+          ))
+        ) : insights.length > 0 ? insights.map(ins => (
           <div
             key={ins.id}
             className={`ich${openInsightId === ins.id ? ' ich-open' : ''}`}
@@ -514,15 +524,7 @@ export default function HomePage() {
               <div className="ich-txt">{ins.title}</div>
             </div>
           </div>
-        )) : (
-          <div className="ich">
-            <span className="ich-em">📈</span>
-            <div className="ich-body">
-              <span className="ich-tag tg-c">Clientes</span>
-              <div className="ich-txt">Carregando insights…</div>
-            </div>
-          </div>
-        )}
+        )) : null}
         <div className="nums-chip" onClick={() => go('financeiro', 'Financeiro')}>
           <div className="nums-head">📊 Números <span style={{ marginLeft: 'auto', opacity: 0.45 }}>→</span></div>
           <div className="nums-row">

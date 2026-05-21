@@ -4,7 +4,9 @@ import {
   Gear, Link, UsersThree, ClipboardText, Bell, CreditCard, Lock, MapTrifold,
   CheckCircle, FileArrowDown, ChartBar, Table, Broom, Trash, Warning, Bank,
   CalendarDots, HardDrive, Database, Receipt, Target, ShoppingCart, PencilSimpleLine,
+  SquaresFour, ChatCircleDots,
   Globe, Buildings,
+  BookOpen, CheckFat, ListBullets, GitFork,
 } from '@phosphor-icons/react'
 import { useAppStore } from '../../store/appStore'
 import { useIntegrations, useDisconnectIntegration, useAuditLog, useRequestDataExport, useRequestDataDeletion, useTeamMembers, useUpdateUserPermissions, useInviteUser } from '../../hooks/useAdmin'
@@ -83,6 +85,22 @@ const LANES: { label: string; integrations: CatalogIntegration[] }[] = [
       { id: 'ic-postgres', name: 'PostgreSQL', desc: 'Banco relacional', provider: 'postgresql' },
     ],
   },
+  {
+    label: 'Gestão de Projetos',
+    integrations: [
+      { id: 'ic-monday',  name: 'Monday.com', desc: 'Boards, tarefas e updates',   provider: 'monday' },
+      { id: 'ic-notion',  name: 'Notion',      desc: 'Páginas e databases',          provider: 'notion' },
+      { id: 'ic-asana',   name: 'Asana',       desc: 'Projetos e tarefas',           provider: 'asana' },
+      { id: 'ic-clickup', name: 'ClickUp',     desc: 'Listas e tarefas',             provider: 'clickup' },
+      { id: 'ic-linear',  name: 'Linear',      desc: 'Issues e projetos',            provider: 'linear' },
+    ],
+  },
+  {
+    label: 'Comunicação',
+    integrations: [
+      { id: 'ic-slack', name: 'Slack', desc: 'Canais, mensagens e alertas', provider: 'slack' },
+    ],
+  },
 ]
 
 // Providers that use OAuth redirect instead of API key forms
@@ -96,6 +114,12 @@ function getProviderIcon(provider: string, size = 20): ReactNode {
     case 'polp':            return <Bank size={size} />
     case 'bigquery':
     case 'postgresql':      return <Database size={size} />
+    case 'monday':          return <SquaresFour size={size} />
+    case 'slack':           return <ChatCircleDots size={size} />
+    case 'notion':          return <BookOpen size={size} />
+    case 'asana':           return <CheckFat size={size} />
+    case 'clickup':         return <ListBullets size={size} />
+    case 'linear':          return <GitFork size={size} />
     default:                return <Link size={size} />
   }
 }

@@ -19,7 +19,7 @@ import { fetchContextReports, downloadContextReport, type ContextReport } from '
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
-import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
+
 import { snoozeUntil } from '../../utils/time'
 
 type Tab = 'decisoes' | 'analises' | 'historico' | 'config'
@@ -382,9 +382,7 @@ export default function EstrategiaRoom() {
         {/* RIGHT COLUMN */}
         <div className="rcol">
           <RColResizeHandle />
-          <CollapsiblePanel id="est-rotinas" icon="⚙️" title="Rotinas ativas">
-            <RoutineStatusWidget domain="estrategia" />
-          </CollapsiblePanel>
+
           <CollapsiblePanel id="est-analises" icon="📊" title="Análises" badge={contextReports.length > 0 ? <span className="ph-cnt">{contextReports.length}</span> : null}>
               {contextReportsQ.isLoading ? (
                 <div style={{ fontSize: 11, color: 'var(--mu)' }}>…</div>

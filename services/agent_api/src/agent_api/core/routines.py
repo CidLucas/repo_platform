@@ -47,6 +47,9 @@ logger = logging.getLogger(__name__)
 
 _mcp_semaphore = asyncio.Semaphore(1)
 
+# Marker appended to result_text when a routine pauses for HITL approval
+_AWAITING_APPROVAL_MARKER = "__awaiting_approval__"
+
 
 _UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
@@ -328,6 +331,115 @@ def _get_new_clients_rate_sync(client_id: str, window_months: int) -> tuple[floa
 
 
 # ---------------------------------------------------------------------------
+# Numeric metric registry — pluggable metric resolvers
+# ---------------------------------------------------------------------------
+#
+# Each entry maps a metric name to an async callable with signature:
+#   resolver(client_id: str, cfg: dict) -> tuple[float, float]
+#   returns (current_value, baseline_value)
+#
+# The trigger fires when: current_value < threshold * baseline_value
+# (i.e. current is below threshold fraction of baseline — e.g. 0.85 = drop >15%)
+#
+# To add a new metric:
+#   1. Implement _resolve_<metric>_sync(client_id, window_months) -> (current, baseline)
+#   2. Register it in _NUMERIC_METRIC_REGISTRY below.
+#
+# trigger_config fields used by the engine (same for all metrics):
+#   metric          — metric name (key in this registry)
+#   threshold       — fraction of baseline that triggers (default 0.5; e.g. 0.85 for -15%)
+#   window_months   — lookback window for baseline calculation (default 1)
+#   cooldown_hours  — minimum hours between fires (default 24)
+
+
+def _resolve_new_clients_rate_sync(client_id: str, window_months: int) -> tuple[float, float]:
+    """current month new clients vs avg of previous window_months."""
+    db = get_supabase_client(use_service_role=True)
+    resp = db.rpc(
+        "get_new_clients_monthly_rate",
+        {"p_client_id": client_id, "p_window_months": window_months},
+    ).execute()
+    row = (resp.data or [{}])[0]
+    return float(row.get("current_month_count", 0)), float(row.get("avg_monthly_count", 0))
+
+
+def _resolve_revenue_sync(client_id: str, window_months: int) -> tuple[float, float]:
+    """
+    Current month gross revenue vs average of previous window_months.
+    Uses faturamento_mensal or falls back to sum of fact_pedidos for the client.
+    Raises on failure so the caller can skip this client rather than false-positive.
+    """
+    db = get_supabase_client(use_service_role=True)
+    resp = db.rpc(
+        "get_revenue_monthly_rate",
+        {"p_client_id": client_id, "p_window_months": window_months},
+    ).execute()
+    row = (resp.data or [{}])[0]
+    return float(row.get("current_month_revenue", 0)), float(row.get("avg_monthly_revenue", 0))
+
+
+def _resolve_ticket_medio_sync(client_id: str, window_months: int) -> tuple[float, float]:
+    """Current month average ticket vs historical avg over window_months."""
+    db = get_supabase_client(use_service_role=True)
+    resp = db.rpc(
+        "get_ticket_medio_monthly_rate",
+        {"p_client_id": client_id, "p_window_months": window_months},
+    ).execute()
+    row = (resp.data or [{}])[0]
+    return float(row.get("current_ticket", 0)), float(row.get("avg_ticket", 0))
+
+
+def _resolve_churn_rate_sync(client_id: str, window_months: int) -> tuple[float, float]:
+    """
+    Current month churn rate vs historical avg over window_months.
+    NOTE: for churn, the trigger fires when current > threshold * baseline
+    (spike, not drop). The engine always evaluates current < threshold * baseline,
+    so set threshold > 1 (e.g. 1.5 = 50% above baseline) for spike detection.
+    """
+    db = get_supabase_client(use_service_role=True)
+    resp = db.rpc(
+        "get_churn_rate_monthly",
+        {"p_client_id": client_id, "p_window_months": window_months},
+    ).execute()
+    row = (resp.data or [{}])[0]
+    return float(row.get("current_churn_rate", 0)), float(row.get("avg_churn_rate", 0))
+
+
+def _resolve_pedidos_count_sync(client_id: str, window_months: int) -> tuple[float, float]:
+    """Current month order count vs avg over window_months."""
+    db = get_supabase_client(use_service_role=True)
+    resp = db.rpc(
+        "get_pedidos_monthly_rate",
+        {"p_client_id": client_id, "p_window_months": window_months},
+    ).execute()
+    row = (resp.data or [{}])[0]
+    return float(row.get("current_pedidos", 0)), float(row.get("avg_pedidos", 0))
+
+
+# Registry: metric_name → sync resolver function
+# Signature: (client_id: str, window_months: int) -> tuple[float, float]
+_NUMERIC_METRIC_REGISTRY: dict[str, Any] = {
+    "new_clients_monthly_rate": _resolve_new_clients_rate_sync,
+    "revenue":                  _resolve_revenue_sync,
+    "faturamento":              _resolve_revenue_sync,   # alias PT
+    "ticket_medio":             _resolve_ticket_medio_sync,
+    "churn_rate":               _resolve_churn_rate_sync,
+    "pedidos_count":            _resolve_pedidos_count_sync,
+}
+
+
+def list_numeric_metrics() -> list[dict]:
+    """Return available metric names and labels for the UI config schema."""
+    return [
+        {"value": "revenue",                "label": "Faturamento mensal"},
+        {"value": "new_clients_monthly_rate","label": "Novos clientes / mês"},
+        {"value": "ticket_medio",           "label": "Ticket médio"},
+        {"value": "pedidos_count",          "label": "Volume de pedidos"},
+        {"value": "churn_rate",             "label": "Taxa de churn"},
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Trigger system — async pollers
 # ---------------------------------------------------------------------------
 
@@ -397,7 +509,13 @@ async def _check_cron_routines() -> int:
 async def _check_numeric_triggers() -> int:
     """
     Evaluate all numeric-triggered catalog routines against per-client metrics.
-    Supported metrics: new_clients_monthly_rate.
+
+    Uses _NUMERIC_METRIC_REGISTRY so any registered metric can trigger a routine.
+    trigger_config fields:
+      metric        — key in _NUMERIC_METRIC_REGISTRY
+      threshold     — fraction of baseline that fires (e.g. 0.85 = fires when current < 85% of avg)
+      window_months — lookback for baseline (default 1)
+      cooldown_hours— minimum hours between fires (default 24)
     """
     routines = await asyncio.to_thread(_fetch_triggered_routines_sync, "numeric")
     if not routines:
@@ -409,20 +527,23 @@ async def _check_numeric_triggers() -> int:
         cfg: dict = routine.get("trigger_config") or {}
         metric: str = cfg.get("metric", "")
         threshold: float = float(cfg.get("threshold", 0.5))
-        window_months: int = int(cfg.get("window_months", 12))
-
-        if metric != "new_clients_monthly_rate":
-            logger.debug("[TriggerPoller] unsupported metric '%s' — skipping", metric)
-            continue
-
+        window_months: int = int(cfg.get("window_months", 1))
         cooldown_hours: int = int(cfg.get("cooldown_hours", 24))
+
+        resolver = _NUMERIC_METRIC_REGISTRY.get(metric)
+        if not resolver:
+            logger.debug(
+                "[TriggerPoller] unsupported metric '%s' — add it to _NUMERIC_METRIC_REGISTRY",
+                metric,
+            )
+            continue
 
         client_rows = await asyncio.to_thread(_fetch_active_client_routines_sync, routine_id)
         now_num = datetime.now(timezone.utc)
         for cr in client_rows:
             client_id = str(cr["client_id"])
 
-            # Per-client config overrides for threshold and window_months
+            # Per-client config overrides
             cr_config: dict = cr.get("config") or {}
             effective_threshold = float(cr_config.get("threshold", threshold))
             effective_window = int(cr_config.get("window_months", window_months))
@@ -435,10 +556,10 @@ async def _check_numeric_triggers() -> int:
                     continue
 
             try:
-                current, avg = await asyncio.to_thread(
-                    _get_new_clients_rate_sync, client_id, effective_window
+                current, baseline = await asyncio.to_thread(
+                    resolver, client_id, effective_window
                 )
-                if avg == 0 or current >= effective_threshold * avg:
+                if baseline == 0 or current >= effective_threshold * baseline:
                     continue  # condition not met or no data
 
                 exec_id = await asyncio.to_thread(
@@ -446,16 +567,26 @@ async def _check_numeric_triggers() -> int:
                     client_id,
                     routine_id,
                     "numeric",
-                    {"metric": metric, "current_value": current, "avg_value": avg, "threshold": effective_threshold},
+                    {
+                        "metric": metric,
+                        "current_value": current,
+                        "baseline_value": baseline,
+                        "threshold": effective_threshold,
+                        "drop_pct": round((1 - current / baseline) * 100, 1) if baseline else None,
+                    },
                 )
                 if exec_id:
                     logger.info(
-                        "[TriggerPoller] numeric: routine=%s client=%s current=%.1f avg=%.1f exec=%s",
-                        routine_id, client_id, current, avg, exec_id,
+                        "[TriggerPoller] numeric: routine=%s client=%s metric=%s "
+                        "current=%.2f baseline=%.2f threshold=%.2f exec=%s",
+                        routine_id, client_id, metric, current, baseline, effective_threshold, exec_id,
                     )
                     count += 1
             except Exception as exc:
-                logger.warning("[TriggerPoller] numeric eval failed for client %s: %s", client_id, exc)
+                logger.warning(
+                    "[TriggerPoller] numeric eval failed for client=%s metric=%s: %s",
+                    client_id, metric, exc,
+                )
 
     return count
 
@@ -523,17 +654,27 @@ async def run_dispatched_executions(
                 get_mcp_manager().set_client_id(str(execution["client_id"]))
                 result_text, worker_slug = await _execute_one(execution, context_service)
 
-            await asyncio.to_thread(
-                _update_execution_sync,
-                exec_id,
-                {
-                    "status": "completed",
-                    "result_text": result_text,
-                    "completed_at": datetime.now(timezone.utc).isoformat(),
-                    "worker_slug": worker_slug,
-                },
-            )
-            await _notify_client(execution, result_text)
+            if result_text.endswith(_AWAITING_APPROVAL_MARKER):
+                # HITL pause: routine is waiting for operator approval before continuing
+                clean_text = result_text[: -len(_AWAITING_APPROVAL_MARKER)].rstrip("\n")
+                await asyncio.to_thread(
+                    _update_execution_sync,
+                    exec_id,
+                    {"status": "awaiting_approval", "result_text": clean_text},
+                )
+                logger.info("[RoutineExecutor] %s paused — awaiting_approval", exec_id)
+            else:
+                await asyncio.to_thread(
+                    _update_execution_sync,
+                    exec_id,
+                    {
+                        "status": "completed",
+                        "result_text": result_text,
+                        "completed_at": datetime.now(timezone.utc).isoformat(),
+                        "worker_slug": worker_slug,
+                    },
+                )
+                await _notify_client(execution, result_text)
 
         except Exception as exc:
             logger.exception("[RoutineExecutor] Execution %s failed", exec_id)
@@ -573,6 +714,7 @@ async def _execute_one(
 
     client_ctx = await context_service.get_client_context_by_id(client_id)
     nome_empresa = client_ctx.nome_empresa if client_ctx else "Blu"
+    tier: str = (client_ctx.tier if client_ctx else None) or "BASIC"
     trigger_data: dict = execution.get("trigger_data") or {}
 
     # Load per-client config overrides (days_inactive, lookback_months, etc.)
@@ -591,7 +733,13 @@ async def _execute_one(
                 except (ValueError, TypeError):
                     client_config[k] = v
 
-    # Initialise shared state — trigger data + execution metadata + client config
+    # HITL resume: load saved progress when returning from awaiting_approval
+    saved_metadata: dict = dict(execution.get("result_metadata") or {})
+    resume_from: int = int(saved_metadata.pop("_resume_from_step", 0) or 0)
+
+    # Initialise shared state — trigger data + execution metadata + client config.
+    # `tier` is assigned after **client_config so a free-form config field named
+    # "tier" cannot silently overwrite the value resolved from the DB.
     state: dict[str, Any] = {
         **trigger_data,
         "client_id": str(client_id),
@@ -599,7 +747,13 @@ async def _execute_one(
         "exec_id": exec_id,
         "nome_empresa": nome_empresa,
         **client_config,  # config values available for template resolution
+        "tier": tier,  # must come last — never overridden by client_config
     }
+
+    # Merge saved state from a previous (paused) execution run
+    if resume_from:
+        state.update({k: v for k, v in saved_metadata.items() if k != "exec_id"})
+        logger.info("[RoutineExecutor] %s → resuming HITL at step %d", exec_id, resume_from)
 
     result_parts: list[str] = []
     last_worker_slug = ""
@@ -608,9 +762,18 @@ async def _execute_one(
         step_n = step.get("step", 0)
         step_id = step.get("id") or f"step_{step_n}"
         step_type: str | None = step.get("type")
-        on_failure: str = step.get("on_failure", "halt")
+        # Default is "continue": a routine should not halt because one data-fetch
+        # step returned nothing (e.g. client has no orders, no inactive contacts, etc.)
+        # Only mark a step "halt" explicitly when it produces state that downstream
+        # steps strictly require (e.g. approval gates, document generation).
+        on_failure: str = step.get("on_failure", "continue")
 
         logger.info("[RoutineExecutor] %s → step '%s' (type=%s)", exec_id, step_id, step_type or "legacy")
+
+        # Skip already-completed steps when resuming after HITL approval
+        if resume_from and step_n < resume_from:
+            logger.info("[RoutineExecutor] %s → step '%s' skipped (HITL resume)", exec_id, step_id)
+            continue
 
         try:
             if step_type is None:
@@ -635,8 +798,41 @@ async def _execute_one(
                     )
                     last_worker_slug = slug
 
+                elif step_type == "llm":
+                    step_outputs = await _execute_llm_step(step, state, nome_empresa)
+
                 elif step_type == "artifact":
+                    # Inject execution_id + routine_id so create_alert can link the card
+                    fn_name = step.get("function") or _ARTIFACT_TYPE_DEFAULT_FN.get(step.get("artifact_type", ""), "")
+                    if fn_name == "channels.create_alert":
+                        resolved_inputs = {
+                            **resolved_inputs,
+                            "execution_id": exec_id,
+                            "routine_id": str(routine_id),
+                        }
                     step_outputs = await _execute_artifact_step(step, resolved_inputs, str(client_id))
+
+                elif step_type == "approval":
+                    # HITL: inject execution_id and delegate to request_approval artifact
+                    resolved_inputs = {**resolved_inputs, "execution_id": exec_id}
+                    step_outputs = await _execute_artifact_step(
+                        {**step, "function": "channels.request_approval"},
+                        resolved_inputs,
+                        str(client_id),
+                    )
+                    if step_outputs.get("_awaiting_approval"):
+                        # Save resume marker — next run will skip to step_n + 1
+                        state["_resume_from_step"] = step_n + 1
+                        state.update(step_outputs)
+                        await asyncio.to_thread(
+                            _update_execution_sync, exec_id,
+                            {"result_metadata": _serialisable(state)},
+                        )
+                        result_parts.append(f"{step_id}: aguardando aprovação humana")
+                        return (
+                            "\n".join(result_parts) + "\n" + _AWAITING_APPROVAL_MARKER,
+                            last_worker_slug,
+                        )
 
                 else:
                     logger.warning(
@@ -654,7 +850,19 @@ async def _execute_one(
             continue
 
         # Merge step outputs into shared state
-        state.update(step_outputs)
+        # Empty outputs from a data-fetch step (e.g. client has no inactive contacts)
+        # are recorded as empty strings so downstream {{templates}} render gracefully
+        # rather than as the literal "{{key}}" placeholder.
+        for k, v in step_outputs.items():
+            if v is None or v == [] or v == {}:
+                # Preserve the key in state so templates resolve to empty string
+                state[k] = ""
+                logger.debug(
+                    "[RoutineExecutor] %s → step '%s' key '%s' is empty — recorded as ''",
+                    exec_id, step_id, k,
+                )
+            else:
+                state[k] = v
 
         # Checkpoint: persist current state so progress is visible/resumable
         await asyncio.to_thread(
@@ -671,7 +879,47 @@ async def _execute_one(
         )
         result_parts.append(f"{step_id}: {str(summary_val)[:300]}")
 
+    await _fire_on_complete_events(str(client_id), steps)
+
     return "\n".join(result_parts) or "Concluído.", last_worker_slug
+
+
+# ---------------------------------------------------------------------------
+# on_complete event hooks
+# ---------------------------------------------------------------------------
+
+
+async def _fire_on_complete_events(client_id: str, steps: list[dict]) -> None:
+    """
+    After all steps complete, check each step for on_complete.fire_event.
+    If set, calls fire_event_for_client via Supabase RPC so event-triggered
+    routines (e.g. daily_briefing after morning_ready) enqueue automatically.
+    """
+    db = get_supabase_client(use_service_role=True)
+    for step in steps:
+        on_complete: dict | None = step.get("on_complete")
+        if not on_complete:
+            continue
+        event_type: str = on_complete.get("fire_event", "")
+        if not event_type:
+            continue
+        payload: dict = on_complete.get("payload", {})
+        try:
+            await asyncio.to_thread(
+                lambda et=event_type, p=payload: db.rpc(
+                    "fire_event_for_client",
+                    {"p_event_type": et, "p_client_id": client_id, "p_trigger_data": p},
+                ).execute()
+            )
+            logger.info(
+                "[RoutineExecutor] on_complete fired event='%s' for client=%s",
+                event_type, client_id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "[RoutineExecutor] on_complete fire_event='%s' failed for client=%s: %s",
+                event_type, client_id, exc,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -687,6 +935,91 @@ async def _execute_function_step(
     if not fn_name:
         raise ValueError(f"function step missing 'function' key: {step}")
     return await call_function(fn_name, resolved_inputs, client_id)
+
+
+async def _execute_llm_step(
+    step: dict,
+    state: dict[str, Any],
+    nome_empresa: str,
+) -> dict:
+    """
+    Direct LLM call using a Langfuse chat prompt (blu/* naming convention).
+
+    Fetches the chat prompt by name, compiles variables from the current routine
+    state, invokes the model, and optionally extracts structured JSON output.
+
+    Step fields:
+        prompt_name — Langfuse chat prompt key (e.g. "blu/meeting_brief_v1")
+        outputs     — schema dict used to extract structured output from LLM text
+        model_tier  — optional; "fast" | "default" | "powerful" (default: "default")
+    """
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    from blu_llm_service import ModelTier, get_model
+
+    prompt_name: str = step.get("prompt_name", "")
+    outputs_schema = step.get("outputs", {})
+
+    if not prompt_name:
+        raise ValueError(f"llm step missing 'prompt_name': {step}")
+
+    # Build a flat string-safe context for template interpolation
+    ctx: dict[str, str] = {"nome_empresa": nome_empresa}
+    for k, v in state.items():
+        if isinstance(v, (dict, list)):
+            ctx[k] = json.dumps(v, ensure_ascii=False)
+        elif v is None:
+            ctx[k] = ""
+        else:
+            ctx[k] = str(v)
+
+    # Fetch and compile the Langfuse prompt (handles both text and chat types)
+    try:
+        from langfuse import Langfuse
+        lf_client = Langfuse()
+        prompt_obj = await asyncio.to_thread(lf_client.get_prompt, prompt_name)
+        compiled = prompt_obj.compile(**ctx)
+    except Exception as exc:
+        logger.warning("[RoutineExecutor] llm step: failed to load prompt '%s': %s", prompt_name, exc)
+        raise
+
+    # compiled is str for text prompts, list[dict] for chat prompts
+    if isinstance(compiled, str):
+        lc_messages = [
+            SystemMessage(content=compiled),
+            HumanMessage(content="Gere o output conforme as instruções acima."),
+        ]
+    else:
+        lc_messages = []
+        for msg in compiled:
+            role = (msg.get("role") or "user").lower()
+            content = msg.get("content", "")
+            lc_messages.append(SystemMessage(content=content) if role == "system" else HumanMessage(content=content))
+
+    if not lc_messages:
+        raise ValueError(f"llm step: prompt '{prompt_name}' compiled to empty messages")
+
+    model_tier_val = step.get("model_tier", ModelTier.DEFAULT.value)
+    try:
+        model_tier = ModelTier(model_tier_val)
+    except ValueError:
+        logger.warning("[RoutineExecutor] Unknown model_tier '%s' in llm step, using DEFAULT", model_tier_val)
+        model_tier = ModelTier.DEFAULT
+    llm = get_model(tier=model_tier)
+    response = await llm.ainvoke(lc_messages)
+    result_text = response.content if hasattr(response, "content") else str(response)
+
+    step_outputs: dict[str, Any] = {"summary": result_text[:500]}
+
+    if outputs_schema:
+        extracted = _extract_json_from_text(result_text, outputs_schema)
+        if extracted:
+            step_outputs.update(extracted)
+        else:
+            logger.warning("[RoutineExecutor] llm step '%s' returned no structured output", prompt_name)
+
+    logger.info("[RoutineExecutor] llm step '%s' completed (%d chars)", prompt_name, len(result_text))
+    return step_outputs
 
 
 async def _execute_skill_step(
@@ -705,10 +1038,12 @@ async def _execute_skill_step(
 
     merged = {**state, **resolved_inputs}
     task = _resolve_templates(task_template, merged)
+    tier: str = state.get("tier", "BASIC")
 
     # Phase 4: pass outputs schema so the worker is forced to call submit_step_output
     result = await _invoke_worker(
         skill_slug, task, nome_empresa, context_service,
+        tier=tier,
         output_tool_schema=outputs_schema or None,
     )
 
@@ -783,8 +1118,9 @@ async def _execute_legacy_step(
         f"Action: {action}\n"
         f"Input: {json.dumps(trigger_data, ensure_ascii=False)}"
     )
+    tier: str = state.get("tier", "BASIC")
 
-    result = await _invoke_worker(agent_slug, task, nome_empresa, context_service)
+    result = await _invoke_worker(agent_slug, task, nome_empresa, context_service, tier=tier)
     step_outputs = {"summary": (result.summary or "")[:500]}
     return step_outputs, agent_slug
 
@@ -799,6 +1135,7 @@ async def _invoke_worker(
     task: str,
     nome_empresa: str,
     context_service: Any,
+    tier: str = "BASIC",
     output_tool_schema: dict | list | None = None,
 ):
     from blu_agent_framework.builder import AgentBuilder
@@ -807,7 +1144,9 @@ async def _invoke_worker(
     from blu_agent_framework.skill_factory import SkillFactory
     from blu_agent_framework.state import create_initial_state
     from blu_agent_framework.supervisor import WorkerResult
-    from blu_llm_service import get_model
+    from blu_llm_service import ModelTier, get_model
+    from blu_tool_registry.resource_resolver import ResourceResolver
+    from blu_tool_registry.tier_validator import TierValidator
     from langchain_core.messages import AIMessage as _AIMessage
     from langchain_core.messages import HumanMessage as _HumanMessage
 
@@ -821,19 +1160,35 @@ async def _invoke_worker(
             error=f"Unknown worker: {slug}",
         )
 
-    llm = get_model()
+    # Issue 5: enforce tier_required via ResourceResolver (FeatureRegistry) as primary.
+    # Falls back to TierValidator legacy check for agents outside the feature map.
+    if not ResourceResolver.can_access_agent(slug, tier) and not TierValidator.is_tier_higher_or_equal(tier, cfg.tier_required.value):
+        return WorkerResult(
+            summary="",
+            worker_slug=slug,
+            error=(
+                f"Client tier {tier!r} cannot invoke worker {slug!r} "
+                f"(requires {cfg.tier_required.value!r})"
+            ),
+        )
+
+    # Issue 3: filter the worker's tool list to tools accessible at this tier.
+    # Primary: FeatureRegistry. Fallback: per-tool ToolRegistry check.
+    allowed_tools: list[str] = ResourceResolver.filter_tools(list(cfg.enabled_tools), slug, tier)
+
+    llm = get_model(tier=cfg.model_tier)
     mcp_executor = get_mcp_executor()
 
     agent_cfg = AgentConfig(
         name=cfg.name,
         role=cfg.slug,
-        enabled_tools=cfg.enabled_tools,
+        enabled_tools=allowed_tools,
         max_turns=cfg.max_turns,
     )
     skill_factory = SkillFactory(
         llm=llm,
         mcp_executor=mcp_executor,
-        agent_enabled_tools=cfg.enabled_tools,
+        agent_enabled_tools=allowed_tools,
     )
     graph = (
         AgentBuilder(agent_cfg, mcp_executor=mcp_executor, checkpointer=None)
@@ -850,7 +1205,7 @@ async def _invoke_worker(
         agent_name=cfg.name,
         agent_role=cfg.slug,
         max_turns=cfg.max_turns,
-        client_context={"nome_empresa": nome_empresa},
+        client_context={"nome_empresa": nome_empresa, "tier": tier},
     )
 
     try:

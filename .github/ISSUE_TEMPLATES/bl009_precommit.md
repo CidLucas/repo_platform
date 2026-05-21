@@ -1,1 +1,0 @@
-{"title": "BL-009: Pre-commit + formatting + mypy", "body": "Add pre-commit config and minimal mypy checks, run formatter.\n\n- Files: .pre-commit-config.yaml, pyproject.toml, mypy.ini\n- Estimate: 1-3h\n- Priority: P2\n"}

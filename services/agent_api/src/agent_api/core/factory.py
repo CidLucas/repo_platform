@@ -20,10 +20,12 @@ from blu_agent_framework.mcp_executor import MCPToolExecutor
 from blu_agent_framework.registry import AgentTypeRegistry
 from blu_context_service import ContextService
 from blu_context_service.redis_service import RedisService
-from blu_llm_service import get_model
+from blu_llm_service import ModelTier, get_model
 from blu_prompt_management import build_prompt
 from blu_prompt_management.dynamic_builder import _join_fragments
 from blu_supabase_client import get_supabase_client
+from blu_tool_registry.resource_resolver import ResourceResolver
+from blu_tool_registry.tier_validator import TierValidator
 
 from agent_api.config import get_settings
 
@@ -102,6 +104,7 @@ class BuiltAgent:
     enabled_tools: list[str] = field(default_factory=list)
     client_context: dict = field(default_factory=dict)
     metadata: dict = field(default_factory=dict)
+    tier: str = "BASIC"
 
 
 # ---------------------------------------------------------------------------
@@ -127,13 +130,21 @@ class UnifiedAgentFactory:
         cache_key = f"frontdesk:{tier}"
         if cache_key not in _frontdesk_graphs:
             settings = get_settings()
-            llm = get_model()
+            cfg = AgentTypeRegistry.get("frontdesk")
+            raw_tools = cfg.enabled_tools if cfg else ["executar_rag_cliente", "execute_sql"]
+            max_turns = cfg.max_turns if cfg else 4
+            llm = get_model(tier=cfg.model_tier if cfg else ModelTier.DEFAULT)
             mcp_exec = get_mcp_executor()
             checkpointer = get_checkpointer()
 
-            cfg = AgentTypeRegistry.get("frontdesk")
-            enabled_tools = cfg.enabled_tools if cfg else ["executar_rag_cliente", "execute_sql"]
-            max_turns = cfg.max_turns if cfg else 4
+            # Filter to tools accessible under this tier via FeatureRegistry.
+            # Falls back to ToolRegistry per-tool check for tools not yet in the
+            # feature map (forward-compat during phased migration).
+            enabled_tools = ResourceResolver.filter_tools(raw_tools, "frontdesk", tier)
+            logger.info(
+                "[Factory] Frontdesk tier=%s: %d/%d tools allowed",
+                tier, len(enabled_tools), len(raw_tools),
+            )
 
             graph = (
                 AgentBuilder(
@@ -170,8 +181,24 @@ class UnifiedAgentFactory:
         Reads agent config from the ``agent_catalog`` Supabase table and assembles
         a compiled graph using the framework AgentBuilder.
         """
+        # Return cached graph only when the cached tier still matches the current
+        # client tier.  A lower-tier client must not receive a graph built for a
+        # higher-tier session that happens to share the same session_id.
         if session_id in _standalone_graphs:
-            return _standalone_graphs[session_id]
+            cached = _standalone_graphs[session_id]
+            ctx_service_early = get_context_service()
+            early_ctx = await ctx_service_early.get_client_context_by_external_user_id(
+                str(client_id)
+            )
+            current_tier = (getattr(early_ctx, "tier", None) if early_ctx else None) or "BASIC"
+            if cached.tier == current_tier:
+                return cached
+            # Tier mismatch — evict and rebuild
+            logger.info(
+                "[Factory] Tier mismatch for session=%s (cached=%s current=%s) — rebuilding",
+                session_id, cached.tier, current_tier,
+            )
+            del _standalone_graphs[session_id]
 
         db = get_supabase_client()
         ctx_service = get_context_service()
@@ -203,11 +230,43 @@ class UnifiedAgentFactory:
             str(client_id)
         )
         nome_empresa = getattr(client_context_obj, "nome_empresa", "") if client_context_obj else ""
-        tier = getattr(client_context_obj, "tier", "BASIC") if client_context_obj else "BASIC"
-        enabled_tools: list[str] = (
+        tier: str = (getattr(client_context_obj, "tier", None) if client_context_obj else None) or "BASIC"
+
+        # Enforce tier_required: use ResourceResolver (FeatureRegistry) as primary check.
+        # If the agent slug is not in the feature map (e.g. it predates this redesign),
+        # fall back to TierValidator for backward compatibility.
+        if ResourceResolver.can_access_agent(slug, tier):
+            tier_ok = True
+        else:
+            # Agent is in the feature map and tier is insufficient —
+            # but also check legacy catalog tier_required as a secondary guard.
+            catalog_tier_required = catalog.get("tier_required") or "BASIC"
+            try:
+                tier_ok = TierValidator.is_tier_higher_or_equal(tier, catalog_tier_required)
+            except ValueError:
+                logger.warning(
+                    "[Factory] Unknown tier_required=%r in catalog for agent '%s' — allowing access",
+                    catalog_tier_required, slug,
+                )
+                tier_ok = True
+        if not tier_ok:
+            raise ValueError(
+                f"Client tier {tier!r} cannot access agent '{slug}' "
+                f"(requires higher tier per FeatureRegistry)"
+            )
+
+        raw_tools: list[str] = (
             agent_config_data.get("enabled_tools") or
             (AgentTypeRegistry.get(slug).enabled_tools if AgentTypeRegistry.get(slug) else [])
         )
+        # Filter via FeatureRegistry (primary). For tools not in the feature map,
+        # fall back to per-tool ToolRegistry check (forward-compat during migration).
+        enabled_tools: list[str] = ResourceResolver.filter_tools(raw_tools, slug, tier)
+        if len(enabled_tools) < len(raw_tools):
+            logger.info(
+                "[Factory] Standalone agent '%s' tier=%s: %d/%d tools allowed",
+                slug, tier, len(enabled_tools), len(raw_tools),
+            )
 
         # 4. Build system prompt
         prompt_name: str = catalog.get("prompt_name") or ""
@@ -247,7 +306,8 @@ class UnifiedAgentFactory:
         if prompt_name:
             try:
                 system_prompt = await build_prompt(
-                    name=prompt_name, variables=variables, context_service=ctx_service
+                    name=prompt_name, variables=variables, context_service=ctx_service,
+                    allow_fallback=True,
                 )
             except Exception as exc:
                 logger.warning("[Factory] build_prompt(%s) failed: %s", prompt_name, exc)
@@ -267,6 +327,26 @@ class UnifiedAgentFactory:
                 "Answer in the user's language. Use available tools when appropriate."
             )
 
+        # 4b. Inject business memory snapshot (Arquitetura C — Shared Memory)
+        try:
+            memory_snapshot = await ctx_service.get_business_memory_snapshot(
+                str(client_id), max_chars=6000
+            )
+            if memory_snapshot:
+                system_prompt = system_prompt + "\n\n" + memory_snapshot
+        except Exception as exc:
+            logger.warning("[Factory] get_business_memory_snapshot failed: %s", exc)
+
+        # 4c. Inject morning brief (pending approvals + active routines + snapshot summary)
+        try:
+            morning_brief = await ctx_service.get_morning_brief(
+                str(client_id), max_chars=2000
+            )
+            if morning_brief:
+                system_prompt = system_prompt + "\n\n" + morning_brief
+        except Exception as exc:
+            logger.warning("[Factory] get_morning_brief failed: %s", exc)
+
         # 5. Build AgentConfig
         agent_cfg = AgentConfig(
             name=agent_config_data.get("name", catalog.get("name", "agent")),
@@ -278,7 +358,8 @@ class UnifiedAgentFactory:
         )
 
         # 6. Compile graph
-        llm = get_model()
+        model_tier = registry_cfg.model_tier if registry_cfg else ModelTier.DEFAULT
+        llm = get_model(tier=model_tier, session_id=session_id)
         mcp_exec = get_mcp_executor()
         checkpointer = get_checkpointer()
 
@@ -303,6 +384,7 @@ class UnifiedAgentFactory:
             enabled_tools=enabled_tools,
             client_context=collected_context,
             metadata={"tier": tier, "nome_empresa": nome_empresa},
+            tier=tier,
         )
 
         _standalone_graphs[session_id] = built

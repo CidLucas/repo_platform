@@ -193,6 +193,18 @@ class MCPConnectionManager:
                 logger.debug(f"MCP connected, tools: {[t.name for t in self.tools]}")
                 return
 
+            except asyncio.CancelledError:
+                # wait_for timeout or external cancellation — treat as connection failure
+                # so the retry loop can attempt reconnect rather than crashing the request.
+                logger.warning(f"[MCP] Connect attempt {attempt + 1} cancelled (timeout/scope leak)")
+                self.tools = []
+                self._session = None
+                self._connected = False
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, 30)
+                else:
+                    raise
             except Exception as e:
                 logger.error(f"❌ Erro na conexão MCP (tentativa {attempt + 1}): {e}")
                 if hasattr(e, "exceptions"):

@@ -72,6 +72,7 @@ async def chat_endpoint(
             model_override=model_override,
             elicitation_response=elicitation_response,
             user_jwt=authorization,
+            extra_tags=body.tags or [],
         )
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc))
@@ -104,6 +105,7 @@ async def chat_endpoint(
     return ChatResponse(
         response=result.response,
         session_id=body.session_id,
+        agent_slug=result.agent_slug,
         model_used=result.model_used,
         elicitation_pending=pending,
         structured_data=result.structured_data,

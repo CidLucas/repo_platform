@@ -1,1 +1,0 @@
-{"title": "BL-008: SpecialistCache extraction & orchestrator refactor", "body": "Extract compiled specialist cache and split orchestrator helpers.\n\n- Files: libs/blu_agent_framework/src/blu_agent_framework/specialist_cache.py, modify orchestrator.py\n- Tests: tests/unit/test_specialist_cache.py\n- Estimate: 8-24h (split into PRs)\n- Priority: P2\n"}

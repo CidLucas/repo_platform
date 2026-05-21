@@ -24,7 +24,6 @@ const NAV_ITEMS: NavItem[] = [
   { s: 'documentos', icon: <PencilSimpleLine size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Documentos' },
   { s: 'estrategia', icon: <Target      size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Estratégia' },
   { s: 'clientes',   icon: <UsersThree  size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Clientes' },
-  { s: 'biblioteca', icon: <Books       size={ICON_SIZE} weight={ICON_WEIGHT} />, label: 'Biblioteca' },
 ]
 
 const FOOT_ITEMS: NavItem[] = [

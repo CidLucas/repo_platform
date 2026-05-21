@@ -13,7 +13,7 @@ import { fetchSuppliers, fetchComprasHistory } from '../../api/suppliers'
 import { getSupplyIndicators, getContextMetrics, type ContextMetricRow } from '../../api/analytics'
 import { useApprovalStats } from '../../hooks/useApprovalStats'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
-import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
+
 import RoutineExecutionFeed from '../../components/shared/RoutineExecutionFeed'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
@@ -325,9 +325,7 @@ export default function ComprasRoom() {
 
         <div className="rcol">
           <RColResizeHandle />
-          <CollapsiblePanel id="compras-rotinas" icon="⚙️" title="Rotinas ativas">
-            <RoutineStatusWidget domain="compras" />
-          </CollapsiblePanel>
+
           <CollapsiblePanel id="compras-fornecedores" icon="📁" title="Fornecedores" action={<button className="ph-add" onClick={() => openChatWith('Quero cadastrar um novo fornecedor')}>＋</button>}>
             <div className="dr-sec">
                 <div className="pills"><span className="pill on">Todos</span><span className="pill">Escritório</span><span className="pill">Insumos</span></div>

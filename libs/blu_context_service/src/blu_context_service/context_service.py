@@ -447,6 +447,317 @@ class ContextService:
         await asyncio.to_thread(self.cache.delete, "canonical_columns:all")
         logger.info("canonical_columns cache invalidated")
 
+    # --------------------------
+    # Business Memory Snapshot
+    # --------------------------
+
+    async def get_business_memory_snapshot(
+        self,
+        client_id: UUID,
+        *,
+        max_chars: int = 6000,
+    ) -> str:
+        """Return a compact, LLM-ready snapshot of the client's business state.
+
+        Aggregates five sources (ordered by priority):
+          1. Pending approval_requests  → decisions waiting for the user
+          2. Unread urgent notifications → active alerts
+          3. Active client_goals         → what the client is working toward
+          4. dimension_state (valid)     → per-room business state summaries
+          5. Recent client_insights      → AI-generated observations
+
+        The result is plain text, truncated to ``max_chars``, ready to be
+        injected into any agent prompt under a "## Estado do Negócio" section.
+
+        Args:
+            client_id: Client UUID.
+            max_chars: Soft character budget (default 6 000 ≈ ~1 500 tokens).
+
+        Returns:
+            Formatted text block, or empty string if nothing is available.
+        """
+        try:
+            supabase = get_supabase_client()
+            parts: list[str] = []
+            used = 0
+
+            # --- 1. Pending approvals ---
+            try:
+                resp = (
+                    supabase.table("approval_requests")
+                    .select("title, action_type, priority, insight_text, created_at")
+                    .eq("client_id", str(client_id))
+                    .eq("status", "pending")
+                    .order("created_at", desc=True)
+                    .limit(5)
+                    .execute()
+                )
+                rows = resp.data or []
+                if rows:
+                    lines = ["### Aprovações pendentes"]
+                    for r in rows:
+                        pri = r.get("priority", "normal")
+                        title = r.get("title") or r.get("action_type", "")
+                        note = r.get("insight_text", "")
+                        lines.append(f"- [{pri.upper()}] {title}" + (f": {note}" if note else ""))
+                    block = "\n".join(lines)
+                    parts.append(block)
+                    used += len(block)
+            except Exception as e:
+                logger.warning("[snapshot] approval_requests failed: %s", e)
+
+            # --- 2. Urgent unread notifications ---
+            if used < max_chars:
+                try:
+                    resp = (
+                        supabase.table("notifications")
+                        .select("title, body, urgency_level, created_at")
+                        .eq("client_id", str(client_id))
+                        .is_("read_at", "null")
+                        .is_("dismissed_at", "null")
+                        .in_("urgency_level", ["high", "critical"])
+                        .order("created_at", desc=True)
+                        .limit(5)
+                        .execute()
+                    )
+                    rows = resp.data or []
+                    if rows:
+                        lines = ["### Alertas não lidos"]
+                        for r in rows:
+                            lvl = r.get("urgency_level", "")
+                            title = r.get("title", "")
+                            body = r.get("body", "")
+                            lines.append(f"- [{lvl.upper()}] {title}" + (f": {body}" if body else ""))
+                        block = "\n".join(lines)
+                        parts.append(block)
+                        used += len(block)
+                except Exception as e:
+                    logger.warning("[snapshot] notifications failed: %s", e)
+
+            # --- 3. Active goals ---
+            if used < max_chars:
+                try:
+                    resp = (
+                        supabase.table("client_goals")
+                        .select("dimension, title, target_value, current_value, unit, deadline, description")
+                        .eq("client_id", str(client_id))
+                        .eq("status", "active")
+                        .order("created_at", desc=True)
+                        .limit(8)
+                        .execute()
+                    )
+                    rows = resp.data or []
+                    if rows:
+                        lines = ["### Metas ativas"]
+                        for r in rows:
+                            dim = r.get("dimension", "")
+                            title = r.get("title", "")
+                            cur = r.get("current_value")
+                            tgt = r.get("target_value")
+                            unit = r.get("unit", "")
+                            dl = r.get("deadline", "")
+                            progress = ""
+                            if cur is not None and tgt is not None and tgt != 0:
+                                pct = round(float(cur) / float(tgt) * 100)
+                                progress = f" ({pct}% — {cur}/{tgt} {unit})"
+                            elif tgt is not None:
+                                progress = f" (meta: {tgt} {unit})"
+                            deadline_str = f" prazo {dl}" if dl else ""
+                            lines.append(f"- [{dim}] {title}{progress}{deadline_str}")
+                        block = "\n".join(lines)
+                        parts.append(block)
+                        used += len(block)
+                except Exception as e:
+                    logger.warning("[snapshot] client_goals failed: %s", e)
+
+            # --- 4. dimension_state (valid rows only) ---
+            if used < max_chars:
+                try:
+                    resp = (
+                        supabase.table("dimension_state")
+                        .select("dimension, summary, updated_at, valid_until")
+                        .eq("client_id", str(client_id))
+                        .order("updated_at", desc=True)
+                        .execute()
+                    )
+                    rows = resp.data or []
+                    if rows:
+                        lines = ["### Estado por dimensão"]
+                        for r in rows:
+                            # Skip expired rows (valid_until not null and in the past)
+                            valid_until = r.get("valid_until")
+                            if valid_until:
+                                from datetime import timezone
+                                try:
+                                    from dateutil import parser as dtparser
+                                    vu = dtparser.parse(valid_until)
+                                    if vu.tzinfo is None:
+                                        vu = vu.replace(tzinfo=timezone.utc)
+                                    if vu < datetime.now(UTC):
+                                        continue
+                                except Exception:
+                                    pass
+                            dim = r.get("dimension", "")
+                            summary = r.get("summary", "").strip()
+                            if summary:
+                                remaining = max_chars - used - len("\n".join(lines))
+                                if remaining < 50:
+                                    break
+                                lines.append(f"**{dim.capitalize()}**: {summary[:min(len(summary), remaining)]}")
+                        if len(lines) > 1:
+                            block = "\n".join(lines)
+                            parts.append(block)
+                            used += len(block)
+                except Exception as e:
+                    logger.warning("[snapshot] dimension_state failed: %s", e)
+
+            # --- 5. Recent insights ---
+            if used < max_chars:
+                try:
+                    resp = (
+                        supabase.table("client_insights")
+                        .select("dimension, title, observation, recommendation, severity")
+                        .eq("client_id", str(client_id))
+                        .eq("dismissed", False)
+                        .in_("severity", ["warning", "critical"])
+                        .order("generated_at", desc=True)
+                        .limit(5)
+                        .execute()
+                    )
+                    rows = resp.data or []
+                    if rows:
+                        lines = ["### Insights recentes"]
+                        for r in rows:
+                            dim = r.get("dimension", "")
+                            title = r.get("title", "")
+                            obs = r.get("observation", "")
+                            rec = r.get("recommendation", "")
+                            sev = r.get("severity", "")
+                            line = f"- [{sev.upper()} | {dim}] {title}"
+                            if obs:
+                                line += f"\n  Obs: {obs}"
+                            if rec:
+                                line += f"\n  Rec: {rec}"
+                            lines.append(line)
+                        block = "\n".join(lines)
+                        parts.append(block)
+                        used += len(block)
+                except Exception as e:
+                    logger.warning("[snapshot] client_insights failed: %s", e)
+
+            if not parts:
+                return ""
+
+            snapshot = "\n\n".join(parts)
+            if len(snapshot) > max_chars:
+                snapshot = snapshot[:max_chars] + "\n[...snapshot truncado]"
+
+            return f"## Estado do Negócio\n\n{snapshot}"
+
+        except Exception as e:
+            logger.error("[snapshot] get_business_memory_snapshot failed: %s", e, exc_info=True)
+            return ""
+
+    async def get_morning_brief(
+        self,
+        client_id: UUID | str,
+        *,
+        max_chars: int = 2000,
+    ) -> str:
+        """Return a structured morning brief for the User-Facing Agent.
+
+        Aggregates three live sources:
+          1. Pending approvals (approval_requests, status='pending', limit 5)
+          2. Active routines  (cross_agent_routines with client_routine_configs, limit 10)
+          3. Business memory snapshot (delegates to get_business_memory_snapshot)
+
+        The result is plain text, truncated to ``max_chars``, ready to be injected
+        into the agent system prompt under a "## Morning Brief" section.
+
+        Args:
+            client_id: Client UUID (str or UUID).
+            max_chars: Soft character budget (default 2 000).
+
+        Returns:
+            Formatted text block, or empty string on error / no data.
+        """
+        try:
+            if isinstance(client_id, str):
+                client_id_uuid = UUID(client_id)
+            else:
+                client_id_uuid = client_id
+
+            supabase = get_supabase_client(use_service_role=True)
+            parts: list[str] = []
+
+            # --- 1. Pending approvals ---
+            try:
+                resp = (
+                    supabase.table("approval_requests")
+                    .select("title, agent_slug, priority")
+                    .eq("client_id", str(client_id_uuid))
+                    .eq("status", "pending")
+                    .order("created_at", desc=True)
+                    .limit(5)
+                    .execute()
+                )
+                rows = resp.data or []
+                if rows:
+                    lines = ["## Aprovações Pendentes"]
+                    for r in rows:
+                        title = r.get("title") or ""
+                        slug = r.get("agent_slug") or ""
+                        pri = r.get("priority") or "normal"
+                        lines.append(f"• {title} — {slug} ({pri})")
+                    parts.append("\n".join(lines))
+            except Exception as e:
+                logger.warning("[morning_brief] approval_requests failed: %s", e)
+
+            # --- 2. Active routines ---
+            try:
+                resp = (
+                    supabase.table("cross_agent_routines")
+                    .select("name, trigger_config, client_routine_configs!inner(client_id)")
+                    .eq("client_routine_configs.client_id", str(client_id_uuid))
+                    .eq("is_active", True)
+                    .limit(10)
+                    .execute()
+                )
+                rows = resp.data or []
+                if rows:
+                    lines = ["## Rotinas Ativas"]
+                    for r in rows:
+                        name = r.get("name") or ""
+                        tc = r.get("trigger_config") or {}
+                        cron = tc.get("cron") or tc.get("expression") or str(tc)
+                        lines.append(f"• {name} (cron: {cron})")
+                    parts.append("\n".join(lines))
+            except Exception as e:
+                logger.warning("[morning_brief] cross_agent_routines failed: %s", e)
+
+            # --- 3. Business memory snapshot ---
+            try:
+                snapshot = await self.get_business_memory_snapshot(
+                    client_id_uuid, max_chars=max_chars
+                )
+                if snapshot:
+                    parts.append(snapshot)
+            except Exception as e:
+                logger.warning("[morning_brief] get_business_memory_snapshot failed: %s", e)
+
+            if not parts:
+                return ""
+
+            brief = "\n\n".join(parts)
+            if len(brief) > max_chars:
+                brief = brief[:max_chars] + "\n[...brief truncado]"
+
+            return f"## Morning Brief\n\n{brief}"
+
+        except Exception as e:
+            logger.error("[morning_brief] get_morning_brief failed: %s", e, exc_info=True)
+            return ""
+
     async def clear_sql_configs_cache(self, client_id: UUID) -> None:
         """Clear SQL table configs cache for a client."""
         cache_key = f"sql_configs:{client_id}"

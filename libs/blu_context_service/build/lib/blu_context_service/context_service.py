@@ -46,7 +46,8 @@ class ContextService:
     """Service for fetching and caching client context via Supabase SDK."""
 
     CACHE_KEY_PREFIX = "context:client:"
-    CACHE_TTL_SECONDS = 300  # 5 minutos
+    CACHE_TTL_SECONDS = 300        # 5 minutes — client context
+    CANONICAL_TTL_SECONDS = 3600   # 1 hour — changes only on schema migrations
 
     def __init__(self, cache_service: RedisService):
         """
@@ -149,41 +150,52 @@ class ContextService:
             logger.warning(f"Failed to enrich data_schema with table_schemas: {e}")
             return context
 
-    async def get_client_context_by_external_user_id(
-        self, external_user_id: str | UUID
+    async def get_client_context(
+        self,
+        client_id: UUID | None = None,
+        *,
+        external_user_id: str | UUID | None = None,
     ) -> BluClientContext | None:
         """
-        Fetch context using the external_user_id (Supabase Auth user ID / JWT sub claim).
+        Fetch full client context with Redis caching.
 
-        This is the primary entry point for JWT-authenticated requests.
+        Accepts either a direct ``client_id`` (UUID) or an ``external_user_id``
+        (JWT sub / Supabase Auth user ID).  When ``external_user_id`` is given,
+        the internal client UUID is resolved first (one Supabase call, not
+        cached), then the standard Redis → Supabase → enrich path is used.
+
+        Exactly one of the two arguments must be provided.
         """
-        try:
-            cliente_data = await asyncio.to_thread(
-                self._supabase_crud.get_cliente_blu_by_external_user_id, str(external_user_id)
-            )
+        if client_id is None and external_user_id is None:
+            raise ValueError("Provide either client_id or external_user_id")
 
-            if not cliente_data:
-                logger.warning(f"Cliente não encontrado para external_user_id={external_user_id}")
+        # --- resolve external_user_id → client_id ---
+        if client_id is None:
+            try:
+                cliente_data = await asyncio.to_thread(
+                    self._supabase_crud.get_cliente_blu_by_external_user_id,
+                    str(external_user_id),
+                )
+            except Exception as e:
+                logger.error(
+                    f"Erro ao resolver external_user_id={external_user_id}: {e}",
+                    exc_info=True,
+                )
                 return None
 
-            internal_client_id = UUID(cliente_data["client_id"])
+            if not cliente_data:
+                logger.warning(
+                    f"Cliente não encontrado para external_user_id={external_user_id}"
+                )
+                return None
+
+            client_id = UUID(cliente_data["client_id"])
             logger.debug(
-                f"Found cliente: external_user_id={external_user_id} -> client_id={internal_client_id}"
+                f"Resolved external_user_id={external_user_id} → client_id={client_id}"
             )
 
-            return await self.get_client_context_by_id(internal_client_id)
-
-        except Exception as e:
-            logger.error(
-                f"Erro ao buscar contexto por external_user_id={external_user_id}: {e}",
-                exc_info=True,
-            )
-            return None
-
-    async def get_client_context_by_id(self, client_id: UUID) -> BluClientContext | None:
-        """Fetch full client context with Redis caching and RLS enforcement."""
+        # --- cached fetch by client_id ---
         cache_key = self._get_cache_key(client_id)
-
         await asyncio.to_thread(self._set_rls_context, client_id)
 
         try:
@@ -192,7 +204,9 @@ class ContextService:
                 try:
                     return BluClientContext.model_validate(cached_data)
                 except Exception as e:
-                    logger.warning(f"Cache corrompido para {client_id}, invalidando... Erro: {e}")
+                    logger.warning(
+                        f"Cache corrompido para {client_id}, invalidando... Erro: {e}"
+                    )
                     await self.clear_context_cache(client_id)
         except Exception as e:
             logger.warning(f"Falha ao ler cache Redis: {e}")
@@ -220,8 +234,22 @@ class ContextService:
             return client_context
 
         except Exception as e:
-            logger.error(f"Erro crítico ao montar contexto para {client_id}: {e}", exc_info=True)
+            logger.error(
+                f"Erro crítico ao montar contexto para {client_id}: {e}", exc_info=True
+            )
             return None
+
+    # ------------------------------------------------------------------
+    # Backwards-compat aliases — prefer get_client_context() in new code
+    # ------------------------------------------------------------------
+
+    async def get_client_context_by_id(self, client_id: UUID) -> BluClientContext | None:
+        return await self.get_client_context(client_id)
+
+    async def get_client_context_by_external_user_id(
+        self, external_user_id: str | UUID
+    ) -> BluClientContext | None:
+        return await self.get_client_context(external_user_id=external_user_id)
 
     async def clear_context_cache(self, client_id: UUID) -> None:
         """Remove context from cache (call after client updates)."""
@@ -246,7 +274,7 @@ class ContextService:
             Dict suitable for injection into AgentState.client_context at the
             specialist level. Empty dict if the context cannot be loaded.
         """
-        ctx = await self.get_client_context_by_id(client_id)
+        ctx = await self.get_client_context(client_id)
         if ctx is None:
             logger.warning("[domain_projection] No context found for client_id=%s", client_id)
             return {}
@@ -358,6 +386,277 @@ class ContextService:
             logger.warning(f"PromptLoader.load_raw failed for {name}: {e}, using builtin")
             loaded = loader.load_builtin(name, variables)
             return loaded.content
+
+    async def get_canonical_columns(
+        self,
+        *,
+        category: str | None = None,
+        table_name: str | None = None,
+    ) -> list[dict]:
+        """Return canonical column definitions, optionally filtered by category or table.
+
+        Data is global (not per-client) and cached under a single key with a long TTL.
+        Filter in-memory after retrieval to avoid cache key proliferation.
+
+        Args:
+            category: One of 'mappable', 'aggregation', 'cluster', 'dimension', 'system'.
+            table_name: analytics_v2 table name, e.g. 'fato_transacoes'.
+        """
+        cache_key = "canonical_columns:all"
+
+        rows: list[dict] = []
+        try:
+            cached = await asyncio.to_thread(self.cache.get_json, cache_key)
+            if cached is not None:
+                logger.debug("canonical_columns cache hit")
+                rows = cached
+        except Exception as e:
+            logger.warning("Redis read failed for canonical_columns: %s", e)
+
+        if not rows:
+            try:
+                supabase = get_supabase_client()
+                response = (
+                    supabase.table("canonical_columns")
+                    .select("table_name,column_name,data_type,is_required,category,description,examples")
+                    .order("table_name")
+                    .order("column_name")
+                    .execute()
+                )
+                rows = response.data or []
+                logger.debug("Loaded %d canonical columns from Supabase", len(rows))
+            except Exception as e:
+                logger.error("Failed to load canonical_columns: %s", e)
+                return []
+
+            if rows:
+                try:
+                    await asyncio.to_thread(self.cache.set_json, cache_key, rows, self.CANONICAL_TTL_SECONDS)
+                except Exception as e:
+                    logger.warning("Failed to cache canonical_columns: %s", e)
+
+        if category:
+            rows = [r for r in rows if r.get("category") == category]
+        if table_name:
+            rows = [r for r in rows if r.get("table_name") == table_name]
+
+        return rows
+
+    async def clear_canonical_columns_cache(self) -> None:
+        """Invalidate the canonical columns cache (call after schema migrations)."""
+        await asyncio.to_thread(self.cache.delete, "canonical_columns:all")
+        logger.info("canonical_columns cache invalidated")
+
+    # --------------------------
+    # Business Memory Snapshot
+    # --------------------------
+
+    async def get_business_memory_snapshot(
+        self,
+        client_id: UUID,
+        *,
+        max_chars: int = 6000,
+    ) -> str:
+        """Return a compact, LLM-ready snapshot of the client's business state.
+
+        Aggregates five sources (ordered by priority):
+          1. Pending approval_requests  → decisions waiting for the user
+          2. Unread urgent notifications → active alerts
+          3. Active client_goals         → what the client is working toward
+          4. dimension_state (valid)     → per-room business state summaries
+          5. Recent client_insights      → AI-generated observations
+
+        The result is plain text, truncated to ``max_chars``, ready to be
+        injected into any agent prompt under a "## Estado do Negócio" section.
+
+        Args:
+            client_id: Client UUID.
+            max_chars: Soft character budget (default 6 000 ≈ ~1 500 tokens).
+
+        Returns:
+            Formatted text block, or empty string if nothing is available.
+        """
+        try:
+            supabase = get_supabase_client()
+            parts: list[str] = []
+            used = 0
+
+            # --- 1. Pending approvals ---
+            try:
+                resp = (
+                    supabase.table("approval_requests")
+                    .select("title, action_type, priority, insight_text, created_at")
+                    .eq("client_id", str(client_id))
+                    .eq("status", "pending")
+                    .order("created_at", desc=True)
+                    .limit(5)
+                    .execute()
+                )
+                rows = resp.data or []
+                if rows:
+                    lines = ["### Aprovações pendentes"]
+                    for r in rows:
+                        pri = r.get("priority", "normal")
+                        title = r.get("title") or r.get("action_type", "")
+                        note = r.get("insight_text", "")
+                        lines.append(f"- [{pri.upper()}] {title}" + (f": {note}" if note else ""))
+                    block = "\n".join(lines)
+                    parts.append(block)
+                    used += len(block)
+            except Exception as e:
+                logger.warning("[snapshot] approval_requests failed: %s", e)
+
+            # --- 2. Urgent unread notifications ---
+            if used < max_chars:
+                try:
+                    resp = (
+                        supabase.table("notifications")
+                        .select("title, body, urgency_level, created_at")
+                        .eq("client_id", str(client_id))
+                        .is_("read_at", "null")
+                        .is_("dismissed_at", "null")
+                        .in_("urgency_level", ["high", "critical"])
+                        .order("created_at", desc=True)
+                        .limit(5)
+                        .execute()
+                    )
+                    rows = resp.data or []
+                    if rows:
+                        lines = ["### Alertas não lidos"]
+                        for r in rows:
+                            lvl = r.get("urgency_level", "")
+                            title = r.get("title", "")
+                            body = r.get("body", "")
+                            lines.append(f"- [{lvl.upper()}] {title}" + (f": {body}" if body else ""))
+                        block = "\n".join(lines)
+                        parts.append(block)
+                        used += len(block)
+                except Exception as e:
+                    logger.warning("[snapshot] notifications failed: %s", e)
+
+            # --- 3. Active goals ---
+            if used < max_chars:
+                try:
+                    resp = (
+                        supabase.table("client_goals")
+                        .select("dimension, title, target_value, current_value, unit, deadline, description")
+                        .eq("client_id", str(client_id))
+                        .eq("status", "active")
+                        .order("created_at", desc=True)
+                        .limit(8)
+                        .execute()
+                    )
+                    rows = resp.data or []
+                    if rows:
+                        lines = ["### Metas ativas"]
+                        for r in rows:
+                            dim = r.get("dimension", "")
+                            title = r.get("title", "")
+                            cur = r.get("current_value")
+                            tgt = r.get("target_value")
+                            unit = r.get("unit", "")
+                            dl = r.get("deadline", "")
+                            progress = ""
+                            if cur is not None and tgt is not None and tgt != 0:
+                                pct = round(float(cur) / float(tgt) * 100)
+                                progress = f" ({pct}% — {cur}/{tgt} {unit})"
+                            elif tgt is not None:
+                                progress = f" (meta: {tgt} {unit})"
+                            deadline_str = f" prazo {dl}" if dl else ""
+                            lines.append(f"- [{dim}] {title}{progress}{deadline_str}")
+                        block = "\n".join(lines)
+                        parts.append(block)
+                        used += len(block)
+                except Exception as e:
+                    logger.warning("[snapshot] client_goals failed: %s", e)
+
+            # --- 4. dimension_state (valid rows only) ---
+            if used < max_chars:
+                try:
+                    resp = (
+                        supabase.table("dimension_state")
+                        .select("dimension, summary, updated_at, valid_until")
+                        .eq("client_id", str(client_id))
+                        .order("updated_at", desc=True)
+                        .execute()
+                    )
+                    rows = resp.data or []
+                    if rows:
+                        lines = ["### Estado por dimensão"]
+                        for r in rows:
+                            # Skip expired rows (valid_until not null and in the past)
+                            valid_until = r.get("valid_until")
+                            if valid_until:
+                                from datetime import timezone
+                                try:
+                                    from dateutil import parser as dtparser
+                                    vu = dtparser.parse(valid_until)
+                                    if vu.tzinfo is None:
+                                        vu = vu.replace(tzinfo=timezone.utc)
+                                    if vu < datetime.now(UTC):
+                                        continue
+                                except Exception:
+                                    pass
+                            dim = r.get("dimension", "")
+                            summary = r.get("summary", "").strip()
+                            if summary:
+                                remaining = max_chars - used - len("\n".join(lines))
+                                if remaining < 50:
+                                    break
+                                lines.append(f"**{dim.capitalize()}**: {summary[:min(len(summary), remaining)]}")
+                        if len(lines) > 1:
+                            block = "\n".join(lines)
+                            parts.append(block)
+                            used += len(block)
+                except Exception as e:
+                    logger.warning("[snapshot] dimension_state failed: %s", e)
+
+            # --- 5. Recent insights ---
+            if used < max_chars:
+                try:
+                    resp = (
+                        supabase.table("client_insights")
+                        .select("dimension, title, observation, recommendation, severity")
+                        .eq("client_id", str(client_id))
+                        .eq("dismissed", False)
+                        .in_("severity", ["warning", "critical"])
+                        .order("generated_at", desc=True)
+                        .limit(5)
+                        .execute()
+                    )
+                    rows = resp.data or []
+                    if rows:
+                        lines = ["### Insights recentes"]
+                        for r in rows:
+                            dim = r.get("dimension", "")
+                            title = r.get("title", "")
+                            obs = r.get("observation", "")
+                            rec = r.get("recommendation", "")
+                            sev = r.get("severity", "")
+                            line = f"- [{sev.upper()} | {dim}] {title}"
+                            if obs:
+                                line += f"\n  Obs: {obs}"
+                            if rec:
+                                line += f"\n  Rec: {rec}"
+                            lines.append(line)
+                        block = "\n".join(lines)
+                        parts.append(block)
+                        used += len(block)
+                except Exception as e:
+                    logger.warning("[snapshot] client_insights failed: %s", e)
+
+            if not parts:
+                return ""
+
+            snapshot = "\n\n".join(parts)
+            if len(snapshot) > max_chars:
+                snapshot = snapshot[:max_chars] + "\n[...snapshot truncado]"
+
+            return f"## Estado do Negócio\n\n{snapshot}"
+
+        except Exception as e:
+            logger.error("[snapshot] get_business_memory_snapshot failed: %s", e, exc_info=True)
+            return ""
 
     async def clear_sql_configs_cache(self, client_id: UUID) -> None:
         """Clear SQL table configs cache for a client."""

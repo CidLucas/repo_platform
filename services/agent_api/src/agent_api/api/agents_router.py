@@ -14,6 +14,7 @@ import unicodedata
 from uuid import UUID, uuid4
 
 from blu_supabase_client import get_supabase_client
+from blu_tool_registry.resource_resolver import ResourceResolver
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 
@@ -88,13 +89,16 @@ async def list_agents(client_tier: str = Query("BASIC")):
         "id,name,slug,description,category,icon,tier_required"
     ).eq("is_active", True).execute()
 
-    tier_order = {"BASIC": 0, "PRO": 1, "SME": 2, "ENTERPRISE": 3}
-    client_level = tier_order.get(client_tier, 0)
+    # Use ResourceResolver for tier-aware filtering.
+    # resolve_agents returns feature-map slugs; can_access_agent covers slugs
+    # not yet in the feature map (returns True for unmapped agents by policy).
+    accessible_slugs = set(ResourceResolver.resolve_agents(client_tier))
 
     return [
         AgentInfo(**{k: a.get(k) for k in AgentInfo.model_fields})
         for a in result.data
-        if tier_order.get(a.get("tier_required", "BASIC"), 0) <= client_level
+        if a.get("slug") in accessible_slugs
+        or ResourceResolver.can_access_agent(a.get("slug", ""), client_tier)
     ]
 
 

@@ -25,10 +25,6 @@ from supabase import create_client
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/ingest", tags=["Document Ingestion"])
 
-SUPABASE_URL = os.environ["SUPABASE_URL"]
-SUPABASE_SERVICE_ROLE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-PROCESS_DOCUMENT_EF_URL = f"{SUPABASE_URL}/functions/v1/process-document"
-
 
 def get_client_id_from_token(auth: AuthResult = Depends(get_auth_result)) -> UUID:
     """Resolve authenticated client_id from JWT token."""
@@ -69,8 +65,12 @@ async def ingest_document(
             detail="client_id in body does not match authenticated user.",
         )
 
+    supabase_url = os.environ["SUPABASE_URL"]
+    supabase_service_role_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+    process_document_ef_url = f"{supabase_url}/functions/v1/process-document"
+
     try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+        supabase = create_client(supabase_url, supabase_service_role_key)
 
         # 1. Download from Storage (run in thread — sync client must not block event loop)
         logger.info("Downloading %s for Docling parsing", body.storage_path)
@@ -101,9 +101,9 @@ async def ingest_document(
 
         async with httpx.AsyncClient(timeout=300.0) as client:
             ef_response = await client.post(
-                PROCESS_DOCUMENT_EF_URL,
+                process_document_ef_url,
                 json=payload,
-                headers={"Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}"},
+                headers={"Authorization": f"Bearer {supabase_service_role_key}"},
             )
 
         if ef_response.status_code != 200:

@@ -26,6 +26,9 @@ Uso rápido:
 from .client import (
     MODEL_MAPPINGS,
     FALLBACK_MODEL_MAPPINGS,
+    TASK_MODEL_MAPPINGS,
+    TASK_FALLBACK_MAPPINGS,
+    SPECIALIZED_MODEL_MAPPINGS,
     LLMProvider,
     ModelTask,
     ModelTier,
@@ -34,6 +37,7 @@ from .client import (
     flush_langfuse,
     get_base_callbacks,
     get_embedding_model,
+    get_hf_inference_client,
     get_langfuse_callback,
     get_model,
     shutdown_langfuse,
@@ -98,6 +102,7 @@ __all__ = [
     # Main API
     "get_model",
     "get_embedding_model",
+    "get_hf_inference_client",
     # Token Budgeting
     "TokenBudget",
     "TokenBudgetResult",
@@ -135,4 +140,7 @@ __all__ = [
     # Mappings
     "MODEL_MAPPINGS",
     "FALLBACK_MODEL_MAPPINGS",
+    "TASK_MODEL_MAPPINGS",
+    "TASK_FALLBACK_MAPPINGS",
+    "SPECIALIZED_MODEL_MAPPINGS",
 ]

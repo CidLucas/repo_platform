@@ -85,27 +85,38 @@ async def get_routine_catalog() -> dict:
     - triggers   : available trigger types with config schemas
     """
     from blu_agent_framework.registry import AgentTypeRegistry
+    from blu_agent_framework.skills import SKILL_REGISTRY
 
     from agent_api.core.routine_artifacts import list_artifacts_with_meta
     from agent_api.core.routine_functions import list_functions_with_meta
+    from agent_api.core.routines import list_numeric_metrics
 
-    _SKILL_DESCRIPTIONS: dict[str, str] = {
-        "financeiro": "Analisa dados financeiros, fluxo de caixa e rentabilidade. Gera insights e recomendações.",
-        "compras": "Avalia estoque, giro de produtos e sugere pedidos de reposição.",
-        "estrategia": "Cria planos estratégicos, metas e análises de mercado.",
-        "clientes": "Analisa base de clientes, churn, segmentação e oportunidades de reengajamento.",
-        "agenda": "Planeja e organiza calendário, lembretes e tarefas.",
-        "documentos": "Gera, resume e processa documentos e relatórios.",
-        "context-gatherer": "Consolida contexto do cliente a partir de múltiplas fontes de dados.",
-    }
+    # Agents available as skill executors in routine steps (new system only)
+    _NEW_SYSTEM_AGENTS = {"orchestrator", "frontdesk", "context-gatherer"}
 
     skills = [
         {
             "id": slug,
             "label": slug.replace("-", " ").title(),
-            "description": _SKILL_DESCRIPTIONS.get(slug, f"Agente {slug}"),
+            "description": f"Agente {slug}",
         }
         for slug in sorted(AgentTypeRegistry.all().keys())
+        if slug in _NEW_SYSTEM_AGENTS
+    ]
+
+    # Also expose L3 skill definitions from SKILL_REGISTRY so the builder
+    # can reference individual skills directly (skill_slug = skill.name).
+    # These are invoked by the orchestrator/context-gatherer, not by old agent slugs.
+    l3_skills = [
+        {
+            "id": s.name,
+            "label": s.name.replace("_", " ").title(),
+            "description": s.description,
+            "tags": s.tags,
+            "kind": "l3_skill",  # UI can distinguish from agent-executor skills
+        }
+        for s in SKILL_REGISTRY.values()
+        if "l3" in (s.tags or [])
     ]
 
     triggers = [
@@ -147,11 +158,23 @@ async def get_routine_catalog() -> dict:
         {
             "id": "numeric",
             "label": "Monitoramento",
-            "description": "Dispara quando uma métrica ultrapassa um limite definido.",
+            "description": "Dispara quando uma métrica cai abaixo de um limite definido.",
             "config_schema": [
-                {"key": "metric", "type": "str", "description": "Nome da métrica monitorada (ex: new_clients_monthly_rate)", "required": True},
-                {"key": "threshold", "type": "float", "description": "Valor limite que dispara a rotina", "required": True},
-                {"key": "window_months", "type": "int", "description": "Janela de avaliação em meses", "default": 1, "required": False},
+                {
+                    "key": "metric",
+                    "type": "select",
+                    "description": "Métrica a monitorar",
+                    "required": True,
+                    "options": list_numeric_metrics(),
+                },
+                {
+                    "key": "threshold",
+                    "type": "float",
+                    "description": "Fração do histórico que dispara o alerta (ex: 0.85 = queda > 15%)",
+                    "required": True,
+                    "default": 0.85,
+                },
+                {"key": "window_months", "type": "int", "description": "Janela de comparação em meses", "default": 1, "required": False},
                 {"key": "cooldown_hours", "type": "int", "description": "Intervalo mínimo entre execuções (horas)", "default": 24, "required": False},
             ],
         },
@@ -161,6 +184,7 @@ async def get_routine_catalog() -> dict:
         "functions": list_functions_with_meta(),
         "artifacts": list_artifacts_with_meta(),
         "skills": skills,
+        "l3_skills": l3_skills,
         "triggers": triggers,
         # legacy flat lists — kept for backward compat
         "skill_slugs": [s["id"] for s in skills],

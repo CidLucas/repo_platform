@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
 import {
@@ -11,19 +11,23 @@ import {
 import { fetchInsights, type ClientInsight } from '../../api/insights'
 import {
   fetchRecentDocuments,
+  fetchDraftDocuments,
   fetchDocTemplates,
   saveDocument,
   createDocument,
+  publishDocument,
+  archiveDocument,
   type BluDocument,
   type DocTemplate,
 } from '../../api/documents'
 import { snoozeUntil } from '../../utils/time'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
+import BibliotecaRoom from './BibliotecaRoom'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
-import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
 
-type Tab = 'ativos' | 'rascunhos' | 'modelos' | 'config'
+
+type Tab = 'ativos' | 'rascunhos' | 'modelos' | 'base' | 'config'
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 function relativeTime(iso: string) {
@@ -81,6 +85,12 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
         staleTime: 300_000,
       },
     ],
+  })
+
+  const draftsQ = useQuery({
+    queryKey: ['doc-drafts', clientId ?? ''],
+    queryFn: () => fetchDraftDocuments(clientId!),
+    enabled: !!clientId,
   })
 
   const approveMut = useMutation({
@@ -168,13 +178,13 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
             </span>
           </div>
           <div className="rtabs" id="dTabs">
-            {(['ativos', 'rascunhos', 'modelos', 'config'] as Tab[]).map((t) => (
+            {(['ativos', 'rascunhos', 'modelos', 'base', 'config'] as Tab[]).map((t) => (
               <div
                 key={t}
                 className={`rtab${tab === t ? ' on' : ''}`}
                 onClick={() => { setActiveDocId(null); setTab(t) }}
               >
-                {t === 'ativos' ? 'Ativos' : t === 'rascunhos' ? 'Rascunhos' : t === 'modelos' ? 'Modelos' : 'Config'}
+                {t === 'ativos' ? 'Ativos' : t === 'rascunhos' ? 'Rascunhos' : t === 'modelos' ? 'Modelos' : t === 'base' ? 'Base de Conhecimento' : 'Config'}
               </div>
             ))}
           </div>
@@ -235,6 +245,41 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
 
             {/* RASCUNHOS — docs without content */}
             <div className={`tc${tab === 'rascunhos' ? ' on' : ''}`} id="d-rascunhos">
+              {draftsQ.data && draftsQ.data.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, color: 'var(--mu)', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Aguardando revisão</div>
+                  {draftsQ.data.map(doc => (
+                    <div key={doc.id} style={{ background: 'var(--card)', borderRadius: 8, padding: '12px 14px', marginBottom: 8, border: '1px solid var(--brd)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{doc.title}</span>
+                        <span style={{ fontSize: 10, color: 'var(--mu)', background: 'var(--gb)', borderRadius: 4, padding: '2px 6px' }}>{doc.agent_slug}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--mu)', marginBottom: 10 }}>{new Date(doc.created_at).toLocaleDateString('pt-BR')}</div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          className="btn bp"
+                          style={{ fontSize: 11 }}
+                          onClick={() => {
+                            publishDocument(doc.id, clientId!).then(() => draftsQ.refetch())
+                          }}
+                        >👍 Publicar</button>
+                        <button
+                          className="btn bg"
+                          style={{ fontSize: 11 }}
+                          onClick={() => { setPendingDocId(doc.id); setTab('ativos') }}
+                        >Ver →</button>
+                        <button
+                          className="btn bs"
+                          style={{ fontSize: 11 }}
+                          onClick={() => {
+                            archiveDocument(doc.id, clientId!).then(() => draftsQ.refetch())
+                          }}
+                        >✗ Arquivar</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               {docsQ.isLoading ? (
                 <div style={{ fontSize: 11, color: 'var(--mu)' }}>Carregando…</div>
               ) : (
@@ -294,6 +339,9 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
               )}
             </div>
 
+            {/* BASE DE CONHECIMENTO */}
+            <div className={`tc${tab === 'base' ? ' on' : ''}`} id="d-base"><BibliotecaRoom /></div>
+
             {/* CONFIG */}
             <div className={`tc${tab === 'config' ? ' on' : ''}`} id="d-config">
               <RoutineConfigSection domain="documentos" />
@@ -304,9 +352,7 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
         {/* RIGHT COLUMN */}
         <div className="rcol">
           <RColResizeHandle />
-          <CollapsiblePanel id="docs-rotinas" icon="⚙️" title="Rotinas ativas">
-            <RoutineStatusWidget domain="documentos" />
-          </CollapsiblePanel>
+
           <CollapsiblePanel id="docs-modelos" icon="🗂️" title="Modelos" action={<button className="ph-add">＋</button>}>
             <div className="dr-sec">
                 {templatesQ.isLoading ? (

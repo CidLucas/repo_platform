@@ -18,8 +18,8 @@ import EstrategiaRoom from '../../pages/app/EstrategiaRoom'
 import ClientesRoom from '../../pages/app/ClientesRoom'
 import AtividadeScreen from '../../pages/app/AtividadeScreen'
 import AdminScreen from '../../pages/app/AdminScreen'
-import BibliotecaRoom from '../../pages/app/BibliotecaRoom'
 import AgentOpsRoom from '../../pages/app/AgentOpsRoom'
+import { useAuth } from '../../hooks/useAuth'
 
 export default function AppShell() {
   const screen = useAppStore(s => s.screen)
@@ -85,6 +85,10 @@ export default function AppShell() {
   const on = (s: Screen) => screen === s ? ' on' : ''
   const show = (s: Screen) => visited.has(s)
 
+  const { clientId } = useAuth()
+  // Only pop the onboarding overlay if user has no ingested data yet
+  const hasNoData = !!clientId && !localStorage.getItem('blu_has_data')
+
   return (
     <div className="shell">
       <Topbar onToggleTheme={toggleTheme} lightMode={lightMode} />
@@ -117,9 +121,6 @@ export default function AppShell() {
         <div className={`screen${on('admin')}`} id="s-admin">
           {show('admin') && <AdminScreen />}
         </div>
-        <div className={`screen${on('biblioteca')}`} id="s-biblioteca">
-          {show('biblioteca') && <BibliotecaRoom />}
-        </div>
         <div className={`screen${on('blu_ops')}`} id="s-blu_ops">
           {show('blu_ops') && <AgentOpsRoom />}
         </div>
@@ -132,7 +133,7 @@ export default function AppShell() {
       />
       <ToastContainer />
       <ChatPanel />
-      {firstRun && <FirstRunOverlay onOpenConnections={() => setConnectionsOpen(true)} />}
+      {firstRun && hasNoData && <FirstRunOverlay onOpenConnections={() => setConnectionsOpen(true)} />}
       <ConnectionsModal open={connectionsOpen} onClose={() => setConnectionsOpen(false)} />
     </div>
   )

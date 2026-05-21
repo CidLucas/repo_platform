@@ -10,7 +10,14 @@ interface TopbarProps {
 export default function Topbar({ onToggleTheme, lightMode }: TopbarProps) {
   const { breadcrumb, go } = useAppStore()
   const { user, signOut } = useAuth()
-  const isHome = breadcrumb === 'Bom dia, Carlos ☀️'
+  const isHome = breadcrumb === 'Bom dia ☀️'
+
+  const rawName: string =
+    (user?.user_metadata?.full_name as string | undefined) ??
+    (user?.user_metadata?.name as string | undefined) ??
+    ''
+  const firstName = rawName.split(' ')[0] ?? ''
+  const greeting = firstName ? `Bom dia, ${firstName} ☀️` : 'Bom dia ☀️'
 
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -55,7 +62,7 @@ export default function Topbar({ onToggleTheme, lightMode }: TopbarProps) {
       </div>
       <div className="topbar-mid">
         {isHome ? (
-          <span id="bc">Bom dia, Carlos ☀️</span>
+          <span id="bc">{greeting}</span>
         ) : (
           <span id="bc">
             <span

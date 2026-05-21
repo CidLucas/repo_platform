@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
+from blu_llm_service import ModelTier
 from blu_tool_registry.tool_metadata import TierLevel
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,11 @@ class AgentTypeConfig:
     # Access control
     # ------------------------------------------------------------------
     tier_required: TierLevel = TierLevel.BASIC
+
+    # ------------------------------------------------------------------
+    # Model selection
+    # ------------------------------------------------------------------
+    model_tier: ModelTier = ModelTier.DEFAULT  # Which LLM tier this agent needs
 
     # ------------------------------------------------------------------
     # Supervisor routing
@@ -130,6 +136,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
             "ferramenta_publica_de_teste",
         ],
         tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.FAST,
         routing_hint="Entry point. Simple knowledge questions, basic data queries.",
         max_turns=10,
         tags=["frontdesk", "routing", "rag", "sql"],
@@ -177,6 +184,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
             "fragment/confirmation-patterns",
         ],
         tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.DEFAULT,
         routing_hint=(
             "Recording sales, purchases, expenses, or events. Setting up automations "
             "or routines. Mapping data sources or spreadsheet columns. Organising "
@@ -196,16 +204,27 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         description=(
             "Client relationship and communication specialist. Writes personalised "
             "outreach emails, analyses client segments, and recommends engagement "
-            "strategies. Used in routines for reengagement campaigns and follow-ups."
+            "strategies. Used in routines for reengagement campaigns and follow-ups. "
+            "LTV analysis, cohort tracking, churn prediction and NPS deep-dives."
         ),
-        prompt_name="agents/frontdesk",
+        prompt_name="agents/crm-specialist",
         enabled_tools=[
             "executar_rag_cliente",
             "execute_sql",
+            "whatsapp_enviar_mensagem",
+            "whatsapp_enviar_lote",
+            "slack_list_channels",
+            "slack_read_channel",
+            "slack_summarize_channel",
+            "slack_post_message",
+            "asana_get_task_stories",
+            "asana_add_task_comment",
+            "linear_add_comment",
         ],
         tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.POWERFUL,
         routing_hint="Writing client emails, personalised outreach, CRM campaigns.",
-        max_turns=5,
+        max_turns=8,
         tags=["crm", "email", "clients", "reengagement"],
     ),
     # ------------------------------------------------------------------
@@ -220,15 +239,16 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
             "identifies growth opportunities, and writes strategic briefs. Used in "
             "routines for monthly reviews and low-acquisition alerts."
         ),
-        prompt_name="agents/frontdesk",
+        prompt_name="agents/strategic-planner",
         enabled_tools=[
             "executar_rag_cliente",
             "execute_sql",
         ],
         tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.POWERFUL,
         routing_hint="Strategic analysis, business performance reviews, growth recommendations.",
-        max_turns=5,
-        tags=["strategy", "analytics", "kpi", "growth"],
+        max_turns=8,
+        tags=["strategy", "analytics", "kpi", "growth", "planning", "briefs"],
     ),
     # ------------------------------------------------------------------
     # Compras — procurement and supplier analysis specialist
@@ -247,6 +267,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
             "execute_sql",
         ],
         tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.DEFAULT,
         routing_hint="Procurement analysis, supplier reviews, purchasing cost optimisation.",
         max_turns=5,
         tags=["procurement", "suppliers", "purchases", "cost"],
@@ -268,6 +289,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
             "execute_sql",
         ],
         tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.POWERFUL,
         routing_hint="Financial reports, revenue analysis, cash flow monitoring.",
         max_turns=5,
         tags=["finance", "revenue", "reporting", "cashflow"],
@@ -289,6 +311,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
             "execute_sql",
         ],
         tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.FAST,
         routing_hint="Follow-up scheduling, client contact prioritisation, calendar planning.",
         max_turns=5,
         tags=["scheduling", "follow-up", "calendar", "clients"],
@@ -310,9 +333,214 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
             "execute_sql",
         ],
         tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.DEFAULT,
         routing_hint="Document search, knowledge base digests, content gap analysis.",
         max_turns=5,
         tags=["documents", "knowledge-base", "rag", "digest"],
+    ),
+    # ------------------------------------------------------------------
+    # Synthesis — cross-dimensional analysis and strategic synthesis
+    # ------------------------------------------------------------------
+    "synthesis": AgentTypeConfig(
+        name="Synthesis Agent",
+        slug="synthesis",
+        description=(
+            "Cross-dimensional analysis agent. Synthesises insights that span multiple "
+            "business dimensions (financeiro, compras, clientes, agenda). Activated when "
+            "the user asks a question that touches 2+ dimensions or uses strategic "
+            "language (investimento, prioridade, custo, tendência, estratégia)."
+        ),
+        prompt_name="agents/synthesis",
+        enabled_tools=[
+            "executar_rag_cliente",
+            "execute_sql",
+            "slack_summarize_channel",
+            "slack_list_channels",
+            "notion_search",
+            "notion_read_page",
+            "notion_query_database",
+            "notion_list_databases",
+            "slack_get_unread",
+            "asana_search_tasks",
+            "linear_list_cycles",
+        ],
+        tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.POWERFUL,
+        routing_hint="Cross-dimensional analysis, strategic synthesis, multi-domain insights.",
+        max_turns=8,
+        tags=["synthesis", "cross-domain", "strategy", "analysis", "multi-dimension"],
+    ),
+    # ------------------------------------------------------------------
+    # DataAnalyst — quantitative cross-dimensional data specialist
+    # ------------------------------------------------------------------
+    "data-analyst": AgentTypeConfig(
+        name="Data Analyst",
+        slug="data-analyst",
+        description=(
+            "Quantitative data analyst specialist. Performs trend analysis, "
+            "correlation discovery, and scenario modelling across financial, "
+            "purchasing, and client data. Convoked by the Synthesis Agent for "
+            "number-heavy questions."
+        ),
+        prompt_name="agents/data-analyst",
+        enabled_tools=[
+            "executar_rag_cliente",
+            "execute_sql",
+        ],
+        tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.POWERFUL,
+        routing_hint="Trend analysis, correlation, scenario modelling, quantitative insights.",
+        max_turns=6,
+        tags=["data", "analysis", "trends", "correlation", "quantitative", "finance", "purchases", "clients"],
+    ),
+    # ------------------------------------------------------------------
+    # Platform — operational configuration and routine/goal management
+    # ------------------------------------------------------------------
+    "platform": AgentTypeConfig(
+        name="Platform Agent",
+        slug="platform",
+        description=(
+            "Platform agent that converts natural language requests into operational "
+            "configurations. Activates routines, sets goals, and records structured "
+            "data. Triggered by imperative phrases like 'cria uma rotina', 'define "
+            "uma meta', 'adiciona um fornecedor'."
+        ),
+        prompt_name="agents/platform",
+        enabled_tools=[
+            "criar_rotina",
+            "listar_rotinas_catalogo",
+            "definir_meta",
+            "listar_metas",
+            "executar_rag_cliente",
+        ],
+        tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.DEFAULT,
+        routing_hint="Routine management, goal setting, operational configuration via natural language.",
+        max_turns=6,
+        tags=["platform", "routines", "goals", "config", "operations"],
+    ),
+    # ------------------------------------------------------------------
+    # SupplierAgent — supplier communication and RFQ specialist
+    # ------------------------------------------------------------------
+    "supplier-agent": AgentTypeConfig(
+        name="Supplier Agent",
+        slug="supplier-agent",
+        description=(
+            "Supplier communication specialist. Sends RFQs via WhatsApp/email, "
+            "parses supplier replies, and recommends optimal allocation. "
+            "Triggered by requests to contact suppliers, request quotes, or review offers."
+        ),
+        prompt_name="agents/supplier-agent",
+        enabled_tools=[
+            "list_suppliers",
+            "dispatch_rfq_whatsapp",
+            "parse_supplier_reply",
+            "whatsapp_enviar_mensagem",
+            "executar_rag_cliente",
+            "execute_sql",
+        ],
+        tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.DEFAULT,
+        routing_hint="Supplier quotes, RFQ dispatch, WhatsApp supplier communication.",
+        max_turns=6,
+        tags=["suppliers", "rfq", "whatsapp", "quotes", "procurement"],
+    ),
+    # ------------------------------------------------------------------
+    # SchedulerAgent — calendar and timeline optimisation specialist
+    # ------------------------------------------------------------------
+    "scheduler-agent": AgentTypeConfig(
+        name="Scheduler Agent",
+        slug="scheduler-agent",
+        description=(
+            "Calendar and timeline optimisation specialist. Checks availability, "
+            "detects scheduling conflicts, and recommends optimal meeting/deadline slots. "
+            "Uses Google Calendar integration. Triggered by requests about scheduling, "
+            "availability checks, or deadline management."
+        ),
+        prompt_name="agents/scheduler-agent",
+        enabled_tools=[
+            "query_calendar",
+            "executar_rag_cliente",
+            "execute_sql",
+            "monday_list_boards",
+            "monday_list_items",
+            "monday_create_item",
+            "monday_update_item_status",
+            "monday_get_board_summary",
+            "monday_get_item_updates",
+            "monday_summarize_board",
+            "asana_create_task",
+            "asana_update_task",
+            "asana_search_tasks",
+            "linear_create_issue",
+            "linear_update_issue",
+            "linear_list_teams",
+            "linear_list_cycles",
+        ],
+        tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.FAST,
+        routing_hint="Calendar availability, scheduling conflicts, deadline management.",
+        max_turns=5,
+        tags=["calendar", "scheduling", "deadlines", "availability", "meetings"],
+    ),
+    # ------------------------------------------------------------------
+    # DocWriter — strategic document creation specialist
+    # ------------------------------------------------------------------
+    "doc-writer": AgentTypeConfig(
+        name="Document Writer",
+        slug="doc-writer",
+        description=(
+            "Strategic document creation specialist. Searches the knowledge base, "
+            "writes structured documents (briefs, SOPs, proposals, reports), and "
+            "submits them for human review via the HITL approval flow. "
+            "Triggered by requests to write, draft, or create documents."
+        ),
+        prompt_name="agents/doc-writer",
+        enabled_tools=[
+            "executar_rag_cliente",
+            "execute_sql",
+            "google_docs_create",
+            "google_docs_write",
+            "google_docs_read",
+            "notion_list_pages",
+            "notion_read_page",
+            "notion_search",
+            "notion_create_page",
+            "notion_update_page",
+            "notion_append_blocks",
+            "notion_delete_block",
+            "notion_query_database",
+            "notion_list_databases",
+        ],
+        tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.POWERFUL,
+        routing_hint="Document writing, drafting briefs, SOPs, proposals, knowledge base.",
+        max_turns=8,
+        tags=["documents", "writing", "drafts", "briefs", "sops", "proposals"],
+    ),
+    # ------------------------------------------------------------------
+    # FiscalAgent — NF-e / NFS-e issuance specialist (stub — external dep)
+    # ------------------------------------------------------------------
+    "fiscal-agent": AgentTypeConfig(
+        name="Fiscal Agent",
+        slug="fiscal-agent",
+        description=(
+            "NF-e and NFS-e issuance specialist. Issues invoices, queries fiscal "
+            "status, and validates fiscal data. Requires NF-e/NFS-e integration "
+            "(SEFAZ partner). Currently in stub mode — informs user of pending integration."
+        ),
+        prompt_name="agents/fiscal-agent",
+        enabled_tools=[
+            "executar_rag_cliente",
+            "execute_sql",
+            "fiscal_preparar_dados_nfe",
+            "fiscal_status_integracao",
+        ],
+        tier_required=TierLevel.BASIC,
+        model_tier=ModelTier.DEFAULT,
+        routing_hint="Invoice issuance, NF-e, NFS-e, fiscal compliance, SEFAZ.",
+        max_turns=4,
+        tags=["fiscal", "nfe", "nfse", "invoice", "sefaz", "tax"],
     ),
 }
 

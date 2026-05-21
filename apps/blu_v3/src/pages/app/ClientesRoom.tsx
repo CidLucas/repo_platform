@@ -22,7 +22,7 @@ import { getCommercialIndicators, getContextMetrics, type ContextMetricRow } fro
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
-import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
+
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
 
@@ -412,9 +412,7 @@ export default function ClientesRoom() {
         {/* RIGHT COLUMN */}
         <div className="rcol">
           <RColResizeHandle />
-          <CollapsiblePanel id="clientes-rotinas" icon="⚙️" title="Rotinas ativas">
-            <RoutineStatusWidget domain="clientes" />
-          </CollapsiblePanel>
+
           <CollapsiblePanel id="clientes-segmentos" icon="📊" title="Segmentos">
             <div className="dr-sec">
                 {segmentsQ.isLoading ? (

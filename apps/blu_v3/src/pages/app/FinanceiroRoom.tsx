@@ -15,7 +15,7 @@ import { getFinanceIndicators, getContextMetrics, type ContextMetricRow } from '
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
-import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
+
 import RoutineExecutionFeed from '../../components/shared/RoutineExecutionFeed'
 import { snoozeUntil } from '../../utils/time'
 import { formatBRL } from '../../utils/formatters'
@@ -449,7 +449,13 @@ export default function FinanceiroRoom() {
 
             {/* HISTÓRICO */}
             <div className={`tc${tab === 'historico' ? ' on' : ''}`} id="f-historico">
-              {polpTxQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12, padding: '12px 0' }}>Carregando…</div>}
+              {polpTxQ.isLoading && [0,1,2].map(i => (
+                <div key={i} style={{ padding: '8px 0', opacity: 0.4, display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ background: 'var(--gb)', borderRadius: 3, height: 12, width: 32 }} />
+                  <div style={{ background: 'var(--gb)', borderRadius: 3, height: 12, flex: 1 }} />
+                  <div style={{ background: 'var(--gb)', borderRadius: 3, height: 12, width: 60 }} />
+                </div>
+              ))}
               {!polpTxQ.isLoading && polpTransactions.length === 0 && (
                 <div style={{ color: 'var(--mu)', fontSize: 12, padding: '12px 0' }}>Nenhuma transação encontrada. Conecte suas contas bancárias em Integrações.</div>
               )}
@@ -685,12 +691,16 @@ export default function FinanceiroRoom() {
         {/* SIDEBAR */}
         <div className="rcol">
           <RColResizeHandle />
-          <CollapsiblePanel id="fin-rotinas" icon="⚙️" title="Rotinas ativas">
-            <RoutineStatusWidget domain="financeiro" />
-          </CollapsiblePanel>
+
           <CollapsiblePanel id="fin-contas" icon="🏦" title="Contas" action={<button className="ph-add" onClick={() => openChatWith('Quero adicionar uma nova conta bancária')}>＋</button>}>
             <div className="dr-sec">
-              {polpAccountsQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>}
+              {polpAccountsQ.isLoading && [0,1].map(i => (
+                <div key={i} style={{ padding: '8px 0', opacity: 0.4, display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ background: 'var(--gb)', borderRadius: '50%', height: 20, width: 20 }} />
+                  <div style={{ background: 'var(--gb)', borderRadius: 3, height: 12, flex: 1 }} />
+                  <div style={{ background: 'var(--gb)', borderRadius: 3, height: 12, width: 80 }} />
+                </div>
+              ))}
               {!polpAccountsQ.isLoading && polpAccounts.length === 0 && accounts.length === 0 && (
                 <div style={{ color: 'var(--mu)', fontSize: 12 }}>Nenhuma conta conectada.</div>
               )}
@@ -765,7 +775,13 @@ export default function FinanceiroRoom() {
           </CollapsiblePanel>
           <CollapsiblePanel id="fin-pagamentos" icon="📄" title="Próximos pagamentos">
             <div className="dr-sec">
-              {polpBillsQ.isLoading && <div style={{ color: 'var(--mu)', fontSize: 12 }}>Carregando…</div>}
+              {polpBillsQ.isLoading && [0,1].map(i => (
+                <div key={i} style={{ padding: '8px 0', opacity: 0.4, display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ background: 'var(--gb)', borderRadius: '50%', height: 20, width: 20 }} />
+                  <div style={{ background: 'var(--gb)', borderRadius: 3, height: 12, flex: 1 }} />
+                  <div style={{ background: 'var(--gb)', borderRadius: 3, height: 12, width: 80 }} />
+                </div>
+              ))}
               {!polpBillsQ.isLoading && polpBills.length === 0 && approvals.length === 0 && (
                 <div style={{ color: 'var(--mu)', fontSize: 12 }}>Nenhum pagamento pendente.</div>
               )}

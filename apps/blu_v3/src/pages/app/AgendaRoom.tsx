@@ -17,7 +17,7 @@ import {
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
-import RoutineStatusWidget from '../../components/shared/RoutineStatusWidget'
+
 import { snoozeUntil } from '../../utils/time'
 
 type Tab = 'gantt' | 'hoje' | 'pendentes' | 'config'
@@ -257,9 +257,7 @@ export default function AgendaRoom() {
 
         <div className="rcol">
           <RColResizeHandle />
-          <CollapsiblePanel id="agenda-rotinas" icon="⚙️" title="Rotinas ativas">
-            <RoutineStatusWidget domain="agenda" />
-          </CollapsiblePanel>
+
           <CollapsiblePanel id="agenda-calendarios" icon="📆" title="Calendários" action={<button className="ph-add">＋</button>}>
             <div className="dr-sec">
                 <div className="dr-ttl">Hoje</div>
@@ -302,6 +300,34 @@ export default function AgendaRoom() {
                       </button>
                     </div>
                   )}
+                </div>
+              </div>
+              <div className="dr-sec" style={{ marginTop: 10 }}>
+                <div className="dr-ttl">Gestão de Projetos</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 5 }}>
+                  <div style={{ fontSize: 11, color: 'var(--mu)' }}>
+                    Conecte apps de gestão para sincronizar tarefas e prazos automaticamente.
+                  </div>
+                  {[
+                    { icon: '⬡', label: 'Monday.com' },
+                    { icon: '◻', label: 'Notion' },
+                    { icon: '✓', label: 'Asana' },
+                    { icon: '▲', label: 'ClickUp' },
+                    { icon: '◆', label: 'Linear' },
+                    { icon: '#', label: 'Slack' },
+                  ].map(({ icon, label }) => (
+                    <button
+                      key={label}
+                      className="btn bs"
+                      style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 5 }}
+                      onClick={() => { window.location.href = '/app' }}
+                    >
+                      <span>{icon}</span> Conectar {label}
+                    </button>
+                  ))}
+                  <span style={{ fontSize: 10, color: 'var(--mu)', marginTop: 2 }}>
+                    Configure em Admin › Integrações
+                  </span>
                 </div>
               </div>
           </CollapsiblePanel>

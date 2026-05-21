@@ -26,17 +26,40 @@ import RoutinePreviewCard from './RoutinePreviewCard'
 
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const
 
-function buildCronExpression(days: number[], hour: number, minute: number): string {
+type ScheduleFreq = 'daily' | 'weekly' | 'monthly'
+
+function detectFreq(days: number[], expr: string): ScheduleFreq {
+  // If cron day-of-month field (position 2) is not '*' → monthly
+  const parts = expr.trim().split(/\s+/)
+  if (parts.length === 5 && parts[2] !== '*') return 'monthly'
+  if (days.length === 7) return 'daily'
+  return 'weekly'
+}
+
+function buildCronExpression(
+  days: number[],
+  hour: number,
+  minute: number,
+  freq: ScheduleFreq,
+  monthDay: number,
+): string {
+  if (freq === 'daily') return `${minute} ${hour} * * *`
+  if (freq === 'monthly') return `${minute} ${hour} ${monthDay} * *`
   const d = days.length === 7 ? '*' : days.join(',')
   return `${minute} ${hour} * * ${d}`
 }
 
 function parseCronExpression(expr: string) {
   const parts = expr.trim().split(/\s+/)
-  if (parts.length !== 5) return { days: [1], hour: 9, minute: 0 }
-  const [min, hr, , , dow] = parts
+  if (parts.length !== 5) return { days: [1], hour: 9, minute: 0, monthDay: 1 }
+  const [min, hr, dom, , dow] = parts
   const days = dow === '*' ? [0, 1, 2, 3, 4, 5, 6] : dow.split(',').map(Number)
-  return { days, hour: parseInt(hr, 10) || 9, minute: parseInt(min, 10) || 0 }
+  return {
+    days,
+    hour: parseInt(hr, 10) || 9,
+    minute: parseInt(min, 10) || 0,
+    monthDay: dom !== '*' ? parseInt(dom, 10) || 1 : 1,
+  }
 }
 
 const inputStyle = {
@@ -51,6 +74,84 @@ const inputStyle = {
 
 // ─── Schema field renderer ────────────────────────────────────────────────────
 
+function DictField({
+  field, value, onChange,
+}: {
+  field: ConfigSchemaField
+  value: unknown
+  onChange: (v: unknown) => void
+}) {
+  const maxEntries = field.max_entries ?? 3
+  const current: Record<string, string> =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, string>)
+      : {}
+
+  const entries = Object.entries(current)
+  const remaining = maxEntries - entries.length
+
+  const updateKey = (oldKey: string, newKey: string) => {
+    const updated: Record<string, string> = {}
+    for (const [k, v] of Object.entries(current)) {
+      updated[k === oldKey ? newKey : k] = v
+    }
+    onChange(updated)
+  }
+
+  const updateValue = (key: string, val: string) => {
+    onChange({ ...current, [key]: val })
+  }
+
+  const addEntry = () => {
+    if (entries.length >= maxEntries) return
+    onChange({ ...current, '': '' })
+  }
+
+  const removeEntry = (key: string) => {
+    const updated = { ...current }
+    delete updated[key]
+    onChange(updated)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <span style={{ fontSize: 11, color: 'var(--mu)' }}>{field.label}</span>
+      {entries.map(([key, val], i) => (
+        <div key={i} style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+          <input
+            type="text"
+            placeholder="Nome"
+            value={key}
+            onChange={e => updateKey(key, e.target.value)}
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <input
+            type="text"
+            placeholder="https://..."
+            value={val}
+            onChange={e => updateValue(key, e.target.value)}
+            style={{ ...inputStyle, flex: 2 }}
+          />
+          <button
+            className="btn bs"
+            style={{ fontSize: 9.5, padding: '2px 6px' }}
+            onClick={() => removeEntry(key)}
+          >✕</button>
+        </div>
+      ))}
+      {remaining > 0 && (
+        <button
+          className="btn bs"
+          style={{ fontSize: 10, padding: '3px 8px', alignSelf: 'flex-start' }}
+          onClick={addEntry}
+        >
+          + Adicionar ({entries.length}/{maxEntries})
+        </button>
+      )}
+    </div>
+  )
+}
+
 function SchemaField({
   field, value, onChange,
 }: {
@@ -59,6 +160,10 @@ function SchemaField({
   onChange: (v: unknown) => void
 }) {
   const current = value ?? field.default
+
+  if (field.type === 'dict') {
+    return <DictField field={field} value={value} onChange={onChange} />
+  }
 
   if (field.type === 'boolean') {
     return (
@@ -157,6 +262,8 @@ function BuiltInRoutineRow({
   const parsed = parseCronExpression(defaultExpr)
   const [days, setDays] = useState<number[]>(parsed.days)
   const [hour, setHour] = useState(parsed.hour)
+  const [monthDay, setMonthDay] = useState(parsed.monthDay)
+  const [freq, setFreq] = useState<ScheduleFreq>(() => detectFreq(parsed.days, defaultExpr))
 
   const configMut = useMutation({
     mutationFn: (cfg: Record<string, unknown>) => updateRoutineConfig(routine.id, clientId, cfg),
@@ -164,11 +271,11 @@ function BuiltInRoutineRow({
   })
 
   const triggerMut = useMutation({
-    mutationFn: ({ d, h }: { d: number[]; h: number }) =>
+    mutationFn: ({ d, h, f, md }: { d: number[]; h: number; f: ScheduleFreq; md: number }) =>
       updateRoutineTrigger(
         routine.id, clientId,
         effectiveTriggerType as ClientRoutine['trigger_type'],
-        { expression: buildCronExpression(d, h, 0) }
+        { expression: buildCronExpression(d, h, 0, f, md) }
       ),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['routines', domain, clientId] }),
   })
@@ -178,12 +285,22 @@ function BuiltInRoutineRow({
       ? days.filter(x => x !== i)
       : [...days, i].sort((a, b) => a - b)
     setDays(newDays)
-    triggerMut.mutate({ d: newDays, h: hour })
+    triggerMut.mutate({ d: newDays, h: hour, f: freq, md: monthDay })
   }
 
   const selectHour = (h: number) => {
     setHour(h)
-    triggerMut.mutate({ d: days, h })
+    triggerMut.mutate({ d: days, h, f: freq, md: monthDay })
+  }
+
+  const selectFreq = (f: ScheduleFreq) => {
+    setFreq(f)
+    triggerMut.mutate({ d: days, h: hour, f, md: monthDay })
+  }
+
+  const selectMonthDay = (md: number) => {
+    setMonthDay(md)
+    triggerMut.mutate({ d: days, h: hour, f: freq, md })
   }
 
   const handlePillClick = (fieldKey: string, value: string) => {
@@ -214,44 +331,91 @@ function BuiltInRoutineRow({
         </div>
       </div>
 
-      {/* Schedule trigger: day + hour pills always visible */}
-      {isSchedule && (
-        <>
-          <div style={{ fontSize: 10, color: 'var(--mu)', marginTop: 10, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Dias
-          </div>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {DAYS.map((label, i) => (
-              <span
-                key={i}
-                className={`pill${days.includes(i) ? ' on' : ''}`}
-                style={{ cursor: 'pointer', fontSize: 10 }}
-                onClick={() => toggleDay(i)}
-              >
-                {label}
-              </span>
-            ))}
-          </div>
-          <div style={{ fontSize: 10, color: 'var(--mu)', marginTop: 8, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Hora
-          </div>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {SCHEDULE_HOURS.map(h => (
-              <span
-                key={h}
-                className={`pill${hour === h ? ' on' : ''}`}
-                style={{ cursor: 'pointer', fontSize: 10 }}
-                onClick={() => selectHour(h)}
-              >
-                {String(h).padStart(2, '0')}:00
-              </span>
-            ))}
-          </div>
-          {triggerMut.isPending && (
-            <div style={{ fontSize: 10, color: 'var(--mu)', marginTop: 5 }}>Salvando…</div>
-          )}
-        </>
-      )}
+      {/* Schedule trigger: frequency + day + hour pills */}
+      {isSchedule && (() => {
+        const MONTH_DAYS = Array.from({ length: 28 }, (_, i) => i + 1)
+        return (
+          <>
+            {/* Frequência */}
+            <div style={{ fontSize: 10, color: 'var(--mu)', marginTop: 10, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Frequência
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {(['daily', 'weekly', 'monthly'] as ScheduleFreq[]).map(f => (
+                <span
+                  key={f}
+                  className={`pill${freq === f ? ' on' : ''}`}
+                  style={{ cursor: 'pointer', fontSize: 10 }}
+                  onClick={() => selectFreq(f)}
+                >
+                  {f === 'daily' ? 'Diário' : f === 'weekly' ? 'Semanal' : 'Mensal'}
+                </span>
+              ))}
+            </div>
+
+            {/* Dias da semana — só para semanal */}
+            {freq === 'weekly' && (
+              <>
+                <div style={{ fontSize: 10, color: 'var(--mu)', marginTop: 8, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Dias
+                </div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {DAYS.map((label, i) => (
+                    <span
+                      key={i}
+                      className={`pill${days.includes(i) ? ' on' : ''}`}
+                      style={{ cursor: 'pointer', fontSize: 10 }}
+                      onClick={() => toggleDay(i)}
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Dia do mês — só para mensal */}
+            {freq === 'monthly' && (
+              <>
+                <div style={{ fontSize: 10, color: 'var(--mu)', marginTop: 8, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Dia do mês
+                </div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {MONTH_DAYS.map(d => (
+                    <span
+                      key={d}
+                      className={`pill${monthDay === d ? ' on' : ''}`}
+                      style={{ cursor: 'pointer', fontSize: 10, minWidth: 22, textAlign: 'center' }}
+                      onClick={() => selectMonthDay(d)}
+                    >
+                      {d}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div style={{ fontSize: 10, color: 'var(--mu)', marginTop: 8, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Hora
+            </div>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {SCHEDULE_HOURS.map(h => (
+                <span
+                  key={h}
+                  className={`pill${hour === h ? ' on' : ''}`}
+                  style={{ cursor: 'pointer', fontSize: 10 }}
+                  onClick={() => selectHour(h)}
+                >
+                  {String(h).padStart(2, '0')}:00
+                </span>
+              ))}
+            </div>
+            {triggerMut.isPending && (
+              <div style={{ fontSize: 10, color: 'var(--mu)', marginTop: 5 }}>Salvando…</div>
+            )}
+          </>
+        )
+      })()}
 
       {/* Non-schedule: show trigger type as badge */}
       {!isSchedule && (
@@ -643,7 +807,7 @@ function StepCard({
         </>
       )}
 
-      {/* Skill (AI agent) step */}
+      {/* Skill (AI agent / L3 skill) step */}
       {step.type === 'skill' && (
         <>
           <select
@@ -651,10 +815,17 @@ function StepCard({
             onChange={e => up({ skill_slug: e.target.value })}
             style={{ ...inputStyle, width: '100%' }}
           >
-            <option value="">Selecione um agente…</option>
-            {skills.map(s => (
-              <option key={s.id} value={s.id}>{s.label}</option>
-            ))}
+            <option value="">Selecione um agente ou skill…</option>
+            <optgroup label="Agentes">
+              {skills.filter(s => s.kind !== 'l3_skill').map(s => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Skills narrativas (L3)">
+              {skills.filter(s => s.kind === 'l3_skill').map(s => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </optgroup>
           </select>
           {selectedSkill && (
             <div style={{ fontSize: 10, color: 'var(--mu)', fontStyle: 'italic', lineHeight: 1.4 }}>{selectedSkill.description}</div>
@@ -781,7 +952,11 @@ function QuickBuilder({
 
   const functions: ActionDef[] = catalog?.functions ?? []
   const artifacts: ActionDef[] = catalog?.artifacts ?? []
-  const skills: SkillDef[] = catalog?.skills ?? []
+  // Merge agent-executor skills + L3 narrative skills into one list for the builder
+  const skills: SkillDef[] = [
+    ...(catalog?.skills ?? []),
+    ...(catalog?.l3_skills ?? []),
+  ]
   const triggers: TriggerDef[] = catalog?.triggers?.length ? catalog.triggers : STATIC_TRIGGERS
 
   const [name, setName] = useState('')

@@ -31,7 +31,9 @@ from .exceptions import (
     ToolNotFoundError,
     ToolRegistryError,
 )
+from .features import FEATURES, TIER_FEATURES, FeatureConfig, FeatureRegistry
 from .registry import ToolRegistry
+from .resource_resolver import ResourceResolver
 from .tier_validator import TierValidator
 from .tool_metadata import ToolCategory, ToolMetadata
 
@@ -42,6 +44,12 @@ __all__ = [
     "ToolCategory",
     "TierValidator",
     "DockerMCPBridge",
+    # Feature layer (Fase 1 — Tier Enforcement Redesign)
+    "FeatureConfig",
+    "FeatureRegistry",
+    "ResourceResolver",
+    "FEATURES",
+    "TIER_FEATURES",
     # Exceptions
     "ToolRegistryError",
     "ToolNotFoundError",

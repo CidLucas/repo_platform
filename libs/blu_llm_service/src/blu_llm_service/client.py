@@ -38,21 +38,28 @@ class ModelTier(Enum):
 
 
 class ModelTask(Enum):
-    """Task type - may influence model selection."""
+    """Task type — controls which specialized model is selected."""
 
-    GENERAL_AGENT = "general_agent"
-    CLASSIFICATION = "classification"
-    EMBEDDING = "embedding"
-    RAG = "rag"
+    GENERAL_AGENT = "general_agent"   # General chat/agent (default)
+    CLASSIFICATION = "classification" # Intent routing, label classification
+    EMBEDDING = "embedding"           # Vector embeddings
+    RAG = "rag"                       # Retrieval-augmented generation
+    CODE = "code"                     # Code generation / completion
+    MATH = "math"                     # Mathematical reasoning, Text-to-SQL
+    SUMMARIZATION = "summarization"   # Document/report summarization
+    ASR = "asr"                       # Automatic Speech Recognition
+    TTS = "tts"                       # Text-to-Speech
+    IMAGE_TO_TEXT = "image_to_text"   # OCR / image captioning / vision
 
 
 class LLMProvider(Enum):
     """LLM provider."""
 
-    OLLAMA_CLOUD = "ollama_cloud"  # Ollama Cloud API (ollama.com)
-    OPENAI = "openai"  # OpenAI API
-    ANTHROPIC = "anthropic"  # Anthropic API
-    GOOGLE = "google"  # Google Gemini API
+    OLLAMA_CLOUD = "ollama_cloud"   # Ollama Cloud API (ollama.com)
+    OPENAI = "openai"               # OpenAI API
+    ANTHROPIC = "anthropic"         # Anthropic API
+    GOOGLE = "google"               # Google Gemini API
+    HUGGINGFACE = "huggingface"     # HuggingFace Inference API
 
 
 class OllamaCloudModel(str, Enum):
@@ -80,13 +87,13 @@ class OllamaCloudModel(str, Enum):
     DEVSTRAL_SMALL_2 = "devstral-small-2"         # Mistral; 24B, software engineering agents
     MINIMAX_M2_5 = "minimax-m2.5"                 # MiniMax; productivity and coding
     GEMMA4 = "gemma4"                             # Google; 26–31B, frontier-level
-    QWEN3_5 = "qwen3.5"                           # Alibaba; multimodal family (0.8B–122B)
+    QWEN3_5 = "qwen3.5:397b"                        # Alibaba; multimodal family (0.8B–122B)
     QWEN3_CODER_NEXT = "qwen3-coder-next"         # Alibaba; coding-focused
 
     # --- Fast / Lightweight ---
     GPT_OSS_20B = "gpt-oss:20b"                   # OpenAI OSS; 20B balanced
     DEEPSEEK_R1_14B = "deepseek-r1:14b"           # DeepSeek R1; 14B reasoning
-    MINISTRAL_3 = "ministral-3"                   # Mistral; 3–14B, edge deployment
+    MINISTRAL_3 = "ministral-3:8b"                   # Mistral; 3–14B, edge deployment
     NEMOTRON_3_NANO = "nemotron-3-nano"           # NVIDIA; 4–30B lightweight
     RNJ_1 = "rnj-1"                               # Essential AI; 8B
     GEMINI_3_FLASH_PREVIEW = "gemini-3-flash-preview"  # Google; fast frontier intelligence
@@ -292,29 +299,78 @@ def _get_google_model(
     )
 
 
+def _get_huggingface_model(
+    model_name: str,
+    settings: LLMSettings,
+    callbacks: list[BaseCallbackHandler],
+    **kwargs,
+) -> BaseChatModel:
+    """
+    Cria cliente HuggingFace via Inference API (OpenAI-compatible endpoint).
+
+    Usa ChatOpenAI apontando para a Inference API do HuggingFace, que expõe
+    um endpoint OpenAI-compatible em:
+      https://api-inference.huggingface.co/models/{model}/v1
+
+    Não requer langchain-huggingface — usa langchain-openai que já é dependência.
+
+    Args:
+        model_name: HuggingFace model ID (ex: "Qwen/Qwen2.5-Coder-7B-Instruct")
+        settings: LLMSettings com HF_TOKEN
+        callbacks: Langfuse callbacks
+        **kwargs: Params extras para ChatOpenAI
+
+    Raises:
+        ValueError: Se HF_TOKEN não configurado
+        ImportError: Se langchain-openai não instalado
+    """
+    try:
+        from langchain_openai import ChatOpenAI
+    except ImportError:
+        raise ImportError("langchain-openai não instalado. Rode: pip install langchain-openai")
+
+    token = settings.HF_TOKEN
+    if not token:
+        raise ValueError(
+            "HF_TOKEN não configurado. "
+            "Obtenha em: https://huggingface.co/settings/tokens"
+        )
+
+    base_url = f"https://api-inference.huggingface.co/models/{model_name}/v1"
+    logger.debug(f"HuggingFace Inference API: model={model_name}")
+
+    return ChatOpenAI(
+        model=model_name,
+        api_key=token,
+        base_url=base_url,
+        callbacks=callbacks,
+        **kwargs,
+    )
+
+
 # ============================================================================
 # MODEL MAPPINGS
 # ============================================================================
 
 MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
     LLMProvider.OLLAMA_CLOUD: {
-        ModelTier.DEFAULT: OllamaCloudModel.QWEN3_5,           # Alibaba; multimodal family
-        ModelTier.FAST: OllamaCloudModel.QWEN3_5,              # Same for fast tier
-        ModelTier.POWERFUL: OllamaCloudModel.QWEN3_5,          # Same for powerful tier
+        ModelTier.FAST:     OllamaCloudModel.MINISTRAL_3,        # 3–14B; edge-fast, routing/classification
+        ModelTier.DEFAULT:  OllamaCloudModel.QWEN3_5,            # balanced; general agent work
+        ModelTier.POWERFUL: OllamaCloudModel.DEEPSEEK_V4_FLASH,  # 284B MoE (13B active); complex reasoning
     },
     LLMProvider.OPENAI: {
-        ModelTier.DEFAULT: "gpt-4o-mini",
-        ModelTier.FAST: "gpt-4o-mini",
+        ModelTier.FAST:     "gpt-4o-mini",
+        ModelTier.DEFAULT:  "gpt-4o-mini",
         ModelTier.POWERFUL: "gpt-4o",
     },
     LLMProvider.ANTHROPIC: {
-        ModelTier.DEFAULT: "claude-3-5-sonnet-20241022",
-        ModelTier.FAST: "claude-3-5-haiku-20241022",
-        ModelTier.POWERFUL: "claude-3-5-sonnet-20241022",
+        ModelTier.FAST:     "claude-haiku-4-5-20251001",
+        ModelTier.DEFAULT:  "claude-sonnet-4-6",
+        ModelTier.POWERFUL: "claude-opus-4-7",
     },
     LLMProvider.GOOGLE: {
-        ModelTier.DEFAULT: "gemini-1.5-flash",
-        ModelTier.FAST: "gemini-1.5-flash",
+        ModelTier.FAST:     "gemini-1.5-flash",
+        ModelTier.DEFAULT:  "gemini-2.0-flash",
         ModelTier.POWERFUL: "gemini-1.5-pro",
     },
 }
@@ -323,10 +379,91 @@ MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
 # Wired automatically via LangChain's .with_fallbacks() in get_model().
 FALLBACK_MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
     LLMProvider.OLLAMA_CLOUD: {
-        ModelTier.DEFAULT: OllamaCloudModel.GPT_OSS_20B,  # Fallback: 20B balanced
-        ModelTier.FAST: OllamaCloudModel.GPT_OSS_20B,     # Fallback: 20B balanced
-        ModelTier.POWERFUL: OllamaCloudModel.GPT_OSS_20B, # Fallback: 20B balanced
+        ModelTier.FAST:     OllamaCloudModel.GPT_OSS_20B,  # 20B balanced fallback
+        ModelTier.DEFAULT:  OllamaCloudModel.GPT_OSS_20B,  # 20B balanced fallback
+        ModelTier.POWERFUL: OllamaCloudModel.QWEN3_5,      # qwen3.5 as powerful fallback
     },
+}
+
+
+# Task-specific model overrides.
+# When get_model() receives a specialized task, these mappings take priority
+# over MODEL_MAPPINGS[provider][tier]. Provider in the tuple is always the
+# one that will be used regardless of LLM_PROVIDER env setting.
+#
+# Tasks NOT in this table (GENERAL_AGENT) fall through to MODEL_MAPPINGS.
+# EMBEDDING, ASR, TTS, IMAGE_TO_TEXT are handled by dedicated get_*() helpers.
+TASK_MODEL_MAPPINGS: dict[tuple[ModelTask, ModelTier], tuple[LLMProvider, str]] = {
+    # ── CODE ────────────────────────────────────────────────────────────────
+    # Qwen2.5-Coder: especializado, supera modelos gerais do mesmo tamanho
+    # Qwen3-Coder-30B-A3B: MoE — 30B total, 3B ativos → custo de 3B, qualidade de 30B
+    (ModelTask.CODE, ModelTier.FAST):     (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-Coder-1.5B-Instruct"),
+    (ModelTask.CODE, ModelTier.DEFAULT):  (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-Coder-7B-Instruct"),
+    (ModelTask.CODE, ModelTier.POWERFUL): (LLMProvider.HUGGINGFACE, "Qwen/Qwen3-Coder-30B-A3B-Instruct"),
+
+    # ── MATH ────────────────────────────────────────────────────────────────
+    # Qwen2.5-Math: treinado com verificação formal, CoT matemático nativo
+    # Usado para: text_to_sql com cálculos, projeções financeiras, percentuais
+    (ModelTask.MATH, ModelTier.FAST):     (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-Math-1.5B-Instruct"),
+    (ModelTask.MATH, ModelTier.DEFAULT):  (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-Math-7B-Instruct"),
+    (ModelTask.MATH, ModelTier.POWERFUL): (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-Math-7B-Instruct"),
+
+    # ── CLASSIFICATION ──────────────────────────────────────────────────────
+    # Modelos pequenos: intent routing não precisa de raciocínio profundo
+    # latência <150ms via HF Inference API serverless
+    (ModelTask.CLASSIFICATION, ModelTier.FAST):     (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-1.5B-Instruct"),
+    (ModelTask.CLASSIFICATION, ModelTier.DEFAULT):  (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-3B-Instruct"),
+    (ModelTask.CLASSIFICATION, ModelTier.POWERFUL): (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-7B-Instruct"),
+
+    # ── RAG ─────────────────────────────────────────────────────────────────
+    # Compressão de contexto e reranking de chunks
+    # Modelos instruct pequenos: entendem bem, geram pouco (tarefa de compreensão)
+    (ModelTask.RAG, ModelTier.FAST):     (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-3B-Instruct"),
+    (ModelTask.RAG, ModelTier.DEFAULT):  (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-7B-Instruct"),
+    (ModelTask.RAG, ModelTier.POWERFUL): (LLMProvider.HUGGINGFACE, "Qwen/Qwen3-8B"),
+
+    # ── SUMMARIZATION ───────────────────────────────────────────────────────
+    # FAST: BART é seq2seq dedicado a sumarização — mais eficiente que chat model
+    # DEFAULT/POWERFUL: Qwen3 para resumos longos com contexto de negócio
+    (ModelTask.SUMMARIZATION, ModelTier.FAST):     (LLMProvider.HUGGINGFACE, "facebook/bart-large-cnn"),
+    (ModelTask.SUMMARIZATION, ModelTier.DEFAULT):  (LLMProvider.HUGGINGFACE, "Qwen/Qwen3-8B"),
+    (ModelTask.SUMMARIZATION, ModelTier.POWERFUL): (LLMProvider.HUGGINGFACE, "Qwen/Qwen3-32B"),
+}
+
+# Fallbacks para task-specific HuggingFace models
+TASK_FALLBACK_MAPPINGS: dict[tuple[ModelTask, ModelTier], tuple[LLMProvider, str]] = {
+    (ModelTask.CODE, ModelTier.FAST):              (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-1.5B-Instruct"),
+    (ModelTask.CODE, ModelTier.DEFAULT):           (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-Coder-3B"),
+    (ModelTask.CODE, ModelTier.POWERFUL):          (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-Coder-7B-Instruct"),
+    (ModelTask.MATH, ModelTier.FAST):              (LLMProvider.HUGGINGFACE, "Qwen/Qwen3-4B"),
+    (ModelTask.MATH, ModelTier.DEFAULT):           (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-Math-1.5B-Instruct"),
+    (ModelTask.MATH, ModelTier.POWERFUL):          (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-Math-1.5B-Instruct"),
+    (ModelTask.CLASSIFICATION, ModelTier.FAST):    (LLMProvider.HUGGINGFACE, "Qwen/Qwen3-0.6B"),
+    (ModelTask.CLASSIFICATION, ModelTier.DEFAULT): (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-1.5B-Instruct"),
+    (ModelTask.CLASSIFICATION, ModelTier.POWERFUL):(LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-3B-Instruct"),
+    (ModelTask.RAG, ModelTier.FAST):               (LLMProvider.HUGGINGFACE, "Qwen/Qwen3-0.6B"),
+    (ModelTask.RAG, ModelTier.DEFAULT):            (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-3B-Instruct"),
+    (ModelTask.RAG, ModelTier.POWERFUL):           (LLMProvider.HUGGINGFACE, "Qwen/Qwen2.5-7B-Instruct"),
+    (ModelTask.SUMMARIZATION, ModelTier.FAST):     (LLMProvider.HUGGINGFACE, "sshleifer/distilbart-cnn-12-6"),
+    (ModelTask.SUMMARIZATION, ModelTier.DEFAULT):  (LLMProvider.HUGGINGFACE, "Qwen/Qwen3-4B"),
+    (ModelTask.SUMMARIZATION, ModelTier.POWERFUL): (LLMProvider.HUGGINGFACE, "Qwen/Qwen3-8B"),
+}
+
+# ── Specialized task model config (não-chat: ASR, TTS, Vision) ──────────────
+# Usado pelas funções get_asr_client(), get_tts_client(), get_image_to_text_client()
+SPECIALIZED_MODEL_MAPPINGS: dict[tuple[ModelTask, ModelTier], str] = {
+    # ASR — Whisper family (OpenAI open-source, padrão da indústria)
+    (ModelTask.ASR, ModelTier.FAST):     "openai/whisper-small",
+    (ModelTask.ASR, ModelTier.DEFAULT):  "openai/whisper-large-v3-turbo",
+    (ModelTask.ASR, ModelTier.POWERFUL): "Qwen/Qwen3-ASR-1.7B",
+    # TTS — Kokoro (ultra-rápido), XTTS-v2 (voice cloning), Qwen3-TTS (custom voice)
+    (ModelTask.TTS, ModelTier.FAST):     "hexgrad/Kokoro-82M",
+    (ModelTask.TTS, ModelTier.DEFAULT):  "coqui/XTTS-v2",
+    (ModelTask.TTS, ModelTier.POWERFUL): "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+    # IMAGE_TO_TEXT — TrOCR (OCR), BLIP (captioning), Qwen2-VL (visão geral)
+    (ModelTask.IMAGE_TO_TEXT, ModelTier.FAST):     "microsoft/trocr-base-printed",
+    (ModelTask.IMAGE_TO_TEXT, ModelTier.DEFAULT):  "Salesforce/blip-image-captioning-large",
+    (ModelTask.IMAGE_TO_TEXT, ModelTier.POWERFUL): "Qwen/Qwen2-VL-7B-Instruct",
 }
 
 
@@ -384,16 +521,48 @@ def get_model(
     """
     settings = get_llm_settings()
 
-    # Determina o provider
+    # Determina o provider padrão do ambiente
     if provider is None:
         provider = LLMProvider(settings.LLM_PROVIDER)
 
-    # Determina o modelo
+    # ── Task-specific routing ────────────────────────────────────────────────
+    # Tasks especializadas (CODE, MATH, CLASSIFICATION, RAG, SUMMARIZATION)
+    # sobrescrevem o provider/model independente do LLM_PROVIDER do ambiente.
+    task_key = (task, tier)
+    if task_key in TASK_MODEL_MAPPINGS and model_name is None:
+        task_provider, task_model = TASK_MODEL_MAPPINGS[task_key]
+        logger.debug(f"Task routing: task={task.value} tier={tier.value} → {task_provider.value}/{task_model}")
+
+        callbacks = get_base_callbacks()
+        factory_map = {
+            LLMProvider.OLLAMA_CLOUD: _get_ollama_cloud_model,
+            LLMProvider.OPENAI: _get_openai_model,
+            LLMProvider.ANTHROPIC: _get_anthropic_model,
+            LLMProvider.GOOGLE: _get_google_model,
+            LLMProvider.HUGGINGFACE: _get_huggingface_model,
+        }
+        factory = factory_map[task_provider]
+        primary = factory(task_model, settings, callbacks, **kwargs)
+
+        # Wire task fallback
+        fallback_entry = TASK_FALLBACK_MAPPINGS.get(task_key)
+        if fallback_entry:
+            fb_provider, fb_model = fallback_entry
+            if fb_model != task_model:
+                fb_factory = factory_map.get(fb_provider, _get_huggingface_model)
+                try:
+                    fallback = fb_factory(fb_model, settings, callbacks, **kwargs)
+                    return primary.with_fallbacks([fallback])
+                except Exception as e:
+                    logger.warning(f"Não foi possível criar fallback {fb_model}: {e}")
+
+        return primary
+
+    # ── Standard provider/tier routing (GENERAL_AGENT e tasks sem mapeamento) ─
     explicit_model = model_name is not None
     if model_name is None:
         model_name = MODEL_MAPPINGS.get(provider, {}).get(tier, OllamaCloudModel.GPT_OSS_20B)
 
-    # Cria callbacks (Langfuse reads trace attrs from config["metadata"] at invoke time)
     callbacks = get_base_callbacks()
 
     factory_map = {
@@ -401,6 +570,7 @@ def get_model(
         LLMProvider.OPENAI: _get_openai_model,
         LLMProvider.ANTHROPIC: _get_anthropic_model,
         LLMProvider.GOOGLE: _get_google_model,
+        LLMProvider.HUGGINGFACE: _get_huggingface_model,
     }
 
     factory = factory_map.get(provider)
@@ -409,8 +579,7 @@ def get_model(
 
     primary = factory(model_name, settings, callbacks, **kwargs)
 
-    # Wire fallback automatically for Ollama Cloud unless caller passed an
-    # explicit model_name (in that case they know what they want).
+    # Wire fallback automaticamente para Ollama Cloud
     if not explicit_model and provider == LLMProvider.OLLAMA_CLOUD:
         fallback_name = FALLBACK_MODEL_MAPPINGS.get(provider, {}).get(tier)
         if fallback_name and fallback_name != model_name:
@@ -426,6 +595,69 @@ def get_embedding_model() -> Embeddings:
     settings = get_llm_settings()
     logger.debug(f"BluEmbeddingAPIClient: {settings.EMBEDDING_SERVICE_URL}")
     return BluEmbeddingAPIClient(base_url=settings.EMBEDDING_SERVICE_URL)
+
+
+# ============================================================================
+# SPECIALIZED TASK CLIENTS (ASR, TTS, IMAGE_TO_TEXT)
+# ============================================================================
+
+
+def get_hf_inference_client(task: ModelTask = ModelTask.ASR, tier: ModelTier = ModelTier.DEFAULT):
+    """
+    Retorna um InferenceClient do HuggingFace para tasks especializadas
+    que não são BaseChatModel: ASR, TTS, IMAGE_TO_TEXT.
+
+    Requires:
+        pip install huggingface-hub>=0.30
+
+    Args:
+        task: ModelTask.ASR | ModelTask.TTS | ModelTask.IMAGE_TO_TEXT
+        tier: FAST | DEFAULT | POWERFUL
+
+    Returns:
+        huggingface_hub.InferenceClient configurado com o modelo adequado
+
+    Example:
+        # Transcrever áudio
+        client = get_hf_inference_client(ModelTask.ASR, ModelTier.DEFAULT)
+        result = client.automatic_speech_recognition("audio.wav")
+
+        # TTS
+        client = get_hf_inference_client(ModelTask.TTS, ModelTier.FAST)
+        audio = client.text_to_speech("Olá, tudo bem?")
+
+        # OCR / Image captioning
+        client = get_hf_inference_client(ModelTask.IMAGE_TO_TEXT, ModelTier.FAST)
+        caption = client.image_to_text("document.jpg")
+    """
+    try:
+        from huggingface_hub import InferenceClient
+    except ImportError:
+        raise ImportError(
+            "huggingface-hub não instalado. Rode: pip install huggingface-hub>=0.30"
+        )
+
+    settings = get_llm_settings()
+    if not settings.HF_TOKEN:
+        raise ValueError(
+            "HF_TOKEN não configurado. "
+            "Obtenha em: https://huggingface.co/settings/tokens"
+        )
+
+    model_id = SPECIALIZED_MODEL_MAPPINGS.get(
+        (task, tier),
+        SPECIALIZED_MODEL_MAPPINGS.get((task, ModelTier.DEFAULT)),
+    )
+    if model_id is None:
+        raise ValueError(f"Task {task.value} não tem mapeamento de modelo especializado")
+
+    logger.debug(f"HF InferenceClient: task={task.value} tier={tier.value} model={model_id}")
+
+    return InferenceClient(
+        model=model_id,
+        token=settings.HF_TOKEN,
+        provider=settings.HF_INFERENCE_PROVIDER,
+    )
 
 
 # ============================================================================

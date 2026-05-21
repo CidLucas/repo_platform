@@ -5,6 +5,7 @@ export interface BluDocument {
   client_id: string
   title: string
   agent_slug: string
+  status?: 'draft' | 'published' | 'archived'
   editor_content: unknown
   created_at: string
   updated_at: string
@@ -22,14 +23,48 @@ export interface DocTemplate {
 export async function fetchRecentDocuments(clientId: string): Promise<BluDocument[]> {
   const { data, error } = await supabase
     .from('documents')
-    .select('id, client_id, title, agent_slug, editor_content, created_at, updated_at')
+    .select('id, client_id, title, agent_slug, status, editor_content, created_at, updated_at')
     .eq('client_id', clientId)
-    .eq('agent_slug', 'documentos')
+    .in('agent_slug', ['documentos', 'biblioteca', 'estrategia', 'financeiro', 'compras', 'clientes', 'agenda'])
+    .neq('status', 'archived')
     .order('updated_at', { ascending: false })
     .limit(20)
 
   if (error) throw error
   return data ?? []
+}
+
+export async function fetchDraftDocuments(clientId: string): Promise<BluDocument[]> {
+  const { data, error } = await supabase
+    .from('documents')
+    .select('id, client_id, title, agent_slug, status, editor_content, created_at, updated_at')
+    .eq('client_id', clientId)
+    .eq('status', 'draft')
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  if (error) throw error
+  return data ?? []
+}
+
+export async function publishDocument(id: string, clientId: string): Promise<void> {
+  const { error } = await supabase
+    .from('documents')
+    .update({ status: 'published', updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('client_id', clientId)
+
+  if (error) throw error
+}
+
+export async function archiveDocument(id: string, clientId: string): Promise<void> {
+  const { error } = await supabase
+    .from('documents')
+    .update({ status: 'archived', updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('client_id', clientId)
+
+  if (error) throw error
 }
 
 export async function saveDocument(id: string, clientId: string, content: unknown): Promise<void> {

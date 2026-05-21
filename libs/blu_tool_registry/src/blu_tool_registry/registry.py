@@ -529,6 +529,36 @@ class ToolRegistry:
             requires_confirmation=False,
             tags=["google", "docs", "list"],
         ),
+        "import_spreadsheet_schedule": ToolMetadata(
+            name="import_spreadsheet_schedule",
+            category=ToolCategory.GOOGLE,
+            description=(
+                "Import Google Sheets data and map columns to schedule schema "
+                "(tarefa, data_inicio, data_fim, responsavel, status, notas)."
+            ),
+            tier_required=TierLevel.PREMIUM,
+            requires_confirmation=False,
+            tags=["google", "sheets", "import", "schedule", "cronograma"],
+        ),
+        "fiscal_preparar_dados_nfe": ToolMetadata(
+            name="fiscal_preparar_dados_nfe",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "Prepara e valida dados para emissão de NF-e ou NFS-e. "
+                "Não emite — apenas organiza campos obrigatórios."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["fiscal", "nfe", "nfse", "invoice"],
+        ),
+        "fiscal_status_integracao": ToolMetadata(
+            name="fiscal_status_integracao",
+            category=ToolCategory.CUSTOM,
+            description="Informa o status atual da integração fiscal (NF-e/NFS-e).",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["fiscal", "nfe", "nfse", "status"],
+        ),
     }
 
     # =========================================================================

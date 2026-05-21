@@ -1,1 +1,0 @@
-{"title": "BL-004: Tier comparison normalization", "body": "Ensure TierLevel.get_order usage is consistent and add tests verifying expected agent lists per tier.\n\n- Files: libs/blu_agent_framework/src/blu_agent_framework/registry.py\n- Tests: tests/unit/test_registry_tiers.py\n- Estimate: 1-2h\n- Priority: P0\n"}

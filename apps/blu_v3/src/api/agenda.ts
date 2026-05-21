@@ -202,3 +202,4 @@ export async function fetchAgendaHistory(clientId: string): Promise<AgendaHistor
     created_at: row.created_at,
   }))
 }
+

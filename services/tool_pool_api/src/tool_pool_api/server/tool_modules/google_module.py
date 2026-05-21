@@ -499,6 +499,123 @@ def register_tools(mcp: FastMCP) -> list[str]:
         """
         return await _list_documents_logic(client_id, max_results, account_email)
 
+    # ── import_spreadsheet_schedule ───────────────────────────────────────────
+    async def _import_spreadsheet_schedule_logic(
+        spreadsheet_id: str,
+        sheet_name: str = "Sheet1",
+        date_format: str = "DD/MM/YYYY",
+        client_id: str | None = None,
+        account_email: str | None = None,
+    ) -> dict:
+        """Import a Google Sheets spreadsheet and map columns to schedule schema."""
+        import httpx
+
+        tokens = await _get_google_tokens(client_id, account_email)
+        access_token = tokens["access_token"]
+
+        range_notation = f"{sheet_name}!A1:Z500"
+        url = (
+            f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/"
+            f"{range_notation}"
+        )
+        async with httpx.AsyncClient() as http_client:
+            resp = await http_client.get(
+                url, headers={"Authorization": f"Bearer {access_token}"}
+            )
+            if resp.status_code != 200:
+                raise ValueError(
+                    f"Erro ao acessar planilha: {resp.status_code} {resp.text}"
+                )
+            data = resp.json()
+
+        rows = data.get("values", [])
+        if not rows:
+            raise ValueError("Planilha vazia ou aba não encontrada")
+
+        headers_raw = [str(h).strip() for h in rows[0]]
+
+        # Canonical column mapping
+        _MAPPINGS: dict[str, str] = {
+            "task": "tarefa", "tarefa": "tarefa", "nome": "tarefa",
+            "atividade": "tarefa", "item": "tarefa",
+            "inicio": "data_inicio", "start": "data_inicio",
+            "data_inicio": "data_inicio", "data inicio": "data_inicio",
+            "data de inicio": "data_inicio",
+            "fim": "data_fim", "end": "data_fim", "data_fim": "data_fim",
+            "prazo": "data_fim", "deadline": "data_fim", "entrega": "data_fim",
+            "responsavel": "responsavel", "responsável": "responsavel",
+            "owner": "responsavel", "resp": "responsavel", "pessoa": "responsavel",
+            "status": "status", "situacao": "status", "situação": "status",
+            "notas": "notas", "notes": "notas", "obs": "notas",
+            "observacoes": "notas", "observações": "notas",
+            "descricao": "notas", "descrição": "notas",
+        }
+
+        col_map: dict[int, str] = {}
+        unmapped: list[str] = []
+        for i, h in enumerate(headers_raw):
+            canonical = _MAPPINGS.get(h.lower())
+            if canonical:
+                col_map[i] = canonical
+            else:
+                unmapped.append(h)
+
+        dayfirst = date_format.upper().startswith("DD")
+
+        def _parse_date(val: str):
+            if not val:
+                return val
+            try:
+                from dateutil import parser as dtparser
+                return dtparser.parse(val, dayfirst=dayfirst).isoformat()
+            except Exception:
+                return val
+
+        date_fields = {"data_inicio", "data_fim"}
+        items: list[dict] = []
+        for row in rows[1:]:
+            record: dict = {
+                "tarefa": "", "data_inicio": "", "data_fim": "",
+                "responsavel": "", "status": "", "notas": "",
+            }
+            for idx, canonical in col_map.items():
+                val = row[idx] if idx < len(row) else ""
+                if canonical in date_fields:
+                    val = _parse_date(val)
+                record[canonical] = val
+            if not record["tarefa"].strip():
+                continue
+            items.append(record)
+
+        return {
+            "total_rows": len(rows) - 1,
+            "mapped_rows": len(items),
+            "items": items,
+            "unmapped_columns": unmapped,
+        }
+
+    async def import_spreadsheet_schedule_wrapper(
+        spreadsheet_id: str,
+        sheet_name: str = "Sheet1",
+        date_format: str = "DD/MM/YYYY",
+        ctx: Context = None,
+        client_id: str | None = None,
+        account_email: str | None = None,
+    ) -> dict:
+        """
+        Importa dados de uma planilha Google Sheets e mapeia automaticamente
+        colunas para o schema de agenda.
+
+        Args:
+            spreadsheet_id: ID da planilha Google Sheets
+            sheet_name: Nome da aba (default: Sheet1)
+            date_format: Formato de data esperado (default: DD/MM/YYYY)
+            account_email: Conta Google opcional
+        """
+        return await _import_spreadsheet_schedule_logic(
+            spreadsheet_id, sheet_name, date_format, client_id, account_email
+        )
+
     # ── Registration (all wrapped with mcp_inject_client_id) ─────────────────
     _inject = mcp_inject_client_id(get_context_service)
 
@@ -654,6 +771,16 @@ def register_tools(mcp: FastMCP) -> list[str]:
         ),
     )(_inject(google_docs_list_wrapper))
 
+    mcp.tool(
+        name="import_spreadsheet_schedule",
+        description=(
+            "Importa dados de uma planilha Google Sheets e mapeia automaticamente "
+            "colunas para o schema de agenda (tarefa, data_inicio, data_fim, "
+            "responsavel, status, notas). Retorna os itens prontos para inserção "
+            "no cronograma do cliente."
+        ),
+    )(_inject(import_spreadsheet_schedule_wrapper))
+
     logger.info(
         "[Google Module] Tools registered: write_to_sheet, read_emails, query_calendar, "
         "list_google_accounts, list_spreadsheets, export_to_sheet, create_spreadsheet_with_data, "
@@ -671,4 +798,5 @@ def register_tools(mcp: FastMCP) -> list[str]:
         "google_docs_read",
         "google_docs_write",
         "google_docs_list",
+        "import_spreadsheet_schedule",
     ]

@@ -13,6 +13,7 @@ class LLMSettings(BaseSettings):
     - OpenAI (API)
     - Anthropic (API)
     - Google Gemini (API)
+    - HuggingFace Inference API
     """
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
@@ -59,6 +60,14 @@ class LLMSettings(BaseSettings):
     GOOGLE_API_KEY: str | None = Field(default=None)
 
     # ========================================================================
+    # HUGGING FACE
+    # ========================================================================
+    HF_TOKEN: str | None = Field(default=None)
+    # Inference provider to use for HF-routed calls.
+    # Options: "hf_inference" (serverless), "together", "novita", "featherless"
+    HF_INFERENCE_PROVIDER: str = Field(default="hf_inference")
+
+    # ========================================================================
     # EDGE FUNCTION LLM DEFAULTS
     # These mirror the env vars consumed by Supabase Edge Functions
     # (enrich-metadata, etc.) so there is a single source of truth.
@@ -101,6 +110,11 @@ class LLMSettings(BaseSettings):
     def google_enabled(self) -> bool:
         """Google Gemini está habilitado se tiver API key."""
         return bool(self.GOOGLE_API_KEY)
+
+    @property
+    def huggingface_enabled(self) -> bool:
+        """HuggingFace está habilitado se tiver HF_TOKEN."""
+        return bool(self.HF_TOKEN)
 
 
 @lru_cache

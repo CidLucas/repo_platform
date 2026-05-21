@@ -186,6 +186,8 @@ async def _send_email(inputs: dict, client_id: str) -> dict:
         {"key": "artifact_type", "type": "str", "description": "Tipo do artefato gerado: document | email | report (opcional)", "required": False},
         {"key": "artifact_id", "type": "str", "description": "UUID do artefato gerado (use {{document_id}} de um passo anterior)", "required": False},
         {"key": "artifact_url", "type": "str", "description": "URL externa do artefato (para reports)", "required": False},
+        {"key": "execution_id", "type": "str", "description": "UUID da execução (client_routine_executions.id) — preenchido automaticamente pelo engine", "required": False},
+        {"key": "routine_id", "type": "str", "description": "ID da rotina que gerou o alerta — preenchido automaticamente pelo engine", "required": False},
     ],
     outputs=[
         {"key": "alert_id", "type": "str", "description": "UUID do alerta criado"},
@@ -242,7 +244,11 @@ async def _create_alert(inputs: dict, client_id: str) -> dict:
                 "priority": priority,
                 "agent_slug": agent_slug,
                 "status": "pending",
-                "payload": {"source": "routine"},
+                "payload": {
+                    "source": "routine",
+                    "execution_id": inputs.get("execution_id", ""),
+                    "routine_id": inputs.get("routine_id", ""),
+                },
                 "metadata": metadata or None,
             })
             .execute()
@@ -254,6 +260,72 @@ async def _create_alert(inputs: dict, client_id: str) -> dict:
     except Exception as exc:
         logger.warning("[routine_artifact] create_alert failed for %s: %s", client_id, exc)
         return {"alert_id": None, "alert_created": False, "alert_error": str(exc)}
+
+
+@register(
+    "channels.request_approval",
+    description="Cria uma solicitação de aprovação humana (HITL) vinculada à execução atual. A rotina pausa até o operador aprovar.",
+    inputs=[
+        {"key": "title", "type": "str", "description": "Título exibido no painel de aprovação", "required": True},
+        {"key": "body", "type": "str", "description": "Conteúdo gerado para revisão (JSON ou texto)", "required": True},
+        {"key": "execution_id", "type": "str", "description": "ID da execução atual — injetado automaticamente pelo engine", "required": True},
+        {"key": "priority", "type": "str", "description": "Prioridade: low | normal | high", "default": "normal", "required": False},
+        {"key": "agent_slug", "type": "str", "description": "Slug do agente que gerou o conteúdo", "default": "routine-runner", "required": False},
+    ],
+    outputs=[
+        {"key": "approval_id", "type": "str", "description": "UUID da approval_request criada"},
+        {"key": "_awaiting_approval", "type": "bool", "description": "Sinaliza ao engine que a execução deve pausar"},
+    ],
+)
+async def _request_approval(inputs: dict, client_id: str) -> dict:
+    """
+    HITL: create an approval_request with status='pending' linked to the execution.
+    Returns _awaiting_approval=True so the engine pauses and sets status='awaiting_approval'.
+    The DB trigger on approval_requests re-dispatches the execution when approved.
+    """
+    import json as _json
+
+    from blu_supabase_client import get_supabase_client
+
+    execution_id = str(inputs.get("execution_id", ""))
+    title = str(inputs.get("title", "Aprovação necessária"))[:200]
+    body = inputs.get("body", "")
+    priority = inputs.get("priority", "normal")
+    agent_slug = inputs.get("agent_slug", "routine-runner")
+
+    # Serialize body to string if it's a complex object
+    if not isinstance(body, str):
+        body = _json.dumps(body, ensure_ascii=False)
+
+    db = get_supabase_client(use_service_role=True)
+
+    try:
+        resp = await asyncio.to_thread(
+            lambda: db.table("approval_requests")
+            .insert({
+                "client_id": client_id,
+                "requested_by": "routine-runner",
+                "action_type": "routine_hitl",
+                "title": title,
+                "body": body,
+                "priority": priority,
+                "agent_slug": agent_slug,
+                "status": "pending",
+                "payload": {"execution_id": execution_id, "source": "routine_hitl"},
+            })
+            .execute()
+        )
+        approval_id = (resp.data or [{}])[0].get("id") or ""
+        logger.info(
+            "[routine_artifact] request_approval: exec=%s approval=%s client=%s",
+            execution_id, approval_id, client_id,
+        )
+        return {"approval_id": approval_id, "_awaiting_approval": True}
+
+    except Exception as exc:
+        logger.warning("[routine_artifact] request_approval failed for %s: %s", client_id, exc)
+        # On failure, don't block execution — return without the pause signal
+        return {"approval_id": None, "_awaiting_approval": False, "approval_error": str(exc)}
 
 
 @register(
@@ -556,6 +628,133 @@ async def _save_insights(inputs: dict, client_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+@register(
+    "channels.request_document_review",
+    description="Salva documento como rascunho e cria solicitação de revisão humana (HITL). Aparece na aba Rascunhos da Biblioteca.",
+    inputs=[
+        {"key": "title", "type": "str", "description": "Título do documento", "required": True},
+        {"key": "content", "type": "str", "description": "Conteúdo markdown do documento gerado", "required": True},
+        {"key": "summary", "type": "str", "description": "Resumo em 1-2 frases do que o documento contém", "required": True},
+        {"key": "agent_slug", "type": "str", "description": "Slug do agente que gerou (ex: biblioteca, estrategia)", "default": "biblioteca", "required": False},
+        {"key": "priority", "type": "str", "description": "Prioridade: low | normal | high", "default": "normal", "required": False},
+        {"key": "execution_id", "type": "str", "description": "ID da execução atual — injetado pelo engine", "required": False},
+    ],
+    outputs=[
+        {"key": "document_id", "type": "str", "description": "UUID do documento criado em public.documents (status=draft)"},
+        {"key": "approval_id", "type": "str", "description": "UUID da approval_request criada"},
+        {"key": "_awaiting_approval", "type": "bool", "description": "Sinaliza ao engine que a execução deve pausar"},
+    ],
+)
+async def _request_document_review(inputs: dict, client_id: str) -> dict:
+    """
+    HITL for document review:
+    1. Insert a row in public.documents with status='draft', agent_slug from input.
+    2. Insert an approval_request with action_type='document_review', linking the document.
+    3. Return _awaiting_approval=True so the engine pauses execution.
+
+    inputs:
+        title        — document title
+        content      — markdown body
+        summary      — 1-2 line description shown in the approval card
+        agent_slug   — which agent generated this
+        priority     — approval priority
+        execution_id — routine execution id (for re-dispatch on approval)
+
+    outputs:
+        document_id        — uuid of the saved draft document
+        approval_id        — uuid of the approval_request row
+        _awaiting_approval — True (pauses routine execution)
+    """
+    import json as _json
+
+    from blu_supabase_client import get_supabase_client
+
+    title = str(inputs.get("title", "Documento sem título"))[:200]
+    content = inputs.get("content", "")
+    summary = str(inputs.get("summary", ""))[:500]
+    agent_slug = inputs.get("agent_slug", "biblioteca")
+    priority = inputs.get("priority", "normal")
+    execution_id = str(inputs.get("execution_id", ""))
+
+    if not content:
+        logger.warning("[routine_artifact] request_document_review: empty content for %s", client_id)
+        return {"document_id": None, "approval_id": None, "_awaiting_approval": False}
+
+    db = get_supabase_client(use_service_role=True)
+    document_id: str | None = None
+    approval_id: str | None = None
+
+    # 1. Save draft document
+    try:
+        def _to_tiptap(md: str) -> dict:
+            paragraphs = []
+            for line in md.split("\n"):
+                t = line.rstrip()
+                if t:
+                    paragraphs.append({"type": "paragraph", "content": [{"type": "text", "text": t}]})
+                else:
+                    paragraphs.append({"type": "paragraph"})
+            return {"type": "doc", "content": paragraphs or [{"type": "paragraph"}]}
+
+        resp = await asyncio.to_thread(
+            lambda: db.table("documents")
+            .insert({
+                "client_id": client_id,
+                "title": title,
+                "agent_slug": agent_slug,
+                "status": "draft",
+                "editor_content": _to_tiptap(content),
+            })
+            .execute()
+        )
+        document_id = (resp.data or [{}])[0].get("id")
+        logger.info("[routine_artifact] request_document_review: draft doc_id=%s", document_id)
+    except Exception as exc:
+        logger.warning("[routine_artifact] request_document_review: doc insert failed for %s: %s", client_id, exc)
+        return {"document_id": None, "approval_id": None, "_awaiting_approval": False, "error": str(exc)}
+
+    # 2. Create approval request
+    try:
+        resp2 = await asyncio.to_thread(
+            lambda: db.table("approval_requests")
+            .insert({
+                "client_id": client_id,
+                "requested_by": "routine-runner",
+                "action_type": "document_review",
+                "title": f"Revisar: {title}",
+                "body": summary,
+                "priority": priority,
+                "agent_slug": agent_slug,
+                "status": "pending",
+                "payload": {
+                    "document_id": document_id,
+                    "execution_id": execution_id,
+                    "source": "document_review",
+                },
+                "metadata": {
+                    "artifact_type": "document",
+                    "artifact_id": document_id,
+                },
+            })
+            .execute()
+        )
+        approval_id = (resp2.data or [{}])[0].get("id")
+        logger.info(
+            "[routine_artifact] request_document_review: approval_id=%s doc_id=%s client=%s",
+            approval_id, document_id, client_id,
+        )
+    except Exception as exc:
+        logger.warning("[routine_artifact] request_document_review: approval insert failed for %s: %s", client_id, exc)
+        # Doc already saved — don't block, but don't pause execution either
+        return {"document_id": document_id, "approval_id": None, "_awaiting_approval": False, "error": str(exc)}
+
+    return {
+        "document_id": document_id,
+        "approval_id": approval_id,
+        "_awaiting_approval": True,
+    }
+
+
 # Internal delivery helper
 # ---------------------------------------------------------------------------
 

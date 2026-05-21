@@ -67,5 +67,10 @@ def get_available_modules() -> dict:
 sys.modules.setdefault("src.tool_pool_api.server.tools", sys.modules[__name__])
 
 # =============================================================================
-# BACKWARD COMPATIBILITY
+# BACKWARD COMPATIBILITY — rag_module acessa estas funções via server_tools.*
 # =============================================================================
+from blu_rag_factory.factory import create_rag_retriever, create_rag_runnable  # noqa: F401
+from tool_pool_api.server.dependencies import (  # noqa: F401
+    get_context_service,
+    load_context_from_token,
+)

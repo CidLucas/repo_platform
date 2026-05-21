@@ -1,1 +1,0 @@
-{"title": "BL-002: Node placeholder strict behavior", "body": "Make node placeholders fail-fast in dev and return sentinel in prod.\n\n- Files: libs/blu_agent_framework/src/blu_agent_framework/nodes.py, libs/blu_agent_framework/src/blu_agent_framework/builder.py\n- Tests: tests/unit/test_node_placeholders.py\n- Estimate: 1-2h\n- Priority: P0\n"}

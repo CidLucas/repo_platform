@@ -61,9 +61,13 @@ def register_all_tools(mcp: FastMCP) -> dict:
     from . import (
         common_module,
         config_helper_module,
+        monday_module,  # noqa: F401
+        notion_module,  # noqa: F401
+        pm_module,  # noqa: F401
         context_module,  # noqa: F401
         document_intelligence_module,
         ocr_extraction_module,
+        platform_module,  # noqa: F401
         prompt_module,
         rag_module,
         report_module,
@@ -71,8 +75,10 @@ def register_all_tools(mcp: FastMCP) -> dict:
         rfq_whatsapp_module,
         routines_module,  # noqa: F401
         sql_module,
+        whatsapp_client_module,
         web_crawl_module,
         web_monitor_module,
+        slack_module,  # noqa: F401
     )
 
     # Optional Google module (integration)
@@ -80,6 +86,12 @@ def register_all_tools(mcp: FastMCP) -> dict:
         from . import google_module  # noqa: F401
     except Exception as e:
         logger.warning(f"Google module not available at import time: {e}")
+
+    # Optional Fiscal module (stub)
+    try:
+        from . import fiscal_module  # noqa: F401
+    except Exception as e:
+        logger.warning(f"Fiscal module not available at import time: {e}")
 
     for register_fn in _MODULE_REGISTRY:
         try:
@@ -144,6 +156,7 @@ AVAILABLE_MODULES = {
             "google_docs_read",
             "google_docs_write",
             "google_docs_list",
+            "import_spreadsheet_schedule",
         ],
         "requires_auth": True,
     },
@@ -199,6 +212,15 @@ AVAILABLE_MODULES = {
         ],
         "requires_auth": True,
     },
+    "whatsapp-client": {
+        "description": "WhatsApp client/contact messaging tools (non-supplier flow)",
+        "tools": [
+            "whatsapp_enviar_mensagem",
+            "whatsapp_enviar_lote",
+            "whatsapp_status_mensagem",
+        ],
+        "requires_auth": True,
+    },
     "routines": {
         "description": "Criação e gestão de rotinas personalizadas e de catálogo via chat",
         "tools": [
@@ -207,6 +229,16 @@ AVAILABLE_MODULES = {
             "criar_rotina_personalizada",
             "ativar_rotina_catalogo",
             "enviar_rotina_para_aprovacao",
+        ],
+        "requires_auth": True,
+    },
+    "platform": {
+        "description": "Rotinas do catálogo e metas do cliente via linguagem natural",
+        "tools": [
+            "criar_rotina",
+            "listar_rotinas_catalogo",
+            "definir_meta",
+            "listar_metas",
         ],
         "requires_auth": True,
     },
@@ -223,6 +255,48 @@ AVAILABLE_MODULES = {
         ],
         "requires_auth": True,
     },
+    "monday": {
+        "description": "Monday.com project management integration (boards, items, status)",
+        "tools": [
+            "monday_list_boards",
+            "monday_list_items",
+            "monday_create_item",
+            "monday_update_item_status",
+        ],
+        "requires_auth": True,
+    },
+    "slack": {
+        "description": "Slack integration for channels, messages and communication",
+        "tools": [
+            "slack_list_channels",
+            "slack_read_channel",
+            "slack_summarize_channel",
+            "slack_post_message",
+        ],
+        "requires_auth": True,
+    },
+    "notion": {
+        "description": "Notion integration for pages, documents and knowledge base",
+        "tools": [
+            "notion_list_pages",
+            "notion_read_page",
+            "notion_search",
+            "notion_create_page",
+        ],
+        "requires_auth": True,
+    },
+    "pm": {
+        "description": "Project Management integrations — Asana, ClickUp, Linear",
+        "tools": [
+            "asana_list_projects",
+            "asana_get_project_tasks",
+            "clickup_list_tasks",
+            "clickup_get_task_comments",
+            "linear_list_issues",
+            "linear_get_project_summary",
+        ],
+        "requires_auth": True,
+    },
     # Futuros módulos:
     # "scheduling": {
     #     "description": "Agendamento de compromissos",
@@ -230,4 +304,12 @@ AVAILABLE_MODULES = {
     #     "requires_auth": True,
     #     "requires_elicitation": True  # Usa confirmação
     # },
+    "fiscal": {
+        "description": "Fiscal tools — NF-e/NFS-e data preparation (SEFAZ integration pending)",
+        "tools": [
+            "fiscal_preparar_dados_nfe",
+            "fiscal_status_integracao",
+        ],
+        "requires_auth": True,
+    },
 }

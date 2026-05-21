@@ -27,6 +27,7 @@ from blu_supabase_client import get_supabase_client
 
 # Phase 3: Use blu_tool_registry for dynamic tool filtering
 from blu_tool_registry import ToolRegistry
+from blu_tool_registry.resource_resolver import ResourceResolver
 from tool_pool_api.server.dependencies import (
     get_context_service,
     load_context_from_token,
@@ -253,12 +254,17 @@ async def _get_client_config(client_id: str | None = None) -> str:
     enabled_tools = context.get_enabled_tools_list()
     tier = get_tier_for_context(context)
 
-    # Get available tools from registry (validates against tier)
+    # Primary: tools allowed by FeatureRegistry for any agent at this tier
+    feature_allowed = set(ResourceResolver.resolve_all_tools_for_tier(tier))
+
+    # Secondary: ToolRegistry.get_available_tools handles MCP / Google / registered tools
     available_tools = ToolRegistry.get_available_tools(
         enabled_tools=enabled_tools,
         tier=tier,
         include_google=True,
     )
+    # Filter out tools that are neither in the feature map nor registered with proper tier access
+    available_tools = [t for t in available_tools if t.name in feature_allowed]
 
     # Get business hours from team_structure if available
     horarios_str = "Não configurado"
@@ -628,11 +634,15 @@ def register_resources(mcp: FastMCP) -> None:
         enabled_tools = context.get_enabled_tools_list()
         tier = get_tier_for_context(context)
 
+        # Primary: feature-map gate (closes the 39-unregistered-tools gap)
+        feature_allowed = set(ResourceResolver.resolve_all_tools_for_tier(tier))
+
         available = ToolRegistry.get_available_tools(
             enabled_tools=enabled_tools,
             tier=tier,
             include_google=True,
         )
+        available = [t for t in available if t.name in feature_allowed]
 
         result = f"# Available Tools - {context.nome_empresa}\n\n"
         result += f"**Tier:** {tier}\n"

@@ -46,12 +46,14 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str
     model: str | None = None
+    tags: list[str] = []
     elicitation_response: ElicitationResponseBody | None = None
 
 
 class ChatResponse(BaseModel):
     response: str
     session_id: str
+    agent_slug: str = "frontdesk"
     model_used: str | None = None
     elicitation_pending: ElicitationRequest | None = None
     structured_data: dict[str, Any] | None = None

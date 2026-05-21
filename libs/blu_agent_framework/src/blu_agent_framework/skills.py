@@ -154,4 +154,161 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
         on_max_turns="return_partial",
         tags=["knowledge-base", "persistence", "documents"],
     ),
+    # ==========================================================================
+    # L3 Routine Skills — narrative generation for automated routines
+    # These skills are called by the routine engine (step type "skill") and are
+    # agent-agnostic: any agent can include them via its skill_slugs config.
+    # ==========================================================================
+
+    # ------------------------------------------------------------------
+    # Morning Chain
+    # ------------------------------------------------------------------
+    "morning_plan": SkillDefinition(
+        name="morning_plan",
+        description=(
+            "Generate a prioritised daily plan narrative from KPIs, calendar agenda, "
+            "pending approvals, and integration alerts. Used by the morning_sync routine."
+        ),
+        required_tool_names=[],  # receives pre-fetched context from routine engine
+        prompt_name="skill:morning_plan:system",
+        max_turns=2,
+        on_max_turns="return_partial",
+        tags=["routines", "morning", "planning", "narrative"],
+    ),
+    "end_of_day_digest": SkillDefinition(
+        name="end_of_day_digest",
+        description=(
+            "Summarise the day's events, completed tasks, and open items into a "
+            "concise end-of-day digest. Used by the end_of_day_digest routine."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:end_of_day_digest:system",
+        max_turns=2,
+        on_max_turns="return_partial",
+        tags=["routines", "digest", "narrative", "eod"],
+    ),
+    "weekly_summary": SkillDefinition(
+        name="weekly_summary",
+        description=(
+            "Generate a weekly performance summary with highlights, KPI trends, "
+            "and recommended focus areas for the following week."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:weekly_summary:system",
+        max_turns=2,
+        on_max_turns="return_partial",
+        tags=["routines", "weekly", "summary", "narrative"],
+    ),
+
+    # ------------------------------------------------------------------
+    # Financeiro
+    # ------------------------------------------------------------------
+    "reconciliation_report": SkillDefinition(
+        name="reconciliation_report",
+        description=(
+            "Generate a monthly cash reconciliation narrative: spot anomalies in "
+            "categories, highlight top merchants, and flag discrepancies."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:reconciliation_report:system",
+        max_turns=3,
+        on_max_turns="return_partial",
+        tags=["routines", "financeiro", "reconciliation", "narrative"],
+    ),
+
+    # ------------------------------------------------------------------
+    # Clientes
+    # ------------------------------------------------------------------
+    "collection_messages": SkillDefinition(
+        name="collection_messages",
+        description=(
+            "Draft personalised collection messages for overdue customers, adapting "
+            "tone by days overdue (friendly / firm / urgent)."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:collection_messages:system",
+        max_turns=2,
+        on_max_turns="return_partial",
+        tags=["routines", "clientes", "collection", "messages"],
+    ),
+    "followup_draft": SkillDefinition(
+        name="followup_draft",
+        description=(
+            "Write a post-sale follow-up message for a specific customer, optionally "
+            "including cross-sell suggestions based on purchase history."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:followup_draft:system",
+        max_turns=2,
+        on_max_turns="return_partial",
+        tags=["routines", "clientes", "followup", "sales"],
+    ),
+    "reactivation_proposal": SkillDefinition(
+        name="reactivation_proposal",
+        description=(
+            "Compose a contextualised reactivation proposal for an inactive customer, "
+            "referencing their purchase history and optionally including a special offer."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:reactivation_proposal:system",
+        max_turns=2,
+        on_max_turns="return_partial",
+        tags=["routines", "clientes", "reactivation", "retention"],
+    ),
+    "satisfaction_survey": SkillDefinition(
+        name="satisfaction_survey",
+        description=(
+            "Generate a personalised post-delivery satisfaction survey message, "
+            "adapted to the customer's profile and recent purchase."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:satisfaction_survey:system",
+        max_turns=2,
+        on_max_turns="return_partial",
+        tags=["routines", "clientes", "nps", "satisfaction"],
+    ),
+
+    # ------------------------------------------------------------------
+    # Agenda / Reuniões
+    # ------------------------------------------------------------------
+    "meeting_brief": SkillDefinition(
+        name="meeting_brief",
+        description=(
+            "Produce a pre-meeting briefing with participant context, business history, "
+            "key talking points, and suggested agenda items."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:meeting_brief:system",
+        max_turns=3,
+        on_max_turns="return_partial",
+        tags=["routines", "agenda", "meeting", "briefing"],
+    ),
+
+    # ------------------------------------------------------------------
+    # Estratégia
+    # ------------------------------------------------------------------
+    "hidden_patterns": SkillDefinition(
+        name="hidden_patterns",
+        description=(
+            "Analyse sales time-series and KPIs to identify anomalies, seasonality, "
+            "unexpected peaks/drops, and generate an explanatory narrative with recommendations."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:hidden_patterns:system",
+        max_turns=3,
+        on_max_turns="return_partial",
+        tags=["routines", "estrategia", "analytics", "patterns"],
+    ),
+    "competitor_analysis": SkillDefinition(
+        name="competitor_analysis",
+        description=(
+            "Produce a competitive analysis comparing the client's performance against "
+            "scraped competitor content: positioning, gaps, opportunities, and threats."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:competitor_analysis:system",
+        max_turns=4,
+        on_max_turns="return_partial",
+        tags=["routines", "estrategia", "competitive", "analysis"],
+    ),
 }

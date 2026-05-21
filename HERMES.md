@@ -121,9 +121,68 @@ hidden_patterns, competitor_analysis, satisfaction_survey
 - Tier enforcement: tier controla Features, não tools diretamente. ResourceResolver faz interseção.
 - "revisar" = cleanup ativo (remove dead code, duplicação, centraliza lógica). Não é relatório.
 
+## Política de sessão (agente)
+
+Ao **encerrar cada sessão** de trabalho no repo:
+1. Atualizar a seção "Estado atual do desenvolvimento" e "Gaps abertos" neste arquivo se algo mudou.
+2. Atualizar o README da pasta/lib que foi tocada nessa sessão.
+3. Registrar ideias futuras em `docs/BACKLOG_IDEAS.md` antes de fechar.
+
+Não reescrever o HERMES.md inteiro — atualizar apenas as seções dinâmicas (estado, gaps, próximos passos).
+
 ---
 
-## Convenções do repo
+## Recursos de design (open-design/)
+
+Pasta local com skills de design HTML/CSS — não commitada (`.gitignore`).
+Caminho: `open-design/skills/`
+
+Skills úteis disponíveis:
+- `html-ppt/` — apresentações HTML interativas (35+ temas, 20+ animações, layouts)
+- `web-prototype/` — protótipos web, wireframes, landing pages SaaS
+- `mobile-app/` / `mobile-onboarding/` — simulações de UI mobile
+- `dashboard/` — dashboards HTML com charts
+- `hyperframes/` — vídeos/frames animados com paletas e transições
+- `kami-landing/` / `kami-deck/` — landing pages e decks com sistema próprio
+- `invoice/` / `finance-report/` — documentos financeiros HTML
+- `wireframe-sketch/` — wireframes rápidos
+- `simple-deck/`, `replit-deck/`, `guizang-ppt/` — decks alternativos
+
+Para qualquer tarefa de interface/design/apresentação: verificar `open-design/skills/` antes de criar do zero.
+
+---
+
+## Scripts utilitários
+
+Documentados em `scripts/README.md`. Scripts ativos:
+
+| Script | Propósito |
+|---|---|
+| `audit_langfuse_prompts.py` | Auditoria de prompts no Langfuse |
+| `create_analytics_prompts.py` | Setup de prompts de analytics |
+| `create_rfq_prompts.py` | Setup de prompts de RFQ |
+| `seed_google_oauth_vault.py` | Seed de credenciais OAuth Google |
+| `seed_platform_knowledge.py` | Seed de knowledge base |
+| `seed_test_suppliers.py` | Seed de fornecedores de teste |
+| `bq_export.py` | Export BigQuery |
+| `check_analytics_views.sh` | Verificação de views analytics |
+| `generate_agent_docs.py` | Geração de docs de agentes |
+
+> Migrações de schema ficam em `supabase/migrations/` — Alembic foi removido.
+
+---
+
+## READMEs de referência por subsistema
+
+| README | O que cobre |
+|---|---|
+| `scripts/README.md` | Scripts utilitários: seeding, Langfuse, analytics, docs |
+| `docs/README.md` | Índice de toda documentação viva |
+| `docs/observability/README.md` | Traces, métricas, Grafana |
+
+---
+
+
 
 - Docs em inglês; seções de decisão/filosofia podem ser PT-BR.
 - Sempre auditar DB live antes de qualquer migration.

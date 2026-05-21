@@ -54,11 +54,8 @@ help:
 	@echo "   make compose-cloud-down  Stop 3-group architecture"
 	@echo "   make image-list      List published images in Artifact Registry"
 	@echo ""
-	@echo "🗄️  DATABASE & MIGRATIONS"
-	@echo "   make migrate         Apply migrations (local Docker)"
-	@echo "   make migrate-prod    Apply migrations (Supabase - with confirmation)"
-	@echo "   make migrate-status  Show current migration version"
-	@echo "   make db-shell        Open psql shell"
+	@echo "🗄️  DATABASE"
+	@echo "   make db-shell        Open psql shell (local Docker postgres)"
 	@echo ""
 	@echo "🌱 SEEDS (Dados de Desenvolvimento)"
 	@echo "   make seed            Run all seeds (DB)"
@@ -225,48 +222,7 @@ cloudrun-push-all:
 # DATABASE & MIGRATIONS
 # =============================================================================
 
-.PHONY: migrate migrate-prod migrate-status db-shell
-
-migrate:
-	@echo "🔄 Running migrations (local Docker)..."
-	@docker exec blu_agent_api python -c "\
-import sys; \
-sys.path.insert(0, '/app/libs/blu_db_connector/src'); \
-sys.path.insert(0, '/app/libs/blu_models/src'); \
-from alembic.config import Config; \
-from alembic import command; \
-import os; \
-cfg = Config('/app/libs/blu_db_connector/alembic.ini'); \
-cfg.set_main_option('sqlalchemy.url', os.environ['DATABASE_URL']); \
-cfg.set_main_option('script_location', '/app/libs/blu_db_connector/alembic'); \
-command.upgrade(cfg, 'head'); \
-print('✅ Migrations applied!')"
-
-migrate-prod:
-	@if [ -z "$(SUPABASE_DB_URL)" ]; then \
-		echo "❌ SUPABASE_DB_URL not set in .env"; \
-		exit 1; \
-	fi
-	@echo "⚠️  This will modify PRODUCTION database!"
-	@echo "   URL: $$(echo '$(SUPABASE_DB_URL)' | sed 's/:.*@/:***@/')"
-	@read -p "Continue? [y/N] " confirm && [ "$$confirm" = "y" ] || exit 1
-	@cd libs/blu_db_connector && \
-		DATABASE_URL="$(SUPABASE_DB_URL)" \
-		PYTHONPATH="$(PWD)/libs/blu_models/src:$(PWD)/libs/blu_db_connector/src" \
-		poetry run alembic upgrade head
-	@echo "✅ Migrations applied to Supabase!"
-
-migrate-status:
-	@echo "📊 Migration status..."
-	@docker exec blu_agent_api python -c "\
-from sqlalchemy import create_engine, text; \
-import os; \
-engine = create_engine(os.environ['DATABASE_URL']); \
-conn = engine.connect(); \
-result = conn.execute(text('SELECT version_num FROM alembic_version')); \
-row = result.fetchone(); \
-print('Current version:', row[0] if row else 'No migrations'); \
-conn.close()"
+.PHONY: db-shell
 
 db-shell:
 	$(COMPOSE) exec -it postgres psql -U user -d blu_db

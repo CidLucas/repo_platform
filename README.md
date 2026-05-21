@@ -42,12 +42,10 @@ See `docs/agent_system_map.md` for the full reference (graphs, nodes, prompts, t
 ```text
 apps/
   blu_v3/                 Main React frontend (dashboard + chat)
-  hitl_dashboard/         Streamlit app for human-in-the-loop operations
   landing/                Landing web app
 
 services/
   agent_api/              Primary agent orchestration service (LangGraph-based)
-  file_upload_api/        File upload and document processing API
   tool_pool_api/          MCP tool server API
 
 libs/
@@ -117,7 +115,7 @@ The development stack expects a root `.env` file.
 Use the service template as a starting point:
 
 ```bash
-cp services/atendente_core/.env.example .env
+cp services/agent_api/.env.example .env
 ```
 
 Then fill in required values for your environment. At minimum, confirm:
@@ -149,11 +147,10 @@ make dev
 
 This starts the core services used for day-to-day development, including:
 
-- landing app on http://localhost:8080
-- dashboard app on http://localhost:8081
-- atendente core on http://localhost:8003
+- landing app (apps/landing) on http://localhost:8080
+- dashboard app (apps/blu_v3) on http://localhost:5175
+- agent API on http://localhost:8000
 - tool pool API on http://localhost:8006
-- standalone agent API on http://localhost:8001
 
 Stop the stack:
 

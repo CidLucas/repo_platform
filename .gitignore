@@ -72,3 +72,6 @@ seeds/
 projetos/
 open-design/
 .vercel
+
+# Langfuse self-hosted (local only)
+langfuse/

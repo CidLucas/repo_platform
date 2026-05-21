@@ -10,7 +10,8 @@ L1 Tool          →  stateless MCP execution via MCPToolExecutor
 ```
 
 The Orchestrator calls L3 only. L3 calls L2 via `SkillFactory`. Never skip layers.
-Entry point: Frontdesk specialist (routes simple queries inline, hands off complex to Orchestrator).
+Entry point: User-Facing Agent (routes simple queries inline, hands off complex to Orchestrator).
+Agents are stateless — all business memory persists in Supabase, loaded via ContextService.
 
 ## Repo Structure
 

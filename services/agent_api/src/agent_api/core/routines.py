@@ -993,7 +993,34 @@ async def _execute_one(
                     "execution_id": exec_id,
                     "routine_id": str(routine_id),
                 }
-            outputs = await _execute_artifact_step(step, resolved_inputs, str(client_id))
+            # ── D2 dedupe: side-effectful artifacts get a claim row before delivery
+            artifact_type = step.get("artifact_type") or ""
+            _SIDE_EFFECTFUL = {"email", "whatsapp", "document"}
+            claim_id: str | None = None
+            if artifact_type in _SIDE_EFFECTFUL:
+                from agent_api.core.artifact_dedupe import claim_artifact, mark_artifact_sent, mark_artifact_failed
+                claim_id = await claim_artifact(
+                    execution_id=exec_id,
+                    step_id=step_id,
+                    client_id=str(client_id),
+                    artifact_type=artifact_type,
+                    function_name=fn_name,
+                )
+                if claim_id is None:
+                    logger.warning(
+                        "[RoutineExecutor] %s → step '%s' (%s) SKIPPED: already delivered (dedupe)",
+                        exec_id, step_id, artifact_type,
+                    )
+                    return step_id, {"deduped": True}, ""
+            try:
+                outputs = await _execute_artifact_step(step, resolved_inputs, str(client_id))
+                if claim_id:
+                    await mark_artifact_sent(claim_id, outputs)
+            except Exception:
+                if claim_id:
+                    import traceback
+                    await mark_artifact_failed(claim_id, traceback.format_exc(limit=3))
+                raise
 
         elif step_type == "approval":
             resolved_inputs = {**resolved_inputs, "execution_id": exec_id}

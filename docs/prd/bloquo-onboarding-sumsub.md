@@ -1,40 +1,40 @@
-# PRD: Serviço de Onboarding KYC/KYB/Counterparty — Bloco
+# PRD: Serviço de Onboarding KYC/KYB/Counterparty — Bloquo
 
 **Status:** Rascunho  
 **Autor:** Lucas Cruz  
 **Data:** 2026-05-25  
 **Versão:** 0.2  
-**Cliente:** Bloco (cross-border trading)  
+**Cliente:** Bloquo (cross-border trading)  
 **Contexto:** Consultoria externa — serviço independente do Blu
 
 ---
 
 ## Problema / Oportunidade
 
-A Bloco precisa de um processo de onboarding regulatório para seus clientes (KYC/KYB) e terceiros (Counterparty), usando SumSub como motor de verificação. O fluxo do SumSub SDK é técnico e árido — usuários ficam perdidos sobre quais documentos enviar, o que é aceito e como avançar. Além disso, o estado do onboarding precisa estar acessível para um agente de IA que guia o usuário em tempo real. A plataforma deve suportar múltiplos idiomas (PT-BR no mínimo, com extensibilidade para EN e outros).
+A Bloquo precisa de um processo de onboarding regulatório para seus clientes (KYC/KYB) e terceiros (Counterparty), usando SumSub como motor de verificação. O fluxo do SumSub SDK é técnico e árido — usuários ficam perdidos sobre quais documentos enviar, o que é aceito e como avançar. Além disso, o estado do onboarding precisa estar acessível para um agente de IA que guia o usuário em tempo real. A plataforma deve suportar múltiplos idiomas (PT-BR no mínimo, com extensibilidade para EN e outros).
 
 ---
 
 ## Usuário Alvo
 
-- **Primário:** Clientes da Bloco — empresas e pessoas físicas que fazem cross-border trading e precisam passar pelo processo de KYC/KYB antes de operar.
-- **Secundário:** Terceiros (Counterparty) — pessoas físicas ou jurídicas que farão negócios com os clientes da Bloco, e precisam de validação básica antes de serem aceitos como contraparte.
+- **Primário:** Clientes da Bloquo — empresas e pessoas físicas que fazem cross-border trading e precisam passar pelo processo de KYC/KYB antes de operar.
+- **Secundário:** Terceiros (Counterparty) — pessoas físicas ou jurídicas que farão negócios com os clientes da Bloquo, e precisam de validação básica antes de serem aceitos como contraparte.
 
 ---
 
 ## Metas
 
 - [ ] Integrar SumSub para os 3 perfis de verificação (KYC, KYB, Counterparty) em até 2 meses
-- [ ] Disponibilizar agente de IA que guia o usuário durante o onboarding via widget na plataforma web da Bloco
+- [ ] Disponibilizar agente de IA que guia o usuário durante o onboarding via widget na plataforma web da Bloquo
 - [ ] Expor estado do onboarding via API para consumo pelo agente
-- [ ] RAG funcional com base de conhecimento sobre documentos aceitos, processo e FAQ (alimentada e mantida pela Bloco)
+- [ ] RAG funcional com base de conhecimento sobre documentos aceitos, processo e FAQ (alimentada e mantida pela Bloquo)
 - [ ] Suporte multi-idioma (PT-BR + EN, extensível)
 
 ---
 
 ## Non-Goals (fora do escopo)
 
-- Construção do frontend (feito pelo time da Bloco)
+- Construção do frontend (feito pelo time da Bloquo)
 - Substituição do SumSub SDK — o agente é complementar, não concorrente
 - Acesso direto do agente à API do SumSub
 - Integrações com WhatsApp, Telegram ou outros canais (apenas web)
@@ -53,21 +53,21 @@ O SumSub é uma plataforma de KYC/KYB que expõe:
 **Importante:** Webhooks do SumSub **não contêm PII** — apenas IDs e status. Para obter dados do applicant, é necessário chamar `GET /resources/applicants/{applicantId}`.
 
 O serviço a ser construído é uma **API intermediária** (FastAPI) que:
-1. Recebe requisições do backend/frontend da Bloco
+1. Recebe requisições do backend/frontend da Bloquo
 2. Orquestra chamadas ao SumSub (HMAC-signed)
 3. Persiste estado do onboarding para consumo pelo agente
 4. Expõe endpoints do agente (chat + contexto)
-5. Integra com a biblioteca vetorial da Bloco (RAG)
+5. Integra com a biblioteca vetorial da Bloquo (RAG)
 
 ---
 
 ## Premissas
 
-- Backend e frontend da Bloco já existem — a entrega é somente o serviço de onboarding + agente como API
-- Stack do serviço: Python + FastAPI (preferência do Lucas; a confirmar com a Bloco)
-- SumSub contratado pela Bloco; levels/flows configurados no dashboard deles
-- A biblioteca vetorial (RAG) já existe na Bloco — a integração será feita com a API deles
-- A base RAG será alimentada e mantida pela própria Bloco
+- Backend e frontend da Bloquo já existem — a entrega é somente o serviço de onboarding + agente como API
+- Stack do serviço: Python + FastAPI (preferência do Lucas; a confirmar com a Bloquo)
+- SumSub contratado pela Bloquo; levels/flows configurados no dashboard deles
+- A biblioteca vetorial (RAG) já existe na Bloquo — a integração será feita com a API deles
+- A base RAG será alimentada e mantida pela própria Bloquo
 - Compliance regulatório é responsabilidade do SumSub
 - Prazo: 2 meses para os 3 perfis + agente completos
 
@@ -76,7 +76,7 @@ O serviço a ser construído é uma **API intermediária** (FastAPI) que:
 ## Os 3 Perfis de Verificação
 
 ### Perfil 1 — KYC (Know Your Customer)
-Verificação de pessoa física (cliente da Bloco).
+Verificação de pessoa física (cliente da Bloquo).
 
 **Fluxo SumSub:**
 1. `POST /resources/applicants?levelName={kyc_level}` com `externalUserId` + `fixedInfo` (country: BRA)
@@ -96,7 +96,7 @@ Verificação de pessoa física (cliente da Bloco).
 ---
 
 ### Perfil 2 — KYB (Know Your Business)
-Verificação de pessoa jurídica (empresa cliente da Bloco).
+Verificação de pessoa jurídica (empresa cliente da Bloquo).
 
 **Fluxo SumSub:**
 1. `POST /resources/applicants?levelName={kyb_level}` com `type: company` + `fixedInfo.companyInfo` (companyName + country: BRA obrigatórios)
@@ -132,14 +132,14 @@ Validação básica de terceiros (sem liveness, sem upload de documento físico)
 
 **Adicional — Conta Bancária:**
 - Dados bancários coletados via formulário próprio (não via SumSub)
-- Validados e armazenados no serviço para repasse ao backend da Bloco
+- Validados e armazenados no serviço para repasse ao backend da Bloquo
 
 ---
 
 ## Arquitetura do Serviço
 
 ```
-Frontend Bloco (WebSDK embutido + widget do agente)
+Frontend Bloquo (WebSDK embutido + widget do agente)
     │
     ├─► POST  /onboarding/init              → Cria applicant + retorna access token para WebSDK
     ├─► GET   /onboarding/status/{id}       → Status atual do onboarding
@@ -252,7 +252,7 @@ Body (applicantReviewed — RED):
 - [ ] Agente responde perguntas sobre processo com precisão ≥ 85% (avaliação manual)
 - [ ] Webhook recebe e processa eventos com latência < 2s
 - [ ] Verificação HMAC funcional (zero webhooks processados sem validação)
-- [ ] API documentada (OpenAPI/Swagger) com exemplos para o time da Bloco
+- [ ] API documentada (OpenAPI/Swagger) com exemplos para o time da Bloquo
 - [ ] Suporte PT-BR e EN no agente
 - [ ] Entrega em 2 meses
 
@@ -260,12 +260,12 @@ Body (applicantReviewed — RED):
 
 ## Perguntas Abertas
 
-- [ ] Stack do backend da Bloco? (para definir autenticação entre sistemas)
+- [ ] Stack do backend da Bloquo? (para definir autenticação entre sistemas)
 - [ ] Qual banco de dados/infraestrutura está disponível no ambiente deles?
 - [ ] Os levels do SumSub já estão criados no dashboard ou precisamos criar junto?
-- [ ] API da biblioteca vetorial da Bloco — como é o contrato de integração?
+- [ ] API da biblioteca vetorial da Bloquo — como é o contrato de integração?
 - [ ] O widget do agente será um componente React entregue por nós ou só a API?
-- [ ] Como será feita a autenticação entre o frontend da Bloco e nossa API? (JWT? API Key?)
+- [ ] Como será feita a autenticação entre o frontend da Bloquo e nossa API? (JWT? API Key?)
 - [ ] Ambiente de staging/sandbox do SumSub disponível para testes?
 - [ ] Para KYB — Auto KYB ou Full KYB? (impacta escopo de documentos e UBOs)
 - [ ] Para Counterparty — conta bancária: armazenar onde? Repassar via webhook para o backend deles?

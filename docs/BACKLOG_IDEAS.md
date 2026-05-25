@@ -429,29 +429,31 @@ C3. Logs centralizados ✅
 - Não bloqueadores: G4 (sampling OTEL), G5 (FastAPI auto-instrumentation), substituir prints
 - Decidido NÃO migrar para structlog/Sentry agora
 
-### FASE D — Lifecycle de aprovações e side-effects [1-2 dias]
+### FASE D — Lifecycle de aprovações e side-effects [1-2 dias] ✅ DONE (2026-05-25)
 
-D1. TTL para approval_requests
-- Adicionar expires_at DEFAULT now() + interval '48 hours'
-- pg_cron nightly: marca pending vencidas como 'expired' + notifica owner
-- UI mostra contagem regressiva
+D1. TTL para approval_requests ✅
+- Aplicado: `supabase/migrations/applied/20260525_p9_approval_request_ttl.sql`
+- Default `expires_at = now() + 48h`; backfill carência 48h a partir de agora
+- Função `public.expire_pending_approvals()` + pg_cron `*/10 * * * *`
+- Status 'expired' adicionado ao CHECK; notification `approval_expired` (in_app)
 
-D2. Dedupe de artefatos side-effectful
-- Confirmar exec_id + step_id nos metadados de email/WhatsApp/document artifacts
-- Tabela de auditoria artifact_log (exec_id, step_id, artifact_type, sent_at) — UNIQUE constraint
-- Bloqueia retry duplicado
+D2. Dedupe de artefatos side-effectful ✅
+- Aplicado: `supabase/migrations/applied/20260525_p10_artifact_log_dedupe.sql`
+- Tabela `artifact_log` com UNIQUE(execution_id, step_id)
+- Wire-up no executor: `services/agent_api/src/agent_api/core/routines.py:988-1023`
+- Módulo: `services/agent_api/src/agent_api/core/artifact_dedupe.py`
+- Tipos protegidos: email, whatsapp, document. NÃO aplicado a alert/approval.
 
 ### FASE E — Cobertura de rotinas pré-onboarding [3-5 dias]
 
-E1. Inventário de fetch_functions vs rotinas seedadas
-- Para cada das 10 rotinas: listar steps → listar function calls → check existência
-- Documentar gaps: get_cash_position, evaluate_cash_alert, get_overdue_customers, etc.
+E1. Inventário de fetch_functions vs rotinas seedadas ✅ DONE (2026-05-25)
+- Resultado: 25/25 functions chamadas = 100% registradas. 16/16 skills existem.
+- Doc: `docs/security/routine-inventory-mai2026.md`
+- **E2 descartado** — não há gaps de implementação.
 
-E2. Implementar fetch_functions críticas para onboarding
-- Priorizar as que disparam nos primeiros 7 dias: morning_sync, daily_briefing, daily_insights, context_report
-- daily_insights.py — arquivo não existe; implementar ou remover do catálogo
+E2. ~~Implementar fetch_functions críticas para onboarding~~ — não aplicável (cobertura 100%).
 
-E3. Validação end-to-end com cliente de teste interno
+E3. Validação end-to-end com cliente de teste interno [PENDENTE]
 - Criar cliente is_test_account=true
 - Onboardar completo (BQ + Sheets + Polp + Google + Monday)
 - Observar 72h: todas as 10 rotinas rodaram pelo menos uma vez? client_insights populando?

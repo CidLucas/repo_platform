@@ -349,3 +349,125 @@ Capturado em: Mai-2026. Motivação: identificamos que execuções de rotinas fi
 | P3 | Priority queue (event > cron) | UX mais responsiva | 1 dia |
 | P3 | OpenTelemetry end-to-end | Tracing distribuído completo | 2 dias |
 - Esforço: 2h após definição
+
+---
+
+## Pre-Onboarding Hardening Plan (Mai-2026) — Segurança & Otimização
+
+**Contexto:** avaliação geral feita antes de onboardar clientes de teste reais. Objetivo: fechar buracos de segurança, garantir auto-refresh de tokens, isolar tenants e ter visibilidade operacional ANTES do primeiro cliente real.
+
+**Skills de apoio:**
+- `blu-supabase-patterns` — RLS, edge functions, OAuth, Fernet/Vault
+- `requesting-code-review` — security scan (secrets, vulnerabilidades)
+- `systematic-debugging` — quando encontrar comportamento estranho
+- `repo-platform-troubleshooting` — diagnóstico runtime do agent_api/tool_pool_api
+- `subagent-driven-development` — paralelizar frentes independentes
+
+### FASE A — Segurança (P0, bloqueador) [3-5 dias]
+
+A1. Auditoria RLS completa
+- Listar todas as tabelas tenant-scoped: clientes_blu, fato_transacoes, dim_inventory, dim_clientes, dim_fornecedores, integration_tokens, client_routines, client_routine_executions, approval_requests, client_insights, messages, notifications, frontend_events, polp_integrations, polp_accounts, polp_transactions, polp_bills, bigquery_foreign_tables, standalone_agent_sessions
+- Para cada: confirmar policy "auth.uid() resolve client_id e SELECT/UPDATE/DELETE filtram por client_id"
+- Testar com 2 JWTs distintos: cliente A NÃO pode ler dados de cliente B
+- Entregável: relatório em docs/security/rls-audit-mai2026.md + migrations corretivas se houver gap
+
+A2. Rotação e armazenamento de segredos
+- Mapear onde vivem: FERNET_KEY, ROUTINE_DISPATCH_TOKEN, SUPABASE_SERVICE_KEY, MCP_AUTH_GOOGLE_CLIENT_SECRET, Polp webhook secret
+- Confirmar que .env de prod NÃO está no repo (.gitignore + git history scan)
+- Documentar processo de rotação de cada um
+- Mover credenciais sensíveis para Supabase Vault ou secrets manager (Doppler/AWS Secrets)
+
+A3. Polp webhook hardening
+- Validar HMAC signature do payload (se Polp expõe)
+- Rate limiting na edge function
+- Idempotency key por event_id
+
+A4. Auto-refresh Google OAuth (CRÍTICO)
+- Fix em _refresh_google_token: ler MCP_AUTH_GOOGLE_CLIENT_ID/SECRET do .env ou secrets, não de integration_configs (vazia)
+- Teste: forçar AT expirado, confirmar refresh automático antes da próxima chamada
+- Migração de tokens Fernet legados → Vault (script já em scripts/, validar)
+
+A5. Migração de provider keys legadas
+- Query: SELECT provider, count(*) FROM integration_tokens WHERE provider LIKE 'ic-%'
+- Migration UPDATE para remover prefixo ic- (consolidar com Mai-2026 fix)
+
+### FASE B — Isolamento multi-tenant e capacidade [2 dias]
+
+B1. Flag is_test_account em clientes_blu
+- ADD COLUMN is_test_account boolean DEFAULT false
+- View active_clientes_blu já existe — criar production_clientes_blu (WHERE NOT is_test_account)
+- Métricas/dashboards globais devem excluir contas de teste
+
+B2. Pool de conexões para produção
+- Aumentar direct connection pool: pool_size 2→6, max_overflow 1→3
+- Validar limite da instância Supabase antes de subir
+- Documentar quando usar pooler vs direct
+
+B3. Idempotência de onboarding
+- Caso de teste: cliente abandona onboarding no meio → volta → o que acontece?
+- Mapear side-effects: bigquery_foreign_tables, polp_integrations, integration_tokens, dim_*
+- Definir: retomar de onde parou OU apagar parcial e refazer (recomendado: idempotent upsert em tudo)
+
+### FASE C — Observabilidade operacional [2 dias]
+
+C1. Alerta de circuit breaker
+- Trigger SQL em client_routines AFTER UPDATE quando status='suspended'
+- Notify via Slack/Discord interno (canal #blu-ops)
+- Incluir client_id, routine_id, consecutive_failures, last error
+
+C2. Dashboard de health (Grafana)
+- Rotinas suspensas por cliente
+- Execuções failed por hora (alerta > 5/h)
+- Tokens OAuth expirados/inválidos por provider
+- Heartbeat staleness em execuções dispatched
+
+C3. Logs centralizados
+- Confirmar Grafana OTLP capturando agent_api + tool_pool_api em prod
+- Log structured com client_id, routine_id, execution_id correlatos
+- Retenção mínima 7 dias
+
+### FASE D — Lifecycle de aprovações e side-effects [1-2 dias]
+
+D1. TTL para approval_requests
+- Adicionar expires_at DEFAULT now() + interval '48 hours'
+- pg_cron nightly: marca pending vencidas como 'expired' + notifica owner
+- UI mostra contagem regressiva
+
+D2. Dedupe de artefatos side-effectful
+- Confirmar exec_id + step_id nos metadados de email/WhatsApp/document artifacts
+- Tabela de auditoria artifact_log (exec_id, step_id, artifact_type, sent_at) — UNIQUE constraint
+- Bloqueia retry duplicado
+
+### FASE E — Cobertura de rotinas pré-onboarding [3-5 dias]
+
+E1. Inventário de fetch_functions vs rotinas seedadas
+- Para cada das 10 rotinas: listar steps → listar function calls → check existência
+- Documentar gaps: get_cash_position, evaluate_cash_alert, get_overdue_customers, etc.
+
+E2. Implementar fetch_functions críticas para onboarding
+- Priorizar as que disparam nos primeiros 7 dias: morning_sync, daily_briefing, daily_insights, context_report
+- daily_insights.py — arquivo não existe; implementar ou remover do catálogo
+
+E3. Validação end-to-end com cliente de teste interno
+- Criar cliente is_test_account=true
+- Onboardar completo (BQ + Sheets + Polp + Google + Monday)
+- Observar 72h: todas as 10 rotinas rodaram pelo menos uma vez? client_insights populando?
+- Capturar todos os erros em docs/security/test-onboarding-log.md
+
+### Ordem de execução proposta
+
+| Sprint | Fases | Dias | Bloqueia onboarding? |
+|---|---|---|---|
+| Sprint 1 | A1, A2, A4 | 3 | SIM (segurança crítica) |
+| Sprint 2 | A3, A5, B1, B2 | 2 | SIM (isolamento) |
+| Sprint 3 | C1, C2, C3 | 2 | Parcial (sem isso, voa às cegas) |
+| Sprint 4 | D1, D2, E1 | 2 | NÃO (mitigável manualmente) |
+| Sprint 5 | E2, E3 | 3-5 | NÃO (validação contínua) |
+
+**Total estimado:** 12-14 dias úteis até onboarding seguro do primeiro cliente real.
+
+**Critério de "GO" para onboarding de cliente externo:**
+- Sprints 1, 2 e 3 completos
+- 1 cliente de teste interno rodando há 72h sem incidente
+- Dashboard de health ativo + alertas testados
+

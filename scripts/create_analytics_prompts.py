@@ -6,10 +6,16 @@ from base64 import b64encode
 
 import requests
 
-# Auth
-PUBLIC_KEY = os.environ.get("LANGFUSE_PUBLIC_KEY", "pk-lf-461b0371-b3d8-4dd1-a043-132366f9cc64")
-SECRET_KEY = os.environ.get("LANGFUSE_SECRET_KEY", "sk-lf-734d84c8-464e-41de-bc98-07396d0d7ee4")
+# Auth — credentials loaded exclusively from environment variables
+PUBLIC_KEY = os.environ.get("LANGFUSE_PUBLIC_KEY")
+SECRET_KEY = os.environ.get("LANGFUSE_SECRET_KEY")
 BASE_URL = os.environ.get("LANGFUSE_HOST", os.environ.get("LANGFUSE_BASE_URL", "https://us.cloud.langfuse.com"))
+
+if not PUBLIC_KEY or not SECRET_KEY:
+    raise SystemExit(
+        "ERROR: LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY must be set in the environment "
+        "(see .env / .env.example)."
+    )
 
 auth_token = b64encode(f"{PUBLIC_KEY}:{SECRET_KEY}".encode()).decode()
 HEADERS = {

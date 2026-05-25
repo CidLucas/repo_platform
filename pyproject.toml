@@ -50,6 +50,7 @@ exclude = [
     "alembic/versions.backup",  # Backup migrations
     ".pytest_cache",
     "*.egg-info",
+    "build",                    # Setuptools build artifacts
 ]
 
 [tool.ruff.lint]

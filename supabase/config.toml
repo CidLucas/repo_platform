@@ -116,3 +116,9 @@ verify_jwt = true
 # Requires user JWT (tenant isolation via auth.uid).
 [functions.get-agenda-events]
 verify_jwt = true
+
+# polp-webhook: endpoint público server-to-server (Polp/Pluggy). Não usa JWT;
+# valida origem por assinatura HMAC (X-Polp-Signature / X-Pluggy-Signature)
+# e fallback legado X-Secret.
+[functions.polp-webhook]
+verify_jwt = false

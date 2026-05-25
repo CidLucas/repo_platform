@@ -14,6 +14,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -47,8 +48,15 @@ Deno.serve(async (req: Request) => {
   const body = await req.json().catch(() => ({}));
   const scope: string = body.scope ?? "https://www.googleapis.com/auth/calendar.readonly";
 
-  // Get Google OAuth credentials from platform config
-  const { data: oauthConfig } = await userClient.rpc("get_platform_google_oauth_config");
+  // Get Google OAuth credentials from platform config.
+  // Uses service-role client because get_platform_google_oauth_config is
+  // locked down (service_role only) by 20260525_p3_lockdown_secdef.sql —
+  // the client_secret must never reach the browser anyway, and we only
+  // read it here to build the redirect URL with client_id.
+  const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data: oauthConfig } = await adminClient.rpc("get_platform_google_oauth_config");
   if (!oauthConfig?.client_id) return jsonResp({ error: "google oauth not configured" }, 500);
 
   // Store user id and return URL in state

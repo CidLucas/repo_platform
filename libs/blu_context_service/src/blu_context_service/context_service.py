@@ -1,7 +1,8 @@
 import asyncio
 import logging
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from threading import Lock
 from typing import TYPE_CHECKING, Optional
 from uuid import UUID
 
@@ -40,6 +41,11 @@ _DOMAIN_SECTIONS: dict[str, frozenset[str]] = {
     "config":        frozenset({"available_tools", "team_structure", "company_profile"}),
     "settings":      frozenset({"available_tools", "team_structure", "company_profile"}),
 }
+
+_GOOGLE_OAUTH_CONFIG_CACHE: dict[str, str] | None = None
+_GOOGLE_OAUTH_CONFIG_CACHE_EXPIRES_AT: datetime | None = None
+_GOOGLE_OAUTH_CONFIG_CACHE_TTL_SECONDS = 600
+_GOOGLE_OAUTH_CONFIG_CACHE_LOCK = Lock()
 
 
 class ContextService:
@@ -592,7 +598,7 @@ class ContextService:
                                     from dateutil import parser as dtparser
                                     vu = dtparser.parse(valid_until)
                                     if vu.tzinfo is None:
-                                        vu = vu.replace(tzinfo=timezone.utc)
+                                        vu = vu.replace(tzinfo=UTC)
                                     if vu < datetime.now(UTC):
                                         continue
                                 except Exception:
@@ -824,6 +830,63 @@ class ContextService:
             self._supabase_crud.get_platform_oauth_config, provider
         )
 
+    async def _fetch_google_oauth_config_from_vault(self) -> dict[str, str]:
+        """Fetch Google OAuth config from Vault via service-role RPC."""
+        try:
+            service_client = get_supabase_client(use_service_role=True)
+            service_crud = SupabaseCRUD(client=service_client)
+            platform_cfg = await asyncio.to_thread(
+                service_crud.get_platform_oauth_config,
+                "google",
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "[Token Refresh] Failed to read Google OAuth config from Vault via "
+                "get_platform_google_oauth_config"
+            ) from exc
+
+        if not isinstance(platform_cfg, dict):
+            raise RuntimeError(
+                "[Token Refresh] Google OAuth config is missing in Vault "
+                "(get_platform_google_oauth_config returned empty)"
+            )
+
+        oauth_client_id = platform_cfg.get("client_id")
+        oauth_client_secret = platform_cfg.get("client_secret")
+
+        if not oauth_client_id or not oauth_client_secret:
+            raise RuntimeError(
+                "[Token Refresh] Google OAuth config in Vault is invalid: "
+                "missing client_id/client_secret"
+            )
+
+        return {
+            "client_id": oauth_client_id,
+            "client_secret": oauth_client_secret,
+        }
+
+    async def _get_google_oauth_config_cached(self) -> dict[str, str]:
+        """Return Vault Google OAuth config with in-process TTL cache."""
+        global _GOOGLE_OAUTH_CONFIG_CACHE, _GOOGLE_OAUTH_CONFIG_CACHE_EXPIRES_AT
+
+        now = datetime.now(UTC)
+        with _GOOGLE_OAUTH_CONFIG_CACHE_LOCK:
+            if (
+                _GOOGLE_OAUTH_CONFIG_CACHE
+                and _GOOGLE_OAUTH_CONFIG_CACHE_EXPIRES_AT
+                and _GOOGLE_OAUTH_CONFIG_CACHE_EXPIRES_AT > now
+            ):
+                return dict(_GOOGLE_OAUTH_CONFIG_CACHE)
+
+        oauth_config = await self._fetch_google_oauth_config_from_vault()
+
+        with _GOOGLE_OAUTH_CONFIG_CACHE_LOCK:
+            _GOOGLE_OAUTH_CONFIG_CACHE = dict(oauth_config)
+            _GOOGLE_OAUTH_CONFIG_CACHE_EXPIRES_AT = datetime.now(UTC) + timedelta(
+                seconds=_GOOGLE_OAUTH_CONFIG_CACHE_TTL_SECONDS
+            )
+            return dict(_GOOGLE_OAUTH_CONFIG_CACHE)
+
     async def save_integration_tokens(
         self,
         client_id: UUID,
@@ -938,34 +1001,23 @@ class ContextService:
     ) -> Optional["ContextService._IntegrationTokenWrapper"]:
         """Refresh a Google access token using the stored refresh token."""
         try:
-            cfg_row = await self.get_integration_config(client_id, "google")
+            oauth_config_values = await self._get_google_oauth_config_cached()
+            if not isinstance(oauth_config_values, dict):
+                raise RuntimeError(
+                    "[Token Refresh] Google OAuth config is missing in Vault "
+                    "(cached config is empty)"
+                )
 
-            if cfg_row:
-                oauth_client_id = self._decrypt(
-                    cfg_row.get("client_id_encrypted")
-                    if isinstance(cfg_row, dict)
-                    else cfg_row.client_id_encrypted
+            oauth_client_id = oauth_config_values.get("client_id")
+            oauth_client_secret = oauth_config_values.get("client_secret")
+            if not oauth_client_id or not oauth_client_secret:
+                raise RuntimeError(
+                    "[Token Refresh] Google OAuth config in Vault is invalid: "
+                    "missing client_id/client_secret"
                 )
-                oauth_client_secret = self._decrypt(
-                    cfg_row.get("client_secret_encrypted")
-                    if isinstance(cfg_row, dict)
-                    else cfg_row.client_secret_encrypted
-                )
-                redirect_uri = (
-                    cfg_row.get("redirect_uri") if isinstance(cfg_row, dict) else cfg_row.redirect_uri
-                )
-                scopes = cfg_row.get("scopes") if isinstance(cfg_row, dict) else cfg_row.scopes
-            else:
-                platform_cfg = await self.get_platform_oauth_config("google")
-                if not platform_cfg:
-                    logger.error(f"[Token Refresh] No Google config found for cliente {client_id}")
-                    return None
-                oauth_client_id = platform_cfg["client_id"]
-                oauth_client_secret = platform_cfg["client_secret"]
-                redirect_uri = ""
-                scopes = []
 
-            from datetime import timedelta
+            redirect_uri = ""
+            scopes: list[str] = []
 
             from blu_auth.oauth2.models import OAuthConfig
             from blu_auth.oauth2.oauth_manager import OAuthManager
@@ -974,7 +1026,7 @@ class ContextService:
                 client_id=oauth_client_id,
                 client_secret=oauth_client_secret,
                 redirect_uri=redirect_uri,
-                scopes=scopes if isinstance(scopes, list) else [],
+                scopes=scopes,
             )
 
             manager = OAuthManager("google")
@@ -1000,6 +1052,9 @@ class ContextService:
                 client_id, "google", auto_refresh=False, account_email=account_email
             )
 
+        except RuntimeError:
+            logger.error("[Token Refresh] Failed to refresh Google token due to Vault config error", exc_info=True)
+            raise
         except Exception as e:
             logger.error(f"[Token Refresh] Failed to refresh Google token: {e}", exc_info=True)
             return None

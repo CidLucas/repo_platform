@@ -2,8 +2,9 @@
  * polp-webhook — Receive Polp real-time events and sync data into Supabase
  *
  * Register this URL in the Polp dashboard as the webhook endpoint.
- * Set POLP_WEBHOOK_SECRET env var and pass it as X-Secret header in Polp's
- * webhook config so we can validate the origin of each event.
+ * Set POLP_WEBHOOK_SECRET env var and configure Polp to send
+ * X-Polp-Signature (HMAC-SHA256 over raw body). Legacy X-Secret is kept as
+ * backward-compatible fallback.
  *
  * Handled events:
  *   integrations.updated  → update polp_integrations status; trigger account sync
@@ -31,11 +32,68 @@ const polpHeaders = {
   "x-api-secret": POLP_API_SECRET,
 };
 
+const textEncoder = new TextEncoder();
+
+function hexToBytes(hex: string): Uint8Array {
+  if (!hex || hex.length % 2 !== 0) return new Uint8Array();
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    const value = Number.parseInt(hex.slice(i, i + 2), 16);
+    if (Number.isNaN(value)) return new Uint8Array();
+    bytes[i / 2] = value;
+  }
+  return bytes;
+}
+
+function normalizeSignature(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("sha256=")) return trimmed.slice(7);
+  return trimmed;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function fallbackEventIdFromBody(rawBody: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", textEncoder.encode(rawBody));
+  return `body_sha256:${bytesToHex(new Uint8Array(digest))}`;
+}
+
+async function validateWebhookSignature(rawBody: string, req: Request): Promise<boolean> {
+  if (!POLP_WEBHOOK_SECRET) return true; // dev fallback
+
+  const signatureHeader = normalizeSignature(
+    req.headers.get("x-polp-signature") ?? req.headers.get("x-pluggy-signature"),
+  );
+  if (signatureHeader) {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      textEncoder.encode(POLP_WEBHOOK_SECRET),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["verify"],
+    );
+    const signatureBytes = hexToBytes(signatureHeader);
+    if (signatureBytes.length === 0) return false;
+    return await crypto.subtle.verify("HMAC", key, signatureBytes, textEncoder.encode(rawBody));
+  }
+
+  // Backward compatibility with legacy X-Secret integration config
+  const legacySecret = req.headers.get("x-secret") ?? "";
+  return legacySecret === POLP_WEBHOOK_SECRET;
+}
+
 interface PolpWebhookPayload {
   event: string;
   entity: string;
   entity_id: number;
+  event_id?: string | number;
+  id?: string | number;
   changes?: Record<string, unknown>;
+  data?: Record<string, unknown>;
 }
 
 async function polpGet<T>(path: string): Promise<T> {
@@ -127,20 +185,55 @@ async function syncBills(svc: ReturnType<typeof createServiceClient>, clientId: 
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  // Validate webhook secret
-  if (POLP_WEBHOOK_SECRET) {
-    const incoming = req.headers.get("x-secret") ?? "";
-    if (incoming !== POLP_WEBHOOK_SECRET) return json({ error: "Unauthorized" }, 401);
+  const rawBody = await req.text();
+
+  if (!(await validateWebhookSignature(rawBody, req))) {
+    return json({ error: "Unauthorized" }, 401);
   }
 
   let payload: PolpWebhookPayload;
   try {
-    payload = await req.json() as PolpWebhookPayload;
+    payload = JSON.parse(rawBody) as PolpWebhookPayload;
   } catch {
     return json({ error: "Invalid JSON" }, 400);
   }
 
+  const eventIdRaw =
+    payload.event_id ??
+    payload.id ??
+    payload.data?.event_id ??
+    payload.data?.eventId;
+  const eventId = eventIdRaw !== undefined && eventIdRaw !== null
+    ? String(eventIdRaw)
+    : await fallbackEventIdFromBody(rawBody);
+
   const svc = createServiceClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  // Idempotency guard by event_id
+  const { data: dedupeRow, error: dedupeErr } = await svc
+    .from("polp_webhook_events")
+    .insert({
+      event_id: eventId,
+      event_type: payload.event,
+      entity: payload.entity,
+      entity_id: payload.entity_id,
+      payload,
+      status: "processing",
+      processed_at: new Date().toISOString(),
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (dedupeErr) {
+    const code = (dedupeErr as { code?: string }).code;
+    if (code === "23505") {
+      return json({ ok: true, duplicate: true, event_id: eventId });
+    }
+    console.error("polp-webhook dedupe error:", dedupeErr);
+    return json({ error: "Failed to register webhook event" }, 500);
+  }
+
+  const webhookEventRowId = dedupeRow?.id as string | undefined;
 
   try {
     // Resolve client_id from polp_integration_id (stored in DB on first connect)
@@ -250,9 +343,33 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    if (webhookEventRowId) {
+      await svc
+        .from("polp_webhook_events")
+        .update({
+          status: "processed",
+          processed_at: new Date().toISOString(),
+          error_message: null,
+        })
+        .eq("id", webhookEventRowId);
+    }
+
     return json({ ok: true });
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error("polp-webhook error:", err);
-    return json({ error: (err as Error).message }, 500);
+
+    if (webhookEventRowId) {
+      await svc
+        .from("polp_webhook_events")
+        .update({
+          status: "failed",
+          processed_at: new Date().toISOString(),
+          error_message: message.slice(0, 500),
+        })
+        .eq("id", webhookEventRowId);
+    }
+
+    return json({ error: message }, 500);
   }
 });

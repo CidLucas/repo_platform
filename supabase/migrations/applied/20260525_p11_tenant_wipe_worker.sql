@@ -321,6 +321,13 @@ BEGIN
     -- 4. auth.users (usando lista capturada)
     DELETE FROM auth.users WHERE id IN (SELECT user_id FROM _users_to_delete);
 
+    -- 5. Foreign servers BigQuery (per-tenant) — limpa também foreign tables + user mappings via CASCADE
+    BEGIN
+      EXECUTE format('DROP SERVER IF EXISTS bigquery_%s CASCADE', v_job.client_id);
+    EXCEPTION WHEN OTHERS THEN
+      RAISE NOTICE 'Skipping FDW server drop for %: %', v_job.client_id, SQLERRM;
+    END;
+
     UPDATE admin.tenant_wipe_jobs
        SET status='completed',
            progress_pct=100,

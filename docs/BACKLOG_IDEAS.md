@@ -408,23 +408,26 @@ B3. Idempotência de onboarding
 - Mapear side-effects: bigquery_foreign_tables, polp_integrations, integration_tokens, dim_*
 - Definir: retomar de onde parou OU apagar parcial e refazer (recomendado: idempotent upsert em tudo)
 
-### FASE C — Observabilidade operacional [2 dias]
+### FASE C — Observabilidade operacional [2 dias] ✅ DONE (Mai/2026)
 
-C1. Alerta de circuit breaker
-- Trigger SQL em client_routines AFTER UPDATE quando status='suspended'
-- Notify via Slack/Discord interno (canal #blu-ops)
-- Incluir client_id, routine_id, consecutive_failures, last error
+C1. Alerta de circuit breaker ✅
+- Migration `applied/20260525_p8_routine_suspended_alert.sql`
+- Amplia CHECK constraint para aceitar `suspended` (estava silenciosamente quebrado)
+- (Re)cria `record_routine_failure` (sumiu no squash) com COMMENT
+- Trigger `trg_client_routines_suspended_notify` insere notification (`type='routine_suspended'`, urgency high, channels in_app+email) em transição OLD≠suspended → NEW=suspended
+- Smoke test passou (1 rotina suspended + 1 notification gerada, ambos limpos)
 
-C2. Dashboard de health (Grafana)
-- Rotinas suspensas por cliente
-- Execuções failed por hora (alerta > 5/h)
-- Tokens OAuth expirados/inválidos por provider
-- Heartbeat staleness em execuções dispatched
+C2. Dashboard de health (Grafana) ✅
+- Spec completo em `docs/observability/health-dashboard-spec-mai2026.md`
+- 8 painéis priorizados: rotinas suspensas, failure rate /h, heartbeat staleness, pending/dispatched, tokens, notifications, latência p50/p95, HITL pendente
+- Alertas mapeados → Slack `#blu-alerts` + Telegram (high)
+- Follow-ups: criar read-only role pg, provisionar Slack webhook, versionar JSON do dashboard
 
-C3. Logs centralizados
-- Confirmar Grafana OTLP capturando agent_api + tool_pool_api em prod
-- Log structured com client_id, routine_id, execution_id correlatos
-- Retenção mínima 7 dias
+C3. Logs centralizados ✅
+- Auditoria em `docs/observability/logging-audit-mai2026.md`
+- Bloqueadores onboarding: G1 (JSON logger), G2 (trace_id middleware), G3 (RedactFilter) — ~3h total
+- Não bloqueadores: G4 (sampling OTEL), G5 (FastAPI auto-instrumentation), substituir prints
+- Decidido NÃO migrar para structlog/Sentry agora
 
 ### FASE D — Lifecycle de aprovações e side-effects [1-2 dias]
 

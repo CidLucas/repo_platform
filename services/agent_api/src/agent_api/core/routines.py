@@ -34,6 +34,7 @@ import asyncio
 import json
 import logging
 import re
+import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -45,7 +46,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_mcp_semaphore = asyncio.Semaphore(1)
+
+# P0: tempo máximo total de uma execução de rotina (segundos)
+_ROUTINE_EXECUTION_TIMEOUT_S = 120
+
+# P1: semáforo por cliente — max 2 execuções simultâneas por client_id
+_client_semaphores: dict[str, asyncio.Semaphore] = {}
+_client_semaphores_lock = asyncio.Lock()
+
+# P1: circuit breaker — falhas consecutivas antes de suspender rotina
+_CIRCUIT_BREAKER_MAX_FAILURES = 3
 
 # Marker appended to result_text when a routine pauses for HITL approval
 _AWAITING_APPROVAL_MARKER = "__awaiting_approval__"
@@ -205,6 +215,38 @@ def _fetch_client_routine_config_sync(client_id: str, routine_id: str) -> dict |
 def _update_execution_sync(execution_id: str, payload: dict) -> None:
     get_supabase_client().table("client_routine_executions").update(payload).eq(
         "id", execution_id
+    ).execute()
+
+
+def _heartbeat_sync(execution_id: str) -> None:
+    """P1: atualiza heartbeat_at para indicar que a execução ainda está viva."""
+    get_supabase_client().table("client_routine_executions").update(
+        {"heartbeat_at": datetime.now(timezone.utc).isoformat()}
+    ).eq("id", execution_id).execute()
+
+
+def _record_routine_failure_sync(client_id: str, routine_id: str) -> str:
+    """P1: incrementa falhas consecutivas; suspende se >= max. Retorna novo status."""
+    resp = (
+        get_supabase_client()
+        .rpc(
+            "record_routine_failure",
+            {
+                "p_client_id": client_id,
+                "p_routine_id": routine_id,
+                "p_max_failures": _CIRCUIT_BREAKER_MAX_FAILURES,
+            },
+        )
+        .execute()
+    )
+    return resp.data or "active"
+
+
+def _reset_routine_failures_sync(client_id: str, routine_id: str) -> None:
+    """P1: reset circuit breaker após execução bem-sucedida."""
+    get_supabase_client().rpc(
+        "reset_routine_failures",
+        {"p_client_id": client_id, "p_routine_id": routine_id},
     ).execute()
 
 
@@ -640,53 +682,167 @@ async def claim_dispatched_batch(batch_size: int = 10) -> list[dict]:
     return await asyncio.to_thread(_claim_sync, batch_size)
 
 
-async def run_dispatched_executions(
-    claimed: list[dict], context_service: ContextService
-) -> None:
-    if not claimed:
-        return
+async def _get_client_semaphore(client_id: str) -> asyncio.Semaphore:
+    """P1: retorna semáforo por cliente (max 4 paralelos). Cria se não existir."""
+    async with _client_semaphores_lock:
+        if client_id not in _client_semaphores:
+            _client_semaphores[client_id] = asyncio.Semaphore(4)
+        return _client_semaphores[client_id]
 
-    for execution in claimed:
-        exec_id = str(execution["id"])
+
+async def _execute_one_with_heartbeat(
+    exec_id: str,
+    execution: dict,
+    context_service: ContextService,
+) -> tuple[str, str]:
+    """P1: heartbeat em thread daemon (imune a event loop blocking).
+
+    Se o event loop estiver bloqueado por chamada síncrona dentro de _execute_one,
+    um heartbeat baseado em asyncio.sleep NUNCA acorda — foi o que causou o bug
+    do reaper matando execuções legítimas. Threading.Thread + threading.Event.wait
+    rodam fora do loop e continuam pulsando.
+    """
+
+    stop_event = threading.Event()
+
+    def _heartbeat_thread() -> None:
+        # Pulsa imediatamente para marcar início, depois a cada 20s.
         try:
-            async with _mcp_semaphore:
-                from agent_api.core.factory import get_mcp_manager
-                get_mcp_manager().set_client_id(str(execution["client_id"]))
-                result_text, worker_slug = await _execute_one(execution, context_service)
+            _heartbeat_sync(exec_id)
+        except Exception:  # pragma: no cover
+            logger.exception("[Heartbeat] initial pulse failed for %s", exec_id)
+        while not stop_event.wait(20):
+            try:
+                _heartbeat_sync(exec_id)
+                logger.debug("[Heartbeat] exec %s still alive", exec_id)
+            except Exception:  # pragma: no cover
+                logger.exception("[Heartbeat] pulse failed for %s", exec_id)
 
-            if result_text.endswith(_AWAITING_APPROVAL_MARKER):
-                # HITL pause: routine is waiting for operator approval before continuing
-                clean_text = result_text[: -len(_AWAITING_APPROVAL_MARKER)].rstrip("\n")
-                await asyncio.to_thread(
-                    _update_execution_sync,
-                    exec_id,
-                    {"status": "awaiting_approval", "result_text": clean_text},
-                )
-                logger.info("[RoutineExecutor] %s paused — awaiting_approval", exec_id)
-            else:
-                await asyncio.to_thread(
-                    _update_execution_sync,
-                    exec_id,
-                    {
-                        "status": "completed",
-                        "result_text": result_text,
-                        "completed_at": datetime.now(timezone.utc).isoformat(),
-                        "worker_slug": worker_slug,
-                    },
-                )
-                await _notify_client(execution, result_text)
+    hb = threading.Thread(
+        target=_heartbeat_thread,
+        name=f"heartbeat-{exec_id[:8]}",
+        daemon=True,
+    )
+    hb.start()
+    try:
+        return await _execute_one(execution, context_service)
+    finally:
+        stop_event.set()
+        hb.join(timeout=5)
 
-        except Exception as exc:
-            logger.exception("[RoutineExecutor] Execution %s failed", exec_id)
+
+async def _run_single_execution(
+    execution: dict, context_service: ContextService
+) -> None:
+    """Executa uma única rotina com semáforo, heartbeat, timeout e circuit breaker."""
+    exec_id    = str(execution["id"])
+    client_id  = str(execution["client_id"])
+    routine_id = str(execution["routine_id"])
+
+    # P1: semáforo por cliente — evita que um cliente ocupe todos os workers
+    client_sem = await _get_client_semaphore(client_id)
+
+    try:
+        async with client_sem:
+            from agent_api.core.factory import get_mcp_manager
+            get_mcp_manager().set_client_id(client_id)
+
+            # P0: timeout global por execução — libera worker em até 120s
+            result_text, worker_slug = await asyncio.wait_for(
+                _execute_one_with_heartbeat(exec_id, execution, context_service),
+                timeout=_ROUTINE_EXECUTION_TIMEOUT_S,
+            )
+
+        if result_text.endswith(_AWAITING_APPROVAL_MARKER):
+            clean_text = result_text[: -len(_AWAITING_APPROVAL_MARKER)].rstrip("\n")
+            await asyncio.to_thread(
+                _update_execution_sync,
+                exec_id,
+                {"status": "awaiting_approval", "result_text": clean_text},
+            )
+            logger.info("[RoutineExecutor] %s paused — awaiting_approval", exec_id)
+        else:
             await asyncio.to_thread(
                 _update_execution_sync,
                 exec_id,
                 {
-                    "status": "failed",
-                    "result_text": f"Erro: {exc}",
+                    "status": "completed",
+                    "result_text": result_text,
                     "completed_at": datetime.now(timezone.utc).isoformat(),
+                    "worker_slug": worker_slug,
                 },
             )
+            # P1: reset circuit breaker em sucesso
+            await asyncio.to_thread(
+                _reset_routine_failures_sync, client_id, routine_id
+            )
+            await _notify_client(execution, result_text)
+
+    except asyncio.TimeoutError:
+        logger.error(
+            "[RoutineExecutor] Execution %s timed out after %ds",
+            exec_id, _ROUTINE_EXECUTION_TIMEOUT_S,
+            extra={
+                "execution_id": exec_id,
+                "routine_id": routine_id,
+                "client_id": client_id,
+                "error_type": "timeout",
+            },
+        )
+        await asyncio.to_thread(
+            _update_execution_sync,
+            exec_id,
+            {
+                "status": "failed",
+                "result_text": f"Erro: timeout após {_ROUTINE_EXECUTION_TIMEOUT_S}s",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        # P1: circuit breaker — conta falha
+        new_status = await asyncio.to_thread(
+            _record_routine_failure_sync, client_id, routine_id
+        )
+        if new_status == "suspended":
+            logger.warning(
+                "[CircuitBreaker] routine %s client %s SUSPENDED after repeated failures",
+                routine_id, client_id,
+            )
+
+    except Exception as exc:
+        logger.exception("[RoutineExecutor] Execution %s failed", exec_id)
+        await asyncio.to_thread(
+            _update_execution_sync,
+            exec_id,
+            {
+                "status": "failed",
+                "result_text": f"Erro: {exc}",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        # P1: circuit breaker — conta falha
+        new_status = await asyncio.to_thread(
+            _record_routine_failure_sync, client_id, routine_id
+        )
+        if new_status == "suspended":
+            logger.warning(
+                "[CircuitBreaker] routine %s client %s SUSPENDED after repeated failures",
+                routine_id, client_id,
+                )
+
+
+async def run_dispatched_executions(
+    claimed: list[dict], context_service: ContextService
+) -> None:
+    """P2: executa todas as rotinas do batch em paralelo (gather), respeitando
+    o semáforo por cliente (max 4). Execuções de clientes diferentes rodam
+    simultaneamente; execuções do mesmo cliente são limitadas pelo semáforo."""
+    if not claimed:
+        return
+
+    await asyncio.gather(
+        *[_run_single_execution(execution, context_service) for execution in claimed],
+        return_exceptions=True,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -717,6 +873,18 @@ async def _execute_one(
     tier: str = (client_ctx.tier if client_ctx else None) or "BASIC"
     trigger_data: dict = execution.get("trigger_data") or {}
 
+    # Fetch website_url from company_profile JSONB so {{website_url}} templates resolve.
+    _clientes_row = await asyncio.to_thread(
+        lambda: get_supabase_client(use_service_role=True)
+        .table("clientes_blu")
+        .select("company_profile")
+        .eq("client_id", str(client_id))
+        .maybe_single()
+        .execute()
+    )
+    _company_profile: dict = (_clientes_row.data or {}).get("company_profile") or {}
+    website_url: str = _company_profile.get("website_url") or _company_profile.get("website") or ""
+
     # Load per-client config overrides (days_inactive, lookback_months, etc.)
     client_config_row = await asyncio.to_thread(
         _fetch_client_routine_config_sync, str(client_id), routine_id
@@ -746,6 +914,7 @@ async def _execute_one(
         "routine_name": routine_name,
         "exec_id": exec_id,
         "nome_empresa": nome_empresa,
+        "website_url": website_url,  # resolves {{website_url}} in crawl steps
         **client_config,  # config values available for template resolution
         "tier": tier,  # must come last — never overridden by client_config
     }
@@ -758,126 +927,159 @@ async def _execute_one(
     result_parts: list[str] = []
     last_worker_slug = ""
 
-    for step in steps:
-        step_n = step.get("step", 0)
-        step_id = step.get("id") or f"step_{step_n}"
-        step_type: str | None = step.get("type")
-        # Default is "continue": a routine should not halt because one data-fetch
-        # step returned nothing (e.g. client has no orders, no inactive contacts, etc.)
-        # Only mark a step "halt" explicitly when it produces state that downstream
-        # steps strictly require (e.g. approval gates, document generation).
-        on_failure: str = step.get("on_failure", "continue")
+    # -------------------------------------------------------------------------
+    # Group steps by parallel_group — steps in the same group run concurrently,
+    # steps without a group (or with different group names) run sequentially.
+    # Example step: {"id": "get_cash", "type": "function", "parallel_group": "fetch", ...}
+    # -------------------------------------------------------------------------
+    from itertools import groupby as _groupby
 
-        logger.info("[RoutineExecutor] %s → step '%s' (type=%s)", exec_id, step_id, step_type or "legacy")
+    def _group_key(s: dict) -> tuple:
+        """Steps with the same non-null parallel_group are batched together."""
+        pg = s.get("parallel_group")
+        if pg:
+            return ("parallel", pg)
+        # Sequential steps use a unique key so they form singleton groups
+        return ("sequential", s.get("id") or s.get("step", 0))
+
+    # Build ordered list of (is_parallel, [steps]) batches preserving original order
+    step_batches: list[tuple[bool, list[dict]]] = []
+    for key, group in _groupby(steps, key=_group_key):
+        batch = list(group)
+        step_batches.append((key[0] == "parallel", batch))
+
+    async def _run_step(step: dict) -> tuple[str, dict, str]:
+        """Execute a single step and return (step_id, outputs, worker_slug)."""
+        step_n   = step.get("step", 0)
+        step_id  = step.get("id") or f"step_{step_n}"
+        step_type: str | None = step.get("type")
 
         # Skip already-completed steps when resuming after HITL approval
         if resume_from and step_n < resume_from:
             logger.info("[RoutineExecutor] %s → step '%s' skipped (HITL resume)", exec_id, step_id)
-            continue
+            return step_id, {}, ""
 
-        try:
-            if step_type is None:
-                # ── Legacy step: {step, agent, action, output} ──────────────
-                step_outputs, slug = await _execute_legacy_step(
-                    step, state, nome_empresa, context_service
-                )
-                last_worker_slug = slug
-            else:
-                resolved_inputs = _resolve_templates(step.get("inputs", {}), state)
+        logger.info("[RoutineExecutor] %s → step '%s' (type=%s)", exec_id, step_id, step_type or "legacy")
 
-                if step_type == "function":
-                    # Apply per-client config as override for any matching input keys
-                    config_override = {k: client_config[k] for k in resolved_inputs if k in client_config}
-                    if config_override:
-                        resolved_inputs = {**resolved_inputs, **config_override}
-                    step_outputs = await _execute_function_step(step, resolved_inputs, str(client_id))
+        resolved_inputs = _resolve_templates(step.get("inputs", {}), state)
+        slug = ""
 
-                elif step_type == "skill":
-                    step_outputs, slug = await _execute_skill_step(
-                        step, resolved_inputs, state, nome_empresa, context_service
-                    )
-                    last_worker_slug = slug
+        if step_type is None:
+            logger.warning(
+                "[RoutineExecutor] Step '%s' has no type — skipping (legacy format not supported)",
+                step_id,
+            )
+            return step_id, {}, ""
 
-                elif step_type == "llm":
-                    step_outputs = await _execute_llm_step(step, state, nome_empresa)
+        elif step_type == "function":
+            config_override = {k: client_config[k] for k in resolved_inputs if k in client_config}
+            if config_override:
+                resolved_inputs = {**resolved_inputs, **config_override}
+            outputs = await _execute_function_step(step, resolved_inputs, str(client_id))
 
-                elif step_type == "artifact":
-                    # Inject execution_id + routine_id so create_alert can link the card
-                    fn_name = step.get("function") or _ARTIFACT_TYPE_DEFAULT_FN.get(step.get("artifact_type", ""), "")
-                    if fn_name == "channels.create_alert":
-                        resolved_inputs = {
-                            **resolved_inputs,
-                            "execution_id": exec_id,
-                            "routine_id": str(routine_id),
-                        }
-                    step_outputs = await _execute_artifact_step(step, resolved_inputs, str(client_id))
+        elif step_type == "skill":
+            outputs, slug = await _execute_skill_step(
+                step, resolved_inputs, state, nome_empresa, context_service
+            )
 
-                elif step_type == "approval":
-                    # HITL: inject execution_id and delegate to request_approval artifact
-                    resolved_inputs = {**resolved_inputs, "execution_id": exec_id}
-                    step_outputs = await _execute_artifact_step(
-                        {**step, "function": "channels.request_approval"},
-                        resolved_inputs,
-                        str(client_id),
-                    )
-                    if step_outputs.get("_awaiting_approval"):
-                        # Save resume marker — next run will skip to step_n + 1
-                        state["_resume_from_step"] = step_n + 1
-                        state.update(step_outputs)
-                        await asyncio.to_thread(
-                            _update_execution_sync, exec_id,
-                            {"result_metadata": _serialisable(state)},
-                        )
-                        result_parts.append(f"{step_id}: aguardando aprovação humana")
-                        return (
-                            "\n".join(result_parts) + "\n" + _AWAITING_APPROVAL_MARKER,
-                            last_worker_slug,
-                        )
+        elif step_type == "llm":
+            outputs = await _execute_llm_step(step, state, nome_empresa)
 
-                else:
-                    logger.warning(
-                        "[RoutineExecutor] Unknown step type '%s' at '%s' — skipping",
-                        step_type, step_id,
-                    )
+        elif step_type == "artifact":
+            fn_name = step.get("function") or _ARTIFACT_TYPE_DEFAULT_FN.get(step.get("artifact_type", ""), "")
+            if fn_name == "channels.create_alert":
+                resolved_inputs = {
+                    **resolved_inputs,
+                    "execution_id": exec_id,
+                    "routine_id": str(routine_id),
+                }
+            outputs = await _execute_artifact_step(step, resolved_inputs, str(client_id))
+
+        elif step_type == "approval":
+            resolved_inputs = {**resolved_inputs, "execution_id": exec_id}
+            outputs = await _execute_artifact_step(
+                {**step, "function": "channels.request_approval"},
+                resolved_inputs,
+                str(client_id),
+            )
+
+        else:
+            logger.warning(
+                "[RoutineExecutor] Unknown step type '%s' at '%s' — skipping",
+                step_type, step_id,
+            )
+            return step_id, {}, ""
+
+        return step_id, outputs, slug
+
+    for is_parallel, batch in step_batches:
+        if is_parallel:
+            # Run all steps in the batch concurrently
+            logger.info(
+                "[RoutineExecutor] %s → parallel group '%s' (%d steps)",
+                exec_id, batch[0].get("parallel_group"), len(batch),
+            )
+            results = await asyncio.gather(
+                *[_run_step(s) for s in batch],
+                return_exceptions=True,
+            )
+            for step, result in zip(batch, results):
+                step_id  = step.get("id") or f"step_{step.get('step', 0)}"
+                on_failure = step.get("on_failure", "continue")
+                if isinstance(result, Exception):
+                    logger.exception("[RoutineExecutor] Parallel step '%s' of %s failed", step_id, exec_id)
+                    if on_failure == "halt":
+                        raise result
+                    result_parts.append(f"{step_id}: falhou ({result}), continuando")
                     continue
+                step_id_out, step_outputs, slug = result
+                if slug:
+                    last_worker_slug = slug
+                for k, v in step_outputs.items():
+                    state[k] = "" if (v is None or v == [] or v == {}) else v
+                summary_val = step_outputs.get("summary") or _first_scalar(step_outputs) or "ok"
+                result_parts.append(f"{step_id_out}: {str(summary_val)[:300]}")
+        else:
+            # Single sequential step
+            step = batch[0]
+            step_id  = step.get("id") or f"step_{step.get('step', 0)}"
+            on_failure = step.get("on_failure", "continue")
+            try:
+                step_id_out, step_outputs, slug = await _run_step(step)
+            except Exception as exc:
+                logger.exception("[RoutineExecutor] Step '%s' of %s failed", step_id, exec_id)
+                if on_failure == "halt":
+                    raise
+                result_parts.append(f"{step_id}: falhou ({exc}), continuando")
+                continue
 
-        except Exception as exc:
-            logger.exception("[RoutineExecutor] Step '%s' of %s failed", step_id, exec_id)
-            if on_failure == "halt":
-                raise
-            # on_failure == "continue" — log and proceed
-            result_parts.append(f"{step_id}: falhou ({exc}), continuando")
-            continue
+            if slug:
+                last_worker_slug = slug
 
-        # Merge step outputs into shared state
-        # Empty outputs from a data-fetch step (e.g. client has no inactive contacts)
-        # are recorded as empty strings so downstream {{templates}} render gracefully
-        # rather than as the literal "{{key}}" placeholder.
-        for k, v in step_outputs.items():
-            if v is None or v == [] or v == {}:
-                # Preserve the key in state so templates resolve to empty string
-                state[k] = ""
-                logger.debug(
-                    "[RoutineExecutor] %s → step '%s' key '%s' is empty — recorded as ''",
-                    exec_id, step_id, k,
+            # HITL approval gate
+            if step_outputs.get("_awaiting_approval"):
+                state["_resume_from_step"] = step.get("step", 0) + 1
+                state.update(step_outputs)
+                await asyncio.to_thread(
+                    _update_execution_sync, exec_id,
+                    {"result_metadata": _serialisable(state)},
                 )
-            else:
-                state[k] = v
+                result_parts.append(f"{step_id_out}: aguardando aprovação humana")
+                return (
+                    "\n".join(result_parts) + "\n" + _AWAITING_APPROVAL_MARKER,
+                    last_worker_slug,
+                )
 
-        # Checkpoint: persist current state so progress is visible/resumable
+            for k, v in step_outputs.items():
+                state[k] = "" if (v is None or v == [] or v == {}) else v
+
+        # Checkpoint after each batch (parallel or sequential)
         await asyncio.to_thread(
             _update_execution_sync,
             exec_id,
             {"result_metadata": _serialisable(state)},
         )
 
-        # Build summary line for the final result_text
-        summary_val = (
-            step_outputs.get("summary")
-            or _first_scalar(step_outputs)
-            or "ok"
-        )
-        result_parts.append(f"{step_id}: {str(summary_val)[:300]}")
 
     await _fire_on_complete_events(str(client_id), steps)
 
@@ -1040,11 +1242,27 @@ async def _execute_skill_step(
     task = _resolve_templates(task_template, merged)
     tier: str = state.get("tier", "BASIC")
 
-    # Phase 4: pass outputs schema so the worker is forced to call submit_step_output
-    result = await _invoke_worker(
+    # Phase 4: if this step has an outputs schema, append a structured-output
+    # instruction so the LLM returns a JSON block that _extract_json_from_text
+    # can reliably capture — even when output_tool_schema is not wired through
+    # to the graph level yet.
+    if outputs_schema:
+        import json as _json
+        keys_desc = ", ".join(f'"{k}"' for k in outputs_schema)
+        task = (
+            task.rstrip()
+            + f"\n\nResponda EXCLUSIVAMENTE com um objeto JSON com a(s) chave(s): {keys_desc}. "
+            + "Sem texto fora do JSON. Exemplo: "
+            + _json.dumps({k: "..." for k in outputs_schema})
+        )
+
+    result = await _run_skill_direct(
         skill_slug, task, nome_empresa, context_service,
         tier=tier,
         output_tool_schema=outputs_schema or None,
+        execution_id=state.get("exec_id"),
+        routine_id=state.get("routine_name"),
+        client_id_str=state.get("client_id"),
     )
 
     step_outputs: dict[str, Any] = {
@@ -1060,6 +1278,11 @@ async def _execute_skill_step(
             extracted = _extract_json_from_text(result.summary, outputs_schema)
             if extracted:
                 step_outputs.update(extracted)
+            elif len(outputs_schema) == 1:
+                # Single-output schema with no JSON found: the full text IS the
+                # output (e.g. fill_masterprompt returns markdown, not JSON).
+                key = next(iter(outputs_schema))
+                step_outputs[key] = result.summary
             else:
                 logger.warning(
                     "[RoutineExecutor] skill '%s' returned no structured output",
@@ -1095,34 +1318,132 @@ async def _execute_artifact_step(
     return await call_artifact(fn_name, resolved_inputs, client_id)
 
 
-async def _execute_legacy_step(
-    step: dict,
-    state: dict[str, Any],
+
+
+# ---------------------------------------------------------------------------
+# Direct skill execution (routine path — bypasses specialist graph)
+# ---------------------------------------------------------------------------
+
+
+async def _run_skill_direct(
+    skill_name: str,
+    task: str,
     nome_empresa: str,
     context_service: Any,
-) -> tuple[dict, str]:
+    tier: str = "BASIC",
+    output_tool_schema: dict | list | None = None,
+    execution_id: str | None = None,
+    routine_id: str | None = None,
+    client_id_str: str | None = None,
+):
     """
-    Run a legacy-format step {step, agent, action, output}.
-    Reproduces the original behaviour for backward compatibility.
+    Execute a skill directly via SkillFactory, bypassing the full specialist
+    graph and classify_skill_intent_node.  Used by routine steps where
+    skill_slug points to a SKILL_REGISTRY key, not an agent slug.
+
+    Falls back to _invoke_worker (agent path) when the skill name is not in
+    SKILL_REGISTRY — ensures backward compatibility during migration.
     """
-    action: str = step.get("action", "")
-    agent_slug: str = step.get("agent", "")
-    routine_name: str = state.get("routine_name", "")
-    trigger_data = {
-        k: v for k, v in state.items()
-        if k not in ("client_id", "routine_name", "exec_id", "nome_empresa")
+    from blu_agent_framework.skill_factory import SkillFactory
+    from blu_agent_framework.skills import SKILL_REGISTRY
+    from blu_agent_framework.supervisor import WorkerResult
+    from blu_llm_service import ModelTier, get_model
+    from blu_tool_registry.resource_resolver import ResourceResolver
+    from langchain_core.messages import HumanMessage as _HumanMessage
+
+    from agent_api.core.factory import get_mcp_executor
+
+    if skill_name not in SKILL_REGISTRY:
+        # Fallback: treat as agent slug (legacy / migration period)
+        logger.warning(
+            "[_run_skill_direct] '%s' not in SKILL_REGISTRY — falling back to _invoke_worker",
+            skill_name,
+        )
+        return await _invoke_worker(
+            skill_name, task, nome_empresa, context_service,
+            tier=tier,
+            output_tool_schema=output_tool_schema,
+            execution_id=execution_id,
+            routine_id=routine_id,
+            client_id_str=client_id_str,
+        )
+
+    skill = SKILL_REGISTRY[skill_name]
+
+    # Resolve tools allowed for this skill at the client's tier
+    allowed_tools: list[str] = ResourceResolver.filter_tools(
+        list(skill.required_tool_names or []), skill_name, tier
+    )
+
+    llm = get_model(tier=ModelTier.DEFAULT)  # skills use DEFAULT tier model
+    mcp_executor = get_mcp_executor()
+
+    skill_factory = SkillFactory(
+        llm=llm,
+        mcp_executor=mcp_executor,
+        agent_enabled_tools=allowed_tools,
+    )
+
+    # Build a minimal parent_state so SkillFactory.run() has the context it needs
+    parent_state: dict = {
+        "session_id": f"routine-skill-{skill_name}",
+        "client_id": client_id_str or "",
+        "thread_id": "",
+        "channel": "api",
+        "agent_name": skill_name,
+        "agent_role": skill_name,
+        "tier": tier,
+        "nome_empresa": nome_empresa,
+        "current_domain": None,
+        "client_context": {"nome_empresa": nome_empresa, "tier": tier},
+        "metadata": {},
+        "intent_tags": list(skill.tags),
+        "loaded_context_keys": [],
+        "messages": [_HumanMessage(content=task)],
+        "system_prompt": "",
+        "turn_count": 0,
+        "max_turns": skill.max_turns,
+        "tool_results": [],
+        "pending_tool_calls": [],
+        "tool_to_execute": None,
+        "tool_args": None,
+        "last_tool_result": None,
+        "ended": False,
+        "error": None,
+        "structured_data": None,
     }
 
-    task = (
-        f"[ROUTINE TASK]\nRoutine: {routine_name}\n"
-        f"Action: {action}\n"
-        f"Input: {json.dumps(trigger_data, ensure_ascii=False)}"
-    )
-    tier: str = state.get("tier", "BASIC")
+    try:
+        skill_result = await skill_factory.run(skill_name, parent_state)  # type: ignore[arg-type]
+    except Exception as exc:
+        logger.exception("[_run_skill_direct] Skill '%s' raised: %s", skill_name, exc)
+        return WorkerResult(summary="", worker_slug=skill_name, error=str(exc))
 
-    result = await _invoke_worker(agent_slug, task, nome_empresa, context_service, tier=tier)
-    step_outputs = {"summary": (result.summary or "")[:500]}
-    return step_outputs, agent_slug
+    if not skill_result.success:
+        logger.warning(
+            "[_run_skill_direct] Skill '%s' failed: %s", skill_name, skill_result.error
+        )
+
+    # Normalize SkillResult → WorkerResult so _execute_skill_step stays unchanged
+    # SkillResult.output is the full LangGraph state dict (messages, session_id, etc.)
+    # — it never carries "text"/"summary" keys directly. The correct way to extract
+    # the narrative is last_text(), which walks messages looking for the last AIMessage.
+    output_text = skill_result.last_text()
+    structured: dict | None = None
+    if not output_text and skill_result.output:
+        if isinstance(skill_result.output, dict):
+            # fallback: look for explicit text/summary keys (future-proof)
+            output_text = skill_result.output.get("text") or skill_result.output.get("summary") or ""
+            structured = {k: v for k, v in skill_result.output.items() if k not in ("text", "summary")} or None
+        else:
+            output_text = str(skill_result.output)
+
+    return WorkerResult(
+        summary=output_text,
+        worker_slug=skill_name,
+        structured_data=structured,
+        error=skill_result.error,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1137,6 +1458,9 @@ async def _invoke_worker(
     context_service: Any,
     tier: str = "BASIC",
     output_tool_schema: dict | list | None = None,
+    execution_id: str | None = None,   # P2-A: para Langfuse trace de rotinas
+    routine_id: str | None = None,     # P2-A: tag no trace
+    client_id_str: str | None = None,  # P2-A: tag no trace
 ):
     from blu_agent_framework.builder import AgentBuilder
     from blu_agent_framework.config import AgentConfig
@@ -1193,6 +1517,7 @@ async def _invoke_worker(
     graph = (
         AgentBuilder(agent_cfg, mcp_executor=mcp_executor, checkpointer=None)
         .with_llm(llm)
+        .with_context_service(context_service)
         .with_skill_factory(skill_factory)
         .use_specialist_graph(cfg)
         .build()
@@ -1208,8 +1533,27 @@ async def _invoke_worker(
         client_context={"nome_empresa": nome_empresa, "tier": tier},
     )
 
+    # P2-A: Langfuse trace para execuções de rotina
+    # Usa get_langfuse_config com session_id = execution_id para correlacionar
+    # a trace do agente com a linha em client_routine_executions
+    invoke_config: dict = {"recursion_limit": 30}
+    if execution_id:
+        try:
+            from agent_api.core.observability import get_langfuse_config
+            lf_cfg = get_langfuse_config(
+                session_id=execution_id,
+                client_id=client_id_str or "",
+                tags=["routine", slug, routine_id or "unknown"],
+                trace_name=f"routine:{routine_id or slug}:{execution_id[:8] if execution_id else ''}",
+            )
+            # merge: configurable já vem do get_langfuse_config, recursion_limit é separado
+            invoke_config = {**lf_cfg, "recursion_limit": 30}
+        except Exception as _lf_exc:
+            logger.debug("[_invoke_worker] Langfuse config failed for routine: %s", _lf_exc)
+
     try:
-        result_state = await graph.ainvoke(initial_state)
+        # P0: recursion_limit impede loop infinito de tool calls no LangGraph
+        result_state = await graph.ainvoke(initial_state, invoke_config)
     except Exception as exc:
         logger.exception("[_invoke_worker] Specialist '%s' raised: %s", slug, exc)
         return WorkerResult(summary="", worker_slug=slug, error=str(exc))

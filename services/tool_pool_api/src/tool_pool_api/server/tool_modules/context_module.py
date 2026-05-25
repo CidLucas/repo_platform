@@ -32,8 +32,28 @@ logger = logging.getLogger(__name__)
 # Helpers
 # ---------------------------------------------------------------------------
 
-_VENDA_TYPES = {"venda", "receita", "entrada"}
-_COMPRA_TYPES = {"compra", "aquisição", "aquisicao"}
+_ENTRY_TYPE_MAP: dict[str, str] = {
+    # revenue
+    "venda": "revenue", "receita": "revenue", "entrada": "revenue",
+    "nf saida": "revenue", "nf-e saida": "revenue", "nfse": "revenue",
+    # purchase
+    "compra": "purchase", "aquisição": "purchase", "aquisicao": "purchase",
+    "nf entrada": "purchase", "nf-e entrada": "purchase",
+    # expense
+    "despesa": "expense", "custo": "expense", "gasto": "expense",
+    # banking
+    "bancario": "banking", "bancário": "banking", "transferencia": "banking",
+    "pix": "banking", "boleto": "banking",
+}
+
+def _derive_entry_type(tipo_transacao: str) -> str | None:
+    t = tipo_transacao.strip().lower()
+    if t in _ENTRY_TYPE_MAP:
+        return _ENTRY_TYPE_MAP[t]
+    for key, val in _ENTRY_TYPE_MAP.items():
+        if key in t:
+            return val
+    return None
 
 
 async def _resolve_data_id(db, data_str: str) -> int | None:
@@ -118,7 +138,7 @@ async def _register_transaction_logic(
     Args:
         tipo_transacao: Transaction type — "venda", "compra", "despesa", or any
             free-text label. Determines target table: vendas/despesas → fato_transacoes,
-            compras → fato_compras.
+            compras → fato_transacoes (entry_type='purchase').
         valor: Total monetary value of the transaction.
         data: Competence date in ISO format (YYYY-MM-DD).
         cliente_nome: Customer name (used for dim_clientes lookup on vendas).
@@ -144,11 +164,10 @@ async def _register_transaction_logic(
     except ValueError:
         raise ToolError(f"data inválida: '{data}'. Use o formato YYYY-MM-DD.")
 
-    tipo_lower = tipo_transacao.strip().lower()
-    is_compra = tipo_lower in _COMPRA_TYPES
-
     try:
         db = get_supabase_client()
+
+        entry_type = _derive_entry_type(tipo_transacao)
 
         # Resolve foreign keys
         data_competencia_id = await _resolve_data_id(db, data)
@@ -173,50 +192,31 @@ async def _register_transaction_logic(
             if dim_produto_id is None:
                 logger.warning("[Context] dim_inventory: nenhum match para '%s'", produto_nome)
 
-        if is_compra:
-            record_id = str(uuid4())
-            row = {
-                "compra_id": record_id,
-                "client_id": client_id,
-                "data_competencia_id": data_competencia_id,
-                "fornecedor_id": dim_fornecedor_id,
-                "produto_id": dim_produto_id,
-                "documento": documento,
-                "quantidade": quantidade,
-                "valor_unitario": valor_unitario,
-                "valor": valor,
-                "status": "registered",
-            }
-            await db.schema("analytics_v2").table("fato_compras").insert(row).execute()
-            table = "fato_compras"
-            pk_field = "compra_id"
-        else:
-            record_id = str(uuid4())
-            row = {
-                "transacao_id": record_id,
-                "client_id": client_id,
-                "data_competencia_id": data_competencia_id,
-                "customer_id": dim_customer_id,
-                "fornecedor_id": dim_fornecedor_id,
-                "produto_id": dim_produto_id,
-                "documento": documento,
-                "quantidade": quantidade,
-                "valor_unitario": valor_unitario,
-                "valor": valor,
-                "status": "registered",
-                "tipo_transacao": tipo_transacao.strip(),
-            }
-            await db.schema("analytics_v2").table("fato_transacoes").insert(row).execute()
-            table = "fato_transacoes"
-            pk_field = "transacao_id"
+        record_id = str(uuid4())
+        row = {
+            "transacao_id": record_id,
+            "client_id": client_id,
+            "data_competencia_id": data_competencia_id,
+            "customer_id": dim_customer_id,
+            "fornecedor_id": dim_fornecedor_id,
+            "produto_id": dim_produto_id,
+            "documento": documento,
+            "quantidade": quantidade,
+            "valor_unitario": valor_unitario,
+            "valor": valor,
+            "status": "registered",
+            "tipo_transacao": tipo_transacao.strip(),
+            "entry_type": entry_type,
+        }
+        await db.schema("analytics_v2").table("fato_transacoes").insert(row).execute()
 
         logger.info(
-            "[Context] Transação registrada: %s=%s tipo=%s valor=%s cliente=%s",
-            pk_field, record_id, tipo_transacao, valor, client_id,
+            "[Context] Transação registrada: transacao_id=%s tipo=%s entry_type=%s valor=%s cliente=%s",
+            record_id, tipo_transacao, entry_type, valor, client_id,
         )
         return {
-            pk_field: record_id,
-            "table": table,
+            "transacao_id": record_id,
+            "table": "fato_transacoes",
             "tipo_transacao": tipo_transacao,
             "valor": valor,
             "data": data,
@@ -224,7 +224,7 @@ async def _register_transaction_logic(
             "client_id_dim": dim_customer_id,
             "fornecedor_id_dim": dim_fornecedor_id,
             "produto_id_dim": dim_produto_id,
-            "message": f"Transação registrada em {table} com sucesso.",
+            "message": "Transação registrada em fato_transacoes com sucesso.",
         }
 
     except ToolError:
@@ -269,7 +269,6 @@ async def _list_data_sources_logic(
 
         counts = {
             "fato_transacoes": await _count("fato_transacoes"),
-            "fato_compras": await _count("fato_compras"),
             "dim_clientes": await _count("dim_clientes"),
             "dim_fornecedores": await _count("dim_fornecedores"),
             "dim_inventory": await _count("dim_inventory"),
@@ -292,7 +291,6 @@ async def _list_data_sources_logic(
             "recent_ingestion_jobs": recent_jobs,
             "summary": (
                 f"{counts['fato_transacoes']} transações, "
-                f"{counts['fato_compras']} compras, "
                 f"{counts['dim_clientes']} clientes, "
                 f"{counts['dim_fornecedores']} fornecedores, "
                 f"{counts['dim_inventory']} produtos."
@@ -957,7 +955,8 @@ def register_tools(mcp: FastMCP) -> list[str]:
             "fornecedor_nome (string, optional — for purchases/expenses), "
             "produto_nome (string, optional), quantidade (number, optional), "
             "valor_unitario (number, optional), documento (string, optional — NF or reference). "
-            "Vendas/despesas go to fato_transacoes; compras go to fato_compras. "
+            "All transactions go to fato_transacoes; entry_type is derived automatically "
+            "(revenue/purchase/expense/banking). "
             "IMPORTANT: always present a confirmation summary to the user BEFORE calling this tool."
         ),
     )(mcp_inject_client_id(get_context_service)(_register_transaction_logic))
@@ -966,7 +965,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         name="list_data_sources",
         description=(
             "Return an overview of data already ingested for this client: "
-            "row counts for fato_transacoes, fato_compras, dim_clientes, "
+            "row counts for fato_transacoes, dim_clientes, "
             "dim_fornecedores, and dim_inventory, plus the 10 most recent "
             "ingestion jobs from reg_jobs. Use to answer 'what data do we have?' "
             "and to orient schema-mapping conversations."

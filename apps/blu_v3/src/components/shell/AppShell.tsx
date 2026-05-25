@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '../../store/appStore'
 import type { Screen } from '../../store/appStore'
@@ -19,22 +19,30 @@ import ClientesRoom from '../../pages/app/ClientesRoom'
 import AtividadeScreen from '../../pages/app/AtividadeScreen'
 import AdminScreen from '../../pages/app/AdminScreen'
 import AgentOpsRoom from '../../pages/app/AgentOpsRoom'
+import SpotlightSearch from './SpotlightSearch'
 import { useAuth } from '../../hooks/useAuth'
+import { useMyRole } from '../../hooks/useAdmin'
 
 export default function AppShell() {
   const screen = useAppStore(s => s.screen)
   const firstRun = useAppStore(s => s.firstRun)
+  const initFirstRun = useAppStore(s => s.initFirstRun)
   const qc = useQueryClient()
+  const { clientId, tier } = useAuth()
+  const { data: myRole } = useMyRole()
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorDoc, setEditorDoc] = useState('Proposta — Cliente Central')
   const [connectionsOpen, setConnectionsOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  // Initialize from unscoped key for instant first paint; useEffect below re-reads the scoped key
   const [lightMode, setLightMode] = useState(() => {
     try { return localStorage.getItem('blu-theme') === 'light' } catch { return false }
   })
 
   // Track which screens have been visited so we only mount them on first activation.
   // Once mounted, screens stay mounted (preserving React Query cache and scroll state).
-  const [visited, setVisited] = useState<Set<Screen>>(new Set(['home']))
+  // Seed with the store's initial screen so a refresh to e.g. #room/financeiro mounts it immediately.
+  const [visited, setVisited] = useState<Set<Screen>>(() => new Set([useAppStore.getState().screen]))
 
   useEffect(() => {
     setVisited(prev => {
@@ -69,10 +77,23 @@ export default function AppShell() {
     document.body.classList.toggle('light', lightMode)
   }, [lightMode])
 
+  // Once clientId is known: read scoped theme preference, then init first-run flag
+  useEffect(() => {
+    if (!clientId) return
+    try {
+      const scoped = localStorage.getItem(`blu-theme:${clientId}`)
+      if (scoped !== null) setLightMode(scoped === 'light')
+    } catch {}
+    initFirstRun(clientId)
+  }, [clientId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function toggleTheme() {
     setLightMode(prev => {
       const next = !prev
-      try { localStorage.setItem('blu-theme', next ? 'light' : 'dark') } catch {}
+      try {
+        if (clientId) localStorage.setItem(`blu-theme:${clientId}`, next ? 'light' : 'dark')
+        else localStorage.setItem('blu-theme', next ? 'light' : 'dark')
+      } catch {}
       return next
     })
   }
@@ -85,13 +106,24 @@ export default function AppShell() {
   const on = (s: Screen) => screen === s ? ' on' : ''
   const show = (s: Screen) => visited.has(s)
 
-  const { clientId } = useAuth()
+  const openSearch = useCallback(() => setSearchOpen(true), [])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(s => !s)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
   // Only pop the onboarding overlay if user has no ingested data yet
-  const hasNoData = !!clientId && !localStorage.getItem('blu_has_data')
+  const hasNoData = !!clientId && !localStorage.getItem(`blu_has_data:${clientId}`)
 
   return (
     <div className="shell">
-      <Topbar onToggleTheme={toggleTheme} lightMode={lightMode} />
+      <Topbar onToggleTheme={toggleTheme} lightMode={lightMode} onOpenSearch={openSearch} />
       <Sidebar />
       <main className="main">
         <div className={`screen${on('home')}`} id="s-home">
@@ -119,10 +151,10 @@ export default function AppShell() {
           {show('atividade') && <AtividadeScreen />}
         </div>
         <div className={`screen${on('admin')}`} id="s-admin">
-          {show('admin') && <AdminScreen />}
+          {show('admin') && myRole === 'owner' && <AdminScreen />}
         </div>
         <div className={`screen${on('blu_ops')}`} id="s-blu_ops">
-          {show('blu_ops') && <AgentOpsRoom />}
+          {show('blu_ops') && tier === 'ADMIN' && <AgentOpsRoom />}
         </div>
       </main>
 
@@ -135,6 +167,7 @@ export default function AppShell() {
       <ChatPanel />
       {firstRun && hasNoData && <FirstRunOverlay onOpenConnections={() => setConnectionsOpen(true)} />}
       <ConnectionsModal open={connectionsOpen} onClose={() => setConnectionsOpen(false)} />
+      <SpotlightSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   )
 }

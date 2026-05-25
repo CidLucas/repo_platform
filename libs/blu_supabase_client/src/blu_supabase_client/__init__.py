@@ -31,6 +31,10 @@ from .storage import (
     UploadResult,
     get_storage,
 )
+from .db_engine import (
+    get_direct_engine,
+    get_pooler_engine,
+)
 
 __all__ = [
     # Client
@@ -57,4 +61,6 @@ __all__ = [
     "AuditError",
     "Outcome",
     "record_audit",
+    "get_direct_engine",
+    "get_pooler_engine",
 ]

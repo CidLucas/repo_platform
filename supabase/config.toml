@@ -101,3 +101,18 @@ verify_jwt = false
 # during onboarding flow; no direct user JWT required.
 [functions.onboarding-website-intel]
 verify_jwt = false
+
+# get-monday-subitems: lazy-fetch subitems for a specific Monday item (Gantt 4th level).
+[functions.google-oauth-start]
+verify_jwt = true
+
+[functions.google-oauth-callback]
+verify_jwt = false
+
+[functions.get-monday-subitems]
+verify_jwt = true
+
+# get-agenda-events: unified Google Calendar + Monday + Notion events for Gantt.
+# Requires user JWT (tenant isolation via auth.uid).
+[functions.get-agenda-events]
+verify_jwt = true

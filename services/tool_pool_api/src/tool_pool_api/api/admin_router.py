@@ -534,19 +534,25 @@ async def clear_client_cache(
 @router.delete(
     "/{client_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a client",
+    summary="Soft-delete a client",
 )
 async def delete_client(
     client_id: UUID,
+    hard: bool = Query(
+        default=False,
+        description="If true, perform immediate hard delete (admin emergency use only).",
+    ),
     admin: AdminAuthResult = Depends(verify_admin_access),
     crud: SupabaseCRUD = Depends(get_crud),
 ):
     """
-    Delete a cliente_blu by ID.
+    Soft-delete a cliente_blu by ID.
 
-    WARNING: This is a hard delete. Consider soft delete in production.
+    Sets deleted_at = now(). Data is retained for 7 days then purged
+    nightly by the pg_cron job offboard_cleanup_nightly.
+
+    Pass ?hard=true for an immediate hard delete (emergency only — irreversible).
     """
-    # Check if exists first
     existing = crud.get_cliente_blu_by_id(client_id)
     if not existing:
         raise HTTPException(
@@ -554,15 +560,22 @@ async def delete_client(
             detail=f"Client not found: {client_id}",
         )
 
-    success = crud.delete_cliente_blu(client_id)
+    db = get_supabase_client(use_service_role=True)
 
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete client",
-        )
+    if hard:
+        logger.warning(f"HARD DELETE requested for client {client_id} by admin {admin.client_id}")
+        success = crud.delete_cliente_blu(client_id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to hard delete client",
+            )
+        logger.info(f"Hard deleted client: {client_id}")
+    else:
+        # Soft delete via DB function — sets deleted_at, data purged after 7 days
+        db.rpc("soft_delete_client", {"p_client_id": str(client_id)}).execute()
+        logger.info(f"Soft deleted client: {client_id} (data retained for 7 days)")
 
-    logger.info(f"Deleted client: {client_id}")
     return None
 
 

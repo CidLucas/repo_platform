@@ -1,0 +1,11 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- FASE 2 · ETL: tipo_transacao — classificação via join dimensional
+--
+-- Supersedes 20260521001200. Prioridade de classificação (COALESCE em cascata):
+--   1. Coluna mapeada na fonte (tipo_transacao)
+--   2. cpf_cnpj direto: fornecedor_cnpj = client → 'venda'; cliente = client → 'compra'
+--   3. Join dimensional (dims populados no mesmo job, steps 8–9):
+--        dc (dim_clientes)     IS NOT NULL → 'venda'  (contraparte é nosso cliente)
+--        df (dim_fornecedores) IS NOT NULL → 'compra' (contraparte é nosso fornecedor)
+-- ─────────────────────────────────────────────────────────────────────────────
+-- (Full function body applied via apply_migration 'etl_tipo_transacao_dimensional_join')

@@ -284,13 +284,14 @@ async def _extract_company_context(inputs: dict, client_id: str) -> dict:
         db = get_supabase_client(use_service_role=True)
         row = await asyncio.to_thread(
             lambda: db.table("clientes_blu")
-            .select("website_url")
+            .select("company_profile")
             .eq("client_id", client_id)
             .maybe_single()
             .execute()
         )
         if row.data:
-            url = row.data.get("website_url") or ""
+            profile = row.data.get("company_profile") or {}
+            url = profile.get("website") or profile.get("website_url") or profile.get("site") or ""
 
     if not url:
         logger.warning("[routine_fn] extract_company_context: no URL for client %s", client_id)
@@ -448,6 +449,89 @@ async def _get_kpi_snapshots(inputs: dict, client_id: str) -> dict:
         "missing_integrations": missing_integrations,
         "kpi_summary": _format_kpi_summary(kpi_data),
     }
+
+
+@register(
+    "insights.generate_from_kpis",
+    description="Chama o LLM diretamente para gerar uma lista de insights acionáveis a partir dos KPIs. Retorna JSON array sem depender do grafo de agentes.",
+    inputs=[
+        {"key": "kpi_data",     "type": "dict", "description": "KPIs por dimensão (usa {{kpi_data}})",     "required": True},
+        {"key": "nome_empresa", "type": "str",  "description": "Nome da empresa para contexto",            "required": False},
+    ],
+    outputs=[
+        {"key": "insights", "type": "list", "description": "Lista de insights: {dimension, kpi, title, observation, severity, recommendation?, metric_value?, baseline_value?, variance_pct?}"},
+    ],
+)
+async def _generate_insights_from_kpis(inputs: dict, client_id: str) -> dict:
+    """
+    Direct LLM call to produce a structured JSON array of insights from KPI data.
+    Uses a deterministic prompt that enforces JSON-only output — more reliable
+    than invoking the financeiro specialist agent for structured data generation.
+
+    outputs:
+        insights — list of insight dicts ready for storage.save_insights
+    """
+    import re
+
+    from blu_llm_service import ModelTier, get_model
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    kpi_data: dict = inputs.get("kpi_data") or {}
+    nome_empresa: str = str(inputs.get("nome_empresa") or "a empresa")
+
+    system_prompt = (
+        "Você é um analista de negócios. Analise os KPIs fornecidos e gere insights acionáveis.\n\n"
+        "Para cada insight inclua TODOS estes campos:\n"
+        "  dimension: uma de [finance, commercial, inventory, supply]\n"
+        "  kpi: nome do indicador (string curta)\n"
+        "  title: título do insight (máx 100 chars)\n"
+        "  observation: o que os dados mostram (1-3 frases)\n"
+        "  recommendation: ação recomendada (1-2 frases)\n"
+        "  severity: info | warning | error\n"
+        "  metric_value: valor atual numérico ou null\n"
+        "  baseline_value: valor de referência numérico ou null\n"
+        "  variance_pct: variação percentual numérica ou null\n\n"
+        "Se uma dimensão tiver 'integration_missing: true', gere um insight severity='info' "
+        "indicando que aquela integração ainda não foi configurada.\n\n"
+        "Gere entre 3 e 8 insights priorizados por impacto.\n"
+        "Responda SOMENTE com um JSON array. Nenhum texto antes ou depois."
+    )
+    user_msg = f"Empresa: {nome_empresa}\n\nKPIs:\n{json.dumps(kpi_data, ensure_ascii=False, indent=2)}"
+
+    llm = get_model(tier=ModelTier.DEFAULT)
+    try:
+        response = await llm.ainvoke([
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_msg),
+        ])
+        result_text: str = response.content if hasattr(response, "content") else str(response)
+    except Exception as exc:
+        logger.warning("[routine_fn] insights.generate_from_kpis: LLM call failed for %s: %s", client_id, exc)
+        return {"insights": []}
+
+    # Try direct JSON parse first
+    stripped = result_text.strip()
+    try:
+        parsed = json.loads(stripped)
+        if isinstance(parsed, list):
+            logger.info("[routine_fn] insights.generate_from_kpis: generated %d insights for %s", len(parsed), client_id)
+            return {"insights": parsed}
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # Fall back to regex extraction of JSON array
+    arr_match = re.search(r"\[[\s\S]+\]", stripped)
+    if arr_match:
+        try:
+            parsed = json.loads(arr_match.group(0))
+            if isinstance(parsed, list):
+                logger.info("[routine_fn] insights.generate_from_kpis: extracted %d insights for %s", len(parsed), client_id)
+                return {"insights": parsed}
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    logger.warning("[routine_fn] insights.generate_from_kpis: could not parse LLM response for %s", client_id)
+    return {"insights": []}
 
 
 def _fmt_currency(val: float | int) -> str:
@@ -1603,7 +1687,7 @@ async def _get_inventory_alerts(inputs: dict, client_id: str) -> dict:
         lambda: db.schema("analytics_v2")
         .table("dim_inventory")
         .select(
-            "sku, nome_produto, quantidade_total_vendida, frequencia_mensal, "
+            "sku, nome, quantidade_total_vendida, frequencia_mensal, "
             "estoque_minimo"
         )
         .eq("client_id", client_id)
@@ -1623,7 +1707,7 @@ async def _get_inventory_alerts(inputs: dict, client_id: str) -> dict:
 
         entry = {
             "sku": item.get("sku"),
-            "nome": item.get("nome_produto"),
+            "nome": item.get("nome"),
             "qty_estimada": qty,
             "qty_minima": min_stock,
             "dias_ate_ruptura": dias_ruptura,
@@ -1680,7 +1764,7 @@ async def _get_inventory_alerts(inputs: dict, client_id: str) -> dict:
 )
 async def _get_supplier_orders(inputs: dict, client_id: str) -> dict:
     """
-    OPS-03: Query fato_compras JOIN dim_fornecedores for recent purchase orders.
+    OPS-03: Query fato_transacoes (entry_type='purchase') JOIN dim_fornecedores for recent purchase orders.
     """
     from blu_supabase_client import get_supabase_client
 
@@ -1692,12 +1776,13 @@ async def _get_supplier_orders(inputs: dict, client_id: str) -> dict:
 
     resp = await asyncio.to_thread(
         lambda: db.schema("analytics_v2")
-        .table("fato_compras")
+        .table("fato_transacoes")
         .select(
-            "fornecedor_id, valor_total, status, data_prevista_entrega, "
+            "fornecedor_id, valor, quantidade, valor_unitario, status, "
             "dim_fornecedores(nome)"
         )
         .eq("client_id", client_id)
+        .eq("entry_type", "purchase")
         .gte("created_at", since)
         .execute()
     )
@@ -1711,8 +1796,8 @@ async def _get_supplier_orders(inputs: dict, client_id: str) -> dict:
         forn_data = row.get("dim_fornecedores") or {}
         nome = forn_data.get("nome") or forn_id
         status = (row.get("status") or "").lower()
-        valor = float(row.get("valor_total") or 0)
-        prev_entrega = row.get("data_prevista_entrega") or ""
+        # valor pode ser direto ou calculado
+        valor = float(row.get("valor") or 0)
 
         if forn_id not in by_supplier:
             by_supplier[forn_id] = {
@@ -1722,11 +1807,9 @@ async def _get_supplier_orders(inputs: dict, client_id: str) -> dict:
                 "valor_aberto": 0.0,
             }
 
-        if status in ("aberto", "pendente", "em_transito", ""):
+        if status in ("aberto", "pendente", "em_transito", "registered", ""):
             by_supplier[forn_id]["pedidos_abertos"] += 1
             by_supplier[forn_id]["valor_aberto"] += valor
-            if prev_entrega and prev_entrega < now.isoformat():
-                by_supplier[forn_id]["pedidos_atrasados"] += 1
 
     fornecedores = sorted(by_supplier.values(), key=lambda f: f["valor_aberto"], reverse=True)
 

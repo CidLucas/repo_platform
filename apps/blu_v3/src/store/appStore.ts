@@ -60,116 +60,193 @@ export interface AppState {
   snooze: (id: string) => void
   addToast: (type: ToastType, title: string, msg: string) => void
   removeToast: (id: string) => void
-  dismissFirstRun: () => void
+  initFirstRun: (clientId: string) => void
+  dismissFirstRun: (clientId: string) => void
+  // internal: called by popstate listener only
+  _restoreScreen: (s: Screen, label: string) => void
 }
 
-export const useAppStore = create<AppState>((set, get) => ({
-  screen: 'home',
-  breadcrumb: 'Bom dia ☀️',
-  expandedId: null,
-  decisions: {},
-  toasts: [],
-  chatTrigger: null,
-  initialTab: null,
-  pendingDocId: null,
-  firstRun: (() => { try { return !localStorage.getItem('blu_first_run_done') } catch { return true } })(),
+// --- Browser history sync helpers ---
+const SCREEN_LABELS: Record<Screen, string> = {
+  home: 'Início', compras: 'Compras', financeiro: 'Financeiro',
+  agenda: 'Agenda', documentos: 'Documentos', estrategia: 'Estratégia',
+  clientes: 'Clientes', atividade: 'Atividade', admin: 'Admin',
+  biblioteca: 'Biblioteca', blu_ops: 'BluOps',
+}
 
-  go(s, label) {
-    set({
-      screen: s,
-      breadcrumb: s === 'home' ? 'Bom dia ☀️' : label,
-      expandedId: null,
-    })
-  },
+const VALID_SCREENS = new Set<string>(Object.keys(SCREEN_LABELS))
 
-  goWithTab(s, label, tab) {
-    set({ initialTab: tab })
-    get().go(s, label)
-  },
+function screenFromHash(): Screen {
+  const hash = window.location.hash  // e.g. '#room/financeiro'
+  if (hash.startsWith('#room/')) {
+    const candidate = hash.slice(6)
+    if (VALID_SCREENS.has(candidate)) return candidate as Screen
+  }
+  return 'home'
+}
 
-  clearInitialTab() {
-    set({ initialTab: null })
-  },
+function pushScreen(s: Screen, label: string) {
+  const state = { screen: s, label }
+  const hash = `#room/${s}`
+  // only push if different from current hash to avoid duplicates
+  if (window.location.hash !== hash) {
+    window.history.pushState(state, '', hash)
+  }
+}
 
-  setPendingDocId(id) {
-    set({ pendingDocId: id })
-  },
-
-  openChatWith(context) {
-    set({ chatTrigger: { context, ts: Date.now() } })
-  },
-
-  // toggleDc works for both modes:
-  // - wired rooms use expandedId
-  // - un-wired rooms use decisions[id].status
-  toggleDc(id) {
-    // Update expandedId (for wired rooms)
-    set(s => ({ expandedId: s.expandedId === id ? null : id }))
-
-    // Also update decisions map (for un-wired rooms still using it)
-    const decisions = { ...get().decisions }
-    if (!decisions[id]) {
-      decisions[id] = { id, status: 'pending' }
+// Wire up popstate once (module level — survives React re-renders)
+let _popstateWired = false
+let _storeRef: { getState: () => AppState } | null = null
+function wirePopstate() {
+  if (_popstateWired) return
+  _popstateWired = true
+  window.addEventListener('popstate', (e) => {
+    if (!_storeRef) return
+    const state = e.state as { screen?: Screen; label?: string } | null
+    if (state?.screen) {
+      _storeRef.getState()._restoreScreen(state.screen, state.label ?? SCREEN_LABELS[state.screen])
+    } else if (!window.location.hash || window.location.hash === '#room/home') {
+      _storeRef.getState()._restoreScreen('home', 'Início')
     }
-    const dc = decisions[id]
-    if (dc.status === 'done' || dc.status === 'rejected') return
-    const wasExpanded = dc.status === 'expanded'
-    Object.keys(decisions).forEach(k => {
-      if (decisions[k].status === 'expanded') {
-        decisions[k] = { ...decisions[k], status: 'pending' }
+  })
+}
+
+export const useAppStore = create<AppState>((set, get) => {
+  const initialScreen = screenFromHash()
+  const store = {
+    screen: initialScreen,
+    breadcrumb: initialScreen === 'home' ? 'Bom dia ☀️' : SCREEN_LABELS[initialScreen],
+    expandedId: null,
+    decisions: {},
+    toasts: [],
+    chatTrigger: null,
+    initialTab: null,
+    pendingDocId: null,
+    firstRun: true,
+
+    go(s: Screen, label: string) {
+      pushScreen(s, label)
+      set({
+        screen: s,
+        breadcrumb: s === 'home' ? 'Bom dia ☀️' : label,
+        expandedId: null,
+      })
+    },
+
+    goWithTab(s: Screen, label: string, tab: string) {
+      set({ initialTab: tab })
+      get().go(s, label)
+    },
+
+    _restoreScreen(s: Screen, label: string) {
+      set({
+        screen: s,
+        breadcrumb: s === 'home' ? 'Bom dia ☀️' : label,
+        expandedId: null,
+        initialTab: null,
+      })
+    },
+
+    clearInitialTab() {
+      set({ initialTab: null })
+    },
+
+    setPendingDocId(id: string | null) {
+      set({ pendingDocId: id })
+    },
+
+    openChatWith(context: string) {
+      set({ chatTrigger: { context, ts: Date.now() } })
+    },
+
+    // toggleDc works for both modes:
+    // - wired rooms use expandedId
+    // - un-wired rooms use decisions[id].status
+    toggleDc(id: string) {
+      // Update expandedId (for wired rooms)
+      set(s => ({ expandedId: s.expandedId === id ? null : id }))
+
+      // Also update decisions map (for un-wired rooms still using it)
+      const decisions = { ...get().decisions }
+      if (!decisions[id]) {
+        decisions[id] = { id, status: 'pending' }
       }
-    })
-    if (!wasExpanded) {
-      decisions[id] = { ...dc, status: 'expanded' }
-    }
-    set({ decisions })
-  },
-
-  // Local-only — used by un-wired rooms
-  approve(id, msg) {
-    const decisions = { ...get().decisions }
-    if (!decisions[id]) decisions[id] = { id, status: 'pending' }
-    decisions[id] = { ...decisions[id], status: 'done' }
-    set({ decisions })
-    get().addToast('ok', 'Aprovado', msg)
-  },
-
-  reject(id) {
-    const decisions = { ...get().decisions }
-    if (!decisions[id]) decisions[id] = { id, status: 'pending' }
-    decisions[id] = { ...decisions[id], status: 'rejected' }
-    set({ decisions })
-    get().addToast('no', 'Rejeitado', 'Blu anotou. Não vou sugerir este tipo de ação novamente.')
-  },
-
-  snooze(id) {
-    const decisions = { ...get().decisions }
-    if (!decisions[id]) decisions[id] = { id, status: 'pending' }
-    decisions[id] = { ...decisions[id], status: 'snoozed' }
-    set({ decisions })
-    setTimeout(() => {
-      const current = { ...get().decisions }
-      if (current[id]?.status === 'snoozed') {
-        current[id] = { ...current[id], status: 'pending' }
-        set({ decisions: current })
+      const dc = decisions[id]
+      if (dc.status === 'done' || dc.status === 'rejected') return
+      const wasExpanded = dc.status === 'expanded'
+      Object.keys(decisions).forEach(k => {
+        if (decisions[k].status === 'expanded') {
+          decisions[k] = { ...decisions[k], status: 'pending' }
+        }
+      })
+      if (!wasExpanded) {
+        decisions[id] = { ...dc, status: 'expanded' }
       }
-    }, 2800)
-    get().addToast('sn', 'Adiado', 'Lembrete em 2 horas. Voltarei a isso.')
-  },
+      set({ decisions })
+    },
 
-  addToast(type, title, msg) {
-    const id = Math.random().toString(36).slice(2)
-    const toast: Toast = { id, type, title, msg }
-    set(s => ({ toasts: [...s.toasts, toast] }))
-    setTimeout(() => get().removeToast(id), 4000)
-  },
+    // Local-only — used by un-wired rooms
+    approve(id: string, msg: string) {
+      const decisions = { ...get().decisions }
+      if (!decisions[id]) decisions[id] = { id, status: 'pending' }
+      decisions[id] = { ...decisions[id], status: 'done' }
+      set({ decisions })
+      get().addToast('ok', 'Aprovado', msg)
+    },
 
-  removeToast(id) {
-    set(s => ({ toasts: s.toasts.filter(t => t.id !== id) }))
-  },
+    reject(id: string) {
+      const decisions = { ...get().decisions }
+      if (!decisions[id]) decisions[id] = { id, status: 'pending' }
+      decisions[id] = { ...decisions[id], status: 'rejected' }
+      set({ decisions })
+      get().addToast('no', 'Rejeitado', 'Blu anotou. Não vou sugerir este tipo de ação novamente.')
+    },
 
-  dismissFirstRun() {
-    try { localStorage.setItem('blu_first_run_done', '1') } catch {}
-    set({ firstRun: false })
-  },
-}))
+    snooze(id: string) {
+      const decisions = { ...get().decisions }
+      if (!decisions[id]) decisions[id] = { id, status: 'pending' }
+      decisions[id] = { ...decisions[id], status: 'snoozed' }
+      set({ decisions })
+      setTimeout(() => {
+        const current = { ...get().decisions }
+        if (current[id]?.status === 'snoozed') {
+          current[id] = { ...current[id], status: 'pending' }
+          set({ decisions: current })
+        }
+      }, 2800)
+      get().addToast('sn', 'Adiado', 'Lembrete em 2 horas. Voltarei a isso.')
+    },
+
+    addToast(type: ToastType, title: string, msg: string) {
+      const id = Math.random().toString(36).slice(2)
+      const toast: Toast = { id, type, title, msg }
+      set(s => ({ toasts: [...s.toasts, toast] }))
+      setTimeout(() => get().removeToast(id), 4000)
+    },
+
+    removeToast(id: string) {
+      set(s => ({ toasts: s.toasts.filter(t => t.id !== id) }))
+    },
+
+    initFirstRun(clientId: string) {
+      try {
+        const done = !!localStorage.getItem(`blu_first_run_done:${clientId}`)
+        set({ firstRun: !done })
+      } catch {
+        set({ firstRun: true })
+      }
+    },
+
+    dismissFirstRun(clientId: string) {
+      try { localStorage.setItem(`blu_first_run_done:${clientId}`, '1') } catch {}
+      set({ firstRun: false })
+    },
+  }
+
+  return store
+})
+
+// Wire popstate after store is created
+_storeRef = useAppStore
+wirePopstate()
+

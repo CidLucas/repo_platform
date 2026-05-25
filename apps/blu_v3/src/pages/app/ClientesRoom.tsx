@@ -54,7 +54,7 @@ export default function ClientesRoom() {
       },
       {
         queryKey: ['insights'],
-        queryFn: () => fetchInsights(),
+        queryFn: () => fetchInsights(10, 'clientes'),
         enabled: !!clientId,
         staleTime: 60_000,
       },
@@ -123,7 +123,7 @@ export default function ClientesRoom() {
   const history: ClientesHistoryItem[] = historyQ.data ?? []
   const commercial = commercialQ.data
   const insights: ClientInsight[] = (insightsQ.data ?? []).filter(
-    (i) => !i.dimension || i.dimension === 'clientes' || i.dimension === 'commercial'
+    () => true  // room filter is server-side via p_room='clientes'
   )
   const clientesContextMetrics: ContextMetricRow[] = (contextMetricsQ.data ?? []).filter(
     (m) => m.dimension === 'commercial'
@@ -364,6 +364,11 @@ export default function ClientesRoom() {
                 <div className="anl-kc">
                   <div className="anl-kl">Receita período</div>
                   <div className="anl-kv">{formatBRL(commercial?.receita_periodo ?? null)}</div>
+                  {commercial?.crescimento_receita_perc != null && (
+                    <div className={`anl-kd ${commercial.crescimento_receita_perc >= 0 ? 'up' : 'dn'}`}>
+                      {commercial.crescimento_receita_perc >= 0 ? '↑' : '↓'} {Math.abs(commercial.crescimento_receita_perc).toFixed(1)}% vs. período anterior
+                    </div>
+                  )}
                 </div>
               </div>
               <div style={{ borderTop: '1px solid var(--gb)', marginTop: 10, paddingTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>

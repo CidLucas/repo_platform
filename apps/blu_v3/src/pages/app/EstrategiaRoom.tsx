@@ -141,7 +141,7 @@ export default function EstrategiaRoom() {
       },
       {
         queryKey: ['insights'],
-        queryFn: () => fetchInsights(),
+        queryFn: () => fetchInsights(10, 'estrategia'),
         enabled: !!clientId,
         staleTime: 60_000,
       },
@@ -194,7 +194,7 @@ export default function EstrategiaRoom() {
   const approvals: ApprovalRequest[] = approvalsQ.data ?? []
   const history: EstrategiaHistoryItem[] = historyQ.data ?? []
   const insights: ClientInsight[] = (insightsQ.data ?? []).filter(
-    (i) => !i.dimension || i.dimension === 'estrategia'
+    () => true  // room filter is server-side via p_room='estrategia'
   )
   const contextReports: ContextReport[] = contextReportsQ.data ?? []
   const contextMetrics: ContextMetricRow[] = contextMetricsQ.data ?? []

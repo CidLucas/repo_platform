@@ -246,7 +246,13 @@ function BuiltInRoutineRow({
   const isActive = routine.active && routine.status === 'active'
   const configSchema: ConfigSchemaField[] = cat?.config_schema ?? []
 
-  const effectiveTriggerType = routine.trigger_type || cat?.trigger_type || 'manual'
+  // Use catalog trigger_type when the client row still has the default 'manual'.
+  // This ensures schedule pills render for cron routines before the client has
+  // explicitly saved a trigger override.
+  const effectiveTriggerType =
+    (routine.trigger_type === 'manual' ? cat?.trigger_type : routine.trigger_type) ||
+    cat?.trigger_type ||
+    'manual'
   const effectiveTriggerConfig = routine.trigger_config || cat?.trigger_config || {}
   const isSchedule = effectiveTriggerType === 'schedule' || effectiveTriggerType === 'cron'
 

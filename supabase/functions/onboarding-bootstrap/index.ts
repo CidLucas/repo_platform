@@ -181,6 +181,7 @@ Deno.serve(async (req: Request) => {
       routines: Array.isArray(state.routines) ? state.routines : [],
       notify_channel: state.notifyChannel ?? "email",
       nome_empresa: (state.empresa ?? "").trim() || null,
+      cnpj: (state.cnpj ?? "").replace(/\D/g, "") || null,
     };
 
     // ── 3. Ensure clientes_blu row exists before the transaction ────────────

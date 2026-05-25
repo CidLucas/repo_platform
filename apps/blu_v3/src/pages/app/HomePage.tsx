@@ -8,10 +8,9 @@ import {
   approveRequest,
   rejectRequest,
   snoozeApproval,
-  type ApprovalRequest,
 } from '../../api/approvals'
 import { getFinanceIndicators, getAgendaEvents, getInsights, getCommercialIndicators, type InsightItem } from '../../api/analytics'
-import { connectGoogleCalendar } from '../../api/agenda'
+import { connectGoogleCalendar, fetchExternalAgendaEvents } from '../../api/agenda'
 import { fetchRoutines, activateRoutine, type ClientRoutine } from '../../api/routines'
 import { useTracking } from '../../hooks/useTracking'
 import DecisionCard from '../../components/shared/DecisionCard'
@@ -60,7 +59,7 @@ function routineStatusColor(status: ClientRoutine['status']): string {
 }
 
 function insightPrompts(ins: InsightItem): [string, string, string] {
-  const ctx = `Insight de ${ins.dimension} — "${ins.title}".\n\n${ins.observation}`
+  const ctx = `Insight de ${ins.room} — "${ins.title}".\n\n${ins.observation}`
   return [
     `${ctx}\n\nExplique em detalhes o que está acontecendo e o impacto no negócio.`,
     `${ctx}\n\n${ins.recommendation ? `Recomendação: ${ins.recommendation}\n\n` : ''}Quais ações concretas devo tomar agora?`,
@@ -197,6 +196,17 @@ export default function HomePage() {
   const qc = useQueryClient()
   const { track } = useTracking()
 
+  // Prefetch agenda events (Monday + Notion + Google) na Home para que
+  // o AgendaRoom carregue instantaneamente do cache quando o usuário navegar.
+  useEffect(() => {
+    if (!clientId) return
+    qc.prefetchQuery({
+      queryKey: ['external-agenda-events'],
+      queryFn: () => fetchExternalAgendaEvents(84),
+      staleTime: 5 * 60_000, // não re-prefetch se já carregado há menos de 5min
+    })
+  }, [clientId, qc])
+
   // expand state
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null)
   const [expandedDayIdx, setExpandedDayIdx] = useState<number | null>(null)
@@ -297,7 +307,7 @@ export default function HomePage() {
   const openInsight = insights.find(i => i.id === openInsightId) ?? null
 
   function handleIchClick(e: React.MouseEvent<HTMLDivElement>, ins: InsightItem) {
-    track('insight_click', { id: ins.id, dimension: ins.dimension })
+    track('insight_click', { id: ins.id, room: ins.room })
     if (openInsightId === ins.id) {
       setOpenInsightId(null)
       setInsightAnchor(null)
@@ -368,7 +378,7 @@ export default function HomePage() {
                   <button
                     className="btn bp"
                     style={{ fontSize: 11, padding: '5px 12px', alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 5 }}
-                    onClick={() => connectGoogleCalendar(window.location.href)}
+                    onClick={() => connectGoogleCalendar()}
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
                     Conectar Google Calendar
@@ -486,7 +496,7 @@ export default function HomePage() {
                   <button
                     className="btn bp"
                     style={{ fontSize: 10.5, padding: '4px 10px', marginTop: 6, alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 5 }}
-                    onClick={() => connectGoogleCalendar(window.location.href)}
+                    onClick={() => connectGoogleCalendar()}
                   >
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
                     Conectar Google Calendar
@@ -518,8 +528,8 @@ export default function HomePage() {
               {ins.severity === 'error' ? '⚠️' : ins.severity === 'warning' ? '💡' : '📈'}
             </span>
             <div className="ich-body">
-              <span className={`ich-tag ${ins.dimension === 'finance' ? 'tg-f' : ins.dimension === 'supply' ? 'tg-s' : 'tg-c'}`}>
-                {ins.dimension ?? 'Insight'}
+              <span className={`ich-tag ${ins.room === 'financeiro' ? 'tg-f' : ins.room === 'compras' ? 'tg-s' : 'tg-c'}`}>
+                {ins.room ?? 'Insight'}
               </span>
               <div className="ich-txt">{ins.title}</div>
             </div>

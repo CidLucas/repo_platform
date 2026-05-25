@@ -48,9 +48,11 @@ export function formatKpi(kpi: string | null | undefined): string {
     .join(' ')
 }
 
+export type InsightRoom = 'financeiro' | 'clientes' | 'compras' | 'agenda' | 'estrategia' | 'home'
+
 export interface ClientInsight {
   id: string
-  dimension: string | null
+  room: string | null
   kpi: string | null
   severity: string
   title: string
@@ -60,10 +62,11 @@ export interface ClientInsight {
   createdAt: string
 }
 
-export async function fetchInsights(limit = 5): Promise<ClientInsight[]> {
+export async function fetchInsights(limit = 5, room?: InsightRoom): Promise<ClientInsight[]> {
   const { data, error } = await supabase.rpc('get_my_insights', {
     p_limit: limit,
     p_status: 'active',
+    ...(room ? { p_room: room } : {}),
   })
 
   if (error) {
@@ -73,7 +76,7 @@ export async function fetchInsights(limit = 5): Promise<ClientInsight[]> {
 
   return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
     id: String(row.id),
-    dimension: (row.dimension as string) ?? null,
+    room: (row.room as string) ?? null,
     kpi: (row.kpi as string) ?? null,
     severity: String(row.severity ?? 'low'),
     title: String(row.title),

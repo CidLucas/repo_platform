@@ -11,6 +11,7 @@ import {
 } from '../../api/approvals'
 import { fetchInsights, formatKpi } from '../../api/insights'
 import { fetchConnectedAccounts, fetchPolpAccounts, fetchPolpTransactions, fetchPolpBills, fetchCnpjEnrichments, type PolpBill, type PolpTransaction } from '../../api/financeiro'
+import { useTxCategories, useSaveTxCategory } from '../../hooks/usePreferences'
 import { getFinanceIndicators, getContextMetrics, type ContextMetricRow } from '../../api/analytics'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
@@ -97,9 +98,8 @@ export default function FinanceiroRoom() {
   const [analyticsPeriod, setAnalyticsPeriod] = useState<'30d' | '90d' | '1y'>('30d')
   const [queuedBillIds, setQueuedBillIds] = useState<Set<string>>(new Set())
   const [editingTxId, setEditingTxId] = useState<string | null>(null)
-  const [localCategories, setLocalCategories] = useState<Record<string, string>>(() => {
-    try { return JSON.parse(localStorage.getItem('tx-categories') ?? '{}') } catch { return {} }
-  })
+  const { data: localCategories = {} } = useTxCategories()
+  const saveCategoryMut = useSaveTxCategory()
 
   const [approvalsQ, insightsQ, kpiQ, accountsQ, contextMetricsQ, polpAccountsQ, polpTxQ, polpBillsQ] = useQueries({
     queries: [
@@ -111,7 +111,7 @@ export default function FinanceiroRoom() {
       },
       {
         queryKey: ['insights'],
-        queryFn: () => fetchInsights(),
+        queryFn: () => fetchInsights(10, 'financeiro'),
         enabled: !!clientId,
         staleTime: 60_000,
       },
@@ -205,7 +205,7 @@ export default function FinanceiroRoom() {
   const pendingCount = approvals.length
 
   const finInsights = (insightsQ.data ?? []).filter(
-    i => !i.dimension || i.dimension === 'financeiro' || i.dimension === 'finance'
+    () => true  // room filter is server-side via p_room='financeiro'
   )
   const financeiroContextMetrics: ContextMetricRow[] = (contextMetricsQ.data ?? []).filter(
     (m) => m.dimension === 'finance'
@@ -491,9 +491,7 @@ export default function FinanceiroRoom() {
                 const saveCategory = (val: string) => {
                   const trimmed = val.trim()
                   if (trimmed) {
-                    const next = { ...localCategories, [fingerprint]: trimmed }
-                    setLocalCategories(next)
-                    try { localStorage.setItem('tx-categories', JSON.stringify(next)) } catch {}
+                    saveCategoryMut.mutate({ ...localCategories, [fingerprint]: trimmed })
                   }
                   setEditingTxId(null)
                 }
@@ -580,8 +578,14 @@ export default function FinanceiroRoom() {
                   </span>
                 </div>
                 <div className="anl-kpi">
-                  <span className="anl-l">Caixa</span>
-                  <span className="anl-v">{formatBRL(consolidatedBalance)}</span>
+                  <span className="anl-l">Despesas</span>
+                  <span className="anl-v" style={{ color: 'var(--urg)' }}>{fmtCompact(fin?.custo_total ?? null)}</span>
+                </div>
+                <div className="anl-kpi">
+                  <span className="anl-l">Fluxo 30d</span>
+                  <span className="anl-v" style={{ color: fin?.cash_flow_30d != null ? (fin.cash_flow_30d >= 0 ? 'var(--ok)' : 'var(--urg)') : undefined }}>
+                    {fmtCompact(fin?.cash_flow_30d ?? null)}
+                  </span>
                 </div>
               </div>
               <span className={`anl-chev${analyticsOpen ? ' open' : ''}`} id="anlChev">▶</span>

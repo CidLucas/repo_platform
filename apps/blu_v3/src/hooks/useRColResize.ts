@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useAuth } from '@blu/auth'
 
-const STORAGE_KEY = 'blu-rcol-w'
 const MIN_W = 240
 const MAX_W = 400
 const DEFAULT_W = 260
@@ -9,9 +9,9 @@ function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v))
 }
 
-function readStored(): number {
+function readStored(key: string): number {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(key)
     if (raw) {
       const n = parseInt(raw, 10)
       if (!isNaN(n)) return clamp(n, MIN_W, MAX_W)
@@ -25,12 +25,15 @@ function applyWidth(w: number) {
 }
 
 export function useRColResize() {
+  const { clientId } = useAuth()
   const [isDragging, setIsDragging] = useState(false)
-  const handleRef = useRef<HTMLDivElement>(null)
+  // Ref so the mouseup closure always sees the current scoped key without re-binding
+  const storageKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
-    applyWidth(readStored())
-  }, [])
+    storageKeyRef.current = clientId ? `blu-rcol-w:${clientId}` : null
+    applyWidth(clientId ? readStored(`blu-rcol-w:${clientId}`) : DEFAULT_W)
+  }, [clientId])
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -44,8 +47,7 @@ export function useRColResize() {
 
     function onMove(ev: MouseEvent) {
       const delta = startX - ev.clientX
-      const newW = clamp(startW + delta, MIN_W, MAX_W)
-      applyWidth(newW)
+      applyWidth(clamp(startW + delta, MIN_W, MAX_W))
     }
 
     function onUp() {
@@ -54,7 +56,8 @@ export function useRColResize() {
         getComputedStyle(document.documentElement).getPropertyValue('--rcol-w'),
         10
       )
-      try { localStorage.setItem(STORAGE_KEY, String(finalW)) } catch {}
+      const key = storageKeyRef.current
+      try { if (key) localStorage.setItem(key, String(finalW)) } catch {}
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
     }
@@ -63,5 +66,5 @@ export function useRColResize() {
     document.addEventListener('mouseup', onUp)
   }, [])
 
-  return { handleRef, isDragging, onMouseDown }
+  return { handleRef: useRef<HTMLDivElement>(null), isDragging, onMouseDown }
 }

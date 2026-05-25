@@ -7,6 +7,7 @@ import {
   requestDataExport,
   requestDataDeletion,
   fetchTeamMembers,
+  fetchMyRole,
   ensureOwnerRow,
   inviteUser,
   updateUserPermissions,
@@ -52,6 +53,16 @@ export function useRequestDataDeletion() {
   const { clientId } = useAuth()
   return useMutation({
     mutationFn: () => requestDataDeletion(clientId!),
+  })
+}
+
+export function useMyRole() {
+  const { clientId, user } = useAuth()
+  return useQuery({
+    queryKey: ['my-role', clientId, user?.id],
+    queryFn: () => fetchMyRole(clientId!, user!.id),
+    enabled: !!clientId && !!user,
+    staleTime: 10 * 60 * 1000,
   })
 }
 

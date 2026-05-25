@@ -7,23 +7,25 @@ import { useOnboardingDraft, VERTICAL_MAP, PORTE_MAP, type OnboardingDraft } fro
 import { createCredential, createBigQueryCredentialWithDiscovery, type ConnectorPlatform, type CredentialPayload, type BigQueryCredentials } from '../../api/connectors'
 import { useAppStore } from '../../store/appStore'
 
-// Google Picker API — loaded dynamically, minimal types
+// Google Picker API — loaded dynamically via <script>, typed here for the builder chain
+interface GooglePickerDocsView {
+  setIncludeFolders: (v: boolean) => GooglePickerDocsView
+  setMimeTypes: (m: string) => GooglePickerDocsView
+}
+interface GooglePickerBuilder {
+  addView: (v: GooglePickerDocsView) => GooglePickerBuilder
+  setOAuthToken: (t: string) => GooglePickerBuilder
+  setDeveloperKey: (k: string) => GooglePickerBuilder
+  setCallback: (cb: (data: { action: string; docs?: { id: string; name: string }[] }) => void) => GooglePickerBuilder
+  build: () => { setVisible: (v: boolean) => void }
+}
 declare global {
   interface Window {
     gapi: { load: (api: string, cb: () => void) => void }
     google: {
       picker: {
-        PickerBuilder: new () => {
-          addView: (v: unknown) => unknown
-          setOAuthToken: (t: string) => unknown
-          setDeveloperKey: (k: string) => unknown
-          setCallback: (cb: (data: { action: string; docs?: { id: string; name: string }[] }) => void) => unknown
-          build: () => { setVisible: (v: boolean) => void }
-        }
-        DocsView: new () => {
-          setIncludeFolders: (v: boolean) => unknown
-          setMimeTypes: (m: string) => unknown
-        }
+        PickerBuilder: new () => GooglePickerBuilder
+        DocsView: new () => GooglePickerDocsView
         Action: { PICKED: string; CANCEL: string }
       }
     }
@@ -296,6 +298,7 @@ function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signu
   const { signInWithEmail, signUp } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [passwordConfirm, setPasswordConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const navigate = useNavigate()
@@ -312,6 +315,10 @@ function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signu
 
   async function handleSubmit() {
     setError(null)
+    if (mode !== 'login' && password !== passwordConfirm) {
+      setError('As senhas não coincidem.')
+      return
+    }
     setSubmitting(true)
     try {
       if (mode === 'login') {
@@ -368,9 +375,22 @@ function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signu
               value={password}
               onChange={e => setPassword(e.target.value)}
               disabled={submitting}
-              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              onKeyDown={e => !isLogin ? undefined : e.key === 'Enter' && handleSubmit()}
             />
           </div>
+          {!isLogin && (
+            <div className="field">
+              <label>Confirmar senha</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={passwordConfirm}
+                onChange={e => setPasswordConfirm(e.target.value)}
+                disabled={submitting}
+                onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              />
+            </div>
+          )}
 
           {error && (
             <div style={{ fontSize: 12.5, color: 'var(--urg)', marginBottom: 4 }}>{error}</div>
@@ -380,7 +400,7 @@ function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signu
             className="btn btn-blue"
             style={{ width: '100%' }}
             onClick={handleSubmit}
-            disabled={submitting || !email || !password}
+            disabled={submitting || !email || !password || (!isLogin && !passwordConfirm)}
           >
             {submitting ? 'Aguarde…' : isLogin ? 'Entrar' : 'Criar conta'}
           </button>
@@ -398,8 +418,8 @@ function StepAuth({ onNext, mode }: { onNext: () => void; mode: 'login' | 'signu
           ) : (
             <div style={{ textAlign: 'center', marginTop: 14, fontSize: 12.5, color: 'var(--muted)' }}>
               Ao criar conta você concorda com os{' '}
-              <a href="#" style={{ color: 'var(--blue3)' }}>Termos de Uso</a> e a{' '}
-              <a href="#" style={{ color: 'var(--blue3)' }}>Política de Privacidade</a>.
+              <a href="/termos" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--blue3)' }}>Termos de Uso</a> e a{' '}
+              <a href="/privacidade" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--blue3)' }}>Política de Privacidade</a>.
             </div>
           )}
         </div>
@@ -417,13 +437,28 @@ interface SiteContext {
   suggested_agents?: string[]
 }
 
+function formatCnpj(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 14)
+  if (digits.length <= 11) {
+    return digits
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
+  }
+  return digits
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1/$2')
+    .replace(/(\d{4})(\d{1,2})$/, '$1-$2')
+}
+
 function StepInfo({
   onNext, onBack, saveDraft,
   initialNome, initialEmpresa, initialWebsite, initialVertical, initialPorte,
-  initialPrimaryFocus, initialProdutoServico,
+  initialPrimaryFocus, initialProdutoServico, initialCnpj,
 }: {
   onNext: () => void
-  onBack: () => void
+  onBack?: () => void
   saveDraft: (patch: Partial<OnboardingDraft>) => Promise<void>
   initialNome: string
   initialEmpresa: string
@@ -432,12 +467,14 @@ function StepInfo({
   initialPorte: string
   initialPrimaryFocus: string
   initialProdutoServico: string
+  initialCnpj: string
 }) {
   const [nome, setNome] = useState(initialNome)
   const [empresa, setEmpresa] = useState(initialEmpresa)
+  const [cnpj, setCnpj] = useState(initialCnpj)
   const [website, setWebsite] = useState(initialWebsite)
-  const [vertical, setVertical] = useState(initialVertical || 'Comércio')
-  const [teamSize, setTeamSize] = useState(initialPorte || 'Só eu')
+  const [vertical, setVertical] = useState(initialVertical || '')
+  const [teamSize, setTeamSize] = useState(initialPorte || '')
   const [primaryFocus, setPrimaryFocus] = useState(initialPrimaryFocus || '')
   const [produtoServico, setProdutoServico] = useState(initialProdutoServico || '')
   const [saving, setSaving] = useState(false)
@@ -473,12 +510,15 @@ function StepInfo({
 
   async function handleNext() {
     if (!empresa.trim()) { setError('Nome da empresa é obrigatório.'); return }
+    if (!vertical) { setError('Selecione o setor da empresa.'); return }
+    if (!teamSize) { setError('Selecione o tamanho da equipe.'); return }
     setSaving(true)
     setError(null)
     try {
       await saveDraft({
         nome: nome.trim(),
         empresa: empresa.trim(),
+        cnpj: cnpj.replace(/\D/g, ''),
         website: website.trim(),
         vertical: VERTICAL_MAP[vertical] ?? null,
         porte: PORTE_MAP[teamSize] ?? teamSize,
@@ -510,6 +550,20 @@ function StepInfo({
               <label>Nome da empresa *</label>
               <input type="text" placeholder="Distribuidora Alvo" value={empresa} onChange={e => setEmpresa(e.target.value)} />
             </div>
+          </div>
+          <div className="field">
+            <label>
+              CPF / CNPJ da empresa{' '}
+              <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(opcional — usado para classificar transações automaticamente)</span>
+            </label>
+            <input
+              type="text"
+              placeholder="00.000.000/0001-00"
+              value={formatCnpj(cnpj)}
+              onChange={e => setCnpj(e.target.value.replace(/\D/g, ''))}
+              inputMode="numeric"
+              maxLength={18}
+            />
           </div>
           <div className="field">
             <label>Website <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(opcional)</span></label>
@@ -621,7 +675,7 @@ function StepInfo({
           </div>
           {error && <div style={{ fontSize: 12.5, color: 'var(--urg)', marginBottom: 4 }}>{error}</div>}
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button className="btn btn-ghost" onClick={onBack}>← Voltar</button>
+            {onBack && <button className="btn btn-ghost" onClick={onBack}>← Voltar</button>}
             <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleNext} disabled={saving}>
               {saving ? 'Salvando…' : 'Continuar →'}
             </button>
@@ -925,7 +979,7 @@ function StepData({
     }
     setDriveError(null)
     setDriveConnected(true)
-    setDriveFileLabel(fileId.slice(0, 24) + '…')
+    setDriveFileLabel(driveUrl.includes('docs.google.com') ? 'Planilha do Google Drive' : `Drive: ${fileId.slice(0, 16)}…`)
     setDriveOpen(false)
     onDriveFileReady(fileId)
   }
@@ -952,7 +1006,7 @@ function StepData({
         // Token lacks Drive scope — redirect to OAuth with drive.readonly.
         // The auth step will detect onboarding_returning_to_data on return
         // and route back to this step instead of navigating to /app.
-        sessionStorage.setItem('onboarding_returning_to_data', '1')
+        localStorage.setItem('onboarding_returning_to_data', '1')
         await connectGoogleDrive(window.location.href)
         return
       }
@@ -1046,26 +1100,17 @@ function StepData({
           <div className="fc-sub">O blu aprende sobre seu negócio a partir dos seus dados. Escolha de onde vêm.</div>
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 10 }}>Sistemas</div>
           <div className="dsrc-grid">
-            {SYSTEMS.map(s => (
+            {SYSTEMS.filter(s => !s.comingSoon).map(s => (
               <div
                 key={s.id}
                 className={`dsrc${connected[s.id] ? ' connected' : ''}${openForm === s.id ? ' active' : ''}`}
                 onClick={() => handleTileClick(s)}
                 style={{ position: 'relative', cursor: connected[s.id] ? 'default' : 'pointer' }}
               >
-                {s.comingSoon && (
-                  <div style={{ position: 'absolute', top: 6, right: 6, fontSize: 9, fontWeight: 700, background: 'var(--surface2)', color: 'var(--muted)', padding: '2px 5px', borderRadius: 4 }}>
-                    EM BREVE
-                  </div>
-                )}
                 <span className="dsrc-icon">{s.icon}</span>
                 <div className="dsrc-name">{s.name}</div>
                 <div className="dsrc-sub">
-                  {connected[s.id]
-                    ? '✓ Conectado'
-                    : interested[s.id]
-                    ? '✓ Interesse registrado'
-                    : s.sub}
+                  {connected[s.id] ? '✓ Conectado' : s.sub}
                 </div>
               </div>
             ))}
@@ -1179,15 +1224,16 @@ function StepData({
 // ─── StepMapping ──────────────────────────────────────────────────────────────
 
 function StepMapping({
-  onNext, onBack, saveDraft, mappingResult, credentialId, clientId, csvSourceId,
+  onNext, onBack, saveDraft, mappingResult, credentialId, clientId, csvSourceId, onConfirmedMapping,
 }: {
   onNext: () => void
-  onBack: () => void
+  onBack?: () => void
   saveDraft: (patch: Partial<OnboardingDraft>) => Promise<void>
   mappingResult: ColumnMappingResult | null
   credentialId: number | null
   clientId: string | null
   csvSourceId: string | null
+  onConfirmedMapping?: (mapping: Record<string, string>) => void
 }) {
   const [openGroup, setOpenGroup] = useState<'auto' | 'warn' | 'unknown' | null>(() => {
     if ((mappingResult?.needs_review?.length ?? 0) > 0) return 'warn'
@@ -1208,55 +1254,57 @@ function StepMapping({
       await saveDraft({ mapping_confirmed: true })
 
       // Fire ETL job — non-blocking, navigate immediately
-      // Backend expects { canonical_field: source_column }
-      // match-columns returns matched as { source: canonical } — flip it
-      const autoMatched: Record<string, string> = {}
-      for (const [source, canonical] of Object.entries(mappingResult?.matched ?? {})) {
-        autoMatched[canonical] = source
-      }
-      // warnSelections state: { source_col: canonical } — flip to { canonical: source_col }
+      // Backend expects { source_column: canonical_field } — same as match-columns output
+      // run_etl_job does: SELECT source_col AS canonical FROM fdw.table
+      const autoMatched: Record<string, string> = { ...mappingResult?.matched ?? {} }
+      // warnSelections state: { source_col: canonical } — already correct
       const warnMapped: Record<string, string> = {}
       for (const [src, canonical] of Object.entries(warnSelections)) {
-        if (canonical && canonical !== 'ignorar') warnMapped[canonical] = src
+        if (canonical && canonical !== 'ignorar') warnMapped[src] = canonical
       }
-      // unknownSelections state: { source_col: canonical } — flip to { canonical: source_col }
+      // unknownSelections state: { source_col: canonical } — already correct
       const manualMapped = Object.fromEntries(
         Object.entries(unknownSelections)
           .filter(([, v]) => v && v !== 'ignorar')
-          .map(([src, canonical]) => [canonical, src])
       )
       const column_mapping = { ...autoMatched, ...warnMapped, ...manualMapped }
 
-      if (csvSourceId && clientId) {
-        supabase.functions
-          .invoke('run-csv-etl', {
-            body: { client_id: clientId, source_id: csvSourceId, column_mapping },
-          })
-          .then(({ error }) => {
-            if (error) {
-              console.error('[onboarding] run-csv-etl:', error)
+      // Post-launch (BQ/Drive): clientId is available → run ETL now.
+      // Pre-launch (CSV): clientId is null → pass mapping upstream for StepLaunch to use.
+      if (clientId) {
+        if (csvSourceId) {
+          supabase.functions
+            .invoke('run-csv-etl', {
+              body: { client_id: clientId, source_id: csvSourceId, column_mapping },
+            })
+            .then(({ error }) => {
+              if (error) {
+                console.error('[onboarding] run-csv-etl:', error)
+                useAppStore.getState().addToast('no', 'Erro ao importar planilha', 'Os dados não foram carregados. Acesse Configurações > Fontes para tentar novamente.')
+              }
+            })
+            .catch((e: unknown) => {
+              console.error('[onboarding] run-csv-etl:', e)
               useAppStore.getState().addToast('no', 'Erro ao importar planilha', 'Os dados não foram carregados. Acesse Configurações > Fontes para tentar novamente.')
-            }
-          })
-          .catch((e: unknown) => {
-            console.error('[onboarding] run-csv-etl:', e)
-            useAppStore.getState().addToast('no', 'Erro ao importar planilha', 'Os dados não foram carregados. Acesse Configurações > Fontes para tentar novamente.')
-          })
-      } else if (clientId && credentialId) {
-        supabase.functions
-          .invoke('run-sync-etl', {
-            body: { client_id: clientId, credential_id: credentialId, column_mapping },
-          })
-          .then(({ error }) => {
-            if (error) {
-              console.error('[onboarding] run-sync-etl:', error)
+            })
+        } else if (credentialId) {
+          supabase.functions
+            .invoke('run-sync-etl', {
+              body: { client_id: clientId, credential_id: credentialId, column_mapping },
+            })
+            .then(({ error }) => {
+              if (error) {
+                console.error('[onboarding] run-sync-etl:', error)
+                useAppStore.getState().addToast('no', 'Erro ao sincronizar dados', 'A sincronização falhou. Acesse Configurações > Fontes para tentar novamente.')
+              }
+            })
+            .catch((e: unknown) => {
+              console.error('[onboarding] run-sync-etl:', e)
               useAppStore.getState().addToast('no', 'Erro ao sincronizar dados', 'A sincronização falhou. Acesse Configurações > Fontes para tentar novamente.')
-            }
-          })
-          .catch((e: unknown) => {
-            console.error('[onboarding] run-sync-etl:', e)
-            useAppStore.getState().addToast('no', 'Erro ao sincronizar dados', 'A sincronização falhou. Acesse Configurações > Fontes para tentar novamente.')
-          })
+            })
+        }
+      } else {
+        onConfirmedMapping?.(column_mapping)
       }
 
       onNext()
@@ -1301,9 +1349,6 @@ function StepMapping({
             <div className="ms-chip" style={{ color: 'var(--mu)' }}>Sem dados para mapear</div>
           )}
           <div className="ms-sep" />
-          <button className="btn btn-primary ms-cta" onClick={handleConfirm} disabled={confirming}>
-            {confirming ? 'Confirmando…' : 'Confirmar mapeamento →'}
-          </button>
         </div>
 
         {hasData && (
@@ -1440,11 +1485,11 @@ function StepMapping({
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, paddingBottom: 28 }}>
-          <div style={{ fontSize: 13, color: 'var(--muted2)' }}>
-            Dúvida em alguma coluna? <span style={{ color: 'var(--blue3)', cursor: 'pointer' }}>Ver documentação do esquema blu →</span>
+          <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+            Documentação do esquema — em breve
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn btn-ghost" onClick={onBack}>← Voltar</button>
+            {onBack && <button className="btn btn-ghost" onClick={onBack}>← Voltar</button>}
             <button className="btn btn-primary" onClick={handleConfirm} disabled={confirming}>
               {confirming ? 'Confirmando…' : 'Confirmar mapeamento →'}
             </button>
@@ -1457,7 +1502,7 @@ function StepMapping({
 
 // ─── StepLaunch ───────────────────────────────────────────────────────────────
 
-function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, csvSheetName, driveFileId }: {
+function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, csvSheetName, driveFileId, confirmedColumnMapping }: {
   bootstrap: () => Promise<{ client_id: string; agents: number; routines: number; prompts_seeded: number }>
   pendingCredentials: PendingCredential[]
   onDone: (mappingResult: ColumnMappingResult | null, credentialId: number | null, clientId: string, csvSourceId: string | null) => void
@@ -1465,6 +1510,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
   csvFile?: File | null
   csvSheetName?: string
   driveFileId?: string | null
+  confirmedColumnMapping?: Record<string, string>
 }) {
   const [attempt, setAttempt] = useState(0)
   const [progress, setProgress] = useState(0)
@@ -1476,8 +1522,11 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
   const [resolvedClientId, setResolvedClientId] = useState<string>('')
   const [csvSourceId, setCsvSourceId] = useState<string | null>(null)
   const rafRef = useRef<number>(0)
+  const lastAttemptFired = useRef(-1)
 
   useEffect(() => {
+    if (lastAttemptFired.current === attempt) return
+    lastAttemptFired.current = attempt
     let cancelled = false
     setProgress(0)
     setLogs([])
@@ -1576,6 +1625,12 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
                 uploadedSourceId = uploadData.source_id
                 setCsvSourceId(uploadData.source_id)
                 setLogs(prev => [...prev, `▸ Planilha carregada — ${uploadData.columns?.length ?? 0} colunas.`])
+                // Fire ETL with the mapping confirmed in StepMapping (non-blocking)
+                if (confirmedColumnMapping && Object.keys(confirmedColumnMapping).length > 0) {
+                  supabase.functions.invoke('run-csv-etl', {
+                    body: { client_id: result.client_id, source_id: uploadData.source_id, column_mapping: confirmedColumnMapping },
+                  }).catch((e: unknown) => console.warn('[onboarding] run-csv-etl:', e))
+                }
               }
             } else {
               if (!cancelled) setLogs(prev => [...prev, '⚠ Falha ao enviar planilha. Você pode reconectar depois.'])
@@ -1712,6 +1767,7 @@ export default function OnboardingApp() {
   const { user, loading } = useAuth()
   const navigate = useNavigate()
   const [mappingResult, setMappingResult] = useState<ColumnMappingResult | null>(null)
+  const [confirmedColumnMapping, setConfirmedColumnMapping] = useState<Record<string, string> | null>(null)
   const [pendingCredentials, setPendingCredentials] = useState<PendingCredential[]>([])
   const [bqCredentialId, setBqCredentialId] = useState<number | null>(null)
   const [bqClientId, setBqClientId] = useState<string | null>(null)
@@ -1747,9 +1803,9 @@ export default function OnboardingApp() {
 
           if (row?.onboarding_completed_at) {
             navigate('/app', { replace: true })
-          } else if (sessionStorage.getItem('onboarding_returning_to_data') === '1') {
+          } else if (localStorage.getItem('onboarding_returning_to_data') === '1') {
             // User came back from Drive OAuth during the data step — restore it.
-            sessionStorage.removeItem('onboarding_returning_to_data')
+            localStorage.removeItem('onboarding_returning_to_data')
             if (!cancelled) setStep('data')
           } else {
             // Provisional profile without completed onboarding — resume from info.
@@ -1774,9 +1830,9 @@ export default function OnboardingApp() {
 
   if (loading) return null
 
-  // Map internal codes back to display strings for initializing StepInfo
-  const initialVertical = VERTICAL_DISPLAY[draft.vertical ?? ''] ?? 'Comércio'
-  const initialPorte = PORTE_DISPLAY[draft.porte] ?? 'Só eu'
+  // Map internal codes back to display strings for initializing StepInfo (empty = no pre-selection)
+  const initialVertical = VERTICAL_DISPLAY[draft.vertical ?? ''] ?? ''
+  const initialPorte = PORTE_DISPLAY[draft.porte] ?? ''
 
   if (step === 'auth') {
     return (
@@ -1790,10 +1846,12 @@ export default function OnboardingApp() {
     return (
       <StepInfo
         onNext={() => go('data')}
-        onBack={() => go('auth')}
+        // Suppress back button when user is already authenticated to avoid auth→info redirect loop
+        onBack={user ? undefined : () => go('auth')}
         saveDraft={saveDraft}
         initialNome={draft.nome}
         initialEmpresa={draft.empresa}
+        initialCnpj={draft.cnpj ?? ''}
         initialWebsite={draft.website}
         initialVertical={initialVertical}
         initialPorte={initialPorte}
@@ -1805,7 +1863,8 @@ export default function OnboardingApp() {
   if (step === 'data') {
     return (
       <StepData
-        onNext={() => go('launch')}
+        // CSV: go to mapping first (pre-launch). Drive/BQ/no-data: go straight to launch.
+        onNext={() => mappingResult ? go('mapping') : go('launch')}
         onBack={() => go('info')}
         onSkip={() => go('launch')}
         saveDraft={saveDraft}
@@ -1824,8 +1883,11 @@ export default function OnboardingApp() {
   if (step === 'mapping') {
     return (
       <StepMapping
-        onNext={() => navigate('/app', { replace: true })}
-        onBack={() => go('launch')}
+        // Pre-launch (CSV): go to launch after confirm. Post-launch (BQ/Drive): go to /app.
+        onNext={() => bqClientId ? navigate('/app', { replace: true }) : go('launch')}
+        // Pre-launch: back to data. Post-launch: no back (bootstrap already ran).
+        onBack={bqClientId ? undefined : () => go('data')}
+        onConfirmedMapping={setConfirmedColumnMapping}
         saveDraft={saveDraft}
         mappingResult={mappingResult}
         credentialId={bqCredentialId}
@@ -1842,15 +1904,17 @@ export default function OnboardingApp() {
       csvFile={csvFile}
       csvSheetName={csvSheetName}
       driveFileId={driveFileId}
+      confirmedColumnMapping={confirmedColumnMapping ?? undefined}
       onDone={(bqMapping, credentialId, clientId, uploadedCsvSourceId) => {
         try { localStorage.removeItem('blu_first_run_done') } catch {}
         useAppStore.setState({ firstRun: true })
-        const finalMapping = bqMapping ?? mappingResult
         setBqCredentialId(credentialId)
         setBqClientId(clientId)
         if (uploadedCsvSourceId) setCsvSourceId(uploadedCsvSourceId)
-        if (finalMapping || uploadedCsvSourceId) {
-          setMappingResult(finalMapping)
+        // Show post-launch mapping only for BQ/Drive (columns discovered during launch).
+        // CSV was already mapped pre-launch.
+        if (bqMapping) {
+          setMappingResult(bqMapping)
           go('mapping')
         } else {
           navigate('/app', { replace: true })

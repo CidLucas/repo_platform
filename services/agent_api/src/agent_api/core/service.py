@@ -424,10 +424,10 @@ class ChatService:
             except Exception as exc:
                 logger.warning("[ChatService] MCP connect failed (will retry on tool call): %s", exc)
 
-    def _build_langfuse_config(self, session_id: str, client_id: str, tags: list[str]) -> dict:
+    def _build_langfuse_config(self, session_id: str, client_id: str, tags: list[str], trace_name: str | None = None) -> dict:
         try:
             from agent_api.core.observability import get_langfuse_config
-            return get_langfuse_config(session_id=session_id, client_id=client_id, tags=tags)
+            return get_langfuse_config(session_id=session_id, client_id=client_id, tags=tags, trace_name=trace_name)
         except Exception:
             return {"configurable": {"thread_id": f"{client_id}:{session_id}"}}
 
@@ -530,6 +530,7 @@ class ChatService:
             session_id=session_id,
             client_id=client_id,
             tags=["frontdesk", nome_empresa] + (extra_tags or []),
+            trace_name=f"chat:{nome_empresa}:{session_id[:8]}",
         )
         config.setdefault("configurable", {})["thread_id"] = f"{client_id}:{session_id}"
 
@@ -647,6 +648,7 @@ class ChatService:
             session_id=session_id,
             client_id=client_id,
             tags=["frontdesk", "stream", nome_empresa],
+            trace_name=f"chat-stream:{nome_empresa}:{session_id[:8]}",
         )
         config.setdefault("configurable", {})["thread_id"] = f"{client_id}:{session_id}"
 

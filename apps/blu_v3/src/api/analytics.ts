@@ -33,7 +33,7 @@ export interface PendenciaItem {
 export interface InsightItem {
   id: string
   runDate: string
-  dimension: 'finance' | 'commercial' | 'inventory' | 'supply' | 'marketing' | 'operations' | string
+  room: 'financeiro' | 'clientes' | 'compras' | 'agenda' | 'estrategia' | 'home' | string
   kpi: string
   severity: 'info' | 'warning' | 'error' | string
   title: string
@@ -227,7 +227,7 @@ export const getInsights = async (limit = 5): Promise<InsightItem[]> => {
     (row: {
       id: string
       run_date: string
-      dimension: string
+      room: string
       kpi: string
       severity: string
       title: string
@@ -241,7 +241,7 @@ export const getInsights = async (limit = 5): Promise<InsightItem[]> => {
     }) => ({
       id: row.id,
       runDate: row.run_date,
-      dimension: row.dimension,
+      room: row.room,
       kpi: row.kpi,
       severity: row.severity,
       title: row.title,

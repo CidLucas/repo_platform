@@ -19,6 +19,7 @@ export interface OnboardingDraft {
   nome: string
   email: string
   empresa: string
+  cnpj: string
   vertical: Vertical
   porte: string
   website: string
@@ -52,6 +53,7 @@ export function initialDraft(email: string): OnboardingDraft {
     nome: '',
     email,
     empresa: '',
+    cnpj: '',
     vertical: null,
     porte: '',
     website: '',
@@ -68,27 +70,29 @@ export function initialDraft(email: string): OnboardingDraft {
   }
 }
 
+const DRAFT_KEY = (email: string) => `blu_onb_${email || 'anon'}`
+
 export function useOnboardingDraft(userEmail: string) {
-  const [draft, setDraft] = useState<OnboardingDraft>(() => initialDraft(userEmail))
+  const [draft, setDraft] = useState<OnboardingDraft>(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY(userEmail))
+      if (raw) return { ...initialDraft(userEmail), ...JSON.parse(raw) }
+    } catch {}
+    return initialDraft(userEmail)
+  })
 
   const updateDraft = useCallback((patch: Partial<OnboardingDraft>) => {
     setDraft(prev => ({ ...prev, ...patch }))
   }, [])
 
-  /**
-   * Update draft state locally.
-   * merge_onboarding_state is only meaningful after the clientes_blu row exists
-   * (i.e. after bootstrap), so we skip the RPC here. The full draft is sent to
-   * onboarding-bootstrap at the end of the wizard.
-   */
   const saveDraft = useCallback(async (patch: Partial<OnboardingDraft>) => {
-    updateDraft(patch)
-  }, [updateDraft])
+    setDraft(prev => {
+      const next = { ...prev, ...patch }
+      try { localStorage.setItem(DRAFT_KEY(userEmail), JSON.stringify(next)) } catch {}
+      return next
+    })
+  }, [userEmail])
 
-  /**
-   * Call the onboarding-bootstrap edge function with the full draft.
-   * Returns { client_id, agents, routines, prompts_seeded }.
-   */
   const bootstrap = useCallback(async (finalPatch?: Partial<OnboardingDraft>) => {
     const state = finalPatch ? { ...draft, ...finalPatch } : draft
 
@@ -97,8 +101,9 @@ export function useOnboardingDraft(userEmail: string) {
     })
 
     if (error) throw new Error(error.message ?? 'Bootstrap failed')
+    try { localStorage.removeItem(DRAFT_KEY(userEmail)) } catch {}
     return data as { client_id: string; agents: number; routines: number; prompts_seeded: number }
-  }, [draft])
+  }, [draft, userEmail])
 
   return { draft, updateDraft, saveDraft, bootstrap }
 }

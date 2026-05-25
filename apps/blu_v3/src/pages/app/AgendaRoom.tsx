@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '../../store/appStore'
 import { useAuth } from '../../hooks/useAuth'
+import { useIntegrations } from '../../hooks/useAdmin'
 import {
   fetchApprovalsByAgent,
   approveRequest,
@@ -12,8 +13,13 @@ import {
   fetchTodaySchedule,
   fetchCalendarSettings,
   fetchAgendaHistory,
+  fetchUnifiedTasks,
+  fetchExternalAgendaEvents,
   connectGoogleCalendar,
+  type UnifiedTask,
+  type AgendaExternalEvent,
 } from '../../api/agenda'
+import MonthlyGantt from '../../components/agenda/MonthlyGantt'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import RoutineConfigSection from '../../components/shared/RoutineConfigSection'
@@ -37,9 +43,10 @@ const DOT_COLORS: Record<string, string> = {
 }
 
 export default function AgendaRoom() {
-  const { go, toggleDc, expandedId, addToast, openChatWith } = useAppStore()
+  const { go, goWithTab, toggleDc, expandedId, addToast, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
+  const { data: integrations = [] } = useIntegrations()
   const [tab, setTab] = useState<Tab>('gantt')
 
   // Invalidate after Google Calendar OAuth return
@@ -48,9 +55,10 @@ export default function AgendaRoom() {
     sessionStorage.removeItem('cal_oauth_done')
     qc.invalidateQueries({ queryKey: ['calendar-settings'] })
     qc.invalidateQueries({ queryKey: ['agenda-schedule'] })
+    qc.invalidateQueries({ queryKey: ['external-agenda-events'] })
   }, [qc])
 
-  const [approvalsQ, insightsQ, scheduleQ, calSettingsQ, historyQ] = useQueries({
+  const results = useQueries({
     queries: [
       {
         queryKey: ['approvals', 'agenda', clientId ?? ''],
@@ -60,7 +68,7 @@ export default function AgendaRoom() {
       },
       {
         queryKey: ['insights'],
-        queryFn: () => fetchInsights(),
+        queryFn: () => fetchInsights(10, 'agenda'),
         enabled: !!clientId,
         staleTime: 60_000,
       },
@@ -82,8 +90,25 @@ export default function AgendaRoom() {
         enabled: !!clientId,
         staleTime: 60_000,
       },
+      {
+        queryKey: ['unified-tasks', clientId],
+        queryFn: () => clientId ? fetchUnifiedTasks(clientId) : Promise.resolve([]),
+        enabled: !!clientId,
+        staleTime: Infinity,   // fetch once on mount, never re-fetch automatically
+        gcTime: 10 * 60 * 1000,
+      },
+      {
+        queryKey: ['external-agenda-events'],
+        queryFn: () => fetchExternalAgendaEvents(84),
+        enabled: !!clientId,
+        staleTime: Infinity,   // fetch once on mount, never re-fetch automatically
+        gcTime: 10 * 60 * 1000,
+      },
     ],
   })
+
+  const [approvalsQ, insightsQ, scheduleQ, , historyQ] = results
+  const [,,,,,{ data: unifiedTasks = [] }, { data: externalEvents = [] }] = results
 
   const invalidateApprovals = () => qc.invalidateQueries({ queryKey: ['approvals'] })
 
@@ -99,10 +124,10 @@ export default function AgendaRoom() {
   const approvals = approvalsQ.data ?? []
   const pendingCount = approvals.length
   const todayEvents = scheduleQ.data ?? []
-  const calSettings = calSettingsQ.data ?? null
+  // calSettings was removed — calendar sources now come from integrations list
   const agendaHistory = historyQ.data ?? []
   const agendaInsights = (insightsQ.data ?? []).filter(
-    i => !i.dimension || i.dimension === 'agenda'
+    () => true  // room filter is server-side via p_room='agenda'
   )
 
   return (
@@ -117,7 +142,7 @@ export default function AgendaRoom() {
       </div>
       <div className="room-grid">
 
-        <div className="panel" style={{ gridColumn: 1, gridRow: 1 }}>
+        <div className="panel" style={{ gridColumn: 1, gridRow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div className="ph">
             <span className="ph-ttl">Mesa de Trabalho</span>
             <span className="ph-cnt">{todayEvents.length} eventos hoje</span>
@@ -131,64 +156,15 @@ export default function AgendaRoom() {
               </div>
             ))}
           </div>
-          <div className="pb">
+          <div className="pb" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
 
-            {/* GANTT — static layout (no backend structure yet) */}
+            {/* GANTT — Visão Mensal (MonthlyGantt component) */}
             <div className={`tc${tab === 'gantt' ? ' on' : ''}`} id="ag-gantt">
-              <div className="gantt">
-                <div className="gantt-header">
-                  <div className="gantt-wk">6–12 Mai</div>
-                  <div className="gantt-wk">13–19 Mai</div>
-                  <div className="gantt-wk">20–26 Mai</div>
-                  <div className="gantt-wk">27–5 Jun</div>
-                </div>
-                {[
-                  { label: '🛒 Compras', blocks: [
-                    { left: '0%', width: '20%', bg: '#818cf8', text: 'Cotação mensal' },
-                    { left: '0%', width: '6%', bg: 'rgba(239,68,68,.7)', text: 'Toner' },
-                  ]},
-                  { label: '📊 Financeiro', blocks: [
-                    { left: '3%', width: '4%', bg: 'var(--att)', text: 'Boleto' },
-                    { left: '74%', width: '16%', bg: '#34d399', text: 'Fechamento' },
-                  ]},
-                  { label: '📅 Agenda', blocks: [
-                    { left: '6%', width: '4%', bg: '#fb923c', text: 'NF-e' },
-                    { left: '26%', width: '4%', bg: 'rgba(251,146,60,.6)', text: 'Fornec.' },
-                    { left: '37%', width: '4%', bg: 'rgba(251,146,60,.6)', text: 'Fech. Qua' },
-                  ]},
-                  { label: '✍️ Docs', blocks: [
-                    { left: '0%', width: '4%', bg: '#f472b6', text: 'Proposta Q2' },
-                    { left: '0%', width: '30%', bg: 'rgba(244,114,182,.45)', text: 'Handover Alpha' },
-                  ]},
-                  { label: '🎯 Estratégia', blocks: [
-                    { left: '0%', width: '13%', bg: '#fbbf24', text: 'Análise Y' },
-                    { left: '47%', width: '22%', bg: 'rgba(251,191,36,.5)', text: 'Relatório Q2' },
-                  ]},
-                  { label: '👥 Clientes', blocks: [
-                    { left: '0%', width: '6%', bg: '#2dd4bf', text: 'Máq. Pesada' },
-                    { left: '6%', width: '4%', bg: 'rgba(45,212,191,.5)', text: 'TechFarm' },
-                    { left: '50%', width: '10%', bg: 'rgba(45,212,191,.4)', text: 'Renovações' },
-                  ]},
-                ].map(row => (
-                  <div key={row.label} className="gantt-row">
-                    <div className="gantt-label">{row.label}</div>
-                    <div className="gantt-track">
-                      <div className="gantt-today" style={{ left: '0%' }} />
-                      <div className="gantt-divider" style={{ left: '25%' }} />
-                      <div className="gantt-divider" style={{ left: '50%' }} />
-                      <div className="gantt-divider" style={{ left: '75%' }} />
-                      {row.blocks.map((b, i) => (
-                        <div key={i} className="gantt-block" style={{ left: b.left, width: b.width, background: b.bg }}>{b.text}</div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                <div style={{ marginTop: 9, display: 'flex', alignItems: 'center', gap: 10, fontSize: 10, color: 'var(--mu)' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 2, background: 'var(--ac)', borderRadius: 1, display: 'inline-block' }} />Hoje</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 8, background: '#818cf8', borderRadius: 2, display: 'inline-block' }} />Em andamento</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 8, background: 'var(--att)', borderRadius: 2, display: 'inline-block' }} />Urgente</span>
-                </div>
-              </div>
+              <MonthlyGantt
+                tasks={unifiedTasks as UnifiedTask[]}
+                externalEvents={externalEvents as AgendaExternalEvent[]}
+                loading={results[5].isLoading || results[6].isLoading}
+              />
             </div>
 
             {/* HOJE */}
@@ -282,52 +258,104 @@ export default function AgendaRoom() {
               <div className="dr-sec">
                 <div className="dr-ttl">Fontes</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 5 }}>
-                  {calSettings?.enabled ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '3px 4px' }}>
-                      <div style={{ width: 7, height: 7, borderRadius: 2, background: '#818cf8', flexShrink: 0 }} />
-                      <span style={{ fontSize: 11, color: 'var(--mu2)' }}>{calSettings.calendar_name ?? calSettings.provider ?? 'Google Calendar'}</span>
-                      <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--ok)' }}>●</span>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ fontSize: 11, color: 'var(--mu)' }}>Nenhum calendário conectado.</div>
-                      <button
-                        className="btn bs"
-                        style={{ fontSize: 11 }}
-                        onClick={() => connectGoogleCalendar(window.location.href)}
-                      >
-                        Conectar Google Calendar
-                      </button>
-                    </div>
-                  )}
+                  {(() => {
+                    const CAL_PROVIDERS = new Set(['google_calendar', 'outlook_calendar', 'microsoft_calendar', 'apple_calendar'])
+                    const PM_PROVIDERS  = new Set(['monday', 'notion', 'asana', 'clickup', 'linear', 'slack'])
+
+                    // Logo SVGs
+                    const ProviderLogo = ({ provider }: { provider: string }) => {
+                      if (provider === 'google_calendar') return (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                          <rect width="24" height="24" rx="3" fill="#fff"/>
+                          <rect x="3" y="3" width="18" height="18" rx="2" fill="#fff" stroke="#e0e0e0" strokeWidth="1"/>
+                          <rect x="3" y="3" width="18" height="5" rx="2" fill="#4285F4"/>
+                          <rect x="3" y="6" width="18" height="2" fill="#4285F4"/>
+                          <rect x="7" y="1.5" width="2" height="4" rx="1" fill="#4285F4"/>
+                          <rect x="15" y="1.5" width="2" height="4" rx="1" fill="#4285F4"/>
+                          <text x="12" y="18" textAnchor="middle" fontSize="8" fontWeight="700" fill="#4285F4">G</text>
+                        </svg>
+                      )
+                      if (provider === 'monday') return (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                          <circle cx="4"  cy="12" r="4" fill="#FF3D57"/>
+                          <circle cx="12" cy="12" r="4" fill="#FFCB00"/>
+                          <circle cx="20" cy="12" r="4" fill="#00CA72"/>
+                        </svg>
+                      )
+                      if (provider === 'notion') return (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                          <rect width="24" height="24" rx="3" fill="#fff" stroke="#e0e0e0"/>
+                          <text x="5" y="18" fontSize="14" fontWeight="900" fill="#000">N</text>
+                        </svg>
+                      )
+                      if (provider === 'slack') return (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                          <path d="M6 15a2 2 0 0 1-2 2 2 2 0 0 1-2-2 2 2 0 0 1 2-2h2v2Z" fill="#E01E5A"/>
+                          <path d="M7 15a2 2 0 0 1 2-2 2 2 0 0 1 2 2v5a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-5Z" fill="#E01E5A"/>
+                          <path d="M9 7a2 2 0 0 1-2-2 2 2 0 0 1 2-2 2 2 0 0 1 2 2v2H9Z" fill="#36C5F0"/>
+                          <path d="M9 8a2 2 0 0 1 2 2 2 2 0 0 1-2 2H4a2 2 0 0 1-2-2 2 2 0 0 1 2-2h5Z" fill="#36C5F0"/>
+                          <path d="M17 10a2 2 0 0 1 2-2 2 2 0 0 1 2 2 2 2 0 0 1-2 2h-2v-2Z" fill="#2EB67D"/>
+                          <path d="M16 10a2 2 0 0 1-2 2 2 2 0 0 1-2-2V5a2 2 0 0 1 2-2 2 2 0 0 1 2 2v5Z" fill="#2EB67D"/>
+                          <path d="M14 18a2 2 0 0 1 2 2 2 2 0 0 1-2 2 2 2 0 0 1-2-2v-2h2Z" fill="#ECB22E"/>
+                          <path d="M14 17a2 2 0 0 1-2-2 2 2 0 0 1 2-2h5a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-5Z" fill="#ECB22E"/>
+                        </svg>
+                      )
+                      // Generic dot for others
+                      const colors: Record<string, string> = { asana: '#F06A6A', clickup: '#7B68EE', linear: '#5E6AD2' }
+                      return <div style={{ width: 13, height: 13, borderRadius: '50%', background: colors[provider] ?? '#818cf8', flexShrink: 0 }} />
+                    }
+
+                    const friendlyName = (i: { provider: string; name: string | null; connection_detail: string | null }) => {
+                      const detail = i.connection_detail && i.connection_detail !== 'account' && i.connection_detail !== 'workspace' ? i.connection_detail : null
+                      const name   = i.name && i.name !== 'account' && i.name !== 'workspace' ? i.name : null
+                      if (detail) return detail
+                      if (name)   return name
+                      const labels: Record<string, string> = {
+                        google_calendar: 'Google Calendar', google_drive: 'Google Drive',
+                        monday: 'Monday.com', notion: 'Notion', asana: 'Asana',
+                        clickup: 'ClickUp', linear: 'Linear', slack: 'Slack',
+                        outlook_calendar: 'Outlook', microsoft_calendar: 'Microsoft Calendar',
+                      }
+                      return labels[i.provider] ?? i.provider
+                    }
+
+                    const allSources = integrations.filter(i =>
+                      (CAL_PROVIDERS.has(i.provider) || PM_PROVIDERS.has(i.provider)) && i.status === 'connected'
+                    )
+
+                    if (allSources.length === 0) {
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ fontSize: 11, color: 'var(--mu)' }}>Nenhuma fonte conectada.</div>
+                          <button className="btn bs" style={{ fontSize: 11 }} onClick={() => connectGoogleCalendar()}>
+                            Conectar Google Calendar
+                          </button>
+                        </div>
+                      )
+                    }
+
+                    return allSources.map(i => (
+                      <div key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '3px 4px' }}>
+                        <ProviderLogo provider={i.provider} />
+                        <span style={{ fontSize: 11, color: 'var(--mu2)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {friendlyName(i)}
+                        </span>
+                        <span style={{ marginLeft: 'auto', fontSize: 9, color: 'var(--ok)' }}>●</span>
+                      </div>
+                    ))
+                  })()}
                 </div>
               </div>
               <div className="dr-sec" style={{ marginTop: 10 }}>
                 <div className="dr-ttl">Gestão de Projetos</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 5 }}>
-                  <div style={{ fontSize: 11, color: 'var(--mu)' }}>
-                    Conecte apps de gestão para sincronizar tarefas e prazos automaticamente.
-                  </div>
-                  {[
-                    { icon: '⬡', label: 'Monday.com' },
-                    { icon: '◻', label: 'Notion' },
-                    { icon: '✓', label: 'Asana' },
-                    { icon: '▲', label: 'ClickUp' },
-                    { icon: '◆', label: 'Linear' },
-                    { icon: '#', label: 'Slack' },
-                  ].map(({ icon, label }) => (
-                    <button
-                      key={label}
-                      className="btn bs"
-                      style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 5 }}
-                      onClick={() => { window.location.href = '/app' }}
-                    >
-                      <span>{icon}</span> Conectar {label}
-                    </button>
-                  ))}
-                  <span style={{ fontSize: 10, color: 'var(--mu)', marginTop: 2 }}>
-                    Configure em Admin › Integrações
-                  </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 5 }}>
+                  <button
+                    className="btn bs"
+                    style={{ fontSize: 10 }}
+                    onClick={() => goWithTab('admin', 'Admin', 'integracoes')}
+                  >
+                    ＋ Adicionar integração
+                  </button>
                 </div>
               </div>
           </CollapsiblePanel>

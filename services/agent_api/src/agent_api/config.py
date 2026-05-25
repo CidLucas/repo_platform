@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     # Infrastructure
     REDIS_URL: str = "redis://localhost:6379"
     DATABASE_URL: str | None = None
+    # Direct session-mode connection (port 5432) — use for heavy jobs: ETL, bulk deletes.
+    DATABASE_URL_DIRECT: str | None = None
 
     # MCP
     MCP_SERVER_URL: str = "http://tool_pool_api:8000/mcp/"

@@ -314,7 +314,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         model_tier=ModelTier.FAST,
         routing_hint="Follow-up scheduling, client contact prioritisation, calendar planning.",
         max_turns=5,
-        tags=["scheduling", "follow-up", "calendar", "clients"],
+        tags=["scheduling", "follow-up", "calendar", "clients", "agenda"],
     ),
     # ------------------------------------------------------------------
     # Documentos — knowledge base and document analysis specialist

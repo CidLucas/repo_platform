@@ -557,11 +557,24 @@ async def _save_context_document(inputs: dict, client_id: str) -> dict:
 
 
 
+_DIMENSION_TO_ROOM: dict[str, str] = {
+    "finance":    "financeiro",
+    "commercial": "clientes",
+    "inventory":  "compras",
+    "supply":     "compras",
+}
+
+
+def _map_dimension_to_room(dimension: str) -> str:
+    """Map legacy dimension slugs to room slugs. Passthrough for unknown values."""
+    return _DIMENSION_TO_ROOM.get(dimension, dimension)
+
+
 @register(
     "storage.save_insights",
     description="Persiste lista de insights gerados no banco de dados, exibidos nos cards de cada room.",
     inputs=[
-        {"key": "insights", "type": "list", "description": "Lista de insights (use {{insights}}). Cada item: {dimension, kpi, title, observation, severity, recommendation?}", "required": True},
+        {"key": "insights", "type": "list", "description": "Lista de insights (use {{insights}}). Cada item: {room, kpi, title, observation, severity, recommendation?}. room: financeiro|clientes|compras|agenda|estrategia", "required": True},
     ],
     outputs=[
         {"key": "insights_written", "type": "int", "description": "Quantidade de insights salvos com sucesso"},
@@ -573,7 +586,7 @@ async def _save_insights(inputs: dict, client_id: str) -> dict:
 
     inputs:
         insights — list of dicts with keys:
-                   dimension, kpi, title, observation, severity,
+                   room, kpi, title, observation, severity,
                    recommendation (optional), metric_value (optional),
                    baseline_value (optional), variance_pct (optional)
 
@@ -604,7 +617,7 @@ async def _save_insights(inputs: dict, client_id: str) -> dict:
             await asyncio.to_thread(
                 lambda i=item: db.table("client_insights").insert({
                     "client_id": client_id,
-                    "dimension": i.get("dimension", "commercial"),
+                    "room": i.get("room") or _map_dimension_to_room(i.get("dimension", "financeiro")),
                     "kpi": i.get("kpi"),
                     "title": str(i.get("title", "Insight"))[:200],
                     "body": i.get("body") or i.get("observation"),

@@ -132,7 +132,7 @@ export default function DocumentosRoom({ openEditor }: DocumentosRoomProps) {
   const docs: BluDocument[] = docsQ.data ?? []
   const templates: DocTemplate[] = templatesQ.data ?? []
   const insights: ClientInsight[] = (insightsQ.data ?? []).filter(
-    (i) => !i.dimension || i.dimension === 'documentos'
+    () => true  // documentos room: show all active insights
   )
 
   const activeDoc = docs.find((d) => d.id === activeDocId) ?? null

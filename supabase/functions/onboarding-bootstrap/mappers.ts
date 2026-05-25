@@ -25,6 +25,7 @@ export interface OnboardingState {
   nome: string;
   email: string;
   empresa: string;
+  cnpj?: string;
   vertical: Vertical;
   porte: string;
   website: string;

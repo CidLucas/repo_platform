@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # --- Conexões de Infraestrutura ---
     # Necessárias para o ContextService (via dependencies.py)
     DATABASE_URL: str | None = None
+    # Direct session-mode connection (port 5432) — use for heavy jobs: ETL, bulk deletes.
+    # Falls back to DATABASE_URL if not set (e.g. local dev without separate direct URL).
+    DATABASE_URL_DIRECT: str | None = None
     REDIS_URL: str | None = None
 
     # --- Observabilidade ---

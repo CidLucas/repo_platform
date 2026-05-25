@@ -5,9 +5,10 @@ import { useAppStore } from '../../store/appStore'
 interface TopbarProps {
   onToggleTheme: () => void
   lightMode: boolean
+  onOpenSearch: () => void
 }
 
-export default function Topbar({ onToggleTheme, lightMode }: TopbarProps) {
+export default function Topbar({ onToggleTheme, lightMode, onOpenSearch }: TopbarProps) {
   const { breadcrumb, go } = useAppStore()
   const { user, signOut } = useAuth()
   const isHome = breadcrumb === 'Bom dia ☀️'
@@ -88,7 +89,7 @@ export default function Topbar({ onToggleTheme, lightMode }: TopbarProps) {
         >
           {lightMode ? '🌙' : '☀️'}
         </button>
-        <button className="ibtn">
+        <button className="ibtn" onClick={onOpenSearch} title="Buscar (⌘K)">
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.35-4.35" />

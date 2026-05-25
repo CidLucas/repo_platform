@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useAuth } from '@blu/auth'
 
 interface Props {
   id: string
@@ -13,20 +14,27 @@ interface Props {
 export default function CollapsiblePanel({
   id, icon, title, badge, action, defaultOpen = true, children,
 }: Props) {
-  const [open, setOpen] = useState(() => {
+  const { clientId } = useAuth()
+  const [open, setOpen] = useState(defaultOpen)
+
+  // Read scoped preference once clientId resolves
+  useEffect(() => {
+    if (!clientId) return
     try {
-      const v = localStorage.getItem(`panel:${id}`)
-      return v === null ? defaultOpen : v === 'true'
-    } catch { return defaultOpen }
-  })
+      const v = localStorage.getItem(`panel:${clientId}:${id}`)
+      if (v !== null) setOpen(v === 'true')
+    } catch {}
+  }, [clientId, id])
 
   const toggle = useCallback(() => {
     setOpen(o => {
       const next = !o
-      try { localStorage.setItem(`panel:${id}`, String(next)) } catch {}
+      try {
+        if (clientId) localStorage.setItem(`panel:${clientId}:${id}`, String(next))
+      } catch {}
       return next
     })
-  }, [id])
+  }, [clientId, id])
 
   return (
     <div className={`panel${open ? '' : ' collapsed'}`}>

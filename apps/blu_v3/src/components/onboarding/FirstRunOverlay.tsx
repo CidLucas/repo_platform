@@ -33,7 +33,8 @@ interface Props {
 
 export default function FirstRunOverlay({ onOpenConnections }: Props) {
   const dismissFirstRun = useAppStore(s => s.dismissFirstRun)
-  const { user } = useAuth()
+  const { user, clientId } = useAuth()
+  const dismiss = () => dismissFirstRun(clientId ?? '')
   const [step, setStep] = useState(0)
   const [msgs, setMsgs] = useState<ChatMsg[]>([])
   const [inputVal, setInputVal] = useState('')
@@ -115,7 +116,7 @@ export default function FirstRunOverlay({ onOpenConnections }: Props) {
           zIndex: 80,
           cursor: 'default',
         }}
-        onClick={dismissFirstRun}
+        onClick={dismiss}
       />
 
       {/* Chat card — bottom-right, above backdrop */}
@@ -157,7 +158,7 @@ export default function FirstRunOverlay({ onOpenConnections }: Props) {
             <div style={{ fontSize: 11, color: 'rgba(232,237,248,0.5)' }}>Configuração inicial</div>
           </div>
           <button
-            onClick={dismissFirstRun}
+            onClick={dismiss}
             style={{
               marginLeft: 'auto', fontSize: 16, color: 'rgba(232,237,248,0.4)',
               background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1,
@@ -240,7 +241,7 @@ export default function FirstRunOverlay({ onOpenConnections }: Props) {
 
           {done && (
             <button
-              onClick={dismissFirstRun}
+              onClick={dismiss}
               style={{
                 marginTop: 8,
                 padding: '10px 16px',

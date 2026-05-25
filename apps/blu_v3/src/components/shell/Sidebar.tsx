@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react'
 import {
   House, ShoppingCart, ChartBar, CalendarDots,
-  PencilSimpleLine, Target, UsersThree, Books,
+  PencilSimpleLine, Target, UsersThree,
   Bell, Gear, Monitor,
 } from '@phosphor-icons/react'
 import { useAppStore, Screen } from '../../store/appStore'
 import { usePendingApprovals } from '../../hooks/useApprovals'
+import { useMyRole } from '../../hooks/useAdmin'
+import { useAuth } from '../../hooks/useAuth'
 
 interface NavItem {
   s: Screen
@@ -36,6 +38,8 @@ export default function Sidebar() {
   const { screen, go } = useAppStore()
   const [menuOpen, setMenuOpen] = useState(false)
   const { data: pendingApprovals = [] } = usePendingApprovals()
+  const { tier } = useAuth()
+  const { data: myRole } = useMyRole()
 
   const badgeCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -63,14 +67,20 @@ export default function Sidebar() {
     )
   }
 
-  const allItems = [...NAV_ITEMS, ...FOOT_ITEMS]
+  const visibleFootItems = FOOT_ITEMS.filter(item => {
+    if (item.s === 'admin') return myRole === 'owner'
+    if (item.s === 'blu_ops') return tier === 'ADMIN'
+    return true
+  })
+
+  const allItems = [...NAV_ITEMS, ...visibleFootItems]
 
   return (
     <>
       <aside className="sidebar" data-spotlight-target="sidebar">
         {NAV_ITEMS.map(renderDesktopItem)}
         <div className="sb-foot">
-          {FOOT_ITEMS.map(renderDesktopItem)}
+          {visibleFootItems.map(renderDesktopItem)}
         </div>
       </aside>
 

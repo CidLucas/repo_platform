@@ -139,7 +139,10 @@ class SkillFactory:
             try:
                 system_prompt = await build_prompt(
                     skill.prompt_name,
-                    variables={"max_turns": skill.max_turns},
+                    variables={
+                        "max_turns": skill.max_turns,
+                        "nome_empresa": parent_state.get("nome_empresa", ""),
+                    },
                     allow_fallback=True,
                 )
             except Exception as exc:

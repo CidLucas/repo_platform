@@ -114,12 +114,32 @@ export function AuthProvider({
         onIdentifyUser?.(session.user.id, { email: session.user.email })
         void initClientId()
       }
+
+      // Capture OAuth tokens immediately on redirect (before onAuthStateChange fires
+      // or the provider_refresh_token is cleared from the session).
+      if (isOAuthCallback && session?.provider_refresh_token) {
+        if (sessionStorage.getItem('cal_oauth_pending') === '1') {
+          sessionStorage.removeItem('cal_oauth_pending')
+          void onCalendarToken?.({
+            refreshToken: session.provider_refresh_token,
+            accessToken: session.provider_token ?? '',
+            email: session.user?.email ?? '',
+          }).then(() => sessionStorage.setItem('cal_oauth_done', '1'))
+        } else if (sessionStorage.getItem('drive_oauth_pending') === '1') {
+          sessionStorage.removeItem('drive_oauth_pending')
+          void onDriveToken?.({
+            refreshToken: session.provider_refresh_token,
+            accessToken: session.provider_token ?? '',
+            email: session.user?.email ?? '',
+          }).then(() => sessionStorage.setItem('drive_oauth_done', '1'))
+        }
+      }
     }
 
     void initSession()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (_event === 'SIGNED_IN') {
+      if (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED' || _event === 'USER_UPDATED') {
         const hasOAuthParams =
           window.location.hash.includes('access_token') ||
           window.location.search.includes('code=')
@@ -138,6 +158,13 @@ export function AuthProvider({
             email: session.user.email ?? '',
           }).then(() => {
             sessionStorage.setItem('cal_oauth_done', '1')
+          })
+        } else if (sessionStorage.getItem('cal_oauth_pending') === '1') {
+          // Debug: log what we got to diagnose missing provider_refresh_token
+          console.warn('[AuthContext] cal_oauth_pending set but provider_refresh_token missing', {
+            event: _event,
+            has_provider_token: !!session?.provider_token,
+            has_refresh: !!session?.provider_refresh_token,
           })
         }
 

@@ -10,9 +10,12 @@ import {
 } from '@phosphor-icons/react'
 import { useAppStore } from '../../store/appStore'
 import { useIntegrations, useDisconnectIntegration, useAuditLog, useRequestDataExport, useRequestDataDeletion, useTeamMembers, useUpdateUserPermissions, useInviteUser } from '../../hooks/useAdmin'
+import { useQuery } from '@tanstack/react-query'
+import { fetchInsights } from '../../api/insights'
+import { useAuth } from '../../hooks/useAuth'
 import { useStartSync } from '../../hooks/useConnectorStatus'
 import { useNotificationPreferences, useSaveNotificationPreferences } from '../../hooks/useNotifications'
-import { connectGoogleCalendar, connectGoogleDrive } from '../../api/agenda'
+import { connectGoogleCalendar, connectGoogleDrive, captureCalendarToken, captureDriveToken } from '../../api/agenda'
 import { createCredential } from '../../api/connectors'
 import { supabase } from '@blu/auth'
 import type { Integration, AuditEntry } from '../../api/admin'
@@ -82,14 +85,13 @@ const LANES: { label: string; integrations: CatalogIntegration[] }[] = [
     label: 'Dados & Analytics',
     integrations: [
       { id: 'ic-bigquery', name: 'BigQuery',   desc: 'Data warehouse',  provider: 'bigquery' },
-      { id: 'ic-postgres', name: 'PostgreSQL', desc: 'Banco relacional', provider: 'postgresql' },
     ],
   },
   {
     label: 'Gestão de Projetos',
     integrations: [
-      { id: 'ic-monday',  name: 'Monday.com', desc: 'Boards, tarefas e updates',   provider: 'monday' },
-      { id: 'ic-notion',  name: 'Notion',      desc: 'Páginas e databases',          provider: 'notion' },
+      { id: 'monday',  name: 'Monday.com', desc: 'Boards, tarefas e updates',   provider: 'monday' },
+      { id: 'notion',  name: 'Notion',      desc: 'Páginas e databases',          provider: 'notion' },
       { id: 'ic-asana',   name: 'Asana',       desc: 'Projetos e tarefas',           provider: 'asana' },
       { id: 'ic-clickup', name: 'ClickUp',     desc: 'Listas e tarefas',             provider: 'clickup' },
       { id: 'ic-linear',  name: 'Linear',      desc: 'Issues e projetos',            provider: 'linear' },
@@ -189,7 +191,31 @@ function agentColor(slug: string | null): string {
 
 export default function AdminScreen() {
   const go = useAppStore(s => s.go)
-  const [tab, setTab] = useState<AdminTab>('integracoes')
+  const initialTab = useAppStore(s => s.initialTab)
+
+  // Read tab from hash on mount (e.g. #room/admin?tab=integracoes), fallback to initialTab or default
+  const tabFromHash = (): AdminTab => {
+    const m = window.location.hash.match(/[?&]tab=([^&]+)/)
+    if (m) return m[1] as AdminTab
+    return (initialTab as AdminTab) || 'integracoes'
+  }
+
+  const [tab, setTabState] = useState<AdminTab>(tabFromHash)
+
+  const setTab = (t: AdminTab) => {
+    const newHash = `#room/admin?tab=${t}`
+    if (window.location.hash !== newHash) {
+      window.history.pushState({ screen: 'admin', label: 'Admin', tab: t }, '', newHash)
+    }
+    setTabState(t)
+  }
+
+  // Sync tab when browser back/forward fires (popstate updates hash, re-read it)
+  useEffect(() => {
+    const onPop = () => setTabState(tabFromHash())
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [expandedLog, setExpandedLog] = useState<string | null>(null)
   const [expandedUser, setExpandedUser] = useState<string | null>(null)
@@ -214,6 +240,41 @@ export default function AdminScreen() {
   const [connFormData, setConnFormData] = useState<Record<string, string>>({})
   const [connSaving, setConnSaving] = useState(false)
   const [connError, setConnError] = useState<string | null>(null)
+
+  // ── Google OAuth return handler ─────────────────────────────────────────────
+  // After signInWithOAuth redirects back, getSession() has provider_refresh_token.
+  // onAuthStateChange alone is unreliable for re-auth (user already logged in).
+  useEffect(() => {
+    const isOAuthCallback =
+      window.location.hash.includes('access_token') ||
+      window.location.search.includes('code=')
+    if (!isOAuthCallback) return
+
+    const calPending  = localStorage.getItem('admin_cal_oauth_pending') === '1'
+    const drivePending = localStorage.getItem('admin_drive_oauth_pending') === '1'
+    if (!calPending && !drivePending) return
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.provider_refresh_token) return
+
+      if (calPending) {
+        localStorage.removeItem('admin_cal_oauth_pending')
+        void captureCalendarToken({
+          refreshToken: session.provider_refresh_token,
+          accessToken: session.provider_token ?? '',
+          email: session.user?.email ?? '',
+        }).then(() => refetchIntegrations())
+      } else if (drivePending) {
+        localStorage.removeItem('admin_drive_oauth_pending')
+        void captureDriveToken({
+          refreshToken: session.provider_refresh_token,
+          accessToken: session.provider_token ?? '',
+          email: session.user?.email ?? '',
+        }).then(() => refetchIntegrations())
+      }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Polp Open Finance auth URL modal (Pluggy widget)
   const [polpAuthUrl, setPolpAuthUrl] = useState<string | null>(null)
@@ -249,6 +310,14 @@ export default function AdminScreen() {
   const [savingKind, setSavingKind] = useState<string | null>(null)
 
   const auditEntries: AuditEntry[] = auditData?.entries ?? []
+  const { clientId } = useAuth()
+  const { data: insightsData } = useQuery({
+    queryKey: ['admin-insights-anomalias', clientId ?? ''],
+    queryFn: () => fetchInsights(),
+    enabled: !!clientId,
+    staleTime: 120_000,
+  })
+  const anomaliasCount = (insightsData ?? []).filter((i: { severity: string }) => i.severity === 'error').length
   const auditTotal: number = auditData?.total ?? 0
 
   // Derived audit KPIs
@@ -281,6 +350,17 @@ export default function AdminScreen() {
           username: connFormData.username ?? '',
           password: connFormData.password ?? '',
         })
+      } else if (modalCatalogIntg.provider === 'bigquery') {
+        if (!connFormData.service_account_json) throw new Error('Cole o JSON da Service Account.')
+        let sa: Record<string, unknown> = {}
+        try { sa = JSON.parse(connFormData.service_account_json) } catch { throw new Error('JSON inválido.') }
+        await createCredential(clientId, 'bigquery', 'BigQuery', {
+          project_id: (sa.project_id as string) ?? '',
+          dataset_id: connFormData.dataset_id ?? '',
+          table_name: connFormData.table_name ?? '',
+          location: connFormData.location ?? 'southamerica-east1',
+          service_account_json: sa,
+        })
       } else if (modalCatalogIntg.provider === 'polp') {
         const institutionId = parseInt(connFormData.institution_id ?? '0', 10)
         if (!institutionId) throw new Error('Selecione uma instituição.')
@@ -304,6 +384,33 @@ export default function AdminScreen() {
         }
         await refetchIntegrations()
         return
+      } else if (modalCatalogIntg.provider === 'slack' || modalCatalogIntg.provider === 'monday' ||
+                 modalCatalogIntg.provider === 'notion' || modalCatalogIntg.provider === 'asana' ||
+                 modalCatalogIntg.provider === 'clickup' || modalCatalogIntg.provider === 'linear') {
+        const apiToken = connFormData.api_token?.trim()
+        if (!apiToken) throw new Error('Informe o token de API.')
+        const { data: session } = await supabase.auth.getSession()
+        const accessToken = session?.session?.access_token
+        if (!accessToken) throw new Error('Sessão expirada, faça login novamente.')
+        const resp = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/save-api-token`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              provider: modalCatalogIntg.provider,
+              api_token: apiToken,
+              account_label: modalCatalogIntg.provider === 'slack' ? 'workspace' : 'account',
+            }),
+          }
+        )
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}))
+          throw new Error((err as any).error ?? 'Erro ao salvar token.')
+        }
       }
 
       await refetchIntegrations()
@@ -318,6 +425,7 @@ export default function AdminScreen() {
   const doDisconnect = async () => {
     if (modalDbIntg) {
       await disconnect.mutateAsync(modalDbIntg.id)
+      await refetchIntegrations()
     }
     setModalIntgId(null)
   }
@@ -570,7 +678,7 @@ export default function AdminScreen() {
           <div className="kpi-cell"><div className="kpi-lbl">Total de ações</div><div className="kpi-val">{auditTotal.toLocaleString('pt-BR')}</div><div className="kpi-d" style={{ color: 'var(--mu)' }}>histórico</div></div>
           <div className="kpi-cell"><div className="kpi-lbl">Taxa de aprovação</div><div className="kpi-val">{auditTotal > 0 ? `${approvalRate}%` : '—'}</div><div className="kpi-d" style={{ color: 'var(--mu)' }}>nesta página</div></div>
           <div className="kpi-cell"><div className="kpi-lbl">Economia gerada</div><div className="kpi-val">—</div><div className="kpi-d" style={{ color: 'var(--mu)' }}>em breve</div></div>
-          <div className="kpi-cell"><div className="kpi-lbl">Anomalias</div><div className="kpi-val">—</div><div className="kpi-d" style={{ color: 'var(--mu)' }}>em breve</div></div>
+          <div className="kpi-cell"><div className="kpi-lbl">Anomalias</div><div className="kpi-val" style={{ color: anomaliasCount > 0 ? 'var(--urg)' : 'var(--ok)' }}>{anomaliasCount}</div><div className="kpi-d" style={{ color: 'var(--mu)' }}>insights com erro</div></div>
         </div>
         <div className="aud-search">
           <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
@@ -966,8 +1074,9 @@ export default function AdminScreen() {
                         onClick={() => {
                           setModalIntgId(null)
                           if (modalCatalogIntg.provider === 'google_calendar') {
-                            void connectGoogleCalendar(window.location.href)
+                            void connectGoogleCalendar()
                           } else if (modalCatalogIntg.provider === 'google_drive') {
+                            localStorage.setItem('admin_drive_oauth_pending', '1')
                             void connectGoogleDrive(window.location.href)
                           }
                         }}
@@ -1004,6 +1113,52 @@ export default function AdminScreen() {
                       <button
                         className="btn bp"
                         disabled={connSaving || !connFormData.username || !connFormData.password}
+                        onClick={doConnect}
+                      >
+                        {connSaving ? 'Conectando…' : 'Conectar'}
+                      </button>
+                    </div>
+                  </>
+                ) : modalCatalogIntg.provider === 'bigquery' ? (
+                  <>
+                    <div className="msub">Cole o conteúdo do arquivo JSON da Service Account do Google Cloud (contém project_id).</div>
+                    <div className="intg-field">
+                      <label>Service Account JSON</label>
+                      <textarea
+                        rows={5}
+                        placeholder={'{"type": "service_account", "project_id": "...", ...}'}
+                        value={connFormData.service_account_json ?? ''}
+                        onChange={e => setConnFormData(d => ({ ...d, service_account_json: e.target.value }))}
+                        style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--gb)', background: 'var(--bg)', color: 'var(--fg)', fontSize: 11, fontFamily: 'monospace', resize: 'vertical' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <div className="intg-field" style={{ flex: 1 }}>
+                        <label>Dataset ID</label>
+                        <input type="text" placeholder="meu_dataset" value={connFormData.dataset_id ?? ''} onChange={e => setConnFormData(d => ({ ...d, dataset_id: e.target.value }))} />
+                      </div>
+                      <div className="intg-field" style={{ flex: 1 }}>
+                        <label>Nome da tabela</label>
+                        <input type="text" placeholder="minha_tabela" value={connFormData.table_name ?? ''} onChange={e => setConnFormData(d => ({ ...d, table_name: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="intg-field">
+                      <label>Região</label>
+                      <select value={connFormData.location ?? 'southamerica-east1'} onChange={e => setConnFormData(d => ({ ...d, location: e.target.value }))} style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--gb)', background: 'var(--bg)', color: 'var(--fg)', fontSize: 12 }}>
+                        <option value="southamerica-east1">South America — São Paulo</option>
+                        <option value="US">United States (US)</option>
+                        <option value="EU">European Union (EU)</option>
+                        <option value="us-east1">US East</option>
+                        <option value="us-west1">US West</option>
+                        <option value="asia-northeast1">Asia Northeast — Tokyo</option>
+                      </select>
+                    </div>
+                    {connError && <div style={{ fontSize: 12, color: 'var(--urg)', margin: '4px 0' }}>{connError}</div>}
+                    <div className="modal-acts">
+                      <button className="btn bg" onClick={() => setModalIntgId(null)}>Cancelar</button>
+                      <button
+                        className="btn bp"
+                        disabled={connSaving || !connFormData.service_account_json || !connFormData.dataset_id || !connFormData.table_name}
                         onClick={doConnect}
                       >
                         {connSaving ? 'Conectando…' : 'Conectar'}
@@ -1064,6 +1219,74 @@ export default function AdminScreen() {
                         onClick={doConnect}
                       >
                         {connSaving ? 'Conectando…' : 'Conectar banco →'}
+                      </button>
+                    </div>
+                  </>
+                ) : (modalCatalogIntg.provider === 'slack' || modalCatalogIntg.provider === 'monday' ||
+                     modalCatalogIntg.provider === 'notion' || modalCatalogIntg.provider === 'asana' ||
+                     modalCatalogIntg.provider === 'clickup' || modalCatalogIntg.provider === 'linear') ? (
+                  <>
+                    <div className="msub">
+                      {modalCatalogIntg.provider === 'slack'
+                        ? 'Cole o Bot Token do Slack (começa com xoxb-). Crie em api.slack.com/apps → OAuth & Permissions.'
+                        : modalCatalogIntg.provider === 'monday'
+                        ? 'Cole o API Token do Monday.com. Crie em monday.com → Avatar → Admin → API.'
+                        : modalCatalogIntg.provider === 'notion'
+                        ? 'Cole o token de integração do Notion (começa com secret_). Crie em notion.so/my-integrations.'
+                        : modalCatalogIntg.provider === 'asana'
+                        ? 'Cole o Personal Access Token do Asana. Crie em app.asana.com/0/my-apps.'
+                        : modalCatalogIntg.provider === 'clickup'
+                        ? 'Cole a API Key do ClickUp (começa com pk_). Crie em clickup.com → Settings → Apps.'
+                        : 'Cole a API Key do Linear (começa com lin_api_). Crie em linear.app → Settings → API.'}
+                    </div>
+                    <div className="intg-field">
+                      <label>{modalCatalogIntg.provider === 'slack' ? 'Bot Token (xoxb-…)' : 'API Token'}</label>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'stretch' }}>
+                        <input
+                          type="password"
+                          placeholder={
+                            modalCatalogIntg.provider === 'slack' ? 'xoxb-…'
+                            : modalCatalogIntg.provider === 'monday' ? 'eyJhbG...NiJ9…'
+                            : modalCatalogIntg.provider === 'notion' ? 'secret_…'
+                            : modalCatalogIntg.provider === 'asana' ? '1/…'
+                            : modalCatalogIntg.provider === 'clickup' ? 'pk_…'
+                            : 'lin_api_…'
+                          }
+                          value={connFormData.api_token ?? ''}
+                          onChange={e => setConnFormData(d => ({ ...d, api_token: e.target.value }))}
+                          autoComplete="new-password"
+                          style={{ flex: 1 }}
+                        />
+                        <button
+                          className="btn bg"
+                          style={{ whiteSpace: 'nowrap', fontSize: 11, padding: '0 10px' }}
+                          onClick={async () => {
+                            try {
+                              const text = await navigator.clipboard.readText()
+                              setConnFormData(d => ({ ...d, api_token: text.trim() }))
+                            } catch {
+                              // clipboard permission denied — user must paste manually
+                            }
+                          }}
+                        >
+                          Colar
+                        </button>
+                      </div>
+                      {connFormData.api_token && (
+                        <div style={{ fontSize: 10, color: 'var(--fg2)', marginTop: 3 }}>
+                          {connFormData.api_token.length} caracteres · termina em …{connFormData.api_token.slice(-6)}
+                        </div>
+                      )}
+                    </div>
+                    {connError && <div style={{ fontSize: 12, color: 'var(--urg)', margin: '4px 0' }}>{connError}</div>}
+                    <div className="modal-acts">
+                      <button className="btn bg" onClick={() => setModalIntgId(null)}>Cancelar</button>
+                      <button
+                        className="btn bp"
+                        disabled={connSaving || !connFormData.api_token}
+                        onClick={doConnect}
+                      >
+                        {connSaving ? 'Conectando…' : 'Conectar'}
                       </button>
                     </div>
                   </>

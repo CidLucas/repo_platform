@@ -24,6 +24,7 @@ from blu_prompt_management.renderer import TemplateRenderer
 from blu_prompt_management.templates import (
     BUILTIN_TEMPLATES,
     PromptCategory,
+    get_builtin_template,
 )
 
 logger = logging.getLogger(__name__)
@@ -325,7 +326,7 @@ class PromptLoader:
         variables: dict[str, Any],
     ) -> LoadedPrompt:
         """Load and render from builtin templates."""
-        builtin = BUILTIN_TEMPLATES.get(name)
+        builtin = get_builtin_template(name)
         if not builtin:
             raise PromptNotFoundError(f"Prompt not found: {name}")
 
@@ -357,7 +358,7 @@ class PromptLoader:
 
     def _load_raw_from_builtin(self, name: str) -> LoadedPrompt:
         """Load raw builtin template without variable substitution."""
-        builtin = BUILTIN_TEMPLATES.get(name)
+        builtin = get_builtin_template(name)
         if not builtin:
             raise PromptNotFoundError(f"Prompt not found: {name}")
 

@@ -30,17 +30,25 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
 // Request both scopes together so the single integration_tokens row covers both.
 const DRIVE_AND_CALENDAR_SCOPES = `${DRIVE_SCOPE} ${CALENDAR_SCOPE}`
 
-/** Redirects to Google OAuth requesting calendar read scope. */
-export async function connectGoogleCalendar(redirectTo: string): Promise<void> {
-  sessionStorage.setItem('cal_oauth_pending', '1')
-  await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo,
-      scopes: CALENDAR_SCOPE,
-      queryParams: { access_type: 'offline', prompt: 'consent' },
-    },
-  })
+/** Initiates direct Google OAuth (server-side code exchange — gets refresh_token reliably). */
+export async function connectGoogleCalendar(): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Not authenticated')
+
+  const resp = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-oauth-start`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ scope: CALENDAR_SCOPE, return_url: window.location.href }),
+    }
+  )
+  if (!resp.ok) throw new Error('Failed to start Google OAuth')
+  const { url } = await resp.json()
+  window.location.href = url
 }
 
 /**
@@ -203,3 +211,66 @@ export async function fetchAgendaHistory(clientId: string): Promise<AgendaHistor
   }))
 }
 
+export interface UnifiedTask {
+  task_id: string
+  title: string
+  domain: string
+  start_date: string
+  due_date: string | null
+  status: string
+  source: 'approval' | 'routine' | 'calendar'
+  /** Expressão cron para rotinas periódicas (ex: "0 6 * * *"). Null para não-cron. */
+  schedule_cron?: string | null
+}
+
+export async function fetchUnifiedTasks(clientId: string): Promise<UnifiedTask[]> {
+  const { data, error } = await supabase
+    .rpc('get_unified_tasks', { p_client_id: clientId })
+  if (error) throw error
+  return (data ?? []) as UnifiedTask[]
+}
+
+export interface AgendaExternalEvent {
+  id: string
+  title: string
+  start_date: string
+  due_date: string | null
+  domain: string
+  source: 'google' | 'monday' | 'notion'
+  /** Hierarchy type:
+   *  monday: project (board) → phase (group) → task (item)
+   *  google: event
+   *  notion: page
+   */
+  type: 'project' | 'phase' | 'task' | 'subitem' | 'milestone' | 'event' | 'page'
+  /** Links task→phase id, phase→project id. null for top-level items. */
+  parent_id: string | null
+  url: string | null
+  status: string
+  location: string | null
+  owner: string | null
+  progress_pct: number | null
+  group_title: string | null
+  description: string | null
+  notes: string | null
+}
+
+export async function fetchExternalAgendaEvents(rangeDays = 84): Promise<AgendaExternalEvent[]> {
+  const { data, error } = await supabase.functions.invoke('get-agenda-events', {
+    body: { rangeDays },
+  })
+  if (error) throw error
+  return (data?.events ?? []) as AgendaExternalEvent[]
+}
+
+/** Lazy-fetch subitems for a specific Monday item (4th level Gantt).
+ *  Returns [] if the item has no subitems or Monday token is missing. */
+export async function fetchMondaySubitems(itemId: string): Promise<AgendaExternalEvent[]> {
+  // itemId may be prefixed (monday_item_12345) or raw (12345)
+  const rawId = itemId.replace('monday_item_', '')
+  const { data, error } = await supabase.functions.invoke('get-monday-subitems', {
+    body: { item_id: rawId },
+  })
+  if (error) throw error
+  return (data?.subitems ?? []) as AgendaExternalEvent[]
+}

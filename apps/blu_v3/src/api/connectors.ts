@@ -160,7 +160,8 @@ export async function createCredential(
       client_id: clientId,
       nome_servico: nomServico,
       tipo_servico: tipoUpper,
-      status: 'pending',
+      status: 'active',
+      ativo: true,
       connection_metadata: { credentials },
     })
     .select('id, nome_servico, tipo_servico, status')

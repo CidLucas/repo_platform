@@ -1,5 +1,22 @@
 import { supabase } from './client'
 
+export async function fetchTxCategories(clientId: string): Promise<Record<string, string>> {
+  const { data } = await supabase
+    .from('clientes_blu')
+    .select('ui_prefs')
+    .eq('client_id', clientId)
+    .maybeSingle()
+  return ((data?.ui_prefs as Record<string, unknown>)?.tx_categories as Record<string, string>) ?? {}
+}
+
+export async function saveTxCategories(categories: Record<string, string>): Promise<void> {
+  const { error } = await supabase.rpc('set_ui_pref', {
+    p_key: 'tx_categories',
+    p_value: categories as unknown as Record<string, never>,
+  })
+  if (error) throw error
+}
+
 export interface CnpjEnrichment {
   brand: string | null
   logo_url: string | null

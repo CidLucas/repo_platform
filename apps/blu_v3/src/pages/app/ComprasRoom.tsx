@@ -27,18 +27,13 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-}
-
-
 function ratingStars(rating: number | null) {
   const r = Math.round(rating ?? 0)
   return '★'.repeat(r) + '☆'.repeat(5 - r)
 }
 
 export default function ComprasRoom() {
-  const { go, toggleDc, expandedId, addToast, initialTab, clearInitialTab, openChatWith } = useAppStore()
+  const { go, addToast, initialTab, clearInitialTab, openChatWith } = useAppStore()
   const { clientId } = useAuth()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('decisoes')
@@ -65,7 +60,7 @@ export default function ComprasRoom() {
       },
       {
         queryKey: ['insights'],
-        queryFn: () => fetchInsights(),
+        queryFn: () => fetchInsights(10, 'compras'),
         enabled: !!clientId,
         staleTime: 60_000,
       },
@@ -117,7 +112,7 @@ export default function ComprasRoom() {
   const history = historyQ.data ?? []
   const supply = supplyQ.data
   const comprasInsights = (insightsQ.data ?? []).filter(
-    i => !i.dimension || i.dimension === 'compras' || i.dimension === 'supply' || i.dimension === 'inventory'
+    () => true  // room filter is server-side via p_room='compras'
   )
   const comprasContextMetrics: ContextMetricRow[] = (contextMetricsQ.data ?? []).filter(
     (m) => m.dimension === 'supply' || m.dimension === 'inventory'
@@ -279,6 +274,12 @@ export default function ComprasRoom() {
                 <div className="anl-kc">
                   <div className="anl-kl">Decisões (total)</div>
                   <div className="anl-kv">{totalDecisions > 0 ? totalDecisions : '—'}</div>
+                </div>
+                <div className="anl-kc">
+                  <div className="anl-kl">Concentração top forn.</div>
+                  <div className="anl-kv" style={{ color: supply?.concentracao_top_perc != null && supply.concentracao_top_perc > 50 ? 'var(--att)' : undefined }}>
+                    {supply?.concentracao_top_perc != null ? `${supply.concentracao_top_perc.toFixed(0)}%` : '—'}
+                  </div>
                 </div>
               </div>
               <div style={{ borderTop: '1px solid var(--gb)', marginTop: 10, paddingTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>

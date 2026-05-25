@@ -118,31 +118,48 @@ export async function fetchIntegrations(clientId: string): Promise<Integration[]
   // Synthesize OAuth token integrations from integration_tokens
   const oauthIntegrations: Integration[] = []
   for (const token of (tokenResult.data ?? [])) {
-    if (token.provider !== 'google') continue
-    const scopes = (token.scopes as string[] | null) ?? []
     const tokenId = String(token.id)
 
-    if (scopes.some((s: string) => s.includes('drive'))) {
-      oauthIntegrations.push({
-        id: `oauth:${tokenId}`,
-        client_id: token.client_id as string,
-        provider: 'google_drive',
-        name: token.account_email as string | null,
-        status: 'connected',
-        last_synced_at: token.updated_at as string | null,
-        error_message: null,
-        created_at: token.created_at as string,
-        connection_detail: token.account_email as string | null,
-      })
+    if (token.provider === 'google') {
+      const scopes = (token.scopes as string[] | null) ?? []
+
+      if (scopes.some((s: string) => s.includes('drive'))) {
+        oauthIntegrations.push({
+          id: `oauth:${tokenId}`,
+          client_id: token.client_id as string,
+          provider: 'google_drive',
+          name: token.account_email as string | null,
+          status: 'connected',
+          last_synced_at: token.updated_at as string | null,
+          error_message: null,
+          created_at: token.created_at as string,
+          connection_detail: token.account_email as string | null,
+        })
+      }
+
+      if (scopes.some((s: string) => s.includes('calendar'))) {
+        oauthIntegrations.push({
+          id: `oauth:${tokenId}`,
+          client_id: token.client_id as string,
+          provider: 'google_calendar',
+          name: token.account_email as string | null,
+          status: 'connected',
+          last_synced_at: token.updated_at as string | null,
+          error_message: null,
+          created_at: token.created_at as string,
+          connection_detail: token.account_email as string | null,
+        })
+      }
     }
 
-    if (scopes.some((s: string) => s.includes('calendar'))) {
+    // Non-OAuth API token integrations (Slack, Monday, etc.)
+    if (!['google'].includes(token.provider)) {
       oauthIntegrations.push({
         id: `oauth:${tokenId}`,
         client_id: token.client_id as string,
-        provider: 'google_calendar',
+        provider: token.provider as string,
         name: token.account_email as string | null,
-        status: 'connected',
+        status: 'connected' as IntegrationStatus,
         last_synced_at: token.updated_at as string | null,
         error_message: null,
         created_at: token.created_at as string,
@@ -254,6 +271,19 @@ export async function inviteUser(
     .from('client_users')
     .insert({ client_id: clientId, email, name, role })
   if (error) throw error
+}
+
+export async function fetchMyRole(
+  clientId: string,
+  authUserId: string
+): Promise<TeamMember['role'] | null> {
+  const { data } = await supabase
+    .from('client_users')
+    .select('role')
+    .eq('client_id', clientId)
+    .eq('auth_user_id', authUserId)
+    .maybeSingle()
+  return (data?.role as TeamMember['role']) ?? null
 }
 
 export async function updateUserPermissions(

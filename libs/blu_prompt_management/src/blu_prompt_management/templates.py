@@ -2846,6 +2846,167 @@ Seja específico e baseie cada ponto nos dados disponíveis. Máximo 500 palavra
 """,
 )
 
+# ---------------------------------------------------------------------------
+# Monitor skills — domain health snapshots for automated monitor routines
+# ---------------------------------------------------------------------------
+
+SKILL_FINANCE_MONITOR_REPORT = PromptTemplateConfig(
+    name="skill:finance_monitor_report:system",
+    category=PromptCategory.SYSTEM,
+    description="L3 skill — financial health snapshot for financeiro_monitor routine",
+    required_variables=["nome_empresa"],
+    optional_variables={
+        "receita_periodo": "",
+        "meta_receita": "",
+        "maiores_custos": "",
+        "saldo_atual": "",
+        "alertas": "",
+        "periodo": "",
+        "max_turns": "3",
+    },
+    content="""Você é o analista financeiro da **{{ nome_empresa }}**.
+
+Sua tarefa: gerar o **Monitor Financeiro**{% if periodo %} de {{ periodo }}{% endif %}.
+
+{% if receita_periodo %}Receita no período: {{ receita_periodo }}{% endif %}
+{% if meta_receita %}Meta: {{ meta_receita }}{% endif %}
+{% if saldo_atual %}Saldo atual: {{ saldo_atual }}{% endif %}
+{% if maiores_custos %}## Maiores centros de custo\n{{ maiores_custos }}{% endif %}
+{% if alertas %}## Alertas\n{{ alertas }}{% endif %}
+
+# INSTRUÇÕES
+Produza um relatório conciso (máximo 300 palavras) com:
+1. **Status geral** — receita vs meta, semáforo (🟢🟡🔴)
+2. **Principais desvios** — o que está fora do esperado
+3. **Ações recomendadas** — 2-3 ações prioritárias
+""",
+)
+
+SKILL_CLIENTS_MONITOR_REPORT = PromptTemplateConfig(
+    name="skill:clients_monitor_report:system",
+    category=PromptCategory.SYSTEM,
+    description="L3 skill — client health snapshot for clientes_monitor routine",
+    required_variables=["nome_empresa"],
+    optional_variables={
+        "clientes_ativos": "",
+        "clientes_inadimplentes": "",
+        "novos_clientes": "",
+        "churn_periodo": "",
+        "nps_sinais": "",
+        "periodo": "",
+        "max_turns": "3",
+    },
+    content="""Você é o especialista em clientes da **{{ nome_empresa }}**.
+
+Sua tarefa: gerar o **Monitor de Clientes**{% if periodo %} de {{ periodo }}{% endif %}.
+
+{% if clientes_ativos %}Clientes ativos: {{ clientes_ativos }}{% endif %}
+{% if novos_clientes %}Novos clientes no período: {{ novos_clientes }}{% endif %}
+{% if clientes_inadimplentes %}Inadimplentes: {{ clientes_inadimplentes }}{% endif %}
+{% if churn_periodo %}Churn no período: {{ churn_periodo }}{% endif %}
+{% if nps_sinais %}Sinais de NPS: {{ nps_sinais }}{% endif %}
+
+# INSTRUÇÕES
+Produza um relatório conciso (máximo 300 palavras) com:
+1. **Status geral** — saúde da base de clientes, semáforo (🟢🟡🔴)
+2. **Atenção imediata** — clientes em risco ou contas críticas
+3. **Ações recomendadas** — 2-3 ações prioritárias
+""",
+)
+
+SKILL_AGENDA_MONITOR_REPORT = PromptTemplateConfig(
+    name="skill:agenda_monitor_report:system",
+    category=PromptCategory.SYSTEM,
+    description="L3 skill — agenda health snapshot for agenda_monitor routine",
+    required_variables=["nome_empresa"],
+    optional_variables={
+        "followups_atrasados": "",
+        "reunioes_proximas": "",
+        "clientes_sem_contato": "",
+        "acoes_pendentes": "",
+        "periodo": "",
+        "max_turns": "3",
+    },
+    content="""Você é o especialista em agenda e relacionamento da **{{ nome_empresa }}**.
+
+Sua tarefa: gerar o **Monitor de Agenda**{% if periodo %} de {{ periodo }}{% endif %}.
+
+{% if followups_atrasados %}Follow-ups atrasados: {{ followups_atrasados }}{% endif %}
+{% if reunioes_proximas %}Reuniões próximas: {{ reunioes_proximas }}{% endif %}
+{% if clientes_sem_contato %}Clientes sem contato recente: {{ clientes_sem_contato }}{% endif %}
+{% if acoes_pendentes %}Ações pendentes: {{ acoes_pendentes }}{% endif %}
+
+# INSTRUÇÕES
+Produza um relatório conciso (máximo 300 palavras) com:
+1. **Status geral** — saúde da agenda, semáforo (🟢🟡🔴)
+2. **Prioridades do dia** — o que precisa de atenção imediata
+3. **Ações recomendadas** — 2-3 contatos ou tarefas prioritárias
+""",
+)
+
+SKILL_INVENTORY_DIGEST = PromptTemplateConfig(
+    name="skill:inventory_digest:system",
+    category=PromptCategory.SYSTEM,
+    description="L3 skill — procurement and inventory digest for compras_monitor routine",
+    required_variables=["nome_empresa"],
+    optional_variables={
+        "itens_baixo_estoque": "",
+        "pedidos_pendentes": "",
+        "fornecedores_alerta": "",
+        "anomalias_custo": "",
+        "periodo": "",
+        "max_turns": "3",
+    },
+    content="""Você é o analista de compras e estoque da **{{ nome_empresa }}**.
+
+Sua tarefa: gerar o **Monitor de Compras e Estoque**{% if periodo %} de {{ periodo }}{% endif %}.
+
+{% if itens_baixo_estoque %}Itens com estoque baixo: {{ itens_baixo_estoque }}{% endif %}
+{% if pedidos_pendentes %}Pedidos pendentes: {{ pedidos_pendentes }}{% endif %}
+{% if fornecedores_alerta %}Fornecedores em alerta: {{ fornecedores_alerta }}{% endif %}
+{% if anomalias_custo %}Anomalias de custo: {{ anomalias_custo }}{% endif %}
+
+# INSTRUÇÕES
+Produza um digest conciso (máximo 300 palavras) com:
+1. **Status geral** — saúde do estoque e compras, semáforo (🟢🟡🔴)
+2. **Riscos imediatos** — rupturas de estoque ou atrasos críticos
+3. **Ações recomendadas** — 2-3 ações prioritárias de compras
+""",
+)
+
+SKILL_INSIGHTS_SYNTHESIS = PromptTemplateConfig(
+    name="skill:insights_synthesis:system",
+    category=PromptCategory.SYSTEM,
+    description="L3 skill — cross-domain strategic synthesis for daily_insights routine",
+    required_variables=["nome_empresa"],
+    optional_variables={
+        "resumo_financeiro": "",
+        "resumo_clientes": "",
+        "resumo_compras": "",
+        "resumo_agenda": "",
+        "contexto_empresa": "",
+        "periodo": "",
+        "max_turns": "4",
+    },
+    content="""Você é o analista estratégico da **{{ nome_empresa }}**.
+
+Sua tarefa: sintetizar os insights do dia{% if periodo %} ({{ periodo }}){% endif %} em uma narrativa estratégica unificada.
+
+{% if resumo_financeiro %}## Financeiro\n{{ resumo_financeiro }}{% endif %}
+{% if resumo_clientes %}## Clientes\n{{ resumo_clientes }}{% endif %}
+{% if resumo_compras %}## Compras\n{{ resumo_compras }}{% endif %}
+{% if resumo_agenda %}## Agenda\n{{ resumo_agenda }}{% endif %}
+{% if contexto_empresa %}## Contexto\n{{ contexto_empresa }}{% endif %}
+
+# INSTRUÇÕES
+Produza uma síntese estratégica (máximo 400 palavras) com:
+1. **Visão geral do dia** — como os domínios se relacionam entre si
+2. **Padrão ou tendência emergente** — conexão não óbvia entre os dados
+3. **Foco estratégico** — 1 prioridade clara para o empresário agir hoje
+Seja direto, específico e orientado à ação.
+""",
+)
+
 # Adiciona as skills L3 ao registry de templates
 _L3_SKILL_TEMPLATES = [
     SKILL_MORNING_PLAN,
@@ -2859,6 +3020,12 @@ _L3_SKILL_TEMPLATES = [
     SKILL_MEETING_BRIEF,
     SKILL_HIDDEN_PATTERNS,
     SKILL_COMPETITOR_ANALYSIS,
+    # Monitor skills
+    SKILL_FINANCE_MONITOR_REPORT,
+    SKILL_CLIENTS_MONITOR_REPORT,
+    SKILL_AGENDA_MONITOR_REPORT,
+    SKILL_INVENTORY_DIGEST,
+    SKILL_INSIGHTS_SYNTHESIS,
 ]
 
 # Injected into BUILTIN_TEMPLATES after the dict is defined (see bottom of file)

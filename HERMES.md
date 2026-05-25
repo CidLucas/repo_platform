@@ -192,9 +192,127 @@ Documentados em `scripts/README.md`. Scripts ativos:
 
 ---
 
-## Próximos passos pendentes (última discussão)
+## Plano de validação da plataforma (sessões 20/21-Mai-2026)
 
-1. Definir divisão de agentes (APÓS mapear skills L3 para entender quantos precisam)
-2. Implementar EPIC-0 Infra (INF-01 e INF-02 primeiro — P0)
-3. Morning Chain (EPIC-1) como primeiro validador end-to-end
-4. Tier Enforcement & Resource Assignment redesign (PRIMEIRA PRIORIDADE FUTURA — ver BACKLOG_IDEAS.md)
+### Fase 1 — CASCADE DELETE + limpeza de dados ✅ COMPLETA
+- FK cascade em bigquery_foreign_tables e standalone_agent_sessions corrigidas
+- Trigger trg_drop_bigquery_fdw_server remove FDW server ao deletar cliente
+- enqueue_incremental_syncs() + pg_cron 02:00/14:00 UTC
+- run_etl_job() classifica tipo_transacao (cascata: mapeamento → CPF/CNPJ → join dimensional)
+- 5 migrations aplicadas: 20260521001000 a 20260521001400
+
+### Fase 2 — Onboarding ✅ PARCIALMENTE COMPLETA
+- Campo CPF/CNPJ adicionado: useOnboardingDraft, StepInfo, mappers.ts, index.ts, RPC bootstrap
+- O onboarding blu_v3 estava ~95% funcional — mapeado e documentado
+
+Ainda falta (Fase 2):
+- Validação ponta-a-ponta com BigQuery real e Google Sheets (manual, a fazer)
+- Refresh periódico de Google Sheets (drive_modified_time como watermark)
+- onboarding-website-intel retornar CNPJ
+
+### Fase 3 — KPI functions por tipo_transacao ✅ COMPLETA (21-Mai-2026)
+- get_finance_indicators: receita_liquida (vendas), custo_total (compras), margem_bruta, burn_rate, cash_flow_30d
+- get_commercial_indicators: filtrado por tipo_transacao='venda', inclui churn_60d, séries mensais, clientes novos/recorrentes
+- get_supply_indicators: spend_periodo filtrado por tipo_transacao='compra'
+- get_kpi_mtd_comparison(): nova função — 4 KPIs MTD vs. mês anterior (receita, custo, margem, fluxo_caixa)
+- Migration: 20260521002000_kpi_functions_tipo_transacao.sql
+
+Ainda falta (Fase 3):
+- Conectar get_kpi_mtd_comparison ao frontend (cards de KPI do painel principal)
+- Implementar ebitda, cac, inadimplencia (requerem dados adicionais)
+
+### Fase 4 — Integrações ✅ PARCIALMENTE COMPLETA (21-Mai-2026)
+
+Implementado:
+- Wiring Slack/Monday: edge function `save-api-token` (deployed) + UI modal com input de token + admin.ts sintetiza integration_tokens como 'connected'. Backend (slack_module, monday_module) já lia integration_tokens — agora o ciclo está fechado.
+
+Ainda falta:
+- Refresh periódico Google Sheets como integração (não one-shot)
+- Teste ponta-a-ponta: agente executando comando real via Slack/Monday token salvo
+
+### Open Finance (Polp) — ✅ JÁ IMPLEMENTADO (não é pós-MVP)
+
+A integração Polp é completa e rica, não é "do zero / pós-MVP" como estava documentado erroneamente.
+
+O que existe hoje:
+- `polp-connect` — edge function que inicia a conexão via Polp API, retorna `url_to_authenticate`
+- `polp-webhook` — recebe eventos em tempo real: `integrations.updated`, `accounts.updated`, `accounts.synchronized`, `transactions.created/updated/deleted`, `bills.created/updated`
+- `polp-sync` — sync manual: contas + transações + faturas de cartão (CREDIT accounts)
+- 4 tabelas: `polp_integrations`, `polp_accounts`, `polp_transactions`, `polp_bills`
+- `polp_bills` contém vencimento, valor total, pagamento mínimo, parcelamentos — ou seja, **contas a pagar via cartão já existem**
+- `polp_transactions` contém description, amount, type, category, merchant, payment_data — base para fluxo de caixa real
+
+O que ainda falta na Polp:
+- ETL que lê `polp_transactions` e insere em `fato_transacoes` (para unificar com dados de CSV/BigQuery no mesmo pipeline de KPIs)
+- Métricas de fluxo de caixa bancário usando `polp_accounts.balance` diretamente (sem ETL)
+- `merchant logo_url` no webhook (INF-04) — cosmético
+
+### Fase 5 — Agenda dinâmica ✅ COMPLETA (21-Mai-2026)
+
+- `public.get_unified_tasks(p_client_id)` — UNION ALL de approval_requests (pending) + client_routines (is_active + next_run_at), domain inferido por nome/agent_slug
+- `fetchUnifiedTasks()` + `UnifiedTask` interface em agenda.ts
+- Gantt substituído: janela de 4 semanas a partir da segunda-feira atual, barras posicionadas por start_date/due_date, linha "hoje" dinâmica, cores por domínio, fallback "sem tarefas" por linha
+
+### Open Finance (Polp) ETL ✅ COMPLETO (21-Mai-2026)
+
+- `analytics_v2.sync_polp_transactions(p_client_id)` — upsert polp_transactions → fato_transacoes; CREDIT='venda', DEBIT='compra', tipo_lancamento='bancario'
+- `analytics_v2.enqueue_polp_sync()` — loop sobre todos clientes com polp_integrations ativo
+- pg_cron 'polp_sync_to_fato_6h' a cada 6h — 137 linhas sincronizadas no primeiro run
+- ON CONFLICT preserva tipo_transacao e categoria já classificados (não sobrescreve)
+
+### Gantt com fontes externas ✅ COMPLETO (21-Mai-2026)
+
+- Edge function `get-agenda-events` (deployed, 133kB) — Google Calendar + Monday + Notion em paralelo via Promise.allSettled
+- Token único lookup em integration_tokens WHERE provider IN ('google','monday','notion')
+- `inferDomain()` classifica eventos por palavras-chave — mesmo vocabulário do Gantt
+- Fix provider mismatch: AdminScreen.tsx usava 'ic-monday'/'ic-notion' → corrigido para 'monday'/'notion'
+- frontend: fetchExternalAgendaEvents() + 7ª query no AgendaRoom + merge com unifiedTasks por domínio
+
+### Fixes pós-validação (22-Mai-2026)
+
+- `get_unified_tasks`: corrigida ambiguidade `title` (alias ar.title), `is_active`→`active`, `next_run_at` removido, JOIN cross_agent_routines para nome do catálogo — migration 20260522000100
+- `onboarding_bootstrap_tx`: ON CONFLICT em client_routines agora reseta `active=true, status='active'` — rotinas nunca ficam presas como inactive após re-onboarding — migration 20260522000300
+- AgendaRoom CTAs: consultam useIntegrations, mostram "✓" quando conectado, onClick usa goWithTab('admin','Admin','integracoes') em vez de window.location.href
+- AdminScreen: lê initialTab da store no mount para abrir tab correta
+- Rotinas do cliente de teste reativadas manualmente + onboarding_complete re-disparado (migration 20260522000200)
+
+---
+
+## Audit de validação — 21-Mai-2026
+
+### DB ✅ PASS total
+- 5 migrations aplicadas (20260521191013 a 20260521192850)
+- FKs: bigquery_foreign_tables CASCADE, standalone_agent_sessions SET NULL ✅
+- Trigger trg_drop_bigquery_fdw_server ✅
+- 8 pg_cron jobs ativos (enqueue_incremental_syncs_12h, polp_sync_to_fato_6h + 6 existentes)
+- 31 funções em analytics_v2 ✅
+- get_unified_tasks + onboarding_bootstrap_tx em public ✅
+- clientes_blu.cpf_cnpj column ✅
+- fato_transacoes bancario: 102 compras + 35 vendas (Polp ETL ok)
+- integration_tokens: 1 token Google presente
+
+### Pontos de atenção (não bloqueadores)
+- fato_transacoes: 60.552 rows com tipo_lancamento/tipo_transacao NULL — são registros históricos de CSV/BQ sem CPF/CNPJ correspondente nos dims. Normal para dados de teste sem dimensões populadas.
+- polp_integrations: 7/9 OUTDATED, 1 UPDATING, 1 UPDATED — sync em andamento, não stalled. Polp marca OUTDATED automaticamente quando detecta novos dados disponíveis.
+- pg_cron duplicado: dispatch_routine_executions e dispatch_routine_executions_to_agent chamam a mesma função — inofensivo mas vale limpar depois.
+
+### Frontend ✅ PASS total
+- AgendaRoom.tsx: 7 queries, Gantt dinâmico, externalEvents merged ✅
+- agenda.ts: UnifiedTask, AgendaExternalEvent, fetchUnifiedTasks, fetchExternalAgendaEvents ✅
+- AdminScreen.tsx: provider 'monday'/'notion' corretos, save-api-token wired ✅
+- FinanceiroRoom: cash_flow_30d, custo_total ✅
+- ClientesRoom: crescimento_receita_perc ✅
+- ComprasRoom: concentracao_top_perc ✅
+
+### Edge functions (22 total) ✅
+get-agenda-events, save-api-token, google-calendar-events, polp-*, onboarding-*, run-*-etl, process-document, search-documents, upload-*, discover-bigquery-columns, match-columns, generate-context-report, website-context-builder, routine-builder
+
+---
+
+## Próximos passos pendentes
+
+1. Onboarding de clientes de teste + validação ponta-a-ponta (BigQuery real, Sheets, Polp)
+2. Revisão front/UX após feedback de uso real
+3. Refresh periódico Google Sheets (drive_file_id → re-download → run-csv-etl)
+4. Métricas diretas de saldo bancário: polp_accounts.balance como KPI de caixa em tempo real
+5. Limpar pg_cron duplicado: dispatch_routine_executions_to_agent

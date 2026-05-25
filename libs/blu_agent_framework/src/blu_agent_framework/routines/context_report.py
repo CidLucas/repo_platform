@@ -47,10 +47,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 DIMENSION_ORDER: list[tuple[str, str]] = [
-    ("finance",     "Finanças"),
-    ("commercial",  "Comercial"),
-    ("inventory",   "Estoque"),
-    ("supply",      "Suprimentos"),
+    ("financeiro", "Finanças"),
+    ("clientes",   "Clientes"),
+    ("compras",    "Compras"),
 ]
 
 # Highest-value streak threshold: only mention streaks ≥ this length
@@ -262,7 +261,7 @@ def _fetch_insights(db: Any, client_id: str) -> list[dict[str, Any]]:
     try:
         resp = (
             db.table("client_insights")
-            .select("dimension, title, body, severity, generated_at")
+            .select("room, title, body, severity, generated_at")
             .eq("client_id", client_id)
             .eq("dismissed", False)
             .order("generated_at", desc=True)

@@ -23,15 +23,15 @@ apps/landing (React SPA)
 
 Todos os dados coletados no wizard são persistidos em `clientes_blu`:
 
-| Campo | O que captura |
-|---|---|
-| `company_profile` | Setor, tamanho, proposta de valor, produtos/serviços, CNPJ |
-| `brand_voice` | Tom de voz, vocabulário, exemplos de comunicação |
-| `team_structure` | Times, nomes, responsabilidades |
-| `policies` | Política de crédito, prazo de pagamento, compliance |
-| `onboarding_state` | Estado do wizard (quais steps foram completados) |
-| `onboarding_completed_at` | Timestamp de conclusão |
-| `cpf_cnpj` | Identificação fiscal da empresa |
+| Campo                     | O que captura                                              |
+| ------------------------- | ---------------------------------------------------------- |
+| `company_profile`         | Setor, tamanho, proposta de valor, produtos/serviços, CNPJ |
+| `brand_voice`             | Tom de voz, vocabulário, exemplos de comunicação           |
+| `team_structure`          | Times, nomes, responsabilidades                            |
+| `policies`                | Política de crédito, prazo de pagamento, compliance        |
+| `onboarding_state`        | Estado do wizard (quais steps foram completados)           |
+| `onboarding_completed_at` | Timestamp de conclusão                                     |
+| `cpf_cnpj`                | Identificação fiscal da empresa                            |
 
 ---
 
@@ -41,7 +41,7 @@ O app verifica se o onboarding foi completado antes de renderizar:
 
 ```typescript
 // HomeApp.tsx
-const firstRun = !localStorage.getItem('blu_has_data')
+const firstRun = !localStorage.getItem("blu_has_data");
 // FirstRunOverlay só aparece se firstRun && !hasData
 ```
 
@@ -54,6 +54,7 @@ const firstRun = !localStorage.getItem('blu_has_data')
 ## 4. Provisionamento de Tenant
 
 Ao criar conta:
+
 1. Supabase Auth cria `auth.users`
 2. Edge function `blu_auth` cria `clientes_blu` com `tier = 'free'`
 3. `external_user_id` = `auth.users.id` (JWT sub)
@@ -64,12 +65,12 @@ Ao criar conta:
 
 ## 5. Dados de Desenvolvimento
 
-| Campo | Valor |
-|---|---|
-| Email | lucascid@poli.ufrj.br |
+| Campo            | Valor                                |
+| ---------------- | ------------------------------------ |
+| Email            | lucascid@poli.ufrj.br                |
 | external_user_id | 4f3a5908-6d5d-46fb-93b4-4938ef754314 |
-| tier | free |
-| onboarding_state | `{}` (não completado em dev) |
+| tier             | free                                 |
+| onboarding_state | `{}` (não completado em dev)         |
 
 Para contornar o overlay em dev: setar `blu_has_data = 'true'` no localStorage do browser.
 
@@ -91,3 +92,7 @@ Upload (uploaded_files_metadata)
 ```
 
 Cobertura por tipo de documento rastreada em `knowledge_agent_requirements` (com `coverage_threshold` por `agent_slug`).
+
+❯ /queue voce tem a mcp tool do supabase? nela tem uma opcao de squash em que fazemos o
+dump do db live e estabelecemos um novo baseline e deletamos todas as migrations, podiam
+os fazer isso para limpar um pouco o repo e deixar de ter esse mismatch

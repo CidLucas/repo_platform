@@ -993,23 +993,29 @@ async def _execute_one(
                     "execution_id": exec_id,
                     "routine_id": str(routine_id),
                 }
-            # ── D2 dedupe: side-effectful artifacts get a claim row before delivery
-            artifact_type = step.get("artifact_type") or ""
-            _SIDE_EFFECTFUL = {"email", "whatsapp", "document"}
+            # ── D2 dedupe: side-effectful artifacts get a claim row before delivery.
+            # Inferimos pelo fn_name (robusto a steps sem artifact_type populado).
+            _SIDE_EFFECTFUL_FNS = {
+                "channels.send_email": "email",
+                "channels.send_email_batch": "email",
+                "channels.send_whatsapp": "whatsapp",
+                "storage.save_context_document": "document",
+            }
+            artifact_type = step.get("artifact_type") or _SIDE_EFFECTFUL_FNS.get(fn_name, "")
             claim_id: str | None = None
-            if artifact_type in _SIDE_EFFECTFUL:
+            if fn_name in _SIDE_EFFECTFUL_FNS:
                 from agent_api.core.artifact_dedupe import claim_artifact, mark_artifact_sent, mark_artifact_failed
                 claim_id = await claim_artifact(
                     execution_id=exec_id,
                     step_id=step_id,
                     client_id=str(client_id),
-                    artifact_type=artifact_type,
+                    artifact_type=artifact_type or _SIDE_EFFECTFUL_FNS[fn_name],
                     function_name=fn_name,
                 )
                 if claim_id is None:
                     logger.warning(
                         "[RoutineExecutor] %s → step '%s' (%s) SKIPPED: already delivered (dedupe)",
-                        exec_id, step_id, artifact_type,
+                        exec_id, step_id, fn_name,
                     )
                     return step_id, {"deduped": True}, ""
             try:

@@ -453,11 +453,12 @@ E1. Inventário de fetch_functions vs rotinas seedadas ✅ DONE (2026-05-25)
 
 E2. ~~Implementar fetch_functions críticas para onboarding~~ — não aplicável (cobertura 100%).
 
-E3. Validação end-to-end com cliente de teste interno [PENDENTE]
-- Criar cliente is_test_account=true
-- Onboardar completo (BQ + Sheets + Polp + Google + Monday)
-- Observar 72h: todas as 10 rotinas rodaram pelo menos uma vez? client_insights populando?
-- Capturar todos os erros em docs/security/test-onboarding-log.md
+E3. Validação end-to-end com cliente de teste interno [EM PREP]
+- Plano detalhado: `docs/security/test-onboarding-checklist-mai2026.md`
+- Script smoke/monitor: `scripts/e3_smoke.py` (testado contra baseline prod)
+- Code review prévio: `docs/security/sprint4-code-review-mai2026.md`
+- Bug encontrado e corrigido: D2 dedupe agora dispara por fn_name (era artifact_type, off para 20/21 rotinas)
+- Pré-requisitos abertos: push pendente + deploy A4 + criar cliente teste
 
 ### Ordem de execução proposta
 

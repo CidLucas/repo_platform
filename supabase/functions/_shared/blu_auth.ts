@@ -67,6 +67,55 @@ export function extractToken(req: Request): string {
   return header.replace(/^[Bb]earer\s+/, "");
 }
 
+// ── System (service-role) invocation ─────────────────────────
+
+/**
+ * Constant-time string compare to avoid timing oracles on shared secrets.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/**
+ * Detect whether a request was made with a server-side service key.
+ *
+ * Accepts (in order):
+ *   - the classic JWT service_role key (SUPABASE_SERVICE_ROLE_KEY env)
+ *   - the SERVICE_ROLE_KEY env fallback
+ *   - BLU_SYSTEM_INVOKE_KEY env — set this via `supabase secrets set` to the
+ *     value stored in vault.secrets.app_service_role_key so cron dispatchers
+ *     using the sb_secret_* format are accepted everywhere
+ *   - any additional ad-hoc keys passed via `extraKeys`
+ *
+ * Returns true when the Bearer token matches one of the accepted keys.
+ * Returns false when the header is missing or no key matches — callers should
+ * then fall back to requireAuth() for the user JWT path.
+ *
+ * Centralised here so every edge function handles the dual format identically.
+ */
+export function isSystemInvocation(
+  req: Request,
+  extraKeys: ReadonlyArray<string | undefined> = [],
+): boolean {
+  const header =
+    req.headers.get("authorization") ?? req.headers.get("Authorization");
+  if (!header) return false;
+  const token = header.replace(/^[Bb]earer\s+/, "");
+  if (!token) return false;
+
+  const accepted: string[] = [
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    Deno.env.get("SERVICE_ROLE_KEY") ?? "",
+    Deno.env.get("BLU_SYSTEM_INVOKE_KEY") ?? "",
+    ...extraKeys,
+  ].filter((k): k is string => !!k && k.length > 0);
+
+  return accepted.some((k) => timingSafeEqual(token, k));
+}
+
 // ── JWT validation ───────────────────────────────────────────
 
 /**

@@ -246,11 +246,11 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Failed to upload file to storage" }, 500);
     }
 
-    // ── 7. INSERT client_data_sources ─────────────────────────────────────────
+    // ── 7. UPSERT client_data_sources (unique: client_id, source_type, resource_type) ──
     const now = new Date().toISOString();
     const { data: dataSource, error: insertErr } = await svc
       .from("client_data_sources")
-      .insert({
+      .upsert({
         client_id: clientId,
         source_type: "csv",
         resource_type: "file",
@@ -259,14 +259,13 @@ Deno.serve(async (req: Request) => {
         source_columns: columns,
         sync_status: "columns_discovered",
         credential_id: null,
-        created_at: now,
         updated_at: now,
-      })
+      }, { onConflict: "client_id,source_type,resource_type" })
       .select("id")
       .single();
 
     if (insertErr || !dataSource) {
-      console.error(`[upload-csv-source] ${requestId} DB insert failed:`, insertErr);
+      console.error(`[upload-csv-source] ${requestId} DB upsert failed:`, insertErr);
       return json({ error: "Failed to register data source" }, 500);
     }
 

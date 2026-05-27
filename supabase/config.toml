@@ -63,6 +63,18 @@ verify_jwt = false
 [functions.google-calendar-events]
 verify_jwt = false
 
+# preview-bigquery-columns: BigQuery column preview (sample rows) — invoked by
+# the onboarding wizard; validates JWT internally.
+[functions.preview-bigquery-columns]
+verify_jwt = false
+
+# etl-bigquery-ingest: BigQuery → ingest_staging → fato_transacoes worker.
+# Invoked by analytics_v2.process_pending_jobs (pg_net) with the sb_secret_*
+# service key OR directly by an authenticated user. JWT validation is done
+# inside the function via _shared/blu_auth.isSystemInvocation + requireAuth.
+[functions.etl-bigquery-ingest]
+verify_jwt = false
+
 # ── User-facing: edge-layer validation (verify_jwt=true) ─────────────────────
 
 # match-columns: stateless fuzzy schema matcher — pure computation, no DB writes.
@@ -122,3 +134,31 @@ verify_jwt = true
 # e fallback legado X-Secret.
 [functions.polp-webhook]
 verify_jwt = false
+
+# ── User-facing: internal validation (verify_jwt=false + blu_auth) ────────────
+
+# polp-sync: manual full sync triggered by user — validates JWT internally via
+# blu_auth.requireAuth for ES256 support and client_id extraction.
+[functions.polp-sync]
+verify_jwt = false
+
+# routine-builder: AI-assisted routine creation chat — validates JWT internally
+# via blu_auth.requireAuth; extracts client_id from app_metadata.
+[functions.routine-builder]
+verify_jwt = false
+
+# save-api-token: saves encrypted third-party API tokens (Slack, Monday, etc.)
+# — validates JWT inline via /auth/v1/user; resolves client_id from clientes_blu.
+[functions.save-api-token]
+verify_jwt = false
+
+# ── User-facing: edge-layer validation (verify_jwt=true) ─────────────────────
+
+# polp-connect: initiates Polp/Pluggy Open Finance connection — edge validates
+# user JWT before function body executes.
+[functions.polp-connect]
+verify_jwt = true
+
+# upload-drive-source: Google Drive document ingestion — edge validates user JWT.
+[functions.upload-drive-source]
+verify_jwt = true

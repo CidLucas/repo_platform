@@ -120,8 +120,8 @@ const INVOICES_COLUMNS: CanonicalColumnDef[] = [
     { column_name: "valor",               data_type: "numeric", is_required: true,  description: "Total transaction value",                                   examples: ["249.50"] },
     { column_name: "status",              data_type: "text",    is_required: false, description: "Transaction status (paid/pending/cancelled)",               examples: ["pago", "paid"] },
     { column_name: "transaction_label",  data_type: "text",    is_required: false, description: "Free-text label from the source (venda, NF saída, boleto, etc.)",      examples: ["venda", "NF-e saída", "PIX recebido"] },
-    { column_name: "category",            data_type: "text",    is_required: false, description: "Business category (free-text, user-defined)",                              examples: ["Material", "Mão de obra", "Centro de custo A"] },
-    { column_name: "subcategory",         data_type: "text",    is_required: false, description: "Sub-category (free-text, user-defined)",                                   examples: ["Insumos", "Sub família 1", "Sub categoria B"] },
+    { column_name: "categoria",           data_type: "text",    is_required: false, description: "Business category (free-text, user-defined)",                              examples: ["Material", "Mão de obra", "Centro de custo A"] },
+    { column_name: "subcategoria",        data_type: "text",    is_required: false, description: "Sub-category (free-text, user-defined)",                                   examples: ["Insumos", "Sub família 1", "Sub categoria B"] },
     // → dim_clientes
     { column_name: "cliente_cpf_cnpj",   data_type: "text",    is_required: false, description: "Customer tax ID (CPF/CNPJ)",                               examples: ["123.456.789-09"] },
     { column_name: "cliente_nome",        data_type: "text",    is_required: false, description: "Customer name",                                             examples: ["João Silva"] },
@@ -216,21 +216,21 @@ const COLUMN_ALIASES: Record<string, string[]> = {
     // entry_type — system-derived, NOT user-mappable; kept here only as an alias target for
     // CSVs that already have a column named "tipo_lancamento" so the system can read it,
     // but the canonical value is always overwritten by backend classification logic.
-    // category / subcategory — free-text business labels mapped by the client
+    // categoria / subcategoria — free-text business labels mapped by the client
     transaction_label: [
         "tipo_transacao", "transaction_type", "tipo_operacao", "natureza_operacao",
         "tipo_nf", "operacao", "tipo_documento",
     ],
-    category: [
-        "categoria", "centro de custo", "centro_custo", "cost_center", "cost center",
+    categoria: [
+        "category", "centro de custo", "centro_custo", "cost_center", "cost center",
         "familia", "grupo", "family", "group",
-        // construction/cost-center specific terms that should go to category, NOT entry_type
+        // construction/cost-center specific terms that should go to categoria, NOT entry_type
         "mao de obra", "mão de obra", "mat ou mdo", "mat_ou_mdo", "mat/mdo",
         "material", "insumo", "tipo_custo", "modalidade",
         "centro de custo - familia", "centro_custo_familia",
     ],
-    subcategory: [
-        "subcategoria", "sub_categoria", "sub categoria",
+    subcategoria: [
+        "subcategory", "sub_categoria", "sub categoria",
         "sub_familia", "sub-familia", "subfamilia", "sub familia",
         "subgrupo", "descricao",
         "centro de custo - sub familia", "centro_custo_sub_familia",
@@ -272,7 +272,7 @@ const SCHEMA_CONTEXT_DEFAULTS: Record<SchemaType, Record<string, string>> = {
     dim_clientes:    { cnpj: "cpf_cnpj", cpf: "cpf_cnpj", cpf_cnpj: "cpf_cnpj", telefone: "telefone", nome: "nome", cidade: "endereco_cidade", estado: "endereco_uf", uf: "endereco_uf" },
     invoices:        { data: "data_competencia_id", valor: "valor", total: "valor", preco: "valor_unitario", qtd: "quantidade", pedido: "documento", id: "documento", fornecedor: "fornecedor_nome", cliente: "cliente_nome" },
     dim_inventory:   { codigo: "sku", estoque: "sku", nome: "nome" },
-    fato_transacoes: { valor: "valor", total: "valor", quantidade: "quantidade", data: "data_competencia_id", status: "status", documento: "documento", categoria: "category", subcategoria: "subcategory" },
+    fato_transacoes: { valor: "valor", total: "valor", quantidade: "quantidade", data: "data_competencia_id", status: "status", documento: "documento", categoria: "categoria", subcategoria: "subcategoria" },
 };
 
 const CONTEXT_SPECIFIC_MAPPINGS: Record<string, Record<EntityContext, string>> = {

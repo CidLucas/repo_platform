@@ -6,14 +6,17 @@
 //      module as apps/landing/src/onboarding/mappers.ts, ported to Deno).
 //   3. Call public.onboarding_bootstrap_tx(jsonb) with the caller's JWT
 //      so SECURITY INVOKER + RLS scope writes to the right tenant.
-//   4. Best-effort Langfuse prompt seeding — for each selected agent
-//      slug, clone default/<slug> (or landing/<slug>) into
-//      tenant/<client_id>/<slug>. Failures are logged but do NOT fail
-//      the call (recorded in onboarding_state.langfuse_seed_status so a
-//      retry job can re-run). Pattern mirrors scripts/create_standalone_prompts.py.
 //
 // Request:  POST { ...OnboardingState }   (full wizard state; server re-validates)
-// Response: 200 { client_id, agents, routines, prompts_seeded }
+// Response: 200 { client_id, agents, routines }
+//
+// NOTE (Mai/2026): Langfuse prompt seeding foi REMOVIDO. Decisão validada com
+// Lucas: NENHUM prompt tenant-scoped vai pro Langfuse — overrides são só
+// globais. O seed síncrono aqui (6 fetches HTTP us.cloud.langfuse.com,
+// namespace `landing/<slug>` que retornava 404 porque o catalog usa
+// `agents/<slug>`) travava a edge function por segundos e bloqueava o redirect
+// do wizard ("Iniciando seu bureau" preso). Ver
+// docs/observability/onboarding-trace-mai2026-partial.md.
 
 import {
   requireAuth,
@@ -33,119 +36,10 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-const LANGFUSE_BASE_URL =
-  Deno.env.get("LANGFUSE_HOST") ??
-  Deno.env.get("LANGFUSE_BASE_URL") ??
-  "https://us.cloud.langfuse.com";
-const LANGFUSE_PUBLIC_KEY = Deno.env.get("LANGFUSE_PUBLIC_KEY") ?? "";
-const LANGFUSE_SECRET_KEY = Deno.env.get("LANGFUSE_SECRET_KEY") ?? "";
-
 interface BootstrapTxResult {
   client_id: string;
   agents: number;
   routines: number;
-}
-
-interface LangfusePrompt {
-  name?: string;
-  prompt?: string;
-  type?: string;
-  tags?: string[];
-  config?: Record<string, unknown>;
-}
-
-// Fetch the current prompt body (label=production) for a canonical slug.
-// Returns null when the source prompt is missing — seeding is skipped for
-// that agent and the caller receives a smaller `prompts_seeded` count.
-async function fetchSourcePrompt(
-  sourceName: string,
-  auth: string,
-): Promise<LangfusePrompt | null> {
-  const url = `${LANGFUSE_BASE_URL}/api/public/v2/prompts/${encodeURIComponent(sourceName)}?label=production`;
-  const resp = await fetch(url, {
-    method: "GET",
-    headers: { Authorization: auth, "Content-Type": "application/json" },
-  });
-  if (resp.status === 404) return null;
-  if (!resp.ok) {
-    console.warn(
-      `[onboarding-bootstrap] Langfuse GET ${sourceName} failed: ${resp.status}`,
-    );
-    return null;
-  }
-  return (await resp.json()) as LangfusePrompt;
-}
-
-// Create a tenant-scoped copy of a source prompt. Idempotent: Langfuse
-// versions are append-only; re-running just creates a new version with
-// the same body, which the PromptLoader then serves via label.
-async function createTenantPrompt(
-  tenantName: string,
-  source: LangfusePrompt,
-  auth: string,
-  clientId: string,
-  slug: string,
-): Promise<boolean> {
-  const url = `${LANGFUSE_BASE_URL}/api/public/v2/prompts`;
-  const payload = {
-    name: tenantName,
-    prompt: source.prompt ?? "",
-    type: source.type ?? "text",
-    labels: ["production"],
-    tags: [
-      ...(source.tags ?? []),
-      "tenant",
-      `client:${clientId}`,
-      `agent:${slug}`,
-    ],
-    config: source.config ?? {},
-  };
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: auth, "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => "");
-    console.warn(
-      `[onboarding-bootstrap] Langfuse POST ${tenantName} failed: ${resp.status} ${text}`,
-    );
-    return false;
-  }
-  return true;
-}
-
-async function seedLangfusePrompts(
-  clientId: string,
-  agents: string[],
-): Promise<number> {
-  if (!LANGFUSE_PUBLIC_KEY || !LANGFUSE_SECRET_KEY) {
-    console.warn(
-      "[onboarding-bootstrap] Langfuse keys not configured; skipping prompt seed",
-    );
-    return 0;
-  }
-  const auth = `Basic ${btoa(`${LANGFUSE_PUBLIC_KEY}:${LANGFUSE_SECRET_KEY}`)}`;
-
-  let seeded = 0;
-  for (const slug of agents) {
-    // Canonical landing prompts are seeded at `landing/<slug>` (see
-    // 20260423130400_agent_catalog_landing_slugs.sql::prompt_name).
-    const sourceName = `landing/${slug}`;
-    const tenantName = `tenant/${clientId}/${slug}`;
-    try {
-      const source = await fetchSourcePrompt(sourceName, auth);
-      if (!source || !source.prompt) continue;
-      const ok = await createTenantPrompt(tenantName, source, auth, clientId, slug);
-      if (ok) seeded += 1;
-    } catch (err) {
-      console.warn(
-        `[onboarding-bootstrap] Langfuse seed error for ${slug}:`,
-        err,
-      );
-    }
-  }
-  return seeded;
 }
 
 Deno.serve(async (req: Request) => {
@@ -225,32 +119,6 @@ Deno.serve(async (req: Request) => {
       } catch (err) {
         console.warn("[onboarding-bootstrap] Knowledge bootstrap error:", err);
       }
-    }
-
-    // ── Best-effort Langfuse prompt seeding (outside the transaction) ──
-    let promptsSeeded = 0;
-    try {
-      promptsSeeded = await seedLangfusePrompts(result.client_id, payload.agents);
-    } catch (err) {
-      console.warn("[onboarding-bootstrap] Langfuse seeding errored:", err);
-    }
-
-    // Record seed status on onboarding_state so a retry job can re-run
-    // if Langfuse was unreachable. Uses the caller's JWT + the existing
-    // merge_onboarding_state RPC so we only patch the status key and
-    // preserve the rest of the wizard state blob.
-    try {
-      await userClient.rpc("merge_onboarding_state", {
-        p_patch: {
-          langfuse_seed_status: {
-            seeded: promptsSeeded,
-            requested: payload.agents.length,
-            at: new Date().toISOString(),
-          },
-        },
-      });
-    } catch (err) {
-      console.warn("[onboarding-bootstrap] Failed to stamp seed status:", err);
     }
 
     // ── 5. Fire website-context-builder if a website was provided ────────────
@@ -346,7 +214,6 @@ Deno.serve(async (req: Request) => {
       client_id: result.client_id,
       agents: result.agents,
       routines: result.routines,
-      prompts_seeded: promptsSeeded,
     });
   } catch (err) {
     if (err instanceof AuthError) {

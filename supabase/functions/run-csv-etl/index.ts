@@ -125,13 +125,20 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Invalid JSON in request body" }, 400);
     }
 
-    const { client_id, source_id, column_mapping, ignored_columns = [] } = body;
+    const { client_id, source_id, column_mapping: rawMapping, ignored_columns = [] } = body;
 
-    if (!client_id || !source_id || !column_mapping) {
+    if (!client_id || !source_id || !rawMapping) {
       return json({ error: "client_id, source_id and column_mapping are required" }, 400);
     }
-    if (Object.keys(column_mapping).length === 0) {
+    if (Object.keys(rawMapping).length === 0) {
       return json({ error: "column_mapping cannot be empty" }, 400);
+    }
+
+    // Frontend sends { source_col → canonical }; sincronizar_csv_cliente expects
+    // { canonical → source_col }. Invert here so the DB contract is canonical-keyed.
+    const column_mapping: Record<string, string> = {};
+    for (const [src, can] of Object.entries(rawMapping as Record<string, string>)) {
+      if (can && can !== "ignorar") column_mapping[can] = src;
     }
 
     const svc = createServiceClient(SUPABASE_URL, SERVICE_ROLE_KEY);

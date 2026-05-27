@@ -2,6 +2,62 @@
 
 Arquivo de captura de ideias para exploração futura. Não são tarefas confirmadas — são direções que valem ser exploradas quando o momento for certo.
 
+---
+
+## Tenant Deletion — Assíncrono e Paginado [NOVO — Mai/2026]
+
+**Problema observado (incidente 25/Mai/2026):** DELETE direto em `clientes_blu` com FKs CASCADE em tabelas analytics (180k+ rows: 119k dim_inventory + 61k fato_transacoes) trava o pooler PgBouncer (transaction mode) por ~6min. Statement timeout do client mata a conexão e a transação inteira sofre ROLLBACK server-side — wipe falha silenciosamente e estado fica intacto. Workaround atual: script `/tmp/wipe_clients_batched.sql` com DO blocks em loop, batches de 5k linhas, `PGOPTIONS='-c statement_timeout=120000'`.
+
+**Solução proposta — Wipe Worker:**
+1. Função `admin.schedule_tenant_wipe(client_id uuid, reason text)`:
+   - Marca tenant como `status='wiping'` em `clientes_blu` (soft-delete imediato: login bloqueado, rotinas pausadas)
+   - Insere job em `tenant_wipe_jobs(client_id, stage, batch_size, last_pk, progress_pct, started_at)`
+2. Worker pg_cron a cada 30s consome a fila:
+   - Deleta filhas em ordem (maiores → menores) em chunks de 5k via keyset pagination (não LIMIT/OFFSET — evita re-scan)
+   - Pausa 100ms entre batches para liberar locks do pooler
+   - Atualiza `progress_pct` e `last_pk` a cada batch
+   - Quando todas as filhas zeradas, executa transação final pequena: `DELETE clientes_blu + auth.users + vault.secrets`
+3. Vantagens:
+   - Nunca bloqueia pooler (cada batch <1s)
+   - Idempotente e retomável (crash recovery via `last_pk`)
+   - Observable (`progress_pct` exposto em endpoint admin)
+   - Audit trail (cada batch logado em `tenant_wipe_audit`)
+4. Considerar também: hard-delete vs anonimização (LGPD — direito ao esquecimento permite anonimização ao invés de DELETE em casos com obrigação fiscal de retenção).
+
+
+
+## Migração Catálogo de Agentes PT → EN [NOVO — Mai/2026]
+
+**Contexto:** `agent_catalog` tem 18 rows em 3 gerações com `is_active=true`:
+- Gen1 (28/Abr, EN, com landing_slug): analytics, inventory, marketing, crm, scheduling, projects, documents, finance
+- Gen2 (06/Mai, PT, sem landing_slug): compras, financeiro, agenda, documentos, estrategia, clientes
+- Gen3 (13/Mai, data): data-analyst, context-gatherer, knowledge-assistant, report-generator
+
+Wizard de onboarding envia Gen2 PT. `onboarding-website-intel` referencia Gen1 EN. AdminScreen/AgentesScreen usam Gen2 PT. Inconsistência viva.
+
+**Decisão registrada (Lucas, 25/Mai/2026):** unificar tudo em EN (Opção 2). Não fazer agora pra não bloquear onboarding — split aprovado.
+
+**Escopo da migração (sprint dedicada, ~2-3h):**
+1. SQL: `UPDATE agent_catalog SET slug='purchasing' WHERE slug='compras'` (mapeamento: compras→purchasing, financeiro→finance, agenda→scheduling, documentos→documents, estrategia→strategy, clientes→clients)
+2. UPDATE em cascata nas tabelas que carregam `agent_slug`:
+   - `approval_requests.agent_slug`
+   - `documents.agent_slug`
+   - `client_enabled_agents.agent_slug`
+   - `client_routines.agent_slug`
+   - `client_routine_executions` (se tiver coluna)
+3. Refactor front (20+ arquivos):
+   - Rooms: `ComprasRoom.tsx`, `FinanceiroRoom.tsx`, `EstrategiaRoom.tsx`, `AgendaRoom.tsx`, …
+   - APIs: `agenda.ts`, `approvals.ts`, `suppliers.ts`, `documents.ts`, `estrategia.ts`
+   - Components: `Sidebar.tsx`, `SpotlightSearch.tsx`, `AppShell.tsx`, `DecisionCard.tsx`
+   - `OnboardingApp.tsx` payload de agents
+   - `AdminScreen.tsx:182,567`, `AgentesScreen.tsx`
+4. Resolver duplicatas Gen1 vs Gen2 EN-pós-migração (`finance` Gen1 conflitará com `financeiro→finance` ex-Gen2): decidir qual fica e desativar o outro, ou mergear capabilities.
+5. Validar com seed: novo onboarding cria `client_enabled_agents` com slugs EN; rooms abrem normal.
+
+**Pitfall:** rename de slug em `agent_catalog` quebra runtime de qualquer tenant ativo durante a janela de migração — fazer fora de horário de uso ou usar dual-write (alias temporário) por 24h.
+
+
+
 Atualizado continuamente durante o desenvolvimento.
 
 ---
@@ -442,6 +498,24 @@ D2. Dedupe de artefatos side-effectful ✅
 - Tabela `artifact_log` com UNIQUE(execution_id, step_id)
 - Wire-up no executor: `services/agent_api/src/agent_api/core/routines.py:988-1023`
 - Módulo: `services/agent_api/src/agent_api/core/artifact_dedupe.py`
+
+---
+
+## Pipeline de Ingestão Multilíngue
+
+**Ideia:** tornar o pipeline de ingestão (match-columns + apply_staging_to_facts) agnóstico ao idioma dos cabeçalhos do CSV/BQ do cliente.
+
+**Contexto:** hoje o `match-columns` usa aliases hardcoded em PT/EN. O `apply_staging_to_facts` espera canonical names em português (`categoria`, `subcategoria`, `fornecedor_nome`). Qualquer novo idioma exige patch manual no código.
+
+**Direções possíveis:**
+1. **Canonical names em inglês puro** — unificar o contrato interno para EN (`category`, `subcategory`, `supplier_name`) e ajustar `apply_staging_to_facts` de uma vez. Elimina a ambiguidade PT vs EN que gerou o bug de 26/05.
+2. **LLM-assisted column matching** — substituir os aliases hardcoded por uma chamada ao LLM (ex: Ollama ministral-3b) que recebe os headers do CSV e retorna o mapeamento canonical. Zero manutenção de alias, suporta qualquer idioma. Latência aceitável pois só roda no onboarding.
+3. **Alias table no banco** — tabela `ingest_column_aliases (canonical text, alias text, lang text)` gerenciada via admin. Permite adicionar idiomas sem redeploy de edge function.
+4. **Híbrido (recomendado):** LLM para primeira tentativa (cobertura multilíngue), fallback para aliases hardcoded (determinismo, zero latência). Confidence score decide qual caminho usar — igual ao flow atual de `needs_review`.
+
+**Impacto:** `match-columns`, `upload-csv-source`, `etl-bigquery-ingest` (schema BQ também tem headers em inglês), `apply_staging_to_facts`.
+
+**Pré-requisito:** decidir o contrato canonical (PT ou EN) antes de qualquer implementação para não gerar outro bug de mismatch.
 - Tipos protegidos: email, whatsapp, document. NÃO aplicado a alert/approval.
 
 ### FASE E — Cobertura de rotinas pré-onboarding [3-5 dias]
@@ -476,4 +550,25 @@ E3. Validação end-to-end com cliente de teste interno [EM PREP]
 - Sprints 1, 2 e 3 completos
 - 1 cliente de teste interno rodando há 72h sem incidente
 - Dashboard de health ativo + alertas testados
+
+---
+
+## Twilio WhatsApp Sandbox — Setup em andamento
+
+**Status:** quase pronto, falta 1 passo.
+
+**O que já foi feito:**
+- Conta Twilio trial criada (Account SID: ACe0dc9a02b6db4b9ea5766007d0b49edb)
+- Número US comprado: `+13606691207` (SID: PNe365d37bc6d574d01e962ddcf4564854)
+- `.env` atualizado com `TWILIO_DEFAULT_FROM_NUMBER=+13606691207`
+- Sandbox configurado com webhook: `https://<ngrok>/webhooks/twilio/inbound`
+- Número de teste verificado: `+5511959482709`
+- `blu_twilio_client` e `twilio_webhook_router` já existem no repo e estão funcionais
+
+**O que falta (amanhã):**
+- O docker compose expõe o `tool_pool_api` na porta **8003** (não 8001)
+- Recriar ngrok na porta certa: `ngrok http 8003`
+- Atualizar URL no Twilio Sandbox → "When a message comes in"
+- Testar enviando mensagem do WhatsApp pro sandbox number (`+14155238886`)
+
 

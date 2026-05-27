@@ -102,7 +102,7 @@ export function useOnboardingDraft(userEmail: string) {
 
     if (error) throw new Error(error.message ?? 'Bootstrap failed')
     try { localStorage.removeItem(DRAFT_KEY(userEmail)) } catch {}
-    return data as { client_id: string; agents: number; routines: number; prompts_seeded: number }
+    return data as { client_id: string; agents: number; routines: number }
   }, [draft, userEmail])
 
   return { draft, updateDraft, saveDraft, bootstrap }

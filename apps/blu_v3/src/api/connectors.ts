@@ -265,6 +265,40 @@ export async function createBigQueryCredentialWithDiscovery(
   return { credentialId, columns }
 }
 
+/**
+ * previewBigQueryColumns
+ *
+ * Onboarding helper: discover BigQuery column names WITHOUT creating the
+ * Vault entry, the credencial_servico_externo row or the FDW server.
+ *
+ * Used by StepData to pre-fetch columns so that StepMapping can run BEFORE
+ * StepLaunch (which is what actually persists credentials, after clientes_blu
+ * is created by onboarding_bootstrap_tx).
+ *
+ * Calls the `preview-bigquery-columns` Edge Function (auth-only, no DB writes).
+ */
+export async function previewBigQueryColumns(
+  credentials: BigQueryCredentials,
+): Promise<string[]> {
+  const { projectId, datasetId, tableName } = parseBigQueryTableRef(credentials.table_name)
+  const effectiveProject = projectId || credentials.project_id
+  const effectiveDataset = datasetId || credentials.dataset_id || 'default'
+
+  const { data, error } = await supabase.functions.invoke('preview-bigquery-columns', {
+    body: {
+      service_account_json: credentials.service_account_json,
+      project_id: effectiveProject,
+      dataset_id: effectiveDataset,
+      table_name: tableName,
+    },
+  })
+  if (error) throw new Error(error.message)
+  const columns: string[] = (data?.columns ?? []).map(
+    (c: { name: string } | string) => (typeof c === 'string' ? c : c.name),
+  )
+  return columns
+}
+
 // --- Sync operations ---
 
 export async function startSync(credentialId: string): Promise<void> {

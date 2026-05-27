@@ -92,7 +92,3 @@ Upload (uploaded_files_metadata)
 ```
 
 Cobertura por tipo de documento rastreada em `knowledge_agent_requirements` (com `coverage_threshold` por `agent_slug`).
-
-❯ /queue voce tem a mcp tool do supabase? nela tem uma opcao de squash em que fazemos o
-dump do db live e estabelecemos um novo baseline e deletamos todas as migrations, podiam
-os fazer isso para limpar um pouco o repo e deixar de ter esse mismatch

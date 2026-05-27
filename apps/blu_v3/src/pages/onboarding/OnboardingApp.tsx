@@ -939,7 +939,7 @@ function CredentialForm({
 function StepData({
   onNext, onBack, onSkip, saveDraft, onMappingReady, onCredentialCollected, onCsvFileReady, onDriveFileReady,
 }: {
-  onNext: () => void
+  onNext: (mappingResult?: ColumnMappingResult | null) => void
   onBack: () => void
   onSkip: () => void
   saveDraft: (patch: Partial<OnboardingDraft>) => Promise<void>
@@ -1085,7 +1085,7 @@ function StepData({
     // Match CSV columns if uploaded; BQ columns are discovered in StepLaunch
     const mappingResult = csvHeaders.length > 0 ? await callMatchColumns(csvHeaders) : null
     onMappingReady(mappingResult)
-    onNext()
+    onNext(mappingResult)
   }
 
   const selectedSystem = SYSTEMS.find(s => s.id === openForm)
@@ -1523,11 +1523,22 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
   const [csvSourceId, setCsvSourceId] = useState<string | null>(null)
   const rafRef = useRef<number>(0)
   const lastAttemptFired = useRef(-1)
+  // Cancellation guard lives in a ref so it survives React StrictMode's
+  // intentional double-mount in dev. Without this, the first mount's cleanup
+  // flips a local `cancelledRef.current` to true, the re-mount short-circuits via
+  // lastAttemptFired, and the in-flight bootstrap()/.then never runs — tela
+  // fica presa em "Iniciando seu bureau".
+  const cancelledRef = useRef(false)
 
   useEffect(() => {
-    if (lastAttemptFired.current === attempt) return
+    if (lastAttemptFired.current === attempt) {
+      // Re-mount under StrictMode (or any re-run with same attempt): keep the
+      // in-flight bootstrap alive — don't cancel it.
+      cancelledRef.current = false
+      return
+    }
     lastAttemptFired.current = attempt
-    let cancelled = false
+    cancelledRef.current = false
     setProgress(0)
     setLogs([])
     setDone(false)
@@ -1542,7 +1553,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
     const timers: ReturnType<typeof setTimeout>[] = []
     LOG_STEPS.forEach((line, i) => {
       timers.push(setTimeout(() => {
-        if (!cancelled) setLogs(prev => [...prev, line])
+        if (!cancelledRef.current) setLogs(prev => [...prev, line])
       }, (i + 1) * 900))
     })
 
@@ -1550,7 +1561,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
     const totalMs = 5000
     const start = Date.now()
     const tick = () => {
-      if (cancelled) return
+      if (cancelledRef.current) return
       const pct = Math.min(85, ((Date.now() - start) / totalMs) * 85)
       setProgress(pct)
       if (pct < 85) rafRef.current = requestAnimationFrame(tick)
@@ -1559,7 +1570,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
 
     bootstrap()
       .then(async (result) => {
-        if (cancelled) return
+        if (cancelledRef.current) return
         cancelAnimationFrame(rafRef.current)
         setResolvedClientId(result.client_id)
 
@@ -1582,13 +1593,13 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
               )
               bqColumns = columns
               discoveredCredentialId = credentialId
-              if (!cancelled) setLogs(prev => [...prev, `▸ ${pc.nomServico} conectado — ${columns.length} colunas descobertas.`])
+              if (!cancelledRef.current) setLogs(prev => [...prev, `▸ ${pc.nomServico} conectado — ${columns.length} colunas descobertas.`])
             } else {
               await createCredential(result.client_id, pc.platform, pc.nomServico, pc.credentials)
-              if (!cancelled) setLogs(prev => [...prev, `▸ ${pc.nomServico} conectado.`])
+              if (!cancelledRef.current) setLogs(prev => [...prev, `▸ ${pc.nomServico} conectado.`])
             }
           } catch (e) {
-            if (!cancelled) setLogs(prev => [...prev, `⚠ Falha ao conectar ${pc.nomServico}.`])
+            if (!cancelledRef.current) setLogs(prev => [...prev, `⚠ Falha ao conectar ${pc.nomServico}.`])
             console.warn('[onboarding] credential creation failed:', e)
           }
         }
@@ -1597,7 +1608,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
         if (bqColumns.length > 0) {
           try {
             const bqMapping = await callMatchColumns(bqColumns)
-            if (!cancelled && bqMapping) {
+            if (!cancelledRef.current && bqMapping) {
               setBqMappingResult(bqMapping)
               setBqCredentialId(discoveredCredentialId)
               setLogs(prev => [...prev, `▸ Mapeamento de colunas concluído.`])
@@ -1621,7 +1632,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
               body: form,
             })
             if (!uploadErr && uploadData?.source_id) {
-              if (!cancelled) {
+              if (!cancelledRef.current) {
                 uploadedSourceId = uploadData.source_id
                 setCsvSourceId(uploadData.source_id)
                 setLogs(prev => [...prev, `▸ Planilha carregada — ${uploadData.columns?.length ?? 0} colunas.`])
@@ -1633,10 +1644,10 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
                 }
               }
             } else {
-              if (!cancelled) setLogs(prev => [...prev, '⚠ Falha ao enviar planilha. Você pode reconectar depois.'])
+              if (!cancelledRef.current) setLogs(prev => [...prev, '⚠ Falha ao enviar planilha. Você pode reconectar depois.'])
             }
           } catch (e) {
-            if (!cancelled) setLogs(prev => [...prev, '⚠ Falha ao enviar planilha. Você pode reconectar depois.'])
+            if (!cancelledRef.current) setLogs(prev => [...prev, '⚠ Falha ao enviar planilha. Você pode reconectar depois.'])
             console.warn('[onboarding] upload-csv-source:', e)
           }
         }
@@ -1669,7 +1680,7 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
               body: { client_id: result.client_id, drive_file_id: driveFileId, schema_type: 'invoices' },
             })
             if (!driveErr && driveData?.source_id) {
-              if (!cancelled) {
+              if (!cancelledRef.current) {
                 const driveMappingResult: ColumnMappingResult = {
                   matched: driveData.matched ?? {},
                   unmatched: driveData.unmatched ?? [],
@@ -1682,10 +1693,10 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
                 setLogs(prev => [...prev, `▸ Drive importado — ${driveData.columns?.length ?? 0} colunas.`])
               }
             } else {
-              if (!cancelled) setLogs(prev => [...prev, '⚠ Falha ao importar do Drive. Você pode reconectar depois.'])
+              if (!cancelledRef.current) setLogs(prev => [...prev, '⚠ Falha ao importar do Drive. Você pode reconectar depois.'])
             }
           } catch (e) {
-            if (!cancelled) setLogs(prev => [...prev, '⚠ Falha ao importar do Drive. Você pode reconectar depois.'])
+            if (!cancelledRef.current) setLogs(prev => [...prev, '⚠ Falha ao importar do Drive. Você pode reconectar depois.'])
             console.warn('[onboarding] upload-drive-source:', e)
           }
         }
@@ -1700,13 +1711,13 @@ function StepLaunch({ bootstrap, pendingCredentials, onDone, website, csvFile, c
         setDone(true)
       })
       .catch((e: Error) => {
-        if (cancelled) return
+        if (cancelledRef.current) return
         cancelAnimationFrame(rafRef.current)
         setError(e.message || 'Erro ao inicializar o bureau.')
       })
 
     return () => {
-      cancelled = true
+      cancelledRef.current = true
       cancelAnimationFrame(rafRef.current)
       timers.forEach(clearTimeout)
     }
@@ -1864,7 +1875,7 @@ export default function OnboardingApp() {
     return (
       <StepData
         // CSV: go to mapping first (pre-launch). Drive/BQ/no-data: go straight to launch.
-        onNext={() => mappingResult ? go('mapping') : go('launch')}
+        onNext={(result) => result ? go('mapping') : go('launch')}
         onBack={() => go('info')}
         onSkip={() => go('launch')}
         saveDraft={saveDraft}

@@ -209,61 +209,101 @@ def _get_hardcoded_analytics_v2_schema() -> str:
     return """
 ANALYTICS V2 STAR SCHEMA (schema: analytics_v2)
 ================================================
+IMPORTANT: client_id filters are injected automatically — never write WHERE client_id = ... in your SQL.
 
-TABLE: analytics_v2.fato_transacoes (grain: transacao_id)
-- transacao_id (UUID) - Primary key
-- documento (TEXT) - Order/document identifier
-- data_competencia_id (INTEGER) - FK to dim_datas (format YYYYMMDD)
-- tipo_id (INTEGER) - FK to dim_tipo_transacao
-- client_id (UUID) - FK to dim_clientes
-- fornecedor_id (UUID) - FK to dim_fornecedores
-- inventory_id (UUID) - FK to dim_inventory
-- quantidade (NUMERIC) - Quantity
-- valor_unitario (NUMERIC) - Unit price
-- valor (NUMERIC) - Line total
-- status (TEXT) - Transaction status
+TABLE: analytics_v2.fato_transacoes  (grain: one row per transaction)
+- transacao_id   TEXT       — primary key
+- data_competencia_id INTEGER — FK → dim_datas.data_id (JOIN ON f.data_competencia_id = d.data_id)
+- fornecedor_id  INTEGER    — FK → dim_fornecedores.fornecedor_id
+- documento      TEXT       — order / invoice number (nullable)
+- quantidade     NUMERIC    — quantity (nullable)
+- valor_unitario NUMERIC    — unit price (nullable)
+- valor          NUMERIC    — line total  ← USE THIS for revenue/spend
+- status         TEXT       — transaction status (nullable)
+- tipo_transacao TEXT       — e.g. 'compra', 'venda'
+- entry_type     TEXT       — e.g. 'purchase', 'sale'
+- categoria      TEXT       — expense/revenue category (e.g. 'INSTALAÇÕES')
+- subcategoria   TEXT       — subcategory (nullable)
 
-TABLE: analytics_v2.dim_clientes
-- client_id (UUID) - Primary key
-- nome (TEXT), cpf_cnpj (TEXT)
-- endereco_cidade (TEXT), endereco_uf (TEXT)
-- total_pedidos (INTEGER), receita_total (NUMERIC), ticket_medio (NUMERIC)
+TABLE: analytics_v2.dim_fornecedores  (one row per supplier)
+- fornecedor_id  INTEGER    — primary key
+- nome           TEXT       — supplier name (use ILIKE for fuzzy search)
+- cnpj           TEXT       — tax id (nullable)
+- endereco_cidade TEXT      — city (nullable)
+- endereco_uf    TEXT       — state (nullable)
+- receita_total  NUMERIC    — total revenue from this supplier
+- total_pedidos_recebidos INTEGER — order count
+- ticket_medio   NUMERIC    — average ticket
+- is_active      BOOLEAN
 
-TABLE: analytics_v2.dim_fornecedores
-- fornecedor_id (UUID) - Primary key
-- nome (TEXT), cnpj (TEXT)
-- endereco_cidade (TEXT), endereco_uf (TEXT)
-- receita_total (NUMERIC), total_pedidos_recebidos (INTEGER)
+TABLE: analytics_v2.dim_datas  (global, no client_id)
+- data_id        INTEGER    — primary key (format YYYYMMDD)
+- data           DATE       — use for date range filters
+- ano            INTEGER    — year
+- mes            INTEGER    — month 1–12
+- dia            INTEGER    — day of month
+- numero_dia_semana INTEGER — day of week
+- numero_semana_ano INTEGER — week of year
+- numero_semestre INTEGER   — semester (1 or 2)
+- periodo_trimestral TEXT   — e.g. 'Q1', 'Q2', 'Q3', 'Q4'
 
-TABLE: analytics_v2.dim_inventory
-- inventory_id (UUID) - Primary key
-- nome (TEXT) - USE FOR FILTERING BY PRODUCT TYPE (e.g., ILIKE '%%ALUMINIO%%')
-- ncm (TEXT), sku (TEXT)
-- quantidade_total_vendida (NUMERIC), receita_total (NUMERIC), preco_medio (NUMERIC)
+TABLE: analytics_v2.dim_inventory  (one row per product/SKU)
+- inventory_id   UUID       — primary key
+- nome           TEXT       — product name (use ILIKE for fuzzy search)
+- sku            TEXT
+- ncm            TEXT
+- quantidade_total_vendida NUMERIC — total units sold
+- receita_total  NUMERIC
+- preco_medio    NUMERIC
 
-TABLE: analytics_v2.dim_datas  -- GLOBAL SHARED TABLE (no client_id)
-- data_id (INTEGER) - Primary key (YYYYMMDD)
-- data (DATE) - USE FOR DATE FILTERING
-- ano, mes, trimestre, dia_da_semana (INTEGER)
+JOINS (always use ON, not USING — subquery wrappers break USING):
+  fato_transacoes → dim_fornecedores : ON f.fornecedor_id = s.fornecedor_id
+  fato_transacoes → dim_datas        : ON f.data_competencia_id = d.data_id
+  fato_transacoes → dim_inventory    : ON f.produto_id = i.inventory_id  (nullable — LEFT JOIN)
 
-TABLE: analytics_v2.dim_tipo_transacao  -- GLOBAL SHARED TABLE (no client_id)
-- tipo_id (INTEGER) - Primary key
-- codigo (TEXT), descricao (TEXT), categoria (TEXT)
+NOTES:
+- dim_tipo_transacao does NOT exist — filter by f.tipo_transacao or f.categoria directly
+- dim_categoria does NOT exist — f.categoria is a TEXT column on fato_transacoes
+- nome_mes does NOT exist on dim_datas — use d.mes (INTEGER) or TO_CHAR(d.data, 'Month')
+- current_stock does NOT exist on dim_inventory — use quantidade_total_vendida
+- Always alias CTEs consistently — use the same alias in SELECT as defined in the CTE
 
-JOINS:
-  fato_transacoes -> dim_clientes via client_id
-  fato_transacoes -> dim_fornecedores via fornecedor_id
-  fato_transacoes -> dim_inventory via inventory_id
-  fato_transacoes -> dim_datas via data_competencia_id = data_id
-  fato_transacoes -> dim_tipo_transacao via tipo_id
+EXAMPLE QUERIES:
+-- Revenue last 30 days
+SELECT SUM(f.valor) AS receita, COUNT(*) AS transacoes
+FROM analytics_v2.fato_transacoes f
+JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
+WHERE d.data >= CURRENT_DATE - INTERVAL '30 days';
 
-VIEWS:
-  v_resumo_dashboard - Dashboard summary (total clients, revenue, etc.)
-  v_series_temporal - Time series by month
-  v_distribuicao_regional - Regional distribution
-  vw_dre_mensal - Monthly DRE (income statement)
-  vw_fluxo_caixa_mensal - Monthly cash flow
+-- Top suppliers by revenue
+SELECT s.nome, SUM(f.valor) AS receita, COUNT(*) AS pedidos
+FROM analytics_v2.fato_transacoes f
+JOIN analytics_v2.dim_fornecedores s ON f.fornecedor_id = s.fornecedor_id
+GROUP BY s.nome ORDER BY receita DESC LIMIT 10;
 
+-- Monthly trend (use d.mes INT, not nome_mes)
+SELECT d.ano, d.mes, SUM(f.valor) AS receita
+FROM analytics_v2.fato_transacoes f
+JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
+GROUP BY d.ano, d.mes ORDER BY d.ano, d.mes;
+
+-- Current month vs previous month
+WITH cur AS (
+  SELECT SUM(f.valor) AS receita FROM analytics_v2.fato_transacoes f
+  JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
+  WHERE d.ano = EXTRACT(YEAR FROM CURRENT_DATE) AND d.mes = EXTRACT(MONTH FROM CURRENT_DATE)
+), prev AS (
+  SELECT SUM(f.valor) AS receita FROM analytics_v2.fato_transacoes f
+  JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
+  WHERE d.ano = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')
+    AND d.mes = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')
+)
+SELECT cur.receita AS mes_atual, prev.receita AS mes_anterior FROM cur CROSS JOIN prev;
+
+-- Revenue by category
+SELECT f.categoria, SUM(f.valor) AS receita
+FROM analytics_v2.fato_transacoes f
+GROUP BY f.categoria ORDER BY receita DESC;
 """
 
 

@@ -375,4 +375,193 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
         on_max_turns="return_partial",
         tags=["routines", "synthesis", "strategy", "analysis", "narrative"],
     ),
+
+    # ==========================================================================
+    # L3 Domain Skills — specialist agents (have real required_tool_names)
+    # Each skill defines exactly the tools it needs; SkillFactory intersects
+    # with the agent's enabled_tools at runtime.
+    # ==========================================================================
+
+    "sql_analytics": SkillDefinition(
+        name="sql_analytics",
+        description=(
+            "Execute SQL queries on structured business data: sales, revenue, stock, "
+            "clients, expenses, suppliers. Returns tables, aggregates, and trends."
+        ),
+        required_tool_names=["execute_sql", "executar_sql_agent"],
+        prompt_name="skill:sql_analytics:system",
+        max_turns=5,
+        on_max_turns="return_partial",
+        tags=["sql", "analytics", "finance", "sales", "inventory", "clients"],
+    ),
+
+    "fornecedores": SkillDefinition(
+        name="fornecedores",
+        description=(
+            "Manage suppliers: list, add, update, remove. Dispatch RFQs, check responses, "
+            "parse buying lists, validate allocation, generate POs, approve orders."
+        ),
+        required_tool_names=[
+            "list_suppliers",
+            "add_supplier",
+            "update_supplier",
+            "remove_supplier",
+            "dispatch_rfq",
+            "check_rfq_responses",
+            "parse_buying_list",
+            "validate_buying_list",
+            "optimize_allocation",
+            "generate_po_report",
+            "create_purchase_order",
+            "approve_purchase_order",
+            "suggest_counter_offer",
+        ],
+        prompt_name="skill:fornecedores:system",
+        max_turns=6,
+        on_max_turns="return_partial",
+        tags=["suppliers", "procurement", "rfq", "purchases", "purchase-order"],
+    ),
+
+    "financeiro": SkillDefinition(
+        name="financeiro",
+        description=(
+            "Register financial transactions and analyse cash flow, revenue, expenses, "
+            "and anomalies. Handles both data entry and financial analytics."
+        ),
+        required_tool_names=["register_transaction", "execute_sql"],
+        prompt_name="skill:financeiro:system",
+        max_turns=5,
+        on_max_turns="return_partial",
+        tags=["finance", "cashflow", "revenue", "expenses", "transactions"],
+    ),
+
+    "agenda": SkillDefinition(
+        name="agenda",
+        description=(
+            "Schedule planning, follow-ups, and calendar queries. "
+            "Query and import calendar data from Google Calendar and spreadsheets."
+        ),
+        required_tool_names=["query_calendar", "import_spreadsheet_schedule"],
+        prompt_name="skill:agenda:system",
+        max_turns=4,
+        on_max_turns="return_partial",
+        tags=["scheduling", "calendar", "follow-up", "agenda"],
+    ),
+
+    "monday": SkillDefinition(
+        name="monday",
+        description=(
+            "Manage Monday.com boards: list boards, list and create items, "
+            "update status, retrieve updates, summarize board state."
+        ),
+        required_tool_names=[
+            "monday_list_boards",
+            "monday_list_items",
+            "monday_create_item",
+            "monday_update_item_status",
+            "monday_get_board_summary",
+            "monday_get_item_updates",
+            "monday_summarize_board",
+        ],
+        prompt_name="skill:monday:system",
+        max_turns=5,
+        on_max_turns="return_partial",
+        tags=["monday", "tasks", "project-management"],
+    ),
+
+    "google_workspace": SkillDefinition(
+        name="google_workspace",
+        description=(
+            "Read and write Google Workspace: Sheets (read/write/export/create), "
+            "Docs (create/read/write/list), Calendar (query), and Gmail (read emails)."
+        ),
+        required_tool_names=[
+            "query_calendar",
+            "write_to_sheet",
+            "read_emails",
+            "list_spreadsheets",
+            "export_to_sheet",
+            "create_spreadsheet_with_data",
+            "google_docs_create",
+            "google_docs_read",
+            "google_docs_write",
+            "google_docs_list",
+        ],
+        prompt_name="skill:google_workspace:system",
+        max_turns=5,
+        on_max_turns="return_partial",
+        tags=["google", "sheets", "docs", "calendar", "email", "workspace"],
+    ),
+
+    "crm": SkillDefinition(
+        name="crm",
+        description=(
+            "Client analytics: LTV, churn prediction, cohort analysis, segmentation, "
+            "re-engagement, reactivation proposals. Read-only SQL + KB search."
+        ),
+        required_tool_names=["execute_sql", "executar_rag_cliente"],
+        prompt_name="skill:crm:system",
+        max_turns=5,
+        on_max_turns="return_partial",
+        tags=["crm", "clients", "churn", "ltv", "segmentation", "reengagement"],
+    ),
+
+    "plataforma": SkillDefinition(
+        name="plataforma",
+        description=(
+            "Create and manage automated routines, business goals, and platform "
+            "configurations via natural language. List, create, approve routines and goals."
+        ),
+        required_tool_names=[
+            "criar_rotina",
+            "listar_rotinas_catalogo",
+            "listar_rotinas_personalizadas",
+            "criar_rotina_personalizada",
+            "enviar_rotina_para_aprovacao",
+            "definir_meta",
+            "listar_metas",
+        ],
+        prompt_name="skill:plataforma:system",
+        max_turns=5,
+        on_max_turns="return_partial",
+        tags=["platform", "routines", "goals", "config", "automation"],
+    ),
+
+    "documentos": SkillDefinition(
+        name="documentos",
+        description=(
+            "Search, extract, OCR, summarise, and persist documents. "
+            "Handles PDFs, scanned docs, structured data extraction, and KB persistence."
+        ),
+        required_tool_names=[
+            "executar_rag_cliente",
+            "extract_document_with_ocr",
+            "summarize_document_sections",
+            "extract_structured_data",
+            "compile_time_series",
+            "write_summary_to_kb",
+        ],
+        prompt_name="skill:documentos:system",
+        max_turns=5,
+        on_max_turns="return_partial",
+        tags=["documents", "ocr", "knowledge-base", "extraction", "summarization"],
+    ),
+
+    "fiscal": SkillDefinition(
+        name="fiscal",
+        description=(
+            "NF-e / NFS-e issuance, fiscal data validation, and SEFAZ integration. "
+            "Transactional: raises on incomplete data rather than returning partial output."
+        ),
+        required_tool_names=[
+            "fiscal_preparar_dados_nfe",
+            "fiscal_status_integracao",
+            "executar_rag_cliente",
+            "execute_sql",
+        ],
+        prompt_name="skill:fiscal:system",
+        max_turns=4,
+        on_max_turns="raise",
+        tags=["fiscal", "nfe", "nfse", "tax", "sefaz"],
+    ),
 }

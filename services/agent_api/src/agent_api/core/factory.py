@@ -18,6 +18,7 @@ from blu_agent_framework.checkpointer import create_checkpointer
 from blu_agent_framework.mcp_client import MCPConnectionManager
 from blu_agent_framework.mcp_executor import MCPToolExecutor
 from blu_agent_framework.registry import AgentTypeRegistry
+from blu_agent_framework.skill_factory import SkillFactory
 from blu_context_service import ContextService
 from blu_context_service.redis_service import RedisService
 from blu_llm_service import ModelTier, get_model
@@ -40,8 +41,9 @@ _checkpointer = None
 _context_service: ContextService | None = None
 _mcp_manager: MCPConnectionManager | None = None
 _mcp_executor: MCPToolExecutor | None = None
-_frontdesk_graphs: dict[str, Any] = {}   # "frontdesk:{tier}" → CompiledGraph
-_standalone_graphs: dict[str, Any] = {}  # session_id → CompiledGraph
+_frontdesk_graphs: dict[str, Any] = {}    # "frontdesk:{tier}" → CompiledGraph
+_specialist_graphs: dict[str, Any] = {}   # "specialist:{slug}:{tier}" → CompiledGraph
+_standalone_graphs: dict[str, Any] = {}   # session_id → CompiledGraph
 _factory_instance: UnifiedAgentFactory | None = None
 
 
@@ -168,6 +170,103 @@ class UnifiedAgentFactory:
             logger.info("[Factory] Built frontdesk graph for tier=%s", tier)
 
         return _frontdesk_graphs[cache_key]
+
+    def get_specialist_graph(self, slug: str, tier: str) -> Any:
+        """
+        Return a cached compiled specialist graph for *slug* + *tier*.
+
+        Uses use_specialist_graph() topology:
+            START → init → classify_skill_intent → run_skill | respond
+            run_skill → respond → execute_tool loop → end
+
+        Tools are derived from skill_slugs declared in AgentTypeRegistry.
+        Falls back to enabled_tools when skill_slugs is empty (legacy agents).
+
+        One compiled graph per (slug, tier) pair; per-session state lives in
+        the Redis checkpointer shared with frontdesk.
+
+        Args:
+            slug: Agent slug (e.g. 'financeiro', 'compras', 'agenda').
+            tier: Client tier string (e.g. 'BASIC', 'SME').
+
+        Raises:
+            ValueError: If *slug* is not in AgentTypeRegistry.
+        """
+        cache_key = f"specialist:{slug}:{tier}"
+        if cache_key not in _specialist_graphs:
+            settings = get_settings()
+            cfg = AgentTypeRegistry.get(slug)
+            if not cfg:
+                raise ValueError(
+                    f"[Factory] get_specialist_graph: unknown agent slug {slug!r}. "
+                    f"Register it in AgentTypeRegistry first."
+                )
+
+            # Derive tool list from skill_slugs → required_tool_names union,
+            # then filter by tier via ResourceResolver.
+            # Falls back to cfg.enabled_tools for agents not yet on skills.
+            if cfg.skill_slugs:
+                from blu_agent_framework.skills import SKILL_REGISTRY
+                seen: set[str] = set()
+                raw_tools: list[str] = []
+                for sk_slug in cfg.skill_slugs:
+                    skill = SKILL_REGISTRY.get(sk_slug)
+                    if skill:
+                        for tool_name in skill.required_tool_names:
+                            if tool_name not in seen:
+                                seen.add(tool_name)
+                                raw_tools.append(tool_name)
+                    else:
+                        logger.warning(
+                            "[Factory] skill_slug %r not found in SKILL_REGISTRY "
+                            "for agent %r — skipping",
+                            sk_slug, slug,
+                        )
+            else:
+                raw_tools = list(cfg.enabled_tools)
+
+            enabled_tools = ResourceResolver.filter_tools(raw_tools, slug, tier)
+            logger.info(
+                "[Factory] Specialist slug=%s tier=%s: %d/%d tools allowed",
+                slug, tier, len(enabled_tools), len(raw_tools),
+            )
+
+            llm = get_model(tier=cfg.model_tier)
+            mcp_exec = get_mcp_executor()
+            checkpointer = get_checkpointer()
+
+            skill_factory = SkillFactory(
+                llm=llm,
+                mcp_executor=mcp_exec,
+                enabled_tools=enabled_tools,
+            )
+
+            graph = (
+                AgentBuilder(
+                    AgentConfig(
+                        name=cfg.name,
+                        role=cfg.description,
+                        mcp_url=settings.MCP_SERVER_URL,
+                        enabled_tools=enabled_tools,
+                        max_turns=cfg.max_turns,
+                        use_langfuse=True,
+                    ),
+                    mcp_executor=mcp_exec,
+                )
+                .with_llm(llm)
+                .with_checkpointer(checkpointer)
+                .with_skill_factory(skill_factory)
+                .use_specialist_graph(cfg)
+                .build()
+            )
+
+            _specialist_graphs[cache_key] = graph
+            logger.info(
+                "[Factory] Built specialist graph slug=%s tier=%s tools=%s",
+                slug, tier, enabled_tools,
+            )
+
+        return _specialist_graphs[cache_key]
 
     async def get_standalone_agent(
         self,
@@ -396,6 +495,22 @@ class UnifiedAgentFactory:
 
     def clear_frontdesk_cache(self) -> None:
         _frontdesk_graphs.clear()
+
+    def clear_specialist_cache(self, slug: str | None = None, tier: str | None = None) -> None:
+        """Evict specialist graph(s) from cache.
+
+        If both *slug* and *tier* are given, evicts only that (slug, tier) pair.
+        If only *slug* is given, evicts all tiers for that slug.
+        If neither is given, clears the entire specialist cache.
+        """
+        if slug and tier:
+            _specialist_graphs.pop(f"specialist:{slug}:{tier}", None)
+        elif slug:
+            to_remove = [k for k in _specialist_graphs if k.startswith(f"specialist:{slug}:")]
+            for k in to_remove:
+                del _specialist_graphs[k]
+        else:
+            _specialist_graphs.clear()
 
 
 # Module-level factory singleton

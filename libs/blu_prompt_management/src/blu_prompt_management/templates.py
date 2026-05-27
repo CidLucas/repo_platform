@@ -400,7 +400,7 @@ Product/inventory master with sales aggregates.
 | `quantidade_total_vendida` | NUMERIC | Total quantity sold |
 | `preco_medio` | NUMERIC | Average selling price |
 | `total_pedidos` | INT | Total orders |
-| `current_stock` | NUMERIC | Current stock level |
+| `quantidade_total_vendida` | NUMERIC | Volume total vendido (não existe `current_stock`) |
 | `ncm` | TEXT | NCM code |
 | `unidade_comercial` | TEXT | Unit of measure |
 
@@ -415,7 +415,7 @@ Date dimension. **⚠️ JOIN: `fato_transacoes.data_competencia_id = dim_datas.
 | `trimestre` | INT | Quarter number |
 | `nome_trimestre` | TEXT | e.g. "Q1 2024" |
 | `mes` | INT | Month (1-12) |
-| `nome_mes` | TEXT | e.g. "Janeiro" |
+| `nome_mes` | TEXT | **NÃO EXISTE** — use LPAD(d.mes::text,2,'0') para exibir mês |
 | `dia` | INT | Day |
 | `dia_da_semana` | INT | Day of week |
 | `nome_dia` | TEXT | e.g. "Segunda-feira" |
@@ -434,7 +434,7 @@ Date dimension. **⚠️ JOIN: `fato_transacoes.data_competencia_id = dim_datas.
 ```
 fato_transacoes.client_id        → dim_clientes.client_id         (USING works)
 fato_transacoes.fornecedor_id     → dim_fornecedores.fornecedor_id  (USING works)
-fato_transacoes.inventory_id      → dim_inventory.inventory_id      (USING works)
+fato_transacoes.inventory_id      → dim_inventory.inventory_id      (use ON f.inventory_id = i.inventory_id — NÃO use USING pois subqueries não suportam)
 fato_transacoes.tipo_id           → dim_tipo_transacao.tipo_id      (USING works)
 fato_transacoes.categoria_id      → dim_categoria.categoria_id      (USING works)
 fato_transacoes.data_competencia_id → dim_datas.data_id             (⚠️ USE ON clause!)
@@ -485,12 +485,11 @@ GROUP BY c.endereco_uf
 ORDER BY receita DESC;
 
 -- Tendência mensal (últimos 12 meses) — MUST JOIN dim_datas
-SELECT d.nome_mes, d.ano, SUM(f.valor) as receita
+SELECT d.ano, d.mes, SUM(f.valor) as receita
 FROM analytics_v2.fato_transacoes f
 JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
 WHERE d.data >= CURRENT_DATE - INTERVAL '12 months'
-GROUP BY d.ano, d.mes, d.nome_mes
-ORDER BY d.ano, d.mes;
+GROUP BY d.ano, d.mes ORDER BY d.ano, d.mes;
 
 -- Top N fornecedores por cidade
 WITH ranked AS (
@@ -532,6 +531,16 @@ FROM analytics_v2.fato_transacoes f
 JOIN analytics_v2.dim_tipo_transacao t USING (tipo_id)
 GROUP BY t.descricao, t.categoria
 ORDER BY receita DESC;
+
+-- Faturamento mês atual vs mês anterior
+SELECT
+  SUM(CASE WHEN DATE_TRUNC('month', d.data) = DATE_TRUNC('month', CURRENT_DATE)
+           THEN f.valor ELSE 0 END) as faturamento_mes_atual,
+  SUM(CASE WHEN DATE_TRUNC('month', d.data) = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')
+           THEN f.valor ELSE 0 END) as faturamento_mes_anterior
+FROM analytics_v2.fato_transacoes f
+JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
+WHERE d.data >= DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month');
 ```
 
 ---
@@ -655,41 +664,71 @@ All tables in schema `analytics_v2`. Security filtering by `client_id` is applie
 ## Fact: `analytics_v2.fato_transacoes`
 | Column | Type | Notes |
 |--------|------|-------|
-| `transacao_id` | UUID | PK |
-| `client_id` | UUID | FK → dim_clientes |
-| `fornecedor_id` | UUID | FK → dim_fornecedores |
-| `inventory_id` | UUID | FK → dim_inventory |
-| `data_competencia_id` | INT | FK → dim_datas.data_id |
-| `tipo_id` | INT | FK → dim_tipo_transacao |
-| `categoria_id` | UUID | FK → dim_categoria |
-| `documento` | TEXT | Document reference |
-| `quantidade` | NUMERIC | Quantity |
-| `valor` | NUMERIC | **Total amount (BRL)** — USE THIS for revenue |
-
-## Dim: `analytics_v2.dim_clientes`
-client_id UUID PK, nome, cpf_cnpj, endereco_cidade, endereco_uf, receita_total, total_pedidos, ticket_medio, dias_recencia, frequencia_mensal, pontuacao_cluster, nivel_cluster
+| `transacao_id` | TEXT | PK |
+| `fornecedor_id` | INTEGER | FK → dim_fornecedores |
+| `data_competencia_id` | INTEGER | FK → dim_datas.data_id |
+| `documento` | TEXT | Invoice/order reference (nullable) |
+| `quantidade` | NUMERIC | Quantity (nullable) |
+| `valor_unitario` | NUMERIC | Unit price (nullable) |
+| `valor` | NUMERIC | **Total amount (BRL) — USE THIS for revenue/spend** |
+| `status` | TEXT | Transaction status (nullable) |
+| `tipo_transacao` | TEXT | e.g. 'compra', 'venda' |
+| `entry_type` | TEXT | e.g. 'purchase', 'sale' |
+| `categoria` | TEXT | Category (e.g. 'INSTALAÇÕES', 'MATERIAIS') |
+| `subcategoria` | TEXT | Subcategory (nullable) |
 
 ## Dim: `analytics_v2.dim_fornecedores`
-fornecedor_id UUID PK, nome, cnpj, endereco_cidade, endereco_uf, receita_total, total_pedidos_recebidos, ticket_medio, dias_recencia, frequencia_mensal
+| Column | Type | Notes |
+|--------|------|-------|
+| `fornecedor_id` | INTEGER | PK |
+| `nome` | TEXT | Supplier name — use ILIKE for search |
+| `cnpj` | TEXT | Tax ID (nullable) |
+| `endereco_cidade` | TEXT | City (nullable) |
+| `endereco_uf` | TEXT | State (nullable) |
+| `receita_total` | NUMERIC | Cumulative revenue |
+| `total_pedidos_recebidos` | INTEGER | Order count |
+| `ticket_medio` | NUMERIC | Average ticket |
+| `is_active` | BOOLEAN | |
+
+## Dim: `analytics_v2.dim_datas` (global — no client_id)
+| Column | Type | Notes |
+|--------|------|-------|
+| `data_id` | INTEGER | PK (format YYYYMMDD) |
+| `data` | DATE | Use for date range filters |
+| `ano` | INTEGER | Year |
+| `mes` | INTEGER | Month 1–12 |
+| `dia` | INTEGER | Day of month |
+| `numero_dia_semana` | INTEGER | Day of week |
+| `numero_semana_ano` | INTEGER | Week of year |
+| `numero_semestre` | INTEGER | 1 or 2 |
+| `periodo_trimestral` | TEXT | 'Q1', 'Q2', 'Q3', 'Q4' |
 
 ## Dim: `analytics_v2.dim_inventory`
-inventory_id UUID PK, sku, nome (USE FOR ILIKE), receita_total, quantidade_total_vendida, preco_medio, total_pedidos, current_stock
+| Column | Type | Notes |
+|--------|------|-------|
+| `inventory_id` | UUID | PK |
+| `nome` | TEXT | Product name — use ILIKE |
+| `sku` | TEXT | |
+| `ncm` | TEXT | |
+| `quantidade_total_vendida` | NUMERIC | Total units sold |
+| `receita_total` | NUMERIC | |
+| `preco_medio` | NUMERIC | |
 
-## Dim: `analytics_v2.dim_datas`
-data_id INT PK (YYYYMMDD), data DATE (USE FOR filtering), ano, mes, nome_mes, trimestre, dia_da_semana, e_fim_de_semana
-⚠️ JOIN: fato_transacoes.data_competencia_id = dim_datas.data_id (USE ON, not USING)
-
-## Dim: `analytics_v2.dim_tipo_transacao`
-tipo_id INT PK, descricao, categoria, natureza_operacional, impacto_caixa
-
-## JOIN REFERENCE
+## JOINS (always use ON — USING breaks with subquery wrappers)
 ```
-fato_transacoes.client_id        → dim_clientes.client_id         (USING works)
-fato_transacoes.fornecedor_id     → dim_fornecedores.fornecedor_id  (USING works)
-fato_transacoes.inventory_id      → dim_inventory.inventory_id      (USING works)
-fato_transacoes.tipo_id           → dim_tipo_transacao.tipo_id      (USING works)
-fato_transacoes.data_competencia_id → dim_datas.data_id             (⚠️ USE ON clause!)
-```""",
+fato_transacoes → dim_fornecedores : ON f.fornecedor_id = s.fornecedor_id
+fato_transacoes → dim_datas        : ON f.data_competencia_id = d.data_id
+fato_transacoes → dim_inventory    : ON f.produto_id = i.inventory_id  (nullable → LEFT JOIN)
+```
+
+## WHAT DOES NOT EXIST
+- `dim_tipo_transacao` table — filter via `f.tipo_transacao TEXT` or `f.categoria TEXT` directly
+- `dim_categoria` table — use `f.categoria` column on fato_transacoes
+- `nome_mes` column — use `d.mes` (INT) or `TO_CHAR(d.data, 'Month')`
+- `current_stock` column — use `quantidade_total_vendida` on dim_inventory
+- `inventory_id` on fato_transacoes — use `produto_id` (nullable, LEFT JOIN)
+- `client_id` in your SQL — injected automatically, never write it
+""",
 )
 
 FRAGMENT_SQL_RULES = PromptTemplateConfig(
@@ -699,23 +738,26 @@ FRAGMENT_SQL_RULES = PromptTemplateConfig(
     content="""# SQL GENERATION RULES
 
 ## CRITICAL
-1. **Amount column is `valor`** — NOT `valor_total`! Always `SUM(f.valor)` for revenue.
-2. **No `data_transacao` column exists** — date filtering MUST join dim_datas.
+1. **Amount column is `valor`** — NOT `valor_total`! Always `SUM(f.valor)` for revenue/spend.
+2. **No `data_transacao` column** — date filtering MUST join dim_datas ON f.data_competencia_id = d.data_id.
 3. **ALWAYS prefix tables**: `analytics_v2.fato_transacoes`, etc.
-4. **NEVER include `client_id` filters** — security filtering is automatic.
-5. For geography → always join `dim_clientes`.
-6. For "top N per group" → use CTE with `ROW_NUMBER()`.
-7. Use `ILIKE` for product text search on `dim_inventory.nome`.
-8. `dim_datas` and `dim_tipo_transacao` are GLOBAL — NO `client_id` column.
+4. **NEVER include `client_id` in SQL** — security filtering is automatic.
+5. **Always use ON for joins** — USING breaks with subquery wrappers injected by security layer.
+6. **No `dim_tipo_transacao` table** — filter by `f.tipo_transacao` or `f.categoria` (TEXT columns on fato).
+7. **No `nome_mes` column** — use `d.mes` (INT 1-12) or `TO_CHAR(d.data, 'Month')`.
+8. **No `current_stock`** — use `dim_inventory.quantidade_total_vendida`.
+9. **CTE aliases must be consistent** — what you name in WITH, use exactly in SELECT.
+10. **If SQL errors → STOP. Report the error. Do NOT retry.**
 
 ## Defaults
-- No period → last 6 months
-- No limit → TOP 10
+- No period specified → last 6 months (WHERE d.data >= CURRENT_DATE - INTERVAL '6 months')
+- No limit specified → LIMIT 10
 - Currency → R$ format
 
-## TOOL USAGE (SQL)
-1. Generate SQL using the schema and rules
-2. Call `execute_sql` with your query""",
+## TOOL USAGE
+1. Generate SQL from the schema
+2. Call `execute_sql` once
+3. If error → stop and explain the error to the user""",
 )
 
 FRAGMENT_SQL_EXAMPLES = PromptTemplateConfig(
@@ -725,25 +767,53 @@ FRAGMENT_SQL_EXAMPLES = PromptTemplateConfig(
     content="""# SQL QUERY PATTERNS
 
 ```sql
--- Top 10 fornecedores por receita
-SELECT f2.nome, SUM(f.valor) as receita
+-- Receita últimos 30 dias
+SELECT SUM(f.valor) AS receita, COUNT(*) AS transacoes
 FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_fornecedores f2 USING (fornecedor_id)
-GROUP BY f2.nome ORDER BY receita DESC LIMIT 10;
+JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
+WHERE d.data >= CURRENT_DATE - INTERVAL '30 days';
 
--- Top 10 cidades por receita
-SELECT c.endereco_cidade as cidade, SUM(f.valor) as receita
+-- Top 10 fornecedores por receita
+SELECT s.nome, SUM(f.valor) AS receita, COUNT(*) AS pedidos
 FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_clientes c USING (client_id)
-WHERE c.endereco_cidade IS NOT NULL
-GROUP BY c.endereco_cidade ORDER BY receita DESC LIMIT 10;
+JOIN analytics_v2.dim_fornecedores s ON f.fornecedor_id = s.fornecedor_id
+GROUP BY s.nome ORDER BY receita DESC LIMIT 10;
 
 -- Tendência mensal (últimos 12 meses)
-SELECT d.nome_mes, d.ano, SUM(f.valor) as receita
+SELECT d.ano, d.mes, SUM(f.valor) AS receita
 FROM analytics_v2.fato_transacoes f
 JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
 WHERE d.data >= CURRENT_DATE - INTERVAL '12 months'
-GROUP BY d.ano, d.mes, d.nome_mes ORDER BY d.ano, d.mes;
+GROUP BY d.ano, d.mes ORDER BY d.ano, d.mes;
+
+-- Faturamento mês atual vs mês anterior
+WITH cur AS (
+  SELECT SUM(f.valor) AS receita
+  FROM analytics_v2.fato_transacoes f
+  JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
+  WHERE d.ano = EXTRACT(YEAR FROM CURRENT_DATE)
+    AND d.mes = EXTRACT(MONTH FROM CURRENT_DATE)
+), prev AS (
+  SELECT SUM(f.valor) AS receita
+  FROM analytics_v2.fato_transacoes f
+  JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
+  WHERE d.ano = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')
+    AND d.mes = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')
+)
+SELECT cur.receita AS mes_atual, prev.receita AS mes_anterior
+FROM cur CROSS JOIN prev;
+
+-- Receita por categoria
+SELECT f.categoria, SUM(f.valor) AS receita
+FROM analytics_v2.fato_transacoes f
+GROUP BY f.categoria ORDER BY receita DESC;
+
+-- Últimas transações
+SELECT f.transacao_id, d.data, s.nome AS fornecedor, f.valor, f.categoria
+FROM analytics_v2.fato_transacoes f
+JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
+JOIN analytics_v2.dim_fornecedores s ON f.fornecedor_id = s.fornecedor_id
+ORDER BY d.data DESC LIMIT 10;
 ```""",
 )
 
@@ -1370,6 +1440,7 @@ AGENTS_FRONTDESK = PromptTemplateConfig(
     optional_variables={
         "sql_schema_context": "",
         "company_profile": "",
+        "available_agents": "",
     },
     version=2,
     content="""Você é o assistente de entrada da **{{ nome_empresa }}**. Responda sempre no idioma do usuário.
@@ -1392,11 +1463,19 @@ Para cada mensagem, classifique e siga exatamente **um** dos caminhos abaixo:
 - Consulta de dados (receita, vendas, estoque, fornecedores, clientes, métricas) → gere SQL e chame `execute_sql`.
 - Pergunta sobre conhecimento da empresa (políticas, processos, produtos, FAQ) → chame `executar_rag_cliente`.
 
-**Escalar — use a ferramenta de handoff:**
-- Tarefa envolve dois ou mais domínios em sequência (ex: "analise clientes E envie email para os top 10").
-- Automações, rotinas recorrentes, agendamentos ou alertas.
-- Configuração de integrações, mapeamento de esquema, ou setup de agentes.
-- Qualquer tarefa que exija planejamento multi-etapa entre domínios.
+**Escalar — use `route_to_specialist`:**
+- **QUALQUER intenção de criar, registrar, gravar ou atualizar dados** → sempre escale. Nunca tente gravar com SQL.
+  - Registrar compra, venda, despesa, pagamento → `route_to_specialist("context-gatherer", ...)`
+  - Cadastrar ou atualizar fornecedor → `route_to_specialist("context-gatherer", ...)`
+  - Criar meta de negócio ou objetivo → `route_to_specialist("context-gatherer", ...)`
+  - Criar rotina automática, agendamento ou alerta → `route_to_specialist("context-gatherer", ...)`
+- Tarefa envolve dois ou mais domínios em sequência.
+- Configuração de integrações ou setup de agentes.
+
+{% if available_agents %}
+**Especialistas disponíveis — use APENAS estes slugs em `route_to_specialist`:**
+{{ available_agents }}
+{% endif %}
 
 **Elicitar — faça UMA pergunta de clarificação:**
 - Solicitação vaga demais para classificar com segurança.
@@ -1424,6 +1503,7 @@ Não combine caminhos. Execute o caminho classificado e pare.
 - Prefixe sempre: `analytics_v2.fato_transacoes`, `analytics_v2.dim_clientes`, etc.
 - Filtro por `client_id` é aplicado **automaticamente** pela camada de segurança — nunca inclua nas queries.
 - Sem período especificado → últimos 6 meses. Sem limite → TOP 10.
+- **ERRO NO SQL → PARE IMEDIATAMENTE.** Não retente. Reporte o erro ao usuário em linguagem simples e encerre.
 </Tool Rules>
 
 <Constraints>

@@ -82,6 +82,17 @@ class ToolRegistry:
             requires_confirmation=False,
             tags=["test", "diagnostic", "public"],
         ),
+        "route_to_specialist": ToolMetadata(
+            name="route_to_specialist",
+            category=ToolCategory.PUBLIC,
+            description=(
+                "Signal the service layer to delegate the current request to a domain "
+                "specialist agent. Used exclusively by the frontdesk agent."
+            ),
+            tier_required=TierLevel.FREE,
+            requires_confirmation=False,
+            tags=["routing", "handoff", "specialist", "frontdesk"],
+        ),
         "monitor_feature": ToolMetadata(
             name="monitor_feature",
             category=ToolCategory.PUBLIC,

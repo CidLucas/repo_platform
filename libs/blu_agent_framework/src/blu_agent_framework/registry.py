@@ -89,6 +89,23 @@ class AgentTypeConfig:
     output_schema: type | None = None   # Pydantic model for structured output
     graph_topology: str = "default"     # "default" | "fanout" | "supervisor"
 
+    # ------------------------------------------------------------------
+    # Frontdesk visibility — controls whether this agent appears in the
+    # dynamic catalog injected into the frontdesk system prompt.
+    # Set True only for agents that have been validated end-to-end.
+    # frontdesk itself is excluded automatically.
+    # ------------------------------------------------------------------
+    frontdesk_visible: bool = False
+
+    # ------------------------------------------------------------------
+    # Skill-based tool resolution (Phase 2 architecture)
+    # ------------------------------------------------------------------
+    # When non-empty, factory.get_specialist_graph() derives enabled_tools
+    # by unioning required_tool_names from each listed SKILL_REGISTRY entry,
+    # then filtering by tier via ResourceResolver.  enabled_tools remains as
+    # explicit override / fallback for agents not yet migrated to skills.
+    skill_slugs: list[str] = field(default_factory=list)
+
     # Backward-compat alias: atendente WorkerConfig had an `agent_slug` field
     # that linked to the standalone AGENT_FRAGMENTS dict.  Now both point at the
     # same registry entry, so agent_slug == slug.
@@ -134,12 +151,15 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
             "executar_rag_cliente",
             "execute_sql",
             "ferramenta_publica_de_teste",
+            "route_to_specialist",
         ],
         tier_required=TierLevel.BASIC,
         model_tier=ModelTier.FAST,
         routing_hint="Entry point. Simple knowledge questions, basic data queries.",
         max_turns=10,
         tags=["frontdesk", "routing", "rag", "sql"],
+        skill_slugs=[],  # frontdesk routes only — skills live in specialists
+        frontdesk_visible=False,  # frontdesk nunca aparece no próprio catálogo
     ),
     # ------------------------------------------------------------------
     # Context Gatherer — data mapping, transaction registration,
@@ -193,6 +213,8 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         ),
         max_turns=6,
         tags=["context", "mapping", "transactions", "routines", "knowledge"],
+        skill_slugs=["financeiro", "plataforma", "documentos", "rag_search"],
+        frontdesk_visible=True,  # ✅ validado Fase 1
     ),
     # ------------------------------------------------------------------
     # CRM — client relationship and communication specialist
@@ -226,6 +248,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         routing_hint="Writing client emails, personalised outreach, CRM campaigns.",
         max_turns=8,
         tags=["crm", "email", "clients", "reengagement"],
+        skill_slugs=["crm", "sql_analytics", "rag_search"],
     ),
     # ------------------------------------------------------------------
     # Estratégia — business strategy and performance analysis specialist
@@ -249,6 +272,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         routing_hint="Strategic analysis, business performance reviews, growth recommendations.",
         max_turns=8,
         tags=["strategy", "analytics", "kpi", "growth", "planning", "briefs"],
+        skill_slugs=["sql_analytics", "rag_search", "insights_synthesis", "hidden_patterns", "competitor_analysis"],
     ),
     # ------------------------------------------------------------------
     # Compras — procurement and supplier analysis specialist
@@ -271,6 +295,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         routing_hint="Procurement analysis, supplier reviews, purchasing cost optimisation.",
         max_turns=5,
         tags=["procurement", "suppliers", "purchases", "cost"],
+        skill_slugs=["fornecedores", "sql_analytics", "rag_search"],
     ),
     # ------------------------------------------------------------------
     # Financeiro — financial health and reporting specialist
@@ -293,6 +318,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         routing_hint="Financial reports, revenue analysis, cash flow monitoring.",
         max_turns=5,
         tags=["finance", "revenue", "reporting", "cashflow"],
+        skill_slugs=["financeiro", "sql_analytics", "rag_search"],
     ),
     # ------------------------------------------------------------------
     # Agenda — scheduling and follow-up planning specialist
@@ -315,6 +341,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         routing_hint="Follow-up scheduling, client contact prioritisation, calendar planning.",
         max_turns=5,
         tags=["scheduling", "follow-up", "calendar", "clients", "agenda"],
+        skill_slugs=["agenda", "google_workspace", "sql_analytics"],
     ),
     # ------------------------------------------------------------------
     # Documentos — knowledge base and document analysis specialist
@@ -337,6 +364,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         routing_hint="Document search, knowledge base digests, content gap analysis.",
         max_turns=5,
         tags=["documents", "knowledge-base", "rag", "digest"],
+        skill_slugs=["documentos", "rag_search", "extract_document", "write_to_kb"],
     ),
     # ------------------------------------------------------------------
     # Synthesis — cross-dimensional analysis and strategic synthesis
@@ -369,6 +397,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         routing_hint="Cross-dimensional analysis, strategic synthesis, multi-domain insights.",
         max_turns=8,
         tags=["synthesis", "cross-domain", "strategy", "analysis", "multi-dimension"],
+        skill_slugs=["sql_analytics", "rag_search", "insights_synthesis"],
     ),
     # ------------------------------------------------------------------
     # DataAnalyst — quantitative cross-dimensional data specialist
@@ -392,6 +421,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         routing_hint="Trend analysis, correlation, scenario modelling, quantitative insights.",
         max_turns=6,
         tags=["data", "analysis", "trends", "correlation", "quantitative", "finance", "purchases", "clients"],
+        skill_slugs=["sql_analytics", "rag_search"],
     ),
     # ------------------------------------------------------------------
     # Platform — operational configuration and routine/goal management
@@ -418,6 +448,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         routing_hint="Routine management, goal setting, operational configuration via natural language.",
         max_turns=6,
         tags=["platform", "routines", "goals", "config", "operations"],
+        skill_slugs=["plataforma"],
     ),
     # ------------------------------------------------------------------
     # SupplierAgent — supplier communication and RFQ specialist
@@ -444,6 +475,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         routing_hint="Supplier quotes, RFQ dispatch, WhatsApp supplier communication.",
         max_turns=6,
         tags=["suppliers", "rfq", "whatsapp", "quotes", "procurement"],
+        skill_slugs=["fornecedores"],
     ),
     # ------------------------------------------------------------------
     # SchedulerAgent — calendar and timeline optimisation specialist
@@ -482,6 +514,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         routing_hint="Calendar availability, scheduling conflicts, deadline management.",
         max_turns=5,
         tags=["calendar", "scheduling", "deadlines", "availability", "meetings"],
+        skill_slugs=["monday", "google_workspace", "agenda", "sql_analytics"],
     ),
     # ------------------------------------------------------------------
     # DocWriter — strategic document creation specialist
@@ -517,6 +550,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         routing_hint="Document writing, drafting briefs, SOPs, proposals, knowledge base.",
         max_turns=8,
         tags=["documents", "writing", "drafts", "briefs", "sops", "proposals"],
+        skill_slugs=["documentos", "google_workspace", "rag_search"],
     ),
     # ------------------------------------------------------------------
     # FiscalAgent — NF-e / NFS-e issuance specialist (stub — external dep)
@@ -541,6 +575,7 @@ _AGENT_TYPES: dict[str, AgentTypeConfig] = {
         routing_hint="Invoice issuance, NF-e, NFS-e, fiscal compliance, SEFAZ.",
         max_turns=4,
         tags=["fiscal", "nfe", "nfse", "invoice", "sefaz", "tax"],
+        skill_slugs=["fiscal"],
     ),
 }
 
@@ -594,6 +629,29 @@ class AgentTypeRegistry:
             normalised, [c.slug for c in result],
         )
         return result
+
+    @classmethod
+    def build_frontdesk_catalog(cls) -> str:
+        """
+        Gera o bloco de catálogo de agentes para o prompt do frontdesk.
+
+        Inclui apenas agentes com frontdesk_visible=True — ou seja,
+        apenas os que foram validados end-to-end. Frontdesk nunca aparece.
+
+        Formato:
+          - `slug` — description
+            Quando usar: routing_hint
+        """
+        lines: list[str] = []
+        for cfg in _AGENT_TYPES.values():
+            if not cfg.frontdesk_visible:
+                continue
+            lines.append(f"- `{cfg.slug}` — {cfg.description}")
+            if cfg.routing_hint:
+                lines.append(f"  Quando usar: {cfg.routing_hint}")
+        if not lines:
+            return "Nenhum especialista disponível no momento."
+        return "\n".join(lines)
 
     @classmethod
     def build_supervisor_description(cls, tier: str) -> str:

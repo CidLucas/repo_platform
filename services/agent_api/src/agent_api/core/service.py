@@ -74,10 +74,14 @@ async def _build_frontdesk_prompt(
         getattr(client_ctx, "company_profile", None)
     )
 
+    # Dynamic catalog: only validated agents (frontdesk_visible=True)
+    available_agents = AgentTypeRegistry.build_frontdesk_catalog()
+
     variables: dict = {
         "nome_empresa": nome_empresa,
         "sql_schema_context": sql_schema_context,
         "company_profile": company_profile,
+        "available_agents": available_agents,
     }
 
     try:
@@ -92,221 +96,6 @@ async def _build_frontdesk_prompt(
             f"You are the Frontdesk assistant for {nome_empresa}. "
             "Answer in the user's language. Use available tools when appropriate."
         )
-
-
-async def _build_synthesis_prompt(
-    client_ctx: Any,
-    context_service: ContextService,
-) -> str:
-    """Assemble the Synthesis Agent system prompt with full business snapshot."""
-    from blu_agent_framework.registry import AgentTypeRegistry
-
-    cfg = AgentTypeRegistry.get("synthesis")
-    prompt_name = cfg.prompt_name if cfg else "agents/synthesis"
-    nome_empresa: str = getattr(client_ctx, "nome_empresa", "") or ""
-    client_id_str: str = str(getattr(client_ctx, "id", ""))
-
-    # Fetch the full dimension_state snapshot to inject into the synthesis prompt
-    snapshot = ""
-    try:
-        snapshot = await context_service.get_business_memory_snapshot(
-            client_id_str, max_chars=8000
-        )
-    except Exception as exc:
-        logger.warning("[synthesis] get_business_memory_snapshot failed: %s", exc)
-
-    variables: dict = {
-        "nome_empresa": nome_empresa,
-        "business_snapshot": snapshot,
-    }
-
-    try:
-        return await build_prompt(
-            name=prompt_name,
-            variables=variables,
-            context_service=context_service,
-        )
-    except Exception as exc:
-        logger.warning("[ChatService] build_prompt(%s) failed: %s", prompt_name, exc)
-        snapshot_block = f"\n\n## Estado do Negócio\n{snapshot}" if snapshot else ""
-        return (
-            f"Você é o Agente de Síntese do {nome_empresa}. "
-            "Sua função é cruzar informações de múltiplas dimensões do negócio "
-            "(financeiro, compras, clientes, agenda) para gerar insights estratégicos. "
-            "Responda em português, seja direto e baseie-se nos dados disponíveis."
-            + snapshot_block
-        )
-
-
-async def _build_platform_prompt(
-    client_ctx: Any,
-    context_service: ContextService,
-) -> str:
-    """Assemble the Platform Agent system prompt."""
-    from blu_agent_framework.registry import AgentTypeRegistry
-
-    cfg = AgentTypeRegistry.get("platform")
-    prompt_name = cfg.prompt_name if cfg else "agents/platform"
-    nome_empresa: str = getattr(client_ctx, "nome_empresa", "") or ""
-
-    variables: dict = {"nome_empresa": nome_empresa}
-
-    try:
-        return await build_prompt(
-            name=prompt_name,
-            variables=variables,
-            context_service=context_service,
-        )
-    except Exception as exc:
-        logger.warning("[ChatService] build_prompt(%s) failed: %s", prompt_name, exc)
-        return (
-            f"Você é o Agente de Plataforma do {nome_empresa}. "
-            "Sua função é executar configurações operacionais: ativar rotinas, "
-            "definir metas e registrar dados estruturados. "
-            "Use as ferramentas disponíveis. Confirme cada ação realizada. "
-            "Responda em português."
-        )
-
-
-def _fire_and_forget(coro) -> None:
-    task = asyncio.create_task(coro)
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
-
-
-# Cross-dimensional keywords that signal the Synthesis Agent should handle the request.
-_SYNTHESIS_KEYWORDS = [
-    # strategic connectors (cross-domain) — NOT strategic planning (→ estrategia agent)
-    "investimento", "prioridade", "priorizar",
-    "tendência", "tendencia", "projeção", "projecao",
-    "cenário", "cenario", "planejamento",
-    # cross-domain connectors
-    "puxando", "impacto", "correlação", "correlacao", "causa",
-    "influencia", "influência", "comparado", "versus",
-    "ao mesmo tempo", "combinando", "cruzando",
-]
-
-# Dimension terms — if 2+ appear in the same message → synthesis
-_DIMENSION_TERMS = [
-    ["financeiro", "caixa", "receita", "faturamento", "custo", "despesa", "fluxo"],
-    ["estoque", "compras", "fornecedor", "pedido", "sku", "produto", "cobertura"],
-    ["cliente", "clientes", "churn", "nps", "pipeline", "lead", "inadimplente"],
-    ["agenda", "prazo", "reunião", "reuniao", "entrega", "cronograma", "monday"],
-]
-
-# Imperative verbs and operational phrases that signal the Platform Agent.
-_PLATFORM_KEYWORDS = [
-    # creation / activation
-    "cria uma rotina", "criar rotina", "ativa a rotina", "ativar rotina",
-    "ativa o monitor", "ativar monitor", "monitor de estoque", "monitor de ",
-    "adiciona ", "adicionar ", "cadastra ", "cadastrar ",
-    "registra ", "registrar ",
-    # goal setting
-    "define uma meta", "definir meta", "quero atingir", "meta de ",
-    "meta:", "objetivo de ", "quero chegar",
-    # configuration
-    "configura ", "configurar ", "agenda uma rotina", "agendar rotina",
-    "desativa ", "desativar ", "pausa ", "pausar ",
-]
-
-
-def detect_platform_intent(message: str) -> bool:
-    """Return True if the message is an operational/configuration command.
-
-    Platform Agent handles imperative requests to CREATE or CONFIGURE
-    things (routines, goals, data entries). Checked BEFORE synthesis
-    intent so explicit creation commands don't get routed to synthesis.
-    """
-    msg_lower = message.lower()
-    return any(kw in msg_lower for kw in _PLATFORM_KEYWORDS)
-
-
-def detect_synthesis_intent(message: str) -> bool:
-    """Return True if the message warrants the Synthesis Agent.
-
-    Triggers when:
-    - A strategic keyword is present, OR
-    - Terms from 2+ distinct business dimensions are mentioned.
-    """
-    msg_lower = message.lower()
-
-    # Strategic keyword match
-    for kw in _SYNTHESIS_KEYWORDS:
-        if kw in msg_lower:
-            return True
-
-    # Count how many dimensions are referenced
-    dims_hit = sum(
-        1 for dim_terms in _DIMENSION_TERMS
-        if any(t in msg_lower for t in dim_terms)
-    )
-    return dims_hit >= 2
-
-
-# ---------------------------------------------------------------------------
-# Specialist routing — domain-specific agents
-# ---------------------------------------------------------------------------
-
-_SPECIALIST_ROUTING: list[tuple[str, list[str]]] = [
-    # (slug, keyword_triggers) — checked in order, first match wins
-    # Supplier Agent
-    ("supplier-agent", [
-        "cotação", "cotacao", "fornecedor", "fornecedores",
-        "rfq", "whatsapp fornecedor", "pedido de compra",
-        "preço do fornecedor", "preco do fornecedor",
-        "enviar para fornecedor", "contatar fornecedor",
-    ]),
-    # Scheduler Agent
-    ("scheduler-agent", [
-        "agenda para", "agenda uma", "agendar", "marcar reunião", "marcar reuniao",
-        "verificar disponibilidade", "quando posso", "conflito de agenda",
-        "prazo", "cronograma", "horário livre", "horario livre",
-    ]),
-    # Fiscal Agent
-    ("fiscal-agent", [
-        "nota fiscal", "nf-e", "nfse", "nfs-e", "emitir nota",
-        "emissão de nf", "emissao de nf", "sefaz",
-        "danfe", "xml fiscal", "regime tributário", "regime tributario",
-    ]),
-    # DocWriter
-    ("doc-writer", [
-        "escreve um documento", "escrever documento",
-        "cria um relatório", "criar relatorio", "criar relatório",
-        "elabora um", "elaborar um",
-        "redige ", "redigir ", "draft de ",
-        "sop de ", "procedimento para ",
-        "ata da reunião", "ata da reuniao",
-        "proposta comercial",
-    ]),
-    # CRM Specialist (deep analytics)
-    ("crm", [
-        "ltv", "lifetime value", "coorte", "cohort",
-        "churn", "churn rate", "taxa de churn", "risco de churn", "nps detalhado",
-        "segmento de clientes", "segmentacao", "segmentação de clientes",
-        "clientes vip", "clientes em risco",
-    ]),
-    # Strategic Planner
-    ("estrategia", [
-        "planejamento estratégico", "planejamento estrategico",
-        "plano mensal", "plano trimestral", "plano anual",
-        "brief estratégico", "brief estrategico",
-        "oportunidade de crescimento", "onde crescer",
-        "foco estratégico", "foco estrategico",
-    ]),
-]
-
-
-def detect_specialist_intent(message: str) -> str | None:
-    """Return the specialist agent slug if the message matches a specialist domain.
-
-    Returns None if no specialist matches (falls through to frontdesk).
-    Checked AFTER platform and synthesis routing.
-    """
-    msg_lower = message.lower()
-    for slug, keywords in _SPECIALIST_ROUTING:
-        if any(kw in msg_lower for kw in keywords):
-            return slug
-    return None
 
 
 async def _build_specialist_prompt(
@@ -350,6 +139,12 @@ async def _build_specialist_prompt(
             f"Você é um especialista do {nome_empresa}. "
             "Responda em português com base nos dados disponíveis."
         )
+
+
+def _fire_and_forget(coro) -> None:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 # ---------------------------------------------------------------------------
@@ -458,53 +253,9 @@ class ChatService:
             context_service=context_service,
         )
 
-        # Route to Platform Agent for operational/configuration commands (highest priority)
-        is_platform = detect_platform_intent(message)
+        # Routing is now handled by the frontdesk LLM via route_to_specialist tool.
+        # Keyword pre-routing removed — see service.py git history for legacy impl.
         _selected_agent = "frontdesk"
-        if is_platform:
-            try:
-                system_prompt = await _build_platform_prompt(
-                    client_ctx=client_ctx,
-                    context_service=context_service,
-                )
-                _selected_agent = "platform"
-                logger.info("[ChatService] Routing to PlatformAgent for session=%s", session_id)
-            except Exception as exc:
-                logger.warning("[ChatService] PlatformAgent prompt failed, falling back: %s", exc)
-
-        # Route to Synthesis Agent for cross-dimensional or strategic requests
-        is_synthesis = (not is_platform) and detect_synthesis_intent(message)
-        if is_synthesis:
-            try:
-                system_prompt = await _build_synthesis_prompt(
-                    client_ctx=client_ctx,
-                    context_service=context_service,
-                )
-                _selected_agent = "synthesis"
-                logger.info("[ChatService] Routing to SynthesisAgent for session=%s", session_id)
-            except Exception as exc:
-                logger.warning("[ChatService] SynthesisAgent prompt failed, falling back: %s", exc)
-
-        # Specialist routing — domain-specific agents
-        if not is_platform and not is_synthesis:
-            specialist_slug = detect_specialist_intent(message)
-            if specialist_slug:
-                try:
-                    system_prompt = await _build_specialist_prompt(
-                        slug=specialist_slug,
-                        client_ctx=client_ctx,
-                        context_service=context_service,
-                    )
-                    _selected_agent = specialist_slug
-                    logger.info(
-                        "[ChatService] Routing to specialist=%s for session=%s",
-                        specialist_slug, session_id,
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "[ChatService] specialist=%s prompt failed, falling back: %s",
-                        specialist_slug, exc,
-                    )
 
         # Build initial state
         from blu_agent_framework.state import AgentState
@@ -533,11 +284,58 @@ class ChatService:
             trace_name=f"chat:{nome_empresa}:{session_id[:8]}",
         )
         config.setdefault("configurable", {})["thread_id"] = f"{client_id}:{session_id}"
+        config["recursion_limit"] = 40
 
         start = time.time()
         final_state = await graph.ainvoke(initial_state, config)
         elapsed = time.time() - start
         logger.info("[ChatService] Graph completed in %.2fs", elapsed)
+
+        # ------------------------------------------------------------------
+        # Handoff: frontdesk called route_to_specialist → run specialist graph
+        # ------------------------------------------------------------------
+        last_msg_check = (final_state.get("messages") or [])[-1] if final_state.get("messages") else None
+        last_content = str(last_msg_check.content) if last_msg_check else ""
+        if last_content.startswith("__ROUTE_TO_SPECIALIST__:"):
+            parts = last_content.split(":", 2)
+            specialist_slug = parts[1] if len(parts) > 1 else "frontdesk"
+            reason = parts[2] if len(parts) > 2 else ""
+            logger.info("[ChatService] Handoff → specialist=%s reason=%s", specialist_slug, reason)
+            try:
+                specialist_prompt = await _build_specialist_prompt(
+                    slug=specialist_slug,
+                    client_ctx=client_ctx,
+                    context_service=context_service,
+                )
+                specialist_state = AgentState(
+                    messages=[HumanMessage(content=message)],
+                    session_id=session_id,
+                    client_id=client_id,
+                    nome_empresa=nome_empresa,
+                    tier=tier,
+                    model_override=model_override,
+                    user_jwt=user_jwt,
+                    system_prompt=specialist_prompt,
+                    pending_elicitation=None,
+                    elicitation_response=elicitation_response,
+                    ended=False,
+                    turn_count=0,
+                    structured_data=None,
+                    structured_data_list=[],
+                )
+                specialist_graph = factory.get_specialist_graph(slug=specialist_slug, tier=tier, context_service=context_service)
+                specialist_config = self._build_langfuse_config(
+                    session_id=session_id,
+                    client_id=client_id,
+                    tags=[specialist_slug, nome_empresa],
+                    trace_name=f"chat:{specialist_slug}:{nome_empresa}:{session_id[:8]}",
+                )
+                specialist_config.setdefault("configurable", {})["thread_id"] = f"{client_id}:{session_id}:{specialist_slug}"
+                final_state = await specialist_graph.ainvoke(specialist_state, specialist_config)
+                _selected_agent = specialist_slug
+            except Exception as exc:
+                logger.warning("[ChatService] Specialist graph failed (%s): %s — falling back to frontdesk response", specialist_slug, exc)
+        # ------------------------------------------------------------------
 
         # Trim message history in state to bounded window
         window = self.settings.SESSION_HISTORY_WINDOW
@@ -581,49 +379,8 @@ class ChatService:
             context_service=context_service,
         )
 
-        # Route to Platform Agent for operational/configuration commands (highest priority)
-        is_platform = detect_platform_intent(message)
-        if is_platform:
-            try:
-                system_prompt = await _build_platform_prompt(
-                    client_ctx=client_ctx,
-                    context_service=context_service,
-                )
-                logger.info("[ChatService] Routing to PlatformAgent for session=%s", session_id)
-            except Exception as exc:
-                logger.warning("[ChatService] PlatformAgent prompt failed, falling back: %s", exc)
-
-        # Route to Synthesis Agent for cross-dimensional or strategic requests
-        is_synthesis = (not is_platform) and detect_synthesis_intent(message)
-        if is_synthesis:
-            try:
-                system_prompt = await _build_synthesis_prompt(
-                    client_ctx=client_ctx,
-                    context_service=context_service,
-                )
-                logger.info("[ChatService] Routing to SynthesisAgent for session=%s", session_id)
-            except Exception as exc:
-                logger.warning("[ChatService] SynthesisAgent prompt failed, falling back: %s", exc)
-
-        # Specialist routing — domain-specific agents
-        if not is_platform and not is_synthesis:
-            specialist_slug = detect_specialist_intent(message)
-            if specialist_slug:
-                try:
-                    system_prompt = await _build_specialist_prompt(
-                        slug=specialist_slug,
-                        client_ctx=client_ctx,
-                        context_service=context_service,
-                    )
-                    logger.info(
-                        "[ChatService] Routing to specialist=%s for session=%s",
-                        specialist_slug, session_id,
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "[ChatService] specialist=%s prompt failed, falling back: %s",
-                        specialist_slug, exc,
-                    )
+        # Routing is now handled by the frontdesk LLM via route_to_specialist tool.
+        # Keyword pre-routing removed — see service.py git history for legacy impl.
 
         from blu_agent_framework.state import AgentState
         initial_state = AgentState(
@@ -651,6 +408,7 @@ class ChatService:
             trace_name=f"chat-stream:{nome_empresa}:{session_id[:8]}",
         )
         config.setdefault("configurable", {})["thread_id"] = f"{client_id}:{session_id}"
+        config["recursion_limit"] = 40
 
         full_response_parts: list[str] = []
         model_used = self._resolve_model_used(model_override)
@@ -681,6 +439,66 @@ class ChatService:
                 elif event_type == "on_chain_end" and event.get("name") == "LangGraph":
                     output = data.get("output") or {}
                     structured_data = output.get("structured_data")
+                    # Detect handoff signal from route_to_specialist tool
+                    msgs = output.get("messages") or []
+                    last_out = msgs[-1] if msgs else None
+                    last_out_content = str(getattr(last_out, "content", "")) if last_out else ""
+                    if last_out_content.startswith("__ROUTE_TO_SPECIALIST__:"):
+                        parts = last_out_content.split(":", 2)
+                        specialist_slug = parts[1] if len(parts) > 1 else "frontdesk"
+                        reason = parts[2] if len(parts) > 2 else ""
+                        logger.info("[ChatService/stream] Handoff → specialist=%s reason=%s", specialist_slug, reason)
+                        yield f"data: {json.dumps({'event': 'handoff', 'data': {'agent': specialist_slug, 'reason': reason}})}\n\n"
+                        try:
+                            specialist_prompt = await _build_specialist_prompt(
+                                slug=specialist_slug,
+                                client_ctx=client_ctx,
+                                context_service=context_service,
+                            )
+                            specialist_state = AgentState(
+                                messages=[HumanMessage(content=message)],
+                                session_id=session_id,
+                                client_id=client_id,
+                                nome_empresa=nome_empresa,
+                                tier=tier,
+                                model_override=model_override,
+                                user_jwt=user_jwt,
+                                system_prompt=specialist_prompt,
+                                pending_elicitation=None,
+                                elicitation_response=None,
+                                ended=False,
+                                turn_count=0,
+                                structured_data=None,
+                                structured_data_list=[],
+                            )
+                            specialist_graph = factory.get_specialist_graph(slug=specialist_slug, tier=tier, context_service=context_service)
+                            specialist_config = self._build_langfuse_config(
+                                session_id=session_id,
+                                client_id=client_id,
+                                tags=[specialist_slug, "stream", nome_empresa],
+                                trace_name=f"chat-stream:{specialist_slug}:{nome_empresa}:{session_id[:8]}",
+                            )
+                            specialist_config.setdefault("configurable", {})["thread_id"] = f"{client_id}:{session_id}:{specialist_slug}"
+                            full_response_parts = []  # reset — specialist will produce the real answer
+                            async for sp_event in specialist_graph.astream_events(specialist_state, specialist_config, version="v2"):
+                                sp_type = sp_event.get("event", "")
+                                sp_data = sp_event.get("data", {})
+                                if sp_type == "on_chat_model_stream":
+                                    chunk = sp_data.get("chunk")
+                                    if chunk and hasattr(chunk, "content") and chunk.content:
+                                        token = chunk.content
+                                        full_response_parts.append(token)
+                                        yield f"data: {json.dumps({'event': 'token', 'data': token})}\n\n"
+                                elif sp_type == "on_tool_start":
+                                    yield f"data: {json.dumps({'event': 'tool_start', 'data': {'name': sp_event.get('name', ''), 'args': sp_data.get('input', {})}})}\n\n"
+                                elif sp_type == "on_tool_end":
+                                    preview = str(sp_data.get("output", ""))[:200]
+                                    yield f"data: {json.dumps({'event': 'tool_end', 'data': {'name': sp_event.get('name', ''), 'output': preview}})}\n\n"
+                                elif sp_type == "on_chain_end" and sp_event.get("name") == "LangGraph":
+                                    structured_data = (sp_data.get("output") or {}).get("structured_data")
+                        except Exception as exc:
+                            logger.warning("[ChatService/stream] Specialist graph failed (%s): %s", specialist_slug, exc)
+                            yield f"data: {json.dumps({'event': 'error', 'data': {'message': f'Specialist {specialist_slug} failed: {exc}'}})}\n\n"
 
         except Exception as exc:
             logger.exception("[ChatService/stream] Error streaming")

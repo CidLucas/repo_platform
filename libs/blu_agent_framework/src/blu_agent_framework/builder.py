@@ -743,6 +743,9 @@ class AgentBuilder:
             compile_kwargs["checkpointer"] = self.checkpointer
 
         compiled = self._graph.compile(**compile_kwargs)
+        # Set recursion limit: max_turns * 3 nodes per turn (init + respond + route) + buffer
+        recursion_limit = max(self.config.max_turns * 4, 20)
+        compiled.config = {"recursion_limit": recursion_limit}
 
         logger.debug(
             f"Built agent '{self.config.name}' with "
@@ -1188,6 +1191,29 @@ class AgentBuilder:
             if system_prompt:
                 llm_messages.append(SystemMessage(content=system_prompt))
             llm_messages.extend(messages)
+
+            # ----------------------------------------------------------------
+            # Loop guard: if the same tool returned an error 3+ consecutive
+            # times, the LLM is stuck. Force stop instead of hitting recursion limit.
+            # ----------------------------------------------------------------
+            tool_messages = [m for m in messages if isinstance(m, ToolMessage)]
+            if len(tool_messages) >= 3:
+                last_3 = tool_messages[-3:]
+                errors = [m for m in last_3 if "error" in str(m.content).lower() or "ERROR" in str(m.content)]
+                if len(errors) >= 3:
+                    logger.warning(
+                        "[respond] Loop guard triggered — 3 consecutive tool errors. Forcing stop."
+                    )
+                    return {
+                        "messages": [AIMessage(
+                            content=(
+                                "Encontrei um problema técnico ao processar sua solicitação e "
+                                "não consegui resolver após múltiplas tentativas. "
+                                "Por favor, reformule a pergunta ou tente novamente mais tarde."
+                            )
+                        )],
+                        "ended": True,
+                    }
 
             # Guard context window: truncate history if over token budget.
             # TokenBudget operates on the history slice (excluding the leading

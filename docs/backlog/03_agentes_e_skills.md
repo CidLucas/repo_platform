@@ -2,6 +2,56 @@
 
 ---
 
+## 🐛 BUG — Skills dos monitores ausentes do SKILL_REGISTRY (Jun/2026)
+
+**Detectado em:** testes de validação do sistema de rotinas (02/Jun/2026)
+
+As seguintes skills referenciadas em steps de rotina de monitor não existem no `SKILL_REGISTRY`:
+- `agenda_monitor_report` (agenda_monitor → step build_timeline)
+- `clients_monitor_report` (clientes_monitor → step analyze_customers)
+- `inventory_digest` (compras_monitor → step analyze_stock)
+- `finance_monitor_report` (financeiro_monitor → step analyze_cashflow)
+
+**Comportamento atual:** engine faz fallback para `_invoke_worker` → `Unknown worker` → step retorna `summary=""` → `write_memory` falha com `'summary' is required`.
+
+**Fix:** registrar as 4 skills em `blu_agent_framework/skills.py → SKILL_REGISTRY` com a assinatura correta, retornando pelo menos `{"summary": str}`.
+
+---
+
+## 🐛 BUG — Mismatch de chave `summary` vs `memory_summary` nos monitors (Jun/2026)
+
+**Detectado em:** testes de validação do sistema de rotinas (02/Jun/2026)
+
+Steps de skill retornam a chave `summary`, mas o step `write_memory` usa `{{memory_summary}}`.
+Enquanto as skills não existem no registry, o state tem `summary=""` mas não tem `memory_summary`.
+O placeholder `{{memory_summary}}` é passado literal ao banco.
+
+**Fix:** alinhar o template do step `write_memory` de todos os monitors para usar `{{summary}}` OU garantir que as skills retornem `memory_summary` explicitamente. Preferência: usar `{{summary}}` (mais simples).
+
+---
+
+## 🐛 BUG — `{{threshold_caixa}}` não resolvido no financeiro_monitor (Jun/2026)
+
+**Detectado em:** testes de validação do sistema de rotinas (02/Jun/2026)
+
+Steps `get_projection` e `eval_alert` do financeiro_monitor recebem a string `{{threshold_caixa}}` em vez do float esperado.
+
+**Causa:** `config_schema` do catálogo define `threshold_caixa` com default `5000`, mas `schema_defaults` não está sendo injetado no state quando o default não está em `client_routines.config`.
+
+**Fix:** verificar o loop de injeção de `schema_defaults` no engine (`_execute_one`). O default do `config_schema` deve ir para o state mesmo quando `client_routines.config` está vazio.
+
+---
+
+## 🐛 BUG — `cash_flow_alert` usa metric `saldo_conta_corrente` fora do NUMERIC_METRIC_REGISTRY (Jun/2026)
+
+**Detectado em:** testes de validação do sistema de rotinas (02/Jun/2026)
+
+O catálogo define `cash_flow_alert` com `trigger_config.metric = saldo_conta_corrente`, mas essa métrica não existe no `_NUMERIC_METRIC_REGISTRY`. O poller silencia a rotina → nunca dispara.
+
+**Fix:** adicionar RPC `get_saldo_conta_corrente_monthly_rate` ao registry, OU migrar `cash_flow_alert` para trigger `cron` já que o threshold de caixa é melhor avaliado como cheque periódico (o monitor `financeiro_monitor` já cobre esse caso via function step `eval_alert`).
+
+---
+
 ## ⏳ PENDENTE — Migração Agent Catalog PT → EN
 
 **Status:** Slugs PT (`compras`, `financeiro`, `agenda`, `estrategia`, `clientes`, `documentos`) ainda ativos. Nenhuma migration de rename encontrada em `applied/`.

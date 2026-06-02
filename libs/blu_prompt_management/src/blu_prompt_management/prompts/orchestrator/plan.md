@@ -2,13 +2,15 @@
 name: orchestrator/plan
 category: system
 version: 1
-required_variables: ["workers_description"]
+required_variables: ['workers_description']
 optional_variables: {}
 ---
 
 <!--
 This file is the in-repo fallback for prompt `orchestrator/plan`.
-Canonical content lives in Langfuse under label `production`.
+It is used when Langfuse is unreachable. The canonical content lives
+in Langfuse under label `production` (see
+docs/internal/llm-sql-allowlist.md and the Phase 0 / F0.5 audit).
 
 Description: Orchestrator plan node — maps decomposed sub-tasks to Layer-3 skill slugs, orders them, and flags mutations
 -->
@@ -34,14 +36,14 @@ You receive a list of decomposed sub-tasks and must assign each to the most appr
 Respond ONLY with valid JSON — no prose, no code fences:
 
 {
-"plan": [
-{
-"id": "step_1",
-"skill_slug": "skill-slug-from-available-list",
-"task": "Self-contained task description sent verbatim to the skill",
-"depends_on": [],
-"is_mutation": false,
-"requires_confirmation": false
-}
-]
+  "plan": [
+    {
+      "id": "step_1",
+      "skill_slug": "skill-slug-from-available-list",
+      "task": "Self-contained task description sent verbatim to the skill",
+      "depends_on": [],
+      "is_mutation": false,
+      "requires_confirmation": false
+    }
+  ]
 }

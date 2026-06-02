@@ -28,7 +28,7 @@ class ToolRegistry:
     Usage:
         # Get tools for a client
         tools = ToolRegistry.get_available_tools(
-            enabled_tools=["executar_rag_cliente"],
+            enabled_tools=["search_knowledge_base"],
             tier="BASIC"
         )
 
@@ -43,24 +43,13 @@ class ToolRegistry:
     # BUILTIN TOOLS - Always available in FastMCP
     # =========================================================================
     BUILTIN_TOOLS: dict[str, ToolMetadata] = {
-        "executar_rag_cliente": ToolMetadata(
-            name="executar_rag_cliente",
+        "search_knowledge_base": ToolMetadata(
+            name="search_knowledge_base",
             category=ToolCategory.RAG,
             description="Busca informações na base de conhecimento do cliente (RAG)",
             tier_required=TierLevel.BASIC,
             requires_confirmation=False,
             tags=["rag", "search", "knowledge-base"],
-        ),
-        "executar_sql_agent": ToolMetadata(
-            name="executar_sql_agent",
-            category=ToolCategory.SQL,
-            description=(
-                "Executes SQL queries on structured data (products, orders, inventory). "
-                "Only requires 'query' parameter - client_id is auto-injected."
-            ),
-            tier_required=TierLevel.SME,
-            requires_confirmation=False,
-            tags=["sql", "database", "analytics"],
         ),
         "execute_sql": ToolMetadata(
             name="execute_sql",
@@ -299,7 +288,7 @@ class ToolRegistry:
             requires_confirmation=True,
             tags=["rfq", "procurement", "po", "approval"],
         ),
-        # Phase 2: Negotiation & WhatsApp tools
+        # Phase 2: Negotiation — suggest_counter_offer remains active
         "suggest_counter_offer": ToolMetadata(
             name="suggest_counter_offer",
             category=ToolCategory.CUSTOM,
@@ -308,22 +297,8 @@ class ToolRegistry:
             requires_confirmation=False,
             tags=["rfq", "procurement", "negotiation"],
         ),
-        "dispatch_rfq_whatsapp": ToolMetadata(
-            name="dispatch_rfq_whatsapp",
-            category=ToolCategory.CUSTOM,
-            description="Send an RFQ to a supplier via WhatsApp.",
-            tier_required=TierLevel.SME,
-            requires_confirmation=False,
-            tags=["rfq", "procurement", "whatsapp"],
-        ),
-        "parse_supplier_reply": ToolMetadata(
-            name="parse_supplier_reply",
-            category=ToolCategory.CUSTOM,
-            description="Parse free-text supplier reply into structured quote data using LLM.",
-            tier_required=TierLevel.SME,
-            requires_confirmation=False,
-            tags=["rfq", "procurement", "whatsapp", "parsing"],
-        ),
+        # NOTE: dispatch_rfq_whatsapp and parse_supplier_reply removed (D5).
+        # Replaced by send_rfq_via_channel and parse_incoming_reply in communication_module.
         # Phase 3: Google Sheets Integration & Supplier Management
         "import_buying_list_from_sheets": ToolMetadata(
             name="import_buying_list_from_sheets",
@@ -446,6 +421,22 @@ class ToolRegistry:
             requires_confirmation=False,
             tags=["context", "knowledge", "write"],
         ),
+        "fiscal_prepare_nfe_data": ToolMetadata(
+            name="fiscal_prepare_nfe_data",
+            category=ToolCategory.CUSTOM,
+            description="Prepare and validate data for NF-e or NFS-e invoice issuance. Validates mandatory fields without emitting.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["fiscal", "nfe", "nfse", "invoice"],
+        ),
+        "fiscal_integration_status": ToolMetadata(
+            name="fiscal_integration_status",
+            category=ToolCategory.CUSTOM,
+            description="Return current SEFAZ fiscal integration status (NF-e/NFS-e).",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["fiscal", "nfe", "nfse", "status"],
+        ),
     }
 
     # =========================================================================
@@ -512,33 +503,44 @@ class ToolRegistry:
             name="google_docs_create",
             category=ToolCategory.GOOGLE,
             description="Create a new Google Docs document.",
-            tier_required=TierLevel.PREMIUM,
+            tier_required=TierLevel.BASIC,
             requires_confirmation=False,
-            tags=["google", "docs", "create"],
+            tags=["google", "docs", "create", "document", "report"],
         ),
         "google_docs_read": ToolMetadata(
             name="google_docs_read",
             category=ToolCategory.GOOGLE,
             description="Read content from a Google Docs document.",
-            tier_required=TierLevel.PREMIUM,
+            tier_required=TierLevel.BASIC,
             requires_confirmation=False,
-            tags=["google", "docs", "read"],
+            tags=["google", "docs", "read", "document"],
         ),
         "google_docs_write": ToolMetadata(
             name="google_docs_write",
             category=ToolCategory.GOOGLE,
             description="Write or append content to a Google Docs document.",
-            tier_required=TierLevel.PREMIUM,
+            tier_required=TierLevel.BASIC,
             requires_confirmation=False,
-            tags=["google", "docs", "write"],
+            tags=["google", "docs", "write", "document", "report"],
         ),
         "google_docs_list": ToolMetadata(
             name="google_docs_list",
             category=ToolCategory.GOOGLE,
             description="List Google Docs documents accessible to the client.",
-            tier_required=TierLevel.PREMIUM,
+            tier_required=TierLevel.BASIC,
             requires_confirmation=False,
-            tags=["google", "docs", "list"],
+            tags=["google", "docs", "list", "document"],
+        ),
+        "generate_chart_html": ToolMetadata(
+            name="generate_chart_html",
+            category=ToolCategory.PUBLIC,
+            description=(
+                "Generate a self-contained HTML file with an interactive Chart.js chart "
+                "(bar, line, pie, doughnut). Returns the file path."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["chart", "graph", "visualization", "html", "analytics", "report"],
         ),
         "import_spreadsheet_schedule": ToolMetadata(
             name="import_spreadsheet_schedule",
@@ -551,24 +553,446 @@ class ToolRegistry:
             requires_confirmation=False,
             tags=["google", "sheets", "import", "schedule", "cronograma"],
         ),
-        "fiscal_preparar_dados_nfe": ToolMetadata(
-            name="fiscal_preparar_dados_nfe",
+        "google_calendar_write": ToolMetadata(
+            name="google_calendar_write",
+            category=ToolCategory.GOOGLE,
+            description="Create or update events in Google Calendar.",
+            tier_required=TierLevel.PREMIUM,
+            requires_confirmation=False,
+            tags=["google", "calendar", "write", "events"],
+        ),
+
+        # ── D5: Communication module (v3) ─────────────────────────────────────
+        # Absorbs dispatch_rfq_whatsapp + parse_supplier_reply (rfq_whatsapp_module).
+        "send_message": ToolMetadata(
+            name="send_message",
             category=ToolCategory.CUSTOM,
             description=(
-                "Prepara e valida dados para emissão de NF-e ou NFS-e. "
-                "Não emite — apenas organiza campos obrigatórios."
+                "Draft and send a message to a client contact (CRM reply, NPS follow-up, "
+                "payment reminder). Used by crm agent."
             ),
             tier_required=TierLevel.BASIC,
             requires_confirmation=False,
-            tags=["fiscal", "nfe", "nfse", "invoice"],
+            tags=["communication", "crm", "message", "whatsapp"],
         ),
-        "fiscal_status_integracao": ToolMetadata(
-            name="fiscal_status_integracao",
+        "send_rfq_via_channel": ToolMetadata(
+            name="send_rfq_via_channel",
             category=ToolCategory.CUSTOM,
-            description="Informa o status atual da integração fiscal (NF-e/NFS-e).",
+            description=(
+                "Send an RFQ to a supplier via the configured channel (WhatsApp, email). "
+                "Replaces dispatch_rfq_whatsapp (D5)."
+            ),
             tier_required=TierLevel.BASIC,
             requires_confirmation=False,
-            tags=["fiscal", "nfe", "nfse", "status"],
+            tags=["communication", "rfq", "procurement", "whatsapp"],
+        ),
+        "parse_business_reply": ToolMetadata(
+            name="parse_business_reply",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "Parse a free-text inbound message into structured data. "
+                "context_type param: rfq | nps | payment. "
+                "Replaces parse_supplier_reply (D5)."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["communication", "parsing", "rfq", "nps", "whatsapp"],
+        ),
+        # ── Platform / Routines ───────────────────────────────────────────────
+        "create_routine": ToolMetadata(
+            name="create_routine",
+            category=ToolCategory.CUSTOM,
+            description="Create a new automated business routine from natural language.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["platform", "routines", "automation"],
+        ),
+        "list_routine_catalog": ToolMetadata(
+            name="list_routine_catalog",
+            category=ToolCategory.CUSTOM,
+            description="List available routine templates from the catalog.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["platform", "routines", "catalog"],
+        ),
+        "list_custom_routines": ToolMetadata(
+            name="list_custom_routines",
+            category=ToolCategory.CUSTOM,
+            description="List the tenant's custom/active routines.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["platform", "routines", "custom"],
+        ),
+        "create_custom_routine": ToolMetadata(
+            name="create_custom_routine",
+            category=ToolCategory.CUSTOM,
+            description="Create a personalized routine for the tenant.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["platform", "routines", "custom"],
+        ),
+        "submit_routine_for_approval": ToolMetadata(
+            name="submit_routine_for_approval",
+            category=ToolCategory.CUSTOM,
+            description="Submit a routine draft for human approval (HITL).",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=True,
+            tags=["platform", "routines", "approval", "hitl"],
+        ),
+        "activate_catalog_routine": ToolMetadata(
+            name="activate_catalog_routine",
+            category=ToolCategory.CUSTOM,
+            description="Activate a catalog routine for the tenant.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["platform", "routines", "catalog"],
+        ),
+        "define_goal": ToolMetadata(
+            name="define_goal",
+            category=ToolCategory.CUSTOM,
+            description="Define or update a business goal for the tenant.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["platform", "goals", "meta"],
+        ),
+        "list_goals": ToolMetadata(
+            name="list_goals",
+            category=ToolCategory.CUSTOM,
+            description="List the tenant's current business goals.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["platform", "goals", "meta"],
+        ),
+        # ── Monday.com ────────────────────────────────────────────────────────
+        # TODO(D9): consolidate monday_query/monday_write/monday_brief → 3 semantic tools.
+        "monday_query": ToolMetadata(
+            name="monday_query",
+            category=ToolCategory.CUSTOM,
+            description="Query Monday.com boards, items, status, and summaries.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["monday", "project-management", "read"],
+        ),
+        "monday_write": ToolMetadata(
+            name="monday_write",
+            category=ToolCategory.CUSTOM,
+            description="Create or update Monday.com items and statuses.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["monday", "project-management", "write"],
+        ),
+        "monday_brief": ToolMetadata(
+            name="monday_brief",
+            category=ToolCategory.CUSTOM,
+            description="Generate a project summary brief from Monday.com board data.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["monday", "project-management", "summary"],
+        ),
+        # ── WhatsApp (client module) ──────────────────────────────────────────
+        "send_whatsapp_message": ToolMetadata(
+            name="send_whatsapp_message",
+            category=ToolCategory.CUSTOM,
+            description="Send a WhatsApp message to a single client contact.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["whatsapp", "communication", "crm", "message"],
+        ),
+        "send_whatsapp_batch": ToolMetadata(
+            name="send_whatsapp_batch",
+            category=ToolCategory.CUSTOM,
+            description="Send batch WhatsApp messages to a list of client contacts (CRM campaigns).",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=True,
+            tags=["whatsapp", "communication", "crm", "batch"],
+        ),
+        "check_whatsapp_replies": ToolMetadata(
+            name="check_whatsapp_replies",
+            category=ToolCategory.CUSTOM,
+            description="Check and retrieve incoming WhatsApp replies from clients or suppliers.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["whatsapp", "communication", "inbound", "replies"],
+        ),
+        "send_email": ToolMetadata(
+            name="send_email",
+            category=ToolCategory.CUSTOM,
+            description="Send an email message to a client or supplier.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["email", "communication", "outreach"],
+        ),
+        # ── Slack (real implementation — slack_module.py) ─────────────────────
+        # NOTE: distinct from Docker MCP slack_read/slack_send stubs.
+        "slack_list_channels": ToolMetadata(
+            name="slack_list_channels",
+            category=ToolCategory.CUSTOM,
+            description="List Slack channels accessible to the tenant.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["slack", "messaging", "list"],
+        ),
+        "slack_read_channel": ToolMetadata(
+            name="slack_read_channel",
+            category=ToolCategory.CUSTOM,
+            description="Read recent messages from a Slack channel.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["slack", "messaging", "read"],
+        ),
+        "slack_summarize_channel": ToolMetadata(
+            name="slack_summarize_channel",
+            category=ToolCategory.CUSTOM,
+            description="Generate an LLM summary of recent messages in a Slack channel.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["slack", "messaging", "summary"],
+        ),
+        "slack_post_message": ToolMetadata(
+            name="slack_post_message",
+            category=ToolCategory.CUSTOM,
+            description="Post a message to a Slack channel.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["slack", "messaging", "write"],
+        ),
+        "slack_get_unread": ToolMetadata(
+            name="slack_get_unread",
+            category=ToolCategory.CUSTOM,
+            description="Get unread Slack messages for the tenant.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["slack", "messaging", "unread"],
+        ),
+        # ── Notion ────────────────────────────────────────────────────────────
+        "notion_search": ToolMetadata(
+            name="notion_search",
+            category=ToolCategory.CUSTOM,
+            description="Search pages and databases in Notion.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["notion", "search"],
+        ),
+        "notion_read_page": ToolMetadata(
+            name="notion_read_page",
+            category=ToolCategory.CUSTOM,
+            description="Read content from a Notion page.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["notion", "read", "page"],
+        ),
+        "notion_query_database": ToolMetadata(
+            name="notion_query_database",
+            category=ToolCategory.CUSTOM,
+            description="Query a Notion database with filters and sorts.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["notion", "database", "query"],
+        ),
+        "notion_list_databases": ToolMetadata(
+            name="notion_list_databases",
+            category=ToolCategory.CUSTOM,
+            description="List Notion databases accessible to the tenant.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["notion", "database", "list"],
+        ),
+        "notion_list_pages": ToolMetadata(
+            name="notion_list_pages",
+            category=ToolCategory.CUSTOM,
+            description="List Notion pages accessible to the tenant.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["notion", "page", "list"],
+        ),
+        "notion_create_page": ToolMetadata(
+            name="notion_create_page",
+            category=ToolCategory.CUSTOM,
+            description="Create a new Notion page.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["notion", "page", "create"],
+        ),
+        "notion_update_page": ToolMetadata(
+            name="notion_update_page",
+            category=ToolCategory.CUSTOM,
+            description="Update properties of an existing Notion page.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["notion", "page", "update"],
+        ),
+        "notion_append_blocks": ToolMetadata(
+            name="notion_append_blocks",
+            category=ToolCategory.CUSTOM,
+            description="Append content blocks to a Notion page.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["notion", "page", "write"],
+        ),
+        "notion_delete_block": ToolMetadata(
+            name="notion_delete_block",
+            category=ToolCategory.CUSTOM,
+            description="Delete a block from a Notion page.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["notion", "page", "delete"],
+        ),
+        # ── Asana / Linear (pm_module) ────────────────────────────────────────
+        "asana_create_task": ToolMetadata(
+            name="asana_create_task",
+            category=ToolCategory.CUSTOM,
+            description="Create a new task in Asana.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["asana", "task", "create", "project-management"],
+        ),
+        "asana_update_task": ToolMetadata(
+            name="asana_update_task",
+            category=ToolCategory.CUSTOM,
+            description="Update an existing Asana task.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["asana", "task", "update", "project-management"],
+        ),
+        "asana_search_tasks": ToolMetadata(
+            name="asana_search_tasks",
+            category=ToolCategory.CUSTOM,
+            description="Search tasks in Asana by keyword or filter.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["asana", "task", "search", "project-management"],
+        ),
+        "asana_get_task_stories": ToolMetadata(
+            name="asana_get_task_stories",
+            category=ToolCategory.CUSTOM,
+            description="Get activity stories (comments, changes) for an Asana task.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["asana", "task", "history", "project-management"],
+        ),
+        "asana_add_task_comment": ToolMetadata(
+            name="asana_add_task_comment",
+            category=ToolCategory.CUSTOM,
+            description="Add a comment to an Asana task.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["asana", "task", "comment", "project-management"],
+        ),
+        "linear_create_issue": ToolMetadata(
+            name="linear_create_issue",
+            category=ToolCategory.CUSTOM,
+            description="Create a new issue in Linear.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["linear", "issue", "create", "project-management"],
+        ),
+        "linear_update_issue": ToolMetadata(
+            name="linear_update_issue",
+            category=ToolCategory.CUSTOM,
+            description="Update an existing Linear issue.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["linear", "issue", "update", "project-management"],
+        ),
+        "linear_list_teams": ToolMetadata(
+            name="linear_list_teams",
+            category=ToolCategory.CUSTOM,
+            description="List teams in the Linear workspace.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["linear", "teams", "project-management"],
+        ),
+        "linear_list_cycles": ToolMetadata(
+            name="linear_list_cycles",
+            category=ToolCategory.CUSTOM,
+            description="List sprints/cycles in Linear.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["linear", "cycles", "sprint", "project-management"],
+        ),
+        "linear_add_comment": ToolMetadata(
+            name="linear_add_comment",
+            category=ToolCategory.CUSTOM,
+            description="Add a comment to a Linear issue.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["linear", "issue", "comment", "project-management"],
+        ),
+        # ── PM extras (read-only, complement asana_linear feature) ───────────
+        "asana_list_projects": ToolMetadata(
+            name="asana_list_projects",
+            category=ToolCategory.CUSTOM,
+            description="List Asana projects for the tenant workspace.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["asana", "project-management", "list"],
+        ),
+        "asana_get_project_tasks": ToolMetadata(
+            name="asana_get_project_tasks",
+            category=ToolCategory.CUSTOM,
+            description="List tasks in an Asana project.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["asana", "project-management", "tasks"],
+        ),
+        "linear_list_issues": ToolMetadata(
+            name="linear_list_issues",
+            category=ToolCategory.CUSTOM,
+            description="List issues in Linear with optional filters.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["linear", "project-management", "list"],
+        ),
+        "linear_get_project_summary": ToolMetadata(
+            name="linear_get_project_summary",
+            category=ToolCategory.CUSTOM,
+            description="Get a summary of a Linear project: progress, members, issues.",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["linear", "project-management", "summary"],
+        ),
+        # ── Web crawl / context (onboarding + data_access agents) ────────────
+        "crawl_website": ToolMetadata(
+            name="crawl_website",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "Crawl a website domain and return page content as markdown. "
+                "Used in onboarding to collect company context from the client's website."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["web", "crawl", "onboarding", "context"],
+        ),
+        "extract_company_context": ToolMetadata(
+            name="extract_company_context",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "Extract structured company context (sector, products, tone) "
+                "from crawled website content using LLM."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["web", "crawl", "onboarding", "context", "extraction"],
+        ),
+        # ── Reports (document_io agents) ──────────────────────────────────────
+        "list_report_templates": ToolMetadata(
+            name="list_report_templates",
+            category=ToolCategory.CUSTOM,
+            description="List available report templates (financial, CRM, operational, etc.).",
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["report", "templates", "document"],
+        ),
+        "generate_report": ToolMetadata(
+            name="generate_report",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "Generate a formatted report from a template and data. "
+                "Output formats: markdown, Google Docs, Google Sheets."
+            ),
+            tier_required=TierLevel.BASIC,
+            requires_confirmation=False,
+            tags=["report", "document", "analytics", "export"],
         ),
     }
 
@@ -594,23 +1018,24 @@ class ToolRegistry:
             requires_confirmation=True,
             tags=["github", "vcs", "code"],
         ),
-        "slack_read": ToolMetadata(
-            name="slack_read",
+        # ── Slack Docker MCP stubs (renamed to avoid collision with slack_module.py) ──
+        "slack_docker_read": ToolMetadata(
+            name="slack_docker_read",
             category=ToolCategory.DOCKER_MCP,
-            description="Read Slack messages and channels",
+            description="Read Slack messages and channels (via Docker MCP bridge)",
             tier_required=TierLevel.ENTERPRISE,
             docker_mcp_integration="slack",
             requires_confirmation=False,
-            tags=["slack", "messaging", "chat"],
+            tags=["slack", "messaging", "chat", "docker-mcp"],
         ),
-        "slack_send": ToolMetadata(
-            name="slack_send",
+        "slack_docker_send": ToolMetadata(
+            name="slack_docker_send",
             category=ToolCategory.DOCKER_MCP,
-            description="Send Slack messages",
+            description="Send Slack messages (via Docker MCP bridge)",
             tier_required=TierLevel.ENTERPRISE,
             docker_mcp_integration="slack",
             requires_confirmation=True,
-            tags=["slack", "messaging", "chat"],
+            tags=["slack", "messaging", "chat", "docker-mcp"],
         ),
         "stripe_read": ToolMetadata(
             name="stripe_read",

@@ -286,16 +286,39 @@ async def _list_suppliers_logic(
         raise ToolError("Missing client_id in context")
 
     try:
+        # Fornecedores registrados via data-entry agent → analytics_v2.dim_fornecedores
+        # (populated by ingest pipeline from ERP transactions)
         db = get_supabase_client()
-        query = db.table("supplier_roster").select(
-            "id,name,contact_email,contact_phone,categories"
-        ).eq("client_id", client_id).eq("is_active", True)
+        query = db.schema("analytics_v2").table("dim_fornecedores").select(
+            "fornecedor_id,nome,telefone,cnpj,endereco_cidade,endereco_uf,"
+            "total_pedidos_recebidos,ticket_medio,dias_recencia"
+        ).eq("client_id", client_id)
+
+        # Active heuristic: transacionou nos últimos 180 dias
+        query = query.not_.is_("dias_recencia", "null").lte("dias_recencia", 180)
 
         if category:
-            query = query.contains("categories", [category])
+            # No category column — filter by nome contains (best effort)
+            query = query.ilike("nome", f"%{category}%")
 
         result = query.execute()
-        suppliers = result.data or []
+        raw = result.data or []
+
+        # Normalize to stable interface expected by dispatch_rfq
+        suppliers = [
+            {
+                "id": str(r["fornecedor_id"]),
+                "name": r["nome"],
+                "contact_phone": r.get("telefone", ""),
+                "cnpj": r.get("cnpj", ""),
+                "city": r.get("endereco_cidade", ""),
+                "uf": r.get("endereco_uf", ""),
+                "total_orders": r.get("total_pedidos_recebidos", 0),
+                "avg_ticket": r.get("ticket_medio", 0),
+                "days_since_last": r.get("dias_recencia"),
+            }
+            for r in raw
+        ]
 
         return {
             "suppliers": suppliers,
@@ -320,10 +343,12 @@ async def _dispatch_rfq_logic(
     session_id: str | None = None,
 ) -> dict:
     """
-    Send an RFQ to a specific supplier. Creates a record in rfq_requests.
+    Send an RFQ to a specific supplier. Creates a record in agent_lists
+    (list_type='rfq') with metadata.rfq_status='sent'.
 
-    Phase 1: mock dispatch — record created but no message sent.
-    Use submit_mock_response to simulate the supplier reply.
+    Mock dispatch — record created but no real message sent to the supplier.
+    Use dispatch_rfq_whatsapp to send via WhatsApp, or submit_mock_response
+    to simulate the supplier reply in tests.
 
     Args:
         supplier_id: UUID of the supplier from list_suppliers
@@ -345,12 +370,10 @@ async def _dispatch_rfq_logic(
     try:
         db = get_supabase_client()
 
-        # Verify supplier belongs to this tenant
-        supplier_result = db.table("supplier_roster").select(
-            "id,name"
-        ).eq("id", supplier_id).eq("client_id", client_id).eq(
-            "is_active", True
-        ).maybe_single().execute()
+        # Verify supplier exists in dim_fornecedores for this tenant
+        supplier_result = db.schema("analytics_v2").table("dim_fornecedores").select(
+            "fornecedor_id,nome"
+        ).eq("fornecedor_id", int(supplier_id)).eq("client_id", client_id).maybe_single().execute()
 
         supplier = supplier_result.data
         if not supplier:
@@ -365,26 +388,34 @@ async def _dispatch_rfq_logic(
             deadline_dt = datetime.now(UTC) + timedelta(days=2)
 
         rfq_id = str(uuid4())
+        supplier_name = supplier["nome"]
 
-        db.table("rfq_requests").insert({
+        db.table("agent_lists").insert({
             "id": rfq_id,
-            "session_id": session_id,
             "client_id": client_id,
-            "supplier_id": supplier_id,
+            "list_type": "rfq",
+            "name": f"RFQ {supplier_name} {deadline_dt.date()}",
             "items": items,
-            "status": "sent",
-            "sent_at": datetime.now(UTC).isoformat(),
-            "deadline": deadline_dt.isoformat(),
+            "status": "active",
+            "created_by": "compras",
+            "session_id": session_id,
+            "metadata": {
+                "supplier_id": supplier_id,
+                "supplier_name": supplier_name,
+                "sent_at": datetime.now(UTC).isoformat(),
+                "deadline": deadline_dt.isoformat(),
+                "rfq_status": "sent",
+            },
         }).execute()
 
         logger.info(
-            f"[RFQ] Dispatched RFQ {rfq_id} to supplier {supplier['name']} "
+            f"[RFQ] Dispatched RFQ {rfq_id} to supplier {supplier_name} "
             f"({len(items)} items, deadline {deadline_dt.date()})"
         )
 
         return {
             "rfq_id": rfq_id,
-            "supplier_name": supplier["name"],
+            "supplier_name": supplier_name,
             "status": "sent",
             "items_count": len(items),
             "deadline": deadline_dt.isoformat(),
@@ -417,24 +448,24 @@ async def _check_rfq_responses_logic(
     try:
         db = get_supabase_client()
 
-        result = db.table("rfq_requests").select(
-            "id,supplier_id,status,response_data,deadline,"
-            "supplier_roster(name)"
-        ).eq("session_id", session_id).eq("client_id", client_id).execute()
+        result = db.table("agent_lists").select(
+            "id,status,items,metadata"
+        ).eq("session_id", session_id).eq("client_id", client_id).eq("list_type", "rfq").execute()
 
         rfqs = result.data or []
-        responded_list = [r for r in rfqs if r["status"] == "responded"]
-        pending_list = [r for r in rfqs if r["status"] in ("sent", "pending")]
+        rfq_status_map = {r["id"]: r["metadata"].get("rfq_status", r["status"]) for r in rfqs}
+        responded_list = [r for r in rfqs if rfq_status_map[r["id"]] == "responded"]
+        pending_list = [r for r in rfqs if rfq_status_map[r["id"]] in ("sent", "pending")]
 
         responses = []
         for rfq in rfqs:
-            supplier_info = rfq.get("supplier_roster") or {}
+            meta = rfq.get("metadata") or {}
             responses.append({
                 "rfq_id": rfq["id"],
-                "supplier_name": supplier_info.get("name", "Desconhecido"),
-                "status": rfq["status"],
-                "response_data": rfq.get("response_data"),
-                "deadline": rfq.get("deadline"),
+                "supplier_name": meta.get("supplier_name", "Desconhecido"),
+                "status": meta.get("rfq_status", rfq["status"]),
+                "response_data": meta.get("response_data"),
+                "deadline": meta.get("deadline"),
             })
 
         return {
@@ -483,15 +514,16 @@ async def _submit_mock_response_logic(
     try:
         db = get_supabase_client()
 
-        rfq_result = db.table("rfq_requests").select(
-            "id,status,items"
-        ).eq("id", rfq_id).eq("client_id", client_id).maybe_single().execute()
+        rfq_result = db.table("agent_lists").select(
+            "id,status,items,metadata"
+        ).eq("id", rfq_id).eq("client_id", client_id).eq("list_type", "rfq").maybe_single().execute()
 
         rfq = rfq_result.data
         if not rfq:
             raise ToolError(f"Cotação não encontrada: {rfq_id}")
 
-        if rfq["status"] == "responded":
+        meta = rfq.get("metadata") or {}
+        if meta.get("rfq_status") == "responded":
             raise ToolError("Esta cotação já foi respondida.")
 
         response_data = {
@@ -502,10 +534,9 @@ async def _submit_mock_response_logic(
             "responded_at": datetime.now(UTC).isoformat(),
         }
 
-        db.table("rfq_requests").update({
-            "status": "responded",
-            "response_data": response_data,
-            "raw_response": json.dumps(response_data, ensure_ascii=False),
+        updated_meta = {**meta, "rfq_status": "responded", "response_data": response_data}
+        db.table("agent_lists").update({
+            "metadata": updated_meta,
             "updated_at": datetime.now(UTC).isoformat(),
         }).eq("id", rfq_id).execute()
 
@@ -567,14 +598,13 @@ async def _optimize_allocation_logic(
     try:
         db = get_supabase_client()
 
-        rfqs_result = db.table("rfq_requests").select(
-            "id,supplier_id,items,response_data,"
-            "supplier_roster(id,name)"
-        ).eq("session_id", session_id).eq("client_id", client_id).eq(
-            "status", "responded"
-        ).execute()
+        rfqs_result = db.table("agent_lists").select(
+            "id,items,metadata"
+        ).eq("session_id", session_id).eq("client_id", client_id).eq("list_type", "rfq").execute()
 
-        rfqs = rfqs_result.data or []
+        # Filter responded (rfq_status stored in metadata)
+        all_rfqs = rfqs_result.data or []
+        rfqs = [r for r in all_rfqs if (r.get("metadata") or {}).get("rfq_status") == "responded"]
 
         if not rfqs:
             raise ToolError(
@@ -587,12 +617,12 @@ async def _optimize_allocation_logic(
         supplier_names: dict[str, str] = {}
 
         for rfq in rfqs:
-            supplier_info = rfq.get("supplier_roster") or {}
-            supplier_id = rfq["supplier_id"]
-            supplier_name = supplier_info.get("name", supplier_id)
+            meta = rfq.get("metadata") or {}
+            supplier_id = meta.get("supplier_id", "")
+            supplier_name = meta.get("supplier_name", supplier_id)
             supplier_names[supplier_id] = supplier_name
 
-            response = rfq.get("response_data") or {}
+            response = meta.get("response_data") or {}
             prices = response.get("prices", [])
             delivery_days = response.get("delivery_days", 999)
 
@@ -622,15 +652,9 @@ async def _optimize_allocation_logic(
                     "qty": qty,
                 })
 
-        # ---- Phase 2: Load supplier MOQ/metadata from roster ----
-        supplier_meta: dict[str, dict] = {}
-        roster_ids = list(supplier_names.keys())
-        if roster_ids:
-            roster_result = db.table("supplier_roster").select(
-                "id,moq_rules,payment_terms,delivery_days_avg"
-            ).in_("id", roster_ids).execute()
-            for row in (roster_result.data or []):
-                supplier_meta[row["id"]] = row
+        # ---- Phase 2: MOQ metadata ----
+        # dim_fornecedores não tem moq_rules; MOQ vem diretamente da resposta do fornecedor.
+        supplier_meta: dict[str, dict] = {}  # mantido para compatibilidade do loop abaixo
 
         # ---- Phase 2: Constraint filtering & warnings ----
         constraint_warnings: list[str] = []
@@ -983,12 +1007,12 @@ async def _create_purchase_order_logic(
     try:
         db = get_supabase_client()
 
-        supplier_result = db.table("supplier_roster").select(
-            "name"
-        ).eq("id", supplier_id).eq("client_id", client_id).maybe_single().execute()
+        supplier_result = db.schema("analytics_v2").table("dim_fornecedores").select(
+            "nome"
+        ).eq("fornecedor_id", int(supplier_id)).eq("client_id", client_id).maybe_single().execute()
 
         supplier_name = (
-            supplier_result.data.get("name", supplier_id)
+            supplier_result.data.get("nome", supplier_id)
             if supplier_result.data else supplier_id
         )
 
@@ -1136,8 +1160,7 @@ async def _approve_purchase_order_logic(
         db = get_supabase_client()
 
         po_result = db.table("purchase_orders").select(
-            "id,status,supplier_id,total_amount,currency,items,"
-            "supplier_roster(name)"
+            "id,status,supplier_id,total_amount,currency,items"
         ).eq("id", po_id).eq("client_id", client_id).maybe_single().execute()
 
         po = po_result.data
@@ -1157,8 +1180,14 @@ async def _approve_purchase_order_logic(
                 f"Status atual: {po['status']}"
             )
 
-        supplier_info = po.get("supplier_roster") or {}
-        supplier_name = supplier_info.get("name", "Fornecedor")
+        # Resolve supplier name from dim_fornecedores
+        try:
+            s_result = db.schema("analytics_v2").table("dim_fornecedores").select("nome") \
+                .eq("fornecedor_id", int(po["supplier_id"])).eq("client_id", client_id) \
+                .maybe_single().execute()
+            supplier_name = s_result.data.get("nome", "Fornecedor") if s_result.data else "Fornecedor"
+        except Exception:
+            supplier_name = "Fornecedor"
         total = po["total_amount"]
         currency = po["currency"]
         items_count = len(po.get("items") or [])
@@ -1302,24 +1331,27 @@ async def _suggest_counter_offer_logic(
     try:
         db = get_supabase_client()
 
-        # Get supplier name
-        supplier_result = db.table("supplier_roster").select(
-            "name"
-        ).eq("id", supplier_id).eq("client_id", client_id).maybe_single().execute()
+        # Get supplier name from dim_fornecedores
+        supplier_result = db.schema("analytics_v2").table("dim_fornecedores").select(
+            "nome"
+        ).eq("fornecedor_id", int(supplier_id)).eq("client_id", client_id).maybe_single().execute()
         supplier_name = (
-            supplier_result.data.get("name", supplier_id)
+            supplier_result.data.get("nome", supplier_id)
             if supplier_result.data else supplier_id
         )
 
-        # Fetch historical responded RFQs for this tenant
-        historical_result = db.table("rfq_requests").select(
-            "response_data"
-        ).eq("client_id", client_id).eq("status", "responded").execute()
+        # Fetch historical responded RFQs from agent_lists
+        historical_result = db.table("agent_lists").select(
+            "metadata"
+        ).eq("client_id", client_id).eq("list_type", "rfq").execute()
 
         # Build historical price database: item_name -> [prices]
         historical_prices: dict[str, list[float]] = {}
         for rfq in (historical_result.data or []):
-            resp = rfq.get("response_data") or {}
+            meta = rfq.get("metadata") or {}
+            if meta.get("rfq_status") != "responded":
+                continue
+            resp = meta.get("response_data") or {}
             for p in resp.get("prices", []):
                 name = p.get("name", "").lower().strip()
                 price = p.get("unit_price", 0)
@@ -1532,8 +1564,7 @@ async def export_po_to_sheets_core(
 
         # Fetch POs
         query = db.table("purchase_orders").select(
-            "id,supplier_id,items,total_amount,currency,status,approved_at,"
-            "supplier_roster(name)"
+            "id,supplier_id,items,total_amount,currency,status,approved_at"
         ).eq("client_id", client_id)
 
         if po_id:
@@ -1559,8 +1590,7 @@ async def export_po_to_sheets_core(
         rows: list[list] = [header]
 
         for po in pos:
-            supplier_info = po.get("supplier_roster") or {}
-            supplier_name = supplier_info.get("name", "")
+            supplier_name = str(po.get("supplier_id", ""))
             po_items = po.get("items") or []
 
             for item in po_items:
@@ -1670,41 +1700,12 @@ async def _add_supplier_logic(
     Returns:
         dict with supplier_id, name, and status
     """
-    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
-    if not client_id:
-        raise ToolError("Missing client_id in context")
-
-    if not name or not name.strip():
-        raise ToolError("Nome do fornecedor é obrigatório.")
-
-    try:
-        db = get_supabase_client()
-
-        supplier_data = {
-            "client_id": client_id,
-            "name": name.strip(),
-            "contact_email": (contact_email or "").strip() or None,
-            "contact_phone": (contact_phone or "").strip() or None,
-            "categories": categories or [],
-            "payment_terms": (payment_terms or "").strip() or "",
-            "delivery_days_avg": delivery_days_avg or 0,
-            "is_active": True,
-        }
-
-        result = db.table("supplier_roster").insert(supplier_data).execute()
-        supplier = result.data[0] if result.data else {}
-
-        logger.info(f"[RFQ] Supplier '{name}' added (id={supplier.get('id')})")
-
-        return {
-            "supplier_id": supplier.get("id"),
-            "name": name.strip(),
-            "status": "created",
-        }
-
-    except Exception as e:
-        logger.error(f"[RFQ] Failed to add supplier: {e}")
-        raise ToolError(f"Erro ao adicionar fornecedor: {e}")
+    raise ToolError(
+        "Cadastro de fornecedores é feito pelo agente de Data Entry. "
+        "Solicite ao assistente de lançamentos que registre o fornecedor com "
+        "CNPJ, nome, telefone e cidade — ele ficará disponível automaticamente "
+        "para cotações após o próximo ciclo de ingestão."
+    )
 
 
 async def _update_supplier_logic(
@@ -1737,54 +1738,10 @@ async def _update_supplier_logic(
     Returns:
         dict with supplier_id and updated fields
     """
-    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
-    if not client_id:
-        raise ToolError("Missing client_id in context")
-
-    try:
-        db = get_supabase_client()
-
-        # Verify supplier belongs to tenant
-        existing = db.table("supplier_roster").select(
-            "id"
-        ).eq("id", supplier_id).eq("client_id", client_id).maybe_single().execute()
-
-        if not existing.data:
-            raise ToolError(f"Fornecedor não encontrado: {supplier_id}")
-
-        updates: dict = {"updated_at": datetime.now(UTC).isoformat()}
-        if name is not None:
-            updates["name"] = name.strip()
-        if contact_email is not None:
-            updates["contact_email"] = contact_email.strip() or None
-        if contact_phone is not None:
-            updates["contact_phone"] = contact_phone.strip() or None
-        if categories is not None:
-            updates["categories"] = categories
-        if payment_terms is not None:
-            updates["payment_terms"] = payment_terms.strip()
-        if delivery_days_avg is not None:
-            updates["delivery_days_avg"] = delivery_days_avg
-        if is_active is not None:
-            updates["is_active"] = is_active
-
-        db.table("supplier_roster").update(updates).eq(
-            "id", supplier_id
-        ).execute()
-
-        logger.info(f"[RFQ] Supplier {supplier_id} updated: {list(updates.keys())}")
-
-        return {
-            "supplier_id": supplier_id,
-            "updated_fields": [k for k in updates if k != "updated_at"],
-            "status": "updated",
-        }
-
-    except ToolError:
-        raise
-    except Exception as e:
-        logger.error(f"[RFQ] Failed to update supplier: {e}")
-        raise ToolError(f"Erro ao atualizar fornecedor: {e}")
+    raise ToolError(
+        "Atualização de fornecedores é feita pelo agente de Data Entry. "
+        "Os dados de fornecedores são gerenciados via ingestão do ERP."
+    )
 
 
 async def _remove_supplier_logic(
@@ -1801,38 +1758,10 @@ async def _remove_supplier_logic(
     Returns:
         dict with supplier_id and status
     """
-    client_id = client_id or ctx.request_context.lifespan_context.get("client_id")
-    if not client_id:
-        raise ToolError("Missing client_id in context")
-
-    try:
-        db = get_supabase_client()
-
-        existing = db.table("supplier_roster").select(
-            "id,name"
-        ).eq("id", supplier_id).eq("client_id", client_id).maybe_single().execute()
-
-        if not existing.data:
-            raise ToolError(f"Fornecedor não encontrado: {supplier_id}")
-
-        db.table("supplier_roster").update({
-            "is_active": False,
-            "updated_at": datetime.now(UTC).isoformat(),
-        }).eq("id", supplier_id).execute()
-
-        logger.info(f"[RFQ] Supplier {supplier_id} deactivated")
-
-        return {
-            "supplier_id": supplier_id,
-            "name": existing.data.get("name", ""),
-            "status": "deactivated",
-        }
-
-    except ToolError:
-        raise
-    except Exception as e:
-        logger.error(f"[RFQ] Failed to remove supplier: {e}")
-        raise ToolError(f"Erro ao remover fornecedor: {e}")
+    raise ToolError(
+        "Desativação de fornecedores é feita pelo agente de Data Entry. "
+        "Os dados de fornecedores são gerenciados via ingestão do ERP."
+    )
 
 
 # =============================================================================

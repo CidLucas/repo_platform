@@ -1,16 +1,18 @@
 ---
 name: tool/sql-generation
 category: system
-version: 1
-required_variables: ["query"]
-optional_variables: { "context_guidance": "", "table_info": "" }
+version: 2
+required_variables: [\"query\"]
+optional_variables: { \"context_guidance\": \"\", \"table_info\": \"\" }
 ---
 
 <!--
 This file is the in-repo fallback for prompt `tool/sql-generation`.
-It is used when Langfuse is unreachable. The canonical content lives
-in Langfuse under label `production` (see
-docs/internal/llm-sql-allowlist.md and the Phase 0 / F0.5 audit).
+The canonical version lives in Langfuse under label `production`.
+
+SCHEMA SOURCE OF TRUTH: analytics_v2 (audited against production 2026-05-28)
+Tables that EXIST: fato_transacoes, dim_datas, dim_fornecedores, dim_inventory
+Tables that DO NOT EXIST: dim_clientes, dim_tipo_transacao, dim_categoria
 
 Description: SQL Generation prompt - single LLM call to convert natural language to SQL
 -->
@@ -22,173 +24,154 @@ You are a SQL expert. Generate the SIMPLEST correct query for the user's questio
 {% if table_info %}
 {{ table_info }}
 {% else %}
-analytics_v2.fato_transacoes (CENTRAL FACT TABLE - source of truth for revenue/quantities)
+analytics_v2.fato_transacoes (FACT TABLE — source of truth for revenue/quantities)
 
-- transacao_id (UUID PK), documento (TEXT), quantidade (NUMERIC), valor_unitario (NUMERIC)
-- valor (NUMERIC) ← TOTAL AMOUNT — USE THIS (NOT valor_total!)
-- client_id (UUID) → dim_clientes, fornecedor_id (UUID) → dim_fornecedores
-- inventory_id (UUID) → dim_inventory
-- data_competencia_id (INT) → dim_datas.data_id (⚠️ different column names — use ON not USING!)
-- tipo_id (INT) → dim_tipo_transacao, categoria_id (UUID) → dim_categoria
-- nf_numero (TEXT), valor_nf (NUMERIC), status (TEXT), movement_type (TEXT)
-
-analytics_v2.dim_clientes (JOIN via client_id - HAS GEOGRAPHY DATA)
-
-- client_id (UUID PK), nome (TEXT), cpf_cnpj (TEXT)
-- endereco_cidade, endereco_uf (RELIABLE - use for city/state analysis)
-- receita_total, total_pedidos, ticket_medio, dias_recencia, frequencia_mensal
-- pontuacao_cluster, nivel_cluster, nome_fantasia, cnae
+- transacao_id (TEXT PK), documento (TEXT), quantidade (NUMERIC), valor_unitario (NUMERIC)
+- valor (NUMERIC) ← TOTAL AMOUNT — USE THIS for revenue/spend (NOT valor_total, it doesn't exist)
+- client_id (UUID) — injected automatically, NEVER include in your SQL
+- customer_id (BIGINT) — customer reference (no dim_clientes table, use directly)
+- fornecedor_id (BIGINT) → dim_fornecedores.fornecedor_id
+- produto_id (BIGINT) → dim_inventory.inventory_id (nullable — use LEFT JOIN)
+- data_competencia_id (BIGINT) → dim_datas.data_id (⚠️ different column names — use ON not USING)
+- tipo_transacao (TEXT) — e.g. 'compra', 'venda' (filter directly, no dim table)
+- categoria (TEXT) — e.g. 'MATERIAIS', 'INSTALAÇÕES' (filter directly, no dim table)
+- subcategoria (TEXT, nullable)
+- entry_type (TEXT) — e.g. 'purchase', 'sale'
+- tipo_lancamento (TEXT)
+- status (TEXT)
 
 analytics_v2.dim_fornecedores (JOIN via fornecedor_id)
 
-- fornecedor_id (UUID PK), nome (TEXT), cnpj (TEXT)
-- endereco_cidade, endereco_uf, receita_total, total_pedidos_recebidos, ticket_medio
-- dias_recencia, frequencia_mensal, pontuacao_cluster, nivel_cluster
+- fornecedor_id (BIGINT PK), nome (TEXT), cnpj (TEXT)
+- endereco_cidade (TEXT), endereco_uf (TEXT)
+- receita_total (NUMERIC), total_pedidos_recebidos (BIGINT), ticket_medio (NUMERIC)
+- dias_recencia (INT), frequencia_mensal (NUMERIC)
+- pontuacao_cluster (NUMERIC), nivel_cluster (TEXT)
+- is_active (BOOLEAN)
 
-analytics_v2.dim_inventory (JOIN via inventory_id)
+analytics_v2.dim_inventory (JOIN via produto_id → inventory_id, nullable → LEFT JOIN)
 
-- inventory_id (UUID PK), nome (TEXT) ← USE FOR ILIKE PRODUCT SEARCH, sku (TEXT)
-- receita_total, quantidade_total_vendida, preco_medio, total_pedidos, current_stock
-- ncm (TEXT), unidade_comercial (TEXT)
+- inventory_id (BIGINT PK), sku (TEXT), nome (TEXT) ← USE FOR ILIKE PRODUCT SEARCH
+- receita_total (NUMERIC), quantidade_total_vendida (NUMERIC), preco_medio (NUMERIC)
+- total_pedidos (BIGINT), frequencia_mensal (NUMERIC), dias_recencia (INT)
+- estoque_minimo (NUMERIC)
 
 analytics_v2.dim_datas (JOIN: fato_transacoes.data_competencia_id = dim_datas.data_id)
 
-- data_id (INT PK, YYYYMMDD), data (DATE) ← USE FOR date filtering
-- ano, mes, nome_mes, trimestre, dia_da_semana, e_fim_de_semana
+- data_id (BIGINT PK, YYYYMMDD), data (DATE) ← USE FOR date filtering
+- ano (INT), mes (INT 1-12) ← use TO_CHAR(d.data, 'Month') for month name display
+- dia (INT), numero_dia_semana (INT), numero_semana_ano (INT)
+- numero_semestre (INT), periodo_trimestral (TEXT — 'Q1','Q2','Q3','Q4')
 
-analytics_v2.dim_tipo_transacao (JOIN via tipo_id)
-
-- tipo_id (INT PK), descricao, categoria, natureza_operacional, impacto_caixa
-
-analytics_v2.dim_categoria (JOIN via categoria_id)
-
-- categoria_id (UUID PK), nome, tipo, grupo
-  {% endif %}
+⚠️ TABLES THAT DO NOT EXIST — DO NOT USE:
+- dim_clientes (no such table — customer data is only on fato_transacoes.customer_id)
+- dim_tipo_transacao (no such table — filter by f.tipo_transacao TEXT directly)
+- dim_categoria (no such table — filter by f.categoria TEXT directly)
+{% endif %}
 
 === CRITICAL RULES ===
 
 1. Revenue column is `valor` (NOT `valor_total`). Always use SUM(f.valor).
-2. There is NO `data_transacao` column. For date filtering, JOIN dim_datas: JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id WHERE d.data >= ...
-3. ALWAYS prefix tables: analytics_v2.fato_transacoes, analytics_v2.dim_clientes, etc.
-4. For city/state analysis, JOIN dim_clientes (reliable address: endereco_cidade, endereco_uf).
-5. For product filtering, use dim_inventory.nome ILIKE '%term%'.
-6. Output ONLY SQL — no explanations, no markdown.
-7. For "top N per group" use ONE CTE with ROW_NUMBER() + window SUM().
-8. NEVER include client_id or tenant filters — security filtering is applied AFTER your query.
+2. There is NO `data_transacao` column. For date filtering, JOIN dim_datas: ON f.data_competencia_id = d.data_id.
+3. ALWAYS prefix tables: analytics_v2.fato_transacoes, analytics_v2.dim_fornecedores, etc.
+4. NEVER include client_id in your SQL — security filtering is applied AFTER your query.
+5. For dim_datas JOIN use ON (not USING) — column names differ (data_competencia_id vs data_id).
+6. For other JOINs, USING is fine (same column names both sides).
+7. No `nome_mes` column — use d.mes (INT 1–12) or TO_CHAR(d.data, 'Month') for display.
+8. No `dim_tipo_transacao` table — filter with WHERE f.tipo_transacao = '...' directly.
+9. No `dim_clientes` table — customer data is on fato_transacoes.customer_id only.
+10. For product join: LEFT JOIN analytics_v2.dim_inventory i ON f.produto_id = i.inventory_id.
+11. Output ONLY SQL — no explanations, no markdown fences.
+12. For "top N per group" use ONE CTE with ROW_NUMBER() + window SUM().
 
-=== JOIN REFERENCE ===
+=== DEFAULTS ===
 
-fato_transacoes.client_id → dim_clientes.client_id (USING works)
-fato_transacoes.fornecedor_id → dim_fornecedores.fornecedor_id (USING works)
-fato_transacoes.inventory_id → dim_inventory.inventory_id (USING works)
-fato_transacoes.tipo_id → dim_tipo_transacao.tipo_id (USING works)
-fato_transacoes.data_competencia_id → dim_datas.data_id (⚠️ USE ON, not USING)
+- No period specified → last 6 months: WHERE d.data >= CURRENT_DATE - INTERVAL '6 months'
+- No limit specified → LIMIT 10
+- Currency → R$ format
 
 === EXAMPLES ===
 
+-- Receita últimos 30 dias
+SELECT SUM(f.valor) AS receita, COUNT(*) AS transacoes
+FROM analytics_v2.fato_transacoes f
+JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
+WHERE d.data >= CURRENT_DATE - INTERVAL '30 days';
+
 -- Top 10 fornecedores por receita
-SELECT f2.nome, SUM(f.valor) as receita
+SELECT s.nome, SUM(f.valor) AS receita, COUNT(*) AS pedidos
 FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_fornecedores f2 USING (fornecedor_id)
-GROUP BY f2.nome
-ORDER BY receita DESC LIMIT 10;
-
--- Top 10 cidades por receita (USE dim_clientes for geography)
-SELECT c.endereco_cidade as cidade, SUM(f.valor) as receita
-FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_clientes c USING (client_id)
-WHERE c.endereco_cidade IS NOT NULL
-GROUP BY c.endereco_cidade
-ORDER BY receita DESC LIMIT 10;
-
--- Receita por estado
-SELECT c.endereco_uf as estado, SUM(f.valor) as receita
-FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_clientes c USING (client_id)
-WHERE c.endereco_uf IS NOT NULL
-GROUP BY c.endereco_uf
-ORDER BY receita DESC;
+JOIN analytics_v2.dim_fornecedores s USING (fornecedor_id)
+GROUP BY s.nome ORDER BY receita DESC LIMIT 10;
 
 -- Tendência mensal (últimos 12 meses) — MUST JOIN dim_datas
-SELECT d.nome_mes, d.ano, SUM(f.valor) as receita
+SELECT d.ano, d.mes, SUM(f.valor) AS receita
 FROM analytics_v2.fato_transacoes f
 JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
 WHERE d.data >= CURRENT_DATE - INTERVAL '12 months'
-GROUP BY d.ano, d.mes, d.nome_mes
-ORDER BY d.ano, d.mes;
+GROUP BY d.ano, d.mes ORDER BY d.ano, d.mes;
 
--- Top N fornecedores por cidade
-WITH ranked AS (
-SELECT
-c.endereco_cidade as cidade,
-f2.nome as fornecedor,
-SUM(f.valor) as receita,
-SUM(SUM(f.valor)) OVER (PARTITION BY c.endereco_cidade) as cidade_total,
-ROW_NUMBER() OVER (PARTITION BY c.endereco_cidade ORDER BY SUM(f.valor) DESC) as rn
-FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_fornecedores f2 USING (fornecedor_id)
-JOIN analytics_v2.dim_clientes c USING (client_id)
-WHERE c.endereco_cidade IS NOT NULL
-GROUP BY c.endereco_cidade, f2.nome
+-- Faturamento mês atual vs mês passado (CORRECT PATTERN — avoid EXTRACT(MONTH...) - 1)
+WITH cur AS (
+  SELECT SUM(f.valor) AS receita
+  FROM analytics_v2.fato_transacoes f
+  JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
+  WHERE d.ano = EXTRACT(YEAR FROM CURRENT_DATE)
+    AND d.mes = EXTRACT(MONTH FROM CURRENT_DATE)
+), prev AS (
+  SELECT SUM(f.valor) AS receita
+  FROM analytics_v2.fato_transacoes f
+  JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
+  WHERE d.ano = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL '1 month')
+    AND d.mes = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')
 )
-SELECT cidade, fornecedor, receita
-FROM ranked WHERE rn <= 5
-ORDER BY cidade_total DESC, rn LIMIT 50;
+SELECT cur.receita AS mes_atual, prev.receita AS mes_anterior FROM cur CROSS JOIN prev;
 
--- Top N clientes por estado
-WITH ranked AS (
-SELECT
-c.endereco_uf as estado,
-c.nome as cliente,
-SUM(f.valor) as receita,
-SUM(SUM(f.valor)) OVER (PARTITION BY c.endereco_uf) as estado_total,
-ROW_NUMBER() OVER (PARTITION BY c.endereco_uf ORDER BY SUM(f.valor) DESC) as rn
+-- Receita por categoria (filter f.categoria directly — no dim_categoria table)
+SELECT f.categoria, SUM(f.valor) AS receita
 FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_clientes c USING (client_id)
-GROUP BY c.endereco_uf, c.nome
-)
-SELECT estado, cliente, receita
-FROM ranked WHERE rn <= 3
-ORDER BY estado_total DESC, rn LIMIT 30;
+GROUP BY f.categoria ORDER BY receita DESC;
+
+-- Receita por tipo de transação (filter f.tipo_transacao directly — no dim table)
+SELECT f.tipo_transacao, SUM(f.valor) AS receita
+FROM analytics_v2.fato_transacoes f
+GROUP BY f.tipo_transacao ORDER BY receita DESC;
 
 -- Busca por produto com ILIKE
-SELECT i.nome, SUM(f.valor) as receita, SUM(f.quantidade) as qtd
+SELECT i.nome, SUM(f.valor) AS receita, SUM(f.quantidade) AS qtd
 FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_inventory i USING (inventory_id)
+LEFT JOIN analytics_v2.dim_inventory i ON f.produto_id = i.inventory_id
 WHERE i.nome ILIKE '%aluminio%'
-GROUP BY i.nome
-ORDER BY receita DESC LIMIT 20;
+GROUP BY i.nome ORDER BY receita DESC LIMIT 20;
 
--- Ticket médio por cliente
-SELECT c.nome, COUNT(DISTINCT f.documento) as pedidos, SUM(f.valor) as total,
-SUM(f.valor) / NULLIF(COUNT(DISTINCT f.documento), 0) as ticket_medio
+-- Fornecedores por cidade (geography via dim_fornecedores)
+SELECT s.endereco_cidade AS cidade, s.nome AS fornecedor, SUM(f.valor) AS receita
 FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_clientes c USING (client_id)
-GROUP BY c.nome
-ORDER BY ticket_medio DESC LIMIT 20;
+JOIN analytics_v2.dim_fornecedores s USING (fornecedor_id)
+WHERE s.endereco_cidade IS NOT NULL
+GROUP BY s.endereco_cidade, s.nome ORDER BY receita DESC LIMIT 20;
 
--- Top fornecedores por produto (double aggregation)
+-- Top N fornecedores por estado
 WITH ranked AS (
-SELECT
-i.nome as produto,
-f2.nome as fornecedor,
-SUM(f.valor) as receita,
-ROW_NUMBER() OVER (PARTITION BY i.nome ORDER BY SUM(f.valor) DESC) as rn
-FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_fornecedores f2 USING (fornecedor_id)
-JOIN analytics_v2.dim_inventory i USING (inventory_id)
-GROUP BY i.nome, f2.nome
+  SELECT
+    s.endereco_uf AS estado,
+    s.nome AS fornecedor,
+    SUM(f.valor) AS receita,
+    SUM(SUM(f.valor)) OVER (PARTITION BY s.endereco_uf) AS estado_total,
+    ROW_NUMBER() OVER (PARTITION BY s.endereco_uf ORDER BY SUM(f.valor) DESC) AS rn
+  FROM analytics_v2.fato_transacoes f
+  JOIN analytics_v2.dim_fornecedores s USING (fornecedor_id)
+  GROUP BY s.endereco_uf, s.nome
 )
-SELECT produto, fornecedor, receita
-FROM ranked WHERE rn <= 3
-ORDER BY produto, rn LIMIT 60;
+SELECT estado, fornecedor, receita FROM ranked WHERE rn <= 3
+ORDER BY estado_total DESC, rn LIMIT 30;
 
--- Receita por tipo de transação
-SELECT t.descricao, t.categoria, SUM(f.valor) as receita
+-- Últimas transações
+SELECT f.transacao_id, d.data, s.nome AS fornecedor, f.valor, f.categoria
 FROM analytics_v2.fato_transacoes f
-JOIN analytics_v2.dim_tipo_transacao t USING (tipo_id)
-GROUP BY t.descricao, t.categoria
-ORDER BY receita DESC;
+JOIN analytics_v2.dim_datas d ON f.data_competencia_id = d.data_id
+JOIN analytics_v2.dim_fornecedores s USING (fornecedor_id)
+ORDER BY d.data DESC LIMIT 10;
 
 USER QUESTION: {{ query }}
 

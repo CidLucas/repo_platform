@@ -498,6 +498,12 @@ async def classify_intent_node(state: AgentState) -> dict[str, Any]:
 
     # Maps tool-registry tag → Portuguese trigger keywords
     _TAG_MAP: dict[str, list[str]] = {
+        # Scheduling / Monday guard — evaluated first in _DOMAIN_RULES
+        "scheduling": [
+            "monday", "board", "boards", "tarefa", "tarefas", "projetos", "projeto",
+            "agenda", "calendário", "calendario", "reunião", "reuniao", "disponibilidade",
+            "prazo", "deadline", "milestone", "sprint", "backlog",
+        ],
         "rfq":         ["cotação", "cotacao", "rfq", "fornecedor", "cotizar", "licitação", "licitacao"],
         "procurement": ["compra", "compras", "pedido de compra", "pedido", "orçamento", "orcamento"],
         "analytics":   [
@@ -526,6 +532,7 @@ async def classify_intent_node(state: AgentState) -> dict[str, Any]:
 
     # Maps sets of tags → coarse domain label (first match wins)
     _DOMAIN_RULES: list[tuple[frozenset[str], str]] = [
+        (frozenset({"scheduling"}), "scheduling"),   # Monday/agenda guard — must be first
         (frozenset({"rfq", "procurement"}), "rfq"),
         (frozenset({"analytics", "sql", "csv"}), "analytics"),
         (frozenset({"documents", "ocr"}), "documents"),

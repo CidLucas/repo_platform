@@ -10,7 +10,7 @@ import {
   createPaymentApproval,
 } from '../../api/approvals'
 import { fetchInsights, formatKpi } from '../../api/insights'
-import { fetchConnectedAccounts, fetchPolpAccounts, fetchPolpTransactions, fetchPolpBills, fetchCnpjEnrichments, type PolpBill, type PolpTransaction } from '../../api/financeiro'
+import { fetchConnectedAccounts, fetchPolpAccounts, fetchPolpTransactions, fetchPolpBills, type PolpBill, type PolpTransaction } from '../../api/financeiro'
 import { useTxCategories, useSaveTxCategory } from '../../hooks/usePreferences'
 import { getFinanceIndicators, getContextMetrics, type ContextMetricRow } from '../../api/analytics'
 import RColResizeHandle from '../../components/shared/RColResizeHandle'
@@ -57,15 +57,48 @@ const MCC_ICONS: Record<string, string> = {
   '4121': '🚗', '4511': '✈', '7011': '🏨', '5732': '💻',
   '7372': '💻', '4814': '📱', '7991': '🎭', '8099': '🏥',
 }
+const CATEGORY_ICON_MAP: Record<string, string> = {
+  // Material Icon name → emoji
+  'restaurant': '🍽', 'fastfood': '🍔', 'local_dining': '🍽',
+  'shopping_cart': '🛒', 'local_grocery_store': '🛒',
+  'local_pharmacy': '💊', 'medical_services': '🏥', 'health_and_safety': '🏥',
+  'directions_car': '🚗', 'local_taxi': '🚕', 'flight': '✈', 'directions_transit': '🚌',
+  'local_gas_station': '⛽', 'local_parking': '🅿',
+  'hotel': '🏨', 'house': '🏠', 'home': '🏠',
+  'devices': '💻', 'computer': '💻', 'phone_android': '📱', 'smartphone': '📱',
+  'sports_esports': '🎮', 'movie': '🎬', 'music_note': '🎵', 'theaters': '🎭',
+  'school': '🎓', 'book': '📚',
+  'account_balance': '🏦', 'savings': '💰', 'payments': '💳', 'credit_card': '💳',
+  'attach_money': '💰', 'trending_up': '📈', 'bar_chart': '📊',
+  'receipt': '🧾', 'receipt_long': '🧾',
+  'work': '💼', 'business': '🏢', 'store': '🏪',
+  'fitness_center': '🏋', 'spa': '💆',
+  'volunteer_activism': '🤝', 'handshake': '🤝',
+  'local_shipping': '📦', 'inventory': '📦',
+  'wifi': '📶', 'router': '📶',
+  'security': '🔒', 'gavel': '⚖',
+  'more_horiz': '•', 'category': '•',
+}
+
 function getTxIcon(tx: PolpTransaction): string {
-  const searchStr = `${tx.description ?? ''} ${tx.payment_data?.receiver?.name ?? ''}`.toLowerCase()
+  // 1. Usar category.icon do Polp se disponível
+  const cat = tx.category as Record<string, unknown> | null
+  if (cat?.icon && typeof cat.icon === 'string') {
+    const mapped = CATEGORY_ICON_MAP[cat.icon]
+    if (mapped) return mapped
+  }
+  // 2. Match por nome de serviço conhecido
+  const searchStr = `${tx.description ?? ''} ${tx.payment_data?.receiver?.name ?? ''} ${(tx.merchant as Record<string,unknown> | null)?.name ?? ''}`.toLowerCase()
   for (const [re, icon] of SERVICE_ICONS) {
     if (re.test(searchStr)) return icon
   }
+  // 3. Routing number → banco
   const routing = tx.payment_data?.receiver?.routingNumber ?? tx.payment_data?.payer?.routingNumber ?? ''
   if (routing && BANK_ICONS[routing]) return BANK_ICONS[routing]
+  // 4. MCC
   const mcc = tx.credit_card_metadata?.payeeMCC
   if (mcc && MCC_ICONS[mcc]) return MCC_ICONS[mcc]
+  // 5. Fallback direcional
   return tx.type === 'CREDIT' ? '↑' : '↓'
 }
 
@@ -156,26 +189,6 @@ export default function FinanceiroRoom() {
   })
 
   const polpTransactions = polpTxQ.data ?? []
-
-  // Extract unique CNPJs from transaction payment data, then enrich in one batch
-  const cnpjsFromTx = [...new Set(
-    polpTransactions.flatMap(tx => {
-      const pd = tx.payment_data
-      const docs = [pd?.receiver, pd?.payer]
-        .filter(p => p?.documentType === 'CNPJ' && p?.document)
-        .map(p => p!.document!.replace(/\D/g, ''))
-        .filter(d => d.length === 14)
-      return docs
-    })
-  )]
-  const { data: cnpjEnrichments } = useQueries({
-    queries: [{
-      queryKey: ['cnpj-enrichments', cnpjsFromTx.sort().join(',')],
-      queryFn: () => fetchCnpjEnrichments(cnpjsFromTx),
-      enabled: cnpjsFromTx.length > 0,
-      staleTime: 24 * 60 * 60_000, // logos don't change often
-    }],
-  })[0]
 
   const invalidateApprovals = () => qc.invalidateQueries({ queryKey: ['approvals'] })
 
@@ -466,14 +479,9 @@ export default function FinanceiroRoom() {
                 const pd = tx.payment_data
                 const pixReceiverName = pd?.paymentMethod === 'PIX' ? pd?.receiver?.name ?? null : null
                 const merchant = tx.merchant as Record<string, unknown> | null
-                const receiverCnpj = pd?.receiver?.documentType === 'CNPJ'
-                  ? pd?.receiver?.document?.replace(/\D/g, '') ?? null : null
-                const payerCnpj = pd?.payer?.documentType === 'CNPJ'
-                  ? pd?.payer?.document?.replace(/\D/g, '') ?? null : null
-                const cnpj = receiverCnpj ?? payerCnpj
-                const enrichment = cnpj ? cnpjEnrichments?.[cnpj] ?? null : null
-                const merchantLogo = enrichment?.logo_url ?? (merchant?.logo_url as string | null) ?? null
-                const label = pixReceiverName ?? enrichment?.brand ?? (merchant?.name as string | null) ?? tx.description ?? '—'
+                // Usar logo do merchant do Polp diretamente (CDN confiável)
+                const merchantLogo = (merchant?.logo_url as string | null) ?? null
+                const label = (merchant?.name as string | null) ?? pixReceiverName ?? tx.description ?? '—'
 
                 const MCC: Record<string, string> = {
                   '4121': 'Transporte', '4511': 'Passagens', '4814': 'Telecom',
@@ -483,9 +491,10 @@ export default function FinanceiroRoom() {
                 }
                 const ccm = tx.credit_card_metadata
                 const mccLabel = ccm?.payeeMCC ? MCC[ccm.payeeMCC] ?? null : null
-                const pluggyCat = tx.category ? (tx.category as Record<string,unknown>).description as string | undefined : undefined
+                const cat = tx.category as Record<string, unknown> | null
+                const pluggyCat = cat?.description as string | undefined
                 const fingerprint = getTxFingerprint(tx)
-                const categoryLabel = localCategories[fingerprint] ?? mccLabel ?? pluggyCat ?? null
+                const categoryLabel = localCategories[fingerprint] ?? pluggyCat ?? mccLabel ?? null
                 const isEditing = editingTxId === tx.id
 
                 const saveCategory = (val: string) => {

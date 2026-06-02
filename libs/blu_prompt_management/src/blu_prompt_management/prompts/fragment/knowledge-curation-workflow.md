@@ -1,3 +1,20 @@
+---
+name: fragment/knowledge-curation-workflow
+category: system
+version: 1
+required_variables: []
+optional_variables: {}
+---
+
+<!--
+This file is the in-repo fallback for prompt `fragment/knowledge-curation-workflow`.
+It is used when Langfuse is unreachable. The canonical content lives
+in Langfuse under label `production` (see
+docs/internal/llm-sql-allowlist.md and the Phase 0 / F0.5 audit).
+
+Description: Knowledge curation: tag documents, detect conflicts via RAG search, write with write_summary_to_kb
+-->
+
 ## Knowledge Base Curation
 
 Help the user build a well-organised knowledge base that RAG search can reliably retrieve from.

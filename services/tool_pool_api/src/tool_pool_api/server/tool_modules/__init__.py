@@ -81,6 +81,12 @@ def register_all_tools(mcp: FastMCP) -> dict:
         slack_module,  # noqa: F401
     )
 
+    # Optional chart module
+    try:
+        from . import chart_module  # noqa: F401
+    except Exception as e:
+        logger.warning(f"Chart module not available: {e}")
+
     # Optional Google module (integration)
     try:
         from . import google_module  # noqa: F401

@@ -239,6 +239,19 @@ class PromptLoader:
                 return None
 
             compiled_text, prompt_obj = result
+
+            # Guard: chat prompts compiled() returns list[dict] instead of str.
+            # Normalise to str so downstream code never gets a list.
+            if isinstance(compiled_text, list):
+                logger.warning(
+                    f"[PROMPT] '{name}' from Langfuse compiled to a list (type=chat?). "
+                    "Concatenating message contents. Recreate prompt as type=text in Langfuse."
+                )
+                compiled_text = "\n\n".join(
+                    m.get("content", "") if isinstance(m, dict) else str(m)
+                    for m in compiled_text
+                )
+
             actual_version = getattr(prompt_obj, "version", 1)
 
             return LoadedPrompt(

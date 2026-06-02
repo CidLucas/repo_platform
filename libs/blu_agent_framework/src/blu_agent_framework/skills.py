@@ -76,7 +76,7 @@ class SkillDefinition:
 
 
 # =============================================================================
-# Skill Registry — top-6 skills covering the main standalone-agent domains
+# Skill Registry
 # =============================================================================
 #
 # prompt_name follows the convention "skill:{name}:system"; those prompts are
@@ -86,191 +86,138 @@ class SkillDefinition:
 # required_tool_names must be a subset of the agent's own enabled_tools;
 # SkillFactory intersects them at runtime so an agent without CSV access cannot
 # accidentally run the analyze_csv skill.
+#
+# Naming conventions:
+#   Domain capabilities  → snake_case noun (sql_analytics, rag_search, analyze_csv)
+#   Routine narratives   → snake_case verb+noun (reconciliation_report, followup_draft)
+#   Platform actions     → snake_case noun (plataforma, monday, agenda)
+#   Google integrations  → google_workspace (full suite) or google_docs (docs only)
+#   KB management        → kb_management (was "documentos" — renamed to avoid
+#                          collision with the "documentos" agent slug)
 
 SKILL_REGISTRY: dict[str, SkillDefinition] = {
-    # ------------------------------------------------------------------
-    # CSV / Analytics
-    # ------------------------------------------------------------------
-    "analyze_csv": SkillDefinition(
-        name="analyze_csv",
-        description=(
-            "Execute SQL queries on uploaded CSV datasets and return "
-            "structured results (tables, aggregates, trends)."
-        ),
-        required_tool_names=[
-            "peek_csv_columns",
-        ],
-        prompt_name="skill:analyze_csv:system",
-        max_turns=5,
-        on_max_turns="return_partial",
-        tags=["analytics", "csv", "sql"],
-    ),
-    # ------------------------------------------------------------------
-    # RAG / Knowledge
-    # ------------------------------------------------------------------
-    "rag_search": SkillDefinition(
-        name="rag_search",
-        description=(
-            "Search the client knowledge base via vector similarity and "
-            "synthesise an answer from the retrieved passages."
-        ),
-        required_tool_names=["executar_rag_cliente"],
-        prompt_name="skill:rag_search:system",
-        max_turns=3,
-        on_max_turns="return_partial",
-        tags=["rag", "knowledge-base", "search"],
-    ),
-    # ------------------------------------------------------------------
-    # Document Intelligence / OCR
-    # ------------------------------------------------------------------
-    "extract_document": SkillDefinition(
-        name="extract_document",
-        description=(
-            "Extract text, tables, and structured fields from uploaded documents "
-            "using OCR; optionally summarise sections."
-        ),
-        required_tool_names=[
-            "extract_document_with_ocr",
-            "summarize_document_sections",
-            "extract_structured_data",
-        ],
-        prompt_name="skill:extract_document:system",
-        max_turns=4,
-        on_max_turns="return_partial",
-        tags=["ocr", "documents", "extraction"],
-    ),
-    # ------------------------------------------------------------------
-    # Knowledge-base persistence
-    # ------------------------------------------------------------------
-    "write_to_kb": SkillDefinition(
-        name="write_to_kb",
-        description=(
-            "Save an analysis result, extracted data, or summary to the client "
-            "knowledge base for future retrieval."
-        ),
-        required_tool_names=["write_summary_to_kb"],
-        prompt_name="skill:write_to_kb:system",
-        max_turns=2,
-        on_max_turns="return_partial",
-        tags=["knowledge-base", "persistence", "documents"],
-    ),
+
     # ==========================================================================
-    # L3 Routine Skills — narrative generation for automated routines
-    # These skills are called by the routine engine (step type "skill") and are
-    # agent-agnostic: any agent can include them via its skill_slugs config.
+    # Core capabilities — high-reuse primitives
+    # These appear on many agents. Consider them "base capabilities" rather than
+    # specialist skills; they are explicit here so required_tool_names is
+    # always the source of truth for tool resolution.
     # ==========================================================================
 
-    # ------------------------------------------------------------------
-    # Morning Chain
-    # ------------------------------------------------------------------
-    "morning_plan": SkillDefinition(
-        name="morning_plan",
-        description=(
-            "Generate a prioritised daily plan narrative from KPIs, calendar agenda, "
-            "pending approvals, and integration alerts. Used by the morning_sync routine."
-        ),
-        required_tool_names=[],  # receives pre-fetched context from routine engine
-        prompt_name="skill:morning_plan:system",
-        max_turns=2,
-        on_max_turns="return_partial",
-        tags=["routines", "morning", "planning", "narrative"],
-    ),
-    "end_of_day_digest": SkillDefinition(
-        name="end_of_day_digest",
-        description=(
-            "Summarise the day's events, completed tasks, and open items into a "
-            "concise end-of-day digest. Used by the end_of_day_digest routine."
-        ),
-        required_tool_names=[],
-        prompt_name="skill:end_of_day_digest:system",
-        max_turns=2,
-        on_max_turns="return_partial",
-        tags=["routines", "digest", "narrative", "eod"],
-    ),
-    "weekly_summary": SkillDefinition(
-        name="weekly_summary",
-        description=(
-            "Generate a weekly performance summary with highlights, KPI trends, "
-            "and recommended focus areas for the following week."
-        ),
-        required_tool_names=[],
-        prompt_name="skill:weekly_summary:system",
-        max_turns=2,
-        on_max_turns="return_partial",
-        tags=["routines", "weekly", "summary", "narrative"],
-    ),
-
-    # ------------------------------------------------------------------
-    # Financeiro
-    # ------------------------------------------------------------------
     "reconciliation_report": SkillDefinition(
         name="reconciliation_report",
         description=(
             "Generate a monthly cash reconciliation narrative: spot anomalies in "
             "categories, highlight top merchants, and flag discrepancies."
         ),
-        required_tool_names=[],
+        required_tool_names=[],  # pure narrative — context pre-injected by routine engine
         prompt_name="skill:reconciliation_report:system",
         max_turns=3,
         on_max_turns="return_partial",
         tags=["routines", "finance", "reconciliation", "narrative"],
     ),
 
-    # ------------------------------------------------------------------
-    # Clientes
-    # ------------------------------------------------------------------
-    "collection_messages": SkillDefinition(
-        name="collection_messages",
+    "register_transaction": SkillDefinition(
+        name="register_transaction",
         description=(
-            "Draft personalised collection messages for overdue customers, adapting "
-            "tone by days overdue (friendly / firm / urgent)."
+            "Register financial transactions from natural language: sales, purchases, "
+            "expenses, and receipts. Extracts structured fields and persists to the "
+            "client's financial ledger."
         ),
-        required_tool_names=[],
-        prompt_name="skill:collection_messages:system",
-        max_turns=2,
-        on_max_turns="return_partial",
-        tags=["routines", "clients", "collection", "messages"],
+        required_tool_names=["register_transaction"],
+        prompt_name="skill:register_transaction:system",
+        max_turns=3,
+        on_max_turns="raise",
+        tags=["finance", "transactions", "data-entry", "ledger"],
     ),
+
+    # ==========================================================================
+    # Domain — CRM & Clientes
+    # ==========================================================================
+
+
     "followup_draft": SkillDefinition(
         name="followup_draft",
         description=(
             "Write a post-sale follow-up message for a specific customer, optionally "
             "including cross-sell suggestions based on purchase history."
         ),
-        required_tool_names=[],
+        required_tool_names=["execute_sql", "search_knowledge_base"],  # draft only — sending via communication skill
         prompt_name="skill:followup_draft:system",
         max_turns=2,
         on_max_turns="return_partial",
         tags=["routines", "clients", "followup", "sales"],
     ),
+
+    "collection_messages": SkillDefinition(
+        name="collection_messages",
+        description=(
+            "Draft personalised collection messages for overdue customers, adapting "
+            "tone by days overdue (friendly / firm / urgent)."
+        ),
+        required_tool_names=["execute_sql", "search_knowledge_base"],  # draft only — sending via communication skill
+        prompt_name="skill:collection_messages:system",
+        max_turns=2,
+        on_max_turns="return_partial",
+        tags=["routines", "clients", "collection", "messages"],
+    ),
+
     "reactivation_proposal": SkillDefinition(
         name="reactivation_proposal",
         description=(
             "Compose a contextualised reactivation proposal for an inactive customer, "
             "referencing their purchase history and optionally including a special offer."
         ),
-        required_tool_names=[],
+        required_tool_names=["execute_sql", "search_knowledge_base"],  # draft only — sending via communication skill
         prompt_name="skill:reactivation_proposal:system",
         max_turns=2,
         on_max_turns="return_partial",
         tags=["routines", "clients", "reactivation", "retention"],
     ),
+
     "satisfaction_survey": SkillDefinition(
         name="satisfaction_survey",
         description=(
             "Generate a personalised post-delivery satisfaction survey message, "
             "adapted to the customer's profile and recent purchase."
         ),
-        required_tool_names=[],
+        required_tool_names=["execute_sql", "search_knowledge_base"],  # draft only — sending via communication skill
         prompt_name="skill:satisfaction_survey:system",
         max_turns=2,
         on_max_turns="return_partial",
         tags=["routines", "clients", "nps", "satisfaction"],
     ),
 
-    # ------------------------------------------------------------------
-    # Agenda / Reuniões
-    # ------------------------------------------------------------------
+    # crm_ops removida — era skill:*:system eliminada. Capacidades de CRM distribuídas
+    # nos agentes: frontdesk (relacionamento), financeiro (cobrança), strategy (segmentação).
+    # churn_risk_analysis e nps_response_drafter: não implementar por ora (decisão Jun/2026).
+
+    # ==========================================================================
+    # Domain — Compras / Fornecedores
+    # ==========================================================================
+
+
+    "monday": SkillDefinition(
+        name="monday",
+        description=(
+            "Read, create, and update Monday.com boards and items: "
+            "list boards/items, update status and dates, retrieve comments, summarize board state."
+        ),
+        required_tool_names=[
+            "monday_list_boards",
+            "monday_list_items",
+            "monday_create_item",
+            "monday_update_item_status",
+            "monday_get_board_summary",
+            "monday_get_item_updates",
+            "monday_summarize_board",
+        ],
+        prompt_name="skill:monday:system",
+        max_turns=5,
+        on_max_turns="raise",
+        tags=["monday", "tasks", "project-management"],
+    ),
+
     "meeting_brief": SkillDefinition(
         name="meeting_brief",
         description=(
@@ -284,85 +231,10 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
         tags=["routines", "agenda", "scheduling", "meeting", "briefing"],
     ),
 
-    # ------------------------------------------------------------------
-    # Estratégia
-    # ------------------------------------------------------------------
-    "hidden_patterns": SkillDefinition(
-        name="hidden_patterns",
-        description=(
-            "Analyse sales time-series and KPIs to identify anomalies, seasonality, "
-            "unexpected peaks/drops, and generate an explanatory narrative with recommendations."
-        ),
-        required_tool_names=[],
-        prompt_name="skill:hidden_patterns:system",
-        max_turns=3,
-        on_max_turns="return_partial",
-        tags=["routines", "strategy", "analytics", "patterns"],
-    ),
-    "competitor_analysis": SkillDefinition(
-        name="competitor_analysis",
-        description=(
-            "Produce a competitive analysis comparing the client's performance against "
-            "scraped competitor content: positioning, gaps, opportunities, and threats."
-        ),
-        required_tool_names=[],
-        prompt_name="skill:competitor_analysis:system",
-        max_turns=4,
-        on_max_turns="return_partial",
-        tags=["routines", "strategy", "competitive", "analysis"],
-    ),
+    # ==========================================================================
+    # Domain — Estratégia & Síntese
+    # ==========================================================================
 
-    # ------------------------------------------------------------------
-    # Monitor skills — domain-scoped health snapshots for monitor routines
-    # ------------------------------------------------------------------
-    "finance_monitor_report": SkillDefinition(
-        name="finance_monitor_report",
-        description=(
-            "Generate a financial health snapshot: revenue vs target, top cost centres, "
-            "cash-flow alerts, and recommended actions. Used by financeiro_monitor routine."
-        ),
-        required_tool_names=[],
-        prompt_name="skill:finance_monitor_report:system",
-        max_turns=3,
-        on_max_turns="return_partial",
-        tags=["routines", "finance", "monitor", "report", "alert"],
-    ),
-    "clients_monitor_report": SkillDefinition(
-        name="clients_monitor_report",
-        description=(
-            "Generate a client health snapshot: active vs churned clients, overdue accounts, "
-            "NPS signals, and priority engagement actions. Used by clientes_monitor routine."
-        ),
-        required_tool_names=[],
-        prompt_name="skill:clients_monitor_report:system",
-        max_turns=3,
-        on_max_turns="return_partial",
-        tags=["routines", "clients", "monitor", "report", "alert"],
-    ),
-    "agenda_monitor_report": SkillDefinition(
-        name="agenda_monitor_report",
-        description=(
-            "Generate an agenda health snapshot: overdue follow-ups, upcoming meetings, "
-            "client contact gaps, and priority scheduling actions. Used by agenda_monitor routine."
-        ),
-        required_tool_names=[],
-        prompt_name="skill:agenda_monitor_report:system",
-        max_turns=3,
-        on_max_turns="return_partial",
-        tags=["routines", "agenda", "scheduling", "monitor", "report", "alert"],
-    ),
-    "inventory_digest": SkillDefinition(
-        name="inventory_digest",
-        description=(
-            "Generate a procurement and inventory digest: low-stock alerts, supplier delays, "
-            "purchase order status, and cost anomalies. Used by compras_monitor routine."
-        ),
-        required_tool_names=[],
-        prompt_name="skill:inventory_digest:system",
-        max_turns=3,
-        on_max_turns="return_partial",
-        tags=["routines", "procurement", "monitor", "report", "alert"],
-    ),
     "insights_synthesis": SkillDefinition(
         name="insights_synthesis",
         description=(
@@ -376,142 +248,261 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
         tags=["routines", "synthesis", "strategy", "analysis", "narrative"],
     ),
 
+    "hidden_patterns": SkillDefinition(
+        name="hidden_patterns",
+        description=(
+            "Analyse sales time-series and KPIs to identify anomalies, seasonality, "
+            "unexpected peaks/drops, and generate an explanatory narrative with recommendations."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:hidden_patterns:system",
+        max_turns=3,
+        on_max_turns="return_partial",
+        tags=["routines", "strategy", "analytics", "patterns"],
+    ),
+
+    "strategy_analysis": SkillDefinition(
+        name="strategy_analysis",
+        description=(
+            "Deep cross-domain strategic analysis: parallel fanout across Financial, CRM, "
+            "Purchasing, and Operations domains, then synthesises patterns and produces "
+            "Top 3 prioritised initiatives each with a target KPI, timeline, and risk."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:strategy_analysis:system",
+        max_turns=6,
+        on_max_turns="return_partial",
+        tags=["strategy", "analysis", "cross-domain", "initiatives"],
+    ),
+
+    "competitor_analysis": SkillDefinition(
+        name="competitor_analysis",
+        description=(
+            "Produce a competitive analysis comparing the client's performance against "
+            "scraped competitor content: positioning, gaps, opportunities, and threats."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:competitor_analysis:system",
+        max_turns=4,
+        on_max_turns="return_partial",
+        tags=["routines", "strategy", "competitive", "analysis"],
+    ),
+
     # ==========================================================================
-    # L3 Domain Skills — specialist agents (have real required_tool_names)
-    # Each skill defines exactly the tools it needs; SkillFactory intersects
-    # with the agent's enabled_tools at runtime.
+    # Domain — Platform / Rotinas
     # ==========================================================================
 
+
+    "fiscal": SkillDefinition(
+        name="fiscal",
+        description=(
+            "Issue NF-e/NFS-e invoices, validate fiscal data, and check SEFAZ integration status — raises on incomplete data."
+        ),
+        required_tool_names=[
+            "executar_rag_cliente",
+            "fiscal_preparar_dados_nfe",
+            "fiscal_status_integracao",
+            "execute_sql",
+            "whatsapp_enviar_mensagem",
+        ],
+        prompt_name="skill:fiscal:system",
+        max_turns=4,
+        on_max_turns="raise",
+        tags=["fiscal", "nfe", "nfse", "tax", "sefaz"],
+    ),
+
+    # ==========================================================================
+    # Routine Narratives — pure-LLM narrative skills (no tools needed)
+    # Called DIRECTLY by the routine engine (step type "skill") — NOT via
+    # skill dispatch from an agent. Context is pre-injected by the engine;
+    # required_tool_names is intentionally empty.
+    # These skills do NOT appear in any agent's skill_slugs.
+    # ==========================================================================
+
+    "morning_plan": SkillDefinition(
+        name="morning_plan",
+        description=(
+            "Generate a prioritised daily plan narrative from KPIs, calendar agenda, "
+            "pending approvals, and integration alerts. Used by the morning_sync routine."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:morning_plan:system",
+        max_turns=2,
+        on_max_turns="return_partial",
+        tags=["routines", "morning", "planning", "narrative"],
+    ),
+
+    "end_of_day_digest": SkillDefinition(
+        name="end_of_day_digest",
+        description=(
+            "Summarise the day's events, completed tasks, and open items into a "
+            "concise end-of-day digest. Used by the end_of_day_digest routine."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:end_of_day_digest:system",
+        max_turns=2,
+        on_max_turns="return_partial",
+        tags=["routines", "digest", "narrative", "eod"],
+    ),
+
+    "weekly_summary": SkillDefinition(
+        name="weekly_summary",
+        description=(
+            "Generate a weekly performance summary with highlights, KPI trends, "
+            "and recommended focus areas for the following week."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:weekly_summary:system",
+        max_turns=2,
+        on_max_turns="return_partial",
+        tags=["routines", "weekly", "summary", "narrative"],
+    ),
+
+    "finance_monitor_report": SkillDefinition(
+        name="finance_monitor_report",
+        description=(
+            "Generate a financial health snapshot: revenue vs target, top cost centres, "
+            "cash-flow alerts, and recommended actions. Used by financeiro_monitor routine."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:finance_monitor_report:system",
+        max_turns=3,
+        on_max_turns="return_partial",
+        tags=["routines", "finance", "monitor", "report", "alert"],
+    ),
+
+    "clients_monitor_report": SkillDefinition(
+        name="clients_monitor_report",
+        description=(
+            "Generate a client health snapshot: active vs churned clients, overdue accounts, "
+            "NPS signals, and priority engagement actions. Used by clientes_monitor routine."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:clients_monitor_report:system",
+        max_turns=3,
+        on_max_turns="return_partial",
+        tags=["routines", "clients", "monitor", "report", "alert"],
+    ),
+
+    "agenda_monitor_report": SkillDefinition(
+        name="agenda_monitor_report",
+        description=(
+            "Generate an agenda health snapshot: overdue follow-ups, upcoming meetings, "
+            "client contact gaps, and priority scheduling actions. Used by agenda_monitor routine."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:agenda_monitor_report:system",
+        max_turns=3,
+        on_max_turns="return_partial",
+        tags=["routines", "agenda", "scheduling", "monitor", "report", "alert"],
+    ),
+
+    "inventory_digest": SkillDefinition(
+        name="inventory_digest",
+        description=(
+            "Synthesise procurement and inventory data into a structured digest: "
+            "low-stock alerts, supplier delays, PO status, and cost anomalies (compras_monitor routine)."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:inventory_digest:system",
+        max_turns=3,
+        on_max_turns="return_partial",
+        tags=["routines", "procurement", "monitor", "report", "alert"],
+    ),
+
+    # ==========================================================================
+    # v3 CORE — shared transversal skills
+    # Added 2026-06-01. These replace the scattered v2 slugs across agents.
+    # See docs/AGENT_SYSTEM_PANORAMA.md for architecture decisions D1-D12.
+    # ==========================================================================
+
+    # D12: RAG + catalog unified here. execute_sql added via sql_analytics.
+    "data_access": SkillDefinition(
+        name="data_access",
+        description=(
+            "Transversal read layer: semantic KB search (RAG) and data catalog lookup. "
+            "Available to almost all agents. SQL access via sql_analytics."
+        ),
+        required_tool_names=["search_knowledge_base", "executar_rag_cliente", "query_data_catalog"],
+        prompt_name="skill:data_access:system",
+        max_turns=4,
+        on_max_turns="return_partial",
+        tags=["rag", "knowledge-base", "search", "catalog"],
+    ),
+
+    # D3: register_transaction — data-entry ONLY. on_max_turns=raise (transactional).
+    "ledger": SkillDefinition(
+        name="ledger",
+        description=(
+            "Transactional write layer. Persists operational transactions (sales, purchases, "
+            "expenses, events) via register_transaction. Used exclusively by data-entry."
+        ),
+        required_tool_names=["register_transaction", "execute_sql", "executar_rag_cliente", "query_data_catalog", "peek_csv_columns"],
+        prompt_name="skill:ledger:system",
+        max_turns=3,
+        on_max_turns="raise",
+        tags=["finance", "transactions", "data-entry", "ledger", "write"],
+    ),
+
+    # D7: KB write separated from ingest. context-gatherer + doc-writer only.
+    "knowledge_base_write": SkillDefinition(
+        name="knowledge_base_write",
+        description=(
+            "Write structured context to the client knowledge base: persist summaries, "
+            "update context documents, check KB coverage status."
+        ),
+        required_tool_names=["executar_rag_cliente", "write_summary_to_kb", "get_knowledge_status", "update_context_document"],
+        prompt_name="skill:knowledge_base_write:system",
+        max_turns=3,
+        on_max_turns="raise",
+        tags=["knowledge-base", "persistence", "write", "documents"],
+    ),
+
+    # D1: execute_sql absorbs executar_sql_agent (mode=direct|agent).
+    # executar_sql_agent kept in ToolRegistry for backward compat but not used here.
     "sql_analytics": SkillDefinition(
         name="sql_analytics",
         description=(
             "Execute SQL queries on structured business data: sales, revenue, stock, "
-            "clients, expenses, suppliers. Returns tables, aggregates, and trends."
+            "clients, expenses, suppliers. Single tool: execute_sql (mode=direct|agent)."
         ),
-        required_tool_names=["execute_sql", "executar_sql_agent"],
+        required_tool_names=["execute_sql"],
         prompt_name="skill:sql_analytics:system",
         max_turns=5,
         on_max_turns="return_partial",
         tags=["sql", "analytics", "finance", "sales", "inventory", "clients"],
     ),
 
-    "fornecedores": SkillDefinition(
-        name="fornecedores",
+    "analytics_charts": SkillDefinition(
+        name="analytics_charts",
         description=(
-            "Manage suppliers: list, add, update, remove. Dispatch RFQs, check responses, "
-            "parse buying lists, validate allocation, generate POs, approve orders."
+            "Generate self-contained HTML charts (bar, line, pie, doughnut) from "
+            "structured data using Chart.js."
         ),
-        required_tool_names=[
-            "list_suppliers",
-            "add_supplier",
-            "update_supplier",
-            "remove_supplier",
-            "dispatch_rfq",
-            "check_rfq_responses",
-            "parse_buying_list",
-            "validate_buying_list",
-            "optimize_allocation",
-            "generate_po_report",
-            "create_purchase_order",
-            "approve_purchase_order",
-            "suggest_counter_offer",
-        ],
-        prompt_name="skill:fornecedores:system",
-        max_turns=6,
+        required_tool_names=["generate_chart_html"],
+        prompt_name="skill:analytics_charts:system",
+        max_turns=3,
         on_max_turns="return_partial",
-        tags=["suppliers", "procurement", "rfq", "purchases", "purchase-order"],
+        tags=["chart", "visualization", "html", "reports", "analytics"],
     ),
 
-    "financeiro": SkillDefinition(
-        name="financeiro",
-        description=(
-            "Register financial transactions and analyse cash flow, revenue, expenses, "
-            "and anomalies. Handles both data entry and financial analytics."
-        ),
-        required_tool_names=["register_transaction", "execute_sql"],
-        prompt_name="skill:financeiro:system",
-        max_turns=5,
+    "csv_analytics": SkillDefinition(
+        name="csv_analytics",
+        description="Inspect CSV/tabular file columns before import, analysis, or mapping.",
+        required_tool_names=["peek_csv_columns"],
+        prompt_name="skill:csv_analytics:system",
+        max_turns=2,
         on_max_turns="return_partial",
-        tags=["finance", "cashflow", "revenue", "expenses", "transactions"],
+        tags=["csv", "analytics", "import", "parsing"],
     ),
 
-    "agenda": SkillDefinition(
-        name="agenda",
-        description=(
-            "Schedule planning, follow-ups, and calendar queries. "
-            "Query and import calendar data from Google Calendar and spreadsheets."
-        ),
-        required_tool_names=["query_calendar", "import_spreadsheet_schedule"],
-        prompt_name="skill:agenda:system",
-        max_turns=4,
-        on_max_turns="return_partial",
-        tags=["scheduling", "calendar", "follow-up", "agenda"],
-    ),
+    # ==========================================================================
+    # v3 DOMAIN — per-agent specialised skills
+    # ==========================================================================
 
-    "monday": SkillDefinition(
-        name="monday",
-        description=(
-            "Manage Monday.com boards: list boards, list and create items, "
-            "update status, retrieve updates, summarize board state."
-        ),
-        required_tool_names=[
-            "monday_list_boards",
-            "monday_list_items",
-            "monday_create_item",
-            "monday_update_item_status",
-            "monday_get_board_summary",
-            "monday_get_item_updates",
-            "monday_summarize_board",
-        ],
-        prompt_name="skill:monday:system",
-        max_turns=5,
-        on_max_turns="return_partial",
-        tags=["monday", "tasks", "project-management"],
-    ),
-
-    "google_workspace": SkillDefinition(
-        name="google_workspace",
-        description=(
-            "Read and write Google Workspace: Sheets (read/write/export/create), "
-            "Docs (create/read/write/list), Calendar (query), and Gmail (read emails)."
-        ),
-        required_tool_names=[
-            "query_calendar",
-            "write_to_sheet",
-            "read_emails",
-            "list_spreadsheets",
-            "export_to_sheet",
-            "create_spreadsheet_with_data",
-            "google_docs_create",
-            "google_docs_read",
-            "google_docs_write",
-            "google_docs_list",
-        ],
-        prompt_name="skill:google_workspace:system",
-        max_turns=5,
-        on_max_turns="return_partial",
-        tags=["google", "sheets", "docs", "calendar", "email", "workspace"],
-    ),
-
-    "crm": SkillDefinition(
-        name="crm",
-        description=(
-            "Client analytics: LTV, churn prediction, cohort analysis, segmentation, "
-            "re-engagement, reactivation proposals. Read-only SQL + KB search."
-        ),
-        required_tool_names=["execute_sql", "executar_rag_cliente"],
-        prompt_name="skill:crm:system",
-        max_turns=5,
-        on_max_turns="return_partial",
-        tags=["crm", "clients", "churn", "ltv", "segmentation", "reengagement"],
-    ),
-
-    "plataforma": SkillDefinition(
-        name="plataforma",
-        description=(
-            "Create and manage automated routines, business goals, and platform "
-            "configurations via natural language. List, create, approve routines and goals."
-        ),
+    "platform_ops": SkillDefinition(
+        name="platform_ops",
+        description="Configure automated routines and business goals by eliciting intent, presenting a plain-language plan, and executing only after explicit user confirmation.",
         required_tool_names=[
             "criar_rotina",
             "listar_rotinas_catalogo",
@@ -520,48 +511,125 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
             "enviar_rotina_para_aprovacao",
             "definir_meta",
             "listar_metas",
+            "executar_rag_cliente",
         ],
         prompt_name="skill:plataforma:system",
-        max_turns=5,
-        on_max_turns="return_partial",
+        max_turns=6,
+        on_max_turns="raise",
         tags=["platform", "routines", "goals", "config", "automation"],
     ),
 
-    "documentos": SkillDefinition(
-        name="documentos",
+    # D5: parse_business_reply absorbs parse_supplier_reply.
+    "communication": SkillDefinition(
+        name="communication",
         description=(
-            "Search, extract, OCR, summarise, and persist documents. "
-            "Handles PDFs, scanned docs, structured data extraction, and KB persistence."
+            "Draft, review, and send outbound WhatsApp and email messages to clients or suppliers; "
+            "parse inbound replies (RFQ, NPS, payment) and extract structured data."
         ),
         required_tool_names=[
-            "executar_rag_cliente",
+            "send_whatsapp_message",
+            "send_whatsapp_batch",
+            "check_whatsapp_replies",
+            "send_email",
+            "read_emails",
+            "parse_business_reply",
+        ],
+        prompt_name="skill:communication:system",
+        max_turns=4,
+        on_max_turns="raise",
+        tags=["whatsapp", "email", "communication", "outreach", "rfq"],
+    ),
+
+    # D6: calendar separated from document_io.
+    "calendar": SkillDefinition(
+        name="calendar",
+        description=(
+            "Google Calendar integration: query events, write/update events, "
+            "import schedule from Google Sheets."
+        ),
+        required_tool_names=[
+            "query_calendar",
+            "google_calendar_write",
+            "import_spreadsheet_schedule",
+        ],
+        prompt_name="skill:calendar:system",
+        max_turns=4,
+        on_max_turns="raise",  # transactional: writes calendar events
+        tags=["calendar", "google", "scheduling", "events"],
+    ),
+
+    # D6: google_docs + google_workspace merged. query_calendar excluded (→ calendar).
+    "document_io": SkillDefinition(
+        name="document_io",
+        description=(
+            "Create, read, write, export, and list Google Docs and Sheets: "
+            "primary output channel for doc-writer (external/signed documents and data exports)."
+        ),
+        required_tool_names=[
+            "google_docs_create", "google_docs_read",
+            "google_docs_update", "google_docs_list",
+            "write_to_sheet", "list_spreadsheets",
+            "export_to_sheet", "create_spreadsheet_with_data",
+        ],
+        prompt_name="skill:document_io:system",
+        max_turns=5,
+        on_max_turns="raise",  # transactional: google_docs_create creates external resource
+        tags=["google", "sheets", "docs", "reports", "documents", "export"],
+    ),
+
+    # D7: ingest pipeline separated from KB write.
+    "document_curation": SkillDefinition(
+        name="document_curation",
+        description=(
+            "Document ingestion pipeline: OCR extraction, section summarisation, "
+            "structured data extraction, time-series compilation."
+        ),
+        required_tool_names=[
             "extract_document_with_ocr",
             "summarize_document_sections",
             "extract_structured_data",
             "compile_time_series",
-            "write_summary_to_kb",
         ],
-        prompt_name="skill:documentos:system",
+        prompt_name="skill:document_curation:system",
         max_turns=5,
-        on_max_turns="return_partial",
-        tags=["documents", "ocr", "knowledge-base", "extraction", "summarization"],
+        on_max_turns="raise",  # transactional pipeline: partial ingest leaves KB inconsistent
+        tags=["documents", "ocr", "extraction", "summarization", "ingest"],
     ),
 
-    "fiscal": SkillDefinition(
-        name="fiscal",
+    "onboarding": SkillDefinition(
+        name="onboarding",
         description=(
-            "NF-e / NFS-e issuance, fiscal data validation, and SEFAZ integration. "
-            "Transactional: raises on incomplete data rather than returning partial output."
+            "Initial context collection: check config completeness, save config fields, "
+            "map data sources, suggest and confirm column mappings."
         ),
         required_tool_names=[
-            "fiscal_preparar_dados_nfe",
-            "fiscal_status_integracao",
-            "executar_rag_cliente",
-            "execute_sql",
+            "check_config_completeness",
+            "save_config_field",
+            "get_agent_requirements",
+            "finalize_config",
+            "list_data_sources",
+            "suggest_column_mapping",
+            "update_schema_mapping",
+            "peek_csv_columns",
         ],
-        prompt_name="skill:fiscal:system",
-        max_turns=4,
+        prompt_name="skill:onboarding:system",
+        max_turns=6,
         on_max_turns="raise",
-        tags=["fiscal", "nfe", "nfse", "tax", "sefaz"],
+        tags=["onboarding", "schema", "mapping", "config", "context"],
     ),
+
+    "notion": SkillDefinition(
+        name="notion",
+        description="Create, read, update, search, and manage Notion pages and databases as internal knowledge base and wiki.",
+        required_tool_names=[
+            "notion_search", "notion_read_page", "notion_query_database",
+            "notion_list_databases", "notion_list_pages", "notion_create_page",
+            "notion_update_page", "notion_append_blocks", "notion_delete_block",
+        ],
+        prompt_name="skill:notion:system",
+        max_turns=5,
+        on_max_turns="raise",  # transactional: creates/updates external Notion pages
+        tags=["notion", "documents", "knowledge-base", "writing"],
+    ),
+
 }

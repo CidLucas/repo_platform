@@ -152,6 +152,28 @@ verify_jwt = false
 [functions.save-api-token]
 verify_jwt = false
 
+# ── Backend-only: system invocation guard (verify_jwt=false + service_role check) ──
+
+# etl-refresh-dashboards: dashboard materialized-view refresh worker.
+# Invoked by analytics_v2.process_pending_jobs (pg_net) via service_role Bearer.
+# Auth guard: isSystemInvocation() in _shared/blu_auth + admin.auth.getUser fallback.
+# verify_jwt=false because Supabase edge layer only validates HS256; the function
+# validates the Bearer token internally against SUPABASE_SERVICE_ROLE_KEY.
+[functions.etl-refresh-dashboards]
+verify_jwt = false
+
+# generate-context-report: builds AI context report for a tenant.
+# Invoked server-to-server with service_role Bearer token.
+# Auth guard: authHeader.includes(SUPABASE_SERVICE_ROLE_KEY) at function entry.
+[functions.generate-context-report]
+verify_jwt = false
+
+# website-context-builder: scrapes and stores website context during onboarding.
+# Called by onboarding flow with service_role Bearer.
+# Auth guard: service_role key check at function entry (index.ts L211-212).
+[functions.website-context-builder]
+verify_jwt = false
+
 # ── User-facing: edge-layer validation (verify_jwt=true) ─────────────────────
 
 # polp-connect: initiates Polp/Pluggy Open Finance connection — edge validates

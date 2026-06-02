@@ -540,7 +540,7 @@ async def _executar_sql_agent_logic(
     real_client_id = blu_context.id
     logger.info(f"[SQL] Executando para {real_client_id}...")
 
-    if not is_tool_accessible_by_tier("executar_sql_agent", blu_context):
+    if not is_tool_accessible_by_tier("execute_sql", blu_context):
         logger.warning(f"[SQL] Ferramenta desabilitada para {real_client_id}.")
         raise ToolError("Ferramenta SQL não está habilitada para este cliente.")
 
@@ -875,10 +875,8 @@ async def _execute_sql_logic(
 
     # 3. Tool access validation
     if not is_tool_accessible_by_tier("execute_sql", blu_context):
-        # Fallback: check if executar_sql_agent is enabled (same tier)
-        if not is_tool_accessible_by_tier("executar_sql_agent", blu_context):
-            logger.warning(f"[execute_sql] Tool disabled for {real_client_id}")
-            raise ToolError("SQL tools are not enabled for this client.")
+        logger.warning(f"[execute_sql] Tool disabled for {real_client_id}")
+        raise ToolError("SQL tools are not enabled for this client.")
 
     # 4. SQL Validation (NO LLM - just validation)
     sql_clean = sql.strip()
@@ -917,6 +915,23 @@ async def _execute_sql_logic(
                 "sql": sql_clean,
                 "success": False,
             }
+
+    # Reject dangerous month arithmetic anti-pattern before schema validation.
+    # EXTRACT(MONTH FROM CURRENT_DATE) - 1 returns 0 in January (invalid month in dim_datas).
+    # Correct pattern: EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month')
+    import re as _re
+    _bad_month = _re.search(
+        r"EXTRACT\s*\(\s*MONTH\s+FROM\s+CURRENT_DATE\s*\)\s*[+-]\s*\d",
+        sql_clean, _re.IGNORECASE
+    )
+    if _bad_month:
+        _hint = (
+            "Error: Invalid month arithmetic. "
+            "Use EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL '1 month') for previous month, "
+            "NOT EXTRACT(MONTH FROM CURRENT_DATE) - 1 (returns 0 in January, which is invalid)."
+        )
+        logger.error(f"[execute_sql] Bad month arithmetic rejected: {sql_clean[:200]}")
+        return {"output": _hint, "sql": sql_clean, "success": False}
 
     # Production schema validation
     is_valid, error_msg = _validate_sql_for_production_schema(sql_clean)
@@ -1027,43 +1042,82 @@ async def _execute_sql_logic(
 # =============================================================================
 
 
+async def _execute_sql_unified_logic(
+    input: str,
+    ctx: Context,
+    mode: str = "agent",
+    client_id: str | None = None,
+) -> dict:
+    """
+    Unified SQL execution logic (D1 — v3 architecture).
+
+    Routes to the appropriate backend based on `mode`:
+    - "agent"  → _executar_sql_agent_logic: NL query → LLM generates SQL → execute
+    - "direct" → _execute_sql_logic: pre-generated SQL → validate → execute
+
+    Args:
+        input:     Natural language question (mode=agent) OR SQL query (mode=direct)
+        mode:      "agent" (default) | "direct"
+        ctx:       MCP context
+        client_id: Injected by middleware
+    """
+    if mode == "direct":
+        return await _execute_sql_logic(sql=input, ctx=ctx, client_id=client_id)
+    else:
+        # mode="agent" or any unrecognised value → safe default
+        if mode not in ("agent", "direct"):
+            logger.warning(f"[execute_sql] Unknown mode='{mode}', defaulting to 'agent'")
+        return await _executar_sql_agent_logic(query=input, ctx=ctx, client_id=client_id)
+
+
 @register_module
 def register_tools(mcp: FastMCP) -> list[str]:
     """Registra as tools do módulo SQL."""
-    # Register executar_sql_agent - simple natural language to SQL tool
-    # Uses mcp_inject_client_id decorator to inject client_id from auth
-    mcp.tool(
-        name="executar_sql_agent",
-        description=(
-            "Answers data questions by querying the analytics database. "
-            "\n\n"
-            "⚠️ CRITICAL: Pass the user's question IN NATURAL LANGUAGE. Do NOT write SQL - the tool generates SQL internally."
-            "\n\n"
-            "PARAMETER 'query': The user's question exactly as they asked it (e.g., 'top 10 suppliers by revenue', 'sales by city last month')."
-            "\n\n"
-            "DATA AVAILABLE: sales transactions, customers, suppliers, products, revenue, quantities, dates, addresses (city/state)."
-            "\n\n"
-            "WHEN TO USE: Any question about data, analytics, rankings, trends, totals, comparisons. "
-            "ALWAYS try this tool for data questions - it knows the schema and will figure out the right query."
-        ),
-    )(mcp_inject_client_id(get_context_service)(_executar_sql_agent_logic))
 
-    # Register execute_sql - lightweight tool for pre-generated SQL
-    # Supervisor generates SQL directly, this tool only validates + executes
+    # -------------------------------------------------------------------------
+    # execute_sql — unified tool (v3, D1)
+    #
+    # mode="agent"  → pass natural language; tool generates SQL internally (LLM call)
+    # mode="direct" → pass a valid PostgreSQL SELECT; tool validates + executes (no LLM)
+    #
+    # Default is "agent" so agents without schema knowledge work out of the box.
+    # Agents that have the analytics_v2 schema in their system prompt (data-analyst,
+    # financeiro, etc.) SHOULD use mode="direct" for speed and cost efficiency.
+    # -------------------------------------------------------------------------
     mcp.tool(
         name="execute_sql",
         description=(
-            "Execute a pre-generated SQL query against the analytics database. "
-            "\n\n"
-            "⚠️ IMPORTANT: Pass a valid PostgreSQL SELECT query. "
-            "Must use analytics_v2 schema tables (fact_sales, dim_customer, dim_supplier, dim_product). "
-            "Do NOT include client_id filters - they are injected automatically for security."
-            "\n\n"
-            "PARAMETER 'sql': The SQL query to execute (e.g., 'SELECT s.name, SUM(f.valor_total) as receita FROM analytics_v2.fact_sales f JOIN analytics_v2.dim_supplier s USING (supplier_id) GROUP BY s.name ORDER BY receita DESC LIMIT 10')."
-            "\n\n"
-            "USE THIS when you have generated the SQL yourself based on the schema in your system prompt."
+            "Query the analytics database. Two modes:\n\n"
+            "• mode='agent' (DEFAULT): pass the user's question in NATURAL LANGUAGE. "
+            "The tool generates the SQL internally — no schema knowledge needed.\n"
+            "  Example: execute_sql(input='top 10 suppliers by revenue last month')\n\n"
+            "• mode='direct': pass a valid PostgreSQL SELECT query using the analytics_v2 schema. "
+            "No LLM call — fast execution. Use this when you already have the SQL.\n"
+            "  Schema: fato_transacoes, dim_fornecedores, dim_inventory, dim_datas.\n"
+            "  FKs: fato_transacoes.data_competencia_id → dim_datas.data_id, "
+            "fato_transacoes.produto_id → dim_inventory.inventory_id (LEFT JOIN).\n"
+            "  Previous month: EXTRACT(YEAR/MONTH FROM CURRENT_DATE - INTERVAL '1 month').\n"
+            "  Do NOT include client_id — injected automatically.\n\n"
+            "DATA AVAILABLE: transactions, suppliers, products, revenue, quantities, dates.\n"
+            "ALWAYS try this tool for any data/analytics question."
         ),
-    )(mcp_inject_client_id(get_context_service)(_execute_sql_logic))
+    )(mcp_inject_client_id(get_context_service)(_execute_sql_unified_logic))
 
-    logger.info("[SQL Module] Tools registered: executar_sql_agent, execute_sql")
-    return ["executar_sql_agent", "execute_sql"]
+    # -------------------------------------------------------------------------
+    # executar_sql_agent — backward-compat alias (v2)
+    #
+    # Kept so that existing prompts / routines that call executar_sql_agent
+    # continue to work. Routes directly to mode="agent" logic.
+    # New code should use execute_sql(mode="agent") instead.
+    # -------------------------------------------------------------------------
+    mcp.tool(
+        name="executar_sql_agent",
+        description=(
+            "[LEGACY — prefer execute_sql] "
+            "Answers data questions by querying the analytics database. "
+            "Pass the user's question IN NATURAL LANGUAGE — the tool generates SQL internally."
+        ),
+    )(mcp_inject_client_id(get_context_service)(_executar_sql_agent_logic))
+
+    logger.info("[SQL Module] Tools registered: execute_sql (unified, v3), executar_sql_agent (legacy alias)")
+    return ["execute_sql", "executar_sql_agent"]

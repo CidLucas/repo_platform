@@ -126,6 +126,46 @@ async def _query_calendar_logic(
     return [ev.to_dict() for ev in events]
 
 
+async def _create_calendar_event_logic(
+    summary: str,
+    start: str,
+    end: str,
+    calendar_id: str,
+    description: str | None = None,
+    location: str | None = None,
+    attendees: list[str] | None = None,
+    client_id: str | None = None,
+    account_email: str | None = None,
+) -> dict:
+    """Create a Google Calendar event (HITL gate must be applied at the caller)."""
+    if not client_id:
+        raise ValueError("client_id is required")
+    tokens = await _get_google_tokens(client_id, account_email)
+    client = GoogleCalendarClient(access_token=tokens["access_token"])
+
+    start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
+    end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
+
+    event = await client.create_event(
+        calendar_id=calendar_id,
+        summary=summary,
+        start=start_dt,
+        end=end_dt,
+        description=description,
+        attendees=attendees,
+        location=location,
+    )
+    return {
+        "status": "created",
+        "event_id": event.id,
+        "summary": event.summary,
+        "start": event.start,
+        "end": event.end,
+        "html_link": event.html_link,
+        "account_used": tokens.get("account_email"),
+    }
+
+
 async def _list_google_accounts_logic(client_id: str | None = None) -> list:
     """List all connected Google accounts for a cliente."""
     if not client_id:
@@ -357,6 +397,38 @@ def register_tools(mcp: FastMCP) -> list[str]:
         """
         return await _query_calendar_logic(
             time_min, time_max, calendar_id, client_id, account_email
+        )
+
+    async def google_calendar_write_wrapper(
+        summary: str,
+        start: str,
+        end: str,
+        calendar_id: str = "primary",
+        description: str | None = None,
+        location: str | None = None,
+        attendees: list[str] | None = None,
+        ctx: Context = None,
+        client_id: str | None = None,
+        account_email: str | None = None,
+    ) -> dict:
+        """
+        Create a new event in Google Calendar.
+
+        ⚠️ HITL GATE: ALWAYS confirm the event details with the user before calling this tool.
+        Show summary, start, end, and attendees. Only proceed after explicit confirmation.
+
+        Args:
+            summary: Event title/subject
+            start: Start time in ISO 8601 format (e.g., "2024-06-01T14:00:00-03:00")
+            end: End time in ISO 8601 format (e.g., "2024-06-01T15:00:00-03:00")
+            calendar_id: Calendar ID (default "primary")
+            description: Optional event description or agenda
+            location: Optional location or meeting URL
+            attendees: Optional list of attendee emails
+            account_email: Optional Google account to use
+        """
+        return await _create_calendar_event_logic(
+            summary, start, end, calendar_id, description, location, attendees, client_id, account_email
         )
 
     async def list_google_accounts_wrapper(
@@ -671,6 +743,29 @@ def register_tools(mcp: FastMCP) -> list[str]:
 - account_email: (optional string) Specific Google account to use"""
         ),
     )(_inject(query_calendar_wrapper))
+
+    mcp.tool(
+        name="google_calendar_write",
+        description=(
+            """**Purpose:** Create a new event in Google Calendar.
+
+⚠️ HITL GATE: You MUST confirm event details with the user before calling this tool.
+Present: title, date, start/end time, attendees. Only proceed after explicit user approval.
+
+**When to use this tool:**
+- User explicitly confirms they want to schedule/create a meeting or event
+
+**Input format:**
+- summary: (string) Event title
+- start: (string) ISO 8601 start datetime with timezone (e.g., "2024-06-01T14:00:00-03:00")
+- end: (string) ISO 8601 end datetime with timezone
+- calendar_id: (optional string) Calendar ID (default "primary")
+- description: (optional string) Event description or agenda
+- location: (optional string) Location or meeting URL
+- attendees: (optional list of strings) Attendee email addresses
+- account_email: (optional string) Specific Google account to use"""
+        ),
+    )(_inject(google_calendar_write_wrapper))
 
     mcp.tool(
         name="list_google_accounts",

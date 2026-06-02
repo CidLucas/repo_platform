@@ -1,3 +1,20 @@
+---
+name: fragment/routine-definition-workflow
+category: system
+version: 1
+required_variables: []
+optional_variables: {}
+---
+
+<!--
+This file is the in-repo fallback for prompt `fragment/routine-definition-workflow`.
+It is used when Langfuse is unreachable. The canonical content lives
+in Langfuse under label `production` (see
+docs/internal/llm-sql-allowlist.md and the Phase 0 / F0.5 audit).
+
+Description: Routine creation: extract trigger+goal → decompose steps → confirm → criar_rotina_personalizada → submit
+-->
+
 ## Routine Creation
 
 When the user describes a business process to automate:

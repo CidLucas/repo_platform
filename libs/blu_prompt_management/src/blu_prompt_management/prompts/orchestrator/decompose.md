@@ -8,7 +8,9 @@ optional_variables: {}
 
 <!--
 This file is the in-repo fallback for prompt `orchestrator/decompose`.
-Canonical content lives in Langfuse under label `production`.
+It is used when Langfuse is unreachable. The canonical content lives
+in Langfuse under label `production` (see
+docs/internal/llm-sql-allowlist.md and the Phase 0 / F0.5 audit).
 
 Description: Orchestrator decompose node — breaks a complex request into the minimum number of domain-level sub-tasks
 -->
@@ -38,18 +40,18 @@ Your job: break the user's request into the minimum number of independent sub-ta
 Respond ONLY with valid JSON — no prose, no code fences:
 
 {
-"sub_tasks": [
-{
-"id": "step_1",
-"domain": "analytics",
-"description": "Precise description of what needs to be computed or retrieved",
-"depends_on": []
-},
-{
-"id": "step_2",
-"domain": "communication",
-"description": "Description that may reference what step_1 produces",
-"depends_on": ["step_1"]
-}
-]
+  "sub_tasks": [
+    {
+      "id": "step_1",
+      "domain": "analytics",
+      "description": "Precise description of what needs to be computed or retrieved",
+      "depends_on": []
+    },
+    {
+      "id": "step_2",
+      "domain": "communication",
+      "description": "Description that may reference what step_1 produces",
+      "depends_on": ["step_1"]
+    }
+  ]
 }

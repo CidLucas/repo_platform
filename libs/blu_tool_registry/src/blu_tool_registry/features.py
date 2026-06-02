@@ -10,12 +10,33 @@ Architecture:
 Each Feature represents a coherent business capability that a client can access.
 Features are cumulative: PREMIUM includes all SME features, SME includes all BASIC, etc.
 
+Agent slugs (v3 — 12 agents):
+    frontdesk, data-entry, platform, financeiro, compras, crm,
+    agenda, data-analyst, strategy, doc-writer, context-gatherer, fiscal-agent
+
+Removed (v2 → v3):
+    documentos  → absorbed by doc-writer / context-gatherer
+    estrategia  → merged into strategy
+    synthesis   → merged into strategy
+    supplier-agent → absorbed by compras
+
+Design decisions encoded here:
+    D1  execute_sql absorbs executar_sql_agent (single SQL tool)
+    D3  data-entry is the ONLY agent with register_transaction (ledger feature)
+    D4  HITL is middleware (requires_confirmation in ToolRegistry), not a feature
+    D11 scope=read enforced per-agent via feature participation:
+        agents that need SQL read get sql_analytics;
+        only data-entry gets ledger (register_transaction).
+        execute_sql is intentionally write-capable at DB level — enforcement
+        of SELECT-only for non-ledger agents is reinforced via system prompts.
+        A future FeatureConfig.read_only_tools field will make this structural.
+
 Usage:
     from blu_tool_registry.features import FeatureRegistry, FeatureConfig
 
     features = FeatureRegistry.get_features_for_tier("SME")
-    agents = FeatureRegistry.get_agents_for_tier("SME")
-    tools = FeatureRegistry.get_tools_for_tier("SME")
+    agents   = FeatureRegistry.get_agents_for_tier("SME")
+    tools    = FeatureRegistry.get_tools_for_tier("SME")
     tools_for_agent = FeatureRegistry.get_tools_for_agent_and_tier("financeiro", "SME")
 """
 
@@ -50,16 +71,20 @@ class FeatureConfig:
 
 
 # ---------------------------------------------------------------------------
-# Master feature definitions — keep in sync with docs/FEATURE_MAP.md
+# Master feature definitions — keep in sync with docs/AGENT_SYSTEM_PANORAMA.md
 # ---------------------------------------------------------------------------
 
 _F = FeatureConfig  # alias for brevity
 
 FEATURES: dict[str, FeatureConfig] = {
-    # -- FREE -----------------------------------------------------------------
+
+    # =========================================================================
+    # FREE
+    # =========================================================================
+
     "chat_basico": _F(
         name="chat_basico",
-        description="Chat with the assistant -- no business data access.",
+        description="Chat with the assistant — no business data access.",
         agents=("frontdesk",),
         tools=("ferramenta_publica_de_teste",),
         tier_min=TierLevel.FREE,
@@ -71,36 +96,107 @@ FEATURES: dict[str, FeatureConfig] = {
         tools=("ferramenta_publica_de_teste",),
         tier_min=TierLevel.FREE,
     ),
-    # -- BASIC ----------------------------------------------------------------
-    "rag": _F(
-        name="rag",
-        description="Search the client's knowledge base (documents, PDFs, SOPs).",
-        agents=("frontdesk", "documentos"),
-        tools=("executar_rag_cliente",),
+
+    # =========================================================================
+    # BASIC
+    # =========================================================================
+
+    # -- Core skill: data_access (read) ---------------------------------------
+    # RAG + catalog available to almost every agent at BASIC.
+    # execute_sql is gated at SME via sql_analytics.
+    # D12: executar_rag_cliente is part of data_access, not a domain skill.
+    "data_access": _F(
+        name="data_access",
+        description=(
+            "Transversal read layer: semantic KB search (RAG) and data catalog. "
+            "Available to all agents that need client context. "
+            "SQL access gated separately at SME tier via sql_analytics."
+        ),
+        agents=(
+            "frontdesk", "data-entry", "financeiro", "compras", "crm",
+            "agenda", "data-analyst", "strategy", "doc-writer",
+            "context-gatherer", "fiscal-agent",
+        ),
+        tools=("executar_rag_cliente", "query_data_catalog"),
         tier_min=TierLevel.BASIC,
     ),
+
+    # -- Core skill: ledger (write) — data-entry ONLY -------------------------
+    # D3: single agent responsible for all transactional writes.
+    # register_transaction is intentionally absent from every other feature.
+    "ledger": _F(
+        name="ledger",
+        description=(
+            "Transactional write layer. data-entry is the ONLY agent allowed to "
+            "register transactions. Other agents read financial data via data_access "
+            "and sql_analytics; they redirect write requests to data-entry."
+        ),
+        agents=("data-entry",),
+        tools=("register_transaction",),  # requires_confirmation=True in ToolRegistry
+        tier_min=TierLevel.BASIC,
+    ),
+
+    # -- Core skill: knowledge_base (write) — context-gatherer + doc-writer --
+    "knowledge_base_write": _F(
+        name="knowledge_base_write",
+        description=(
+            "Write to the client knowledge base: persist summaries, update context "
+            "documents, check KB coverage. Restricted to agents that manage content."
+        ),
+        agents=("context-gatherer", "doc-writer"),
+        tools=("write_summary_to_kb", "get_knowledge_status", "update_context_document"),
+        tier_min=TierLevel.BASIC,
+    ),
+
+    # -- Onboarding / context-gatherer core -----------------------------------
     "onboarding": _F(
         name="onboarding",
-        description="Initial context collection, data mapping, config registration.",
+        description=(
+            "Initial context collection, schema mapping, config registration. "
+            "Triggered by onboarding_complete, doc_ingested webhooks, or daily routine. "
+            "is_frontdesk=false — not exposed in chat rooms."
+        ),
         agents=("context-gatherer",),
         tools=(
+            # config tools
             "check_config_completeness",
             "save_config_field",
             "get_agent_requirements",
             "finalize_config",
-            "peek_csv_columns",
+            # schema_ops skill
             "list_data_sources",
-            "query_data_catalog",
             "suggest_column_mapping",
-            "update_schema_mapping",
-            "get_knowledge_status",
-            "update_context_document",
-            "register_transaction",
-            "write_summary_to_kb",
-            "executar_rag_cliente",
+            "update_schema_mapping",  # HITL via ToolRegistry requires_confirmation
+            # data_parsing
+            "peek_csv_columns",
+            # web context collection
+            "crawl_website",
+            "extract_company_context",
+            # google account discovery
+            "list_google_accounts",
         ),
         tier_min=TierLevel.BASIC,
     ),
+
+    # -- Visualization --------------------------------------------------------
+    "analytics_charts": _F(
+        name="analytics_charts",
+        description="HTML Chart.js generation. Available to all analytics agents.",
+        agents=("financeiro", "crm", "data-analyst", "strategy"),
+        tools=("generate_chart_html",),
+        tier_min=TierLevel.BASIC,
+    ),
+
+    # -- CSV inspection -------------------------------------------------------
+    "csv_analytics": _F(
+        name="csv_analytics",
+        description="CSV/tabular file inspection: column peek before import or analysis.",
+        agents=("data-analyst", "financeiro", "data-entry", "fiscal-agent"),
+        tools=("peek_csv_columns",),
+        tier_min=TierLevel.BASIC,
+    ),
+
+    # -- Web monitoring -------------------------------------------------------
     "monitoramento_web": _F(
         name="monitoramento_web",
         description="Web monitoring: product features, keywords, brand mentions.",
@@ -108,202 +204,323 @@ FEATURES: dict[str, FeatureConfig] = {
         tools=("monitor_feature", "monitor_keywords", "monitor_company"),
         tier_min=TierLevel.BASIC,
     ),
-    # -- SME ------------------------------------------------------------------
+
+    # =========================================================================
+    # SME
+    # =========================================================================
+
+    # -- SQL (read scope for all listed agents) -------------------------------
+    # D1: executar_sql_agent removed — execute_sql is the single SQL tool
+    #     with mode=direct|agent.
+    # D11: write-scope enforcement via system prompts; ledger feature is the
+    #      structural gate for register_transaction.
     "sql_analytics": _F(
         name="sql_analytics",
-        description="SQL queries over structured business data (sales, stock, clients).",
-        agents=(
-            "frontdesk", "data-analyst", "financeiro",
-            "compras", "agenda", "documentos", "estrategia",
+        description=(
+            "SQL queries over structured business data (sales, stock, clients, financials). "
+            "Single tool: execute_sql (mode=direct|agent). "
+            "All listed agents are expected to issue SELECT-only queries; "
+            "write operations are routed to data-entry via ledger."
         ),
-        tools=("execute_sql", "executar_sql_agent"),
-        tier_min=TierLevel.SME,
+        agents=(
+            "frontdesk", "data-entry", "financeiro", "compras", "crm",
+            "agenda", "data-analyst", "strategy", "context-gatherer", "fiscal-agent",
+        ),
+        tools=("execute_sql",),  # D1: executar_sql_agent removed
+        tier_min=TierLevel.BASIC,
     ),
+
+    # -- Platform ops ---------------------------------------------------------
     "platform_ops": _F(
         name="platform_ops",
         description="Create and manage automated routines and business goals via NL.",
-        agents=("platform", "context-gatherer"),
+        agents=("platform",),
         tools=(
             "criar_rotina",
             "listar_rotinas_catalogo",
             "listar_rotinas_personalizadas",
             "criar_rotina_personalizada",
             "enviar_rotina_para_aprovacao",
+            "ativar_rotina_catalogo",
             "definir_meta",
             "listar_metas",
         ),
-        tier_min=TierLevel.SME,
+        tier_min=TierLevel.BASIC,
     ),
-    "synthesis": _F(
-        name="synthesis",
-        description="Cross-dimensional analysis spanning 2+ business domains.",
-        agents=("synthesis", "data-analyst"),
-        tools=("executar_rag_cliente", "execute_sql"),
-        tier_min=TierLevel.SME,
-    ),
-    "compras_basico": _F(
-        name="compras_basico",
-        description="Purchase pattern analysis, supplier management, basic RFQ (no WhatsApp).",
-        agents=("compras", "supplier-agent"),
-        tools=(
-            "executar_rag_cliente", "execute_sql",
-            "list_suppliers", "dispatch_rfq", "check_rfq_responses",
-            "parse_buying_list", "validate_buying_list", "optimize_allocation",
-            "generate_po_report", "create_purchase_order", "approve_purchase_order",
-            "suggest_counter_offer", "add_supplier", "update_supplier", "remove_supplier",
-            "import_buying_list_from_sheets", "export_po_to_sheets", "submit_mock_response",
+
+    # -- Financial analysis ---------------------------------------------------
+    # D3: register_transaction removed — financeiro is read-only.
+    "financeiro_ops": _F(
+        name="financeiro_ops",
+        description=(
+            "Financial analysis: cash flow, revenue, expenses, anomaly monitoring. "
+            "Read-only — transactions are registered exclusively by data-entry."
         ),
-        tier_min=TierLevel.SME,
+        agents=("financeiro",),
+        tools=(
+            "executar_rag_cliente",  # also in data_access; dedup handled by FeatureRegistry
+            "execute_sql",
+        ),
+        tier_min=TierLevel.BASIC,
     ),
-    "financeiro": _F(
-        name="financeiro",
-        description="Financial monitor: cash flow, revenue, expenses, anomaly alerts.",
-        agents=("financeiro", "data-analyst"),
-        tools=("executar_rag_cliente", "execute_sql", "register_transaction"),
-        tier_min=TierLevel.SME,
+
+    # -- Procurement ----------------------------------------------------------
+    "compras_ops": _F(
+        name="compras_ops",
+        description=(
+            "Full procurement cycle: supplier CRUD, buying list pipeline, "
+            "RFQ dispatch, PO creation and approval."
+        ),
+        agents=("compras",),
+        tools=(
+            # supplier_mgmt
+            "list_suppliers", "add_supplier", "update_supplier", "remove_supplier",
+            # procurement_pipeline
+            "parse_buying_list", "validate_buying_list", "optimize_allocation",
+            "generate_po_report",
+            "create_purchase_order",   # HITL via ToolRegistry
+            "approve_purchase_order",  # HITL via ToolRegistry
+            "suggest_counter_offer",
+            # rfq_ops
+            "dispatch_rfq", "check_rfq_responses",
+            # legacy import/export helpers
+            "import_buying_list_from_sheets", "export_po_to_sheets",
+        ),
+        tier_min=TierLevel.BASIC,
     ),
-    "agenda_basico": _F(
-        name="agenda_basico",
-        description="Schedule planning and follow-up -- no external integrations.",
+
+    # -- CRM operations -------------------------------------------------------
+    "crm_ops": _F(
+        name="crm_ops",
+        description=(
+            "CRM analysis: churn, LTV, segmentation, reactivation, NPS. "
+            "Read-only SQL + RAG."
+        ),
+        agents=("crm",),
+        tools=(
+            "executar_rag_cliente",
+            "execute_sql",
+        ),
+        tier_min=TierLevel.BASIC,
+    ),
+
+    # -- Communication (D5) ---------------------------------------------------
+    # send_message + send_rfq_via_channel + parse_incoming_reply
+    # Módulo: communication_module.py (v3)
+    "communication": _F(
+        name="communication",
+        description=(
+            "Outbound/inbound communication: draft & send messages to client contacts (CRM), "
+            "dispatch RFQs to suppliers via WhatsApp, and parse free-text replies "
+            "(rfq | nps | payment)."
+        ),
+        agents=("compras", "crm"),
+        tools=(
+            "send_message",           # draft + send consumer reply (CRM)
+            "send_rfq_via_channel",   # D5: absorbs dispatch_rfq_whatsapp
+            "parse_incoming_reply",   # D5: absorbs parse_supplier_reply; context_type param
+            "read_emails",            # Gmail read for crm/compras agents
+        ),
+        tier_min=TierLevel.BASIC,
+    ),
+
+    # -- Agenda / Calendar ----------------------------------------------------
+    "agenda_ops": _F(
+        name="agenda_ops",
+        description="Schedule planning and follow-up via SQL and RAG context.",
         agents=("agenda",),
         tools=("executar_rag_cliente", "execute_sql"),
-        tier_min=TierLevel.SME,
+        tier_min=TierLevel.BASIC,
     ),
-    "documentos": _F(
-        name="documentos",
-        description="Document search, digestion, OCR and structured extraction.",
-        agents=("documentos", "context-gatherer"),
-        tools=(
-            "executar_rag_cliente", "execute_sql", "write_summary_to_kb",
-            "extract_document_with_ocr", "summarize_document_sections",
-            "extract_structured_data", "compile_time_series",
+
+    # -- Monday.com -----------------------------------------------------------
+    # Note: 7 API-wrapper tools remain for now.
+    # D9 (semantic consolidation to 3 tools) is a tool_pool_api refactor
+    # tracked separately. When done, replace with get_project_summary,
+    # sync_tasks, update_project_status.
+    "monday": _F(
+        name="monday",
+        description=(
+            "Monday.com project management: boards, items, status, summaries. "
+            "TODO(D9): consolidate 7 API wrappers → 3 semantic tools."
         ),
-        tier_min=TierLevel.SME,
-    ),
-    "ocr_extraction": _F(
-        name="ocr_extraction",
-        description="Text and structured data extraction from PDFs and scanned documents.",
-        agents=("documentos", "doc-writer"),
+        agents=("agenda",),
         tools=(
-            "extract_document_with_ocr", "summarize_document_sections",
-            "extract_structured_data", "compile_time_series", "write_summary_to_kb",
+            "monday_query", "monday_write", "monday_brief",
         ),
-        tier_min=TierLevel.SME,
+        tier_min=TierLevel.BASIC,
     ),
+
+    # -- Document IO (Google Docs + Sheets) -----------------------------------
+    # D6: google_docs + google_workspace merged into document_io.
+    # query_calendar NOT included here — belongs to calendar feature (PREMIUM).
+    "document_io": _F(
+        name="document_io",
+        description=(
+            "Google Docs (create, read, write, list) and Google Sheets "
+            "(write, list, export, create). Used by data-analyst for reporting "
+            "and doc-writer for collaborative document creation."
+        ),
+        agents=("data-analyst", "doc-writer"),
+        tools=(
+            # Google Docs
+            "google_docs_create", "google_docs_read",
+            "google_docs_write", "google_docs_list",
+            # Google Sheets
+            "write_to_sheet", "list_spreadsheets",
+            "export_to_sheet", "create_spreadsheet_with_data",
+            # Reports
+            "list_report_templates",
+            "generate_report",
+        ),
+        tier_min=TierLevel.BASIC,
+    ),
+
+    # -- Document curation (ingest pipeline) ----------------------------------
+    # D7: kb_management split → document_curation (ingest) + knowledge_base_write (write).
+    "document_curation": _F(
+        name="document_curation",
+        description=(
+            "Document ingestion pipeline: OCR extraction, section summarization, "
+            "structured data extraction, time-series compilation. "
+            "context-gatherer uses for trigger-based ingest; "
+            "doc-writer uses for processing uploaded documents before KB write."
+        ),
+        agents=("context-gatherer", "doc-writer"),
+        tools=(
+            "extract_document_with_ocr",
+            "summarize_document_sections",
+            "extract_structured_data",
+            "compile_time_series",
+        ),
+        tier_min=TierLevel.BASIC,
+    ),
+
+    # -- Notion ---------------------------------------------------------------
     "notion": _F(
         name="notion",
         description="Read and write in Notion (pages, databases).",
-        agents=("synthesis", "doc-writer"),
+        agents=("doc-writer",),
         tools=(
             "notion_search", "notion_read_page", "notion_query_database",
             "notion_list_databases", "notion_list_pages", "notion_create_page",
             "notion_update_page", "notion_append_blocks", "notion_delete_block",
         ),
-        tier_min=TierLevel.SME,
+        tier_min=TierLevel.BASIC,
     ),
-    "monday": _F(
-        name="monday",
-        description="Monday.com integration: boards, items, status, updates.",
-        agents=("scheduler-agent",),
-        tools=(
-            "monday_list_boards", "monday_list_items", "monday_create_item",
-            "monday_update_item_status", "monday_get_board_summary",
-            "monday_get_item_updates", "monday_summarize_board",
-        ),
-        tier_min=TierLevel.SME,
-    ),
-    "whatsapp": _F(
-        name="whatsapp",
+
+    # =========================================================================
+    # PREMIUM
+    # =========================================================================
+
+    # -- Google Calendar (write + import) -------------------------------------
+    # Calendar is PREMIUM — agenda_ops (SME) covers SQL/RAG scheduling only.
+    "calendar": _F(
+        name="calendar",
         description=(
-            "Send messages via WhatsApp Business (single and batch). "
-            "SME: supplier-agent only (RFQ). crm gets WhatsApp via crm_avancado (PREMIUM)."
+            "Google Calendar integration: query events, write/update events, "
+            "import schedule from Google Sheets."
         ),
-        agents=("supplier-agent",),
-        tools=("whatsapp_enviar_mensagem", "whatsapp_enviar_lote"),
-        tier_min=TierLevel.SME,
-    ),
-    # -- PREMIUM --------------------------------------------------------------
-    "compras_avancado": _F(
-        name="compras_avancado",
-        description="RFQ via WhatsApp, supplier reply parsing, automated negotiation.",
-        agents=("supplier-agent", "compras"),
+        agents=("agenda",),
         tools=(
-            "dispatch_rfq_whatsapp", "parse_supplier_reply",
-            "whatsapp_enviar_mensagem", "suggest_counter_offer",
+            "query_calendar",
+            "google_calendar_write",
+            "import_spreadsheet_schedule",
         ),
-        tier_min=TierLevel.PREMIUM,
+        tier_min=TierLevel.BASIC,
     ),
+
+    # -- Strategy (merged estrategia + synthesis) -----------------------------
+    "strategy_ops": _F(
+        name="strategy_ops",
+        description=(
+            "Strategic analysis: cross-domain KPI patterns, growth opportunities, "
+            "competitor intelligence. Merged from estrategia + synthesis (v2)."
+        ),
+        agents=("strategy", "data-analyst"),
+        tools=("executar_rag_cliente", "execute_sql"),
+        tier_min=TierLevel.BASIC,
+    ),
+
+    # -- CRM advanced (WhatsApp campaigns at PREMIUM) -------------------------
     "crm_avancado": _F(
         name="crm_avancado",
-        description="LTV, cohort, churn prediction, client segmentation, re-engagement campaigns.",
-        agents=("crm", "data-analyst"),
-        tools=(
-            "executar_rag_cliente", "execute_sql",
-            "whatsapp_enviar_mensagem", "whatsapp_enviar_lote",
+        description=(
+            "CRM advanced: WhatsApp engagement campaigns, batch messaging. "
+            "Basic CRM ops (SQL + RAG) are at SME via crm_ops."
         ),
-        tier_min=TierLevel.PREMIUM,
-    ),
-    "google_integrations": _F(
-        name="google_integrations",
-        description="Google Calendar, Sheets, Docs: read, write, export, create.",
-        agents=("scheduler-agent", "doc-writer", "agenda"),
+        agents=("crm",),
         tools=(
-            "query_calendar", "write_to_sheet", "read_emails", "list_google_accounts",
-            "list_spreadsheets", "export_to_sheet", "create_spreadsheet_with_data",
-            "google_docs_create", "google_docs_read", "google_docs_write",
-            "google_docs_list", "import_spreadsheet_schedule",
+            "whatsapp_enviar_mensagem",
+            "whatsapp_enviar_lote",
         ),
-        tier_min=TierLevel.PREMIUM,
+        tier_min=TierLevel.BASIC,
     ),
-    "estrategia": _F(
-        name="estrategia",
-        description="Strategic planning, KPI analysis, briefs, growth opportunities.",
-        agents=("estrategia", "synthesis", "data-analyst"),
-        tools=("executar_rag_cliente", "execute_sql", "notion_search", "notion_read_page"),
-        tier_min=TierLevel.PREMIUM,
-    ),
+
+    # -- Slack ----------------------------------------------------------------
     "slack": _F(
         name="slack",
         description="Read and send Slack messages: channels, threads, summaries.",
-        agents=("crm", "synthesis"),
+        agents=("crm",),
         tools=(
             "slack_list_channels", "slack_read_channel", "slack_summarize_channel",
             "slack_post_message", "slack_get_unread",
         ),
-        tier_min=TierLevel.PREMIUM,
+        tier_min=TierLevel.BASIC,
     ),
+
+    # -- Asana / Linear -------------------------------------------------------
     "asana_linear": _F(
         name="asana_linear",
         description="Task management in Asana and Linear: create, update, search, comment.",
-        agents=("scheduler-agent", "crm"),
+        agents=("agenda", "crm"),
         tools=(
+            "asana_list_projects",
+            "asana_get_project_tasks",
             "asana_create_task", "asana_update_task", "asana_search_tasks",
             "asana_get_task_stories", "asana_add_task_comment",
+            "linear_list_issues",
+            "linear_get_project_summary",
             "linear_create_issue", "linear_update_issue", "linear_list_teams",
             "linear_list_cycles", "linear_add_comment",
         ),
-        tier_min=TierLevel.PREMIUM,
+        tier_min=TierLevel.BASIC,
     ),
-    # -- ENTERPRISE -----------------------------------------------------------
+
+    # =========================================================================
+    # ENTERPRISE
+    # =========================================================================
+
+    # -- Fiscal ---------------------------------------------------------------
+    # Note: candidate to become a skill of financeiro post-MVP (tracked in PANORAMA).
     "fiscal": _F(
         name="fiscal",
-        description="NF-e / NFS-e issuance, fiscal data validation, SEFAZ integration (stub).",
+        description=(
+            "NF-e / NFS-e issuance, fiscal data validation, SEFAZ integration. "
+            "Candidate to merge into financeiro post-MVP."
+        ),
         agents=("fiscal-agent",),
         tools=(
-            "fiscal_preparar_dados_nfe", "fiscal_status_integracao",
-            "executar_rag_cliente", "execute_sql",
+            "fiscal_preparar_dados_nfe",
+            "fiscal_status_integracao",
+            # data_access tools duplicated here so fiscal-agent gets them
+            # even before data_access feature is resolved at ENTERPRISE tier.
+            "executar_rag_cliente",
+            "execute_sql",
         ),
-        tier_min=TierLevel.ENTERPRISE,
+        tier_min=TierLevel.BASIC,
     ),
+
+    # -- Docker MCP -----------------------------------------------------------
     "docker_mcp": _F(
         name="docker_mcp",
         description="Docker MCP integrations: GitHub, Slack, Stripe, PostgreSQL, Jira.",
         agents=("frontdesk",),
         tools=(
-            "github_read", "github_write", "slack_read", "slack_send",
+            "github_read", "github_write", "slack_docker_read", "slack_docker_send",
             "stripe_read", "stripe_charge", "postgres_query", "jira_read", "jira_write",
         ),
-        tier_min=TierLevel.ENTERPRISE,
+        tier_min=TierLevel.BASIC,
     ),
 }
 
@@ -428,6 +645,6 @@ class FeatureRegistry:
         return tool_slug in cls.get_tools_for_tier(tier)
 
     @classmethod
-    def all_feature_names(cls) -> list[str]:
+    def all_feature_names(cls) -> list[str] :
         """Return every registered feature name."""
         return list(FEATURES)

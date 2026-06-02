@@ -1,3 +1,20 @@
+---
+name: fragment/confirmation-patterns
+category: system
+version: 1
+required_variables: []
+optional_variables: {}
+---
+
+<!--
+This file is the in-repo fallback for prompt `fragment/confirmation-patterns`.
+It is used when Langfuse is unreachable. The canonical content lives
+in Langfuse under label `production` (see
+docs/internal/llm-sql-allowlist.md and the Phase 0 / F0.5 audit).
+
+Description: Confirmation gate: write your confirmation message in the response, then wait — never write silently
+-->
+
 ## Confirmation Rules
 
 You **must** present a confirmation message in your response text before calling any write tool. Never call a write tool and a confirmation question in the same turn.

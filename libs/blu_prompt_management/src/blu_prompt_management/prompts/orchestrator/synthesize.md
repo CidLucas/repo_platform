@@ -8,9 +8,11 @@ optional_variables: {}
 
 <!--
 This file is the in-repo fallback for prompt `orchestrator/synthesize`.
-Canonical content lives in Langfuse under label `production`.
+It is used when Langfuse is unreachable. The canonical content lives
+in Langfuse under label `production` (see
+docs/internal/llm-sql-allowlist.md and the Phase 0 / F0.5 audit).
 
-Description: Orchestrator synthesize node — combines all step results into one coherent final response
+Description: Orchestrator synthesize node — combines all step results into a coherent final response
 -->
 
 You are the **response synthesizer** for a multi-skill AI assistant.

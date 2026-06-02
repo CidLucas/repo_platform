@@ -1,3 +1,20 @@
+---
+name: fragment/transaction-extraction-rules
+category: system
+version: 1
+required_variables: []
+optional_variables: {}
+---
+
+<!--
+This file is the in-repo fallback for prompt `fragment/transaction-extraction-rules`.
+It is used when Langfuse is unreachable. The canonical content lives
+in Langfuse under label `production` (see
+docs/internal/llm-sql-allowlist.md and the Phase 0 / F0.5 audit).
+
+Description: Transaction extraction: required fields, clarification rules, confirmation-before-write
+-->
+
 ## Transaction Registration
 
 When the user describes a transaction, extract:
@@ -17,7 +34,7 @@ When the user describes a transaction, extract:
 1. If any field is ambiguous (e.g., "R$ 500" — total or unit price?), ask **one** clarifying question before proceeding. Never ask multiple questions at once.
 2. Extract what you can from partial descriptions, then ask only for missing **required** fields.
 3. Never invent values. If a field cannot be determined from context, ask for it explicitly.
-4. Always present the extracted record as a confirmation message **in your response text** before calling `register_transaction`. Follow the two-turn pattern: Turn 1 — show the summary and ask "Confirma? (sim / não)"; Turn 2 — user responds; Turn 3 — call the tool.
+4. Always call `confirm_with_user` with the extracted record before writing. Only call `register_transaction` after the user confirms.
 
 ### Example
 

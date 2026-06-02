@@ -25,55 +25,41 @@ logger = logging.getLogger(__name__)
 # Qualquer slug fora desta lista é normalizado via SLUG_ALIASES ou rejeitado.
 # ---------------------------------------------------------------------------
 _VALID_SLUGS: set[str] = {
+    # Slugs canônicos v3 — espelha AgentTypeRegistry em blu_agent_framework/registry.py
     "context-gatherer",
     "crm",
-    "estrategia",
+    "strategy",      # v3: merged de estrategia + synthesis
     "compras",
     "financeiro",
-    "agenda",
-    "documentos",
-    "synthesis",
     "data-analyst",
     "platform",
-    "supplier-agent",
-    "scheduler-agent",
+    "agenda",        # slug canônico — prompt_name="agents/agenda" no Langfuse
     "doc-writer",
     "fiscal-agent",
+    # nota: "documentos"/"estrategia"/"synthesis" são slugs v2 — ver aliases abaixo
+    # nota: "supplier-agent" removido — domínio fornecedor roteado via "compras"
 }
 
-# Aliases: slugs inventados pelo LLM → slug real
+# Aliases: slugs v2 ou variações ortográficas → slug canônico v3
+# REGRA: nunca mapear para um slug que não esteja em _VALID_SLUGS
+# IMPORTANTE: NÃO adicionar aliases de domínio/keyword aqui.
+#   O LLM escolhe o agente lendo o catálogo {{ available_agents }} no prompt do frontdesk,
+#   que é gerado dinamicamente a partir de AgentTypeRegistry (description + routing_hint).
+#   Aliases de keyword criam um segundo canal de decisão inconsistente — evitar.
 _SLUG_ALIASES: dict[str, str] = {
-    # inserção / transações / registro
-    "finance_strategy_specialist": "context-gatherer",
-    "financeiro_especialista": "context-gatherer",
-    "financial": "context-gatherer",
-    "data_entry": "context-gatherer",
-    "data_entry_nl": "context-gatherer",
-    "register_transaction": "context-gatherer",
-    "transacao": "context-gatherer",
-    "transaction": "context-gatherer",
-    "registro": "context-gatherer",
-    # metas e rotinas
-    "automatizacao_e_rotinas": "context-gatherer",
-    "rotinas": "context-gatherer",
-    "routines": "context-gatherer",
-    "routine": "context-gatherer",
-    "automation": "context-gatherer",
-    "meta": "context-gatherer",
-    "goals": "context-gatherer",
-    "definir_meta": "context-gatherer",
-    # fornecedores
-    "fornecedor": "context-gatherer",
-    "supplier": "context-gatherer",
-    "add_supplier": "context-gatherer",
-    # outros mapeamentos comuns
-    "fiscal": "fiscal-agent",
-    "fiscal_agent": "fiscal-agent",
-    "crm_agent": "crm",
-    "analytics": "data-analyst",
-    "platform_agent": "platform",
-    "scheduler": "scheduler-agent",
-    "doc_writer": "doc-writer",
+    # v2 → v3 (slugs renomeados na migração de arquitetura)
+    "estrategia":        "strategy",
+    "estrategia_agent":  "strategy",
+    "strategy_agent":    "strategy",
+    "synthesis":         "strategy",
+    # scheduler-agent → agenda (Langfuse prompt_name preservado, slug canônico mudou)
+    "scheduler":         "agenda",
+    "scheduler-agent":   "agenda",
+    # variações ortográficas do slug canônico
+    "doc_writer":        "doc-writer",
+    "fiscal_agent":      "fiscal-agent",
+    "data_entry":        "data-entry",
+    "data_entry_nl":     "data-entry",
 }
 
 
@@ -152,14 +138,10 @@ def register_tools(mcp: FastMCP) -> list[str]:
         name="route_to_specialist",
         description=(
             "Delegate the current request to a domain specialist agent. "
-            "Use when the user wants to CREATE, REGISTER, SAVE, or UPDATE data "
-            "(transactions, suppliers, goals, routines), or when the task requires "
-            "domain expertise beyond SQL queries. "
-            "VALID slugs: context-gatherer (data entry, suppliers, goals, routines), "
-            "financeiro (financial analysis), compras (procurement), crm (client comms), "
-            "estrategia (strategy), agenda (calendar), documentos (documents), "
-            "fiscal-agent (taxes). "
-            "Args: agent_slug (one of the valid slugs above), reason (one sentence why)."
+            "Choose the agent_slug based on the agent descriptions provided in your system prompt "
+            "under 'available_agents' — do NOT guess slugs from keywords. "
+            "Use the exact slug as listed there. "
+            "Args: agent_slug (exact slug from available_agents), reason (one sentence why)."
         ),
     )
     async def route_to_specialist(agent_slug: str, reason: str) -> str:

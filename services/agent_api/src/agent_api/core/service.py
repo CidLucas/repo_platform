@@ -19,7 +19,7 @@ from blu_context_service import ContextService
 from blu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
 from blu_prompt_management import build_prompt
 from blu_prompt_management.variables import VariableExtractor
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from agent_api.config import get_settings
 from agent_api.core.factory import (
@@ -29,10 +29,28 @@ from agent_api.core.factory import (
     get_mcp_manager,
 )
 
+import re
+
 logger = logging.getLogger(__name__)
 
 # Fire-and-forget task registry (prevents GC of background tasks)
 _background_tasks: set = set()
+
+# Post-processing: strip internal model tokens that leak through the chat template.
+# Covers: <|token|>, <think>...</think>, commentary<...>, analysis<...>
+_INTERNAL_TOKEN_RE = re.compile(
+    r"<\|[^|]*\|>"           # <|im_end|>, <|channel|>, etc.
+    r"|<think>.*?</think>"   # chain-of-thought blocks (DeepSeek, Qwen3)
+    r"|commentary<.*?>"      # commentary injection artifacts
+    r"|analysis<.*?>",       # analysis injection artifacts
+    re.DOTALL,
+)
+
+
+def _clean_response(text: str) -> str:
+    """Remove internal model tokens from a response string."""
+    cleaned = _INTERNAL_TOKEN_RE.sub("", text)
+    return cleaned.strip()
 
 
 def _render_company_profile(company_profile: dict | None) -> str:
@@ -284,7 +302,7 @@ class ChatService:
             trace_name=f"chat:{nome_empresa}:{session_id[:8]}",
         )
         config.setdefault("configurable", {})["thread_id"] = f"{client_id}:{session_id}"
-        config["recursion_limit"] = 40
+        config["recursion_limit"] = 12  # default_graph has 5 nodes; 12 ≈ 2 full turn cycles
 
         start = time.time()
         final_state = await graph.ainvoke(initial_state, config)
@@ -293,11 +311,27 @@ class ChatService:
 
         # ------------------------------------------------------------------
         # Handoff: frontdesk called route_to_specialist → run specialist graph
+        #
+        # The sentinel "__ROUTE_TO_SPECIALIST__:<slug>:<reason>" is emitted
+        # by the route_to_specialist MCP tool as a ToolMessage.  After the
+        # tool executes, the frontdesk LLM gets one more turn and produces a
+        # final AIMessage ("Transferindo...") — so messages[-1] is that
+        # AIMessage, NOT the ToolMessage.  We must scan all messages for the
+        # sentinel in any ToolMessage, not just the last message.
         # ------------------------------------------------------------------
-        last_msg_check = (final_state.get("messages") or [])[-1] if final_state.get("messages") else None
-        last_content = str(last_msg_check.content) if last_msg_check else ""
-        if last_content.startswith("__ROUTE_TO_SPECIALIST__:"):
-            parts = last_content.split(":", 2)
+        def _find_route_sentinel(msgs: list) -> str | None:
+            """Return the sentinel string from the last ToolMessage that contains it, or None."""
+            for msg in reversed(msgs or []):
+                if isinstance(msg, ToolMessage):
+                    content = str(msg.content)
+                    if content.startswith("__ROUTE_TO_SPECIALIST__:"):
+                        return content
+            return None
+
+        all_msgs = final_state.get("messages") or []
+        sentinel = _find_route_sentinel(all_msgs)
+        if sentinel:
+            parts = sentinel.split(":", 2)
             specialist_slug = parts[1] if len(parts) > 1 else "frontdesk"
             reason = parts[2] if len(parts) > 2 else ""
             logger.info("[ChatService] Handoff → specialist=%s reason=%s", specialist_slug, reason)
@@ -323,7 +357,7 @@ class ChatService:
                     structured_data=None,
                     structured_data_list=[],
                 )
-                specialist_graph = factory.get_specialist_graph(slug=specialist_slug, tier=tier, context_service=context_service)
+                specialist_graph = factory.get_specialist_graph(slug=specialist_slug, tier=tier)
                 specialist_config = self._build_langfuse_config(
                     session_id=session_id,
                     client_id=client_id,
@@ -331,10 +365,37 @@ class ChatService:
                     trace_name=f"chat:{specialist_slug}:{nome_empresa}:{session_id[:8]}",
                 )
                 specialist_config.setdefault("configurable", {})["thread_id"] = f"{client_id}:{session_id}:{specialist_slug}"
+                # Recursion limit must account for graph topology:
+                #   fanout:  5 nodes/turn (init→elicit→execute_single_tool→collect→respond)
+                #   default: 4 nodes/turn (init→elicit→execute_tool→respond)
+                # Use AgentTypeRegistry to get max_turns and topology for the slug.
+                from blu_agent_framework.registry import AgentTypeRegistry as _ATR
+                _cfg = _ATR.get(specialist_slug)
+                _max_turns = (_cfg.max_turns if _cfg else 6) + 2  # +2 buffer
+                _nodes_per_turn = 6 if (_cfg and getattr(_cfg, "graph_topology", "default") == "fanout") else 5
+                specialist_config["recursion_limit"] = _max_turns * _nodes_per_turn
+                logger.info(
+                    "[ChatService] Specialist %s recursion_limit=%d (max_turns=%d, topology=%s)",
+                    specialist_slug, specialist_config["recursion_limit"],
+                    _max_turns, getattr(_cfg, "graph_topology", "default") if _cfg else "default",
+                )
                 final_state = await specialist_graph.ainvoke(specialist_state, specialist_config)
                 _selected_agent = specialist_slug
             except Exception as exc:
-                logger.warning("[ChatService] Specialist graph failed (%s): %s — falling back to frontdesk response", specialist_slug, exc)
+                logger.warning("[ChatService] Specialist graph failed (%s): %s — returning neutral error message", specialist_slug, exc)
+                # Do NOT fall back to frontdesk last message — it may be an
+                # optimistic "success" hallucination emitted before the specialist crashed.
+                # Override with a neutral message so the user knows to retry.
+                neutral_msg = AIMessage(content="Desculpe, não consegui concluir essa ação agora. Tente novamente em alguns instantes.")
+                if final_state and isinstance(final_state.get("messages"), list):
+                    final_state["messages"] = [
+                        m for m in final_state["messages"]
+                        if not (hasattr(m, "content") and str(m.content).startswith("__ROUTE_TO_SPECIALIST__:"))
+                    ] + [neutral_msg]
+                elif final_state is not None:
+                    final_state["messages"] = [neutral_msg]
+                else:
+                    final_state = {"messages": [neutral_msg]}
         # ------------------------------------------------------------------
 
         # Trim message history in state to bounded window
@@ -343,7 +404,9 @@ class ChatService:
             final_state["messages"] = final_state["messages"][-window:]
 
         last_msg = (final_state.get("messages") or [])[-1] if final_state.get("messages") else None
-        response_text = str(last_msg.content) if isinstance(last_msg, AIMessage) else ""
+        response_text = _clean_response(str(last_msg.content)) if isinstance(last_msg, AIMessage) else ""
+        if not response_text.strip():
+            response_text = "Desculpe, ocorreu um erro. Tente novamente."
 
         return ChatResult(
             response=response_text,
@@ -408,7 +471,7 @@ class ChatService:
             trace_name=f"chat-stream:{nome_empresa}:{session_id[:8]}",
         )
         config.setdefault("configurable", {})["thread_id"] = f"{client_id}:{session_id}"
-        config["recursion_limit"] = 40
+        config["recursion_limit"] = 12  # default_graph has 5 nodes; 12 ≈ 2 full turn cycles
 
         full_response_parts: list[str] = []
         model_used = self._resolve_model_used(model_override)
@@ -439,12 +502,20 @@ class ChatService:
                 elif event_type == "on_chain_end" and event.get("name") == "LangGraph":
                     output = data.get("output") or {}
                     structured_data = output.get("structured_data")
-                    # Detect handoff signal from route_to_specialist tool
+                    # Detect handoff signal from route_to_specialist tool.
+                    # The sentinel lives in a ToolMessage, not in messages[-1]
+                    # (the LLM always produces a final AIMessage after the tool
+                    # call, so the last message is never the sentinel itself).
                     msgs = output.get("messages") or []
-                    last_out = msgs[-1] if msgs else None
-                    last_out_content = str(getattr(last_out, "content", "")) if last_out else ""
-                    if last_out_content.startswith("__ROUTE_TO_SPECIALIST__:"):
-                        parts = last_out_content.split(":", 2)
+                    sentinel_content = None
+                    for _m in reversed(msgs):
+                        if isinstance(_m, ToolMessage):
+                            _c = str(getattr(_m, "content", ""))
+                            if _c.startswith("__ROUTE_TO_SPECIALIST__:"):
+                                sentinel_content = _c
+                                break
+                    if sentinel_content:
+                        parts = sentinel_content.split(":", 2)
                         specialist_slug = parts[1] if len(parts) > 1 else "frontdesk"
                         reason = parts[2] if len(parts) > 2 else ""
                         logger.info("[ChatService/stream] Handoff → specialist=%s reason=%s", specialist_slug, reason)
@@ -471,7 +542,7 @@ class ChatService:
                                 structured_data=None,
                                 structured_data_list=[],
                             )
-                            specialist_graph = factory.get_specialist_graph(slug=specialist_slug, tier=tier, context_service=context_service)
+                            specialist_graph = factory.get_specialist_graph(slug=specialist_slug, tier=tier)
                             specialist_config = self._build_langfuse_config(
                                 session_id=session_id,
                                 client_id=client_id,
@@ -505,7 +576,9 @@ class ChatService:
             yield f"data: {json.dumps({'event': 'error', 'data': {'message': str(exc)}})}\n\n"
             return
 
-        full_response = "".join(full_response_parts)
+        full_response = _clean_response("".join(full_response_parts))
+        if not full_response.strip():
+            full_response = "Desculpe, ocorreu um erro. Tente novamente."
         done_data: dict[str, Any] = {"response": full_response, "model": model_used}
         if structured_data:
             done_data["structured_data"] = structured_data
@@ -599,7 +672,7 @@ class AgentService:
             yield {"event": "error", "message": str(exc)}
             return
 
-        yield {"event": "done", "data": "".join(full_response_parts)}
+        yield {"event": "done", "data": _clean_response("".join(full_response_parts))}
 
 
 # ---------------------------------------------------------------------------

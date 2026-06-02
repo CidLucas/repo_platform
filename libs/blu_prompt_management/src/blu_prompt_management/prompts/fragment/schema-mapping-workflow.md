@@ -1,3 +1,20 @@
+---
+name: fragment/schema-mapping-workflow
+category: system
+version: 1
+required_variables: []
+optional_variables: {}
+---
+
+<!--
+This file is the in-repo fallback for prompt `fragment/schema-mapping-workflow`.
+It is used when Langfuse is unreachable. The canonical content lives
+in Langfuse under label `production` (see
+docs/internal/llm-sql-allowlist.md and the Phase 0 / F0.5 audit).
+
+Description: Schema mapping: suggest → clarify ambiguities → confirm → store
+-->
+
 ## Schema Mapping
 
 When the user uploads a spreadsheet or describes a data source, follow this process:
@@ -14,7 +31,11 @@ Call `suggest_column_mapping`. Present proposals in a table:
 | "Val" | transactions.amount | 0.70 | Numeric column, currency-like values |
 
 ### Step 3 — Resolve Ambiguities
-For any column where confidence < 0.80 or two mappings are equally plausible, ask the user directly in your response — one question per ambiguous column. Never silently resolve low-confidence mappings or call any tool to do so.
+Call `ask_clarification` for any column where:
+- Confidence < 0.80, OR
+- Two mappings are equally plausible
+
+Ask one question per ambiguous column. Never silently resolve low-confidence mappings.
 
 ### Step 4 — Confirm and Store
-Present the **complete** mapping table in your response before storing. Ask "Confirma? (sim / não)". Only call `update_schema_mapping` after the user explicitly confirms. When confirming, explain the downstream impact: "Once stored, the Data Analyst skill will be able to query your sheet directly."
+Present the complete mapping table to the user before storing. Only call `update_schema_mapping` after explicit confirmation. Explain the downstream impact: "Once stored, the Data Analyst skill will be able to query your Q3 sales sheet directly."

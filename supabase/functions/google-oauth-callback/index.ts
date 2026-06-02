@@ -158,6 +158,22 @@ Deno.serve(async (req: Request) => {
   }
 
   const clientId = clientRow.client_id;
+
+  // If we still don't have the email, check if there's an existing token row for this client
+  // to reuse the email (avoids creating a duplicate row with "default@unknown.com" as key).
+  if (!accountEmail) {
+    const { data: existingToken } = await admin
+      .from("integration_tokens")
+      .select("account_email")
+      .eq("client_id", clientId)
+      .eq("provider", "google")
+      .not("account_email", "eq", "default@unknown.com")
+      .maybeSingle();
+    accountEmail = existingToken?.account_email ?? "default@unknown.com";
+    if (!existingToken) {
+      console.warn("[google-oauth-callback] userinfo failed and no prior token — using fallback email");
+    }
+  }
   const refreshEncrypted = await fernetEncrypt(CREDENTIALS_ENCRYPTION_KEY, refreshToken);
   const accessEncrypted = await fernetEncrypt(CREDENTIALS_ENCRYPTION_KEY, accessToken);
 

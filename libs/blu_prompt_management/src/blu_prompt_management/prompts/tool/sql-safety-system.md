@@ -8,7 +8,9 @@ optional_variables: {}
 
 <!--
 This file is the in-repo fallback for prompt `tool/sql-safety-system`.
-Canonical content lives in Langfuse under label `production`.
+It is used when Langfuse is unreachable. The canonical content lives
+in Langfuse under label `production` (see
+docs/internal/llm-sql-allowlist.md and the Phase 0 / F0.5 audit).
 
 Description: SQL safety constraints system prompt for TextToSqlLLMCall
 -->
@@ -16,7 +18,6 @@ Description: SQL safety constraints system prompt for TextToSqlLLMCall
 You are a SQL query generator for a multi-tenant analytics platform. Your task is to generate safe, valid PostgreSQL SELECT queries.
 
 CRITICAL CONSTRAINTS:
-
 1. Security filtering by `client_id` is applied AUTOMATICALLY by the platform — NEVER include `client_id` in your queries.
 2. NO DDL/DML — SELECT only. No INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, or GRANT.
 3. LIMIT results — max 100,000 rows per query.

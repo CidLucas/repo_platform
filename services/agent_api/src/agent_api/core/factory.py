@@ -133,7 +133,32 @@ class UnifiedAgentFactory:
         if cache_key not in _frontdesk_graphs:
             settings = get_settings()
             cfg = AgentTypeRegistry.get("frontdesk")
-            raw_tools = cfg.enabled_tools if cfg else ["executar_rag_cliente", "execute_sql"]
+            # Resolve tools: skill_slugs → required_tool_names union,
+            # then append explicit enabled_tools (handoff tools without a skill).
+            # Falls back to cfg.enabled_tools if skill_slugs is empty (legacy).
+            if cfg and cfg.skill_slugs:
+                from blu_agent_framework.skills import SKILL_REGISTRY
+                seen: set[str] = set()
+                raw_tools: list[str] = []
+                for sk_slug in cfg.skill_slugs:
+                    skill = SKILL_REGISTRY.get(sk_slug)
+                    if skill:
+                        for tool_name in skill.required_tool_names:
+                            if tool_name not in seen:
+                                seen.add(tool_name)
+                                raw_tools.append(tool_name)
+                    else:
+                        logger.warning(
+                            "[Factory] frontdesk skill_slug %r not in SKILL_REGISTRY — skipping",
+                            sk_slug,
+                        )
+                # Append explicit handoff tools (route_to_specialist etc.)
+                for tool_name in (cfg.enabled_tools if cfg else []):
+                    if tool_name not in seen:
+                        seen.add(tool_name)
+                        raw_tools.append(tool_name)
+            else:
+                raw_tools = list(cfg.enabled_tools if cfg else ["executar_rag_cliente", "execute_sql"])
             max_turns = cfg.max_turns if cfg else 4
             llm = get_model(tier=cfg.model_tier if cfg else ModelTier.DEFAULT)
             mcp_exec = get_mcp_executor()
@@ -238,7 +263,7 @@ class UnifiedAgentFactory:
             skill_factory = SkillFactory(
                 llm=llm,
                 mcp_executor=mcp_exec,
-                enabled_tools=enabled_tools,
+                agent_enabled_tools=enabled_tools,
             )
 
             graph = (
@@ -354,10 +379,34 @@ class UnifiedAgentFactory:
                 f"(requires higher tier per FeatureRegistry)"
             )
 
-        raw_tools: list[str] = (
-            agent_config_data.get("enabled_tools") or
-            (AgentTypeRegistry.get(slug).enabled_tools if AgentTypeRegistry.get(slug) else [])
-        )
+        # Derive tool list from skill_slugs → required_tool_names union (same logic
+        # as get_specialist_graph).  Falls back to agent_config_data["enabled_tools"]
+        # (Supabase) and finally to registry enabled_tools only for legacy agents that
+        # have no skill_slugs yet.  The goal is that skill_slugs are the single source
+        # of truth — hardcoded enabled_tools lists should be eliminated over time.
+        registry_cfg_for_tools = AgentTypeRegistry.get(slug)
+        if registry_cfg_for_tools and registry_cfg_for_tools.skill_slugs:
+            from blu_agent_framework.skills import SKILL_REGISTRY
+            seen: set[str] = set()
+            raw_tools: list[str] = []
+            for sk_slug in registry_cfg_for_tools.skill_slugs:
+                skill = SKILL_REGISTRY.get(sk_slug)
+                if skill:
+                    for tool_name in skill.required_tool_names:
+                        if tool_name not in seen:
+                            seen.add(tool_name)
+                            raw_tools.append(tool_name)
+                else:
+                    logger.warning(
+                        "[Factory] Standalone: skill_slug %r not in SKILL_REGISTRY for agent %r — skipping",
+                        sk_slug, slug,
+                    )
+        else:
+            raw_tools = (
+                agent_config_data.get("enabled_tools") or
+                (registry_cfg_for_tools.enabled_tools if registry_cfg_for_tools else [])
+            )
+
         # Filter via FeatureRegistry (primary). For tools not in the feature map,
         # fall back to per-tool ToolRegistry check (forward-compat during migration).
         enabled_tools: list[str] = ResourceResolver.filter_tools(raw_tools, slug, tier)
@@ -378,7 +427,7 @@ class UnifiedAgentFactory:
 
         # Render dynamic SQL schema if this agent uses execute_sql
         sql_schema_context = ""
-        if registry_cfg and "execute_sql" in (registry_cfg.enabled_tools or []):
+        if "execute_sql" in raw_tools:
             sql_schema_context = VariableExtractor.render_sql_schema(
                 getattr(client_context_obj, "data_schema", None)
             )

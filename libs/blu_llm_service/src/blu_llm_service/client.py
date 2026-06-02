@@ -354,9 +354,9 @@ def _get_huggingface_model(
 
 MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
     LLMProvider.OLLAMA_CLOUD: {
-        ModelTier.FAST:     OllamaCloudModel.MINISTRAL_3,        # 3–14B; edge-fast, routing/classification
-        ModelTier.DEFAULT:  OllamaCloudModel.QWEN3_5,            # balanced; general agent work
-        ModelTier.POWERFUL: OllamaCloudModel.DEEPSEEK_V4_FLASH,  # 284B MoE (13B active); complex reasoning
+        ModelTier.FAST:     OllamaCloudModel.MINISTRAL_3,        # confirmed working
+        ModelTier.DEFAULT:  OllamaCloudModel.MINISTRAL_3,        # confirmed working (qwen3.5 → 403 em streaming)
+        ModelTier.POWERFUL: OllamaCloudModel.MINISTRAL_3,        # confirmed working — calibrar modelos maiores depois
     },
     LLMProvider.OPENAI: {
         ModelTier.FAST:     "gpt-4o-mini",
@@ -379,9 +379,9 @@ MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
 # Wired automatically via LangChain's .with_fallbacks() in get_model().
 FALLBACK_MODEL_MAPPINGS: dict[LLMProvider, dict[ModelTier, str]] = {
     LLMProvider.OLLAMA_CLOUD: {
-        ModelTier.FAST:     OllamaCloudModel.GPT_OSS_20B,  # 20B balanced fallback
-        ModelTier.DEFAULT:  OllamaCloudModel.GPT_OSS_20B,  # 20B balanced fallback
-        ModelTier.POWERFUL: OllamaCloudModel.QWEN3_5,      # qwen3.5 as powerful fallback
+        ModelTier.FAST:     OllamaCloudModel.MINISTRAL_3,  # fallback = same (only confirmed working model)
+        ModelTier.DEFAULT:  OllamaCloudModel.MINISTRAL_3,  # fallback = same
+        ModelTier.POWERFUL: OllamaCloudModel.MINISTRAL_3,  # fallback = same
     },
 }
 

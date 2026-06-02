@@ -21,7 +21,6 @@ from tool_pool_api.server.tool_modules import register_module
 logger = logging.getLogger(__name__)
 
 ASANA_API_URL = "https://app.asana.com/api/1.0"
-CLICKUP_API_URL = "https://api.clickup.com/api/v2"
 LINEAR_API_URL = "https://api.linear.app/graphql"
 
 
@@ -44,20 +43,6 @@ async def _get_asana_token(client_id: str | None) -> str:
         raise ToolError("Asana não conectado. Vá em Admin > Integrações para conectar.")
     return token
 
-
-async def _get_clickup_token(client_id: str | None) -> str:
-    if not client_id:
-        raise ToolError("Missing client_id")
-    ctx_service = get_context_service()
-    token_wrapper = await ctx_service.get_integration_tokens(
-        UUID(client_id), "clickup", auto_refresh=False
-    )
-    if not token_wrapper or not token_wrapper.is_valid():
-        raise ToolError("ClickUp não conectado. Vá em Admin > Integrações para conectar.")
-    token = token_wrapper.get_decrypted_tokens().get("access_token")
-    if not token:
-        raise ToolError("ClickUp não conectado. Vá em Admin > Integrações para conectar.")
-    return token
 
 
 async def _get_linear_token(client_id: str | None) -> str:
@@ -198,105 +183,6 @@ async def _asana_get_project_tasks_logic(
         raise ToolError(f"Erro ao listar tarefas do projeto {project_id}: {e}")
 
 
-async def _clickup_list_tasks_logic(
-    list_id: str,
-    status: str | None = None,
-    ctx: Context = None,
-    client_id: str | None = None,
-) -> dict:
-    """
-    Lista tarefas de uma lista do ClickUp.
-
-    Args:
-        list_id: ID da lista ClickUp
-        status: Filtrar por status (opcional)
-
-    Returns:
-        Dict com {list_id, total, tasks: [{id, name, status, assignee, due_date, desc_preview}]}
-    """
-    if not list_id or not list_id.strip():
-        raise ToolError("list_id é obrigatório.")
-    try:
-        token = await _get_clickup_token(client_id)
-        headers = {"Authorization": token}
-        url = f"{CLICKUP_API_URL}/list/{list_id}/task"
-        params = {}
-        if status:
-            params["statuses[]"] = status
-
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(url, headers=headers, params=params)
-            resp.raise_for_status()
-            raw = resp.json().get("tasks", [])
-
-        tasks = [
-            {
-                "id": t.get("id"),
-                "name": t.get("name"),
-                "status": (t.get("status") or {}).get("status"),
-                "assignee": (t.get("assignees") or [{}])[0].get("username")
-                if t.get("assignees")
-                else None,
-                "due_date": _ms_to_iso(t.get("due_date")),
-                "desc_preview": (t.get("description") or "")[:100],
-            }
-            for t in raw
-        ]
-        logger.info(
-            f"[ClickUp] Listed {len(tasks)} tasks for list {list_id}, client_id={client_id}"
-        )
-        return {"list_id": list_id, "total": len(tasks), "tasks": tasks}
-    except ToolError:
-        raise
-    except Exception as e:
-        logger.exception(f"[ClickUp] Error listing tasks: {e}")
-        raise ToolError(f"Erro ao listar tarefas da lista {list_id}: {e}")
-
-
-async def _clickup_get_task_comments_logic(
-    task_id: str,
-    ctx: Context = None,
-    client_id: str | None = None,
-) -> dict:
-    """
-    Lista comentários de uma tarefa do ClickUp.
-
-    Args:
-        task_id: ID da tarefa
-
-    Returns:
-        Dict com {task_id, comments: [{id, text, user, date}]}
-    """
-    if not task_id or not task_id.strip():
-        raise ToolError("task_id é obrigatório.")
-    try:
-        token = await _get_clickup_token(client_id)
-        headers = {"Authorization": token}
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(
-                f"{CLICKUP_API_URL}/task/{task_id}/comment", headers=headers
-            )
-            resp.raise_for_status()
-            raw = resp.json().get("comments", [])
-
-        comments = [
-            {
-                "id": c.get("id"),
-                "text": c.get("comment_text"),
-                "user": (c.get("user") or {}).get("username"),
-                "date": c.get("date"),
-            }
-            for c in raw
-        ]
-        logger.info(
-            f"[ClickUp] Listed {len(comments)} comments for task {task_id}, client_id={client_id}"
-        )
-        return {"task_id": task_id, "comments": comments}
-    except ToolError:
-        raise
-    except Exception as e:
-        logger.exception(f"[ClickUp] Error getting comments: {e}")
-        raise ToolError(f"Erro ao listar comentários da tarefa {task_id}: {e}")
 
 
 async def _linear_list_issues_logic(
@@ -1172,23 +1058,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         ),
     )(mcp_inject_client_id(get_context_service)(_asana_get_project_tasks_logic))
 
-    mcp.tool(
-        name="clickup_list_tasks",
-        description=(
-            "Lista tarefas de uma lista do ClickUp. "
-            "Parâmetros: list_id (string, obrigatório), status (string, opcional). "
-            "Retorna total e lista de tarefas com status, assignee, data e descrição."
-        ),
-    )(mcp_inject_client_id(get_context_service)(_clickup_list_tasks_logic))
 
-    mcp.tool(
-        name="clickup_get_task_comments",
-        description=(
-            "Lista comentários de uma tarefa do ClickUp. "
-            "Parâmetros: task_id (string, obrigatório). "
-            "Retorna lista de comentários com texto, usuário e data."
-        ),
-    )(mcp_inject_client_id(get_context_service)(_clickup_get_task_comments_logic))
 
     mcp.tool(
         name="linear_list_issues",
@@ -1317,8 +1187,6 @@ def register_tools(mcp: FastMCP) -> list[str]:
         "asana_get_task_stories",
         "asana_add_task_comment",
         "asana_search_tasks",
-        "clickup_list_tasks",
-        "clickup_get_task_comments",
         "linear_list_issues",
         "linear_get_project_summary",
         "linear_list_teams",

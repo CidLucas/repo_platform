@@ -653,92 +653,179 @@ async def _monday_summarize_board_logic(
 
 
 # =============================================================================
+# WRAPPERS SEMÂNTICOS v3 (D9) — 7 tools → 3 tools
+#
+# O LLM não precisa saber que "Monday" existe nem conhecer os 7 endpoints.
+# Três intenções cobrem tudo:
+#   monday_query  → leitura  (boards / items / summary / updates)
+#   monday_write  → escrita  (create / update_status)
+#   monday_brief  → narrativa (resumo com emojis + bloqueios + prazos)
+#
+# As funções de lógica originais (_monday_*_logic) são mantidas intactas
+# para reuso interno e testes unitários.
+# =============================================================================
+
+
+async def _monday_query_logic(
+    resource: str,
+    board_id: str | None = None,
+    item_id: str | None = None,
+    limit: int = 50,
+    ctx: Context = None,
+    client_id: str | None = None,
+) -> dict:
+    """
+    Lê dados do sistema de gestão de projetos do cliente.
+
+    Args:
+        resource: O que buscar:
+            "boards"  — lista todos os quadros disponíveis (não requer board_id)
+            "items"   — lista itens de um quadro (requer board_id)
+            "summary" — resumo estruturado: status, atrasados, prazos (requer board_id)
+            "updates" — comentários e replies de um item (requer item_id)
+        board_id: ID do quadro (necessário para resource=items/summary)
+        item_id:  ID do item (necessário para resource=updates)
+        limit:    Máximo de registros (padrão 50; aplicado em items/updates)
+    """
+    resource = (resource or "").strip().lower()
+
+    if resource == "boards":
+        return await _monday_list_boards_logic(ctx=ctx, client_id=client_id)
+
+    if resource == "items":
+        if not board_id:
+            raise ToolError("board_id é obrigatório para resource='items'. Use resource='boards' primeiro para listar os quadros.")
+        return await _monday_list_items_logic(board_id=board_id, limit=limit, ctx=ctx, client_id=client_id)
+
+    if resource == "summary":
+        if not board_id:
+            raise ToolError("board_id é obrigatório para resource='summary'.")
+        return await _monday_get_board_summary_logic(board_id=board_id, ctx=ctx, client_id=client_id)
+
+    if resource == "updates":
+        if not item_id:
+            raise ToolError("item_id é obrigatório para resource='updates'.")
+        return await _monday_get_item_updates_logic(item_id=item_id, limit=limit, ctx=ctx, client_id=client_id)
+
+    raise ToolError(
+        f"resource='{resource}' inválido. Valores aceitos: 'boards', 'items', 'summary', 'updates'."
+    )
+
+
+async def _monday_write_logic(
+    action: str,
+    board_id: str,
+    item_name: str | None = None,
+    item_id: str | None = None,
+    group_id: str | None = None,
+    column_values: dict | None = None,
+    status_column_id: str | None = None,
+    new_status: str | None = None,
+    ctx: Context = None,
+    client_id: str | None = None,
+) -> dict:
+    """
+    Cria ou atualiza itens no sistema de gestão de projetos do cliente.
+
+    Args:
+        action: Operação a executar:
+            "create_item"    — cria novo item no quadro (requer board_id + item_name)
+            "update_status"  — atualiza status de um item (requer board_id + item_id + status_column_id + new_status)
+        board_id:         ID do quadro (obrigatório em todas as actions)
+        item_name:        Nome do novo item (create_item)
+        item_id:          ID do item a atualizar (update_status)
+        group_id:         ID do grupo (create_item, opcional)
+        column_values:    Valores de colunas como dict {column_id: value} (create_item, opcional)
+        status_column_id: ID da coluna de status, geralmente 'status' (update_status)
+        new_status:       Novo valor de status, ex: 'Done', 'Em andamento' (update_status)
+    """
+    action = (action or "").strip().lower()
+
+    if action == "create_item":
+        if not item_name:
+            raise ToolError("item_name é obrigatório para action='create_item'.")
+        return await _monday_create_item_logic(
+            board_id=board_id,
+            item_name=item_name,
+            group_id=group_id,
+            column_values=column_values,
+            ctx=ctx,
+            client_id=client_id,
+        )
+
+    if action == "update_status":
+        if not item_id:
+            raise ToolError("item_id é obrigatório para action='update_status'.")
+        if not status_column_id:
+            raise ToolError("status_column_id é obrigatório para action='update_status'.")
+        if not new_status:
+            raise ToolError("new_status é obrigatório para action='update_status'.")
+        return await _monday_update_item_status_logic(
+            board_id=board_id,
+            item_id=item_id,
+            status_column_id=status_column_id,
+            new_status=new_status,
+            ctx=ctx,
+            client_id=client_id,
+        )
+
+    raise ToolError(
+        f"action='{action}' inválido. Valores aceitos: 'create_item', 'update_status'."
+    )
+
+
+# =============================================================================
 # REGISTRO DO MÓDULO
 # =============================================================================
 
 
 @register_module
 def register_tools(mcp: FastMCP) -> list[str]:
-    """Registra as tools do módulo Monday.com."""
+    """Registra as tools do módulo Monday.com (v3 — 3 tools semânticas)."""
 
+    # -------------------------------------------------------------------------
+    # monday_query — leitura
+    # -------------------------------------------------------------------------
     mcp.tool(
-        name="monday_list_boards",
+        name="monday_query",
         description=(
-            "Lista os quadros (boards) do Monday.com do cliente. "
-            "Retorna id, nome, descrição e estado de até 20 boards. "
-            "Use para descobrir quais quadros estão disponíveis antes de listar itens."
+            "Consulta o sistema de gestão de projetos/tarefas do cliente.\n\n"
+            "resource='boards'  → lista todos os quadros disponíveis (sem parâmetros extras)\n"
+            "resource='items'   → lista itens de um quadro (requer board_id; usa limit)\n"
+            "resource='summary' → resumo estruturado do quadro: status, atrasados, prazos (requer board_id)\n"
+            "resource='updates' → comentários e replies de um item específico (requer item_id; usa limit)\n\n"
+            "Use resource='boards' primeiro quando não souber o board_id."
         ),
-    )(mcp_inject_client_id(get_context_service)(_monday_list_boards_logic))
+    )(mcp_inject_client_id(get_context_service)(_monday_query_logic))
 
+    # -------------------------------------------------------------------------
+    # monday_write — escrita
+    # -------------------------------------------------------------------------
     mcp.tool(
-        name="monday_list_items",
+        name="monday_write",
         description=(
-            "Lista itens de um quadro do Monday.com, com colunas de status, data e responsável. "
-            "Parâmetros: board_id (string, obrigatório), limit (int, padrão 50). "
-            "Use monday_list_boards primeiro para obter o board_id correto."
+            "Cria ou atualiza itens no sistema de gestão de projetos do cliente.\n\n"
+            "action='create_item'   → cria novo item (requer board_id + item_name; group_id e column_values opcionais)\n"
+            "action='update_status' → atualiza status de um item (requer board_id + item_id + status_column_id + new_status)\n\n"
+            "Use monday_query(resource='items') para obter item_id e status_column_id válidos antes de update_status."
         ),
-    )(mcp_inject_client_id(get_context_service)(_monday_list_items_logic))
+    )(mcp_inject_client_id(get_context_service)(_monday_write_logic))
 
+    # -------------------------------------------------------------------------
+    # monday_brief — narrativa
+    # -------------------------------------------------------------------------
     mcp.tool(
-        name="monday_create_item",
+        name="monday_brief",
         description=(
-            "Cria um novo item em um quadro do Monday.com. "
-            "Parâmetros: board_id (string, obrigatório), item_name (string, obrigatório), "
-            "group_id (string, opcional), column_values (dict {column_id: value}, opcional). "
-            "Retorna o id e nome do item criado."
-        ),
-    )(mcp_inject_client_id(get_context_service)(_monday_create_item_logic))
-
-    mcp.tool(
-        name="monday_update_item_status",
-        description=(
-            "Atualiza o status de um item no Monday.com. "
-            "Parâmetros: board_id (string), item_id (string), "
-            "status_column_id (string — ID da coluna de status, geralmente 'status'), "
-            "new_status (string — ex: 'Done', 'Em andamento', 'Bloqueado'). "
-            "Use monday_list_items para obter item_id e status_column_id válidos."
-        ),
-    )(mcp_inject_client_id(get_context_service)(_monday_update_item_status_logic))
-
-    mcp.tool(
-        name="monday_get_board_summary",
-        description=(
-            "Retorna resumo completo de um board do Monday.com: grupos, contagem por status, "
-            "itens em atraso e próximos prazos (7 dias). "
-            "Parâmetros: board_id (string, obrigatório). "
-            "Retorna board_name, total_items, by_status, overdue_count, upcoming_count, "
-            "groups, overdue_items e upcoming_items."
-        ),
-    )(mcp_inject_client_id(get_context_service)(_monday_get_board_summary_logic))
-
-    mcp.tool(
-        name="monday_get_item_updates",
-        description=(
-            "Lê updates (comentários e replies) de um item do Monday.com. "
-            "Parâmetros: item_id (string, obrigatório), limit (int, padrão 20). "
-            "Retorna item_id, item_name e lista de updates com texto, data, criador e replies."
-        ),
-    )(mcp_inject_client_id(get_context_service)(_monday_get_item_updates_logic))
-
-    mcp.tool(
-        name="monday_summarize_board",
-        description=(
-            "Gera briefing narrativo de um board do Monday.com com emojis: status geral, "
-            "bloqueios, responsáveis e prazos. "
-            "Parâmetros: board_id (string, obrigatório), "
-            "include_updates (bool, padrão False — se True inclui último comentário dos itens atrasados). "
-            "Retorna board_id, summary_text formatado, overdue_items e upcoming_items."
+            "Gera briefing narrativo de um quadro de projetos do cliente: status geral, "
+            "bloqueios, responsáveis e prazos nos próximos 7 dias.\n\n"
+            "Parâmetros: board_id (obrigatório), include_updates (bool, padrão False — "
+            "se True inclui o último comentário de cada item atrasado).\n\n"
+            "Retorna summary_text formatado com emojis, overdue_items e upcoming_items. "
+            "Ideal para relatórios de status e reuniões de acompanhamento."
         ),
     )(mcp_inject_client_id(get_context_service)(_monday_summarize_board_logic))
 
-    registered = [
-        "monday_list_boards",
-        "monday_list_items",
-        "monday_create_item",
-        "monday_update_item_status",
-        "monday_get_board_summary",
-        "monday_get_item_updates",
-        "monday_summarize_board",
-    ]
-    logger.info(f"[Monday Module] Tools registered: {registered}")
+    registered = ["monday_query", "monday_write", "monday_brief"]
+    logger.info(f"[Monday Module] Tools registered (v3): {registered}")
     return registered

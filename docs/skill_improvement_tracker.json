@@ -1,0 +1,46 @@
+{
+  "round": 1,
+  "processed": [
+    "analyze_csv",
+    "rag_search",
+    "extract_document",
+    "write_to_kb",
+    "morning_plan",
+    "end_of_day_digest",
+    "weekly_summary",
+    "reconciliation_report",
+    "collection_messages",
+    "followup_draft",
+    "reactivation_proposal",
+    "satisfaction_survey",
+    "meeting_brief",
+    "hidden_patterns",
+    "competitor_analysis",
+    "finance_monitor_report",
+    "clients_monitor_report",
+    "agenda_monitor_report",
+    "inventory_digest",
+    "insights_synthesis",
+    "sql_analytics",
+    "fornecedores",
+    "financeiro",
+    "agenda",
+    "monday",
+    "google_workspace",
+    "crm",
+    "plataforma",
+    "documentos",
+    "fiscal"
+  ],
+  "pending": [],
+  "round_complete": true,
+  "last_run": "2026-05-30T08:49:28.436419+00:00",
+  "reports": [
+    {
+      "round": 1,
+      "completed_at": "2026-05-30T08:49:28.436419+00:00",
+      "total_skills": 30,
+      "note": "All 30 skills processed in round 1."
+    }
+  ]
+}

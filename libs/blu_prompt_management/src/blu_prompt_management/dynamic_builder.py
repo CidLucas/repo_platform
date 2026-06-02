@@ -49,6 +49,7 @@ _LANGFUSE_MANAGED_PREFIXES: frozenset[str] = frozenset({
     "skill:",
     "specialists/",  # Phase 5: specialist-layer prompts (routing, classify, standalone fragments)
     "blu/",          # Routine-level LLM skill prompts (chat prompts for llm step type)
+    "tool/",         # Tool-layer prompts (e.g. tool/sql-generation) — Langfuse-overridable
 })
 
 # Explicit prompt names managed in Langfuse (context-gatherer and rfq fragments)

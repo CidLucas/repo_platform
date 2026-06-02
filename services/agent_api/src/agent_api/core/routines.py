@@ -191,7 +191,7 @@ def _fetch_routine_sync(routine_id: str) -> dict | None:
     table = "client_routines" if _is_custom_routine(routine_id) else "cross_agent_routines"
     return (
         db.table(table)
-        .select("name, steps")
+        .select("name, steps, config_schema")
         .eq("id", routine_id)
         .maybe_single()
         .execute()
@@ -901,6 +901,16 @@ async def _execute_one(
                 except (ValueError, TypeError):
                     client_config[k] = v
 
+    # Seed defaults from config_schema so {{key}} templates resolve even when
+    # the client has no per-routine config override for that field.
+    # client_config values win over schema defaults (applied after).
+    schema_defaults: dict[str, object] = {}
+    for field in (row.get("config_schema") or []):
+        key = field.get("key")
+        default = field.get("default")
+        if key and default is not None:
+            schema_defaults[key] = default
+
     # HITL resume: load saved progress when returning from awaiting_approval
     saved_metadata: dict = dict(execution.get("result_metadata") or {})
     resume_from: int = int(saved_metadata.pop("_resume_from_step", 0) or 0)
@@ -915,8 +925,9 @@ async def _execute_one(
         "exec_id": exec_id,
         "nome_empresa": nome_empresa,
         "website_url": website_url,  # resolves {{website_url}} in crawl steps
-        **client_config,  # config values available for template resolution
-        "tier": tier,  # must come last — never overridden by client_config
+        **schema_defaults,   # config_schema defaults — lowest priority
+        **client_config,     # per-client overrides — wins over schema defaults
+        "tier": tier,        # must come last — never overridden by client_config
     }
 
     # Merge saved state from a previous (paused) execution run
@@ -1060,7 +1071,11 @@ async def _execute_one(
                 step_id  = step.get("id") or f"step_{step.get('step', 0)}"
                 on_failure = step.get("on_failure", "continue")
                 if isinstance(result, Exception):
-                    logger.exception("[RoutineExecutor] Parallel step '%s' of %s failed", step_id, exec_id)
+                    logger.error(
+                        "[RoutineExecutor] Parallel step '%s' of %s failed: %s: %s",
+                        step_id, exec_id, type(result).__name__, result,
+                        exc_info=result,
+                    )
                     if on_failure == "halt":
                         raise result
                     result_parts.append(f"{step_id}: falhou ({result}), continuando")
@@ -1105,6 +1120,9 @@ async def _execute_one(
 
             for k, v in step_outputs.items():
                 state[k] = "" if (v is None or v == [] or v == {}) else v
+
+            summary_val = step_outputs.get("summary") or _first_scalar(step_outputs) or "ok"
+            result_parts.append(f"{step_id_out}: {str(summary_val)[:300]}")
 
         # Checkpoint after each batch (parallel or sequential)
         await asyncio.to_thread(
@@ -1321,6 +1339,14 @@ async def _execute_skill_step(
                     "[RoutineExecutor] skill '%s' returned no structured output",
                     skill_slug,
                 )
+
+        # Coerce: if a schema key was declared as a string output but the LLM
+        # returned a dict/list (e.g. JSON object instead of prose), serialize it
+        # so downstream string operations (strip, format) don't blow up.
+        for k in outputs_schema:
+            if k in step_outputs and not isinstance(step_outputs[k], str):
+                import json as _json2
+                step_outputs[k] = _json2.dumps(step_outputs[k], ensure_ascii=False)
 
     if result.error:
         logger.warning("[RoutineExecutor] skill '%s' error: %s", skill_slug, result.error)

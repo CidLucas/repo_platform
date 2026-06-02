@@ -179,8 +179,8 @@ class TestGetAgentsForTier:
     def test_sme_includes_specialist_agents(self):
         agents = FeatureRegistry.get_agents_for_tier("SME")
         for slug in ["synthesis", "data-analyst", "platform", "financeiro",
-                     "compras", "agenda", "documentos", "supplier-agent",
-                     "scheduler-agent", "doc-writer"]:
+                     "compras", "agenda", "documentos",
+                     "doc-writer"]:
             assert slug in agents, f"{slug!r} should be accessible at SME"
 
     def test_enterprise_includes_fiscal_agent(self):
@@ -275,20 +275,20 @@ class TestGetToolsForAgentAndTier:
         tools = FeatureRegistry.get_tools_for_agent_and_tier("compras", "SME")
         assert len(tools) == len(set(tools))
 
-    def test_supplier_agent_premium_gets_rfq_whatsapp(self):
-        tools = FeatureRegistry.get_tools_for_agent_and_tier("supplier-agent", "PREMIUM")
+    def test_compras_premium_gets_rfq_whatsapp(self):
+        tools = FeatureRegistry.get_tools_for_agent_and_tier("compras", "PREMIUM")
         assert "dispatch_rfq_whatsapp" in tools
 
-    def test_supplier_agent_sme_no_rfq_whatsapp(self):
-        tools = FeatureRegistry.get_tools_for_agent_and_tier("supplier-agent", "SME")
+    def test_compras_sme_no_rfq_whatsapp(self):
+        tools = FeatureRegistry.get_tools_for_agent_and_tier("compras", "SME")
         assert "dispatch_rfq_whatsapp" not in tools
 
     def test_scheduler_agent_premium_gets_google_tools(self):
-        tools = FeatureRegistry.get_tools_for_agent_and_tier("scheduler-agent", "PREMIUM")
+        tools = FeatureRegistry.get_tools_for_agent_and_tier("agenda", "PREMIUM")
         assert "query_calendar" in tools
 
     def test_scheduler_agent_sme_no_google_tools(self):
-        tools = FeatureRegistry.get_tools_for_agent_and_tier("scheduler-agent", "SME")
+        tools = FeatureRegistry.get_tools_for_agent_and_tier("agenda", "SME")
         assert "query_calendar" not in tools
 
 

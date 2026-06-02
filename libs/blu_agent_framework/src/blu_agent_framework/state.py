@@ -146,6 +146,7 @@ class AgentState(TypedDict, total=False):
 
     turn_count: int  # Current turn number
     max_turns: int  # Maximum allowed turns
+    sql_attempts: int  # execute_sql calls in current turn (loop guard)
     ended: bool  # Whether conversation has ended
     end_reason: str | None  # Reason for ending
 
@@ -284,6 +285,7 @@ def create_initial_state(
         # Conversation control
         turn_count=0,
         max_turns=max_turns,
+        sql_attempts=0,
         ended=False,
         end_reason=None,
         # Agent context

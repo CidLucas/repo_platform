@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage, ToolMessage
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.graph import CompiledGraph
 
@@ -1059,6 +1059,30 @@ class AgentBuilder:
                 "tool_results": [result_dict],
                 "error": result.error if not result.success else None,
             }
+
+            # SQL loop guard: cap execute_sql at 2 calls per turn to prevent
+            # GraphRecursionError from sql_analytics retry loops.
+            if tool_name == "execute_sql":
+                new_sql_attempts = (state.get("sql_attempts") or 0) + 1
+                updates["sql_attempts"] = new_sql_attempts
+                if new_sql_attempts >= 2:
+                    guard_msgs: list[BaseMessage] = []
+                    if tool_call_id:
+                        guard_msgs.append(ToolMessage(
+                            content=content,
+                            tool_call_id=tool_call_id,
+                            name=tool_name,
+                        ))
+                    guard_msgs.append(AIMessage(
+                        content=(
+                            "Encontrei dificuldade ao processar sua consulta SQL após múltiplas tentativas. "
+                            "Por favor, reformule a pergunta ou verifique os dados disponíveis."
+                        )
+                    ))
+                    updates["ended"] = True
+                    updates["end_reason"] = "sql_loop_guard"
+                    updates["messages"] = guard_msgs
+                    return updates
             if tool_call_id:
                 updates["messages"] = [
                     ToolMessage(
@@ -1187,22 +1211,35 @@ class AgentBuilder:
                 }
 
             # Build messages for LLM
+            # ----------------------------------------------------------------
+            # Message ordering sanitizer.
+            # Some providers (Ollama, Mistral) reject any SystemMessage that
+            # appears after a ToolMessage or AIMessage.  LangGraph may persist
+            # SystemMessages inside the state's messages list across turns, so
+            # we strip them out and re-prepend a single one at position 0.
+            # ----------------------------------------------------------------
+            non_system = [m for m in messages if not isinstance(m, SystemMessage)]
             llm_messages = []
             if system_prompt:
                 llm_messages.append(SystemMessage(content=system_prompt))
-            llm_messages.extend(messages)
+            llm_messages.extend(non_system)
 
             # ----------------------------------------------------------------
-            # Loop guard: if the same tool returned an error 3+ consecutive
-            # times, the LLM is stuck. Force stop instead of hitting recursion limit.
+            # Loop guard: if the same tool returned 2+ errors in the last 6
+            # ToolMessages (not necessarily consecutive — LLM may interleave
+            # AIMessages between retries), the LLM is stuck. Force stop.
             # ----------------------------------------------------------------
             tool_messages = [m for m in messages if isinstance(m, ToolMessage)]
-            if len(tool_messages) >= 3:
-                last_3 = tool_messages[-3:]
-                errors = [m for m in last_3 if "error" in str(m.content).lower() or "ERROR" in str(m.content)]
-                if len(errors) >= 3:
+            if len(tool_messages) >= 2:
+                last_6_tools = tool_messages[-6:]
+                error_tools = [
+                    m for m in last_6_tools
+                    if "error" in str(m.content).lower() or "ERROR" in str(m.content)
+                ]
+                if len(error_tools) >= 2:
                     logger.warning(
-                        "[respond] Loop guard triggered — 3 consecutive tool errors. Forcing stop."
+                        "[respond] Loop guard triggered — %d tool errors in last %d tool calls. Forcing stop.",
+                        len(error_tools), len(last_6_tools),
                     )
                     return {
                         "messages": [AIMessage(
@@ -1230,19 +1267,26 @@ class AgentBuilder:
                     llm_messages = []
                     if system_prompt:
                         llm_messages.append(SystemMessage(content=system_prompt))
-                    llm_messages.extend(result.messages)
+                    # Strip any SystemMessages from the truncated slice — same
+                    # sanitizer as the main path to avoid role-ordering violations.
+                    llm_messages.extend(
+                        m for m in result.messages if not isinstance(m, SystemMessage)
+                    )
             except Exception as _tb_err:
                 logger.warning(f"[respond] TokenBudget failed, using untruncated messages: {_tb_err}")
 
             # last_tool_result is only present on legacy single-tool turns that did
             # not produce a ToolMessage (e.g., when no tool_call_id was available).
             # Proper function-calling turns already appended a ToolMessage to messages.
+            # NOTE: injected as HumanMessage (not SystemMessage) to avoid the
+            # "system after tool" ordering violation on strict providers (Ollama/Mistral).
             if last_tool_result:
                 tool_context = (
                     f"\n\nTool Result ({last_tool_result.get('tool_name')}):\n"
                     + str(last_tool_result.get("result", ""))
                 )
-                llm_messages.append(SystemMessage(content=tool_context))
+                from langchain_core.messages import HumanMessage as _HumanMessage
+                llm_messages.append(_HumanMessage(content=tool_context))
 
             # --- Dynamic tool binding ---
             bound_llm = llm_client
@@ -1266,7 +1310,7 @@ class AgentBuilder:
                             or state.get("metadata", {}).get("tier")
                             or "BASIC"
                         )
-                        max_tools = 4 if len(loaded_ctx) < 3 else 8
+                        max_tools = len(enabled_tools)
 
                         # Cache tool selection by (tags, tier, ctx) so we skip
                         # ToolRegistry scoring on subsequent turns with the same intent.
@@ -1300,6 +1344,20 @@ class AgentBuilder:
                     logger.warning(
                         f"[respond] Dynamic tool binding failed, using unbound LLM: {exc}"
                     )
+
+            # Ollama/Mistral compat: last message must be User or Tool.
+            # A bare AIMessage at the tail (no tool_calls) causes:
+            #   ResponseError: Expected last role User or Tool ... but got assistant
+            # Drop trailing bare AIMessages so the conversation ends on Human/Tool.
+            while (
+                llm_messages
+                and isinstance(llm_messages[-1], AIMessage)
+                and not getattr(llm_messages[-1], "tool_calls", None)
+            ):
+                logger.warning(
+                    "[respond] Dropping trailing AIMessage without tool_calls (Ollama compat)"
+                )
+                llm_messages.pop()
 
             # Generate response
             try:

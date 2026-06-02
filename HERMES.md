@@ -51,15 +51,26 @@ Agentes NÃO conversam diretamente — escrevem/leem shared memory.
 
 ## Documentação viva — onde fica o quê
 
+### ⭐ System Reference — consultar SEMPRE primeiro
+
+> **Pasta:** `docs/system_reference/` — fonte de verdade única do sistema de agentes.
+> Agentes devem sempre procurar aqui antes de qualquer decisão sobre capacidades, skills e rotinas.
+
+| Arquivo | O que contém |
+|---|---|
+| **`docs/system_reference/AGENT_SYSTEM.md`** | **12 agentes: papéis, hierarquia, roteamento, decisões de arquitetura** |
+| **`docs/system_reference/SKILLS_SYSTEM.md`** | **Catálogo completo de skills: tools, agentes consumidores, governance** |
+| `docs/system_reference/FEATURE_MAP.md` | Tier → Features → Agents + Tools (matriz completa) |
+| `docs/system_reference/TOOL_INVENTORY.md` | Auditoria de todas as tools registradas por tier/domínio |
+| `docs/system_reference/ROUTINES_SYSTEM.md` | Fluxo técnico de rotinas: pg_cron → steps (function/skill/artifact/approval) |
+| `docs/system_reference/TASK_PLAYBOOKS.md` | Receitas de dev: como adicionar rotina, skill, tool, integração |
+
+### Referências complementares
+
 | Arquivo | O que contém |
 |---|---|
 | `docs/README.md` | Índice de todos os docs ativos |
-| `docs/platform_description.md` | Visão geral, stack, arquitetura, estado atual |
-| `docs/agent_system_map.md` | Mapa completo: agentes, skills, routines, tools, roadmap |
-| `docs/FEATURE_MAP.md` | Tier → Features → Agents + Tools (matriz completa) |
-| `docs/TOOL_INVENTORY.md` | Auditoria de todas as 42+ tools registradas por tier/domínio |
 | `docs/onboarding-context-map.md` | Fluxo de onboarding, provisionamento de tenant |
-| `docs/routines/rotinas_fluxo_e_dependencias.md` | Fluxo técnico de rotinas, step types, catálogo, triggers |
 | `docs/blu_app/blu_app concept.md` | Filosofia do produto: salas, HITL, memória, integrações |
 | `docs/observability/README.md` | Traces, métricas, Grafana |
 
@@ -120,6 +131,9 @@ hidden_patterns, competitor_analysis, satisfaction_survey
 - Agente RFQ: redesenho radical — fluxo em 3 passos, sem geração de PDF. Output em cards.
 - Tier enforcement: tier controla Features, não tools diretamente. ResourceResolver faz interseção.
 - "revisar" = cleanup ativo (remove dead code, duplicação, centraliza lógica). Não é relatório.
+- **agenda → scheduler-agent** (2026-05-29): o agente `agenda` planejado em `agents_and_skills.md` (22/05) nunca foi criado. Suas responsabilidades foram absorvidas pelo `scheduler-agent` (slug diferente, mesmo papel: calendário, follow-ups, disponibilidade, reuniões). A skill `agenda` existe (slug: agenda, prompt: skill:agenda:system) e fica em `scheduler-agent.skill_slugs`. Não criar slug `agenda` como agente separado.
+- **Binding agente↔skill via skill_slugs** (2026-05-29): o plano original usava tag-intersection (gerava over-match — context-gatherer e platform pegavam todas as 16 L3 skills via tag `routines`). Migrado para `skill_slugs=[ ]` explícito no registry. Não regredir para tag-intersection.
+- **context-gatherer usa fragments, não prompt_name** (2026-05-29): prompt montado dinamicamente a partir de 6 fragments Langfuse (`fragment/context-gatherer-base`, `fragment/transaction-extraction-rules`, `fragment/schema-mapping-workflow`, `fragment/routine-definition-workflow`, `fragment/knowledge-curation-workflow`, `fragment/confirmation-patterns`). Não existe `agents/context-gatherer` no Langfuse.
 
 ## Política de sessão (agente)
 

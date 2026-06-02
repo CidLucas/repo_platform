@@ -1464,8 +1464,7 @@ async def _get_recent_transactions(inputs: dict, client_id: str) -> dict:
     ],
     outputs=[
         {"key": "should_alert", "type": "bool", "description": "True se o alerta deve ser emitido"},
-        {"key": "severity", "type": "str", "description": "'critical' ou 'warning'"},
-        {"key": "runway_days", "type": "float", "description": "Dias estimados de caixa restante"},
+        {"key": "severity", "type": "str", "description": "'critical', 'warning' ou 'ok'"},
         {"key": "mensagem", "type": "str", "description": "Mensagem de alerta formatada"},
     ],
 )
@@ -1479,7 +1478,7 @@ async def _evaluate_cash_alert(inputs: dict, client_id: str) -> dict:
     days = int(inputs.get("days", 30))
     runway_warn = int(inputs.get("runway_days_warn", 15))
 
-    media_saidas_diaria = (total_debitos / days) if days > 0 and total_debitos > 0 else 0.0
+    media_saidas_diaria = (abs(total_debitos) / days) if days > 0 and total_debitos != 0 else 0.0
     runway_days = (saldo / media_saidas_diaria) if media_saidas_diaria > 0 else float("inf")
 
     below_threshold = saldo < threshold
@@ -1511,8 +1510,341 @@ async def _evaluate_cash_alert(inputs: dict, client_id: str) -> dict:
     return {
         "should_alert": should_alert,
         "severity": severity,
-        "runway_days": runway_days if runway_days != float("inf") else -1,
+        # runway_days NOT returned here — get_projection.runway_days (projection-based,
+        # richer signal) is the canonical value written to dimension_state.
         "mensagem": mensagem,
+    }
+
+
+# ---------------------------------------------------------------------------
+# financeiro.get_cash_flow_projection — FIN-04
+# ---------------------------------------------------------------------------
+# Sources:
+#   - polp_accounts   (Supabase)   → saldo inicial
+#   - polp_bills      (Supabase)   → saídas confirmadas (faturas cartão com due_date)
+#   - polp_transactions (Supabase) → baseline de gastos não-recorrentes
+#   - Polp API /integrations/{id}/recurrings → recorrentes detectadas por ML
+#     (amount < 0 = saída estimada, amount > 0 = entrada estimada)
+#
+# Granularidade: semanas (Sun-Sat). Double-count evitado: débitos das semanas
+# onde há recorrente detectado não entram na estimativa de não-recorrentes.
+
+
+def _week_start(d: "date") -> "date":
+    """Return Monday of the ISO week containing d."""
+    from datetime import date, timedelta  # noqa: F401 (used in type hints + body)
+    return d - timedelta(days=d.weekday())
+
+
+def _project_recurring_dates(
+    next_expected: "date",
+    frequency: str,
+    frequency_interval: int,
+    until: "date",
+) -> list["date"]:
+    """Yield dates where this recurring will fire between today and until."""
+    from datetime import date, timedelta
+
+    freq_days: dict[str, int] = {
+        "DAILY": 1,
+        "WEEKLY": 7,
+        "BIWEEKLY": 14,
+        "MONTHLY": 30,
+        "BIMONTHLY": 60,
+        "QUARTERLY": 91,
+        "SEMIANNUAL": 182,
+        "YEARLY": 365,
+    }
+    step = freq_days.get(frequency, 30) * max(frequency_interval, 1)
+    dates: list["date"] = []
+    cur = next_expected
+    today = date.today()
+    while cur <= until:
+        if cur >= today:
+            dates.append(cur)
+        cur += timedelta(days=step)
+    return dates
+
+
+@register(
+    "financeiro.get_cash_flow_projection",
+    description=(
+        "Projeta o fluxo de caixa semanal para os próximos N dias combinando: "
+        "saldo atual (polp_accounts), faturas de cartão abertas (polp_bills), "
+        "recorrentes detectadas pelo Polp (assinaturas, salários, aluguéis) e "
+        "média histórica de gastos não-recorrentes. "
+        "Retorna série semanal com saldo projetado, runway em dias e alertas."
+    ),
+    inputs=[
+        {"key": "horizon_days", "type": "int", "description": "Horizonte de projeção em dias (padrão 60)", "default": 60, "required": False},
+        {"key": "threshold", "type": "float", "description": "Saldo mínimo aceitável para alertas (padrão 5000)", "default": 5000.0, "required": False},
+        {"key": "min_recurring_confidence", "type": "float", "description": "Confiança mínima para incluir recorrentes (0-1, padrão 0.7)", "default": 0.7, "required": False},
+    ],
+    outputs=[
+        {"key": "saldo_atual", "type": "float", "description": "Saldo bancário atual (BANK accounts)"},
+        {"key": "projecao_semanal", "type": "list", "description": "Série semanal: [{semana, saldo_projetado, saidas_confirmadas, saidas_recorrentes, entradas_recorrentes, saidas_estimadas}]"},
+        {"key": "saldo_projetado_final", "type": "float", "description": "Saldo estimado ao fim do horizonte"},
+        {"key": "bills_abertas", "type": "list", "description": "Faturas de cartão abertas com due_date e total_amount"},
+        {"key": "recorrentes_detectadas", "type": "list", "description": "Recorrentes ativas com next_expected_date, amount, description, confidence"},
+        {"key": "runway_days", "type": "float", "description": "Dias até saldo projetado atingir o threshold (-1 se seguro no horizonte)"},
+        {"key": "alertas", "type": "list", "description": "Lista de alertas textuais sobre riscos detectados"},
+    ],
+)
+async def _get_cash_flow_projection(inputs: dict, client_id: str) -> dict:
+    """
+    FIN-04: Weekly cash flow projection combining confirmed bills, ML-detected
+    recurrings from Polp API, and historical non-recurring spend baseline.
+    """
+    import os
+    import httpx
+    from datetime import date, timedelta
+    from collections import defaultdict
+    from blu_supabase_client import get_supabase_client
+
+    horizon_days = int(inputs.get("horizon_days", 60))
+    threshold = float(inputs.get("threshold", 5000.0))
+    min_confidence = float(inputs.get("min_recurring_confidence", 0.7))
+
+    today = date.today()
+    horizon_end = today + timedelta(days=horizon_days)
+
+    db = get_supabase_client(use_service_role=True)
+    polp_base = os.getenv("POLP_BASE_URL", "https://dev.polp.com.br/api/v1")
+    polp_headers = {
+        "x-api-client": os.getenv("POLP_API_CLIENT", ""),
+        "x-api-secret": os.getenv("POLP_API_SECRET", ""),
+    }
+
+    # ── 1. Saldo atual (BANK accounts) ────────────────────────────────────────
+    acct_resp = await asyncio.to_thread(
+        lambda: db.table("polp_accounts")
+        .select("id, polp_account_id, type, subtype, balance")
+        .eq("client_id", client_id)
+        .execute()
+    )
+    accounts: list[dict] = acct_resp.data or []
+    saldo_atual = sum(
+        float(a.get("balance") or 0)
+        for a in accounts
+        if (a.get("type") or "").upper() == "BANK"
+    )
+
+    # ── 2. Bills abertas (faturas cartão) ─────────────────────────────────────
+    bills_resp = await asyncio.to_thread(
+        lambda: db.table("polp_bills")
+        .select("due_date, total_amount, polp_account_id")
+        .eq("client_id", client_id)
+        .eq("status", "open")
+        .lte("due_date", horizon_end.isoformat())
+        .gte("due_date", today.isoformat())
+        .execute()
+    )
+    raw_bills: list[dict] = bills_resp.data or []
+    bills_abertas = [
+        {
+            "due_date": b["due_date"],
+            "total_amount": float(b.get("total_amount") or 0),
+            "polp_account_id": b.get("polp_account_id"),
+        }
+        for b in raw_bills
+    ]
+
+    # Indexar bills por semana (Monday)
+    bills_by_week: dict[str, float] = defaultdict(float)
+    for b in bills_abertas:
+        d = date.fromisoformat(b["due_date"])
+        week_key = _week_start(d).isoformat()
+        bills_by_week[week_key] += b["total_amount"]
+
+    # ── 3. Recorrentes via API Polp ───────────────────────────────────────────
+    intg_resp = await asyncio.to_thread(
+        lambda: db.table("polp_integrations")
+        .select("polp_integration_id")
+        .eq("client_id", client_id)
+        .neq("status", "DELETED")
+        .execute()
+    )
+    integration_ids: list[int] = [
+        r["polp_integration_id"] for r in (intg_resp.data or [])
+    ]
+
+    recurrings_raw: list[dict] = []
+    async with httpx.AsyncClient(timeout=15.0) as http:
+        for intg_id in integration_ids:
+            try:
+                page = 1
+                while True:
+                    r = await http.get(
+                        f"{polp_base}/integrations/{intg_id}/recurrings",
+                        headers=polp_headers,
+                        params={"page": page},
+                    )
+                    if not r.is_success:
+                        break
+                    body = r.json()
+                    items = body.get("data") or []
+                    recurrings_raw.extend(items)
+                    meta = body.get("meta", {})
+                    if page >= meta.get("last_page", 1):
+                        break
+                    page += 1
+            except Exception as exc:
+                logger.warning("[FIN-04] recurrings fetch error intg=%s: %s", intg_id, exc)
+
+    # Filtrar ativas e com confiança suficiente
+    # Mapear polp_account_id → tipo (BANK vs CREDIT) para determinar sinal das recorrentes
+    # Polp retorna amount sempre positivo em contas CREDIT — são saídas (gastos no cartão).
+    # Em contas BANK o sinal do amount já indica direção: negativo = saída, positivo = entrada.
+    acct_type_map: dict[int, str] = {
+        a["polp_account_id"]: (a.get("type") or "BANK").upper()
+        for a in accounts
+    }
+
+    recorrentes_detectadas: list[dict] = []
+    recurrings_saidas_by_week: dict[str, float] = defaultdict(float)
+    recurrings_entradas_by_week: dict[str, float] = defaultdict(float)
+    # Rastrear semanas "cobertas" por recorrentes para evitar double-count
+    weeks_covered_by_recurring: set[str] = set()
+
+    for rec in recurrings_raw:
+        if rec.get("status") != "ACTIVE":
+            continue
+        confidence = float(rec.get("confidence") or 0)
+        if confidence < min_confidence:
+            continue
+        next_exp_str = rec.get("next_expected_date")
+        if not next_exp_str:
+            continue
+
+        try:
+            # Polp API returns full datetime strings like "2026-06-27T03:00:00.000000Z"
+            # date.fromisoformat() only handles plain "YYYY-MM-DD" — strip the time part
+            next_exp = date.fromisoformat(next_exp_str[:10])
+        except ValueError:
+            continue
+
+        raw_amount = float(rec.get("amount") or 0)
+        acct_id = rec.get("account_id") or 0
+        acct_type = acct_type_map.get(int(acct_id), "BANK")
+
+        # CREDIT accounts: Polp always returns positive amounts, but they represent
+        # card spending (outflows). Negate so the projection treats them as saídas.
+        if acct_type == "CREDIT":
+            amount = -abs(raw_amount)
+        else:
+            amount = raw_amount  # BANK: sign already correct (negative = PIX sent, etc.)
+
+        frequency = rec.get("frequency", "MONTHLY")
+        freq_interval = int(rec.get("frequency_interval") or 1)
+
+        fire_dates = _project_recurring_dates(next_exp, frequency, freq_interval, horizon_end)
+
+        for fd in fire_dates:
+            week_key = _week_start(fd).isoformat()
+            weeks_covered_by_recurring.add(week_key)
+            if amount < 0:
+                recurrings_saidas_by_week[week_key] += abs(amount)
+            else:
+                recurrings_entradas_by_week[week_key] += amount
+        recorrentes_detectadas.append({
+            "description": rec.get("description"),
+            "amount": amount,
+            "frequency": frequency,
+            "next_expected_date": next_exp_str,
+            "confidence": confidence,
+            "category": (rec.get("category") or {}).get("description"),
+        })
+
+    # ── 4. Baseline não-recorrente (média semanal histórica 90 dias) ──────────
+    baseline_start = (today - timedelta(days=90)).isoformat()
+    tx_resp = await asyncio.to_thread(
+        lambda: db.table("polp_transactions")
+        .select("amount, date, type")
+        .eq("client_id", client_id)
+        .eq("type", "DEBIT")
+        .eq("status", "POSTED")
+        .gte("date", baseline_start)
+        .lte("date", today.isoformat())
+        .execute()
+    )
+    txs: list[dict] = tx_resp.data or []
+
+    # Agrupar débitos históricos por semana; excluir semanas cobertas por recorrentes
+    historical_by_week: dict[str, float] = defaultdict(float)
+    for tx in txs:
+        tx_date = date.fromisoformat(tx["date"])
+        wk = _week_start(tx_date).isoformat()
+        if wk not in weeks_covered_by_recurring:
+            historical_by_week[wk] += abs(float(tx.get("amount") or 0))
+
+    # Média semanal de saídas não-recorrentes
+    avg_weekly_nonrecurring = (
+        sum(historical_by_week.values()) / max(len(historical_by_week), 1)
+    )
+
+    # ── 5. Série semanal ──────────────────────────────────────────────────────
+    projecao_semanal: list[dict] = []
+    saldo_corrente = saldo_atual
+    runway_days = -1.0
+
+    # Gerar todas as semanas no horizonte
+    week_cur = _week_start(today)
+    while week_cur <= horizon_end:
+        wk = week_cur.isoformat()
+        saidas_confirmadas = bills_by_week.get(wk, 0.0)
+        saidas_recorrentes = recurrings_saidas_by_week.get(wk, 0.0)
+        entradas_recorrentes = recurrings_entradas_by_week.get(wk, 0.0)
+        # Estimativa não-recorrente só em semanas sem recorrente cobrindo tudo
+        saidas_estimadas = 0.0 if wk in weeks_covered_by_recurring else avg_weekly_nonrecurring
+
+        net = entradas_recorrentes - saidas_confirmadas - saidas_recorrentes - saidas_estimadas
+        saldo_corrente += net
+
+        projecao_semanal.append({
+            "semana": wk,
+            "saldo_projetado": round(saldo_corrente, 2),
+            "saidas_confirmadas": round(saidas_confirmadas, 2),
+            "saidas_recorrentes": round(saidas_recorrentes, 2),
+            "entradas_recorrentes": round(entradas_recorrentes, 2),
+            "saidas_estimadas": round(saidas_estimadas, 2),
+        })
+
+        # Detectar primeiro ponto onde saldo < threshold
+        if runway_days < 0 and saldo_corrente < threshold:
+            days_to_wk = (week_cur - today).days
+            runway_days = float(days_to_wk)
+
+        week_cur += timedelta(weeks=1)
+
+    saldo_projetado_final = projecao_semanal[-1]["saldo_projetado"] if projecao_semanal else saldo_atual
+
+    # ── 6. Alertas ────────────────────────────────────────────────────────────
+    alertas: list[str] = []
+    if saldo_atual < threshold:
+        alertas.append(f"⚠️ Saldo atual R$ {saldo_atual:,.2f} já está abaixo do mínimo de R$ {threshold:,.2f}.")
+    if 0 <= runway_days <= 14:
+        alertas.append(f"🚨 Saldo projetado cai abaixo do mínimo em ~{runway_days:.0f} dias.")
+    elif 0 < runway_days <= 30:
+        alertas.append(f"⚠️ Saldo projetado cai abaixo do mínimo em ~{runway_days:.0f} dias.")
+    total_bills = sum(b["total_amount"] for b in bills_abertas)
+    if total_bills > 0:
+        alertas.append(f"💳 {len(bills_abertas)} fatura(s) de cartão abertas totalizando R$ {total_bills:,.2f} no horizonte.")
+    if not recorrentes_detectadas:
+        alertas.append("ℹ️ Nenhuma recorrente detectada — projeção baseada apenas em histórico e faturas.")
+
+    logger.info(
+        "[routine_fn] get_cash_flow_projection: client=%s saldo_atual=%.2f semanas=%d runway=%.0f recorrentes=%d",
+        client_id, saldo_atual, len(projecao_semanal), runway_days, len(recorrentes_detectadas),
+    )
+
+    return {
+        "saldo_atual": round(saldo_atual, 2),
+        "projecao_semanal": projecao_semanal,
+        "saldo_projetado_final": round(saldo_projetado_final, 2),
+        "bills_abertas": bills_abertas,
+        "recorrentes_detectadas": recorrentes_detectadas,
+        "runway_days": runway_days,
+        "alertas": alertas,
     }
 
 

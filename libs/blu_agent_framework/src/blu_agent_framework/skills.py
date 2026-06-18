@@ -306,9 +306,26 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
             "whatsapp_enviar_mensagem",
         ],
         prompt_name="skill:fiscal:system",
-        max_turns=4,
+        max_turns=6,
         on_max_turns="raise",
         tags=["fiscal", "nfe", "nfse", "tax", "sefaz"],
+    ),
+
+    # ==========================================================================
+    # Onboarding / Contexto
+    # ==========================================================================
+
+    "onboarding_context_build": SkillDefinition(
+        name="onboarding_context_build",
+        description=(
+            "Converte dados de onboarding (wizard + website) em contexto estruturado: "
+            "company_profile, brand_voice, metas iniciais e context_map.md inicial."
+        ),
+        required_tool_names=[],
+        prompt_name="skill:onboarding_context_build:system",
+        max_turns=4,
+        on_max_turns="return_partial",
+        tags=["onboarding", "context", "company_profile", "brand_voice", "narrative"],
     ),
 
     # ==========================================================================
@@ -317,6 +334,7 @@ SKILL_REGISTRY: dict[str, SkillDefinition] = {
     # skill dispatch from an agent. Context is pre-injected by the engine;
     # required_tool_names is intentionally empty.
     # These skills do NOT appear in any agent's skill_slugs.
+    # ==========================================================================
     # ==========================================================================
 
     "morning_plan": SkillDefinition(

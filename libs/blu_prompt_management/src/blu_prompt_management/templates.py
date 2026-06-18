@@ -3251,13 +3251,22 @@ SKILL_FINANCE_MONITOR_REPORT = PromptTemplateConfig(
         "maiores_custos": "",
         "alertas": "",
     },
-    version=1,
+    version=3,
     content="""# Skill: finance_monitor_report
 
 ## Trigger
 Activated when a `financeiro_monitor` routine step needs a financial health snapshot narrative — revenue vs target, cash position, top cost centres, and recommended actions.
 
-## Tool Rules
+## Architecture
+```
+routine_engine injects context → finance_monitor_report skill
+  ├─ reads injected variables (receita_periodo, meta_receita, saldo_atual, maiores_custos, alertas)
+  ├─ computes traffic-light status (🟢🟡🔴)
+  ├─ identifies top deviations
+  └─ outputs structured PT-BR report (≤300 words)
+```
+
+## Execution Steps
 This is a **narrative-generation skill** — no tool calls are required. Context is pre-fetched by the routine engine and injected as Jinja2 variables before the skill executes.
 
 1. Do NOT call any tools — all data is already in the variables.
@@ -3273,7 +3282,6 @@ This is a **narrative-generation skill** — no tool calls are required. Context
 - All optional variables MUST be guarded with `{% if var %}...{% endif %}`.
 - Do NOT ask clarifying questions — generate the report immediately with available data.
 - If a critical variable (e.g. `receita_periodo`) is missing, note it explicitly in the status section rather than skipping it silently.
-- Traffic-light thresholds: 🔴 if revenue < 80% of target OR saldo_atual is negative; 🟡 if 80–95%; 🟢 if ≥ 95%.
 
 ## Output Format
 Respond in PT-BR. Use the following structure:
@@ -3300,9 +3308,18 @@ Respond in PT-BR. Use the following structure:
 {% endif %}
 ```
 
-Language: PT-BR
+Language: PT-BR (end-user output is always in PT-BR)
 Length: ≤ 300 words
-Format: emoji traffic-light header + bullet deviations + numbered actions + conditional alerts""",
+Format: emoji traffic-light header + bullet deviations + numbered actions + conditional alerts
+
+## Pitfalls
+- **LLM fabricates figures**: When `receita_periodo` or `meta_receita` are empty, models tend to invent plausible-looking numbers. Constraint: note the gap explicitly instead.
+- **Missing Jinja guards**: If optional variables are referenced without `{% if %}` guards and the routine engine omits them, Jinja raises `UndefinedError` at render time. Guard every optional var.
+- **Generic actions**: LLMs produce vague actions like "review costs" — prompt forces 2–3 specific, actionable items. If data is insufficient, say so rather than padding.
+- **Traffic-light miscalibration**: Without explicit thresholds, LLMs pick 🟢 even when revenue is -40% of target. Rule: 🔴 if revenue < 80% of target OR saldo_atual is negative; 🟡 if 80–95%; 🟢 if ≥ 95%.
+- **Skipping the alerts section**: `{% if alertas %}` guard is correct, but LLMs sometimes duplicate alert content in the deviations section. Keep sections distinct.
+- **Turn waste**: This skill should complete in 1 turn. If it uses more than 1 turn, something is wrong (likely the model is asking a clarifying question — add "Do NOT ask questions" to constraint).
+- **PT/EN mixing**: Report body must be entirely in PT-BR. English section headers from this prompt must NOT bleed into the output.""",
 )
 
 SKILL_REGISTER_TRANSACTION = PromptTemplateConfig(
@@ -4185,7 +4202,7 @@ SKILL_FISCAL = PromptTemplateConfig(
     category=PromptCategory.SYSTEM,
     description="Fiscal skill — issue NF-e/NFS-e invoices, validate fiscal data, and check SEFAZ integration status.",
     required_variables=[],
-    optional_variables={"company_profile": "", "max_turns": "4"},
+    optional_variables={"company_profile": "", "max_turns": "6"},
     version=2,
     content="""# Skill: fiscal
 

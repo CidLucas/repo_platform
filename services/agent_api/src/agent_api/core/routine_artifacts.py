@@ -259,7 +259,7 @@ async def _create_alert(inputs: dict, client_id: str) -> dict:
 
     except Exception as exc:
         logger.warning("[routine_artifact] create_alert failed for %s: %s", client_id, exc)
-        return {"alert_id": None, "alert_created": False, "alert_error": str(exc)}
+        return {"alert_id": "", "alert_status": "failed", "alert_error": str(exc)}
 
 
 @register(
@@ -421,12 +421,17 @@ async def _save_context_document(inputs: dict, client_id: str) -> dict:
     import httpx
     from blu_supabase_client import get_supabase_client
 
-    content: str = inputs.get("content", "")
-    title: str = inputs.get("title", "Business Context Map")
-    file_name: str = inputs.get("file_name", "context_map.md")
-    category: str = inputs.get("category", "business_context")
+    content = inputs.get("content", "") or ""
+    if isinstance(content, dict):
+        content = content.get("filled_masterprompt") or ""
+    if not isinstance(content, str):
+        content = str(content)
+    content = "\n".join(content.splitlines())
+    title = inputs.get("title", "Business Context Map")
+    file_name = inputs.get("file_name", "context_map.md")
+    category = inputs.get("category", "business_context")
 
-    if not content:
+    if not content.strip():
         logger.warning("[routine_artifact] save_context_document: empty content for %s", client_id)
         return {"document_saved": False, "storage_path": ""}
 

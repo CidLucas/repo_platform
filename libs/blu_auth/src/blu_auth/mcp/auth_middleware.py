@@ -96,11 +96,6 @@ def mcp_inject_client_id(get_context_service_fn: Callable[[], object]) -> Callab
 
             return await fn(*args, **kwargs)
 
-        # Hide client_id and session_id from the function signature so FastMCP
-        # does not expose them as tool parameters to the LLM.
-        new_params = [p for name, p in sig.parameters.items() if name not in ("client_id", "session_id")]
-        wrapper.__signature__ = sig.replace(parameters=new_params)
-
         return wrapper
 
     return decorator

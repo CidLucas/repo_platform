@@ -1,0 +1,9 @@
+[
+  {
+    "priority": "high",
+    "line": 12,
+    "code": "x = 1 / 0",
+    "problem": "ZeroDivisionError: division by zero",
+    "fix": "Check if divisor is non-zero before dividing, or use safe_divide(a, b)"
+  }
+]

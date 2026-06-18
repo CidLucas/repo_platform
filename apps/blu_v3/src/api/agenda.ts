@@ -43,11 +43,16 @@ export async function connectGoogleCalendar(): Promise<void> {
         'Authorization': `Bearer ${session.access_token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ scope: CALENDAR_SCOPE, return_url: window.location.href }),
+      body: JSON.stringify({ scope: CALENDAR_SCOPE }),
     }
   )
-  if (!resp.ok) throw new Error('Failed to start Google OAuth')
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    console.error('[connectGoogleCalendar] bad response', resp.status, text)
+    throw new Error('Failed to start Google OAuth')
+  }
   const { url } = await resp.json()
+  console.log('[connectGoogleCalendar] redirect', url)
   window.location.href = url
 }
 

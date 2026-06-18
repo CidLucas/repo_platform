@@ -428,7 +428,80 @@ usuário no builder. Steps e config ficam inteiramente em `client_routines`.
 
 ---
 
-## 12. Como testar localmente
+## 12. Lições aprendidas — Retest Guillen (Jun/2026)
+
+A retest do cliente `6446d4fa-b845-4d1b-b3a3-ceed2dda6d44` (Guillen) confirmou
+vários pontos críticos do sistema de rotinas e revelou gaps que devem constar na
+documentação operacional.
+
+### 12.1 Execução correta do venv
+- O runtime do `blu_agent_api` usa `/app/services/agent_api/.venv`
+- Usar o Python do venv é obrigatório para consultas/dispatch dentro do container
+- Comando: `docker exec blu_agent_api sh -lc 'cd /app/services/agent_api && .venv/bin/python -c "..."'`
+
+### 12.2 Prompt `insights_synthesis`
+- **Problema**: prompt vazio no Langfuse causava `summary=""` no step `generate_insights`
+- **Solução**: criar/atualizar prompt `skill:insights_synthesis:system` no Langfuse com label `production`
+- **Conteúdo canônico**: role header (`Você é o analista estratégico da {{ nome_empresa }}`)
+  + blocos condicionais para `resumo_financeiro`, `resumo_clientes`, `resumo_compras`,
+  `resumo_agenda`, `contexto_empresa`
+- **Skill**: registrada em `insights-synthesis.SKILL.md` no repo, usada como referência
+  para recriar o prompt no Langfuse
+
+### 12.3 Artefatos persistidos — acesso
+- `context_map.md` e `client_masterprompts` são salvos via `storage.save_context_document`
+- O path de armazenamento é: `<client_id>/context_map.md`
+- Acesso direto via client scripts **não funciona** sem `SUPABASE_URL`/`SUPABASE_SERVICE_KEY`
+- Método suportado para inspeção:
+  - `result_metadata` da execução (`client_routine_executions.result_metadata`)
+  - Campos relevantes: `storage_path`, `document_id`, `filled_masterprompt`, `context_report_summary`
+
+### 12.4 Comportamento esperado: `extract_company_context`
+- Quando `website_url` está vazio no `company_profile` do cliente, a função retorna doc vazio
+- Isso é **não-fatal** quando o step tem `on_failure: continue`
+- A rotina `onboarding_complete` continua e gera o `context_map.md` a partir do RAG + masterprompt
+
+### 12.5 Integrações ausentes afetam `daily_insights`
+- `inventory` e `supply` ausentes → KPIs de estoque/compras viram `integration_missing: true`
+- O insight final considera isso como bloqueio operacional e classifica como `nível_atencao: crítico`
+- Isso é esperado até que as integrações sejam conectadas
+
+## 13. Troubleshooting comum
+
+### 13.1 Rotina não dispara
+- Verificar `client_routines.active = true`
+- Verificar `client_routines.status = 'active'`
+- Verificar se há `consecutive_failures >= 3` (circuit breaker suspendeu)
+- Para cron: checar `last_run_at` e se a expression é válida
+
+### 13.2 `summary=""` em step de skill
+- Causa 1: prompt vazio ou inexistente no Langfuse para o `prompt_name` esperado
+- Causa 2: `model_tier` inválido (ex: `ModelTier.BASIC` não existe — usar `ModelTier.DEFAULT`)
+- Causa 3: skill não existe no SKILL_REGISTRY e fallback `_invoke_worker` falha
+- Causa 4: tag mismatch entre agent e skill → `classify_skill_intent_node` retorna `None`
+- Diagnóstico: `docker logs blu_agent_api --since 5m | grep -E "skill.*error|tier.*cannot"`
+
+### 13.3 `{{variavel}}` não resolve no step seguinte
+- Verificar se o step anterior realmente retornou a chave usada no template
+- Checar `outputs` do step anterior vs chave usada no `inputs`/`task_template` do step seguinte
+- Mismatch silencioso: placeholder chega como string literal para funções externas
+
+### 13.4 `column does not exist` em tabelas do catálogo
+- `cross_agent_routines` usa `id` (slug) como PK, não `name`
+- Tabelas JSONB: acessar campos via `->>` (ex: `company_profile->>'website'`)
+- `client_routines.steps` geralmente é `[]` — os steps vêm do catálogo
+
+### 13.5 Dispatch manual retorna 401
+- Token errado: buscar de `app_config` onde `key = 'agent_api_routine_dispatch_token'`
+- Header correto: `Authorization: Bearer <token>`
+- Endpoint: `POST /v1/internal/routines/run-dispatched` com body `{}`
+
+### 13.6 MCP Supabase bloqueado
+- Token anônimo do MCP pode estar inválido/expirado
+- Variáveis de ambiente do service role são restritas dentro do container
+- Caminho confiável: executar queries dentro do container `blu_agent_api` usando o `.venv` do serviço
+
+## 14. Como testar localmente
 
 ```bash
 cd services/agent_api

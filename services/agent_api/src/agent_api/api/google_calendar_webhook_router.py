@@ -200,7 +200,6 @@ async def register_calendar_watch(body: RegisterWatchRequest) -> dict:
             "client_id": client_id,
             "calendar_id": body.calendar_id,
             "resource_id": watch_resp.get("resourceId"),
-            "expires_at": datetime.fromtimestamp(expiration / 1000, tz=UTC).isoformat(),
         },
         on_conflict="client_id,calendar_id",
     ).execute()
@@ -212,7 +211,6 @@ async def register_calendar_watch(body: RegisterWatchRequest) -> dict:
     return {
         "channel_id": channel_id,
         "resource_id": watch_resp.get("resourceId"),
-        "expires_at": datetime.fromtimestamp(expiration / 1000, tz=UTC).isoformat(),
     }
 
 

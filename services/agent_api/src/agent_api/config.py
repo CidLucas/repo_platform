@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # MCP
     MCP_SERVER_URL: str = "http://tool_pool_api:8000/mcp/"
+    MCP_URL: str | None = None
 
     # LLM
     LLM_PROVIDER: str = "openai"
@@ -36,16 +37,15 @@ class Settings(BaseSettings):
 
     # Routine dispatch
     ROUTINE_DISPATCH_TOKEN: str | None = None
-    ROUTINE_BATCH_SIZE: int = 10
 
-    # Logging
-    LOG_LEVEL: str = "INFO"
-    DEBUG: bool = False
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-
-@lru_cache
+@lru_cache()
 def get_settings() -> Settings:
     log.info("Loading agent_api settings...")
     return Settings()

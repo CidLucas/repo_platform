@@ -97,6 +97,9 @@ REVOKE EXECUTE ON FUNCTION analytics_v2.get_commercial_revenue_by_channel(text) 
 REVOKE EXECUTE ON FUNCTION analytics_v2.get_commercial_top_clients(text, integer) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION analytics_v2.get_context_metrics_for_client(uuid) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION analytics_v2.get_context_metrics_for_client(uuid, text) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION analytics_v2.get_context_metrics_for_client(uuid) TO service_role;
+GRANT EXECUTE ON FUNCTION analytics_v2.get_context_metrics_for_client(uuid, text) TO service_role;
 REVOKE EXECUTE ON FUNCTION analytics_v2.get_dim_totals_for_client(uuid) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION analytics_v2.get_finance_indicators(text) FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION analytics_v2.get_indicators_for_client(uuid, text, text, integer) FROM PUBLIC, anon, authenticated;

@@ -1,0 +1,23 @@
+[
+  {
+    "priority": "high",
+    "line": 1,
+    "code": "files = [\"a.py\", \"b.py\"]",
+    "problem": "No run() call for multiple files",
+    "fix": "Each file should have its own run() call or use run_batch(files)"
+  },
+  {
+    "priority": "high",
+    "line": 8,
+    "code": "logger.info(\"processed\")",
+    "problem": "Logger used without being configured/imported",
+    "fix": "Import logging and configure with logging.basicConfig(level=logging.INFO)"
+  },
+  {
+    "priority": "medium",
+    "line": 15,
+    "code": "def calc(a, b):",
+    "problem": "Incorrect logic in calculation",
+    "fix": "Review calc function behavior"
+  }
+]

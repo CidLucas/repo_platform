@@ -189,6 +189,13 @@ async def run_routine(routine_id: str, client_id: str) -> None:
         if resolved_inputs:
             print(f"\n  INPUTS:\n{_pp(resolved_inputs)}")
 
+        if step_type in {"function", "artifact"}:
+            try:
+                from agent_api.core.factory import get_mcp_manager
+                get_mcp_manager().set_client_id(client_id)
+            except Exception:
+                pass
+
         if step_type == "skill":
             task_template = step.get("task_template", "")
             task = _resolve_templates(task_template, state)
@@ -266,7 +273,6 @@ async def run_routine(routine_id: str, client_id: str) -> None:
     print(f"  DONE — {len(step_results)} steps, status={'OK' if all_ok else 'PARTIAL FAILURE'}")
     print(f"  Execution saved: {exec_id}")
     print(_DIVIDER + "\n")
-
 
 if __name__ == "__main__":
     routine_id = sys.argv[1] if len(sys.argv) > 1 else "weekly_reengagement"

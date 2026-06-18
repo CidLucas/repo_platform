@@ -144,13 +144,11 @@ O usuário pode criar rotinas customizadas conversando com o Frontdesk (roteado 
 
 ### Tipos de Rotina
 
-**De sistema (`hidden`):** Rodam para todos os clientes no horário que o Blu determina. São infraestrutura — curadoria de contexto, Room Monitors, sincronização de estado. Invisíveis ao usuário, sem configuração.
-
-**Do catálogo (`builtin`):** Entregues a todos os clientes ativos, sempre ligadas, não podem ser desativadas. O Blu determina a frequência padrão; o usuário pode ajustar o horário.
+**Do catálogo (`builtin`):** Entregues a todos os clientes ativos, sempre ligadas, não podem ser desativadas. O Blu determina a frequência — o usuário pode ajustar o horário.
 
 **Opcionais (`optional`):** O usuário ativa/desativa na aba Config de cada sala. Podem ser parametrizadas (ex: dia da semana, hora, configurações específicas da rotina).
 
-**Customizadas:** Criadas pelo usuário via conversa com o Frontdesk (roteado para `platform`). Construídas a partir de funções e skills do catálogo existente. Rotinas customizadas muito solicitadas são eventualmente incorporadas ao catálogo.
+**Customizadas:** Criadas pelo usuário via conversa com o Frontdesk (roteado para `platform`). Construídas a partir de funções e skills do catálogo existente. Rotinas customizadas muito solicitadas são eventualmente incorporadas ao catálogo como builtin.
 
 ---
 

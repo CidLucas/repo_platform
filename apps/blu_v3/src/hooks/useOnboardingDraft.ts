@@ -23,7 +23,6 @@ export interface OnboardingDraft {
   vertical: Vertical
   porte: string
   website: string
-  // Context questions answered inline after website detection
   primaryFocus: 'vendas' | 'operacao' | 'atendimento' | 'estoque' | 'outro' | null
   produtoServico: string
   systems: string[]
@@ -37,14 +36,8 @@ export interface OnboardingDraft {
   mapping_confirmed?: boolean
 }
 
-// Default agents matching the blu_v3 room set
 const DEFAULT_AGENTS = ['compras', 'financeiro', 'clientes', 'agenda', 'documentos', 'estrategia']
-
-// Tasks that require human approval by default
 const DEFAULT_APPROVAL_TASKS = ['make_payment', 'supplier_order']
-
-// All cross_agent_routines enabled by default for every new client
-// Kept empty — the auto_enroll_system_routines DB trigger handles this automatically.
 const DEFAULT_ROUTINES: string[] = []
 
 export function initialDraft(email: string): OnboardingDraft {
@@ -88,7 +81,10 @@ export function useOnboardingDraft(userEmail: string) {
   const saveDraft = useCallback(async (patch: Partial<OnboardingDraft>) => {
     setDraft(prev => {
       const next = { ...prev, ...patch }
-      try { localStorage.setItem(DRAFT_KEY(userEmail), JSON.stringify(next)) } catch {}
+      try {
+        const key = DRAFT_KEY(next.email || prev.email || userEmail || '')
+        localStorage.setItem(key, JSON.stringify(next))
+      } catch {}
       return next
     })
   }, [userEmail])
@@ -101,24 +97,25 @@ export function useOnboardingDraft(userEmail: string) {
     })
 
     if (error) throw new Error(error.message ?? 'Bootstrap failed')
-    try { localStorage.removeItem(DRAFT_KEY(userEmail)) } catch {}
+    try {
+      const key = DRAFT_KEY(state.email || userEmail || '')
+      localStorage.removeItem(key)
+      localStorage.removeItem(DRAFT_KEY(state.authMethod ? (state.email || userEmail || '') : ''))
+      localStorage.removeItem(DRAFT_KEY(''))
+    } catch {}
     return data as { client_id: string; agents: number; routines: number }
   }, [draft, userEmail])
 
   return { draft, updateDraft, saveDraft, bootstrap }
 }
 
-// ── Mapping helpers ────────────────────────────────────────────────────────
-
 export const VERTICAL_MAP: Record<string, Vertical> = {
-  // From StepAuth SECTORS (with emoji)
   '🛍 Comércio': 'ecommerce',
   '⚙️ Serviços': 'servicos',
   '🏭 Indústria': 'industria',
   '🌱 Agronegócio': 'agro',
   '💊 Saúde': 'saude',
   '📚 Educação': 'educacao',
-  // From StepInfo VERTICALS (without emoji)
   'Comércio': 'ecommerce',
   'Serviços': 'servicos',
   'Indústria': 'industria',

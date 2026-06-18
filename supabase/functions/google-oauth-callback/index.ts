@@ -16,7 +16,7 @@ const CREDENTIALS_ENCRYPTION_KEY = Deno.env.get("CREDENTIALS_ENCRYPTION_KEY")!;
 
 const REDIRECT_URI = `${SUPABASE_URL}/functions/v1/google-oauth-callback`;
 
-// ── Fernet encryption (same as onboarding-capture-drive-token) ───────────────
+// ── Fernet encryption (compatible with Python cryptography.fernet.Fernet) ─────
 function base64urlDecode(str: string): Uint8Array {
   const base64 = str.replace(/-/g, "+").replace(/_/g, "/");
   const padded = base64 + "==".slice(0, (4 - (base64.length % 4)) % 4);
@@ -28,7 +28,7 @@ function base64urlDecode(str: string): Uint8Array {
 
 function base64urlEncode(bytes: Uint8Array): string {
   let binary = "";
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  for (let i = 0; i < bytes.length; i++) binary = binary + String.fromCharCode(bytes[i]);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_");
 }
 
@@ -36,7 +36,7 @@ function concatBytes(...arrays: Uint8Array[]): Uint8Array {
   const total = arrays.reduce((s, a) => s + a.length, 0);
   const out = new Uint8Array(total);
   let offset = 0;
-  for (const arr of arrays) { out.set(arr, offset); offset += arr.length; }
+  for (const arr of arrays) { out.set(arr, offset); offset = offset + arr.length; }
   return out;
 }
 
@@ -60,52 +60,109 @@ async function fernetEncrypt(keyBase64url: string, plaintext: string): Promise<s
   return base64urlEncode(concatBytes(version, timeBytes, iv, ciphertext, hmac));
 }
 
-function redirectTo(url: string) {
-  return new Response(null, { status: 302, headers: { Location: url } });
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function getJson(url: string, init?: RequestInit) {
+  const res = await fetch(url, init);
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return { _raw: text } as Record<string, unknown>;
+  }
 }
 
+function redirectTo(url: string) {
+  const safe = (url && String(url).trim().length > 0) ? String(url).trim() : 'https://app.blu.direct#room/admin?tab=integracoes&google_error=empty_redirect';
+  console.log('[google-oauth-callback] redirectTo ->', safe);
+  const headers = new Headers();
+  headers.set('Location', safe);
+  headers.set('Content-Type', 'text/html; charset=utf-8');
+  return new Response(
+    `<html><body>Redirecting to <a href="${safe}">${safe}</a>...</body></html>`,
+    { status: 302, headers }
+  );
+}
+
+function buildRedirectReturn(stateData: { return_url?: string }) {
+  try {
+    const origin = new URL(stateData.return_url ?? "https://app.blu.direct").origin;
+    return `${origin}#room/admin?tab=integracoes`;
+  } catch {
+    return "https://app.blu.direct#room/admin?tab=integracoes";
+  }
+}
+
+// ── Main handler ──────────────────────────────────────────────────────────────
+
 Deno.serve(async (req: Request) => {
+  console.log('[google-oauth-callback] boot version=2026-06-03-v1', new Date().toISOString());
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const errorParam = url.searchParams.get("error");
 
   if (errorParam) {
-    console.error("[google-oauth-callback] google returned error:", errorParam);
+    console.warn('[google-oauth-callback] errorParam', errorParam);
     return redirectTo(`https://app.blu.direct/#room/admin?tab=integracoes&google_error=${encodeURIComponent(errorParam)}`);
   }
-
   if (!code || !state) {
+    console.warn('[google-oauth-callback] missing code/state');
     return redirectTo(`https://app.blu.direct/#room/admin?tab=integracoes&google_error=missing_code`);
   }
 
-  // Decode state
   let stateData: { uid: string; scope: string; ts: number; return_url?: string };
   try {
     stateData = JSON.parse(atob(state));
-  } catch {
+  } catch (e) {
+    console.warn('[google-oauth-callback] invalid state', e);
     return redirectTo(`https://app.blu.direct/#room/admin?tab=integracoes&google_error=invalid_state`);
   }
+  console.log('[google-oauth-callback] stateData', stateData);
+  const returnBase = buildRedirectReturn(stateData);
 
-  const RETURN_ORIGIN = (() => { try { return new URL(stateData.return_url ?? "https://app.blu.direct").origin; } catch { return "https://app.blu.direct"; } })();
-  const RETURN_BASE = `${RETURN_ORIGIN}/#room/admin?tab=integracoes`;
-
-  // Reject stale state (> 10 min)
   if (Date.now() - stateData.ts > 10 * 60 * 1000) {
-    return redirectTo(`${RETURN_BASE}&google_error=state_expired`);
+    return redirectTo(`${returnBase}&google_error=state_expired`);
   }
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Get Google OAuth credentials
-  const { data: oauthConfig } = await admin.rpc("get_platform_google_oauth_config");
-  if (!oauthConfig?.client_id || !oauthConfig?.client_secret) {
-    return redirectTo(`${RETURN_BASE}&google_error=no_config`);
+  // Resolve client row for this Google identity uid
+  let clientRow: { client_id: string } | null = null;
+  try {
+    const resolved = await admin
+      .from("clientes_blu")
+      .select("client_id")
+      .eq("external_user_id", stateData.uid)
+      .maybeSingle();
+    clientRow = resolved.data ?? null;
+  } catch (e) {
+    console.error('[google-oauth-callback] clientes_blu lookup failed', e);
+  }
+  console.log('[google-oauth-callback] clientRow', clientRow);
+
+  if (!clientRow?.client_id) {
+    console.warn('[google-oauth-callback] no client');
+    return redirectTo(`${returnBase}&google_error=no_client`);
   }
 
-  // Exchange code for tokens
+  // Load OAuth credentials and exchange the authorization code
+  let oauthConfig: { client_id?: string; client_secret?: string } | null = null;
+  try {
+    const rpc = await admin.rpc("get_platform_google_oauth_config");
+    oauthConfig = (rpc.data ?? null) as typeof rpc.data;
+  } catch (e) {
+    console.error('[google-oauth-callback] rpc failed', e);
+  }
+  console.log('[google-oauth-callback] oauthConfigPresent', Boolean(oauthConfig?.client_id) && Boolean(oauthConfig?.client_secret));
+
+  if (!oauthConfig?.client_id || !oauthConfig?.client_secret) {
+    console.warn('[google-oauth-callback] no oauth config');
+    return redirectTo(`${returnBase}&google_error=no_config`);
+  }
+
   const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -119,74 +176,48 @@ Deno.serve(async (req: Request) => {
   });
 
   if (!tokenResp.ok) {
-    const text = await tokenResp.text();
-    console.error("[google-oauth-callback] token exchange failed:", text);
-    return redirectTo(`${RETURN_BASE}&google_error=token_exchange_failed`);
+    const text = await tokenResp.text().catch(() => '') || '';
+    let parsed: Record<string, unknown> = {};
+    try { parsed = JSON.parse(text); } catch { /* keep raw fallback if needed */ }
+    const errDesc = typeof parsed.error_description === 'string' ? parsed.error_description : (typeof parsed.error === 'string' ? parsed.error : '');
+    const errSuffix = `&google_http_status=${tokenResp.status}&google_status_text=${encodeURIComponent(tokenResp.statusText || '')}${errDesc ? `&google_error_description=${encodeURIComponent(errDesc)}` : ''}`;
+    return redirectTo(`${returnBase}${errSuffix}&google_error=token_exchange_failed`);
   }
 
-  const tokenData = await tokenResp.json();
-  const refreshToken: string = tokenData.refresh_token;
-  const accessToken: string = tokenData.access_token;
+  const tokenPayload = await tokenResp.json();
 
-  if (!refreshToken) {
-    console.error("[google-oauth-callback] no refresh_token in response — prompt=consent may not have been respected");
-    return redirectTo(`${RETURN_BASE}&google_error=no_refresh_token`);
+  const refreshToken: string = (tokenPayload.refresh_token as string) ?? "";
+  const accessToken: string = (tokenPayload.access_token as string) ?? "";
+
+  if (!refreshToken || !accessToken) {
+    return redirectTo(`${returnBase}&google_error=no_refresh_token`);
   }
 
-  // Get user email from Google
-  let accountEmail = "";
-  try {
-    const userinfoResp = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (userinfoResp.ok) {
-      const info = await userinfoResp.json();
-      accountEmail = info.email ?? "";
-    }
-  } catch { /* best effort */ }
+  // Get identity info from Google (email + stable user id)
+  const userinfoPayload = await getJson('https://www.googleapis.com/oauth2/v2/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
 
-  // Resolve client_id from user id
-  const { data: clientRow } = await admin
-    .from("clientes_blu")
-    .select("client_id")
-    .eq("external_user_id", stateData.uid)
-    .maybeSingle();
+  const accountEmail = String(userinfoPayload?.email ?? "").trim().toLowerCase();
+  const googleUserId = String(userinfoPayload?.id ?? "").trim();
+  const userIdHash = googleUserId ? `google:${googleUserId}` : "";
 
-  if (!clientRow?.client_id) {
-    console.error("[google-oauth-callback] no clientes_blu row for uid:", stateData.uid);
-    return redirectTo(`${RETURN_BASE}&google_error=no_client`);
+  if (!accountEmail || !userIdHash) {
+    console.warn('[google-oauth-callback] email_unresolved payload keys', Object.keys(userinfoPayload ?? {}), 'text_preview', JSON.stringify(userinfoPayload).slice(0, 500));
+    return redirectTo(`${returnBase}&google_error=email_unresolved`);
   }
 
-  const clientId = clientRow.client_id;
-
-  // If we still don't have the email, check if there's an existing token row for this client
-  // to reuse the email (avoids creating a duplicate row with "default@unknown.com" as key).
-  if (!accountEmail) {
-    const { data: existingToken } = await admin
-      .from("integration_tokens")
-      .select("account_email")
-      .eq("client_id", clientId)
-      .eq("provider", "google")
-      .not("account_email", "eq", "default@unknown.com")
-      .maybeSingle();
-    accountEmail = existingToken?.account_email ?? "default@unknown.com";
-    if (!existingToken) {
-      console.warn("[google-oauth-callback] userinfo failed and no prior token — using fallback email");
-    }
-  }
   const refreshEncrypted = await fernetEncrypt(CREDENTIALS_ENCRYPTION_KEY, refreshToken);
   const accessEncrypted = await fernetEncrypt(CREDENTIALS_ENCRYPTION_KEY, accessToken);
+  const scopes = String(stateData.scope).split(" ").filter(Boolean);
 
-  const scopes = stateData.scope.split(" ").filter(Boolean);
-
-  // Save tokens
   const { error: upsertErr } = await admin
     .from("integration_tokens")
     .upsert(
       {
-        client_id: clientId,
+        client_id: clientRow.client_id,
         provider: "google",
-        account_email: accountEmail || "default@unknown.com",
+        account_email: accountEmail,
         access_token_encrypted: accessEncrypted,
         refresh_token_encrypted: refreshEncrypted,
         token_type: "Bearer",
@@ -199,16 +230,14 @@ Deno.serve(async (req: Request) => {
     );
 
   if (upsertErr) {
-    console.error("[google-oauth-callback] upsert failed:", upsertErr);
-    return redirectTo(`${RETURN_BASE}&google_error=db_error`);
+    return redirectTo(`${returnBase}&google_error=db_error`);
   }
 
-  // Enable calendar_settings
   await admin
     .from("calendar_settings")
     .upsert(
       {
-        client_id: clientId,
+        client_id: clientRow.client_id,
         enabled: true,
         provider: "google",
         calendar_id: "primary",
@@ -219,6 +248,5 @@ Deno.serve(async (req: Request) => {
       { onConflict: "client_id" },
     );
 
-  console.log("[google-oauth-callback] google token saved for client:", clientId);
-  return redirectTo(`${RETURN_BASE}&google_connected=1`);
+  return redirectTo(`${returnBase}&google_connected=1`);
 });

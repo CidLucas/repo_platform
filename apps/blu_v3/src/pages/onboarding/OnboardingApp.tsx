@@ -1791,6 +1791,27 @@ export default function OnboardingApp() {
 
   const mode = searchParams.get('mode') === 'login' ? 'login' : 'signup'
 
+  // Pre-seed onboarding draft from Google user_metadata on OAuth return.
+  // This avoids losing the user's name/email when the Google redirect happens.
+  useEffect(() => {
+    if (loading || !user) return
+    const meta = (user.user_metadata ?? {}) as Record<string, unknown>
+    const fullName = typeof meta.full_name === 'string'
+      ? meta.full_name
+      : typeof meta.name === 'string'
+        ? meta.name
+        : ''
+    if (fullName || user.email) {
+      const patch: Partial<OnboardingDraft> = {}
+      if (fullName) patch.nome = fullName
+      if (user.email) patch.email = user.email
+      if (user.app_metadata?.provider === 'google') patch.authMethod = 'google'
+      saveDraft(patch)
+    }
+    // intentionally ignore draft deps; runs only when user metadata changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.email, (user?.user_metadata as Record<string, unknown> | undefined)?.full_name, (user?.user_metadata as Record<string, unknown> | undefined)?.name, (user?.app_metadata as Record<string, unknown> | undefined)?.provider, loading, saveDraft])
+
   // When user is authenticated at the auth step, route based on profile state.
   // Handles: (a) existing session on /onboarding?mode=login, (b) return from Google OAuth.
   const clientIdChecked = useRef(false)

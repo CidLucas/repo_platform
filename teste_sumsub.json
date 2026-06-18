@@ -1,0 +1,1629 @@
+{
+  "agreements": {
+    "custom": {
+      "defaultDescription": "TERMOS E CONDIÇÕES DE USO — PLATAFORMA BLOQUO\nBGX Serviços Digitais Ltda. | CNPJ: 52.830.419/0001-74 Prestadora de Serviços de Ativos Virtuais (PSAV) Contato: help@bloquo.io | Foro: Comarca de São Paulo/SP\nACEITE\nAo acessar a Plataforma BLOQUO e/ou utilizar quaisquer dos Serviços, o CLIENTE: (i) Declara que leu, compreendeu e aceitou integralmente estes Termos; (ii) Reconhece e concorda que estará vinculado a este instrumento, conforme alterado periodicamente; (iii) Confirma que possui plena capacidade e autoridade legal para celebrar este Acordo.\nSEÇÃO 1 — DEFINIÇÕES E OBJETO\n1.1 Objeto\nRegulam a prestação de Serviços de Intermediação de ativos virtuais pela BLOQUO, abrangendo a facilitação de operações de compra, venda e troca de ativos virtuais, bem como a prestação de Serviços no mercado de câmbio associados a ativos virtuais.\n1.2 Definições\nTermo	Definição Ativos Virtuais	Representação digital de valor negociável/transferível por meios eletrônicos para pagamentos ou investimento. Stablecoin	Ativo virtual lastreado em ativos de reserva, atrelado ao valor de uma moeda fiduciária. Carteira de Ativos Virtuais	Mecanismo em que o titular detém as chaves privadas e opera sem intervenção de PSAVs. Carteira Autocustodiada	Idem carteira de ativos virtuais; titular detém exclusivamente as chaves privadas. Chave Privada	Mecanismo de assinatura criptográfica para autenticação e validação de transações em DLT. Contrato de Intermediação	Instrumento complementar a estes Termos que disciplina condições comerciais, operacionais e regulatórias. Operadores Autorizados	Pessoas físicas designadas pelo CLIENTE para atuar em seu nome nas operações de intermediação. Transferência Internacional	Operação entre residentes e não residentes ou entre jurisdições distintas. Provedores de Liquidez	PJs que atuam por conta própria para prover liquidez ao mercado de ativos virtuais. Sanções Internacionais	Restrições impostas por FSO, DGT, ONU, BCB ou RFB sobre pessoas, entidades ou jurisdições. Travel Rule	Padrão FATF de conformidade PLD/FT aplicável a transferências de ativos virtuais. MFA	Autenticação Multifator: múltiplas formas de verificação de identidade para acesso à plataforma. Intermediação	Modalidade em que a BLOQUO aproxima o CLIENTE de fontes de liquidez para execução de ordens.\n1.3 Serviços\n(a) Intermediação de compra, venda e troca de Ativos Virtuais. (b) Serviços de câmbio com Ativos Virtuais: (i) Pagamento ou transferência internacional com Ativos Virtuais (limites BCB); (ii) Transferência de/para carteira autocustodiada sem cunho de pagamento internacional; (iii) Intermediação de compra, venda ou troca de stablecoins. (c) Atuação como provedora de liquidez de Ativos Virtuais.\nSEÇÃO 2 — ELEGIBILIDADE E CADASTRO\nRequisitos\n(a) PF maior de 18 anos ou PJ com capacidade legal para contratar, atuando em nome próprio ou por representante legal autorizado. (b) Plena capacidade para celebrar contratos e cumprir obrigações. (c) Não residir ou estar constituído em jurisdição proibida pelo BCB ou outras autoridades competentes. (d) Não exercer atividades proibidas ou ilícitas.\n2.1 Responsabilidade do Cadastro\nO CLIENTE se responsabiliza por fornecer informações corretas e completas e manter seus dados sempre atualizados, inclusive designando e revogando Operadores Autorizados por escrito.\nSEÇÃO 3 — OBRIGAÇÕES E RESPONSABILIDADES DA BLOQUO\n3.1 Obrigações Gerais\n(a) Liquidar operações nos prazos e condições pactuados. (b) Cumprir integralmente: Lei nº 14.478/2022 | Decreto nº 11.563/2023 | Res. BCB nº 277/2022, 520/2025 e 521/2025 | IN BCB nº 693/2025 | Lei nº 9.613/1998 (PLD) | Lei nº 13.709/2018 (LGPD) | IN RFB nº 2.291/2025. (c) Manter mecanismos adequados de governança, gestão de riscos e controles internos. (d) Segregar permanentemente recursos próprios dos recursos dos CLIENTES em contas individualizadas. (e) Zelar pela legitimidade, rastreabilidade e conformidade dos ativos virtuais intermediados. (f) Manter registros de todas as operações realizadas em nome de CLIENTES. (g) Assegurar confidencialidade, integridade, disponibilidade e segurança dos dados. (h) Verificar a legitimidade de procurações, autorizações e documentos das partes. (i) Adotar procedimentos formais de due diligence e monitoramento contínuo de prestadores de serviços. (j) Adotar políticas de PLD/FT/FP conforme Resolução BCB nº 3.978/2020, incluindo due diligence, monitoramento e reporte ao COAF. (k) Manter equipe qualificada compatível com a complexidade e risco das atividades. (l) Mitigar conflitos de interesse. (m) Comunicar CLIENTES sobre alterações relevantes em Termos, políticas ou Serviços.\n3.2 Conformidade com Sanções Internacionais\n(a) Verificação contínua contra listas de sanções (ONU, OFAC e demais). (b) Sistemas automatizados de screening de CLIENTES, beneficiários finais e contrapartes. (c) Bloqueio de transações com pessoas, entidades ou jurisdições sancionadas. (d) Manutenção de registros de verificações e operações bloqueadas. (e) Comunicação ao BCB, COAF e autoridades judiciais de violações a regimes de sanções.\n3.3 Limitação de Responsabilidade\n(a) Produtos e Serviços NÃO são cobertos por fundos garantidores, seguros ou mecanismos de indenização similares. (b) A BLOQUO NÃO será responsável por falhas ou interrupções decorrentes de: (i) Atos ou eventos externos fora de seu controle; (ii) Casos fortuitos ou de força maior; (iii) Fato exclusivo do CLIENTE (dados desatualizados, uso indevido de credenciais, etc.). (c) A BLOQUO NÃO será responsável por: (i) Variações de preços ou volatilidade de mercado; (ii) Atos de terceiros; (iii) Operações baseadas em informações incorretas de terceiros; (iv) Indisponibilidade de telecomunicações, internet ou rede bancária. (d) Em NENHUMA hipótese haverá responsabilidade por lucros cessantes, perdas indiretas, danos emergentes, morais, reputacionais ou perda de oportunidade, exceto quando exigido por lei.\nSEÇÃO 4 — PRERROGATIVAS DA BLOQUO\n4.1 Direitos e Faculdades\n(a) Solicitar informações e documentos adicionais para conformidade e reporte. (b) Recusar ou suspender operações com indícios de fraude, ilicitude ou descumprimento de limites. (c) Interromper temporariamente os Serviços por manutenção, força maior ou segurança. (d) Comunicar operações ou comportamentos suspeitos às autoridades competentes. (e) Encerrar o relacionamento por descumprimento, determinação regulatória ou risco. (f) Não fornecer consultoria de investimento ou recomendação sobre ativos virtuais. (g) NÃO processar operações com pagamento ou recebimento em moeda estrangeira. (h) Aceitar EXCLUSIVAMENTE transferências bancárias ou meios autorizados pelo BCB; recusar espécie, cheques, ativos ou bens. (i) Prestar orientação e suporte técnico sem assumir responsabilidade por falhas internas do CLIENTE.\n4.2 Contratação de Terceiros\nA BLOQUO poderá contratar, no Brasil ou exterior, IFs, PSAVs e provedores de tecnologia para execução, liquidação, custódia e suporte operacional. - Sem cobrança de tarifas adicionais, salvo previsão contratual expressa. - Adoção de diligência compatível com natureza, complexidade e risco das atividades. - Terceiros respondem exclusivamente pelas atividades atribuídas. - A BLOQUO permanece responsável pela supervisão dos prestadores contratados perante o CLIENTE e as autoridades. - Relação de parceiros com participação relevante publicada no site da BLOQUO.\nSEÇÃO 5 — DIREITOS DOS CLIENTES\n(a) Acessar a plataforma e os Serviços, observados elegibilidade e limites aplicáveis. (b) Ter ativos mantidos sob segregação contábil e patrimonial. (c) Acessar informações sobre operações, posições, saldos e histórico transacional. (d) Consultar registros e extratos disponibilizados pela BLOQUO. (e) Receber informações claras sobre riscos dos ativos virtuais e Serviços prestados. (f) Ser informado sobre taxas, encargos, custos e demais valores aplicáveis. (g) Ser informado sobre alterações relevantes nos Termos e Condições de Uso. (h) Solicitar o encerramento da conta, desde que sem obrigações pendentes.\nSEÇÃO 6 — OBRIGAÇÕES E DECLARAÇÕES DO CLIENTE\n6.1 Declarações e Garantias\n(a) Possui capacidade legal, poderes e autorizações para manter relacionamento com a BLOQUO. (b) Recursos utilizados têm origem lícita, são próprios e compatíveis com sua capacidade financeira. (c) Cumpre e continuará cumprindo toda a legislação e regulamentação aplicável. (d) Não utilizará a plataforma para fins ilícitos, fraudulentos ou vedados. (e) Se PJ intermediária ou representante de terceiros: possui todas as licenças e registros necessários e adota práticas de PLD/FT/FP, KYC e controles internos adequados. (f) Concorda em outorgar mandato à BLOQUO para atuar junto a Provedores de Liquidez e parceiros operacionais.\n6.2 Obrigações do Cliente\n(a) Ler e aceitar integralmente estes Termos e todas as Políticas da BLOQUO (PLD/FT/FP, KYC, segurança, privacidade). (b) Fornecer informações e documentos verdadeiros, completos e atualizados. (c) Manter cadastro permanentemente atualizado (mudanças societárias, de representação, atividade, etc.). (d) Classificar corretamente cada operação, especialmente no mercado de câmbio. (e) Manter regular documentação fiscal, aduaneira e cambial, incluindo Declaração de Criptoativos (DeCripto) quando aplicável. (f) Encaminhar prontamente documentação solicitada. (g) Prestar informações suficientes sobre os Ativos Virtuais envolvidos. (h) Adotar medidas de segurança; responsável por credenciais, chaves privadas e sistemas internos. (i) Pagar pontualmente tarifas, custos e valores devidos. (j) Manter o Contrato de Intermediação atualizado caso utilize Operadores Autorizados. (k) Ao utilizar carteiras autocustodiadas: responsável pela guarda e segurança das chaves privadas; BLOQUO não tem acesso ou controle sobre tais carteiras.\n6.3 Travel Rule — Transferências Internacionais\nTransferências internacionais estão sujeitas à Travel Rule (FATF).\nDefine-se transferência internacional: remetente e beneficiário em jurisdições distintas, ou prestadores em países diferentes.\nObrigações: - Fornecer dados completos do beneficiário (identificação, dados de contato, endereço de carteira e relação com remetente). - Informar a finalidade lícita da transferência. - Manter dados atualizados e apresentar documentação comprobatória quando solicitado. - Cooperar com procedimentos de verificação e diligência adicional da BLOQUO. - Responsabilizar-se pela exatidão e veracidade de todas as informações prestadas. - Autorizar a BLOQUO a compartilhar informações com IFs, PSAVs e autoridades conforme exigido pela Travel Rule.\nConsequências do descumprimento: rejeição de operações, bloqueio de conta ou encerramento do relacionamento.\n6.4 Segurança da Conta e das Operações\nObrigação	Detalhamento MFA (obrigatório)	Ativar e manter ativo em TODOS os acessos. Desativação pode resultar em bloqueio ou encerramento. Proteção de Credenciais	Senhas fortes, exclusivas, alteradas periodicamente; nunca compartilhar com terceiros. Dispositivos e Conexão	Apenas dispositivos confiáveis, atualizados e protegidos contra malware; evitar redes públicas. Phishing	Cautela com tentativas de engenharia social; reportar imediatamente à BLOQUO. Monitoramento	Monitorar operações regularmente e reportar atividades suspeitas imediatamente. Responsabilidade	CLIENTE responde por todas as operações realizadas com suas credenciais.\nSEÇÃO 7 — PRAZO\n7.1 Vigência\nPrazo indeterminado a partir da aceitação pelo CLIENTE.\n7.2 Rescisão Sem Justa Causa\nQualquer das Partes, a qualquer tempo, mediante notificação prévia MÍNIMA DE 30 DIAS por escrito.\n7.3 Rescisão Automática por Inatividade\nINATIVIDADE DE 12 MESES CONSECUTIVOS sem realização de operações.\n7.4 Rescisão Imediata por Justa Causa\n(a) Descumprimento de obrigações destes Termos. (b) Informações, declarações ou documentos falsos, incompletos ou desatualizados. (c) Suspeita ou comprovação de envolvimento em atividades ilícitas (lavagem, terrorismo, crimes financeiros). (d) Atividades incompatíveis com Políticas internas ou apetite de risco da BLOQUO. (e) Recuperação judicial/extrajudicial, falência, liquidação ou dissolução. (f) Revogação ou suspensão de licenças, autorizações ou registros necessários. (g) Determinação de autoridade judicial ou regulatória que inviabilize a continuidade da relação.\n7.5 Efeitos da Rescisão\n(a) Não prejudica o direito da BLOQUO de cobrar valores devidos. (b) Implica encerramento do acesso aos Serviços (obrigações legais e regulatórias subsistem). (c) Não exonera o CLIENTE de obrigações assumidas antes da rescisão.\n7.6 Liquidação de Operações Pendentes\nEncerramento efetivo somente após liquidação integral de todas as obrigações, ressalvada existência de ordem judicial, regulatória ou medida cautelar que imponha bloqueio.\nSEÇÃO 8 — PROTEÇÃO DE DADOS PESSOAIS (LGPD)\n8.1 Finalidades de Tratamento\nPrestação dos Serviços | Cumprimento de obrigações legais e regulatórias | Prevenção a fraudes | Gestão de riscos | Exercício regular de direitos.\n8.2 Categorias de Dados Tratados\nDados cadastrais: nome, CPF/CNPJ, endereço, e-mail, telefone. Dados bancários e financeiros. Dados transacionais: valores, datas, finalidade, histórico. Carteiras eletrônicas e endereços de blockchain. Demais dados para identificação, análise de risco, monitoramento e reporte regulatório.\n8.3 Bases Legais (Art. 7º e 11 da LGPD)\nCumprimento de obrigação legal ou regulatória. Execução contratual. Exercício regular de direitos (judicial, administrativo ou arbitral). Legítimo interesse: segurança, prevenção a fraudes, integridade das operações.\n8.4 Destinatários do Compartilhamento\nIFs, PSAVs, custodiantes, parceiros operacionais e prestadores de serviços. Bureaus de crédito, provedores KYC/KYT, monitoramento transacional e antifraude. Autoridades: BCB, Receita Federal, COAF (conforme Res. BCB 520/2025, 521/2025, IN BCB 693/2025, IN RFB 2.291/2025). Terceiros em auditorias, investigações, due diligence ou processos judiciais/administrativos.\n8.5 Segurança da Informação\nMedidas técnicas e administrativas conforme Art. 46 da LGPD.\n8.6 Direitos dos Titulares\nAcesso | Correção | Anonimização | Eliminação | Portabilidade | Revogação do consentimento. Canal: help@bloquo.io\n8.7 Retenção e Eliminação\nDados retidos pelo prazo necessário ao cumprimento das finalidades e obrigações legais/regulatórias/PLD. Após esse prazo: eliminação ou anonimização.\n8.8 Transferência Internacional de Dados\nDados podem ser transferidos ao exterior para execução dos Serviços ou cumprimento regulatório, observados os mecanismos da LGPD.\nSEÇÃO 9 — PROPRIEDADE INTELECTUAL\n9.1 Titularidade\nA Plataforma BLOQUO (funcionalidades, sistemas, softwares, código-fonte, bases de dados, marcas e todos os elementos) é e permanecerá titularidade exclusiva da BLOQUO.\n9.2 Licença de Uso\nLicença limitada, exclusiva para uso dos Serviços. VEDADO sem autorização prévia e expressa por escrito: - Reproduzir, copiar, modificar, adaptar, distribuir, licenciar, vender ou explorar comercialmente. - Realizar engenharia reversa, descompilação ou tentativa de obtenção do código-fonte. - Remover, alterar ou ocultar avisos de direitos autorais ou marcas. - Violar direitos de PI da BLOQUO ou de terceiros.\n9.3 Desenvolvimentos e Melhorias\nQuaisquer melhorias, adaptações ou desenvolvimentos da Plataforma — inclusive decorrentes de solicitações ou feedbacks do CLIENTE — pertencem exclusivamente à BLOQUO desde a criação, sem direito a remuneração ou indenização ao CLIENTE.\n9.4 Marcas e Sinais Distintivos\nUso de nome empresarial, marcas ou logotipos da BLOQUO somente com autorização prévia e expressa por escrito.\nSEÇÃO 10 — DISPOSIÇÕES GERAIS\nCláusula	Conteúdo 10.1 Condições Comerciais Especiais	Descontos ou condições diferenciadas são liberalidade; sem direito adquirido nem extensão a terceiros.\n10.2 Tolerância	Tolerância não implica renúncia, novação ou alteração contratual.\n10.3 Invalidade Parcial	Disposição inválida não afeta as demais.\n10.4 Tributos	Cada parte responde exclusivamente por seus próprios tributos.\n10.5 Ordens de Bloqueio	Bloqueio judicial/regulatório dispensa a BLOQUO de liquidar os ativos enquanto perdurar o impedimento. 10.6 Responsabilidade pelas Informações	CLIENTE assume responsabilidade civil, administrativa e criminal pela veracidade das informações. 10.7 Atualizações Regulatórias	CLIENTE poderá ser solicitado a fornecer informações adicionais ou celebrar instrumentos complementares. 10.8 Cessão	CLIENTE não pode ceder direitos ou obrigações sem consentimento expresso da BLOQUO. Cessão não autorizada é nula.\n10.9 Título Executivo	Estes Termos constituem título executivo extrajudicial (CPC brasileiro).\nSEÇÃO 11 — LEGISLAÇÃO APLICÁVEL E FORO\nLei Aplicável: Leis da República Federativa do Brasil. Foro: Comarca de São Paulo, Estado de São Paulo — renúncia expressa a qualquer outro foro.\nSEÇÃO 12 — CANAIS DE COMUNICAÇÃO\nCanal oficial da BLOQUO: help@bloquo.io Também: plataforma eletrônica, sistemas integrados e demais canais oficiais informados.\nComunicações ao CLIENTE são válidas quando enviadas aos dados cadastrais informados. Canais de acesso são pessoais, exclusivos e intransferíveis. CLIENTE responde pela confidencialidade e uso adequado de suas credenciais. Operações realizadas pelos canais de acesso do CLIENTE são válidas e legítimas, mesmo que por terceiro não autorizado por negligência do CLIENTE. BLOQUO não responde por perdas decorrentes de uso indevido de credenciais, salvo falha comprovadamente imputável à BLOQUO.\nFIM DO DOCUMENTO"
+    },
+    "defaultTitle": "Não residente nos EUA",
+    "USA": "Residente nos EUA",
+    "titleKey": {
+      "default": "Todos os países, exceto os EUA",
+      "USA": "Estados Unidos da América"
+    },
+    "additionalClientAgreement": {
+      "defaultDescription": "Concordo com o processamento dos meus dados pessoais, conforme descrito em [Consentimento do Solicitante]({link})",
+      "defaultOptionalDescription": "Concordo com o processamento dos meus dados pessoais, conforme descrito em [Consentimento do Solicitante]({link})"
+    }
+  },
+  "genders": {
+    "M": "Masculino",
+    "F": "Feminino",
+    "X": "X"
+  },
+  "smsTexts": {
+    "mobileSmsConfirmationText": "Seu código de verificação é:"
+  },
+  "errorCodes": {
+    "1000": "Esse arquivo já foi enviado",
+    "1001": "Você ultrapassou o limite de documentos. Contate o suporte para mais informações",
+    "1002": "O tamanho do arquivo é grande demais. Escolha um tamanho menor",
+    "1003": "Esse arquivo está vazio. Selecione outro arquivo",
+    "1004": "Esse arquivo está corrompido. Selecione outro arquivo",
+    "1005": "O formato desse arquivo não é aceito. Selecione outro arquivo",
+    "1006": "Suas informações estão sendo revisadas. Aguarde um momento e tente novamente",
+    "1007": "O tamanho do arquivo ultrapassa o limite definido nas configurações.",
+    "1008": "Este solicitante foi marcado como excluído e não pode ser processado.",
+    "1009": "Este solicitante foi rejeitado e não pode ser processado.",
+    "1010": "Esse tipo de documento não está na lista de documentos exigidos.",
+    "1011": "O arquivo está criptografado e não pode ser processado.",
+    "2006": "Não é possível abrir este link. Desative a sua VPN e tente novamente. Se o problema persistir, entre em contato com o suporte.",
+    "3000": "O solicitante já está neste estado. Nenhuma ação adicional é necessária.",
+    "4008": "Não foi possível conectar ao serviço reCAPTCHA.\n\nVerifique a sua conexão à Internet e recarregue a página para ver uma verificação reCAPTCHA.",
+    "6000": "Você atingiu o limite de SMS. Tente um método alternativo ou contate o suporte.",
+    "6001": "Você não tem permissão para enviar SMS neste momento. Aguarde um pouco e tente novamente.",
+    "6002": "A verificação não está disponível para o país com esse código. Tente outro código de país e número de telefone.",
+    "6003": "A verificação não está disponível para esse código de país. Tente outro código de país e número de telefone.",
+    "6004": "O número que você está tentando verificar optou por não receber mensagens",
+    "6005": "Excesso de SMS a partir do ambiente de sandbox.",
+    "6006": "Você solicitou códigos demais recentemente. Tente novamente em alguns minutos.",
+    "6007": "Endereço de e-mail inválido. Verifique o endereço de e-mail e tente novamente.",
+    "6008": "Excesso de solicitantes criados a partir do ambiente de sandbox.",
+    "6009": "Foi atingido o limite diário de tentativas de identificação por vídeo no ambiente da sandbox.",
+    "6010": "Foi atingido o limite mensal de tentativas de identificação por vídeo no ambiente da sandbox.",
+    "6011": "Não é possível mover a ação do solicitante para pendente com muita frequência.",
+    "7001": "Endereço de e-mail inválido. Verifique o endereço de e-mail e tente novamente.",
+    "7005": "Endereço de e-mail inválido",
+    "8000": "Sua chave de licença esgotou o limite de usuários. Renove a sua assinatura ou entre em contato com o suporte.",
+    "8001": "Sua chave de licença foi restrita.",
+    "8002": "As ações de produção da sua chave de licença estão limitadas, nenhuma verificação é permitida.",
+    "9100": "Dados inválidos fornecidos. Verifique-os e tente novamente",
+    "9101": "Estamos tendo alguns problemas no momento. Tente novamente mais tarde.",
+    "9102": "Estamos tendo alguns problemas no momento. Tente novamente mais tarde.",
+    "9103": "Estamos tendo alguns problemas no momento. Tente novamente mais tarde.",
+    "9104": "Não foi possível verificar os dados que você forneceu. Tente novamente mais tarde ou forneça dados diferentes.",
+    "9105": "Excesso de tentativas. Tente novamente mais tarde ou use um método diferente.",
+    "9106": "O pagamento foi cancelado ou não pôde ser feito. Tente novamente",
+    "9107": "Não foi possível verificar os dados que você forneceu. Tente novamente com dados diferentes.",
+    "9401": "Nenhum dado a ser assinado fornecido",
+    "9402": "Você precisa primeiro ser aprovado no KYC",
+    "9403": "O eSign está enfrentando dificuldades. Tente novamente mais tarde.",
+    "9501": "Não há nenhuma fonte de dados habilitada para o país selecionado",
+    "9502": "O estado selecionado não tem suporte",
+    "9504": "Não foi possível obter os dados da empresa no registro de empresas. Forneça as informações necessárias manualmente.",
+    "9505": "Você ultrapassou o limite de beneficiários. Contate o suporte para mais informações",
+    "9506": "Sua busca retornou muitos resultados. Tente um termo de busca mais específico.",
+    "9600": "Assinatura ou endereço de carteira inválidos. Tente novamente.",
+    "10402": "Não autorizado a acessar este recurso"
+  },
+  "idDocErrors": {
+    "default": "Certifique-se de que o documento esteja totalmente visível e que todos os dados estejam legíveis.",
+    "default_noSelector": "Não é possível ler as informações do seu documento. Certifique-se de que os dados estejam visíveis e claros.",
+    "dataNotReadable": "Não é possível ler as informações do seu documento. Certifique-se de que os dados estejam visíveis e claros. Também se certifique de selecionar o país e o tipo de documento corretos.",
+    "dataNotReadable_noSelector": "Não é possível ler as informações do seu documento. Certifique-se de que os dados estejam visíveis e claros.",
+    "forbiddenDocument": "Esse tipo de documento não é aceito para verificação neste país. Os seguintes documentos são aceitos neste país:\n\n{docTypes}",
+    "forbiddenDocument_restrictedCountry": "Esta verificação não pode ser concluída com documentos emitidos nesse país ({country}), pois esse país tem restrições.",
+    "forbiddenDocument_specificDocumentType": "O tipo do documento enviado ({uploadedDocumentType}) não é aceito. Os documentos aceitos para esse país ({country}) são:\n\n{docTypesForUploadedIdDocTypeCountry}",
+    "forbiddenDocument_noSelector": "Esse tipo de documento não é aceito para verificação.",
+    "graphicEditors": "Certifique-se de que a sua foto não tenha sido processada em um editor gráfico.",
+    "expiredDoc": "Seu documento parece ter expirado. Envie um documento válido.",
+    "docExpiresSoon": "Envie um documento com um período de validade mais longo.",
+    "documentWayTooMuchOutside": "Seu documento não se encaixa na moldura. Envie outro.",
+    "missingImportantInfo": "Faltam informações importantes, ou elas não podem ser lidas. Envie fotos claras e legíveis.",
+    "differentDocTypeOrCountry": "Os documentos enviados não correspondem ao país ou tipo de documento selecionado. Envie documentos consistentes com as suas seleções, ou escolha o país e o tipo de documento que você pretende enviar.",
+    "differentDocTypeOrCountry_noSelector": "Não é possível ler as informações do seu documento. Certifique-se de que os dados estejam visíveis e claros.",
+    "noIdDocFacePhoto": "Certifique-se de que o seu rosto esteja visível no documento. Envie outra imagem.",
+    "selfieFaceBadQuality": "Certifique-se de que o seu rosto esteja visível e enquadrado na moldura. Depois, tente novamente.",
+    "shouldBeMrzDocument": "Use um documento contendo uma região legível por máquina.",
+    "shouldBeDoublePaged": "Envie os dois lados do seu documento em uma só página.",
+    "shouldBeDoubleSided": "Envie separadamente as fotos de cada lado do seu documento.",
+    "documentDeclinedBefore": "Esse documento já foi enviado antes e não é adequado para verificação. Envie um documento diferente",
+    "documentDeclinedBefore_noSelector": "Este documento já foi enviado antes e não é adequado para verificação. Envie um documento diferente",
+    "sameSides": "Certifique-se de ter enviado os dois lados do seu documento.",
+    "screenshot": "Não aceitamos capturas de tela. Envie outra imagem.",
+    "screenRecapture": "Não aceitamos fotos de uma tela. Envie outra imagem.",
+    "incompleteDob": "Envie uma foto de um documento de identidade que contenha a sua data de nascimento completa.",
+    "missingDob": "Envie uma foto de um documento de identidade que contenha a sua data de nascimento completa.",
+    "needTranslation": "Envie uma tradução juramentada do seu documento para o inglês ou experimente um documento de identidade diferente no alfaberto romano.",
+    "nfcHardwareMissing": "A leitura do chip de NFC é necessária para este campo e funciona apenas em dispositivos móveis. Para continuar, use o aplicativo de {clientName} para concluir sua verificação.",
+    "shouldBeNfcDocument": "A NFC é necessária, mas o documento não a contém.",
+    "grayscale": "Não aceitamos fotos em preto e branco de documentos. Envie uma foto colorida.",
+    "digitalDocument": "Não aceitamos documentos digitais. Envie uma foto do seu documento físico.",
+    "damagedDocument": "Seu documento parece estar danificado. Envie um documento em boas condições.",
+    "missingValidUntil": "Não foi possível encontrar a data de validade no seu documento. Envie um documento que mostre claramente o seu período de validade.",
+    "mrzNotReadable": "A zona de leitura mecânica do seu documento não pode ser lida. Envie uma foto mais nítida.",
+    "mrzNameMismatch": "O nome no seu documento não corresponde à zona de leitura mecânica. Envie um documento válido.",
+    "suspiciousDocument": "Seu documento parece ser suspeito. Envie um documento válido e não alterado.",
+    "missingSignature": "Falta uma assinatura no seu documento. Envie um documento assinado.",
+    "documentAlreadyUsed": "Este documento já foi usado para verificação. Envie um documento diferente.",
+    "missingImportantInfo_noSelector": "Faltam informações importantes ou elas não podem ser lidas. Envie fotos claras e legíveis.",
+    "expiredDoc_noSelector": "Seu documento parece ter expirado. Envie um documento válido.",
+    "documentWayTooMuchOutside_noSelector": "Seu documento não se encaixa na moldura. Envie outro.",
+    "grayscale_noSelector": "Não aceitamos fotos em preto e branco de documentos. Envie uma foto colorida.",
+    "noIdDocFacePhoto_noSelector": "Certifique-se de que o seu rosto esteja visível no documento. Envie outra imagem.",
+    "selfieFaceBadQuality_noSelector": "Certifique-se de que o seu rosto esteja visível e se encaixe na moldura. Tente novamente.",
+    "shouldBeMrzDocument_noSelector": "Use um documento que contenha uma zona de leitura mecânica.",
+    "shouldBeDoubleSided_noSelector": "Envie separadamente as fotos de cada lado do seu documento.",
+    "shouldBeDoublePaged_noSelector": "Envie as duas páginas do seu documento como uma só.",
+    "sameSides_noSelector": "Certifique-se de ter enviado a frente e o verso do seu documento.",
+    "screenshot_noSelector": "Não aceitamos capturas de tela. Envie outra imagem.",
+    "digitalDocument_noSelector": "Não aceitamos documentos digitais. Envie uma foto do seu documento físico.",
+    "screenRecapture_noSelector": "Não aceitamos fotos de uma tela. Envie outra imagem.",
+    "damagedDocument_noSelector": "Seu documento parece estar danificado. Envie um documento em boas condições.",
+    "incompleteDob_noSelector": "Envie uma foto de um documento de identidade que contenha a sua data de nascimento completa.",
+    "missingDob_noSelector": "Envie uma foto de um documento de identidade que contenha a sua data de nascimento completa.",
+    "missingValidUntil_noSelector": "Não foi possível encontrar a data de validade no seu documento. Envie um documento que mostre claramente o seu período de validade.",
+    "docExpiresSoon_noSelector": "Envie um documento com um período de validade mais longo.",
+    "mrzNotReadable_noSelector": "A zona de leitura mecânica do seu documento não pode ser lida. Envie uma foto mais nítida.",
+    "needTranslation_noSelector": "Envie uma tradução juramentada do seu documento para o inglês ou tente outro documento de identidade com caracteres latinos.",
+    "mrzNameMismatch_noSelector": "O nome no seu documento não corresponde à zona de leitura mecânica. Envie um documento válido.",
+    "suspiciousDocument_noSelector": "Seu documento parece ser suspeito. Envie um documento válido e não alterado.",
+    "missingSignature_noSelector": "Falta uma assinatura no seu documento. Envie um documento assinado.",
+    "documentAlreadyUsed_noSelector": "Este documento já foi usado para verificação. Envie um documento diferente.",
+    "nfcHardwareMissing_noSelector": "A leitura do chip NFC é obrigatória para este campo e funciona apenas em dispositivos móveis.",
+    "shouldBeNfcDocument_noSelector": "O NFC é obrigatório, mas o documento não o contém."
+  },
+  "countries": {
+    "ABW": "Aruba",
+    "AFG": "Afeganistão",
+    "AGO": "Angola",
+    "AIA": "Anguilla",
+    "ALA": "Ilhas Alanda",
+    "ALB": "Albânia",
+    "AND": "Andorra",
+    "ANT": "Antilhas Holandesas",
+    "ARE": "Emirados Árabes Unidos",
+    "ARG": "Argentina",
+    "ARM": "Armênia",
+    "ASM": "Samoa Americana",
+    "ATA": "Antártica",
+    "ATF": "Territórios Franceses do Sul",
+    "ATG": "Antígua e Barbuda",
+    "AUS": "Austrália",
+    "AUT": "Áustria",
+    "AZE": "Azerbaijão",
+    "BDI": "Burundi",
+    "BEL": "Bélgica",
+    "BEN": "Benin",
+    "BES": "Países Baixos Caribenhos",
+    "BFA": "Burkina Faso",
+    "BGD": "Bangladesh",
+    "BGR": "Bulgária",
+    "BHR": "Barein",
+    "BHS": "Bahamas",
+    "BIH": "Bósnia e Herzegovina",
+    "BLM": "São Bartolomeu",
+    "BLR": "Bielo-Rússia",
+    "BLZ": "Belize",
+    "BMU": "Bermudas",
+    "BOL": "Bolívia",
+    "BRA": "Brasil",
+    "BRB": "Barbados",
+    "BRN": "Brunei Darussalam",
+    "BTN": "Butão",
+    "BVT": "Ilha Bouvet",
+    "BWA": "Botswana",
+    "CAF": "República Centro-Africana",
+    "CAN": "Canadá",
+    "CCK": "Ilhas Cocos (Keeling)",
+    "CHE": "Suíça",
+    "CHL": "Chile",
+    "CHN": "República Popular da China (RPC)",
+    "CIV": "Costa do Marfim",
+    "CMR": "Camarões",
+    "COD": "Congo (Kinshasa)",
+    "COG": "Congo (Brazzaville)",
+    "COK": "Ilhas Cook",
+    "COL": "Colômbia",
+    "COM": "Comores",
+    "CPV": "Cabo Verde",
+    "CRI": "Costa Rica",
+    "CUB": "Cuba",
+    "CUW": "Curaçao",
+    "CXR": "Ilha do Natal",
+    "CYM": "Ilhas Cayman",
+    "CYP": "Chipre",
+    "CZE": "República Checa",
+    "DEU": "Alemanha",
+    "DJI": "Djibouti",
+    "DMA": "Dominica",
+    "DNK": "Dinamarca",
+    "DOM": "República Dominicana",
+    "DZA": "Argélia",
+    "ECU": "Equador",
+    "EGY": "Egito",
+    "ERI": "Eritreia",
+    "ESH": "Saara Ocidental",
+    "ESP": "Espanha",
+    "EST": "Estônia",
+    "ETH": "Etiópia",
+    "FIN": "Finlândia",
+    "FJI": "Fiji",
+    "FLK": "Ilhas Malvinas (Falkland)",
+    "FRA": "França",
+    "FRO": "Ilhas Faroé",
+    "FSM": "Micronésia",
+    "GAB": "Gabão",
+    "GBR": "Reino Unido",
+    "GEO": "Georgia",
+    "GGY": "Guernsey",
+    "GHA": "Gana",
+    "GIB": "Gibraltar",
+    "GIN": "Guiné",
+    "GLP": "Guadalupe",
+    "GMB": "Gâmbia",
+    "GNB": "Guiné-Bissau",
+    "GNQ": "Guiné Equatorial",
+    "GRC": "Grécia",
+    "GRD": "Grenada",
+    "GRL": "Groenlândia",
+    "GTM": "Guatemala",
+    "GUF": "Guiana Francesa",
+    "GUM": "Guam",
+    "GUY": "Guiana",
+    "HKG": "Hong Kong",
+    "HMD": "Ilha Heard e Ilhas McDonald",
+    "HND": "Honduras",
+    "HRV": "Croácia",
+    "HTI": "Haiti",
+    "HUN": "Hungria",
+    "IDN": "Indonésia",
+    "IMN": "Ilha de Man",
+    "IND": "Índia",
+    "IOT": "Território Britânico do Oceano Índico",
+    "IRL": "Irlanda",
+    "IRN": "Irã",
+    "IRQ": "Iraque",
+    "ISL": "Islândia",
+    "ISR": "Israel",
+    "ITA": "Itália",
+    "JAM": "Jamaica",
+    "JEY": "Jersey",
+    "JOR": "Jordânia",
+    "JPN": "Japão",
+    "KAZ": "Cazaquistão",
+    "KEN": "Quênia",
+    "KGZ": "Quirguistão",
+    "KHM": "Camboja",
+    "KIR": "Kiribati",
+    "KNA": "São Cristóvão e Neves",
+    "KOR": "Coreia do Sul",
+    "KWT": "Kuwait",
+    "LAO": "Laos",
+    "LBN": "Líbano",
+    "LBR": "Libéria",
+    "LBY": "Líbia",
+    "LCA": "Santa Lúcia",
+    "LIE": "Liechtenstein",
+    "LKA": "Sri Lanka",
+    "LSO": "Lesoto",
+    "LTU": "Lituânia",
+    "LUX": "Luxemburgo",
+    "LVA": "Letônia",
+    "MAC": "Macau",
+    "MAF": "Ilha de Saint Martin",
+    "MAR": "Marrocos",
+    "MCO": "Mônaco",
+    "MDA": "Moldova",
+    "MDG": "Madagáscar",
+    "MDV": "Maldivas",
+    "MEX": "México",
+    "MHL": "Ilhas Marshall",
+    "MKD": "Macedônia ",
+    "MLI": "Mali",
+    "MLT": "Malta",
+    "MMR": "Myanmar",
+    "MNE": "Montenegro",
+    "MNG": "Mongólia",
+    "MNP": "Ilhas Marianas do Norte",
+    "MOZ": "Moçambique",
+    "MRT": "Mauritânia",
+    "MSR": "Montserrat",
+    "MTQ": "Martinica",
+    "MUS": "Ilhas Maurício",
+    "MWI": "Malawi",
+    "MYS": "Malásia",
+    "MYT": "Mayotte",
+    "NAM": "Namíbia",
+    "NCL": "Nova Caledônia",
+    "NER": "Níger",
+    "NFK": "Ilha Norfolk",
+    "NGA": "Nigéria",
+    "NIC": "Nicarágua",
+    "NIU": "Niue",
+    "NLD": "Países Baixos",
+    "NOR": "Noruega",
+    "NPL": "Nepal",
+    "NRU": "Nauru",
+    "NZL": "Nova Zelândia",
+    "OMN": "Omã",
+    "PAK": "Paquistão",
+    "PAN": "Panamá",
+    "PCN": "Ilhas Pitcairn",
+    "PER": "Peru",
+    "PHL": "Filipinas",
+    "PLW": "Palau",
+    "PNG": "Papua Nova Guiné",
+    "POL": "Polônia",
+    "PRI": "Porto Rico",
+    "PRK": "Coreia do Norte",
+    "PRT": "Portugal",
+    "PRY": "Paraguai",
+    "PSE": "Palestina",
+    "PYF": "Polinésia Francesa",
+    "QAT": "Catar",
+    "REU": "Ilha da Reunião",
+    "ROU": "Romênia",
+    "RUS": "Rússia",
+    "RWA": "Ruanda",
+    "SAU": "Arábia Saudita",
+    "SDN": "Sudão",
+    "SEN": "Senegal",
+    "SGP": "Singapura",
+    "SGS": "Ilhas Geórgia do Sul e Sandwich do Sul",
+    "SHN": "Santa Helena",
+    "SJM": "Svalbard e Jan Mayen",
+    "SLB": "Ilhas Salomão",
+    "SLE": "Serra Leoa",
+    "SLV": "El Salvador",
+    "SMR": "San Marino",
+    "SOM": "Somália",
+    "SPM": "São Pedro e Miquelão",
+    "SRB": "Sérvia",
+    "SSD": "Sudão do Sul",
+    "STP": "São Tomé e Príncipe",
+    "SUR": "Suriname",
+    "SVK": "Eslováquia",
+    "SVN": "Eslovênia",
+    "SWE": "Suécia",
+    "SWZ": "Eswatini",
+    "SXM": "Sint Maarten (parte holandesa)",
+    "SYC": "Seychelles",
+    "SYR": "República Árabe da Síria",
+    "TCA": "Ilhas Turcas e Caicos",
+    "TCD": "Chade",
+    "TGO": "Togo",
+    "THA": "Tailândia",
+    "TJK": "Tajiquistão",
+    "TKL": "Tokelau",
+    "TKM": "Turcomenistão",
+    "TLS": "Timor-Leste",
+    "TON": "Tonga",
+    "TTO": "Trinidad e Tobago",
+    "TUN": "Tunísia",
+    "TUR": "Peru",
+    "TUV": "Tuvalu",
+    "TWN": "Taiwan",
+    "TZA": "Tanzânia",
+    "UGA": "Uganda",
+    "UKR": "Ucrânia",
+    "UMI": "Ilhas Menores Distantes dos Estados Unidos",
+    "URY": "Uruguai",
+    "USA": "Estados Unidos da América",
+    "UZB": "Uzbequistão",
+    "VAT": "Vaticano",
+    "VCT": "São Vicente e Granadinas",
+    "VEN": "Venezuela",
+    "VGB": "Ilhas Virgens Britânicas",
+    "VIR": "Ilhas Virgens Americanas",
+    "VNM": "Vietnã",
+    "VUT": "Vanuatu",
+    "WLF": "Wallis e Futuna",
+    "WSM": "Samoa",
+    "RKS": "Kosovo",
+    "YEM": "Iémen",
+    "ZAF": "África do Sul",
+    "ZMB": "Zâmbia",
+    "ZWE": "Zimbábue"
+  },
+  "countryStates": {
+    "AUS": {
+      "ACT": "Território da Capital Australiana",
+      "NSW": "Nova Gales do Sul",
+      "NT": "Território do Norte",
+      "QLD": "Queensland",
+      "SA": "Austrália do Sul",
+      "TAS": "Tasmânia",
+      "VIC": "Vitória",
+      "WA": "Austrália Ocidental"
+    },
+    "USA": {
+      "AL": "Alabama",
+      "AK": "Alasca",
+      "AZ": "Arizona",
+      "AR": "Arkansas",
+      "CA": "Califórnia",
+      "CO": "Colorado",
+      "CT": "Connecticut",
+      "DE": "Delaware",
+      "DC": "Distrito de Colúmbia",
+      "FL": "Flórida",
+      "GA": "Geórgia",
+      "HI": "Havaí",
+      "ID": "Idaho",
+      "IL": "Illinois",
+      "IN": "Indiana",
+      "IA": "Iowa",
+      "KS": "Kansas",
+      "KY": "Kentucky",
+      "LA": "Luisiana",
+      "ME": "Maine",
+      "MD": "Maryland",
+      "MA": "Massachusetts",
+      "MI": "Michigan",
+      "MN": "Minnesota",
+      "MS": "Mississípi",
+      "MO": "Missouri",
+      "MT": "Montana",
+      "NE": "Nebraska",
+      "NV": "Nevada",
+      "NH": "New Hampshire",
+      "NJ": "Nova Jersey",
+      "NM": "Novo México",
+      "NY": "Nova Iorque",
+      "NC": "Carolina do Norte",
+      "ND": "Dakota do Norte",
+      "OH": "Ohio",
+      "OK": "Oklahoma",
+      "OR": "Oregon",
+      "PA": "Pensilvânia",
+      "RI": "Rhode Island",
+      "SC": "Carolina do Sul",
+      "SD": "Dakota do Sul",
+      "TN": "Tennessee",
+      "TX": "Texas",
+      "UT": "Utah",
+      "VT": "Vermont",
+      "VA": "Virgínia",
+      "WA": "Washington",
+      "WV": "Virgínia Ocidental",
+      "WI": "Wisconsin",
+      "WY": "Wyoming"
+    },
+    "RUS": {
+      "10": "Карелия Республика",
+      "11": "Коми Республика",
+      "12": "Марий Эл Республика",
+      "13": "Мордовия Республика",
+      "14": "Саха /Якутия/ Республика",
+      "15": "Северная Осетия - Алания Республика",
+      "16": "Татарстан Республика",
+      "17": "Тыва Республика",
+      "18": "Удмуртская Республика",
+      "19": "Хакасия Республика",
+      "20": "Чеченская Республика",
+      "21": "Чувашская Республика - Чувашия",
+      "22": "Алтайский Край",
+      "23": "Краснодарский Край",
+      "24": "Красноярский Край",
+      "25": "Приморский Край",
+      "26": "Ставропольский Край",
+      "27": "Хабаровский Край",
+      "28": "Амурская Область",
+      "29": "Архангельская Область",
+      "30": "Астраханская Область",
+      "31": "Белгородская Область",
+      "32": "Брянская Область",
+      "33": "Владимирская Область",
+      "34": "Волгоградская Область",
+      "35": "Вологодская Область",
+      "36": "Воронежская Область",
+      "37": "Ивановская Область",
+      "38": "Иркутская Область",
+      "39": "Калининградская Область",
+      "40": "Калужская Область",
+      "41": "Камчатский Край",
+      "42": "Кемеровская Область",
+      "43": "Кировская Область",
+      "44": "Костромская Область",
+      "45": "Курганская Область",
+      "46": "Курская Область",
+      "47": "Ленинградская Область",
+      "48": "Липецкая Область",
+      "49": "Магаданская Область",
+      "50": "Московская Область",
+      "51": "Мурманская Область",
+      "52": "Нижегородская Область",
+      "53": "Новгородская Область",
+      "54": "Новосибирская Область",
+      "55": "Омская Область",
+      "56": "Оренбургская Область",
+      "57": "Орловская Область",
+      "58": "Пензенская Область",
+      "59": "Пермский Край",
+      "60": "Псковская Область",
+      "61": "Ростовская Область",
+      "62": "Рязанская Область",
+      "63": "Самарская Область",
+      "64": "Саратовская Область",
+      "65": "Сахалинская Область",
+      "66": "Свердловская Область",
+      "67": "Смоленская Область",
+      "68": "Тамбовская Область",
+      "69": "Тверская Область",
+      "70": "Oblast de Tomsk",
+      "71": "Тульская Область",
+      "72": "Тюменская Область",
+      "73": "Ульяновская Область",
+      "74": "Челябинская Область",
+      "75": "Забайкальский Край",
+      "76": "Ярославская Область",
+      "77": "Москва Город",
+      "78": "Санкт-Петербург Город",
+      "79": "Еврейская Автономная область",
+      "80": "Забайкальский край Агинский Бурятский Округ",
+      "81": "Коми-Пермяцкий Автономный округ",
+      "82": "Корякский Автономный округ",
+      "83": "Ненецкий Автономный округ",
+      "84": "Таймырский (Долгано-Ненецкий) Автономный округ",
+      "85": "Иркутская обл Усть-Ордынский Бурятский Округ",
+      "86": "Ханты-Мансийский Автономный округ - Югра Автономный округ",
+      "87": "Чукотский Автономный округ",
+      "88": "Эвенкийский Автономный округ",
+      "89": "Ямало-Ненецкий Автономный округ",
+      "90": "Запорожская область",
+      "91": "Крым Республика",
+      "92": "Севастополь Город",
+      "93": "Донецкая Народная Республика",
+      "94": "Луганская Народная Республика",
+      "95": "Херсонская область",
+      "99": "Байконур Город",
+      "01": "Адыгея Республика",
+      "04": "Алтай Республика",
+      "02": "Башкортостан Республика",
+      "03": "Бурятия Республика",
+      "05": "Дагестан Республика",
+      "06": "Ингушетия Республика",
+      "07": "Кабардино-Балкарская Республика",
+      "08": "Калмыкия Республика",
+      "09": "Карачаево-Черкесская Республика"
+    },
+    "CAN": {
+      "ON": "Ontário",
+      "QC": "Quebec",
+      "NS": "Nova Escócia",
+      "NB": "Nova Brunswick",
+      "MB": "Manitoba",
+      "BC": "Colúmbia Britânica",
+      "PE": "Ilha do Principe Eduardo",
+      "SK": "Saskatchewan",
+      "AB": "Alberta",
+      "NL": "Terra Nova e Labrador",
+      "NT": "Territórios do Noroeste",
+      "NU": "Nunavut",
+      "YT": "Yukon"
+    }
+  },
+  "customPhrases": {
+    "SELFIE": "Não sou um robô",
+    "VIDEO_SELFIE": "Não sou um deep fake",
+    "PAYMENT_SELFIE": "Esta forma de pagamento pertence a mim"
+  },
+  "countryDependingFields": {
+    "MYS": {
+      "tin": "NRIC"
+    },
+    "JPN": {
+      "tin": "Meu número"
+    },
+    "HKG": {
+      "tin": "HKID",
+      "company": {
+        "registrationNumber": {
+          "label": "Número BRN",
+          "caption": "Número BRN registrado no Sistema de Informações do Registro de Empresas (ICRIS)"
+        }
+      }
+    },
+    "BRA": {
+      "tin": "CPF",
+      "company": {
+        "registrationNumber": {
+          "label": "Número CNPJ",
+          "caption": "Número CNPJ registrado no Ministério da Fazenda"
+        }
+      }
+    },
+    "COL": {
+      "tin": "NUIP",
+      "company": {
+        "registrationNumber": {
+          "label": "Número NIT",
+          "caption": "Número NIT registrado no Sistema de Informação e Reporte Empresarial"
+        }
+      }
+    },
+    "CHL": {
+      "tin": "RUN(RUT)"
+    },
+    "ARG": {
+      "number": "DNI"
+    },
+    "USA": {
+      "tin": "Número do seguro social (SSN)",
+      "company": {
+        "registrationNumber": {
+          "label": "Número do arquivo",
+          "caption": "Pode ser encontrado nos documentos que você recebeu do órgão de registro, como lembretes de conta"
+        },
+        "taxId": {
+          "label": "EIN",
+          "caption": "Número de identificação fiscal federal"
+        }
+      }
+    },
+    "GBR": {
+      "tin": "Número de Seguro Nacional (NINO)",
+      "company": {
+        "registrationNumber": {
+          "label": "CRN",
+          "caption": "Número de registro, 8 dígitos ou 2 letras + 6 dígitos"
+        },
+        "taxId": {
+          "label": "UTR",
+          "caption": "Referência Única do Contribuinte, número de 10 dígitos"
+        }
+      }
+    },
+    "MEX": {
+      "tin": "RFC",
+      "number": "CURP (México)"
+    },
+    "NGA": {
+      "tin": "BVN",
+      "company": {
+        "registrationNumber": {
+          "label": "Número de registro da empresa",
+          "caption": "Prefixo de 2 letras escrito conjuntamente (RC/BN/IT/LP) e 6 a 8 dígitos"
+        }
+      }
+    },
+    "IDN": {
+      "tin": "NIK"
+    },
+    "IND": {
+      "tin": "PAN",
+      "company": {
+        "registrationNumber": {
+          "label": "Número de Identificação Corporativa - CIN (para empresas) ou Número de Registro Udyam (para MPMEs)",
+          "caption": "CIN: código alfanumérico de 21 caracteres, formato: U12345DL2010PTC123456. Udyam: código de 16 caracteres, formato: UDYAM-XX-00-0000000"
+        },
+        "taxId": {
+          "label": "Número de Conta Permanente (PAN)"
+        }
+      }
+    },
+    "SWE": {
+      "tin": "PIN"
+    },
+    "DNK": {
+      "tin": "CPR"
+    },
+    "FIN": {
+      "tin": "PIC"
+    },
+    "NOR": {
+      "tin": "Número de Identificação Nacional"
+    },
+    "ITA": {
+      "tin": "Codice Fiscale",
+      "company": {
+        "registrationNumber": {
+          "label": "Número REA",
+          "caption": "Número REA registrado no Registro Nacional de Câmaras de Comércio"
+        }
+      }
+    },
+    "ESP": {
+      "tin": "DNI (NIE)"
+    },
+    "CAN": {
+      "tin": "SIN",
+      "company": {
+        "registrationNumber": {
+          "label": "Número de registro da empresa (Canadá)",
+          "caption": "ID da empresa, número de 7 dígitos sem prefixos alfabéticos (Ontário, Colúmbia Britânica, Alberta)"
+        },
+        "taxId": {
+          "label": "Número da empresa (BN do Canadá)",
+          "caption": "Número de 9 dígitos, fornecido pela Agência de Receita do Canadá (CRA)"
+        }
+      }
+    },
+    "CHN": {
+      "tin": "Número da carteira de identidade de residente"
+    },
+    "SGP": {
+      "tin": "NRIC"
+    },
+    "FRO": {
+      "tin": "P-tal"
+    },
+    "ISL": {
+      "tin": "Kennitala"
+    },
+    "LIE": {
+      "tin": "PEID Nummer"
+    },
+    "SMR": {
+      "tin": "Codice ISS"
+    },
+    "TUR": {
+      "number": "Número do T.C. Kimlik (Turquia)"
+    },
+    "THA": {
+      "number": "Número de identificação (Tailândia)"
+    },
+    "PHL": {
+      "number": "Número do SSS (Filipinas)"
+    },
+    "KEN": {
+      "number": "Número de Identificação Nacional (Quênia)"
+    },
+    "NZL": {
+      "tin": "Número IRD",
+      "number": "Número da carteira de motorista (Nova Zelândia)"
+    },
+    "ZAF": {
+      "number": "Número de Identificação Nacional (África do Sul)",
+      "company": {
+        "registrationNumber": {
+          "label": "Número CIPC",
+          "caption": "Número CIPC registrado na Comissão de Empresas e Propriedade Intelectual (CIPC)"
+        }
+      }
+    },
+    "PER": {
+      "number": "DNI (Peru)"
+    },
+    "POL": {
+      "tin": "PESEL",
+      "number": "PESEL (Polônia)",
+      "company": {
+        "registrationNumber": {
+          "label": "Número KRS",
+          "caption": "Número KRS registrado no Ministério do Desenvolvimento (MR) – Registro Central e Informação sobre Empresas (CEIDG)"
+        }
+      }
+    },
+    "GHA": {
+      "number": "Número de Identificação do Eleitor (Gana)"
+    },
+    "CRI": {
+      "number": "Número de Identificação Nacional (Costa Rica)"
+    },
+    "AUS": {
+      "company": {
+        "registrationNumber": {
+          "label": "Número ACN",
+          "caption": "Número ACN registrado na Comissão de Valores Mobiliários e Investimentos (ASIC)"
+        }
+      }
+    },
+    "NLD": {
+      "tin": "BSN",
+      "company": {
+        "registrationNumber": {
+          "label": "Número KVK",
+          "caption": "Número KVK registrado na Câmara de Comércio (KvK)"
+        }
+      }
+    },
+    "FRA": {
+      "tin": "Número de identificação fiscal",
+      "company": {
+        "registrationNumber": {
+          "label": "Número SIREN",
+          "caption": "Número SIREN registrado na Infogreffe"
+        }
+      }
+    },
+    "DEU": {
+      "tin": "Número de identificação fiscal",
+      "company": {
+        "registrationNumber": {
+          "label": "Número do registro comercial",
+          "caption": "Número do registro comercial registrado no Handelsregister - Registro Comercial"
+        }
+      }
+    },
+    "ARE": {
+      "company": {
+        "registrationNumber": {
+          "label": "Número da licença comercial",
+          "caption": "Número da licença registrado no Registro Nacional Econômico"
+        }
+      }
+    },
+    "AUT": {
+      "tin": "Número de identificação fiscal"
+    },
+    "BEL": {
+      "tin": "Número nacional"
+    },
+    "BGR": {
+      "tin": "EGN"
+    },
+    "HRV": {
+      "tin": "OIB"
+    },
+    "CYP": {
+      "tin": "AFT"
+    },
+    "CZE": {
+      "tin": "Número pessoal"
+    },
+    "EST": {
+      "tin": "Código de identificação pessoal"
+    },
+    "GRC": {
+      "tin": "AFM"
+    },
+    "HUN": {
+      "tin": "Número de identificação fiscal"
+    },
+    "IRL": {
+      "tin": "Número PPS"
+    },
+    "LVA": {
+      "tin": "Número pessoal"
+    },
+    "LTU": {
+      "tin": "Número pessoal"
+    },
+    "LUX": {
+      "tin": "Número de identificação nacional"
+    },
+    "MLT": {
+      "tin": "Número de identificação fiscal"
+    },
+    "PRT": {
+      "tin": "NIF"
+    },
+    "ROU": {
+      "tin": "CNP"
+    },
+    "SVK": {
+      "tin": "Número pessoal/de identidade"
+    },
+    "SVN": {
+      "tin": "Número de identificação fiscal"
+    },
+    "ISR": {
+      "tin": "Teudat zehut"
+    },
+    "KOR": {
+      "tin": "Número de registro de residente"
+    },
+    "UGA": {
+      "tin": "Número de identificação fiscal"
+    },
+    "GGY": {
+      "tin": "Número do seguro social"
+    },
+    "IMN": {
+      "tin": "TRN"
+    },
+    "URY": {
+      "tin": "RUT"
+    }
+  },
+  "customFields": {},
+  "ekyc": {
+    "sources": {
+      "deu_gov_eid": {
+        "name": "ID eletrônica",
+        "instructions": "Para concluir a verificação, tenha em mãos o seu cartão de identidade eletrônico e o número de identificação pessoal (PIN) correspondente."
+      },
+      "nga_gov_bvn": {
+        "name": "Número de verificação bancária (BVN)",
+        "instructions": "Seu BVN é emitido pela instituição bancária da sua escolha. O BVN é um número único de identificação pessoal, composto por 11 dígitos."
+      },
+      "nga_gov_nin": {
+        "name": "Número de identificação nacional (NIN)",
+        "instructions": "Você encontra o NIN impresso no Cartão de Identidade Nacional (NIN Slip) ou na carteira de motorista. O NIN é um número único de identificação pessoal, composto por 11 dígitos.",
+        "fields": {
+          "number": "NIN"
+        },
+        "placeholders": {
+          "number": "12345678901"
+        }
+      },
+      "nga_gov_nin_slip": {
+        "name": "Número de identificação nacional (NIN)",
+        "instructions": "Você encontra o NIN impresso no Cartão de Identidade Nacional (NIN Slip) ou na carteira de habilitação. O NIN é um número único de identificação pessoal, composto por 11 dígitos.",
+        "fields": {
+          "number": "NIN"
+        },
+        "placeholders": {
+          "number": "12345678901"
+        }
+      },
+      "nga_gov_nin_phone": {
+        "name": "Número de telefone",
+        "instructions": "Insira o número de telefone associado ao seu Número de Identificação Nacional (NIN) no aplicativo NINAuth.",
+        "fields": {
+          "phone": "Número de telefone"
+        }
+      },
+      "ken_gov_passport_docfree": {
+        "name": "Número do passaporte",
+        "instructions": "Você encontra o número do passaporte impresso no documento físico. Esse número é um identificador único do documento, composto por 8 dígitos e letras.",
+        "fields": {
+          "number": "Número do passaporte"
+        }
+      },
+      "nga_gov_dl_docfree": {
+        "name": "Número da carteira de motorista",
+        "instructions": "Você encontra o número da carteira de motorista impresso no documento físico. Esse número é um identificador único do documento, composto por 12 dígitos e letras.",
+        "fields": {
+          "number": "Número da carteira de motorista"
+        }
+      },
+      "ken_gov_id_docfree": {
+        "name": "Número do Cartão de Identificação Nacional",
+        "instructions": "Você pode encontrar o número da cédula de identidade nacional impresso no documento físico. O número da cédula de identidade nacional é um identificador único do documento que consiste em 6 a 9 dígitos e não deve ser confundido com o número de série.",
+        "fields": {
+          "number": "Número do Cartão de Identificação Nacional"
+        }
+      },
+      "zaf_gov_id_docfree": {
+        "name": "Cartão de Identificação Nacional",
+        "instructions": "Você encontra o número do Cartão de Identidade Nacional impresso no documento físico. Esse número é um identificador único do documento, composto por 13 dígitos.",
+        "fields": {
+          "number": "Número do Cartão de Identificação Nacional"
+        },
+        "errors": {
+          "9100": "Dados incorretos digitados ou pessoa menor de 18 anos"
+        }
+      },
+      "fin_bankid_ftn": {
+        "name": "Rede de Confiança Finlandesa (FTN)",
+        "instructions": "Selecione a plataforma bancária de sua preferência para verificar suas informações por meio de um processo padrão de login."
+      },
+      "zaf_gov_id_cache": {
+        "name": "Cartão de Identificação Nacional",
+        "instructions": "Você encontra o número do Cartão de Identidade Nacional impresso no documento físico. Esse número é um identificador único do documento, composto por 13 dígitos.",
+        "fields": {
+          "number": "Número do Cartão de Identificação Nacional"
+        }
+      },
+      "zaf_gov_bav": {
+        "name": "Verificação de conta bancária da África do Sul",
+        "instructions": "",
+        "fields": {
+          "accountDocNumber": "Número de identificação",
+          "accountDocType": "Tipo de documento",
+          "foreignCitizen": "Cidadão estrangeiro",
+          "lastName": "Sobrenome",
+          "accountType": "Tipo de conta",
+          "accountNumber": "Número da conta",
+          "branchCode": "Agência",
+          "bankName": "Banco"
+        },
+        "placeholders": {
+          "accountDocNumber": "Digite seu número de identificação",
+          "accountDocType": "Selecione o tipo de documento",
+          "lastName": "Digite seu sobrenome",
+          "accountType": "Selecione o tipo da sua conta",
+          "accountNumber": "Digite o número da sua conta",
+          "branchCode": "Selecione a agência do seu banco",
+          "bankName": "Selecione o seu banco"
+        }
+      },
+      "zaf_gov_id": {
+        "name": "Cartão de Identificação Nacional",
+        "instructions": "Você encontra o número do Cartão de Identidade Nacional impresso no documento físico. Esse número é um identificador único do documento, composto por 13 dígitos.",
+        "fields": {
+          "number": "Número do Cartão de Identificação Nacional"
+        },
+        "errors": {
+          "9100": "Dados incorretos digitados ou pessoa menor de 18 anos"
+        }
+      },
+      "zaf_crd_id": {
+        "name": "Cédula de identidade nacional",
+        "instructions": "Você pode encontrar o número da cédula de identidade nacional impresso no documento físico. O número da cédula de identidade nacional é um identificador único do documento composto por 13 dígitos.",
+        "fields": {
+          "number": "Número da cédula de identidade nacional"
+        },
+        "errors": {
+          "9100": "Dados incorretos inseridos ou menor de 18 anos"
+        }
+      },
+      "zaf_crd_gov_id": {
+        "name": "Cédula de identidade nacional",
+        "instructions": "Você pode encontrar o número da cédula de identidade nacional impresso no documento físico. O número da cédula de identidade nacional é um identificador único do documento composto por 13 dígitos.",
+        "fields": {
+          "number": "Número da cédula de identidade nacional"
+        },
+        "errors": {
+          "9100": "Dados incorretos inseridos ou menor de 18 anos"
+        }
+      },
+      "arg_gov_dni": {
+        "name": "Número do DNI",
+        "instructions": "Você encontra o número do DNI impresso no documento físico. Esse número é um identificador único do documento, composto por 8 dígitos.",
+        "fields": {
+          "number": "Número do DNI"
+        }
+      },
+      "col_gov_nuip_doc": {
+        "name": "NUIP",
+        "instructions": "Digite o seu nome completo e o seu número NUIP. Este é um número de identificação pessoal único de 10 dígitos. Você encontra o número NUIP na sua Cédula de identidade",
+        "fields": {
+          "number": "NUIP"
+        }
+      },
+      "col_gov_nuip": {
+        "name": "NUIP",
+        "instructions": "Digite o seu número NUIP e a sua data de nascimento. O NUIP é um número de identificação pessoal único de 10 dígitos. Você encontra o número NUIP na sua Cédula de identidade",
+        "fields": {
+          "number": "NUIP"
+        }
+      },
+      "col_gov_runt_ani": {
+        "name": "NUIP",
+        "instructions": "Você pode encontrar o NUIP impresso na sua cédula de identidade nacional ou no documento do passaporte. É um número único de identificação pessoal composto por 7 a 10 dígitos.",
+        "fields": {
+          "number": "NUIP"
+        }
+      },
+      "arg_gov_id": {
+        "name": "Número do DNI",
+        "instructions": "Digite o número do seu DNI e a sua data de nascimento. O DNI tem um número de identificação pessoal único de 8 dígitos. Você encontra o número do DNI no cartão correspondente ou no seu passaporte",
+        "fields": {
+          "number": "Número do DNI",
+          "dob": "Data de nascimento"
+        }
+      },
+      "per_gov_dni": {
+        "name": "DNI",
+        "instructions": "Digite o número do seu DNI. O DNI tem um número de identificação pessoal único de 8 dígitos. Você encontra o número do DNI no cartão correspondente ou no seu passaporte",
+        "fields": {
+          "number": "DNI",
+          "dob": "Data de nascimento"
+        }
+      },
+      "per_gov_tin": {
+        "name": "DNI",
+        "instructions": "Digite o número do seu DNI. O DNI tem um número de identificação pessoal único de 8 dígitos. Você encontra o número do DNI no cartão correspondente ou no seu passaporte",
+        "fields": {
+          "number": "DNI",
+          "dob": "Data de nascimento"
+        }
+      },
+      "mex_gov_rfc": {
+        "name": "RFC",
+        "instructions": "Digite o número do seu RFC. Este é um identificador fiscal único de 13 dígitos e letras. Você pode obtê-lo da SAT",
+        "fields": {
+          "number": "RFC"
+        }
+      },
+      "mex_gov_curp_ekyc": {
+        "name": "Número do CURP",
+        "instructions": "Você encontra o número CURP impresso em qualquer documento de identidade válido. O número CURP é um identificador pessoal único composto por 18 dígitos e letras.",
+        "fields": {
+          "number": "Número do CURP"
+        }
+      },
+      "mex_gov_curp": {
+        "name": "Número do CURP",
+        "instructions": "Você encontra o número CURP impresso em qualquer documento de identidade válido. O número CURP é um identificador pessoal único composto por 18 dígitos e letras.",
+        "fields": {
+          "additionalNumber": "Número do CURP"
+        }
+      },
+      "bra_gov_cpf": {
+        "name": "Número do CPF",
+        "instructions": "Você encontrar o número do seu CPF na sua cédula de identidade nacional, carteira de motorista ou autorização de residência. O número do CPF é um identificador pessoal único, composto por 11 dígitos.",
+        "fields": {
+          "tin": "Número do CPF"
+        }
+      },
+      "bra_crd_id": {
+        "name": "CPF",
+        "instructions": "Você pode encontrar o número do CPF impresso em uma cédula de identidade nacional, carteira de motorista ou documento de autorização de residência válidos. O número do CPF é um identificador pessoal único composto por 11 dígitos.",
+        "fields": {
+          "tin": "Número do CPF"
+        }
+      },
+      "bra_crd_cpf_prem": {
+        "name": "CPF",
+        "instructions": "Você pode encontrar o número do CPF impresso em uma cédula de identidade nacional, carteira de motorista ou documento de autorização de residência válidos. O número do CPF é um identificador pessoal único composto por 11 dígitos.",
+        "fields": {
+          "tin": "CPF"
+        }
+      },
+      "aus_gov_dvs": {
+        "name": "Passaporte"
+      },
+      "aus_gov_dvs__aus__passport": {
+        "name": "Passaporte",
+        "fields": {
+          "number": "Número do passaporte"
+        }
+      },
+      "aus_gov_dvs__aus__drivers": {
+        "name": "Carteira de motorista",
+        "fields": {
+          "number": "Número da carteira de motorista",
+          "additionalNumber": "Número da carteira de motorista"
+        }
+      },
+      "aus_gov_dvs_visa": {
+        "name": "Passaporte",
+        "fields": {
+          "number": "Número do passaporte estrangeiro"
+        }
+      },
+      "idn_gov_nik": {
+        "name": "Número do NIK",
+        "instructions": "Você encontra o número do NIK impresso no seu Cartão de Identidade Nacional (KTP). Esse número é um identificador pessoal único, composto por 16 dígitos.",
+        "fields": {
+          "firstName": "Nome completo",
+          "tin": "Número do NIK"
+        }
+      },
+      "fra_pst_eid": {
+        "name": "L'Identité Numérique La Poste",
+        "instructions": "Faça login na sua conta La Poste L'identité Numérique para concluir o processo de verificação de identidade."
+      },
+      "uzb_gov_id": {
+        "name": "Cédula de identidade nacional / Passaporte",
+        "instructions": "Digite o número da sua cédula de identidade nacional ou passaporte.",
+        "fields": {
+          "number": "Número da cédula de identidade nacional ou do passaporte",
+          "firstName": "Nome",
+          "lastName": "Sobrenome"
+        }
+      },
+      "uzb_gov_pinfl": {
+        "name": "Número de identificação pessoal (PINFL)",
+        "instructions": "Você pode encontrar seu PINFL na Cédula de Identidade Nacional ou no Passaporte. O PINFL é um número de identificação pessoal exclusivo que consiste em 14 dígitos.",
+        "fields": {
+          "tin": "Número de identificação pessoal (PINFL)",
+          "firstName": "Nome",
+          "lastName": "Sobrenome"
+        }
+      },
+      "ind_gov_aadhaar_digi": {
+        "name": "AADHAAR através do Digilocker",
+        "instructions": "Faça login na sua conta do DigiLocker para concluir o processo de verificação de identidade.\n\nObserve que o acesso à plataforma DigiLocker exige uma conexão à rede na Índia. Se você estiver realizando o processo a partir de outro local, selecione um método diferente de verificação."
+      },
+      "usa_gov_ssn": {
+        "name": "Número do seguro social (SSN)",
+        "instructions": "Você pode obter o seu SSN na Administração do Seguro Social."
+      },
+      "nld_crd_idin": {
+        "name": "IDIN",
+        "instructions": "Faça login na sua conta bancária para concluir o processo de verificação de identidade",
+        "submitData": "Faça login na sua conta bancária"
+      },
+      "gbr_crd_bank": {
+        "name": "Banco on-line",
+        "instructions": "Selecione a plataforma bancária da sua preferência para verificar as suas informações através de um processo-padrão de login.",
+        "submitData": "Continuar"
+      },
+      "intl_crd_pennydrop": {
+        "name": "Transferência bancária",
+        "instructions": "Selecione a plataforma bancária da sua preferência para verificar as suas informações, fazendo um pagamento simbólico rápido. O pagamento pode levar até um dia para ser processado, dependendo do seu banco, e será reembolsado em até 48 horas.",
+        "submitData": "Prosseguir"
+      },
+      "arg_int_dni": {
+        "name": "DEMO",
+        "instructions": "Provedor de DEMONSTRAÇÃO, apenas para fins de teste.\n\n Todos os textos digitados devem estar em VERDE, exceto: \n\n1. *****001 - o BD está inativo\n2. *****002 - não encontrado no BD\n3. *****003 - nenhuma foto no BD\n4. *****004 - comparação externa do rosto, em VERMELHO\n5. *****005 - comparação externa do rosto FALHOU\n6. *****006 - nova tentativa de comparação externa do rosto\n7. *****007 - o documento fornecido está vencido\n\n",
+        "fields": {
+          "number": "DNI"
+        }
+      },
+      "nor_bankid_nbid_bid": {
+        "name": "ID bancária de alto nível de confiança",
+        "instructions": "Faça login na plataforma da BankID digitando o seu Número de Identificação Nacional (NIN) e as suas credenciais exclusivas de autenticação.",
+        "submitData": "Continuar"
+      },
+      "dnk_bankid_mitid": {
+        "name": "MitID",
+        "instructions": "Faça login na plataforma da MitID informando as suas credenciais de autenticação e o seu número de identificação pessoal (CPR).",
+        "submitData": "Login"
+      },
+      "intl_prp_residency_1x1": {
+        "instructions": "Digite os seus dados pessoais e de endereço",
+        "name": "Verificação de endereço"
+      },
+      "intl_prp_residency_2x2": {
+        "instructions": "Digite os seus dados pessoais e de endereço",
+        "name": "Verificação de endereço"
+      },
+      "intl_prp_residency_2x2__aus__tax_payer_number_doc": {
+        "instructions": "Digite os seus dados pessoais e de endereço",
+        "name": "Verificação de endereço"
+      },
+      "intl_prp_residency_2x2__aus__passport": {
+        "instructions": "Digite os seus dados pessoais e de endereço",
+        "name": "Verificação de endereço (passaporte)",
+        "fields": {
+          "number": "Número do passaporte"
+        }
+      },
+      "intl_prp_residency_2x2__aus__drivers": {
+        "instructions": "Digite os seus dados pessoais e de endereço",
+        "name": "Verificação de endereço (carteira de motorista)",
+        "fields": {
+          "number": "Número da carteira de motorista",
+          "additionalNumber": "Número da carteira de motorista"
+        }
+      },
+      "intl_prp_residency_2x2__aus__visa": {
+        "instructions": "Digite os seus dados pessoais e de endereço",
+        "name": "Verificação de endereço (visto)",
+        "fields": {
+          "number": "Número do passaporte estrangeiro"
+        }
+      },
+      "gbr_prp_residency_1x1": {
+        "instructions": "Digite os seus dados pessoais e de endereço",
+        "name": "Verificação de endereço"
+      },
+      "gbr_prp_residency_2x2": {
+        "instructions": "Digite os seus dados pessoais e de endereço",
+        "name": "Verificação de endereço"
+      },
+      "eu_crd_ob": {
+        "name": "Banco on-line",
+        "instructions": "Faça login na sua conta bancária",
+        "fields": {
+          "europe_crd_ob_bank_id": "Banco"
+        },
+        "placeholders": {
+          "europe_crd_ob_bank_id": "Selecione o seu banco"
+        }
+      },
+      "gbr_gov_evisa": {
+        "name": "eVisa",
+        "instructions": "**Geração de um Código de Compartilhamento (Share Code)**\n\n1. Certifique-se de ter criado uma [conta na plataforma do UKVI](https://www.gov.uk/update-uk-visas-immigration-account-details/update-your-ukvi-account) para acessar o seu eVisa.\nObservação: cidadãos britânicos e irlandeses devem continuar a integração através de outro método de verificação.\n\n2. Para concluir com sucesso o processo de verificação, gere um código de compartilhamento (Share Code), selecionando a opção **\"To prove my immigration status for anything else\"** (\"Para comprovar meu status de imigração para qualquer outra finalidade\") na plataforma do UK Home Office.\n\n3. Siga as etapas [daqui](https://view-immigration-status.service.gov.uk/get-share-code) para gerar corretamente o código de compartilhamento.\n\nAo clicar em \"Continuar\", você concorda em compartilhar todas as informações pessoais associadas ao registro do seu eVisa, administrado pelo Departamento de Vistos e Imigração do Reino Unido (UK Visas and Immigration Department, UKVI), subordinado ao Home Office, para fins de verificação de identidade.",
+        "fields": {
+          "number": "Share Code",
+          "dob": "Data de nascimento"
+        }
+      },
+      "can_crd_idv": {
+        "name": "Verificação de identidade Non-Doc",
+        "fields": {
+          "state": "Província",
+          "street": "Rua",
+          "flatNumber": "Número do apartamento",
+          "postCode": "Código postal",
+          "buildingNumber": "Número"
+        }
+      },
+      "sau_gov_poa": {
+        "name": "Serviço Postal Saudita",
+        "instructions": "**Localize o número do seu comprovante, seguindo as etapas abaixo:**\n\n1. [Entre na sua conta da SPL: ](https://accounts.splonline.com.sa/ar/Account/Login?ReturnUrl=%2Fconnect%2Fauthorize%2Fcallback%3Fredirect_uri%3Dhttps%253A%252F%252Feservices.splonline.com.sa%252Fcallback%26client_id%3Dextrsure%26response_type%3Dcode%26state%3DIGBGpNqFK0%26scope%3Dopenid%2520email%2520profile%2520offline_access%2520baridi_apis%2520portal_services_apis%26code_challenge%3DZBn9Vsrf3xdeerdbG8ddXjgAoRTS_6xFF8TXF6Z--dU%26code_challenge_method%3DS256) \n\n2. Vá até a seção **\"Meus Endereços\"** na página principal e clique em **\"Visualizar todos\"**.\n\n3. Selecione na lista o seu **\"Endereço Nacional\"**.\n\n4. No canto superior esquerdo, clique em **\"Mais opções\"** e selecione **\"Visualizar endereço do comprovante\"**.\n\n5. O **número do comprovante** (رقم الإثبات) aparece no canto superior esquerdo do documento.",
+        "fields": {
+          "number": "Número de Identificação Nacional",
+          "additionalNumber": "Número do comprovante"
+        }
+      },
+      "chl_gov_run": {
+        "name": "Número RUN (RUT)",
+        "instructions": "Você encontra o RUN impresso na Cédula de Identidade. O número RUN é um identificador pessoal único, composto por 8 dígitos, seguidos de um dígito de verificação, que pode ser um número de 0 a 9 ou a letra \"K\".",
+        "fields": {
+          "number": "RUN (RUT)"
+        }
+      },
+      "sgp_gov_singpass": {
+        "name": "Singpass",
+        "instructions": "Você será redirecionado para o site oficial do Singpass para fazer login e compartilhar seus detalhes verificados do Myinfo de forma segura. Suas informações estão protegidas e serão usadas apenas para verificação.",
+        "fields": {
+          "uinfin": "NRIC/FIN",
+          "name": "Nome",
+          "sex": "Gênero",
+          "dob": "Data de nascimento",
+          "nationality": "Nacionalidade",
+          "address": "Endereço",
+          "passport_number": "Número do passaporte",
+          "passport_expiry_date": "Data de validade do passaporte",
+          "pass_type": "Tipo de passe",
+          "pass_status": "Status do passe",
+          "pass_expiry_date": "Data de validade do passe",
+          "mobile_number": "Número de celular",
+          "email": "E-mail"
+        }
+      },
+      "tha_gov_id_dopa": {
+        "name": "Cédula de identidade nacional",
+        "instructions": "Você pode encontrar o número da cédula de identidade nacional impresso na frente do documento físico e o código a laser localizado no verso. O número da cédula de identidade nacional é um identificador único do documento composto por 13 dígitos. O código a laser consiste em 2 letras seguidas de 10 dígitos.",
+        "fields": {
+          "number": "Número da cédula de identidade nacional",
+          "firstName": "Nome completo",
+          "dob": "Data de nascimento",
+          "additionalNumber": "Código a laser"
+        },
+        "placeholders": {
+          "number": "1234567890123",
+          "firstName": "Nome em caracteres tailandeses",
+          "additionalNumber": "ME1820020000"
+        }
+      }
+    }
+  },
+  "languages": {
+    "en": "English",
+    "de": "Deutsch",
+    "sgn-de": "Linguagem de sinais alemã",
+    "fr": "Français",
+    "it": "Italiano",
+    "ru": "Русский",
+    "et": "eesti",
+    "pt": "Português",
+    "pt-br": "Português Brasileiro",
+    "hu": "magyar",
+    "zh": "简体中文",
+    "zh-tw": "繁體中文",
+    "th": "ไทย",
+    "id": "Indonesia",
+    "es": "Español",
+    "tr": "Türkçe",
+    "vi": "Tiếng Việt",
+    "ar": "العربية",
+    "hi": "हिन्दी",
+    "ms": "Melayu",
+    "ur": "اردو",
+    "bn": "বাংলা",
+    "fa": "فارسی",
+    "fl": "Philippine",
+    "ja": "日本語",
+    "ko": "한국어",
+    "uk": "Українська",
+    "ro": "română",
+    "fi": "Suomi",
+    "no": "norsk",
+    "cs": "Čeština",
+    "nl": "Nederlands",
+    "pl": "polski",
+    "my": "မြန်မာ",
+    "lo": "ລາວ",
+    "km": "ខ្មែរ",
+    "he": "עִברִית",
+    "bg": "Български",
+    "el": "Ελληνικά",
+    "hy": "Հայերեն",
+    "lt": "Lietuvių",
+    "sk": "Slovenský",
+    "lv": "Latviešu",
+    "si": "සිංහල",
+    "am": "አማርኛ"
+  },
+  "instructions": {
+    "videoident": {
+      "title": "Identificação por vídeo",
+      "subtitle": "Você terá uma chamada de vídeo com um atendente. Não vai demorar muito",
+      "actionTitle": "Continuar",
+      "contentBlocks": [
+        {
+          "type": "header",
+          "header": "Siga as instruções:"
+        },
+        {
+          "type": "listItems",
+          "listItems": [
+            {
+              "image": "iconID",
+              "title": "Tenha os seus documentos de identificação à mão",
+              "subtitle": "Você será solicitado a apresentar um ou dois documentos que comprovem a sua identidade"
+            },
+            {
+              "image": "iconHouse",
+              "title": "Nenhum espaço público",
+              "subtitle": "Evite cafés, ruas, etc."
+            },
+            {
+              "image": "iconPersons",
+              "title": "Sozinho no quarto",
+              "subtitle": "Seja a única pessoa presente"
+            },
+            {
+              "image": "iconLight",
+              "title": "Quarto silencioso e iluminado",
+              "subtitle": "Encontre um quarto silencioso e bem iluminado"
+            },
+            {
+              "image": "iconCamera",
+              "title": "Remova a capa e limpe a lente da câmera",
+              "subtitle": "Certifique-se de que a câmera não esteja coberta"
+            },
+            {
+              "image": "iconWifi",
+              "title": "Internet estável",
+              "subtitle": "Use uma conexão de Internet estável"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "supportedLanguages": {
+    "en": "Inglês",
+    "ru": "Russo",
+    "es": "Espanhol",
+    "et": "Estoniano",
+    "pt-br": "Português (Brasileiro)",
+    "zh-tw": "Chinês tradicional",
+    "de": "Alemão",
+    "pt": "Português",
+    "hu": "Húngaro",
+    "zh": "Chinês simplificado",
+    "th": "Tailandês",
+    "id": "Indonésio",
+    "tr": "Turco",
+    "vi": "Vietnamita",
+    "ar": "Árabe",
+    "hi": "Hindi",
+    "ms": "Malaio",
+    "ur": "Urdu",
+    "bn": "Bengali",
+    "fl": "Filipino",
+    "fr": "Francês",
+    "ja": "Japonês",
+    "ko": "Coreano",
+    "uk": "Ucraniano",
+    "ro": "Romeno",
+    "cs": "Tcheco",
+    "it": "Italiano",
+    "nl": "Holandês",
+    "pl": "Polonês",
+    "my": "Birmanês",
+    "lo": "Laosiano",
+    "km": "Cambojano Central",
+    "bg": "Búlgaro",
+    "el": "Grego",
+    "hy": "Armênio",
+    "lt": "Lituano",
+    "sk": "Eslovaco",
+    "da": "Dinamarquês",
+    "lv": "Letão",
+    "fa": "Persa",
+    "ka": "Georgiano",
+    "sv": "Sueco",
+    "he": "Hebraico",
+    "si": "Cingalês",
+    "am": "Amárico",
+    "no": "Norueguês",
+    "sr": "Sérvio",
+    "sw": "Suaíli",
+    "zu": "Zulu",
+    "ha": "Hauçá",
+    "az": "Azerbaijano",
+    "uz": "Uzbeque",
+    "hr": "Croata",
+    "kk": "Cazaque",
+    "fi": "Finlandês",
+    "sl": "Esloveno",
+    "tg": "Tadjique",
+    "ca": "Catalão"
+  },
+  "restrictions": {
+    "vpn": {
+      "title": "Você está usando uma VPN?",
+      "subtitle": "Parece que está ativa uma VPN ou semelhante. Desative-a e recarregue a página para continuar."
+    },
+    "country": {
+      "title": "A verificação não está disponível no seu país",
+      "subtitle": "A verificação não pode ser concluída, com base na sua localização atual"
+    }
+  },
+  "liveness": {
+    "suggestions": {
+      "multiplePeople": {
+        "title": "Certifique-se de estar sozinho no enquadramento",
+        "tips": [
+          "Certifique-se de que não haja mais ninguém ao fundo",
+          "Evite fotos ou imagens de pessoas perto da câmera"
+        ]
+      },
+      "incorrectPosition": {
+        "title": "Ajuste a posição do seu rosto",
+        "tips": [
+          "seu rosto esteja centralizado no quadro",
+          "toda a sua cabeça esteja visível",
+          "Olhe diretamente para a câmera",
+          "sua cabeça esteja reta (não inclinada)"
+        ]
+      },
+      "poorLighting": {
+        "title": "Sua iluminação é insuficiente ou irregular",
+        "tips": [
+          "você esteja em uma sala bem iluminada",
+          "não haja nenhuma luz brilhante atrás de você",
+          "Certifique-se de que seu rosto esteja iluminado por igual"
+        ]
+      },
+      "motionBlur": {
+        "title": "Sua imagem está desfocada",
+        "tips": [
+          "sua cabeça não se mexa durante a verificação",
+          "Mova-se lentamente quando solicitado",
+          "Certifique-se de que seu dispositivo esteja estável"
+        ]
+      },
+      "inappropriateExpression": {
+        "title": "Mantenha uma expressão neutra",
+        "tips": [
+          "Relaxe o rosto e mantenha os olhos abertos",
+          "Evite sorrir, franzir a testa ou falar durante a verificação"
+        ]
+      },
+      "faceObstructed": {
+        "title": "Certifique-se de que seu rosto esteja totalmente visível",
+        "tips": [
+          "Remova qualquer coisa que esteja cobrindo seu rosto",
+          "Afaste o cabelo dos olhos",
+          "Certifique-se de que a câmera tenha uma visão desobstruída"
+        ]
+      },
+      "wearingSunglasses": {
+        "title": "Remova os óculos de sol",
+        "tips": [
+          "Remova os óculos de sol ou as lentes escurecidas",
+          "Mantenha os olhos claramente visíveis",
+          "Óculos de grau transparentes são permitidos"
+        ]
+      },
+      "deviceNotSecure": {
+        "title": "Não foi possível verificar o dispositivo",
+        "tips": [
+          "você tenha desativado qualquer software de compartilhamento de tela ou câmera virtual",
+          "você não esteja usando um smartphone como webcam",
+          "você use um dispositivo diferente se o problema persistir"
+        ]
+      }
+    },
+    "alignmentMessage": {
+      "rotate": "Movimente a cabeça lentamente até completar o círculo",
+      "lookStraight": "Olhe diretamente para a câmera. Capturando...",
+      "loading": "Conectando...",
+      "notAligned": "Enquadre o seu rosto dentro da moldura",
+      "wasAligned": "Volte o seu rosto para a moldura",
+      "rotated": "Olhe diretamente para a câmera",
+      "tooSmall": "Chegue mais perto",
+      "tooBig": "Afaste-se",
+      "wait": "Fique parado",
+      "analyzingData": "Analisando...",
+      "alignmentDirectionHelpMessage": {
+        "right": "Mova a sua cabeça para a direita",
+        "left": "Mova a sua cabeça para a esquerda",
+        "up": "Levante a cabeça",
+        "down": "Abaixe a cabeça"
+      }
+    }
+  },
+  "POA": {
+    "documentTypes": {
+      "poiAsPoa": {
+        "title": "Documento de identidade válido com dados do endereço."
+      },
+      "bank": {
+        "title": "Documentos bancários",
+        "subType": {
+          "bankStatement": "Extrato bancário",
+          "bankLetter": "Carta do banco",
+          "other": "Pagamento de hipoteca / caderneta"
+        },
+        "label": "Documento bancário"
+      },
+      "governmentOrganization": {
+        "title": "Documentos emitidos pelo governo",
+        "subType": {
+          "statement": "Carta ou notificação de órgãos do governo",
+          "voterRegistration": "Título de eleitor",
+          "taxBill": "Notificação de impostos",
+          "other": "Folhas de registro temporário / Declaração registrada em cartório / Certificado de propriedade de um veículo"
+        },
+        "label": "Documento governamental"
+      },
+      "mobileOperator": {
+        "title": "Operadora de telefonia móvel",
+        "label": "Extratos e faturas de comunicações móveis"
+      },
+      "other": {
+        "title": "Outros",
+        "subType": {
+          "lease": "Contas de aluguel de agências imobiliárias",
+          "insuranceStatement": "Declaração de seguro",
+          "universityLetter": "Carta da universidade",
+          "employmentLetter": "Carta de emprego",
+          "other": "Documento do empregador confirmando o endereço / Escritura de compra de casa"
+        },
+        "label": "Outro documento"
+      },
+      "utilityProvider": {
+        "title": "Contas de serviços públicos",
+        "subType": {
+          "telecom": "Conta de telefone residencial, Internet ou TV",
+          "utilityBill": "Conta de água, luz ou gás",
+          "other": "Outro fornecedor de serviços públicos"
+        },
+        "label": "Conta de serviço público"
+      }
+    }
+  }
+}

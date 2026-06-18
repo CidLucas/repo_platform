@@ -53,35 +53,46 @@ Agentes NÃO conversam diretamente — escrevem/leem shared memory.
 
 ### ⭐ System Reference — consultar SEMPRE primeiro
 
-> **Pasta:** `docs/system_reference/` — fonte de verdade única do sistema de agentes.
-> Agentes devem sempre procurar aqui antes de qualquer decisão sobre capacidades, skills e rotinas.
+> **Pasta:** `docs/system_reference/` — **single source of truth** de todo o sistema.
+> **OBRIGATÓRIO**: consultar antes de qualquer implementação, busca de patterns, adição de skill/tool/rotina.
+> Estrutura completa da pasta em `docs/DOC_STRUCTURE.md`.
 
 | Arquivo | O que contém |
 |---|---|
 | **`docs/system_reference/AGENT_SYSTEM.md`** | **12 agentes: papéis, hierarquia, roteamento, decisões de arquitetura** |
 | **`docs/system_reference/SKILLS_SYSTEM.md`** | **Catálogo completo de skills: tools, agentes consumidores, governance** |
-| `docs/system_reference/FEATURE_MAP.md` | Tier → Features → Agents + Tools (matriz completa) |
-| `docs/system_reference/TOOL_INVENTORY.md` | Auditoria de todas as tools registradas por tier/domínio |
 | `docs/system_reference/ROUTINES_SYSTEM.md` | Fluxo técnico de rotinas: pg_cron → steps (function/skill/artifact/approval) |
+| `docs/system_reference/TOOL_INVENTORY.md` | Auditoria de todas as tools registradas por tier/domínio |
+| `docs/system_reference/FEATURE_MAP.md` | Tier → Features → Agents + Tools (matriz completa) |
+| `docs/system_reference/CODE_MAP.md` | Mapa de navegação do monorepo: onde fica cada serviço e arquivo crítico |
+| `docs/system_reference/DATABASE_SCHEMA.md` | Schema completo do Supabase: tabelas, colunas, RLS, índices (por schema) |
+| `docs/system_reference/DATABASE_FUNCTIONS_MAP.md` | Mapa de funções do DB agrupadas por domínio funcional |
+| `docs/system_reference/FRONTEND.md` | Referência de front-end: design system, componentes, fetches, UI patterns |
+| `docs/system_reference/ONBOARDING.md` | Fluxo de onboarding: etapas, agentes, integração Monday, edge cases |
 | `docs/system_reference/TASK_PLAYBOOKS.md` | Receitas de dev: como adicionar rotina, skill, tool, integração |
-
-### Referências complementares
-
-| Arquivo | O que contém |
-|---|---|
-| `docs/README.md` | Índice de todos os docs ativos |
-| `docs/onboarding-context-map.md` | Fluxo de onboarding, provisionamento de tenant |
-| `docs/blu_app/blu_app concept.md` | Filosofia do produto: salas, HITL, memória, integrações |
-| `docs/observability/README.md` | Traces, métricas, Grafana |
+| **`docs/system_reference/PRODUCT_CONCEPT.md`** | **Visão de produto: filosofia, salas, agentes, rotinas, HITL, onboarding** |
+| `docs/system_reference/MONDAY_API_REFERENCE.md` | Referência da API do Monday usada no projeto |
+| `docs/system_reference/ONBOARDING_CONTEXT_MAP.md` | Mapa de contexto do onboarding, provisionamento de tenant |
+| `docs/system_reference/TOOL_REGISTRY_REPORT.md` | Relatório de registry de tools |
 
 ### Backlog e ideias futuras
 
 | Arquivo | O que contém |
 |---|---|
-| `docs/BACKLOG_IDEAS.md` | **Ideias capturadas durante o dev** — não são tarefas confirmadas. Sempre registrar aqui antes de esquecer. |
-| `docs/archive/Blu_Routines_MVP_Backlog.md` | Backlog MVP de rotinas — 42 histórias em 7 épicos. Referência principal para o trabalho em rotinas. |
-| `docs/archive/Blu_Routines_Skills_Plan.md` | Plano de skills das rotinas (L3 Langfuse prompts) |
-| `docs/archive/Blu_Routines.md` | Catálogo original de rotinas v2.1 (26 rotinas com triggers/steps/agentes) |
+| `docs/backlog/` | **Backlog ativo** — arquivos com data no nome (`YYYY-MM-DD_nome.md`). Sempre criar aqui antes de esquecer. |
+| `docs/backlog/archive/` | Backlog items concluídos ou descontinuados |
+
+### Outras pastas de documentação
+
+| Pasta | O que contém |
+|---|---|
+| `docs/handoffs/` | Documentos de passagem entre agentes/sessões — executar e arquivar em `archive/` |
+| `docs/agent_audits/` | Resultados de auditorias periódicas (skill_audits/, routine_audits/, tool_audits/) |
+| `docs/security/` | Padrões de segurança, auditorias, `PATTERNS_AND_STANDARDS.md` |
+| `docs/ci/` | Padrões de CI/CD, pipelines, `PATTERNS_AND_STANDARDS.md` |
+| `docs/observability/` | Padrões de observabilidade, dashboards Grafana, `PATTERNS_AND_STANDARDS.md` |
+| `docs/prd/` | Product Requirements Documents de features maiores |
+| `docs/DOC_STRUCTURE.md` | **Contrato completo da pasta docs/** — requisitos de cada arquivo e pasta |
 
 ---
 

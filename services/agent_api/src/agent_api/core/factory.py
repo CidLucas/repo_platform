@@ -47,11 +47,15 @@ _standalone_graphs: dict[str, Any] = {}   # session_id → CompiledGraph
 _factory_instance: UnifiedAgentFactory | None = None
 
 
-def get_mcp_manager() -> MCPConnectionManager:
+def _resolve_mcp_url() -> str:
+    settings = get_settings()
+    return settings.MCP_URL or settings.MCP_SERVER_URL
+
+
+def get_mcp_manager(url: str | None = None) -> MCPConnectionManager:
     global _mcp_manager
     if _mcp_manager is None:
-        settings = get_settings()
-        _mcp_manager = MCPConnectionManager(url=settings.MCP_SERVER_URL)
+        _mcp_manager = MCPConnectionManager(url=url or _resolve_mcp_url())
     return _mcp_manager
 
 
@@ -59,11 +63,9 @@ def get_mcp_executor() -> MCPToolExecutor:
     global _mcp_executor
     if _mcp_executor is None:
         settings = get_settings()
-        # Share the same MCPConnectionManager so that auth headers set by
-        # service._connect_mcp() (X-Cliente-Id, X-Session-Id) are visible to
-        # every tool call made through the executor.
+        resolved_url = settings.MCP_URL or settings.MCP_SERVER_URL
         _mcp_executor = MCPToolExecutor(
-            mcp_url=settings.MCP_SERVER_URL,
+            mcp_url=resolved_url,
             mcp_manager=get_mcp_manager(),
         )
     return _mcp_executor
@@ -232,6 +234,12 @@ class UnifiedAgentFactory:
             # Falls back to cfg.enabled_tools for agents not yet on skills.
             if cfg.skill_slugs:
                 from blu_agent_framework.skills import SKILL_REGISTRY
+                logger.info(
+                    "[DEBUG Factory.build] agent='%s' skill_slugs=%s registry_size=%d",
+                    slug,
+                    cfg.skill_slugs,
+                    len(SKILL_REGISTRY),
+                )
                 seen: set[str] = set()
                 raw_tools: list[str] = []
                 for sk_slug in cfg.skill_slugs:

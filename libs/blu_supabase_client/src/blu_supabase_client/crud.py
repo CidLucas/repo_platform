@@ -377,14 +377,14 @@ class SupabaseCRUD:
                 "p_access_token":  access_token or "",
                 "p_refresh_token": refresh_token or "",
                 "p_token_type":    token_type or "Bearer",
-                "p_expires_at":    expires_at.isoformat() if hasattr(expires_at, 'isoformat') else expires_at,
+                "p_expires_at":    expires_at.isoformat() if hasattr(expires_at, 'isoformat') and expires_at is not None else expires_at,
                 "p_scopes":        scopes or [],
                 "p_metadata":      metadata or {},
                 "p_is_default":    is_default,
             }).execute()
             return response.data
         except Exception as e:
-            logger.error(f"Error saving integration tokens: {e}")
+            logger.error("Error saving integration tokens: %s", e)
             return None
 
     def get_integration_tokens(
@@ -417,7 +417,7 @@ class SupabaseCRUD:
             response = (
                 self.client
                 .table("integration_tokens")
-                .select("id,account_email,account_name,is_default,expires_at,scopes,created_at")
+                .select("id,account_email,is_default,scopes,created_at")
                 .eq("client_id", str(client_id))
                 .eq("provider", provider)
                 .order("is_default", desc=True)

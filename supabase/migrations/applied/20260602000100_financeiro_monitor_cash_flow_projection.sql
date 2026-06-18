@@ -41,7 +41,7 @@ SET steps = '[
     "type": "function",
     "inputs": {
       "horizon_days": 60,
-      "threshold": "{{threshold_caixa}}",
+      "threshold": 5000.0,
       "min_recurring_confidence": 0.7
     },
     "function": "financeiro.get_cash_flow_projection",

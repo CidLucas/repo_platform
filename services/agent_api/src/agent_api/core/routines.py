@@ -188,28 +188,38 @@ def _has_pending_approvals_sync(execution_id: str) -> bool:
 
 def _fetch_routine_sync(routine_id: str) -> dict | None:
     db = get_supabase_client()
+    if db is None:
+        return None
     table = "client_routines" if _is_custom_routine(routine_id) else "cross_agent_routines"
-    return (
-        db.table(table)
-        .select("name, steps, config_schema")
-        .eq("id", routine_id)
-        .maybe_single()
-        .execute()
-        .data
-    )
+    try:
+        response = (
+            db.table(table)
+            .select("name, steps, config_schema")
+            .eq("id", routine_id)
+            .maybe_single()
+            .execute()
+        )
+        return response.data if response else None
+    except Exception:
+        return None
 
 
 def _fetch_client_routine_config_sync(client_id: str, routine_id: str) -> dict | None:
-    return (
-        get_supabase_client()
-        .table("client_routines")
-        .select("notify_channel, config, name")
-        .eq("client_id", client_id)
-        .eq("routine_id", routine_id)
-        .maybe_single()
-        .execute()
-        .data
-    )
+    db = get_supabase_client()
+    if db is None:
+        return None
+    try:
+        response = (
+            db.table("client_routines")
+            .select("notify_channel, config, name")
+            .eq("client_id", client_id)
+            .eq("routine_id", routine_id)
+            .maybe_single()
+            .execute()
+        )
+        return response.data if response else None
+    except Exception:
+        return None
 
 
 def _update_execution_sync(execution_id: str, payload: dict) -> None:
@@ -458,6 +468,19 @@ def _resolve_pedidos_count_sync(client_id: str, window_months: int) -> tuple[flo
     return float(row.get("current_pedidos", 0)), float(row.get("avg_pedidos", 0))
 
 
+def _resolve_saldo_conta_corrente_sync(client_id: str, window_months: int) -> tuple[float, float]:
+    """
+    Current checking-account balance vs configured threshold (absolute value comparison).
+
+    Returns (saldo_cc, 1.0) so the engine evaluates: saldo_cc < threshold * 1.0
+    i.e. the client sets threshold = minimum acceptable balance in BRL (e.g. 5000).
+    Delegates to routine_functions._fetch_saldo_cc_sync — single source of truth for
+    polp_accounts parsing. window_months is ignored (balance is point-in-time).
+    """
+    from agent_api.core.routine_functions import _fetch_saldo_cc_sync
+    return _fetch_saldo_cc_sync(client_id), 1.0
+
+
 # Registry: metric_name → sync resolver function
 # Signature: (client_id: str, window_months: int) -> tuple[float, float]
 _NUMERIC_METRIC_REGISTRY: dict[str, Any] = {
@@ -467,6 +490,7 @@ _NUMERIC_METRIC_REGISTRY: dict[str, Any] = {
     "ticket_medio":             _resolve_ticket_medio_sync,
     "churn_rate":               _resolve_churn_rate_sync,
     "pedidos_count":            _resolve_pedidos_count_sync,
+    "saldo_conta_corrente":     _resolve_saldo_conta_corrente_sync,  # absolute threshold — polp_accounts
 }
 
 
@@ -478,6 +502,7 @@ def list_numeric_metrics() -> list[dict]:
         {"value": "ticket_medio",           "label": "Ticket médio"},
         {"value": "pedidos_count",          "label": "Volume de pedidos"},
         {"value": "churn_rate",             "label": "Taxa de churn"},
+        {"value": "saldo_conta_corrente",   "label": "Saldo em conta corrente (R$)"},
     ]
 
 
@@ -747,38 +772,74 @@ async def _run_single_execution(
             from agent_api.core.factory import get_mcp_manager
             get_mcp_manager().set_client_id(client_id)
 
-            # P0: timeout global por execução — libera worker em até 120s
             result_text, worker_slug = await asyncio.wait_for(
                 _execute_one_with_heartbeat(exec_id, execution, context_service),
                 timeout=_ROUTINE_EXECUTION_TIMEOUT_S,
             )
-
-        if result_text.endswith(_AWAITING_APPROVAL_MARKER):
-            clean_text = result_text[: -len(_AWAITING_APPROVAL_MARKER)].rstrip("\n")
-            await asyncio.to_thread(
-                _update_execution_sync,
-                exec_id,
-                {"status": "awaiting_approval", "result_text": clean_text},
-            )
-            logger.info("[RoutineExecutor] %s paused — awaiting_approval", exec_id)
-        else:
-            await asyncio.to_thread(
-                _update_execution_sync,
-                exec_id,
-                {
-                    "status": "completed",
-                    "result_text": result_text,
-                    "completed_at": datetime.now(timezone.utc).isoformat(),
-                    "worker_slug": worker_slug,
-                },
-            )
-            # P1: reset circuit breaker em sucesso
-            await asyncio.to_thread(
-                _reset_routine_failures_sync, client_id, routine_id
-            )
-            await _notify_client(execution, result_text)
-
+        await asyncio.to_thread(
+            _update_execution_sync,
+            exec_id,
+            {
+                "status": "completed",
+                "result_text": result_text,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "worker_slug": worker_slug,
+            },
+        )
     except asyncio.TimeoutError:
+        logger.error(
+            "[RoutineExecutor] Execution %s timed out after %ds",
+            exec_id, _ROUTINE_EXECUTION_TIMEOUT_S,
+            extra={
+                "execution_id": exec_id,
+                "routine_id": routine_id,
+                "client_id": client_id,
+                "error_type": "timeout",
+            },
+        )
+        await asyncio.to_thread(
+            _update_execution_sync,
+            exec_id,
+            {
+                "status": "failed",
+                "result_text": f"Erro: timeout após {_ROUTINE_EXECUTION_TIMEOUT_S}s",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        new_status = await asyncio.to_thread(
+            _record_routine_failure_sync, client_id, routine_id
+        )
+        if new_status == "suspended":
+            logger.warning(
+                "[CircuitBreaker] routine %s client %s SUSPENDED after repeated failures",
+                routine_id, client_id,
+            )
+        return
+
+    except asyncio.CancelledError:
+        logger.error("[RoutineExecutor] Execution %s was cancelled mid-run", exec_id)
+        raise
+
+    except Exception as exc:
+        logger.exception("[RoutineExecutor] Execution %s failed", exec_id)
+        await asyncio.to_thread(
+            _update_execution_sync,
+            exec_id,
+            {
+                "status": "failed",
+                "result_text": f"Erro: {exc}",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        new_status = await asyncio.to_thread(
+            _record_routine_failure_sync, client_id, routine_id
+        )
+        if new_status == "suspended":
+            logger.warning(
+                "[CircuitBreaker] routine %s client %s SUSPENDED after repeated failures",
+                routine_id, client_id,
+            )
+        return
         logger.error(
             "[RoutineExecutor] Execution %s timed out after %ds",
             exec_id, _ROUTINE_EXECUTION_TIMEOUT_S,
@@ -1293,6 +1354,10 @@ async def _execute_skill_step(
     task = _resolve_templates(task_template, merged)
     tier: str = state.get("tier", "BASIC")
 
+    # Pipeline routines expect Jinja-style placeholders like `{{...}}`; normalize
+    # the resolved task into a plain f-string/template form when needed.
+    task = task.replace("{{", "${").replace("}}", "}")
+
     # Phase 4: if this step has an outputs schema, append a structured-output
     # instruction so the LLM returns a JSON block that _extract_json_from_text
     # can reliably capture — even when output_tool_schema is not wired through
@@ -1330,22 +1395,31 @@ async def _execute_skill_step(
             if extracted:
                 step_outputs.update(extracted)
             elif len(outputs_schema) == 1:
-                # Single-output schema with no JSON found: the full text IS the
-                # output (e.g. fill_masterprompt returns markdown, not JSON).
                 key = next(iter(outputs_schema))
-                step_outputs[key] = result.summary
+                candidate = result.summary.strip()
+                try:
+                    parsed = json.loads(candidate)
+                except (json.JSONDecodeError, TypeError):
+                    parsed = None
+
+                value = ""
+                if isinstance(parsed, dict):
+                    value = parsed.get(key) or candidate
+                elif isinstance(parsed, list):
+                    value = json.dumps(parsed, ensure_ascii=False)
+                else:
+                    value = candidate
+                step_outputs[key] = value
             else:
                 logger.warning(
                     "[RoutineExecutor] skill '%s' returned no structured output",
                     skill_slug,
                 )
 
-        # Coerce: if a schema key was declared as a string output but the LLM
-        # returned a dict/list (e.g. JSON object instead of prose), serialize it
-        # so downstream string operations (strip, format) don't blow up.
+        _json2 = json
+
         for k in outputs_schema:
             if k in step_outputs and not isinstance(step_outputs[k], str):
-                import json as _json2
                 step_outputs[k] = _json2.dumps(step_outputs[k], ensure_ascii=False)
 
     if result.error:
@@ -1412,6 +1486,12 @@ async def _run_skill_direct(
 
     from agent_api.core.factory import get_mcp_executor
 
+    logger.info(
+        "[DEBUG _run_skill_direct] skill_name='%s' keys=%d has_key=%s",
+        skill_name,
+        len(SKILL_REGISTRY),
+        skill_name in SKILL_REGISTRY,
+    )
     if skill_name not in SKILL_REGISTRY:
         # Fallback: treat as agent slug (legacy / migration period)
         logger.warning(

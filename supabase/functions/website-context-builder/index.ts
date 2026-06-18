@@ -197,6 +197,125 @@ function buildContextMarkdown(
   return sections.join("\n");
 }
 
+// -- Structured context extractor (heuristic, no external LLM required) ------
+
+interface StructuredContext {
+  products: string[];
+  services: string[];
+  differentiators: string[];
+  target_audience: string;
+  value_proposition: string;
+}
+
+function normalizeList(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
+  return String(value).split(",").map((item) => item.trim()).filter(Boolean);
+}
+
+function buildStructuredContext(
+  pages: { url: string; text: string }[],
+  state: OnboardingSnapshot,
+): StructuredContext {
+  const combined = pages.map((p) => p.text).join("\n\n");
+  const lower = combined.toLowerCase();
+  const sections: StructuredContext = {
+    products: [],
+    services: [],
+    differentiators: [],
+    target_audience: "",
+    value_proposition: "",
+  };
+
+  const productHints = [
+    "produtos",
+    "catálogo",
+    "catalog",
+    "sku",
+    "item",
+    "serviços",
+    "services",
+    "soluções",
+    "solutions",
+    "o que oferecemos",
+    "nossos produtos",
+  ];
+  const differentiatorHints = [
+    "diferencial",
+    "vantagem",
+    "por que nós",
+    "por que escolher",
+    "benefício",
+    "benefícios",
+    "diferenciais",
+    "somos diferentes",
+    "unique",
+    "why us",
+  ];
+  const audienceHints = [
+    "público",
+    "publico",
+    "clientes",
+    "clientes-alvo",
+    "target",
+    "para quem",
+    "para empresas",
+    "para famílias",
+    "para quem",
+  ];
+  const valueHints = [
+    "proposta de valor",
+    "value proposition",
+    "o que fazemos",
+    "nossa missão",
+    "missão",
+    "visão",
+    "valores",
+    "fazemos acontecer",
+  ];
+
+  if (state.produtoServico) {
+    sections.products = normalizeList(state.produtoServico);
+  }
+  if (state.vertical) {
+    sections.services = normalizeList(state.vertical);
+  }
+
+  const pickLines = (hints: string[], maxLines = 12): string[] => {
+    const sentences = combined
+      .split(/(?<=[.!?])\s+/)
+      .map((sentence) => sentence.trim())
+      .filter((sentence) => sentence.length > 10 && sentence.length < 600);
+
+    const scored = sentences
+      .map((sentence) => {
+        const lowerSentence = sentence.toLowerCase();
+        const score = hints.reduce((acc, hint) => (lowerSentence.includes(hint) ? acc + 1 : acc), 0);
+        return { sentence, score };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    const lines: string[] = [];
+    for (const item of scored.slice(0, maxLines)) {
+      const text = item.sentence.replace(/\s+/g, " ").trim();
+      if (!lines.some((existing) => existing.toLowerCase() === text.toLowerCase())) {
+        lines.push(text);
+      }
+    }
+    return lines.slice(0, maxLines);
+  };
+
+  if (sections.products.length === 0 && combined) {
+    sections.products = pickLines(productHints, 8).slice(0, 6);
+  }
+  sections.differentiators = pickLines(differentiatorHints, 10).slice(0, 6);
+  sections.target_audience = pickLines(audienceHints, 6)[0] || "";
+  sections.value_proposition = pickLines(valueHints, 6)[0] || "";
+
+  return sections;
+}
+
 // -- Main handler ------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
@@ -311,6 +430,19 @@ Deno.serve(async (req: Request) => {
     console.warn("[website-context-builder] Knowledge document upsert failed:", err);
   }
 
+  // ── Step 4: Extract structured context from website + onboarding state ────
+  const structuredContext = buildStructuredContext(pages, onboarding_state);
+
+  // ── Step 4b: Persist structured context JSON ──────────────────────────────
+  const structuredStoragePath = `onboarding/context_${client_id}.json`;
+  const structuredJson = JSON.stringify(structuredContext, null, 2);
+  await adminClient.storage
+    .from("knowledge-base")
+    .upload(structuredStoragePath, new TextEncoder().encode(structuredJson), {
+      contentType: "application/json",
+      upsert: true,
+    });
+
   // ── Step 5: Fire process-document to chunk + embed ───────────────────────
   const processPayload = {
     document_id: documentId,
@@ -348,5 +480,7 @@ Deno.serve(async (req: Request) => {
     document_id: documentId,
     pages_crawled: pages.length,
     storage_path: storagePath,
+    structured_context: structuredContext,
+    structured_storage_path: structuredStoragePath,
   });
 });

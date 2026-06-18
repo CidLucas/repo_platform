@@ -894,7 +894,6 @@ class ContextService:
         access_token: str,
         refresh_token: str | None,
         token_type: str | None,
-        expires_at: datetime | None,
         scopes: list,
         metadata: dict | None = None,
         account_email: str | None = None,
@@ -909,7 +908,6 @@ class ContextService:
             access_token,
             refresh_token,
             token_type,
-            expires_at,
             scopes,
             metadata,
             account_email,
@@ -943,16 +941,19 @@ class ContextService:
             """Check if token is still valid (not expired)."""
             expires = self._get("expires_at")
             if not expires:
-                return bool(self._get("access_token"))
+                access_token = self._get("access_token") or self._get("access_token_encrypted")
+                return bool(access_token)
             if isinstance(expires, str):
                 try:
                     exp_dt = datetime.fromisoformat(expires)
                 except Exception:
-                    return True
+                    access_token = self._get("access_token") or self._get("access_token_encrypted")
+                    return bool(access_token)
             elif isinstance(expires, datetime):
                 exp_dt = expires
             else:
-                return True
+                access_token = self._get("access_token") or self._get("access_token_encrypted")
+                return bool(access_token)
             now = datetime.now(UTC)
             if exp_dt.tzinfo is None:
                 exp_dt = exp_dt.replace(tzinfo=UTC)
@@ -981,9 +982,11 @@ class ContextService:
             return exp_dt <= now + timedelta(seconds=margin_seconds)
 
         def get_decrypted_tokens(self) -> dict:
+            access_token = self._get("access_token") or self._get("access_token_encrypted")
+            refresh_token = self._get("refresh_token") or self._get("refresh_token_encrypted")
             return {
-                "access_token": self._get("access_token"),
-                "refresh_token": self._get("refresh_token"),
+                "access_token": access_token,
+                "refresh_token": refresh_token,
                 "token_type": self._get("token_type"),
                 "expires_at": self._get("expires_at"),
                 "scopes": self._get("scopes"),
@@ -1011,10 +1014,12 @@ class ContextService:
             oauth_client_id = oauth_config_values.get("client_id")
             oauth_client_secret = oauth_config_values.get("client_secret")
             if not oauth_client_id or not oauth_client_secret:
-                raise RuntimeError(
-                    "[Token Refresh] Google OAuth config in Vault is invalid: "
-                    "missing client_id/client_secret"
+                logger.warning(
+                    "[Token Refresh] Google OAuth config in Vault is missing "
+                    "client_id/client_secret; attempting refresh without updated credentials"
                 )
+                oauth_client_id = oauth_client_id or ""
+                oauth_client_secret = oauth_client_secret or ""
 
             redirect_uri = ""
             scopes: list[str] = []
@@ -1039,7 +1044,6 @@ class ContextService:
                 access_token=new_tokens.access_token,
                 refresh_token=new_tokens.refresh_token or refresh_token,
                 token_type=new_tokens.token_type,
-                expires_at=expires_at,
                 scopes=new_tokens.scope.split() if new_tokens.scope else scopes,
                 account_email=account_email,
             )

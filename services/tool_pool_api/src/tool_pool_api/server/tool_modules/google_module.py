@@ -30,20 +30,39 @@ logger = logging.getLogger(__name__)
 async def _get_google_tokens(client_id: str, account_email: str | None = None) -> dict:
     """Helper to retrieve and validate Google tokens for a cliente.
 
-    Args:
-        client_id: The cliente UUID as string
-        account_email: Optional specific account email. If None, uses default account.
-
-    Returns:
-        Dict with decrypted tokens including access_token, refresh_token, account_email, etc.
-
-    Raises:
-        ValueError: If no valid token found or integration not configured.
+    Resolution order for account_email:
+      1. Explicit account_email if provided.
+      2. If still None, fallback to the default google account for this client.
+      3. If still None, fallback to literal "default" for legacy rows.
     """
     ctx_service = get_context_service()
     cliente_uuid = UUID(client_id)
+    resolved_account_email = account_email
+
+    if resolved_account_email is None:
+        try:
+            accounts = await ctx_service.list_integration_accounts(cliente_uuid, "google")
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("[Google] Failed to list integration accounts: %s", exc)
+            accounts = []
+        if accounts:
+            resolved_account_email = next(
+                (str(a.get("account_email") or "") for a in accounts if a.get("is_default")),
+                None,
+            ) or (accounts[0].get("account_email") if accounts else None)
+
+    if not resolved_account_email:
+        # Backwards-compat fallback for legacy data that stored the default account as "default"
+        resolved_account_email = "default"
+
     logger.info(
-        f"[Google] Getting tokens for cliente: {cliente_uuid}, account: {account_email or 'default'}"
+        "[Google] Getting tokens for cliente: %s, account: %s",
+        cliente_uuid,
+        resolved_account_email,
+    )
+    logger.info(
+        "[Google] context_service=%s provider=google auto_refresh=True",
+        getattr(ctx_service, "__class__", type(ctx_service)).__name__,
     )
 
     # auto_refresh=True will automatically refresh expired tokens
@@ -51,18 +70,28 @@ async def _get_google_tokens(client_id: str, account_email: str | None = None) -
         cliente_uuid,
         "google",
         auto_refresh=True,
-        account_email=account_email,
+        account_email=resolved_account_email,
     )
 
     if not token_wrapper:
-        logger.error(f"[Google] No token_wrapper returned for cliente: {cliente_uuid}")
+        logger.error("[Google] No token_wrapper returned for cliente: %s", cliente_uuid)
+        logger.error(
+            "[Google] token lookup failed; tried account_email=%s provider=google auto_refresh=True",
+            resolved_account_email,
+        )
         raise ValueError(
             "Google integration not configured or expired. Please reconnect your Google account."
         )
 
-    logger.info(f"[Google] token_wrapper found, is_valid={token_wrapper.is_valid()}")
+    logger.info("[Google] token_wrapper found, is_valid=%s", token_wrapper.is_valid())
+    logger.info(
+        "[Google] token fields: access_token=%s, refresh_token=%s, expires=%s",
+        bool(token_wrapper._get("access_token") or token_wrapper._get("access_token_encrypted")),
+        bool(token_wrapper._get("refresh_token") or token_wrapper._get("refresh_token_encrypted")),
+        token_wrapper._get("expires_at"),
+    )
     if not token_wrapper.is_valid():
-        logger.error(f"[Google] Token is expired for cliente: {cliente_uuid}")
+        logger.error("[Google] Token is expired for cliente: %s", cliente_uuid)
         raise ValueError(
             "Google integration not configured or expired. Please reconnect your Google account."
         )
@@ -114,7 +143,9 @@ async def _query_calendar_logic(
 ) -> list:
     """Query Google Calendar events."""
     if not client_id:
-        raise ValueError("client_id is required")
+        raise ValueError(
+            "client_id is required. Check the client_id middleware for this tool."
+        )
     tokens = await _get_google_tokens(client_id, account_email)
     client = GoogleCalendarClient(access_token=tokens["access_token"])
 

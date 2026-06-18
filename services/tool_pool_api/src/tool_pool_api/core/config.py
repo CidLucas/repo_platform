@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
     MCP_AUTH_GOOGLE_CLIENT_ID: str = ""
     MCP_AUTH_GOOGLE_CLIENT_SECRET_ID: str = ""  # ID do segredo no Secret Manager
-    MCP_AUTH_BASE_URL: str = "http://localhost:8000"
+    MCP_AUTH_BASE_URL: str = "https://d956-2803-9810-4947-c510-b0a0-70ec-4fb6-2146.ngrok-free.app"
     MCP_AUTH_REQUIRED_SCOPES: str = "email,profile,https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/documents,https://www.googleapis.com/auth/drive.readonly,https://www.googleapis.com/auth/gmail.readonly,https://www.googleapis.com/auth/gmail.send,https://www.googleapis.com/auth/calendar.readonly,https://www.googleapis.com/auth/calendar.events"
 
     # --- JWT Authentication (Supabase) ---

@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import Any, Awaitable, Callable
 
 logger = logging.getLogger(__name__)
@@ -357,7 +358,7 @@ async def _get_masterprompt(inputs: dict, client_id: str) -> dict:
     Returns an empty template if the document does not exist yet.
 
     outputs:
-        masterprompt        — markdown string (existing or empty template)
+        masterprompt        — normalized markdown string
         masterprompt_exists — bool
     """
     from blu_supabase_client import get_supabase_client
@@ -370,18 +371,125 @@ async def _get_masterprompt(inputs: dict, client_id: str) -> dict:
             lambda: db.storage.from_("knowledge-base").download(storage_path)
         )
         content = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
-        logger.info(
-            "[routine_fn] get_masterprompt: loaded %d chars for %s",
-            len(content), client_id,
-        )
-        return {"masterprompt": content, "masterprompt_exists": True}
+        normalized = (content or "").strip()
 
+        parsed: dict | None = None
+        if normalized.startswith("```"):
+            normalized = re.sub(r"^```[a-zA-Z]*\s*", "", normalized).removesuffix("```").strip()
+        if normalized.startswith("{") and normalized.endswith("}"):
+            try:
+                parsed = json.loads(normalized)
+            except (json.JSONDecodeError, TypeError):
+                parsed = None
+
+        if isinstance(parsed, dict):
+            normalized = parsed.get("filled_masterprompt") or normalized or _MASTERPROMPT_TEMPLATE
+        if not normalized:
+            normalized = _MASTERPROMPT_TEMPLATE
     except Exception:
         logger.info(
             "[routine_fn] get_masterprompt: no existing doc for %s, returning template",
             client_id,
         )
-        return {"masterprompt": _MASTERPROMPT_TEMPLATE, "masterprompt_exists": False}
+        return {
+            "masterprompt": _MASTERPROMPT_TEMPLATE,
+            "filled_masterprompt": _MASTERPROMPT_TEMPLATE,
+            "masterprompt_exists": False,
+        }
+
+    cleaned = normalized
+    if not cleaned or cleaned.strip() in {"{{masterprompt}}", _MASTERPROMPT_TEMPLATE.strip()}:
+        logger.warning(
+            "[routine_fn] get_masterprompt: placeholder or empty template for %s",
+            client_id,
+        )
+        cleaned = _MASTERPROMPT_TEMPLATE
+        masterprompt_exists = False
+    else:
+        masterprompt_exists = True
+    logger.info(
+        "[routine_fn] get_masterprompt: loaded %d chars for %s",
+        len(cleaned),
+        client_id,
+    )
+    return {
+        "masterprompt": cleaned,
+        "filled_masterprompt": cleaned,
+        "masterprompt_exists": True,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Routine-wrapper fallbacks / masterprompt helper
+# ---------------------------------------------------------------------------
+
+@register(
+    "knowledge.fill_masterprompt",
+    description="Preenche o Business Context Map a partir do template e retorna o documento final.",
+    inputs=[
+        {"key": "masterprompt", "type": "str", "description": "Template/versão anterior do Business Context Map"},
+        {"key": "nome_empresa", "type": "str", "description": "Nome da empresa"},
+        {"key": "website_content", "type": "dict", "description": "Conteúdo extraído do site", "required": False},
+        {"key": "context_report_summary", "type": "str", "description": "Resumo do relatório de contexto", "required": False},
+    ],
+    outputs=[
+        {"key": "filled_masterprompt", "type": "str", "description": "Conteúdo final do Business Context Map"},
+    ],
+)
+async def _fill_masterprompt(inputs: dict, client_id: str) -> dict:
+    """Preenche o Business Context Map unindo template, website e relatório de contexto."""
+    import textwrap
+
+    masterprompt = inputs.get("masterprompt") or _MASTERPROMPT_TEMPLATE
+    website_content = (inputs.get("website_content") or {}).get("raw_text") or ""
+    context_report_summary = inputs.get("context_report_summary") or ""
+    nome_empresa = (inputs.get("nome_empresa") or "").strip()
+
+    if not isinstance(masterprompt, str):
+        masterprompt = json.dumps(masterprompt, ensure_ascii=False)
+
+    base_md = masterprompt.strip()
+    if base_md.startswith("```"):
+        base_md = re.sub(r"^```[a-zA-Z]*\s*", "", base_md).removesuffix("```").strip()
+
+    seen: set[str] = set()
+    base_lines: list[str] = []
+    for line in base_md.splitlines():
+        if line not in seen:
+            seen.add(line)
+            base_lines.append(line)
+
+    context_block = "\n\n".join(
+        part.strip()
+        for part in [context_report_summary, website_content]
+        if isinstance(part, str) and part.strip()
+    )
+    context_lines = [line for line in context_block.splitlines() if line.strip()]
+
+    inject_section = None
+    has_compiled = any(line.strip() == "## Contexto Compilado" for line in base_lines)
+    if not has_compiled and context_lines:
+        inject_section = "\n".join(context_lines)
+
+    lines: list[str] = []
+    injected = False
+    for raw_line in base_lines:
+        line = raw_line.rstrip()
+        if not injected and line.startswith("## Context Snippets") and inject_section:
+            indent = line[: len(line) - len(line.lstrip())]
+            lines.append(f"{indent}## Contexto Compilado")
+            lines.extend(textwrap.indent(inject_section, indent + "  ").splitlines())
+            lines.append("")
+            injected = True
+        if line.startswith("<!-- Recent strategic discussions") and lines and lines[-1].startswith("## Context Snippets"):
+            continue
+        lines.append(line)
+
+    if lines and lines[0].startswith("# Business Context Map"):
+        lines[0] = f"# Business Context Map — {nome_empresa}" if nome_empresa else "# Business Context Map"
+
+    filled_md = "\n".join(lines)
+    return {"filled_masterprompt": filled_md}
 
 
 # ---------------------------------------------------------------------------
@@ -3065,3 +3173,125 @@ async def _compras_get_purchase_trends(inputs: dict, client_id: str) -> dict:
         "purchase_count": purchase_count,
         "period_change_pct": period_change_pct,
     }
+
+
+@register(
+    "storage.read_document",
+    description="Lê um documento do storage por path relativo e retorna conteúdo e metadados.",
+    inputs=[
+        {"key": "storage_path", "type": "str", "description": "Caminho relativo no storage", "required": True},
+    ],
+    outputs=[
+        {"key": "document_id", "type": "str", "description": "ID do documento encontrado, se houver"},
+        {"key": "content", "type": "str", "description": "Conteúdo textual do documento"},
+        {"key": "document_exists", "type": "bool", "description": "True se o documento foi encontrado"},
+    ],
+)
+async def _read_document(inputs: dict, client_id: str) -> dict:
+    from blu_supabase_client import get_supabase_client
+    storage_path = inputs.get("storage_path", "")
+    db = get_supabase_client(use_service_role=True)
+    try:
+        row = await asyncio.to_thread(
+            lambda: db.table("documents")
+            .select("id,content,markdown,text")
+            .eq("client_id", client_id)
+            .eq("path", storage_path)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning("[routine_fn] storage.read_document failed for %s path=%s: %s", client_id, storage_path, exc)
+        return {"document_id": None, "content": "", "document_exists": False}
+    rows = getattr(row, "data", None) or []
+    if not rows:
+        return {"document_id": None, "content": "", "document_exists": False}
+    first = rows[0]
+    document_id = first.get("id")
+    content = first.get("content") or first.get("markdown") or first.get("text") or ""
+    return {"document_id": document_id, "content": str(content), "document_exists": True}
+
+
+@register(
+    "analytics.upsert_clientes_blu_context",
+    description="Persiste company_profile e brand_voice em clientes_blu (JSONB), alinhado com o ContextService.",
+    inputs=[
+        {"key": "company_profile", "type": "dict", "description": "Seção company_profile do contexto", "required": False},
+        {"key": "brand_voice", "type": "dict", "description": "Seção brand_voice do contexto", "required": False},
+    ],
+    outputs=[
+        {"key": "updated", "type": "bool", "description": "True se atualizou algo"},
+    ],
+)
+async def _upsert_clientes_blu_context(inputs: dict, client_id: str) -> dict:
+    from blu_supabase_client import get_supabase_client
+    company_profile = inputs.get("company_profile") or {}
+    brand_voice = inputs.get("brand_voice") or {}
+    if not company_profile and not brand_voice:
+        return {"updated": False}
+    db = get_supabase_client(use_service_role=True)
+    row = {"client_id": client_id}
+    if company_profile:
+        row["company_profile"] = company_profile
+    if brand_voice:
+        row["brand_voice"] = brand_voice
+    try:
+        await asyncio.to_thread(lambda: db.table("clientes_blu").upsert(row, on_conflict="client_id").execute())
+    except Exception as exc:
+        logger.warning("[routine_fn] analytics.upsert_clientes_blu_context failed for %s: %s", client_id, exc)
+        return {"updated": False}
+    logger.info("[routine_fn] analytics.upsert_clientes_blu_context: client=%s keys=%s", client_id, sorted(row.keys()))
+    return {"updated": True}
+
+
+@register(
+    "analytics.upsert_client_goals",
+    description="Persiste os objetivos declarados do cliente na tabela client_goals.",
+    inputs=[
+        {"key": "goals", "type": "list", "description": "Objetivos estruturados do onboarding", "required": True},
+    ],
+    outputs=[
+        {"key": "client_goals_saved", "type": "bool", "description": "True se salvou"},
+    ],
+)
+async def _upsert_client_goals(inputs: dict, client_id: str) -> dict:
+    from datetime import datetime, timezone
+    from blu_supabase_client import get_supabase_client
+
+    goals = inputs.get("goals") or []
+    db = get_supabase_client(use_service_role=True)
+    now = datetime.now(timezone.utc).isoformat()
+
+    rows = []
+    for g in goals:
+        if not isinstance(g, dict):
+            continue
+        goal_text = (g.get("goal") or "").strip()
+        if not goal_text:
+            continue
+        rows.append(
+            {
+                "client_id": client_id,
+                "goal": goal_text,
+                "dimension": g.get("dimension"),
+                "description": g.get("description") or g.get("target"),
+                "target_value": g.get("target_value"),
+                "current_value": g.get("current_value"),
+                "unit": g.get("unit"),
+                "deadline": g.get("deadline"),
+                "priority": g.get("priority") or "media",
+                "status": g.get("status") or "active",
+                "updated_at": now,
+            }
+        )
+
+    if not rows:
+        return {"client_goals_saved": False}
+    try:
+        await asyncio.to_thread(lambda: db.table("client_goals").upsert(rows, on_conflict="client_id,goal").execute())
+    except Exception as exc:
+        logger.warning("[routine_fn] analytics.upsert_client_goals failed for %s: %s", client_id, exc)
+        return {"client_goals_saved": False}
+    logger.info("[routine_fn] analytics.upsert_client_goals: client=%s goals=%d", client_id, len(rows))
+    return {"client_goals_saved": True}

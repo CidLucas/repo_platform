@@ -271,11 +271,9 @@ class MCPConnectionManager:
                     raise ClosedResourceError("Session is None")
                 # Pass meta if the session supports it
                 if meta and hasattr(self._session, "call_tool"):
-                    # Try to pass meta - some MCP versions support it
                     try:
                         result = await self._session.call_tool(tool_name, arguments, meta=meta)
                     except TypeError:
-                        # Fallback if meta not supported
                         result = await self._session.call_tool(tool_name, arguments)
                 else:
                     result = await self._session.call_tool(tool_name, arguments)

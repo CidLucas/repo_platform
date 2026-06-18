@@ -45,8 +45,14 @@ Deno.serve(async (req: Request) => {
   const { data: { user }, error: authErr } = await userClient.auth.getUser();
   if (authErr || !user) return jsonResp({ error: "unauthorized" }, 401);
 
+  console.log('[google-oauth-start] auth user', user.id, user.email);
+
   const body = await req.json().catch(() => ({}));
-  const scope: string = body.scope ?? "https://www.googleapis.com/auth/calendar.readonly";
+  const baseScope: string = body.scope ?? "https://www.googleapis.com/auth/calendar.readonly";
+  const requested = String(baseScope).split(" ").filter(Boolean);
+  const required = ["openid", "https://www.googleapis.com/auth/userinfo.email"];
+  const scope = [...new Set([...requested, ...required])].join(" ");
+  console.log("[google-oauth-start] requested scopes", requested, "final scope", scope);
 
   // Get Google OAuth credentials from platform config.
   // Uses service-role client because get_platform_google_oauth_config is

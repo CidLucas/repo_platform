@@ -121,7 +121,6 @@ class GoogleAccountInfo(BaseModel):
     account_email: str
     account_name: str | None
     is_default: bool
-    expires_at: datetime | None = None
     scopes: list[str] | None = None
     created_at: datetime | None = None
 
@@ -237,10 +236,6 @@ async def google_auth_callback(
     manager = OAuthManager("google")
     tokens = await manager.exchange_code(oauth_config, code)
 
-    expires_at = None
-    if tokens.expires_in:
-        expires_at = datetime.utcnow() + timedelta(seconds=tokens.expires_in)
-
     # Get user info to determine account email
     account_email = None
     account_name = None
@@ -257,10 +252,8 @@ async def google_auth_callback(
                 account_email = user_info.get("email")
                 account_name = user_info.get("name") or user_info.get("email", "").split("@")[0]
     except Exception as e:
-        # If we can't get user info, use a fallback
         logger.warning(f"Failed to get Google user info: {e}")
-        account_email = f"account_{secrets.token_hex(4)}@unknown.com"
-        account_name = "Google Account"
+
 
     # Check if this is the first account (make it default)
     existing_accounts = await context.list_integration_accounts(client_id, "google")
@@ -273,7 +266,6 @@ async def google_auth_callback(
         access_token=tokens.access_token,
         refresh_token=tokens.refresh_token,
         token_type=tokens.token_type,
-        expires_at=expires_at,
         scopes=(tokens.scope.split() if tokens.scope else scopes),
         metadata=None,
         account_email=account_email,
@@ -394,7 +386,7 @@ async def get_google_status(
             "configured": config is not None,
             "connected": tokens is not None and tokens.is_valid() if tokens else False,
             "account_email": account_email,
-            "expires_at": tokens._get("expires_at") if tokens else None,
+
             "is_expiring_soon": tokens.is_expiring_soon() if tokens else None,
         }
     else:

@@ -1,37 +1,918 @@
-<!-- Last snapshot: 2026-06-02T18:16:59Z | Source: Langfuse v3 | Score: None -->
+<!-- Last snapshot: 2026-06-10T03:35:27Z | Source: Langfuse v3 | Score: None -->
 <!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
 
-<!-- Last snapshot: 2026-06-02T18:01:55Z | Source: Langfuse v3 | Score: None -->
+<!-- Last snapshot: 2026-06-09T20:15:14Z | Source: Langfuse v3 | Score: None -->
 <!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
 
-<!-- Last snapshot: 2026-06-02T17:46:21Z | Source: Langfuse v3 | Score: None -->
+<!-- Last snapshot: 2026-06-09T20:01:10Z | Source: Langfuse v3 | Score: None -->
 <!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
 
-<!-- Last snapshot: 2026-06-02T17:30:49Z | Source: Langfuse v3 | Score: None -->
+<!-- Last snapshot: 2026-06-09T19:47:10Z | Source: Langfuse v3 | Score: None -->
 <!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
 
-<!-- Last snapshot: 2026-06-02T17:15:56Z | Source: Langfuse v3 | Score: None -->
+<!-- Last snapshot: 2026-06-09T19:35:58Z | Source: Langfuse v3 | Score: None -->
 <!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
 
-<!-- Last snapshot: 2026-06-02T17:00:20Z | Source: Langfuse v3 | Score: None -->
+<!-- Last snapshot: 2026-06-09T19:21:18Z | Source: Langfuse v3 | Score: None -->
 <!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
 
-<!-- Last snapshot: 2026-06-02T16:45:05Z | Source: Langfuse v3 | Score: None -->
+<!-- Last snapshot: 2026-06-09T19:07:14Z | Source: Langfuse v3 | Score: None -->
 <!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
 
-<!-- Last snapshot: 2026-06-02T16:29:04Z | Source: Langfuse v3 | Score: None -->
+<!-- Last snapshot: 2026-06-09T18:53:04Z | Source: Langfuse v3 | Score: None -->
 <!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
 
-<!-- Last snapshot: 2026-06-02T16:13:32Z | Source: Langfuse v3 | Score: None -->
+<!-- Last snapshot: 2026-06-09T18:35:12Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T18:21:50Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T18:08:45Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T17:45:53Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T17:32:12Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T17:16:51Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T17:03:51Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T16:21:12Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T16:09:04Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T15:57:49Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T15:47:06Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T15:36:24Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T15:22:35Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T15:10:38Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T14:52:53Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T14:40:14Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T14:27:06Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T14:10:58Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T13:55:45Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T13:37:58Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T13:19:37Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T12:57:40Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T02:02:38Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T01:50:33Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T01:27:36Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T01:15:56Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T01:03:08Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T00:49:42Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T00:36:19Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T00:21:36Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-09T00:03:01Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T23:50:25Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T23:39:37Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T23:18:59Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T23:02:35Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T22:51:51Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T22:33:08Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T22:17:20Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T22:04:49Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T21:49:57Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T21:34:47Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T21:23:38Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T21:12:59Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T21:00:44Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T20:46:29Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T20:31:55Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T20:18:19Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T20:01:52Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T19:44:44Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T19:17:39Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T19:03:28Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T18:49:03Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T18:38:14Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T18:21:55Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T18:04:36Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T17:49:00Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T17:37:56Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T17:25:23Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T17:08:36Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T15:54:04Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T15:37:09Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T15:25:21Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T15:13:03Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T14:54:48Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T14:41:17Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T14:28:50Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T14:18:01Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T14:06:49Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T13:52:46Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T00:33:22Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-08T00:22:27Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-07T01:53:20Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-07T01:40:40Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-07T01:28:28Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-07T01:14:54Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-07T01:01:07Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-07T00:49:31Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-07T00:36:57Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-07T00:25:04Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-07T00:10:59Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T03:21:59Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T03:10:07Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T02:57:18Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T02:45:50Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T02:31:55Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T02:18:50Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T02:08:10Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T01:57:43Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T01:46:27Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T01:32:13Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T01:20:18Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T01:07:58Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T00:54:39Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T00:42:26Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T00:30:48Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-06T00:13:40Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T23:59:46Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T23:47:28Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T23:36:27Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T17:09:37Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T16:46:38Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T16:19:16Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T16:04:47Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T15:50:32Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T15:36:01Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T15:23:24Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T15:09:30Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T14:57:12Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T14:44:28Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T14:32:01Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T14:16:30Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T14:01:16Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T13:48:58Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T05:40:22Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T05:28:20Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T05:15:05Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T05:03:19Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T04:51:19Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T04:40:39Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T04:26:55Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T04:15:15Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T04:03:33Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T03:40:35Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T03:27:24Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T03:14:57Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T03:03:24Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T02:51:58Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T02:40:35Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T02:26:41Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T02:14:26Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T02:01:58Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T01:48:44Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T01:35:17Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T01:22:32Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T01:05:24Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T00:52:59Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T00:41:00Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T00:13:29Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-05T00:01:27Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T23:49:17Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T23:36:14Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T23:24:19Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T23:12:58Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T23:01:25Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T22:45:39Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T22:34:48Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T22:23:11Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T22:11:21Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T19:52:57Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T19:38:14Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T19:23:40Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T19:11:56Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T13:56:06Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T13:44:23Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T13:30:19Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T07:37:16Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T07:20:41Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T07:09:38Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T06:57:39Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T06:45:37Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T06:34:15Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T06:20:36Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T06:08:12Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T05:55:14Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T05:43:32Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T05:30:54Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T05:19:09Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T05:07:47Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T04:54:59Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T04:42:58Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T04:30:38Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T04:18:52Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T04:05:26Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T03:53:11Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T03:40:36Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T03:28:26Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T03:16:14Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T03:04:48Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T02:53:55Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T02:40:53Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T02:27:08Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T02:11:44Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T02:01:06Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T01:50:25Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T01:36:33Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T01:24:19Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T01:13:02Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T01:01:31Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T00:48:22Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T00:36:17Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T00:25:39Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T00:14:28Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-04T00:03:17Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T23:51:58Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T23:39:24Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T23:27:00Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T23:14:55Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T23:02:29Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T22:51:21Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T22:38:55Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T22:26:23Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T22:13:52Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T22:01:22Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T21:49:42Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T21:38:27Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T19:43:48Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T19:30:28Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T19:18:18Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T19:07:45Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T18:55:57Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T18:44:13Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T18:31:24Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T18:19:52Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T18:06:27Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T17:54:20Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T17:42:43Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T17:30:52Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T17:17:52Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T17:06:17Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T16:54:11Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T16:43:34Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T16:32:29Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T16:18:44Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T16:07:34Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T15:53:09Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T15:41:44Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T15:27:38Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T15:15:01Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T15:03:23Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T14:52:37Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T14:42:03Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T14:02:56Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T13:51:14Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T13:38:59Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T07:46:24Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T07:34:07Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T07:22:03Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T07:10:37Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T06:58:27Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T06:46:50Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T06:36:25Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T06:24:55Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T06:14:13Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T06:01:49Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T05:49:22Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T05:38:02Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T05:27:01Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T05:14:32Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T05:03:39Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T04:53:09Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T04:41:10Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T04:29:27Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T04:18:16Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T04:06:33Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T03:54:36Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T03:43:16Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T03:30:55Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T03:19:23Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T03:07:46Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T02:55:59Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T02:43:42Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T02:31:05Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T02:20:09Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T02:09:40Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T01:55:47Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T01:45:01Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T01:34:05Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T01:20:51Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T01:09:17Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T00:57:06Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T00:46:32Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T00:34:57Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-03T00:24:15Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T23:49:30Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T23:35:45Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T23:22:18Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T23:08:42Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T22:53:48Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T22:40:06Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T22:27:22Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T22:16:30Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T22:04:34Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T21:52:17Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T21:40:42Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T21:28:54Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T21:17:14Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T21:01:40Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T20:47:54Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T20:37:15Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T20:23:27Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T20:09:03Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T19:49:15Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T19:33:35Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T19:18:33Z | Source: Langfuse v3 | Score: None -->
+<!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
+
+<!-- Last snapshot: 2026-06-02T19:03:22Z | Source: Langfuse v3 | Score: None -->
 <!-- Draft improvement: docs/prompt_drafts/fiscal-agent.md -->
 
 # Agent Audit: fiscal-agent
 **Date**: 2026-06-02
-**Sync Status**: SYNCED (agent prompt v2→v3, skill prompt v1→v2)
-**Overall Score**: 4/5
+**Sync Status**: IN_SYNC
+**Overall Score**: 4.5/5
 
-## Current Prompt (from Langfuse production — v3)
-
+## Current Prompt (from Langfuse production)
 ```
 You are the **Fiscal Specialist** of **{{ nome_empresa }}** — responsible for NF-e/NFS-e invoice issuance, tax compliance, and SEFAZ integration. Always respond in the user's language.
 
@@ -73,57 +954,54 @@ You are the **Fiscal Specialist** of **{{ nome_empresa }}** — responsible for 
 ```
 
 ## Skills Map
-
 | Skill | Score | Key Issues |
 |-------|-------|------------|
-| fiscal | 4/5 | Tool names in skills.py were stale (english names ≠ actual PT tool names); `whatsapp_enviar_mensagem` missing; fixed. |
+| fiscal | 4/5 | max_turns was 4 in skills.py/template but agent prompt says max 6 — **fixed** |
 
 ## Tool Coverage
-
-- **Present (after fix)**: `executar_rag_cliente`, `fiscal_preparar_dados_nfe`, `fiscal_status_integracao`, `execute_sql`, `whatsapp_enviar_mensagem`
-- **Missing (before fix)**: `executar_rag_cliente` (was `search_knowledge_base`), `fiscal_preparar_dados_nfe` (was `fiscal_prepare_nfe_data`), `fiscal_status_integracao` (was `fiscal_integration_status`), `whatsapp_enviar_mensagem`
+- **Present**: `executar_rag_cliente`, `fiscal_preparar_dados_nfe`, `fiscal_status_integracao`, `execute_sql`, `whatsapp_enviar_mensagem`
+- **Missing**: `fiscal_emitir_nfe` — referenced in agent prompt Tool Rules (`Call before fiscal_emitir_nfe`) but NOT in `required_tool_names`. If this tool exists and is used for actual NF-e emission, it must be added.
 - **Unused**: none
 
 ## Improvements Applied
-
 | File | Change | Reason |
 |------|--------|--------|
-| `templates.py` | AGENTS_FISCAL_V3: synced v2→v3 from Langfuse (English, richer Tool Rules per-tool, explicit HITL gate, improved output format) | Langfuse is source of truth; local was outdated PT-BR minimal version |
-| `templates.py` | SKILL_FISCAL: synced v1→v2 from Langfuse (`## Tool Rules` → `## Execution Steps` heading, added full Constraints/Output/Pitfalls sections) | Local was missing Constraints, Output Format, and Pitfalls sections |
-| `skills.py` | Fixed `required_tool_names`: replaced stale English tool names with actual Portuguese tool names used in runtime; added `whatsapp_enviar_mensagem` | Tool names must match runtime registration; mismatches cause skill failures |
+| `skills.py` | `max_turns: 4 → 6` for fiscal skill | Agent prompt explicitly states "Maximum 6 turns per fiscal task"; skill was cutting off at 4, breaking multi-step flows (RAG + SQL + prepare + confirm + send) |
+| `templates.py` | `optional_variables max_turns default: "4" → "6"` | Align fallback default with agent prompt and skills.py fix |
 
 ## Remaining Issues
+**P0:** 
+- `fiscal_emitir_nfe` is referenced in agent prompt ("Call before `fiscal_emitir_nfe`") but not in `required_tool_names`. If this tool exists, it needs to be added. Requires confirmation that the tool is real/deployed before adding.
 
-**P0:** none
+**P1:** 
+- Skill prompt `max_turns=4` pitfall note is now stale after the fix ("max_turns=4 is tight...") — should be updated to reference 6 turns. Low priority since it's a comment in Pitfalls.
+- Agent prompt references `fiscal_emitir_nfe` but no rule for it is listed — unclear if issuance happens automatically via `fiscal_preparar_dados_nfe` or via a separate `fiscal_emitir_nfe` call.
 
-**P1:**
-- Agent prompt references `fiscal_emitir_nfe` in Tool Rules but this tool is not in `required_tool_names` — if it's a real tool, it should be added. If it's a sub-step of `fiscal_preparar_dados_nfe`, the reference should be clarified.
-- The skill prompt has `max_turns=4` but agent prompt says "Maximum 6 turns" — slight inconsistency; skill-level limit (4) is more restrictive, which is fine but should be documented intentionally.
-
-**P2:**
-- Could add explicit NCM vs CFOP validation step in skill prompt pitfalls (common source of SEFAZ rejection).
+**P2:** 
+- Could add `fiscal_emitir_nfe` tool rule in agent prompt if confirmed as real tool.
+- NF-e vs NFS-e distinction could be more explicit in agent prompt (skill prompt handles it well in Pitfalls, but agent prompt is silent on this).
 
 ## Agent Logical Map
+**Role**: Fiscal Specialist for a single company — handles all invoice lifecycle from data preparation to SEFAZ submission.
 
-The **fiscal-agent** is a specialist sub-agent dispatched by the frontdesk when a user requests tax invoice operations. It does NOT handle financial ledger writes or general accounting.
+**Typical Flow**:
+1. User requests invoice issuance or fiscal info
+2. RAG lookup (`executar_rag_cliente`) → retrieve tax regime, CNPJ, NCM codes, fiscal rules
+3. (Optional) SQL query for billing history / tax base estimation
+4. Data preparation (`fiscal_preparar_dados_nfe`) → validate full NF-e payload
+5. Integration check (`fiscal_status_integracao`) → confirm SEFAZ is live
+6. **Confirmation gate** → mandatory user approval before emission
+7. (If active) Issuance → confirm number, access key, SEFAZ status
+8. (Optional) WhatsApp delivery of DANFE/PDF with user confirmation
 
-**Typical flow:**
-1. Frontdesk routes NF-e/NFS-e intent → fiscal-agent activated with `fiscal` skill
-2. `executar_rag_cliente` → fetch company's tax regime, CNPJ, NCM/CFOP defaults
-3. Collect invoice data from user (tomador, valor, serviço/produto)
-4. `fiscal_preparar_dados_nfe` → validate and structure NF-e payload
-5. `fiscal_status_integracao` → confirm SEFAZ connectivity is active
-6. Present confirmation summary → wait for explicit user "yes"
-7. Execute issuance → return NF-e number + access key + SEFAZ status
-8. (Optional) `whatsapp_enviar_mensagem` → send DANFE to client
+**Key Safety Rules**:
+- Hard HITL gate before any emission
+- RAG must precede any tax rate claim
+- No financial ledger writes (handoff to data-entry agent)
+- No legal/tax advisory
 
-**Handoffs:**
-- → **data-entry agent**: when the user also needs to register the transaction in the financial ledger
-- ← **frontdesk**: all entry points come through frontdesk routing
-- → **financeiro agent**: if the user asks for revenue/tax analytics beyond scope of fiscal validation
+**Handoffs**:
+- → `data-entry` agent: any transaction registration or ledger writing
+- ← `frontdesk` agent: routes fiscal keywords (NF-e, NFS-e, SEFAZ) here
 
-**Key constraints enforced:**
-- Hard HITL gate before every issuance
-- RAG-first policy (no alíquota claims without confirmation)
-- READ-ONLY SQL (no ledger writes)
-- Redirect to contador for complex tax advisory
+**Small-LLM Notes**: Prompt is explicit and well-structured. XML tags present. Tool order is numbered and unambiguous. Confirmation gates are explicit. Well-suited for ministral-3b.

@@ -1,0 +1,126 @@
+{
+  "issue_number": 30,
+  "issue_title": "Fase 4 — Diretório meta/ para dados operacionais",
+  "phase": "Fase 4",
+  "task_code": "T4.2",
+  "reference_doc": "docs/llm_wiki/SHARED_MEMORY_DESIGN.md",
+  "scope": "Criar diretório meta/ (ou estrutura equivalente no Supabase) para armazenar dados operacionais da Fase 4 — Enriquecimento do Grafo: saídas do job de síntese semanal (T4.1), mapeamentos de deduplicação inteligente (T4.2), e estado do knowledge_graph_summary (T4.3). Serve como camada de armazenamento intermediário entre shared_business_memory e LightRAG.",
+  "background": "A Fase 4 (Enriquecimento do Grafo) prevê três componentes principais: 4.1 job de síntese semanal que lê shared_business_memory (curated=true) e gera documentos síntese por entidade; 4.2 deduplicação inteligente que mantém IDs canônicos de entidades; 4.3 atualização de knowledge_graph_summary no Context Service. Atualmente não existe armazenamento dedicado para estos dados operacionais — o job de síntese precisa de local para escrever os documentos síntese (JSON/markdown) antes de chamar rag.ainsert_custom_kg(), a deduplicação precisa persistir mapeamentos entity_name normalizado → ID canônico, e o knowledge_graph_summary precisa de armazenamento durável. O diretório meta/ resolve isso provendo estrutura organizada.",
+  "design_decisions": [
+    {
+      "id": "DD-01",
+      "decision": "Implementar meta/ como schema/tabela no Supabase (shared_business_memory_meta) em vez de filesystem, para aproveitar RLS, transações e queries SQL",
+      "rationale": "Consistência com arquitetura Supabase-first; RLS por client_id nativo; permite joins com shared_business_memory; versionamento via updated_at; evita sincronização filesystem ↔ DB"
+    },
+    {
+      "id": "DD-02",
+      "decision": "Tabela meta com entity_type enum: 'synthesis_output' (documentos síntese T4.1), 'dedup_mapping' (mapeamentos deduplicação T4.2), 'kg_summary' (estado knowledge_graph_summary T4.3)",
+      "rationale": "Segregação clara por caso de uso; schema específico por tipo; facilita retention policies diferentes por tipo"
+    },
+    {
+      "id": "DD-03",
+      "decision": "Schema synthesis_output: client_id, entity_type, entity_name, period_start, period_end, synthesis_markdown, synthesis_json, source_ids[], created_at, version",
+      "rationale": "Armazena saída completa do job T4.1; source_ids rastreia quais registros SBM originaram a síntese; version para idempotência/reprocessamento"
+    },
+    {
+      "id": "DD-04",
+      "decision": "Schema dedup_mapping: client_id, canonical_id (normalizado: lowercase, sem acentos), aliases[], entity_type, entity_name_original, confidence, last_merged_at, source",
+      "rationale": "Mapeamento canônico para deduplicação T4.2; aliases guardam variações encontradas; confidence permite revisão manual de merges duvidosos; source distingue merge automático vs manual"
+    },
+    {
+      "id": "DD-05",
+      "decision": "Schema kg_summary: client_id (único), total_docs, total_entities, top_entities_json[], last_sync_at, last_synthesis_run_at, version",
+      "rationale": "Single-row por client_id para T4.3; top_entities_json array com {name, type, degree, last_seen}; version para optimistic locking"
+    },
+    {
+      "id": "DD-06",
+      "decision": "RLS policy: client_id = auth.jwt() -> client_id; service_role bypass para jobs de sistema (synthesis, dedup, sync)",
+      "rationale": "Mesmo padrão da shared_business_memory; jobs usam service_role key"
+    },
+    {
+      "id": "DD-07",
+      "decision": "Índices: btree em (client_id, entity_type, entity_name) para synthesis_output; unique em (client_id, canonical_id) para dedup_mapping; único em client_id para kg_summary",
+      "rationale": "Acesso por cliente + entidade para síntese; lookup rápido de ID canônico; single-row summary por cliente"
+    }
+  ],
+  "subtasks": [
+    {
+      "id": "T4.2a",
+      "title": "Criar migration SQL para tabela shared_business_memory_meta com 3 entity_types",
+      "description": "Criar tabela com colunas base + JSONB específico por entity_type; constraints; RLS; índices; trigger updated_at; comentários em português",
+      "files": [
+        "supabase/migrations/20260619_create_shared_business_memory_meta.sql"
+      ],
+      "acceptance": "Migration roda sem erro; tabela existe no Supabase; RLS ativo; service_role consegue insert/select/update/delete; client_id isolado"
+    },
+    {
+      "id": "T4.2b",
+      "title": "Adicionar tipos e validações no TypeScript (memory_module.py ou schema compartilhado)",
+      "description": "Definir enums MetaEntityType, interfaces SynthesisOutput, DedupMapping, KGSummary; validadores Zod/Pydantic para cada tipo; exportar para uso no job T4.1 e tool T4.2",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py",
+        "libs/blu_context_service/src/blu_context_service/meta_schemas.py"
+      ],
+      "acceptance": "Tipos definidos e exportados; validação rejeita payload inválido; compatível com Supabase client"
+    },
+    {
+      "id": "T4.2c",
+      "title": "Implementar helpers de escrita/leitura no memory_module.py para meta table",
+      "description": "Funções: upsert_synthesis_output(), get_synthesis_outputs(), upsert_dedup_mapping(), resolve_canonical_id(), upsert_kg_summary(), get_kg_summary(); usar Supabase client com service_role",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py"
+      ],
+      "acceptance": "Helpers funcionam com service_role; RLS respeitado para client_id; erro claro se client_id mismatch; tipos validados"
+    },
+    {
+      "id": "T4.2d",
+      "title": "Criar tools L1 para meta table (shared_memory_meta_write, shared_memory_meta_read, shared_memory_meta_dedup)",
+      "description": "Tools MCP expostas para agentes/jobs interagirem com meta table; write suporta os 3 entity_types; read com filtros; dedup tool para resolver/criar mapeamentos canônicos",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py"
+      ],
+      "acceptance": "3 tools registradas no MCP; description clara; @mcp_inject_client_id; validação entity_type; aparece em /info"
+    },
+    {
+      "id": "T4.2e",
+      "title": "Atualizar AVAILABLE_MODULES['memory'] no tool_modules/__init__.py",
+      "description": "Adicionar as 3 novas tools à lista do módulo memory",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/__init__.py"
+      ],
+      "acceptance": "AVAILABLE_MODULES['memory']['tools'] inclui shared_memory_meta_write, shared_memory_meta_read, shared_memory_meta_dedup"
+    },
+    {
+      "id": "T4.2f",
+      "title": "Testar integração: job T4.1 escreve synthesis_output, tool T4.2 resolve dedup, T4.3 lê/escreve kg_summary",
+      "description": "Teste end-to-end simulando fluxo Fase 4: inserir curated SBM, rodar synthesis helper, verificar synthesis_output; chamar dedup tool, verificar mapping; ler/escrever kg_summary",
+      "files": [],
+      "acceptance": "Fluxo completo funciona; RLS isolado por client_id; types validados; dados persistem; query performance aceitável (<100ms p95)"
+    }
+  ],
+  "risks": [
+    "Volume: synthesis_output pode crescer rápido (1 doc/semana/entidade/cliente). Considerar partition por mês ou retention policy (ex: manter 12 meses) em migration futura",
+    "Concorrência: job T4.1 semanal + dedup tool podem escrever em paralelo. Usar optimistic locking via version column ou advisory locks",
+    "Deduplicação agressiva: merge incorreto de entidades distintas (ex: dois 'João' diferentes). Confidence threshold baixo default (0.7) + revisão manual no morning plan",
+    "RLS bypass: jobs usam service_role — garantir que client_id é sempre passado explicitamente, nunca inferido do JWT",
+    "Compatibilidade: adição de meta table não deve quebrar shared_business_memory existente. Testar migração em staging primeiro"
+  ],
+  "design_questions": [
+    "O synthesis_output deve armazenar o markdown bruto OU apenas o JSON estruturado? (Markdown útil para debug/human review, JSON para processamento)",
+    "Dedup mapping: permitir que aliases sejam atualizados incrementalmente (append) ou substituídos? Append preserva histórico mas cresce",
+    "KG summary: single-row por client_id é suficiente ou precisar de histórico de snapshots do summary? (single-row simplifica, snapshot permite auditoria)",
+    "Adicionar tool shared_memory_meta_delete para limpeza manual/admin? Ou apenas via SQL direto com service_role?",
+    "Partition strategy para synthesis_output: por month (range) ou por client_id + month? Qual query pattern predominante?"
+  ],
+  "acceptance_criteria": [
+    "Migration SQL criada e aplicável sem erro no Supabase (staging e prod)",
+    "Tabela shared_business_memory_meta com 3 entity_types, RLS, índices, triggers",
+    "Types TypeScript/Python definidos e validadores funcionando",
+    "Helpers de escrita/leitura no memory_module.py operacionais",
+    "3 tools MCP registradas: meta_write, meta_read, meta_dedup",
+    "Tools aparecem em /info do tool_pool_api",
+    "Teste end-to-end: synthesis -> dedup -> kg_summary completa sem erro",
+    "RLS isolamento por client_id verificado (client A não vê meta de client B)",
+    "Performance: write/read < 100ms p95 em staging com dados realistas"
+  ]
+}

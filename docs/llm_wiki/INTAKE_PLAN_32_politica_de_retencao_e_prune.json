@@ -1,0 +1,174 @@
+{
+  "issue_number": 32,
+  "issue_title": "Fase 4 — Política de retenção e prune da shared memory",
+  "phase": "Fase 4",
+  "task_id": "T4.4",
+  "symbolic_ref": "docs/llm_wiki/SHARED_MEMORY_DESIGN.md — T4.4",
+  "scope": "Implementar política de retenção e prune automático da shared_business_memory: adicionar colunas de lifecycle (soft_delete_at, hard_delete_at, ttl_tier), trigger de volume limit (50 registros/entidade), Routine Engine cron 03:00 para soft-delete → archival → hard-delete em duas fases, alerta silencioso só se >100 registros afetados",
+  "subtasks": [
+    {
+      "id": "T4.4a",
+      "title": "Migration SQL: adicionar colunas lifecycle + TTL tier à shared_business_memory",
+      "description": "Adicionar colunas: soft_delete_at timestamptz, hard_delete_at timestamptz, ttl_tier text CHECK (ttl_tier IN ('curated','migration','specialist','memory_agent_hi','memory_agent_lo')), archived boolean DEFAULT false. Incorporar diretamente na migration base 20260619000000_shared_business_memory.sql (ainda em proposed/, não aplicada). Adicionar índices para queries de prune: idx_sbm_soft_delete (WHERE soft_delete_at IS NOT NULL), idx_sbm_hard_delete (WHERE hard_delete_at IS NOT NULL), idx_sbm_ttl_tier.",
+      "type": "migration",
+      "files": [
+        "supabase/migrations/proposed/20260619000000_shared_business_memory.sql"
+      ],
+      "dependencies": [],
+      "acceptance": "Migration aplica sem erro; colunas lifecycle existem; CHECK constraint ttl_tier válida; índices de prune criados; RLS preservada"
+    },
+    {
+      "id": "T4.4b",
+      "title": "Memory module: trigger BEFORE INSERT volume limit (50 registros/entidade)",
+      "description": "Criar trigger PostgreSQL BEFORE INSERT ON shared_business_memory que conta registros existentes para o mesmo (client_id, entity_type, entity_name) e rejeita INSERT se count >= 50, lançando exceção customizada 'volume_limit_exceeded'. O trigger deve respeitar soft-deleted entries (não contar onde archived=true OU soft_delete_at IS NOT NULL). Permite exceção para source='curated' ou ttl_tier='curated' (sem limite).",
+      "type": "migration",
+      "files": [
+        "supabase/migrations/proposed/20260619000006_shared_memory_volume_limit.sql"
+      ],
+      "dependencies": ["T4.4a"],
+      "acceptance": "Trigger criado; INSERT rejeitado com erro claro ao exceder 50 fatos/entidade; contagem exclui arquivados; source='curated' ignora limite; testes unitários passam"
+    },
+    {
+      "id": "T4.4c",
+      "title": "Memory module: lógica de soft-delete no upsert/write (set ttl_tier + soft_delete_at)",
+      "description": "Modificar memory_module.py (_shared_memory_upsert_logic, _shared_memory_write_logic) para aceitar parâmetro opcional ttl_tier. Se fornecido, calcular soft_delete_at = now() + INTERVAL baseado no tier: curated=∞ (NULL), migration=90d, specialist=30d, memory_agent_hi=14d, memory_agent_lo=7d. hard_delete_at = soft_delete_at + INTERVAL '90 days' (archival period). Validar ttl_tier contra enum. Se ttl_tier não fornecido, default 'specialist' (30d) para source=specialist, 'memory_agent_lo' (7d) para source=memory_agent, 'curated' para source=curated/migration.",
+      "type": "code",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py"
+      ],
+      "dependencies": ["T4.4a"],
+      "acceptance": "Upsert/write aceita ttl_tier; soft_delete_at/hard_delete_at populados corretamente; validação de enum; default por source funciona; não quebra operações sem ttl_tier"
+    },
+    {
+      "id": "T4.4d",
+      "title": "Routine Engine: cron job prune_shared_memory (executa 03:00 UTC)",
+      "description": "Criar rotina no Routine Engine (não pg_cron) que roda diariamente às 03:00 UTC. Steps: 1) Verificar se backup (02:00) concluiu — consultar checkpoint 'current_state:backup_shared_memory' em shared_business_memory entity_type='routine'; se não concluído, abortar com log WARN. 2) Soft-delete phase: UPDATE shared_business_memory SET archived=true, soft_delete_at=now() WHERE soft_delete_at <= now() AND archived=false. 3) Hard-delete phase: DELETE FROM shared_business_memory WHERE hard_delete_at <= now() AND archived=true. 4) Log silencioso: apenas se registros_afetados > 100, emitir alerta (webhook/email). Retornar contagem por fase no checkpoint.",
+      "type": "code",
+      "files": [
+        "supabase/migrations/proposed/20260619000007_prune_shared_memory_routine.sql",
+        "services/routine_engine/src/routines/prune_shared_memory.py"
+      ],
+      "dependencies": ["T4.4a", "T4.4c"],
+      "acceptance": "Routine registrada no Routine Engine; executa 03:00 UTC; verifica backup antes de rodar; soft-delete → archival → hard-delete em ordem; log silencioso exceto >100 registros; checkpoint salvo com contagens"
+    },
+    {
+      "id": "T4.4e",
+      "title": "TOOL_INVENTORY: registrar shared_memory_read/write no catálogo de ferramentas",
+      "description": "Adicionar shared_memory_read, shared_memory_write, shared_memory_upsert, shared_memory_list, shared_memory_link, shared_memory_unlink, shared_memory_get_links ao TOOL_INVENTORY (arquivo de configuração do tool pool / MCP registry). Incluir descrições, parâmetros, e que shared_memory_read/write/upsert aceitam ttl_tier opcional.",
+      "type": "code",
+      "files": [
+        "configs/tool_inventory.yaml"
+      ],
+      "dependencies": [],
+      "acceptance": "Tools listadas no TOOL_INVENTORY; schema de parâmetros inclui ttl_tier; descrições atualizadas; validação de schema passa"
+    },
+    {
+      "id": "T4.4f",
+      "title": "Testes unitários + integração",
+      "description": "Testes para: migration lifecycle columns (schema), volume limit trigger (INSERT rejeitado/permitido), ttl_tier defaults por source, soft-delete/hard-delete logic, routine prune (mock clock/time-travel), backup race condition, alerta >100 registros. Cobrir casos: ttl_tier curated (sem delete), volume limit exceção curated, backup não concluído aborta prune, RLS preservado em DELETE.",
+      "type": "test",
+      "files": [
+        "tests/unit/test_shared_memory_retention.py",
+        "tests/integration/test_prune_routine.py"
+      ],
+      "dependencies": ["T4.4a", "T4.4b", "T4.4c", "T4.4d", "T4.4e"],
+      "acceptance": "pytest passa; cobertura >= 80% nas novas functions; integração com Supabase local/test; time-travel tests para cron logic"
+    }
+  ],
+  "design_decisions": [
+    {
+      "id": "DD-01",
+      "decision": "Soft-delete em duas fases: archived=true (soft_delete_at) → hard_delete_at após 90 dias de archival",
+      "rationale": "Permite recuperação acidental (restore dentro de 90 dias). Hard-delete físico só após janela de segurança. Alinha com LGPD/backup requirements."
+    },
+    {
+      "id": "DD-02",
+      "decision": "5 TTL tiers: curated=∞ (never expires), migration=90d, specialist=30d, memory_agent_hi=14d, memory_agent_lo=7d",
+      "rationale": "Tiered retention baseada na importância/proveniência do dado. Curated/migration = dados críticos/seed (longo). Specialist = conhecimento agente (médio). Memory agent = fatos transitórios (curto). 90d archival buffer antes do hard-delete para todos."
+    },
+    {
+      "id": "DD-03",
+      "decision": "Volume limit: 50 fatos por (client_id, entity_type, entity_name) via trigger BEFORE INSERT",
+      "rationale": "Prevenção de crescimento descontrolado por entidade. 50 é limite prático para contexto de agente. Exceção para 'curated' garante seed data não bloqueado. Trigger no DB garante atomicidade cross-codepath."
+    },
+    {
+      "id": "DD-04",
+      "decision": "Routine Engine (Python cron 03:00) em vez de pg_cron",
+      "rationale": "Routine Engine já existe no projeto (T2.1), tem checkpoint/observabilidade integrada, suporta lógica complexa (verificar backup, alerta condicional). pg_cron seria mais uma dependência operacional."
+    },
+    {
+      "id": "DD-05",
+      "decision": "Operação silenciosa: alerta apenas se >100 registros afetados na execução",
+      "rationale": "Evita alert fatigue. Prune diário afeta poucos registros tipicamente. >100 indica anomalia (bug, leak, mass insert) que merece investigação. Log de rotina normal fica em checkpoint/shared_business_memory."
+    },
+    {
+      "id": "DD-06",
+      "decision": "Migration base 20260619000000 ainda em proposed/ — incorporar lifecycle columns diretamente nela",
+      "rationale": "Migration ainda não aplicada em produção. Evita migration separada 'add lifecycle columns'. Menos arquivos, schema coeso desde o primeiro apply. Requer revisão humana antes de promover para applied/."
+    },
+    {
+      "id": "DD-07",
+      "decision": "Backup race condition: prune (03:00) verifica checkpoint de backup (02:00) antes de executar",
+      "rationale": "Backup escreve checkpoint 'current_state:backup_shared_memory'. Prune lê esse checkpoint; se completed_at < now() - 2h, considera concluído. Se não, aborta com WARN. Garante que prune não apaga dados que backup ainda não copiou."
+    }
+  ],
+  "risks": [
+    {
+      "id": "R-01",
+      "risk": "Volume limit trigger pode rejeitar inserts legítimos em entidades ativas (ex: cliente com muitos fatos)",
+      "mitigation": "Monitorar rejeições via log; se frequente, aumentar limite ou adicionar tier 'high_volume' com limite maior. Trigger emite log WARNING com contagem atual antes de rejeitar."
+    },
+    {
+      "id": "R-02",
+      "risk": "Race condition backup vs prune pode causar perda de dados se backup atrasar",
+      "mitigation": "Prune verifica checkpoint de backup; se backup não completou em 2h, aborta e alerta. Backup tem timeout próprio. Janela 02:00-03:00 é buffer de 1h."
+    },
+    {
+      "id": "R-03",
+      "risk": "RLS pode bloquear DELETE do prune (service key vs anon key)",
+      "mitigation": "Routine Engine executa com SERVICE_KEY (bypass RLS). Prune DELETE usa SECURITY DEFINER function ou conn string service_role. Testar com RLS ativo."
+    },
+    {
+      "id": "R-04",
+      "risk": "TTL tier default por source pode classificar mal fatos de novas sources",
+      "mitigation": "Default conservador: 'specialist' (30d) para source desconhecido. Log WARNING quando source não mapeado. Permitir override explícito via ttl_tier param."
+    }
+  ],
+  "design_questions": [
+    {
+      "id": "DQ-01",
+      "question": "Volume limit 50/entidade é adequado ou deve ser configurável por tenant/dimensão?",
+      "status": "open"
+    },
+    {
+      "id": "DQ-02",
+      "question": "Hard-delete após 90 dias archival é suficiente para compliance (LGPD, auditoria)?",
+      "status": "open"
+    },
+    {
+      "id": "DQ-03",
+      "question": "Routine Engine já tem suporte a timezone-aware cron (03:00 UTC) ou precisa ajuste?",
+      "status": "open"
+    },
+    {
+      "id": "DQ-04",
+      "question": "shared_memory_read/write/upsert no TOOL_INVENTORY — qual arquivo exato? configs/tool_inventory.yaml ou outro?",
+      "status": "open"
+    }
+  ],
+  "related_issues": [
+    30,
+    31,
+    29,
+    33,
+    34,
+    21
+  ],
+  "next_phase_dependencies": {
+    "Fase5_backup": "Precisa do checkpoint de prune (T4.4d) para saber o que foi arquivado/deletado antes do backup",
+    "Fase5_export_flush": "Precisa de soft_delete_at/hard_delete_at para filtrar exports (não exportar arquivados)",
+    "Fase5_versioning": "Pode usar archived/hard_delete_at como base para versão histórica de fatos",
+    "Fase5_permissions": "Write permissions devem respeitar ttl_tier (ex: só admin define curated=∞)",
+    "Fase5_visualization": "UI de memória deve mostrar status: active | archived | pending_hard_delete com contadores"
+  }
+}

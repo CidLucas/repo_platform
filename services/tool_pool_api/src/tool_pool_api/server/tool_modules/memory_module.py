@@ -45,6 +45,45 @@ _TABLE = "shared_business_memory"
 _LINKS_TABLE = "shared_memory_links"
 
 # ---------------------------------------------------------------------------
+# Category constants (for shared_memory_write)
+# ---------------------------------------------------------------------------
+
+_VALID_CATEGORIES: frozenset[str] = frozenset({
+    "knowledge", "rag", "documents", "memory-agent",
+    "context", "decision", "preference",
+})
+
+# ---------------------------------------------------------------------------
+# TTL tier constants (Fase 4 — T4.4c)
+# ---------------------------------------------------------------------------
+
+_VALID_TTL_TIERS: frozenset[str] = frozenset({
+    "curated", "migration", "specialist",
+    "memory_agent_hi", "memory_agent_lo",
+})
+
+# Interval mapping: tier → soft_delete_at offset (in days)
+# curated = None means never expires
+_TTL_TIER_INTERVALS: dict[str, int | None] = {
+    "curated": None,          # Never expires
+    "migration": 90,          # +90 days
+    "specialist": 30,         # +30 days
+    "memory_agent_hi": 14,    # +14 days
+    "memory_agent_lo": 7,     # +7 days
+}
+
+# Archival period: hard_delete_at = soft_delete_at + 90 days
+_ARCHIVAL_PERIOD_DAYS: int = 90
+
+# Default TTL tier inference from source
+_SOURCE_TTL_DEFAULTS: dict[str, str] = {
+    "curated": "curated",
+    "migration": "migration",
+    "specialist": "specialist",
+    "memory_agent": "memory_agent_lo",
+}
+
+# ---------------------------------------------------------------------------
 # Snapshot constants (T2.2a + T2.2b)
 # ---------------------------------------------------------------------------
 
@@ -731,6 +770,10 @@ async def _shared_memory_read_logic(
         "source": row["source"],
         "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
         "version": row.get("version", 1),
+        "ttl_tier": row.get("ttl_tier"),
+        "soft_delete_at": row.get("soft_delete_at"),
+        "hard_delete_at": row.get("hard_delete_at"),
+        "archived": row.get("archived", False),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -750,6 +793,7 @@ async def _shared_memory_upsert_logic(
     frontmatter: dict | None = None,
     source: str = "manual",
     confidence: float = 1.0,
+    ttl_tier: str | None = None,
 ) -> dict:
     """
     Insert or update a shared-memory fact.
@@ -761,6 +805,14 @@ async def _shared_memory_upsert_logic(
 
     body maps to the ``value`` column (the actual fact content).
     frontmatter maps to the ``metadata`` column (provenance/context).
+
+    Fase 4 (T4.4c): ttl_tier controls retention policy:
+      - curated        → never expires (soft_delete_at = NULL)
+      - migration      → soft-delete after 90d
+      - specialist     → soft-delete after 30d
+      - memory_agent_hi → soft-delete after 14d
+      - memory_agent_lo → soft-delete after 7d
+    If ttl_tier is not provided, inferred from source.
     """
     _validate_entity_type(entity_type)
     entity_name = _normalize_entity_name(entity_name)
@@ -781,6 +833,9 @@ async def _shared_memory_upsert_logic(
         _validate_snapshot_body(entity_name, body)
 
     db = await get_supabase_client()
+
+    # ── Compute TTL lifecycle columns (Fase 4 — T4.4c) ──────────
+    ttl_info = _compute_ttl_columns(ttl_tier=ttl_tier, source=source)
 
     # ── Archive current version before overwriting (T5.3) ──────────
     from .version_module import _archive_memory_version as _archive_version
@@ -810,6 +865,9 @@ async def _shared_memory_upsert_logic(
         ) else "manual",
         "confidence": confidence,
         "version": new_version,
+        "ttl_tier": ttl_info["ttl_tier"],
+        "soft_delete_at": ttl_info["soft_delete_at"],
+        "hard_delete_at": ttl_info["hard_delete_at"],
     }
 
     try:
@@ -819,7 +877,7 @@ async def _shared_memory_upsert_logic(
             .upsert(
                 payload,
                 on_conflict="client_id,entity_type,entity_name,key",
-                default_to_null=False,
+                default_to_null=True,
             )
             .execute()
         )
@@ -841,6 +899,134 @@ async def _shared_memory_upsert_logic(
         "source": row["source"],
         "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
         "version": row.get("version", 1),
+        "ttl_tier": row.get("ttl_tier"),
+        "soft_delete_at": row.get("soft_delete_at"),
+        "hard_delete_at": row.get("hard_delete_at"),
+        "archived": row.get("archived", False),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Write business logic (Fase 4 — T4.4c: ttl_tier support)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_write_logic(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    key: str,
+    value: dict,
+    category: str | None = None,
+    agent_id: str | None = None,
+    ttl: int | None = None,
+    priority: int | None = None,
+    supersede: bool = False,
+    source: str = "manual",
+    confidence: float = 1.0,
+    ttl_tier: str | None = None,
+) -> dict:
+    """
+    Write a new shared-memory fact (strict INSERT by default).
+
+    If supersede=True, delegates to _shared_memory_upsert_logic.
+    Otherwise, performs a strict INSERT that fails on duplicate keys.
+
+    Fase 4 (T4.4c): ttl_tier controls retention policy.
+    If ttl_tier is not provided, inferred from source.
+    """
+    _validate_entity_type(entity_type)
+    entity_name = _normalize_entity_name(entity_name)
+    key = key.strip().lower()
+
+    if not entity_name or not key:
+        raise ValueError("entity_name and key are required")
+    if not isinstance(value, dict):
+        raise ValueError("value must be a dict")
+
+    # If supersede, delegate to upsert (which handles TTL too)
+    if supersede:
+        return await _shared_memory_upsert_logic(
+            client_id=client_id,
+            entity_type=entity_type,
+            entity_name=entity_name,
+            key=key,
+            body=value,
+            frontmatter={},
+            source=source,
+            confidence=confidence,
+            ttl_tier=ttl_tier,
+        )
+
+    # Strict INSERT path — compute TTL lifecycle columns
+    ttl_info = _compute_ttl_columns(ttl_tier=ttl_tier, source=source)
+
+    # Build metadata from optional fields
+    metadata: dict = {}
+    if category:
+        metadata["category"] = category
+    if agent_id:
+        metadata["agent_id"] = agent_id
+    if ttl is not None:
+        metadata["ttl"] = ttl
+    if priority is not None:
+        metadata["priority"] = priority
+
+    db = await get_supabase_client()
+
+    payload = {
+        "client_id": client_id,
+        "entity_type": entity_type,
+        "entity_name": entity_name,
+        "key": key,
+        "value": value,
+        "metadata": metadata,
+        "source": source if source in (
+            "manual", "memory_agent", "specialist", "migration", "system"
+        ) else "manual",
+        "confidence": confidence,
+        "ttl_tier": ttl_info["ttl_tier"],
+        "soft_delete_at": ttl_info["soft_delete_at"],
+        "hard_delete_at": ttl_info["hard_delete_at"],
+    }
+
+    try:
+        result = await (
+            db.schema("public")
+            .table(_TABLE)
+            .insert(payload)
+            .execute()
+        )
+    except Exception as exc:
+        err_str = str(exc).lower()
+        if "duplicate key" in err_str or "unique" in err_str:
+            raise ValueError(
+                f"Fact already exists: {entity_type}:{entity_name}/{key}. "
+                f"Use supersede=true to overwrite."
+            )
+        raise RuntimeError(f"Failed to write shared-memory entry: {exc}")
+
+    row = result.data[0] if result.data else None
+    if not row:
+        raise RuntimeError("Failed to write memory entry — no data returned")
+
+    return {
+        "id": row["id"],
+        "client_id": row["client_id"],
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "key": row["key"],
+        "value": row["value"],
+        "metadata": row.get("metadata", {}),
+        "source": row["source"],
+        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+        "version": row.get("version", 1),
+        "ttl_tier": row.get("ttl_tier"),
+        "soft_delete_at": row.get("soft_delete_at"),
+        "hard_delete_at": row.get("hard_delete_at"),
+        "archived": row.get("archived", False),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -1459,6 +1645,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         frontmatter: dict | None = None,
         source: str = "manual",
         confidence: float = 1.0,
+        ttl_tier: str | None = None,
         client_id: str | None = None,
     ) -> dict:
         """
@@ -1472,6 +1659,8 @@ def register_tools(mcp: FastMCP) -> list[str]:
             frontmatter: Optional metadata dict (maps to 'metadata' column).
             source: Provenance --  "manual" | "memory_agent" | "specialist" | "migration" | "system".
             confidence: Confidence score (0.0--1.0, default 1.0).
+            ttl_tier: Optional retention tier — "curated" | "migration" | "specialist" |
+                     "memory_agent_hi" | "memory_agent_lo". If omitted, inferred from source.
 
         Returns:
             dict with the full upserted record including version.
@@ -1500,6 +1689,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
                 frontmatter=frontmatter,
                 source=source,
                 confidence=confidence,
+                ttl_tier=ttl_tier,
             )
         except ValueError as exc:
             raise ToolError(str(exc))
@@ -1547,6 +1737,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         supersede: bool = False,
         source: str = "manual",
         confidence: float = 1.0,
+        ttl_tier: str | None = None,
         client_id: str | None = None,
     ) -> dict:
         """
@@ -1564,6 +1755,8 @@ def register_tools(mcp: FastMCP) -> list[str]:
             supersede: If True, upsert to overwrite an existing entry. Default False (strict insert).
             source: Provenance — "manual" | "memory_agent" | "specialist" | "migration" | "system".
             confidence: Confidence score (0.0--1.0, default 1.0).
+            ttl_tier: Optional retention tier — "curated" | "migration" | "specialist" |
+                     "memory_agent_hi" | "memory_agent_lo". If omitted, inferred from source.
 
         Returns:
             dict with the full written record including id, version, and timestamps.
@@ -1614,6 +1807,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
                 supersede=supersede,
                 source=source,
                 confidence=confidence,
+                ttl_tier=ttl_tier,
             )
         except ValueError as exc:
             raise ToolError(str(exc))

@@ -1,107 +1,131 @@
-# Resolution Document — Issue #32: Política de Retenção e Prune
+# Resolution — Issue #31 / T4.3 (knowledge_graph_summary update)
 
-> Design decisions, answered questions, and implementation strategy.
-> Author: factory-planner | Date: 2026-06-19
+> Gerado por factory-planner em 2026-06-19
 
-## Decision Resolution
+## 1. Design Decisions (validadas/refinadas do intake)
 
-### D1 — Hard-delete vs Soft-delete (archival)
-**Decisão: Soft-delete com archival de 90 dias, depois hard-delete em segundo estágio.**
+### DD-01: Schema em AvailableTools ✅ CONFIRMADA
+Adicionar `knowledge_graph_summary: KnowledgeGraphSummary | None = None` ao `AvailableTools` (linha 278 de context_schemas.py). Retrocompatível (campo opcional).
 
-Racional:
-- Curated=true records representam conhecimento validado pelo usuário — deletar sem rastro é arriscado (R4).
-- Curated=false records podem ser hard-deleted imediatamente ao expirar — são não confirmados, TTL é o contrato.
-- Dois estágios: (1) prune diário → archived_at em curated=true expirados, hard-delete em curated=false; (2) prune mensal → hard-delete de registros com archived_at > 90 dias.
-- Ferramentas de restore/list_archived permitem recuperação.
+### DD-02: Versionamento do summary ✅ CONFIRMADA
+`KnowledgeGraphSummary.version: int = 1`. Campo no próprio summary (não no AvailableTools). Permite migração futura de formato.
 
-### D2 — TTL tiers fixos vs configuráveis
-**Decisão: Fixos para MVP, configuráveis por client_config no futuro.**
+### DD-03: Módulo knowledge_graph_sync.py ✅ CONFIRMADA — refino
+- Internal tool via `@register_module` (padrão do codebase).
+- Função: `update_knowledge_graph_summary(client_id: UUID, summary: dict) -> bool`.
+- Registrada no `AVAILABLE_MODULES` como "knowledge_graph" e importada em `register_all_tools`.
+- NÃO exposta como MCP tool (chamada interna pelo job T4.1).
 
-Tiers definidos:
-| # | Condição | TTL | Justificativa |
-|---|----------|-----|---------------|
-| 1 | curated=true | ∞ (permanente) | Confirmado pelo usuário — conhecimento validado |
-| 2 | source=manual/migration/system | 90 dias | Dados de onboarding, migração, sistema — estáveis |
-| 3 | source=specialist | 30 dias | Inferências de specialist — revisão mensal |
-| 4 | source=memory_agent + confidence≥0.7 | 14 dias | Agente com alta confiança — revisão quinzenal |
-| 5 | source=memory_agent + confidence<0.7 | 7 dias | Agente com baixa confiança — revisão semanal |
+### DD-04: Payload structure ✅ CONFIRMADA
+```python
+class EntitySummary(BaseModel):
+    name: str
+    type: str
+    degree: int
 
-### D3 — Limite de 50 registros por entidade
-**Decisão: 50 registros por (client_id, entity_type, entity_name). Trigger BEFORE INSERT.**
+class KnowledgeGraphSummary(BaseModel):
+    total_documents: int = 0
+    total_entities: int = 0
+    top_entities: list[EntitySummary] = Field(default_factory=list, max_length=10)
+    last_sync: str | None = None  # ISO timestamp
+    version: int = 1
+```
 
-Racional:
-- Cada fact é um par (key, value). Entidade típica: 5-15 facts. 50 é ~3-10x margem.
-- Trigger SQL é mais seguro que tool layer — independe de qual caminho insere (R2 mitigado com subquery atômica).
-- Política de descarte: quando limite é atingido, arquivar (archived_at=now()) o registro mais antigo (created_at ASC) com curated=false. Se todos forem curated=true, rejeitar insert com erro.
+### DD-05: Upsert JSONB em clientes_blu.available_tools ✅ CONFIRMADA
+Ler → merge (preservar tier, enabled_tool_names, etc.) → escrever. Cache invalidado após.
 
-### D4 — Prune via Routine Engine vs pg_cron
-**Decisão: Routine Engine (system routine com cron trigger).**
+### DD-06: Cache invalidation ✅ CONFIRMADA
+`clear_context_cache(client_id)` após upsert.
 
-Racional:
-- Routine Engine já tem: registry de funções, logging, monitoramento, cron trigger.
-- `memory.write_dimension_state` já existe como função registrada no namespace `memory.*`.
-- pg_cron exigiria security definer function separada + configuração externa.
-- Consistência: todo job batch no Blu usa Routine Engine.
+---
 
-### D5 — Notificação ao cliente sobre prune
-**Decisão: Operação silenciosa. Apenas log interno + alerta se >100 registros afetados.**
+## 2. Discrepância encontrada: _DOMAIN_SECTIONS
 
-Racional:
-- Prune de 1-5 registros por dia é rotina normal — não justifica notificação.
-- Alerta only se volume anômalo (>100) indicar possível bug ou expurgo em massa.
-- Log via `logger.info` com métricas (deleted_count, archived_count).
+**O plano intake afirma:** "available_tools já é incluído nas seções permitidas para domínios 'analytics', 'data', 'sql', 'rag', 'documents', 'knowledge', 'config', 'settings'"
 
-### D6 — Trigger SQL vs verificação na tool layer
-**Decisão: Trigger BEFORE INSERT no SQL para volume limit. Tool layer não precisa verificar.**
+**Realidade (código em context_service.py:30-43):**
+- `rag`, `documents`, `knowledge` **NÃO** incluem `available_tools`.
+- Apenas `analytics`, `data`, `sql`, `config`, `settings` incluem.
 
-Racional:
-- Trigger SQL é atômico e independe do caminho de insert (tool, routine, migration, SQL direto).
-- Subquery com `SELECT COUNT(*)` dentro do trigger garante atomicidade (R2).
-- Tool layer não precisa de lógica duplicada.
+**Decisão planner:** T4.3c deve:
+1. Adicionar `available_tools` a `rag` e `documents` (domínios que usarão `knowledge_graph_summary`)
+2. Manter `knowledge` como está (focado em company_profile/policies/brand_voice)
+3. OU: Manter domain projection inalterado e expor `get_knowledge_graph_summary()` como helper separado
 
-### D7 — Onboarding snapshots e TTL
-**Decisão: Snapshots de onboarding usam source=migration → TTL 90 dias, curated=false.**
+**Recomendação:** Opção 3 (helper separado) — evita mudança de comportamento em _DOMAIN_SECTIONS que afeta outras sections do available_tools. O `get_knowledge_graph_summary()` é um accessor específico, não uma mudança no projection.
 
-Racional:
-- Dados de onboarding são estáveis (nome, endereço, segmento).
-- curated=false até confirmação no morning_plan (Fase 2.4 do roadmap).
-- TTL 90 dias dá tempo suficiente para o ciclo de confirmação.
+---
 
-## Conflict Detection
+## 3. Conflicts Analysis
 
-### Conflict 1 — Migration timing
-**Situação:** A migration base 20260619000000 está em proposed/, NÃO aplicada.
-**Resolução:** Incorporar colunas lifecycle (expires_at, curated, archived_at) DIRETAMENTE na migration base em vez de criar ALTER TABLE separado. A migration 20260620000000 deve ser um ALTER TABLE apenas se a base já tiver sido aplicada. Verificar com o humano.
+| Issue relacionada | Branch | Arquivos em conflito | Severidade |
+|---|---|---|---|
+| #29 (handoffs dir) | `phase-4/issue-29-dir-handoffs-estruturado` | Nenhum | ✅ Clean |
+| #30 (meta/ dir) | `phase-4/issue-30-diretorio-meta-dados-operacionais` | Nenhum | ✅ Clean |
+| #32 (retenção/prune) | `phase-0/issue-32-politica-de-retencao-e-prune` | Nenhum | ✅ Clean |
 
-### Conflict 2 — shared_memory_read ausente
-**Situação:** TOOL_INVENTORY lista shared_memory_list/link/unlink/get_links mas NÃO shared_memory_read/write. Issues anteriores (#11, #15) referenciam-nas.
-**Resolução:** As tools de archival (restore_archived, list_archived) dependem de shared_memory_read existir. Verificar status antes de implementar.
+**Conclusão:** Zero conflitos de arquivo com branches relacionadas. T4.3 pode prosseguir sem coordenação.
 
-### Conflict 3 — Prune vs Backup schedule
-**Situação:** Backup (#37) deve rodar 02:00. Prune roda 03:00.
-**Resolução:** Schedule do prune deve verificar se backup da noite foi concluído (query last_backup_at). Se backup falhou, skip prune e alertar.
+---
 
-### Conflict 4 — Volume limit race condition
-**Situação:** Trigger BEFORE INSERT com COUNT(*) pode ter race condition em inserts concorrentes (R2).
-**Resolução:** Usar `SELECT COUNT(*) FROM shared_business_memory WHERE ... FOR UPDATE` dentro do trigger para lock de linha. Alternativa: advisory lock pg_try_advisory_lock().
+## 4. Risks & Mitigations (validados)
 
-## Implementation Pipeline (6 steps → 3 delivery units)
+| ID | Risco | Mitigação | Status |
+|----|-------|-----------|--------|
+| R1 | LightRAG não existe → summary fica None | Campo opcional (DD-02). Fallback: "grafo não disponível" | ✅ Mitigado |
+| R2 | Race condition no JSONB | version field (optimistic locking). Single-writer (cron semanal T4.1) | ✅ Mitigado |
+| R3 | RLS leak entre tenants | RLS client_id no ContextService. Testar em integração | ⚠️ Precisa teste |
+| R4 | Schema evolution | version field no summary. Migração on-read | ✅ Mitigado |
 
-### Delivery Unit 1: Design Doc + Migration (factory-coder)
-- **Step 1:** Seção T4.4 no SHARED_MEMORY_DESIGN.md (criar arquivo + seção completa)
-- **Step 2:** Migration SQL com colunas lifecycle + índices + trigger volume limit
+---
 
-### Delivery Unit 2: Prune Job + Routine (factory-coder)
-- **Step 3:** Função memory.prune_expired_shared_memory em routine_functions.py
-- **Step 4:** Rotina system shared_memory_prune (cron 03:00) + TOOL_INVENTORY update
+## 5. Pipeline de Delivery (sequenciamento)
 
-### Delivery Unit 3: Archival Tools + Integration (factory-coder)
-- **Step 5:** Tools shared_memory_restore_archived + shared_memory_list_archived
-- **Step 6:** Integração com T5.3 (versionamento) + T5.5 (backup)
+```
+T4.3a (schema) ──┬──> T4.3b (sync module) ──┬──> T4.3c (context helper) ──> T4.3e (testes)
+                 │                           │
+                 └──> (paralelo com T4.3b)   └──> T4.3d (docstring/integration point)
+```
 
-## Open Questions for Human Review
+**Tasks para factory-coder (sequenciais com paralelismo):**
 
-1. A migration base 20260619000000 ainda não foi aplicada. Incorporar as colunas lifecycle diretamente nela, ou criar migration incremental separada?
-2. shared_memory_read e shared_memory_write existem ou precisam ser criadas primeiro?
-3. Limite de 50 registros por entidade: adequado ou ajustar?
-4. Alerta de prune anômalo (>100 registros): para onde? Slack? Telegram? Apenas log?
+| Order | Card | Depende de | Estimativa |
+|-------|------|------------|------------|
+| 1 | T4.3a: Schema KnowledgeGraphSummary + AvailableTools | — | Pequeno (1 arquivo, ~40 linhas) |
+| 2 | T4.3b: Módulo knowledge_graph_sync.py | T4.3a | Médio (2 arquivos, ~120 linhas) |
+| 3 | T4.3c: Context Service helper + domain review | T4.3a, T4.3b | Pequeno (1 arquivo, ~40 linhas) |
+| 4 | T4.3d: Docstring com payload exemplo T4.1 | T4.3b | Trivial (docstring, ~15 linhas) |
+| 5 | T4.3e: Testes unitários (3 arquivos) | T4.3a, T4.3b, T4.3c | Médio (3 arquivos, ~200 linhas) |
+
+**Otimização:** T4.3c e T4.3d podem rodar em paralelo após T4.3b.
+
+---
+
+## 6. Questões abertas (do intake)
+
+| ID | Questão | Status após scan |
+|----|---------|-----------------|
+| DQ1 | Métricas de qualidade no summary? | **Adiado** — adicionar quando T4.1 existir e gerar dados reais |
+| DQ2 | Quais specialists recebem o summary? | **Respondido**: `rag`, `documents` via helper `get_knowledge_graph_summary()`. Outros sob demanda. |
+| DQ3 | Stale detection (`stale_after_hours`)? | **Adiado** — adicionar `stale_after_hours` ao schema na V2 quando T4.1 rodar periodicamente |
+
+---
+
+## 7. Decisões de implementação (planner)
+
+1. **Helper separado, não domain projection** — `get_knowledge_graph_summary(client_id)` é adicionado ao ContextService como accessor tipado. `_DOMAIN_SECTIONS` não é alterado (evita side effects em outras sections do `available_tools`).
+
+2. **1 card monolítico por subtarefa** — 5 cards para factory-coder, sequenciados com paralelismo T4.3c ∥ T4.3d.
+
+3. **Testes em 3 arquivos separados** — cada lib/service com seus próprios testes. Mock Supabase (padrão do codebase).
+
+4. **knowledge_graph_sync como internal tool** — registrada no AVAILABLE_MODULES mas NÃO exposta via MCP (chamada direta pelo job T4.1).
+
+5. **Structure logging obrigatório** — `logger.info(f"knowledge_graph_summary updated: client={client_id}, entities={n}, docs={m}, sync={ts}")`.
+
+---
+
+## 8. Branch & Commit
+
+- Branch: `phase-0/issue-31-eventos-trigger-handoffs`
+- Próximo passo: factory-coder implementa T4.3a (schema) → T4.3b (sync) → T4.3c+T4.3d (paralelo) → T4.3e (testes)

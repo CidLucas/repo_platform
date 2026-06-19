@@ -19,6 +19,7 @@ import ClientesRoom from '../../pages/app/ClientesRoom'
 import AtividadeScreen from '../../pages/app/AtividadeScreen'
 import AdminScreen from '../../pages/app/AdminScreen'
 import AgentOpsRoom from '../../pages/app/AgentOpsRoom'
+import BusinessMemoryPage from '../../pages/app/BusinessMemoryPage'
 import SpotlightSearch from './SpotlightSearch'
 import { useAuth } from '../../hooks/useAuth'
 import { useMyRole } from '../../hooks/useAdmin'
@@ -155,6 +156,9 @@ export default function AppShell() {
         </div>
         <div className={`screen${on('blu_ops')}`} id="s-blu_ops">
           {show('blu_ops') && tier === 'ADMIN' && <AgentOpsRoom />}
+        </div>
+        <div className={`screen${on('biblioteca')}`} id="s-biblioteca">
+          {show('biblioteca') && <BusinessMemoryPage />}
         </div>
       </main>
 

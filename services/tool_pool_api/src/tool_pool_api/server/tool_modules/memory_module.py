@@ -12,6 +12,7 @@ Tools registered:
   - shared_memory_upsert  -> insert or update a fact (versioned)
   - shared_memory_write   -> write a new fact (strict INSERT; supersede=True to upsert)
   - shared_memory_search  -> semantic vector search via Cohere embeddings (T3.1c)
+  - shared_memory_flush   -> soft-delete entries (marks flushed_at in metadata; T5.4)
   - shared_memory_link    -> create semantic link between entities
   - shared_memory_unlink  -> remove a link by id
   - shared_memory_get_links -> query links by entity and/or type
@@ -84,6 +85,43 @@ def _validate_entity_type(entity_type: str, field_name: str = "entity_type") -> 
 def _normalize_entity_name(name: str) -> str:
     """Normalize entity name: lowercase, trimmed."""
     return name.strip().lower()
+
+
+def _is_flushed(metadata: dict | None) -> bool:
+    """Check whether a shared-memory entry has been flushed.
+
+    Flushed entries have ``flushed_at`` set in their metadata JSONB column.
+    This is a soft-delete marker — the row still exists but should be treated
+    as cleared/unavailable.
+
+    Args:
+        metadata: The metadata dict from the row (may be None, treated as not flushed).
+
+    Returns:
+        True if the entry is marked as flushed.
+    """
+    if not isinstance(metadata, dict):
+        return False
+    return "flushed_at" in metadata
+
+
+def _check_not_flushed(metadata: dict | None, entity_ref: str) -> None:
+    """Raise ValueError if the entry is flushed.
+
+    Used before returning read results to ensure flushed entries are not
+    surfaced to agents.
+
+    Args:
+        metadata: The metadata dict from the row.
+        entity_ref: Human-readable entity reference for the error message.
+
+    Raises:
+        ValueError: If the entry is flushed.
+    """
+    if _is_flushed(metadata):
+        raise ValueError(
+            f"Memory entry has been flushed (soft-deleted): {entity_ref}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +335,281 @@ def _validate_snapshot_body(
 
 
 # ---------------------------------------------------------------------------
+# Snapshot validation (T2.2b + T2.2f)
+# ---------------------------------------------------------------------------
+
+
+def _validate_snapshot_frontmatter(
+    entity_name: str,
+    frontmatter: dict,
+) -> None:
+    """Validate that a snapshot has the required frontmatter fields.
+
+    Args:
+        entity_name: e.g. "financeiro:semanal" -- used for cross-validation.
+        frontmatter: The frontmatter dict to validate.
+
+    Raises:
+        ValueError: If required fields are missing or invalid.
+    """
+    if not isinstance(frontmatter, dict):
+        raise ValueError(
+            "frontmatter is required for entity_type='snapshot' and must be a dict"
+        )
+
+    # Validate required fields
+    missing = _SNAPSHOT_FRONTMATTER_REQUIRED - set(frontmatter.keys())
+    if missing:
+        raise ValueError(
+            f"Snapshot frontmatter missing required fields: {sorted(missing)}"
+        )
+
+    # Validate 'tipo' field
+    if frontmatter.get("tipo") != "snapshot":
+        raise ValueError(
+            "frontmatter.tipo must be 'snapshot'"
+        )
+
+    # Validate dimension
+    dimensao = frontmatter.get("dimensao")
+    if dimensao not in _VALID_DIMENSIONS:
+        raise ValueError(
+            f"frontmatter.dimensao '{dimensao}' is invalid. "
+            f"Must be one of: {sorted(_VALID_DIMENSIONS)}"
+        )
+
+    # Cross-validate with entity_name: dimension must match
+    parts = entity_name.split(":")
+    entity_dim = parts[0] if parts else ""
+    if entity_dim and entity_dim != dimensao:
+        raise ValueError(
+            f"entity_name dimension '{entity_dim}' does not match "
+            f"frontmatter.dimensao '{dimensao}'"
+        )
+
+    # Validate period
+    periodo = frontmatter.get("periodo")
+    if periodo not in _VALID_PERIODS:
+        raise ValueError(
+            f"frontmatter.periodo '{periodo}' is invalid. "
+            f"Must be one of: {sorted(_VALID_PERIODS)}"
+        )
+
+    # Cross-validate period with entity_name
+    if len(parts) > 1 and parts[1] and parts[1] != periodo:
+        raise ValueError(
+            f"entity_name period '{parts[1]}' does not match "
+            f"frontmatter.periodo '{periodo}'"
+        )
+
+    # Validate version is positive int
+    versao = frontmatter.get("versao")
+    if not isinstance(versao, int) or versao < 1:
+        raise ValueError(
+            "frontmatter.versao must be a positive integer"
+        )
+
+    # Validate template_version is positive int
+    template_version = frontmatter.get("template_version")
+    if not isinstance(template_version, int) or template_version < 1:
+        raise ValueError(
+            "frontmatter.template_version must be a positive integer"
+        )
+
+    # Validate fontes is a list of strings
+    fontes = frontmatter.get("fontes")
+    if not isinstance(fontes, list) or not all(isinstance(f, str) for f in fontes):
+        raise ValueError("frontmatter.fontes must be a list of strings")
+
+
+def _validate_snapshot_body(
+    entity_name: str,
+    body: dict,
+) -> None:
+    """Validate a snapshot body against its dimension schema.
+
+    Args:
+        entity_name: e.g. "financeiro:semanal" -- dimension extracted from here.
+        body: The body dict (value column content).
+
+    Raises:
+        ValueError: If validation fails.
+    """
+    # Extract dimension from entity_name
+    parts = entity_name.split(":")
+    dimensao = parts[0] if parts else ""
+
+    if not dimensao:
+        raise ValueError(
+            "Cannot determine snapshot dimension from entity_name"
+        )
+
+    if dimensao not in _VALID_DIMENSIONS:
+        raise ValueError(
+            f"Invalid snapshot dimension '{dimensao}'. "
+            f"Must be one of: {sorted(_VALID_DIMENSIONS)}"
+        )
+
+    # Validate base fields are present
+    missing_base = _SNAPSHOT_BASE_FIELDS - set(body.keys())
+    if missing_base:
+        raise ValueError(
+            f"Snapshot body missing required base fields: {sorted(missing_base)}"
+        )
+
+    # Validate 'dimensao' inside body matches entity_name
+    body_dimensao = body.get("dimensao")
+    if body_dimensao != dimensao:
+        raise ValueError(
+            f"body.dimensao '{body_dimensao}' does not match "
+            f"entity_name dimension '{dimensao}'"
+        )
+
+    # Validate 'indicadores' is a list
+    indicadores = body.get("indicadores")
+    if not isinstance(indicadores, list):
+        raise ValueError("body.indicadores must be a list")
+
+    # Validate indicators against dimension spec
+    dim_spec = _SNAPSHOT_DIMENSION_FIELDS.get(dimensao)
+    if dim_spec is None:
+        raise ValueError(
+            f"Unknown snapshot dimension '{dimensao}'"
+        )
+
+    # Build a lookup of indicator names present in body
+    body_indicator_names: set[str] = set()
+    for ind in indicadores:
+        if not isinstance(ind, dict):
+            raise ValueError(
+                f"Each indicator in body.indicadores must be a dict"
+            )
+        nome = ind.get("nome")
+        if not nome or not isinstance(nome, str):
+            raise ValueError(
+                f"Each indicator must have a 'nome' (string)"
+            )
+        body_indicator_names.add(nome)
+
+        # Validate required fields within each indicator
+        if "valor" not in ind:
+            raise ValueError(
+                f"Indicator '{nome}' missing required field 'valor'"
+            )
+        if "unidade" not in ind:
+            raise ValueError(
+                f"Indicator '{nome}' missing required field 'unidade'"
+            )
+        tendencia = ind.get("tendencia")
+        if tendencia is not None and tendencia not in ("alta", "baixa", "estavel"):
+            raise ValueError(
+                f"Indicator '{nome}' has invalid tendencia '{tendencia}'. "
+                f"Must be 'alta', 'baixa', or 'estavel'"
+            )
+
+    # Validate required indicators from dimension spec are present
+    required_indicators = {
+        ind_spec["nome"]
+        for ind_spec in dim_spec["indicadores"]
+        if ind_spec.get("required", False)
+    }
+    missing_indicators = required_indicators - body_indicator_names
+    if missing_indicators:
+        raise ValueError(
+            f"Missing required indicators for dimension '{dimensao}': "
+            f"{sorted(missing_indicators)}"
+        )
+
+    # Validate unknown indicators
+    known_indicator_names = {
+        ind_spec["nome"] for ind_spec in dim_spec["indicadores"]
+    }
+    unknown_indicators = body_indicator_names - known_indicator_names
+    if unknown_indicators:
+        logger.warning(
+            "[memory_module] Snapshot body contains unknown indicators "
+            "for dimension '%s': %s",
+            dimensao,
+            sorted(unknown_indicators),
+        )
+
+    # Validate 'alertas' is a list of strings
+    alertas = body.get("alertas")
+    if not isinstance(alertas, list):
+        raise ValueError("body.alertas must be a list")
+
+    # Validate 'resumo_executivo' is a string
+    resumo = body.get("resumo_executivo")
+    if resumo is not None and not isinstance(resumo, str):
+        raise ValueError("body.resumo_executivo must be a string")
+
+
+# ---------------------------------------------------------------------------
+# TTL lifecycle helper (Fase 4 — T4.4c)
+# ---------------------------------------------------------------------------
+
+
+def _compute_ttl_columns(
+    ttl_tier: str | None = None,
+    source: str = "manual",
+) -> dict:
+    """Compute soft_delete_at and hard_delete_at based on ttl_tier.
+
+    If ttl_tier is provided, validate and use its interval.
+    If not provided, infer default from source.
+
+    Returns a dict with keys: soft_delete_at, hard_delete_at, ttl_tier.
+    Values are ISO-format datetime strings or None.
+    For 'curated' tier, both are None (never expires).
+
+    Raises ValueError for invalid ttl_tier.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    # Resolve tier: explicit > source default
+    if ttl_tier is not None:
+        tier = ttl_tier.strip().lower()
+    else:
+        tier = _SOURCE_TTL_DEFAULTS.get(source)
+        if tier is None:
+            # Unknown source — conservative default: specialist (30d)
+            logger.warning(
+                "[memory_module] Unknown source '%s' for TTL tier inference, "
+                "defaulting to 'specialist' (30d).",
+                source,
+            )
+            tier = "specialist"
+
+    # Validate against enum
+    if tier not in _VALID_TTL_TIERS:
+        raise ValueError(
+            f"Invalid ttl_tier '{tier}'. "
+            f"Must be one of: {sorted(_VALID_TTL_TIERS)}"
+        )
+
+    # Compute intervals
+    interval_days = _TTL_TIER_INTERVALS[tier]
+
+    if interval_days is None:
+        # curated — never expires
+        return {
+            "soft_delete_at": None,
+            "hard_delete_at": None,
+            "ttl_tier": tier,
+        }
+
+    now = datetime.now(timezone.utc)
+    soft = now + timedelta(days=interval_days)
+    hard = now + timedelta(days=interval_days + _ARCHIVAL_PERIOD_DAYS)
+
+    return {
+        "soft_delete_at": soft.isoformat(),
+        "hard_delete_at": hard.isoformat(),
+        "ttl_tier": tier,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Business logic
 # ---------------------------------------------------------------------------
 
@@ -402,6 +715,12 @@ async def _shared_memory_read_logic(
             f"Memory entry not found: {entity_type}:{entity_name}/{key}"
         )
 
+    # T5.4 — Check if entry has been flushed (soft-deleted)
+    _check_not_flushed(
+        row.get("metadata"),
+        f"{entity_type}:{entity_name}/{key}",
+    )
+
     return {
         "id": row["id"],
         "client_id": row["client_id"],
@@ -435,8 +754,10 @@ async def _shared_memory_upsert_logic(
     """
     Insert or update a shared-memory fact.
 
-    Uses INSERT ... ON CONFLICT (client_id, entity_type, entity_name, key)
-    DO UPDATE with version = version + 1.
+    If an existing row is found, its current state is archived to
+    ``shared_business_memory_versions`` before the update, and the version
+    number is incremented.  Uses INSERT ... ON CONFLICT (client_id,
+    entity_type, entity_name, key) DO UPDATE.
 
     body maps to the ``value`` column (the actual fact content).
     frontmatter maps to the ``metadata`` column (provenance/context).
@@ -461,6 +782,22 @@ async def _shared_memory_upsert_logic(
 
     db = await get_supabase_client()
 
+    # ── Archive current version before overwriting (T5.3) ──────────
+    from .version_module import _archive_memory_version as _archive_version
+
+    archive_result = await _archive_version(
+        client_id=client_id,
+        entity_type=entity_type,
+        entity_name=entity_name,
+        key=key,
+    )
+
+    new_version = (
+        archive_result["archived_version"] + 1
+        if archive_result is not None
+        else 1
+    )
+
     payload = {
         "client_id": client_id,
         "entity_type": entity_type,
@@ -472,6 +809,7 @@ async def _shared_memory_upsert_logic(
             "manual", "memory_agent", "specialist", "migration", "system"
         ) else "manual",
         "confidence": confidence,
+        "version": new_version,
     }
 
     try:
@@ -810,6 +1148,152 @@ async def _shared_memory_search_logic(
         "query": query,
         "total_results": len(formatted_results),
         "results": formatted_results,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Flush business logic (T5.4)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_flush_logic(
+    client_id: str,
+    entity_type: str | None = None,
+    entity_name: str | None = None,
+    key: str | None = None,
+) -> dict:
+    """Flush (soft-delete) shared-memory entries for a client.
+
+    Marks matching entries as flushed by setting ``metadata->>'flushed_at'``
+    to the current UTC ISO timestamp.  This is a soft-delete — rows remain in
+    the database but are hidden from ``shared_memory_read``.
+
+    Filters are optional.  When no filters are provided, all entries for
+    the client are flushed.  The operation is **idempotent** — already-flushed
+    entries are silently skipped.
+
+    Args:
+        client_id: UUID of the client whose memory is being flushed.
+        entity_type: Optional filter — only flush entries of this type.
+        entity_name: Optional filter — only flush entries with this name.
+        key: Optional filter — only flush entries with this key.
+
+    Returns:
+        dict with ``flushed_count`` (number of entries actually flushed in
+        this call), ``total_scanned`` (number of rows matching filters),
+        and ``skipped_already_flushed``.
+
+    Raises:
+        ValueError: If entity_type is invalid or no rows match.
+    """
+    from datetime import datetime, timezone
+
+    if entity_type is not None:
+        _validate_entity_type(entity_type)
+    if entity_name is not None:
+        entity_name = _normalize_entity_name(entity_name)
+    if key is not None:
+        key = key.strip().lower()
+
+    db = await get_supabase_client()
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # 1. Query matching rows (all columns needed, only distinct per unique key)
+    query = (
+        db.schema("public")
+        .table(_TABLE)
+        .select("id, metadata")
+        .eq("client_id", client_id)
+    )
+    if entity_type:
+        query = query.eq("entity_type", entity_type)
+    if entity_name:
+        query = query.eq("entity_name", entity_name)
+    if key:
+        query = query.eq("key", key)
+
+    result = await query.execute()
+    rows = result.data if result.data else []
+
+    total_scanned = len(rows)
+    if total_scanned == 0:
+        raise ValueError(
+            "No shared-memory entries match the given filters. "
+            "Nothing to flush."
+        )
+
+    # 2. Identify which rows need flushing (not already flushed)
+    rows_to_flush: list[str] = []
+    skipped_already_flushed = 0
+
+    for r in rows:
+        meta = r.get("metadata") or {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except (json.JSONDecodeError, TypeError):
+                meta = {}
+        if "flushed_at" in meta:
+            skipped_already_flushed += 1
+            continue
+        rows_to_flush.append(r["id"])
+
+    if not rows_to_flush:
+        return {
+            "flushed_count": 0,
+            "total_scanned": total_scanned,
+            "skipped_already_flushed": skipped_already_flushed,
+            "message": (
+                f"All {total_scanned} matching entries are already flushed."
+            ),
+            "flushed_at": now_iso,
+        }
+
+    # 3. Batch update flushed_at in metadata
+    flushed_count = 0
+    flush_errors: list[str] = []
+
+    for row_id in rows_to_flush:
+        try:
+            # Read current metadata
+            meta_result = await (
+                db.schema("public")
+                .table(_TABLE)
+                .select("metadata")
+                .eq("id", row_id)
+                .single()
+                .execute()
+            )
+            current_meta = (meta_result.data or {}).get("metadata", {}) or {}
+            if isinstance(current_meta, str):
+                try:
+                    current_meta = json.loads(current_meta)
+                except (json.JSONDecodeError, TypeError):
+                    current_meta = {}
+
+            current_meta["flushed_at"] = now_iso
+
+            await (
+                db.schema("public")
+                .table(_TABLE)
+                .update({"metadata": current_meta})
+                .eq("id", row_id)
+                .eq("client_id", client_id)
+                .execute()
+            )
+            flushed_count += 1
+        except Exception as exc:
+            logger.error(
+                "[memory_module] Flush error for row %s: %s", row_id, exc
+            )
+            flush_errors.append(str(exc))
+
+    return {
+        "flushed_count": flushed_count,
+        "total_scanned": total_scanned,
+        "skipped_already_flushed": skipped_already_flushed,
+        "flush_errors": flush_errors if flush_errors else [],
+        "flushed_at": now_iso,
     }
 
 
@@ -1493,5 +1977,113 @@ def register_tools(mcp: FastMCP) -> list[str]:
 
     logger.info("[Memory Module] Tool 'shared_memory_search' registered.")
     registered_tools.append("shared_memory_search")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_flush --  soft-delete memory entries (T5.4)
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_flush",
+        description=(
+            "[Shared Memory] Flush (soft-delete) shared-memory entries. "
+            "Marks matching entries as flushed by recording a timestamp in "
+            "their metadata. Flushed entries are hidden from "
+            "shared_memory_read but remain in the database for recovery "
+            "and auditing. "
+            "Filters (entity_type, entity_name, key) are optional; when none "
+            "are provided, ALL entries for the current client are flushed. "
+            "Idempotent — calling flush multiple times on already-flushed "
+            "entries is safe and returns flushed_count=0. "
+            "Use this after exporting data or when you need to reset the "
+            "shared memory for a client."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_flush(
+        ctx: Context,
+        entity_type: str | None = None,
+        entity_name: str | None = None,
+        key: str | None = None,
+        client_id: str | None = None,
+    ) -> dict:
+        """Flush (soft-delete) shared-memory entries.
+
+        Marks matching entries as flushed so they are no longer returned by
+        ``shared_memory_read``.  The rows are NOT hard-deleted — they remain
+        for auditing and can be recovered.
+
+        Args:
+            entity_type: Optional — only flush entries of this type.
+                         Valid: skill, client, contact, supplier, user,
+                         snapshot, routine, agent_result, agent_metadata.
+            entity_name: Optional — only flush entries with this name.
+                         Case-insensitive, normalized to lowercase.
+            key: Optional — only flush the specific key.
+                 Case-insensitive, normalized to lowercase.
+
+        Returns:
+            dict with:
+            - flushed_count: number of entries actually flushed in this call
+            - total_scanned: number of rows matching filters
+            - skipped_already_flushed: entries already flushed (idempotent)
+            - flush_errors: any errors during the operation (empty on success)
+            - flushed_at: ISO timestamp of the flush operation
+
+        Examples:
+            >>> # Flush all entries for a specific entity
+            >>> shared_memory_flush(
+            ...     entity_type="client",
+            ...     entity_name="joao_silva",
+            ... )
+
+            >>> # Flush a single fact
+            >>> shared_memory_flush(
+            ...     entity_type="skill",
+            ...     entity_name="comunicacao",
+            ...     key="tom_amigavel",
+            ... )
+
+            >>> # Flush ALL shared memory for the client (use with caution!)
+            >>> shared_memory_flush()
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        if entity_type is not None:
+            try:
+                _validate_entity_type(entity_type)
+            except ValueError as exc:
+                raise ToolError(str(exc))
+
+        logger.info(
+            "[memory_module] shared_memory_flush "
+            "entity_type=%s entity_name=%s key=%s client_id=%s",
+            entity_type,
+            entity_name,
+            key,
+            client_id,
+        )
+
+        try:
+            return await _shared_memory_flush_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                key=key,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_flush failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to flush shared memory: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_flush' registered.")
+    registered_tools.append("shared_memory_flush")
 
     return registered_tools

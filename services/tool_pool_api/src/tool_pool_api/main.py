@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .api.admin_router import router as admin_router
+from .api.business_memory_router import router as business_memory_router
 from .api.inbox_dispatch_router import router as inbox_dispatch_router
 from .api.ingest_router import router as ingest_router
 from .api.integrations_router import router as integrations_router
@@ -121,6 +122,7 @@ except ImportError as e:
 
 # Mount API routers
 app.include_router(admin_router)
+app.include_router(business_memory_router)
 app.include_router(integrations_router)
 app.include_router(twilio_webhook_router)
 app.include_router(polp_webhook_router)

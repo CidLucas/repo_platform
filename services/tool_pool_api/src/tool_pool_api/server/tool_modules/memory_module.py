@@ -20,6 +20,7 @@ Design doc: docs/llm_wiki/SHARED_MEMORY_DESIGN.md (Fase 0)
 
 import json
 import logging
+import time
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
@@ -39,6 +40,11 @@ _VALID_ENTITY_TYPES: frozenset[str] = frozenset(
 
 _TABLE = "shared_business_memory"
 _LINKS_TABLE = "shared_memory_links"
+
+_VALID_CATEGORIES: frozenset[str] = frozenset(
+    {"knowledge", "rag", "documents", "memory-agent",
+     "context", "decision", "preference"}
+)
 
 # ---------------------------------------------------------------------------
 # Snapshot constants (T2.2a + T2.2b)
@@ -294,6 +300,104 @@ def _validate_snapshot_body(
 
 
 # ---------------------------------------------------------------------------
+# Embedding text builder (T3.1b)
+# ---------------------------------------------------------------------------
+
+
+def _build_embedding_text(
+    entity_type: str,
+    entity_name: str,
+    key: str,
+    value: dict,
+    category: str | None = None,
+) -> str:
+    """Constrói representação textual do fato para embedding.
+
+    Segue a mesma filosofia do process-document edge function:
+    gerar texto representativo com campos semanticamente relevantes,
+    embeddar, armazenar.
+    """
+    parts = [
+        f"Entity type: {entity_type}",
+        f"Entity name: {entity_name}",
+        f"Key: {key}",
+    ]
+    if category:
+        parts.append(f"Category: {category}")
+    # Incluir campos significativos do value (não o JSON inteiro)
+    if isinstance(value, dict):
+        # Extrair campos textuais relevantes, pular UUIDs e timestamps
+        for k, v in value.items():
+            if k in (
+                "snapshot_id", "gerado_em", "vigencia_inicio",
+                "vigencia_fim", "versao", "template_version",
+            ):
+                continue
+            if isinstance(v, str) and len(v) > 3:
+                parts.append(f"{k}: {v[:500]}")  # truncar campos longos
+            elif isinstance(v, (int, float)) and k not in ("confianca", "confidence"):
+                parts.append(f"{k}: {v}")
+    return " | ".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Embedding hook (T3.1b)
+# ---------------------------------------------------------------------------
+
+
+async def _try_generate_embedding(
+    entity_type: str,
+    entity_name: str,
+    key: str,
+    payload: dict,
+    value: dict,
+    category: str | None = None,
+) -> None:
+    """Tenta gerar embedding para o payload.
+
+    NUNCA bloqueia o write — em caso de falha (ImportError, API error, etc),
+    apenas loga e segue sem embedding.
+
+    Args:
+        entity_type: Tipo da entidade.
+        entity_name: Nome da entidade.
+        key: Chave do fato.
+        payload: Payload a ser enviado ao banco (mutado in-place com embedding).
+        value: Valor do fato (dict).
+        category: Categoria semântica opcional.
+    """
+    try:
+        from blu_llm_service import get_cohere_embedding_model
+    except ImportError:
+        logger.warning(
+            "[memory_module] Embedding SKIPPED para %s: "
+            "blu_llm_service não disponível, pulando embedding",
+            key,
+        )
+        return
+
+    try:
+        t0 = time.monotonic()
+        embedder = get_cohere_embedding_model()
+        embedding_text = _build_embedding_text(
+            entity_type, entity_name, key, value, category=category,
+        )
+        embedding = embedder.embed_query(embedding_text)
+        payload["embedding"] = embedding
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        logger.info(
+            "[memory_module] Embedding gerado em %.0fms para %s:%s/%s",
+            elapsed_ms, entity_type, entity_name, key,
+        )
+    except Exception as e:
+        logger.error(
+            "[memory_module] Embedding SKIPPED para %s: %s",
+            key, e,
+        )
+        # NÃO bloqueia o write — segue sem embedding
+
+
+# ---------------------------------------------------------------------------
 # Business logic
 # ---------------------------------------------------------------------------
 
@@ -471,6 +575,16 @@ async def _shared_memory_upsert_logic(
         "confidence": confidence,
     }
 
+    # Gerar embedding (T3.1b — sync write, NUNCA bloqueia)
+    await _try_generate_embedding(
+        entity_type=entity_type,
+        entity_name=entity_name,
+        key=key,
+        payload=payload,
+        value=body,
+        category=payload.get("category"),
+    )
+
     try:
         result = await (
             db.schema("public")
@@ -496,6 +610,144 @@ async def _shared_memory_upsert_logic(
         "entity_name": row["entity_name"],
         "key": row["key"],
         "value": row["value"],
+        "metadata": row.get("metadata", {}),
+        "source": row["source"],
+        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+        "version": row.get("version", 1),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Write business logic (T3.1b)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_write_logic(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    key: str,
+    value: dict,
+    category: str | None = None,
+    agent_id: str | None = None,
+    ttl: int | None = None,
+    priority: int | None = None,
+    supersede: bool = False,
+    source: str = "manual",
+    confidence: float = 1.0,
+) -> dict:
+    """Write a new shared-memory fact.
+
+    By default this is a strict INSERT — it fails if the composite key
+    already exists. Set supersede=True to upsert (overwrite).
+
+    Args:
+        client_id: Client UUID.
+        entity_type: Entity type.
+        entity_name: Entity name.
+        key: Fact key.
+        value: Fact value (dict).
+        category: Optional semantic category.
+        agent_id: Optional agent UUID (stored in metadata).
+        ttl: Optional TTL in seconds (stored in metadata).
+        priority: Optional priority 0-100 (stored in metadata).
+        supersede: If True, upsert; if False, strict insert.
+        source: Provenance.
+        confidence: Confidence 0.0-1.0.
+    """
+    _validate_entity_type(entity_type)
+    entity_name = _normalize_entity_name(entity_name)
+    key = key.strip().lower()
+
+    if not entity_name or not key:
+        raise ValueError("entity_name and key are required")
+    if not isinstance(value, dict):
+        raise ValueError("value must be a dict")
+    if category is not None and category not in _VALID_CATEGORIES:
+        raise ValueError(
+            f"Invalid category '{category}'. "
+            f"Must be one of: {sorted(_VALID_CATEGORIES)}"
+        )
+
+    # Build metadata dict
+    metadata: dict = {}
+    if agent_id:
+        metadata["agent_id"] = agent_id
+    if ttl is not None:
+        metadata["ttl"] = ttl
+    if priority is not None:
+        metadata["priority"] = priority
+
+    db = await get_supabase_client()
+
+    payload = {
+        "client_id": client_id,
+        "entity_type": entity_type,
+        "entity_name": entity_name,
+        "key": key,
+        "value": value,
+        "category": category,
+        "metadata": metadata,
+        "source": source if source in (
+            "manual", "memory_agent", "specialist", "migration", "system"
+        ) else "manual",
+        "confidence": confidence,
+    }
+
+    # Gerar embedding (T3.1b — sync write, NUNCA bloqueia)
+    await _try_generate_embedding(
+        entity_type=entity_type,
+        entity_name=entity_name,
+        key=key,
+        payload=payload,
+        value=value,
+        category=category,
+    )
+
+    try:
+        if supersede:
+            result = await (
+                db.schema("public")
+                .table(_TABLE)
+                .upsert(
+                    payload,
+                    on_conflict="client_id,entity_type,entity_name,key",
+                    default_to_null=False,
+                )
+                .execute()
+            )
+        else:
+            # Strict insert — fail on duplicate
+            result = await (
+                db.schema("public")
+                .table(_TABLE)
+                .insert(payload)
+                .execute()
+            )
+    except Exception as exc:
+        err_str = str(exc).lower()
+        if "duplicate key" in err_str or "uq_shared_memory_entry" in err_str:
+            raise ValueError(
+                f"Memory entry already exists: "
+                f"{entity_type}:{entity_name}/{key}. "
+                f"Use supersede=true to overwrite."
+            )
+        raise RuntimeError(f"Failed to write shared-memory entry: {exc}")
+
+    row = result.data[0] if result.data else None
+    if not row:
+        raise RuntimeError("Failed to write memory entry — no data returned")
+
+    return {
+        "id": row["id"],
+        "client_id": row["client_id"],
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "key": row["key"],
+        "value": row["value"],
+        "category": row.get("category"),
         "metadata": row.get("metadata", {}),
         "source": row["source"],
         "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,

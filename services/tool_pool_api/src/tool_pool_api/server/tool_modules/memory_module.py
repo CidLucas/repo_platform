@@ -335,6 +335,281 @@ def _validate_snapshot_body(
 
 
 # ---------------------------------------------------------------------------
+# Snapshot validation (T2.2b + T2.2f)
+# ---------------------------------------------------------------------------
+
+
+def _validate_snapshot_frontmatter(
+    entity_name: str,
+    frontmatter: dict,
+) -> None:
+    """Validate that a snapshot has the required frontmatter fields.
+
+    Args:
+        entity_name: e.g. "financeiro:semanal" -- used for cross-validation.
+        frontmatter: The frontmatter dict to validate.
+
+    Raises:
+        ValueError: If required fields are missing or invalid.
+    """
+    if not isinstance(frontmatter, dict):
+        raise ValueError(
+            "frontmatter is required for entity_type='snapshot' and must be a dict"
+        )
+
+    # Validate required fields
+    missing = _SNAPSHOT_FRONTMATTER_REQUIRED - set(frontmatter.keys())
+    if missing:
+        raise ValueError(
+            f"Snapshot frontmatter missing required fields: {sorted(missing)}"
+        )
+
+    # Validate 'tipo' field
+    if frontmatter.get("tipo") != "snapshot":
+        raise ValueError(
+            "frontmatter.tipo must be 'snapshot'"
+        )
+
+    # Validate dimension
+    dimensao = frontmatter.get("dimensao")
+    if dimensao not in _VALID_DIMENSIONS:
+        raise ValueError(
+            f"frontmatter.dimensao '{dimensao}' is invalid. "
+            f"Must be one of: {sorted(_VALID_DIMENSIONS)}"
+        )
+
+    # Cross-validate with entity_name: dimension must match
+    parts = entity_name.split(":")
+    entity_dim = parts[0] if parts else ""
+    if entity_dim and entity_dim != dimensao:
+        raise ValueError(
+            f"entity_name dimension '{entity_dim}' does not match "
+            f"frontmatter.dimensao '{dimensao}'"
+        )
+
+    # Validate period
+    periodo = frontmatter.get("periodo")
+    if periodo not in _VALID_PERIODS:
+        raise ValueError(
+            f"frontmatter.periodo '{periodo}' is invalid. "
+            f"Must be one of: {sorted(_VALID_PERIODS)}"
+        )
+
+    # Cross-validate period with entity_name
+    if len(parts) > 1 and parts[1] and parts[1] != periodo:
+        raise ValueError(
+            f"entity_name period '{parts[1]}' does not match "
+            f"frontmatter.periodo '{periodo}'"
+        )
+
+    # Validate version is positive int
+    versao = frontmatter.get("versao")
+    if not isinstance(versao, int) or versao < 1:
+        raise ValueError(
+            "frontmatter.versao must be a positive integer"
+        )
+
+    # Validate template_version is positive int
+    template_version = frontmatter.get("template_version")
+    if not isinstance(template_version, int) or template_version < 1:
+        raise ValueError(
+            "frontmatter.template_version must be a positive integer"
+        )
+
+    # Validate fontes is a list of strings
+    fontes = frontmatter.get("fontes")
+    if not isinstance(fontes, list) or not all(isinstance(f, str) for f in fontes):
+        raise ValueError("frontmatter.fontes must be a list of strings")
+
+
+def _validate_snapshot_body(
+    entity_name: str,
+    body: dict,
+) -> None:
+    """Validate a snapshot body against its dimension schema.
+
+    Args:
+        entity_name: e.g. "financeiro:semanal" -- dimension extracted from here.
+        body: The body dict (value column content).
+
+    Raises:
+        ValueError: If validation fails.
+    """
+    # Extract dimension from entity_name
+    parts = entity_name.split(":")
+    dimensao = parts[0] if parts else ""
+
+    if not dimensao:
+        raise ValueError(
+            "Cannot determine snapshot dimension from entity_name"
+        )
+
+    if dimensao not in _VALID_DIMENSIONS:
+        raise ValueError(
+            f"Invalid snapshot dimension '{dimensao}'. "
+            f"Must be one of: {sorted(_VALID_DIMENSIONS)}"
+        )
+
+    # Validate base fields are present
+    missing_base = _SNAPSHOT_BASE_FIELDS - set(body.keys())
+    if missing_base:
+        raise ValueError(
+            f"Snapshot body missing required base fields: {sorted(missing_base)}"
+        )
+
+    # Validate 'dimensao' inside body matches entity_name
+    body_dimensao = body.get("dimensao")
+    if body_dimensao != dimensao:
+        raise ValueError(
+            f"body.dimensao '{body_dimensao}' does not match "
+            f"entity_name dimension '{dimensao}'"
+        )
+
+    # Validate 'indicadores' is a list
+    indicadores = body.get("indicadores")
+    if not isinstance(indicadores, list):
+        raise ValueError("body.indicadores must be a list")
+
+    # Validate indicators against dimension spec
+    dim_spec = _SNAPSHOT_DIMENSION_FIELDS.get(dimensao)
+    if dim_spec is None:
+        raise ValueError(
+            f"Unknown snapshot dimension '{dimensao}'"
+        )
+
+    # Build a lookup of indicator names present in body
+    body_indicator_names: set[str] = set()
+    for ind in indicadores:
+        if not isinstance(ind, dict):
+            raise ValueError(
+                f"Each indicator in body.indicadores must be a dict"
+            )
+        nome = ind.get("nome")
+        if not nome or not isinstance(nome, str):
+            raise ValueError(
+                f"Each indicator must have a 'nome' (string)"
+            )
+        body_indicator_names.add(nome)
+
+        # Validate required fields within each indicator
+        if "valor" not in ind:
+            raise ValueError(
+                f"Indicator '{nome}' missing required field 'valor'"
+            )
+        if "unidade" not in ind:
+            raise ValueError(
+                f"Indicator '{nome}' missing required field 'unidade'"
+            )
+        tendencia = ind.get("tendencia")
+        if tendencia is not None and tendencia not in ("alta", "baixa", "estavel"):
+            raise ValueError(
+                f"Indicator '{nome}' has invalid tendencia '{tendencia}'. "
+                f"Must be 'alta', 'baixa', or 'estavel'"
+            )
+
+    # Validate required indicators from dimension spec are present
+    required_indicators = {
+        ind_spec["nome"]
+        for ind_spec in dim_spec["indicadores"]
+        if ind_spec.get("required", False)
+    }
+    missing_indicators = required_indicators - body_indicator_names
+    if missing_indicators:
+        raise ValueError(
+            f"Missing required indicators for dimension '{dimensao}': "
+            f"{sorted(missing_indicators)}"
+        )
+
+    # Validate unknown indicators
+    known_indicator_names = {
+        ind_spec["nome"] for ind_spec in dim_spec["indicadores"]
+    }
+    unknown_indicators = body_indicator_names - known_indicator_names
+    if unknown_indicators:
+        logger.warning(
+            "[memory_module] Snapshot body contains unknown indicators "
+            "for dimension '%s': %s",
+            dimensao,
+            sorted(unknown_indicators),
+        )
+
+    # Validate 'alertas' is a list of strings
+    alertas = body.get("alertas")
+    if not isinstance(alertas, list):
+        raise ValueError("body.alertas must be a list")
+
+    # Validate 'resumo_executivo' is a string
+    resumo = body.get("resumo_executivo")
+    if resumo is not None and not isinstance(resumo, str):
+        raise ValueError("body.resumo_executivo must be a string")
+
+
+# ---------------------------------------------------------------------------
+# TTL lifecycle helper (Fase 4 — T4.4c)
+# ---------------------------------------------------------------------------
+
+
+def _compute_ttl_columns(
+    ttl_tier: str | None = None,
+    source: str = "manual",
+) -> dict:
+    """Compute soft_delete_at and hard_delete_at based on ttl_tier.
+
+    If ttl_tier is provided, validate and use its interval.
+    If not provided, infer default from source.
+
+    Returns a dict with keys: soft_delete_at, hard_delete_at, ttl_tier.
+    Values are ISO-format datetime strings or None.
+    For 'curated' tier, both are None (never expires).
+
+    Raises ValueError for invalid ttl_tier.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    # Resolve tier: explicit > source default
+    if ttl_tier is not None:
+        tier = ttl_tier.strip().lower()
+    else:
+        tier = _SOURCE_TTL_DEFAULTS.get(source)
+        if tier is None:
+            # Unknown source — conservative default: specialist (30d)
+            logger.warning(
+                "[memory_module] Unknown source '%s' for TTL tier inference, "
+                "defaulting to 'specialist' (30d).",
+                source,
+            )
+            tier = "specialist"
+
+    # Validate against enum
+    if tier not in _VALID_TTL_TIERS:
+        raise ValueError(
+            f"Invalid ttl_tier '{tier}'. "
+            f"Must be one of: {sorted(_VALID_TTL_TIERS)}"
+        )
+
+    # Compute intervals
+    interval_days = _TTL_TIER_INTERVALS[tier]
+
+    if interval_days is None:
+        # curated — never expires
+        return {
+            "soft_delete_at": None,
+            "hard_delete_at": None,
+            "ttl_tier": tier,
+        }
+
+    now = datetime.now(timezone.utc)
+    soft = now + timedelta(days=interval_days)
+    hard = now + timedelta(days=interval_days + _ARCHIVAL_PERIOD_DAYS)
+
+    return {
+        "soft_delete_at": soft.isoformat(),
+        "hard_delete_at": hard.isoformat(),
+        "ttl_tier": tier,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Business logic
 # ---------------------------------------------------------------------------
 

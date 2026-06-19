@@ -89,7 +89,7 @@ def test_domain_projection_analytics_includes_data_sections(mocker, mock_client_
     """'analytics' domain returns data_schema + available_tools + company_profile."""
     service, _ = _make_service(mocker)
     mocker.patch.object(
-        service, "get_client_context_by_id",
+        service, "get_client_context",
         return_value=_make_full_context(mock_client_id)
     )
 
@@ -110,7 +110,7 @@ def test_domain_projection_rfq_includes_communication_sections(mocker, mock_clie
     """'rfq' domain returns brand_voice + policies + team_structure + company_profile."""
     service, _ = _make_service(mocker)
     mocker.patch.object(
-        service, "get_client_context_by_id",
+        service, "get_client_context",
         return_value=_make_full_context(mock_client_id)
     )
 
@@ -129,7 +129,7 @@ def test_domain_projection_unknown_domain_returns_all_sections(mocker, mock_clie
     """Unknown domain includes all loaded sections."""
     service, _ = _make_service(mocker)
     mocker.patch.object(
-        service, "get_client_context_by_id",
+        service, "get_client_context",
         return_value=_make_full_context(mock_client_id)
     )
 
@@ -146,7 +146,7 @@ def test_domain_projection_always_includes_identity(mocker, mock_client_id):
     """id, nome_empresa, and tier are always in the projection."""
     service, _ = _make_service(mocker)
     mocker.patch.object(
-        service, "get_client_context_by_id",
+        service, "get_client_context",
         return_value=_make_full_context(mock_client_id)
     )
 
@@ -170,7 +170,7 @@ def test_domain_projection_empty_sections_are_excluded(mocker, mock_client_id):
         company_profile={"legal_name": "Acme Corp"},
         credenciais=[],
     )
-    mocker.patch.object(service, "get_client_context_by_id", return_value=ctx)
+    mocker.patch.object(service, "get_client_context", return_value=ctx)
 
     result = asyncio.get_event_loop().run_until_complete(
         service.get_domain_projection("analytics", mock_client_id)
@@ -184,7 +184,7 @@ def test_domain_projection_empty_sections_are_excluded(mocker, mock_client_id):
 def test_domain_projection_returns_empty_when_context_not_found(mocker, mock_client_id):
     """Returns empty dict when client context is unavailable."""
     service, _ = _make_service(mocker)
-    mocker.patch.object(service, "get_client_context_by_id", return_value=None)
+    mocker.patch.object(service, "get_client_context", return_value=None)
 
     result = asyncio.get_event_loop().run_until_complete(
         service.get_domain_projection("analytics", mock_client_id)
@@ -197,7 +197,7 @@ def test_domain_projection_case_insensitive(mocker, mock_client_id):
     """Domain matching is case-insensitive."""
     service, _ = _make_service(mocker)
     mocker.patch.object(
-        service, "get_client_context_by_id",
+        service, "get_client_context",
         return_value=_make_full_context(mock_client_id)
     )
 
@@ -207,6 +207,111 @@ def test_domain_projection_case_insensitive(mocker, mock_client_id):
 
     assert "data_schema" in result
     assert "brand_voice" not in result
+
+
+# ---------------------------------------------------------------------------
+# knowledge_graph_summary tests
+# ---------------------------------------------------------------------------
+
+_MOCK_KG_SUMMARY = {
+    "total_documents": 150,
+    "total_entities": 340,
+    "top_entities_by_degree": [
+        {"name": "Contrato #1234", "degree": 12},
+        {"name": "Fornecedor X", "degree": 8},
+    ],
+    "last_sync_at": "2026-06-19T15:00:00Z",
+    "sync_status": "ok",
+}
+
+
+def test_rag_domain_receives_kg_summary_from_redis(mocker, mock_client_id):
+    """RAG domain (documentos) receives knowledge_graph_summary when in Redis."""
+    service, mock_redis = _make_service(mocker)
+    mocker.patch.object(
+        service, "get_client_context",
+        return_value=_make_full_context(mock_client_id),
+    )
+    mock_redis.get_json.side_effect = lambda key: (
+        _MOCK_KG_SUMMARY
+        if key == f"ctx:{mock_client_id}:knowledge_graph_summary"
+        else None
+    )
+
+    result = asyncio.get_event_loop().run_until_complete(
+        service.get_domain_projection("documentos", mock_client_id)
+    )
+
+    assert "knowledge_graph_summary" in result
+    assert result["knowledge_graph_summary"]["total_documents"] == 150
+    assert result["knowledge_graph_summary"]["sync_status"] == "ok"
+
+
+def test_rag_domain_no_kg_in_cache_excludes_field(mocker, mock_client_id):
+    """RAG domain omits knowledge_graph_summary when Redis returns None."""
+    service, mock_redis = _make_service(mocker)
+    mocker.patch.object(
+        service, "get_client_context",
+        return_value=_make_full_context(mock_client_id),
+    )
+    mock_redis.get_json.return_value = None  # KG not in cache
+
+    result = asyncio.get_event_loop().run_until_complete(
+        service.get_domain_projection("crm", mock_client_id)
+    )
+
+    assert "knowledge_graph_summary" not in result
+
+
+def test_agenda_domain_excludes_kg_summary(mocker, mock_client_id):
+    """Agenda domain never receives knowledge_graph_summary (uses Google Calendar)."""
+    service, mock_redis = _make_service(mocker)
+    mocker.patch.object(
+        service, "get_client_context",
+        return_value=_make_full_context(mock_client_id),
+    )
+    mock_redis.get_json.return_value = _MOCK_KG_SUMMARY  # KG is in cache
+
+    result = asyncio.get_event_loop().run_until_complete(
+        service.get_domain_projection("agenda", mock_client_id)
+    )
+
+    assert "knowledge_graph_summary" not in result
+
+
+def test_non_rag_domain_excludes_kg_summary(mocker, mock_client_id):
+    """Non-RAG domain (analytics) does not include knowledge_graph_summary."""
+    service, mock_redis = _make_service(mocker)
+    mocker.patch.object(
+        service, "get_client_context",
+        return_value=_make_full_context(mock_client_id),
+    )
+    mock_redis.get_json.return_value = _MOCK_KG_SUMMARY  # KG is in cache
+
+    result = asyncio.get_event_loop().run_until_complete(
+        service.get_domain_projection("analytics", mock_client_id)
+    )
+
+    assert "knowledge_graph_summary" not in result
+
+
+def test_kg_cache_error_gracefully_handled(mocker, mock_client_id):
+    """Redis error fetching KG summary does not break projection."""
+    service, mock_redis = _make_service(mocker)
+    mocker.patch.object(
+        service, "get_client_context",
+        return_value=_make_full_context(mock_client_id),
+    )
+    mock_redis.get_json.side_effect = RuntimeError("Redis connection lost")
+
+    result = asyncio.get_event_loop().run_until_complete(
+        service.get_domain_projection("financeiro", mock_client_id)
+    )
+
+    # Projection still works, just without KG summary
+    assert "knowledge_graph_summary" not in result
+    assert "company_profile" in result
+    assert "nome_empresa" in result
 
 
 @pytest.fixture(autouse=True)

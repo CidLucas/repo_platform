@@ -76,6 +76,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
         rfq_module,
         rfq_whatsapp_module,
         routines_module,  # noqa: F401
+        sbm_to_lightrag_synthesis,  # noqa: F401
         sql_module,
         whatsapp_client_module,
         web_crawl_module,

@@ -28,8 +28,16 @@ CREATE TABLE IF NOT EXISTS public.shared_business_memory (
     key         text NOT NULL
                 CHECK (length(key) >= 1 AND length(key) <= 256),
 
+    -- Categoria semântica do fato — usada para filtragem, roteamento e integridade
+    category    text
+                CHECK (category IN (
+                    'knowledge', 'rag', 'documents', 'memory-agent',
+                    'context', 'decision', 'preference'
+                )),
+
     -- Valor do fato (JSONB para flexibilidade — string, número, array, objeto)
-    value       jsonb NOT NULL DEFAULT '{}'::jsonb,
+    value       jsonb NOT NULL DEFAULT '{}'::jsonb
+                CONSTRAINT chk_value_not_null_json CHECK (jsonb_typeof(value) IS NOT NULL),
 
     -- Metadados de proveniência
     source      text NOT NULL DEFAULT 'manual'
@@ -55,6 +63,8 @@ COMMENT ON COLUMN public.shared_business_memory.entity_type IS
     'Entity taxonomy: skill | client | contact | supplier | user';
 COMMENT ON COLUMN public.shared_business_memory.key IS
     'Fact key — e.g. tom_amigavel, preferencia_horario, regra_negocio';
+COMMENT ON COLUMN public.shared_business_memory.category IS
+    'Semantic category for filtering and routing: knowledge | rag | documents | memory-agent | context | decision | preference';
 COMMENT ON COLUMN public.shared_business_memory.source IS
     'Provenance: manual | memory_agent | specialist | migration | system';
 
@@ -73,6 +83,11 @@ CREATE INDEX IF NOT EXISTS idx_sbm_key
 -- Busca textual nas chaves (para descoberta)
 CREATE INDEX IF NOT EXISTS idx_sbm_key_trgm
     ON public.shared_business_memory USING gin (key gin_trgm_ops);
+
+-- Filtro por categoria semântica
+CREATE INDEX IF NOT EXISTS idx_sbm_category
+    ON public.shared_business_memory (client_id, category)
+    WHERE category IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- Updated-at trigger

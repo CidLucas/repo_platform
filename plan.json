@@ -1,0 +1,105 @@
+{
+  "issue_number": 26,
+  "issue_title": "Fase 3 — Criar tool shared_memory_search",
+  "phase": "Fase 3",
+  "task_code": "T3.2",
+  "reference_doc": "docs/llm_wiki/SHARED_MEMORY_DESIGN.md",
+  "scope": "Criar nova L1 tool `shared_memory_search` no módulo `memory_module` para busca flexível de fatos na shared business memory",
+  "background": "O memory_module já possui tools para listar entidades (shared_memory_list), ler fatos individuais (shared_memory_read), escrever/upsert (shared_memory_write, shared_memory_upsert) e gerenciar links semânticos. Falta uma tool de busca/filtro que permita consultar fatos por múltiplos critérios simultâneos: entity_type, entity_name, padrões de key, category, source, confidence, range de datas, e busca textual no value (jsonb).",
+  "design_decisions": [
+    {
+      "id": "DD-01",
+      "decision": "Implementar como nova função `_shared_memory_search_logic` no memory_module.py, seguindo o mesmo padrão das funções existentes",
+      "rationale": "Consistência com arquitetura atual; separação de lógica de negócio e registro de tool"
+    },
+    {
+      "id": "DD-02",
+      "decision": "Tool exposta via MCP com @mcp_inject_client_id para autenticação automática",
+      "rationale": "Padrão estabelecido para todas as tools do memory_module"
+    },
+    {
+      "id": "DD-03",
+      "decision": "Suportar filtros combinados: entity_type, entity_name, key_prefix/key_pattern, category, source, confidence_min, date_from/date_to, text_search no value jsonb",
+      "rationale": "Atender casos de uso reais: buscar todas findings de um agente, buscar decisions por categoria, busca full-text em fatos"
+    },
+    {
+      "id": "DD-04",
+      "decision": "Paginação obrigatória: limit (default 50, max 200) + offset; retornar total_count para UI",
+      "rationale": "Evitar retorno de datasets grandes; UX consistente com outras APIs"
+    },
+    {
+      "id": "DD-05",
+      "decision": "Ordenação configurável: por updated_at desc (default), created_at, key, entity_name",
+      "rationale": "Flexibilidade para diferentes padrões de consumo"
+    },
+    {
+      "id": "DD-06",
+      "decision": "Validar entity_type contra _VALID_ENTITY_TYPES expandido (inclui agent_result, agent_metadata da Fase 1 T1.2)",
+      "rationale": "A Fase 1 adicionou novos entity_types que devem ser suportados na busca"
+    }
+  ],
+  "subtasks": [
+    {
+      "id": "T3.2a",
+      "title": "Adicionar entity_types da Fase 1 ao _VALID_ENTITY_TYPES no memory_module.py",
+      "description": "Expandir o frozenset para incluir 'agent_result' e 'agent_metadata' que foram adicionados na migration T1.2a",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py"
+      ],
+      "acceptance": "_VALID_ENTITY_TYPES contém: skill, client, contact, supplier, user, snapshot, agent_result, agent_metadata"
+    },
+    {
+      "id": "T3.2b",
+      "title": "Implementar _shared_memory_search_logic com filtros combinados e paginação",
+      "description": "Criar função de negócio que aceita múltiplos filtros opcionais e retorna resultados paginados com total_count",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py"
+      ],
+      "acceptance": "Função executa query Supabase com filtros dinâmicos; retorna {total_count, results[], limit, offset, has_more}"
+    },
+    {
+      "id": "T3.2c",
+      "title": "Registrar tool shared_memory_search no MCP via @mcp.tool decorator",
+      "description": "Adicionar registro da tool com description detalhada, parâmetros tipados, validação e error handling",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py"
+      ],
+      "acceptance": "Tool registrada e aparece em /info do tool_pool_api"
+    },
+    {
+      "id": "T3.2d",
+      "title": "Atualizar AVAILABLE_MODULES['memory'] no tool_modules/__init__.py",
+      "description": "Adicionar 'shared_memory_search' à lista de tools do módulo memory",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/__init__.py"
+      ],
+      "acceptance": "AVAILABLE_MODULES['memory']['tools'] inclui shared_memory_search"
+    },
+    {
+      "id": "T3.2e",
+      "title": "Testar tool via MCP endpoint (/mcp) com client_id válido",
+      "description": "Verificar que a tool responde corretamente a diferentes combinações de filtros",
+      "files": [],
+      "acceptance": "Retorna resultados esperados para: busca por entity_type, key_prefix, category, text_search, paginação"
+    }
+  ],
+  "risks": [
+    "Performance: queries com text_search no jsonb value podem ser lentas sem índice GIN; considerar adicionar índice em migration futura se necessário",
+    "Compatibilidade: expansão de _VALID_ENTITY_TYPES não deve quebrar tools existentes (shared_memory_list, read, etc.)",
+    "Autorização: garantir que client_id do JWT é respeitado (usar @mcp_inject_client_id)"
+  ],
+  "design_questions": [
+    "O text_search deve usar ILIKE no value::text ou to_tsvector para full-text search avançado?",
+    "Adicionar suporte a filtros avançados como 'key IN (...)' ou 'entity_name ILIKE %pattern%'?",
+    "Retornar apenas campos essenciais (id, entity_type, entity_name, key, value, updated_at) ou registro completo?"
+  ],
+  "acceptance_criteria": [
+    "Tool shared_memory_search registrada e funcional no tool_pool_api",
+    "Suporta todos os filtros combinados: entity_type, entity_name, key_prefix, key_pattern, category, source, confidence_min, date_from, date_to, text_search",
+    "Paginação funcionando (limit, offset, total_count, has_more)",
+    "Ordenação configurável (updated_at desc default)",
+    "Validação de entity_type contra lista expandida",
+    "Autenticação via @mcp_inject_client_id respeitada",
+    "Documentação na description da tool clara para consumo por agentes"
+  ]
+}

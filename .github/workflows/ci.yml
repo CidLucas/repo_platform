@@ -3,58 +3,57 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '**.mdx'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '**.mdx'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # =========================================================================
-  # Stage 1: Quick checks (run in parallel)
-  # =========================================================================
   lint:
-    name: Lint & Format Check
+    name: Lint and Format
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: pip
       - name: Install ruff
         run: pip install ruff==0.14.11
-      - name: Run ruff check
-        run: |
-          # Uses config from root pyproject.toml (excludes langfuse, ferramentas)
-          ruff check --output-format=github .
+      - name: Run ruff
+        run: ruff check --output-format=github .
 
-  dependency-check:
-    name: Poetry Lock Check
+  dep-check:
+    name: Dependency Check
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-      - name: Check pyproject.toml files
-        run: |
-          echo "Checking pyproject.toml files have valid syntax..."
-          for f in $(find . -name "pyproject.toml" -not -path "./langfuse/*" -not -path "./.venv/*"); do
-            echo "  Checking $f"
+      - run: |
+          for f in $(find . -name "pyproject.toml" -not -path "*/node_modules/*" -not -path "./langfuse/*" -not -path "./.venv/*"); do
             python3 -c "import tomllib; tomllib.load(open('$f', 'rb'))" || exit 1
+            echo "  OK $f"
           done
-          echo "✅ All pyproject.toml files are valid"
 
-  # =========================================================================
-  # Stage 2: Run tests
-  # =========================================================================
   test:
     name: Test ${{ matrix.service }}
     runs-on: ubuntu-latest
-    needs: [lint, dependency-check]
+    needs: [lint, dep-check]
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -62,54 +61,36 @@ jobs:
           - atendente_core
           - tool_pool_api
         include:
-          # atendente_core was renamed to agent_api; keep service name for image compat
           - service: atendente_core
             source_dir: agent_api
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Install dependencies
+          cache: pip
+      - uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+      - name: Cache venv
+        id: cache-venv
+        uses: actions/cache@v4
+        with:
+          path: services/${{ matrix.source_dir || matrix.service }}/.venv
+          key: venv-${{ runner.os }}-${{ matrix.service }}-${{ hashFiles(format('services/{0}/poetry.lock', matrix.source_dir || matrix.service)) }}
+      - name: Install deps
         working-directory: services/${{ matrix.source_dir || matrix.service }}
-        run: |
-          poetry install --with dev
-          # Ensure pytest-cov is installed
-          poetry add --group dev pytest-cov || true
-
+        run: poetry install --with dev --no-interaction
       - name: Run tests
         working-directory: services/${{ matrix.source_dir || matrix.service }}
-        run: |
-          # Run tests with coverage if pytest-cov is available, otherwise without
-          poetry run pytest tests/ -v --cov=src --cov-report=term-missing --cov-report=xml 2>/dev/null || \
-          poetry run pytest tests/ -v || true
+        run: poetry run pytest tests/ -v --timeout=120
 
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        if: always()
-        with:
-          files: services/${{ matrix.service }}/coverage.xml
-          flags: ${{ matrix.service }}
-
-  # =========================================================================
-  # Stage 3: Build Docker images and push to Artifact Registry
-  # =========================================================================
-  docker-build-and-push:
-    name: Build & Push ${{ matrix.service }}
+  docker-build:
+    name: Build Image ${{ matrix.service }}
     runs-on: ubuntu-latest
     needs: [test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    permissions:
-      contents: read
-      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -120,75 +101,19 @@ jobs:
         include:
           - service: blu_dashboard
             dockerfile_path: apps/blu_dashboard/Dockerfile
-          # atendente_core was renamed to agent_api; keep image name for deploy compat
           - service: atendente_core
             dockerfile_path: services/agent_api/Dockerfile
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Configure Docker for Artifact Registry
-        run: |
-          gcloud auth configure-docker southamerica-east1-docker.pkg.dev
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Set image tags
-        id: tags
-        run: |
-          COMMIT_SHORT=$(echo ${{ github.sha }} | cut -c1-7)
-          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          IMAGE_TAG="${TIMESTAMP}-${COMMIT_SHORT}"
-
-          REGISTRY="southamerica-east1-docker.pkg.dev"
-          PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
-          REPO="blu-mono"
-
-          IMAGE_BASE="${REGISTRY}/${PROJECT_ID}/${REPO}/blu-${{ matrix.service }}"
-
-          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-          echo "image_latest=${IMAGE_BASE}:latest" >> $GITHUB_OUTPUT
-          echo "image_versioned=${IMAGE_BASE}:${IMAGE_TAG}" >> $GITHUB_OUTPUT
-
-      - name: Build and push to Artifact Registry
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image (no push)
         env:
           DOCKERFILE_PATH: ${{ matrix.dockerfile_path || format('services/{0}/Dockerfile', matrix.service) }}
         run: |
-          echo "Building image for ${{ matrix.service }}"
-
-          # Build arguments for dashboard (Vite environment variables)
-          BUILD_ARGS=""
-          if [[ "${{ matrix.service }}" == "blu_dashboard" ]]; then
-            if [ -z "${{ secrets.VITE_SUPABASE_URL }}" ] || [ -z "${{ secrets.VITE_SUPABASE_ANON_KEY }}" ]; then
-              echo "❌ VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY secrets are required for dashboard build" >> $GITHUB_STEP_SUMMARY
-              exit 1
-            fi
-            BUILD_ARGS="--build-arg VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }} \
-              --build-arg VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }} \
-              --build-arg VITE_GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
-              --build-arg VITE_API_URL=https://tool-pool-api-858493958314.southamerica-east1.run.app \
-              --build-arg VITE_ATENDENTE_CORE=https://atendente-core-858493958314.southamerica-east1.run.app"
-          fi
-
-          # Build and push for linux/amd64 (Cloud Run requirement)
           docker buildx build \
             --platform linux/amd64 \
             -f "${DOCKERFILE_PATH}" \
-            $BUILD_ARGS \
-            -t "${{ steps.tags.outputs.image_versioned }}" \
-            -t "${{ steps.tags.outputs.image_latest }}" \
-            --push \
+            --load \
+            -t "blu-${{ matrix.service }}:ci" \
             .
-
-          echo "## 🐳 Published: ${{ matrix.service }}" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ steps.tags.outputs.image_versioned }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ steps.tags.outputs.image_latest }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Image built: blu-${{ matrix.service }}:ci"

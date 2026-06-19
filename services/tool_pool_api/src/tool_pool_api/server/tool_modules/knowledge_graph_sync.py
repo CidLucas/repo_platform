@@ -1,35 +1,51 @@
 """knowledge_graph_sync.py — Internal tool for syncing Knowledge Graph summary.
 
-This module is called internally by the enrichment job (T4.1) after
-SBM→LightRAG sync completes.  It updates the ``knowledge_graph_summary``
-field inside ``clientes_blu.available_tools`` (JSONB) and invalidates
-the context cache so the next ``get_client_context()`` call picks up the
-fresh data.
+Este módulo é chamado pelo job semanal de enriquecimento SBM→LightRAG
+(T4.1) como step final após sincronizar o grafo.  Ele atualiza o campo
+``knowledge_graph_summary`` dentro de ``clientes_blu.available_tools``
+(JSONB) e invalida o cache de contexto para que a próxima chamada a
+``get_client_context()`` retorne os dados atualizados.
 
 It is **NOT** exposed as an MCP tool — it is used via direct function call.
 
-Example payload (T4.1 enrichment job)::
+.. note::
 
+    T4.1 ainda não foi implementado.  Este módulo é preparatório — a
+    interface está pronta para consumo quando o job de enriquecimento
+    existir.  O exemplo abaixo mostra o contrato esperado.
+
+Payload example — T4.1 enrichment job should call this module as follows::
+
+    from datetime import datetime, UTC
     from uuid import UUID
+
     from tool_pool_api.server.tool_modules.knowledge_graph_sync import (
         update_knowledge_graph_summary,
     )
 
+    # Inside the T4.1 enrichment job, after the SBM→LightRAG sync:
     summary = {
-        "total_documents": 482,
-        "total_entities": 12300,
-        "top_entities": [
-            {"name": "Nota Fiscal", "type": "document", "degree": 821},
-            {"name": "Cliente ABC", "type": "organization", "degree": 410},
-        ],
-        "last_sync": "2026-06-19T12:00:00Z",
+        "total_documents": rag.get_documents_count(),
+        "total_entities": rag.get_entities_count(),
+        "top_entities": rag.get_top_entities_by_degree(10),
+        "last_sync": datetime.now(UTC).isoformat(),
         "version": 1,
     }
 
     ok = await update_knowledge_graph_summary(
-        client_id=UUID("..."),
+        client_id=UUID("..."),    # ID do cliente Blu
         summary=summary,
     )
+
+Schema (KnowledgeGraphSummary / DD-04 required keys)::
+
+    {
+        "total_documents":  int,           # >= 0
+        "total_entities":   int,           # >= 0
+        "top_entities":     list[dict],    # [{"name": str, "type": str, "degree": int}, ...]
+        "last_sync":        str | None,    # ISO 8601 (UTC)
+        "version":          int,           # >= 1, monotonic
+    }
 """
 
 from __future__ import annotations

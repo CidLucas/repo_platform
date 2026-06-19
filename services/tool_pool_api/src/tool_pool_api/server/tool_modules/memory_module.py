@@ -15,6 +15,7 @@ Tools registered:
   - shared_memory_link    -> create semantic link between entities
   - shared_memory_unlink  -> remove a link by id
   - shared_memory_get_links -> query links by entity and/or type
+  - shared_memory_export  -> export all facts for a client (T5.4)
 
 Design doc: docs/llm_wiki/SHARED_MEMORY_DESIGN.md (Fase 0)
 """
@@ -42,6 +43,59 @@ _VALID_ENTITY_TYPES: frozenset[str] = frozenset(
 
 _TABLE = "shared_business_memory"
 _LINKS_TABLE = "shared_memory_links"
+
+_VALID_CATEGORIES: frozenset[str] = frozenset(
+    {"knowledge", "rag", "documents", "memory-agent",
+     "context", "decision", "preference"}
+)
+
+# ---------------------------------------------------------------------------
+# Write permission check (T5.2)
+# ---------------------------------------------------------------------------
+
+# Mapping of source -> allowed entity_types for write operations.
+# Follows the "Single Writer" principle: each source can only write to
+# entity types it is authorised for.
+_WRITE_PERMISSIONS: dict[str, frozenset[str]] = {
+    "system": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+        "snapshot", "routine", "agent_result", "agent_metadata",
+    }),
+    "memory_agent": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+        "snapshot", "routine", "agent_result", "agent_metadata",
+    }),
+    "specialist": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+        "snapshot", "agent_result", "agent_metadata",
+    }),
+    "manual": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+    }),
+    "migration": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+        "snapshot", "routine", "agent_result", "agent_metadata",
+    }),
+}
+
+
+def _check_write_permission(
+    source: str,
+    entity_type: str,
+    entity_name: str,
+) -> None:
+    allowed = _WRITE_PERMISSIONS.get(source)
+    if allowed is None:
+        raise ValueError(
+            f"Unknown source '{source}'. "
+            f"Must be one of: {sorted(_WRITE_PERMISSIONS.keys())}"
+        )
+    if entity_type not in allowed:
+        raise ValueError(
+            f"Write permission denied: source '{source}' cannot write to "
+            f"entity_type '{entity_type}' (entity: {entity_name}). "
+            f"Allowed types for '{source}': {sorted(allowed)}"
+        )
 
 # ---------------------------------------------------------------------------
 # Snapshot constants (T2.2a + T2.2b)
@@ -508,6 +562,118 @@ async def _shared_memory_upsert_logic(
     }
 
 
+async def _shared_memory_write_logic(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    key: str,
+    value: dict,
+    category: str | None = None,
+    agent_id: str | None = None,
+    ttl: int | None = None,
+    priority: int | None = None,
+    supersede: bool = False,
+    source: str = "manual",
+    confidence: float = 1.0,
+) -> dict:
+    """Write a new shared-memory fact with write permission check.
+
+    By default this is a strict INSERT: it fails if the composite key
+    (client_id, entity_type, entity_name, key) already exists.
+    Set supersede=True to overwrite (upsert).
+
+    Before writing, the function checks that the caller (source) has
+    permission to write to the given entity_type (T5.2).
+    """
+    from blu_supabase_client import get_supabase_client
+
+    _validate_entity_type(entity_type)
+    entity_name = _normalize_entity_name(entity_name)
+    key = key.strip().lower()
+
+    if not entity_name or not key:
+        raise ValueError("entity_name and key are required")
+    if not isinstance(value, dict):
+        raise ValueError("value must be a dict")
+
+    # T5.2: Write permission check
+    validated_source = source if source in _WRITE_PERMISSIONS else "manual"
+    _check_write_permission(
+        source=validated_source,
+        entity_type=entity_type,
+        entity_name=entity_name,
+    )
+
+    db = await get_supabase_client()
+
+    payload = {
+        "client_id": client_id,
+        "entity_type": entity_type,
+        "entity_name": entity_name,
+        "key": key,
+        "value": value,
+        "category": category,
+        "source": validated_source,
+        "confidence": confidence,
+        "metadata": {},
+    }
+
+    if agent_id:
+        payload["metadata"]["agent_id"] = agent_id
+    if ttl is not None:
+        payload["metadata"]["ttl"] = ttl
+    if priority is not None:
+        payload["metadata"]["priority"] = priority
+
+    try:
+        if supersede:
+            result = await (
+                db.schema("public")
+                .table(_TABLE)
+                .upsert(
+                    payload,
+                    on_conflict="client_id,entity_type,entity_name,key",
+                    default_to_null=False,
+                )
+                .execute()
+            )
+        else:
+            result = await (
+                db.schema("public")
+                .table(_TABLE)
+                .insert(payload)
+                .execute()
+            )
+    except Exception as exc:
+        err_str = str(exc).lower()
+        if "duplicate key" in err_str or "uq_shared_memory_entry" in err_str:
+            raise ValueError(
+                f"Memory entry already exists for "
+                f"{entity_type}:{entity_name}/{key}. "
+                f"Use supersede=True to overwrite."
+            )
+        raise RuntimeError(f"Failed to write shared-memory entry: {exc}")
+
+    row = result.data[0] if result.data else None
+    if not row:
+        raise RuntimeError("Failed to write memory entry -- no data returned")
+
+    return {
+        "id": row["id"],
+        "client_id": row["client_id"],
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "key": row["key"],
+        "value": row["value"],
+        "category": row.get("category"),
+        "source": row["source"],
+        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+        "version": row.get("version", 1),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Link business logic
 # ---------------------------------------------------------------------------
@@ -810,6 +976,87 @@ async def _shared_memory_search_logic(
         "query": query,
         "total_results": len(formatted_results),
         "results": formatted_results,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Export business logic (T5.4)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_export_logic(
+    client_id: str,
+    entity_type: str | None = None,
+    entity_name: str | None = None,
+) -> dict:
+    """
+    Export all shared-memory facts for a given client.
+
+    Reads all records from shared_business_memory, optionally filtered by
+    entity_type and/or entity_name. Returns a structured dict suitable for
+    downstream consumers (files, streams, analytics).
+
+    Empty segments return total_records=0 and records=[] (no error raised).
+    """
+    if entity_type is not None:
+        _validate_entity_type(entity_type)
+    if entity_name is not None:
+        entity_name = _normalize_entity_name(entity_name)
+
+    logger.info(
+        "[memory_module] shared_memory_export "
+        "client_id=%s entity_type=%s entity_name=%s",
+        client_id,
+        entity_type,
+        entity_name,
+    )
+
+    db = await get_supabase_client()
+
+    query = (
+        db.schema("public")
+        .table(_TABLE)
+        .select("*")
+        .eq("client_id", client_id)
+        .order("entity_type, entity_name, key")
+    )
+
+    if entity_type:
+        query = query.eq("entity_type", entity_type)
+    if entity_name:
+        query = query.eq("entity_name", entity_name)
+
+    result = await query.execute()
+
+    rows = result.data if result.data else []
+
+    records: list[dict] = []
+    for row in rows:
+        records.append({
+            "id": row["id"],
+            "entity_type": row["entity_type"],
+            "entity_name": row["entity_name"],
+            "key": row["key"],
+            "value": row["value"],
+            "metadata": row.get("metadata", {}),
+            "source": row["source"],
+            "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+            "version": row.get("version", 1),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        })
+
+    logger.info(
+        "[memory_module] shared_memory_export complete: %d records returned",
+        len(records),
+    )
+
+    return {
+        "client_id": client_id,
+        "entity_type_filter": entity_type,
+        "entity_name_filter": entity_name,
+        "total_records": len(records),
+        "records": records,
     }
 
 
@@ -1493,5 +1740,70 @@ def register_tools(mcp: FastMCP) -> list[str]:
 
     logger.info("[Memory Module] Tool 'shared_memory_search' registered.")
     registered_tools.append("shared_memory_search")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_export -- export all facts for a client (T5.4)
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_export",
+        description=(
+            "[Shared Memory] Export all shared-memory facts for the current "
+            "client. Returns a structured array of all facts with full metadata "
+            "(id, entity_type, entity_name, key, value, source, confidence, "
+            "version, timestamps). Optionally filter by entity_type and/or "
+            "entity_name. Empty segments return an empty array (no error). "
+            "Use this for backup, analytics, or data migration workflows."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_export(
+        ctx: Context,
+        entity_type: str | None = None,
+        entity_name: str | None = None,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Export all shared-memory facts for this client.
+
+        Reads all records from shared_business_memory, optionally filtered by
+        entity_type and/or entity_name. Returns every matching fact with full
+        row data.
+
+        Empty segments return total_records=0 and records=[] (no error).
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_export "
+            "entity_type=%s entity_name=%s client_id=%s",
+            entity_type,
+            entity_name,
+            client_id,
+        )
+
+        try:
+            return await _shared_memory_export_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except ToolError:
+            raise
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_export failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to export shared memory: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_export' registered.")
+    registered_tools.append("shared_memory_export")
 
     return registered_tools

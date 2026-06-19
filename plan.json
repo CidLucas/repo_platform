@@ -1,0 +1,152 @@
+{
+  "issue_number": 57,
+  "issue_title": "P1: Revisão geral de code patterns, código repetido e performance",
+  "issue_url": "https://github.com/CidLucas/repo_platform/issues/57",
+  "phase": 0,
+  "scope": "General codebase review across apps/, libs/, services/, packages/ for patterns consistency, code duplication, performance bottlenecks, security, error handling, and test coverage",
+  "depends_on": ["#17-#37 (all pipeline phases)"],
+  "design_decisions": [
+    {
+      "id": "DD-01",
+      "decision": "Review will be organized by architectural layer: apps (frontend), libs (shared Python libraries), services (backend APIs), packages (npm packages)",
+      "rationale": "The monorepo has clear separation of concerns; reviewing by layer allows systematic coverage and clear ownership"
+    },
+    {
+      "id": "DD-02",
+      "decision": "Focus on 6 dimensions per the issue scope: code patterns, duplicated code, performance, security, error handling, tests",
+      "rationale": "Matches the explicit checklist in the issue body and ensures comprehensive coverage"
+    },
+    {
+      "id": "DD-03",
+      "decision": "Output consolidated report at docs/reports/code-review-geral.md with per-service checklists, priority (P0/P1/P2), and fix suggestions with examples",
+      "rationale": "Explicitly required by the issue deliverable; makes findings actionable for downstream remediation tasks"
+    },
+    {
+      "id": "DD-04",
+      "decision": "Leverage existing documentation (patterns.md, repo-index.md, agent_audits/, SHARED_MEMORY_DESIGN.md) as baseline for expected patterns",
+      "rationale": "Avoids re-discovering known patterns; ensures review validates against documented standards"
+    },
+    {
+      "id": "DD-05",
+      "decision": "Use automated tooling where possible: grep/rg for pattern detection, pyright/mypy for Python type consistency, eslint for TS, dependency analysis for duplication",
+      "rationale": "Codebase is large (~17k files); manual-only review is impractical. Automation finds systematic issues efficiently"
+    },
+    {
+      "id": "DD-06",
+      "decision": "Prioritize findings by impact: P0 = security/data-loss/blocking bugs, P1 = performance/maintainability, P2 = style/minor inconsistency",
+      "rationale": "Issue is P1 but findings will vary; clear prioritization guides remediation sequencing"
+    }
+  ],
+  "subtasks": [
+    {
+      "id": "T57.1",
+      "title": "Inventory & baseline: catalog all services/libs with primary language, entry points, and known patterns",
+      "description": "Scan apps/, libs/, services/, packages/ to build a service catalog. Document each: primary language, main entry points, key dependencies, and reference patterns from patterns.md/SHARED_MEMORY_DESIGN.md",
+      "layer": "inventory",
+      "estimated_hours": 2
+    },
+    {
+      "id": "T57.2",
+      "title": "Code patterns consistency review",
+      "description": "Check naming conventions (files, functions, variables), import/export patterns, project structure, type safety (pyright/mypy for Python, eslint/tsc for TS), error handling patterns, logging patterns, config management patterns across all layers",
+      "layer": "patterns",
+      "estimated_hours": 4
+    },
+    {
+      "id": "T57.3",
+      "title": "Code duplication detection & shared lib extraction candidates",
+      "description": "Find duplicated logic across libs/ (e.g., validation, DB access, auth, serialization), services/ (common middleware, error handlers), and apps/ (hooks, utils). Identify candidates for extraction to blu_shared_utils or new shared libs. Use jscpd/duplication detection tools",
+      "layer": "duplication",
+      "estimated_hours": 4
+    },
+    {
+      "id": "T57.4",
+      "title": "Performance bottleneck analysis",
+      "description": "Identify N+1 queries (Supabase/Postgres), unbatched API calls, excessive allocations in hot paths, missing indexes, inefficient loops, missing caching, async/await misuse, large bundle sizes in apps/blu_v3",
+      "layer": "performance",
+      "estimated_hours": 4
+    },
+    {
+      "id": "T57.5",
+      "title": "Security review",
+      "description": "Check input validation/sanitization (Zod/Pydantic), SQL injection risks (raw SQL vs ORM/rpc), auth/authorization consistency (blu_auth usage), rate limiting, secrets management (.env, .secrets.baseline), CORS, CSP headers, dependency vulnerabilities (npm audit, pip-audit)",
+      "layer": "security",
+      "estimated_hours": 3
+    },
+    {
+      "id": "T57.6",
+      "title": "Error handling consistency",
+      "description": "Verify error types hierarchy, user-facing vs internal errors, logging with context, retry policies, circuit breakers, dead letter handling, error boundary patterns in frontend, correlation IDs for tracing",
+      "layer": "error_handling",
+      "estimated_hours": 3
+    },
+    {
+      "id": "T57.7",
+      "title": "Test coverage & quality assessment",
+      "description": "Measure coverage per service (pytest-cov, jest --coverage), identify missing edge cases, mock quality, fixture reusability, integration vs unit balance, test organization, flaky test detection",
+      "layer": "tests",
+      "estimated_hours": 3
+    },
+    {
+      "id": "T57.8",
+      "title": "Consolidate findings into docs/reports/code-review-geral.md",
+      "description": "Generate the required deliverable: per-service checklist, P0/P1/P2 priority for each finding, fix suggestions with code examples, remediation effort estimates, and cross-cutting themes",
+      "layer": "reporting",
+      "estimated_hours": 2
+    }
+  ],
+  "risks": [
+    {
+      "id": "R1",
+      "risk": "Codebase size (~17k files including node_modules) makes manual review infeasible",
+      "mitigation": "Heavy reliance on automated tooling (grep, linters, duplication detectors); sampling for deep-dive"
+    },
+    {
+      "id": "R2",
+      "risk": "Some patterns may be intentional deviations (e.g., service-specific conventions)",
+      "mitigation": "Flag as 'review needed' rather than 'violation'; consult service owners via comments"
+    },
+    {
+      "id": "R3",
+      "risk": "Depends on completion of Phases 1-5 (#17-#37) - reviewing prematurely may miss new code",
+      "mitigation": "This intake documents the plan; execution should wait for dependency completion signal"
+    },
+    {
+      "id": "R4",
+      "risk": "TypeScript and Python ecosystems have different tooling; unified reporting needs normalization",
+      "mitigation": "Standardize finding schema: {file, line, layer, dimension, severity, description, suggestion, example}"
+    }
+  ],
+  "design_questions": [
+    {
+      "id": "DQ1",
+      "question": "Should the review include generated/build artifacts (e.g., libs/blu_context_service/build/)?",
+      "recommendation": "Exclude build/ and node_modules/; focus on source only"
+    },
+    {
+      "id": "DQ2",
+      "question": "What is the target remediation timeline? This affects P0/P1/P2 thresholds",
+      "recommendation": "Default to: P0=immediate, P1=next sprint, P2=tech debt backlog"
+    },
+    {
+      "id": "DQ3",
+      "question": "Are there specific services/libs that are higher priority (e.g., agent_api, blu_agent_framework)?",
+      "recommendation": "Weight findings by service criticality; core framework libs get stricter thresholds"
+    }
+  ],
+  "deliverable": {
+    "path": "docs/reports/code-review-geral.md",
+    "format": "markdown",
+    "sections": [
+      "Executive Summary",
+      "Methodology & Tools",
+      "Per-Service Checklists (apps/, libs/, services/, packages/)",
+      "Cross-Cutting Themes",
+      "Prioritized Findings (P0/P1/P2 tables)",
+      "Remediation Suggestions with Examples",
+      "Effort Estimates & Sequencing"
+    ]
+  },
+  "next_assignee": "factory-planner",
+  "next_task_title": "Plan: #57 - Code Review Geral"
+}

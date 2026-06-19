@@ -27,6 +27,8 @@ from fastmcp import FastMCP
 
 logger = logging.getLogger(__name__)
 
+from . import knowledge_graph_sync  # noqa: F401  # T4.3b — internal tool
+
 # Registry de módulos de tools
 # Cada módulo exporta uma função register_tools(mcp: FastMCP) -> List[str]
 # que retorna os nomes das tools registradas
@@ -329,6 +331,11 @@ AVAILABLE_MODULES = {
             "shared_memory_unlink",
             "shared_memory_get_links",
         ],
+        "requires_auth": True,
+    },
+    "knowledge_graph": {
+        "description": "Knowledge Graph summary sync — updates available_tools after enrichment job",
+        "tools": ["update_knowledge_graph_summary"],
         "requires_auth": True,
     },
 }

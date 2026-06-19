@@ -1,4 +1,3 @@
-"""
 """memory_module.py -- Shared Business Memory Tools (T0.4-T0.6)
 
 Registers L1 tools for interacting with the `shared_business_memory` and
@@ -11,6 +10,7 @@ Tools registered:
   - shared_memory_list    -> list entities with memory entries
   - shared_memory_read    -> read a single fact by composite key
   - shared_memory_upsert  -> insert or update a fact (versioned)
+  - shared_memory_write   -> write a new fact (strict INSERT; supersede=True to upsert)
   - shared_memory_link    -> create semantic link between entities
   - shared_memory_unlink  -> remove a link by id
   - shared_memory_get_links -> query links by entity and/or type
@@ -678,6 +678,120 @@ def register_tools(mcp: FastMCP) -> list[str]:
 
     logger.info("[Memory Module] Tool 'shared_memory_upsert' registered.")
     registered_tools.append("shared_memory_upsert")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_write --  write a new fact (strict INSERT by default)
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_write",
+        description=(
+            "[Shared Memory] Write a new fact into shared memory. "
+            "By default this is a strict INSERT — it fails if the "
+            "composite key (client_id, entity_type, entity_name, key) "
+            "already exists. Set supersede=true to overwrite. "
+            "The ``value`` parameter maps directly to the jsonb column. "
+            "Use ``category`` to classify the fact semantically "
+            "(knowledge | rag | documents | memory-agent | "
+            "context | decision | preference). "
+            "Optional ``agent_id``, ``ttl``, and ``priority`` are stored "
+            "inside the metadata column."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_write(
+        ctx: Context,
+        entity_type: str,
+        entity_name: str,
+        key: str,
+        value: dict,
+        category: str | None = None,
+        agent_id: str | None = None,
+        ttl: int | None = None,
+        priority: int | None = None,
+        supersede: bool = False,
+        source: str = "manual",
+        confidence: float = 1.0,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Write a new shared-memory fact.
+
+        Args:
+            entity_type: Entity type (skill | client | contact | supplier | user | snapshot).
+            entity_name: Entity name (case-insensitive, normalized to lowercase).
+            key: Fact key (e.g. "tom_amigavel", "preferencia_horario").
+            value: The fact value (dict — maps to 'value' jsonb column).
+            category: Optional semantic category for filtering/routing.
+            agent_id: Optional agent UUID (stored in metadata).
+            ttl: Optional time-to-live in seconds (stored in metadata).
+            priority: Optional priority 0-100 (stored in metadata).
+            supersede: If True, upsert to overwrite an existing entry. Default False (strict insert).
+            source: Provenance — "manual" | "memory_agent" | "specialist" | "migration" | "system".
+            confidence: Confidence score (0.0--1.0, default 1.0).
+
+        Returns:
+            dict with the full written record including id, version, and timestamps.
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required — authentication context missing"
+            )
+
+        # Tool-level validation (T1.4b)
+        if not entity_type or not entity_type.strip():
+            raise ToolError("entity_type is required")
+        if not entity_name or not entity_name.strip():
+            raise ToolError("entity_name is required")
+        if not key or not key.strip():
+            raise ToolError("key is required")
+        if not isinstance(value, dict):
+            raise ToolError("value must be a dict")
+        if category is not None and category not in _VALID_CATEGORIES:
+            raise ToolError(
+                f"Invalid category '{category}'. "
+                f"Must be one of: {sorted(_VALID_CATEGORIES)}"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_write "
+            "entity_type=%s entity_name=%s key=%s category=%s "
+            "supersede=%s client_id=%s",
+            entity_type,
+            entity_name,
+            key,
+            category,
+            supersede,
+            client_id,
+        )
+
+        try:
+            return await _shared_memory_write_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                key=key,
+                value=value,
+                category=category,
+                agent_id=agent_id,
+                ttl=ttl,
+                priority=priority,
+                supersede=supersede,
+                source=source,
+                confidence=confidence,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_write failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to write shared-memory entry: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_write' registered.")
+    registered_tools.append("shared_memory_write")
 
     # ----------------------------------------------------------------------
     # shared_memory_link --  create a semantic link between entities

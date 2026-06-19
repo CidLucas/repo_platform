@@ -1,0 +1,118 @@
+{
+  "issue": 30,
+  "issue_url": "https://github.com/CidLucas/repo_platform/issues/30",
+  "title": "Fase 4 — Diretório meta/ para dados operacionais",
+  "ref": "SHARED_MEMORY_DESIGN.md — T4.2",
+  "phase": "4",
+  "task": "T4.2",
+  "scope": "Adicionar um diretório `meta/` na shared business memory para organizar dados operacionais (KPIs, métricas, status operacional) em uma estrutura hierárquica de paths, similar a um sistema de arquivos dentro da memória compartilhada do agente.",
+  "problem": "Atualmente a shared business memory organiza dados apenas por (entity_type, entity_name, key), uma estrutura plana. Dados operacionais como KPIs financeiros, métricas de estoque, status de integrações e indicadores de desempenho precisam de uma organização hierárquica (namespace) para evitar colisões de chave e permitir navegação por categoria — ex: `meta/financeiro/receita_bruta`, `meta/operacional/estoque_minimo`, `meta/integracoes/polp/ultima_sync`.",
+  "approach": "Estender o schema da shared_business_memory com um campo opcional `path` que funciona como um namespace hierárquico. Quando preenchido, o path atua como prefixo organizacional para a key. Ferramentas T4.2 serão tools específicas para ler/escrever/listar/deletar entries no namespace `meta/`. O path usa formato de diretório Unix: `meta/<dominio>/<subdominio>/...`.",
+  "design_decisions": [
+    {
+      "id": "DD-01",
+      "decision": "Campo `path` opcional na tabela shared_business_memory",
+      "rationale": "Adicionar path como coluna nullable text. Entries sem path continuam funcionando no modelo atual (entity_type → entity_name → key). Entries com path usam path como namespace adicional. UNIQUE constraint se expande para (client_id, entity_type, entity_name, path, key) com COALESCE para lidar com NULLs.",
+      "consequences": "Migrations precisam lidar com rows existentes (NULL path). Index existente idx_sbm_key precisa ser recriado. A constraint uq_shared_memory_entry precisa ser alterada."
+    },
+    {
+      "id": "DD-02",
+      "decision": "Path validation: pattern obrigatório `^[a-z][a-z0-9_/-]*$` com / como separador, máximo 512 chars",
+      "rationale": "Formato Unix-like consistente com a metáfora de diretório. Apenas letras minúsculas, números, underscore e hífen. 'meta/' é prefixo reservado para dados operacionais. Previne path injection e mantém navegabilidade.",
+      "consequences": "CHECK constraint no SQL. Ferramentas T4.2 devem validar path antes de inserir."
+    },
+    {
+      "id": "DD-03",
+      "decision": "Novas tools específicas em vez de modificar tools T0.4 existentes",
+      "rationale": "As tools T0.4 (shared_memory_read, shared_memory_write) ainda não existem. T4.2 cria tools `meta_read`, `meta_write`, `meta_delete`, `meta_list` com path como parâmetro obrigatório, usando internamente a mesma tabela shared_business_memory mas com path prefixado por `meta/`.",
+      "consequences": "Mantém separação clara: T0.4 tools operam no modelo plano (entity_type, entity_name, key). T4.2 tools operam no namespace meta/. Ambas compartilham a mesma tabela física."
+    },
+    {
+      "id": "DD-04",
+      "decision": "Valores armazenados como JSONB (mesmo padrão do T0.4)",
+      "rationale": "Consistência com o schema existente. Dados operacionais são multi-tipo (números para KPIs, strings para status, objetos para métricas compostas).",
+      "consequences": "Nenhuma mudança — reusa o campo value existente."
+    }
+  ],
+  "affected_files": [
+    {
+      "path": "supabase/migrations/proposed/20260619000002_shared_memory_path.sql",
+      "description": "Migration que adiciona coluna path à shared_business_memory, recria UNIQUE constraint e índice para incluir path, adiciona CHECK constraint de validação de path"
+    },
+    {
+      "path": "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py",
+      "description": "Adicionar tools meta_read, meta_write, meta_delete, meta_list no módulo memory_module.py seguindo o padrão @register_module"
+    },
+    {
+      "path": "services/tool_pool_api/src/tool_pool_api/server/tool_modules/__init__.py",
+      "description": "Atualizar a entrada 'memory' em AVAILABLE_MODULES com as novas tools da T4.2"
+    },
+    {
+      "path": "docs/llm_wiki/SHARED_MEMORY_DESIGN.md",
+      "description": "Adicionar seção T4.2 — Diretório meta/ para dados operacionais: schema, tools, design decisions, exemplos de uso"
+    },
+    {
+      "path": "docs/system_reference/TOOL_INVENTORY.md",
+      "description": "Adicionar meta_read, meta_write, meta_delete, meta_list no inventário de tools CUSTOM/SME em memoria/compartilhada"
+    }
+  ],
+  "subtasks": [
+    {
+      "id": "T4.2.1",
+      "title": "Migration: coluna path + constraints",
+      "description": "Criar migration SQL 20260619000002_shared_memory_path.sql: ALTER TABLE shared_business_memory ADD COLUMN path text, redefinir UNIQUE constraint para (client_id, entity_type, entity_name, COALESCE(path, ''), key), adicionar CHECK constraint para validação de path pattern, recriar índices",
+      "dependencies": []
+    },
+    {
+      "id": "T4.2.2",
+      "title": "Core logic: meta_read, meta_write, meta_delete, meta_list",
+      "description": "Implementar _meta_read_logic, _meta_write_logic, _meta_delete_logic, _meta_list_logic em memory_module.py seguindo o padrão _shared_memory_*_logic existente. Todas as tools prefixam path com 'meta/' automaticamente.",
+      "dependencies": ["T4.2.1"]
+    },
+    {
+      "id": "T4.2.3",
+      "title": "Tool registration: decorator @register_module + MCP decorators",
+      "description": "Registrar meta_read, meta_write, meta_delete, meta_list como MCP tools com descrições, validação de path, @mcp_inject_client_id, logging consistente. Atualizar AVAILABLE_MODULES em __init__.py.",
+      "dependencies": ["T4.2.2"]
+    },
+    {
+      "id": "T4.2.4",
+      "title": "Documentação: SHARED_MEMORY_DESIGN.md seção T4.2",
+      "description": "Adicionar seção completa T4.2 no LLM wiki document: problem statement, tabela com coluna path, tool interface (4 tools), exemplos de uso, design decisions table.",
+      "dependencies": ["T4.2.2"]
+    },
+    {
+      "id": "T4.2.5",
+      "title": "Tool inventory: atualizar TOOL_INVENTORY.md",
+      "description": "Adicionar 4 novas tools ao inventário como CUSTOM/SME em memoria/compartilhada.",
+      "dependencies": ["T4.2.3"]
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Alteração de UNIQUE constraint em shared_business_memory com dados existentes",
+      "mitigation": "Usar abordagem segura: (1) DROP constraint antiga, (2) ALTER TABLE ADD COLUMN path, (3) UPDATE shared_business_memory SET path = NULL WHERE path IS NULL, (4) CREATE UNIQUE INDEX com behandling de NULL usando COALESCE ou índice parcial. Testar em staging primeiro.",
+      "severity": "medium"
+    },
+    {
+      "risk": "Compatibilidade reversa com tools existentes (shared_memory_list, links)",
+      "mitigation": "Todas as tools existentes operam sem path — rows com path não são retornadas por shared_memory_list (que agrupa por entity_type/entity_name). Links (T0.5) já referenciam memory_id — independente de path.",
+      "severity": "low"
+    },
+    {
+      "risk": "Path injection ou path traversal (../../)",
+      "mitigation": "CHECK constraint com regex restritivo no SQL + validação server-side adicional. Path sempre prefixado por 'meta/' pelas tools — agentes não passam prefixo manualmente.",
+      "severity": "low"
+    }
+  ],
+  "dependencies": [
+    "T0.4 (Shared Business Memory table) — já implementada",
+    "Migration não aplicada ainda — fica em proposed/ para revisão de Lucas"
+  ],
+  "design_questions": [
+    "Path deve ser obrigatório para tools T4.2? (Sim — toda meta tool exige path)",
+    "Precisamos de um conceito de 'diretório vazio' (ex: meta/financeiro sem entries)? (Não — diretórios existem implicitamente quando uma entry com aquele prefixo é criada)",
+    "meta_list deve suportar listagem recursiva (ls -R) ou só flat por prefixo? (Só flat por prefixo — simplicidade, agentes chamam com path progressivamente mais específico)",
+    "Qual o comportamento de meta_delete em path com sub-entries? (Delete recursivo — apaga todas entries com path LIKE 'prefixo/%' + a entry exata)"
+  ]
+}

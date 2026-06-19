@@ -6,7 +6,8 @@ Tests the _shared_memory_search_logic function with:
 - Mocked Supabase RPC (avoids real database)
 
 The function is loaded in isolation via exec() to avoid triggering the
-full package dependency chain.
+full package dependency chain, but the Cohere import inside the function
+uses real Python import machinery (mockable via patch).
 """
 
 import uuid
@@ -26,8 +27,7 @@ class ToolError(Exception):
 
 # Build a minimal namespace with all needed stubs
 _stub_logger = MagicMock()
-_stub_get_context_service = MagicMock()
-_stub_get_supabase_client = MagicMock()
+_stub_get_supabase_client = AsyncMock()
 _stub_validate_entity_type = MagicMock()
 
 _NAMESPACE = {
@@ -40,61 +40,34 @@ _NAMESPACE = {
     "ToolError": ToolError,
     "mcp_inject_client_id": MagicMock(return_value=lambda fn: fn),
     "get_supabase_client": _stub_get_supabase_client,
-    "get_context_service": _stub_get_context_service,
+    "get_context_service": MagicMock(),
     "register_module": MagicMock(return_value=lambda fn: fn),
 }
 
 
 def _load_function() -> callable:
     """Extract _shared_memory_search_logic from memory_module.py source."""
-    mod_path = __import__("pathlib").Path(__file__).parent.parent.parent / "src" / "tool_pool_api" / "server" / "tool_modules" / "memory_module.py"
+    import pathlib
+    mod_path = (
+        pathlib.Path(__file__).parent.parent.parent
+        / "src" / "tool_pool_api" / "server" / "tool_modules"
+        / "memory_module.py"
+    )
     source = mod_path.read_text()
 
-    # Find and extract just the _shared_memory_search_logic function
-    marker = "async def _shared_memory_search_logic("
-    idx = source.find(marker)
-    assert idx != -1, f"Could not find '{marker}' in memory_module.py"
+    # Extract _VALID_ENTITY_TYPES
+    vt_marker = "_VALID_ENTITY_TYPES: frozenset[str] = frozenset("
+    vt_idx = source.find(vt_marker)
+    assert vt_idx != -1, "Could not find _VALID_ENTITY_TYPES"
+    vlines = source[vt_idx:].split("\n")
+    vt_source_lines = []
+    for vline in vlines:
+        vt_source_lines.append(vline.rstrip())
+        if ")" in vline and not vline.strip().startswith("#"):
+            break
+    exec("\n".join(vt_source_lines), _NAMESPACE)
 
-    # Walk backward to find the section header comment
-    fn_start = source.rfind("#", 0, idx)
-    assert fn_start != -1, "Could not find section start"
-
-    # Walk forward to find the end of the function (next top-level section)
-    rest = source[idx:]
-    # Count indentation to find end of function
-    lines = source[fn_start:].split("\n")
-    fn_lines = []
-    in_fn = False
-    base_indent = None
-    for line in lines:
-        stripped = line.rstrip()
-        if not stripped and not in_fn:
-            continue
-        if "async def _shared_memory_search_logic(" in line:
-            in_fn = True
-            base_indent = len(line) - len(line.lstrip())
-            fn_lines.append(stripped)
-            continue
-        if in_fn:
-            if stripped == "":
-                fn_lines.append("")
-                continue
-            indent = len(line) - len(line.lstrip())
-            # Empty line or comment: continue
-            if indent == 0 and stripped.startswith("#"):
-                fn_lines.append(stripped)
-                continue
-            # Check if we've exited the function (back to section comment level)
-            if indent == 0 and stripped.startswith("# -------"):
-                break
-            # Another top-level def or @ would mean we're past this function
-            if indent == 0 and (stripped.startswith("async def ") or stripped.startswith("@") or stripped.startswith("def ")):
-                break
-            fn_lines.append(stripped)
-
-    fn_source = "\n".join(fn_lines)
-
-    # Also extract helpers: _validate_entity_type
+    # Extract _validate_entity_type helper
     for helper_name in ("_validate_entity_type", "_normalize_entity_name"):
         helper_marker = f"def {helper_name}("
         hidx = source.find(helper_marker)
@@ -118,20 +91,42 @@ def _load_function() -> callable:
                     h_fn_lines.append(hs)
             exec("\n".join(h_fn_lines), _NAMESPACE)
 
-    # Also extract _VALID_ENTITY_TYPES
-    vt_marker = "_VALID_ENTITY_TYPES"
-    vt_idx = source.find(vt_marker)
-    if vt_idx != -1:
-        vt_line = source[vt_idx:].split("\n")[0]
-        # Multi-line frozenset?
-        vlines = source[vt_idx:].split("\n")
-        vt_source_lines = []
-        for vline in vlines:
-            vt_source_lines.append(vline.rstrip())
-            if ")" in vline and not vline.strip().startswith("#"):
-                break
-        exec("\n".join(vt_source_lines), _NAMESPACE)
+    # Extract _shared_memory_search_logic
+    marker = "async def _shared_memory_search_logic("
+    idx = source.find(marker)
+    assert idx != -1, f"Could not find '{marker}'"
 
+    # Walk backward to find section comment
+    fn_start = source.rfind("#", 0, idx)
+    assert fn_start != -1, "Could not find section start"
+
+    lines = source[fn_start:].split("\n")
+    fn_lines = []
+    in_fn = False
+    for line in lines:
+        stripped = line.rstrip()
+        if not stripped and not in_fn:
+            continue
+        if "async def _shared_memory_search_logic(" in line:
+            in_fn = True
+            fn_lines.append(stripped)
+            continue
+        if in_fn:
+            if stripped == "":
+                fn_lines.append("")
+                continue
+            indent = len(line) - len(line.lstrip())
+            if indent == 0 and stripped.startswith("# -------"):
+                break
+            if indent == 0 and (
+                stripped.startswith("async def ")
+                or stripped.startswith("@")
+                or stripped.startswith("def ")
+            ):
+                break
+            fn_lines.append(stripped)
+
+    fn_source = "\n".join(fn_lines)
     exec(fn_source, _NAMESPACE)
     return _NAMESPACE["_shared_memory_search_logic"]
 
@@ -143,7 +138,7 @@ _shared_memory_search_logic = _load_function()
 
 
 @pytest.fixture(autouse=True)
-def reset_mocks():
+def reset_stubs():
     """Reset all stubs between tests."""
     _stub_get_supabase_client.reset_mock()
     _stub_validate_entity_type.reset_mock()
@@ -151,22 +146,25 @@ def reset_mocks():
 
 
 @pytest.fixture
-def mock_cohere_embedding():
+def mock_cohere():
     """Mock Cohere embedding that returns a fixed 384-dim vector."""
-    with patch.dict(
-        _NAMESPACE,
-        {"get_cohere_embedding_model": MagicMock()},
+    embedder = MagicMock()
+    embedder.embed_query.return_value = [0.1] * 384
+    with patch(
+        "blu_llm_service.get_cohere_embedding_model",
+        return_value=embedder,
     ):
-        embedder = MagicMock()
-        embedder.embed_query.return_value = [0.1] * 384
-        _NAMESPACE["get_cohere_embedding_model"].return_value = embedder
-        yield
+        yield embedder
 
 
 @pytest.fixture
-def mock_supabase_rpc():
-    """Mock Supabase client and RPC call."""
-    db = AsyncMock()
+def mock_supabase():
+    """Mock Supabase client and RPC call.
+
+    The real get_supabase_client() returns a sync client.
+    db.rpc() returns a chain object whose .execute() is awaitable.
+    """
+    db = MagicMock()
     _stub_get_supabase_client.return_value = db
     yield db
     _stub_get_supabase_client.reset_mock()
@@ -183,10 +181,7 @@ def _make_rpc_result(rows):
 
 
 @pytest.mark.asyncio
-async def test_shared_memory_search_success(
-    mock_cohere_embedding,
-    mock_supabase_rpc,
-):
+async def test_success(mock_cohere, mock_supabase):
     """Should return formatted results when RPC returns data."""
     client_id = str(uuid.uuid4())
 
@@ -215,9 +210,11 @@ async def test_shared_memory_search_success(
         },
     ]
 
-    mock_rpc_chain = AsyncMock()
-    mock_rpc_chain.execute.return_value = _make_rpc_result(stub_rows)
-    mock_supabase_rpc.rpc.return_value = mock_rpc_chain
+    # Build the rpc chain: db.rpc().execute() where execute is awaitable
+    mock_execute = AsyncMock(return_value=_make_rpc_result(stub_rows))
+    mock_rpc_chain = MagicMock()
+    mock_rpc_chain.execute = mock_execute
+    mock_supabase.rpc.return_value = mock_rpc_chain
 
     result = await _shared_memory_search_logic(
         client_id=client_id,
@@ -231,21 +228,32 @@ async def test_shared_memory_search_success(
     r0 = result["results"][0]
     assert r0["id"] == "fact-001"
     assert r0["entity_type"] == "client"
-    assert r0["entity_name"] == "cliente alpha"
+    assert r0["entity_name"] == "Cliente Alpha"
     assert r0["similarity"] == 0.8512
+
+    embedding_str = f"[{','.join('0.1' for _ in range(384))}]"
+    mock_supabase.rpc.assert_called_once_with(
+        "search_shared_memory",
+        {
+            "p_client_id": client_id,
+            "p_query_embed": embedding_str,
+            "p_match_count": 10,
+            "p_match_threshold": 0.3,
+            "p_entity_type": None,
+            "p_category": None,
+        },
+    )
 
 
 @pytest.mark.asyncio
-async def test_shared_memory_search_empty_results(
-    mock_cohere_embedding,
-    mock_supabase_rpc,
-):
+async def test_empty_results(mock_cohere, mock_supabase):
     """Should return empty results when RPC returns no data."""
     client_id = str(uuid.uuid4())
 
-    mock_rpc_chain = AsyncMock()
-    mock_rpc_chain.execute.return_value = _make_rpc_result([])
-    mock_supabase_rpc.rpc.return_value = mock_rpc_chain
+    mock_execute = AsyncMock(return_value=_make_rpc_result([]))
+    mock_rpc_chain = MagicMock()
+    mock_rpc_chain.execute = mock_execute
+    mock_supabase.rpc.return_value = mock_rpc_chain
 
     result = await _shared_memory_search_logic(
         client_id=client_id,
@@ -257,16 +265,14 @@ async def test_shared_memory_search_empty_results(
 
 
 @pytest.mark.asyncio
-async def test_shared_memory_search_with_filters(
-    mock_cohere_embedding,
-    mock_supabase_rpc,
-):
+async def test_with_filters(mock_cohere, mock_supabase):
     """Should pass entity_type and category filters to RPC."""
     client_id = str(uuid.uuid4())
 
-    mock_rpc_chain = AsyncMock()
-    mock_rpc_chain.execute.return_value = _make_rpc_result([])
-    mock_supabase_rpc.rpc.return_value = mock_rpc_chain
+    mock_execute = AsyncMock(return_value=_make_rpc_result([]))
+    mock_rpc_chain = MagicMock()
+    mock_rpc_chain.execute = mock_execute
+    mock_supabase.rpc.return_value = mock_rpc_chain
 
     await _shared_memory_search_logic(
         client_id=client_id,
@@ -277,7 +283,7 @@ async def test_shared_memory_search_with_filters(
         match_threshold=0.5,
     )
 
-    mock_supabase_rpc.rpc.assert_called_once_with(
+    mock_supabase.rpc.assert_called_once_with(
         "search_shared_memory",
         {
             "p_client_id": client_id,
@@ -291,31 +297,19 @@ async def test_shared_memory_search_with_filters(
 
 
 @pytest.mark.asyncio
-async def test_shared_memory_search_invalid_query(
-    mock_cohere_embedding,
-    mock_supabase_rpc,
-):
+async def test_invalid_query(mock_cohere, mock_supabase):
     """Should raise ValueError for empty/blank query."""
     client_id = str(uuid.uuid4())
 
     with pytest.raises(ValueError, match="query is required"):
-        await _shared_memory_search_logic(
-            client_id=client_id,
-            query="",
-        )
+        await _shared_memory_search_logic(client_id=client_id, query="")
 
     with pytest.raises(ValueError, match="query is required"):
-        await _shared_memory_search_logic(
-            client_id=client_id,
-            query="   ",
-        )
+        await _shared_memory_search_logic(client_id=client_id, query="   ")
 
 
 @pytest.mark.asyncio
-async def test_shared_memory_search_invalid_entity_type(
-    mock_cohere_embedding,
-    mock_supabase_rpc,
-):
+async def test_invalid_entity_type(mock_cohere, mock_supabase):
     """Should raise ValueError for invalid entity_type."""
     client_id = str(uuid.uuid4())
 
@@ -328,15 +322,13 @@ async def test_shared_memory_search_invalid_entity_type(
 
 
 @pytest.mark.asyncio
-async def test_shared_memory_search_cohere_import_error(
-    mock_supabase_rpc,
-):
+async def test_cohere_import_error(mock_supabase):
     """Should raise ToolError when blu_llm_service is not importable."""
     client_id = str(uuid.uuid4())
 
-    with patch.dict(
-        _NAMESPACE,
-        {"get_cohere_embedding_model": MagicMock(side_effect=ImportError("No module"))},
+    with patch(
+        "blu_llm_service.get_cohere_embedding_model",
+        side_effect=ImportError("No module named 'blu_llm_service'"),
     ):
         with pytest.raises(ToolError, match="blu_llm_service não disponível"):
             await _shared_memory_search_logic(
@@ -346,15 +338,13 @@ async def test_shared_memory_search_cohere_import_error(
 
 
 @pytest.mark.asyncio
-async def test_shared_memory_search_cohere_value_error(
-    mock_supabase_rpc,
-):
+async def test_cohere_missing_key(mock_supabase):
     """Should raise ToolError when CO_API_KEY is missing."""
     client_id = str(uuid.uuid4())
 
-    with patch.dict(
-        _NAMESPACE,
-        {"get_cohere_embedding_model": MagicMock(side_effect=ValueError("CO_API_KEY nao configurada"))},
+    with patch(
+        "blu_llm_service.get_cohere_embedding_model",
+        side_effect=ValueError("CO_API_KEY nao configurada"),
     ):
         with pytest.raises(ToolError, match="Configuração do Cohere ausente"):
             await _shared_memory_search_logic(
@@ -364,18 +354,16 @@ async def test_shared_memory_search_cohere_value_error(
 
 
 @pytest.mark.asyncio
-async def test_shared_memory_search_embedding_generic_failure(
-    mock_supabase_rpc,
-):
+async def test_embedding_api_failure(mock_supabase):
     """Should raise ToolError when Cohere API call fails."""
     client_id = str(uuid.uuid4())
 
     embedder = MagicMock()
     embedder.embed_query.side_effect = RuntimeError("API timeout")
 
-    with patch.dict(
-        _NAMESPACE,
-        {"get_cohere_embedding_model": MagicMock(return_value=embedder)},
+    with patch(
+        "blu_llm_service.get_cohere_embedding_model",
+        return_value=embedder,
     ):
         with pytest.raises(ToolError, match="Falha ao gerar embedding"):
             await _shared_memory_search_logic(
@@ -385,16 +373,14 @@ async def test_shared_memory_search_embedding_generic_failure(
 
 
 @pytest.mark.asyncio
-async def test_shared_memory_search_rpc_failure(
-    mock_cohere_embedding,
-    mock_supabase_rpc,
-):
+async def test_rpc_failure(mock_cohere, mock_supabase):
     """Should raise ToolError when RPC call fails."""
     client_id = str(uuid.uuid4())
 
-    mock_rpc_chain = AsyncMock()
-    mock_rpc_chain.execute.side_effect = Exception("Database connection lost")
-    mock_supabase_rpc.rpc.return_value = mock_rpc_chain
+    mock_execute = AsyncMock(side_effect=Exception("Database connection lost"))
+    mock_rpc_chain = MagicMock()
+    mock_rpc_chain.execute = mock_execute
+    mock_supabase.rpc.return_value = mock_rpc_chain
 
     with pytest.raises(ToolError, match="Falha ao buscar na memória compartilhada"):
         await _shared_memory_search_logic(
@@ -404,16 +390,14 @@ async def test_shared_memory_search_rpc_failure(
 
 
 @pytest.mark.asyncio
-async def test_shared_memory_search_rpc_returns_none_data(
-    mock_cohere_embedding,
-    mock_supabase_rpc,
-):
+async def test_rpc_returns_none_data(mock_cohere, mock_supabase):
     """Should handle None data from RPC gracefully (empty results)."""
     client_id = str(uuid.uuid4())
 
-    mock_rpc_chain = AsyncMock()
-    mock_rpc_chain.execute.return_value = _make_rpc_result(None)
-    mock_supabase_rpc.rpc.return_value = mock_rpc_chain
+    mock_execute = AsyncMock(return_value=_make_rpc_result(None))
+    mock_rpc_chain = MagicMock()
+    mock_rpc_chain.execute = mock_execute
+    mock_supabase.rpc.return_value = mock_rpc_chain
 
     result = await _shared_memory_search_logic(
         client_id=client_id,

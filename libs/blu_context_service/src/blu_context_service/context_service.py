@@ -42,6 +42,16 @@ _DOMAIN_SECTIONS: dict[str, frozenset[str]] = {
     "settings":      frozenset({"available_tools", "team_structure", "company_profile"}),
 }
 
+# Domains that consume RAG and should receive knowledge_graph_summary
+_RAG_DOMAINS: frozenset[str] = frozenset({
+    "documentos", "crm", "financeiro", "compras", "strategy",
+})
+
+# Domains that explicitly do NOT use RAG
+_NON_RAG_DOMAINS: frozenset[str] = frozenset({
+    "agenda",  # uses Google Calendar, not RAG
+})
+
 _GOOGLE_OAUTH_CONFIG_CACHE: dict[str, str] | None = None
 _GOOGLE_OAUTH_CONFIG_CACHE_EXPIRES_AT: datetime | None = None
 _GOOGLE_OAUTH_CONFIG_CACHE_TTL_SECONDS = 600
@@ -271,6 +281,12 @@ class ContextService:
         requested domain, plus the identity fields (nome_empresa, tier, id).
         Uses the cached context from get_client_context_by_id — no extra DB call.
 
+        For RAG-consuming domains (documentos, crm, financeiro, compras,
+        strategy), the projection also includes knowledge_graph_summary when
+        available in Redis (key ``ctx:{client_id}:knowledge_graph_summary``).
+        The field is omitted when the cache is empty or Redis is unreachable —
+        zero breaking change for existing flows.
+
         Args:
             domain: Specialist domain keyword (e.g. "analytics", "rfq", "rag").
                     Unknown domains include all loaded sections.
@@ -297,11 +313,84 @@ class ContextService:
             if value:
                 projection[section] = value
 
+        # --- Knowledge Graph Summary injection (for RAG domains) ---
+        domain_lower = domain.lower()
+        if domain_lower in _RAG_DOMAINS:
+            kg_cache_key = f"ctx:{client_id}:knowledge_graph_summary"
+            try:
+                kg_summary = await asyncio.to_thread(
+                    self.cache.get_json, kg_cache_key
+                )
+                if kg_summary is not None:
+                    projection["knowledge_graph_summary"] = kg_summary
+                    logger.debug(
+                        "[domain_projection] Injected KG summary for domain=%s client=%s",
+                        domain, client_id,
+                    )
+            except Exception as e:
+                logger.warning(
+                    "[domain_projection] Failed to fetch KG summary from Redis "
+                    "for client=%s: %s",
+                    client_id, e,
+                )
+
         logger.debug(
             "[domain_projection] domain=%s client=%s sections=%s",
             domain, client_id, sorted(projection.keys()),
         )
         return projection
+
+    async def get_knowledge_graph_summary(
+        self, client_id: UUID
+    ) -> "KnowledgeGraphSummary | None":
+        """Return the knowledge graph summary for a client, if available.
+
+        Extracts ``available_tools.knowledge_graph_summary`` from the cached
+        client context (no extra DB call).  Returns a typed
+        ``KnowledgeGraphSummary`` or ``None`` when the section is absent.
+
+        Args:
+            client_id: Client UUID.
+
+        Returns:
+            ``KnowledgeGraphSummary`` with aggregated graph metrics, or ``None``
+            if the context is unavailable or the section is not populated.
+        """
+        from blu_models.context_schemas import KnowledgeGraphSummary
+
+        ctx = await self.get_client_context(client_id)
+        if ctx is None:
+            logger.debug(
+                "[kg_summary] No context found for client_id=%s", client_id
+            )
+            return None
+
+        available_tools = ctx.available_tools
+        if not available_tools:
+            logger.debug(
+                "[kg_summary] available_tools is None/empty for client_id=%s",
+                client_id,
+            )
+            return None
+
+        summary_data = available_tools.get("knowledge_graph_summary")
+        if not summary_data:
+            logger.debug(
+                "[kg_summary] knowledge_graph_summary not present for client_id=%s",
+                client_id,
+            )
+            return None
+
+        try:
+            return KnowledgeGraphSummary.model_validate(summary_data)
+        except Exception as e:
+            logger.warning(
+                "[kg_summary] Failed to parse knowledge_graph_summary for "
+                "client_id=%s: %s",
+                client_id,
+                e,
+            )
+            return None
 
     # --------------------------
     # Resource caching methods

@@ -1,12 +1,21 @@
 """
-memory_module.py — Shared Business Memory Tools (T0.4)
+"""memory_module.py -- Shared Business Memory Tools (T0.4-T0.6)
 
-Registers L1 tools for interacting with the `shared_business_memory` table
-in Supabase.  Agents communicate via shared memory (not direct conversation),
-reading and writing knowledge about entities (clients, contacts, suppliers,
-users, and skill-derived facts).
+Registers L1 tools for interacting with the `shared_business_memory` and
+`shared_memory_links` tables in Supabase.  Agents communicate via shared
+memory (not direct conversation), reading and writing knowledge about
+entities (clients, contacts, suppliers, users, skill-derived facts,
+and snapshots).
 
-Design doc: docs/llm_wiki/SHARED_MEMORY_DESIGN.md (Fase 0 / T0.4)
+Tools registered:
+  - shared_memory_list    -> list entities with memory entries
+  - shared_memory_read    -> read a single fact by composite key
+  - shared_memory_upsert  -> insert or update a fact (versioned)
+  - shared_memory_link    -> create semantic link between entities
+  - shared_memory_unlink  -> remove a link by id
+  - shared_memory_get_links -> query links by entity and/or type
+
+Design doc: docs/llm_wiki/SHARED_MEMORY_DESIGN.md (Fase 0)
 """
 
 import json
@@ -23,7 +32,7 @@ from . import register_module
 logger = logging.getLogger(__name__)
 
 _VALID_ENTITY_TYPES: frozenset[str] = frozenset(
-    {"skill", "client", "contact", "supplier", "user"}
+    {"skill", "client", "contact", "supplier", "user", "snapshot"}
 )
 
 _TABLE = "shared_business_memory"
@@ -112,6 +121,147 @@ async def _shared_memory_list_logic(
 
 
 # ---------------------------------------------------------------------------
+# Read business logic
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_read_logic(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    key: str,
+) -> dict:
+    """
+    Read a single shared-memory fact by its composite key
+    (client_id, entity_type, entity_name, key).
+
+    Returns the full record or raises ValueError if not found.
+    """
+    _validate_entity_type(entity_type)
+    entity_name = _normalize_entity_name(entity_name)
+    key = key.strip().lower()
+
+    if not entity_name or not key:
+        raise ValueError("entity_name and key are required")
+
+    db = await get_supabase_client()
+
+    result = await (
+        db.schema("public")
+        .table(_TABLE)
+        .select("*")
+        .eq("client_id", client_id)
+        .eq("entity_type", entity_type)
+        .eq("entity_name", entity_name)
+        .eq("key", key)
+        .maybe_single()
+        .execute()
+    )
+
+    row = result.data
+    if not row:
+        raise ValueError(
+            f"Memory entry not found: {entity_type}:{entity_name}/{key}"
+        )
+
+    return {
+        "id": row["id"],
+        "client_id": row["client_id"],
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "key": row["key"],
+        "value": row["value"],
+        "source": row["source"],
+        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+        "version": row.get("version", 1),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Upsert business logic
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_upsert_logic(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    key: str,
+    body: dict,
+    frontmatter: dict | None = None,
+    source: str = "manual",
+    confidence: float = 1.0,
+) -> dict:
+    """
+    Insert or update a shared-memory fact.
+
+    Uses INSERT ... ON CONFLICT (client_id, entity_type, entity_name, key)
+    DO UPDATE with version = version + 1.
+
+    body maps to the ``value`` column (the actual fact content).
+    frontmatter maps to the ``metadata`` column (provenance/context).
+    """
+    _validate_entity_type(entity_type)
+    entity_name = _normalize_entity_name(entity_name)
+    key = key.strip().lower()
+
+    if not entity_name or not key:
+        raise ValueError("entity_name and key are required")
+    if not isinstance(body, dict):
+        raise ValueError("body must be a dict")
+
+    db = await get_supabase_client()
+
+    payload = {
+        "client_id": client_id,
+        "entity_type": entity_type,
+        "entity_name": entity_name,
+        "key": key,
+        "value": body,
+        "metadata": frontmatter if frontmatter is not None else {},
+        "source": source if source in (
+            "manual", "memory_agent", "specialist", "migration", "system"
+        ) else "manual",
+        "confidence": confidence,
+    }
+
+    try:
+        result = await (
+            db.schema("public")
+            .table(_TABLE)
+            .upsert(
+                payload,
+                on_conflict="client_id,entity_type,entity_name,key",
+                default_to_null=False,
+            )
+            .execute()
+        )
+    except Exception as exc:
+        raise RuntimeError(f"Failed to upsert shared-memory entry: {exc}")
+
+    row = result.data[0] if result.data else None
+    if not row:
+        raise RuntimeError("Failed to upsert memory entry --  no data returned")
+
+    return {
+        "id": row["id"],
+        "client_id": row["client_id"],
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "key": row["key"],
+        "value": row["value"],
+        "metadata": row.get("metadata", {}),
+        "source": row["source"],
+        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+        "version": row.get("version", 1),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+# ---------------------------------------------------------------------------
 # Link business logic
 # ---------------------------------------------------------------------------
 
@@ -175,14 +325,14 @@ async def _shared_memory_link_logic(
             raise ValueError(
                 f"Link already exists: "
                 f"{source_entity_type}:{source_entity_name} "
-                f"─[{link_type}]→ "
+                f"─[{link_type}]-> "
                 f"{target_entity_type}:{target_entity_name}"
             )
         raise
 
     row = result.data[0] if result.data else None
     if not row:
-        raise RuntimeError("Failed to create link — no data returned")
+        raise RuntimeError("Failed to create link --  no data returned")
 
     return {
         "id": row["id"],
@@ -241,13 +391,13 @@ async def _shared_memory_get_links_logic(
 
     Args:
         client_id: Client UUID.
-        entity_type: Optional filter — only links involving this entity type.
-        entity_name: Optional filter — only links involving this entity name.
-        link_type: Optional filter — only links of this type.
+        entity_type: Optional filter --  only links involving this entity type.
+        entity_name: Optional filter --  only links involving this entity name.
+        link_type: Optional filter --  only links of this type.
         direction:
-            "outgoing" — links where entity is the source
-            "incoming" — links where entity is the target
-            "both" — both directions (default)
+            "outgoing" --  links where entity is the source
+            "incoming" --  links where entity is the target
+            "both" --  both directions (default)
 
     Returns outgoing, incoming, and summary counts.
     """
@@ -344,7 +494,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         List all entities with shared-memory entries for this client.
 
         Args:
-            entity_type: Optional filter — "skill", "client",
+            entity_type: Optional filter --  "skill", "client",
                          "contact", "supplier", or "user".
                          When omitted all entity types are returned.
 
@@ -354,7 +504,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         """
         if not client_id:
             raise ToolError(
-                "client_id is required — authentication context missing"
+                "client_id is required --  authentication context missing"
             )
 
         logger.info(
@@ -382,7 +532,155 @@ def register_tools(mcp: FastMCP) -> list[str]:
     registered_tools.append("shared_memory_list")
 
     # ----------------------------------------------------------------------
-    # shared_memory_link — create a semantic link between entities
+    # shared_memory_read --  read a single fact by composite key
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_read",
+        description=(
+            "[Shared Memory] Read a single fact from shared memory by its "
+            "composite key (client_id, entity_type, entity_name, key). "
+            "Valid entity types: skill | client | contact | supplier | user | snapshot. "
+            "Returns the full record including value, metadata, version, and timestamps."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_read(
+        ctx: Context,
+        entity_type: str,
+        entity_name: str,
+        key: str,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Read a single shared-memory fact by its composite key.
+
+        Args:
+            entity_type: Entity type (skill | client | contact | supplier | user | snapshot).
+            entity_name: Entity name (case-insensitive, normalized to lowercase).
+            key: Fact key (e.g. "tom_amigavel", "preferencia_horario").
+
+        Returns:
+            dict with the full record: id, client_id, entity_type, entity_name,
+            key, value, source, confidence, version, created_at, updated_at.
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required --  authentication context missing"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_read "
+            "entity_type=%s entity_name=%s key=%s client_id=%s",
+            entity_type,
+            entity_name,
+            key,
+            client_id,
+        )
+
+        try:
+            return await _shared_memory_read_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                key=key,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_read failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to read shared-memory entry: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_read' registered.")
+    registered_tools.append("shared_memory_read")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_upsert --  insert or update a fact
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_upsert",
+        description=(
+            "[Shared Memory] Insert or update a fact in shared memory. "
+            "Uses upsert semantics: creates a new row if the composite key "
+            "(client_id, entity_type, entity_name, key) doesn't exist, "
+            "or updates the existing row (incrementing version). "
+            "body maps to the 'value' column (the fact content); "
+            "frontmatter maps to the 'metadata' column (provenance). "
+            "Valid entity types: skill | client | contact | supplier | user | snapshot."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_upsert(
+        ctx: Context,
+        entity_type: str,
+        entity_name: str,
+        key: str,
+        body: dict,
+        frontmatter: dict | None = None,
+        source: str = "manual",
+        confidence: float = 1.0,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Insert or update a shared-memory fact.
+
+        Args:
+            entity_type: Entity type (skill | client | contact | supplier | user | snapshot).
+            entity_name: Entity name (case-insensitive, normalized to lowercase).
+            key: Fact key (e.g. "tom_amigavel", "preferencia_horario").
+            body: The fact value (dict --  maps to 'value' column).
+            frontmatter: Optional metadata dict (maps to 'metadata' column).
+            source: Provenance --  "manual" | "memory_agent" | "specialist" | "migration" | "system".
+            confidence: Confidence score (0.0--1.0, default 1.0).
+
+        Returns:
+            dict with the full upserted record including version.
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required --  authentication context missing"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_upsert "
+            "entity_type=%s entity_name=%s key=%s client_id=%s",
+            entity_type,
+            entity_name,
+            key,
+            client_id,
+        )
+
+        try:
+            return await _shared_memory_upsert_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                key=key,
+                body=body,
+                frontmatter=frontmatter,
+                source=source,
+                confidence=confidence,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_upsert failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to upsert shared-memory entry: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_upsert' registered.")
+    registered_tools.append("shared_memory_upsert")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_link --  create a semantic link between entities
     # ----------------------------------------------------------------------
 
     @mcp.tool(
@@ -415,9 +713,9 @@ def register_tools(mcp: FastMCP) -> list[str]:
             source_entity_name: Name of the source entity (case-insensitive, normalized to lowercase).
             target_entity_type: Entity type of the target (skill | client | contact | supplier | user).
             target_entity_name: Name of the target entity (case-insensitive).
-            link_type: Relationship label — e.g. "works_for", "applies_to", "prefers".
-            source: Origin of the link — "manual" | "memory_agent" | "specialist" | "migration" | "system".
-            confidence: Confidence score (0.0–1.0, default 1.0).
+            link_type: Relationship label --  e.g. "works_for", "applies_to", "prefers".
+            source: Origin of the link --  "manual" | "memory_agent" | "specialist" | "migration" | "system".
+            confidence: Confidence score (0.0--1.0, default 1.0).
             metadata: Optional JSON string with extra link metadata.
 
         Returns:
@@ -425,7 +723,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         """
         if not client_id:
             raise ToolError(
-                "client_id is required — authentication context missing"
+                "client_id is required --  authentication context missing"
             )
 
         parsed_metadata: dict | None = None
@@ -472,7 +770,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
     registered_tools.append("shared_memory_link")
 
     # ----------------------------------------------------------------------
-    # shared_memory_unlink — remove a semantic link by id
+    # shared_memory_unlink --  remove a semantic link by id
     # ----------------------------------------------------------------------
 
     @mcp.tool(
@@ -499,7 +797,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         """
         if not client_id:
             raise ToolError(
-                "client_id is required — authentication context missing"
+                "client_id is required --  authentication context missing"
             )
 
         logger.info(
@@ -527,7 +825,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
     registered_tools.append("shared_memory_unlink")
 
     # ----------------------------------------------------------------------
-    # shared_memory_get_links — query links by entity and/or type
+    # shared_memory_get_links --  query links by entity and/or type
     # ----------------------------------------------------------------------
 
     @mcp.tool(
@@ -552,9 +850,9 @@ def register_tools(mcp: FastMCP) -> list[str]:
         Query semantic links between entities.
 
         Args:
-            entity_type: Optional — filter links involving this entity type.
-            entity_name: Optional — filter links involving this entity name.
-            link_type: Optional — filter links of this type (e.g. "works_for").
+            entity_type: Optional --  filter links involving this entity type.
+            entity_name: Optional --  filter links involving this entity name.
+            link_type: Optional --  filter links of this type (e.g. "works_for").
             direction: "outgoing" | "incoming" | "both" (default).
 
         Returns:
@@ -562,7 +860,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         """
         if not client_id:
             raise ToolError(
-                "client_id is required — authentication context missing"
+                "client_id is required --  authentication context missing"
             )
 
         if direction not in ("outgoing", "incoming", "both"):

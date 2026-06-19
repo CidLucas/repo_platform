@@ -80,6 +80,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
         web_monitor_module,
         slack_module,  # noqa: F401
         memory_module,
+        memory_pre_flight_module,
     )
 
     # Optional chart module
@@ -328,6 +329,13 @@ AVAILABLE_MODULES = {
             "shared_memory_link",
             "shared_memory_unlink",
             "shared_memory_get_links",
+        ],
+        "requires_auth": True,
+    },
+    "memory_pre_flight": {
+        "description": "Pre-flight shared memory context — reads recent agent execution history from shared_business_memory",
+        "tools": [
+            "shared_memory_pre_flight",
         ],
         "requires_auth": True,
     },

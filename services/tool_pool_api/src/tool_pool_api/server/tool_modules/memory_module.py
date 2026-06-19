@@ -11,6 +11,7 @@ Tools registered:
   - shared_memory_read    -> read a single fact by composite key
   - shared_memory_upsert  -> insert or update a fact (versioned)
   - shared_memory_write   -> write a new fact (strict INSERT; supersede=True to upsert)
+  - shared_memory_search  -> semantic vector search via Cohere embeddings (T3.1c)
   - shared_memory_link    -> create semantic link between entities
   - shared_memory_unlink  -> remove a link by id
   - shared_memory_get_links -> query links by entity and/or type
@@ -27,6 +28,7 @@ from fastmcp.exceptions import ToolError
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_supabase_client import get_supabase_client
 
+from tool_pool_api.server.dependencies import get_context_service
 from blu_context_service.context_schemas import _SNAPSHOT_DIMENSION_FIELDS
 
 from . import register_module
@@ -34,11 +36,51 @@ from . import register_module
 logger = logging.getLogger(__name__)
 
 _VALID_ENTITY_TYPES: frozenset[str] = frozenset(
-    {"skill", "client", "contact", "supplier", "user", "snapshot"}
+    {"skill", "client", "contact", "supplier", "user", "snapshot", "routine",
+     "agent_result", "agent_metadata"}
 )
 
 _TABLE = "shared_business_memory"
 _LINKS_TABLE = "shared_memory_links"
+
+# ---------------------------------------------------------------------------
+# Category constants (for shared_memory_write)
+# ---------------------------------------------------------------------------
+
+_VALID_CATEGORIES: frozenset[str] = frozenset({
+    "knowledge", "rag", "documents", "memory-agent",
+    "context", "decision", "preference",
+})
+
+# ---------------------------------------------------------------------------
+# TTL tier constants (Fase 4 — T4.4c)
+# ---------------------------------------------------------------------------
+
+_VALID_TTL_TIERS: frozenset[str] = frozenset({
+    "curated", "migration", "specialist",
+    "memory_agent_hi", "memory_agent_lo",
+})
+
+# Interval mapping: tier → soft_delete_at offset (in days)
+# curated = None means never expires
+_TTL_TIER_INTERVALS: dict[str, int | None] = {
+    "curated": None,          # Never expires
+    "migration": 90,          # +90 days
+    "specialist": 30,         # +30 days
+    "memory_agent_hi": 14,    # +14 days
+    "memory_agent_lo": 7,     # +7 days
+}
+
+# Archival period: hard_delete_at = soft_delete_at + 90 days
+_ARCHIVAL_PERIOD_DAYS: int = 90
+
+# Default TTL tier inference from source
+_SOURCE_TTL_DEFAULTS: dict[str, str] = {
+    "curated": "curated",
+    "migration": "migration",
+    "specialist": "specialist",
+    "memory_agent": "memory_agent_lo",
+}
 
 # ---------------------------------------------------------------------------
 # Snapshot constants (T2.2a + T2.2b)
@@ -294,6 +336,71 @@ def _validate_snapshot_body(
 
 
 # ---------------------------------------------------------------------------
+# TTL lifecycle helper (Fase 4 — T4.4c)
+# ---------------------------------------------------------------------------
+
+
+def _compute_ttl_columns(
+    ttl_tier: str | None = None,
+    source: str = "manual",
+) -> dict:
+    """Compute soft_delete_at and hard_delete_at based on ttl_tier.
+
+    If ttl_tier is provided, validate and use its interval.
+    If not provided, infer default from source.
+
+    Returns a dict with keys: soft_delete_at, hard_delete_at, ttl_tier.
+    Values are ISO-format datetime strings or None.
+    For 'curated' tier, both are None (never expires).
+
+    Raises ValueError for invalid ttl_tier.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    # Resolve tier: explicit > source default
+    if ttl_tier is not None:
+        tier = ttl_tier.strip().lower()
+    else:
+        tier = _SOURCE_TTL_DEFAULTS.get(source)
+        if tier is None:
+            # Unknown source — conservative default: specialist (30d)
+            logger.warning(
+                "[memory_module] Unknown source '%s' for TTL tier inference, "
+                "defaulting to 'specialist' (30d).",
+                source,
+            )
+            tier = "specialist"
+
+    # Validate against enum
+    if tier not in _VALID_TTL_TIERS:
+        raise ValueError(
+            f"Invalid ttl_tier '{tier}'. "
+            f"Must be one of: {sorted(_VALID_TTL_TIERS)}"
+        )
+
+    # Compute intervals
+    interval_days = _TTL_TIER_INTERVALS[tier]
+
+    if interval_days is None:
+        # curated — never expires
+        return {
+            "soft_delete_at": None,
+            "hard_delete_at": None,
+            "ttl_tier": tier,
+        }
+
+    now = datetime.now(timezone.utc)
+    soft = now + timedelta(days=interval_days)
+    hard = now + timedelta(days=interval_days + _ARCHIVAL_PERIOD_DAYS)
+
+    return {
+        "soft_delete_at": soft.isoformat(),
+        "hard_delete_at": hard.isoformat(),
+        "ttl_tier": tier,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Business logic
 # ---------------------------------------------------------------------------
 
@@ -409,6 +516,10 @@ async def _shared_memory_read_logic(
         "source": row["source"],
         "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
         "version": row.get("version", 1),
+        "ttl_tier": row.get("ttl_tier"),
+        "soft_delete_at": row.get("soft_delete_at"),
+        "hard_delete_at": row.get("hard_delete_at"),
+        "archived": row.get("archived", False),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -428,15 +539,26 @@ async def _shared_memory_upsert_logic(
     frontmatter: dict | None = None,
     source: str = "manual",
     confidence: float = 1.0,
+    ttl_tier: str | None = None,
 ) -> dict:
     """
     Insert or update a shared-memory fact.
 
-    Uses INSERT ... ON CONFLICT (client_id, entity_type, entity_name, key)
-    DO UPDATE with version = version + 1.
+    If an existing row is found, its current state is archived to
+    ``shared_business_memory_versions`` before the update, and the version
+    number is incremented.  Uses INSERT ... ON CONFLICT (client_id,
+    entity_type, entity_name, key) DO UPDATE.
 
     body maps to the ``value`` column (the actual fact content).
     frontmatter maps to the ``metadata`` column (provenance/context).
+
+    Fase 4 (T4.4c): ttl_tier controls retention policy:
+      - curated        → never expires (soft_delete_at = NULL)
+      - migration      → soft-delete after 90d
+      - specialist     → soft-delete after 30d
+      - memory_agent_hi → soft-delete after 14d
+      - memory_agent_lo → soft-delete after 7d
+    If ttl_tier is not provided, inferred from source.
     """
     _validate_entity_type(entity_type)
     entity_name = _normalize_entity_name(entity_name)
@@ -458,6 +580,25 @@ async def _shared_memory_upsert_logic(
 
     db = await get_supabase_client()
 
+    # ── Compute TTL lifecycle columns (Fase 4 — T4.4c) ──────────
+    ttl_info = _compute_ttl_columns(ttl_tier=ttl_tier, source=source)
+
+    # ── Archive current version before overwriting (T5.3) ──────────
+    from .version_module import _archive_memory_version as _archive_version
+
+    archive_result = await _archive_version(
+        client_id=client_id,
+        entity_type=entity_type,
+        entity_name=entity_name,
+        key=key,
+    )
+
+    new_version = (
+        archive_result["archived_version"] + 1
+        if archive_result is not None
+        else 1
+    )
+
     payload = {
         "client_id": client_id,
         "entity_type": entity_type,
@@ -469,6 +610,10 @@ async def _shared_memory_upsert_logic(
             "manual", "memory_agent", "specialist", "migration", "system"
         ) else "manual",
         "confidence": confidence,
+        "version": new_version,
+        "ttl_tier": ttl_info["ttl_tier"],
+        "soft_delete_at": ttl_info["soft_delete_at"],
+        "hard_delete_at": ttl_info["hard_delete_at"],
     }
 
     try:
@@ -478,7 +623,7 @@ async def _shared_memory_upsert_logic(
             .upsert(
                 payload,
                 on_conflict="client_id,entity_type,entity_name,key",
-                default_to_null=False,
+                default_to_null=True,
             )
             .execute()
         )
@@ -500,6 +645,134 @@ async def _shared_memory_upsert_logic(
         "source": row["source"],
         "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
         "version": row.get("version", 1),
+        "ttl_tier": row.get("ttl_tier"),
+        "soft_delete_at": row.get("soft_delete_at"),
+        "hard_delete_at": row.get("hard_delete_at"),
+        "archived": row.get("archived", False),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Write business logic (Fase 4 — T4.4c: ttl_tier support)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_write_logic(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    key: str,
+    value: dict,
+    category: str | None = None,
+    agent_id: str | None = None,
+    ttl: int | None = None,
+    priority: int | None = None,
+    supersede: bool = False,
+    source: str = "manual",
+    confidence: float = 1.0,
+    ttl_tier: str | None = None,
+) -> dict:
+    """
+    Write a new shared-memory fact (strict INSERT by default).
+
+    If supersede=True, delegates to _shared_memory_upsert_logic.
+    Otherwise, performs a strict INSERT that fails on duplicate keys.
+
+    Fase 4 (T4.4c): ttl_tier controls retention policy.
+    If ttl_tier is not provided, inferred from source.
+    """
+    _validate_entity_type(entity_type)
+    entity_name = _normalize_entity_name(entity_name)
+    key = key.strip().lower()
+
+    if not entity_name or not key:
+        raise ValueError("entity_name and key are required")
+    if not isinstance(value, dict):
+        raise ValueError("value must be a dict")
+
+    # If supersede, delegate to upsert (which handles TTL too)
+    if supersede:
+        return await _shared_memory_upsert_logic(
+            client_id=client_id,
+            entity_type=entity_type,
+            entity_name=entity_name,
+            key=key,
+            body=value,
+            frontmatter={},
+            source=source,
+            confidence=confidence,
+            ttl_tier=ttl_tier,
+        )
+
+    # Strict INSERT path — compute TTL lifecycle columns
+    ttl_info = _compute_ttl_columns(ttl_tier=ttl_tier, source=source)
+
+    # Build metadata from optional fields
+    metadata: dict = {}
+    if category:
+        metadata["category"] = category
+    if agent_id:
+        metadata["agent_id"] = agent_id
+    if ttl is not None:
+        metadata["ttl"] = ttl
+    if priority is not None:
+        metadata["priority"] = priority
+
+    db = await get_supabase_client()
+
+    payload = {
+        "client_id": client_id,
+        "entity_type": entity_type,
+        "entity_name": entity_name,
+        "key": key,
+        "value": value,
+        "metadata": metadata,
+        "source": source if source in (
+            "manual", "memory_agent", "specialist", "migration", "system"
+        ) else "manual",
+        "confidence": confidence,
+        "ttl_tier": ttl_info["ttl_tier"],
+        "soft_delete_at": ttl_info["soft_delete_at"],
+        "hard_delete_at": ttl_info["hard_delete_at"],
+    }
+
+    try:
+        result = await (
+            db.schema("public")
+            .table(_TABLE)
+            .insert(payload)
+            .execute()
+        )
+    except Exception as exc:
+        err_str = str(exc).lower()
+        if "duplicate key" in err_str or "unique" in err_str:
+            raise ValueError(
+                f"Fact already exists: {entity_type}:{entity_name}/{key}. "
+                f"Use supersede=true to overwrite."
+            )
+        raise RuntimeError(f"Failed to write shared-memory entry: {exc}")
+
+    row = result.data[0] if result.data else None
+    if not row:
+        raise RuntimeError("Failed to write memory entry — no data returned")
+
+    return {
+        "id": row["id"],
+        "client_id": row["client_id"],
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "key": row["key"],
+        "value": row["value"],
+        "metadata": row.get("metadata", {}),
+        "source": row["source"],
+        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+        "version": row.get("version", 1),
+        "ttl_tier": row.get("ttl_tier"),
+        "soft_delete_at": row.get("soft_delete_at"),
+        "hard_delete_at": row.get("hard_delete_at"),
+        "archived": row.get("archived", False),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -707,6 +980,110 @@ async def _shared_memory_get_links_logic(
 
 
 # ---------------------------------------------------------------------------
+# Vector search business logic (T3.1c)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_search_logic(
+    client_id: str,
+    query: str,
+    entity_type: str | None = None,
+    category: str | None = None,
+    match_count: int = 10,
+    match_threshold: float = 0.3,
+) -> dict:
+    """
+    Busca vetorial na shared_business_memory.
+
+    1. Gera embedding da query via Cohere embed-multilingual-light-v3.0
+    2. Chama RPC public.search_shared_memory()
+    3. Retorna resultados com similarity scores
+
+    Args:
+        client_id: UUID do cliente
+        query: Texto de busca em linguagem natural
+        entity_type: Filtrar por tipo de entidade (opcional)
+        category: Filtrar por categoria semântica (opcional)
+        match_count: Máximo de resultados (default 10)
+        match_threshold: Similaridade mínima (default 0.3)
+
+    Returns:
+        dict com query, total_results e results ordenados por similarity.
+
+    Raises:
+        ToolError: Se Cohere não disponível ou query embedding falhar.
+    """
+    if not query or not query.strip():
+        raise ValueError("query is required and cannot be empty")
+
+    if entity_type is not None:
+        _validate_entity_type(entity_type)
+
+    # 1. Gerar embedding da query via Cohere
+    try:
+        from blu_llm_service import get_cohere_embedding_model
+        embedder = get_cohere_embedding_model()
+        query_embedding = embedder.embed_query(query.strip())
+        embedding_str = f"[{','.join(str(v) for v in query_embedding)}]"
+    except ImportError:
+        raise ToolError(
+            "blu_llm_service não disponível para embedding vetorial. "
+            "Verifique se o pacote está instalado."
+        )
+    except ValueError as exc:
+        raise ToolError(
+            f"Configuração do Cohere ausente: {exc}. "
+            "Configure CO_API_KEY no ambiente."
+        )
+    except Exception as exc:
+        raise ToolError(f"Falha ao gerar embedding da query: {exc}")
+
+    # 2. Chamar RPC search_shared_memory
+    db = await get_supabase_client()
+    try:
+        result = await db.rpc(
+            "search_shared_memory",
+            {
+                "p_client_id": client_id,
+                "p_query_embed": embedding_str,
+                "p_match_count": match_count,
+                "p_match_threshold": match_threshold,
+                "p_entity_type": entity_type,
+                "p_category": category,
+            },
+        ).execute()
+    except Exception as exc:
+        logger.error(
+            "[memory_module] RPC search_shared_memory failed: %s", exc
+        )
+        raise ToolError(
+            f"Falha ao buscar na memória compartilhada: {exc}"
+        )
+
+    # 3. Formatar resultado
+    rows = result.data or []
+    formatted_results = []
+    for r in rows:
+        formatted_results.append({
+            "id": r["id"],
+            "entity_type": r["entity_type"],
+            "entity_name": r["entity_name"],
+            "key": r["key"],
+            "value": r["value"],
+            "category": r.get("category"),
+            "source": r.get("source"),
+            "confidence": float(r.get("confidence", 1.0)),
+            "similarity": round(float(r["similarity"]), 4),
+        })
+
+    return {
+        "query": query,
+        "total_results": len(formatted_results),
+        "results": formatted_results,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Tool registration
 # ---------------------------------------------------------------------------
 
@@ -868,6 +1245,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         frontmatter: dict | None = None,
         source: str = "manual",
         confidence: float = 1.0,
+        ttl_tier: str | None = None,
         client_id: str | None = None,
     ) -> dict:
         """
@@ -881,6 +1259,8 @@ def register_tools(mcp: FastMCP) -> list[str]:
             frontmatter: Optional metadata dict (maps to 'metadata' column).
             source: Provenance --  "manual" | "memory_agent" | "specialist" | "migration" | "system".
             confidence: Confidence score (0.0--1.0, default 1.0).
+            ttl_tier: Optional retention tier — "curated" | "migration" | "specialist" |
+                     "memory_agent_hi" | "memory_agent_lo". If omitted, inferred from source.
 
         Returns:
             dict with the full upserted record including version.
@@ -909,6 +1289,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
                 frontmatter=frontmatter,
                 source=source,
                 confidence=confidence,
+                ttl_tier=ttl_tier,
             )
         except ValueError as exc:
             raise ToolError(str(exc))
@@ -956,6 +1337,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         supersede: bool = False,
         source: str = "manual",
         confidence: float = 1.0,
+        ttl_tier: str | None = None,
         client_id: str | None = None,
     ) -> dict:
         """
@@ -973,6 +1355,8 @@ def register_tools(mcp: FastMCP) -> list[str]:
             supersede: If True, upsert to overwrite an existing entry. Default False (strict insert).
             source: Provenance — "manual" | "memory_agent" | "specialist" | "migration" | "system".
             confidence: Confidence score (0.0--1.0, default 1.0).
+            ttl_tier: Optional retention tier — "curated" | "migration" | "specialist" |
+                     "memory_agent_hi" | "memory_agent_lo". If omitted, inferred from source.
 
         Returns:
             dict with the full written record including id, version, and timestamps.
@@ -1023,6 +1407,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
                 supersede=supersede,
                 source=source,
                 confidence=confidence,
+                ttl_tier=ttl_tier,
             )
         except ValueError as exc:
             raise ToolError(str(exc))
@@ -1258,5 +1643,133 @@ def register_tools(mcp: FastMCP) -> list[str]:
         "[Memory Module] Tool 'shared_memory_get_links' registered."
     )
     registered_tools.append("shared_memory_get_links")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_search -- semantic vector search in shared business memory
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_search",
+        description=(
+            "[Shared Memory] Semantic (vector) search in shared business memory. "
+            "Use this to find facts about business entities by meaning, not exact keywords. "
+            "The query is embedded with Cohere (embed-multilingual-light-v3.0, 384 dims) "
+            "and matched against stored facts using cosine similarity via pgvector HNSW index. "
+            "Parameters: query (natural language search text), entity_type (optional filter "
+            "by entity type: skill|client|contact|supplier|user|snapshot|routine|agent_result|"
+            "agent_metadata), category (optional filter by semantic category), match_count "
+            "(max results, default 10), match_threshold (minimum similarity 0.0-1.0, default 0.3). "
+            "Returns facts ranked by similarity score. Use this when you need to find business "
+            "knowledge semantically, e.g., 'which clients prefer communication via WhatsApp' "
+            "or 'what are the key facts about supplier Distribuidora X'."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_search(
+        ctx: Context,
+        query: str,
+        entity_type: str | None = None,
+        category: str | None = None,
+        match_count: int = 10,
+        match_threshold: float = 0.3,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Search shared business memory using semantic (vector) similarity.
+
+        Generates a Cohere embedding for the query text and matches it against
+        stored fact embeddings via the pgvector HNSW index in shared_business_memory.
+
+        Args:
+            query: Natural language search text describing what you're looking for.
+                   Write it as a question or description, e.g.:
+                   - "preferências de comunicação dos clientes"
+                   - "fornecedores com contrato vigente"
+                   - "faturamento mensal dos últimos 6 meses"
+                   - "clientes com tom amigável"
+            entity_type: Optional filter. Only return facts of this entity type.
+                         Valid: skill, client, contact, supplier, user, snapshot,
+                         routine, agent_result, agent_metadata.
+            category: Optional filter by semantic category.
+            match_count: Maximum number of results to return (default 10, max 50).
+            match_threshold: Minimum similarity score 0.0--1.0 (default 0.3).
+                             Lower values return more but less relevant results.
+
+        Returns:
+            dict with:
+            - query: The original search text
+            - total_results: Number of matching facts found
+            - results: Array of facts ordered by similarity (descending).
+              Each fact has: id, entity_type, entity_name, key, value,
+              category, source, confidence, similarity.
+
+        Examples:
+            >>> # Find all communication preferences
+            >>> shared_memory_search(query="preferências de comunicação dos clientes")
+
+            >>> # Find financial data about a specific supplier
+            >>> shared_memory_search(
+            ...     query="dados financeiros e contratos",
+            ...     entity_type="supplier",
+            ...     match_count=5,
+            ... )
+
+            >>> # Find snapshot data with stricter threshold
+            >>> shared_memory_search(
+            ...     query="resumo financeiro mensal",
+            ...     entity_type="snapshot",
+            ...     match_threshold=0.5,
+            ... )
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        if match_count < 1 or match_count > 50:
+            raise ToolError(
+                "match_count must be between 1 and 50"
+            )
+
+        if match_threshold < 0.0 or match_threshold > 1.0:
+            raise ToolError(
+                "match_threshold must be between 0.0 and 1.0"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_search "
+            "query='%s' entity_type=%s category=%s "
+            "match_count=%d match_threshold=%.2f client_id=%s",
+            query[:80],
+            entity_type,
+            category,
+            match_count,
+            match_threshold,
+            client_id,
+        )
+
+        try:
+            return await _shared_memory_search_logic(
+                client_id=client_id,
+                query=query,
+                entity_type=entity_type,
+                category=category,
+                match_count=match_count,
+                match_threshold=match_threshold,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except ToolError:
+            raise
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_search failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to search shared memory: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_search' registered.")
+    registered_tools.append("shared_memory_search")
 
     return registered_tools

@@ -1,0 +1,124 @@
+{
+  "issue_number": 19,
+  "title": "Fase 1 — Hook de handoff entre agentes na shared memory",
+  "scope": "Implementar o hook de handoff entre agentes na shared memory (T1.3 do roadmap blu-intelligent-memory.md). O hook é a camada de integração que: (1) permite agentes lerem (shared_memory_read) e escreverem (shared_memory_write) na shared_business_memory antes/depois de um handoff, (2) busca memórias textualmente (shared_memory_search), (3) confirma memórias (confirm_memory_item), (4) carrega contexto da shared memory no agente destino após roteamento via route_to_specialist. Inclui documentação completa em SHARED_MEMORY_DESIGN.md.",
+  "design_reference": "docs/roadmap/blu-intelligent-memory.md — Fase 1, T1.3 (Context Service 2.0: schemas enriquecidos). Princípio arquitetural: agentes comunicam via shared memory, não por conversa direta (AGENT_SYSTEM.md). Precedentes: T0.4 já implementou 4 tools (list, link, unlink, get_links) + migrations shared_business_memory e shared_memory_links.",
+  "affected_files": [
+    "docs/llm_wiki/SHARED_MEMORY_DESIGN.md",
+    "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py",
+    "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_handoff_hook.py",
+    "services/tool_pool_api/src/tool_pool_api/server/tool_modules/__init__.py",
+    "libs/blu_agent_framework/src/blu_agent_framework/handoff/handoff_hook.py",
+    "libs/blu_agent_framework/src/blu_agent_framework/handoff/shared_memory_context.py",
+    "docs/system_reference/TOOL_INVENTORY.md",
+    "docs/system_reference/AGENT_SYSTEM.md"
+  ],
+  "subtasks": [
+    {
+      "id": "T1.3.1",
+      "name": "Criar docs/llm_wiki/SHARED_MEMORY_DESIGN.md",
+      "description": "Escrever o documento de design completo da shared memory cobrindo: visão geral (agentes comunicam via shared memory, não conversa direta), schema shared_business_memory, schema shared_memory_links, taxonomy de entity_type, ferramentas L1 atuais (list, link, unlink, get_links) e novas (read, write, search, confirm), seção T1.3 do handoff hook, seção de Entity Linking (auto-links), e decisões de design com ADRs.",
+      "effort": "large"
+    },
+    {
+      "id": "T1.3.2",
+      "name": "L1 Tool: shared_memory_read",
+      "description": "Criar tool shared_memory_read no memory_module.py: busca todos os fatos (keys + values) de uma entidade (entity_type + entity_name) para um client_id. Retorna dict com entity_type, entity_name, keys (array de {key, value, source, confidence, curated, created_at, updated_at}).",
+      "effort": "medium"
+    },
+    {
+      "id": "T1.3.3",
+      "name": "L1 Tool: shared_memory_write",
+      "description": "Criar tool shared_memory_write no memory_module.py: upsert de um fato na shared_business_memory. Parâmetros: client_id, entity_type, entity_name, key, value (JSONB), source, confidence. ON CONFLICT DO UPDATE. Incluir flag opcional auto_link: bool = True para trigger de auto-linking.",
+      "effort": "medium"
+    },
+    {
+      "id": "T1.3.4",
+      "name": "L1 Tool: shared_memory_search",
+      "description": "Criar tool shared_memory_search: busca textual via ILIKE/trigram nas entity_name e key da shared_business_memory. Parâmetros: client_id, query, entity_type (opcional), limit (default 10).",
+      "effort": "medium"
+    },
+    {
+      "id": "T1.3.5",
+      "name": "L1 Tool: confirm_memory_item",
+      "description": "Criar tool confirm_memory_item: marca uma memória como curated=true por memory_id. Valida que a memória pertence ao client_id.",
+      "effort": "small"
+    },
+    {
+      "id": "T1.3.6",
+      "name": "Handoff Hook — lib de integração pós-handoff",
+      "description": "Criar libs/blu_agent_framework/src/blu_agent_framework/handoff/ com: (1) handoff_hook.py — hook chamado após route_to_specialist completar, extrai learning notes e escreve na shared memory, (2) shared_memory_context.py — carrega shared_memory_read no contexto do agente destino, (3) __init__.py — exports. Conecta o MCP tool pool ao framework de agentes.",
+      "effort": "large"
+    },
+    {
+      "id": "T1.3.7",
+      "name": "Documentar handoff hook na wiki + TOOL_INVENTORY",
+      "description": "Atualizar AGENT_SYSTEM.md com seção de handoff via shared memory (fluxo, diagrama ASCII, agentes afetados). Atualizar TOOL_INVENTORY.md com read, write, search, confirm.",
+      "effort": "medium"
+    }
+  ],
+  "design_decisions": [
+    {
+      "id": "DD1",
+      "decision": "Handoff hook síncrono (não fire-and-forget)",
+      "rationale": "Agente destino precisa das memórias mais recentes. Fire-and-forget poderia entregar estado desatualizado."
+    },
+    {
+      "id": "DD2",
+      "decision": "shared_memory_write usa upsert (ON CONFLICT DO UPDATE)",
+      "rationale": "UNIQUE constraint em (client_id, entity_type, entity_name, key) é o ID natural. Evita duplicatas e permite atualização in-place."
+    },
+    {
+      "id": "DD3",
+      "decision": "Context Service leve inline (nenhum serviço externo)",
+      "rationale": "Context Service 2.0 do roadmap ainda não existe. Hook inline resolve o caso imediato sem nova infra."
+    },
+    {
+      "id": "DD4",
+      "decision": "source='specialist', confidence=0.8 (inferido) ou 1.0 (explícito)",
+      "rationale": "Dados extraídos da conversa pelo hook são de confiança média. distingue de 'manual' (humano) e 'memory_agent' (futuro)."
+    }
+  ],
+  "risks": [
+    {
+      "id": "R1",
+      "risk": "Latência no handoff com hook síncrono",
+      "mitigation": "Timeout 2s no hook. Graceful degradation se timeout."
+    },
+    {
+      "id": "R2",
+      "risk": "Ciclo infinito de handoff",
+      "mitigation": "Hook só dispara em route_to_specialist, não em writes diretos. Flag 'skip_handoff_hook' no estado."
+    },
+    {
+      "id": "R3",
+      "risk": "shared_memory_write sem permissão real (migration proposta, não aplicada)",
+      "mitigation": "Tools usam service_role (bypass RLS). Migration precisa ser aplicada antes ou em paralelo."
+    },
+    {
+      "id": "R4",
+      "risk": "Dependência de Fase 0 migrations aplicadas",
+      "mitigation": "Falha clara 'relation not found' se tabela não existe. Coordenar aplicação com operações."
+    }
+  ],
+  "design_questions": [
+    {
+      "id": "DQ1",
+      "question": "Handoff hook extrai aprendizado automaticamente ou só quando sinalizado (has_learning=true)?",
+      "options": ["Automático", "Sinalizado"],
+      "recommendation": "Sinalizado — Memory Agent (Fase 2) fará extração automática. Hook só escreve quando specialist sinaliza."
+    },
+    {
+      "id": "DQ2",
+      "question": "Context Service: módulo separado ou inline no handoff_hook.py?",
+      "options": ["Módulo separado", "Inline"],
+      "recommendation": "Inline — Context Service 2.0 completo será serviço separado em fase futura."
+    },
+    {
+      "id": "DQ3",
+      "question": "shared_memory_search: pgvector ou ILIKE/trigram?",
+      "options": ["pgvector", "ILIKE + trigram", "Ambos com fallback"],
+      "recommendation": "ILIKE + trigram — pgvector requer extensão habilitada no Supabase e modelo de embedding definido."
+    }
+  ]
+}

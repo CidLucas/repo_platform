@@ -79,6 +79,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
         web_crawl_module,
         web_monitor_module,
         slack_module,  # noqa: F401
+        memory_module,
     )
 
     # Optional chart module
@@ -315,6 +316,16 @@ AVAILABLE_MODULES = {
         "tools": [
             "fiscal_preparar_dados_nfe",
             "fiscal_status_integracao",
+        ],
+        "requires_auth": True,
+    },
+    "memory": {
+        "description": "Shared Business Memory — entity listing, knowledge retrieval, and semantic linking",
+        "tools": [
+            "shared_memory_list",
+            "shared_memory_link",
+            "shared_memory_unlink",
+            "shared_memory_get_links",
         ],
         "requires_auth": True,
     },

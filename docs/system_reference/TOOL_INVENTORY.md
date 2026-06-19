@@ -9,7 +9,7 @@ Revisado em: 2026-06-02 | Fonte: ToolRegistry (registry.py) + AGENT_SYSTEM.md + 
 
 ## 1. Tools no ToolRegistry
 
-### 1.1 BUILTIN_TOOLS (43 tools)
+### 1.1 BUILTIN_TOOLS (47 tools)
 
 | Slug | Categoria | Tier Atual | Domínio | Confirmação |
 |------|-----------|-----------|---------|-------------|
@@ -54,9 +54,13 @@ Revisado em: 2026-06-02 | Fonte: ToolRegistry (registry.py) + AGENT_SYSTEM.md + 
 | `summarize_document_sections` | RAG | SME | documentos/ocr | — |
 | `extract_structured_data` | RAG | SME | documentos/ocr | — |
 | `compile_time_series` | RAG | SME | dados/análise | — |
-| `write_summary_to_kb` | RAG | SME | conhecimento | — |
-| `fiscal_preparar_dados_nfe` | CUSTOM | ENTERPRISE | fiscal | ⚠️ declarada em GOOGLE_TOOLS no código — mover para BUILTIN |
-| `fiscal_status_integracao` | CUSTOM | ENTERPRISE | fiscal | ⚠️ declarada em GOOGLE_TOOLS no código — mover para BUILTIN |
+|| `write_summary_to_kb` | RAG | SME | conhecimento | — |
+|| `fiscal_preparar_dados_nfe` | CUSTOM | ENTERPRISE | fiscal | ⚠️ declarada em GOOGLE_TOOLS no código — mover para BUILTIN |
+|| `fiscal_status_integracao` | CUSTOM | ENTERPRISE | fiscal | ⚠️ declarada em GOOGLE_TOOLS no código — mover para BUILTIN |
+|| `shared_memory_list` | CUSTOM | SME | memoria/compartilhada | memory_module.py |
+|| `shared_memory_link` | CUSTOM | SME | memoria/compartilhada | memory_module.py |
+|| `shared_memory_unlink` | CUSTOM | SME | memoria/compartilhada | memory_module.py |
+|| `shared_memory_get_links` | CUSTOM | SME | memoria/compartilhada | memory_module.py |
 
 ### 1.2 GOOGLE_TOOLS (13 tools)
 
@@ -90,7 +94,7 @@ Revisado em: 2026-06-02 | Fonte: ToolRegistry (registry.py) + AGENT_SYSTEM.md + 
 | `jira_read` | ENTERPRISE | jira | — |
 | `jira_write` | ENTERPRISE | jira | ✓ HITL |
 
-**Total no ToolRegistry: 65 tools** (43 builtin + 13 google + 9 docker_mcp)
+**Total no ToolRegistry: 69 tools** (47 builtin + 13 google + 9 docker_mcp)
 
 ---
 

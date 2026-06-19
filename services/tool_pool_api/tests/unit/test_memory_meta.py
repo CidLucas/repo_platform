@@ -261,3 +261,206 @@ async def test_meta_list_invalid_entity_type():
             client_id=TEST_CLIENT_ID,
             entity_type="invalid_type",
         )
+
+
+# ---------------------------------------------------------------------------
+# shared_memory_meta_upsert_logic  (T4.2d)
+# ---------------------------------------------------------------------------
+
+
+def _chain_mock_upsert(return_row):
+    """Build a Supabase query chain for upsert(on_conflict=...) → execute()."""
+    chain = MagicMock()
+    chain.schema.return_value = chain
+    chain.table.return_value = chain
+    chain.upsert.return_value = chain
+    chain.execute = _make_execute_mock([return_row])
+    return chain
+
+
+@pytest.mark.asyncio
+async def test_meta_upsert_success():
+    """Upsert a meta entry — happy path."""
+    row = {
+        "id": "upsert-001",
+        "client_id": TEST_CLIENT_ID,
+        "entity_type": "synthesis_output",
+        "entity_name": "financeiro_semanal",
+        "key": "resumo",
+        "body": {"texto": "Vendas acima da meta"},
+        "source": "system",
+        "confidence": 0.95,
+        "created_at": "2026-06-19T12:00:00Z",
+        "updated_at": "2026-06-19T12:00:00Z",
+    }
+
+    mock_db = _chain_mock_upsert(row)
+
+    with patch(
+        "src.tool_pool_api.server.tool_modules.memory_module.get_supabase_client",
+        return_value=mock_db,
+    ):
+        from src.tool_pool_api.server.tool_modules.memory_module import (
+            _shared_memory_meta_upsert_logic,
+        )
+
+        result = await _shared_memory_meta_upsert_logic(
+            client_id=TEST_CLIENT_ID,
+            entity_type="synthesis_output",
+            entity_name="Financeiro_Semanal",
+            key=" RESUMO ",
+            body={"texto": "Vendas acima da meta"},
+            source="system",
+            confidence=0.95,
+        )
+
+    assert result["id"] == "upsert-001"
+    assert result["entity_type"] == "synthesis_output"
+    assert result["entity_name"] == "financeiro_semanal"  # normalized
+    assert result["key"] == "resumo"  # normalized
+    assert result["body"] == {"texto": "Vendas acima da meta"}
+    assert result["source"] == "system"
+    assert result["confidence"] == 0.95
+    assert result["created_at"] == "2026-06-19T12:00:00Z"
+    assert result["updated_at"] == "2026-06-19T12:00:00Z"
+
+    # Verify upsert called with correct on_conflict
+    mock_db.table.assert_called_once_with("shared_business_memory_meta")
+    mock_db.upsert.assert_called_once()
+    # Extract the on_conflict kwarg
+    _, kwargs = mock_db.upsert.call_args
+    assert kwargs["on_conflict"] == "client_id,entity_type,entity_name,key"
+
+
+@pytest.mark.asyncio
+async def test_meta_upsert_invalid_entity_type():
+    """Invalid entity_type raises ValueError."""
+    from src.tool_pool_api.server.tool_modules.memory_module import (
+        _shared_memory_meta_upsert_logic,
+    )
+
+    with pytest.raises(ValueError, match="Invalid entity_type"):
+        await _shared_memory_meta_upsert_logic(
+            client_id=TEST_CLIENT_ID,
+            entity_type="invalid_type",
+            entity_name="test",
+            key="key1",
+            body={"x": 1},
+        )
+
+
+@pytest.mark.asyncio
+async def test_meta_upsert_empty_entity_name():
+    """Empty entity_name raises ValueError."""
+    from src.tool_pool_api.server.tool_modules.memory_module import (
+        _shared_memory_meta_upsert_logic,
+    )
+
+    with pytest.raises(ValueError, match="entity_name and key are required"):
+        await _shared_memory_meta_upsert_logic(
+            client_id=TEST_CLIENT_ID,
+            entity_type="synthesis_output",
+            entity_name="   ",
+            key="key1",
+            body={"x": 1},
+        )
+
+
+@pytest.mark.asyncio
+async def test_meta_upsert_empty_key():
+    """Empty key raises ValueError."""
+    from src.tool_pool_api.server.tool_modules.memory_module import (
+        _shared_memory_meta_upsert_logic,
+    )
+
+    with pytest.raises(ValueError, match="entity_name and key are required"):
+        await _shared_memory_meta_upsert_logic(
+            client_id=TEST_CLIENT_ID,
+            entity_type="synthesis_output",
+            entity_name="test",
+            key="",
+            body={"x": 1},
+        )
+
+
+@pytest.mark.asyncio
+async def test_meta_upsert_body_not_dict():
+    """Non-dict body raises ValueError."""
+    from src.tool_pool_api.server.tool_modules.memory_module import (
+        _shared_memory_meta_upsert_logic,
+    )
+
+    with pytest.raises(ValueError, match="body must be a dict"):
+        await _shared_memory_meta_upsert_logic(
+            client_id=TEST_CLIENT_ID,
+            entity_type="synthesis_output",
+            entity_name="test",
+            key="key1",
+            body="not a dict",
+        )
+
+
+@pytest.mark.asyncio
+async def test_meta_upsert_defaults():
+    """Default source='system' and confidence=1.0 are applied."""
+    row = {
+        "id": "upsert-002",
+        "client_id": TEST_CLIENT_ID,
+        "entity_type": "dedup_mapping",
+        "entity_name": "clientes",
+        "key": "map_01",
+        "body": {"map": {}},
+        "source": "system",
+        "confidence": 1.0,
+        "created_at": "2026-06-19T12:00:00Z",
+        "updated_at": "2026-06-19T12:00:00Z",
+    }
+
+    mock_db = _chain_mock_upsert(row)
+
+    with patch(
+        "src.tool_pool_api.server.tool_modules.memory_module.get_supabase_client",
+        return_value=mock_db,
+    ):
+        from src.tool_pool_api.server.tool_modules.memory_module import (
+            _shared_memory_meta_upsert_logic,
+        )
+
+        result = await _shared_memory_meta_upsert_logic(
+            client_id=TEST_CLIENT_ID,
+            entity_type="dedup_mapping",
+            entity_name="clientes",
+            key="map_01",
+            body={"map": {}},
+            # source and confidence omitted → defaults
+        )
+
+    assert result["source"] == "system"
+    assert result["confidence"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_meta_upsert_db_error():
+    """DB exception raises RuntimeError."""
+    from src.tool_pool_api.server.tool_modules.memory_module import (
+        _shared_memory_meta_upsert_logic,
+    )
+
+    mock_db = MagicMock()
+    mock_db.schema.return_value = mock_db
+    mock_db.table.return_value = mock_db
+    mock_db.upsert.return_value = mock_db
+    mock_db.execute = AsyncMock(side_effect=Exception("DB connection failed"))
+
+    with patch(
+        "src.tool_pool_api.server.tool_modules.memory_module.get_supabase_client",
+        return_value=mock_db,
+    ):
+        with pytest.raises(RuntimeError, match="Failed to upsert"):
+            await _shared_memory_meta_upsert_logic(
+                client_id=TEST_CLIENT_ID,
+                entity_type="synthesis_output",
+                entity_name="test",
+                key="k",
+                body={},
+            )

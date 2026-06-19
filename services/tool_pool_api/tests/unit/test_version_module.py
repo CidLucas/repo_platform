@@ -317,7 +317,8 @@ async def test_archive_success(mock_db):
     result = await _archive_memory_version(
         CLIENT_ID, "snapshot", "financeiro:semanal", "2025-06-19t10:00:00z"
     )
-    assert result == 5  # 5 versions total (4 + 1 new)
+    assert result["version_count"] == 5  # 5 versions total (4 + 1 new)
+    assert result["archived_version"] == 2  # version 2 was archived
 
 
 @pytest.mark.asyncio

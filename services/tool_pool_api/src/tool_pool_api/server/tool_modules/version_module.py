@@ -78,7 +78,7 @@ async def _archive_memory_version(
     entity_type: str,
     entity_name: str,
     key: str,
-) -> int | None:
+) -> dict | None:
     """Archive the current version of a shared-memory fact before it is overwritten.
 
     Reads the existing row from ``shared_business_memory`` and saves a snapshot
@@ -92,9 +92,9 @@ async def _archive_memory_version(
         key:         Fact key.
 
     Returns:
-        The number of versions that now exist for this key (including the
-        just-archived one), or ``None`` if there was nothing to archive
-        (first write — no previous row).
+        A dict with ``version_count`` (total versions after archiving) and
+        ``archived_version`` (the version number that was archived), or
+        ``None`` if there was nothing to archive (first write — no previous row).
     """
     _validate_entity_type(entity_type)
     entity_name = _normalize_entity_name(entity_name)
@@ -124,6 +124,8 @@ async def _archive_memory_version(
         # First write — nothing to archive
         return None
 
+    archived_version = int(row.get("version", 1))
+
     # Build the version snapshot
     version_payload: dict[str, Any] = {
         "memory_id": row["id"],
@@ -135,7 +137,7 @@ async def _archive_memory_version(
         "metadata": row.get("metadata", {}),
         "source": row.get("source", "manual"),
         "confidence": float(row.get("confidence", 1.0)),
-        "version": int(row.get("version", 1)),
+        "version": archived_version,
         "original_created_at": row.get("created_at"),
         "original_updated_at": row.get("updated_at"),
     }
@@ -175,7 +177,10 @@ async def _archive_memory_version(
             max_versions=_MAX_VERSIONS_PER_KEY,
         )
 
-    return version_count
+    return {
+        "version_count": version_count,
+        "archived_version": archived_version,
+    }
 
 
 # ---------------------------------------------------------------------------

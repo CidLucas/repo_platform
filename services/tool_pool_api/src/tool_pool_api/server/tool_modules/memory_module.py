@@ -10,12 +10,15 @@ Tools registered:
   - shared_memory_list    -> list entities with memory entries
   - shared_memory_read    -> read a single fact by composite key
   - shared_memory_upsert  -> insert or update a fact (versioned)
+  - shared_memory_meta_upsert -> insert or update a meta entry in shared_business_memory_meta
   - shared_memory_write   -> write a new fact (strict INSERT; supersede=True to upsert)
   - shared_memory_search  -> semantic vector search via Cohere embeddings (T3.1c)
   - shared_memory_flush   -> soft-delete entries (marks flushed_at in metadata; T5.4)
   - shared_memory_link    -> create semantic link between entities
   - shared_memory_unlink  -> remove a link by id
   - shared_memory_get_links -> query links by entity and/or type
+  - shared_memory_meta_read  -> read a single meta entry from shared_business_memory_meta
+  - shared_memory_meta_list  -> list meta entries, optionally filtered by entity_type
 
 Design doc: docs/llm_wiki/SHARED_MEMORY_DESIGN.md (Fase 0)
 """
@@ -1234,6 +1237,157 @@ async def _shared_memory_get_links_logic(
 
 
 # ---------------------------------------------------------------------------
+# Meta business logic (T4.2c)
+# ---------------------------------------------------------------------------
+
+_VALID_META_ENTITY_TYPES: frozenset[str] = frozenset(
+    {"synthesis_output", "dedup_mapping", "kg_summary"}
+)
+
+_META_TABLE = "shared_business_memory_meta"
+
+
+def _validate_meta_entity_type(entity_type: str, field_name: str = "entity_type") -> None:
+    """Validate entity_type against the allowed meta types. Raises ValueError."""
+    if entity_type not in _VALID_META_ENTITY_TYPES:
+        raise ValueError(
+            f"Invalid {field_name} '{entity_type}'. "
+            f"Must be one of: {sorted(_VALID_META_ENTITY_TYPES)}"
+        )
+
+
+async def _shared_memory_meta_upsert_logic(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    key: str,
+    body: dict,
+    source: str = "system",
+    confidence: float = 1.0,
+) -> dict:
+    """Insert or update an entry in shared_business_memory_meta.
+
+    ON CONFLICT (client_id, entity_type, entity_name, key) DO UPDATE.
+    Returns the complete record.
+    """
+    _validate_meta_entity_type(entity_type)
+    entity_name = _normalize_entity_name(entity_name)
+    key = key.strip().lower()
+
+    if not entity_name or not key:
+        raise ValueError("entity_name and key are required")
+    if not isinstance(body, dict):
+        raise ValueError("body must be a dict")
+
+    db = await get_supabase_client()
+
+    payload = {
+        "client_id": client_id,
+        "entity_type": entity_type,
+        "entity_name": entity_name,
+        "key": key,
+        "body": body,
+        "source": source,
+        "confidence": confidence,
+    }
+
+    try:
+        result = await (
+            db.schema("public")
+            .table(_META_TABLE)
+            .upsert(
+                payload,
+                on_conflict="client_id,entity_type,entity_name,key",
+                default_to_null=False,
+            )
+            .execute()
+        )
+    except Exception as exc:
+        raise RuntimeError(f"Failed to upsert shared-memory-meta entry: {exc}")
+
+    row = result.data[0] if result.data else None
+    if not row:
+        raise RuntimeError("Failed to upsert meta entry -- no data returned")
+
+    return {
+        "id": row["id"],
+        "client_id": row["client_id"],
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "key": row["key"],
+        "body": row["body"],
+        "source": row["source"],
+        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+async def _shared_memory_meta_read_logic(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    key: str,
+) -> dict:
+    """Read a specific entry from shared_business_memory_meta by composite key."""
+    _validate_meta_entity_type(entity_type)
+    entity_name = _normalize_entity_name(entity_name)
+    key = key.strip().lower()
+
+    if not entity_name or not key:
+        raise ValueError("entity_name and key are required")
+
+    db = await get_supabase_client()
+
+    result = await (
+        db.schema("public")
+        .table(_META_TABLE)
+        .select("*")
+        .eq("client_id", client_id)
+        .eq("entity_type", entity_type)
+        .eq("entity_name", entity_name)
+        .eq("key", key)
+        .maybe_single()
+        .execute()
+    )
+
+    row = result.data
+    if not row:
+        raise ValueError(
+            f"Meta entry not found: {entity_type}:{entity_name}/{key}"
+        )
+
+    return {
+        "id": row["id"],
+        "client_id": row["client_id"],
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "key": row["key"],
+        "body": row["body"],
+        "source": row["source"],
+        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+async def _shared_memory_meta_list_logic(
+    client_id: str,
+    entity_type: str | None = None,
+) -> dict:
+    """List all meta entries, optionally filtered by entity_type.
+
+    Returns total_entities, by_type breakdown, and sorted entries array.
+    """
+    if entity_type is not None:
+        _validate_meta_entity_type(entity_type)
+
+    db = await get_supabase_client()
+
+    query = (
+        db.schema("public")
+        .table(_META_TABLE)
+        .select("entity_type, entity_name, count(*), max(updated_at) as last_updated")
 # Vector search business logic (T3.1c)
 # ---------------------------------------------------------------------------
 
@@ -1393,6 +1547,37 @@ async def _shared_memory_flush_logic(
     )
     if entity_type:
         query = query.eq("entity_type", entity_type)
+
+    result = await query.group_by("entity_type, entity_name").execute()
+
+    rows = result.data if result.data else []
+
+    entities: list[dict] = []
+    type_counts: dict[str, int] = {}
+
+    for r in rows:
+        et = r["entity_type"]
+        en = r["entity_name"]
+        cnt = r.get("count", 0)
+        lu = r.get("last_updated")
+        entities.append(
+            {
+                "entity_type": et,
+                "entity_name": en,
+                "key_count": cnt,
+                "last_updated": lu,
+            }
+        )
+        type_counts[et] = type_counts.get(et, 0) + 1
+
+    entities.sort(key=lambda e: (e["entity_type"], e["entity_name"]))
+
+    return {
+        "total_entities": len(entities),
+        "client_id": client_id,
+        "entity_type_filter": entity_type,
+        "by_type": type_counts,
+        "entities": entities,
     if entity_name:
         query = query.eq("entity_name", entity_name)
     if key:
@@ -1703,6 +1888,91 @@ def register_tools(mcp: FastMCP) -> list[str]:
 
     logger.info("[Memory Module] Tool 'shared_memory_upsert' registered.")
     registered_tools.append("shared_memory_upsert")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_meta_upsert -- insert or update a meta entry (T4.2d)
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_meta_upsert",
+        description=(
+            "[Shared Memory Meta] Insert or update a meta entry in "
+            "shared_business_memory_meta. Used for operational pipeline data "
+            "(synthesis outputs, dedup mappings, knowledge graph summaries). "
+            "Uses upsert semantics via ON CONFLICT (client_id, entity_type, "
+            "entity_name, key). "
+            "Valid entity types: synthesis_output | dedup_mapping | kg_summary."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_meta_upsert(
+        ctx: Context,
+        entity_type: str,
+        entity_name: str,
+        key: str,
+        value: dict,
+        source: str = "system",
+        confidence: float = 1.0,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Insert or update a meta entry in shared_business_memory_meta.
+
+        Args:
+            entity_type: Meta entity type (synthesis_output | dedup_mapping | kg_summary).
+            entity_name: Entity name (case-insensitive, normalized to lowercase).
+            key: Atomic fact key (max 256 chars).
+            value: JSON value (the fact content -- maps to 'body' column).
+            source: Provenance -- "manual" | "memory_agent" | "specialist" | "migration" | "system".
+            confidence: Confidence score (0.0--1.0, default 1.0).
+
+        Returns:
+            dict with the full upserted record: id, client_id, entity_type,
+            entity_name, key, value, source, confidence, metadata,
+            created_at, updated_at.
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_meta_upsert "
+            "entity_type=%s entity_name=%s key=%s client_id=%s",
+            entity_type,
+            entity_name,
+            key,
+            client_id,
+        )
+
+        try:
+            result = await _shared_memory_meta_upsert_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                key=key,
+                body=value,
+                source=source,
+                confidence=confidence,
+            )
+            # Map 'body' -> 'value' in the return for tool-level consistency
+            result["value"] = result.pop("body", value)
+            result["metadata"] = result.get("metadata", {})
+            return result
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_meta_upsert failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to upsert shared-memory-meta entry: {exc}"
+            )
+
+    logger.info(
+        "[Memory Module] Tool 'shared_memory_meta_upsert' registered."
+    )
+    registered_tools.append("shared_memory_meta_upsert")
 
     # ----------------------------------------------------------------------
     # shared_memory_write --  write a new fact (strict INSERT by default)
@@ -2045,87 +2315,54 @@ def register_tools(mcp: FastMCP) -> list[str]:
     registered_tools.append("shared_memory_get_links")
 
     # ----------------------------------------------------------------------
-    # shared_memory_search -- semantic vector search in shared business memory
+    # shared_memory_meta_read -- read a single meta entry from meta table
     # ----------------------------------------------------------------------
 
     @mcp.tool(
-        name="shared_memory_search",
+        name="shared_memory_meta_read",
         description=(
-            "[Shared Memory] Semantic (vector) search in shared business memory. "
-            "Use this to find facts about business entities by meaning, not exact keywords. "
-            "The query is embedded with Cohere (embed-multilingual-light-v3.0, 384 dims) "
-            "and matched against stored facts using cosine similarity via pgvector HNSW index. "
-            "Parameters: query (natural language search text), entity_type (optional filter "
-            "by entity type: skill|client|contact|supplier|user|snapshot|routine|agent_result|"
-            "agent_metadata), category (optional filter by semantic category), match_count "
-            "(max results, default 10), match_threshold (minimum similarity 0.0-1.0, default 0.3). "
-            "Returns facts ranked by similarity score. Use this when you need to find business "
-            "knowledge semantically, e.g., 'which clients prefer communication via WhatsApp' "
-            "or 'what are the key facts about supplier Distribuidora X'."
+            "[Shared Memory Meta] Read a single entry from "
+            "shared_business_memory_meta by its composite key "
+            "(client_id, entity_type, entity_name, key). "
+            "Valid entity types: synthesis_output | dedup_mapping | kg_summary. "
+            "Returns the full record including body, source, confidence, "
+            "and timestamps."
         ),
     )
     @mcp_inject_client_id
-    async def shared_memory_search(
+    async def shared_memory_meta_read(
         ctx: Context,
-        query: str,
-        entity_type: str | None = None,
-        category: str | None = None,
-        match_count: int = 10,
-        match_threshold: float = 0.3,
+        entity_type: str,
+        entity_name: str,
+        key: str,
         client_id: str | None = None,
     ) -> dict:
         """
-        Search shared business memory using semantic (vector) similarity.
-
-        Generates a Cohere embedding for the query text and matches it against
-        stored fact embeddings via the pgvector HNSW index in shared_business_memory.
+        Read a single shared-memory-meta entry by its composite key.
 
         Args:
-            query: Natural language search text describing what you're looking for.
-                   Write it as a question or description, e.g.:
-                   - "preferências de comunicação dos clientes"
-                   - "fornecedores com contrato vigente"
-                   - "faturamento mensal dos últimos 6 meses"
-                   - "clientes com tom amigável"
-            entity_type: Optional filter. Only return facts of this entity type.
-                         Valid: skill, client, contact, supplier, user, snapshot,
-                         routine, agent_result, agent_metadata.
-            category: Optional filter by semantic category.
-            match_count: Maximum number of results to return (default 10, max 50).
-            match_threshold: Minimum similarity score 0.0--1.0 (default 0.3).
-                             Lower values return more but less relevant results.
+            entity_type: Meta entity type (synthesis_output | dedup_mapping | kg_summary).
+            entity_name: Entity name (case-insensitive, normalized to lowercase).
+            key: Meta key (e.g. "summary", "dedup_rules").
 
         Returns:
-            dict with:
-            - query: The original search text
-            - total_results: Number of matching facts found
-            - results: Array of facts ordered by similarity (descending).
-              Each fact has: id, entity_type, entity_name, key, value,
-              category, source, confidence, similarity.
+            dict with the full record: id, client_id, entity_type, entity_name,
+            key, body, source, confidence, created_at, updated_at.
 
-        Examples:
-            >>> # Find all communication preferences
-            >>> shared_memory_search(query="preferências de comunicação dos clientes")
-
-            >>> # Find financial data about a specific supplier
-            >>> shared_memory_search(
-            ...     query="dados financeiros e contratos",
-            ...     entity_type="supplier",
-            ...     match_count=5,
-            ... )
-
-            >>> # Find snapshot data with stricter threshold
-            >>> shared_memory_search(
-            ...     query="resumo financeiro mensal",
-            ...     entity_type="snapshot",
-            ...     match_threshold=0.5,
-            ... )
+        Raises:
+            ToolError: If the entry is not found or entity_type is invalid.
         """
         if not client_id:
             raise ToolError(
                 "client_id is required -- authentication context missing"
             )
 
+        logger.info(
+            "[memory_module] shared_memory_meta_read "
+            "entity_type=%s entity_name=%s key=%s client_id=%s",
+            entity_type,
+            entity_name,
+            key,
         if match_count < 1 or match_count > 50:
             raise ToolError(
                 "match_count must be between 1 and 50"
@@ -2149,6 +2386,58 @@ def register_tools(mcp: FastMCP) -> list[str]:
         )
 
         try:
+            return await _shared_memory_meta_read_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                key=key,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_meta_read failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to read shared-memory-meta entry: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_meta_read' registered.")
+    registered_tools.append("shared_memory_meta_read")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_meta_list -- list meta entries with optional filter
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_meta_list",
+        description=(
+            "[Shared Memory Meta] List all entities that have meta entries "
+            "in shared_business_memory_meta for the current client. "
+            "Optionally filter by entity_type "
+            "(synthesis_output | dedup_mapping | kg_summary). "
+            "Returns a summary with total_entities, by_type breakdown, "
+            "and the entities array with key-counts and last-updated timestamps."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_meta_list(
+        ctx: Context,
+        entity_type: str | None = None,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        List meta entries from shared_business_memory_meta.
+
+        Args:
+            entity_type: Optional filter --
+                         "synthesis_output", "dedup_mapping", or "kg_summary".
+                         When omitted all entity types are returned.
+
+        Returns:
+            dict with total_entities, client_id, entity_type_filter,
+            by_type breakdown, and entities array sorted by
+            (entity_type, entity_name).
             return await _shared_memory_search_logic(
                 client_id=client_id,
                 query=query,
@@ -2245,6 +2534,17 @@ def register_tools(mcp: FastMCP) -> list[str]:
                 "client_id is required -- authentication context missing"
             )
 
+        logger.info(
+            "[memory_module] shared_memory_meta_list "
+            "client_id=%s entity_type=%s",
+            client_id,
+            entity_type,
+        )
+
+        try:
+            return await _shared_memory_meta_list_logic(
+                client_id=client_id,
+                entity_type=entity_type,
         if entity_type is not None:
             try:
                 _validate_entity_type(entity_type)
@@ -2271,6 +2571,16 @@ def register_tools(mcp: FastMCP) -> list[str]:
             raise ToolError(str(exc))
         except Exception as exc:
             logger.error(
+                "[memory_module] shared_memory_meta_list failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to list shared-memory-meta entries: {exc}"
+            )
+
+    logger.info(
+        "[Memory Module] Tool 'shared_memory_meta_list' registered."
+    )
+    registered_tools.append("shared_memory_meta_list")
                 "[memory_module] shared_memory_flush failed: %s", exc
             )
             raise ToolError(

@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 _ALL_CONTEXT_SECTIONS: frozenset[str] = frozenset({
     "company_profile", "brand_voice", "team_structure",
-    "policies", "data_schema", "available_tools",
+    "policies", "data_schema", "available_tools", "memory_section",
 })
 
 # Maps domain keyword → the sections relevant to that domain.
@@ -40,6 +40,7 @@ _DOMAIN_SECTIONS: dict[str, frozenset[str]] = {
     "documents":     frozenset({"company_profile", "policies", "brand_voice"}),
     "config":        frozenset({"available_tools", "team_structure", "company_profile"}),
     "settings":      frozenset({"available_tools", "team_structure", "company_profile"}),
+    "memory-agent":  frozenset({"company_profile", "policies", "brand_voice", "data_schema", "available_tools", "memory_section"}),
 }
 
 _GOOGLE_OAUTH_CONFIG_CACHE: dict[str, str] | None = None

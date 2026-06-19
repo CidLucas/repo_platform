@@ -167,11 +167,12 @@ async def _diff_memory_versions(
     label_a = _format_version_label(entity_name, key, version_a)
     label_b = _format_version_label(entity_name, key, version_b)
 
-    # If version_a > version_b, swap so the diff reads naturally
-    # (older → newer).
-    if version_a > version_b:
-        # Swap rows (diff younger → older)
-        pass  # We keep the user-requested order; unified_diff shows a→b.
+    # If version_a > version_b, swap so the diff always reads
+    # naturally from older → newer.
+    swapped = version_a > version_b
+    if swapped:
+        row_a, row_b = row_b, row_a
+        label_a, label_b = label_b, label_a
 
     text_a = _value_to_text(row_a.get("value"))
     text_b = _value_to_text(row_b.get("value"))
@@ -184,13 +185,16 @@ async def _diff_memory_versions(
         context_lines=context_lines,
     )
 
-    return {
+    # Return the original caller-specified versions in the response metadata,
+    # but note whether they were swapped for natural ordering.
+    result = {
         "client_id": client_id,
         "entity_type": entity_type,
         "entity_name": entity_name,
         "key": key,
         "version_a": version_a,
         "version_b": version_b,
+        "swapped_for_natural_order": swapped,
         "has_changes": diff_result["has_changes"],
         "summary": diff_result["summary"],
         "diff": diff_result["diff"],
@@ -209,6 +213,8 @@ async def _diff_memory_versions(
             "for this fact."
         ),
     }
+
+    return result
 
 
 # ---------------------------------------------------------------------------

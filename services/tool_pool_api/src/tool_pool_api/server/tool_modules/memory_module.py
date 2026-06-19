@@ -32,7 +32,8 @@ from . import register_module
 logger = logging.getLogger(__name__)
 
 _VALID_ENTITY_TYPES: frozenset[str] = frozenset(
-    {"skill", "client", "contact", "supplier", "user", "snapshot"}
+    {"skill", "client", "contact", "supplier", "user", "snapshot", "routine",
+     "agent_result", "agent_metadata"}
 )
 
 _TABLE = "shared_business_memory"

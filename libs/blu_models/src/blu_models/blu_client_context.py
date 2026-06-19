@@ -26,6 +26,7 @@ class BluClientContext(ClienteBluBase):
     policies: dict[str, Any] | None = None
     data_schema: dict[str, Any] | None = None
     available_tools: dict[str, Any] | None = None
+    memory_section: dict[str, Any] | None = None
 
     # Decrypted credentials (internal use)
     credenciais: list[CredencialServicoExternoBase] = []
@@ -59,6 +60,7 @@ class BluClientContext(ClienteBluBase):
             "policies": self.policies,
             "data_schema": self.data_schema,
             "available_tools": self.available_tools,
+            "memory_section": self.memory_section,
         }
         return section_map.get(section_name)
 
@@ -67,7 +69,8 @@ class BluClientContext(ClienteBluBase):
         sections = []
         for name in [
             "company_profile", "brand_voice",
-            "team_structure", "policies", "data_schema", "available_tools"
+            "team_structure", "policies", "data_schema", "available_tools",
+            "memory_section"
         ]:
             if self.get_section(name):
                 sections.append(name)

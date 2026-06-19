@@ -275,6 +275,37 @@ class DataSchema(BaseModel):
     )
 
 
+class EntitySummary(BaseModel):
+    """Summary of a single entity in the knowledge graph."""
+
+    name: str = Field(..., description="Entity name")
+    type: str = Field(..., description="Entity type (e.g., 'person', 'organization', 'document')")
+    degree: int = Field(..., description="Number of connections (degree) in the knowledge graph")
+
+
+class KnowledgeGraphSummary(BaseModel):
+    """
+    Section: KNOWLEDGE_GRAPH_SUMMARY — Aggregated metrics of the knowledge graph.
+
+    Embedded within AvailableTools so all agents can decide
+    whether to query the knowledge graph (rag_search, documents).
+    Populated by T4.1 enrichment job after SBM→LightRAG sync.
+    """
+
+    total_documents: int = Field(default=0, description="Total documents indexed in the graph")
+    total_entities: int = Field(default=0, description="Total entities (nodes) in the graph")
+    top_entities: list[EntitySummary] = Field(
+        default_factory=list,
+        max_length=10,
+        description="Top 10 entities by degree (connection count)",
+    )
+    last_sync: str | None = Field(
+        default=None,
+        description="ISO 8601 timestamp of the last successful sync",
+    )
+    version: int = Field(default=1, description="Schema version for future migrations")
+
+
 class AvailableTools(BaseModel):
     """
     Section: AVAILABLE_TOOLS - What the AI can do.
@@ -311,17 +342,10 @@ class AvailableTools(BaseModel):
         description="Default instruction for all agents of this client",
     )
 
-    # Knowledge Graph summary (populated by LightRAG sync pipeline)
-    knowledge_graph_summary: dict[str, Any] | None = Field(
-        None,
-        description=(
-            "Snapshot of the client's knowledge graph state. "
-            "Fields: total_documents (int), total_entities (int), "
-            "top_entities_by_degree (list of {name, degree}, top 10), "
-            "last_sync_at (ISO datetime str), "
-            "sync_status ('ok'|'in_progress'|'failed'|'never'). "
-            "Nullable — zero breaking change for existing clients."
-        ),
+    # Knowledge Graph Summary
+    knowledge_graph_summary: KnowledgeGraphSummary | None = Field(
+        default=None,
+        description="Aggregated knowledge graph metrics for agent routing decisions",
     )
 
 

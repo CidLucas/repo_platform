@@ -1,193 +1,158 @@
 {
-  "issue_number": 29,
-  "issue_title": "Fase 4 — Diretório handoffs/ estruturado (T4.1)",
-  "phase": "Fase 4 / T4.1",
-  "scope": "Job de síntese periódica semanal: buscar registros curated=true da shared_business_memory por cliente, agrupar por entity_type + entity_name, gerar documento síntese por entidade, inserir no LightRAG via ainsert_custom_kg(), atualizar knowledge_graph_summary no Context Service",
+  "issue_number": 31,
+  "issue_title": "Fase 4 \u2014 Eventos de trigger para handoffs",
+  "phase": "Fase 4 / T4.3",
+  "symbolic_ref": "docs/llm_wiki/SHARED_MEMORY_DESIGN.md - T4.3",
+  "scope": "Implementar atualização do knowledge_graph_summary no Context Service (available_tools). O job de enriquecimento semanal (T4.1: SBM \u2192 LightRAG) deve chamar esta atualização após sincronizar o grafo. O summary expõe: total de documentos indexados, total de entidades no grafo, top 10 entidades por grau de conexão, última data de sincronização.",
   "design_decisions": [
     {
-      "id": "DD-T41-01",
-      "decision": "Nova L2 Skill `sbm_to_lightrag_synthesis` registrada no tool_pool_api",
-      "rationale": "Skill L2 é stateless, reutilizável, testável isoladamente. Não precisa de roteamento L3 — é uma operação de infraestrutura/background. Pode ser acionada por pg_cron → Routine Engine ou chamada diretamente."
+      "id": "DD-01",
+      "decision": "Adicionar campo knowledge_graph_summary ao schema AvailableTools em context_schemas.py",
+      "rationale": "available_tools é a seção injetada em todos os agents; o summary do grafo deve ser acessível para routing e decisões de specialists (ex: rag_search decide se vale consultar o grafo). Schema versionado via Pydantic garante validação."
     },
     {
-      "id": "DD-T41-02",
-      "decision": "Trigger via Routine Engine: rotina semanal (domingo 23h) do tipo 'skill' com skill_name='sbm_to_lightrag_synthesis'",
-      "rationale": "O Routine Engine já tem pg_cron, heartbeat, timeout, circuit breaker, SKIP LOCKED. Reutilizar evita reimplementar agendamento/resiliência. A rotina roda em background, não bloqueia agentes."
+      "id": "DD-02",
+      "decision": "Campo knowledge_graph_summary é opcional (nullable) e versionado",
+      "rationale": "LightRAG (Fase 3) ainda não existe; clientes sem Fase 3/Ativação não têm grafo. O campo pode ser None. Incluir version para migrações futuras do formato do summary."
     },
     {
-      "id": "DD-T41-03",
-      "decision": "Query base: SELECT * FROM shared_business_memory WHERE client_id = $1 AND curated = true AND expires_at IS NULL ORDER BY entity_type, entity_name, updated_at DESC",
-      "rationale": "Apenas memórias confirmadas (curated=true) e não expiradas. Ordenação garante que a versão mais recente vem primeiro por entidade. Índice idx_sbm_curated_client (client_id, curated, expires_at) otimiza."
+      "id": "DD-03",
+      "decision": "Criar módulo dedicado knowledge_graph_sync.py no tool_pool_api (internal tool, não MCP)",
+      "rationale": "Atualização do summary é chamada pelo job de enriquecimento (T4.1) como step final. Internal tool via FastMCP client evita overhead de protocolo MCP e permite chamada síncrona no job. Separação: sync module = escrita/atualização; Context Service = leitura/cache."
     },
     {
-      "id": "DD-T41-04",
-      "decision": "Agrupamento em Python (não SQL): dict[entity_type][entity_name] -> list[records] — pega apenas o record mais recente por entity_name (updated_at DESC)",
-      "rationale": "SQL DISTINCT ON não garante o record mais recente por updated_at de forma portável. Agrupar em Python é explícito, testável, e permite lógica de merge customizada (ex: concatenar alertas de múltiplos snapshots)."
+      "id": "DD-04",
+      "decision": "Estrutura do knowledge_graph_summary: { total_documents: int, total_entities: int, top_entities: list[{name, type, degree}], last_sync: ISOtimestamp, version: int }",
+      "rationale": "Matches exato do roadmap T4.3: 'Total de documentos indexados, Total de entidades no grafo, Entidades mais relevantes (top 10 por grau de conexão), Última data de sincronização'. top_entities limitado a 10 por performance/noise."
     },
     {
-      "id": "DD-T41-05",
-      "decision": "Template de síntese por entity_type: dicionário `SYNTHESIS_TEMPLATES` na skill com formato Markdown estruturado por tipo (skill, client, contact, supplier, user, snapshot)",
-      "rationale": "Diferentes entity_types têm campos semânticos distintos. Templates explícitos garantem sínteses consistentes e legíveis pelo LightRAG. Extensível para novos tipos sem mudar lógica core."
+      "id": "DD-05",
+      "decision": "Atualização via upsert em clientes_blu.available_tools (JSONB) — reusa infraestrutura existente de context sections",
+      "rationale": "available_tools já é uma coluna JSONB em clientes_blu. ContextService.get_client_context() já carrega e cacheia. Update é PATCH parcial: ler, merge knowledge_graph_summary, escrever. RLS preservado (client_id)."
     },
     {
-      "id": "DD-T41-06",
-      "decision": "LightRAG insertion via `rag.ainsert_custom_kg(entity_name, entity_type, description, relations=[], source_id=f'sbm_synthesis_{date}')` — um chamado por entidade sintetizada",
-      "rationale": "`ainsert_custom_kg` é a API oficial do LightRAG para injetar entidades+relações customizadas. `source_id` versionado permite rastreabilidade e re-sync futuro. Relations opcionais — começar com entidade + descrição, adicionar relações na Fase 4.2."
-    },
-    {
-      "id": "DD-T41-07",
-      "decision": "Normalização de entity_name para ID canônico: lowercase, sem acentos, espaços → underscore, remover pontuação (ex: 'João da Silva' -> 'joao_da_silva')",
-      "rationale": "LightRAG faz merge automático por nome da entidade. Normalização consistente evita duplicatas ('João' vs 'joão' vs 'João Silva'). Função utilitária `normalize_entity_name()` compartilhada."
-    },
-    {
-      "id": "DD-T41-08",
-      "decision": "Atualização do knowledge_graph_summary no Context Service APÓS ciclo completo: total_docs, total_entities, top_10_entities_by_degree, last_sync_at",
-      "rationale": "O Context Service é a fonte de verdade para specialists saberem estado do grafo. Atualização atômica pós-ciclo evita leituras parciais. Campos novos em `available_tools.knowledge_graph_summary` (nullable, zero breaking change)."
-    },
-    {
-      "id": "DD-T41-09",
-      "decision": "Erro handling: falha em UMA entidade não para o ciclo — log error, continua para próxima. Falha crítica (conexão LightRAG/Supabase) → rotina marca failed, circuit breaker do Routine Engine evita retry storm",
-      "rationale": "Ciclo semanal deve ser resiliente a dados ruins pontuais. Circuit breaker do Routine Engine já trata falhas sistêmicas. Log estruturado com entity_name para debug pós-mortem."
-    },
-    {
-      "id": "DD-T41-10",
-      "decision": "Idempotência: rotina pode ser re-executada (manual ou retry). `source_id` com data (YYYYMMDD) garante que re-execução no mesmo dia sobrescreve; dias diferentes criam nova versão no LightRAG",
-      "rationale": "Permite re-processar se houve bug no template ou falha parcial. LightRAG faz upsert por entity_name — mesmo source_id = sobrescreve, source_id diferente = nova versão no histórico do grafo."
+      "id": "DD-06",
+      "decision": "Invalidar cache Redis do ContextService após atualização (clear_context_cache)",
+      "rationale": "Garanta que próxima get_client_context() leia summary fresco. Cache TTL default 5min, mas job de enriquecimento roda semanalmente — invalidar é mais seguro que esperar TTL."
     }
   ],
   "subtasks": [
     {
-      "id": "T4.1a",
-      "title": "Criar L2 Skill `sbm_to_lightrag_synthesis` no tool_pool_api",
-      "description": "Criar services/tool_pool_api/src/tool_pool_api/server/tool_modules/sbm_to_lightrag_synthesis.py com: 1) normalize_entity_name() utilitário, 2) SYNTHESIS_TEMPLATES dict por entity_type (skill, client, contact, supplier, user, snapshot), 3) build_synthesis(record) -> Markdown string, 4) async execute(client_id, rag_client) -> dict {processed: int, errors: list, entities_synced: list}. Registrar como MCP tool (skill_name='sbm_to_lightrag_synthesis').",
+      "id": "T4.3a",
+      "title": "Schema: adicionar knowledge_graph_summary ao AvailableTools em context_schemas.py",
+      "description": "Em libs/blu_models/src/blu_models/context_schemas.py, classe AvailableTools: adicionar campo opcional knowledge_graph_summary: KnowledgeGraphSummary | None = None. Criar classe KnowledgeGraphSummary (BaseModel) com fields: total_documents (int, default=0), total_entities (int, default=0), top_entities (list[EntitySummary], default_factory=list), last_sync (str | None = None, ISO timestamp), version (int, default=1). EntitySummary: name (str), type (str), degree (int). Manter retrocompatibilidade (campo opcional, default None).",
+      "type": "code",
+      "files": [
+        "libs/blu_models/src/blu_models/context_schemas.py"
+      ],
       "dependencies": [],
-      "files": [
-        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/sbm_to_lightrag_synthesis.py"
-      ],
-      "acceptance": "Skill carrega sem erro; build_synthesis gera Markdown válido para cada entity_type; execute() processa lista de records e chama ainsert_custom_kg; tool registrada no MCP."
+      "acceptance": "Schema valida: AvailableTools com knowledge_graph_summary=None passa; com objeto válido passa; campo extra rejeitado (extra='forbid' ou ignorado). Testes unitários existentes passam."
     },
     {
-      "id": "T4.1b",
-      "title": "Factory LightRAG client por client_id (singleton com cache)",
-      "description": "Criar services/tool_pool_api/src/tool_pool_api/server/utils/lightrag_client.py: get_client_rag(client_id) -> LightRAG instance. Cache em dict global (TTL 1h). Config: workspace=f'client_{client_id}', PGKVStorage, PGVectorStorage, PGGraphStorage, PGDocStatusStorage apontando para Supabase do cliente. Função clear_client_rag_cache(client_id) para invalidar.",
-      "dependencies": ["T4.1a"],
+      "id": "T4.3b",
+      "title": "Módulo de sync: criar knowledge_graph_sync.py no tool_pool_api",
+      "description": "Criar services/tool_pool_api/src/tool_pool_api/server/tool_modules/knowledge_graph_sync.py com função update_knowledge_graph_summary(client_id: UUID, summary: dict) -> bool. Função: 1) ler clientes_blu.available_tools do client_id, 2) merge summary (preservar outros campos), 3) upsert JSONB, 4) chamar ContextService.clear_context_cache(client_id) para invalidar cache, 5) retornar True/False. Registrar como internal tool (não MCP). Incluir validação básica do dict (required keys: total_documents, total_entities, top_entities, last_sync, version). Log structured para auditoria.",
+      "type": "code",
       "files": [
-        "services/tool_pool_api/src/tool_pool_api/server/utils/lightrag_client.py"
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/knowledge_graph_sync.py"
       ],
-      "acceptance": "get_client_rag() retorna instância funcional; cache evita recriar conexões; TTL expira corretamente; conexão Supabase/pgvector válida."
+      "dependencies": [
+        "T4.3a"
+      ],
+      "acceptance": "Módulo carrega sem erro; update_knowledge_graph_summary executa e atualiza available_tools no Supabase; cache invalidado; log contém client_id, total_entities, last_sync. Testes unitários com mock Supabase passam."
     },
     {
-      "id": "T4.1c",
-      "title": "Migration SQL: índice otimizado para query de síntese",
-      "description": "Criar supabase/migrations/proposed/20260619000005_sbm_synthesis_index.sql: CREATE INDEX idx_sbm_synthesis_weekly ON shared_business_memory (client_id, curated, expires_at) WHERE curated = true AND expires_at IS NULL; CREATE INDEX idx_sbm_entity_temporal ON shared_business_memory (client_id, entity_type, entity_name, updated_at DESC).",
-      "dependencies": [],
+      "id": "T4.3c",
+      "title": "Context Service: garantir leitura do knowledge_graph_summary no domain_projection",
+      "description": "Em libs/blu_context_service/src/blu_context_service/context_service.py, método get_domain_projection: o available_tools já é incluído nas seções permitidas para domínios 'analytics', 'data', 'sql', 'rag', 'documents', 'knowledge', 'config', 'settings' (ver _DOMAIN_SECTIONS). Verificar se knowledge_graph_summary vem junto — não precisa mudança se available_tools já é retornado integralmente. Adicionar helper get_knowledge_graph_summary(client_id) -> KnowledgeGraphSummary | None que lê do cache/context e extrai o campo tipado. Documentar uso para specialists (rag_search, documentos).",
+      "type": "code",
       "files": [
-        "supabase/migrations/proposed/20260619000005_sbm_synthesis_index.sql"
+        "libs/blu_context_service/src/blu_context_service/context_service.py"
       ],
-      "acceptance": "Migration aplica sem erro; EXPLAIN mostra index scan na query T4.1; RLS preservado; sem locks longos em tabela de produção."
+      "dependencies": [
+        "T4.3a",
+        "T4.3b"
+      ],
+      "acceptance": "get_domain_projection(domain='rag', client_id) retorna available_tools com knowledge_graph_summary populado (se existir no DB). Helper get_knowledge_graph_summary retorna objeto tipado ou None. Sem breaking change em domínios existentes."
     },
     {
-      "id": "T4.1d",
-      "title": "Rotina semanal no Routine Engine: sbm_lightrag_weekly_synthesis",
-      "description": "Criar rotina em supabase/routines/seed_sbm_lightrag_synthesis.sql (ou via API do Routine Engine): trigger cron '0 23 * * 0' (domingo 23h), tipo 'skill', skill_name='sbm_to_lightrag_synthesis', params: {}. Adicionar ao SKILL_REGISTRY da rotina. Configurar timeout=1800s, max_retries=1, circuit_breaker_threshold=3.",
-      "dependencies": ["T4.1a", "T4.1b"],
+      "id": "T4.3d",
+      "title": "Integração: ponto de chamada no job de enriquecimento (T4.1)",
+      "description": "Documentar em plan (não implementar T4.1 aqui): o job semanal de enriquecimento SBM\u2192LightRAG (T4.1) deve, AO FINAL, chamar update_knowledge_graph_summary com dados agregados do LightRAG: rag.get_documents_count(), rag.get_entities_count(), rag.get_top_entities_by_degree(10), datetime.now(UTC).isoformat(), version=1. Esta task é preparatória — garante que a interface (T4.3a-c) existe para T4.1 consumir. Incluir exemplo de payload no docstring de knowledge_graph_sync.py.",
+      "type": "doc",
       "files": [
-        "supabase/routines/seed_sbm_lightrag_synthesis.sql"
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/knowledge_graph_sync.py"
       ],
-      "acceptance": "Rotina criada no Routine Engine; pg_cron job ativo; execução manual via API dispara skill; logs mostram processamento por client_id."
+      "dependencies": [
+        "T4.3b"
+      ],
+      "acceptance": "Docstring em knowledge_graph_sync.py contém exemplo completo de payload esperado pelo T4.1. Code review valida que campos batem com KnowledgeGraphSummary schema."
     },
     {
-      "id": "T4.1e",
-      "title": "Atualização do Context Service: knowledge_graph_summary fields",
-      "description": "Em libs/blu_context_service/src/blu_context_service/context_schemas.py: adicionar campos opcionais em `available_tools` schema: `knowledge_graph_summary` (dict com keys: total_documents, total_entities, top_entities_by_degree: list[{name, degree}], last_sync_at, sync_status). Em blu_client_context.py: get_domain_projection() inclui summary quando domínio usa RAG (documentos, crm, financeiro, compras, strategy).",
-      "dependencies": ["T4.1a"],
+      "id": "T4.3e",
+      "title": "Testes unitários e integração",
+      "description": "Criar testes: 1) unitário context_schemas: KnowledgeGraphSummary validation (campos required, tipos, defaults), 2) unitário knowledge_graph_sync: update_knowledge_graph_summary com mock Supabase (sucesso, erro RLS, erro validação), 3) integração ContextService: get_domain_projection inclui knowledge_graph_summary quando disponível, get_knowledge_graph_summary helper funciona. Testes em libs/blu_models/tests/unit/test_context_schemas.py, services/tool_pool_api/tests/unit/test_knowledge_graph_sync.py, libs/blu_context_service/tests/unit/test_knowledge_graph_summary.py.",
+      "type": "test",
       "files": [
-        "libs/blu_context_service/src/blu_context_service/context_schemas.py",
-        "libs/blu_context_service/src/blu_context_service/blu_client_context.py"
+        "libs/blu_models/tests/unit/test_context_schemas.py",
+        "services/tool_pool_api/tests/unit/test_knowledge_graph_sync.py",
+        "libs/blu_context_service/tests/unit/test_knowledge_graph_summary.py"
       ],
-      "acceptance": "Schema aceita novos campos (nullable); get_domain_projection retorna summary para domínios relevantes; zero breaking change em clients existentes."
-    },
-    {
-      "id": "T4.1f",
-      "title": "Atualização da skill `sbm_to_lightrag_synthesis` para escrever knowledge_graph_summary",
-      "description": "Após ciclo de síntese bem-sucedido por client_id: chamar Context Service (ou upsert direto na shared_business_memory com entity_type='system', entity_name='knowledge_graph_summary', key=timestamp) para atualizar summary. Incluir contagens do LightRAG (rag.get_graph_stats() se disponível, senão estimar via doc_status).",
-      "dependencies": ["T4.1e"],
-      "files": [
-        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/sbm_to_lightrag_synthesis.py"
+      "dependencies": [
+        "T4.3a",
+        "T4.3b",
+        "T4.3c"
       ],
-      "acceptance": "Após execução, knowledge_graph_summary atualizado na shared_business_memory; specialists veem last_sync_at, total_entities, top_entities no Context Service."
-    },
-    {
-      "id": "T4.1g",
-      "title": "Testes de integração e validação end-to-end",
-      "description": "1) Unitário: normalize_entity_name(), build_synthesis() para cada entity_type (mock records), lightrag_client cache. 2) Integração: popular shared_business_memory com 5+ entidades curated=true, executar skill, verificar ainsert_custom_kg chamado, knowledge_graph_summary atualizado. 3) Validação manual: rodar rotina semanal em staging, inspecionar LightRAG (query test entity), confirmar grafo enriquecido.",
-      "dependencies": ["T4.1d", "T4.1f"],
-      "files": [
-        "services/tool_pool_api/tests/unit/test_sbm_synthesis.py",
-        "services/tool_pool_api/tests/integration/test_sbm_lightrag_weekly.py"
-      ],
-      "acceptance": "Testes unitários passam (cobertura >80% na skill); integração mock passa; validação manual confirma entidades no LightRAG com conteúdo da SBM."
+      "acceptance": "pytest passa em todos os novos arquivos; cobertura >= 80% nas novas functions; integração com Supabase local/test passa."
     }
   ],
   "risks": [
     {
       "id": "R1",
-      "risk": "Volume de entidades curated=true cresce rapidamente — ciclo semanal pode exceder timeout (30min) ou estourar custo LLM (LightRAG extrai entidades de cada síntese)",
-      "mitigation": "DD-T41-09: processa uma entidade por vez, loga progresso. Se timeout, circuit breaker para. Futuro: batching assíncrono + fila Redis (fora do escopo T4.1). Monitorar metric: entities_processed_per_run, duration_seconds."
+      "risk": "LightRAG (Fase 3) ainda não implementado — knowledge_graph_summary ficará None/empty até T4.1",
+      "mitigation": "Campo opcional no schema (DD-02). Context Service e specialists tratam None graciosamente (fallback: 'conhecimento do grafo não disponível'). Sem breaking change."
     },
     {
       "id": "R2",
-      "risk": "Merge indesejado no LightRAG: dois contatos 'João' diferentes (fornecedor vs cliente) viram uma entidade",
-      "mitigation": "DD-T41-07: normalização padrão. Para contatos, prefixar entity_name com tipo: 'contact:joao_da_silva' vs 'supplier:joao_da_silva'. Adicionar email/CNPJ no description quando disponível para disambiguação futura."
+      "risk": "Concorrência: job T4.1 e possível rota manual de atualização podem race condition no available_tools JSONB",
+      "mitigation": "Upsert usa version no summary para detectar stale writes (optimistic locking). Context Service cache TTL curto (5min). Job T4.1 é single-writer (cron semanal)."
     },
     {
       "id": "R3",
-      "risk": "Conflito entre documento upado (Fase 3) e síntese SBM sobre mesma entidade — qual prevalece?",
-      "mitigation": "LightRAG faz merge por entity_name. Documento upado tem source_id='doc_...', síntese tem source_id='sbm_synthesis_...'. Ambos coexistem no grafo — LightRAG combina. Se descrições conflitam, Last-Write-Wins por timestamp do source_id. Documentar na skill."
+      "risk": "Top 10 entities por grau pode vazar informação sensível entre tenants se RLS falhar",
+      "mitigation": "RLS em clientes_blu usa app.client_id — mesmo mecanismo das outras sections. update_knowledge_graph_summary executa com RLS context set via supabase_set_rls (via ContextService internamente). Testar RLS em testes de integração."
     },
     {
       "id": "R4",
-      "risk": "PGGraphStorage do LightRAG com Supabase pode ter performance/limitações desconhecidas em produção",
-      "mitigation": "Fase 3 spike já deve ter validado. T4.1g teste de integração em staging com volume real. Se falhar, fallback: armazenar sínteses na shared_business_memory (entity_type='lightrag_synthesis') e não chamar LightRAG — grafo enriquecido fica pendente até fix."
+      "risk": "Schema evolution: se estrutura do summary mudar (ex: adicionar métricas), version field permite migração",
+      "mitigation": "version no KnowledgeGraphSummary (DD-04). ContextService.get_knowledge_graph_summary pode retornar versões antigas ou migrar on-read. Documentar política de versionamento."
     }
   ],
   "design_questions": [
     {
       "id": "DQ1",
-      "question": "Periodicidade semanal é adequada ou quinzenal reduz custo LLM sem perder frescor?",
-      "current_lean": "Semanal (roadmap). Quinzenal economiza ~50% custo mas dobra latência de propagação. Começar semanal, medir custo/entidades/semana, ajustar via config se necessário."
+      "question": "O knowledge_graph_summary deve incluir métricas de qualidade (ex: % entidades com source SBM vs upload)?",
+      "status": "open"
     },
     {
       "id": "DQ2",
-      "question": "Incluir entity_type='snapshot' (financeiro, clientes, agenda, compras) na síntese ou só entity_types aprendidos (skill, client, contact, supplier, user)?",
-      "current_lean": "SIM incluir snapshots — são conhecimento estruturado valioso. Template de snapshot já tem resumo_executivo + indicadores. LightRAG pode conectar 'financeiro:mensal' com contatos/fornecedores mencionados."
+      "question": "Specialists além de 'rag'/'documents' devem receber o summary? (ex: crm, financeiro para decisão de tool)",
+      "status": "open"
     },
     {
       "id": "DQ3",
-      "question": "Relations no ainsert_custom_kg: adicionar já em T4.1 ou deixar para T4.2 (Deduplicação inteligente)?",
-      "current_lean": "T4.1: apenas entidade + descrição (relations=[]). Relations requerem conhecimento de grafo (quem conecta com quem) — T4.2 fará análise cross-entidade. Manter T4.1 simples."
+      "question": "Frequência de atualização: T4.1 é semanal. Se job falhar, summary fica stale. Adicionar 'stale_after_hours' no summary?",
+      "status": "open"
     }
   ],
   "related_issues": [
-    {
-      "number": 25,
-      "title": "T3.1 Pipeline de indexação para vector store (Fase 3)",
-      "relation": "Fase 4 depende de LightRAG funcional (Fase 3 completa). T4.1 usa get_client_rag() criado na T3.1/T3.2."
-    },
-    {
-      "number": 26,
-      "title": "T3.2 Tool shared_memory_search (Fase 3)",
-      "relation": "Busca semântica na SBM pode complementar síntese — avaliar se T4.1 deve usar search_business_memory além da query direta."
-    },
-    {
-      "number": 27,
-      "title": "T3.3 Tool shared_memory_graph navegação (Fase 3)",
-      "relation": "T4.2 (Deduplicação) usará navegação por links para encontrar entidades relacionadas antes de inserir."
-    },
-    {
-      "number": 28,
-      "title": "T4.2 Deduplicação inteligente / T4.3 knowledge_graph_summary",
-      "relation": "Próximas subtarefas da Fase 4. T4.1 estabelece o pipeline; T4.2 melhora merge; T4.3 expõe summary aos specialists."
-    }
-  ]
+    29,
+    30,
+    32
+  ],
+  "next_phase_dependencies": {
+    "T4.1_enrichment_job": "Precisa de update_knowledge_graph_summary (T4.3b) + schema (T4.3a) para atualizar summary após sync SBM\u2192LightRAG",
+    "T4.2_deduplication": "Pode usar knowledge_graph_summary.total_entities para monitorar crescimento do grafo",
+    "rag_search_skill": "Pode ler get_knowledge_graph_summary para decidir modo de busca (local/mix/global) baseado em total_entities"
+  }
 }

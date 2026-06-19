@@ -1,135 +1,143 @@
-# patterns.md — Padrões detectados nos handoffs existentes
+# Padrões Arquiteturais — Issue #18: Post-flight Shared Memory (T1.2)
 
-> Gerado por factory-planner em 2026-06-19
-> Branch: phase-4/issue-29-dir-handoffs-estruturado
+> Planejamento factory-planner, branch `phase-0/issue-18-sm-postflight`
+> Gerado: 2026-06-19 | Fase 1, T1.2
 
-## Handoff 1: onboarding_trace_session
+## 1. Padrões a seguir (existentes no codebase)
 
-**Arquivo:** `docs/handoffs/20260525_onboarding_trace_session.md` (193 linhas)
+### P1 — Módulo de Tool com `@register_module`
 
-### Estrutura detectada
+**Local**: `services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py`
 
-```
-# H1: Handoff — Título descritivo (em português)
-**Data:** 25/Mai/2026
-**Objetivo:** descrição do propósito
---- (separador horizontal)
-## Seção: Estado já instalado
-## Seção: Setup a refazer
-  ### Subseções numeradas (1., 2., 3.)
-## Seção: Como vamos trabalhar
-## Seção: Queries úteis
-## Seção: Roteiro provável
-## Seção: Entregáveis ao fim
-## Seção: Cleanup ao final
-## Seção: Referências
-## Seção: Pré-requisitos
+Cada módulo exporta uma função `register_tools(mcp: FastMCP) -> list[str]` decorada com `@register_module`. A função registra tools MCP e retorna a lista de nomes registrados. O `__init__.py` importa o módulo e chama cada `register_fn`.
+
+**Template para `memory_post_flight.py`**:
+```python
+@register_module
+def register_tools(mcp: FastMCP) -> list[str]:
+    registered_tools: list[str] = []
+    
+    # Tool interna: NÃO exposta via @mcp.tool — apenas lógica interna
+    # A função _shared_memory_post_flight_logic é chamada pelo hook no service.py
+    
+    logger.info("[PostFlight Module] Internal tool ready (not exposed via MCP).")
+    return registered_tools  # lista vazia = internal only
 ```
 
-### Padrões observados
-- **Metadata inline** (não YAML): Data, Objetivo como bold text no header
-- **Emojis de status:** ✅ (concluído), ⏳ (pendente)
-- **Blocos de código:** SQL e bash em fenced blocks
-- **Checkboxes:** `- [ ]` para pré-requisitos
-- **Tabelas:** containers Docker em tabela markdown
-- **Paths:** relativos à raiz do repo
-- **Tom:** instrucional, passo-a-passo, voltado para sessão interativa
+**Variação para DD-06 (internal tool)**: Módulo registra mas retorna `[]` — sem tools MCP expostas. A lógica é importada diretamente pelo hook em service.py.
 
-### Inconsistências vs handoff 2
-- Sem campo `Autor:` ou `Status:` no header
-- Sem bloco de metadados resumido
-- Usa `---` como separador entre header e corpo (handoff 2 também)
+### P2 — Separação lógica ↔ tool MCP
 
----
+Toda tool MCP delega para uma função `_*_logic()` async pura, sem dependência de `Context` ou `FastMCP`. Isso permite testar a lógica isoladamente e reusar de outros contextos (como o hook em service.py).
 
-## Handoff 2: security_sprint_pre_onboarding
-
-**Arquivo:** `docs/handoffs/20260525_security_sprint_pre_onboarding.md` (191 linhas)
-
-### Estrutura detectada
-
-```
-# H1: Handoff — Título descritivo (em português)
-**Data:** 2026-05-25
-**Autor:** Lucas + Hermes (claude-opus-4.7)
-**Status:** ✅ Migrations aplicadas · ⚠️ 2 ações pendentes
-**Banco alvo:** Supabase prod
---- (separador horizontal)
-## 1. Contexto
-## 2. O que foi aplicado em prod
-  ### Migrations
-  ### Mudanças efetivas
-  ### Código modificado
-## 3. Achado crítico
-## 4. Ações pendentes
-## 5. Backlog imediato
-## 6. Artefatos
-## 7. Verificação final
+**Template**:
+```python
+async def _shared_memory_post_flight_logic(
+    client_id: str,
+    agent_slug: str,
+    session_id: str,
+    agent_result: dict | None = None,
+    agent_metadata: dict | None = None,
+    suggested_links: list[dict] | None = None,
+) -> dict:
+    """Insere/upsert resultados do agente na shared_business_memory."""
+    ...
 ```
 
-### Padrões observados
-- **Metadata inline** (não YAML): Data, Autor, Status, Banco alvo como bold text
-- **Seções numeradas** para hierarquia principal
-- **Tabelas** para listas de migrations
-- **Blocos de código:** SQL e bash
-- **Status explícito:** ✅⚠️ no header para escaneabilidade
-- **Tom:** relatório técnico, voltado para leitura pós-fato
+### P3 — Fire-and-forget assíncrono
 
-### Inconsistências vs handoff 1
-- Metadata mais rica (Autor, Status, Banco alvo)
-- Seções numeradas vs seções por tópico
-- Sem checkboxes para ações pendentes
-- Sem seção de Setup/Pré-requisitos
+**Local**: `services/agent_api/src/agent_api/core/service.py` (linhas 37, 162-165)
 
----
+```python
+_background_tasks: set = set()
 
-## Padrões comuns (a preservar)
-
-| Elemento | Ambos usam? | Consistente? |
-|---|---|---|
-| Nome do arquivo: `YYYYMMDD_tema.md` | Sim | Sim |
-| Header H1 com prefixo "Handoff —" | Sim | Sim |
-| Campo **Data:** no header | Sim | Formatos diferentes |
-| Separador `---` após header | Sim | Sim |
-| Seções com `##` | Sim | Numeradas vs por-tópico |
-| Blocos de código fenced | Sim | Sim |
-| Paths relativos à raiz | Sim | Sim |
-| Português como idioma principal | Sim | Sim |
-
-## Proposta de frontmatter
-
-```yaml
----
-title: "Título descritivo do handoff"
-date: YYYY-MM-DD
-author: Nome ou "Agente (modelo)"
-status: draft | em_andamento | concluido | arquivado
-tags: [dominio, tecnologia, urgencia]
-banco_alvo: opcional
-sessao_tipo: interativa | relatorio | auditoria
----
+def _fire_and_forget(coro) -> None:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 ```
 
-## Seções sugeridas para o template standard
+**Uso no hook**:
+```python
+_fire_and_forget(
+    _shared_memory_post_flight_logic(
+        client_id=client_id,
+        agent_slug=_selected_agent,
+        session_id=session_id,
+        agent_result={...},
+        agent_metadata={...},
+    )
+)
+```
 
-1. **Contexto** — por que este handoff existe
-2. **Estado atual** — o que já estava pronto antes
-3. **Ações realizadas** — o que foi feito
-4. **Achados** — descobertas, bugs, surpresas
-5. **Pendências** — o que ainda precisa ser feito
-6. **Artefatos** — lista de arquivos/dados gerados
-7. **Referências** — links para docs, PRs, issues
-8. **Próxima sessão** — continuação (opcional)
+### P4 — Supabase client assíncrono
 
-## Regras de nomenclatura
+**Local**: `memory_module.py` (via `blu_supabase_client`)
 
-- Arquivos: `YYYYMMDD_tema_descritivo.md` (já em uso — formalizar)
-- Templates em `docs/handoffs/templates/`
-- Assets em `docs/handoffs/assets/` (se necessário)
+```python
+db = await get_supabase_client()
+result = await db.schema("public").table("shared_business_memory")
+    .upsert(payload, on_conflict="client_id,entity_type,entity_name,key")
+    .execute()
+```
 
-## Validação (CI futuro)
+A constraint `uq_shared_memory_entry UNIQUE (client_id, entity_type, entity_name, key)` permite upsert nativo.
 
-- `date` deve ser ISO 8601 (YYYY-MM-DD)
-- `status` deve ser um dos valores do enum
-- Frontmatter YAML deve parsear sem erro
-- Nome do arquivo deve seguir `YYYYMMDD_*`
+### P5 — Extração de tool_calls do AIMessage
+
+**Local**: `service.py` — o LangGraph expõe `AIMessage.tool_calls` como lista de dicts com `name` e `args`. O hook extrai apenas `name` (DD-03: `tool_usage:<name>`) sem payloads sensíveis.
+
+```python
+if isinstance(last_msg, AIMessage):
+    tool_names = [tc.get("name") for tc in getattr(last_msg, "tool_calls", []) or []]
+```
+
+### P6 — Naming convention com prefixos semânticos (DD-03)
+
+Keys salvas na shared_business_memory seguem convenção:
+
+| Prefixo | Significado | Exemplo |
+|---------|-------------|---------|
+| `decision:` | Decisão tomada pelo agente | `decision:priorizar_fornecedor_x` |
+| `finding:` | Descoberta/informação extraída | `finding:cliente_atrasado_3_meses` |
+| `summary:` | Resumo do que foi feito | `summary:analise_financeira_q1` |
+| `tool_usage:` | Ferramenta utilizada (apenas nome) | `tool_usage:execute_sql` |
+
+`entity_name` segue `<agent_slug>:<session_id[:8]>` para resultados e `<agent_slug>` para metadados.
+
+### P7 — Noise suppression (DD-04)
+
+Apenas o **último estado significativo** é salvo. Estados intermediários do LangGraph são descartados. O hook extrai:
+- Último `AIMessage.content` como `agent_result`
+- `tool_calls` do AIMessage (apenas nomes)
+- `session_id` + `agent_slug` + `elapsed` como `agent_metadata`
+
+Estados intermediários (nós do grafo, elicitation, tool outputs) NÃO são persistidos.
+
+## 2. Decisões de design confirmadas
+
+| ID | Decisão | Status | Implicação |
+|----|---------|--------|------------|
+| DD-01 | Módulo separado `memory_post_flight.py` | ✅ Confirmado | Segue padrão `memory_module.py`. Arquivo em `tool_modules/`. |
+| DD-02 | 3 novos entity_types | ✅ Confirmado | Migration SQL necessária. `_VALID_ENTITY_TYPES` pode ou não ser expandido (ver C1). |
+| DD-03 | Prefixos semânticos em keys | ✅ Confirmado | Validação opcional no módulo (warning, não erro). |
+| DD-04 | Noise suppression | ✅ Confirmado | Hook extrai APENAS estado final. Upsert substitui entradas anteriores. |
+| DD-05 | Fire-and-forget async | ✅ Confirmado | Infra `_background_tasks` já existe. |
+| DD-06 | Internal tool (não MCP) | ✅ Confirmado | `@register_module` retorna `[]` vazio. Lógica chamada direto pelo hook. |
+
+## 3. Design questions respondidas
+
+| ID | Pergunta | Resposta do planner |
+|----|----------|---------------------|
+| DQ1 | Síncrono vs fire-and-forget? | **Fire-and-forget assíncrono**. Padrão `_background_tasks` já existe em service.py. Post-flight não deve bloquear o usuário. |
+| DQ2 | Onde extrair agent_result? | **Último AIMessage** da resposta (`.content`). Se for frontdesk → specialist, o último AIMessage é o do specialist (já substituído no estado). |
+| DQ3 | tool_usage: nomes ou payloads? | **Apenas nomes**. Payloads podem conter dados sensíveis (PII, queries SQL, etc.). |
+| DQ4 | agent_link_pending: automático ou aprovação? | **Automático com source='agent_pending'**. Links criados como `agent_link_pending` ficam na tabela `shared_memory_links` com `source='agent_pending'` para validação posterior por rotina T4.4. |
+
+## 4. Anti-padrões a evitar
+
+- ❌ Bloquear o fluxo principal: post-flight NUNCA deve fazer `await` no caminho crítico.
+- ❌ Salvar estados intermediários: apenas último estado significativo.
+- ❌ Expor post-flight como tool MCP: apenas hook interno.
+- ❌ Hardcodar entity_types no hook: usar constantes do módulo.
+- ❌ Silenciar erros completamente: log warning se post-flight falhar.

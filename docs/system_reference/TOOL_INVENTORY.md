@@ -61,6 +61,7 @@ Revisado em: 2026-06-02 | Fonte: ToolRegistry (registry.py) + AGENT_SYSTEM.md + 
 || `shared_memory_link` | CUSTOM | SME | memoria/compartilhada | memory_module.py |
 || `shared_memory_unlink` | CUSTOM | SME | memoria/compartilhada | memory_module.py |
 || `shared_memory_get_links` | CUSTOM | SME | memoria/compartilhada | memory_module.py |
+| `shared_memory_post_flight` | INTERNAL | — | memoria/post-flight | memory_post_flight.py — não exposta via MCP. Persiste agent_result, agent_metadata, agent_link_pending após execução de agente. |
 
 ### 1.2 GOOGLE_TOOLS (13 tools)
 
@@ -94,7 +95,7 @@ Revisado em: 2026-06-02 | Fonte: ToolRegistry (registry.py) + AGENT_SYSTEM.md + 
 | `jira_read` | ENTERPRISE | jira | — |
 | `jira_write` | ENTERPRISE | jira | ✓ HITL |
 
-**Total no ToolRegistry: 69 tools** (47 builtin + 13 google + 9 docker_mcp)
+**Total no ToolRegistry: 70 tools** (48 builtin + 13 google + 9 docker_mcp)
 
 ---
 

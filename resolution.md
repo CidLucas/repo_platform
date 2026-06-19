@@ -1,130 +1,386 @@
-# resolution.md — Decisões de design resolvidas + Conflitos
+# Resolution — Issue #31 / T4.3 (knowledge_graph_summary update)
 
-> Issue #32 — T4.4: Política de retenção e prune da shared memory
-> Planner: factory-planner | Date: 2026-06-19
+> Gerado por factory-planner em 2026-06-19
 
----
+## 1. Design Decisions (validadas/refinadas do intake)
 
-## Decisões revisadas (DD-01 a DD-07)
+### DD-01: Schema em AvailableTools ✅ CONFIRMADA
+Adicionar `knowledge_graph_summary: KnowledgeGraphSummary | None = None` ao `AvailableTools` (linha 278 de context_schemas.py). Retrocompatível (campo opcional).
 
-### DD-01: Soft-delete em 2 fases ✅ APROVADO
-Soft-delete (archived=true) → archival 90d → hard-delete físico.
-**Racional confirmado:** Alinha com LGPD. Permite restore acidental. Janela de 90d é padrão de mercado para dados de negócio.
+### DD-02: Versionamento do summary ✅ CONFIRMADA
+`KnowledgeGraphSummary.version: int = 1`. Campo no próprio summary (não no AvailableTools). Permite migração futura de formato.
 
-### DD-02: 5 TTL tiers ✅ APROVADO (com ajuste)
-| Tier | TTL | Uso |
-|------|-----|-----|
-| curated | ∞ (NULL) | Dados curados manualmente, seed data |
-| migration | 90d | Dados migrados de sistemas legados |
-| specialist | 30d | Conhecimento gerado por agentes L3 |
-| memory_agent_hi | 14d | Fatos de alta relevância do memory agent |
-| memory_agent_lo | 7d | Fatos transitórios, observações passageiras |
+### DD-03: Módulo knowledge_graph_sync.py ✅ CONFIRMADA — refino
+- Internal tool via `@register_module` (padrão do codebase).
+- Função: `update_knowledge_graph_summary(client_id: UUID, summary: dict) -> bool`.
+- Registrada no `AVAILABLE_MODULES` como "knowledge_graph" e importada em `register_all_tools`.
+- NÃO exposta como MCP tool (chamada interna pelo job T4.1).
 
-**Ajuste:** TTL tier é propriedade da COLUNA `ttl_tier`, não do `source`. O source continua sendo a proveniência (quem gerou). O tier determina a política de retenção.
+### DD-04: Payload structure ✅ CONFIRMADA
+```python
+class EntitySummary(BaseModel):
+    name: str
+    type: str
+    degree: int
 
-### DD-03: Volume limit 50/entidade ✅ APROVADO (com correção)
-Trigger BEFORE INSERT conta `WHERE archived=false AND soft_delete_at IS NULL` para o mesmo (client_id, entity_type, entity_name).
-
-**⚠ CORREÇÃO CRÍTICA:** O plan referencia `source='curated'` como exceção, mas 'curated' NÃO é um valor válido no CHECK constraint de source (só: manual, memory_agent, specialist, migration, system). A exceção deve ser baseada em `ttl_tier='curated'`, não em source.
-
-**Correção proposta:**
-```sql
-IF NEW.ttl_tier = 'curated' THEN RETURN NEW; END IF;  -- sem limite
+class KnowledgeGraphSummary(BaseModel):
+    total_documents: int = 0
+    total_entities: int = 0
+    top_entities: list[EntitySummary] = Field(default_factory=list, max_length=10)
+    last_sync: str | None = None  # ISO timestamp
+    version: int = 1
 ```
 
-### DD-04: Routine Engine vs pg_cron ✅ APROVADO (com correção de path)
-O Routine Engine NÃO é um serviço separado. Vive em `services/agent_api/src/agent_api/core/routines.py`.
+### DD-05: Upsert JSONB em clientes_blu.available_tools ✅ CONFIRMADA
+Ler → merge (preservar tier, enabled_tool_names, etc.) → escrever. Cache invalidado após.
 
-**Correção de path:** T4.4d deve criar a função de prune em:
-- `services/agent_api/src/agent_api/core/routine_functions.py` (registrar `prune_shared_memory` como fetch function)
-- OU como rotina no catálogo `cross_agent_routines` (INSERT na tabela)
-- **NÃO** criar `services/routine_engine/src/routines/prune_shared_memory.py`
-
-**DQ-03 respondida:** O engine atual usa pg_cron para dispatch. Não tem timezone-aware cron nativo — mas 03:00 UTC é trivial de expressar como `0 3 * * *` no pg_cron. Se for usar o Routine Engine, precisa ser como rotina registrada que o dispatcher chama.
-
-### DD-05: Alerta >100 registros ✅ APROVADO
-Silencioso para operação normal. Alerta condicional evita fatigue.
-
-### DD-06: Incorporar lifecycle columns na migration base ✅ APROVADO (com ressalva)
-A migration `20260619000000` está em `proposed/` (não aplicada). Incorporar lifecycle columns nela é correto.
-
-**⚠ RESSALVA:** A migration `20260619000003` (issue #21) faz ALTER TABLE para expandir entity_type. Se incorporarmos tudo na base, precisamos também incluir os entity_types expandidos (agent_result, agent_metadata, routine) na base migration. Caso contrário, o ALTER da #21 vai conflitar.
-
-**Recomendação:** Consolidar `20260619000000` + `20260619000003` + lifecycle columns em uma única migration, ou coordenar com o owner da #21.
-
-### DD-07: Backup race condition ✅ APROVADO
-Prune (03:00) verifica checkpoint de backup (02:00) antes de executar. Janela de 1h é adequada.
+### DD-06: Cache invalidation ✅ CONFIRMADA
+`clear_context_cache(client_id)` após upsert.
 
 ---
 
-## Conflitos detectados (4)
+## 2. Discrepância encontrada: _DOMAIN_SECTIONS
 
-### CONFLICT-01: 'curated' como source vs ttl_tier 🔴 CRÍTICO
-**Onde:** Plan.intake.json DD-03, T4.4c  
-**Problema:** O plan trata 'curated' como valor de `source`, mas o CHECK constraint da migration só permite: manual, memory_agent, specialist, migration, system. 'curated' não existe como source.  
-**Resolução:** Usar `ttl_tier` (nova coluna) como discriminante, não `source`. Adicionar 'curated' ao CHECK de source é uma alternativa, mas semanticamente errado — curated é política de retenção, não proveniência do dado.
+**O plano intake afirma:** "available_tools já é incluído nas seções permitidas para domínios 'analytics', 'data', 'sql', 'rag', 'documents', 'knowledge', 'config', 'settings'"
 
-### CONFLICT-02: memory_module.py — 3 plans editam o mesmo arquivo 🟡 ALTO
-**Arquivo:** `services/tool_pool_api/.../memory_module.py` (1262 linhas)  
-**Plans concorrentes:**
-- #26 (T3.2): adiciona `shared_memory_search` + expande `_VALID_ENTITY_TYPES`
-- #30 (T4.2): adiciona helpers `upsert_synthesis_output()`, `upsert_dedup_mapping()`, etc.
-- #32 (T4.4c): adiciona parâmetro `ttl_tier` em upsert/write
+**Realidade (código em context_service.py:30-43):**
+- `rag`, `documents`, `knowledge` **NÃO** incluem `available_tools`.
+- Apenas `analytics`, `data`, `sql`, `config`, `settings` incluem.
 
-**Mitigação:** Ordenar implementação: #32 depende de #26 para _VALID_ENTITY_TYPES expandido. #30 e #32 editam funções DIFERENTES do módulo — conflito gerenciável se ordem for respeitada.
+**Decisão planner:** T4.3c deve:
+1. Adicionar `available_tools` a `rag` e `documents` (domínios que usarão `knowledge_graph_summary`)
+2. Manter `knowledge` como está (focado em company_profile/policies/brand_voice)
+3. OU: Manter domain projection inalterado e expor `get_knowledge_graph_summary()` como helper separado
 
-### CONFLICT-03: Migration cascade — entity_type CHECK 🟡 MÉDIO
-**Problema:** 3 migrations em proposed/ tocam a mesma tabela:
-1. `20260619000000` — CREATE TABLE (entity_type base)
-2. `20260619000003` — ALTER TABLE entity_type (expande)
-3. T4.4a — ALTER TABLE lifecycle columns
-
-Se as migrations são aplicadas em ordem numérica, o ALTER da #21 quebra se a tabela for recriada com schema diferente.
-
-**Resolução:** Consolidar tudo em uma única migration antes de promover para applied/. Alternativa: aplicar 00000 → 00003 → T4.4a em sequência (ALTERs compatíveis).
-
-### CONFLICT-04: TOOL_INVENTORY — YAML não existe 🟢 BAIXO
-**Problema:** Plan referencia `configs/tool_inventory.yaml` — arquivo não existe.  
-**Realidade:** O registry de tools é código Python. A wiki `TOOL_INVENTORY.md` é documentação.  
-**Resolução:** T4.4e deve atualizar o `TOOL_INVENTORY.md` (adicionar shared_memory_read/write que faltam) E verificar se o registry Python está completo. NÃO criar `configs/tool_inventory.yaml`.
+**Recomendação:** Opção 3 (helper separado) — evita mudança de comportamento em _DOMAIN_SECTIONS que afeta outras sections do available_tools. O `get_knowledge_graph_summary()` é um accessor específico, não uma mudança no projection.
 
 ---
 
-## Design Questions respondidas
+## 3. Conflicts Analysis
 
-| DQ | Pergunta | Resposta |
-|----|----------|----------|
-| DQ-01 | Volume limit 50 configurável por tenant? | **Não agora.** 50 é conservador. Monitorar rejeições (R-01). Adicionar config per-tenant é over-engineering no MVP. |
-| DQ-02 | 90 dias archival suficiente? | **Sim para MVP.** LGPD não exige retenção específica para dados de negócio. 90d é janela de segurança razoável para restore acidental. |
-| DQ-03 | Routine Engine suporta 03:00 UTC? | **Via pg_cron sim.** O engine atual não tem cron próprio — usa pg_cron para dispatch. Expressão `0 3 * * *` resolve. |
-| DQ-04 | TOOL_INVENTORY location? | **`docs/llm_wiki/TOOL_INVENTORY.md`** (wiki). O registry Python real está em `tool_modules/registry.py`. NÃO criar YAML. |
+| Issue relacionada | Branch | Arquivos em conflito | Severidade |
+|---|---|---|---|
+| #29 (handoffs dir) | `phase-4/issue-29-dir-handoffs-estruturado` | Nenhum | ✅ Clean |
+| #30 (meta/ dir) | `phase-4/issue-30-diretorio-meta-dados-operacionais` | Nenhum | ✅ Clean |
+| #32 (retenção/prune) | `phase-0/issue-32-politica-de-retencao-e-prune` | Nenhum | ✅ Clean |
 
----
-
-## 3 Delivery Units (ordem de implementação)
-
-### DU-1: Foundation (T4.4a + T4.4b)
-- Migration consolidada: lifecycle columns + volume limit trigger
-- Depende de: NADA (migrations ainda em proposed/)
-- Bloqueia: TUDO abaixo
-
-### DU-2: Core Logic (T4.4c + T4.4d)
-- memory_module.py: adicionar ttl_tier parameter
-- Routine function: prune_shared_memory registrada
-- Depende de: DU-1 (colunas existem), #26 (entity_types)
-- Bloqueia: DU-3
-
-### DU-3: Registry + Tests (T4.4e + T4.4f)
-- TOOL_INVENTORY.md atualizado
-- Testes unitários + integração
-- Depende de: DU-2 (lógica implementada)
+**Conclusão:** Zero conflitos de arquivo com branches relacionadas. T4.3 pode prosseguir sem coordenação.
 
 ---
 
-## Recomendação final
+## 4. Risks & Mitigations (validados)
 
-**APROVAR com as correções acima.**
-O plano é sólido mas precisa de 3 ajustes antes da implementação:
-1. Corrigir 'curated' → usar `ttl_tier`, não `source` (CONFLICT-01)
-2. Corrigir paths do Routine Engine (CONFLICT-03, DQ-03)
-3. Corrigir target do TOOL_INVENTORY (CONFLICT-04)
+| ID | Risco | Mitigação | Status |
+|----|-------|-----------|--------|
+| R1 | LightRAG não existe → summary fica None | Campo opcional (DD-02). Fallback: "grafo não disponível" | ✅ Mitigado |
+| R2 | Race condition no JSONB | version field (optimistic locking). Single-writer (cron semanal T4.1) | ✅ Mitigado |
+| R3 | RLS leak entre tenants | RLS client_id no ContextService. Testar em integração | ⚠️ Precisa teste |
+| R4 | Schema evolution | version field no summary. Migração on-read | ✅ Mitigado |
+
+---
+
+## 5. Pipeline de Delivery (sequenciamento)
+
+```
+T4.3a (schema) ──┬──> T4.3b (sync module) ──┬──> T4.3c (context helper) ──> T4.3e (testes)
+                 │                           │
+                 └──> (paralelo com T4.3b)   └──> T4.3d (docstring/integration point)
+```
+
+**Tasks para factory-coder (sequenciais com paralelismo):**
+
+| Order | Card | Depende de | Estimativa |
+|-------|------|------------|------------|
+| 1 | T4.3a: Schema KnowledgeGraphSummary + AvailableTools | — | Pequeno (1 arquivo, ~40 linhas) |
+| 2 | T4.3b: Módulo knowledge_graph_sync.py | T4.3a | Médio (2 arquivos, ~120 linhas) |
+| 3 | T4.3c: Context Service helper + domain review | T4.3a, T4.3b | Pequeno (1 arquivo, ~40 linhas) |
+| 4 | T4.3d: Docstring com payload exemplo T4.1 | T4.3b | Trivial (docstring, ~15 linhas) |
+| 5 | T4.3e: Testes unitários (3 arquivos) | T4.3a, T4.3b, T4.3c | Médio (3 arquivos, ~200 linhas) |
+
+**Otimização:** T4.3c e T4.3d podem rodar em paralelo após T4.3b.
+
+---
+
+## 6. Questões abertas (do intake)
+
+| ID | Questão | Status após scan |
+|----|---------|-----------------|
+| DQ1 | Métricas de qualidade no summary? | **Adiado** — adicionar quando T4.1 existir e gerar dados reais |
+| DQ2 | Quais specialists recebem o summary? | **Respondido**: `rag`, `documents` via helper `get_knowledge_graph_summary()`. Outros sob demanda. |
+| DQ3 | Stale detection (`stale_after_hours`)? | **Adiado** — adicionar `stale_after_hours` ao schema na V2 quando T4.1 rodar periodicamente |
+
+---
+
+## 7. Decisões de implementação (planner)
+
+1. **Helper separado, não domain projection** — `get_knowledge_graph_summary(client_id)` é adicionado ao ContextService como accessor tipado. `_DOMAIN_SECTIONS` não é alterado (evita side effects em outras sections do `available_tools`).
+
+2. **1 card monolítico por subtarefa** — 5 cards para factory-coder, sequenciados com paralelismo T4.3c ∥ T4.3d.
+
+3. **Testes em 3 arquivos separados** — cada lib/service com seus próprios testes. Mock Supabase (padrão do codebase).
+
+4. **knowledge_graph_sync como internal tool** — registrada no AVAILABLE_MODULES mas NÃO exposta via MCP (chamada direta pelo job T4.1).
+
+5. **Structure logging obrigatório** — `logger.info(f"knowledge_graph_summary updated: client={client_id}, entities={n}, docs={m}, sync={ts}")`.
+
+---
+
+## 8. Branch & Commit
+
+- Branch: `phase-0/issue-31-eventos-trigger-handoffs`
+- Próximo passo: factory-coder implementa T4.3a (schema) → T4.3b (sync) → T4.3c+T4.3d (paralelo) → T4.3e (testes)
+# Resolução de Design — Issue #18: Post-flight Shared Memory (T1.2)
+
+> Planejamento factory-planner, branch `phase-0/issue-18-sm-postflight`
+> Gerado: 2026-06-19 | Fase 1, T1.2
+
+## 1. Arquitetura de implementação
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  service.py (ChatService)                               │
+│                                                         │
+│  process_message() / process_message_stream()           │
+│    │                                                    │
+│    ├─ graph.ainvoke() ───────────────► final_state      │
+│    │                                                    │
+│    └─ [NOVO] _fire_and_forget(                          │
+│         _shared_memory_post_flight_logic(               │
+│           client_id, agent_slug, session_id,            │
+│           agent_result, agent_metadata, suggested_links │
+│         )                                               │
+│       )                                                 │
+└───────────────────────┬─────────────────────────────────┘
+                        │ import
+┌───────────────────────▼─────────────────────────────────┐
+│  memory_post_flight.py (tool_pool)                      │
+│                                                         │
+│  _shared_memory_post_flight_logic(...)                  │
+│    │                                                    │
+│    ├─ Upsert agent_result → shared_business_memory      │
+│    │   entity_type='agent_result'                       │
+│    │   entity_name='<agent>:<session>'                  │
+│    │   key='finding:<desc>' ou 'decision:<desc>'        │
+│    │                                                    │
+│    ├─ Upsert agent_metadata → shared_business_memory    │
+│    │   entity_type='agent_metadata'                     │
+│    │   entity_name='<agent>'                            │
+│    │   key='session_id' | 'elapsed' | 'tool_usage:<t>' │
+│    │                                                    │
+│    └─ Insert suggested_links → shared_memory_links      │
+│        entity_type='agent_link_pending' (source field)  │
+│        source='agent_pending'                           │
+└─────────────────────────────────────────────────────────┘
+```
+
+## 2. Esquema de dados no shared_business_memory
+
+### 2.1 agent_result
+
+| Campo | Valor | Exemplo |
+|-------|-------|---------|
+| `entity_type` | `agent_result` | |
+| `entity_name` | `<agent_slug>:<session_id[:8]>` | `crm:a1b2c3d4` |
+| `key` | `finding:cliente_inadimplente` | Prefixo `finding:` ou `decision:` |
+| `value` | `jsonb` com conteúdo textual | `{"text": "Cliente X está 3 meses atrasado", "confidence": 0.9}` |
+| `source` | `specialist` | |
+| `confidence` | `0.0–1.0` | |
+
+### 2.2 agent_metadata
+
+| Campo | Valor | Exemplo |
+|-------|-------|---------|
+| `entity_type` | `agent_metadata` | |
+| `entity_name` | `<agent_slug>` | `crm` |
+| `key` | `session_id`, `elapsed`, `tool_usage:execute_sql` | Prefixo `tool_usage:` |
+| `value` | `jsonb` | `{"elapsed_seconds": 12.5}` ou `{"tool": "execute_sql"}` |
+| `source` | `system` | |
+| `confidence` | `1.0` | |
+
+### 2.3 agent_link_pending
+
+Links sugeridos vão para `shared_memory_links` com `source='agent_pending'`:
+- `source_entity_type` = tipo da entidade origem (skill, client, etc.)
+- `target_entity_type` = tipo da entidade destino
+- `source='agent_pending'` → rotina T4.4 valida depois
+
+## 3. Fluxo do hook no service.py
+
+### 3.1 process_message() (sync)
+
+Após `final_state = await graph.ainvoke(...)` (linha 308), antes do `return ChatResult(...)` (linha 411):
+
+```python
+# Post-flight hook (fire-and-forget)
+_fire_and_forget(
+    _post_flight_for_state(
+        final_state=final_state,
+        client_id=client_id,
+        agent_slug=_selected_agent,
+        session_id=session_id,
+        elapsed=elapsed,
+    )
+)
+```
+
+### 3.2 process_message_stream() (stream)
+
+Após o `yield` do evento `done` (linha 585), antes de retornar:
+
+```python
+# Post-flight hook (fire-and-forget, não bloqueia stream)
+if full_response_parts:
+    _fire_and_forget(
+        _post_flight_for_response(
+            client_id=client_id,
+            agent_slug=specialist_slug if sentinel else "frontdesk",
+            session_id=session_id,
+            response_text=full_response,
+            tool_calls=tool_calls_seen,
+            elapsed=elapsed,
+        )
+    )
+```
+
+### 3.3 Função helper compartilhada
+
+```python
+async def _post_flight_for_state(
+    final_state: dict,
+    client_id: str,
+    agent_slug: str,
+    session_id: str,
+    elapsed: float,
+) -> None:
+    """Extrai dados do estado final e chama post-flight logic."""
+    try:
+        from tool_pool_api.server.tool_modules.memory_post_flight import (
+            _shared_memory_post_flight_logic
+        )
+        
+        msgs = final_state.get("messages") or []
+        last_ai = None
+        for m in reversed(msgs):
+            if isinstance(m, AIMessage):
+                last_ai = m
+                break
+        
+        agent_result = None
+        if last_ai and last_ai.content:
+            agent_result = {
+                "summary": last_ai.content[:2000],  # truncate
+                "tool_calls": [
+                    tc.get("name") for tc in getattr(last_ai, "tool_calls", []) or []
+                ],
+            }
+        
+        agent_metadata = {
+            "session_id": session_id,
+            "agent_slug": agent_slug,
+            "elapsed_seconds": round(elapsed, 2),
+        }
+        
+        await _shared_memory_post_flight_logic(
+            client_id=client_id,
+            agent_slug=agent_slug,
+            session_id=session_id,
+            agent_result=agent_result,
+            agent_metadata=agent_metadata,
+        )
+    except Exception:
+        logger.warning(
+            "[ChatService] Post-flight failed for agent=%s session=%s",
+            agent_slug, session_id, exc_info=True
+        )
+```
+
+## 4. Migration SQL (T1.2a)
+
+```sql
+-- Migration: adiciona agent_result, agent_metadata, agent_link_pending
+-- aos entity_types válidos na shared_business_memory
+
+BEGIN;
+
+-- 1. Remove constraint existente
+ALTER TABLE public.shared_business_memory
+    DROP CONSTRAINT IF EXISTS shared_business_memory_entity_type_check;
+
+-- 2. Adiciona nova constraint com tipos expandidos
+ALTER TABLE public.shared_business_memory
+    ADD CONSTRAINT shared_business_memory_entity_type_check
+    CHECK (entity_type IN (
+        'skill', 'client', 'contact', 'supplier', 'user',
+        'agent_result', 'agent_metadata'
+    ));
+
+-- 3. Comentário atualizado
+COMMENT ON COLUMN public.shared_business_memory.entity_type IS
+    'Entity taxonomy: skill | client | contact | supplier | user | agent_result | agent_metadata';
+
+COMMIT;
+```
+
+Arquivo: `supabase/migrations/proposed/20260619000002_add_agent_entity_types.sql`
+
+## 5. Módulo memory_post_flight.py (T1.2b)
+
+Estrutura do arquivo `services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_post_flight.py`:
+
+```python
+"""memory_post_flight.py — Post-flight persistence for agent results (T1.2)."""
+
+import json, logging
+from blu_supabase_client import get_supabase_client
+from . import register_module
+
+logger = logging.getLogger(__name__)
+
+_TABLE = "shared_business_memory"
+_LINKS_TABLE = "shared_memory_links"
+
+_VALID_PREFIXES = {"decision:", "finding:", "summary:", "tool_usage:"}
+
+async def _shared_memory_post_flight_logic(
+    client_id: str,
+    agent_slug: str,
+    session_id: str,
+    agent_result: dict | None = None,
+    agent_metadata: dict | None = None,
+    suggested_links: list[dict] | None = None,
+) -> dict:
+    """Persiste resultados do agente na shared memory."""
+    ...
+```
+
+## 6. Riscos e mitigações
+
+| Risco | Prob. | Impacto | Mitigação |
+|-------|-------|---------|-----------|
+| R1 — Noise | Média | Médio | DD-04: upsert, apenas último estado, TTL curto |
+| R2 — Dependência pre-flight | Baixa | Baixo | T1.2 funciona sem T1.1. Ciclo completo só com ambos. |
+| R3 — Fire-and-forget perde dados | Baixa | Médio | Retry 1x no módulo; log warning na falha |
+| R4 — Mudanças no LangGraph | Baixa | Alto | try/except resiliente; fallback: salvar só metadata |
+| R5 — Conflito com tools Fase 0 | Nenhum | Baixo | Post-flight escreve direto (Supabase client), não usa tools existentes |
+
+## 7. Critérios de aceitação
+
+1. Após execução de qualquer agente (frontdesk/specialist), `agent_result` é persistido na `shared_business_memory`
+2. `agent_metadata` (session_id, elapsed, tool_usage) é persistido separadamente
+3. Links sugeridos são salvos como `source='agent_pending'` na `shared_memory_links`
+4. Post-flight NÃO bloqueia resposta ao usuário (fire-and-forget)
+5. Falha no post-flight NÃO interrompe o fluxo principal (log warning)
+6. Migration SQL aplicada sem erros e validada
+7. Testes de integração cobrem: persistência, upsert, fire-and-forget, error handling
+8. Documentação atualizada em SHARED_MEMORY_DESIGN.md e TOOL_INVENTORY.md
+
+## 8. Ordem de implementação recomendada
+
+```
+1. T1.2a (migration SQL)          ← independente
+2. T1.2d (documentação)           ← paralelo com T1.2a
+3. T1.2b (memory_post_flight.py)  ← depende de T1.2a
+4. T1.2c (hook service.py)        ← depende de T1.2b
+5. T1.2e (testes)                 ← depende de T1.2b
+6. T1.2f (TOOL_INVENTORY.md)      ← depende de T1.2b
+```

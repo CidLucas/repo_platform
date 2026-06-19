@@ -1,0 +1,159 @@
+{
+  "issue_number": 31,
+  "issue_title": "Fase 4 \u2014 Eventos de trigger para handoffs",
+  "phase": "Fase 4 / T4.3",
+  "symbolic_ref": "docs/llm_wiki/SHARED_MEMORY_DESIGN.md - T4.3",
+  "scope": "Implementar atualização do knowledge_graph_summary no Context Service (available_tools). O job de enriquecimento semanal (T4.1: SBM \u2192 LightRAG) deve chamar esta atualização após sincronizar o grafo. O summary expõe: total de documentos indexados, total de entidades no grafo, top 10 entidades por grau de conexão, última data de sincronização.",
+  "design_decisions": [
+    {
+      "id": "DD-01",
+      "decision": "Adicionar campo knowledge_graph_summary ao schema AvailableTools em context_schemas.py",
+      "rationale": "available_tools é a seção injetada em todos os agents; o summary do grafo deve ser acessível para routing e decisões de specialists (ex: rag_search decide se vale consultar o grafo). Schema versionado via Pydantic garante validação."
+    },
+    {
+      "id": "DD-02",
+      "decision": "Campo knowledge_graph_summary é opcional (nullable) e versionado",
+      "rationale": "LightRAG (Fase 3) ainda não existe; clientes sem Fase 3/Ativação não têm grafo. O campo pode ser None. Incluir version para migrações futuras do formato do summary."
+    },
+    {
+      "id": "DD-03",
+      "decision": "Criar módulo dedicado knowledge_graph_sync.py no tool_pool_api (internal tool, não MCP)",
+      "rationale": "Atualização do summary é chamada pelo job de enriquecimento (T4.1) como step final. Internal tool via FastMCP client evita overhead de protocolo MCP e permite chamada síncrona no job. Separação: sync module = escrita/atualização; Context Service = leitura/cache."
+    },
+    {
+      "id": "DD-04",
+      "decision": "Estrutura do knowledge_graph_summary: { total_documents: int, total_entities: int, top_entities: list[{name, type, degree}], last_sync: ISOtimestamp, version: int }",
+      "rationale": "Matches exato do roadmap T4.3: 'Total de documentos indexados, Total de entidades no grafo, Entidades mais relevantes (top 10 por grau de conexão), Última data de sincronização'. top_entities limitado a 10 por performance/noise."
+    },
+    {
+      "id": "DD-05",
+      "decision": "Atualização via upsert em clientes_blu.available_tools (JSONB) — reusa infraestrutura existente de context sections",
+      "rationale": "available_tools já é uma coluna JSONB em clientes_blu. ContextService.get_client_context() já carrega e cacheia. Update é PATCH parcial: ler, merge knowledge_graph_summary, escrever. RLS preservado (client_id)."
+    },
+    {
+      "id": "DD-06",
+      "decision": "Invalidar cache Redis do ContextService após atualização (clear_context_cache)",
+      "rationale": "Garanta que próxima get_client_context() leia summary fresco. Cache TTL default 5min, mas job de enriquecimento roda semanalmente — invalidar é mais seguro que esperar TTL."
+    }
+  ],
+  "subtasks": [
+    {
+      "id": "T4.3a",
+      "title": "Schema: adicionar knowledge_graph_summary ao AvailableTools em context_schemas.py",
+      "description": "Em libs/blu_models/src/blu_models/context_schemas.py, classe AvailableTools: adicionar campo opcional knowledge_graph_summary: KnowledgeGraphSummary | None = None. Criar classe KnowledgeGraphSummary (BaseModel) com fields: total_documents (int, default=0), total_entities (int, default=0), top_entities (list[EntitySummary], default_factory=list), last_sync (str | None = None, ISO timestamp), version (int, default=1). EntitySummary: name (str), type (str), degree (int). Manter retrocompatibilidade (campo opcional, default None).",
+      "type": "code",
+      "files": [
+        "libs/blu_models/src/blu_models/context_schemas.py"
+      ],
+      "dependencies": [],
+      "acceptance": "Schema valida: AvailableTools com knowledge_graph_summary=None passa; com objeto válido passa; campo extra rejeitado (extra='forbid' ou ignorado). Testes unitários existentes passam."
+    },
+    {
+      "id": "T4.3b",
+      "title": "Módulo de sync: criar knowledge_graph_sync.py no tool_pool_api",
+      "description": "Criar services/tool_pool_api/src/tool_pool_api/server/tool_modules/knowledge_graph_sync.py com função update_knowledge_graph_summary(client_id: UUID, summary: dict) -> bool. Função: 1) ler clientes_blu.available_tools do client_id, 2) merge summary (preservar outros campos), 3) upsert JSONB, 4) chamar ContextService.clear_context_cache(client_id) para invalidar cache, 5) retornar True/False. Registrar como internal tool (não MCP). Incluir validação básica do dict (required keys: total_documents, total_entities, top_entities, last_sync, version). Log structured para auditoria.",
+      "type": "code",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/knowledge_graph_sync.py"
+      ],
+      "dependencies": [
+        "T4.3a"
+      ],
+      "acceptance": "Módulo carrega sem erro; update_knowledge_graph_summary executa e atualiza available_tools no Supabase; cache invalidado; log contém client_id, total_entities, last_sync. Testes unitários com mock Supabase passam."
+    },
+    {
+      "id": "T4.3c",
+      "title": "Context Service: garantir leitura do knowledge_graph_summary no domain_projection",
+      "description": "Em libs/blu_context_service/src/blu_context_service/context_service.py, método get_domain_projection: o available_tools já é incluído nas seções permitidas para domínios 'analytics', 'data', 'sql', 'rag', 'documents', 'knowledge', 'config', 'settings' (ver _DOMAIN_SECTIONS). Verificar se knowledge_graph_summary vem junto — não precisa mudança se available_tools já é retornado integralmente. Adicionar helper get_knowledge_graph_summary(client_id) -> KnowledgeGraphSummary | None que lê do cache/context e extrai o campo tipado. Documentar uso para specialists (rag_search, documentos).",
+      "type": "code",
+      "files": [
+        "libs/blu_context_service/src/blu_context_service/context_service.py"
+      ],
+      "dependencies": [
+        "T4.3a",
+        "T4.3b"
+      ],
+      "acceptance": "get_domain_projection(domain='rag', client_id) retorna available_tools com knowledge_graph_summary populado (se existir no DB). Helper get_knowledge_graph_summary retorna objeto tipado ou None. Sem breaking change em domínios existentes."
+    },
+    {
+      "id": "T4.3d",
+      "title": "Integração: ponto de chamada no job de enriquecimento (T4.1)",
+      "description": "Documentar em plan (não implementar T4.1 aqui): o job semanal de enriquecimento SBM\u2192LightRAG (T4.1) deve, AO FINAL, chamar update_knowledge_graph_summary com dados agregados do LightRAG: rag.get_documents_count(), rag.get_entities_count(), rag.get_top_entities_by_degree(10), datetime.now(UTC).isoformat(), version=1. Esta task é preparatória — garante que a interface (T4.3a-c) existe para T4.1 consumir. Incluir exemplo de payload no docstring de knowledge_graph_sync.py.",
+      "type": "doc",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/knowledge_graph_sync.py"
+      ],
+      "dependencies": [
+        "T4.3b"
+      ],
+      "acceptance": "Docstring em knowledge_graph_sync.py contém exemplo completo de payload esperado pelo T4.1. Code review valida que campos batem com KnowledgeGraphSummary schema."
+    },
+    {
+      "id": "T4.3e",
+      "title": "Testes unitários e integração",
+      "description": "Criar testes: 1) unitário context_schemas: KnowledgeGraphSummary validation (campos required, tipos, defaults), 2) unitário knowledge_graph_sync: update_knowledge_graph_summary com mock Supabase (sucesso, erro RLS, erro validação), 3) integração ContextService: get_domain_projection inclui knowledge_graph_summary quando disponível, get_knowledge_graph_summary helper funciona. Testes em libs/blu_models/tests/unit/test_context_schemas.py, services/tool_pool_api/tests/unit/test_knowledge_graph_sync.py, libs/blu_context_service/tests/unit/test_knowledge_graph_summary.py.",
+      "type": "test",
+      "files": [
+        "libs/blu_models/tests/unit/test_context_schemas.py",
+        "services/tool_pool_api/tests/unit/test_knowledge_graph_sync.py",
+        "libs/blu_context_service/tests/unit/test_knowledge_graph_summary.py"
+      ],
+      "dependencies": [
+        "T4.3a",
+        "T4.3b",
+        "T4.3c"
+      ],
+      "acceptance": "pytest passa em todos os novos arquivos; cobertura >= 80% nas novas functions; integração com Supabase local/test passa."
+    }
+  ],
+  "risks": [
+    {
+      "id": "R1",
+      "risk": "LightRAG (Fase 3) ainda não implementado — knowledge_graph_summary ficará None/empty até T4.1",
+      "mitigation": "Campo opcional no schema (DD-02). Context Service e specialists tratam None graciosamente (fallback: 'conhecimento do grafo não disponível'). Sem breaking change."
+    },
+    {
+      "id": "R2",
+      "risk": "Concorrência: job T4.1 e possível rota manual de atualização podem race condition no available_tools JSONB",
+      "mitigation": "Upsert usa version no summary para detectar stale writes (optimistic locking). Context Service cache TTL curto (5min). Job T4.1 é single-writer (cron semanal)."
+    },
+    {
+      "id": "R3",
+      "risk": "Top 10 entities por grau pode vazar informação sensível entre tenants se RLS falhar",
+      "mitigation": "RLS em clientes_blu usa app.client_id — mesmo mecanismo das outras sections. update_knowledge_graph_summary executa com RLS context set via supabase_set_rls (via ContextService internamente). Testar RLS em testes de integração."
+    },
+    {
+      "id": "R4",
+      "risk": "Schema evolution: se estrutura do summary mudar (ex: adicionar métricas), version field permite migração",
+      "mitigation": "version no KnowledgeGraphSummary (DD-04). ContextService.get_knowledge_graph_summary pode retornar versões antigas ou migrar on-read. Documentar política de versionamento."
+    }
+  ],
+  "design_questions": [
+    {
+      "id": "DQ1",
+      "question": "O knowledge_graph_summary deve incluir métricas de qualidade (ex: % entidades com source SBM vs upload)?",
+      "status": "open"
+    },
+    {
+      "id": "DQ2",
+      "question": "Specialists além de 'rag'/'documents' devem receber o summary? (ex: crm, financeiro para decisão de tool)",
+      "status": "open"
+    },
+    {
+      "id": "DQ3",
+      "question": "Frequência de atualização: T4.1 é semanal. Se job falhar, summary fica stale. Adicionar 'stale_after_hours' no summary?",
+      "status": "open"
+    }
+  ],
+  "related_issues": [
+    29,
+    30,
+    32
+  ],
+  "next_phase_dependencies": {
+    "T4.1_enrichment_job": "Precisa de update_knowledge_graph_summary (T4.3b) + schema (T4.3a) para atualizar summary após sync SBM\u2192LightRAG",
+    "T4.2_deduplication": "Pode usar knowledge_graph_summary.total_entities para monitorar crescimento do grafo",
+    "rag_search_skill": "Pode ler get_knowledge_graph_summary para decidir modo de busca (local/mix/global) baseado em total_entities"
+  }
+}
+

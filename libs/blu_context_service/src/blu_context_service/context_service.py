@@ -303,6 +303,58 @@ class ContextService:
         )
         return projection
 
+    async def get_knowledge_graph_summary(
+        self, client_id: UUID
+    ) -> "KnowledgeGraphSummary | None":
+        """Return the knowledge graph summary for a client, if available.
+
+        Extracts ``available_tools.knowledge_graph_summary`` from the cached
+        client context (no extra DB call).  Returns a typed
+        ``KnowledgeGraphSummary`` or ``None`` when the section is absent.
+
+        Args:
+            client_id: Client UUID.
+
+        Returns:
+            ``KnowledgeGraphSummary`` with aggregated graph metrics, or ``None``
+            if the context is unavailable or the section is not populated.
+        """
+        from blu_models.context_schemas import KnowledgeGraphSummary
+
+        ctx = await self.get_client_context(client_id)
+        if ctx is None:
+            logger.debug(
+                "[kg_summary] No context found for client_id=%s", client_id
+            )
+            return None
+
+        available_tools = ctx.available_tools
+        if not available_tools:
+            logger.debug(
+                "[kg_summary] available_tools is None/empty for client_id=%s",
+                client_id,
+            )
+            return None
+
+        summary_data = available_tools.get("knowledge_graph_summary")
+        if not summary_data:
+            logger.debug(
+                "[kg_summary] knowledge_graph_summary not present for client_id=%s",
+                client_id,
+            )
+            return None
+
+        try:
+            return KnowledgeGraphSummary.model_validate(summary_data)
+        except Exception as e:
+            logger.warning(
+                "[kg_summary] Failed to parse knowledge_graph_summary for "
+                "client_id=%s: %s",
+                client_id,
+                e,
+            )
+            return None
+
     # --------------------------
     # Resource caching methods
     # --------------------------

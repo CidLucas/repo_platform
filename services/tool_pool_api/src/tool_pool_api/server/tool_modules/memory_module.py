@@ -707,6 +707,196 @@ async def _shared_memory_get_links_logic(
 
 
 # ---------------------------------------------------------------------------
+# Meta business logic (T4.2c)
+# ---------------------------------------------------------------------------
+
+_VALID_META_ENTITY_TYPES: frozenset[str] = frozenset(
+    {"synthesis_output", "dedup_mapping", "kg_summary"}
+)
+
+_META_TABLE = "shared_business_memory_meta"
+
+
+def _validate_meta_entity_type(entity_type: str, field_name: str = "entity_type") -> None:
+    """Validate entity_type against the allowed meta types. Raises ValueError."""
+    if entity_type not in _VALID_META_ENTITY_TYPES:
+        raise ValueError(
+            f"Invalid {field_name} '{entity_type}'. "
+            f"Must be one of: {sorted(_VALID_META_ENTITY_TYPES)}"
+        )
+
+
+async def _shared_memory_meta_upsert_logic(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    key: str,
+    body: dict,
+    source: str = "system",
+    confidence: float = 1.0,
+) -> dict:
+    """Insert or update an entry in shared_business_memory_meta.
+
+    ON CONFLICT (client_id, entity_type, entity_name, key) DO UPDATE.
+    Returns the complete record.
+    """
+    _validate_meta_entity_type(entity_type)
+    entity_name = _normalize_entity_name(entity_name)
+    key = key.strip().lower()
+
+    if not entity_name or not key:
+        raise ValueError("entity_name and key are required")
+    if not isinstance(body, dict):
+        raise ValueError("body must be a dict")
+
+    db = await get_supabase_client()
+
+    payload = {
+        "client_id": client_id,
+        "entity_type": entity_type,
+        "entity_name": entity_name,
+        "key": key,
+        "body": body,
+        "source": source,
+        "confidence": confidence,
+    }
+
+    try:
+        result = await (
+            db.schema("public")
+            .table(_META_TABLE)
+            .upsert(
+                payload,
+                on_conflict="client_id,entity_type,entity_name,key",
+                default_to_null=False,
+            )
+            .execute()
+        )
+    except Exception as exc:
+        raise RuntimeError(f"Failed to upsert shared-memory-meta entry: {exc}")
+
+    row = result.data[0] if result.data else None
+    if not row:
+        raise RuntimeError("Failed to upsert meta entry -- no data returned")
+
+    return {
+        "id": row["id"],
+        "client_id": row["client_id"],
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "key": row["key"],
+        "body": row["body"],
+        "source": row["source"],
+        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+async def _shared_memory_meta_read_logic(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    key: str,
+) -> dict:
+    """Read a specific entry from shared_business_memory_meta by composite key."""
+    _validate_meta_entity_type(entity_type)
+    entity_name = _normalize_entity_name(entity_name)
+    key = key.strip().lower()
+
+    if not entity_name or not key:
+        raise ValueError("entity_name and key are required")
+
+    db = await get_supabase_client()
+
+    result = await (
+        db.schema("public")
+        .table(_META_TABLE)
+        .select("*")
+        .eq("client_id", client_id)
+        .eq("entity_type", entity_type)
+        .eq("entity_name", entity_name)
+        .eq("key", key)
+        .maybe_single()
+        .execute()
+    )
+
+    row = result.data
+    if not row:
+        raise ValueError(
+            f"Meta entry not found: {entity_type}:{entity_name}/{key}"
+        )
+
+    return {
+        "id": row["id"],
+        "client_id": row["client_id"],
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "key": row["key"],
+        "body": row["body"],
+        "source": row["source"],
+        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+async def _shared_memory_meta_list_logic(
+    client_id: str,
+    entity_type: str | None = None,
+) -> dict:
+    """List all meta entries, optionally filtered by entity_type.
+
+    Returns total_entities, by_type breakdown, and sorted entries array.
+    """
+    if entity_type is not None:
+        _validate_meta_entity_type(entity_type)
+
+    db = await get_supabase_client()
+
+    query = (
+        db.schema("public")
+        .table(_META_TABLE)
+        .select("entity_type, entity_name, count(*), max(updated_at) as last_updated")
+        .eq("client_id", client_id)
+    )
+    if entity_type:
+        query = query.eq("entity_type", entity_type)
+
+    result = await query.group_by("entity_type, entity_name").execute()
+
+    rows = result.data if result.data else []
+
+    entities: list[dict] = []
+    type_counts: dict[str, int] = {}
+
+    for r in rows:
+        et = r["entity_type"]
+        en = r["entity_name"]
+        cnt = r.get("count", 0)
+        lu = r.get("last_updated")
+        entities.append(
+            {
+                "entity_type": et,
+                "entity_name": en,
+                "key_count": cnt,
+                "last_updated": lu,
+            }
+        )
+        type_counts[et] = type_counts.get(et, 0) + 1
+
+    entities.sort(key=lambda e: (e["entity_type"], e["entity_name"]))
+
+    return {
+        "total_entities": len(entities),
+        "client_id": client_id,
+        "entity_type_filter": entity_type,
+        "by_type": type_counts,
+        "entities": entities,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Tool registration
 # ---------------------------------------------------------------------------
 

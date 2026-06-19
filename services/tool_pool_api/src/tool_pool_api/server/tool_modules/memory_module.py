@@ -435,8 +435,10 @@ async def _shared_memory_upsert_logic(
     """
     Insert or update a shared-memory fact.
 
-    Uses INSERT ... ON CONFLICT (client_id, entity_type, entity_name, key)
-    DO UPDATE with version = version + 1.
+    If an existing row is found, its current state is archived to
+    ``shared_business_memory_versions`` before the update, and the version
+    number is incremented.  Uses INSERT ... ON CONFLICT (client_id,
+    entity_type, entity_name, key) DO UPDATE.
 
     body maps to the ``value`` column (the actual fact content).
     frontmatter maps to the ``metadata`` column (provenance/context).
@@ -461,6 +463,22 @@ async def _shared_memory_upsert_logic(
 
     db = await get_supabase_client()
 
+    # ── Archive current version before overwriting (T5.3) ──────────
+    from .version_module import _archive_memory_version as _archive_version
+
+    archive_result = await _archive_version(
+        client_id=client_id,
+        entity_type=entity_type,
+        entity_name=entity_name,
+        key=key,
+    )
+
+    new_version = (
+        archive_result["archived_version"] + 1
+        if archive_result is not None
+        else 1
+    )
+
     payload = {
         "client_id": client_id,
         "entity_type": entity_type,
@@ -472,6 +490,7 @@ async def _shared_memory_upsert_logic(
             "manual", "memory_agent", "specialist", "migration", "system"
         ) else "manual",
         "confidence": confidence,
+        "version": new_version,
     }
 
     try:

@@ -437,6 +437,313 @@ class ToolRegistry:
             requires_confirmation=False,
             tags=["fiscal", "nfe", "nfse", "status"],
         ),
+
+        # ── Shared Memory (Fase 4: TTL / retention) ───────────────────────────
+        "shared_memory_read": ToolMetadata(
+            name="shared_memory_read",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "[Shared Memory] Read a single fact from shared business memory "
+                "by its composite key (client_id, entity_type, entity_name, key). "
+                "Valid entity types: skill | client | contact | supplier | user | snapshot. "
+                "Returns the full record including value, metadata, version, and timestamps. "
+                "Supports optional ttl_tier for retention policy classification."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            parameters={
+                "type": "object",
+                "properties": {
+                    "entity_type": {
+                        "type": "string",
+                        "description": "Entity type (skill | client | contact | supplier | user | snapshot)",
+                    },
+                    "entity_name": {
+                        "type": "string",
+                        "description": "Entity name (case-insensitive, normalized to lowercase)",
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": "Fact key (e.g. 'tom_amigavel', 'preferencia_horario')",
+                    },
+                    "ttl_tier": {
+                        "type": "string",
+                        "enum": ["curated", "migration", "specialist", "memory_agent_hi", "memory_agent_lo"],
+                        "description": (
+                            "Tier de retencao TTL. Define politica de expiracao do fato. "
+                            "curated = sem expiracao, migration = 90d, specialist = 30d (default), "
+                            "memory_agent_hi = 14d, memory_agent_lo = 7d. "
+                            "Default varia por source."
+                        ),
+                    },
+                },
+                "required": ["entity_type", "entity_name", "key"],
+            },
+            tags=["shared-memory", "memory", "read", "retention", "ttl"],
+        ),
+        "shared_memory_write": ToolMetadata(
+            name="shared_memory_write",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "[Shared Memory] Write a new fact into shared business memory. "
+                "By default this is a strict INSERT — it fails if the composite key "
+                "(client_id, entity_type, entity_name, key) already exists. "
+                "Set supersede=true to overwrite. "
+                "The value parameter maps directly to the jsonb column. "
+                "Supports optional ttl_tier for retention policy classification."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            parameters={
+                "type": "object",
+                "properties": {
+                    "entity_type": {
+                        "type": "string",
+                        "description": "Entity type (skill | client | contact | supplier | user | snapshot)",
+                    },
+                    "entity_name": {
+                        "type": "string",
+                        "description": "Entity name (case-insensitive, normalized to lowercase)",
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": "Fact key (e.g. 'tom_amigavel', 'preferencia_horario')",
+                    },
+                    "value": {
+                        "type": "object",
+                        "description": "The fact value (dict — maps to 'value' jsonb column)",
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "Semantic category for filtering/routing",
+                    },
+                    "source": {
+                        "type": "string",
+                        "description": "Provenance — 'manual' | 'memory_agent' | 'specialist' | 'migration' | 'system'",
+                        "default": "manual",
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "description": "Confidence score (0.0-1.0, default 1.0)",
+                        "default": 1.0,
+                    },
+                    "supersede": {
+                        "type": "boolean",
+                        "description": "If true, upsert to overwrite existing entry. Default false.",
+                        "default": False,
+                    },
+                    "ttl_tier": {
+                        "type": "string",
+                        "enum": ["curated", "migration", "specialist", "memory_agent_hi", "memory_agent_lo"],
+                        "description": (
+                            "Tier de retencao TTL. Define politica de expiracao do fato. "
+                            "curated = sem expiracao, migration = 90d, specialist = 30d (default), "
+                            "memory_agent_hi = 14d, memory_agent_lo = 7d. "
+                            "Default varia por source."
+                        ),
+                    },
+                },
+                "required": ["entity_type", "entity_name", "key", "value"],
+            },
+            tags=["shared-memory", "memory", "write", "insert", "retention", "ttl"],
+        ),
+        "shared_memory_upsert": ToolMetadata(
+            name="shared_memory_upsert",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "[Shared Memory] Insert or update a fact in shared business memory. "
+                "Uses upsert semantics: creates a new row if the composite key "
+                "(client_id, entity_type, entity_name, key) doesn't exist, "
+                "or updates the existing row (incrementing version). "
+                "body maps to the 'value' column (the fact content); "
+                "frontmatter maps to the 'metadata' column (provenance). "
+                "Supports optional ttl_tier for retention policy classification."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            parameters={
+                "type": "object",
+                "properties": {
+                    "entity_type": {
+                        "type": "string",
+                        "description": "Entity type (skill | client | contact | supplier | user | snapshot)",
+                    },
+                    "entity_name": {
+                        "type": "string",
+                        "description": "Entity name (case-insensitive, normalized to lowercase)",
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": "Fact key (e.g. 'tom_amigavel', 'preferencia_horario')",
+                    },
+                    "body": {
+                        "type": "object",
+                        "description": "The fact value (dict — maps to 'value' column)",
+                    },
+                    "frontmatter": {
+                        "type": "object",
+                        "description": "Optional metadata dict (maps to 'metadata' column)",
+                    },
+                    "source": {
+                        "type": "string",
+                        "description": "Provenance — 'manual' | 'memory_agent' | 'specialist' | 'migration' | 'system'",
+                        "default": "manual",
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "description": "Confidence score (0.0-1.0, default 1.0)",
+                        "default": 1.0,
+                    },
+                    "ttl_tier": {
+                        "type": "string",
+                        "enum": ["curated", "migration", "specialist", "memory_agent_hi", "memory_agent_lo"],
+                        "description": (
+                            "Tier de retencao TTL. Define politica de expiracao do fato. "
+                            "curated = sem expiracao, migration = 90d, specialist = 30d (default), "
+                            "memory_agent_hi = 14d, memory_agent_lo = 7d. "
+                            "Default varia por source."
+                        ),
+                    },
+                },
+                "required": ["entity_type", "entity_name", "key", "body"],
+            },
+            tags=["shared-memory", "memory", "upsert", "retention", "ttl"],
+        ),
+        "shared_memory_list": ToolMetadata(
+            name="shared_memory_list",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "[Shared Memory] List all entities that have business-memory "
+                "entries for the current client. Optionally filter by entity_type "
+                "(skill | client | contact | supplier | user). "
+                "Returns a summary breakdown and the full entity list with "
+                "key-counts and last-updated timestamps. "
+                "Use this to discover what entities exist before calling "
+                "shared_memory_read for a specific one."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            parameters={
+                "type": "object",
+                "properties": {
+                    "entity_type": {
+                        "type": "string",
+                        "description": "Optional filter: 'skill', 'client', 'contact', 'supplier', or 'user'. When omitted all entity types are returned.",
+                    },
+                },
+            },
+            tags=["shared-memory", "memory", "list", "entities"],
+        ),
+        "shared_memory_link": ToolMetadata(
+            name="shared_memory_link",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "[Shared Memory] Create a semantic link between two entities. "
+                "Links represent relationships like 'contact Joao works_for supplier Distribuidora X'. "
+                "link_type is free-form: works_for, applies_to, prefers, reports_to, depends_on, etc. "
+                "Valid entity types: skill | client | contact | supplier | user."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            parameters={
+                "type": "object",
+                "properties": {
+                    "source_entity_type": {
+                        "type": "string",
+                        "description": "Entity type of the source (skill | client | contact | supplier | user)",
+                    },
+                    "source_entity_name": {
+                        "type": "string",
+                        "description": "Name of the source entity (case-insensitive, normalized to lowercase)",
+                    },
+                    "target_entity_type": {
+                        "type": "string",
+                        "description": "Entity type of the target (skill | client | contact | supplier | user)",
+                    },
+                    "target_entity_name": {
+                        "type": "string",
+                        "description": "Name of the target entity (case-insensitive)",
+                    },
+                    "link_type": {
+                        "type": "string",
+                        "description": "Relationship label — e.g. 'works_for', 'applies_to', 'prefers'",
+                    },
+                    "source": {
+                        "type": "string",
+                        "description": "Origin of the link — 'manual' | 'memory_agent' | 'specialist' | 'migration' | 'system'",
+                        "default": "manual",
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "description": "Confidence score (0.0-1.0, default 1.0)",
+                        "default": 1.0,
+                    },
+                    "metadata": {
+                        "type": "string",
+                        "description": "Optional JSON string with extra link metadata",
+                    },
+                },
+                "required": ["source_entity_type", "source_entity_name", "target_entity_type", "target_entity_name", "link_type"],
+            },
+            tags=["shared-memory", "memory", "link", "graph", "semantic"],
+        ),
+        "shared_memory_unlink": ToolMetadata(
+            name="shared_memory_unlink",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "[Shared Memory] Remove a semantic link between entities by its id. "
+                "Use shared_memory_get_links to find the link id first."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            parameters={
+                "type": "object",
+                "properties": {
+                    "link_id": {
+                        "type": "string",
+                        "description": "UUID of the link to remove (from shared_memory_get_links)",
+                    },
+                },
+                "required": ["link_id"],
+            },
+            tags=["shared-memory", "memory", "unlink", "graph"],
+        ),
+        "shared_memory_get_links": ToolMetadata(
+            name="shared_memory_get_links",
+            category=ToolCategory.CUSTOM,
+            description=(
+                "[Shared Memory] Query semantic links by entity and/or link_type. "
+                "Returns outgoing links (where entity is the source), incoming links "
+                "(where entity is the target), or both. "
+                "Filter by entity_type, entity_name, and/or link_type."
+            ),
+            tier_required=TierLevel.SME,
+            requires_confirmation=False,
+            parameters={
+                "type": "object",
+                "properties": {
+                    "entity_type": {
+                        "type": "string",
+                        "description": "Optional — filter links involving this entity type",
+                    },
+                    "entity_name": {
+                        "type": "string",
+                        "description": "Optional — filter links involving this entity name",
+                    },
+                    "link_type": {
+                        "type": "string",
+                        "description": "Optional — filter links of this type (e.g. 'works_for')",
+                    },
+                    "direction": {
+                        "type": "string",
+                        "enum": ["outgoing", "incoming", "both"],
+                        "description": "'outgoing' | 'incoming' | 'both' (default)",
+                        "default": "both",
+                    },
+                },
+            },
+            tags=["shared-memory", "memory", "links", "graph", "query"],
+        ),
     }
 
     # =========================================================================

@@ -1,17 +1,7 @@
 name: Docs Check
 
 on:
-  pull_request:
-    paths:
-      - 'libs/**'
-      - 'services/**/src/**'
-      - 'scripts/generate_agent_docs.py'
-  push:
-    branches: [main]
-    paths:
-      - 'libs/**'
-      - 'services/**/src/**'
-      - 'scripts/generate_agent_docs.py'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

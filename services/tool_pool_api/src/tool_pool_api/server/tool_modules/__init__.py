@@ -27,6 +27,8 @@ from fastmcp import FastMCP
 
 logger = logging.getLogger(__name__)
 
+from . import knowledge_graph_sync  # noqa: F401  # T4.3b — internal tool
+
 # Registry de módulos de tools
 # Cada módulo exporta uma função register_tools(mcp: FastMCP) -> List[str]
 # que retorna os nomes das tools registradas

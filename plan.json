@@ -1,0 +1,116 @@
+{
+  "issue_number": 18,
+  "issue_url": "https://github.com/CidLucas/repo_platform/issues/18",
+  "title": "Fase 1 — Implementar post-flight de shared memory em agentes",
+  "ref": "SHARED_MEMORY_DESIGN.md — T1.2",
+  "phase": "1",
+  "task": "T1.2",
+  "scope": "Implementar o mecanismo de post-flight para agentes na shared memory: após a execução de um agente (especialista L3 ou frontdesk L4), salvar automaticamente os resultados, descobertas, decisões e contexto atualizado de volta na shared_business_memory. O post-flight complementa o pre-flight (T1.1): enquanto o pre-flight carrega o contexto antes da execução, o post-flight persiste os resultados depois. Inclui: (1) função _save_agent_results que extrai descobertas e decisões do estado do agente e escreve na shared memory, (2) integração no service.py como hook pós-execução do LangGraph, (3) convenção de chaves (key naming) para resultados de agentes, (4) supressão de noise (não salvar estados intermediários sem valor), (5) documentação em SHARED_MEMORY_DESIGN.md (seção T1.2).",
+  "problem": "Atualmente, após a execução de um agente (especialista/frontdesk), não há persistência automática dos resultados na shared memory. Cada agente é responsável por escrever manualmente seus achados — o que não acontece consistentemente. Consequências: (a) informações descobertas durante uma execução se perdem quando o agente termina; (b) não há trilha de auditoria do que cada agente produziu; (c) o próximo agente que executa no mesmo cliente não se beneficia do trabalho do anterior. O post-flight resolve isso salvando automaticamente tanto informações explícitas (decisões do agente, dados processados) quanto metadados contextuais (quanto tempo levou, quais ferramentas usou, quais links criou).",
+  "approach": "Implementar um módulo memory_post_flight.py no tool_pool com função _process_agent_post_flight chamada automaticamente após execução de qualquer agente (L3/L4). O hook no service.py (agente L4 frontdesk → specialist subgraph) captura: (a) final state do agente (último node executado), (b) tool calls feitas durante a execução, (c) resumo gerado pelo LLM (se disponível no AIMessage), (d) duração da execução, (e) session_id. A função sanitiza e estrutura esses dados em pares (entity_type, entity_name, key, value) e os persiste via shared_business_memory. Tipos de memória salvos: (1) resultados finais como entity_type='agent_result', (2) metadados de execução como entity_type='agent_metadata', (3) links criados como entity_type='agent_link_pending' para validação posterior.",
+  "design_decisions": [
+    {
+      "id": "DD-01",
+      "decision": "Módulo separado memory_post_flight.py no tool_pool, tool interna shared_memory_post_flight",
+      "rationale": "Padrão estabelecido por memory_module.py (Fase 0). Um módulo dedicado com sua própria tool L1 permite: (a) testabilidade isolada, (b) reuse por qualquer agente, (c) evolução independente. A tool shared_memory_post_flight recebe os dados estruturados do agente e insere na shared_business_memory. Módulo registrado via @register_module.",
+      "consequences": "O hook no service.py precisa preparar os dados de post-flight no formato esperado pela tool. Registro em __init__.py do tool_modules."
+    },
+    {
+      "id": "DD-02",
+      "decision": "Três categorias de memória pós-execução: agent_result, agent_metadata, agent_link_pending",
+      "rationale": "Separar resultados finais (entity_type='agent_result') dos metadados operacionais (entity_type='agent_metadata') permite consultas focadas. agent_result contém descobertas e decisões. agent_metadata contém duração, tools usadas, session_id (dados de telemetria). agent_link_pending armazena links sugeridos pelo agente que ainda precisam de validação antes de virar shared_memory_link reais.",
+      "consequences": "Novos entity_types fora do conjunto original (skill/client/contact/supplier/user). Migration SQL necessária para ALTER TABLE CHECK constraint de entity_type em shared_business_memory."
+    },
+    {
+      "id": "DD-03",
+      "decision": "Naming convention: keys com prefixos semânticos (decision:, finding:, summary:, tool_usage:)",
+      "rationale": "Convenção para as keys salvas: decision:<desc> para decisões, finding:<desc> para descobertas, summary:<ctx> para resumos, tool_usage:<ferramenta> para rastreamento de ferramentas. entity_name segue <agente>:<sessão> ou <agente> para resultados genéricos. Facilita consultas por prefixo no banco.",
+      "consequences": "Documentar no SHARED_MEMORY_DESIGN.md. Validar na tool que key segue o padrão."
+    },
+    {
+      "id": "DD-04",
+      "decision": "Noise suppression: salvar apenas último estado significativo por sessão",
+      "rationale": "Salvar estados intermediários criaria poluição na shared_business_memory. Post-flight salva: (a) resultado final (último node output do specialist subgraph), (b) resumo LLM se disponível (extraído do AIMessage.content), (c) tools usadas (apenas nomes, sem payloads sensíveis), (d) links sugeridos. Estados intermediários do LangGraph NÃO persistidos.",
+      "consequences": "Hook extrai APENAS estado final da resposta do agente. shared_memory_post_flight tem upsert=True por padrão (substitui entrada anterior mesma entity_type+entity_name+key)."
+    },
+    {
+      "id": "DD-05",
+      "decision": "Post-flight hook no service.py, fire-and-forget assíncrono",
+      "rationale": "Post-flight NÃO deve bloquear fluxo principal da conversa. Chamar via asyncio.create_task com _background_tasks tracking (padrão já existente em service.py linha 37). Se falhar, loga erro mas não interrompe o usuário. O hook é chamado após o stream/response final do agente, antes de retornar ao usuário.",
+      "consequences": "Hook precisa acessar o último AIMessage da resposta + contexto de execução (session_id, agent_type). BackgroundTasks tracking evita GC."
+    },
+    {
+      "id": "DD-06",
+      "decision": "Post-flight é internal tool (não exposta a agentes no ToolRegistry)",
+      "rationale": "Chamada apenas pelo hook interno. Sem exposição no MCP ToolRegistry. Reduz superfície de ataque e evita que agentes chamem post-flight manualmente.",
+      "consequences": "@register_module não expõe via @mcp.tool. Ou marca como internal em metadata se houver suporte. Documentar em TOOL_INVENTORY.md como CUSTOM/INTERNAL."
+    }
+  ],
+  "subtasks": [
+    {
+      "id": "T1.2a",
+      "name": "Migration SQL — novos entity_types agent_result, agent_metadata, agent_link_pending",
+      "description": "ALTER TABLE shared_business_memory: DROP CONSTRAINT que valida entity_type; ADD CONSTRAINT com CHECK incluindo agent_result, agent_metadata, agent_link_pending. Arquivo migration em services/tool_pool_api/migrations/. Adicionar ao ddl.sql referenciado.",
+      "effort": "small",
+      "files": ["services/tool_pool_api/migrations/XXX_add_agent_entity_types.sql"]
+    },
+    {
+      "id": "T1.2b",
+      "name": "Módulo memory_post_flight.py — tool shared_memory_post_flight",
+      "description": "Criar services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_post_flight.py: (1) função _shared_memory_post_flight_logic(client_id, agent_slug, session_id, agent_result, agent_metadata, suggested_links) que insere/upsert na shared_business_memory. (2) @register_module registra a tool (ou mantém como internal). (3) __init__.py do tool_modules atualizado (mesmo padrão de memory_module.py). (4) upsert na shared_business_memory: usa client_id+entity_type+entity_name+key como chave composta.",
+      "effort": "large",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_post_flight.py",
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/__init__.py"
+      ]
+    },
+    {
+      "id": "T1.2c",
+      "name": "Hook post-flight no service.py (ChatService/LangGraph)",
+      "description": "Em services/agent_api/src/agent_api/core/service.py: após resposta do agente (no método de chat/stream), capturar: (a) último AIMessage (resultado final), (b) session_id do contexto, (c) tool_calls do AIMessage (apenas nomes, sem payloads), (d) timing (duração). Chamar shared_memory_post_flight via asyncio.create_task com _background_tasks.add(). Fire-and-forget: log se falhar, não propaga exceção.",
+      "effort": "large",
+      "files": ["services/agent_api/src/agent_api/core/service.py"]
+    },
+    {
+      "id": "T1.2d",
+      "name": "Documentação no SHARED_MEMORY_DESIGN.md — seção T1.2",
+      "description": "Documentar no docs/llm_wiki/SHARED_MEMORY_DESIGN.md: formato do post-flight, entity_types, prefixos de key (decision:, finding:, summary:, tool_usage:), naming convention para entity_name, noise suppression rules, fluxo completo de post-flight, exemplo de payload, schema dos novos entity_types.",
+      "effort": "small",
+      "files": ["docs/llm_wiki/SHARED_MEMORY_DESIGN.md"]
+    },
+    {
+      "id": "T1.2e",
+      "name": "Testes de integração",
+      "description": "Testes: (1) shared_memory_post_flight persiste dados corretos na shared_business_memory, (2) metadata em entity_type='agent_metadata' separado dos resultados, (3) suggested_links como agent_link_pending, (4) upsert substitui entrada anterior mesma chave, (5) hook fire-and-forget não propaga erro, (6) chamada sem client_id retorna erro. Usar testes existentes de memory_module.py como referência.",
+      "effort": "medium",
+      "files": ["services/tool_pool_api/tests/test_memory_post_flight.py"]
+    },
+    {
+      "id": "T1.2f",
+      "name": "Atualização do TOOL_INVENTORY.md",
+      "description": "Registrar shared_memory_post_flight como CUSTOM/INTERNAL sob categoria 'memoria/compartilhada'. Incluir descrição, input schema, output schema.",
+      "effort": "small",
+      "files": ["docs/TOOL_INVENTORY.md"]
+    }
+  ],
+  "risks": [
+    "R1 — Noise: agentes prolíficos geram muitos registros na shared_business_memory. Mitigação: noise suppression (DD-04), upsert (substitui entradas anteriores), TTL curto para agent_metadata via política T4.4.",
+    "R2 — Dependência pre-flight: T1.2 funciona sem T1.1, mas o ciclo completo de valor (carregar contexto → executar → salvar) só se completa com ambos. Ordem recomendada: T1.1 → T1.2.",
+    "R3 — Fire-and-forget perde dados se tool_pool sob carga ou timeout. Mitigação: retry 1x (com mesma chave → upsert), log se falhar na segunda tentativa.",
+    "R4 — Mudanças no estado do LangGraph (AIMessage, estrutura de resposta) quebram extração de dados. Mitigação: try/except resiliente com extração step-by-step. Fallback: salvar apenas session_id + agent_type.",
+    "R5 — Conflict com shared_memory_read/write (ainda não implementados na Fase 0). Post-flight escreve direto na tabela via Supabase client, não usa tool de escrita. Pode coexistir."
+  ],
+  "dependencies": [
+    "#11-16 — Fase 0: Schema e tools list/link/unlink/get_links (implementados em memory_module.py)",
+    "#17 — Fase 1: Pre-flight T1.1 (recomendado, não bloqueante para implementação do post-flight)",
+    "T4.4 — Política de retenção: TTL para agent_metadata (em intake #32)"
+  ],
+  "design_reference": "docs/llm_wiki/SHARED_MEMORY_DESIGN.md — T1.2. Código referência: memory_module.py (services/tool_pool_api/server/tool_modules/), service.py (services/agent_api/core/service.py ~linha 37 para background tasks). Padrão tool_module: @register_module + _logic separada + @mcp.tool + @mcp_inject_client_id.",
+  "design_questions": [
+    "DQ1 — Síncrono vs fire-and-forget? Recomendação: fire-and-forget assíncrono com _background_tasks.",
+    "DQ2 — Onde extrair agent_result? Recomendação: último AIMessage da resposta do agente (AIMessage.content + AIMessage.tool_calls).",
+    "DQ3 — tool_usage: nomes apenas ou payloads? Recomendação: nomes apenas (evita dados sensíveis nos tool_calls.args).",
+    "DQ4 — agent_link_pending: criar automaticamente ou requerer aprovação humana? Pendente (precisa validação antes de virar shared_memory_link real)."
+  ],
+  "assigned_worker": "factory-planner"
+}

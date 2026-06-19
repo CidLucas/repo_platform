@@ -59,11 +59,16 @@ from .context_schemas import (
     BrandVoice,
     CompanyProfile,
     DataSchema,
+    MetaEntityType,
     Policies,
     SECTION_SCHEMAS,
+    SharedMemoryMetaEntry,
+    SharedMemoryMetaQuery,
+    SharedMemoryMetaUpsertPayload,
     TeamMember,
     TeamStructure,
     get_section_schema,
+    validate_meta_entity_type,
     validate_section_content,
 )
 from .client_context_section import (
@@ -215,6 +220,12 @@ __all__ = [
     "SECTION_SCHEMAS",
     "get_section_schema",
     "validate_section_content",
+    # Shared Business Memory Meta (Fase 4)
+    "MetaEntityType",
+    "SharedMemoryMetaEntry",
+    "SharedMemoryMetaUpsertPayload",
+    "SharedMemoryMetaQuery",
+    "validate_meta_entity_type",
     # Context 2.0 - Section Storage
     "ClientContextSection",
     "ClientContextSectionBase",

@@ -1,7 +1,7 @@
 """memory_module.py -- Shared Business Memory Tools (T0.4-T0.6)
 
-Registers L1 tools for interacting with the `shared_business_memory` and
-`shared_memory_links` tables in Supabase.  Agents communicate via shared
+Registers L1 tools for interacting with the ``shared_business_memory`` and
+``shared_memory_links`` tables in Supabase.  Agents communicate via shared
 memory (not direct conversation), reading and writing knowledge about
 entities (clients, contacts, suppliers, users, skill-derived facts,
 and snapshots).
@@ -11,6 +11,7 @@ Tools registered:
   - shared_memory_read    -> read a single fact by composite key
   - shared_memory_upsert  -> insert or update a fact (versioned)
   - shared_memory_write   -> write a new fact (strict INSERT; supersede=True to upsert)
+  - shared_memory_search  -> semantic vector search via Cohere embeddings (T3.1c)
   - shared_memory_link    -> create semantic link between entities
   - shared_memory_unlink  -> remove a link by id
   - shared_memory_get_links -> query links by entity and/or type
@@ -27,16 +28,43 @@ from fastmcp.exceptions import ToolError
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_supabase_client import get_supabase_client
 
+from tool_pool_api.server.dependencies import get_context_service
+from blu_context_service.context_schemas import _SNAPSHOT_DIMENSION_FIELDS
+
 from . import register_module
 
 logger = logging.getLogger(__name__)
 
 _VALID_ENTITY_TYPES: frozenset[str] = frozenset(
-    {"skill", "client", "contact", "supplier", "user", "snapshot"}
+    {"skill", "client", "contact", "supplier", "user", "snapshot", "routine",
+     "agent_result", "agent_metadata"}
 )
 
 _TABLE = "shared_business_memory"
 _LINKS_TABLE = "shared_memory_links"
+
+# ---------------------------------------------------------------------------
+# Snapshot constants (T2.2a + T2.2b)
+# ---------------------------------------------------------------------------
+
+_SNAPSHOT_BASE_FIELDS: frozenset[str] = frozenset({
+    "snapshot_id", "dimensao", "periodo", "gerado_em",
+    "vigencia_inicio", "vigencia_fim", "indicadores", "alertas",
+    "resumo_executivo",
+})
+
+_SNAPSHOT_FRONTMATTER_REQUIRED: frozenset[str] = frozenset({
+    "tipo", "dimensao", "periodo", "gerado_em", "gerado_por",
+    "versao", "template_version", "fontes",
+})
+
+_VALID_DIMENSIONS: frozenset[str] = frozenset(
+    {"financeiro", "clientes", "agenda", "compras"}
+)
+
+_VALID_PERIODS: frozenset[str] = frozenset(
+    {"diario", "semanal", "mensal"}
+)
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +84,216 @@ def _validate_entity_type(entity_type: str, field_name: str = "entity_type") -> 
 def _normalize_entity_name(name: str) -> str:
     """Normalize entity name: lowercase, trimmed."""
     return name.strip().lower()
+
+
+# ---------------------------------------------------------------------------
+# Snapshot validation (T2.2b + T2.2f)
+# ---------------------------------------------------------------------------
+
+
+def _validate_snapshot_frontmatter(
+    entity_name: str,
+    frontmatter: dict,
+) -> None:
+    """Validate that a snapshot has the required frontmatter fields.
+
+    Args:
+        entity_name: e.g. "financeiro:semanal" -- used for cross-validation.
+        frontmatter: The frontmatter dict to validate.
+
+    Raises:
+        ValueError: If required fields are missing or invalid.
+    """
+    if not isinstance(frontmatter, dict):
+        raise ValueError(
+            "frontmatter is required for entity_type='snapshot' and must be a dict"
+        )
+
+    # Validate required fields
+    missing = _SNAPSHOT_FRONTMATTER_REQUIRED - set(frontmatter.keys())
+    if missing:
+        raise ValueError(
+            f"Snapshot frontmatter missing required fields: {sorted(missing)}"
+        )
+
+    # Validate 'tipo' field
+    if frontmatter.get("tipo") != "snapshot":
+        raise ValueError(
+            "frontmatter.tipo must be 'snapshot'"
+        )
+
+    # Validate dimension
+    dimensao = frontmatter.get("dimensao")
+    if dimensao not in _VALID_DIMENSIONS:
+        raise ValueError(
+            f"frontmatter.dimensao '{dimensao}' is invalid. "
+            f"Must be one of: {sorted(_VALID_DIMENSIONS)}"
+        )
+
+    # Cross-validate with entity_name: dimension must match
+    parts = entity_name.split(":")
+    entity_dim = parts[0] if parts else ""
+    if entity_dim and entity_dim != dimensao:
+        raise ValueError(
+            f"entity_name dimension '{entity_dim}' does not match "
+            f"frontmatter.dimensao '{dimensao}'"
+        )
+
+    # Validate period
+    periodo = frontmatter.get("periodo")
+    if periodo not in _VALID_PERIODS:
+        raise ValueError(
+            f"frontmatter.periodo '{periodo}' is invalid. "
+            f"Must be one of: {sorted(_VALID_PERIODS)}"
+        )
+
+    # Cross-validate period with entity_name
+    if len(parts) > 1 and parts[1] and parts[1] != periodo:
+        raise ValueError(
+            f"entity_name period '{parts[1]}' does not match "
+            f"frontmatter.periodo '{periodo}'"
+        )
+
+    # Validate version is positive int
+    versao = frontmatter.get("versao")
+    if not isinstance(versao, int) or versao < 1:
+        raise ValueError(
+            "frontmatter.versao must be a positive integer"
+        )
+
+    # Validate template_version is positive int
+    template_version = frontmatter.get("template_version")
+    if not isinstance(template_version, int) or template_version < 1:
+        raise ValueError(
+            "frontmatter.template_version must be a positive integer"
+        )
+
+    # Validate fontes is a list of strings
+    fontes = frontmatter.get("fontes")
+    if not isinstance(fontes, list) or not all(isinstance(f, str) for f in fontes):
+        raise ValueError("frontmatter.fontes must be a list of strings")
+
+
+def _validate_snapshot_body(
+    entity_name: str,
+    body: dict,
+) -> None:
+    """Validate a snapshot body against its dimension schema.
+
+    Args:
+        entity_name: e.g. "financeiro:semanal" -- dimension extracted from here.
+        body: The body dict (value column content).
+
+    Raises:
+        ValueError: If validation fails.
+    """
+    # Extract dimension from entity_name
+    parts = entity_name.split(":")
+    dimensao = parts[0] if parts else ""
+
+    if not dimensao:
+        raise ValueError(
+            "Cannot determine snapshot dimension from entity_name"
+        )
+
+    if dimensao not in _VALID_DIMENSIONS:
+        raise ValueError(
+            f"Invalid snapshot dimension '{dimensao}'. "
+            f"Must be one of: {sorted(_VALID_DIMENSIONS)}"
+        )
+
+    # Validate base fields are present
+    missing_base = _SNAPSHOT_BASE_FIELDS - set(body.keys())
+    if missing_base:
+        raise ValueError(
+            f"Snapshot body missing required base fields: {sorted(missing_base)}"
+        )
+
+    # Validate 'dimensao' inside body matches entity_name
+    body_dimensao = body.get("dimensao")
+    if body_dimensao != dimensao:
+        raise ValueError(
+            f"body.dimensao '{body_dimensao}' does not match "
+            f"entity_name dimension '{dimensao}'"
+        )
+
+    # Validate 'indicadores' is a list
+    indicadores = body.get("indicadores")
+    if not isinstance(indicadores, list):
+        raise ValueError("body.indicadores must be a list")
+
+    # Validate indicators against dimension spec
+    dim_spec = _SNAPSHOT_DIMENSION_FIELDS.get(dimensao)
+    if dim_spec is None:
+        raise ValueError(
+            f"Unknown snapshot dimension '{dimensao}'"
+        )
+
+    # Build a lookup of indicator names present in body
+    body_indicator_names: set[str] = set()
+    for ind in indicadores:
+        if not isinstance(ind, dict):
+            raise ValueError(
+                f"Each indicator in body.indicadores must be a dict"
+            )
+        nome = ind.get("nome")
+        if not nome or not isinstance(nome, str):
+            raise ValueError(
+                f"Each indicator must have a 'nome' (string)"
+            )
+        body_indicator_names.add(nome)
+
+        # Validate required fields within each indicator
+        if "valor" not in ind:
+            raise ValueError(
+                f"Indicator '{nome}' missing required field 'valor'"
+            )
+        if "unidade" not in ind:
+            raise ValueError(
+                f"Indicator '{nome}' missing required field 'unidade'"
+            )
+        tendencia = ind.get("tendencia")
+        if tendencia is not None and tendencia not in ("alta", "baixa", "estavel"):
+            raise ValueError(
+                f"Indicator '{nome}' has invalid tendencia '{tendencia}'. "
+                f"Must be 'alta', 'baixa', or 'estavel'"
+            )
+
+    # Validate required indicators from dimension spec are present
+    required_indicators = {
+        ind_spec["nome"]
+        for ind_spec in dim_spec["indicadores"]
+        if ind_spec.get("required", False)
+    }
+    missing_indicators = required_indicators - body_indicator_names
+    if missing_indicators:
+        raise ValueError(
+            f"Missing required indicators for dimension '{dimensao}': "
+            f"{sorted(missing_indicators)}"
+        )
+
+    # Validate unknown indicators
+    known_indicator_names = {
+        ind_spec["nome"] for ind_spec in dim_spec["indicadores"]
+    }
+    unknown_indicators = body_indicator_names - known_indicator_names
+    if unknown_indicators:
+        logger.warning(
+            "[memory_module] Snapshot body contains unknown indicators "
+            "for dimension '%s': %s",
+            dimensao,
+            sorted(unknown_indicators),
+        )
+
+    # Validate 'alertas' is a list of strings
+    alertas = body.get("alertas")
+    if not isinstance(alertas, list):
+        raise ValueError("body.alertas must be a list")
+
+    # Validate 'resumo_executivo' is a string
+    resumo = body.get("resumo_executivo")
+    if resumo is not None and not isinstance(resumo, str):
+        raise ValueError("body.resumo_executivo must be a string")
 
 
 # ---------------------------------------------------------------------------
@@ -197,8 +435,10 @@ async def _shared_memory_upsert_logic(
     """
     Insert or update a shared-memory fact.
 
-    Uses INSERT ... ON CONFLICT (client_id, entity_type, entity_name, key)
-    DO UPDATE with version = version + 1.
+    If an existing row is found, its current state is archived to
+    ``shared_business_memory_versions`` before the update, and the version
+    number is incremented.  Uses INSERT ... ON CONFLICT (client_id,
+    entity_type, entity_name, key) DO UPDATE.
 
     body maps to the ``value`` column (the actual fact content).
     frontmatter maps to the ``metadata`` column (provenance/context).
@@ -212,7 +452,32 @@ async def _shared_memory_upsert_logic(
     if not isinstance(body, dict):
         raise ValueError("body must be a dict")
 
+    # Snapshot validation (T2.2b + T2.2f)
+    if entity_type == "snapshot":
+        if frontmatter is None:
+            raise ValueError(
+                "frontmatter is required for entity_type='snapshot'"
+            )
+        _validate_snapshot_frontmatter(entity_name, frontmatter)
+        _validate_snapshot_body(entity_name, body)
+
     db = await get_supabase_client()
+
+    # ── Archive current version before overwriting (T5.3) ──────────
+    from .version_module import _archive_memory_version as _archive_version
+
+    archive_result = await _archive_version(
+        client_id=client_id,
+        entity_type=entity_type,
+        entity_name=entity_name,
+        key=key,
+    )
+
+    new_version = (
+        archive_result["archived_version"] + 1
+        if archive_result is not None
+        else 1
+    )
 
     payload = {
         "client_id": client_id,
@@ -225,6 +490,7 @@ async def _shared_memory_upsert_logic(
             "manual", "memory_agent", "specialist", "migration", "system"
         ) else "manual",
         "confidence": confidence,
+        "version": new_version,
     }
 
     try:
@@ -459,6 +725,110 @@ async def _shared_memory_get_links_logic(
         "total_links": len(outgoing) + len(incoming),
         "outgoing": outgoing,
         "incoming": incoming,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Vector search business logic (T3.1c)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_search_logic(
+    client_id: str,
+    query: str,
+    entity_type: str | None = None,
+    category: str | None = None,
+    match_count: int = 10,
+    match_threshold: float = 0.3,
+) -> dict:
+    """
+    Busca vetorial na shared_business_memory.
+
+    1. Gera embedding da query via Cohere embed-multilingual-light-v3.0
+    2. Chama RPC public.search_shared_memory()
+    3. Retorna resultados com similarity scores
+
+    Args:
+        client_id: UUID do cliente
+        query: Texto de busca em linguagem natural
+        entity_type: Filtrar por tipo de entidade (opcional)
+        category: Filtrar por categoria semântica (opcional)
+        match_count: Máximo de resultados (default 10)
+        match_threshold: Similaridade mínima (default 0.3)
+
+    Returns:
+        dict com query, total_results e results ordenados por similarity.
+
+    Raises:
+        ToolError: Se Cohere não disponível ou query embedding falhar.
+    """
+    if not query or not query.strip():
+        raise ValueError("query is required and cannot be empty")
+
+    if entity_type is not None:
+        _validate_entity_type(entity_type)
+
+    # 1. Gerar embedding da query via Cohere
+    try:
+        from blu_llm_service import get_cohere_embedding_model
+        embedder = get_cohere_embedding_model()
+        query_embedding = embedder.embed_query(query.strip())
+        embedding_str = f"[{','.join(str(v) for v in query_embedding)}]"
+    except ImportError:
+        raise ToolError(
+            "blu_llm_service não disponível para embedding vetorial. "
+            "Verifique se o pacote está instalado."
+        )
+    except ValueError as exc:
+        raise ToolError(
+            f"Configuração do Cohere ausente: {exc}. "
+            "Configure CO_API_KEY no ambiente."
+        )
+    except Exception as exc:
+        raise ToolError(f"Falha ao gerar embedding da query: {exc}")
+
+    # 2. Chamar RPC search_shared_memory
+    db = await get_supabase_client()
+    try:
+        result = await db.rpc(
+            "search_shared_memory",
+            {
+                "p_client_id": client_id,
+                "p_query_embed": embedding_str,
+                "p_match_count": match_count,
+                "p_match_threshold": match_threshold,
+                "p_entity_type": entity_type,
+                "p_category": category,
+            },
+        ).execute()
+    except Exception as exc:
+        logger.error(
+            "[memory_module] RPC search_shared_memory failed: %s", exc
+        )
+        raise ToolError(
+            f"Falha ao buscar na memória compartilhada: {exc}"
+        )
+
+    # 3. Formatar resultado
+    rows = result.data or []
+    formatted_results = []
+    for r in rows:
+        formatted_results.append({
+            "id": r["id"],
+            "entity_type": r["entity_type"],
+            "entity_name": r["entity_name"],
+            "key": r["key"],
+            "value": r["value"],
+            "category": r.get("category"),
+            "source": r.get("source"),
+            "confidence": float(r.get("confidence", 1.0)),
+            "similarity": round(float(r["similarity"]), 4),
+        })
+
+    return {
+        "query": query,
+        "total_results": len(formatted_results),
+        "results": formatted_results,
     }
 
 
@@ -1014,5 +1384,133 @@ def register_tools(mcp: FastMCP) -> list[str]:
         "[Memory Module] Tool 'shared_memory_get_links' registered."
     )
     registered_tools.append("shared_memory_get_links")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_search -- semantic vector search in shared business memory
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_search",
+        description=(
+            "[Shared Memory] Semantic (vector) search in shared business memory. "
+            "Use this to find facts about business entities by meaning, not exact keywords. "
+            "The query is embedded with Cohere (embed-multilingual-light-v3.0, 384 dims) "
+            "and matched against stored facts using cosine similarity via pgvector HNSW index. "
+            "Parameters: query (natural language search text), entity_type (optional filter "
+            "by entity type: skill|client|contact|supplier|user|snapshot|routine|agent_result|"
+            "agent_metadata), category (optional filter by semantic category), match_count "
+            "(max results, default 10), match_threshold (minimum similarity 0.0-1.0, default 0.3). "
+            "Returns facts ranked by similarity score. Use this when you need to find business "
+            "knowledge semantically, e.g., 'which clients prefer communication via WhatsApp' "
+            "or 'what are the key facts about supplier Distribuidora X'."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_search(
+        ctx: Context,
+        query: str,
+        entity_type: str | None = None,
+        category: str | None = None,
+        match_count: int = 10,
+        match_threshold: float = 0.3,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Search shared business memory using semantic (vector) similarity.
+
+        Generates a Cohere embedding for the query text and matches it against
+        stored fact embeddings via the pgvector HNSW index in shared_business_memory.
+
+        Args:
+            query: Natural language search text describing what you're looking for.
+                   Write it as a question or description, e.g.:
+                   - "preferências de comunicação dos clientes"
+                   - "fornecedores com contrato vigente"
+                   - "faturamento mensal dos últimos 6 meses"
+                   - "clientes com tom amigável"
+            entity_type: Optional filter. Only return facts of this entity type.
+                         Valid: skill, client, contact, supplier, user, snapshot,
+                         routine, agent_result, agent_metadata.
+            category: Optional filter by semantic category.
+            match_count: Maximum number of results to return (default 10, max 50).
+            match_threshold: Minimum similarity score 0.0--1.0 (default 0.3).
+                             Lower values return more but less relevant results.
+
+        Returns:
+            dict with:
+            - query: The original search text
+            - total_results: Number of matching facts found
+            - results: Array of facts ordered by similarity (descending).
+              Each fact has: id, entity_type, entity_name, key, value,
+              category, source, confidence, similarity.
+
+        Examples:
+            >>> # Find all communication preferences
+            >>> shared_memory_search(query="preferências de comunicação dos clientes")
+
+            >>> # Find financial data about a specific supplier
+            >>> shared_memory_search(
+            ...     query="dados financeiros e contratos",
+            ...     entity_type="supplier",
+            ...     match_count=5,
+            ... )
+
+            >>> # Find snapshot data with stricter threshold
+            >>> shared_memory_search(
+            ...     query="resumo financeiro mensal",
+            ...     entity_type="snapshot",
+            ...     match_threshold=0.5,
+            ... )
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        if match_count < 1 or match_count > 50:
+            raise ToolError(
+                "match_count must be between 1 and 50"
+            )
+
+        if match_threshold < 0.0 or match_threshold > 1.0:
+            raise ToolError(
+                "match_threshold must be between 0.0 and 1.0"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_search "
+            "query='%s' entity_type=%s category=%s "
+            "match_count=%d match_threshold=%.2f client_id=%s",
+            query[:80],
+            entity_type,
+            category,
+            match_count,
+            match_threshold,
+            client_id,
+        )
+
+        try:
+            return await _shared_memory_search_logic(
+                client_id=client_id,
+                query=query,
+                entity_type=entity_type,
+                category=category,
+                match_count=match_count,
+                match_threshold=match_threshold,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except ToolError:
+            raise
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_search failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to search shared memory: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_search' registered.")
+    registered_tools.append("shared_memory_search")
 
     return registered_tools

@@ -80,6 +80,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
         web_monitor_module,
         slack_module,  # noqa: F401
         memory_module,
+        memory_post_flight,
     )
 
     # Optional chart module

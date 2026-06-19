@@ -156,3 +156,4 @@
     "rag_search_skill": "Pode ler get_knowledge_graph_summary para decidir modo de busca (local/mix/global) baseado em total_entities"
   }
 }
+

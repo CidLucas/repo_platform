@@ -17,6 +17,7 @@ def mock_client_id() -> uuid.UUID:
 @pytest.fixture
 def mock_credencial_sql() -> CredencialServicoExternoBase:
     return CredencialServicoExternoBase(
+        nome_servico="sql_mock",
         db_dialeto="postgresql",
         db_user="user_mock",
         db_password="pass_mock",

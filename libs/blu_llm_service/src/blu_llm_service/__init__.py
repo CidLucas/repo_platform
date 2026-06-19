@@ -34,8 +34,10 @@ from .client import (
     ModelTier,
     OllamaCloudModel,
     BluEmbeddingAPIClient,
+    CohereEmbeddingClient,
     flush_langfuse,
     get_base_callbacks,
+    get_cohere_embedding_model,
     get_embedding_model,
     get_hf_inference_client,
     get_langfuse_callback,
@@ -102,6 +104,7 @@ __all__ = [
     # Main API
     "get_model",
     "get_embedding_model",
+    "get_cohere_embedding_model",
     "get_hf_inference_client",
     # Token Budgeting
     "TokenBudget",
@@ -133,6 +136,7 @@ __all__ = [
     "OllamaCloudModel",
     # Classes
     "BluEmbeddingAPIClient",
+    "CohereEmbeddingClient",
     # Config
     "get_llm_settings",
     "LLMSettings",

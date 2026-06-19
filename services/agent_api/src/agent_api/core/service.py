@@ -294,6 +294,22 @@ class ChatService:
             structured_data_list=[],
         )
 
+        # Pre-flight: shared memory context for frontdesk (DD-PF-05, DD-PF-07)
+        try:
+            preflight_raw = await get_mcp_manager().call_tool(
+                "shared_memory_pre_flight",
+                {"client_id": client_id, "agent_slug": "frontdesk"},
+            )
+            if hasattr(preflight_raw, "content") and preflight_raw.content:
+                preflight_data = json.loads(preflight_raw.content[0].text)
+                initial_state["agent_preflight_context"] = preflight_data
+                logger.info(
+                    "Pre-flight loaded for frontdesk: %s executions",
+                    preflight_data.get("execution_count", 0),
+                )
+        except Exception as e:
+            logger.warning("Pre-flight failed for frontdesk: %s", e)
+
         graph = factory.get_frontdesk_graph(tier=tier, context_service=context_service)
         config = self._build_langfuse_config(
             session_id=session_id,
@@ -357,6 +373,26 @@ class ChatService:
                     structured_data=None,
                     structured_data_list=[],
                 )
+
+                # Pre-flight: shared memory context for specialist (DD-PF-05, DD-PF-07)
+                try:
+                    preflight_raw = await get_mcp_manager().call_tool(
+                        "shared_memory_pre_flight",
+                        {"client_id": client_id, "agent_slug": specialist_slug},
+                    )
+                    if hasattr(preflight_raw, "content") and preflight_raw.content:
+                        preflight_data = json.loads(preflight_raw.content[0].text)
+                        specialist_state["agent_preflight_context"] = preflight_data
+                        logger.info(
+                            "Pre-flight loaded for specialist %s: %s executions",
+                            specialist_slug,
+                            preflight_data.get("execution_count", 0),
+                        )
+                except Exception as e:
+                    logger.warning(
+                        "Pre-flight failed for specialist %s: %s", specialist_slug, e
+                    )
+
                 specialist_graph = factory.get_specialist_graph(slug=specialist_slug, tier=tier)
                 specialist_config = self._build_langfuse_config(
                     session_id=session_id,
@@ -463,6 +499,22 @@ class ChatService:
             structured_data_list=[],
         )
 
+        # Pre-flight: shared memory context for frontdesk (DD-PF-05, DD-PF-07)
+        try:
+            preflight_raw = await get_mcp_manager().call_tool(
+                "shared_memory_pre_flight",
+                {"client_id": client_id, "agent_slug": "frontdesk"},
+            )
+            if hasattr(preflight_raw, "content") and preflight_raw.content:
+                preflight_data = json.loads(preflight_raw.content[0].text)
+                initial_state["agent_preflight_context"] = preflight_data
+                logger.info(
+                    "Pre-flight loaded for frontdesk: %s executions",
+                    preflight_data.get("execution_count", 0),
+                )
+        except Exception as e:
+            logger.warning("Pre-flight failed for frontdesk: %s", e)
+
         graph = factory.get_frontdesk_graph(tier=tier, context_service=context_service)
         config = self._build_langfuse_config(
             session_id=session_id,
@@ -542,6 +594,26 @@ class ChatService:
                                 structured_data=None,
                                 structured_data_list=[],
                             )
+
+                            # Pre-flight: shared memory context for specialist (DD-PF-05, DD-PF-07)
+                            try:
+                                preflight_raw = await get_mcp_manager().call_tool(
+                                    "shared_memory_pre_flight",
+                                    {"client_id": client_id, "agent_slug": specialist_slug},
+                                )
+                                if hasattr(preflight_raw, "content") and preflight_raw.content:
+                                    preflight_data = json.loads(preflight_raw.content[0].text)
+                                    specialist_state["agent_preflight_context"] = preflight_data
+                                    logger.info(
+                                        "Pre-flight loaded for specialist %s: %s executions",
+                                        specialist_slug,
+                                        preflight_data.get("execution_count", 0),
+                                    )
+                            except Exception as e:
+                                logger.warning(
+                                    "Pre-flight failed for specialist %s: %s", specialist_slug, e
+                                )
+
                             specialist_graph = factory.get_specialist_graph(slug=specialist_slug, tier=tier)
                             specialist_config = self._build_langfuse_config(
                                 session_id=session_id,

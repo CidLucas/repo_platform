@@ -320,9 +320,11 @@ AVAILABLE_MODULES = {
         "requires_auth": True,
     },
     "memory": {
-        "description": "Shared Business Memory — entity listing, knowledge retrieval, and semantic linking",
+        "description": "Shared Business Memory -- entity listing, knowledge retrieval, semantic linking, and upsert",
         "tools": [
             "shared_memory_list",
+            "shared_memory_read",
+            "shared_memory_upsert",
             "shared_memory_link",
             "shared_memory_unlink",
             "shared_memory_get_links",

@@ -12,6 +12,7 @@ Tools registered:
   - shared_memory_upsert  -> insert or update a fact (versioned)
   - shared_memory_write   -> write a new fact (strict INSERT; supersede=True to upsert)
   - shared_memory_search  -> semantic vector search via Cohere embeddings (T3.1c)
+  - shared_memory_flush   -> soft-delete entries (marks flushed_at in metadata; T5.4)
   - shared_memory_link    -> create semantic link between entities
   - shared_memory_unlink  -> remove a link by id
   - shared_memory_get_links -> query links by entity and/or type
@@ -84,6 +85,43 @@ def _validate_entity_type(entity_type: str, field_name: str = "entity_type") -> 
 def _normalize_entity_name(name: str) -> str:
     """Normalize entity name: lowercase, trimmed."""
     return name.strip().lower()
+
+
+def _is_flushed(metadata: dict | None) -> bool:
+    """Check whether a shared-memory entry has been flushed.
+
+    Flushed entries have ``flushed_at`` set in their metadata JSONB column.
+    This is a soft-delete marker — the row still exists but should be treated
+    as cleared/unavailable.
+
+    Args:
+        metadata: The metadata dict from the row (may be None, treated as not flushed).
+
+    Returns:
+        True if the entry is marked as flushed.
+    """
+    if not isinstance(metadata, dict):
+        return False
+    return "flushed_at" in metadata
+
+
+def _check_not_flushed(metadata: dict | None, entity_ref: str) -> None:
+    """Raise ValueError if the entry is flushed.
+
+    Used before returning read results to ensure flushed entries are not
+    surfaced to agents.
+
+    Args:
+        metadata: The metadata dict from the row.
+        entity_ref: Human-readable entity reference for the error message.
+
+    Raises:
+        ValueError: If the entry is flushed.
+    """
+    if _is_flushed(metadata):
+        raise ValueError(
+            f"Memory entry has been flushed (soft-deleted): {entity_ref}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -401,6 +439,12 @@ async def _shared_memory_read_logic(
         raise ValueError(
             f"Memory entry not found: {entity_type}:{entity_name}/{key}"
         )
+
+    # T5.4 — Check if entry has been flushed (soft-deleted)
+    _check_not_flushed(
+        row.get("metadata"),
+        f"{entity_type}:{entity_name}/{key}",
+    )
 
     return {
         "id": row["id"],
@@ -810,6 +854,152 @@ async def _shared_memory_search_logic(
         "query": query,
         "total_results": len(formatted_results),
         "results": formatted_results,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Flush business logic (T5.4)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_flush_logic(
+    client_id: str,
+    entity_type: str | None = None,
+    entity_name: str | None = None,
+    key: str | None = None,
+) -> dict:
+    """Flush (soft-delete) shared-memory entries for a client.
+
+    Marks matching entries as flushed by setting ``metadata->>'flushed_at'``
+    to the current UTC ISO timestamp.  This is a soft-delete — rows remain in
+    the database but are hidden from ``shared_memory_read``.
+
+    Filters are optional.  When no filters are provided, all entries for
+    the client are flushed.  The operation is **idempotent** — already-flushed
+    entries are silently skipped.
+
+    Args:
+        client_id: UUID of the client whose memory is being flushed.
+        entity_type: Optional filter — only flush entries of this type.
+        entity_name: Optional filter — only flush entries with this name.
+        key: Optional filter — only flush entries with this key.
+
+    Returns:
+        dict with ``flushed_count`` (number of entries actually flushed in
+        this call), ``total_scanned`` (number of rows matching filters),
+        and ``skipped_already_flushed``.
+
+    Raises:
+        ValueError: If entity_type is invalid or no rows match.
+    """
+    from datetime import datetime, timezone
+
+    if entity_type is not None:
+        _validate_entity_type(entity_type)
+    if entity_name is not None:
+        entity_name = _normalize_entity_name(entity_name)
+    if key is not None:
+        key = key.strip().lower()
+
+    db = await get_supabase_client()
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # 1. Query matching rows (all columns needed, only distinct per unique key)
+    query = (
+        db.schema("public")
+        .table(_TABLE)
+        .select("id, metadata")
+        .eq("client_id", client_id)
+    )
+    if entity_type:
+        query = query.eq("entity_type", entity_type)
+    if entity_name:
+        query = query.eq("entity_name", entity_name)
+    if key:
+        query = query.eq("key", key)
+
+    result = await query.execute()
+    rows = result.data if result.data else []
+
+    total_scanned = len(rows)
+    if total_scanned == 0:
+        raise ValueError(
+            "No shared-memory entries match the given filters. "
+            "Nothing to flush."
+        )
+
+    # 2. Identify which rows need flushing (not already flushed)
+    rows_to_flush: list[str] = []
+    skipped_already_flushed = 0
+
+    for r in rows:
+        meta = r.get("metadata") or {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except (json.JSONDecodeError, TypeError):
+                meta = {}
+        if "flushed_at" in meta:
+            skipped_already_flushed += 1
+            continue
+        rows_to_flush.append(r["id"])
+
+    if not rows_to_flush:
+        return {
+            "flushed_count": 0,
+            "total_scanned": total_scanned,
+            "skipped_already_flushed": skipped_already_flushed,
+            "message": (
+                f"All {total_scanned} matching entries are already flushed."
+            ),
+            "flushed_at": now_iso,
+        }
+
+    # 3. Batch update flushed_at in metadata
+    flushed_count = 0
+    flush_errors: list[str] = []
+
+    for row_id in rows_to_flush:
+        try:
+            # Read current metadata
+            meta_result = await (
+                db.schema("public")
+                .table(_TABLE)
+                .select("metadata")
+                .eq("id", row_id)
+                .single()
+                .execute()
+            )
+            current_meta = (meta_result.data or {}).get("metadata", {}) or {}
+            if isinstance(current_meta, str):
+                try:
+                    current_meta = json.loads(current_meta)
+                except (json.JSONDecodeError, TypeError):
+                    current_meta = {}
+
+            current_meta["flushed_at"] = now_iso
+
+            await (
+                db.schema("public")
+                .table(_TABLE)
+                .update({"metadata": current_meta})
+                .eq("id", row_id)
+                .eq("client_id", client_id)
+                .execute()
+            )
+            flushed_count += 1
+        except Exception as exc:
+            logger.error(
+                "[memory_module] Flush error for row %s: %s", row_id, exc
+            )
+            flush_errors.append(str(exc))
+
+    return {
+        "flushed_count": flushed_count,
+        "total_scanned": total_scanned,
+        "skipped_already_flushed": skipped_already_flushed,
+        "flush_errors": flush_errors if flush_errors else [],
+        "flushed_at": now_iso,
     }
 
 
@@ -1493,5 +1683,113 @@ def register_tools(mcp: FastMCP) -> list[str]:
 
     logger.info("[Memory Module] Tool 'shared_memory_search' registered.")
     registered_tools.append("shared_memory_search")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_flush --  soft-delete memory entries (T5.4)
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_flush",
+        description=(
+            "[Shared Memory] Flush (soft-delete) shared-memory entries. "
+            "Marks matching entries as flushed by recording a timestamp in "
+            "their metadata. Flushed entries are hidden from "
+            "shared_memory_read but remain in the database for recovery "
+            "and auditing. "
+            "Filters (entity_type, entity_name, key) are optional; when none "
+            "are provided, ALL entries for the current client are flushed. "
+            "Idempotent — calling flush multiple times on already-flushed "
+            "entries is safe and returns flushed_count=0. "
+            "Use this after exporting data or when you need to reset the "
+            "shared memory for a client."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_flush(
+        ctx: Context,
+        entity_type: str | None = None,
+        entity_name: str | None = None,
+        key: str | None = None,
+        client_id: str | None = None,
+    ) -> dict:
+        """Flush (soft-delete) shared-memory entries.
+
+        Marks matching entries as flushed so they are no longer returned by
+        ``shared_memory_read``.  The rows are NOT hard-deleted — they remain
+        for auditing and can be recovered.
+
+        Args:
+            entity_type: Optional — only flush entries of this type.
+                         Valid: skill, client, contact, supplier, user,
+                         snapshot, routine, agent_result, agent_metadata.
+            entity_name: Optional — only flush entries with this name.
+                         Case-insensitive, normalized to lowercase.
+            key: Optional — only flush the specific key.
+                 Case-insensitive, normalized to lowercase.
+
+        Returns:
+            dict with:
+            - flushed_count: number of entries actually flushed in this call
+            - total_scanned: number of rows matching filters
+            - skipped_already_flushed: entries already flushed (idempotent)
+            - flush_errors: any errors during the operation (empty on success)
+            - flushed_at: ISO timestamp of the flush operation
+
+        Examples:
+            >>> # Flush all entries for a specific entity
+            >>> shared_memory_flush(
+            ...     entity_type="client",
+            ...     entity_name="joao_silva",
+            ... )
+
+            >>> # Flush a single fact
+            >>> shared_memory_flush(
+            ...     entity_type="skill",
+            ...     entity_name="comunicacao",
+            ...     key="tom_amigavel",
+            ... )
+
+            >>> # Flush ALL shared memory for the client (use with caution!)
+            >>> shared_memory_flush()
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        if entity_type is not None:
+            try:
+                _validate_entity_type(entity_type)
+            except ValueError as exc:
+                raise ToolError(str(exc))
+
+        logger.info(
+            "[memory_module] shared_memory_flush "
+            "entity_type=%s entity_name=%s key=%s client_id=%s",
+            entity_type,
+            entity_name,
+            key,
+            client_id,
+        )
+
+        try:
+            return await _shared_memory_flush_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                key=key,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_flush failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to flush shared memory: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_flush' registered.")
+    registered_tools.append("shared_memory_flush")
 
     return registered_tools

@@ -9,7 +9,10 @@ Each schema corresponds to a ContextSection enum value and defines
 the expected structure when storing/retrieving that section.
 """
 
+from datetime import datetime
+from enum import Enum
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -388,3 +391,73 @@ def validate_section_content(section_type: str, content: dict) -> BaseModel:
     if schema_class is None:
         raise ValueError(f"Unknown section type: {section_type}")
     return schema_class.model_validate(content)
+
+
+# =============================================================================
+# SHARED BUSINESS MEMORY META (Fase 4 / T4.2)
+# =============================================================================
+
+# Valid entity types for shared_business_memory_meta
+_VALID_META_ENTITY_TYPES: frozenset[str] = frozenset(
+    {"synthesis_output", "dedup_mapping", "kg_summary"}
+)
+
+
+class MetaEntityType(str, Enum):
+    """Tipo de artefato operacional na shared_business_memory_meta."""
+
+    SYNTHESIS_OUTPUT = "synthesis_output"
+    DEDUP_MAPPING = "dedup_mapping"
+    KG_SUMMARY = "kg_summary"
+
+
+def validate_meta_entity_type(entity_type: str, field_name: str = "entity_type") -> None:
+    """Validate entity_type for shared_business_memory_meta. Raises ValueError.
+
+    Args:
+        entity_type: The entity type string to validate.
+        field_name: Field name used in the error message.
+
+    Raises:
+        ValueError: If entity_type is not in _VALID_META_ENTITY_TYPES.
+    """
+    if entity_type not in _VALID_META_ENTITY_TYPES:
+        raise ValueError(
+            f"Invalid {field_name} '{entity_type}'. "
+            f"Must be one of: {sorted(_VALID_META_ENTITY_TYPES)}"
+        )
+
+
+class SharedMemoryMetaEntry(BaseModel):
+    """Representa uma linha da shared_business_memory_meta."""
+
+    id: UUID | None = None
+    client_id: UUID
+    entity_type: MetaEntityType
+    entity_name: str
+    key: str
+    value: dict[str, Any]
+    source: str = "system"
+    confidence: float = 1.0
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class SharedMemoryMetaUpsertPayload(BaseModel):
+    """Payload para upsert em shared_business_memory_meta."""
+
+    entity_type: MetaEntityType
+    entity_name: str
+    key: str
+    value: dict[str, Any]
+    source: str = "system"
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class SharedMemoryMetaQuery(BaseModel):
+    """Query para leitura de shared_business_memory_meta."""
+
+    entity_type: MetaEntityType | None = None
+    key: str | None = None

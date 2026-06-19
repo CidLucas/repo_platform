@@ -1,0 +1,72 @@
+{
+  "issue_number": 29,
+  "title": "Fase 4 — Diretório handoffs/ estruturado",
+  "design_reference": "docs/llm_wiki/SHARED_MEMORY_DESIGN.md — T4.1. Issue body aponta para criação do diretório de handoffs como artefato estruturado. Design doc de referência: docs/roadmap/blu-intelligent-memory.md",
+  "phase": "Fase 4 — Diretório handoffs/ estruturado (shared memory project, não confundir com Graph Enrichment do roadmap original)",
+  "scope": "Estruturar o diretório docs/handoffs/ com README de convenções, template padronizado, e reorganização dos 2 arquivos existentes (20260525_onboarding_trace_session.md, 20260525_security_sprint_pre_onboarding.md) seguindo a nova estrutura. O objetivo é que agentes e desenvolvedores humanos gerem handoffs consistentes e encontráveis.",
+  "type": "docs_restructure",
+  "current_state": {
+    "existing_files": [
+      "docs/handoffs/20260525_onboarding_trace_session.md",
+      "docs/handoffs/20260525_security_sprint_pre_onboarding.md"
+    ],
+    "directory": "docs/handoffs/",
+    "issues": [
+      "Sem README.md — nenhuma convenção documentada",
+      "Sem template — formato inconsistente entre os 2 handoffs existentes",
+      "Estrutura única de seções diferente entre arquivos (data como metadado inline vs frontmatter)",
+      "Sem convenção de nomenclatura — apenas data-tema.md",
+      "Sem check de validação de frontmatter"
+    ]
+  },
+  "proposed_structure": {
+    "docs/handoffs/README.md": "Índice + convenções de handoff (formato, frontmatter, nomenclatura, status)",
+    "docs/handoffs/templates/standard.md": "Template de handoff com frontmatter YAML padronizado",
+    "docs/handoffs/20260525_onboarding_trace_session.md": "Refatorado para seguir as novas convenções (frontmatter, seções padronizadas)",
+    "docs/handoffs/20260525_security_sprint_pre_onboarding.md": "Refatorado para seguir as novas convenções (frontmatter, seções padronizadas)"
+  },
+  "affected_files": {
+    "new": [
+      "docs/handoffs/README.md",
+      "docs/handoffs/templates/standard.md"
+    ],
+    "modified": [
+      "docs/handoffs/20260525_onboarding_trace_session.md",
+      "docs/handoffs/20260525_security_sprint_pre_onboarding.md"
+    ]
+  },
+  "sibling_issues": [
+    "#30 — Fase 4: Diretório meta/ para dados operacionais (T4.2)",
+    "#31 — Fase 4: Eventos de trigger para handoffs (T4.3)",
+    "#32 — Fase 4: Política de retenção e prune da shared memory (T4.4)"
+  ],
+  "prerequisites": {
+    "completed": [
+      "docs/handoffs/ já existe com 2 handoffs históricos",
+      "docs/system_reference/ já estabelece padrão de documentação estruturada",
+      "docs/README.md já estabelece índice de documentação"
+    ],
+    "not_yet_completed_but_needed": [
+      "Nenhum pré-requisito técnico — é trabalho puramente documental/estrutural"
+    ]
+  },
+  "risks": [
+    "Mudar arquivos existentes pode quebrar referências cruzadas em outros docs",
+    "Referências externas ao handoff de segurança podem apontar para o path original — verificar se há links antes de renomear",
+    "Refatoração manual dos 2 handoffs existentes pode perder nuances se for agressiva demais",
+    "Handoffs futuros podem ignorar a nova convenção se não houver automação de CI"
+  ],
+  "dependencies": [
+    "Nenhuma dependência externa — trabalho auto-contido"
+  ],
+  "design_decisions_needed": [
+    "Nome do template: standard.md vs handoff-template.md?",
+    "Frontmatter obrigatório vs opcional? (recomendado: obrigatório, com validador de CI)",
+    "Incluir validador de CI (pre-commit hook ou GitHub Action) ou deixar como convenção apenas?",
+    "Organizar handoffs por ano/subpasta ou tudo flat prefixado por data? (recomendado: flat com prefixo YYYYMMDD)",
+    "Status tracking: incluir seção de status checklist no template?",
+    "include/exclude de 'próximos passos' e 'ações pendentes' como seção obrigatória?"
+  ],
+  "implementation_approach": "Manter abordagem conservadora: (1) Criar README.md com convenções claras (formato, frontmatter YAML, nomenclatura YYYYMMDD_tema.md, seções obrigatórias). (2) Criar templates/standard.md com frontmatter template + seções padronizadas. (3) Atualizar os 2 handoffs existentes adicionando frontmatter YAML mantendo todo o conteúdo original. (4) Não mover/renomear arquivos existentes para evitar quebras de referências cruzadas. (5) Adicionar seção de validação/referência cruzada opcional.",
+  "wiki_consulted": "docs/roadmap/blu-intelligent-memory.md, docs/handoffs/ (2 arquivos existentes), docs/system_reference/ (padrão de documentação), docs/README.md (índice)"
+}

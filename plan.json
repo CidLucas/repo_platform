@@ -1,0 +1,94 @@
+{
+  "issue_number": 23,
+  "issue_title": "Fase 2 — Rotina context_report_monthly passar a usar shared memory",
+  "phase": "Fase 2",
+  "scope": "Modificar a rotina context_report_monthly para ler dados de shared_business_memory (populados por outros agentes/rotinas) em vez de consultar tabelas analytics diretamente, e escrever o relatório mensal como snapshot em shared_business_memory (entity_type='snapshot')",
+  "background": "A rotina context_report_monthly atualmente usa a edge function generate-context-report que busca dados de RPCs analytics (get_context_metrics_for_client, get_dim_totals_for_client, get_annual_metrics_for_client, get_top_clients_for_client, etc.) e armazena o markdown em vector_db.documents. O objetivo é migrar para a arquitetura de shared memory: ler snapshots/dados já consolidados por outros agentes na shared_business_memory, e escrever o output como entity_type='snapshot' com category='context'.",
+  "subtasks": [
+    {
+      "id": "T2.3a",
+      "title": "Migration SQL: adicionar rotina context_report_monthly no catálogo com steps de shared memory",
+      "description": "Criar/atualizar a rotina context_report_monthly em cross_agent_routines com steps que usam tools shared_memory_list, shared_memory_read para ler snapshots das dimensões (financeiro, clientes, compras, agenda, estoque) e shared_memory_upsert para escrever o snapshot mensal consolidado.",
+      "type": "migration",
+      "files": [
+        "supabase/migrations/proposed/20260619000000_shared_business_memory.sql (já existe - migration base)",
+        "Nova migration: 20260620_context_report_monthly_shared_memory.sql"
+      ],
+      "dependencies": [],
+      "acceptance": "Rotina context_report_monthly existe em cross_agent_routines com trigger_type=cron (0 3 1 * *), steps usando function/skill types apontando para shared_memory_* tools, config_schema vazio."
+    },
+    {
+      "id": "T2.3b",
+      "title": "Criar function SQL: get_shared_memory_snapshots_for_report",
+      "description": "Função RPC que agrega snapshots recentes (últimos 30-60 dias) de shared_business_memory por dimensão (entity_type='snapshot', category IN ('financeiro','clientes','compras','agenda','estoque','geral')). Retorna JSON estruturado compatível com o template de relatório mensal.",
+      "type": "function",
+      "files": ["Nova migration: mesma migration acima ou separada"],
+      "dependencies": ["T2.3a"],
+      "acceptance": "Function get_shared_memory_snapshots_for_report(p_client_id uuid, p_window_days int DEFAULT 60) retorna jsonb com estrutura {dimension: {key: value, updated_at, source}}. Testável via Supabase SQL editor."
+    },
+    {
+      "id": "T2.3c",
+      "title": "Criar skill de síntese: context_report_monthly_synthesis",
+      "description": "Skill L3 (Langfuse prompt type=skill) que recebe os snapshots agregados e gera o relatório narrativo mensal em markdown, seguindo o template do generate-context-report atual (Visão Geral, Finanças, Comercial, Estoque, Suprimentos, Histórico Anual, Top Clientes/Produtos/Fornecedores, Alertas).",
+      "type": "skill",
+      "files": [
+        "Prompt Langfuse: skill:context_report_monthly_synthesis:system (label production)",
+        "Registro no SKILL_REGISTRY se necessário (blu_agent_framework/skills.py)"
+      ],
+      "dependencies": ["T2.3b"],
+      "acceptance": "Prompt criado no Langfuse com label production. Testável via SkillFactory.run('context_report_monthly_synthesis', state). Retorna {markdown_report: string, summary_kpis: object}."
+    },
+    {
+      "id": "T2.3d",
+      "title": "Atualizar steps da rotina para usar function + skill + shared_memory_upsert",
+      "description": "Steps da rotina: 1) function:get_shared_memory_snapshots_for_report → 2) skill:context_report_monthly_synthesis → 3) function:shared_memory_upsert (entity_type='snapshot', entity_name='monthly_report_<YYYY-MM>', key='report', value={markdown, kpis, metadata}, category='context', source='specialist'). Opcional: step artifact para salvar em vector_db.documents também (compatibilidade).",
+      "type": "routine_steps",
+      "files": ["Migration da T2.3a (steps array no upsert)"],
+      "dependencies": ["T2.3c"],
+      "acceptance": "Executar rotina manualmente via run_routine.py context_report_monthly <client_id> gera entrada em shared_business_memory com entity_type=snapshot, entity_name=monthly_report_2026-06, key=report. Markdown renderizado corretamente."
+    },
+    {
+      "id": "T2.3e",
+      "title": "Deprecar/migrar edge function generate-context-report",
+      "description": "A edge function generate-context-report pode ser mantida como fallback ou depreciada. Atualizar schedule_monthly_context_reports() para disparar a rotina via dispatch_routine_event em vez de chamar a edge function. Ou manter ambos por compatibilidade durante transição.",
+      "type": "cleanup",
+      "files": [
+        "supabase/functions/generate-context-report/index.ts (marcar deprecated ou remover)",
+        "Migration: atualizar schedule_monthly_context_reports() para usar dispatch_routine_event('context_report_monthly', client_id)"
+      ],
+      "dependencies": ["T2.3d"],
+      "acceptance": "pg_cron job 'schedule_monthly_context_reports' (ou equivalente) dispara context_report_monthly via rotinas engine. E2E test: aguardar execução agendada ou disparar manual e verificar shared_business_memory."
+    },
+    {
+      "id": "T2.3f",
+      "title": "Testes e validação",
+      "description": "Testes unitários para get_shared_memory_snapshots_for_client. Teste de integração: popular shared_business_memory com snapshots de teste, executar rotina, validar output em shared_business_memory. Verificar que dimensões sem dados não quebram a síntese.",
+      "type": "test",
+      "files": [
+        "services/agent_api/tests/unit/test_context_report_monthly.py",
+        "services/tool_pool_api/tests/unit/test_get_shared_memory_snapshots.py"
+      ],
+      "dependencies": ["T2.3e"],
+      "acceptance": "pytest passa. Cobertura >= 80% nas novas functions/skills. Manual test com cliente de teste mostra relatório mensal em shared_business_memory."
+    }
+  ],
+  "design_decisions": [
+    "Usar entity_type='snapshot' para o relatório mensal consolidado (diferente de entity_type='skill' para fatos atômicos de skills)",
+    "Category='context' para relatórios de contexto (conforme schema shared_business_memory categoria 'context')",
+    "Source='specialist' pois é gerado por rotina/skill especialista",
+    "Ler snapshots existentes (entity_type='snapshot' escritos por monitor skills/daily_insights) em vez de consultar analytics_v2 diretamente — isso é o core da arquitetura shared memory",
+    "Manter compatibilidade com vector_db.documents opcionalmente via step artifact (não obrigatório para MVP)"
+  ],
+  "risks": [
+    "Snapshots das dimensões podem não existir ainda (monitores diários ainda não populam shared_memory) — a rotina deve lidar graciosamente com dados ausentes",
+    "Template de síntese complexo — prompt Langfuse precisa ser bem testado para não alucinar dados",
+    "Performance: agregação de muitos snapshots via RPC pode ser lenta — considerar materialized view ou cache se necessário",
+    "Migração de clientes existentes: relatórios antigos em vector_db.documents não migram automaticamente para shared_memory"
+  ],
+  "related_issues": [
+    "#18 (Fase 1 - Post-flight shared memory em agentes) - base para escrita de shared memory",
+    "#21 (Fase 2 - Engine de rotinas checkpoint em shared memory) - infra de checkpoint",
+    "#22 (Fase 2 - Templates de snapshot por dimensão) - templates que a síntese deve seguir",
+    "#20 (Fase 1 - Validação integridade shared memory) - constraints que garantem qualidade dos dados lidos"
+  ]
+}

@@ -82,6 +82,9 @@ def register_all_tools(mcp: FastMCP) -> dict:
         web_monitor_module,
         slack_module,  # noqa: F401
         memory_module,
+        memory_pre_flight_module,
+        version_module,
+        diff_module,
     )
 
     # Optional chart module
@@ -333,9 +336,26 @@ AVAILABLE_MODULES = {
         ],
         "requires_auth": True,
     },
-    "knowledge_graph": {
-        "description": "Knowledge Graph summary sync — updates available_tools after enrichment job",
-        "tools": ["update_knowledge_graph_summary"],
+    "memory_pre_flight": {
+        "description": "Pre-flight shared memory context — reads recent agent execution history from shared_business_memory",
+        "tools": [
+            "shared_memory_pre_flight",
+        ],
+        "requires_auth": True,
+    },
+    "version": {
+        "description": "Version storage and retrieval — archives and queries historical versions of shared_business_memory facts",
+        "tools": [
+            "shared_memory_get_versions",
+            "shared_memory_get_version",
+        ],
+        "requires_auth": True,
+    },
+    "diff": {
+        "description": "Diff generation — human-readable line-based diff between two historical versions of shared_business_memory facts",
+        "tools": [
+            "shared_memory_diff",
+        ],
         "requires_auth": True,
     },
 }

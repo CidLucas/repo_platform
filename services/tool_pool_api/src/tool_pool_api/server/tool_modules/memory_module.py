@@ -11,6 +11,8 @@ Tools registered:
   - shared_memory_read    -> read a single fact by composite key
   - shared_memory_upsert  -> insert or update a fact (versioned)
   - shared_memory_write   -> write a new fact (strict INSERT; supersede=True to upsert)
+  - shared_memory_search  -> semantic vector search via Cohere embeddings (T3.1c)
+  - shared_memory_flush   -> soft-delete entries (marks flushed_at in metadata; T5.4)
   - shared_memory_link    -> create semantic link between entities
   - shared_memory_unlink  -> remove a link by id
   - shared_memory_get_links -> query links by entity and/or type
@@ -27,6 +29,7 @@ from fastmcp.exceptions import ToolError
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_supabase_client import get_supabase_client
 
+from tool_pool_api.server.dependencies import get_context_service
 from blu_context_service.context_schemas import _SNAPSHOT_DIMENSION_FIELDS
 
 from . import register_module
@@ -34,7 +37,8 @@ from . import register_module
 logger = logging.getLogger(__name__)
 
 _VALID_ENTITY_TYPES: frozenset[str] = frozenset(
-    {"skill", "client", "contact", "supplier", "user", "snapshot"}
+    {"skill", "client", "contact", "supplier", "user", "snapshot", "routine",
+     "agent_result", "agent_metadata"}
 )
 
 _TABLE = "shared_business_memory"
@@ -81,6 +85,43 @@ def _validate_entity_type(entity_type: str, field_name: str = "entity_type") -> 
 def _normalize_entity_name(name: str) -> str:
     """Normalize entity name: lowercase, trimmed."""
     return name.strip().lower()
+
+
+def _is_flushed(metadata: dict | None) -> bool:
+    """Check whether a shared-memory entry has been flushed.
+
+    Flushed entries have ``flushed_at`` set in their metadata JSONB column.
+    This is a soft-delete marker — the row still exists but should be treated
+    as cleared/unavailable.
+
+    Args:
+        metadata: The metadata dict from the row (may be None, treated as not flushed).
+
+    Returns:
+        True if the entry is marked as flushed.
+    """
+    if not isinstance(metadata, dict):
+        return False
+    return "flushed_at" in metadata
+
+
+def _check_not_flushed(metadata: dict | None, entity_ref: str) -> None:
+    """Raise ValueError if the entry is flushed.
+
+    Used before returning read results to ensure flushed entries are not
+    surfaced to agents.
+
+    Args:
+        metadata: The metadata dict from the row.
+        entity_ref: Human-readable entity reference for the error message.
+
+    Raises:
+        ValueError: If the entry is flushed.
+    """
+    if _is_flushed(metadata):
+        raise ValueError(
+            f"Memory entry has been flushed (soft-deleted): {entity_ref}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -399,6 +440,12 @@ async def _shared_memory_read_logic(
             f"Memory entry not found: {entity_type}:{entity_name}/{key}"
         )
 
+    # T5.4 — Check if entry has been flushed (soft-deleted)
+    _check_not_flushed(
+        row.get("metadata"),
+        f"{entity_type}:{entity_name}/{key}",
+    )
+
     return {
         "id": row["id"],
         "client_id": row["client_id"],
@@ -432,8 +479,10 @@ async def _shared_memory_upsert_logic(
     """
     Insert or update a shared-memory fact.
 
-    Uses INSERT ... ON CONFLICT (client_id, entity_type, entity_name, key)
-    DO UPDATE with version = version + 1.
+    If an existing row is found, its current state is archived to
+    ``shared_business_memory_versions`` before the update, and the version
+    number is incremented.  Uses INSERT ... ON CONFLICT (client_id,
+    entity_type, entity_name, key) DO UPDATE.
 
     body maps to the ``value`` column (the actual fact content).
     frontmatter maps to the ``metadata`` column (provenance/context).
@@ -458,6 +507,22 @@ async def _shared_memory_upsert_logic(
 
     db = await get_supabase_client()
 
+    # ── Archive current version before overwriting (T5.3) ──────────
+    from .version_module import _archive_memory_version as _archive_version
+
+    archive_result = await _archive_version(
+        client_id=client_id,
+        entity_type=entity_type,
+        entity_name=entity_name,
+        key=key,
+    )
+
+    new_version = (
+        archive_result["archived_version"] + 1
+        if archive_result is not None
+        else 1
+    )
+
     payload = {
         "client_id": client_id,
         "entity_type": entity_type,
@@ -469,6 +534,7 @@ async def _shared_memory_upsert_logic(
             "manual", "memory_agent", "specialist", "migration", "system"
         ) else "manual",
         "confidence": confidence,
+        "version": new_version,
     }
 
     try:
@@ -703,6 +769,256 @@ async def _shared_memory_get_links_logic(
         "total_links": len(outgoing) + len(incoming),
         "outgoing": outgoing,
         "incoming": incoming,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Vector search business logic (T3.1c)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_search_logic(
+    client_id: str,
+    query: str,
+    entity_type: str | None = None,
+    category: str | None = None,
+    match_count: int = 10,
+    match_threshold: float = 0.3,
+) -> dict:
+    """
+    Busca vetorial na shared_business_memory.
+
+    1. Gera embedding da query via Cohere embed-multilingual-light-v3.0
+    2. Chama RPC public.search_shared_memory()
+    3. Retorna resultados com similarity scores
+
+    Args:
+        client_id: UUID do cliente
+        query: Texto de busca em linguagem natural
+        entity_type: Filtrar por tipo de entidade (opcional)
+        category: Filtrar por categoria semântica (opcional)
+        match_count: Máximo de resultados (default 10)
+        match_threshold: Similaridade mínima (default 0.3)
+
+    Returns:
+        dict com query, total_results e results ordenados por similarity.
+
+    Raises:
+        ToolError: Se Cohere não disponível ou query embedding falhar.
+    """
+    if not query or not query.strip():
+        raise ValueError("query is required and cannot be empty")
+
+    if entity_type is not None:
+        _validate_entity_type(entity_type)
+
+    # 1. Gerar embedding da query via Cohere
+    try:
+        from blu_llm_service import get_cohere_embedding_model
+        embedder = get_cohere_embedding_model()
+        query_embedding = embedder.embed_query(query.strip())
+        embedding_str = f"[{','.join(str(v) for v in query_embedding)}]"
+    except ImportError:
+        raise ToolError(
+            "blu_llm_service não disponível para embedding vetorial. "
+            "Verifique se o pacote está instalado."
+        )
+    except ValueError as exc:
+        raise ToolError(
+            f"Configuração do Cohere ausente: {exc}. "
+            "Configure CO_API_KEY no ambiente."
+        )
+    except Exception as exc:
+        raise ToolError(f"Falha ao gerar embedding da query: {exc}")
+
+    # 2. Chamar RPC search_shared_memory
+    db = await get_supabase_client()
+    try:
+        result = await db.rpc(
+            "search_shared_memory",
+            {
+                "p_client_id": client_id,
+                "p_query_embed": embedding_str,
+                "p_match_count": match_count,
+                "p_match_threshold": match_threshold,
+                "p_entity_type": entity_type,
+                "p_category": category,
+            },
+        ).execute()
+    except Exception as exc:
+        logger.error(
+            "[memory_module] RPC search_shared_memory failed: %s", exc
+        )
+        raise ToolError(
+            f"Falha ao buscar na memória compartilhada: {exc}"
+        )
+
+    # 3. Formatar resultado
+    rows = result.data or []
+    formatted_results = []
+    for r in rows:
+        formatted_results.append({
+            "id": r["id"],
+            "entity_type": r["entity_type"],
+            "entity_name": r["entity_name"],
+            "key": r["key"],
+            "value": r["value"],
+            "category": r.get("category"),
+            "source": r.get("source"),
+            "confidence": float(r.get("confidence", 1.0)),
+            "similarity": round(float(r["similarity"]), 4),
+        })
+
+    return {
+        "query": query,
+        "total_results": len(formatted_results),
+        "results": formatted_results,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Flush business logic (T5.4)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_flush_logic(
+    client_id: str,
+    entity_type: str | None = None,
+    entity_name: str | None = None,
+    key: str | None = None,
+) -> dict:
+    """Flush (soft-delete) shared-memory entries for a client.
+
+    Marks matching entries as flushed by setting ``metadata->>'flushed_at'``
+    to the current UTC ISO timestamp.  This is a soft-delete — rows remain in
+    the database but are hidden from ``shared_memory_read``.
+
+    Filters are optional.  When no filters are provided, all entries for
+    the client are flushed.  The operation is **idempotent** — already-flushed
+    entries are silently skipped.
+
+    Args:
+        client_id: UUID of the client whose memory is being flushed.
+        entity_type: Optional filter — only flush entries of this type.
+        entity_name: Optional filter — only flush entries with this name.
+        key: Optional filter — only flush entries with this key.
+
+    Returns:
+        dict with ``flushed_count`` (number of entries actually flushed in
+        this call), ``total_scanned`` (number of rows matching filters),
+        and ``skipped_already_flushed``.
+
+    Raises:
+        ValueError: If entity_type is invalid or no rows match.
+    """
+    from datetime import datetime, timezone
+
+    if entity_type is not None:
+        _validate_entity_type(entity_type)
+    if entity_name is not None:
+        entity_name = _normalize_entity_name(entity_name)
+    if key is not None:
+        key = key.strip().lower()
+
+    db = await get_supabase_client()
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # 1. Query matching rows (all columns needed, only distinct per unique key)
+    query = (
+        db.schema("public")
+        .table(_TABLE)
+        .select("id, metadata")
+        .eq("client_id", client_id)
+    )
+    if entity_type:
+        query = query.eq("entity_type", entity_type)
+    if entity_name:
+        query = query.eq("entity_name", entity_name)
+    if key:
+        query = query.eq("key", key)
+
+    result = await query.execute()
+    rows = result.data if result.data else []
+
+    total_scanned = len(rows)
+    if total_scanned == 0:
+        raise ValueError(
+            "No shared-memory entries match the given filters. "
+            "Nothing to flush."
+        )
+
+    # 2. Identify which rows need flushing (not already flushed)
+    rows_to_flush: list[str] = []
+    skipped_already_flushed = 0
+
+    for r in rows:
+        meta = r.get("metadata") or {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except (json.JSONDecodeError, TypeError):
+                meta = {}
+        if "flushed_at" in meta:
+            skipped_already_flushed += 1
+            continue
+        rows_to_flush.append(r["id"])
+
+    if not rows_to_flush:
+        return {
+            "flushed_count": 0,
+            "total_scanned": total_scanned,
+            "skipped_already_flushed": skipped_already_flushed,
+            "message": (
+                f"All {total_scanned} matching entries are already flushed."
+            ),
+            "flushed_at": now_iso,
+        }
+
+    # 3. Batch update flushed_at in metadata
+    flushed_count = 0
+    flush_errors: list[str] = []
+
+    for row_id in rows_to_flush:
+        try:
+            # Read current metadata
+            meta_result = await (
+                db.schema("public")
+                .table(_TABLE)
+                .select("metadata")
+                .eq("id", row_id)
+                .single()
+                .execute()
+            )
+            current_meta = (meta_result.data or {}).get("metadata", {}) or {}
+            if isinstance(current_meta, str):
+                try:
+                    current_meta = json.loads(current_meta)
+                except (json.JSONDecodeError, TypeError):
+                    current_meta = {}
+
+            current_meta["flushed_at"] = now_iso
+
+            await (
+                db.schema("public")
+                .table(_TABLE)
+                .update({"metadata": current_meta})
+                .eq("id", row_id)
+                .eq("client_id", client_id)
+                .execute()
+            )
+            flushed_count += 1
+        except Exception as exc:
+            logger.error(
+                "[memory_module] Flush error for row %s: %s", row_id, exc
+            )
+            flush_errors.append(str(exc))
+
+    return {
+        "flushed_count": flushed_count,
+        "total_scanned": total_scanned,
+        "skipped_already_flushed": skipped_already_flushed,
+        "flush_errors": flush_errors if flush_errors else [],
+        "flushed_at": now_iso,
     }
 
 
@@ -1258,5 +1574,241 @@ def register_tools(mcp: FastMCP) -> list[str]:
         "[Memory Module] Tool 'shared_memory_get_links' registered."
     )
     registered_tools.append("shared_memory_get_links")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_search -- semantic vector search in shared business memory
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_search",
+        description=(
+            "[Shared Memory] Semantic (vector) search in shared business memory. "
+            "Use this to find facts about business entities by meaning, not exact keywords. "
+            "The query is embedded with Cohere (embed-multilingual-light-v3.0, 384 dims) "
+            "and matched against stored facts using cosine similarity via pgvector HNSW index. "
+            "Parameters: query (natural language search text), entity_type (optional filter "
+            "by entity type: skill|client|contact|supplier|user|snapshot|routine|agent_result|"
+            "agent_metadata), category (optional filter by semantic category), match_count "
+            "(max results, default 10), match_threshold (minimum similarity 0.0-1.0, default 0.3). "
+            "Returns facts ranked by similarity score. Use this when you need to find business "
+            "knowledge semantically, e.g., 'which clients prefer communication via WhatsApp' "
+            "or 'what are the key facts about supplier Distribuidora X'."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_search(
+        ctx: Context,
+        query: str,
+        entity_type: str | None = None,
+        category: str | None = None,
+        match_count: int = 10,
+        match_threshold: float = 0.3,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Search shared business memory using semantic (vector) similarity.
+
+        Generates a Cohere embedding for the query text and matches it against
+        stored fact embeddings via the pgvector HNSW index in shared_business_memory.
+
+        Args:
+            query: Natural language search text describing what you're looking for.
+                   Write it as a question or description, e.g.:
+                   - "preferências de comunicação dos clientes"
+                   - "fornecedores com contrato vigente"
+                   - "faturamento mensal dos últimos 6 meses"
+                   - "clientes com tom amigável"
+            entity_type: Optional filter. Only return facts of this entity type.
+                         Valid: skill, client, contact, supplier, user, snapshot,
+                         routine, agent_result, agent_metadata.
+            category: Optional filter by semantic category.
+            match_count: Maximum number of results to return (default 10, max 50).
+            match_threshold: Minimum similarity score 0.0--1.0 (default 0.3).
+                             Lower values return more but less relevant results.
+
+        Returns:
+            dict with:
+            - query: The original search text
+            - total_results: Number of matching facts found
+            - results: Array of facts ordered by similarity (descending).
+              Each fact has: id, entity_type, entity_name, key, value,
+              category, source, confidence, similarity.
+
+        Examples:
+            >>> # Find all communication preferences
+            >>> shared_memory_search(query="preferências de comunicação dos clientes")
+
+            >>> # Find financial data about a specific supplier
+            >>> shared_memory_search(
+            ...     query="dados financeiros e contratos",
+            ...     entity_type="supplier",
+            ...     match_count=5,
+            ... )
+
+            >>> # Find snapshot data with stricter threshold
+            >>> shared_memory_search(
+            ...     query="resumo financeiro mensal",
+            ...     entity_type="snapshot",
+            ...     match_threshold=0.5,
+            ... )
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        if match_count < 1 or match_count > 50:
+            raise ToolError(
+                "match_count must be between 1 and 50"
+            )
+
+        if match_threshold < 0.0 or match_threshold > 1.0:
+            raise ToolError(
+                "match_threshold must be between 0.0 and 1.0"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_search "
+            "query='%s' entity_type=%s category=%s "
+            "match_count=%d match_threshold=%.2f client_id=%s",
+            query[:80],
+            entity_type,
+            category,
+            match_count,
+            match_threshold,
+            client_id,
+        )
+
+        try:
+            return await _shared_memory_search_logic(
+                client_id=client_id,
+                query=query,
+                entity_type=entity_type,
+                category=category,
+                match_count=match_count,
+                match_threshold=match_threshold,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except ToolError:
+            raise
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_search failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to search shared memory: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_search' registered.")
+    registered_tools.append("shared_memory_search")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_flush --  soft-delete memory entries (T5.4)
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_flush",
+        description=(
+            "[Shared Memory] Flush (soft-delete) shared-memory entries. "
+            "Marks matching entries as flushed by recording a timestamp in "
+            "their metadata. Flushed entries are hidden from "
+            "shared_memory_read but remain in the database for recovery "
+            "and auditing. "
+            "Filters (entity_type, entity_name, key) are optional; when none "
+            "are provided, ALL entries for the current client are flushed. "
+            "Idempotent — calling flush multiple times on already-flushed "
+            "entries is safe and returns flushed_count=0. "
+            "Use this after exporting data or when you need to reset the "
+            "shared memory for a client."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_flush(
+        ctx: Context,
+        entity_type: str | None = None,
+        entity_name: str | None = None,
+        key: str | None = None,
+        client_id: str | None = None,
+    ) -> dict:
+        """Flush (soft-delete) shared-memory entries.
+
+        Marks matching entries as flushed so they are no longer returned by
+        ``shared_memory_read``.  The rows are NOT hard-deleted — they remain
+        for auditing and can be recovered.
+
+        Args:
+            entity_type: Optional — only flush entries of this type.
+                         Valid: skill, client, contact, supplier, user,
+                         snapshot, routine, agent_result, agent_metadata.
+            entity_name: Optional — only flush entries with this name.
+                         Case-insensitive, normalized to lowercase.
+            key: Optional — only flush the specific key.
+                 Case-insensitive, normalized to lowercase.
+
+        Returns:
+            dict with:
+            - flushed_count: number of entries actually flushed in this call
+            - total_scanned: number of rows matching filters
+            - skipped_already_flushed: entries already flushed (idempotent)
+            - flush_errors: any errors during the operation (empty on success)
+            - flushed_at: ISO timestamp of the flush operation
+
+        Examples:
+            >>> # Flush all entries for a specific entity
+            >>> shared_memory_flush(
+            ...     entity_type="client",
+            ...     entity_name="joao_silva",
+            ... )
+
+            >>> # Flush a single fact
+            >>> shared_memory_flush(
+            ...     entity_type="skill",
+            ...     entity_name="comunicacao",
+            ...     key="tom_amigavel",
+            ... )
+
+            >>> # Flush ALL shared memory for the client (use with caution!)
+            >>> shared_memory_flush()
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        if entity_type is not None:
+            try:
+                _validate_entity_type(entity_type)
+            except ValueError as exc:
+                raise ToolError(str(exc))
+
+        logger.info(
+            "[memory_module] shared_memory_flush "
+            "entity_type=%s entity_name=%s key=%s client_id=%s",
+            entity_type,
+            entity_name,
+            key,
+            client_id,
+        )
+
+        try:
+            return await _shared_memory_flush_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                key=key,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_flush failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to flush shared memory: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_flush' registered.")
+    registered_tools.append("shared_memory_flush")
 
     return registered_tools

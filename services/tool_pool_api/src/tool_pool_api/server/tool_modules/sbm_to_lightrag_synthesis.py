@@ -387,9 +387,10 @@ async def execute(
         raise ToolError(f"Failed to query shared_business_memory: {exc}") from exc
 
     rows: list[dict] = result.data if result.data else []
+    total_documents = len(rows)
     logger.info(
         "[sbm_to_lightrag_synthesis] Retrieved %d records for client_id=%s",
-        len(rows),
+        total_documents,
         client_id,
     )
 
@@ -482,11 +483,164 @@ async def execute(
         len(groups),
     )
 
+    # 6. Write knowledge_graph_summary (T4.1f)
+    await _write_knowledge_graph_summary(
+        client_id=client_id,
+        total_documents=total_documents,
+        total_entities=len(entities_synced),
+        entities_synced=entities_synced,
+        errors=errors,
+        rag_client=rag_client,
+    )
+
     return {
         "processed": processed,
         "errors": errors,
         "entities_synced": entities_synced,
     }
+
+
+# ---------------------------------------------------------------------------
+# _write_knowledge_graph_summary (T4.1f)
+# ---------------------------------------------------------------------------
+
+
+async def _write_knowledge_graph_summary(
+    client_id: UUID,
+    total_documents: int,
+    total_entities: int,
+    entities_synced: list[str],
+    errors: list[dict],
+    rag_client: Any,
+) -> None:
+    """Write knowledge_graph_summary to Context Service Redis with SBM fallback.
+
+    Called at the end of each successful synthesis cycle per client_id.
+    Updates the Redis key ``ctx:{client_id}:knowledge_graph_summary`` that
+    T4.1e's get_domain_projection() reads for RAG domains.
+
+    Fallback: if Context Service is unreachable, writes a curated
+    ``entity_type='system'``, ``entity_name='knowledge_graph_summary'`` row
+    into shared_business_memory.
+
+    Args:
+        client_id: Client UUID.
+        total_documents: Number of SBM records processed in this cycle.
+        total_entities: Number of entities successfully synced.
+        entities_synced: Canonical IDs of synced entities.
+        errors: Per-entity failure details.
+        rag_client: LightRAG instance (for optional get_graph_stats()).
+    """
+    import json
+    from datetime import datetime, timezone as dt_timezone
+
+    # Determine sync_status
+    if not entities_synced and errors:
+        sync_status = "failed"
+    elif errors:
+        sync_status = "partial"
+    else:
+        sync_status = "ok"
+
+    # Try to obtain top_entities_by_degree from LightRAG
+    top_entities_by_degree: list[dict] = []
+    try:
+        if hasattr(rag_client, "get_graph_stats"):
+            stats = await rag_client.get_graph_stats()
+            if isinstance(stats, dict):
+                top_entities_by_degree = stats.get("top_by_degree", [])
+                if not top_entities_by_degree:
+                    top_entities_by_degree = stats.get("top_entities", [])
+    except Exception:
+        logger.debug(
+            "[sbm_to_lightrag_synthesis] Could not obtain graph stats "
+            "from LightRAG — using empty top_entities_by_degree"
+        )
+
+    now_iso = datetime.now(dt_timezone.utc).isoformat()
+
+    summary: dict = {
+        "total_documents": total_documents,
+        "total_entities": total_entities,
+        "top_entities_by_degree": top_entities_by_degree,
+        "last_sync_at": now_iso,
+        "sync_status": sync_status,
+    }
+
+    logger.info(
+        "[sbm_to_lightrag_synthesis] KG summary: total_documents=%d "
+        "total_entities=%d sync_status=%s top_entities=%d",
+        total_documents,
+        total_entities,
+        sync_status,
+        len(top_entities_by_degree),
+    )
+
+    # 1. Try Context Service (Redis)
+    try:
+        from tool_pool_api.server.dependencies import get_context_service
+
+        ctx_service = get_context_service()
+        redis_key = f"ctx:{client_id}:knowledge_graph_summary"
+        import asyncio
+
+        await asyncio.to_thread(
+            ctx_service.cache.set_json,
+            redis_key,
+            summary,
+            86_400,  # 24h TTL
+        )
+        logger.info(
+            "[sbm_to_lightrag_synthesis] KG summary written to Redis key=%s",
+            redis_key,
+        )
+        return
+    except Exception as exc:
+        logger.warning(
+            "[sbm_to_lightrag_synthesis] Could not write KG summary to "
+            "Context Service Redis: %s — falling back to SBM",
+            exc,
+        )
+
+    # 2. Fallback: write to shared_business_memory
+    try:
+        from blu_supabase_client import get_supabase_client
+
+        db = await get_supabase_client()
+
+        payload = {
+            "client_id": str(client_id),
+            "entity_type": "system",
+            "entity_name": "knowledge_graph_summary",
+            "key": "knowledge_graph_summary",
+            "value": summary,
+            "metadata": {"last_sync_at": now_iso},
+            "source": "system",
+            "confidence": 1.0,
+            "curated": True,
+        }
+
+        await (
+            db.schema("public")
+            .table("shared_business_memory")
+            .upsert(
+                payload,
+                on_conflict="client_id,entity_type,entity_name,key",
+            )
+            .execute()
+        )
+        logger.info(
+            "[sbm_to_lightrag_synthesis] KG summary written to SBM fallback "
+            "for client_id=%s",
+            client_id,
+        )
+    except Exception as exc:
+        logger.error(
+            "[sbm_to_lightrag_synthesis] Failed to write KG summary to "
+            "SBM fallback for client_id=%s: %s",
+            client_id,
+            exc,
+        )
 
 
 # ---------------------------------------------------------------------------

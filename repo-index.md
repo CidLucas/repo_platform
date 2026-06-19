@@ -1,63 +1,37 @@
-# Repo Index — Issue #32: Política de Retenção e Prune
+# repo-index.md — Planning artifacts for Issue #32 (T4.4)
 
-> Catalog of all files relevant to the retention/prune policy design.
-> Generated: 2026-06-19 by factory-planner (t_ac9a439c)
+> Generated: 2026-06-19 | Planner: factory-planner | Branch: phase-0/issue-32-politica-de-retencao-e-prune
 
-## Architecture Layers (top → bottom)
+## Arquivos relevantes escaneados
 
-```
-docs/
-├── llm_wiki/SHARED_MEMORY_DESIGN.md   ⬜ NÃO EXISTE (target para T4.4)
-├── roadmap/blu-intelligent-memory.md   ✅ Lido — Fase 2.5 define prune diário
-└── system_reference/TOOL_INVENTORY.md  ✅ Lido — tools SBM registradas
+| Arquivo | Papel | Status |
+|---------|-------|--------|
+| `docs/llm_wiki/INTAKE_PLAN_32_politica_de_retencao_e_prune.json` | Plano de intake (7 subtarefas, 7 DDs) | Referência |
+| `docs/llm_wiki/SHARED_MEMORY_DESIGN.md` | Design doc da shared memory (T2.2, T4.4 referencia) | Lido até T2.2; T4.4 não detalhado |
+| `docs/llm_wiki/TOOL_INVENTORY.md` | Catálogo de 69 tools — shared_memory_* parcialmente listado | DQ-04: NÃO é YAML |
+| `supabase/migrations/proposed/20260619000000_shared_business_memory.sql` | Migration base da tabela (NÃO aplicada) | Em proposed/ ⚠ |
+| `supabase/migrations/proposed/20260619000001_shared_memory_links.sql` | Migration links table (NÃO aplicada) | Em proposed/ |
+| `supabase/migrations/proposed/20260619000002_shared_memory_integrity.sql` | Trigger validação (NÃO aplicada) | Em proposed/ |
+| `supabase/migrations/proposed/20260619000003_routine_checkpoint_rpc.sql` | ALTER entity_type + RPC checkpoint (NÃO aplicada) | Modifica base migration ⚠ |
+| `services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py` | 1262 linhas — 7 tools shared_memory_* registradas | CORE — T4.4c edita aqui |
+| `services/agent_api/src/agent_api/core/routines.py` | Engine de rotinas (funções + artifact steps) | T4.4d usa ⚠ (não é serviço separado) |
+| `services/agent_api/src/agent_api/api/routines_router.py` | API de rotinas — execução e catálogo | T4.4d refere indiretamente |
 
-supabase/migrations/
-├── proposed/20260619000000_shared_business_memory.sql     ⚠️ PROPOSED (não applied)
-├── proposed/20260619000001_shared_memory_links.sql        ⚠️ PROPOSED
-└── proposed/20260620000000_shared_memory_lifecycle.sql    ⬜ A CRIAR
+## Arquivos que NÃO existem (referenciados pelo plan)
 
-services/
-├── agent_api/src/agent_api/core/routine_functions.py      ✅ Lido — memory.write_dimension_state
-└── tool_pool_api/src/tool_pool_api/server/tool_modules/
-    └── memory_module.py                                    ✅ Lido — tools SBM existentes
-```
+| Referência no Plan | Realidade |
+|-------------------|-----------|
+| `configs/tool_inventory.yaml` | **Não existe.** O registry é código Python (registry.py) e a wiki é `TOOL_INVENTORY.md` |
+| `services/routine_engine/src/routines/prune_shared_memory.py` | **Não existe.** O engine está em `agent_api/core/routines.py`. Não há subdiretório `services/routine_engine/` |
 
-## Files Detailed
+## Related issues scan
 
-### 1. Migration Base: 20260619000000_shared_business_memory.sql
-**Status:** proposed/ (NOT applied — tabela não existe em produção)
-**Schema atual:** id, client_id, entity_type, entity_name, key, value, source, confidence, metadata, created_at, updated_at
-**Faltando:** expires_at, curated, archived_at
-**Implicação:** Como a migration ainda não foi aplicada, podemos adicionar as colunas lifecycle DIRETAMENTE na migration base em vez de criar ALTER TABLE separado. Simplifica o deploy.
-
-### 2. Migration Links: 20260619000001_shared_memory_links.sql
-**Status:** proposed/ (NOT applied)
-**FKs relevantes:** source_memory_id / target_memory_id → ON DELETE SET NULL
-**Implicação:** Hard-delete de registros SBM não quebra integridade referencial. Links ficam órfãos (NULL) e podem ser limpados depois. R3 é risco baixo.
-
-### 3. routine_functions.py
-**Função existente:** `memory.write_dimension_state` — escreve em `dimension_state`, NÃO em shared_business_memory.
-**Padrão de registro:** @register("namespace.function_name") com inputs/outputs declarativos.
-**Padrão de acesso DB:** `get_supabase_client(use_service_role=True)` → `db.table().rpc()` ou `.upsert()`
-**Função a criar:** `memory.prune_expired_shared_memory`
-
-### 4. memory_module.py (tool_pool_api)
-**Tools existentes:** shared_memory_list, shared_memory_link, shared_memory_unlink, shared_memory_get_links
-**Padrão:** @register_module → register_tools(mcp) → @mcp.tool + @mcp_inject_client_id
-**Tools a criar:** shared_memory_restore_archived, shared_memory_list_archived (se soft-delete)
-**Validação:** _VALID_ENTITY_TYPES = frozenset({"skill", "client", "contact", "supplier", "user"})
-
-### 5. TOOL_INVENTORY.md
-**Tools SBM listadas:** shared_memory_list, shared_memory_link, shared_memory_unlink, shared_memory_get_links
-**Categoria:** CUSTOM / SME / memoria/compartilhada
-**Observação:** shared_memory_read e shared_memory_write NÃO aparecem no inventário atual (referenciadas em issues mas não registradas).
-
-### 6. blu-intelligent-memory.md (Roadmap)
-**Fase 2.5 — Expiração automática:** "Job periódico (diário, 03h) que deleta registros com expires_at < now() e curated=false. Simples, via Supabase cron ou rotina do Routine Engine."
-**Fase 4 — Enriquecimento do Grafo:** SBM → LightRAG semanal. Depende de curated=true.
-
-## Dependências Cruzadas
-```
-#37 (backup) ──▶ #32 (prune) ──▶ #35 (versionamento)
-    02:00           03:00           04:00
-```
+| Issue | Título | Estado | Conflito com #32 |
+|-------|--------|--------|-----------------|
+| #21 | Routine checkpoint em shared memory | CLOSED (migration em proposed/) | `entity_type` CHECK ALTER — ver resolution.md |
+| #26 | shared_memory_search (T3.2) | Plan em andamento | Edita memory_module.py — merge conflict risk |
+| #29 | Diretório handoffs/ (T4.1) | Plan em andamento | Baixo — handoffs separado de prune |
+| #30 | Diretório meta/ (T4.2) | Plan em andamento | Edita memory_module.py — ALTA sobreposição |
+| #31 | Eventos trigger handoffs (T4.3) | Plan em andamento | Médio — mesmo domínio Fase 4 |
+| #33 | Página visualização memória (F5) | Backlog | Depende de T4.4 (status archived) |
+| #34 | Permissões escrita SBM (F5) | Backlog | Depende de ttl_tier para regras |

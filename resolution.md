@@ -1,107 +1,130 @@
-# Resolution Document — Issue #32: Política de Retenção e Prune
+# resolution.md — Decisões de design resolvidas + Conflitos
 
-> Design decisions, answered questions, and implementation strategy.
-> Author: factory-planner | Date: 2026-06-19
+> Issue #32 — T4.4: Política de retenção e prune da shared memory
+> Planner: factory-planner | Date: 2026-06-19
 
-## Decision Resolution
+---
 
-### D1 — Hard-delete vs Soft-delete (archival)
-**Decisão: Soft-delete com archival de 90 dias, depois hard-delete em segundo estágio.**
+## Decisões revisadas (DD-01 a DD-07)
 
-Racional:
-- Curated=true records representam conhecimento validado pelo usuário — deletar sem rastro é arriscado (R4).
-- Curated=false records podem ser hard-deleted imediatamente ao expirar — são não confirmados, TTL é o contrato.
-- Dois estágios: (1) prune diário → archived_at em curated=true expirados, hard-delete em curated=false; (2) prune mensal → hard-delete de registros com archived_at > 90 dias.
-- Ferramentas de restore/list_archived permitem recuperação.
+### DD-01: Soft-delete em 2 fases ✅ APROVADO
+Soft-delete (archived=true) → archival 90d → hard-delete físico.
+**Racional confirmado:** Alinha com LGPD. Permite restore acidental. Janela de 90d é padrão de mercado para dados de negócio.
 
-### D2 — TTL tiers fixos vs configuráveis
-**Decisão: Fixos para MVP, configuráveis por client_config no futuro.**
+### DD-02: 5 TTL tiers ✅ APROVADO (com ajuste)
+| Tier | TTL | Uso |
+|------|-----|-----|
+| curated | ∞ (NULL) | Dados curados manualmente, seed data |
+| migration | 90d | Dados migrados de sistemas legados |
+| specialist | 30d | Conhecimento gerado por agentes L3 |
+| memory_agent_hi | 14d | Fatos de alta relevância do memory agent |
+| memory_agent_lo | 7d | Fatos transitórios, observações passageiras |
 
-Tiers definidos:
-| # | Condição | TTL | Justificativa |
-|---|----------|-----|---------------|
-| 1 | curated=true | ∞ (permanente) | Confirmado pelo usuário — conhecimento validado |
-| 2 | source=manual/migration/system | 90 dias | Dados de onboarding, migração, sistema — estáveis |
-| 3 | source=specialist | 30 dias | Inferências de specialist — revisão mensal |
-| 4 | source=memory_agent + confidence≥0.7 | 14 dias | Agente com alta confiança — revisão quinzenal |
-| 5 | source=memory_agent + confidence<0.7 | 7 dias | Agente com baixa confiança — revisão semanal |
+**Ajuste:** TTL tier é propriedade da COLUNA `ttl_tier`, não do `source`. O source continua sendo a proveniência (quem gerou). O tier determina a política de retenção.
 
-### D3 — Limite de 50 registros por entidade
-**Decisão: 50 registros por (client_id, entity_type, entity_name). Trigger BEFORE INSERT.**
+### DD-03: Volume limit 50/entidade ✅ APROVADO (com correção)
+Trigger BEFORE INSERT conta `WHERE archived=false AND soft_delete_at IS NULL` para o mesmo (client_id, entity_type, entity_name).
 
-Racional:
-- Cada fact é um par (key, value). Entidade típica: 5-15 facts. 50 é ~3-10x margem.
-- Trigger SQL é mais seguro que tool layer — independe de qual caminho insere (R2 mitigado com subquery atômica).
-- Política de descarte: quando limite é atingido, arquivar (archived_at=now()) o registro mais antigo (created_at ASC) com curated=false. Se todos forem curated=true, rejeitar insert com erro.
+**⚠ CORREÇÃO CRÍTICA:** O plan referencia `source='curated'` como exceção, mas 'curated' NÃO é um valor válido no CHECK constraint de source (só: manual, memory_agent, specialist, migration, system). A exceção deve ser baseada em `ttl_tier='curated'`, não em source.
 
-### D4 — Prune via Routine Engine vs pg_cron
-**Decisão: Routine Engine (system routine com cron trigger).**
+**Correção proposta:**
+```sql
+IF NEW.ttl_tier = 'curated' THEN RETURN NEW; END IF;  -- sem limite
+```
 
-Racional:
-- Routine Engine já tem: registry de funções, logging, monitoramento, cron trigger.
-- `memory.write_dimension_state` já existe como função registrada no namespace `memory.*`.
-- pg_cron exigiria security definer function separada + configuração externa.
-- Consistência: todo job batch no Blu usa Routine Engine.
+### DD-04: Routine Engine vs pg_cron ✅ APROVADO (com correção de path)
+O Routine Engine NÃO é um serviço separado. Vive em `services/agent_api/src/agent_api/core/routines.py`.
 
-### D5 — Notificação ao cliente sobre prune
-**Decisão: Operação silenciosa. Apenas log interno + alerta se >100 registros afetados.**
+**Correção de path:** T4.4d deve criar a função de prune em:
+- `services/agent_api/src/agent_api/core/routine_functions.py` (registrar `prune_shared_memory` como fetch function)
+- OU como rotina no catálogo `cross_agent_routines` (INSERT na tabela)
+- **NÃO** criar `services/routine_engine/src/routines/prune_shared_memory.py`
 
-Racional:
-- Prune de 1-5 registros por dia é rotina normal — não justifica notificação.
-- Alerta only se volume anômalo (>100) indicar possível bug ou expurgo em massa.
-- Log via `logger.info` com métricas (deleted_count, archived_count).
+**DQ-03 respondida:** O engine atual usa pg_cron para dispatch. Não tem timezone-aware cron nativo — mas 03:00 UTC é trivial de expressar como `0 3 * * *` no pg_cron. Se for usar o Routine Engine, precisa ser como rotina registrada que o dispatcher chama.
 
-### D6 — Trigger SQL vs verificação na tool layer
-**Decisão: Trigger BEFORE INSERT no SQL para volume limit. Tool layer não precisa verificar.**
+### DD-05: Alerta >100 registros ✅ APROVADO
+Silencioso para operação normal. Alerta condicional evita fatigue.
 
-Racional:
-- Trigger SQL é atômico e independe do caminho de insert (tool, routine, migration, SQL direto).
-- Subquery com `SELECT COUNT(*)` dentro do trigger garante atomicidade (R2).
-- Tool layer não precisa de lógica duplicada.
+### DD-06: Incorporar lifecycle columns na migration base ✅ APROVADO (com ressalva)
+A migration `20260619000000` está em `proposed/` (não aplicada). Incorporar lifecycle columns nela é correto.
 
-### D7 — Onboarding snapshots e TTL
-**Decisão: Snapshots de onboarding usam source=migration → TTL 90 dias, curated=false.**
+**⚠ RESSALVA:** A migration `20260619000003` (issue #21) faz ALTER TABLE para expandir entity_type. Se incorporarmos tudo na base, precisamos também incluir os entity_types expandidos (agent_result, agent_metadata, routine) na base migration. Caso contrário, o ALTER da #21 vai conflitar.
 
-Racional:
-- Dados de onboarding são estáveis (nome, endereço, segmento).
-- curated=false até confirmação no morning_plan (Fase 2.4 do roadmap).
-- TTL 90 dias dá tempo suficiente para o ciclo de confirmação.
+**Recomendação:** Consolidar `20260619000000` + `20260619000003` + lifecycle columns em uma única migration, ou coordenar com o owner da #21.
 
-## Conflict Detection
+### DD-07: Backup race condition ✅ APROVADO
+Prune (03:00) verifica checkpoint de backup (02:00) antes de executar. Janela de 1h é adequada.
 
-### Conflict 1 — Migration timing
-**Situação:** A migration base 20260619000000 está em proposed/, NÃO aplicada.
-**Resolução:** Incorporar colunas lifecycle (expires_at, curated, archived_at) DIRETAMENTE na migration base em vez de criar ALTER TABLE separado. A migration 20260620000000 deve ser um ALTER TABLE apenas se a base já tiver sido aplicada. Verificar com o humano.
+---
 
-### Conflict 2 — shared_memory_read ausente
-**Situação:** TOOL_INVENTORY lista shared_memory_list/link/unlink/get_links mas NÃO shared_memory_read/write. Issues anteriores (#11, #15) referenciam-nas.
-**Resolução:** As tools de archival (restore_archived, list_archived) dependem de shared_memory_read existir. Verificar status antes de implementar.
+## Conflitos detectados (4)
 
-### Conflict 3 — Prune vs Backup schedule
-**Situação:** Backup (#37) deve rodar 02:00. Prune roda 03:00.
-**Resolução:** Schedule do prune deve verificar se backup da noite foi concluído (query last_backup_at). Se backup falhou, skip prune e alertar.
+### CONFLICT-01: 'curated' como source vs ttl_tier 🔴 CRÍTICO
+**Onde:** Plan.intake.json DD-03, T4.4c  
+**Problema:** O plan trata 'curated' como valor de `source`, mas o CHECK constraint da migration só permite: manual, memory_agent, specialist, migration, system. 'curated' não existe como source.  
+**Resolução:** Usar `ttl_tier` (nova coluna) como discriminante, não `source`. Adicionar 'curated' ao CHECK de source é uma alternativa, mas semanticamente errado — curated é política de retenção, não proveniência do dado.
 
-### Conflict 4 — Volume limit race condition
-**Situação:** Trigger BEFORE INSERT com COUNT(*) pode ter race condition em inserts concorrentes (R2).
-**Resolução:** Usar `SELECT COUNT(*) FROM shared_business_memory WHERE ... FOR UPDATE` dentro do trigger para lock de linha. Alternativa: advisory lock pg_try_advisory_lock().
+### CONFLICT-02: memory_module.py — 3 plans editam o mesmo arquivo 🟡 ALTO
+**Arquivo:** `services/tool_pool_api/.../memory_module.py` (1262 linhas)  
+**Plans concorrentes:**
+- #26 (T3.2): adiciona `shared_memory_search` + expande `_VALID_ENTITY_TYPES`
+- #30 (T4.2): adiciona helpers `upsert_synthesis_output()`, `upsert_dedup_mapping()`, etc.
+- #32 (T4.4c): adiciona parâmetro `ttl_tier` em upsert/write
 
-## Implementation Pipeline (6 steps → 3 delivery units)
+**Mitigação:** Ordenar implementação: #32 depende de #26 para _VALID_ENTITY_TYPES expandido. #30 e #32 editam funções DIFERENTES do módulo — conflito gerenciável se ordem for respeitada.
 
-### Delivery Unit 1: Design Doc + Migration (factory-coder)
-- **Step 1:** Seção T4.4 no SHARED_MEMORY_DESIGN.md (criar arquivo + seção completa)
-- **Step 2:** Migration SQL com colunas lifecycle + índices + trigger volume limit
+### CONFLICT-03: Migration cascade — entity_type CHECK 🟡 MÉDIO
+**Problema:** 3 migrations em proposed/ tocam a mesma tabela:
+1. `20260619000000` — CREATE TABLE (entity_type base)
+2. `20260619000003` — ALTER TABLE entity_type (expande)
+3. T4.4a — ALTER TABLE lifecycle columns
 
-### Delivery Unit 2: Prune Job + Routine (factory-coder)
-- **Step 3:** Função memory.prune_expired_shared_memory em routine_functions.py
-- **Step 4:** Rotina system shared_memory_prune (cron 03:00) + TOOL_INVENTORY update
+Se as migrations são aplicadas em ordem numérica, o ALTER da #21 quebra se a tabela for recriada com schema diferente.
 
-### Delivery Unit 3: Archival Tools + Integration (factory-coder)
-- **Step 5:** Tools shared_memory_restore_archived + shared_memory_list_archived
-- **Step 6:** Integração com T5.3 (versionamento) + T5.5 (backup)
+**Resolução:** Consolidar tudo em uma única migration antes de promover para applied/. Alternativa: aplicar 00000 → 00003 → T4.4a em sequência (ALTERs compatíveis).
 
-## Open Questions for Human Review
+### CONFLICT-04: TOOL_INVENTORY — YAML não existe 🟢 BAIXO
+**Problema:** Plan referencia `configs/tool_inventory.yaml` — arquivo não existe.  
+**Realidade:** O registry de tools é código Python. A wiki `TOOL_INVENTORY.md` é documentação.  
+**Resolução:** T4.4e deve atualizar o `TOOL_INVENTORY.md` (adicionar shared_memory_read/write que faltam) E verificar se o registry Python está completo. NÃO criar `configs/tool_inventory.yaml`.
 
-1. A migration base 20260619000000 ainda não foi aplicada. Incorporar as colunas lifecycle diretamente nela, ou criar migration incremental separada?
-2. shared_memory_read e shared_memory_write existem ou precisam ser criadas primeiro?
-3. Limite de 50 registros por entidade: adequado ou ajustar?
-4. Alerta de prune anômalo (>100 registros): para onde? Slack? Telegram? Apenas log?
+---
+
+## Design Questions respondidas
+
+| DQ | Pergunta | Resposta |
+|----|----------|----------|
+| DQ-01 | Volume limit 50 configurável por tenant? | **Não agora.** 50 é conservador. Monitorar rejeições (R-01). Adicionar config per-tenant é over-engineering no MVP. |
+| DQ-02 | 90 dias archival suficiente? | **Sim para MVP.** LGPD não exige retenção específica para dados de negócio. 90d é janela de segurança razoável para restore acidental. |
+| DQ-03 | Routine Engine suporta 03:00 UTC? | **Via pg_cron sim.** O engine atual não tem cron próprio — usa pg_cron para dispatch. Expressão `0 3 * * *` resolve. |
+| DQ-04 | TOOL_INVENTORY location? | **`docs/llm_wiki/TOOL_INVENTORY.md`** (wiki). O registry Python real está em `tool_modules/registry.py`. NÃO criar YAML. |
+
+---
+
+## 3 Delivery Units (ordem de implementação)
+
+### DU-1: Foundation (T4.4a + T4.4b)
+- Migration consolidada: lifecycle columns + volume limit trigger
+- Depende de: NADA (migrations ainda em proposed/)
+- Bloqueia: TUDO abaixo
+
+### DU-2: Core Logic (T4.4c + T4.4d)
+- memory_module.py: adicionar ttl_tier parameter
+- Routine function: prune_shared_memory registrada
+- Depende de: DU-1 (colunas existem), #26 (entity_types)
+- Bloqueia: DU-3
+
+### DU-3: Registry + Tests (T4.4e + T4.4f)
+- TOOL_INVENTORY.md atualizado
+- Testes unitários + integração
+- Depende de: DU-2 (lógica implementada)
+
+---
+
+## Recomendação final
+
+**APROVAR com as correções acima.**
+O plano é sólido mas precisa de 3 ajustes antes da implementação:
+1. Corrigir 'curated' → usar `ttl_tier`, não `source` (CONFLICT-01)
+2. Corrigir paths do Routine Engine (CONFLICT-03, DQ-03)
+3. Corrigir target do TOOL_INVENTORY (CONFLICT-04)

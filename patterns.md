@@ -1,96 +1,111 @@
-# Design Patterns — Issue #32: Retention & Prune
+# patterns.md — Design Patterns extraídos do código
 
-> Patterns identified in the codebase that inform the retention/prune design.
-> Extracted: 2026-06-19
+> Issue #32 — T4.4: Política de retenção e prune da shared memory
+> Planner: factory-planner | Date: 2026-06-19
 
-## 1. Routine Function Registration Pattern
+---
 
-**Fonte:** `routine_functions.py:37-56` (`memory.write_dimension_state`)
+## Pattern 1: MCP Tool Registration (memory_module.py)
 
+**Estrutura:**
 ```python
-@register(
-    "memory.write_dimension_state",
-    description="...",
-    inputs=[{"key": "dimension", "type": "str", ...}],
-    outputs=[{"key": "memory_written", "type": "bool", ...}],
-)
-async def _write_dimension_state(inputs: dict, client_id: str) -> dict:
-    ...
+@mcp.tool(name="shared_memory_xxx", description="...")
+@mcp_inject_client_id
+async def shared_memory_xxx(ctx, ..., client_id=None) -> dict:
+    # validação no tool-level
+    # delega para _shared_memory_xxx_logic()
 ```
 
-**Aplicação para prune:** Registrar `memory.prune_expired_shared_memory` com o mesmo padrão. Outputs: `{deleted_count, archived_count, pruned_entities}`.
+**Como T4.4c deve seguir:** Adicionar parâmetro `ttl_tier: str | None = None` a:
+- `shared_memory_upsert` (linha ~862)
+- `shared_memory_write` (linha ~946)
+- Respectivas `_xxx_logic()` functions
 
-## 2. Supabase Client Access Pattern
+**Pitfall:** Cada tool tem validação duplicada — não consolidar em helper único.
 
-**Fonte:** `routine_functions.py:2731` e `memory_module.py:70`
+---
 
-```python
-from blu_supabase_client import get_supabase_client
-db = get_supabase_client(use_service_role=True)  # rotinas batch
-db = await get_supabase_client()                  # tools com user context
+## Pattern 2: Migration em proposed/ — cascata de ALTER
+
+**Estado atual:**
+```
+20260619000000: CREATE TABLE + entity_type IN (skill, client, contact, supplier, user)
+20260619000003: ALTER TABLE → entity_type IN (... + agent_result, agent_metadata, routine)
 ```
 
-**Aplicação:** Prune job usa `use_service_role=True` (roda como sistema, sem client_id individual). Precisa iterar por client_id.
+**Problema:** Se T4.4a incorpora lifecycle columns na migration base, o ALTER da #21 quebra (a constraint já foi redefinida). Ou a nova migration base precisa incluir agent_result/agent_metadata/routine desde o início.
 
-## 3. Tool Registration Pattern (MCP)
+**Padrão correto:** Consolidar todas as pending changes na migration base antes de promover para applied/.
 
-**Fonte:** `memory_module.py:320-382`
+---
 
-```python
-@register_module
-def register_tools(mcp: FastMCP) -> list[str]:
-    @mcp.tool(name="shared_memory_list", description="...")
-    @mcp_inject_client_id
-    async def shared_memory_list(ctx, ..., client_id=None) -> dict: ...
+## Pattern 3: Soft-delete em 2 fases (proposto)
+
+```
+INSERT → archived=false, soft_delete_at=now()+TTL, hard_delete_at=soft_delete_at+90d
+  ↓ (TTL expira)
+soft-delete: UPDATE archived=true WHERE soft_delete_at <= now()
+  ↓ (90 dias após soft-delete)
+hard-delete: DELETE WHERE hard_delete_at <= now()
+  ↓
+Registro removido fisicamente
 ```
 
-**Aplicação:** `shared_memory_restore_archived` e `shared_memory_list_archived` seguem o mesmo padrão. Uma função de lógica separada + wrapper MCP com `@mcp_inject_client_id`.
+**Referência no código:** Nenhuma — não implementado. Pattern extraído do plan.intake.json.
 
-## 4. Entity Validation Pattern
+---
 
-**Fonte:** `memory_module.py:25-44`
-
-```python
-_VALID_ENTITY_TYPES = frozenset({"skill", "client", "contact", "supplier", "user"})
-
-def _validate_entity_type(entity_type: str, field_name: str = "entity_type") -> None:
-    if entity_type not in _VALID_ENTITY_TYPES:
-        raise ValueError(...)
-```
-
-**Aplicação:** Volume limit trigger e TTL tiers referenciam entity_type — usar a mesma validação.
-
-## 5. Soft-Delete via Timestamp Pattern (proposto)
-
-**Fonte:** schema de `dimension_state` (valid_until) + design de `expires_at` no roadmap
+## Pattern 4: Volume limit com trigger BEFORE INSERT
 
 ```sql
--- O roadmap Fase 1.1 já menciona:
--- expires_at para TTL de memórias não confirmadas (default: 14 dias)
--- curated=true zera expires_at
+CREATE TRIGGER trg_sbm_volume_limit
+BEFORE INSERT ON shared_business_memory
+FOR EACH ROW
+EXECUTE FUNCTION check_volume_limit();
 ```
 
-**Aplicação:** `archived_at` segue o mesmo padrão de `expires_at`: nullable timestamptz. Soft-delete = SET archived_at = now(). Hard-delete = DELETE WHERE archived_at < now() - INTERVAL '90 days'.
+A função conta `SELECT count(*) WHERE client_id=NEW.client_id AND entity_type=NEW.entity_type AND entity_name=NEW.entity_name AND archived=false AND soft_delete_at IS NULL`.
 
-## 6. Unique Constraint + Conflict Pattern
+**Exceção:** Se `NEW.source='curated'` — mas **'curated' não existe no CHECK constraint atual.** Ver resolution.md.
 
-**Fonte:** `memory_module.py:172-181` (duplicate link detection)
+---
 
-```python
-except Exception as exc:
-    if "duplicate key" in str(exc).lower() or "uq_shared_memory_link" in str(exc).lower():
-        raise ValueError("Link already exists: ...")
-```
+## Pattern 5: Routine Engine (agent_api, não serviço separado)
 
-**Aplicação:** Volume limit trigger pode usar ON CONFLICT + subquery para contar registros existentes antes de permitir insert.
+O engine de rotinas vive em `services/agent_api/src/agent_api/core/routines.py`, NÃO em `services/routine_engine/`.
 
-## 7. Migration Naming Convention
+**Entry points:**
+- `routine_functions.py` — funções registradas (get_cash_position, etc.)
+- `routine_artifacts.py` — artifact steps
+- `routine_triggers.py` — triggers (pg_cron → dispatch)
+- `routines_router.py` — API endpoints
 
-**Fonte:** `supabase/migrations/proposed/20260619000000_*.sql`
+**T4.4d precisa:** Registrar `prune_shared_memory` como routine function em `routine_functions.py`, ou como step na tabela `cross_agent_routines`. NÃO criar diretório `services/routine_engine/`.
 
-- Timestamp: YYYYMMDDHHMMSS
-- Descriptive slug: `shared_business_memory`, `shared_memory_links`
-- Proposed/ directory = não aplicado, aguardando revisão
-- Applied/ directory = já aplicado em produção
+---
 
-**Aplicação:** Nova migration: `20260620000000_shared_memory_lifecycle.sql`
+## Pattern 6: Source validation — gap entre plan e schema
+
+| Source value | Na migration CHECK? | No plan T4.4c? |
+|-------------|---------------------|-----------------|
+| manual | ✅ | Default (manual) |
+| memory_agent | ✅ | Default (memory_agent_lo) |
+| specialist | ✅ | Default (specialist) |
+| migration | ✅ | Default (migration) |
+| system | ✅ | — |
+| **curated** | ❌ NÃO EXISTE | Referenciado como tier e como source |
+
+**Correção necessária:** Adicionar 'curated' ao CHECK constraint de source, OU usar `ttl_tier` como o discriminante (recomendado: tier, não source).
+
+---
+
+## Pattern 7: Checklist migration — RLS preservado
+
+Toda migration que toca `shared_business_memory` deve:
+1. Preservar RLS policies existentes
+2. Não dropar índices sem recriar
+3. Usar SECURITY DEFINER para funções que bypass RLS (service_role)
+4. Incluir comentários em português (padrão do projeto)
+5. Rodar em transação (BEGIN/COMMIT)
+
+**T4.4a precisa garantir:** Adicionar colunas sem quebrar o RLS `client_own_shared_memory`. Índices parciais WHERE archived=true não devem conflitar com RLS.

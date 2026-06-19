@@ -1,246 +1,223 @@
-# Shared Memory Design — Blu Platform
+# Shared Memory Design — Fase 0 / T2.2
 
-> Última atualização: 2026-06-19 | Fase 1, T1.2
-> Documento de referência para o sistema de Shared Business Memory.
-
----
-
-## 1. Visão Geral
-
-A **Shared Business Memory** é o barramento de conhecimento entre agentes no Blu.
-Em vez de agentes conversarem diretamente, eles leem e escrevem fatos atômicos
-na tabela `shared_business_memory`, cada um identificado pela quádrupla
-`(client_id, entity_type, entity_name, key)`.
-
-### Filosofia
-
-- **Stateless agents**: agentes não mantêm estado interno; toda memória de
-  negócio vive no Supabase.
-- **Atomic facts**: cada linha é um fato independente — decisão, descoberta,
-  metadado de execução.
-- **Observability**: todas as ações dos agentes são rastreáveis via shared memory.
+Documento de design do subsistema de memória compartilhada da plataforma BLU.
 
 ---
 
-## 2. Arquitetura em Camadas
+## T2.2 — Templates de Snapshot por Dimensão
 
-```
-┌──────────────────────────────────────────────────────────┐
-│  Agentes (L3-L4)                                         │
-│  frontdesk · crm · estrategia · supplier · scheduler ... │
-└────────────┬──────────────────────────────┬──────────────┘
-             │                              │
-    ┌────────▼────────┐            ┌────────▼────────┐
-    │  Pre-flight     │            │  Post-flight    │
-    │  (T1.1 / #17)   │            │  (T1.2 / #18)   │
-    │  lê contexto    │            │  persiste        │
-    │  da shared      │            │  resultados      │
-    │  memory         │            │  e metadados     │
-    └────────┬────────┘            └────────┬────────┘
-             │                              │
-    ┌────────▼──────────────────────────────▼────────┐
-    │           Shared Business Memory                │
-    │  ┌──────────────────────────────────────┐      │
-    │  │  shared_business_memory              │      │
-    │  │  - entity_type: agent_result,        │      │
-    │  │    agent_metadata, skill, client,     │      │
-    │  │    contact, supplier, user            │      │
-    │  │  - key: finding:*, decision:*,        │      │
-    │  │    summary:*, tool_usage:*            │      │
-    │  └──────────────────────────────────────┘      │
-    │  ┌──────────────────────────────────────┐      │
-    │  │  shared_memory_links                 │      │
-    │  │  - source: agent_pending, manual,    │      │
-    │  │    specialist, memory_agent, system   │      │
-    │  └──────────────────────────────────────┘      │
-    └────────────────────────────────────────────────┘
-```
+### 1. Conceito de Snapshot por Dimensão
 
----
+Um **snapshot** é um registro estruturado que captura o estado de uma dimensão
+de negócio em um momento específico. Diferente de fatos simples (facts), snapshots
+são documentos compostos com múltiplos indicadores, alertas e resumo executivo.
 
-## 3. Entity Types
+Quatro dimensões são suportadas:
 
-### 3.1 Tipos de negócio (Fase 0)
+| Dimensão     | entity_name         | Descrição                           |
+|-------------|---------------------|--------------------------------------|
+| financeiro  | `financeiro:{periodo}` | Indicadores financeiros e fluxo de caixa |
+| clientes    | `clientes:{periodo}`   | Métricas de base de clientes e CRM |
+| agenda      | `agenda:{periodo}`     | Compromissos e follow-ups |
+| compras     | `compras:{periodo}`    | Pedidos de compra e inventário |
 
-| Entity Type | Descrição | Exemplo de entity_name |
-|-------------|-----------|----------------------|
-| `skill` | Skill/tool que produziu o fato | `rag`, `sql_agent` |
-| `client` | Cliente/empresa | `acme_corp` |
-| `contact` | Pessoa de contato | `joao_silva` |
-| `supplier` | Fornecedor | `distribuidora_x` |
-| `user` | Usuário do sistema | `admin` |
+Períodos válidos: `diario`, `semanal`, `mensal`.
 
-### 3.2 Tipos de agente (Fase 1 — T1.2)
+### 2. Schema entity_type / entity_name / key
 
-| Entity Type | Descrição | Exemplo de entity_name |
-|-------------|-----------|----------------------|
-| `agent_result` | Resultado da execução de um agente | `crm:a1b2c3d4` |
-| `agent_metadata` | Metadados de execução do agente | `crm` |
+Para snapshots no `shared_business_memory`:
 
-### 3.3 Links pendentes (Fase 1 — T1.2)
+| Campo        | Valor                              |
+|-------------|------------------------------------|
+| entity_type | `"snapshot"`                       |
+| entity_name | `"{dimensao}:{periodo}"`           |
+| key         | timestamp ISO do momento de geração |
 
-`agent_link_pending` não é um entity_type na `shared_business_memory` — é
-representado como `source='agent_pending'` na tabela `shared_memory_links`.
-Links criados automaticamente pelos agentes ficam pendentes de validação
-pela rotina T4.4.
+Exemplo: `entity_type="snapshot"`, `entity_name="financeiro:semanal"`,
+`key="2025-06-19T10:00:00Z"`.
 
----
+### 3. Templates de Body por Dimensão
 
-## 4. T1.2 — Post-flight Memory
+Os templates são definidos como constantes em
+[`libs/blu_context_service/src/blu_context_service/context_schemas.py`](../../libs/blu_context_service/src/blu_context_service/context_schemas.py)
+no dicionário `_SNAPSHOT_DIMENSION_FIELDS`.
 
-### 4.1 Propósito
+#### Body universal (campos base)
 
-Após cada execução de agente (frontdesk ou specialist), o **post-flight hook**
-persiste automaticamente:
-
-1. **agent_result**: o que o agente produziu (resumo, tools usadas)
-2. **agent_metadata**: metadados da execução (session_id, elapsed, agent_slug)
-3. **agent_link_pending**: links semânticos sugeridos pelo agente (opcional)
-
-Tudo em **fire-and-forget** — nunca bloqueia a resposta ao usuário.
-
-### 4.2 Naming Convention (DD-03)
-
-As chaves (`key`) seguem prefixos semânticos para facilitar descoberta e
-filtragem:
-
-| Prefixo | Significado | Exemplo |
-|---------|-------------|---------|
-| `decision:` | Decisão tomada pelo agente | `decision:priorizar_fornecedor_x` |
-| `finding:` | Descoberta/insight extraído | `finding:cliente_atrasado_3_meses` |
-| `summary:` | Resumo da execução | `summary:execution` |
-| `tool_usage:` | Ferramenta utilizada (apenas nome) | `tool_usage:execute_sql` |
-
-### 4.3 Noise Suppression (DD-04)
-
-Apenas o **último estado significativo** é persistido. Como o upsert usa a
-constraint `UNIQUE (client_id, entity_type, entity_name, key)`, escritas
-subsequentes com a mesma chave sobrescrevem a anterior.
-
-- Estados intermediários do LangGraph NÃO são persistidos
-- Apenas o último `AIMessage.content` é capturado
-- Tool outputs são descartados; apenas nomes das tools vão para `tool_usage:*`
-
-### 4.4 Fluxo Post-flight
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  ChatService.process_message()                          │
-│                                                         │
-│  1. graph.ainvoke() → final_state                       │
-│  2. Extrai último AIMessage.content                     │
-│  3. Extrai tool_calls do AIMessage (apenas nomes)       │
-│  4. _fire_and_forget(                                   │
-│       _shared_memory_post_flight_logic(                 │
-│         client_id, agent_slug, session_id,              │
-│         agent_result, agent_metadata                    │
-│       )                                                 │
-│     )                                                   │
-│  5. return ChatResult (NÃO espera o post-flight)        │
-└─────────────────────────────────────────────────────────┘
-```
-
-### 4.5 Hook Points
-
-| Método | Local do hook | Agente afetado |
-|--------|---------------|----------------|
-| `process_message()` | Antes do `return ChatResult` | frontdesk + specialist |
-| `process_message_stream()` | Após `yield done`, antes de retornar | frontdesk + specialist (stream) |
-
-`AgentService.stream_agent_response()` **não** tem hook post-flight no escopo
-T1.2 — fica para iteração futura.
-
----
-
-## 5. Módulo memory_post_flight.py
-
-### 5.1 Localização
-
-`services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_post_flight.py`
-
-### 5.2 Design Decisions
-
-| ID | Decisão | Status |
-|----|---------|--------|
-| DD-01 | Módulo separado no tool_pool | ✅ |
-| DD-02 | 3 entity_types: agent_result, agent_metadata, agent_link_pending | ✅ |
-| DD-03 | Naming convention com prefixos semânticos | ✅ |
-| DD-04 | Noise suppression via upsert (último estado) | ✅ |
-| DD-05 | Fire-and-forget async no service.py | ✅ |
-| DD-06 | Internal tool (não exposta via MCP) | ✅ |
-
-### 5.3 API
+Todo snapshot, independente da dimensão, DEVE conter os campos definidos em
+`_SNAPSHOT_BASE_FIELDS`:
 
 ```python
-async def _shared_memory_post_flight_logic(
-    client_id: str,
-    agent_slug: str,
-    session_id: str,
-    agent_result: dict | None = None,
-    agent_metadata: dict | None = None,
-    suggested_links: list[dict] | None = None,
-) -> dict:
+_SNAPSHOT_BASE_FIELDS = frozenset({
+    "snapshot_id",      # UUID único do snapshot
+    "dimensao",         # "financeiro" | "clientes" | "agenda" | "compras"
+    "periodo",          # "diario" | "semanal" | "mensal"
+    "gerado_em",        # Timestamp ISO de geração
+    "vigencia_inicio",  # Início do período coberto
+    "vigencia_fim",     # Fim do período coberto
+    "indicadores",      # Lista de {nome, valor, unidade, tendencia}
+    "alertas",          # Lista de strings de alerta
+    "resumo_executivo", # Markdown string
+})
 ```
 
-Retorna `{"agent_result_entries": N, "agent_metadata_entries": N, "links_created": N}`.
+#### Financeiro (`_SNAPSHOT_DIMENSION_FIELDS["financeiro"]`)
+
+Indicadores requeridos (required=True):
+
+- `saldo_atual` (BRL) — Saldo atual em caixa
+- `receita_periodo` (BRL) — Receita total no período
+- `despesa_periodo` (BRL) — Despesa total no período
+- `fluxo_liquido` (BRL) — Fluxo líquido (receita - despesa)
+
+Indicadores opcionais: `contas_a_pagar`, `contas_a_receber`, `inadimplencia_percentual`.
+
+Tendências monitoradas: `receita_tendencia`, `despesa_tendencia`.
+
+Alertas: `estoque_caixa_baixo`, `contas_vencendo_proximos_7d`.
+
+#### Clientes (`_SNAPSHOT_DIMENSION_FIELDS["clientes"]`)
+
+Indicadores requeridos:
+
+- `total_clientes_ativos` (count)
+- `novos_clientes_periodo` (count)
+
+Indicadores opcionais: `churn_periodo`, `nps_medio`, `ltv_medio`, `ticket_medio`.
+
+Alertas: `churn_acelerado`, `nps_critico`.
+
+Agrupamentos: `segmentacao`, `status`.
+
+#### Agenda (`_SNAPSHOT_DIMENSION_FIELDS["agenda"]`)
+
+Indicadores requeridos:
+
+- `reunioes_hoje` (count)
+- `reunioes_semana` (count)
+
+Indicadores opcionais: `followups_pendentes`, `contatos_a_cobrar`.
+
+#### Compras (`_SNAPSHOT_DIMENSION_FIELDS["compras"]`)
+
+Indicadores requeridos:
+
+- `total_pos_abertas` (count)
+
+Indicadores opcionais: `estoque_critico`, `fornecedores_com_pendencia`, `pedidos_em_analise`.
+
+### 4. Frontmatter Obrigatório
+
+Todo upsert de `entity_type="snapshot"` DEVE incluir frontmatter com os campos
+definidos em `_SNAPSHOT_FRONTMATTER_REQUIRED`:
+
+| Campo              | Tipo     | Descrição                                   |
+|-------------------|----------|----------------------------------------------|
+| tipo              | string   | Sempre `"snapshot"`                          |
+| dimensao          | string   | `"financeiro"` / `"clientes"` / `"agenda"` / `"compras"` |
+| periodo           | string   | `"diario"` / `"semanal"` / `"mensal"`       |
+| gerado_em         | string   | Timestamp ISO de geração                     |
+| gerado_por        | string   | Nome do agente ou rotina que gerou           |
+| versao            | int      | Número da versão (≥ 1)                      |
+| template_version  | int      | Versão do template (≥ 1)                    |
+| fontes            | list[str]| Queries/data sources usadas na geração      |
+
+Campos opcionais no frontmatter:
+
+| Campo       | Tipo     | Descrição                                    |
+|------------|----------|-----------------------------------------------|
+| confianca   | float    | Confiança (0.0–1.0, default 1.0)             |
+| ultimo_update | string | Última atualização (ISO timestamp)            |
+
+Validação (T2.2b):
+- `_validate_snapshot_frontmatter()` em `memory_module.py` verifica todos os
+  campos obrigatórios, cross-valida dimensão e período com `entity_name`.
+- Upsert de snapshot sem frontmatter completo é REJEITADO com `ValueError`.
+
+Validação do body (T2.2f):
+- `_validate_snapshot_body()` extrai a dimensão do `entity_name`, valida campos
+  base, e verifica os indicadores contra o spec da dimensão
+  (`_SNAPSHOT_DIMENSION_FIELDS`).
+- Indicadores desconhecidos geram WARNING (não erro).
+- Indicadores requeridos faltantes geram `ValueError`.
+
+### 5. Exemplos de Uso
+
+#### Upsert via shared_memory_upsert
+
+```json
+{
+  "entity_type": "snapshot",
+  "entity_name": "financeiro:semanal",
+  "key": "2025-06-19T10:00:00Z",
+  "body": {
+    "snapshot_id": "550e8400-e29b-41d4-a716-446655440000",
+    "dimensao": "financeiro",
+    "periodo": "semanal",
+    "gerado_em": "2025-06-19T10:00:00Z",
+    "vigencia_inicio": "2025-06-12T00:00:00Z",
+    "vigencia_fim": "2025-06-19T00:00:00Z",
+    "indicadores": [
+      {"nome": "saldo_atual", "valor": 152000, "unidade": "BRL", "tendencia": "estavel"},
+      {"nome": "receita_periodo", "valor": 48700, "unidade": "BRL", "tendencia": "alta"},
+      {"nome": "despesa_periodo", "valor": 35200, "unidade": "BRL", "tendencia": "baixa"},
+      {"nome": "fluxo_liquido", "valor": 13500, "unidade": "BRL", "tendencia": "alta"}
+    ],
+    "alertas": [],
+    "resumo_executivo": "Semana positiva com fluxo líquido de BRL 13.500."
+  },
+  "frontmatter": {
+    "tipo": "snapshot",
+    "dimensao": "financeiro",
+    "periodo": "semanal",
+    "gerado_em": "2025-06-19T10:00:00Z",
+    "gerado_por": "financeiro_agent",
+    "versao": 1,
+    "template_version": 1,
+    "ultimo_update": "2025-06-19T10:00:00Z",
+    "fontes": ["get_cash_position v2", "get_recent_transactions v1"],
+    "confianca": 0.95
+  },
+  "source": "specialist",
+  "confidence": 0.95
+}
+```
+
+#### Leitura
+
+```
+shared_memory_read(entity_type="snapshot", entity_name="financeiro:semanal", key="2025-06-19T10:00:00Z")
+```
+
+#### Seed (popula exemplos)
+
+```bash
+python scripts/seed_snapshots.py --client-id <UUID>
+```
+
+### 6. Queries de Referência por Dimensão
+
+As queries SQL de referência estão documentadas nos specs de dimensão
+(`_SNAPSHOT_DIMENSION_FIELDS[dimensao]["queries_referencia"]`).
+São strings nomeando as funções/endpoints que geram os dados para cada
+indicador. **Não são código executável** — são referências para o agente
+que popula o snapshot saber quais fontes consultar.
+
+| Dimensão    | Queries de Referência                                  |
+|------------|-------------------------------------------------------|
+| financeiro | get_cash_position, get_recent_transactions, get_aging_accounts |
+| clientes   | get_active_clients, get_churn_metrics, get_nps_scores, get_client_ltv |
+| agenda     | get_today_meetings, get_weekly_meetings, get_pending_followups, get_collection_contacts |
+| compras    | get_open_purchase_orders, get_critical_stock, get_pending_suppliers, get_pending_approval_orders |
 
 ---
 
-## 6. Migration SQL
+## Design Decisions
 
-### 6.1 T1.2a: Agent Entity Types
-
-Arquivo: `supabase/migrations/proposed/20260619000004_add_agent_entity_types.sql`
-
-Adiciona `agent_result` e `agent_metadata` ao CHECK constraint da
-`shared_business_memory`, e `agent_pending` ao CHECK constraint de `source`
-na `shared_memory_links`.
-
----
-
-## 7. Tabelas
-
-### 7.1 shared_business_memory
-
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| `id` | uuid PK | |
-| `client_id` | uuid FK → clientes_blu | |
-| `entity_type` | text | skill, client, contact, supplier, user, agent_result, agent_metadata |
-| `entity_name` | text | Nome normalizado (lowercase) |
-| `key` | text | Chave do fato (1-256 chars) |
-| `category` | text | knowledge, rag, documents, memory-agent, context, decision, preference |
-| `value` | jsonb | Conteúdo do fato |
-| `source` | text | manual, memory_agent, specialist, migration, system |
-| `confidence` | numeric | 0.0–1.0 |
-| `metadata` | jsonb | Metadados de proveniência |
-| `created_at` | timestamptz | |
-| `updated_at` | timestamptz | |
-
-**Unique constraint**: `(client_id, entity_type, entity_name, key)`
-
-### 7.2 shared_memory_links
-
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| `id` | uuid PK | |
-| `client_id` | uuid FK → clientes_blu | |
-| `source_entity_type` | text | |
-| `source_entity_name` | text | |
-| `target_entity_type` | text | |
-| `target_entity_name` | text | |
-| `link_type` | text | Relacionamento (2-128 chars) |
-| `source` | text | manual, memory_agent, specialist, migration, system, agent_pending |
-| `confidence` | numeric | 0.0–1.0 |
-| `metadata` | jsonb | |
-| `created_at` | timestamptz | |
-
-**Unique constraint**: `(client_id, source_entity_type, source_entity_name, link_type, target_entity_type, target_entity_name)`
-
----
-
-## 8. Próximos Passos
-
-- T4.4: Rotina de validação de `agent_pending` links
-- T1.1: Pre-flight memory (leitura de contexto antes da execução)
-- TTL/Retention: Política de expurgo de entradas antigas (Fase 3)
+| ID  | Decisão |
+|-----|---------|
+| DD1 | `entity_type='snapshot'`, `entity_name='{dimensao}:{periodo}'`, key=ISO timestamp |
+| DD2 | Body em JSON estruturado (não markdown). Só `resumo_executivo` é markdown. |
+| DD3 | Queries SQL no frontmatter como REFERÊNCIA, não código executável. Versionadas. |
+| DD4 | Frontmatter no JSONB da `shared_business_memory` (schema Fase 0). |
+| DQ4 | Template base (`_SNAPSHOT_BASE_FIELDS`) + extensão por dimensão (`_SNAPSHOT_DIMENSION_FIELDS`). |

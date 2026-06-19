@@ -1173,6 +1173,14 @@ async def _execute_one(
                     _update_execution_sync, exec_id,
                     {"result_metadata": _serialisable(state)},
                 )
+                # Checkpoint em shared_business_memory (secundário — Issue #21)
+                await _checkpoint_to_shared_memory(
+                    client_id=str(client_id),
+                    routine_id=state["routine_name"],
+                    exec_id=exec_id,
+                    step_number=step.get("step", 0),
+                    state=state,
+                )
                 result_parts.append(f"{step_id_out}: aguardando aprovação humana")
                 return (
                     "\n".join(result_parts) + "\n" + _AWAITING_APPROVAL_MARKER,
@@ -1192,10 +1200,75 @@ async def _execute_one(
             {"result_metadata": _serialisable(state)},
         )
 
+        # Checkpoint em shared_business_memory (secundário — Issue #21)
+        if is_parallel:
+            last_step = max((s.get("step", 0) for s in batch), default=0)
+        else:
+            last_step = batch[0].get("step", 0)
+        await _checkpoint_to_shared_memory(
+            client_id=str(client_id),
+            routine_id=state["routine_name"],
+            exec_id=exec_id,
+            step_number=last_step,
+            state=state,
+        )
+        if last_step == 1:
+            logger.info(
+                "Routine checkpoint enabled: routine=%s exec=%s client=%s",
+                state["routine_name"], exec_id, str(client_id),
+            )
+
 
     await _fire_on_complete_events(str(client_id), steps)
 
     return "\n".join(result_parts) or "Concluído.", last_worker_slug
+
+
+# ---------------------------------------------------------------------------
+# Shared memory checkpoint (Issue #21)
+# ---------------------------------------------------------------------------
+
+
+async def _checkpoint_to_shared_memory(
+    client_id: str,
+    routine_id: str,
+    exec_id: str,
+    step_number: int,
+    state: dict,
+) -> None:
+    """
+    Salva checkpoint do estado de execução em shared_business_memory.
+
+    Design decisions (Issue #21):
+    - entity_type='routine' (DD-01)
+    - Key pattern: checkpoint:run:{exec_id}:step:{N} + current_state:{routine_id} (DD-04)
+    - Falha NÃO interrompe o step — result_metadata é o checkpoint primário (DD-03)
+
+    Args:
+        client_id: UUID do cliente
+        routine_id: Slug da rotina (ex: 'daily_insights')
+        exec_id: UUID da execução corrente
+        step_number: Número ordinal do step que acabou de executar
+        state: State dict completo (pós-step)
+    """
+    try:
+        client = get_supabase_client()
+        client.rpc(
+            "upsert_routine_checkpoint",
+            {
+                "p_client_id": client_id,
+                "p_routine_id": routine_id,
+                "p_exec_id": exec_id,
+                "p_step_number": step_number,
+                "p_state_value": _serialisable(state),
+            },
+        ).execute()
+    except Exception as e:
+        logger.warning(
+            "shared_business_memory checkpoint failed (non-fatal): "
+            "routine=%s exec=%s step=%s: %s",
+            routine_id, exec_id, step_number, e,
+        )
 
 
 # ---------------------------------------------------------------------------

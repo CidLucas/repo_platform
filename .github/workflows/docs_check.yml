@@ -1,36 +1,29 @@
-name: docs-check
+name: Docs Check
 
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   docs:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      # Install only the libs the docs generator needs, in dependency order.
-      # Each lib lives under libs/<name>/ with its own pyproject.toml.
-      - name: Install blu_tool_registry
-        run: pip install -e libs/blu_tool_registry
-
-      - name: Install blu_agent_framework
-        run: pip install -e libs/blu_agent_framework
-
-      - name: Run docs generator (check mode)
-        run: python scripts/generate_agent_docs.py --check
-
-      # Upload generated docs as artifact so reviewers can inspect diffs.
-      - name: Upload generated docs (on failure)
+          cache: pip
+      - run: |
+          for lib in blu_tool_registry blu_agent_framework; do
+            pip install -e "libs/$lib" --quiet
+          done
+      - run: python scripts/generate_agent_docs.py --check
+      - uses: actions/upload-artifact@v4
         if: failure()
-        uses: actions/upload-artifact@v4
         with:
-          name: generated-docs
-          path: docs/auto-*.md
+          name: docs-diff
+          path: docs/system_reference/

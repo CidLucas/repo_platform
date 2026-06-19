@@ -80,7 +80,9 @@ def register_all_tools(mcp: FastMCP) -> dict:
         web_monitor_module,
         slack_module,  # noqa: F401
         memory_module,
-        memory_post_flight,
+        memory_pre_flight_module,
+        version_module,
+        diff_module,
     )
 
     # Optional chart module
@@ -321,12 +323,36 @@ AVAILABLE_MODULES = {
         "requires_auth": True,
     },
     "memory": {
-        "description": "Shared Business Memory — entity listing, knowledge retrieval, and semantic linking",
+        "description": "Shared Business Memory -- entity listing, knowledge retrieval, semantic linking, and upsert",
         "tools": [
             "shared_memory_list",
+            "shared_memory_read",
+            "shared_memory_upsert",
             "shared_memory_link",
             "shared_memory_unlink",
             "shared_memory_get_links",
+        ],
+        "requires_auth": True,
+    },
+    "memory_pre_flight": {
+        "description": "Pre-flight shared memory context — reads recent agent execution history from shared_business_memory",
+        "tools": [
+            "shared_memory_pre_flight",
+        ],
+        "requires_auth": True,
+    },
+    "version": {
+        "description": "Version storage and retrieval — archives and queries historical versions of shared_business_memory facts",
+        "tools": [
+            "shared_memory_get_versions",
+            "shared_memory_get_version",
+        ],
+        "requires_auth": True,
+    },
+    "diff": {
+        "description": "Diff generation — human-readable line-based diff between two historical versions of shared_business_memory facts",
+        "tools": [
+            "shared_memory_diff",
         ],
         "requires_auth": True,
     },

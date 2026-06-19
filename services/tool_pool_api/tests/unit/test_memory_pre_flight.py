@@ -405,3 +405,48 @@ class TestPreFlightMaxExecutionsEnv:
             result = await _call_pre_flight()
 
         assert result["execution_count"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Manual validation (T1.1f — item 3)
+# ---------------------------------------------------------------------------
+#
+# To validate the pre-flight pipeline end-to-end with real Supabase data:
+#
+# 1. Populate shared_business_memory with test data via Supabase local:
+#
+#    INSERT INTO shared_business_memory (client_id, entity_type, entity_name, key, value)
+#    VALUES
+#      ('<test_client_id>', 'agent_metadata', 'frontdesk', 'execution:001',
+#       '{"session_id":"sess-001","elapsed_ms":1234,"turn_count":2}'),
+#      ('<test_client_id>', 'agent_result', 'frontdesk', 'decision:approved',
+#       '{"text":"Loan approved for client X"}'),
+#      ('<test_client_id>', 'agent_result', 'frontdesk', 'finding:insight',
+#       '{"text":"Client has high risk score"}'),
+#      ('<test_client_id>', 'agent_result', 'frontdesk', 'summary:execution',
+#       '{"text":"Frontdesk routed to financeiro"}'),
+#      ('<test_client_id>', 'agent_result', 'frontdesk', 'tool_usage:execute_sql',
+#       '{"text":"SELECT * FROM clients"}');  -- noise key, should NOT appear in pre-flight
+#
+# 2. Run the agent with DEBUG-level logging:
+#
+#    LOG_LEVEL=DEBUG python -m agent_api.main
+#
+# 3. Send a message via the API and check logs for agent_preflight_context:
+#
+#    curl -X POST http://localhost:8000/chat \
+#      -H "Content-Type: application/json" \
+#      -d '{"client_id":"<test_client_id>","message":"Ola","session_id":"manual-test"}'
+#
+# 4. Verify in the logs:
+#
+#    grep "agent_preflight_context" logs/agent_api.log
+#
+#    Expected: agent_preflight_context contains agent_metadata (1 row) and
+#    agent_results (3 rows: decision:approved, finding:insight, summary:execution).
+#    The tool_usage:execute_sql key MUST NOT appear in agent_results.
+#
+# 5. Clean up:
+#
+#    DELETE FROM shared_business_memory WHERE client_id = '<test_client_id>';
+

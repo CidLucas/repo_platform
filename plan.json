@@ -1,105 +1,158 @@
 {
-  "issue_number": 26,
-  "issue_title": "Fase 3 — Criar tool shared_memory_search",
-  "phase": "Fase 3",
-  "task_code": "T3.2",
-  "reference_doc": "docs/llm_wiki/SHARED_MEMORY_DESIGN.md",
-  "scope": "Criar nova L1 tool `shared_memory_search` no módulo `memory_module` para busca flexível de fatos na shared business memory",
-  "background": "O memory_module já possui tools para listar entidades (shared_memory_list), ler fatos individuais (shared_memory_read), escrever/upsert (shared_memory_write, shared_memory_upsert) e gerenciar links semânticos. Falta uma tool de busca/filtro que permita consultar fatos por múltiplos critérios simultâneos: entity_type, entity_name, padrões de key, category, source, confidence, range de datas, e busca textual no value (jsonb).",
+  "issue_number": 31,
+  "issue_title": "Fase 4 \u2014 Eventos de trigger para handoffs",
+  "phase": "Fase 4 / T4.3",
+  "symbolic_ref": "docs/llm_wiki/SHARED_MEMORY_DESIGN.md - T4.3",
+  "scope": "Implementar atualização do knowledge_graph_summary no Context Service (available_tools). O job de enriquecimento semanal (T4.1: SBM \u2192 LightRAG) deve chamar esta atualização após sincronizar o grafo. O summary expõe: total de documentos indexados, total de entidades no grafo, top 10 entidades por grau de conexão, última data de sincronização.",
   "design_decisions": [
     {
       "id": "DD-01",
-      "decision": "Implementar como nova função `_shared_memory_search_logic` no memory_module.py, seguindo o mesmo padrão das funções existentes",
-      "rationale": "Consistência com arquitetura atual; separação de lógica de negócio e registro de tool"
+      "decision": "Adicionar campo knowledge_graph_summary ao schema AvailableTools em context_schemas.py",
+      "rationale": "available_tools é a seção injetada em todos os agents; o summary do grafo deve ser acessível para routing e decisões de specialists (ex: rag_search decide se vale consultar o grafo). Schema versionado via Pydantic garante validação."
     },
     {
       "id": "DD-02",
-      "decision": "Tool exposta via MCP com @mcp_inject_client_id para autenticação automática",
-      "rationale": "Padrão estabelecido para todas as tools do memory_module"
+      "decision": "Campo knowledge_graph_summary é opcional (nullable) e versionado",
+      "rationale": "LightRAG (Fase 3) ainda não existe; clientes sem Fase 3/Ativação não têm grafo. O campo pode ser None. Incluir version para migrações futuras do formato do summary."
     },
     {
       "id": "DD-03",
-      "decision": "Suportar filtros combinados: entity_type, entity_name, key_prefix/key_pattern, category, source, confidence_min, date_from/date_to, text_search no value jsonb",
-      "rationale": "Atender casos de uso reais: buscar todas findings de um agente, buscar decisions por categoria, busca full-text em fatos"
+      "decision": "Criar módulo dedicado knowledge_graph_sync.py no tool_pool_api (internal tool, não MCP)",
+      "rationale": "Atualização do summary é chamada pelo job de enriquecimento (T4.1) como step final. Internal tool via FastMCP client evita overhead de protocolo MCP e permite chamada síncrona no job. Separação: sync module = escrita/atualização; Context Service = leitura/cache."
     },
     {
       "id": "DD-04",
-      "decision": "Paginação obrigatória: limit (default 50, max 200) + offset; retornar total_count para UI",
-      "rationale": "Evitar retorno de datasets grandes; UX consistente com outras APIs"
+      "decision": "Estrutura do knowledge_graph_summary: { total_documents: int, total_entities: int, top_entities: list[{name, type, degree}], last_sync: ISOtimestamp, version: int }",
+      "rationale": "Matches exato do roadmap T4.3: 'Total de documentos indexados, Total de entidades no grafo, Entidades mais relevantes (top 10 por grau de conexão), Última data de sincronização'. top_entities limitado a 10 por performance/noise."
     },
     {
       "id": "DD-05",
-      "decision": "Ordenação configurável: por updated_at desc (default), created_at, key, entity_name",
-      "rationale": "Flexibilidade para diferentes padrões de consumo"
+      "decision": "Atualização via upsert em clientes_blu.available_tools (JSONB) — reusa infraestrutura existente de context sections",
+      "rationale": "available_tools já é uma coluna JSONB em clientes_blu. ContextService.get_client_context() já carrega e cacheia. Update é PATCH parcial: ler, merge knowledge_graph_summary, escrever. RLS preservado (client_id)."
     },
     {
       "id": "DD-06",
-      "decision": "Validar entity_type contra _VALID_ENTITY_TYPES expandido (inclui agent_result, agent_metadata da Fase 1 T1.2)",
-      "rationale": "A Fase 1 adicionou novos entity_types que devem ser suportados na busca"
+      "decision": "Invalidar cache Redis do ContextService após atualização (clear_context_cache)",
+      "rationale": "Garanta que próxima get_client_context() leia summary fresco. Cache TTL default 5min, mas job de enriquecimento roda semanalmente — invalidar é mais seguro que esperar TTL."
     }
   ],
   "subtasks": [
     {
-      "id": "T3.2a",
-      "title": "Adicionar entity_types da Fase 1 ao _VALID_ENTITY_TYPES no memory_module.py",
-      "description": "Expandir o frozenset para incluir 'agent_result' e 'agent_metadata' que foram adicionados na migration T1.2a",
+      "id": "T4.3a",
+      "title": "Schema: adicionar knowledge_graph_summary ao AvailableTools em context_schemas.py",
+      "description": "Em libs/blu_models/src/blu_models/context_schemas.py, classe AvailableTools: adicionar campo opcional knowledge_graph_summary: KnowledgeGraphSummary | None = None. Criar classe KnowledgeGraphSummary (BaseModel) com fields: total_documents (int, default=0), total_entities (int, default=0), top_entities (list[EntitySummary], default_factory=list), last_sync (str | None = None, ISO timestamp), version (int, default=1). EntitySummary: name (str), type (str), degree (int). Manter retrocompatibilidade (campo opcional, default None).",
+      "type": "code",
       "files": [
-        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py"
+        "libs/blu_models/src/blu_models/context_schemas.py"
       ],
-      "acceptance": "_VALID_ENTITY_TYPES contém: skill, client, contact, supplier, user, snapshot, agent_result, agent_metadata"
+      "dependencies": [],
+      "acceptance": "Schema valida: AvailableTools com knowledge_graph_summary=None passa; com objeto válido passa; campo extra rejeitado (extra='forbid' ou ignorado). Testes unitários existentes passam."
     },
     {
-      "id": "T3.2b",
-      "title": "Implementar _shared_memory_search_logic com filtros combinados e paginação",
-      "description": "Criar função de negócio que aceita múltiplos filtros opcionais e retorna resultados paginados com total_count",
+      "id": "T4.3b",
+      "title": "Módulo de sync: criar knowledge_graph_sync.py no tool_pool_api",
+      "description": "Criar services/tool_pool_api/src/tool_pool_api/server/tool_modules/knowledge_graph_sync.py com função update_knowledge_graph_summary(client_id: UUID, summary: dict) -> bool. Função: 1) ler clientes_blu.available_tools do client_id, 2) merge summary (preservar outros campos), 3) upsert JSONB, 4) chamar ContextService.clear_context_cache(client_id) para invalidar cache, 5) retornar True/False. Registrar como internal tool (não MCP). Incluir validação básica do dict (required keys: total_documents, total_entities, top_entities, last_sync, version). Log structured para auditoria.",
+      "type": "code",
       "files": [
-        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py"
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/knowledge_graph_sync.py"
       ],
-      "acceptance": "Função executa query Supabase com filtros dinâmicos; retorna {total_count, results[], limit, offset, has_more}"
+      "dependencies": [
+        "T4.3a"
+      ],
+      "acceptance": "Módulo carrega sem erro; update_knowledge_graph_summary executa e atualiza available_tools no Supabase; cache invalidado; log contém client_id, total_entities, last_sync. Testes unitários com mock Supabase passam."
     },
     {
-      "id": "T3.2c",
-      "title": "Registrar tool shared_memory_search no MCP via @mcp.tool decorator",
-      "description": "Adicionar registro da tool com description detalhada, parâmetros tipados, validação e error handling",
+      "id": "T4.3c",
+      "title": "Context Service: garantir leitura do knowledge_graph_summary no domain_projection",
+      "description": "Em libs/blu_context_service/src/blu_context_service/context_service.py, método get_domain_projection: o available_tools já é incluído nas seções permitidas para domínios 'analytics', 'data', 'sql', 'rag', 'documents', 'knowledge', 'config', 'settings' (ver _DOMAIN_SECTIONS). Verificar se knowledge_graph_summary vem junto — não precisa mudança se available_tools já é retornado integralmente. Adicionar helper get_knowledge_graph_summary(client_id) -> KnowledgeGraphSummary | None que lê do cache/context e extrai o campo tipado. Documentar uso para specialists (rag_search, documentos).",
+      "type": "code",
       "files": [
-        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py"
+        "libs/blu_context_service/src/blu_context_service/context_service.py"
       ],
-      "acceptance": "Tool registrada e aparece em /info do tool_pool_api"
+      "dependencies": [
+        "T4.3a",
+        "T4.3b"
+      ],
+      "acceptance": "get_domain_projection(domain='rag', client_id) retorna available_tools com knowledge_graph_summary populado (se existir no DB). Helper get_knowledge_graph_summary retorna objeto tipado ou None. Sem breaking change em domínios existentes."
     },
     {
-      "id": "T3.2d",
-      "title": "Atualizar AVAILABLE_MODULES['memory'] no tool_modules/__init__.py",
-      "description": "Adicionar 'shared_memory_search' à lista de tools do módulo memory",
+      "id": "T4.3d",
+      "title": "Integração: ponto de chamada no job de enriquecimento (T4.1)",
+      "description": "Documentar em plan (não implementar T4.1 aqui): o job semanal de enriquecimento SBM\u2192LightRAG (T4.1) deve, AO FINAL, chamar update_knowledge_graph_summary com dados agregados do LightRAG: rag.get_documents_count(), rag.get_entities_count(), rag.get_top_entities_by_degree(10), datetime.now(UTC).isoformat(), version=1. Esta task é preparatória — garante que a interface (T4.3a-c) existe para T4.1 consumir. Incluir exemplo de payload no docstring de knowledge_graph_sync.py.",
+      "type": "doc",
       "files": [
-        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/__init__.py"
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/knowledge_graph_sync.py"
       ],
-      "acceptance": "AVAILABLE_MODULES['memory']['tools'] inclui shared_memory_search"
+      "dependencies": [
+        "T4.3b"
+      ],
+      "acceptance": "Docstring em knowledge_graph_sync.py contém exemplo completo de payload esperado pelo T4.1. Code review valida que campos batem com KnowledgeGraphSummary schema."
     },
     {
-      "id": "T3.2e",
-      "title": "Testar tool via MCP endpoint (/mcp) com client_id válido",
-      "description": "Verificar que a tool responde corretamente a diferentes combinações de filtros",
-      "files": [],
-      "acceptance": "Retorna resultados esperados para: busca por entity_type, key_prefix, category, text_search, paginação"
+      "id": "T4.3e",
+      "title": "Testes unitários e integração",
+      "description": "Criar testes: 1) unitário context_schemas: KnowledgeGraphSummary validation (campos required, tipos, defaults), 2) unitário knowledge_graph_sync: update_knowledge_graph_summary com mock Supabase (sucesso, erro RLS, erro validação), 3) integração ContextService: get_domain_projection inclui knowledge_graph_summary quando disponível, get_knowledge_graph_summary helper funciona. Testes em libs/blu_models/tests/unit/test_context_schemas.py, services/tool_pool_api/tests/unit/test_knowledge_graph_sync.py, libs/blu_context_service/tests/unit/test_knowledge_graph_summary.py.",
+      "type": "test",
+      "files": [
+        "libs/blu_models/tests/unit/test_context_schemas.py",
+        "services/tool_pool_api/tests/unit/test_knowledge_graph_sync.py",
+        "libs/blu_context_service/tests/unit/test_knowledge_graph_summary.py"
+      ],
+      "dependencies": [
+        "T4.3a",
+        "T4.3b",
+        "T4.3c"
+      ],
+      "acceptance": "pytest passa em todos os novos arquivos; cobertura >= 80% nas novas functions; integração com Supabase local/test passa."
     }
   ],
   "risks": [
-    "Performance: queries com text_search no jsonb value podem ser lentas sem índice GIN; considerar adicionar índice em migration futura se necessário",
-    "Compatibilidade: expansão de _VALID_ENTITY_TYPES não deve quebrar tools existentes (shared_memory_list, read, etc.)",
-    "Autorização: garantir que client_id do JWT é respeitado (usar @mcp_inject_client_id)"
+    {
+      "id": "R1",
+      "risk": "LightRAG (Fase 3) ainda não implementado — knowledge_graph_summary ficará None/empty até T4.1",
+      "mitigation": "Campo opcional no schema (DD-02). Context Service e specialists tratam None graciosamente (fallback: 'conhecimento do grafo não disponível'). Sem breaking change."
+    },
+    {
+      "id": "R2",
+      "risk": "Concorrência: job T4.1 e possível rota manual de atualização podem race condition no available_tools JSONB",
+      "mitigation": "Upsert usa version no summary para detectar stale writes (optimistic locking). Context Service cache TTL curto (5min). Job T4.1 é single-writer (cron semanal)."
+    },
+    {
+      "id": "R3",
+      "risk": "Top 10 entities por grau pode vazar informação sensível entre tenants se RLS falhar",
+      "mitigation": "RLS em clientes_blu usa app.client_id — mesmo mecanismo das outras sections. update_knowledge_graph_summary executa com RLS context set via supabase_set_rls (via ContextService internamente). Testar RLS em testes de integração."
+    },
+    {
+      "id": "R4",
+      "risk": "Schema evolution: se estrutura do summary mudar (ex: adicionar métricas), version field permite migração",
+      "mitigation": "version no KnowledgeGraphSummary (DD-04). ContextService.get_knowledge_graph_summary pode retornar versões antigas ou migrar on-read. Documentar política de versionamento."
+    }
   ],
   "design_questions": [
-    "O text_search deve usar ILIKE no value::text ou to_tsvector para full-text search avançado?",
-    "Adicionar suporte a filtros avançados como 'key IN (...)' ou 'entity_name ILIKE %pattern%'?",
-    "Retornar apenas campos essenciais (id, entity_type, entity_name, key, value, updated_at) ou registro completo?"
+    {
+      "id": "DQ1",
+      "question": "O knowledge_graph_summary deve incluir métricas de qualidade (ex: % entidades com source SBM vs upload)?",
+      "status": "open"
+    },
+    {
+      "id": "DQ2",
+      "question": "Specialists além de 'rag'/'documents' devem receber o summary? (ex: crm, financeiro para decisão de tool)",
+      "status": "open"
+    },
+    {
+      "id": "DQ3",
+      "question": "Frequência de atualização: T4.1 é semanal. Se job falhar, summary fica stale. Adicionar 'stale_after_hours' no summary?",
+      "status": "open"
+    }
   ],
-  "acceptance_criteria": [
-    "Tool shared_memory_search registrada e funcional no tool_pool_api",
-    "Suporta todos os filtros combinados: entity_type, entity_name, key_prefix, key_pattern, category, source, confidence_min, date_from, date_to, text_search",
-    "Paginação funcionando (limit, offset, total_count, has_more)",
-    "Ordenação configurável (updated_at desc default)",
-    "Validação de entity_type contra lista expandida",
-    "Autenticação via @mcp_inject_client_id respeitada",
-    "Documentação na description da tool clara para consumo por agentes"
-  ]
+  "related_issues": [
+    29,
+    30,
+    32
+  ],
+  "next_phase_dependencies": {
+    "T4.1_enrichment_job": "Precisa de update_knowledge_graph_summary (T4.3b) + schema (T4.3a) para atualizar summary após sync SBM\u2192LightRAG",
+    "T4.2_deduplication": "Pode usar knowledge_graph_summary.total_entities para monitorar crescimento do grafo",
+    "rag_search_skill": "Pode ler get_knowledge_graph_summary para decidir modo de busca (local/mix/global) baseado em total_entities"
+  }
 }

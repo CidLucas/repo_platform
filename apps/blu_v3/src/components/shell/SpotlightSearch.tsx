@@ -18,6 +18,7 @@ const BASE_ITEMS: SpotlightItem[] = [
   { s: 'documentos', label: 'Documentos',  desc: 'Propostas, contratos e documentos',            icon: '📝' },
   { s: 'estrategia', label: 'Estratégia',  desc: 'Metas, OKRs e planos de ação',                icon: '🎯' },
   { s: 'clientes',   label: 'Clientes',    desc: 'Base de clientes e relacionamento',            icon: '👥' },
+  { s: 'biblioteca', label: 'Biblioteca', desc: 'Memória de negócio compartilhada',              icon: '📚' },
   { s: 'atividade',  label: 'Atividade',   desc: 'Notificações e histórico de ações',            icon: '🔔' },
 ]
 

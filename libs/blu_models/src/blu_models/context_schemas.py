@@ -311,6 +311,19 @@ class AvailableTools(BaseModel):
         description="Default instruction for all agents of this client",
     )
 
+    # Knowledge Graph summary (populated by LightRAG sync pipeline)
+    knowledge_graph_summary: dict[str, Any] | None = Field(
+        None,
+        description=(
+            "Snapshot of the client's knowledge graph state. "
+            "Fields: total_documents (int), total_entities (int), "
+            "top_entities_by_degree (list of {name, degree}, top 10), "
+            "last_sync_at (ISO datetime str), "
+            "sync_status ('ok'|'in_progress'|'failed'|'never'). "
+            "Nullable — zero breaking change for existing clients."
+        ),
+    )
+
 
 # =============================================================================
 # SCHEMA REGISTRY

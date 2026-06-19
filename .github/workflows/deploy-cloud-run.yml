@@ -1,12 +1,6 @@
 name: Deploy to Cloud Run
 
 on:
-  # Trigger after CI workflow completes successfully
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main]
-  # Manual trigger for ad-hoc deployments
   workflow_dispatch:
     inputs:
       service:
@@ -23,216 +17,19 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   REGION: southamerica-east1
-  REGISTRY: southamerica-east1-docker.pkg.dev
 
 jobs:
-  # =================================================================
-  # Pre-flight checks
-  # =================================================================
-  preflight:
-    name: Preflight Checks
-    runs-on: ubuntu-latest
-    # Skip if CI workflow failed (only applies to workflow_run trigger)
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
-    outputs:
-      services: ${{ steps.services.outputs.list }}
-    steps:
-      - name: Check CI workflow result
-        if: github.event_name == 'workflow_run'
-        run: |
-          echo "## 🔗 Triggered by CI workflow" >> $GITHUB_STEP_SUMMARY
-          echo "CI Run: ${{ github.event.workflow_run.html_url }}" >> $GITHUB_STEP_SUMMARY
-          echo "Result: ✅ ${{ github.event.workflow_run.conclusion }}" >> $GITHUB_STEP_SUMMARY
-
-      - name: Validate required secrets
-        run: |
-          echo "## 🔍 Preflight Checks" >> $GITHUB_STEP_SUMMARY
-          ERRORS=0
-
-          if [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
-            echo "❌ GCP_PROJECT_ID secret is not set" >> $GITHUB_STEP_SUMMARY
-            ERRORS=$((ERRORS + 1))
-          else
-            echo "✅ GCP_PROJECT_ID is configured" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
-            echo "❌ GCP_SA_KEY secret is not set" >> $GITHUB_STEP_SUMMARY
-            ERRORS=$((ERRORS + 1))
-          else
-            echo "✅ GCP_SA_KEY is configured" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          if [ -z "${{ secrets.SUPABASE_URL }}" ]; then
-            echo "❌ SUPABASE_URL secret is not set" >> $GITHUB_STEP_SUMMARY
-            ERRORS=$((ERRORS + 1))
-          else
-            echo "✅ SUPABASE_URL is configured" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          if [ -z "${{ secrets.VITE_SUPABASE_URL }}" ]; then
-            echo "❌ VITE_SUPABASE_URL secret is not set (required for dashboard build)" >> $GITHUB_STEP_SUMMARY
-            ERRORS=$((ERRORS + 1))
-          else
-            echo "✅ VITE_SUPABASE_URL is configured" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          if [ $ERRORS -gt 0 ]; then
-            echo "### ❌ Preflight failed" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
-
-          echo "### ✅ All preflight checks passed" >> $GITHUB_STEP_SUMMARY
-
-      - name: Set services to deploy
-        id: services
-        run: |
-          if [ "${{ github.event.inputs.service }}" == "all" ] || [ -z "${{ github.event.inputs.service }}" ]; then
-            echo 'list=["atendente-core", "tool-pool-api", "blu-dashboard"]' >> $GITHUB_OUTPUT
-          else
-            echo 'list=["${{ github.event.inputs.service }}"]' >> $GITHUB_OUTPUT
-          fi
-
-  # =================================================================
-  # Deploy services to Cloud Run
-  # Sensitive values read from GCP Secret Manager via --set-secrets
-  # Non-sensitive config passed via --set-env-vars from GitHub Secrets
-  # =================================================================
   deploy:
     name: Deploy ${{ matrix.service }}
-    needs: preflight
     runs-on: ubuntu-latest
     strategy:
       matrix:
         service: ${{ fromJson(needs.preflight.outputs.services) }}
-      fail-fast: false
-    env:
-      GCP_REGION: southamerica-east1
     steps:
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Deploy ${{ matrix.service }}
-        env:
-          # Non-sensitive config (from GitHub Secrets/Variables)
-          # Langfuse and other sensitive values are read from GCP Secret Manager via --set-secrets
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          MCP_AUTH_GOOGLE_CLIENT_ID: ${{ secrets.MCP_AUTH_GOOGLE_CLIENT_ID }}
-        run: |
-          REGISTRY="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/blu-mono"
-          SERVICE="${{ matrix.service }}"
-          # Convert service name to image name (underscores for image)
-          IMAGE_NAME=$(echo "${SERVICE}" | tr '-' '_')
-          IMAGE="${REGISTRY}/blu-${IMAGE_NAME}:latest"
-
-          echo "### 🚀 Deploying ${SERVICE}" >> $GITHUB_STEP_SUMMARY
-          echo "Image: ${IMAGE}" >> $GITHUB_STEP_SUMMARY
-
-          # Verify image exists
-          if ! gcloud artifacts docker images describe "${IMAGE}" --verbosity=none 2>/dev/null; then
-            echo "❌ Image not found: ${IMAGE}" >> $GITHUB_STEP_SUMMARY
-            echo "Run CI workflow first to build and push images." >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
-
-          # Service-specific configuration (service names use hyphens for Cloud Run)
-          case "${SERVICE}" in
-            atendente-core)
-              gcloud run deploy "${SERVICE}" \
-                --image "${IMAGE}" \
-                --region "${GCP_REGION}" \
-                --platform managed \
-                --allow-unauthenticated \
-                --memory 2Gi --cpu 2 \
-                --concurrency 10 --timeout 3600 \
-                --max-instances 50 --min-instances 0 \
-                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=ollama_cloud,OLLAMA_CLOUD_BASE_URL=https://ollama.com,LANGFUSE_HOST=https://us.cloud.langfuse.com,TOOL_POOL_URL=https://tool-pool-api-858493958314.southamerica-east1.run.app,MCP_SERVER_URL=https://tool-pool-api-858493958314.southamerica-east1.run.app/mcp/,CORS_ORIGINS=https://blu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL}" \
-                --set-secrets "SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,SUPABASE_JWT_SECRET=SUPABASE_JWT_SECRET:latest,SUPABASE_JWT_JWK=SUPABASE_JWT_JWK:latest,OLLAMA_CLOUD_API_KEY=OLLAMA_CLOUD_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,DATABASE_URL=DATABASE_URL_PROD:latest,REDIS_URL=REDIS_URL:latest,OTEL_EXPORTER_OTLP_ENDPOINT=OTEL_EXPORTER_OTLP_ENDPOINT:latest,OTEL_EXPORTER_OTLP_HEADERS=OTEL_EXPORTER_OTLP_HEADERS:latest" \
-                --quiet
-              ;;
-
-            tool-pool-api)
-              gcloud run deploy "${SERVICE}" \
-                --image "${IMAGE}" \
-                --region "${GCP_REGION}" \
-                --platform managed \
-                --allow-unauthenticated \
-                --memory 2Gi --cpu 2 \
-                --concurrency 5 --timeout 3600 \
-                --max-instances 20 --min-instances 0 \
-                --set-env-vars "ENVIRONMENT=production,LOG_LEVEL=INFO,LLM_PROVIDER=ollama_cloud,OLLAMA_CLOUD_BASE_URL=https://ollama.com,LANGFUSE_HOST=https://us.cloud.langfuse.com,CORS_ORIGINS=https://blu-dashboard-858493958314.southamerica-east1.run.app,SUPABASE_URL=${SUPABASE_URL},MCP_AUTH_GOOGLE_CLIENT_ID=${MCP_AUTH_GOOGLE_CLIENT_ID}" \
-                --set-secrets "SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,OLLAMA_CLOUD_API_KEY=OLLAMA_CLOUD_API_KEY:latest,LANGFUSE_PUBLIC_KEY=LANGFUSE_PUBLIC_KEY:latest,LANGFUSE_SECRET_KEY=LANGFUSE_SECRET_KEY:latest,CREDENTIALS_ENCRYPTION_KEY=CREDENTIALS_ENCRYPTION_KEY:latest,DATABASE_URL=DATABASE_URL_PROD:latest,REDIS_URL=REDIS_URL:latest,OTEL_EXPORTER_OTLP_ENDPOINT=OTEL_EXPORTER_OTLP_ENDPOINT:latest,OTEL_EXPORTER_OTLP_HEADERS=OTEL_EXPORTER_OTLP_HEADERS:latest" \
-                --quiet
-              ;;
-
-            blu-dashboard)
-              gcloud run deploy "${SERVICE}" \
-                --image "${IMAGE}" \
-                --region "${GCP_REGION}" \
-                --platform managed \
-                --allow-unauthenticated \
-                --memory 256Mi --cpu 1 \
-                --concurrency 100 --timeout 60 \
-                --max-instances 10 --min-instances 0 \
-                --port 80 \
-                --quiet
-              ;;
-          esac
-
-          # Get service URL
-          URL=$(gcloud run services describe "${SERVICE}" --region "${GCP_REGION}" --format 'value(status.url)')
-          echo "✅ **${SERVICE}**: ${URL}" >> $GITHUB_STEP_SUMMARY
-
-  # =================================================================
-  # Post-deploy: Update service URLs
-  # =================================================================
-  post-deploy:
-    name: Post-Deploy Configuration
-    needs: deploy
-    runs-on: ubuntu-latest
-    env:
-      GCP_REGION: southamerica-east1
-    steps:
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Get service URLs and update inter-service communication
-        run: |
-          echo "### 📋 Deployed Services" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Service | URL |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|-----|" >> $GITHUB_STEP_SUMMARY
-
-          # Get all service URLs (using hyphenated names for Cloud Run)
-          ATENDENTE_URL=$(gcloud run services describe atendente-core --region "${GCP_REGION}" --format 'value(status.url)' 2>/dev/null || echo "not deployed")
-          TOOL_POOL_URL=$(gcloud run services describe tool-pool-api --region "${GCP_REGION}" --format 'value(status.url)' 2>/dev/null || echo "not deployed")
-
-          DASHBOARD_URL=$(gcloud run services describe blu-dashboard --region \"${GCP_REGION}\" --format 'value(status.url)' 2>/dev/null || echo \"not deployed\")
-
-          echo \"| atendente-core | ${ATENDENTE_URL} |\" >> $GITHUB_STEP_SUMMARY
-          echo \"| tool-pool-api | ${TOOL_POOL_URL} |\" >> $GITHUB_STEP_SUMMARY
-          echo "| blu-dashboard | ${DASHBOARD_URL} |" >> $GITHUB_STEP_SUMMARY
-
-          # Update atendente-core with tool-pool-api URL (MCP_SERVER_URL)
-          if [ "${TOOL_POOL_URL}" != "not deployed" ] && [ "${ATENDENTE_URL}" != "not deployed" ]; then
-            echo ""
-            echo "Updating atendente-core with MCP_SERVER_URL..."
-            gcloud run services update atendente-core \
-              --region "${GCP_REGION}" \
-              --update-env-vars "MCP_SERVER_URL=${TOOL_POOL_URL}/mcp/" \
-              --quiet
-            echo "✅ Updated MCP_SERVER_URL"
-          fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🎉 Deployment Complete" >> $GITHUB_STEP_SUMMARY
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: |
+          IMAGE="southamerica-east1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/blu-mono/blu-$(echo ${{ matrix.service }} | tr '-' '_'):latest"
+          gcloud run deploy ${{ matrix.service }} --image "${IMAGE}" --region ${{ env.REGION }} --quiet

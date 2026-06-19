@@ -10,10 +10,13 @@ Tools registered:
   - shared_memory_list    -> list entities with memory entries
   - shared_memory_read    -> read a single fact by composite key
   - shared_memory_upsert  -> insert or update a fact (versioned)
+  - shared_memory_meta_upsert -> insert or update a meta entry in shared_business_memory_meta
   - shared_memory_write   -> write a new fact (strict INSERT; supersede=True to upsert)
   - shared_memory_link    -> create semantic link between entities
   - shared_memory_unlink  -> remove a link by id
   - shared_memory_get_links -> query links by entity and/or type
+  - shared_memory_meta_read  -> read a single meta entry from shared_business_memory_meta
+  - shared_memory_meta_list  -> list meta entries, optionally filtered by entity_type
 
 Design doc: docs/llm_wiki/SHARED_MEMORY_DESIGN.md (Fase 0)
 """
@@ -1114,6 +1117,91 @@ def register_tools(mcp: FastMCP) -> list[str]:
     registered_tools.append("shared_memory_upsert")
 
     # ----------------------------------------------------------------------
+    # shared_memory_meta_upsert -- insert or update a meta entry (T4.2d)
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_meta_upsert",
+        description=(
+            "[Shared Memory Meta] Insert or update a meta entry in "
+            "shared_business_memory_meta. Used for operational pipeline data "
+            "(synthesis outputs, dedup mappings, knowledge graph summaries). "
+            "Uses upsert semantics via ON CONFLICT (client_id, entity_type, "
+            "entity_name, key). "
+            "Valid entity types: synthesis_output | dedup_mapping | kg_summary."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_meta_upsert(
+        ctx: Context,
+        entity_type: str,
+        entity_name: str,
+        key: str,
+        value: dict,
+        source: str = "system",
+        confidence: float = 1.0,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Insert or update a meta entry in shared_business_memory_meta.
+
+        Args:
+            entity_type: Meta entity type (synthesis_output | dedup_mapping | kg_summary).
+            entity_name: Entity name (case-insensitive, normalized to lowercase).
+            key: Atomic fact key (max 256 chars).
+            value: JSON value (the fact content -- maps to 'body' column).
+            source: Provenance -- "manual" | "memory_agent" | "specialist" | "migration" | "system".
+            confidence: Confidence score (0.0--1.0, default 1.0).
+
+        Returns:
+            dict with the full upserted record: id, client_id, entity_type,
+            entity_name, key, value, source, confidence, metadata,
+            created_at, updated_at.
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_meta_upsert "
+            "entity_type=%s entity_name=%s key=%s client_id=%s",
+            entity_type,
+            entity_name,
+            key,
+            client_id,
+        )
+
+        try:
+            result = await _shared_memory_meta_upsert_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                key=key,
+                body=value,
+                source=source,
+                confidence=confidence,
+            )
+            # Map 'body' -> 'value' in the return for tool-level consistency
+            result["value"] = result.pop("body", value)
+            result["metadata"] = result.get("metadata", {})
+            return result
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_meta_upsert failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to upsert shared-memory-meta entry: {exc}"
+            )
+
+    logger.info(
+        "[Memory Module] Tool 'shared_memory_meta_upsert' registered."
+    )
+    registered_tools.append("shared_memory_meta_upsert")
+
+    # ----------------------------------------------------------------------
     # shared_memory_write --  write a new fact (strict INSERT by default)
     # ----------------------------------------------------------------------
 
@@ -1448,5 +1536,143 @@ def register_tools(mcp: FastMCP) -> list[str]:
         "[Memory Module] Tool 'shared_memory_get_links' registered."
     )
     registered_tools.append("shared_memory_get_links")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_meta_read -- read a single meta entry from meta table
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_meta_read",
+        description=(
+            "[Shared Memory Meta] Read a single entry from "
+            "shared_business_memory_meta by its composite key "
+            "(client_id, entity_type, entity_name, key). "
+            "Valid entity types: synthesis_output | dedup_mapping | kg_summary. "
+            "Returns the full record including body, source, confidence, "
+            "and timestamps."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_meta_read(
+        ctx: Context,
+        entity_type: str,
+        entity_name: str,
+        key: str,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Read a single shared-memory-meta entry by its composite key.
+
+        Args:
+            entity_type: Meta entity type (synthesis_output | dedup_mapping | kg_summary).
+            entity_name: Entity name (case-insensitive, normalized to lowercase).
+            key: Meta key (e.g. "summary", "dedup_rules").
+
+        Returns:
+            dict with the full record: id, client_id, entity_type, entity_name,
+            key, body, source, confidence, created_at, updated_at.
+
+        Raises:
+            ToolError: If the entry is not found or entity_type is invalid.
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_meta_read "
+            "entity_type=%s entity_name=%s key=%s client_id=%s",
+            entity_type,
+            entity_name,
+            key,
+            client_id,
+        )
+
+        try:
+            return await _shared_memory_meta_read_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                key=key,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_meta_read failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to read shared-memory-meta entry: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_meta_read' registered.")
+    registered_tools.append("shared_memory_meta_read")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_meta_list -- list meta entries with optional filter
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_meta_list",
+        description=(
+            "[Shared Memory Meta] List all entities that have meta entries "
+            "in shared_business_memory_meta for the current client. "
+            "Optionally filter by entity_type "
+            "(synthesis_output | dedup_mapping | kg_summary). "
+            "Returns a summary with total_entities, by_type breakdown, "
+            "and the entities array with key-counts and last-updated timestamps."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_meta_list(
+        ctx: Context,
+        entity_type: str | None = None,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        List meta entries from shared_business_memory_meta.
+
+        Args:
+            entity_type: Optional filter --
+                         "synthesis_output", "dedup_mapping", or "kg_summary".
+                         When omitted all entity types are returned.
+
+        Returns:
+            dict with total_entities, client_id, entity_type_filter,
+            by_type breakdown, and entities array sorted by
+            (entity_type, entity_name).
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_meta_list "
+            "client_id=%s entity_type=%s",
+            client_id,
+            entity_type,
+        )
+
+        try:
+            return await _shared_memory_meta_list_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_meta_list failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to list shared-memory-meta entries: {exc}"
+            )
+
+    logger.info(
+        "[Memory Module] Tool 'shared_memory_meta_list' registered."
+    )
+    registered_tools.append("shared_memory_meta_list")
 
     return registered_tools

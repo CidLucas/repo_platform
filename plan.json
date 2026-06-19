@@ -1,0 +1,71 @@
+{
+  "issue_number": 20,
+  "title": "Fase 1 — Validação de integridade da shared memory (T1.4)",
+  "scope": "Implementar validação de integridade e consistência dos dados na shared_business_memory, incluindo: (1) constraints e triggers de validação no DB, (2) validação no lado da tool (memory_module.py), (3) hook de integridade pós-escrita, (4) migration com constraint checks + auditoria, (5) Domain Projection: atualizar _DOMAIN_SECTIONS no context_service.py, (6) documentação em docs/llm_wiki/SHARED_MEMORY_DESIGN.md seção T1.4.",
+  "affected_files": [
+    "docs/llm_wiki/SHARED_MEMORY_DESIGN.md",
+    "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py",
+    "supabase/migrations/proposed/20260619000002_shared_memory_integrity.sql",
+    "libs/blu_context_service/src/blu_context_service/context_service.py",
+    "docs/system_reference/TOOL_INVENTORY.md"
+  ],
+  "subtasks": [
+    {
+      "id": "T1.4a",
+      "name": "Data integrity constraints — migration SQL",
+      "description": "Criar migration com constraints: (1) CHECK value NOT NULL, (2) CHECK body > 0 quando presente, (3) function plpgsql de validação semântica (entity_type compatível com key), (4) trigger BEFORE INSERT OR UPDATE, (5) view audit_shared_memory_integrity.",
+      "effort": "large"
+    },
+    {
+      "id": "T1.4b",
+      "name": "Tool-level validation — memory_module.py",
+      "description": "Adicionar validação nas tools: (1) payload validation pré-DB, (2) verificar entidade destino antes de link, (3) flag integrity_check: bool para bypass, (4) warnings de integridade no output, (5) logging estruturado.",
+      "effort": "large"
+    },
+    {
+      "id": "T1.4c",
+      "name": "Consistency hook pós-escrita",
+      "description": "Hook assíncrono após write/upsert: (1) validar links existentes, (2) detectar conflitos semânticos, (3) tool shared_memory_consistency_report, (4) fire-and-forget assíncrono, (5) log de auditoria.",
+      "effort": "medium"
+    },
+    {
+      "id": "T1.4d",
+      "name": "Domain Projection — context_service.py",
+      "description": "Atualizar _DOMAIN_SECTIONS: (1) adicionar domínio 'memory' com company_profile/policies/available_tools, (2) verificar mapeamento dos novos campos (processes, projects, etc), (3) brand_voice/policies no domínio memory-agent, (4) testes de projeção, (5) atualizar BluClientContext se necessário.",
+      "effort": "medium"
+    },
+    {
+      "id": "T1.4e",
+      "name": "Auditoria de integridade — tool e job",
+      "description": "Tool shared_memory_integrity_check: varre shared_business_memory + shared_memory_links por entidades órfãs, confidence suspeita, duplicatas, registros sem atualização. Output ETL-friendly. Opcional: rotina periódica semanal.",
+      "effort": "medium"
+    },
+    {
+      "id": "T1.4f",
+      "name": "Documentação — SHARED_MEMORY_DESIGN.md T1.4",
+      "description": "Criar docs/llm_wiki/SHARED_MEMORY_DESIGN.md com índice completo (T0.0-T0.5, T1.2-T1.4), seção T1.4 validação, T1.4.1 Domain Projection matrix, boas práticas para agentes.",
+      "effort": "small"
+    }
+  ],
+  "risks": [
+    "R1 — Performance: validação extra pode adicionar latência. Mitigação: flag integrity_check opcional, hook assíncrono.",
+    "R2 — Falsos positivos na auditoria: entity pode existir só como alvo de links. Mitigação: auditoria trata entities-only-as-links como válidas.",
+    "R3 — Domain projection desatualizada: novos campos sem _DOMAIN_SECTIONS. Mitigação: teste que verifica todos os campos em ao menos um domínio.",
+    "R4 — Nomes normalizados colidem: 'João Silva' e 'joão silva' = mesma entidade. Mitigação: documentar edge case, recomendar IDs únicos.",
+    "R5 — shared_memory_write tool MCP não existe. Pode ser necessário criar ou documentar validação via context_service."
+  ],
+  "dependencies": [
+    "#11 — Schema shared_business_memory (tabela existe no main)",
+    "#12-15 — Tools list/link/unlink/get_links (memory_module.py)",
+    "shared_business_memory + shared_memory_links migrations (propostas)",
+    "context_service.py com _DOMAIN_SECTIONS (9 domínios atuais)"
+  ],
+  "design_reference": "docs/roadmap/blu-intelligent-memory.md — Fase 1 seção 1.4 (Domain Projection). memory_module.py (tools atuais). context_service.py (_DOMAIN_SECTIONS).",
+  "design_questions": [
+    "DQ1 — DB triggers vs tool validation? Recomendação: ambos — DB como safety net, tool para UX/logging.",
+    "DQ2 — Consistency hook síncrono vs assíncrono? Recomendação: assíncrono (fire-and-forget).",
+    "DQ3 — Novo domínio 'memory' vs expandir existentes? Recomendação: expandir 'knowledge'/'rag'/'documents'.",
+    "DQ4 — shared_memory_write como MCP tool ou só context_service? Recomendação: criar MCP tool para agents escreverem diretamente."
+  ],
+  "assigned_worker": "factory-planner"
+}

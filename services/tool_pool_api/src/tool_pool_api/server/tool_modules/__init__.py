@@ -27,6 +27,8 @@ from fastmcp import FastMCP
 
 logger = logging.getLogger(__name__)
 
+from . import knowledge_graph_sync  # noqa: F401  # T4.3b — internal tool
+
 # Registry de módulos de tools
 # Cada módulo exporta uma função register_tools(mcp: FastMCP) -> List[str]
 # que retorna os nomes das tools registradas
@@ -74,6 +76,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
         rfq_module,
         rfq_whatsapp_module,
         routines_module,  # noqa: F401
+        sbm_to_lightrag_synthesis,  # noqa: F401
         sql_module,
         whatsapp_client_module,
         web_crawl_module,
@@ -334,6 +337,9 @@ AVAILABLE_MODULES = {
         ],
         "requires_auth": True,
     },
+    "knowledge_graph": {
+        "description": "Knowledge Graph summary sync — updates available_tools after enrichment job",
+        "tools": ["update_knowledge_graph_summary"],
     "memory_pre_flight": {
         "description": "Pre-flight shared memory context — reads recent agent execution history from shared_business_memory",
         "tools": [

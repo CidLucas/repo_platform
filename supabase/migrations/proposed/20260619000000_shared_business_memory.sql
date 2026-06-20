@@ -51,6 +51,12 @@ CREATE TABLE IF NOT EXISTS public.shared_business_memory (
     created_at  timestamptz NOT NULL DEFAULT now(),
     updated_at  timestamptz NOT NULL DEFAULT now(),
 
+    -- Lifecycle / retention policy (Fase 4)
+    soft_delete_at   TIMESTAMPTZ,
+    hard_delete_at   TIMESTAMPTZ,
+    ttl_tier         TEXT CHECK (ttl_tier IN ('curated','migration','specialist','memory_agent_hi','memory_agent_lo')),
+    archived         BOOLEAN DEFAULT FALSE,
+
     -- Cada (client_id, entity_type, entity_name, key) é único
     CONSTRAINT uq_shared_memory_entry
         UNIQUE (client_id, entity_type, entity_name, key)
@@ -67,6 +73,14 @@ COMMENT ON COLUMN public.shared_business_memory.category IS
     'Semantic category for filtering and routing: knowledge | rag | documents | memory-agent | context | decision | preference';
 COMMENT ON COLUMN public.shared_business_memory.source IS
     'Provenance: manual | memory_agent | specialist | migration | system';
+COMMENT ON COLUMN public.shared_business_memory.soft_delete_at IS
+    'Fase 4 — Timestamp when the fact was soft-deleted (archived). After 90d archival period, hard_delete_at triggers physical deletion.';
+COMMENT ON COLUMN public.shared_business_memory.hard_delete_at IS
+    'Fase 4 — Timestamp when the fact becomes eligible for physical deletion (soft_delete_at + 90d).';
+COMMENT ON COLUMN public.shared_business_memory.ttl_tier IS
+    'Fase 4 — Retention tier: curated (∞), migration (90d), specialist (30d), memory_agent_hi (14d), memory_agent_lo (7d).';
+COMMENT ON COLUMN public.shared_business_memory.archived IS
+    'Fase 4 — Soft-delete flag: TRUE if the fact has been archived and is pending hard-delete.';
 
 -- ---------------------------------------------------------------------------
 -- Indexes
@@ -88,6 +102,18 @@ CREATE INDEX IF NOT EXISTS idx_sbm_key_trgm
 CREATE INDEX IF NOT EXISTS idx_sbm_category
     ON public.shared_business_memory (client_id, category)
     WHERE category IS NOT NULL;
+
+-- Prune lifecycle indexes (Fase 4)
+CREATE INDEX IF NOT EXISTS idx_sbm_soft_delete
+    ON public.shared_business_memory (soft_delete_at)
+    WHERE soft_delete_at IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_sbm_hard_delete
+    ON public.shared_business_memory (hard_delete_at)
+    WHERE hard_delete_at IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_sbm_ttl_tier
+    ON public.shared_business_memory (ttl_tier);
 
 -- ---------------------------------------------------------------------------
 -- Updated-at trigger

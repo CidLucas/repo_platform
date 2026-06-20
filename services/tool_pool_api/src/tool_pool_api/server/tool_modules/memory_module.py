@@ -26,6 +26,7 @@ Design doc: docs/llm_wiki/SHARED_MEMORY_DESIGN.md (Fase 0)
 
 import json
 import logging
+import time
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
@@ -926,6 +927,16 @@ async def _shared_memory_upsert_logic(
         "soft_delete_at": ttl_info["soft_delete_at"],
         "hard_delete_at": ttl_info["hard_delete_at"],
     }
+
+    # Gerar embedding (T3.1b — sync write, NUNCA bloqueia)
+    await _try_generate_embedding(
+        entity_type=entity_type,
+        entity_name=entity_name,
+        key=key,
+        payload=payload,
+        value=body,
+        category=payload.get("category"),
+    )
 
     try:
         result = await (

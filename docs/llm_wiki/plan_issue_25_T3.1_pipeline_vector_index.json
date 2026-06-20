@@ -1,0 +1,161 @@
+{
+  "issue_number": 25,
+  "issue_title": "Fase 3 — Pipeline de indexação para vector store",
+  "phase": "Fase 3",
+  "task_id": "T3.1",
+  "symbolic_ref": "docs/llm_wiki/SHARED_MEMORY_DESIGN.md — T3.1",
+  "scope": "Criar pipeline de indexação vetorial para shared_business_memory: adicionar colunas de embedding, criar tabela/índice pgvector, implementar geração de embeddings on-write e job de backfill em lote",
+  "subtasks": [
+    {
+      "id": "T3.1a",
+      "title": "Migration SQL: adicionar coluna embedding + índice pgvector em shared_business_memory",
+      "description": "Adicionar coluna `embedding vector(1536)` (ou dimensão do modelo usado) à tabela `shared_business_memory`. Criar índice IVFFLAT ou HNSW para busca por similaridade cosseno. Garantir RLS e gráficos de grants",
+      "type": "migration",
+      "files": [
+        "supabase/migrations/proposed/20260619000003_shared_memory_vector.sql"
+      ],
+      "dependencies": [],
+      "acceptance": "Migration aplica sem erro; coluna embedding existe; índice pgvector criado; RLS preservada"
+    },
+    {
+      "id": "T3.1b",
+      "title": "Memory module: hook de geração de embedding no write/upsert",
+      "description": "Modificar `memory_module.py` para gerar embedding do `value` (JSONB) ao fazer upsert/write. Usar `blu_llm_service` ou cliente de embedding dedicado. Embedding deve ser gerado a partir de representação textual do fato (entity_type + entity_name + key + value)",
+      "type": "code",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py"
+      ],
+      "dependencies": ["T3.1a"],
+      "acceptance": "Inserção/atualização via shared_memory_upsert/write popula embedding automaticamente; não quebra operações existentes"
+    },
+    {
+      "id": "T3.1c",
+      "title": "Edge Function / RPC: busca vetorial em shared_business_memory",
+      "description": "Criar Edge Function `search-shared-memory` ou RPC `match_shared_business_memory` que recebe query embedding + parâmetros (client_id, entity_type, category, threshold, match_count) e retorna fatos similares ordenados por similaridade cosseno",
+      "type": "code",
+      "files": [
+        "supabase/functions/search-shared-memory/index.ts",
+        "supabase/migrations/proposed/20260619000004_shared_memory_vector_rpc.sql"
+      ],
+      "dependencies": ["T3.1a"],
+      "acceptance": "Edge Function/RPC responde com fatos relevantes; respeita RLS; suporta filtros por entity_type, category, key"
+    },
+    {
+      "id": "T3.1d",
+      "title": "Job de backfill: gerar embeddings para fatos existentes",
+      "description": "Script/worker que itera sobre `shared_business_memory` onde `embedding IS NULL`, gera embeddings em lote (batch API) e atualiza. Idempotente e reiniciável. Integra com pg_cron para execução noturna ou on-demand via admin",
+      "type": "code",
+      "files": [
+        "scripts/backfill_shared_memory_embeddings.py",
+        "supabase/migrations/proposed/20260619000005_backfill_embeddings_cron.sql"
+      ],
+      "dependencies": ["T3.1a", "T3.1b"],
+      "acceptance": "Script executa sem erro; popula embedding para registros sem embedding; loga progresso; pode ser re-executado sem duplicar"
+    },
+    {
+      "id": "T3.1e",
+      "title": "Integração com blu_llm_service: cliente de embeddings reutilizável",
+      "description": "Adicionar função `get_embeddings(texts: list[str]) -> list[list[float]]` em `blu_llm_service` (lib compartilhada) usando modelo configurável (ex: text-embedding-3-small via OpenAI, ou Ollama). Cache opcional para idempotência",
+      "type": "code",
+      "files": [
+        "libs/blu_llm_service/src/blu_llm_service/embeddings.py",
+        "libs/blu_llm_service/src/blu_llm_service/__init__.py"
+      ],
+      "dependencies": [],
+      "acceptance": "Função retorna embeddings válidos; trata erros de API; suporta batch; usa modelo de config/env"
+    },
+    {
+      "id": "T3.1f",
+      "title": "Testes unitários + integração",
+      "description": "Testes para: migration (schema), geração de embedding no write, busca vetorial (mock Edge Function), backfill script, cliente de embeddings. Cobrir casos: embedding nulo, erro de API, RLS, batch grande",
+      "type": "test",
+      "files": [
+        "tests/unit/test_shared_memory_vector.py",
+        "tests/integration/test_shared_memory_vector_search.py"
+      ],
+      "dependencies": ["T3.1a", "T3.1b", "T3.1c", "T3.1d", "T3.1e"],
+      "acceptance": "pytest passa; cobertura >= 80% nas novas functions; integração com Supabase local/test"
+    }
+  ],
+  "design_decisions": [
+    {
+      "id": "DD-01",
+      "decision": "Embedding armazenado na mesma tabela shared_business_memory (coluna vector) em vez de tabela separada",
+      "rationale": "Simplicidade operacional: uma linha = um fato + seu embedding. Evita joins Complexos. Tamanho estimado: ~1536 bytes por fat ~1.5KB. Com 100k fatos = ~150MB, aceitável para pgvector"
+    },
+    {
+      "id": "DD-02",
+      "decision": "Dimensão do embedding: 1536 (text-embedding-3-small) ou 768 (nomic-embed-text via Ollama)",
+      "rationale": "1536 oferece melhor qualidade; 768 mais leve para Ollama local. Definir via env var `EMBEDDING_DIM` com default 1536. Migration usa `vector(1536)` mas pode ser ajustada"
+    },
+    {
+      "id": "DD-03",
+      "decision": "Índice HNSW (Hierarchical Navigable Small World) em vez de IVFFLAT",
+      "rationale": "HNSW tem melhor recall/query speed para workloads de busca semântica interativa. IVFFLAT é mais rápido para build mas pior recall. `CREATE INDEX ... USING hnsw (embedding vector_cosine_ops)`"
+    },
+    {
+      "id": "DD-04",
+      "decision": "Representação textual para embedding: `f\"{entity_type}:{entity_name} | {key}: {json.dumps(value, ensure_ascii=False)}\"`",
+      "rationale": "Preserva contexto semântico completo. Alternativas testadas: apenas key+value (perde entity), apenas value (perde key). Esta forma maximalista garante melhor retrieval"
+    },
+    {
+      "id": "DD-05",
+      "decision": "Embedding gerado synchronously no write/upsert (T3.1b) + backfill assíncrono para dados existentes (T3.1d)",
+      "rationale": "Write path crítico deve ter embedding imediato para search funcionar. Backfill é one-off para dados legados. Evita race condition onde fato existe mas não é buscável"
+    },
+    {
+      "id": "DD-06",
+      "decision": "Edge Function `search-shared-memory` em vez de RPC puro para flexibilidade de filtros complexos",
+      "rationale": "Edge Function permite lógica pós-busca (rerank, diversidade, fusão com keyword) e evolução sem migration. RPC seria mais rápido mas menos flexível. Pfade similar ao `search-documents` existente"
+    }
+  ],
+  "risks": [
+    {
+      "id": "R-01",
+      "risk": "Latência de embedding no write path (API call externa)",
+      "mitigation": "Timeout curto (5s); fallback gravar embedding=null e job de retry assíncrono; cache de embeddings recentes"
+    },
+    {
+      "id": "R-02",
+      "risk": "Custo de API de embeddings (OpenAI) em escala",
+      "mitigation": "Suportar Ollama local (nomic-embed-text) via config; batch API no backfill; rate limiting"
+    },
+    {
+      "id": "R-03",
+      "risk": "RLS quebrando busca vetorial (service key vs anon key)",
+      "mitigation": "Edge Function usa SERVICE_KEY; client_id passado no payload; RLS policy usa `current_setting('app.client_id')` injetado via header"
+    }
+  ],
+  "design_questions": [
+    {
+      "id": "DQ-01",
+      "question": "Categoria 'rag' em shared_business_memory deve ter prioridade no embedding (ex: weight maior)?",
+      "status": "open"
+    },
+    {
+      "id": "DQ-02",
+      "question": "Embedding deve incluir metadata (source, confidence) na representação textual?",
+      "status": "open"
+    },
+    {
+      "id": "DQ-03",
+      "question": "HNSW index `m` e `ef_construction` params: usar defaults (m=16, ef_construction=64) ou tunar?",
+      "status": "open"
+    },
+    {
+      "id": "DQ-04",
+      "question": "Backfill: processar todos clientes de uma vez ou por tenant (pg_cron por client_id)?",
+      "status": "open"
+    }
+  ],
+  "related_issues": [
+    26,
+    27,
+    28
+  ],
+  "next_phase_dependencies": {
+    "T3.2_tool_search": "Precisa da Edge Function search-shared-memory (T3.1c) + embeddings populados (T3.1b/d)",
+    "T3.3_tool_graph": "Precisa links + embeddings para navegação semântica",
+    "T3.4_auto_links": "Pode usar embeddings para sugerir links baseados em similaridade"
+  }
+}

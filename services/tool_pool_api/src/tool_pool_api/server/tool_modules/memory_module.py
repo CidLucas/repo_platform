@@ -142,6 +142,45 @@ _SOURCE_TTL_DEFAULTS: dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
+# Category constants (for shared_memory_write)
+# ---------------------------------------------------------------------------
+
+_VALID_CATEGORIES: frozenset[str] = frozenset({
+    "knowledge", "rag", "documents", "memory-agent",
+    "context", "decision", "preference",
+})
+
+# ---------------------------------------------------------------------------
+# TTL tier constants (Fase 4 — T4.4c)
+# ---------------------------------------------------------------------------
+
+_VALID_TTL_TIERS: frozenset[str] = frozenset({
+    "curated", "migration", "specialist",
+    "memory_agent_hi", "memory_agent_lo",
+})
+
+# Interval mapping: tier → soft_delete_at offset (in days)
+# curated = None means never expires
+_TTL_TIER_INTERVALS: dict[str, int | None] = {
+    "curated": None,          # Never expires
+    "migration": 90,          # +90 days
+    "specialist": 30,         # +30 days
+    "memory_agent_hi": 14,    # +14 days
+    "memory_agent_lo": 7,     # +7 days
+}
+
+# Archival period: hard_delete_at = soft_delete_at + 90 days
+_ARCHIVAL_PERIOD_DAYS: int = 90
+
+# Default TTL tier inference from source
+_SOURCE_TTL_DEFAULTS: dict[str, str] = {
+    "curated": "curated",
+    "migration": "migration",
+    "specialist": "specialist",
+    "memory_agent": "memory_agent_lo",
+}
+
+# ---------------------------------------------------------------------------
 # Snapshot constants (T2.2a + T2.2b)
 # ---------------------------------------------------------------------------
 
@@ -1095,118 +1134,6 @@ async def _shared_memory_write_logic(
         "soft_delete_at": row.get("soft_delete_at"),
         "hard_delete_at": row.get("hard_delete_at"),
         "archived": row.get("archived", False),
-        "created_at": row["created_at"],
-        "updated_at": row["updated_at"],
-    }
-
-
-async def _shared_memory_write_logic(
-    client_id: str,
-    entity_type: str,
-    entity_name: str,
-    key: str,
-    value: dict,
-    category: str | None = None,
-    agent_id: str | None = None,
-    ttl: int | None = None,
-    priority: int | None = None,
-    supersede: bool = False,
-    source: str = "manual",
-    confidence: float = 1.0,
-) -> dict:
-    """Write a new shared-memory fact with write permission check.
-
-    By default this is a strict INSERT: it fails if the composite key
-    (client_id, entity_type, entity_name, key) already exists.
-    Set supersede=True to overwrite (upsert).
-
-    Before writing, the function checks that the caller (source) has
-    permission to write to the given entity_type (T5.2).
-    """
-    from blu_supabase_client import get_supabase_client
-
-    _validate_entity_type(entity_type)
-    entity_name = _normalize_entity_name(entity_name)
-    key = key.strip().lower()
-
-    if not entity_name or not key:
-        raise ValueError("entity_name and key are required")
-    if not isinstance(value, dict):
-        raise ValueError("value must be a dict")
-
-    # T5.2: Write permission check
-    validated_source = source if source in _WRITE_PERMISSIONS else "manual"
-    _check_write_permission(
-        source=validated_source,
-        entity_type=entity_type,
-        entity_name=entity_name,
-    )
-
-    db = await get_supabase_client()
-
-    payload = {
-        "client_id": client_id,
-        "entity_type": entity_type,
-        "entity_name": entity_name,
-        "key": key,
-        "value": value,
-        "category": category,
-        "source": validated_source,
-        "confidence": confidence,
-        "metadata": {},
-    }
-
-    if agent_id:
-        payload["metadata"]["agent_id"] = agent_id
-    if ttl is not None:
-        payload["metadata"]["ttl"] = ttl
-    if priority is not None:
-        payload["metadata"]["priority"] = priority
-
-    try:
-        if supersede:
-            result = await (
-                db.schema("public")
-                .table(_TABLE)
-                .upsert(
-                    payload,
-                    on_conflict="client_id,entity_type,entity_name,key",
-                    default_to_null=False,
-                )
-                .execute()
-            )
-        else:
-            result = await (
-                db.schema("public")
-                .table(_TABLE)
-                .insert(payload)
-                .execute()
-            )
-    except Exception as exc:
-        err_str = str(exc).lower()
-        if "duplicate key" in err_str or "uq_shared_memory_entry" in err_str:
-            raise ValueError(
-                f"Memory entry already exists for "
-                f"{entity_type}:{entity_name}/{key}. "
-                f"Use supersede=True to overwrite."
-            )
-        raise RuntimeError(f"Failed to write shared-memory entry: {exc}")
-
-    row = result.data[0] if result.data else None
-    if not row:
-        raise RuntimeError("Failed to write memory entry -- no data returned")
-
-    return {
-        "id": row["id"],
-        "client_id": row["client_id"],
-        "entity_type": row["entity_type"],
-        "entity_name": row["entity_name"],
-        "key": row["key"],
-        "value": row["value"],
-        "category": row.get("category"),
-        "source": row["source"],
-        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
-        "version": row.get("version", 1),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }

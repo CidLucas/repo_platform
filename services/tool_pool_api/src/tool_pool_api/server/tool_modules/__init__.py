@@ -340,6 +340,8 @@ AVAILABLE_MODULES = {
     "knowledge_graph": {
         "description": "Knowledge Graph summary sync — updates available_tools after enrichment job",
         "tools": ["update_knowledge_graph_summary"],
+        "requires_auth": True,
+    },
     "memory_pre_flight": {
         "description": "Pre-flight shared memory context — reads recent agent execution history from shared_business_memory",
         "tools": [

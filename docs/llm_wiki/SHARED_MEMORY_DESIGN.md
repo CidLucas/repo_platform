@@ -1,688 +1,945 @@
-# Shared Memory Design — Fase 0 / T2.2
+# Shared Memory Design — Fase 1 (T1.3)
 
-Documento de design do subsistema de memória compartilhada da plataforma BLU.
+Documento de design completo do subsistema de memória compartilhada da plataforma BLU.
+Cobre a visão geral, schemas, taxonomy de entidades, catálogo de ferramentas L1,
+design do handoff hook (T1.3) e decisões de arquitetura.
+
+> **Última atualização:** Junho 2026
+> **Issue:** #19 — Fase 1, T1.3 (Hook de handoff entre agentes na shared memory)
+> **Documentos relacionados:**
+> - [Roadmap Blu Intelligent Memory](../roadmap/blu-intelligent-memory.md)
+> - [Sistema de Agentes](../system_reference/AGENT_SYSTEM.md)
+> - [Tool Inventory](../system_reference/TOOL_INVENTORY.md)
 
 ---
 
-## T2.2 — Templates de Snapshot por Dimensão
+## Índice
 
-### 1. Conceito de Snapshot por Dimensão
+1. [Visão Geral](#1-visão-geral)
+2. [Schema: shared_business_memory](#2-schema-shared_business_memory)
+3. [Schema: shared_memory_links](#3-schema-shared_memory_links)
+4. [Taxonomy de entity_type](#4-taxonomy-de-entity_type)
+5. [Catálogo de Ferramentas L1](#5-catálogo-de-ferramentas-l1)
+6. [T1.3 — Handoff Hook](#6-t13--handoff-hook)
+7. [Entity Linking](#7-entity-linking)
+8. [TTL e Ciclo de Vida](#8-ttl-e-ciclo-de-vida)
+9. [Design Decisions e ADRs](#9-design-decisions-e-adrs)
 
-Um **snapshot** é um registro estruturado que captura o estado de uma dimensão
-de negócio em um momento específico. Diferente de fatos simples (facts), snapshots
-são documentos compostos com múltiplos indicadores, alertas e resumo executivo.
+---
 
-Quatro dimensões são suportadas:
+## 1. Visão Geral
 
-| Dimensão     | entity_name         | Descrição                           |
-|-------------|---------------------|--------------------------------------|
-| financeiro  | `financeiro:{periodo}` | Indicadores financeiros e fluxo de caixa |
-| clientes    | `clientes:{periodo}`   | Métricas de base de clientes e CRM |
-| agenda      | `agenda:{periodo}`     | Compromissos e follow-ups |
-| compras     | `compras:{periodo}`    | Pedidos de compra e inventário |
+### 1.1 Princípios
 
-Períodos válidos: `diario`, `semanal`, `mensal`.
+A shared business memory é o mecanismo central de comunicação entre agentes
+no Blu. Três princípios fundamentais guiam seu design:
 
-### 2. Schema entity_type / entity_name / key
+1. **Agentes comunicam via shared memory, não por conversa direta.**
+   Nenhum agente chama outro diretamente. Toda informação que precisa ser
+   passada entre agentes é escrita na shared memory e lida pelo agente destino.
 
-Para snapshots no `shared_business_memory`:
+2. **Single Writer.** Cada fonte de escrita (`source`) só pode escrever nos
+   tipos de entidade (`entity_type`) para os quais está autorizada. Isso
+   previne que um agente corrompa dados de outro domínio.
 
-| Campo        | Valor                              |
-|-------------|------------------------------------|
-| entity_type | `"snapshot"`                       |
-| entity_name | `"{dimensao}:{periodo}"`           |
-| key         | timestamp ISO do momento de geração |
+3. **Stateless Agents, Stateful Memory.** Agentes são stateless — toda
+   memória de negócio fica no Supabase, na shared business memory. Um mesmo
+   agente pode ser reiniciado e recuperar todo o contexto da shared memory.
 
-Exemplo: `entity_type="snapshot"`, `entity_name="financeiro:semanal"`,
-`key="2025-06-19T10:00:00Z"`.
+### 1.2 Arquitetura
 
-### 3. Templates de Body por Dimensão
+```
+┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
+│   Agent A   │ ──→ │  Tool Pool   │ ──→ │  shared_business │
+│ (specialist)│     │ (MCP Server) │     │  _memory (SBM)   │
+└─────────────┘     └──────────────┘     └──────────────────┘
+       │                                       │
+       │  handoff_hook.py                      │ shared_memory_links
+       │  (pós-route_to_specialist)            │ (relacionamentos)
+       ▼                                       ▼
+┌─────────────┐     ┌──────────────┐
+│   Agent B   │ ←── │shared_memory │
+│ (specialist)│     │ _context     │
+└─────────────┘     └──────────────┘
+```
 
-Os templates são definidos como constantes em
-[`libs/blu_context_service/src/blu_context_service/context_schemas.py`](../../libs/blu_context_service/src/blu_context_service/context_schemas.py)
-no dicionário `_SNAPSHOT_DIMENSION_FIELDS`.
+O handoff hook (T1.3) é a peça central desta arquitetura: após o roteamento
+via `route_to_specialist`, o hook escreve learning notes na shared memory, e
+o módulo `shared_memory_context.py` carrega o contexto relevante no agente
+destino.
 
-#### Body universal (campos base)
+### 1.3 Entidades e Fatos
 
-Todo snapshot, independente da dimensão, DEVE conter os campos definidos em
-`_SNAPSHOT_BASE_FIELDS`:
+A shared memory organiza informações em uma estrutura de três níveis:
+
+```
+client_id ──┬── entity_type ──┬── entity_name ──┬── key ── value (JSONB)
+             │                 │                 │
+             │                 │                 └── "contato_principal" → {...}
+             │                 │
+             │                 ├── "empresa_acme"
+             │                 │     └── key ── value
+             │                 │
+             │                 └── "fornecedor_x"
+             │                       └── key ── value
+             │
+             ├── "contact"
+             ├── "supplier"
+             ├── ...
+```
+
+Cada entrada é um **fato**: uma afirmação sobre uma entidade em um dado
+momento. Fatos têm `source` (quem escreveu) e `confidence` (confiança).
+
+### 1.4 Fontes de Escrita (Source)
+
+| Source         | Quem usa                              | Nível de confiança típico |
+|----------------|---------------------------------------|---------------------------|
+| `system`       | Rotinas internas, cron jobs           | 1.0                       |
+| `memory_agent` | DomainProjectionMemoryAgent (Fase 2)  | 0.7–1.0                   |
+| `specialist`   | Agentes especialistas (L3)            | 0.7–0.95                  |
+| `manual`       | Intervenção humana / API externa      | 1.0                       |
+| `migration`    | Scripts de migração e seed            | 1.0                       |
+| `curated`      | Confirmação humana (via morning plan) | 1.0                       |
+
+---
+
+## 2. Schema: shared_business_memory
+
+### 2.1 Tabela Principal
+
+```sql
+CREATE TABLE shared_business_memory (
+    id              BIGSERIAL PRIMARY KEY,
+    client_id       UUID NOT NULL REFERENCES clientes_blu(id),
+    entity_type     TEXT NOT NULL,
+    entity_name     TEXT NOT NULL,
+    key             TEXT NOT NULL,
+    value           JSONB NOT NULL DEFAULT '{}',
+    category        TEXT,
+    source          TEXT NOT NULL DEFAULT 'manual',
+    confidence      DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    metadata        JSONB DEFAULT '{}',
+    version         INTEGER NOT NULL DEFAULT 1,
+    embedding       VECTOR(1536),              -- Fase 3 (Cohere multilingual)
+    curated         BOOLEAN NOT NULL DEFAULT FALSE,
+    expires_at      TIMESTAMPTZ,               -- Soft-delete TTL
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    -- Unicidade: um fato por chave composta
+    CONSTRAINT uq_shared_business_memory
+        UNIQUE (client_id, entity_type, entity_name, key)
+);
+
+-- Índices
+CREATE INDEX idx_sbm_client_lookup
+    ON shared_business_memory (client_id, entity_type, entity_name);
+CREATE INDEX idx_sbm_expires_at
+    ON shared_business_memory (expires_at)
+    WHERE expires_at IS NOT NULL AND curated = FALSE;
+```
+
+### 2.2 Colunas em Detalhe
+
+| Coluna        | Tipo        | Obrigatório | Descrição                                            |
+|--------------|-------------|:-----------:|------------------------------------------------------|
+| `id`         | BIGINT (PK) |     sim     | ID auto-incrementável                                |
+| `client_id`  | UUID (FK)   |     sim     | Cliente dono do fato (FK clientes_blu)               |
+| `entity_type`| TEXT        |     sim     | Tipo da entidade (ver taxonomy na seção 4)           |
+| `entity_name`| TEXT        |     sim     | Nome canônico da entidade (lowercase, sem acentos)   |
+| `key`        | TEXT        |     sim     | Nome do fato (e.g. "contato_principal")              |
+| `value`      | JSONB       |     sim     | Valor do fato (pode ser dict, list, string, number)  |
+| `category`   | TEXT        |     não     | Categoria semântica para filtragem                   |
+| `source`     | TEXT        |     não     | Fonte de escrita (default "manual")                  |
+| `confidence` | FLOAT       |     não     | Confiança 0.0–1.0 (default 1.0)                     |
+| `metadata`   | JSONB       |     não     | Metadados extras (frontmatter de snapshots, etc.)   |
+| `version`    | INTEGER     |     sim     | Número da versão (default 1)                         |
+| `embedding`  | VECTOR(1536)|     não     | Embedding Cohere para busca semântica (Fase 3)       |
+| `curated`    | BOOLEAN     |     não     | Confirmado por humano? (default FALSE)               |
+| `expires_at` | TIMESTAMPTZ |     não     | Data de expiração (NULL = não expira)                |
+| `created_at` | TIMESTAMPTZ |     sim     | Timestamp de criação                                 |
+| `updated_at` | TIMESTAMPTZ |     sim     | Timestamp da última atualização                      |
+
+### 2.3 Tabela de Versões (Auditoria)
+
+```sql
+CREATE TABLE shared_business_memory_versions (
+    id              BIGSERIAL PRIMARY KEY,
+    memory_id       BIGINT NOT NULL REFERENCES shared_business_memory(id) ON DELETE CASCADE,
+    client_id       UUID NOT NULL,
+    entity_type     TEXT NOT NULL,
+    entity_name     TEXT NOT NULL,
+    key             TEXT NOT NULL,
+    value           JSONB NOT NULL,
+    source          TEXT NOT NULL,
+    confidence      DOUBLE PRECISION NOT NULL,
+    metadata        JSONB DEFAULT '{}',
+    version         INTEGER NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL,
+    archived_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_sbmv_memory_id ON shared_business_memory_versions (memory_id);
+```
+
+### 2.4 Categorias Válidas
 
 ```python
-_SNAPSHOT_BASE_FIELDS = frozenset({
-    "snapshot_id",      # UUID único do snapshot
-    "dimensao",         # "financeiro" | "clientes" | "agenda" | "compras"
-    "periodo",          # "diario" | "semanal" | "mensal"
-    "gerado_em",        # Timestamp ISO de geração
-    "vigencia_inicio",  # Início do período coberto
-    "vigencia_fim",     # Fim do período coberto
-    "indicadores",      # Lista de {nome, valor, unidade, tendencia}
-    "alertas",          # Lista de strings de alerta
-    "resumo_executivo", # Markdown string
+_VALID_CATEGORIES = frozenset({
+    "knowledge",       # Conhecimento geral sobre o domínio
+    "rag",             # Dados vindos de RAG/documentos
+    "documents",       # Referências a documentos
+    "memory-agent",    # Dados do Memory Agent (aprendizado automático)
+    "context",         # Contexto de negócio
+    "decision",        # Decisões tomadas
+    "preference",      # Preferências explícitas
 })
 ```
 
-#### Financeiro (`_SNAPSHOT_DIMENSION_FIELDS["financeiro"]`)
+---
 
-Indicadores requeridos (required=True):
+## 3. Schema: shared_memory_links
 
-- `saldo_atual` (BRL) — Saldo atual em caixa
-- `receita_periodo` (BRL) — Receita total no período
-- `despesa_periodo` (BRL) — Despesa total no período
-- `fluxo_liquido` (BRL) — Fluxo líquido (receita - despesa)
+### 3.1 Tabela de Links
 
-Indicadores opcionais: `contas_a_pagar`, `contas_a_receber`, `inadimplencia_percentual`.
+```sql
+CREATE TABLE shared_memory_links (
+    id                    BIGSERIAL PRIMARY KEY,
+    client_id             UUID NOT NULL REFERENCES clientes_blu(id),
+    source_entity_type    TEXT NOT NULL,
+    source_entity_name    TEXT NOT NULL,
+    target_entity_type    TEXT NOT NULL,
+    target_entity_name    TEXT NOT NULL,
+    link_type             TEXT NOT NULL,
+    source                TEXT NOT NULL DEFAULT 'manual',
+    confidence            DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    metadata              JSONB DEFAULT '{}',
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-Tendências monitoradas: `receita_tendencia`, `despesa_tendencia`.
+    CONSTRAINT uq_shared_memory_link
+        UNIQUE (client_id, source_entity_type, source_entity_name,
+                target_entity_type, target_entity_name, link_type)
+);
 
-Alertas: `estoque_caixa_baixo`, `contas_vencendo_proximos_7d`.
-
-#### Clientes (`_SNAPSHOT_DIMENSION_FIELDS["clientes"]`)
-
-Indicadores requeridos:
-
-- `total_clientes_ativos` (count)
-- `novos_clientes_periodo` (count)
-
-Indicadores opcionais: `churn_periodo`, `nps_medio`, `ltv_medio`, `ticket_medio`.
-
-Alertas: `churn_acelerado`, `nps_critico`.
-
-Agrupamentos: `segmentacao`, `status`.
-
-#### Agenda (`_SNAPSHOT_DIMENSION_FIELDS["agenda"]`)
-
-Indicadores requeridos:
-
-- `reunioes_hoje` (count)
-- `reunioes_semana` (count)
-
-Indicadores opcionais: `followups_pendentes`, `contatos_a_cobrar`.
-
-#### Compras (`_SNAPSHOT_DIMENSION_FIELDS["compras"]`)
-
-Indicadores requeridos:
-
-- `total_pos_abertas` (count)
-
-Indicadores opcionais: `estoque_critico`, `fornecedores_com_pendencia`, `pedidos_em_analise`.
-
-### 4. Frontmatter Obrigatório
-
-Todo upsert de `entity_type="snapshot"` DEVE incluir frontmatter com os campos
-definidos em `_SNAPSHOT_FRONTMATTER_REQUIRED`:
-
-| Campo              | Tipo     | Descrição                                   |
-|-------------------|----------|----------------------------------------------|
-| tipo              | string   | Sempre `"snapshot"`                          |
-| dimensao          | string   | `"financeiro"` / `"clientes"` / `"agenda"` / `"compras"` |
-| periodo           | string   | `"diario"` / `"semanal"` / `"mensal"`       |
-| gerado_em         | string   | Timestamp ISO de geração                     |
-| gerado_por        | string   | Nome do agente ou rotina que gerou           |
-| versao            | int      | Número da versão (≥ 1)                      |
-| template_version  | int      | Versão do template (≥ 1)                    |
-| fontes            | list[str]| Queries/data sources usadas na geração      |
-
-Campos opcionais no frontmatter:
-
-| Campo       | Tipo     | Descrição                                    |
-|------------|----------|-----------------------------------------------|
-| confianca   | float    | Confiança (0.0–1.0, default 1.0)             |
-| ultimo_update | string | Última atualização (ISO timestamp)            |
-
-Validação (T2.2b):
-- `_validate_snapshot_frontmatter()` em `memory_module.py` verifica todos os
-  campos obrigatórios, cross-valida dimensão e período com `entity_name`.
-- Upsert de snapshot sem frontmatter completo é REJEITADO com `ValueError`.
-
-Validação do body (T2.2f):
-- `_validate_snapshot_body()` extrai a dimensão do `entity_name`, valida campos
-  base, e verifica os indicadores contra o spec da dimensão
-  (`_SNAPSHOT_DIMENSION_FIELDS`).
-- Indicadores desconhecidos geram WARNING (não erro).
-- Indicadores requeridos faltantes geram `ValueError`.
-
-### 5. Exemplos de Uso
-
-#### Upsert via shared_memory_upsert
-
-```json
-{
-  "entity_type": "snapshot",
-  "entity_name": "financeiro:semanal",
-  "key": "2025-06-19T10:00:00Z",
-  "body": {
-    "snapshot_id": "550e8400-e29b-41d4-a716-446655440000",
-    "dimensao": "financeiro",
-    "periodo": "semanal",
-    "gerado_em": "2025-06-19T10:00:00Z",
-    "vigencia_inicio": "2025-06-12T00:00:00Z",
-    "vigencia_fim": "2025-06-19T00:00:00Z",
-    "indicadores": [
-      {"nome": "saldo_atual", "valor": 152000, "unidade": "BRL", "tendencia": "estavel"},
-      {"nome": "receita_periodo", "valor": 48700, "unidade": "BRL", "tendencia": "alta"},
-      {"nome": "despesa_periodo", "valor": 35200, "unidade": "BRL", "tendencia": "baixa"},
-      {"nome": "fluxo_liquido", "valor": 13500, "unidade": "BRL", "tendencia": "alta"}
-    ],
-    "alertas": [],
-    "resumo_executivo": "Semana positiva com fluxo líquido de BRL 13.500."
-  },
-  "frontmatter": {
-    "tipo": "snapshot",
-    "dimensao": "financeiro",
-    "periodo": "semanal",
-    "gerado_em": "2025-06-19T10:00:00Z",
-    "gerado_por": "financeiro_agent",
-    "versao": 1,
-    "template_version": 1,
-    "ultimo_update": "2025-06-19T10:00:00Z",
-    "fontes": ["get_cash_position v2", "get_recent_transactions v1"],
-    "confianca": 0.95
-  },
-  "source": "specialist",
-  "confidence": 0.95
-}
+CREATE INDEX idx_sml_source
+    ON shared_memory_links (client_id, source_entity_type, source_entity_name);
+CREATE INDEX idx_sml_target
+    ON shared_memory_links (client_id, target_entity_type, target_entity_name);
 ```
 
-#### Leitura
+### 3.2 Colunas em Detalhe
 
-```
-shared_memory_read(entity_type="snapshot", entity_name="financeiro:semanal", key="2025-06-19T10:00:00Z")
-```
+| Coluna               | Tipo        | Descrição                                      |
+|---------------------|-------------|-------------------------------------------------|
+| `id`                | BIGINT (PK) | ID auto-incrementável                           |
+| `client_id`         | UUID (FK)   | Cliente dono do link                            |
+| `source_entity_type`| TEXT        | Tipo da entidade origem                         |
+| `source_entity_name`| TEXT        | Nome da entidade origem                         |
+| `target_entity_type`| TEXT        | Tipo da entidade destino                        |
+| `target_entity_name`| TEXT        | Nome da entidade destino                        |
+| `link_type`         | TEXT        | Tipo de relacionamento (free-form)              |
+| `source`            | TEXT        | Proveniência do link                            |
+| `confidence`        | FLOAT       | Confiança 0.0–1.0                               |
+| `metadata`          | JSONB       | Metadados extras                                |
+| `created_at`        | TIMESTAMPTZ | Timestamp de criação                            |
 
-#### Seed (popula exemplos)
+### 3.3 Convenções de link_type
 
-```bash
-python scripts/seed_snapshots.py --client-id <UUID>
-```
+`link_type` é um campo livre, mas as seguintes convenções são recomendadas:
 
-### 6. Queries de Referência por Dimensão
-
-As queries SQL de referência estão documentadas nos specs de dimensão
-(`_SNAPSHOT_DIMENSION_FIELDS[dimensao]["queries_referencia"]`).
-São strings nomeando as funções/endpoints que geram os dados para cada
-indicador. **Não são código executável** — são referências para o agente
-que popula o snapshot saber quais fontes consultar.
-
-| Dimensão    | Queries de Referência                                  |
-|------------|-------------------------------------------------------|
-| financeiro | get_cash_position, get_recent_transactions, get_aging_accounts |
-| clientes   | get_active_clients, get_churn_metrics, get_nps_scores, get_client_ltv |
-| agenda     | get_today_meetings, get_weekly_meetings, get_pending_followups, get_collection_contacts |
-| compras    | get_open_purchase_orders, get_critical_stock, get_pending_suppliers, get_pending_approval_orders |
+| link_type        | Significado                                      | Exemplo                                         |
+|-----------------|--------------------------------------------------|-------------------------------------------------|
+| `works_for`     | Contato trabalha para empresa                    | `contact:joao → works_for → supplier:distribuidora_x` |
+| `applies_to`    | Fato de skill se aplica a contato/cliente        | `skill:cobranca → applies_to → client:empresa_acme` |
+| `prefers`       | Preferência sobre canal/horário                  | `contact:joao → prefers → skill:comunicacao:canal_whatsapp` |
+| `reports_to`    | Relação hierárquica                              | `contact:joao → reports_to → contact:maria`     |
+| `depends_on`    | Dependência entre entidades                      | `snapshot:compras:semanal → depends_on → routine:compras_monitor` |
+| `related_to`    | Relação genérica (fallback)                      | `contact:pedro → related_to → client:empresa_beta` |
+| `derived_from`  | Um fato deriva de outro                          | `agent_result:domain_projection → derived_from → ...` |
+| `confirmed_by`  | Fato confirmado por interação humana             | `skill:cobranca:tom_amigavel → confirmed_by → user:admin` |
 
 ---
 
-## Design Decisions
+## 4. Taxonomy de entity_type
+
+### 4.1 Tipos de Entidade
+
+```python
+_VALID_ENTITY_TYPES = frozenset({
+    "skill",           # Fatos derivados de skills/ferramentas
+    "client",          # Dados de clientes (CRM)
+    "contact",         # Contatos individuais (pessoas)
+    "supplier",        # Fornecedores
+    "user",            # Usuários da plataforma
+    "snapshot",        # Snapshots por dimensão (T2.2)
+    "routine",         # Rotinas automatizadas (Routine Engine)
+    "agent_result",    # Resultados de execução de agentes
+    "agent_metadata",  # Metadados operacionais de agentes
+})
+```
+
+### 4.2 Naming Conventions
+
+| entity_type  | entity_name (convenção)         | key (convenção)           | Exemplo                                     |
+|-------------|--------------------------------|---------------------------|---------------------------------------------|
+| `skill`     | `{skill_name}` (snake_case)    | `{fato_snake_case}`       | `skill:cobranca / tom_amigavel`            |
+| `client`    | `{nome_empresa}` (snake_case)  | `{fato_snake_case}`       | `client:empresa_acme / contato_principal`   |
+| `contact`   | `{nome_pessoa}` (snake_case)   | `{fato_snake_case}`       | `contact:joao_silva / preferencia_horario`  |
+| `supplier`  | `{nome_fornecedor}`            | `{fato_snake_case}`       | `supplier:distribuidora_x / prazo_pagamento`|
+| `user`      | `{user_id or email_norm}`      | `{fato_snake_case}`       | `user:admin@blu / preferencia_idioma`       |
+| `snapshot`  | `{dimensao}:{periodo}`         | ISO timestamp              | `snapshot:financeiro:semanal / 2025-06-19T...` |
+| `routine`   | `{routine_name}` (snake_case)  | `{fato_snake_case}`        | `routine:prune_shared_memory / ultima_execucao` |
+| `agent_result` | `{agent_name}`              | `{descritivo_snake_case}`  | `agent_result:domain_projection / projecao_...` |
+| `agent_metadata` | `{agent_name}`           | `{descritivo_snake_case}`  | `agent_metadata:frontdesk / turn_count`      |
+
+**Regras:**
+- `entity_name` e `key` são sempre **lowercase**, sem acentos, underscores.
+- `entity_name` deve ser semanticamente único **dentro do** `entity_type` para um `client_id`.
+- `key` + `entity_name` + `entity_type` + `client_id` formam a chave única.
+
+### 4.3 Qual entity_type usar?
+
+| Situação                                                  | entity_type    |
+|-----------------------------------------------------------|---------------|
+| Preferência sobre tom de voz na skill de cobrança         | `skill`       |
+| Dado cadastral de um cliente (CNPJ, endereço)             | `client`      |
+| Preferência de contato de uma pessoa (João prefere WhatsApp) | `contact`   |
+| Prazo de pagamento de um fornecedor                       | `supplier`    |
+| Preferência de idioma de um usuário                       | `user`        |
+| Snapshot financeiro semanal                                | `snapshot`    |
+| Última execução de rotina de limpeza                      | `routine`     |
+| Resultado de handoff (agente A → agente B)                | `agent_result`|
+| Metadados de execução de agente (turn count, latência)    | `agent_metadata` |
+
+---
+
+## 5. Catálogo de Ferramentas L1
+
+### 5.1 Tools de Leitura
+
+#### shared_memory_list
+
+Lista todas as entidades com entradas na shared memory para o client_id.
+
+```
+Args:
+    entity_type (str, opcional): Filtrar por tipo de entidade.
+    client_id (str, auto-injetado): UUID do cliente.
+
+Returns:
+    dict com total_entities, by_type, entities.
+```
+
+**Uso típico:** Explorar quais entidades existem antes de ler fatos específicos.
+
+---
+
+#### shared_memory_read
+
+Lê um fato específico pela chave composta.
+
+```
+Args:
+    entity_type (str): Tipo da entidade.
+    entity_name (str): Nome da entidade (case-insensitive).
+    key (str): Nome do fato.
+    client_id (str, auto-injetado): UUID do cliente.
+
+Returns:
+    dict com o registro completo (id, value, source, confidence, version, timestamps).
+```
+
+**Uso típico:** Agente destino lê fatos relevantes após receber um handoff.
+
+---
+
+#### shared_memory_meta_read
+
+Lê uma entrada de metadados da `shared_business_memory_meta`.
+
+```
+Args:
+    entity_type (str): Tipo da entidade.
+    entity_name (str): Nome da entidade.
+    key (str): Nome do fato.
+    client_id (str, auto-injetado): UUID do cliente.
+
+Returns:
+    dict com o registro completo da tabela meta.
+```
+
+---
+
+#### shared_memory_meta_list
+
+Lista entradas de metadados, opcionalmente filtradas por entity_type.
+
+```
+Args:
+    entity_type (str, opcional): Filtrar por tipo.
+    client_id (str, auto-injetado): UUID do cliente.
+
+Returns:
+    dict com total e resultados.
+```
+
+---
+
+### 5.2 Tools de Escrita
+
+#### shared_memory_write
+
+Escreve um novo fato na shared memory. Comportamento padrão: INSERT estrito.
+Usar `supersede=True` para UPSERT.
+
+```
+Args:
+    entity_type (str): Tipo da entidade.
+    entity_name (str): Nome da entidade.
+    key (str): Nome do fato.
+    value (dict): Valor do fato.
+    category (str, opcional): Categoria semântica.
+    agent_id (str, opcional): UUID do agente (armazenado em metadata).
+    ttl (int, opcional): TTL em segundos.
+    priority (int, opcional): Prioridade 0-100.
+    supersede (bool): Se True, upsert. Default False.
+    source (str): Fonte de escrita.
+    confidence (float): Confiança 0.0–1.0.
+    ttl_tier (str, opcional): Tier de retenção.
+    client_id (str, auto-injetado): UUID do cliente.
+
+Returns:
+    dict com o registro escrito.
+```
+
+**Faz verificação de permissão de escrita** (`_check_write_permission`).
+
+---
+
+#### shared_memory_upsert
+
+**Tool legada** (T0.5). Upsert com versionamento completo (arquiva versão anterior).
+
+```
+Args:
+    entity_type (str), entity_name (str), key (str), body (dict),
+    frontmatter (dict, opcional), source (str, default "manual"),
+    confidence (float, default 1.0), ttl_tier (str, opcional),
+    client_id (str, auto-injetado).
+
+Returns:
+    dict com o registro upsertado (incluindo version).
+```
+
+**Não faz verificação de permissão de escrita.** Mantida por compatibilidade.
+
+---
+
+#### shared_memory_meta_upsert
+
+Insere ou atualiza uma entrada na `shared_business_memory_meta` (T4.2d).
+
+```
+Args:
+    entity_type (str), entity_name (str), key (str), body (dict),
+    source (str, default "manual"), confidence (float, default 1.0),
+    client_id (str, auto-injetado).
+
+Returns:
+    dict com o registro escrito.
+```
+
+---
+
+### 5.3 Tools de Busca
+
+#### shared_memory_search
+
+Busca semântica vetorial na shared memory via embedding Cohere.
+
+```
+Args:
+    query (str): Texto de busca em linguagem natural.
+    entity_type (str, opcional): Filtrar por tipo.
+    category (str, opcional): Filtrar por categoria.
+    match_count (int, default 10): Máximo de resultados.
+    match_threshold (float, default 0.3): Similaridade mínima.
+    client_id (str, auto-injetado): UUID do cliente.
+
+Returns:
+    dict com query, total_results, results (ordenados por similarity).
+```
+
+**Mecanismo:** Gera embedding da query via Cohere `embed-multilingual-light-v3.0`,
+chama RPC `search_shared_memory` no Supabase (similaridade de cosseno em pgvector).
+
+**Fallback textual (planejado):** Para cenários sem Cohere, uma busca via
+ILIKE + pg_trigram deve ser implementada (ver DQ3).
+
+---
+
+### 5.4 Tools de Links
+
+#### shared_memory_link
+
+Cria um link semântico entre duas entidades.
+
+```
+Args:
+    source_entity_type (str), source_entity_name (str),
+    target_entity_type (str), target_entity_name (str),
+    link_type (str): Rótulo do relacionamento.
+    source (str, default "manual"), confidence (float, default 1.0),
+    metadata (str, opcional): JSON com metadados extras.
+    client_id (str, auto-injetado).
+
+Returns:
+    dict com id, source, target, link_type, created_at.
+```
+
+**Uso típico:** Após escrever um fato, criar links para entidades relacionadas.
+
+---
+
+#### shared_memory_unlink
+
+Remove um link pelo ID.
+
+```
+Args:
+    id (int): ID do link a remover.
+    client_id (str, auto-injetado).
+
+Returns:
+    dict com resultado da operação.
+```
+
+---
+
+#### shared_memory_get_links
+
+Busca links por entidade e/ou tipo.
+
+```
+Args:
+    entity_type (str): Tipo da entidade para filtrar.
+    entity_name (str): Nome da entidade para filtrar.
+    link_type (str, opcional): Filtrar por tipo de link.
+    direction (str, default "any"): "source" | "target" | "any".
+    client_id (str, auto-injetado).
+
+Returns:
+    dict com total e results.
+```
+
+---
+
+### 5.5 Tools de Ciclo de Vida
+
+#### shared_memory_flush
+
+Soft-delete (marca `flushed_at` em metadata). Entradas flushed não aparecem
+em leituras mas permanecem no banco para auditoria.
+
+```
+Args:
+    entity_type (str, opcional), entity_name (str, opcional),
+    key (str, opcional), client_id (str, auto-injetado).
+
+Returns:
+    dict com flushed_count, total_scanned, flushed_at.
+```
+
+---
+
+#### shared_memory_export
+
+Exporta todos os fatos da shared memory para um client_id.
+
+```
+Args:
+    entity_type (str, opcional), entity_name (str, opcional),
+    client_id (str, auto-injetado).
+
+Returns:
+    dict com total_records e records.
+```
+
+---
+
+### 5.6 Tools Planejadas (T1.3)
+
+#### confirm_memory_item (T1.3.5)
+
+Marca uma memória como `curated=true` por `memory_id`.
+
+```
+Args:
+    memory_id (int): ID da entrada na shared_business_memory.
+    client_id (str, auto-injetado): UUID do cliente.
+
+Returns:
+    dict com status e o registro atualizado.
+
+Validação:
+    - memory_id deve pertencer ao client_id.
+    - Se a entrada não existir ou já estiver curated, retorna erro claro.
+```
+
+**Motivação:** Permite que agentes (ou o morning plan) confirmem explicitamente
+fatos aprendidos. Uma vez `curated=true`, a entrada não expira mais
+(`expires_at` zera).
+
+---
+
+### 5.7 Resumo das Tools
+
+| Tool                    | Tier  | Categoria      | Status         |
+|-------------------------|-------|----------------|----------------|
+| shared_memory_list      | L1    | Leitura        | Implementado   |
+| shared_memory_read      | L1    | Leitura        | Implementado   |
+| shared_memory_meta_read | L1    | Leitura        | Implementado   |
+| shared_memory_meta_list | L1    | Leitura        | Implementado   |
+| shared_memory_write     | L1    | Escrita        | Implementado   |
+| shared_memory_upsert    | L1    | Escrita (legado) | Implementado |
+| shared_memory_meta_upsert | L1  | Escrita        | Implementado   |
+| shared_memory_search    | L1    | Busca          | Implementado   |
+| shared_memory_link      | L1    | Links          | Implementado   |
+| shared_memory_unlink    | L1    | Links          | Implementado   |
+| shared_memory_get_links | L1    | Links          | Implementado   |
+| shared_memory_flush     | L1    | Ciclo de Vida  | Implementado   |
+| shared_memory_export    | L1    | Ciclo de Vida  | Implementado   |
+| **confirm_memory_item** | **L1**| **Escrita**    | **A implementar (T1.3.5)** |
+
+---
+
+## 6. T1.3 — Handoff Hook
+
+### 6.1 Conceito
+
+O handoff hook é a camada de integração que conecta o mecanismo de roteamento
+de agentes (`route_to_specialist`) à shared memory. Sempre que o frontdesk
+roteia uma tarefa de um agente para outro via `route_to_specialist`, o hook:
+
+1. Extrai **learning notes** do estado do agente origem (se houver)
+2. Escreve esses aprendizados na shared memory (`shared_memory_write`)
+3. Carrega o contexto relevante da shared memory no agente destino
+   (`shared_memory_read`)
+
+### 6.2 Arquitetura
+
+```
+route_to_specialist(LANGGRAPH NODE)
+        │
+        ▼
+┌───────────────────────────────┐
+│   handoff_hook.py             │
+│                               │
+│   1. Verifica has_learning    │
+│   2. Extrai learning_notes    │
+│   3. Chama shared_memory_write│
+│      (source="specialist",    │
+│       confidence=0.8)         │
+│   4. Registra agent_result    │
+└───────────────────────────────┘
+        │
+        ▼
+┌───────────────────────────────┐
+│   shared_memory_context.py    │
+│                               │
+│   1. Lê shared_memory_read    │
+│      para entidades relevantes│
+│   2. Monta dict de contexto   │
+│   3. Injeta no prompt/estado  │
+│      do agente destino        │
+└───────────────────────────────┘
+        │
+        ▼
+   Agente destino
+   (recebe contexto da shared memory)
+```
+
+### 6.3 Componentes
+
+#### 6.3.1 `handoff_hook.py` — `libs/blu_agent_framework/src/blu_agent_framework/handoff/`
+
+```python
+async def run_handoff_hook(
+    agent_state: AgentState,
+    tool_pool_client: MCPClient,
+) -> None:
+    """Executa o hook de handoff após route_to_specialist.
+
+    1. Se agent_state.has_learning for True, extrai learning_notes.
+    2. Para cada note, chama shared_memory_write com:
+       - entity_type: inferido do contexto (skill, contact, ou client)
+       - entity_name: extraído do note
+       - key: slug do aprendizado
+       - value: conteúdo estruturado
+       - source: "specialist"
+       - confidence: 0.8 (inferido) ou 1.0 (se explícito no note)
+    3. Registra agent_result para auditoria.
+    4. Timeout de 2s — graceful degradation se timeout.
+    """
+```
+
+**Parâmetros do hook:**
+
+| Parâmetro     | Tipo         | Descrição                                           |
+|---------------|--------------|-----------------------------------------------------|
+| agent_state   | AgentState   | Estado do LangGraph (contém has_learning, learning_notes) |
+| tool_pool_client | MCPClient | Cliente MCP para chamar shared_memory_write         |
+
+**Decisão DQ1:** Sinalizado (não automático). O hook só escreve quando
+`has_learning=True` e `learning_notes` não vazio. A extração automática
+será feita pelo Memory Agent (Fase 2).
+
+#### 6.3.2 `shared_memory_context.py` — `libs/blu_agent_framework/src/blu_agent_framework/handoff/`
+
+```python
+async def load_shared_memory_context(
+    agent_type: str,
+    entity_names: list[str],
+    tool_pool_client: MCPClient,
+) -> dict:
+    """Carrega contexto da shared memory para o agente destino.
+
+    Para cada entity_name em entity_names, chama shared_memory_read
+    para todos os keys disponíveis.
+
+    Args:
+        agent_type: Tipo do agente destino (e.g. "financeiro", "compras").
+        entity_names: Lista de entity_names para carregar contexto.
+        tool_pool_client: Cliente MCP.
+
+    Returns:
+        dict com {entity_name: {key: value, ...}} para o agente usar.
+    """
+```
+
+**Decisão DQ2:** Inline no mesmo pacote. Context Service 2.0 completo
+será um serviço separado em fase futura.
+
+#### 6.3.3 `__init__.py` — `libs/blu_agent_framework/src/blu_agent_framework/handoff/`
+
+```python
+from .handoff_hook import run_handoff_hook
+from .shared_memory_context import load_shared_memory_context
+
+__all__ = ["run_handoff_hook", "load_shared_memory_context"]
+```
+
+### 6.4 Fluxo Completo de Handoff
+
+```ascii
+Usuário: "analisa financeiro do fornecedor X"
+        │
+        ▼
+┌──────────────────┐
+│   Frontdesk      │  Classifica: "financeiro + compras"
+│   (L4)           │  Roteia para specialist via route_to_specialist
+└──────┬───────────┘
+       │
+       ▼
+┌──────────────────────────────────┐
+│   route_to_specialist node       │  (LangGraph)
+│                                  │
+│   1. Salva estado atual          │
+│   2. Chama handoff_hook.run()    │
+│      ├─ has_learning?            │
+│      │  ├─ Sim → shared_memory_write (learning notes)
+│      │  └─ Não  → skip
+│      └─ shared_memory_write      │
+│         (agent_result: handoff)  │
+│                                  │
+│   3. Chama shared_memory_context │
+│      ├─ shared_memory_read       │
+│      │  (entity_type="supplier", │
+│      │   entity_name="fornecedor_x") │
+│      └─ Retorna contexto         │
+│                                  │
+│   4. Passa controle ao           │
+│      specialist destino          │
+└──────────────────────────────────┘
+       │
+       ▼
+┌──────────────────┐
+│   Specialist X   │  Recebe contexto da shared memory
+│   (L3)           │  Trabalha com dados atuais
+└──────────────────┘
+```
+
+### 6.5 Controle de Handoff (R2)
+
+Para evitar ciclos infinitos de handoff:
+
+1. O hook só dispara em `route_to_specialist`, não em writes diretos na
+   shared memory.
+2. O estado do LangGraph inclui flag `skip_handoff_hook: bool` para casos
+   onde o hook não deve rodar.
+3. Timeout de 2s no hook. Se exceder, graceful degradation — o handoff
+   prossegue sem escrita de learning notes.
+
+### 6.6 Handoff e Permissões de Escrita
+
+O hook escreve com `source="specialist"`. Pela matriz de permissões (seção 9
+do write model), `specialist` pode escrever em:
+- `skill`, `client`, `contact`, `supplier`, `user`
+- `snapshot`, `agent_result`, `agent_metadata`
+- **Não pode** escrever em `routine`
+
+---
+
+## 7. Entity Linking
+
+### 7.1 O Conceito
+
+Entity Linking é o processo de criar links semânticos entre entidades na
+shared memory automaticamente, sempre que um fato é escrito. Por exemplo:
+
+> Ao escrever `contact:joao_silva / trabalha_para` com valor
+> `{"empresa": "Distribuidora X"}`, um link é automaticamente criado:
+> `contact:joao_silva → works_for → supplier:distribuidora_x`
+
+### 7.2 Mecanismo Proposto
+
+**Fase 1:** Auto-linking via flag `auto_link` em `shared_memory_write`.
+Quando `auto_link=True`, o write path:
+
+1. Insere o fato normalmente
+2. Varre o `value` em busca de referências a outras entidades
+   (entity_type + entity_name conhecidos)
+3. Para cada referência encontrada, cria um link via `shared_memory_link`
+
+**Fase 2:** Entity Linking completo será integrado ao Memory Agent, que fará
+análise semântica de toda a conversa para detectar relações entre entidades.
+
+### 7.3 Convenções para Links Automáticos
+
+| Padrão no value                       | Link gerado                                |
+|---------------------------------------|--------------------------------------------|
+| `{"empresa": "distribuidora_x"}`      | `contact → works_for → supplier`           |
+| `{"cliente": "empresa_acme"}`         | `contact → works_for → client`             |
+| `{"skill": "cobranca"}`               | `user/specialist → applies_to → skill`     |
+| `{"preferencia_canal": "whatsapp"}`   | `contact/→ prefers → skill:canal`          |
+
+### 7.4 Prevenção de Duplicatas
+
+A constraint `uq_shared_memory_link` previne links duplicados. Se o mesmo
+link já existe, o auto-linking é ignorado (idempotente).
+
+---
+
+## 8. TTL e Ciclo de Vida
+
+### 8.1 TTL Tiers
+
+```python
+_TTL_TIER_INTERVALS = {
+    "curated":         None,   # Nunca expira
+    "migration":       90,     # 90 dias
+    "specialist":      30,     # 30 dias
+    "memory_agent_hi": 14,     # 14 dias (alta confiança)
+    "memory_agent_lo": 7,      # 7 dias (baixa confiança)
+}
+```
+
+Default por `source`:
+
+| source         | ttl_tier inferido    |
+|----------------|----------------------|
+| `curated`      | `curated` (nunca expira) |
+| `migration`    | `migration` (90d)    |
+| `specialist`   | `specialist` (30d)   |
+| `memory_agent` | `memory_agent_lo` (7d) |
+
+### 8.2 Ciclo de Vida
+
+```ascii
+Fato escrito (source=specialist, ttl_tier=specialist)
+        │
+        ├─ curated=false, expires_at = now + 30d
+        │
+        ├─ [Morning Plan] Usuário confirma → curated=true, expires_at=NULL
+        │
+        ├─ [Prune Job] 03:00 UTC → Se curated=false AND expires_at < now
+        │   → soft_delete (flushed_at em metadata)
+        │
+        └─ [Archival] 90 dias após soft_delete → hard_delete
+```
+
+---
+
+## 9. Design Decisions e ADRs
+
+### 9.1 Decisões do Plan (DD1-DD4)
+
+| ID   | Decisão | Rationale |
+|------|---------|-----------|
+| DD1  | **Handoff hook síncrono** (não fire-and-forget) | Agente destino precisa das memórias mais recentes. Fire-and-forget poderia entregar estado desatualizado. |
+| DD2  | **shared_memory_write usa upsert** (ON CONFLICT DO UPDATE) | UNIQUE constraint em `(client_id, entity_type, entity_name, key)` é o ID natural. Evita duplicatas e permite atualização in-place. |
+| DD3  | **Context Service leve inline** (nenhum serviço externo) | Context Service 2.0 do roadmap ainda não existe. Hook inline resolve o caso imediato sem nova infra. |
+| DD4  | **source='specialist', confidence=0.8 (inferido) ou 1.0 (explícito)** | Dados extraídos da conversa pelo hook são de confiança média. Distingue de `manual` (humano) e `memory_agent` (futuro). |
+
+### 9.2 Respostas a Design Questions (DQ1-DQ3)
+
+| ID   | Questão | Resposta |
+|------|---------|----------|
+| DQ1  | Handoff hook extrai aprendizado automaticamente ou só quando sinalizado? | **Sinalizado** — Memory Agent (Fase 2) fará extração automática. Hook só escreve quando specialist sinaliza (`has_learning=True`). |
+| DQ2  | Context Service: módulo separado ou inline no handoff_hook.py? | **Inline** — Context Service 2.0 completo será serviço separado em fase futura. |
+| DQ3  | shared_memory_search: pgvector ou ILIKE/trigram? | **ILIKE + trigram** — pgvector requer extensão habilitada no Supabase e modelo de embedding definido. A busca vetorial (já implementada via Cohere) atende cenários semânticos. Uma busca textual via ILIKE deve ser adicionada como fallback. |
+
+### 9.3 ADRs do Sistema (D1-D9 existentes + novas)
+
+**ADRs existentes (herdadas de AGENT_SYSTEM.md):**
 
 | ID  | Decisão |
 |-----|---------|
-| DD1 | `entity_type='snapshot'`, `entity_name='{dimensao}:{periodo}'`, key=ISO timestamp |
-| DD2 | Body em JSON estruturado (não markdown). Só `resumo_executivo` é markdown. |
-| DD3 | Queries SQL no frontmatter como REFERÊNCIA, não código executável. Versionadas. |
-| DD4 | Frontmatter no JSONB da `shared_business_memory` (schema Fase 0). |
-| DQ4 | Template base (`_SNAPSHOT_BASE_FIELDS`) + extensão por dimensão (`_SNAPSHOT_DIMENSION_FIELDS`). |
+| D1  | `execute_sql` absorveu `executar_sql_agent` (modo direct/agent) |
+| D3  | Somente `data-entry` pode escrever transações via `ledger` skill |
+| D5  | `parse_business_reply` absorveu `parse_supplier_reply` |
+| D8  | 13 tools de fornecedores consolidadas em `compras_ops` |
+
+**ADRs específicas da shared memory:**
+
+| ID   | Decisão |
+|------|---------|
+| ADR-SM-01 | `entity_name` e `key` normalizados para lowercase + trimmed antes de qualquer operação |
+| ADR-SM-02 | `source` inválido normalizado para `"manual"` (fallback seguro, mais restritivo) |
+| ADR-SM-03 | Links usam chave composta `(client_id, source, target, link_type)` para unicidade |
+| ADR-SM-04 | `shared_memory_upsert` (legado) mantida por compatibilidade, mas `shared_memory_write` é a tool canônica |
+| ADR-SM-05 | Flush é soft-delete (marca `flushed_at`), não hard-delete. Hard-delete só após 90 dias |
+| ADR-SM-06 | Entity types não são extensíveis por runtime — adicionar novo tipo requer deploy |
+| ADR-SM-07 | `category` é opcional e não validada contra regras de escrita (apenas contra enum) |
+| ADR-SM-08 | Handoff hook tem timeout de 2s. Se exceder, graceful degradation (handoff prossegue sem escrita) |
 
 ---
 
-## T5.2 — Modelo de Permissões de Escrita
-
-### 7. Write Path — Fluxo de Escrita
-
-[ ] TODO: verificar
-
-O fluxo de escrita na shared memory segue o princípio **Single Writer**:
-cada `source` só pode escrever nos `entity_type` para os quais foi autorizada.
-A verificação ocorre antes de qualquer operação no banco.
-
-```
-Entrada: entity_type, entity_name, key, value, source, confidence, supersede
-    │
-    ├─ 1. _validate_entity_type(entity_type)
-    │     └─ entity_type ∉ _VALID_ENTITY_TYPES → ValueError
-    │
-    ├─ 2. _normalize_entity_name(entity_name) → lowercase, trimmed
-    │     key = key.strip().lower()
-    │
-    ├─ 3. entity_name ou key vazios → ValueError
-    │     value não-dict → ValueError
-    │
-    ├─ 4. _check_write_permission(source, entity_type, entity_name)
-    │     └─ source ∉ _WRITE_PERMISSIONS ou entity_type não permitido → ValueError
-    │
-    ├─ 5. snapshot? → valida frontmatter (_validate_snapshot_frontmatter)
-    │                 valida body (_validate_snapshot_body)
-    │
-    ├─ 6. Monta payload: client_id, entity_type, entity_name, key,
-    │     value, category, source, confidence, metadata
-    │
-    ├─ 7. supersede=True?
-    │     ├─ Sim → UPSERT ON CONFLICT (client_id,entity_type,entity_name,key)
-    │     └─ Não  → INSERT (falha se duplicado → ValueError)
-    │
-    └─ 8. Retorna registro completo (id, version, created_at, updated_at)
-```
-
-A função principal é `_shared_memory_write_logic()` em
-[`services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py`](../../services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py).
-
-**Entrada externa (tool MCP):** `shared_memory_write` é a tool registrada no
-MCP server que invoca `_shared_memory_write_logic()`. Ela valida campos
-obrigatórios, normaliza `source` (default `"manual"` se inválido) e
-valida `category` contra `_VALID_CATEGORIES`.
-
-**Diferença `shared_memory_write` × `shared_memory_upsert`:**
-- `shared_memory_write` (T5.2): strict INSERT por default, `supersede=True`
-  para upsert. **Faz verificação de permissão de escrita.**
-- `shared_memory_upsert` (T0.5, legada): sempre upsert, **não** faz
-  verificação de permissão. Mantida por compatibilidade. Não documentada
-  como parte do modelo T5.2.
-
-### 8. Entity Type Access — Tipos de Entidade
-
-[ ] TODO: verificar
-
-Os `entity_type` válidos para escrita são definidos em `_VALID_ENTITY_TYPES`:
-
-| entity_type      | Descrição                                      | Quem escreve                         |
-|------------------|------------------------------------------------|--------------------------------------|
-| `skill`          | Fatos derivados de skills/ferramentas          | system, memory_agent, specialist, manual, migration |
-| `client`         | Dados de clientes (CRM)                        | system, memory_agent, specialist, manual, migration |
-| `contact`        | Contatos individuais                           | system, memory_agent, specialist, manual, migration |
-| `supplier`       | Fornecedores                                   | system, memory_agent, specialist, manual, migration |
-| `user`           | Usuários da plataforma                         | system, memory_agent, specialist, manual, migration |
-| `snapshot`       | Snapshots por dimensão (T2.2)                  | system, memory_agent, specialist, migration |
-| `routine`        | Rotinas automatizadas (Routine Engine)         | system, memory_agent, migration     |
-| `agent_result`   | Resultados de execução de agentes              | system, memory_agent, specialist, migration |
-| `agent_metadata` | Metadados operacionais de agentes              | system, memory_agent, specialist, migration |
-
-**Restrições por fonte:**
-- `manual` (humano) só escreve entidades de negócio: `skill`, `client`, `contact`, `supplier`, `user`.
-- `specialist` (agente especialista) escreve tudo **exceto** `routine`.
-- `routine` é reservado para `system`, `memory_agent` e `migration`.
-
-### 9. Authorization Rules by entity_type — Matriz de Permissões
-
-[ ] TODO: verificar
-
-A matriz de permissões é definida em `_WRITE_PERMISSIONS` (dict `source → frozenset[entity_type]`):
-
-| source         | skill | client | contact | supplier | user | snapshot | routine | agent_result | agent_metadata |
-|----------------|:-----:|:------:|:-------:|:--------:|:----:|:--------:|:-------:|:------------:|:--------------:|
-| `system`       |   ✓   |   ✓    |    ✓    |    ✓     |  ✓   |    ✓     |    ✓    |      ✓       |       ✓        |
-| `memory_agent` |   ✓   |   ✓    |    ✓    |    ✓     |  ✓   |    ✓     |    ✓    |      ✓       |       ✓        |
-| `specialist`   |   ✓   |   ✓    |    ✓    |    ✓     |  ✓   |    ✓     |    ✗    |      ✓       |       ✓        |
-| `manual`       |   ✓   |   ✓    |    ✓    |    ✓     |  ✓   |    ✗     |    ✗    |      ✗       |       ✗        |
-| `migration`    |   ✓   |   ✓    |    ✓    |    ✓     |  ✓   |    ✓     |    ✓    |      ✓       |       ✓        |
-
-**Regras de autorização:**
-
-1. **`system`** — acesso total. Usado pelo próprio sistema e rotinas internas
-   (ex: `prune_shared_memory`, `sbm_lightrag_weekly_synthesis`).
-
-2. **`memory_agent`** — acesso total. Usado pelo agente de memória
-   (DomainProjectionMemoryAgent) que consolida e projeta fatos entre dimensões.
-
-3. **`specialist`** — acesso a entidades de domínio + snapshots + resultados.
-   **Não pode escrever `routine`.** Usado por agentes especialistas
-   (financeiro, clientes, agenda, compras).
-
-4. **`manual`** — acesso apenas a entidades de negócio (`skill`, `client`,
-   `contact`, `supplier`, `user`). Usado por intervenção humana ou API externa.
-   **Não pode escrever `snapshot`, `routine`, `agent_result`, `agent_metadata`.**
-
-5. **`migration`** — acesso total, idêntico a `system`. Usado exclusivamente
-   durante migrações e importação de dados.
-
-**Mensagens de erro:**
-
-- Source desconhecida: `"Unknown source 'X'. Must be one of: ['manual', 'memory_agent', 'migration', 'specialist', 'system']"`
-- Permissão negada: `"Write permission denied: source 'X' cannot write to entity_type 'Y' (entity: Z). Allowed types for 'X': [...]"`
-
-### 10. Allowed Write Fields — Campos Permitidos
-
-[ ] TODO: verificar
-
-Os campos que cada `source` pode definir no payload de escrita:
-
-| Campo        | Tipo    | Obrigatório | Default     | Restrição por source                |
-|-------------|---------|:-----------:|-------------|--------------------------------------|
-| client_id   | UUID    |     sim     | —           | Sem restrição                       |
-| entity_type | string  |     sim     | —           | Via `_WRITE_PERMISSIONS`            |
-| entity_name | string  |     sim     | —           | Normalizado para lowercase          |
-| key         | string  |     sim     | —           | Normalizado para lowercase          |
-| value       | dict    |     sim     | —           | Sem restrição                       |
-| category    | string  |     não     | `None`      | Deve pertencer a `_VALID_CATEGORIES`|
-| source      | string  |     não     | `"manual"`  | Deve pertencer a `_WRITE_PERMISSIONS`|
-| confidence  | float   |     não     | `1.0`       | Range 0.0–1.0                       |
-| supersede   | bool    |     não     | `False`     | Sem restrição                       |
-| agent_id    | UUID    |     não     | `None`      | Armazenado em metadata              |
-| ttl         | int     |     não     | `None`      | Armazenado em metadata              |
-| priority    | int     |     não     | `None`      | Armazenado em metadata (0–100)      |
-| ttl_tier    | string  |     não     | Inferido    | Tiers: curated, migration, specialist, memory_agent_hi, memory_agent_lo |
-
-**Observações:**
-- `source` inválido é silenciosamente normalizado para `"manual"` (fallback seguro).
-- `category` inválida causa rejeição com `ToolError`.
-- `agent_id`, `ttl`, `priority` são armazenados no JSONB `metadata`, não como
-  colunas dedicadas.
-
-### 11. Source Enum — Fontes de Escrita
-
-[ ] TODO: verificar
-
-As fontes (`source`) definem a **proveniência** de cada fato na shared memory.
-O valor é armazenado na coluna `source` da tabela `shared_business_memory`.
-
-| Source         | Definição                                                | Exemplo de uso                              |
-|----------------|----------------------------------------------------------|---------------------------------------------|
-| `system`       | Sistema / rotinas internas                               | `prune_shared_memory`, cron jobs            |
-| `memory_agent` | DomainProjectionMemoryAgent (agente de projeção)         | Consolidação de fatos entre dimensões       |
-| `specialist`   | Agentes especialistas de domínio                         | `financeiro_agent`, `clientes_agent`        |
-| `manual`       | Intervenção humana ou API externa                        | Entrada manual de dados, integração REST    |
-| `migration`    | Migração e importação de dados                           | Scripts de seed, importação em lote         |
-
-**Fallback:** Se `source` não for reconhecido, o sistema normaliza para
-`"manual"` — a fonte mais restritiva. Isso evita que um source inválido
-ganhe acesso acidental a entity_types sensíveis.
-
-**Enum no código:**
-```python
-# Valid sources (keys of _WRITE_PERMISSIONS)
-# system, memory_agent, specialist, manual, migration
-validated_source = source if source in _WRITE_PERMISSIONS else "manual"
-```
-
-### 12. Confidence Rules — Regras de Confiança
-
-[ ] TODO: verificar
-
-Toda escrita na shared memory carrega um score de **confiança** (`confidence`),
-um `float` no intervalo **0.0 a 1.0**:
-
-| Valor  | Significado                                     |
-|--------|-------------------------------------------------|
-| `1.0`  | Certeza absoluta (default para `manual`)        |
-| 0.9–1.0| Alta confiança — agente com fontes confiáveis   |
-| 0.7–0.9| Confiança moderada — inferência com respaldo    |
-| 0.5–0.7| Baixa confiança — heurística ou estimativa      |
-| 0.0–0.5| Muito baixa — placeholder ou dado não verificado|
-
-**Uso:**
-- Armazenado na coluna `confidence` da tabela `shared_business_memory`.
-- Não há validação de range no write path atual (responsabilidade do caller).
-- Consumidores (agentes de leitura, motor de busca) podem filtrar por
-  `confidence` mínima para evitar fatos de baixa qualidade.
-- No frontmatter de snapshots, o campo equivalente é `confianca` (também 0.0–1.0).
-
-**Exemplo:**
-```python
-# Alta confiança — dado confirmado por múltiplas fontes
-shared_memory_write(
-    entity_type="client",
-    entity_name="empresa_x",
-    key="faturamento_anual",
-    value={"valor": 15000000, "unidade": "BRL"},
-    source="specialist",
-    confidence=0.95,
-)
-```
-
-### 13. Validation Behavior — Comportamento de Validação
-
-[ ] TODO: verificar
-
-O sistema aplica validação em três camadas:
-
-#### 13.1 Validação de Entrada (Tool Level)
-
-Executada em `shared_memory_write()` (wrapper MCP) **antes** de chamar
-`_shared_memory_write_logic()`:
-
-| Validação                          | Tipo de Erro | Mensagem                                    |
-|------------------------------------|:------------:|---------------------------------------------|
-| `client_id` ausente                | `ToolError`  | `client_id is required`                     |
-| `entity_type` vazio                | `ToolError`  | `entity_type is required`                   |
-| `entity_name` vazio                | `ToolError`  | `entity_name is required`                   |
-| `key` vazio                        | `ToolError`  | `key is required`                           |
-| `value` não-dict                   | `ToolError`  | `value must be a dict`                      |
-| `category` inválida                | `ToolError`  | `Invalid category 'X'. Must be one of: [...]`|
-
-#### 13.2 Validação de Permissão (Logic Level)
-
-Executada em `_shared_memory_write_logic()` via `_check_write_permission()`:
-
-| Condição                           | Tipo de Erro | Ação                                        |
-|------------------------------------|:------------:|---------------------------------------------|
-| `source` desconhecido              | `ValueError` | Rejeita                                     |
-| `entity_type` não permitido        | `ValueError` | Rejeita com lista de tipos permitidos       |
-
-#### 13.3 Validação Específica por entity_type
-
-**Snapshots** (`entity_type="snapshot"`):
-- `_validate_snapshot_frontmatter()`: verifica campos obrigatórios
-  (`tipo`, `dimensao`, `periodo`, `gerado_em`, `gerado_por`, `versao`,
-  `template_version`, `fontes`), cross-valida `dimensao` e `periodo`
-  com `entity_name`.
-- `_validate_snapshot_body()`: valida campos base (`_SNAPSHOT_BASE_FIELDS`)
-  e indicadores da dimensão contra `_SNAPSHOT_DIMENSION_FIELDS`.
-- Indicadores desconhecidos geram **WARNING** (não erro).
-- Indicadores requeridos faltantes geram **ValueError**.
-
-**Demais entity_types:** Apenas validação de tipo (deve pertencer a
-`_VALID_ENTITY_TYPES`). Sem validação de schema no body.
-
-### 14. Versioning/Audit — Versionamento e Auditoria
-
-[ ] TODO: verificar
-
-#### 14.1 Versionamento em `shared_memory_upsert` (legado T0.5)
-
-A função `_shared_memory_upsert_logic()` implementa versionamento completo:
-
-1. **Arquivamento:** Antes de sobrescrever, a versão atual é copiada para
-   `shared_business_memory_versions` via `_archive_memory_version()`.
-2. **Incremento:** `new_version = archived_version + 1` (ou `1` se for
-   a primeira inserção).
-3. **Payload:** Inclui `version: new_version` na coluna `version`.
-
-#### 14.2 Comportamento em `shared_memory_write` (T5.2)
-
-O `shared_memory_write` **não implementa versionamento automático**.
-Comportamento:
-
-- **Primeira escrita (INSERT):** `version` default `1` (via coluna no banco).
-- **Supersede (UPSERT):** A linha é sobrescrita **sem arquivar** a versão
-  anterior. A coluna `version` pode ser incrementada pelo banco via trigger,
-  mas não há garantia de auditoria.
-
-**Decisão de design:** `shared_memory_write` é otimizado para simplicidade
-e performance. Para cenários que exigem trilha de auditoria completa,
-use `shared_memory_upsert`.
-
-#### 14.3 Trilha de Auditoria
-
-A tabela `shared_business_memory` inclui colunas de auditoria padrão:
-
-| Coluna       | Tipo        | Descrição                                  |
-|-------------|-------------|---------------------------------------------|
-| `id`        | int (PK)    | ID auto-increment                          |
-| `created_at`| timestamptz | Timestamp de criação                       |
-| `updated_at`| timestamptz | Timestamp da última atualização            |
-| `source`    | text        | Fonte da última escrita                    |
-| `version`   | int         | Número da versão (default 1)               |
-
-Adicionalmente, a tabela `shared_business_memory_versions` armazena o
-histórico completo de versões para entradas modificadas via
-`shared_memory_upsert`.
-
-### 15. Observability — Observabilidade
-
-[ ] TODO: verificar
-
-#### 15.1 Logging
-
-O módulo `memory_module.py` usa `logging.getLogger(__name__)` com
-log level `INFO` para operações normais e `ERROR` para falhas.
-
-**Eventos logados:**
-
-| Evento                              | Nível  | Mensagem                                                    |
-|-------------------------------------|:------:|-------------------------------------------------------------|
-| Write request                       | INFO   | `shared_memory_write entity_type=X entity_name=Y key=Z ...` |
-| Write failure (ValueError)          | —      | Re-lançada como `ToolError` (sem log adicional)             |
-| Write failure (Exception)           | ERROR  | `shared_memory_write failed: {exc}`                         |
-| Tool registration                   | INFO   | `Tool 'shared_memory_write' registered.`                    |
-
-#### 15.2 Métricas e Tracing
-
-- **Métricas:** Não implementadas diretamente no módulo. O MCP server
-  (FastMCP + Supabase) provê métricas de latência e taxa de erro via
-  middleware.
-- **Tracing:** `client_id` e timestamps (`created_at`, `updated_at`)
-  permitem rastrear a origem e evolução de cada fato.
-
-#### 15.3 Monitoramento de Permissões
-
-- Toda violação de permissão gera `ValueError` com detalhes (source,
-  entity_type, entity_name, allowed types).
-- Esses erros são capturados pelo wrapper MCP e expostos como `ToolError`
-  ao caller.
-- Não há mecanismo de alerta proativo para violações repetidas — a
-  responsabilidade é do agente chamador.
-
-### 16. Non-Snapshot Upsert Examples — Exemplos para Outros entity_types
-
-[ ] TODO: verificar
-
-#### 16.1 Skill fact (source: specialist)
-
-```json
-{
-  "entity_type": "skill",
-  "entity_name": "nlp_analyzer",
-  "key": "sentimento_cliente_x",
-  "value": {
-    "sentimento": "positivo",
-    "score": 0.87,
-    "ultima_analise": "2025-06-19T10:00:00Z"
-  },
-  "category": "knowledge",
-  "source": "specialist",
-  "confidence": 0.9
-}
-```
-
-#### 16.2 Client fact (source: manual)
-
-```json
-{
-  "entity_type": "client",
-  "entity_name": "empresa_acme",
-  "key": "contato_principal",
-  "value": {
-    "nome": "João Silva",
-    "cargo": "CEO",
-    "email": "joao@acme.com"
-  },
-  "category": "context",
-  "source": "manual",
-  "confidence": 1.0
-}
-```
-
-#### 16.3 Routine fact (source: system)
-
-```json
-{
-  "entity_type": "routine",
-  "entity_name": "prune_shared_memory",
-  "key": "ultima_execucao",
-  "value": {
-    "executado_em": "2025-06-19T03:00:00Z",
-    "entradas_removidas": 42,
-    "duracao_segundos": 3.5
-  },
-  "source": "system",
-  "confidence": 1.0
-}
-```
-
-#### 16.4 Agent result (source: memory_agent)
-
-```json
-{
-  "entity_type": "agent_result",
-  "entity_name": "domain_projection",
-  "key": "projecao_semanal_2025-06-19",
-  "value": {
-    "dimensao_origem": "clientes",
-    "dimensao_destino": "financeiro",
-    "fatos_projetados": 15,
-    "confianca_media": 0.88
-  },
-  "source": "memory_agent",
-  "confidence": 0.9
-}
-```
-
-#### 16.5 Migration (source: migration)
-
-```json
-{
-  "entity_type": "client",
-  "entity_name": "empresa_legado",
-  "key": "historico_compras_2024",
-  "value": {
-    "total_compras": 250,
-    "volume_total_brl": 1250000,
-    "produtos_mais_comprados": ["produto_a", "produto_b"]
-  },
-  "source": "migration",
-  "confidence": 1.0
-}
-```
-
-### 17. Uniqueness Constraints — Constraints de Unicidade
-
-[ ] TODO: verificar
-
-#### 17.1 Chave Composta
-
-A unicidade na `shared_business_memory` é garantida pela **chave composta**:
-
-```
-(client_id, entity_type, entity_name, key)
-```
-
-Esta constraint é implementada no banco via índice único
-`uq_shared_memory_entry` (ou `uq_shared_business_memory`).
-
-#### 17.2 Comportamento por Operação
-
-| Operação                   | Comportamento                                          |
-|---------------------------|--------------------------------------------------------|
-| `shared_memory_write`     | INSERT estrito — falha se chave já existe              |
-| `shared_memory_write` + supersede | UPSERT — sobrescreve se existe, insere se não   |
-| `shared_memory_upsert`    | UPSERT — sempre sobrescreve, com versionamento         |
-
-#### 17.3 Mensagens de Violação
-
-**Duplicate key (INSERT sem supersede):**
-```
-ValueError: Memory entry already exists for skill:empresa_acme/contato_principal.
-Use supersede=True to overwrite.
-```
-
-**Violação de unicidade inesperada:**
-```
-RuntimeError: Failed to write shared-memory entry: <detalhes do banco>
-```
-
-#### 17.4 Observações
-
-- `entity_name` e `key` são **normalizados para lowercase e trimmed** antes
-  de qualquer operação. Isso garante unicidade case-insensitive.
-- A constraint cobre `client_id` — tenants diferentes podem ter a mesma
-  entrada `(entity_type, entity_name, key)` sem conflito.
-- A constraint **não** cobre `source` ou `confidence` — múltiplas fontes
-  competem pela mesma chave (a última escrita vence no upsert).
+### 9.4 Riscos e Mitigações
+
+| ID  | Risco | Mitigação |
+|-----|-------|-----------|
+| R1  | **Latência no handoff com hook síncrono** | Timeout 2s no hook. Graceful degradation se timeout. |
+| R2  | **Ciclo infinito de handoff** | Hook só dispara em `route_to_specialist`, não em writes diretos. Flag `skip_handoff_hook` no estado. |
+| R3  | **shared_memory_write sem permissão real** (migration proposta, não aplicada) | Tools usam `service_role` (bypass RLS). Migration precisa ser aplicada antes ou em paralelo. |
+| R4  | **Dependência de Fase 0 migrations aplicadas** | Falha clara `relation not found` se tabela não existe. Coordenar aplicação com operações. |
+| R5  | **Cohere embedding service indisponível** | shared_memory_search falha com `ToolError` claro. ILIKE/trigram como fallback textual (a implementar). |
+
+---
+
+## Apêndice A: Referência de Código
+
+| Componente                    | Caminho |
+|------------------------------|---------|
+| Módulo principal de tools    | `services/tool_pool_api/src/tool_pool_api/server/tool_modules/memory_module.py` |
+| Handoff hook (a implementar) | `libs/blu_agent_framework/src/blu_agent_framework/handoff/handoff_hook.py` |
+| Context loader (a implementar)| `libs/blu_agent_framework/src/blu_agent_framework/handoff/shared_memory_context.py` |
+| Handoff init (a implementar) | `libs/blu_agent_framework/src/blu_agent_framework/handoff/__init__.py` |
+| Schema de contexto           | `libs/blu_context_service/src/blu_context_service/context_schemas.py` |
+
+## Apêndice B: Histórico de Revisões
+
+| Data       | Versão | Autor          | Mudanças |
+|------------|--------|----------------|----------|
+| 2026-06    | 1.0    | factory-coder  | Documento inicial da Fase 1 (T1.3): visão geral, schemas, taxonomy, catálogo de tools, handoff hook design, entity linking, ADRs. Inclui conteúdo existente de T2.2 (snapshots) e T5.2 (permissões). |

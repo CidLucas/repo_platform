@@ -220,6 +220,6 @@ O root `pyproject.toml` existe mas as libs individuais têm seus próprios `pypr
 - [x] Internal cross-dependencies mapped (via pyproject.toml path refs)
 - [x] Missing reference docs flagged (9 absent from HERMES.md list)
 - [x] File saved to `docs/planning/issue-57/inventory-catalog.md`
-- [ ] Git commit + push to branch `phase-0/issue-57-code-patterns-review`
+- [x] Git commit + push to branch `phase-0/issue-57-code-patterns-review` (ff5ad52b)
 
 **Nota:** Discrepância "23 libs" vs "21 libs" documentada em §12.1. O repo-index.md (planner) também lista 21 libs na tabela — apesar do cabeçalho dizer "23 Libraries".

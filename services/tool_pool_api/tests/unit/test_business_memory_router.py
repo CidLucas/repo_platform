@@ -2,7 +2,7 @@
 
 Tests the ``business_memory_router`` with:
 - Mocked Supabase client (avoids real database)
-- Mocked authentication
+- Mocked authentication via FastAPI dependency_overrides
 - Covers: list all, filter by entity_type, filter by entity_name,
   pagination, get single record, invalid UUID, not found, server errors
 """
@@ -14,6 +14,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from tool_pool_api.api import business_memory_router
+from tool_pool_api.api.integrations_router import _get_auth_result
 
 
 # ---------------------------------------------------------------------------
@@ -42,7 +43,7 @@ def _sample_rows(count: int = 3) -> list[dict]:
                 "id": str(uuid.uuid4()),
                 "client_id": str(uuid.uuid4()),
                 "entity_type": "snapshot",
-                "entity_name": f"financeiro:semanal",
+                "entity_name": "financeiro:semanal",
                 "key": f"2026-06-{15 + i:02d}T10:00:00Z",
                 "value": {
                     "indicadores": [{"nome": "receita", "valor": 50000}],
@@ -59,27 +60,38 @@ def _sample_rows(count: int = 3) -> list[dict]:
     return rows
 
 
-def _make_mock_supabase_client(rows: list[dict] | None = None, raise_error: bool = False):
+def _make_mock_supabase_client(
+    rows: list[dict] | None = None,
+    raise_error: bool = False,
+) -> MagicMock:
     """Create a mock Supabase client that returns the given rows."""
     db = MagicMock()
-    result = MagicMock()
-    result.data = rows
 
     if raise_error:
-        # Make execute() raise
-        result.execute.side_effect = Exception("Database connection failed")
+        result = MagicMock()
+        result.data = None
+
+        query = MagicMock()
+        query.select.return_value = query
+        query.eq.return_value = query
+        query.ilike.return_value = query
+        query.order.return_value = query
+        query.range.return_value = query
+        query.single.return_value = query
+        query.execute.side_effect = Exception("Database connection failed")
     else:
+        result = MagicMock()
+        result.data = rows
         result.execute.return_value = result
 
-    # Build chain: db.schema().table().select()...etc -> result
-    query = MagicMock()
-    query.select.return_value = query
-    query.eq.return_value = query
-    query.ilike.return_value = query
-    query.order.return_value = query
-    query.range.return_value = query
-    query.single.return_value = query
-    query.execute.return_value = result
+        query = MagicMock()
+        query.select.return_value = query
+        query.eq.return_value = query
+        query.ilike.return_value = query
+        query.order.return_value = query
+        query.range.return_value = query
+        query.single.return_value = query
+        query.execute.return_value = result
 
     schema_mock = MagicMock()
     schema_mock.table.return_value = query
@@ -94,31 +106,24 @@ def _make_mock_supabase_client(rows: list[dict] | None = None, raise_error: bool
 
 
 @pytest.fixture
-def client_id() -> str:
-    return str(uuid.uuid4())
+def fake_auth():
+    return FakeAuthResult()
 
 
 @pytest.fixture
-def app():
-    """FastAPI app with only the business_memory_router mounted."""
+def app(fake_auth):
+    """FastAPI app with mocked auth via dependency_overrides."""
     app = FastAPI()
     app.include_router(business_memory_router.router)
+    # Override the auth dependency so no real JWT is required
+    app.dependency_overrides[_get_auth_result] = lambda _fake=fake_auth: _fake
     return app
 
 
 @pytest.fixture
-def client(app, monkeypatch):
-    """TestClient with mocked auth and Supabase."""
-    client_id = uuid.uuid4()
-
-    # Patch auth dependency
-    monkeypatch.setattr(
-        business_memory_router,
-        "_get_auth_result",
-        lambda *a, **k: FakeAuthResult(client_id=client_id),
-    )
-
-    return TestClient(app), client_id
+def client(app, fake_auth):
+    """TestClient with mocked auth."""
+    return TestClient(app), fake_auth
 
 
 # ---------------------------------------------------------------------------
@@ -126,21 +131,19 @@ def client(app, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_list_business_memory_success(client, monkeypatch):
+def test_list_business_memory_success(client, fake_auth):
     """Should return all records for the authenticated client."""
-    test_client, client_id = client
+    test_client, _ = client
     rows = _sample_rows(count=2)
     mock_db = _make_mock_supabase_client(rows)
 
-    monkeypatch.setattr(
-        business_memory_router, "get_supabase_client", lambda: mock_db
-    )
+    business_memory_router.get_supabase_client = MagicMock(return_value=mock_db)
 
     resp = test_client.get("/api/business-memory")
     assert resp.status_code == 200
 
     body = resp.json()
-    assert body["client_id"] == str(client_id)
+    assert body["client_id"] == str(fake_auth.client_id)
     assert body["total_records"] == 2
     assert len(body["records"]) == 2
     assert body["records"][0]["entity_type"] == "snapshot"
@@ -155,14 +158,12 @@ def test_list_business_memory_success(client, monkeypatch):
     assert body["records"][0]["updated_at"] is not None
 
 
-def test_list_business_memory_empty(client, monkeypatch):
+def test_list_business_memory_empty(client):
     """Should return empty records array for client with no data."""
-    test_client, client_id = client
+    test_client, _ = client
     mock_db = _make_mock_supabase_client([])
 
-    monkeypatch.setattr(
-        business_memory_router, "get_supabase_client", lambda: mock_db
-    )
+    business_memory_router.get_supabase_client = MagicMock(return_value=mock_db)
 
     resp = test_client.get("/api/business-memory")
     assert resp.status_code == 200
@@ -172,14 +173,12 @@ def test_list_business_memory_empty(client, monkeypatch):
     assert body["records"] == []
 
 
-def test_list_business_memory_none_data(client, monkeypatch):
+def test_list_business_memory_none_data(client):
     """Should handle None .data gracefully (returns empty)."""
-    test_client, client_id = client
+    test_client, _ = client
     mock_db = _make_mock_supabase_client(None)
 
-    monkeypatch.setattr(
-        business_memory_router, "get_supabase_client", lambda: mock_db
-    )
+    business_memory_router.get_supabase_client = MagicMock(return_value=mock_db)
 
     resp = test_client.get("/api/business-memory")
     assert resp.status_code == 200
@@ -189,15 +188,13 @@ def test_list_business_memory_none_data(client, monkeypatch):
     assert body["records"] == []
 
 
-def test_list_business_memory_filter_by_entity_type(client, monkeypatch):
+def test_list_business_memory_filter_by_entity_type(client):
     """Should apply entity_type filter when provided."""
-    test_client, client_id = client
+    test_client, _ = client
     rows = _sample_rows(count=1)
     mock_db = _make_mock_supabase_client(rows)
 
-    monkeypatch.setattr(
-        business_memory_router, "get_supabase_client", lambda: mock_db
-    )
+    business_memory_router.get_supabase_client = MagicMock(return_value=mock_db)
 
     resp = test_client.get("/api/business-memory?entity_type=snapshot")
     assert resp.status_code == 200
@@ -206,15 +203,13 @@ def test_list_business_memory_filter_by_entity_type(client, monkeypatch):
     assert body["total_records"] == 1
 
 
-def test_list_business_memory_filter_by_entity_name(client, monkeypatch):
+def test_list_business_memory_filter_by_entity_name(client):
     """Should apply entity_name filter when provided."""
-    test_client, client_id = client
+    test_client, _ = client
     rows = _sample_rows(count=1)
     mock_db = _make_mock_supabase_client(rows)
 
-    monkeypatch.setattr(
-        business_memory_router, "get_supabase_client", lambda: mock_db
-    )
+    business_memory_router.get_supabase_client = MagicMock(return_value=mock_db)
 
     resp = test_client.get("/api/business-memory?entity_name=financeiro")
     assert resp.status_code == 200
@@ -223,31 +218,26 @@ def test_list_business_memory_filter_by_entity_name(client, monkeypatch):
     assert body["total_records"] == 1
 
 
-def test_list_business_memory_pagination(client, monkeypatch):
+def test_list_business_memory_pagination(client):
     """Should respect limit and offset query params."""
-    test_client, client_id = client
+    test_client, _ = client
     rows = _sample_rows(count=5)
     mock_db = _make_mock_supabase_client(rows)
 
-    monkeypatch.setattr(
-        business_memory_router, "get_supabase_client", lambda: mock_db
-    )
+    business_memory_router.get_supabase_client = MagicMock(return_value=mock_db)
 
-    # Request 2 records, offset 0
     resp = test_client.get("/api/business-memory?limit=2&offset=0")
     assert resp.status_code == 200
     body = resp.json()
     assert body["total_records"] == 5  # total is what mock returns
 
 
-def test_list_business_memory_db_error(client, monkeypatch):
+def test_list_business_memory_db_error(client):
     """Should return 500 on database error."""
-    test_client, client_id = client
+    test_client, _ = client
     mock_db = _make_mock_supabase_client(raise_error=True)
 
-    monkeypatch.setattr(
-        business_memory_router, "get_supabase_client", lambda: mock_db
-    )
+    business_memory_router.get_supabase_client = MagicMock(return_value=mock_db)
 
     resp = test_client.get("/api/business-memory")
     assert resp.status_code == 500
@@ -259,13 +249,13 @@ def test_list_business_memory_db_error(client, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_get_business_memory_record_success(client, monkeypatch):
+def test_get_business_memory_record_success(client, fake_auth):
     """Should return a single record by UUID."""
-    test_client, client_id = client
+    test_client, _ = client
     record_id = str(uuid.uuid4())
     row = {
         "id": record_id,
-        "client_id": str(client_id),
+        "client_id": str(fake_auth.client_id),
         "entity_type": "snapshot",
         "entity_name": "financeiro:diario",
         "key": "2026-06-19T10:00:00Z",
@@ -279,9 +269,7 @@ def test_get_business_memory_record_success(client, monkeypatch):
     }
     mock_db = _make_mock_supabase_client(row)
 
-    monkeypatch.setattr(
-        business_memory_router, "get_supabase_client", lambda: mock_db
-    )
+    business_memory_router.get_supabase_client = MagicMock(return_value=mock_db)
 
     resp = test_client.get(f"/api/business-memory/{record_id}")
     assert resp.status_code == 200
@@ -293,21 +281,21 @@ def test_get_business_memory_record_success(client, monkeypatch):
     assert body["key"] == "2026-06-19T10:00:00Z"
 
 
-def test_get_business_memory_record_invalid_uuid(client, monkeypatch):
+def test_get_business_memory_record_invalid_uuid(client):
     """Should return 400 for non-UUID record ID."""
-    test_client, client_id = client
+    test_client, _ = client
 
     resp = test_client.get("/api/business-memory/not-a-uuid")
     assert resp.status_code == 400
     assert "Invalid record ID format" in resp.json()["detail"]
 
 
-def test_get_business_memory_record_not_found(client, monkeypatch):
+def test_get_business_memory_record_not_found(client):
     """Should return 404 when record doesn't exist."""
-    test_client, client_id = client
+    test_client, _ = client
     record_id = str(uuid.uuid4())
 
-    # Return no data via exception (Supabase .single() raises on no match)
+    # Supabase .single() raises on no match
     db = MagicMock()
     schema_mock = MagicMock()
     table_mock = MagicMock()
@@ -322,9 +310,7 @@ def test_get_business_memory_record_not_found(client, monkeypatch):
     schema_mock.table.return_value = table_mock
     db.schema.return_value = schema_mock
 
-    monkeypatch.setattr(
-        business_memory_router, "get_supabase_client", lambda: db
-    )
+    business_memory_router.get_supabase_client = MagicMock(return_value=db)
 
     resp = test_client.get(f"/api/business-memory/{record_id}")
     assert resp.status_code == 404

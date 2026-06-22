@@ -1,9 +1,35 @@
 # Em: services/tool_pool_api/tests/unit/conftest.py
 
+import sys
 import uuid
 from unittest.mock import MagicMock
 
 import pytest
+
+
+# ── Pre-mock heavy server modules that are not needed for unit tests ──────────
+# The tool_pool_api.server.__init__ imports mcp_server → resources which pulls
+# in blu_tool_registry, blu_prompt_management, etc.  Unit tests that import
+# individual tool_modules don't need the full server — mock the heavy chain.
+_mock_module_names = [
+    "blu_tool_registry",
+    "blu_agent_framework",
+    "blu_elicitation_service",
+    "blu_experiment_service",
+    "blu_hitl_service",
+    "blu_llm_service",
+]
+# Submodules that are imported with `from package.module import ...`
+_mock_submodule_names = [
+    "blu_tool_registry.resource_resolver",
+    "blu_tool_registry.registry",
+]
+for _mod_name in _mock_module_names:
+    if _mod_name not in sys.modules:
+        sys.modules[_mod_name] = MagicMock()
+for _mod_name in _mock_submodule_names:
+    if _mod_name not in sys.modules:
+        sys.modules[_mod_name] = MagicMock()
 
 
 @pytest.fixture
@@ -42,8 +68,5 @@ def mock_blu_context():
 
     # --- Atributos de Configuração ---
     mock_ctx.collection_rag = "colecao_de_teste_rag"
-
-    # (Adicione outros campos do BluClientContext conforme
-    # sua lógica de tool for precisando deles)
 
     return mock_ctx

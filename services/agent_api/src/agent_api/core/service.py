@@ -165,6 +165,67 @@ def _fire_and_forget(coro) -> None:
     task.add_done_callback(_background_tasks.discard)
 
 
+async def _post_flight_for_state(
+    final_state: dict,
+    client_id: str,
+    agent_slug: str,
+    session_id: str,
+    elapsed: float,
+    tool_calls_seen: list[str] | None = None,
+) -> None:
+    """Extract agent result/metadata from final state and persist via post-flight.
+
+    Fire-and-forget — never blocks the user. Errors are logged as warnings.
+    """
+    try:
+        from tool_pool_api.server.tool_modules.memory_post_flight import (
+            _shared_memory_post_flight_logic,
+        )
+
+        msgs = final_state.get("messages") or []
+        last_ai = None
+        for m in reversed(msgs):
+            if isinstance(m, AIMessage):
+                last_ai = m
+                break
+
+        agent_result = None
+        if last_ai and last_ai.content:
+            tool_names = tool_calls_seen or [
+                tc.get("name")
+                for tc in getattr(last_ai, "tool_calls", []) or []
+            ]
+            agent_result = {
+                "summary": str(last_ai.content)[:_MAX_SUMMARY_CHARS],
+                "tool_calls": tool_names,
+            }
+
+        agent_metadata = {
+            "session_id": session_id,
+            "agent_slug": agent_slug,
+            "elapsed_seconds": round(elapsed, 2),
+        }
+
+        await _shared_memory_post_flight_logic(
+            client_id=client_id,
+            agent_slug=agent_slug,
+            session_id=session_id,
+            agent_result=agent_result,
+            agent_metadata=agent_metadata,
+        )
+    except Exception:
+        logger.warning(
+            "[ChatService] Post-flight failed for agent=%s session=%s",
+            agent_slug,
+            session_id,
+            exc_info=True,
+        )
+
+
+# Post-flight summary max chars (mirrors memory_post_flight._MAX_SUMMARY_CHARS)
+_MAX_SUMMARY_CHARS = 2000
+
+
 # ---------------------------------------------------------------------------
 # ChatResult
 # ---------------------------------------------------------------------------
@@ -408,6 +469,17 @@ class ChatService:
         if not response_text.strip():
             response_text = "Desculpe, ocorreu um erro. Tente novamente."
 
+        # Post-flight hook (fire-and-forget, never blocks the user)
+        _fire_and_forget(
+            _post_flight_for_state(
+                final_state=final_state,
+                client_id=client_id,
+                agent_slug=_selected_agent,
+                session_id=session_id,
+                elapsed=elapsed,
+            )
+        )
+
         return ChatResult(
             response=response_text,
             model_used=self._resolve_model_used(model_override),
@@ -476,6 +548,9 @@ class ChatService:
         full_response_parts: list[str] = []
         model_used = self._resolve_model_used(model_override)
         structured_data = None
+        tool_calls_seen: list[str] = []
+        stream_agent = "frontdesk"
+        stream_start = time.time()
 
         try:
             async for event in graph.astream_events(initial_state, config, version="v2"):
@@ -491,6 +566,8 @@ class ChatService:
 
                 elif event_type == "on_tool_start":
                     tool_name = event.get("name", "")
+                    if tool_name:
+                        tool_calls_seen.append(tool_name)
                     yield f"data: {json.dumps({'event': 'tool_start', 'data': {'name': tool_name, 'args': data.get('input', {})}})}\n\n"
 
                 elif event_type == "on_tool_end":
@@ -517,6 +594,7 @@ class ChatService:
                     if sentinel_content:
                         parts = sentinel_content.split(":", 2)
                         specialist_slug = parts[1] if len(parts) > 1 else "frontdesk"
+                        stream_agent = specialist_slug
                         reason = parts[2] if len(parts) > 2 else ""
                         logger.info("[ChatService/stream] Handoff → specialist=%s reason=%s", specialist_slug, reason)
                         yield f"data: {json.dumps({'event': 'handoff', 'data': {'agent': specialist_slug, 'reason': reason}})}\n\n"
@@ -561,6 +639,9 @@ class ChatService:
                                         full_response_parts.append(token)
                                         yield f"data: {json.dumps({'event': 'token', 'data': token})}\n\n"
                                 elif sp_type == "on_tool_start":
+                                    tool_name_sp = sp_event.get('name', '')
+                                    if tool_name_sp:
+                                        tool_calls_seen.append(tool_name_sp)
                                     yield f"data: {json.dumps({'event': 'tool_start', 'data': {'name': sp_event.get('name', ''), 'args': sp_data.get('input', {})}})}\n\n"
                                 elif sp_type == "on_tool_end":
                                     preview = str(sp_data.get("output", ""))[:200]
@@ -583,6 +664,20 @@ class ChatService:
         if structured_data:
             done_data["structured_data"] = structured_data
         yield f"data: {json.dumps({'event': 'done', 'data': done_data}, ensure_ascii=False, default=str)}\n\n"
+
+        # Post-flight hook (fire-and-forget, never blocks the stream)
+        if full_response_parts:
+            stream_elapsed = time.time() - stream_start
+            _fire_and_forget(
+                _post_flight_for_state(
+                    final_state={"messages": []},
+                    client_id=client_id,
+                    agent_slug=stream_agent,
+                    session_id=session_id,
+                    elapsed=stream_elapsed,
+                    tool_calls_seen=tool_calls_seen,
+                )
+            )
 
 
 # ---------------------------------------------------------------------------

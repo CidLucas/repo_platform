@@ -73,6 +73,14 @@ projetos/
 open-design/
 .vercel
 
+# Local debug/test artifacts (root)
+output.json
+results.json
+test.html
+teste_sumsub.json
+termos_formatados.md
+tmp_normalize_prompts.py
+
 # Langfuse self-hosted (local only)
 langfuse/
 .ssh/

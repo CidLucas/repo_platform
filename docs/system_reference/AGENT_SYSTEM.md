@@ -4,7 +4,7 @@
 > Qualquer agente que precisar entender a arquitetura, o papel de outro agente,
 > ou que skills usar em qual contexto deve consultar este documento primeiro.
 >
-> Última revisão: 2026-06-02
+> Última revisão: 2026-06-22
 
 ---
 
@@ -286,6 +286,51 @@ fiscal-agent               ✓             ✓
 ```
 
 _(Skills de domínio e rotinas omitidos aqui por clareza — ver seção Skills acima)_
+
+---
+
+## Handoff via Shared Memory (T1.3)
+
+### Fluxo de Handoff
+
+O Blu implementa handoff entre agentes **via shared memory**, não por
+conversa direta. Quando o `frontdesk` (L4) roteia uma tarefa para um
+specialist (L3) via `route_to_specialist`, o seguinte fluxo ocorre:
+
+```
+route_to_specialist(node)
+        │
+        ├─ 1. Salva estado atual do agente origem
+        │
+        ├─ 2. [handoff_hook] Se has_learning=True no estado:
+        │      ├─ Extrai learning_notes
+        │      ├─ Escreve na shared_memory_write
+        │      │  (source="specialist", confidence=0.8)
+        │      └─ Registra agent_result
+        │
+        ├─ 3. [shared_memory_context] Carrega contexto:
+        │      ├─ shared_memory_read para entidades relevantes
+        │      └─ Monta dict de contexto para o prompt
+        │
+        ├─ 4. [Timeout 2s] Se hook exceder, graceful degradation
+        │
+        └─ 5. Passa controle ao specialist destino
+```
+
+### Componentes
+
+O handoff hook reside em `libs/blu_agent_framework/src/blu_agent_framework/handoff/`:
+
+| Componente                | Arquivo               | Responsabilidade |
+|---------------------------|-----------------------|-----------------|
+| `run_handoff_hook`        | `handoff_hook.py`     | Escreve learning notes na shared memory após route_to_specialist |
+| `load_shared_memory_context` | `shared_memory_context.py` | Carrega contexto da shared memory para o agente destino |
+
+### Agentes Afetados
+
+- **`frontdesk`** (L4) — dispara o hook ao rotear para qualquer specialist.
+- **Todos os specialists** (L3) — recebem contexto enriquecido da shared memory.
+- **`data-entry`** — não afetado (não recebe handoff de specialists).
 
 ---
 

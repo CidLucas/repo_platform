@@ -23,6 +23,7 @@ duckdb = "^1.1.0"  # In-process analytical SQL engine for CSV queries
 reportlab = "^4.2.5"  # Phase 4 (R4.1) — PDF report rendering
 openpyxl = "^3.1.5"   # Phase 4 (R4.1) — XLSX report rendering
 crawl4ai = ">=0.4.0,<0.6.0"  # Deep website crawling for context extraction
+jsondiff = ">=2.2.0"         # JSON deep diff for shared memory version comparison
 
 # --- Internal libs (only direct dependencies) ---
 blu-models = { path = "../../libs/blu_models", develop = true }

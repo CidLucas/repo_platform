@@ -44,6 +44,16 @@ def _cap_skill_results(left: list[dict], right: list[dict]) -> list[dict]:
     return combined[-20:] if len(combined) > 20 else combined
 
 
+# GOAL: Hook de handoff entre agentes na shared memory
+# BEHAVIOR: B1 — Adicionar campos de handoff ao AgentState
+# DECISÃO: create_new
+# Implementação mínima para teste RED passar (GREEN)
+def _cap_learning_notes(left: list[dict], right: list[dict]) -> list[dict]:
+    """Reducer for learning_notes: appends and caps at 20 to prevent unbounded growth."""
+    combined = left + right
+    return combined[-20:] if len(combined) > 20 else combined
+
+
 def _list_reducer(left: list | None, right: list | None) -> list:
     """
     Reducer for lists that supports fan-out accumulation and clearing.
@@ -223,6 +233,14 @@ class AgentState(TypedDict, total=False):
     agent_postflight_pending: dict | None
 
     # =========================================================================
+    # Handoff Fields (Issue #19 — Hook de handoff entre agentes)
+    # =========================================================================
+
+    has_learning: bool  # Whether agent has learning notes to share
+    learning_notes: Annotated[list[dict], _cap_learning_notes]  # Learning notes, capped at 20
+    skip_handoff_hook: bool  # Whether to skip the handoff hook
+
+    # =========================================================================
     # Metadata
     # =========================================================================
 
@@ -326,6 +344,10 @@ def create_initial_state(
         # Agent memory context (pre-flight / post-flight)
         agent_preflight_context=None,
         agent_postflight_pending=None,
+        # Handoff fields (Issue #19)
+        has_learning=False,
+        learning_notes=[],
+        skip_handoff_hook=False,
         # Metadata
         metadata=metadata or {},
         # Supervisor-tier fields

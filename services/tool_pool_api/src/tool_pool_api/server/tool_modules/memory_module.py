@@ -1492,6 +1492,45 @@ async def _shared_memory_meta_list_logic(
         db.schema("public")
         .table(_META_TABLE)
         .select("entity_type, entity_name, count(*), max(updated_at) as last_updated")
+        .eq("client_id", client_id)
+    )
+    if entity_type:
+        query = query.eq("entity_type", entity_type)
+
+    result = await query.group_by("entity_type, entity_name").execute()
+
+    rows = result.data if result.data else []
+
+    entities: list[dict] = []
+    type_counts: dict[str, int] = {}
+
+    for r in rows:
+        et = r["entity_type"]
+        en = r["entity_name"]
+        cnt = r.get("count", 0)
+        lu = r.get("last_updated")
+        entities.append(
+            {
+                "entity_type": et,
+                "entity_name": en,
+                "key_count": cnt,
+                "last_updated": lu,
+            }
+        )
+        type_counts[et] = type_counts.get(et, 0) + 1
+
+    entities.sort(key=lambda e: (e["entity_type"], e["entity_name"]))
+
+    return {
+        "total_entities": len(entities),
+        "client_id": client_id,
+        "entity_type_filter": entity_type,
+        "by_type": type_counts,
+        "entities": entities,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Vector search business logic (T3.1c)
 # ---------------------------------------------------------------------------
 
@@ -1682,6 +1721,8 @@ async def _shared_memory_flush_logic(
         "entity_type_filter": entity_type,
         "by_type": type_counts,
         "entities": entities,
+    }
+
     if entity_name:
         query = query.eq("entity_name", entity_name)
     if key:
@@ -1851,6 +1892,63 @@ async def _shared_memory_export_logic(
         "total_records": len(records),
         "records": records,
     }
+
+
+# GOAL: Hook de handoff entre agentes na shared memory
+# BEHAVIOR: B6 — Adicionar tool confirm_memory_item em memory_module.py (auxiliar)
+# DECISÃO: create_new
+# Implementação mínima para teste RED passar (GREEN)
+
+async def _shared_memory_confirm_memory_item_logic(
+    memory_id: int | str,
+    client_id: str,
+) -> dict:
+    """Confirm a memory item: set curated=true, expires_at=NULL.
+
+    Validates that memory_id belongs to client_id.
+    Rejects already-curated entries.
+    """
+    if isinstance(memory_id, int) and memory_id <= 0:
+        raise ValueError("memory_id must be a positive integer")
+    if not client_id or not client_id.strip():
+        raise ValueError("client_id is required")
+
+    db = await get_supabase_client()
+
+    result = (
+        db.schema("public")
+        .table(_TABLE)
+        .select("*")
+        .eq("id", memory_id)
+        .single()
+        .execute()
+    )
+
+    rows = result.data
+    if not rows:
+        raise ToolError(f"Memory item not found for id={memory_id}")
+
+    row = rows[0]
+
+    if row.get("client_id") != client_id:
+        raise ToolError(
+            f"Memory item with id={memory_id} does not belong to this client"
+        )
+
+    if row.get("curated"):
+        raise ToolError(f"Memory item id={memory_id} is already curated")
+
+    update_result = (
+        db.schema("public")
+        .table(_TABLE)
+        .update({"curated": True, "expires_at": None})
+        .eq("id", memory_id)
+        .eq("client_id", client_id)
+        .execute()
+    )
+
+    updated = update_result.data[0] if update_result.data else row
+    return updated
 
 
 # ---------------------------------------------------------------------------
@@ -2548,25 +2646,6 @@ def register_tools(mcp: FastMCP) -> list[str]:
             entity_type,
             entity_name,
             key,
-        if match_count < 1 or match_count > 50:
-            raise ToolError(
-                "match_count must be between 1 and 50"
-            )
-
-        if match_threshold < 0.0 or match_threshold > 1.0:
-            raise ToolError(
-                "match_threshold must be between 0.0 and 1.0"
-            )
-
-        logger.info(
-            "[memory_module] shared_memory_search "
-            "query='%s' entity_type=%s category=%s "
-            "match_count=%d match_threshold=%.2f client_id=%s",
-            query[:80],
-            entity_type,
-            category,
-            match_count,
-            match_threshold,
             client_id,
         )
 
@@ -2623,28 +2702,38 @@ def register_tools(mcp: FastMCP) -> list[str]:
             dict with total_entities, client_id, entity_type_filter,
             by_type breakdown, and entities array sorted by
             (entity_type, entity_name).
-            return await _shared_memory_search_logic(
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_meta_list "
+            "client_id=%s entity_type=%s",
+            client_id,
+            entity_type,
+        )
+
+        try:
+            return await _shared_memory_meta_list_logic(
                 client_id=client_id,
-                query=query,
                 entity_type=entity_type,
-                category=category,
-                match_count=match_count,
-                match_threshold=match_threshold,
             )
         except ValueError as exc:
             raise ToolError(str(exc))
-        except ToolError:
-            raise
         except Exception as exc:
             logger.error(
-                "[memory_module] shared_memory_search failed: %s", exc
+                "[memory_module] shared_memory_meta_list failed: %s", exc
             )
             raise ToolError(
-                f"Failed to search shared memory: {exc}"
+                f"Failed to list shared-memory-meta entries: {exc}"
             )
 
-    logger.info("[Memory Module] Tool 'shared_memory_search' registered.")
-    registered_tools.append("shared_memory_search")
+    logger.info(
+        "[Memory Module] Tool 'shared_memory_meta_list' registered."
+    )
+    registered_tools.append("shared_memory_meta_list")
 
     # ----------------------------------------------------------------------
     # shared_memory_export -- export all facts for a client (T5.4)
@@ -2676,6 +2765,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         row data.
 
         Empty segments return total_records=0 and records=[] (no error).
+        """
     # shared_memory_flush --  soft-delete memory entries (T5.4)
     # ----------------------------------------------------------------------
 

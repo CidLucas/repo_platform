@@ -2417,6 +2417,7 @@ async def _shared_memory_flush_logic(
     # 2. Identify which rows need flushing (not already flushed)
     rows_to_flush: list[str] = []
     skipped_already_flushed = 0
+    _last_meta: dict = {}
 
     for r in rows:
         meta = r.get("metadata") or {}
@@ -2429,6 +2430,7 @@ async def _shared_memory_flush_logic(
             skipped_already_flushed += 1
             continue
         rows_to_flush.append(r["id"])
+        _last_meta = meta
 
     if not rows_to_flush:
         return {

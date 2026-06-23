@@ -313,4 +313,54 @@ async def test_flush_returns_flushed_count_not_total_entities(mock_supabase):
     assert result["flushed_count"] >= 0
 
 
+@pytest.mark.asyncio
+async def test_flush_skips_already_flushed_entries(mock_supabase):
+    """AC#4: entries with ``metadata.flushed_at`` already set must be skipped
+    (idempotency) and reported via ``skipped_already_flushed``.
 
+    Currently fails because the function never reaches the flush path that
+    computes this counter.
+    """
+    client_id = str(uuid.uuid4())
+    # 2 of 3 rows are already flushed → only 1 should be flushed in this call.
+    rows = [
+        {
+            "id": "fact-001",
+            "entity_type": "client",
+            "entity_name": "cliente_1",
+            "key": "preferencia_1",
+            "metadata": {"agent_id": "agent-1", "flushed_at": "2026-06-20T00:00:00Z"},
+            "client_id": client_id,
+        },
+        {
+            "id": "fact-002",
+            "entity_type": "client",
+            "entity_name": "cliente_2",
+            "key": "preferencia_2",
+            "metadata": {"agent_id": "agent-1"},
+            "client_id": client_id,
+        },
+        {
+            "id": "fact-003",
+            "entity_type": "client",
+            "entity_name": "cliente_3",
+            "key": "preferencia_3",
+            "metadata": {"agent_id": "agent-1", "flushed_at": "2026-06-21T00:00:00Z"},
+            "client_id": client_id,
+        },
+    ]
+
+    _setup_supabase_chain(mock_supabase, rows)
+
+    result = await _shared_memory_flush_logic(client_id=client_id)
+
+    assert "flushed_count" in result, (
+        "AC#4 violated: result must contain 'flushed_count'. "
+        f"Got keys: {sorted(result.keys())}."
+    )
+    assert "skipped_already_flushed" in result, (
+        "AC#4 violated: result must contain 'skipped_already_flushed' to "
+        "report idempotent skips. "
+        f"Got keys: {sorted(result.keys())}."
+    )
+    assert "total_entities" not in result

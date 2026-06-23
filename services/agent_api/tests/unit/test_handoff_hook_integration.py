@@ -16,6 +16,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from langchain_core.messages import ToolMessage
 
 
 # ---------------------------------------------------------------------------
@@ -50,9 +51,9 @@ def mock_graph():
     with a __ROUTE_TO_SPECIALIST__ sentinel in its final tool message."""
     graph = MagicMock()
 
-    tool_msg = MagicMock()
-    tool_msg.content = (
-        "__ROUTE_TO_SPECIALIST__:analytics_financeiro:user asked about expenses"
+    tool_msg = ToolMessage(
+        content="__ROUTE_TO_SPECIALIST__:analytics_financeiro:user asked about expenses",
+        tool_call_id="t1",
     )
 
     ai_msg = MagicMock()
@@ -65,7 +66,7 @@ def mock_graph():
         }
     }
 
-    graph.astream_events.__aiter__.return_value = [
+    graph.astream_events.return_value.__aiter__.return_value = [
         {"event": "on_chain_end", "name": "LangGraph", "data": chain_end_data},
     ]
     return graph
@@ -76,10 +77,9 @@ def mock_graph_with_skip_flag():
     """Same as mock_graph but the sentinel includes a skip_handoff_hook flag."""
     graph = MagicMock()
 
-    tool_msg = MagicMock()
-    tool_msg.content = (
-        "__ROUTE_TO_SPECIALIST__:analytics_financeiro:"
-        "user asked:skip_handoff_hook=True"
+    tool_msg = ToolMessage(
+        content="__ROUTE_TO_SPECIALIST__:analytics_financeiro:user asked:skip_handoff_hook=True",
+        tool_call_id="t1",
     )
 
     ai_msg = MagicMock()
@@ -92,7 +92,7 @@ def mock_graph_with_skip_flag():
         }
     }
 
-    graph.astream_events.__aiter__.return_value = [
+    graph.astream_events.return_value.__aiter__.return_value = [
         {"event": "on_chain_end", "name": "LangGraph", "data": chain_end_data},
     ]
     return graph
@@ -137,7 +137,7 @@ class TestHandoffHookCalledOnRouteToSpecialist:
         mock_factory = MagicMock()
         mock_factory.get_frontdesk_graph.return_value = mock_graph
         mock_specialist_graph = MagicMock()
-        mock_specialist_graph.astream_events.__aiter__.return_value = []
+        mock_specialist_graph.astream_events.return_value.__aiter__.return_value = []
         mock_factory.get_specialist_graph.return_value = mock_specialist_graph
 
         ctx_service = _mock_context_service()
@@ -199,7 +199,7 @@ class TestHandoffHookCalledOnRouteToSpecialist:
         mock_factory = MagicMock()
         mock_factory.get_frontdesk_graph.return_value = mock_graph_with_skip_flag
         mock_specialist_graph = MagicMock()
-        mock_specialist_graph.astream_events.__aiter__.return_value = []
+        mock_specialist_graph.astream_events.return_value.__aiter__.return_value = []
         mock_factory.get_specialist_graph.return_value = mock_specialist_graph
 
         ctx_service = _mock_context_service()
@@ -261,10 +261,8 @@ class TestHandoffHookCalledOnRouteToSpecialist:
         mock_run_handoff_hook = AsyncMock()
         mock_load_context = AsyncMock(return_value=shared_context)
 
-        captured_state = {}
-
         mock_specialist_graph = MagicMock()
-        mock_specialist_graph.astream_events.__aiter__.return_value = []
+        mock_specialist_graph.astream_events.return_value.__aiter__.return_value = []
 
         ctx_service = _mock_context_service()
 
@@ -292,7 +290,7 @@ class TestHandoffHookCalledOnRouteToSpecialist:
             ),
             patch(
                 "agent_api.core.service._build_specialist_prompt",
-                return_value="specialist prompt",
+                new=AsyncMock(return_value="specialist prompt"),
             ),
         ):
             mock_factory = MagicMock()
@@ -300,15 +298,13 @@ class TestHandoffHookCalledOnRouteToSpecialist:
             mock_factory.get_specialist_graph.return_value = mock_specialist_graph
             mock_get_factory.return_value = mock_factory
 
-            from blu_agent_framework.state import AgentState
-
-            original_init = AgentState.__init__
-
-            def capturing_init(self, **kwargs):
-                captured_state.update(kwargs)
-                original_init(self, **kwargs)
-
-            with patch.object(AgentState, "__init__", capturing_init):
+            # Patch the TypedDict with a callable mock to capture AgentState kwargs.
+            # AgentState is a TypedDict (dict subclass), so __init__ interception
+            # doesn't work — we patch the reference at the module level instead.
+            with patch(
+                "blu_agent_framework.state.AgentState",
+                side_effect=lambda **kw: kw,
+            ) as mock_agent_state:
                 collected = []
                 async for event in chat_service.process_message_stream(
                     session_id="session-abc",
@@ -318,15 +314,17 @@ class TestHandoffHookCalledOnRouteToSpecialist:
                 ):
                     collected.append(event)
 
-        # The shared memory context should have been injected into
-        # the specialist state's metadata or client_context
-        assert "handoff_context" in captured_state.get("metadata", {}) or \
-               captured_state.get("client_context", {}).get(
-                   "handoff_context"
-               ) is not None or \
-               any(
-                   "handoff" in str(v) for v in captured_state.values()
-               ), (
-            "Expected shared memory context to be injected into "
-            "specialist_state. Captured kwargs: %s" % captured_state
+        # Find the AgentState call that includes handoff_context in metadata
+        all_calls = mock_agent_state.call_args_list
+        metadata_injections = [
+            kw.get("metadata", {})
+            for args, kw in all_calls
+            if "handoff_context" in kw.get("metadata", {})
+        ]
+        assert any(
+            md.get("handoff_context") == shared_context
+            for md in metadata_injections
+        ), (
+            "Expected shared_memory_context to be injected into specialist_state's "
+            "metadata via AgentState(). Captured calls: %s" % all_calls
         )

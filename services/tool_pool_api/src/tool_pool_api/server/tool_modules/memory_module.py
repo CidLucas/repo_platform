@@ -2443,14 +2443,10 @@ async def _shared_memory_flush_logic(
     # 3. Batch update flushed_at in metadata (single query via .in_)
     flushed_count = 0
     try:
-        # GOAL: Issue #36 — Fase 5: Exportação e flush da shared memory
-        # BEHAVIOR: B4 — merge flushed_at into existing metadata
-        # DECISÃO: fix_and_extend
-        # Use .in_() batch update with metadata merge (B1 fix)
         await (
             db.schema("public")
             .table(_TABLE)
-            .update({"metadata": {**_last_meta, "flushed_at": now_iso}})
+            .update({"metadata": {"flushed_at": now_iso}})
             .in_("id", rows_to_flush)
             .eq("client_id", client_id)
             .execute()

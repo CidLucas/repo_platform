@@ -1085,6 +1085,7 @@ async def _shared_memory_write_logic(
     source: str = "manual",
     confidence: float = 1.0,
     ttl_tier: str | None = None,
+    auto_link: bool = True,
 ) -> dict:
     """
     Write a new shared-memory fact (strict INSERT by default).
@@ -2999,6 +3000,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         source: str = "manual",
         confidence: float = 1.0,
         ttl_tier: str | None = None,
+        auto_link: bool = True,
         client_id: str | None = None,
     ) -> dict:
         """
@@ -3055,7 +3057,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         )
 
         try:
-            return await _shared_memory_write_logic(
+            result = await _shared_memory_write_logic(
                 client_id=client_id,
                 entity_type=entity_type,
                 entity_name=entity_name,
@@ -3069,7 +3071,24 @@ def register_tools(mcp: FastMCP) -> list[str]:
                 source=source,
                 confidence=confidence,
                 ttl_tier=ttl_tier,
+                auto_link=auto_link,
             )
+            if auto_link:
+                try:
+                    await _auto_create_links(
+                        client_id=client_id,
+                        entity_type=entity_type,
+                        entity_name=entity_name,
+                        value=value,
+                    )
+                except Exception:
+                    logger.warning(
+                        "auto_link failed for %s/%s: %s",
+                        entity_type,
+                        entity_name,
+                        ...,
+                    )
+            return result
         except ValueError as exc:
             raise ToolError(str(exc))
         except Exception as exc:

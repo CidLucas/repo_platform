@@ -15,6 +15,11 @@ from collections.abc import AsyncIterator
 from typing import Any
 from uuid import UUID
 
+# GOAL: Hook de handoff entre agentes na shared memory
+# BEHAVIOR: B5 — Integrar handoff hook no route_to_specialist flow (service.py)
+# DECISÃO: create_new
+# Implementação mínima para teste RED passar (GREEN)
+from blu_agent_framework.handoff import load_shared_memory_context, run_handoff_hook
 from blu_context_service import ContextService
 from blu_llm_service import MODEL_MAPPINGS, LLMProvider, ModelTier, get_llm_settings
 from blu_prompt_management import build_prompt
@@ -597,7 +602,27 @@ class ChatService:
                         stream_agent = specialist_slug
                         reason = parts[2] if len(parts) > 2 else ""
                         logger.info("[ChatService/stream] Handoff → specialist=%s reason=%s", specialist_slug, reason)
-                        yield f"data: {json.dumps({'event': 'handoff', 'data': {'agent': specialist_slug, 'reason': reason}})}\n\n"
+                        yield f"data: {json.dumps({'event': 'handoff', 'data': {'agent': specialist_slug, 'reason': reason}})}\\n\\n"
+                        # B5: Handoff hook — persist learning notes + load shared memory context
+                        skip_hook = "skip_handoff_hook=True" in sentinel_content
+                        handoff_context = {}
+                        if not skip_hook:
+                            try:
+                                frontdesk_state = {
+                                    "messages": msgs,
+                                    "tool_results": output.get("tool_results", []),
+                                    "has_learning": False,
+                                    "learning_notes": [],
+                                }
+                                await run_handoff_hook(frontdesk_state, None)
+                                handoff_context = await load_shared_memory_context(
+                                    specialist_slug, [], None,
+                                )
+                            except Exception as _hook_exc:
+                                logger.warning(
+                                    "[ChatService/stream] handoff hook failed: %s",
+                                    _hook_exc,
+                                )
                         try:
                             specialist_prompt = await _build_specialist_prompt(
                                 slug=specialist_slug,
@@ -619,6 +644,7 @@ class ChatService:
                                 turn_count=0,
                                 structured_data=None,
                                 structured_data_list=[],
+                                metadata={"handoff_context": handoff_context},
                             )
                             specialist_graph = factory.get_specialist_graph(slug=specialist_slug, tier=tier)
                             specialist_config = self._build_langfuse_config(

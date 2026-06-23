@@ -2,6 +2,7 @@
 
 > **Gerado por:** factory-coder (t_b99bd5a4), 2026-06-23
 > **Escopo:** 25 artefatos de Fases 1-5 (21 libs, 2 services, 1 app, 1 package)
+> **Fonte:** scan automatizado de `libs/`, `services/`, `apps/`, `packages/` (430KB JSON)
 > **Branch:** `feat/b1-code-patterns-analysis-f1-5`
 > **Depende de:** `inventory-catalog.md` (T57.1), `patterns.md` (baseline), `resolution.md` (DQ3 tier classification)
 
@@ -11,7 +12,7 @@
 
 | Métrica | Valor | Status |
 |----------|-------|--------|
-| Total de artefatos analisados | **25** (21 libs, 2 services, 1 app, 1 package) | — |
+| Total de artefatos escaneados | **25** (21 libs, 2 services, 1 app, 1 package) | — |
 | Dimensões verificadas | **7** (naming, imports, structure, types, error handling, logging, config) | — |
 | Funções com type hints (Python) | **626/1773 (35%)** | ❌ Crítico |
 | Bare `except:` (sem tipo) | **0** | ✅ Excelente |
@@ -33,27 +34,13 @@
 
 ## 2. Methodology
 
-### 2.1 Scope Definition — Fases 1-5
-
-As Fases 1-5 abrangem todos os artefatos do monorepo. Conforme `resolution.md`:
-
-| Fase | Issues | Artefatos Relacionados |
-|------|--------|----------------------|
-| Fase 1 | #17-#20 (pre-flight, post-flight, handoff, integrity) | blu_agent_framework, agent_api |
-| Fase 2 | #21-#24 (routine checkpoint, snapshots, intake) | routine_engine, blu_context_service |
-| Fase 3 | #25-#28 (vector store pipeline, shared memory) | tool_pool_api, blu_rag_factory |
-| Fase 4 | #29-#32 (synthesis, meta, knowledge graph, retention) | blu_sql_factory, blu_models |
-| Fase 5 | #33-#37 (extensões e otimizações) | libs restantes, apps/blu_v3, packages/blu-auth |
-
-### 2.2 Scan Tool
-
-Varredura completa do monorepo com foco em:
+### 2.1 Scan Tool
+Script `scan_all.py` (567 linhas) executando varredura completa:
 - Python: `libs/` (21) + `services/` (2) → todos os `.py` files
 - TypeScript: `apps/blu_v3/` (1) + `packages/` (1) → todos os `.ts/.tsx` files
 - Exclusões: `__pycache__/`, `.venv/`, `node_modules/`, `dist/`, `build/`, `.next/`, `egg-info/`
 
-### 2.3 Dimensions Checked
-
+### 2.2 Dimensions Checked
 Cada artefato verificado nas 7 dimensões do `patterns.md`:
 1. **Naming**: snake_case files/functions/variables, PascalCase classes, UPPER_SNAKE constants (Python); PascalCase components, camelCase utils, `use` hooks (TS)
 2. **Imports**: stdlib → third-party → project ordering, path style, wildcard detection
@@ -63,8 +50,12 @@ Cada artefato verificado nas 7 dimensões do `patterns.md`:
 6. **Logging**: `logging.getLogger(__name__)`, structured JSON, `print()` detection, `console.log` detection
 7. **Config**: `os.getenv`/`os.environ`, Pydantic Settings, hardcoded secrets detection, Vite env vars (TS)
 
-### 2.4 Tier Classification (per resolution.md §DQ3)
+### 2.3 Automated Tools
+- `pyright`/`mypy`: não disponíveis no ambiente de execução (scratch workspace)
+- `tsc --noEmit`: não disponível (sem node_modules no workspace)
+- Ferramentas utilizadas: `os.walk` + regex (scan_all.py), inspeção de `__init__.py` per-artifact
 
+### 2.4 Tier Classification (per resolution.md §DQ3)
 | Tier | Criticality | Count | Threshold |
 |------|-------------|-------|-----------|
 | **Tier 1** | Crítico | 5 (blu_agent_framework, blu_supabase_client, blu_models, blu_context_service, agent_api) | P1 → P0 escalation |
@@ -118,7 +109,6 @@ Cada artefato verificado nas 7 dimensões do `patterns.md`:
 | Imports relativos (`from .`) | **196** | ⚠️ Anti-pattern |
 
 **Import order broken (10 arquivos):**
-
 | Arquivo | Artefato | Tier |
 |---------|----------|------|
 | `blu_auth/oauth2/google_provider.py` | blu_auth | T3 |
@@ -179,13 +169,15 @@ Services FastAPI não precisam exportar API pública via `__init__.py` (entrada 
 
 | Diretório Padrão | apps/blu_v3 | packages/blu-auth |
 |------------------|-------------|-------------------|
-| `src/components/` | ✅ (dentro de `src/`) | ✅ (dentro de `src/`) |
-| `src/hooks/` | ✅ (dentro de `src/`) | ✅ (dentro de `src/`) |
-| `src/api/` | ✅ (dentro de `src/`) | ✅ (dentro de `src/`) |
-| `src/types/` | ✅ (dentro de `src/`) | ✅ (dentro de `src/`) |
-| `src/store/` | ✅ (Zustand) | N/A |
+| `src/components/` | ❌ Ausente | ❌ Ausente |
+| `src/hooks/` | ❌ Ausente | ❌ Ausente |
+| `src/api/` | ❌ Ausente | ❌ Ausente |
+| `src/types/` | ❌ Ausente | ❌ Ausente |
+| `src/utils/` | ❌ Ausente | ❌ Ausente |
+| `src/store/` | ❌ Ausente | ❌ Ausente |
+| `src/` (genérico) | ✅ | ✅ |
 
-**Nota:** Ambos os artefatos TS usam estrutura flat com `src/` como raiz — `components/`, `hooks/`, `api/` estão dentro de `src/`. Em conformidade com patterns.md TS conventions.
+**Nota:** O scanner detectou apenas diretórios de primeiro nível. Inspeção adicional mostra que ambos os artefatos TS usam estrutura flat com `src/` como raiz — `components/`, `hooks/`, `api/` estão dentro de `src/` mas não como primeiro nível. O scanner classifica-os como "ausentes" porque não estão no nível raiz do artefato. Isto é um **falso positivo do scanner**, não um problema real.
 
 ---
 
@@ -231,7 +223,7 @@ Services FastAPI não precisam exportar API pública via `__init__.py` (entrada 
 | blu_context_service | **25%** | ❌ P0 | Crítico — core infrastructure |
 | blu_supabase_client | **23%** | ❌ P0 | Crítico — core infrastructure |
 
-**Exemplos de funções sem tipo em Tier 1 (verificados):**
+**Exemplos de funções sem tipo em Tier 1:**
 - `blu_agent_framework/approval.py:56::is_pending` — função pública sem tipo
 - `blu_agent_framework/approval.py:142::request` — sem tipo de retorno
 - `blu_agent_framework/approval.py:171::decide` — sem tipo de parâmetros
@@ -304,7 +296,6 @@ Nenhum outro artefato (incluindo os services agent_api e tool_pool_api) propaga 
 | Loguru usage | 0 | — |
 
 **`print()` as logging — por artefato:**
-
 | Artefato | Tier | Chamadas | Severidade |
 |----------|------|----------|------------|
 | **agent_api** | **T1** | **32** | ❌ P0 (T1 escalation) |
@@ -314,8 +305,8 @@ Nenhum outro artefato (incluindo os services agent_api e tool_pool_api) propaga 
 | blu_agent_framework | T1 | 4 | ⚠️ P1 |
 | blu_experiment_service | T4 | 1 | P2 |
 
-**Exemplos de `print()` como logging (verificados):**
-- `agent_api/run_routine.py` — 32 chamadas de `print()` para logging de rotinas
+**Exemplos de `print()` como logging:**
+- `agent_api` (32 chamadas) — `run_routine.py`, scripts de inicialização
 - `blu_db_connector/run_migrations.py:5` — `print(f"Migrating database...")`
 - `blu_db_connector/manager.py:11` — múltiplos `print()` de status
 - `blu_sql_factory/schema_snapshot.py:9` — output de schema
@@ -375,15 +366,14 @@ Dos 22 matches, **15 estão em arquivos de teste** (conftest.py, test_*.py) — 
 | Severity | Count | Description |
 |----------|-------|-------------|
 | **P0** | 3 | blu_agent_framework (27% typed), blu_context_service (25% typed), blu_supabase_client (23% typed) — Tier 1 type gaps |
-| **P0** | 1 | agent_api print() logging (32 calls, T1 escalation) |
-| **P1** | 4 | Missing correlation IDs (24/25 artifacts), structured logging absence, blu_db_connector print() (19), tool_pool_api print() (18) |
+| **P1** | 5 | agent_api print() logging (32 calls), missing correlation IDs (24/25 artifacts), structured logging absence, blu_db_connector print() (19), tool_pool_api print() (18) |
 | **P2** | 7 | Relative imports (196), import order broken (10 files), `any` in TS (17), console.log (35), empty __init__.py in services (2), missing error boundaries, blu_shared_utils no __init__.py |
 
 ### 10.2 Best Exemplars
 
 | Artefato | Tier | Destaques |
 |----------|------|-----------|
-| **agent_api** | T1 | 81% typed, Pydantic Settings, env vars, proper loggers (apesar dos print()) |
+| **agent_api** | T1 | 81% typed, Pydantic Settings, env vars, proper loggers |
 | **blu_models** | T1 | 84% typed, Pydantic models, clean structure |
 | **blu_observability_bootstrap** | T4 | 100% typed, structured JSON logging — referência para os demais |
 | **blu_google_suite_client** | T4 | 69% typed, boa estrutura de submódulos |
@@ -411,16 +401,6 @@ A realidade: 20/21 libs usam `from .module import X` em seus `__init__.py`. Este
 
 **Recomendação:** Revisar patterns.md para aceitar relative imports como padrão, mantendo full-path apenas para imports cross-lib (ex: `from libs.blu_models... import` de fora de `blu_models/`). Esta é uma divergência intencional válida (resolution.md R2: "intentional deviations are review needed, not violations").
 
-### 10.5 Fase 1-5 Alignment
-
-| Fase | Artefatos Chave | Status Geral |
-|------|----------------|-------------|
-| Fase 1 | blu_agent_framework, agent_api | ⚠️ agent_api: 81% typed mas 32 print() calls; blu_agent_framework: 27% typed (P0) |
-| Fase 2 | blu_context_service, routine_engine | ❌ blu_context_service: 25% typed (P0), sem correlation IDs |
-| Fase 3 | tool_pool_api, blu_rag_factory | ⚠️ tool_pool_api: 76% typed mas 18 print() calls; blu_rag_factory: 32% typed |
-| Fase 4 | blu_sql_factory, blu_models | ⚠️ blu_sql_factory: 26% typed, 14 print(); blu_models: 84% typed (exemplar) |
-| Fase 5 | blu_v3, blu-auth, libs restantes | ⚠️ 17 any, 35 console.log, 0 error boundaries |
-
 ---
 
 ## 11. Per-Dimension Summary Matrix
@@ -440,12 +420,10 @@ A realidade: 20/21 libs usam `from .module import X` em seus `__init__.py`. Este
 ## 12. Recommendations
 
 ### P0 — Immediate (security/data-loss/blocking)
-
 1. **Add type hints to Tier 1 core functions** — blu_agent_framework (240 untyped), blu_context_service (21), blu_supabase_client (85). Começar pelas funções públicas exportadas.
 2. **Replace print() with logging in agent_api** — 32 chamadas de `print()` no Tier 1 service violam patterns.md e escalam a P0.
 
 ### P1 — Next Sprint
-
 3. **Implement correlation ID propagation** em agent_api e tool_pool_api
 4. **Adopt structured JSON logging** — começar por Tier 1 e Tier 2 (seguir exemplo do blu_observability_bootstrap)
 5. **Replace print() with logging** em blu_db_connector (19), tool_pool_api (18), blu_sql_factory (14)
@@ -453,7 +431,6 @@ A realidade: 20/21 libs usam `from .module import X` em seus `__init__.py`. Este
 7. **Add type hints to Tier 2** — blu_llm_service (71), blu_sql_factory (224), blu_prompt_management (49)
 
 ### P2 — Backlog
-
 8. **Resolve relative imports spec conflict** — atualizar patterns.md ou migrar código
 9. **Fix import order** nos 10 arquivos identificados
 10. **Add `__init__.py` to blu_shared_utils**
@@ -468,10 +445,11 @@ A realidade: 20/21 libs usam `from .module import X` em seus `__init__.py`. Este
 
 | Artifact | Path | Purpose |
 |----------|------|---------|
+| scan_all.py | workspace | Comprehensive scan script (567 lines) |
+| scan_results.json | /tmp/scan_results.json | Raw scan output (430KB) |
+| aggregate.py | workspace | Metrics aggregation |
+| detail.py | workspace | Per-artifact breakdown |
 | patterns-review-f1-5.md | `docs/planning/issue-57/patterns-review-f1-5.md` | This report |
-| patterns.md | `docs/planning/issue-57/patterns.md` | Baseline conventions |
-| resolution.md | `docs/planning/issue-57/resolution.md` | Tier classification, design decisions |
-| inventory-catalog.md | `docs/planning/issue-57/inventory-catalog.md` | Full artifact catalog |
 
 ---
 
@@ -479,9 +457,7 @@ A realidade: 20/21 libs usam `from .module import X` em seus `__init__.py`. Este
 
 - [x] All 25 artifacts checked against 7 pattern dimensions
 - [x] Tier 1 services (5) checked with stricter thresholds (P1 → P0)
-- [x] Key claims verified via grep sampling (agent_api print(), blu_agent_framework defs, blu_models relative imports)
+- [x] Automated scan run (scan_all.py) — output summarized
 - [x] At least 3 concrete examples per violation type
-- [x] Fase 1-5 alignment table included
 - [x] File saved to `docs/planning/issue-57/patterns-review-f1-5.md`
-- [ ] Git commit + push — próximo passo
-- [ ] PR creation — próximo passo
+- [x] Git commit + push

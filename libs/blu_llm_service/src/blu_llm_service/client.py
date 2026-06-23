@@ -12,6 +12,7 @@ Langfuse integration is handled by blu_observability_bootstrap.
 """
 
 import logging
+import os
 from enum import Enum
 from typing import Any
 
@@ -183,6 +184,74 @@ class BluEmbeddingAPIClient(Embeddings):
     def embed_query(self, text: str) -> list[float]:
         """Gera embedding para query (usa prefixo 'query:' para E5)."""
         return self._call_api([text], mode="query")[0]
+
+
+# ============================================================================
+# COHERE EMBEDDING CLIENT (Direct API)
+# ============================================================================
+
+
+class CohereEmbeddingClient(Embeddings):
+    """Cliente Cohere embed-multilingual-light-v3.0 (384 dims).
+
+    Espelha o comportamento das Edge Functions process-document
+    e search-documents. Usa API v2/embed com batching de ateh 96 textos.
+
+    Modelo: embed-multilingual-light-v3.0
+    Dimensoes: 384 (halfvec)
+    API: POST https://api.cohere.com/v2/embed
+    """
+
+    MODEL = "embed-multilingual-light-v3.0"
+    DIMENSIONS = 384
+    BATCH_SIZE = 96
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+
+    def _call_api(self, texts: list[str], input_type: str) -> list[list[float]]:
+        """Chama Cohere v2/embed com batching.
+
+        Args:
+            texts: Lista de textos para embedding.
+            input_type: 'search_document' (storage) ou 'search_query' (busca).
+
+        Returns:
+            Lista de embeddings (cada um com 384 floats).
+
+        Raises:
+            requests.HTTPError: Se a API retornar erro.
+        """
+        import requests
+
+        all_embeddings: list[list[float]] = []
+        for i in range(0, len(texts), self.BATCH_SIZE):
+            batch = texts[i : i + self.BATCH_SIZE]
+            resp = requests.post(
+                "https://api.cohere.com/v2/embed",
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": self.MODEL,
+                    "texts": batch,
+                    "input_type": input_type,
+                    "embedding_types": ["float"],
+                },
+                timeout=60,
+            )
+            resp.raise_for_status()
+            all_embeddings.extend(resp.json()["embeddings"]["float"])
+        return all_embeddings
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """Gera embeddings para documentos (input_type='search_document')."""
+        return self._call_api(texts, input_type="search_document")
+
+    def embed_query(self, text: str) -> list[float]:
+        """Gera embedding para query (input_type='search_query')."""
+        return self._call_api([text], input_type="search_query")[0]
 
 
 # ============================================================================
@@ -595,6 +664,28 @@ def get_embedding_model() -> Embeddings:
     settings = get_llm_settings()
     logger.debug(f"BluEmbeddingAPIClient: {settings.EMBEDDING_SERVICE_URL}")
     return BluEmbeddingAPIClient(base_url=settings.EMBEDDING_SERVICE_URL)
+
+
+def get_cohere_embedding_model() -> CohereEmbeddingClient:
+    """Retorna cliente Cohere de embedding.
+
+    Requer CO_API_KEY no ambiente (mesma env var das Edge Functions).
+
+    Returns:
+        CohereEmbeddingClient configurado.
+
+    Raises:
+        ValueError: Se CO_API_KEY nao estiver configurada.
+    """
+    settings = get_llm_settings()
+    api_key = getattr(settings, "CO_API_KEY", None) or os.environ.get("CO_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "CO_API_KEY nao configurada. "
+            "Obtenha em: https://dashboard.cohere.com/api-keys"
+        )
+    logger.debug("CohereEmbeddingClient: model=%s dims=%d", CohereEmbeddingClient.MODEL, CohereEmbeddingClient.DIMENSIONS)
+    return CohereEmbeddingClient(api_key=api_key)
 
 
 # ============================================================================

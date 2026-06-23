@@ -210,6 +210,19 @@ class AgentState(TypedDict, total=False):
     errors: Annotated[list[str], _cap_errors]  # Accumulated errors, capped at 20
 
     # =========================================================================
+    # Agent Memory Context (Shared Business Memory — Pre-flight + Post-flight)
+    # =========================================================================
+
+    # Pre-flight context injected before agent execution (DD-PF-08).
+    # Structure: {agent_metadata: [...], agent_results: [...], execution_count: int, agent_slug: str}
+    # Read by graphs that want historical execution context.
+    # Optional — graphs that don't use it ignore the field.
+    agent_preflight_context: dict | None
+
+    # Reserved for T1.2 (post-flight): pending post-flight data to write after execution.
+    agent_postflight_pending: dict | None
+
+    # =========================================================================
     # Metadata
     # =========================================================================
 
@@ -310,6 +323,9 @@ def create_initial_state(
         # Error handling
         error=None,
         errors=[],
+        # Agent memory context (pre-flight / post-flight)
+        agent_preflight_context=None,
+        agent_postflight_pending=None,
         # Metadata
         metadata=metadata or {},
         # Supervisor-tier fields

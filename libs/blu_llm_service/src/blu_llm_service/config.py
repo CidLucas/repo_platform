@@ -37,6 +37,11 @@ class LLMSettings(BaseSettings):
     EMBEDDING_SERVICE_URL: str = Field(default="http://embedding_service:11435")
 
     # ========================================================================
+    # COHERE (EMBEDDING)
+    # ========================================================================
+    CO_API_KEY: str | None = Field(default=None)
+
+    # ========================================================================
     # LANGFUSE (OBSERVABILITY)
     # ========================================================================
     LANGFUSE_HOST: str | None = Field(default="https://us.cloud.langfuse.com")

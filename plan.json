@@ -1,152 +1,159 @@
 {
-  "issue_number": 57,
-  "issue_title": "P1: Revisão geral de code patterns, código repetido e performance",
-  "issue_url": "https://github.com/CidLucas/repo_platform/issues/57",
-  "phase": 0,
-  "scope": "General codebase review across apps/, libs/, services/, packages/ for patterns consistency, code duplication, performance bottlenecks, security, error handling, and test coverage",
-  "depends_on": ["#17-#37 (all pipeline phases)"],
+  "issue_number": 31,
+  "issue_title": "Fase 4 \u2014 Eventos de trigger para handoffs",
+  "phase": "Fase 4 / T4.3",
+  "symbolic_ref": "docs/llm_wiki/SHARED_MEMORY_DESIGN.md - T4.3",
+  "scope": "Implementar atualização do knowledge_graph_summary no Context Service (available_tools). O job de enriquecimento semanal (T4.1: SBM \u2192 LightRAG) deve chamar esta atualização após sincronizar o grafo. O summary expõe: total de documentos indexados, total de entidades no grafo, top 10 entidades por grau de conexão, última data de sincronização.",
   "design_decisions": [
     {
       "id": "DD-01",
-      "decision": "Review will be organized by architectural layer: apps (frontend), libs (shared Python libraries), services (backend APIs), packages (npm packages)",
-      "rationale": "The monorepo has clear separation of concerns; reviewing by layer allows systematic coverage and clear ownership"
+      "decision": "Adicionar campo knowledge_graph_summary ao schema AvailableTools em context_schemas.py",
+      "rationale": "available_tools é a seção injetada em todos os agents; o summary do grafo deve ser acessível para routing e decisões de specialists (ex: rag_search decide se vale consultar o grafo). Schema versionado via Pydantic garante validação."
     },
     {
       "id": "DD-02",
-      "decision": "Focus on 6 dimensions per the issue scope: code patterns, duplicated code, performance, security, error handling, tests",
-      "rationale": "Matches the explicit checklist in the issue body and ensures comprehensive coverage"
+      "decision": "Campo knowledge_graph_summary é opcional (nullable) e versionado",
+      "rationale": "LightRAG (Fase 3) ainda não existe; clientes sem Fase 3/Ativação não têm grafo. O campo pode ser None. Incluir version para migrações futuras do formato do summary."
     },
     {
       "id": "DD-03",
-      "decision": "Output consolidated report at docs/reports/code-review-geral.md with per-service checklists, priority (P0/P1/P2), and fix suggestions with examples",
-      "rationale": "Explicitly required by the issue deliverable; makes findings actionable for downstream remediation tasks"
+      "decision": "Criar módulo dedicado knowledge_graph_sync.py no tool_pool_api (internal tool, não MCP)",
+      "rationale": "Atualização do summary é chamada pelo job de enriquecimento (T4.1) como step final. Internal tool via FastMCP client evita overhead de protocolo MCP e permite chamada síncrona no job. Separação: sync module = escrita/atualização; Context Service = leitura/cache."
     },
     {
       "id": "DD-04",
-      "decision": "Leverage existing documentation (patterns.md, repo-index.md, agent_audits/, SHARED_MEMORY_DESIGN.md) as baseline for expected patterns",
-      "rationale": "Avoids re-discovering known patterns; ensures review validates against documented standards"
+      "decision": "Estrutura do knowledge_graph_summary: { total_documents: int, total_entities: int, top_entities: list[{name, type, degree}], last_sync: ISOtimestamp, version: int }",
+      "rationale": "Matches exato do roadmap T4.3: 'Total de documentos indexados, Total de entidades no grafo, Entidades mais relevantes (top 10 por grau de conexão), Última data de sincronização'. top_entities limitado a 10 por performance/noise."
     },
     {
       "id": "DD-05",
-      "decision": "Use automated tooling where possible: grep/rg for pattern detection, pyright/mypy for Python type consistency, eslint for TS, dependency analysis for duplication",
-      "rationale": "Codebase is large (~17k files); manual-only review is impractical. Automation finds systematic issues efficiently"
+      "decision": "Atualização via upsert em clientes_blu.available_tools (JSONB) — reusa infraestrutura existente de context sections",
+      "rationale": "available_tools já é uma coluna JSONB em clientes_blu. ContextService.get_client_context() já carrega e cacheia. Update é PATCH parcial: ler, merge knowledge_graph_summary, escrever. RLS preservado (client_id)."
     },
     {
       "id": "DD-06",
-      "decision": "Prioritize findings by impact: P0 = security/data-loss/blocking bugs, P1 = performance/maintainability, P2 = style/minor inconsistency",
-      "rationale": "Issue is P1 but findings will vary; clear prioritization guides remediation sequencing"
+      "decision": "Invalidar cache Redis do ContextService após atualização (clear_context_cache)",
+      "rationale": "Garanta que próxima get_client_context() leia summary fresco. Cache TTL default 5min, mas job de enriquecimento roda semanalmente — invalidar é mais seguro que esperar TTL."
     }
   ],
   "subtasks": [
     {
-      "id": "T57.1",
-      "title": "Inventory & baseline: catalog all services/libs with primary language, entry points, and known patterns",
-      "description": "Scan apps/, libs/, services/, packages/ to build a service catalog. Document each: primary language, main entry points, key dependencies, and reference patterns from patterns.md/SHARED_MEMORY_DESIGN.md",
-      "layer": "inventory",
-      "estimated_hours": 2
+      "id": "T4.3a",
+      "title": "Schema: adicionar knowledge_graph_summary ao AvailableTools em context_schemas.py",
+      "description": "Em libs/blu_models/src/blu_models/context_schemas.py, classe AvailableTools: adicionar campo opcional knowledge_graph_summary: KnowledgeGraphSummary | None = None. Criar classe KnowledgeGraphSummary (BaseModel) com fields: total_documents (int, default=0), total_entities (int, default=0), top_entities (list[EntitySummary], default_factory=list), last_sync (str | None = None, ISO timestamp), version (int, default=1). EntitySummary: name (str), type (str), degree (int). Manter retrocompatibilidade (campo opcional, default None).",
+      "type": "code",
+      "files": [
+        "libs/blu_models/src/blu_models/context_schemas.py"
+      ],
+      "dependencies": [],
+      "acceptance": "Schema valida: AvailableTools com knowledge_graph_summary=None passa; com objeto válido passa; campo extra rejeitado (extra='forbid' ou ignorado). Testes unitários existentes passam."
     },
     {
-      "id": "T57.2",
-      "title": "Code patterns consistency review",
-      "description": "Check naming conventions (files, functions, variables), import/export patterns, project structure, type safety (pyright/mypy for Python, eslint/tsc for TS), error handling patterns, logging patterns, config management patterns across all layers",
-      "layer": "patterns",
-      "estimated_hours": 4
+      "id": "T4.3b",
+      "title": "Módulo de sync: criar knowledge_graph_sync.py no tool_pool_api",
+      "description": "Criar services/tool_pool_api/src/tool_pool_api/server/tool_modules/knowledge_graph_sync.py com função update_knowledge_graph_summary(client_id: UUID, summary: dict) -> bool. Função: 1) ler clientes_blu.available_tools do client_id, 2) merge summary (preservar outros campos), 3) upsert JSONB, 4) chamar ContextService.clear_context_cache(client_id) para invalidar cache, 5) retornar True/False. Registrar como internal tool (não MCP). Incluir validação básica do dict (required keys: total_documents, total_entities, top_entities, last_sync, version). Log structured para auditoria.",
+      "type": "code",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/knowledge_graph_sync.py"
+      ],
+      "dependencies": [
+        "T4.3a"
+      ],
+      "acceptance": "Módulo carrega sem erro; update_knowledge_graph_summary executa e atualiza available_tools no Supabase; cache invalidado; log contém client_id, total_entities, last_sync. Testes unitários com mock Supabase passam."
     },
     {
-      "id": "T57.3",
-      "title": "Code duplication detection & shared lib extraction candidates",
-      "description": "Find duplicated logic across libs/ (e.g., validation, DB access, auth, serialization), services/ (common middleware, error handlers), and apps/ (hooks, utils). Identify candidates for extraction to blu_shared_utils or new shared libs. Use jscpd/duplication detection tools",
-      "layer": "duplication",
-      "estimated_hours": 4
+      "id": "T4.3c",
+      "title": "Context Service: garantir leitura do knowledge_graph_summary no domain_projection",
+      "description": "Em libs/blu_context_service/src/blu_context_service/context_service.py, método get_domain_projection: o available_tools já é incluído nas seções permitidas para domínios 'analytics', 'data', 'sql', 'rag', 'documents', 'knowledge', 'config', 'settings' (ver _DOMAIN_SECTIONS). Verificar se knowledge_graph_summary vem junto — não precisa mudança se available_tools já é retornado integralmente. Adicionar helper get_knowledge_graph_summary(client_id) -> KnowledgeGraphSummary | None que lê do cache/context e extrai o campo tipado. Documentar uso para specialists (rag_search, documentos).",
+      "type": "code",
+      "files": [
+        "libs/blu_context_service/src/blu_context_service/context_service.py"
+      ],
+      "dependencies": [
+        "T4.3a",
+        "T4.3b"
+      ],
+      "acceptance": "get_domain_projection(domain='rag', client_id) retorna available_tools com knowledge_graph_summary populado (se existir no DB). Helper get_knowledge_graph_summary retorna objeto tipado ou None. Sem breaking change em domínios existentes."
     },
     {
-      "id": "T57.4",
-      "title": "Performance bottleneck analysis",
-      "description": "Identify N+1 queries (Supabase/Postgres), unbatched API calls, excessive allocations in hot paths, missing indexes, inefficient loops, missing caching, async/await misuse, large bundle sizes in apps/blu_v3",
-      "layer": "performance",
-      "estimated_hours": 4
+      "id": "T4.3d",
+      "title": "Integração: ponto de chamada no job de enriquecimento (T4.1)",
+      "description": "Documentar em plan (não implementar T4.1 aqui): o job semanal de enriquecimento SBM\u2192LightRAG (T4.1) deve, AO FINAL, chamar update_knowledge_graph_summary com dados agregados do LightRAG: rag.get_documents_count(), rag.get_entities_count(), rag.get_top_entities_by_degree(10), datetime.now(UTC).isoformat(), version=1. Esta task é preparatória — garante que a interface (T4.3a-c) existe para T4.1 consumir. Incluir exemplo de payload no docstring de knowledge_graph_sync.py.",
+      "type": "doc",
+      "files": [
+        "services/tool_pool_api/src/tool_pool_api/server/tool_modules/knowledge_graph_sync.py"
+      ],
+      "dependencies": [
+        "T4.3b"
+      ],
+      "acceptance": "Docstring em knowledge_graph_sync.py contém exemplo completo de payload esperado pelo T4.1. Code review valida que campos batem com KnowledgeGraphSummary schema."
     },
     {
-      "id": "T57.5",
-      "title": "Security review",
-      "description": "Check input validation/sanitization (Zod/Pydantic), SQL injection risks (raw SQL vs ORM/rpc), auth/authorization consistency (blu_auth usage), rate limiting, secrets management (.env, .secrets.baseline), CORS, CSP headers, dependency vulnerabilities (npm audit, pip-audit)",
-      "layer": "security",
-      "estimated_hours": 3
-    },
-    {
-      "id": "T57.6",
-      "title": "Error handling consistency",
-      "description": "Verify error types hierarchy, user-facing vs internal errors, logging with context, retry policies, circuit breakers, dead letter handling, error boundary patterns in frontend, correlation IDs for tracing",
-      "layer": "error_handling",
-      "estimated_hours": 3
-    },
-    {
-      "id": "T57.7",
-      "title": "Test coverage & quality assessment",
-      "description": "Measure coverage per service (pytest-cov, jest --coverage), identify missing edge cases, mock quality, fixture reusability, integration vs unit balance, test organization, flaky test detection",
-      "layer": "tests",
-      "estimated_hours": 3
-    },
-    {
-      "id": "T57.8",
-      "title": "Consolidate findings into docs/reports/code-review-geral.md",
-      "description": "Generate the required deliverable: per-service checklist, P0/P1/P2 priority for each finding, fix suggestions with code examples, remediation effort estimates, and cross-cutting themes",
-      "layer": "reporting",
-      "estimated_hours": 2
+      "id": "T4.3e",
+      "title": "Testes unitários e integração",
+      "description": "Criar testes: 1) unitário context_schemas: KnowledgeGraphSummary validation (campos required, tipos, defaults), 2) unitário knowledge_graph_sync: update_knowledge_graph_summary com mock Supabase (sucesso, erro RLS, erro validação), 3) integração ContextService: get_domain_projection inclui knowledge_graph_summary quando disponível, get_knowledge_graph_summary helper funciona. Testes em libs/blu_models/tests/unit/test_context_schemas.py, services/tool_pool_api/tests/unit/test_knowledge_graph_sync.py, libs/blu_context_service/tests/unit/test_knowledge_graph_summary.py.",
+      "type": "test",
+      "files": [
+        "libs/blu_models/tests/unit/test_context_schemas.py",
+        "services/tool_pool_api/tests/unit/test_knowledge_graph_sync.py",
+        "libs/blu_context_service/tests/unit/test_knowledge_graph_summary.py"
+      ],
+      "dependencies": [
+        "T4.3a",
+        "T4.3b",
+        "T4.3c"
+      ],
+      "acceptance": "pytest passa em todos os novos arquivos; cobertura >= 80% nas novas functions; integração com Supabase local/test passa."
     }
   ],
   "risks": [
     {
       "id": "R1",
-      "risk": "Codebase size (~17k files including node_modules) makes manual review infeasible",
-      "mitigation": "Heavy reliance on automated tooling (grep, linters, duplication detectors); sampling for deep-dive"
+      "risk": "LightRAG (Fase 3) ainda não implementado — knowledge_graph_summary ficará None/empty até T4.1",
+      "mitigation": "Campo opcional no schema (DD-02). Context Service e specialists tratam None graciosamente (fallback: 'conhecimento do grafo não disponível'). Sem breaking change."
     },
     {
       "id": "R2",
-      "risk": "Some patterns may be intentional deviations (e.g., service-specific conventions)",
-      "mitigation": "Flag as 'review needed' rather than 'violation'; consult service owners via comments"
+      "risk": "Concorrência: job T4.1 e possível rota manual de atualização podem race condition no available_tools JSONB",
+      "mitigation": "Upsert usa version no summary para detectar stale writes (optimistic locking). Context Service cache TTL curto (5min). Job T4.1 é single-writer (cron semanal)."
     },
     {
       "id": "R3",
-      "risk": "Depends on completion of Phases 1-5 (#17-#37) - reviewing prematurely may miss new code",
-      "mitigation": "This intake documents the plan; execution should wait for dependency completion signal"
+      "risk": "Top 10 entities por grau pode vazar informação sensível entre tenants se RLS falhar",
+      "mitigation": "RLS em clientes_blu usa app.client_id — mesmo mecanismo das outras sections. update_knowledge_graph_summary executa com RLS context set via supabase_set_rls (via ContextService internamente). Testar RLS em testes de integração."
     },
     {
       "id": "R4",
-      "risk": "TypeScript and Python ecosystems have different tooling; unified reporting needs normalization",
-      "mitigation": "Standardize finding schema: {file, line, layer, dimension, severity, description, suggestion, example}"
+      "risk": "Schema evolution: se estrutura do summary mudar (ex: adicionar métricas), version field permite migração",
+      "mitigation": "version no KnowledgeGraphSummary (DD-04). ContextService.get_knowledge_graph_summary pode retornar versões antigas ou migrar on-read. Documentar política de versionamento."
     }
   ],
   "design_questions": [
     {
       "id": "DQ1",
-      "question": "Should the review include generated/build artifacts (e.g., libs/blu_context_service/build/)?",
-      "recommendation": "Exclude build/ and node_modules/; focus on source only"
+      "question": "O knowledge_graph_summary deve incluir métricas de qualidade (ex: % entidades com source SBM vs upload)?",
+      "status": "open"
     },
     {
       "id": "DQ2",
-      "question": "What is the target remediation timeline? This affects P0/P1/P2 thresholds",
-      "recommendation": "Default to: P0=immediate, P1=next sprint, P2=tech debt backlog"
+      "question": "Specialists além de 'rag'/'documents' devem receber o summary? (ex: crm, financeiro para decisão de tool)",
+      "status": "open"
     },
     {
       "id": "DQ3",
-      "question": "Are there specific services/libs that are higher priority (e.g., agent_api, blu_agent_framework)?",
-      "recommendation": "Weight findings by service criticality; core framework libs get stricter thresholds"
+      "question": "Frequência de atualização: T4.1 é semanal. Se job falhar, summary fica stale. Adicionar 'stale_after_hours' no summary?",
+      "status": "open"
     }
   ],
-  "deliverable": {
-    "path": "docs/reports/code-review-geral.md",
-    "format": "markdown",
-    "sections": [
-      "Executive Summary",
-      "Methodology & Tools",
-      "Per-Service Checklists (apps/, libs/, services/, packages/)",
-      "Cross-Cutting Themes",
-      "Prioritized Findings (P0/P1/P2 tables)",
-      "Remediation Suggestions with Examples",
-      "Effort Estimates & Sequencing"
-    ]
-  },
-  "next_assignee": "factory-planner",
-  "next_task_title": "Plan: #57 - Code Review Geral"
+  "related_issues": [
+    29,
+    30,
+    32
+  ],
+  "next_phase_dependencies": {
+    "T4.1_enrichment_job": "Precisa de update_knowledge_graph_summary (T4.3b) + schema (T4.3a) para atualizar summary após sync SBM\u2192LightRAG",
+    "T4.2_deduplication": "Pode usar knowledge_graph_summary.total_entities para monitorar crescimento do grafo",
+    "rag_search_skill": "Pode ler get_knowledge_graph_summary para decidir modo de busca (local/mix/global) baseado em total_entities"
+  }
 }
+

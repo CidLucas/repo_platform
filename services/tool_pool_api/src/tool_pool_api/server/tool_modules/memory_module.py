@@ -10,16 +10,23 @@ Tools registered:
   - shared_memory_list    -> list entities with memory entries
   - shared_memory_read    -> read a single fact by composite key
   - shared_memory_upsert  -> insert or update a fact (versioned)
+  - shared_memory_meta_upsert -> insert or update a meta entry in shared_business_memory_meta
   - shared_memory_write   -> write a new fact (strict INSERT; supersede=True to upsert)
+  - shared_memory_search  -> semantic vector search via Cohere embeddings (T3.1c)
+  - shared_memory_flush   -> soft-delete entries (marks flushed_at in metadata; T5.4)
   - shared_memory_link    -> create semantic link between entities
   - shared_memory_unlink  -> remove a link by id
   - shared_memory_get_links -> query links by entity and/or type
+  - shared_memory_export  -> export all facts for a client (T5.4)
+  - shared_memory_meta_read  -> read a single meta entry from shared_business_memory_meta
+  - shared_memory_meta_list  -> list meta entries, optionally filtered by entity_type
 
 Design doc: docs/llm_wiki/SHARED_MEMORY_DESIGN.md (Fase 0)
 """
 
 import json
 import logging
+import time
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
@@ -27,6 +34,7 @@ from fastmcp.exceptions import ToolError
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_supabase_client import get_supabase_client
 
+from tool_pool_api.server.dependencies import get_context_service
 from blu_context_service.context_schemas import _SNAPSHOT_DIMENSION_FIELDS
 
 from . import register_module
@@ -34,11 +42,143 @@ from . import register_module
 logger = logging.getLogger(__name__)
 
 _VALID_ENTITY_TYPES: frozenset[str] = frozenset(
-    {"skill", "client", "contact", "supplier", "user", "snapshot"}
+    {"skill", "client", "contact", "supplier", "user", "snapshot", "routine",
+     "agent_result", "agent_metadata"}
 )
 
 _TABLE = "shared_business_memory"
 _LINKS_TABLE = "shared_memory_links"
+
+_VALID_CATEGORIES: frozenset[str] = frozenset(
+    {"knowledge", "rag", "documents", "memory-agent",
+     "context", "decision", "preference"}
+)
+
+# ---------------------------------------------------------------------------
+# Write permission check (T5.2)
+# ---------------------------------------------------------------------------
+
+# Mapping of source -> allowed entity_types for write operations.
+# Follows the "Single Writer" principle: each source can only write to
+# entity types it is authorised for.
+_WRITE_PERMISSIONS: dict[str, frozenset[str]] = {
+    "system": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+        "snapshot", "routine", "agent_result", "agent_metadata",
+    }),
+    "memory_agent": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+        "snapshot", "routine", "agent_result", "agent_metadata",
+    }),
+    "specialist": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+        "snapshot", "agent_result", "agent_metadata",
+    }),
+    "manual": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+    }),
+    "migration": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+        "snapshot", "routine", "agent_result", "agent_metadata",
+    }),
+}
+
+
+def _check_write_permission(
+    source: str,
+    entity_type: str,
+    entity_name: str,
+) -> None:
+    allowed = _WRITE_PERMISSIONS.get(source)
+    if allowed is None:
+        raise ValueError(
+            f"Unknown source '{source}'. "
+            f"Must be one of: {sorted(_WRITE_PERMISSIONS.keys())}"
+        )
+    if entity_type not in allowed:
+        raise ValueError(
+            f"Write permission denied: source '{source}' cannot write to "
+            f"entity_type '{entity_type}' (entity: {entity_name}). "
+            f"Allowed types for '{source}': {sorted(allowed)}"
+        )
+
+# ---------------------------------------------------------------------------
+# Category constants (for shared_memory_write)
+# ---------------------------------------------------------------------------
+
+_VALID_CATEGORIES: frozenset[str] = frozenset({
+    "knowledge", "rag", "documents", "memory-agent",
+    "context", "decision", "preference",
+})
+
+# ---------------------------------------------------------------------------
+# TTL tier constants (Fase 4 — T4.4c)
+# ---------------------------------------------------------------------------
+
+_VALID_TTL_TIERS: frozenset[str] = frozenset({
+    "curated", "migration", "specialist",
+    "memory_agent_hi", "memory_agent_lo",
+})
+
+# Interval mapping: tier → soft_delete_at offset (in days)
+# curated = None means never expires
+_TTL_TIER_INTERVALS: dict[str, int | None] = {
+    "curated": None,          # Never expires
+    "migration": 90,          # +90 days
+    "specialist": 30,         # +30 days
+    "memory_agent_hi": 14,    # +14 days
+    "memory_agent_lo": 7,     # +7 days
+}
+
+# Archival period: hard_delete_at = soft_delete_at + 90 days
+_ARCHIVAL_PERIOD_DAYS: int = 90
+
+# Default TTL tier inference from source
+_SOURCE_TTL_DEFAULTS: dict[str, str] = {
+    "curated": "curated",
+    "migration": "migration",
+    "specialist": "specialist",
+    "memory_agent": "memory_agent_lo",
+}
+
+# ---------------------------------------------------------------------------
+# Category constants (for shared_memory_write)
+# ---------------------------------------------------------------------------
+
+_VALID_CATEGORIES: frozenset[str] = frozenset({
+    "knowledge", "rag", "documents", "memory-agent",
+    "context", "decision", "preference",
+})
+
+# ---------------------------------------------------------------------------
+# TTL tier constants (Fase 4 — T4.4c)
+# ---------------------------------------------------------------------------
+
+_VALID_TTL_TIERS: frozenset[str] = frozenset({
+    "curated", "migration", "specialist",
+    "memory_agent_hi", "memory_agent_lo",
+})
+
+# Interval mapping: tier → soft_delete_at offset (in days)
+# curated = None means never expires
+_TTL_TIER_INTERVALS: dict[str, int | None] = {
+    "curated": None,          # Never expires
+    "migration": 90,          # +90 days
+    "specialist": 30,         # +30 days
+    "memory_agent_hi": 14,    # +14 days
+    "memory_agent_lo": 7,     # +7 days
+}
+
+# Archival period: hard_delete_at = soft_delete_at + 90 days
+_ARCHIVAL_PERIOD_DAYS: int = 90
+
+# Default TTL tier inference from source
+_SOURCE_TTL_DEFAULTS: dict[str, str] = {
+    "curated": "curated",
+    "migration": "migration",
+    "specialist": "specialist",
+    "memory_agent": "memory_agent_lo",
+}
 
 # ---------------------------------------------------------------------------
 # Snapshot constants (T2.2a + T2.2b)
@@ -81,6 +221,43 @@ def _validate_entity_type(entity_type: str, field_name: str = "entity_type") -> 
 def _normalize_entity_name(name: str) -> str:
     """Normalize entity name: lowercase, trimmed."""
     return name.strip().lower()
+
+
+def _is_flushed(metadata: dict | None) -> bool:
+    """Check whether a shared-memory entry has been flushed.
+
+    Flushed entries have ``flushed_at`` set in their metadata JSONB column.
+    This is a soft-delete marker — the row still exists but should be treated
+    as cleared/unavailable.
+
+    Args:
+        metadata: The metadata dict from the row (may be None, treated as not flushed).
+
+    Returns:
+        True if the entry is marked as flushed.
+    """
+    if not isinstance(metadata, dict):
+        return False
+    return "flushed_at" in metadata
+
+
+def _check_not_flushed(metadata: dict | None, entity_ref: str) -> None:
+    """Raise ValueError if the entry is flushed.
+
+    Used before returning read results to ensure flushed entries are not
+    surfaced to agents.
+
+    Args:
+        metadata: The metadata dict from the row.
+        entity_ref: Human-readable entity reference for the error message.
+
+    Raises:
+        ValueError: If the entry is flushed.
+    """
+    if _is_flushed(metadata):
+        raise ValueError(
+            f"Memory entry has been flushed (soft-deleted): {entity_ref}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +471,281 @@ def _validate_snapshot_body(
 
 
 # ---------------------------------------------------------------------------
+# Snapshot validation (T2.2b + T2.2f)
+# ---------------------------------------------------------------------------
+
+
+def _validate_snapshot_frontmatter(
+    entity_name: str,
+    frontmatter: dict,
+) -> None:
+    """Validate that a snapshot has the required frontmatter fields.
+
+    Args:
+        entity_name: e.g. "financeiro:semanal" -- used for cross-validation.
+        frontmatter: The frontmatter dict to validate.
+
+    Raises:
+        ValueError: If required fields are missing or invalid.
+    """
+    if not isinstance(frontmatter, dict):
+        raise ValueError(
+            "frontmatter is required for entity_type='snapshot' and must be a dict"
+        )
+
+    # Validate required fields
+    missing = _SNAPSHOT_FRONTMATTER_REQUIRED - set(frontmatter.keys())
+    if missing:
+        raise ValueError(
+            f"Snapshot frontmatter missing required fields: {sorted(missing)}"
+        )
+
+    # Validate 'tipo' field
+    if frontmatter.get("tipo") != "snapshot":
+        raise ValueError(
+            "frontmatter.tipo must be 'snapshot'"
+        )
+
+    # Validate dimension
+    dimensao = frontmatter.get("dimensao")
+    if dimensao not in _VALID_DIMENSIONS:
+        raise ValueError(
+            f"frontmatter.dimensao '{dimensao}' is invalid. "
+            f"Must be one of: {sorted(_VALID_DIMENSIONS)}"
+        )
+
+    # Cross-validate with entity_name: dimension must match
+    parts = entity_name.split(":")
+    entity_dim = parts[0] if parts else ""
+    if entity_dim and entity_dim != dimensao:
+        raise ValueError(
+            f"entity_name dimension '{entity_dim}' does not match "
+            f"frontmatter.dimensao '{dimensao}'"
+        )
+
+    # Validate period
+    periodo = frontmatter.get("periodo")
+    if periodo not in _VALID_PERIODS:
+        raise ValueError(
+            f"frontmatter.periodo '{periodo}' is invalid. "
+            f"Must be one of: {sorted(_VALID_PERIODS)}"
+        )
+
+    # Cross-validate period with entity_name
+    if len(parts) > 1 and parts[1] and parts[1] != periodo:
+        raise ValueError(
+            f"entity_name period '{parts[1]}' does not match "
+            f"frontmatter.periodo '{periodo}'"
+        )
+
+    # Validate version is positive int
+    versao = frontmatter.get("versao")
+    if not isinstance(versao, int) or versao < 1:
+        raise ValueError(
+            "frontmatter.versao must be a positive integer"
+        )
+
+    # Validate template_version is positive int
+    template_version = frontmatter.get("template_version")
+    if not isinstance(template_version, int) or template_version < 1:
+        raise ValueError(
+            "frontmatter.template_version must be a positive integer"
+        )
+
+    # Validate fontes is a list of strings
+    fontes = frontmatter.get("fontes")
+    if not isinstance(fontes, list) or not all(isinstance(f, str) for f in fontes):
+        raise ValueError("frontmatter.fontes must be a list of strings")
+
+
+def _validate_snapshot_body(
+    entity_name: str,
+    body: dict,
+) -> None:
+    """Validate a snapshot body against its dimension schema.
+
+    Args:
+        entity_name: e.g. "financeiro:semanal" -- dimension extracted from here.
+        body: The body dict (value column content).
+
+    Raises:
+        ValueError: If validation fails.
+    """
+    # Extract dimension from entity_name
+    parts = entity_name.split(":")
+    dimensao = parts[0] if parts else ""
+
+    if not dimensao:
+        raise ValueError(
+            "Cannot determine snapshot dimension from entity_name"
+        )
+
+    if dimensao not in _VALID_DIMENSIONS:
+        raise ValueError(
+            f"Invalid snapshot dimension '{dimensao}'. "
+            f"Must be one of: {sorted(_VALID_DIMENSIONS)}"
+        )
+
+    # Validate base fields are present
+    missing_base = _SNAPSHOT_BASE_FIELDS - set(body.keys())
+    if missing_base:
+        raise ValueError(
+            f"Snapshot body missing required base fields: {sorted(missing_base)}"
+        )
+
+    # Validate 'dimensao' inside body matches entity_name
+    body_dimensao = body.get("dimensao")
+    if body_dimensao != dimensao:
+        raise ValueError(
+            f"body.dimensao '{body_dimensao}' does not match "
+            f"entity_name dimension '{dimensao}'"
+        )
+
+    # Validate 'indicadores' is a list
+    indicadores = body.get("indicadores")
+    if not isinstance(indicadores, list):
+        raise ValueError("body.indicadores must be a list")
+
+    # Validate indicators against dimension spec
+    dim_spec = _SNAPSHOT_DIMENSION_FIELDS.get(dimensao)
+    if dim_spec is None:
+        raise ValueError(
+            f"Unknown snapshot dimension '{dimensao}'"
+        )
+
+    # Build a lookup of indicator names present in body
+    body_indicator_names: set[str] = set()
+    for ind in indicadores:
+        if not isinstance(ind, dict):
+            raise ValueError(
+                f"Each indicator in body.indicadores must be a dict"
+            )
+        nome = ind.get("nome")
+        if not nome or not isinstance(nome, str):
+            raise ValueError(
+                f"Each indicator must have a 'nome' (string)"
+            )
+        body_indicator_names.add(nome)
+
+        # Validate required fields within each indicator
+        if "valor" not in ind:
+            raise ValueError(
+                f"Indicator '{nome}' missing required field 'valor'"
+            )
+        if "unidade" not in ind:
+            raise ValueError(
+                f"Indicator '{nome}' missing required field 'unidade'"
+            )
+        tendencia = ind.get("tendencia")
+        if tendencia is not None and tendencia not in ("alta", "baixa", "estavel"):
+            raise ValueError(
+                f"Indicator '{nome}' has invalid tendencia '{tendencia}'. "
+                f"Must be 'alta', 'baixa', or 'estavel'"
+            )
+
+    # Validate required indicators from dimension spec are present
+    required_indicators = {
+        ind_spec["nome"]
+        for ind_spec in dim_spec["indicadores"]
+        if ind_spec.get("required", False)
+    }
+    missing_indicators = required_indicators - body_indicator_names
+    if missing_indicators:
+        raise ValueError(
+            f"Missing required indicators for dimension '{dimensao}': "
+            f"{sorted(missing_indicators)}"
+        )
+
+    # Validate unknown indicators
+    known_indicator_names = {
+        ind_spec["nome"] for ind_spec in dim_spec["indicadores"]
+    }
+    unknown_indicators = body_indicator_names - known_indicator_names
+    if unknown_indicators:
+        logger.warning(
+            "[memory_module] Snapshot body contains unknown indicators "
+            "for dimension '%s': %s",
+            dimensao,
+            sorted(unknown_indicators),
+        )
+
+    # Validate 'alertas' is a list of strings
+    alertas = body.get("alertas")
+    if not isinstance(alertas, list):
+        raise ValueError("body.alertas must be a list")
+
+    # Validate 'resumo_executivo' is a string
+    resumo = body.get("resumo_executivo")
+    if resumo is not None and not isinstance(resumo, str):
+        raise ValueError("body.resumo_executivo must be a string")
+
+
+# ---------------------------------------------------------------------------
+# TTL lifecycle helper (Fase 4 — T4.4c)
+# ---------------------------------------------------------------------------
+
+
+def _compute_ttl_columns(
+    ttl_tier: str | None = None,
+    source: str = "manual",
+) -> dict:
+    """Compute soft_delete_at and hard_delete_at based on ttl_tier.
+
+    If ttl_tier is provided, validate and use its interval.
+    If not provided, infer default from source.
+
+    Returns a dict with keys: soft_delete_at, hard_delete_at, ttl_tier.
+    Values are ISO-format datetime strings or None.
+    For 'curated' tier, both are None (never expires).
+
+    Raises ValueError for invalid ttl_tier.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    # Resolve tier: explicit > source default
+    if ttl_tier is not None:
+        tier = ttl_tier.strip().lower()
+    else:
+        tier = _SOURCE_TTL_DEFAULTS.get(source)
+        if tier is None:
+            # Unknown source — conservative default: specialist (30d)
+            logger.warning(
+                "[memory_module] Unknown source '%s' for TTL tier inference, "
+                "defaulting to 'specialist' (30d).",
+                source,
+            )
+            tier = "specialist"
+
+    # Validate against enum
+    if tier not in _VALID_TTL_TIERS:
+        raise ValueError(
+            f"Invalid ttl_tier '{tier}'. "
+            f"Must be one of: {sorted(_VALID_TTL_TIERS)}"
+        )
+
+    # Compute intervals
+    interval_days = _TTL_TIER_INTERVALS[tier]
+
+    if interval_days is None:
+        # curated — never expires
+        return {
+            "soft_delete_at": None,
+            "hard_delete_at": None,
+            "ttl_tier": tier,
+        }
+
+    now = datetime.now(timezone.utc)
+    soft = now + timedelta(days=interval_days)
+    hard = now + timedelta(days=interval_days + _ARCHIVAL_PERIOD_DAYS)
+
+    return {
+        "soft_delete_at": soft.isoformat(),
+        "hard_delete_at": hard.isoformat(),
+        "ttl_tier": tier,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Business logic
 # ---------------------------------------------------------------------------
 
@@ -399,6 +851,12 @@ async def _shared_memory_read_logic(
             f"Memory entry not found: {entity_type}:{entity_name}/{key}"
         )
 
+    # T5.4 — Check if entry has been flushed (soft-deleted)
+    _check_not_flushed(
+        row.get("metadata"),
+        f"{entity_type}:{entity_name}/{key}",
+    )
+
     return {
         "id": row["id"],
         "client_id": row["client_id"],
@@ -409,6 +867,10 @@ async def _shared_memory_read_logic(
         "source": row["source"],
         "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
         "version": row.get("version", 1),
+        "ttl_tier": row.get("ttl_tier"),
+        "soft_delete_at": row.get("soft_delete_at"),
+        "hard_delete_at": row.get("hard_delete_at"),
+        "archived": row.get("archived", False),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -428,15 +890,26 @@ async def _shared_memory_upsert_logic(
     frontmatter: dict | None = None,
     source: str = "manual",
     confidence: float = 1.0,
+    ttl_tier: str | None = None,
 ) -> dict:
     """
     Insert or update a shared-memory fact.
 
-    Uses INSERT ... ON CONFLICT (client_id, entity_type, entity_name, key)
-    DO UPDATE with version = version + 1.
+    If an existing row is found, its current state is archived to
+    ``shared_business_memory_versions`` before the update, and the version
+    number is incremented.  Uses INSERT ... ON CONFLICT (client_id,
+    entity_type, entity_name, key) DO UPDATE.
 
     body maps to the ``value`` column (the actual fact content).
     frontmatter maps to the ``metadata`` column (provenance/context).
+
+    Fase 4 (T4.4c): ttl_tier controls retention policy:
+      - curated        → never expires (soft_delete_at = NULL)
+      - migration      → soft-delete after 90d
+      - specialist     → soft-delete after 30d
+      - memory_agent_hi → soft-delete after 14d
+      - memory_agent_lo → soft-delete after 7d
+    If ttl_tier is not provided, inferred from source.
     """
     _validate_entity_type(entity_type)
     entity_name = _normalize_entity_name(entity_name)
@@ -458,6 +931,25 @@ async def _shared_memory_upsert_logic(
 
     db = await get_supabase_client()
 
+    # ── Compute TTL lifecycle columns (Fase 4 — T4.4c) ──────────
+    ttl_info = _compute_ttl_columns(ttl_tier=ttl_tier, source=source)
+
+    # ── Archive current version before overwriting (T5.3) ──────────
+    from .version_module import _archive_memory_version as _archive_version
+
+    archive_result = await _archive_version(
+        client_id=client_id,
+        entity_type=entity_type,
+        entity_name=entity_name,
+        key=key,
+    )
+
+    new_version = (
+        archive_result["archived_version"] + 1
+        if archive_result is not None
+        else 1
+    )
+
     payload = {
         "client_id": client_id,
         "entity_type": entity_type,
@@ -469,7 +961,21 @@ async def _shared_memory_upsert_logic(
             "manual", "memory_agent", "specialist", "migration", "system"
         ) else "manual",
         "confidence": confidence,
+        "version": new_version,
+        "ttl_tier": ttl_info["ttl_tier"],
+        "soft_delete_at": ttl_info["soft_delete_at"],
+        "hard_delete_at": ttl_info["hard_delete_at"],
     }
+
+    # Gerar embedding (T3.1b — sync write, NUNCA bloqueia)
+    await _try_generate_embedding(
+        entity_type=entity_type,
+        entity_name=entity_name,
+        key=key,
+        payload=payload,
+        value=body,
+        category=payload.get("category"),
+    )
 
     try:
         result = await (
@@ -478,7 +984,7 @@ async def _shared_memory_upsert_logic(
             .upsert(
                 payload,
                 on_conflict="client_id,entity_type,entity_name,key",
-                default_to_null=False,
+                default_to_null=True,
             )
             .execute()
         )
@@ -500,6 +1006,134 @@ async def _shared_memory_upsert_logic(
         "source": row["source"],
         "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
         "version": row.get("version", 1),
+        "ttl_tier": row.get("ttl_tier"),
+        "soft_delete_at": row.get("soft_delete_at"),
+        "hard_delete_at": row.get("hard_delete_at"),
+        "archived": row.get("archived", False),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Write business logic (Fase 4 — T4.4c: ttl_tier support)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_write_logic(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    key: str,
+    value: dict,
+    category: str | None = None,
+    agent_id: str | None = None,
+    ttl: int | None = None,
+    priority: int | None = None,
+    supersede: bool = False,
+    source: str = "manual",
+    confidence: float = 1.0,
+    ttl_tier: str | None = None,
+) -> dict:
+    """
+    Write a new shared-memory fact (strict INSERT by default).
+
+    If supersede=True, delegates to _shared_memory_upsert_logic.
+    Otherwise, performs a strict INSERT that fails on duplicate keys.
+
+    Fase 4 (T4.4c): ttl_tier controls retention policy.
+    If ttl_tier is not provided, inferred from source.
+    """
+    _validate_entity_type(entity_type)
+    entity_name = _normalize_entity_name(entity_name)
+    key = key.strip().lower()
+
+    if not entity_name or not key:
+        raise ValueError("entity_name and key are required")
+    if not isinstance(value, dict):
+        raise ValueError("value must be a dict")
+
+    # If supersede, delegate to upsert (which handles TTL too)
+    if supersede:
+        return await _shared_memory_upsert_logic(
+            client_id=client_id,
+            entity_type=entity_type,
+            entity_name=entity_name,
+            key=key,
+            body=value,
+            frontmatter={},
+            source=source,
+            confidence=confidence,
+            ttl_tier=ttl_tier,
+        )
+
+    # Strict INSERT path — compute TTL lifecycle columns
+    ttl_info = _compute_ttl_columns(ttl_tier=ttl_tier, source=source)
+
+    # Build metadata from optional fields
+    metadata: dict = {}
+    if category:
+        metadata["category"] = category
+    if agent_id:
+        metadata["agent_id"] = agent_id
+    if ttl is not None:
+        metadata["ttl"] = ttl
+    if priority is not None:
+        metadata["priority"] = priority
+
+    db = await get_supabase_client()
+
+    payload = {
+        "client_id": client_id,
+        "entity_type": entity_type,
+        "entity_name": entity_name,
+        "key": key,
+        "value": value,
+        "metadata": metadata,
+        "source": source if source in (
+            "manual", "memory_agent", "specialist", "migration", "system"
+        ) else "manual",
+        "confidence": confidence,
+        "ttl_tier": ttl_info["ttl_tier"],
+        "soft_delete_at": ttl_info["soft_delete_at"],
+        "hard_delete_at": ttl_info["hard_delete_at"],
+    }
+
+    try:
+        result = await (
+            db.schema("public")
+            .table(_TABLE)
+            .insert(payload)
+            .execute()
+        )
+    except Exception as exc:
+        err_str = str(exc).lower()
+        if "duplicate key" in err_str or "unique" in err_str:
+            raise ValueError(
+                f"Fact already exists: {entity_type}:{entity_name}/{key}. "
+                f"Use supersede=true to overwrite."
+            )
+        raise RuntimeError(f"Failed to write shared-memory entry: {exc}")
+
+    row = result.data[0] if result.data else None
+    if not row:
+        raise RuntimeError("Failed to write memory entry — no data returned")
+
+    return {
+        "id": row["id"],
+        "client_id": row["client_id"],
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "key": row["key"],
+        "value": row["value"],
+        "metadata": row.get("metadata", {}),
+        "source": row["source"],
+        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+        "version": row.get("version", 1),
+        "ttl_tier": row.get("ttl_tier"),
+        "soft_delete_at": row.get("soft_delete_at"),
+        "hard_delete_at": row.get("hard_delete_at"),
+        "archived": row.get("archived", False),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -707,6 +1341,519 @@ async def _shared_memory_get_links_logic(
 
 
 # ---------------------------------------------------------------------------
+# Meta business logic (T4.2c)
+# ---------------------------------------------------------------------------
+
+_VALID_META_ENTITY_TYPES: frozenset[str] = frozenset(
+    {"synthesis_output", "dedup_mapping", "kg_summary"}
+)
+
+_META_TABLE = "shared_business_memory_meta"
+
+
+def _validate_meta_entity_type(entity_type: str, field_name: str = "entity_type") -> None:
+    """Validate entity_type against the allowed meta types. Raises ValueError."""
+    if entity_type not in _VALID_META_ENTITY_TYPES:
+        raise ValueError(
+            f"Invalid {field_name} '{entity_type}'. "
+            f"Must be one of: {sorted(_VALID_META_ENTITY_TYPES)}"
+        )
+
+
+async def _shared_memory_meta_upsert_logic(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    key: str,
+    body: dict,
+    source: str = "system",
+    confidence: float = 1.0,
+) -> dict:
+    """Insert or update an entry in shared_business_memory_meta.
+
+    ON CONFLICT (client_id, entity_type, entity_name, key) DO UPDATE.
+    Returns the complete record.
+    """
+    _validate_meta_entity_type(entity_type)
+    entity_name = _normalize_entity_name(entity_name)
+    key = key.strip().lower()
+
+    if not entity_name or not key:
+        raise ValueError("entity_name and key are required")
+    if not isinstance(body, dict):
+        raise ValueError("body must be a dict")
+
+    db = await get_supabase_client()
+
+    payload = {
+        "client_id": client_id,
+        "entity_type": entity_type,
+        "entity_name": entity_name,
+        "key": key,
+        "body": body,
+        "source": source,
+        "confidence": confidence,
+    }
+
+    try:
+        result = await (
+            db.schema("public")
+            .table(_META_TABLE)
+            .upsert(
+                payload,
+                on_conflict="client_id,entity_type,entity_name,key",
+                default_to_null=False,
+            )
+            .execute()
+        )
+    except Exception as exc:
+        raise RuntimeError(f"Failed to upsert shared-memory-meta entry: {exc}")
+
+    row = result.data[0] if result.data else None
+    if not row:
+        raise RuntimeError("Failed to upsert meta entry -- no data returned")
+
+    return {
+        "id": row["id"],
+        "client_id": row["client_id"],
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "key": row["key"],
+        "body": row["body"],
+        "source": row["source"],
+        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+async def _shared_memory_meta_read_logic(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    key: str,
+) -> dict:
+    """Read a specific entry from shared_business_memory_meta by composite key."""
+    _validate_meta_entity_type(entity_type)
+    entity_name = _normalize_entity_name(entity_name)
+    key = key.strip().lower()
+
+    if not entity_name or not key:
+        raise ValueError("entity_name and key are required")
+
+    db = await get_supabase_client()
+
+    result = await (
+        db.schema("public")
+        .table(_META_TABLE)
+        .select("*")
+        .eq("client_id", client_id)
+        .eq("entity_type", entity_type)
+        .eq("entity_name", entity_name)
+        .eq("key", key)
+        .maybe_single()
+        .execute()
+    )
+
+    row = result.data
+    if not row:
+        raise ValueError(
+            f"Meta entry not found: {entity_type}:{entity_name}/{key}"
+        )
+
+    return {
+        "id": row["id"],
+        "client_id": row["client_id"],
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "key": row["key"],
+        "body": row["body"],
+        "source": row["source"],
+        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+async def _shared_memory_meta_list_logic(
+    client_id: str,
+    entity_type: str | None = None,
+) -> dict:
+    """List all meta entries, optionally filtered by entity_type.
+
+    Returns total_entities, by_type breakdown, and sorted entries array.
+    """
+    if entity_type is not None:
+        _validate_meta_entity_type(entity_type)
+
+    db = await get_supabase_client()
+
+    query = (
+        db.schema("public")
+        .table(_META_TABLE)
+        .select("entity_type, entity_name, count(*), max(updated_at) as last_updated")
+# Vector search business logic (T3.1c)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_search_logic(
+    client_id: str,
+    query: str,
+    entity_type: str | None = None,
+    category: str | None = None,
+    match_count: int = 10,
+    match_threshold: float = 0.3,
+) -> dict:
+    """
+    Busca vetorial na shared_business_memory.
+
+    1. Gera embedding da query via Cohere embed-multilingual-light-v3.0
+    2. Chama RPC public.search_shared_memory()
+    3. Retorna resultados com similarity scores
+
+    Args:
+        client_id: UUID do cliente
+        query: Texto de busca em linguagem natural
+        entity_type: Filtrar por tipo de entidade (opcional)
+        category: Filtrar por categoria semântica (opcional)
+        match_count: Máximo de resultados (default 10)
+        match_threshold: Similaridade mínima (default 0.3)
+
+    Returns:
+        dict com query, total_results e results ordenados por similarity.
+
+    Raises:
+        ToolError: Se Cohere não disponível ou query embedding falhar.
+    """
+    if not query or not query.strip():
+        raise ValueError("query is required and cannot be empty")
+
+    if entity_type is not None:
+        _validate_entity_type(entity_type)
+
+    # 1. Gerar embedding da query via Cohere
+    try:
+        from blu_llm_service import get_cohere_embedding_model
+        embedder = get_cohere_embedding_model()
+        query_embedding = embedder.embed_query(query.strip())
+        embedding_str = f"[{','.join(str(v) for v in query_embedding)}]"
+    except ImportError:
+        raise ToolError(
+            "blu_llm_service não disponível para embedding vetorial. "
+            "Verifique se o pacote está instalado."
+        )
+    except ValueError as exc:
+        raise ToolError(
+            f"Configuração do Cohere ausente: {exc}. "
+            "Configure CO_API_KEY no ambiente."
+        )
+    except Exception as exc:
+        raise ToolError(f"Falha ao gerar embedding da query: {exc}")
+
+    # 2. Chamar RPC search_shared_memory
+    db = await get_supabase_client()
+    try:
+        result = await db.rpc(
+            "search_shared_memory",
+            {
+                "p_client_id": client_id,
+                "p_query_embed": embedding_str,
+                "p_match_count": match_count,
+                "p_match_threshold": match_threshold,
+                "p_entity_type": entity_type,
+                "p_category": category,
+            },
+        ).execute()
+    except Exception as exc:
+        logger.error(
+            "[memory_module] RPC search_shared_memory failed: %s", exc
+        )
+        raise ToolError(
+            f"Falha ao buscar na memória compartilhada: {exc}"
+        )
+
+    # 3. Formatar resultado
+    rows = result.data or []
+    formatted_results = []
+    for r in rows:
+        formatted_results.append({
+            "id": r["id"],
+            "entity_type": r["entity_type"],
+            "entity_name": r["entity_name"],
+            "key": r["key"],
+            "value": r["value"],
+            "category": r.get("category"),
+            "source": r.get("source"),
+            "confidence": float(r.get("confidence", 1.0)),
+            "similarity": round(float(r["similarity"]), 4),
+        })
+
+    return {
+        "query": query,
+        "total_results": len(formatted_results),
+        "results": formatted_results,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Flush business logic (T5.4)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_flush_logic(
+    client_id: str,
+    entity_type: str | None = None,
+    entity_name: str | None = None,
+    key: str | None = None,
+) -> dict:
+    """Flush (soft-delete) shared-memory entries for a client.
+
+    Marks matching entries as flushed by setting ``metadata->>'flushed_at'``
+    to the current UTC ISO timestamp.  This is a soft-delete — rows remain in
+    the database but are hidden from ``shared_memory_read``.
+
+    Filters are optional.  When no filters are provided, all entries for
+    the client are flushed.  The operation is **idempotent** — already-flushed
+    entries are silently skipped.
+
+    Args:
+        client_id: UUID of the client whose memory is being flushed.
+        entity_type: Optional filter — only flush entries of this type.
+        entity_name: Optional filter — only flush entries with this name.
+        key: Optional filter — only flush entries with this key.
+
+    Returns:
+        dict with ``flushed_count`` (number of entries actually flushed in
+        this call), ``total_scanned`` (number of rows matching filters),
+        and ``skipped_already_flushed``.
+
+    Raises:
+        ValueError: If entity_type is invalid or no rows match.
+    """
+    from datetime import datetime, timezone
+
+    if entity_type is not None:
+        _validate_entity_type(entity_type)
+    if entity_name is not None:
+        entity_name = _normalize_entity_name(entity_name)
+    if key is not None:
+        key = key.strip().lower()
+
+    db = await get_supabase_client()
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # 1. Query matching rows (all columns needed, only distinct per unique key)
+    query = (
+        db.schema("public")
+        .table(_TABLE)
+        .select("id, metadata")
+        .eq("client_id", client_id)
+    )
+    if entity_type:
+        query = query.eq("entity_type", entity_type)
+
+    result = await query.group_by("entity_type, entity_name").execute()
+
+    rows = result.data if result.data else []
+
+    entities: list[dict] = []
+    type_counts: dict[str, int] = {}
+
+    for r in rows:
+        et = r["entity_type"]
+        en = r["entity_name"]
+        cnt = r.get("count", 0)
+        lu = r.get("last_updated")
+        entities.append(
+            {
+                "entity_type": et,
+                "entity_name": en,
+                "key_count": cnt,
+                "last_updated": lu,
+            }
+        )
+        type_counts[et] = type_counts.get(et, 0) + 1
+
+    entities.sort(key=lambda e: (e["entity_type"], e["entity_name"]))
+
+    return {
+        "total_entities": len(entities),
+        "client_id": client_id,
+        "entity_type_filter": entity_type,
+        "by_type": type_counts,
+        "entities": entities,
+    if entity_name:
+        query = query.eq("entity_name", entity_name)
+    if key:
+        query = query.eq("key", key)
+
+    result = await query.execute()
+    rows = result.data if result.data else []
+
+    total_scanned = len(rows)
+    if total_scanned == 0:
+        raise ValueError(
+            "No shared-memory entries match the given filters. "
+            "Nothing to flush."
+        )
+
+    # 2. Identify which rows need flushing (not already flushed)
+    rows_to_flush: list[str] = []
+    skipped_already_flushed = 0
+
+    for r in rows:
+        meta = r.get("metadata") or {}
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except (json.JSONDecodeError, TypeError):
+                meta = {}
+        if "flushed_at" in meta:
+            skipped_already_flushed += 1
+            continue
+        rows_to_flush.append(r["id"])
+
+    if not rows_to_flush:
+        return {
+            "flushed_count": 0,
+            "total_scanned": total_scanned,
+            "skipped_already_flushed": skipped_already_flushed,
+            "message": (
+                f"All {total_scanned} matching entries are already flushed."
+            ),
+            "flushed_at": now_iso,
+        }
+
+    # 3. Batch update flushed_at in metadata
+    flushed_count = 0
+    flush_errors: list[str] = []
+
+    for row_id in rows_to_flush:
+        try:
+            # Read current metadata
+            meta_result = await (
+                db.schema("public")
+                .table(_TABLE)
+                .select("metadata")
+                .eq("id", row_id)
+                .single()
+                .execute()
+            )
+            current_meta = (meta_result.data or {}).get("metadata", {}) or {}
+            if isinstance(current_meta, str):
+                try:
+                    current_meta = json.loads(current_meta)
+                except (json.JSONDecodeError, TypeError):
+                    current_meta = {}
+
+            current_meta["flushed_at"] = now_iso
+
+            await (
+                db.schema("public")
+                .table(_TABLE)
+                .update({"metadata": current_meta})
+                .eq("id", row_id)
+                .eq("client_id", client_id)
+                .execute()
+            )
+            flushed_count += 1
+        except Exception as exc:
+            logger.error(
+                "[memory_module] Flush error for row %s: %s", row_id, exc
+            )
+            flush_errors.append(str(exc))
+
+    return {
+        "flushed_count": flushed_count,
+        "total_scanned": total_scanned,
+        "skipped_already_flushed": skipped_already_flushed,
+        "flush_errors": flush_errors if flush_errors else [],
+        "flushed_at": now_iso,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Export business logic (T5.4)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_export_logic(
+    client_id: str,
+    entity_type: str | None = None,
+    entity_name: str | None = None,
+) -> dict:
+    """
+    Export all shared-memory facts for a given client.
+
+    Reads all records from shared_business_memory, optionally filtered by
+    entity_type and/or entity_name. Returns a structured dict suitable for
+    downstream consumers (files, streams, analytics).
+
+    Empty segments return total_records=0 and records=[] (no error raised).
+    """
+    if entity_type is not None:
+        _validate_entity_type(entity_type)
+    if entity_name is not None:
+        entity_name = _normalize_entity_name(entity_name)
+
+    logger.info(
+        "[memory_module] shared_memory_export "
+        "client_id=%s entity_type=%s entity_name=%s",
+        client_id,
+        entity_type,
+        entity_name,
+    )
+
+    db = await get_supabase_client()
+
+    query = (
+        db.schema("public")
+        .table(_TABLE)
+        .select("*")
+        .eq("client_id", client_id)
+        .order("entity_type, entity_name, key")
+    )
+
+    if entity_type:
+        query = query.eq("entity_type", entity_type)
+    if entity_name:
+        query = query.eq("entity_name", entity_name)
+
+    result = await query.execute()
+
+    rows = result.data if result.data else []
+
+    records: list[dict] = []
+    for row in rows:
+        records.append({
+            "id": row["id"],
+            "entity_type": row["entity_type"],
+            "entity_name": row["entity_name"],
+            "key": row["key"],
+            "value": row["value"],
+            "metadata": row.get("metadata", {}),
+            "source": row["source"],
+            "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+            "version": row.get("version", 1),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        })
+
+    logger.info(
+        "[memory_module] shared_memory_export complete: %d records returned",
+        len(records),
+    )
+
+    return {
+        "client_id": client_id,
+        "entity_type_filter": entity_type,
+        "entity_name_filter": entity_name,
+        "total_records": len(records),
+        "records": records,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Tool registration
 # ---------------------------------------------------------------------------
 
@@ -868,6 +2015,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         frontmatter: dict | None = None,
         source: str = "manual",
         confidence: float = 1.0,
+        ttl_tier: str | None = None,
         client_id: str | None = None,
     ) -> dict:
         """
@@ -881,6 +2029,8 @@ def register_tools(mcp: FastMCP) -> list[str]:
             frontmatter: Optional metadata dict (maps to 'metadata' column).
             source: Provenance --  "manual" | "memory_agent" | "specialist" | "migration" | "system".
             confidence: Confidence score (0.0--1.0, default 1.0).
+            ttl_tier: Optional retention tier — "curated" | "migration" | "specialist" |
+                     "memory_agent_hi" | "memory_agent_lo". If omitted, inferred from source.
 
         Returns:
             dict with the full upserted record including version.
@@ -909,6 +2059,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
                 frontmatter=frontmatter,
                 source=source,
                 confidence=confidence,
+                ttl_tier=ttl_tier,
             )
         except ValueError as exc:
             raise ToolError(str(exc))
@@ -922,6 +2073,91 @@ def register_tools(mcp: FastMCP) -> list[str]:
 
     logger.info("[Memory Module] Tool 'shared_memory_upsert' registered.")
     registered_tools.append("shared_memory_upsert")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_meta_upsert -- insert or update a meta entry (T4.2d)
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_meta_upsert",
+        description=(
+            "[Shared Memory Meta] Insert or update a meta entry in "
+            "shared_business_memory_meta. Used for operational pipeline data "
+            "(synthesis outputs, dedup mappings, knowledge graph summaries). "
+            "Uses upsert semantics via ON CONFLICT (client_id, entity_type, "
+            "entity_name, key). "
+            "Valid entity types: synthesis_output | dedup_mapping | kg_summary."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_meta_upsert(
+        ctx: Context,
+        entity_type: str,
+        entity_name: str,
+        key: str,
+        value: dict,
+        source: str = "system",
+        confidence: float = 1.0,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Insert or update a meta entry in shared_business_memory_meta.
+
+        Args:
+            entity_type: Meta entity type (synthesis_output | dedup_mapping | kg_summary).
+            entity_name: Entity name (case-insensitive, normalized to lowercase).
+            key: Atomic fact key (max 256 chars).
+            value: JSON value (the fact content -- maps to 'body' column).
+            source: Provenance -- "manual" | "memory_agent" | "specialist" | "migration" | "system".
+            confidence: Confidence score (0.0--1.0, default 1.0).
+
+        Returns:
+            dict with the full upserted record: id, client_id, entity_type,
+            entity_name, key, value, source, confidence, metadata,
+            created_at, updated_at.
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_meta_upsert "
+            "entity_type=%s entity_name=%s key=%s client_id=%s",
+            entity_type,
+            entity_name,
+            key,
+            client_id,
+        )
+
+        try:
+            result = await _shared_memory_meta_upsert_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                key=key,
+                body=value,
+                source=source,
+                confidence=confidence,
+            )
+            # Map 'body' -> 'value' in the return for tool-level consistency
+            result["value"] = result.pop("body", value)
+            result["metadata"] = result.get("metadata", {})
+            return result
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_meta_upsert failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to upsert shared-memory-meta entry: {exc}"
+            )
+
+    logger.info(
+        "[Memory Module] Tool 'shared_memory_meta_upsert' registered."
+    )
+    registered_tools.append("shared_memory_meta_upsert")
 
     # ----------------------------------------------------------------------
     # shared_memory_write --  write a new fact (strict INSERT by default)
@@ -956,6 +2192,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         supersede: bool = False,
         source: str = "manual",
         confidence: float = 1.0,
+        ttl_tier: str | None = None,
         client_id: str | None = None,
     ) -> dict:
         """
@@ -973,6 +2210,8 @@ def register_tools(mcp: FastMCP) -> list[str]:
             supersede: If True, upsert to overwrite an existing entry. Default False (strict insert).
             source: Provenance — "manual" | "memory_agent" | "specialist" | "migration" | "system".
             confidence: Confidence score (0.0--1.0, default 1.0).
+            ttl_tier: Optional retention tier — "curated" | "migration" | "specialist" |
+                     "memory_agent_hi" | "memory_agent_lo". If omitted, inferred from source.
 
         Returns:
             dict with the full written record including id, version, and timestamps.
@@ -1023,6 +2262,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
                 supersede=supersede,
                 source=source,
                 confidence=confidence,
+                ttl_tier=ttl_tier,
             )
         except ValueError as exc:
             raise ToolError(str(exc))
@@ -1258,5 +2498,329 @@ def register_tools(mcp: FastMCP) -> list[str]:
         "[Memory Module] Tool 'shared_memory_get_links' registered."
     )
     registered_tools.append("shared_memory_get_links")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_meta_read -- read a single meta entry from meta table
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_meta_read",
+        description=(
+            "[Shared Memory Meta] Read a single entry from "
+            "shared_business_memory_meta by its composite key "
+            "(client_id, entity_type, entity_name, key). "
+            "Valid entity types: synthesis_output | dedup_mapping | kg_summary. "
+            "Returns the full record including body, source, confidence, "
+            "and timestamps."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_meta_read(
+        ctx: Context,
+        entity_type: str,
+        entity_name: str,
+        key: str,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Read a single shared-memory-meta entry by its composite key.
+
+        Args:
+            entity_type: Meta entity type (synthesis_output | dedup_mapping | kg_summary).
+            entity_name: Entity name (case-insensitive, normalized to lowercase).
+            key: Meta key (e.g. "summary", "dedup_rules").
+
+        Returns:
+            dict with the full record: id, client_id, entity_type, entity_name,
+            key, body, source, confidence, created_at, updated_at.
+
+        Raises:
+            ToolError: If the entry is not found or entity_type is invalid.
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_meta_read "
+            "entity_type=%s entity_name=%s key=%s client_id=%s",
+            entity_type,
+            entity_name,
+            key,
+        if match_count < 1 or match_count > 50:
+            raise ToolError(
+                "match_count must be between 1 and 50"
+            )
+
+        if match_threshold < 0.0 or match_threshold > 1.0:
+            raise ToolError(
+                "match_threshold must be between 0.0 and 1.0"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_search "
+            "query='%s' entity_type=%s category=%s "
+            "match_count=%d match_threshold=%.2f client_id=%s",
+            query[:80],
+            entity_type,
+            category,
+            match_count,
+            match_threshold,
+            client_id,
+        )
+
+        try:
+            return await _shared_memory_meta_read_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                key=key,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_meta_read failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to read shared-memory-meta entry: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_meta_read' registered.")
+    registered_tools.append("shared_memory_meta_read")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_meta_list -- list meta entries with optional filter
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_meta_list",
+        description=(
+            "[Shared Memory Meta] List all entities that have meta entries "
+            "in shared_business_memory_meta for the current client. "
+            "Optionally filter by entity_type "
+            "(synthesis_output | dedup_mapping | kg_summary). "
+            "Returns a summary with total_entities, by_type breakdown, "
+            "and the entities array with key-counts and last-updated timestamps."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_meta_list(
+        ctx: Context,
+        entity_type: str | None = None,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        List meta entries from shared_business_memory_meta.
+
+        Args:
+            entity_type: Optional filter --
+                         "synthesis_output", "dedup_mapping", or "kg_summary".
+                         When omitted all entity types are returned.
+
+        Returns:
+            dict with total_entities, client_id, entity_type_filter,
+            by_type breakdown, and entities array sorted by
+            (entity_type, entity_name).
+            return await _shared_memory_search_logic(
+                client_id=client_id,
+                query=query,
+                entity_type=entity_type,
+                category=category,
+                match_count=match_count,
+                match_threshold=match_threshold,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except ToolError:
+            raise
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_search failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to search shared memory: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_search' registered.")
+    registered_tools.append("shared_memory_search")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_export -- export all facts for a client (T5.4)
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_export",
+        description=(
+            "[Shared Memory] Export all shared-memory facts for the current "
+            "client. Returns a structured array of all facts with full metadata "
+            "(id, entity_type, entity_name, key, value, source, confidence, "
+            "version, timestamps). Optionally filter by entity_type and/or "
+            "entity_name. Empty segments return an empty array (no error). "
+            "Use this for backup, analytics, or data migration workflows."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_export(
+        ctx: Context,
+        entity_type: str | None = None,
+        entity_name: str | None = None,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Export all shared-memory facts for this client.
+
+        Reads all records from shared_business_memory, optionally filtered by
+        entity_type and/or entity_name. Returns every matching fact with full
+        row data.
+
+        Empty segments return total_records=0 and records=[] (no error).
+    # shared_memory_flush --  soft-delete memory entries (T5.4)
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_flush",
+        description=(
+            "[Shared Memory] Flush (soft-delete) shared-memory entries. "
+            "Marks matching entries as flushed by recording a timestamp in "
+            "their metadata. Flushed entries are hidden from "
+            "shared_memory_read but remain in the database for recovery "
+            "and auditing. "
+            "Filters (entity_type, entity_name, key) are optional; when none "
+            "are provided, ALL entries for the current client are flushed. "
+            "Idempotent — calling flush multiple times on already-flushed "
+            "entries is safe and returns flushed_count=0. "
+            "Use this after exporting data or when you need to reset the "
+            "shared memory for a client."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_flush(
+        ctx: Context,
+        entity_type: str | None = None,
+        entity_name: str | None = None,
+        key: str | None = None,
+        client_id: str | None = None,
+    ) -> dict:
+        """Flush (soft-delete) shared-memory entries.
+
+        Marks matching entries as flushed so they are no longer returned by
+        ``shared_memory_read``.  The rows are NOT hard-deleted — they remain
+        for auditing and can be recovered.
+
+        Args:
+            entity_type: Optional — only flush entries of this type.
+                         Valid: skill, client, contact, supplier, user,
+                         snapshot, routine, agent_result, agent_metadata.
+            entity_name: Optional — only flush entries with this name.
+                         Case-insensitive, normalized to lowercase.
+            key: Optional — only flush the specific key.
+                 Case-insensitive, normalized to lowercase.
+
+        Returns:
+            dict with:
+            - flushed_count: number of entries actually flushed in this call
+            - total_scanned: number of rows matching filters
+            - skipped_already_flushed: entries already flushed (idempotent)
+            - flush_errors: any errors during the operation (empty on success)
+            - flushed_at: ISO timestamp of the flush operation
+
+        Examples:
+            >>> # Flush all entries for a specific entity
+            >>> shared_memory_flush(
+            ...     entity_type="client",
+            ...     entity_name="joao_silva",
+            ... )
+
+            >>> # Flush a single fact
+            >>> shared_memory_flush(
+            ...     entity_type="skill",
+            ...     entity_name="comunicacao",
+            ...     key="tom_amigavel",
+            ... )
+
+            >>> # Flush ALL shared memory for the client (use with caution!)
+            >>> shared_memory_flush()
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_meta_list "
+            "client_id=%s entity_type=%s",
+            client_id,
+            entity_type,
+        )
+
+        try:
+            return await _shared_memory_meta_list_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+        if entity_type is not None:
+            try:
+                _validate_entity_type(entity_type)
+            except ValueError as exc:
+                raise ToolError(str(exc))
+
+        logger.info(
+            "[memory_module] shared_memory_flush "
+            "entity_type=%s entity_name=%s key=%s client_id=%s",
+            entity_type,
+            entity_name,
+            key,
+            client_id,
+        )
+
+        try:
+            return await _shared_memory_export_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except ToolError:
+            raise
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_export failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to export shared memory: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_export' registered.")
+    registered_tools.append("shared_memory_export")
+            return await _shared_memory_flush_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                key=key,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_meta_list failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to list shared-memory-meta entries: {exc}"
+            )
+
+    logger.info(
+        "[Memory Module] Tool 'shared_memory_meta_list' registered."
+    )
+    registered_tools.append("shared_memory_meta_list")
+                "[memory_module] shared_memory_flush failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to flush shared memory: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_flush' registered.")
+    registered_tools.append("shared_memory_flush")
 
     return registered_tools

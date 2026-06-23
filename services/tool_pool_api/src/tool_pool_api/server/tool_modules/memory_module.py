@@ -2532,6 +2532,10 @@ async def _shared_memory_export_logic(
             "version": row.get("version", 1),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
+            "ttl_tier": row.get("ttl_tier"),
+            "soft_delete_at": row.get("soft_delete_at"),
+            "hard_delete_at": row.get("hard_delete_at"),
+            "category": row.get("category"),
         })
 
     logger.info(

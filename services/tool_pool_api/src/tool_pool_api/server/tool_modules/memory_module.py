@@ -17,6 +17,7 @@ Tools registered:
   - shared_memory_link    -> create semantic link between entities
   - shared_memory_unlink  -> remove a link by id
   - shared_memory_get_links -> query links by entity and/or type
+  - shared_memory_export  -> export all facts for a client (T5.4)
   - shared_memory_meta_read  -> read a single meta entry from shared_business_memory_meta
   - shared_memory_meta_list  -> list meta entries, optionally filtered by entity_type
 
@@ -25,6 +26,7 @@ Design doc: docs/llm_wiki/SHARED_MEMORY_DESIGN.md (Fase 0)
 
 import json
 import logging
+import time
 
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
@@ -46,6 +48,137 @@ _VALID_ENTITY_TYPES: frozenset[str] = frozenset(
 
 _TABLE = "shared_business_memory"
 _LINKS_TABLE = "shared_memory_links"
+
+_VALID_CATEGORIES: frozenset[str] = frozenset(
+    {"knowledge", "rag", "documents", "memory-agent",
+     "context", "decision", "preference"}
+)
+
+# ---------------------------------------------------------------------------
+# Write permission check (T5.2)
+# ---------------------------------------------------------------------------
+
+# Mapping of source -> allowed entity_types for write operations.
+# Follows the "Single Writer" principle: each source can only write to
+# entity types it is authorised for.
+_WRITE_PERMISSIONS: dict[str, frozenset[str]] = {
+    "system": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+        "snapshot", "routine", "agent_result", "agent_metadata",
+    }),
+    "memory_agent": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+        "snapshot", "routine", "agent_result", "agent_metadata",
+    }),
+    "specialist": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+        "snapshot", "agent_result", "agent_metadata",
+    }),
+    "manual": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+    }),
+    "migration": frozenset({
+        "skill", "client", "contact", "supplier", "user",
+        "snapshot", "routine", "agent_result", "agent_metadata",
+    }),
+}
+
+
+def _check_write_permission(
+    source: str,
+    entity_type: str,
+    entity_name: str,
+) -> None:
+    allowed = _WRITE_PERMISSIONS.get(source)
+    if allowed is None:
+        raise ValueError(
+            f"Unknown source '{source}'. "
+            f"Must be one of: {sorted(_WRITE_PERMISSIONS.keys())}"
+        )
+    if entity_type not in allowed:
+        raise ValueError(
+            f"Write permission denied: source '{source}' cannot write to "
+            f"entity_type '{entity_type}' (entity: {entity_name}). "
+            f"Allowed types for '{source}': {sorted(allowed)}"
+        )
+
+# ---------------------------------------------------------------------------
+# Category constants (for shared_memory_write)
+# ---------------------------------------------------------------------------
+
+_VALID_CATEGORIES: frozenset[str] = frozenset({
+    "knowledge", "rag", "documents", "memory-agent",
+    "context", "decision", "preference",
+})
+
+# ---------------------------------------------------------------------------
+# TTL tier constants (Fase 4 — T4.4c)
+# ---------------------------------------------------------------------------
+
+_VALID_TTL_TIERS: frozenset[str] = frozenset({
+    "curated", "migration", "specialist",
+    "memory_agent_hi", "memory_agent_lo",
+})
+
+# Interval mapping: tier → soft_delete_at offset (in days)
+# curated = None means never expires
+_TTL_TIER_INTERVALS: dict[str, int | None] = {
+    "curated": None,          # Never expires
+    "migration": 90,          # +90 days
+    "specialist": 30,         # +30 days
+    "memory_agent_hi": 14,    # +14 days
+    "memory_agent_lo": 7,     # +7 days
+}
+
+# Archival period: hard_delete_at = soft_delete_at + 90 days
+_ARCHIVAL_PERIOD_DAYS: int = 90
+
+# Default TTL tier inference from source
+_SOURCE_TTL_DEFAULTS: dict[str, str] = {
+    "curated": "curated",
+    "migration": "migration",
+    "specialist": "specialist",
+    "memory_agent": "memory_agent_lo",
+}
+
+# ---------------------------------------------------------------------------
+# Category constants (for shared_memory_write)
+# ---------------------------------------------------------------------------
+
+_VALID_CATEGORIES: frozenset[str] = frozenset({
+    "knowledge", "rag", "documents", "memory-agent",
+    "context", "decision", "preference",
+})
+
+# ---------------------------------------------------------------------------
+# TTL tier constants (Fase 4 — T4.4c)
+# ---------------------------------------------------------------------------
+
+_VALID_TTL_TIERS: frozenset[str] = frozenset({
+    "curated", "migration", "specialist",
+    "memory_agent_hi", "memory_agent_lo",
+})
+
+# Interval mapping: tier → soft_delete_at offset (in days)
+# curated = None means never expires
+_TTL_TIER_INTERVALS: dict[str, int | None] = {
+    "curated": None,          # Never expires
+    "migration": 90,          # +90 days
+    "specialist": 30,         # +30 days
+    "memory_agent_hi": 14,    # +14 days
+    "memory_agent_lo": 7,     # +7 days
+}
+
+# Archival period: hard_delete_at = soft_delete_at + 90 days
+_ARCHIVAL_PERIOD_DAYS: int = 90
+
+# Default TTL tier inference from source
+_SOURCE_TTL_DEFAULTS: dict[str, str] = {
+    "curated": "curated",
+    "migration": "migration",
+    "specialist": "specialist",
+    "memory_agent": "memory_agent_lo",
+}
 
 # ---------------------------------------------------------------------------
 # Snapshot constants (T2.2a + T2.2b)
@@ -734,6 +867,10 @@ async def _shared_memory_read_logic(
         "source": row["source"],
         "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
         "version": row.get("version", 1),
+        "ttl_tier": row.get("ttl_tier"),
+        "soft_delete_at": row.get("soft_delete_at"),
+        "hard_delete_at": row.get("hard_delete_at"),
+        "archived": row.get("archived", False),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -753,6 +890,7 @@ async def _shared_memory_upsert_logic(
     frontmatter: dict | None = None,
     source: str = "manual",
     confidence: float = 1.0,
+    ttl_tier: str | None = None,
 ) -> dict:
     """
     Insert or update a shared-memory fact.
@@ -764,6 +902,14 @@ async def _shared_memory_upsert_logic(
 
     body maps to the ``value`` column (the actual fact content).
     frontmatter maps to the ``metadata`` column (provenance/context).
+
+    Fase 4 (T4.4c): ttl_tier controls retention policy:
+      - curated        → never expires (soft_delete_at = NULL)
+      - migration      → soft-delete after 90d
+      - specialist     → soft-delete after 30d
+      - memory_agent_hi → soft-delete after 14d
+      - memory_agent_lo → soft-delete after 7d
+    If ttl_tier is not provided, inferred from source.
     """
     _validate_entity_type(entity_type)
     entity_name = _normalize_entity_name(entity_name)
@@ -784,6 +930,9 @@ async def _shared_memory_upsert_logic(
         _validate_snapshot_body(entity_name, body)
 
     db = await get_supabase_client()
+
+    # ── Compute TTL lifecycle columns (Fase 4 — T4.4c) ──────────
+    ttl_info = _compute_ttl_columns(ttl_tier=ttl_tier, source=source)
 
     # ── Archive current version before overwriting (T5.3) ──────────
     from .version_module import _archive_memory_version as _archive_version
@@ -813,7 +962,20 @@ async def _shared_memory_upsert_logic(
         ) else "manual",
         "confidence": confidence,
         "version": new_version,
+        "ttl_tier": ttl_info["ttl_tier"],
+        "soft_delete_at": ttl_info["soft_delete_at"],
+        "hard_delete_at": ttl_info["hard_delete_at"],
     }
+
+    # Gerar embedding (T3.1b — sync write, NUNCA bloqueia)
+    await _try_generate_embedding(
+        entity_type=entity_type,
+        entity_name=entity_name,
+        key=key,
+        payload=payload,
+        value=body,
+        category=payload.get("category"),
+    )
 
     try:
         result = await (
@@ -822,7 +984,7 @@ async def _shared_memory_upsert_logic(
             .upsert(
                 payload,
                 on_conflict="client_id,entity_type,entity_name,key",
-                default_to_null=False,
+                default_to_null=True,
             )
             .execute()
         )
@@ -844,6 +1006,134 @@ async def _shared_memory_upsert_logic(
         "source": row["source"],
         "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
         "version": row.get("version", 1),
+        "ttl_tier": row.get("ttl_tier"),
+        "soft_delete_at": row.get("soft_delete_at"),
+        "hard_delete_at": row.get("hard_delete_at"),
+        "archived": row.get("archived", False),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Write business logic (Fase 4 — T4.4c: ttl_tier support)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_write_logic(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    key: str,
+    value: dict,
+    category: str | None = None,
+    agent_id: str | None = None,
+    ttl: int | None = None,
+    priority: int | None = None,
+    supersede: bool = False,
+    source: str = "manual",
+    confidence: float = 1.0,
+    ttl_tier: str | None = None,
+) -> dict:
+    """
+    Write a new shared-memory fact (strict INSERT by default).
+
+    If supersede=True, delegates to _shared_memory_upsert_logic.
+    Otherwise, performs a strict INSERT that fails on duplicate keys.
+
+    Fase 4 (T4.4c): ttl_tier controls retention policy.
+    If ttl_tier is not provided, inferred from source.
+    """
+    _validate_entity_type(entity_type)
+    entity_name = _normalize_entity_name(entity_name)
+    key = key.strip().lower()
+
+    if not entity_name or not key:
+        raise ValueError("entity_name and key are required")
+    if not isinstance(value, dict):
+        raise ValueError("value must be a dict")
+
+    # If supersede, delegate to upsert (which handles TTL too)
+    if supersede:
+        return await _shared_memory_upsert_logic(
+            client_id=client_id,
+            entity_type=entity_type,
+            entity_name=entity_name,
+            key=key,
+            body=value,
+            frontmatter={},
+            source=source,
+            confidence=confidence,
+            ttl_tier=ttl_tier,
+        )
+
+    # Strict INSERT path — compute TTL lifecycle columns
+    ttl_info = _compute_ttl_columns(ttl_tier=ttl_tier, source=source)
+
+    # Build metadata from optional fields
+    metadata: dict = {}
+    if category:
+        metadata["category"] = category
+    if agent_id:
+        metadata["agent_id"] = agent_id
+    if ttl is not None:
+        metadata["ttl"] = ttl
+    if priority is not None:
+        metadata["priority"] = priority
+
+    db = await get_supabase_client()
+
+    payload = {
+        "client_id": client_id,
+        "entity_type": entity_type,
+        "entity_name": entity_name,
+        "key": key,
+        "value": value,
+        "metadata": metadata,
+        "source": source if source in (
+            "manual", "memory_agent", "specialist", "migration", "system"
+        ) else "manual",
+        "confidence": confidence,
+        "ttl_tier": ttl_info["ttl_tier"],
+        "soft_delete_at": ttl_info["soft_delete_at"],
+        "hard_delete_at": ttl_info["hard_delete_at"],
+    }
+
+    try:
+        result = await (
+            db.schema("public")
+            .table(_TABLE)
+            .insert(payload)
+            .execute()
+        )
+    except Exception as exc:
+        err_str = str(exc).lower()
+        if "duplicate key" in err_str or "unique" in err_str:
+            raise ValueError(
+                f"Fact already exists: {entity_type}:{entity_name}/{key}. "
+                f"Use supersede=true to overwrite."
+            )
+        raise RuntimeError(f"Failed to write shared-memory entry: {exc}")
+
+    row = result.data[0] if result.data else None
+    if not row:
+        raise RuntimeError("Failed to write memory entry — no data returned")
+
+    return {
+        "id": row["id"],
+        "client_id": row["client_id"],
+        "entity_type": row["entity_type"],
+        "entity_name": row["entity_name"],
+        "key": row["key"],
+        "value": row["value"],
+        "metadata": row.get("metadata", {}),
+        "source": row["source"],
+        "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+        "version": row.get("version", 1),
+        "ttl_tier": row.get("ttl_tier"),
+        "soft_delete_at": row.get("soft_delete_at"),
+        "hard_delete_at": row.get("hard_delete_at"),
+        "archived": row.get("archived", False),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -1483,6 +1773,87 @@ async def _shared_memory_flush_logic(
 
 
 # ---------------------------------------------------------------------------
+# Export business logic (T5.4)
+# ---------------------------------------------------------------------------
+
+
+async def _shared_memory_export_logic(
+    client_id: str,
+    entity_type: str | None = None,
+    entity_name: str | None = None,
+) -> dict:
+    """
+    Export all shared-memory facts for a given client.
+
+    Reads all records from shared_business_memory, optionally filtered by
+    entity_type and/or entity_name. Returns a structured dict suitable for
+    downstream consumers (files, streams, analytics).
+
+    Empty segments return total_records=0 and records=[] (no error raised).
+    """
+    if entity_type is not None:
+        _validate_entity_type(entity_type)
+    if entity_name is not None:
+        entity_name = _normalize_entity_name(entity_name)
+
+    logger.info(
+        "[memory_module] shared_memory_export "
+        "client_id=%s entity_type=%s entity_name=%s",
+        client_id,
+        entity_type,
+        entity_name,
+    )
+
+    db = await get_supabase_client()
+
+    query = (
+        db.schema("public")
+        .table(_TABLE)
+        .select("*")
+        .eq("client_id", client_id)
+        .order("entity_type, entity_name, key")
+    )
+
+    if entity_type:
+        query = query.eq("entity_type", entity_type)
+    if entity_name:
+        query = query.eq("entity_name", entity_name)
+
+    result = await query.execute()
+
+    rows = result.data if result.data else []
+
+    records: list[dict] = []
+    for row in rows:
+        records.append({
+            "id": row["id"],
+            "entity_type": row["entity_type"],
+            "entity_name": row["entity_name"],
+            "key": row["key"],
+            "value": row["value"],
+            "metadata": row.get("metadata", {}),
+            "source": row["source"],
+            "confidence": float(row["confidence"]) if row.get("confidence") else 1.0,
+            "version": row.get("version", 1),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        })
+
+    logger.info(
+        "[memory_module] shared_memory_export complete: %d records returned",
+        len(records),
+    )
+
+    return {
+        "client_id": client_id,
+        "entity_type_filter": entity_type,
+        "entity_name_filter": entity_name,
+        "total_records": len(records),
+        "records": records,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Tool registration
 # ---------------------------------------------------------------------------
 
@@ -1644,6 +2015,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         frontmatter: dict | None = None,
         source: str = "manual",
         confidence: float = 1.0,
+        ttl_tier: str | None = None,
         client_id: str | None = None,
     ) -> dict:
         """
@@ -1657,6 +2029,8 @@ def register_tools(mcp: FastMCP) -> list[str]:
             frontmatter: Optional metadata dict (maps to 'metadata' column).
             source: Provenance --  "manual" | "memory_agent" | "specialist" | "migration" | "system".
             confidence: Confidence score (0.0--1.0, default 1.0).
+            ttl_tier: Optional retention tier — "curated" | "migration" | "specialist" |
+                     "memory_agent_hi" | "memory_agent_lo". If omitted, inferred from source.
 
         Returns:
             dict with the full upserted record including version.
@@ -1685,6 +2059,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
                 frontmatter=frontmatter,
                 source=source,
                 confidence=confidence,
+                ttl_tier=ttl_tier,
             )
         except ValueError as exc:
             raise ToolError(str(exc))
@@ -1817,6 +2192,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
         supersede: bool = False,
         source: str = "manual",
         confidence: float = 1.0,
+        ttl_tier: str | None = None,
         client_id: str | None = None,
     ) -> dict:
         """
@@ -1834,6 +2210,8 @@ def register_tools(mcp: FastMCP) -> list[str]:
             supersede: If True, upsert to overwrite an existing entry. Default False (strict insert).
             source: Provenance — "manual" | "memory_agent" | "specialist" | "migration" | "system".
             confidence: Confidence score (0.0--1.0, default 1.0).
+            ttl_tier: Optional retention tier — "curated" | "migration" | "specialist" |
+                     "memory_agent_hi" | "memory_agent_lo". If omitted, inferred from source.
 
         Returns:
             dict with the full written record including id, version, and timestamps.
@@ -1884,6 +2262,7 @@ def register_tools(mcp: FastMCP) -> list[str]:
                 supersede=supersede,
                 source=source,
                 confidence=confidence,
+                ttl_tier=ttl_tier,
             )
         except ValueError as exc:
             raise ToolError(str(exc))
@@ -2268,6 +2647,35 @@ def register_tools(mcp: FastMCP) -> list[str]:
     registered_tools.append("shared_memory_search")
 
     # ----------------------------------------------------------------------
+    # shared_memory_export -- export all facts for a client (T5.4)
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_export",
+        description=(
+            "[Shared Memory] Export all shared-memory facts for the current "
+            "client. Returns a structured array of all facts with full metadata "
+            "(id, entity_type, entity_name, key, value, source, confidence, "
+            "version, timestamps). Optionally filter by entity_type and/or "
+            "entity_name. Empty segments return an empty array (no error). "
+            "Use this for backup, analytics, or data migration workflows."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_export(
+        ctx: Context,
+        entity_type: str | None = None,
+        entity_name: str | None = None,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Export all shared-memory facts for this client.
+
+        Reads all records from shared_business_memory, optionally filtered by
+        entity_type and/or entity_name. Returns every matching fact with full
+        row data.
+
+        Empty segments return total_records=0 and records=[] (no error).
     # shared_memory_flush --  soft-delete memory entries (T5.4)
     # ----------------------------------------------------------------------
 
@@ -2367,6 +2775,25 @@ def register_tools(mcp: FastMCP) -> list[str]:
         )
 
         try:
+            return await _shared_memory_export_logic(
+                client_id=client_id,
+                entity_type=entity_type,
+                entity_name=entity_name,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except ToolError:
+            raise
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_export failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to export shared memory: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_export' registered.")
+    registered_tools.append("shared_memory_export")
             return await _shared_memory_flush_logic(
                 client_id=client_id,
                 entity_type=entity_type,

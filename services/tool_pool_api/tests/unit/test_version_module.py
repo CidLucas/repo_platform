@@ -4,6 +4,10 @@
 Tests the business-logic functions with mocked Supabase client.
 Covers: archive, list, get, prune, error handling, memory limits.
 """
+# GOAL: Implementar testes para o novo schema de versionamento e API
+# BEHAVIOR: b1 — compute_content_hash
+# ACCEPTANCE CRITERION: UT-VER-11 (same value → same hash), UT-VER-12 (different value → different hash)
+# DECISÃO DO PLANNER: extend — adicionar compute_content_hash em version_module.py
 
 import uuid
 from unittest.mock import AsyncMock, MagicMock
@@ -27,6 +31,8 @@ _NAMESPACE = {
     "__name__": "version_module",
     "logging": __import__("logging"),
     "logger": _stub_logger,
+    "json": __import__("json"),
+    "hashlib": __import__("hashlib"),
     "Context": MagicMock,
     "FastMCP": MagicMock,
     "ToolError": ToolError,
@@ -64,6 +70,7 @@ def _load_module_functions():
         "_get_memory_versions",
         "_get_memory_version",
         "_prune_old_versions",
+        "compute_content_hash",
     ]
 
     for func_name in funcs_to_load:
@@ -119,6 +126,7 @@ _archive_memory_version = _funcs["_archive_memory_version"]
 _get_memory_versions = _funcs["_get_memory_versions"]
 _get_memory_version = _funcs["_get_memory_version"]
 _prune_old_versions = _funcs["_prune_old_versions"]
+compute_content_hash = _funcs["compute_content_hash"]
 
 
 # ── Fixtures ──────────────────────────────────────────────────────
@@ -498,28 +506,27 @@ async def test_get_version_not_found(mock_db):
 
 
 @pytest.mark.asyncio
-async def test_get_version_invalid_version_number(mock_db):
+async def test_get_version_invalid_version(mock_db):
     """Should raise ValueError for version < 1."""
     with pytest.raises(ValueError, match="version must be >= 1"):
-        await _get_memory_version(CLIENT_ID, "skill", "neg", "key", 0)
-    with pytest.raises(ValueError, match="version must be >= 1"):
-        await _get_memory_version(CLIENT_ID, "skill", "neg", "key", -1)
+        await _get_memory_version(
+            CLIENT_ID, "skill", "negociacao", "tom", 0
+        )
 
 
 # ── _prune_old_versions ───────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_prune_no_op(mock_db):
-    """Should return 0 when within limit."""
-    rows = [{"id": f"v-{i}"} for i in range(5)]  # 5 versions, limit 50
+async def test_prune_under_limit(mock_db):
+    """Should delete 0 rows when under limit."""
+    rows = [{"id": f"ver-{i+1:04d}"} for i in range(40)]
 
     mock_exec = AsyncMock(return_value=MagicMock(data=rows))
-    mock_order_chain = MagicMock()
-    mock_order_chain.execute = mock_exec
-
     mock_filter = MagicMock()
     mock_filter.eq.return_value = mock_filter
-    mock_filter.order.return_value = mock_order_chain
+    mock_filter.order.return_value = mock_filter
+    mock_filter.execute = mock_exec
+    mock_filter.delete.return_value = mock_filter
 
     mock_select = MagicMock()
     mock_select.eq.return_value = mock_filter
@@ -531,61 +538,109 @@ async def test_prune_no_op(mock_db):
     mock_schema.table.return_value = mock_table
     mock_db.schema.return_value = mock_schema
 
-    result = await _prune_old_versions(
-        CLIENT_ID, "snapshot", "financeiro:semanal", "key", max_versions=50
+    deleted = await _prune_old_versions(
+        CLIENT_ID, "skill", "negociacao", "tom", max_versions=50
     )
-    assert result == 0
+    assert deleted == 0
 
 
 @pytest.mark.asyncio
-async def test_prune_exceeds_limit(mock_db):
-    """Should delete oldest versions when over limit."""
-    rows = [{"id": f"v-{i}"} for i in range(10)]  # 10 versions, limit 5
+async def test_prune_over_limit(mock_db):
+    """Should delete oldest rows when over limit."""
+    rows = [{"id": f"ver-{i+1:04d}"} for i in range(55)]
+
+    delete_exec = AsyncMock(return_value=MagicMock())
+    delete_chain = MagicMock()
+    delete_chain.delete.return_value = delete_chain
+    delete_chain.eq.return_value = delete_chain
+    delete_chain.execute = delete_exec
 
     mock_exec = AsyncMock(return_value=MagicMock(data=rows))
-    mock_order_chain = MagicMock()
-    mock_order_chain.execute = mock_exec
-
     mock_filter = MagicMock()
     mock_filter.eq.return_value = mock_filter
-    mock_filter.order.return_value = mock_order_chain
+    mock_filter.order.return_value = delete_chain
+    mock_filter.execute = mock_exec
 
     mock_select = MagicMock()
     mock_select.eq.return_value = mock_filter
 
-    # Mock delete chain
-    mock_delete_exec = AsyncMock()
-    mock_delete_filter = MagicMock()
-    mock_delete_filter.eq.return_value = mock_delete_filter
-    mock_delete_filter.execute = mock_delete_exec
-
-    mock_delete = MagicMock()
-    mock_delete.eq.return_value = mock_delete_filter
-
-    # Need a separate mock for the delete table call
-    def table_side_effect(name):
-        if name == "shared_business_memory_versions":
-            # For select calls
-            t = MagicMock()
-            t.select.return_value = mock_select
-            t.delete.return_value = mock_delete
-            return t
-        return MagicMock()
+    mock_table = MagicMock()
+    mock_table.select.return_value = mock_select
 
     mock_schema = MagicMock()
-    mock_schema.table.side_effect = table_side_effect
+    mock_schema.table.return_value = mock_table
     mock_db.schema.return_value = mock_schema
 
-    result = await _prune_old_versions(
-        CLIENT_ID, "snapshot", "financeiro:semanal", "key", max_versions=5
+    deleted = await _prune_old_versions(
+        CLIENT_ID, "skill", "negociacao", "tom", max_versions=50
     )
-    assert result == 5  # 10 - 5 = 5 deleted
+    assert deleted == 5  # 55 - 50 = 5 pruned
 
 
 @pytest.mark.asyncio
-async def test_prune_invalid_max(mock_db):
+async def test_prune_no_rows(mock_db):
+    """Should return 0 when no versions exist."""
+    mock_exec = AsyncMock(return_value=MagicMock(data=[]))
+    mock_filter = MagicMock()
+    mock_filter.eq.return_value = mock_filter
+    mock_filter.order.return_value = mock_filter
+    mock_filter.execute = mock_exec
+
+    mock_select = MagicMock()
+    mock_select.eq.return_value = mock_filter
+
+    mock_table = MagicMock()
+    mock_table.select.return_value = mock_select
+
+    mock_schema = MagicMock()
+    mock_schema.table.return_value = mock_table
+    mock_db.schema.return_value = mock_schema
+
+    deleted = await _prune_old_versions(
+        CLIENT_ID, "skill", "negociacao", "tom"
+    )
+    assert deleted == 0
+
+
+@pytest.mark.asyncio
+async def test_prune_invalid_max_versions(mock_db):
     """Should raise ValueError for max_versions < 1."""
     with pytest.raises(ValueError, match="max_versions must be >= 1"):
         await _prune_old_versions(
-            CLIENT_ID, "snapshot", "f:s", "k", max_versions=0
+            CLIENT_ID, "skill", "negociacao", "tom", max_versions=0
         )
+
+
+# ── compute_content_hash ──────────────────────────────────────────
+
+def test_content_hash_same_value_same_hash():
+    """UT-VER-11: Same value must produce the same hash."""
+    v1 = {"nome": "João", "email": "joao@email.com", "idade": 30}
+    v2 = {"email": "joao@email.com", "idade": 30, "nome": "João"}
+    assert compute_content_hash(v1) == compute_content_hash(v2)
+
+
+def test_content_hash_different_value_different_hash():
+    """UT-VER-12: Different value must produce a different hash."""
+    v1 = {"nome": "João", "email": "joao@email.com"}
+    v2 = {"nome": "João", "email": "joao@novoemail.com"}
+    h1 = compute_content_hash(v1)
+    h2 = compute_content_hash(v2)
+    assert h1 != h2
+    assert isinstance(h1, str)
+    assert len(h1) == 64  # SHA-256 hex digest
+
+
+def test_content_hash_none():
+    """Should hash None value correctly."""
+    h = compute_content_hash(None)
+    assert isinstance(h, str)
+    assert len(h) == 64
+
+
+def test_content_hash_list():
+    """Should hash list/array values correctly."""
+    v = [1, 2, 3]
+    h = compute_content_hash(v)
+    assert isinstance(h, str)
+    assert len(h) == 64

@@ -216,6 +216,7 @@ def _setup_supabase_chain(mock_supabase, rows):
     table_mock.order.return_value = table_mock
     table_mock.group_by.return_value = table_mock
     table_mock.update.return_value = table_mock
+    table_mock.in_.return_value = table_mock
 
     # single() returns its own mock whose execute() returns a single dict
     single_mock = MagicMock()

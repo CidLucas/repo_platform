@@ -26,6 +26,7 @@ Design doc: docs/llm_wiki/SHARED_MEMORY_DESIGN.md (Fase 0)
 
 import json
 import logging
+import re
 import time
 
 from fastmcp import Context, FastMCP
@@ -101,6 +102,55 @@ def _check_write_permission(
             f"entity_type '{entity_type}' (entity: {entity_name}). "
             f"Allowed types for '{source}': {sorted(allowed)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Entity reference extraction from markdown (B1)
+# ---------------------------------------------------------------------------
+
+_ENTITY_REFERENCE_PATTERN = re.compile(
+    r"\[(?P<label>[^\]]*)\]\((?P<entity_type>[a-z_]+):(?P<entity_name>[^)]+)\)"
+)
+
+# Inlined into ``_extract_entity_references`` so the helper is self-contained
+# when loaded in isolation (e.g. by unit tests that ``exec()`` the function
+# body without the surrounding module namespace).
+_VALID_ENTITY_TYPES_LOCAL: frozenset[str] = frozenset(
+    {"skill", "client", "contact", "supplier", "user",
+     "snapshot", "routine", "agent_result", "agent_metadata"}
+)
+
+
+def _extract_entity_references(markdown_text: str) -> list[dict]:
+    """Scan ``markdown_text`` for entity references of the form ``[label](entity_type:entity_name)``.
+
+    Returns a list of dicts with keys ``entity_type``, ``entity_name``,
+    ``label`` and ``span`` (a ``(start, end)`` tuple indexing back into
+    the original string).  Only entity types from :data:`_VALID_ENTITY_TYPES`
+    are accepted; unknown entity types are silently ignored.  Duplicate
+    references are preserved in the order they appear.
+    """
+    if not markdown_text:
+        return []
+    pattern = re.compile(
+        r"\[(?P<label>[^\]]*)\]\((?P<entity_type>[a-z_]+):(?P<entity_name>[^)]+)\)"
+    )
+    valid_types = frozenset(
+        {"skill", "client", "contact", "supplier", "user",
+         "snapshot", "routine", "agent_result", "agent_metadata"}
+    )
+    results: list[dict] = []
+    for match in pattern.finditer(markdown_text):
+        entity_type = match.group("entity_type")
+        if entity_type not in valid_types:
+            continue
+        results.append({
+            "entity_type": entity_type,
+            "entity_name": match.group("entity_name"),
+            "label": match.group("label"),
+            "span": match.span(),
+        })
+    return results
 
 # ---------------------------------------------------------------------------
 # Category constants (for shared_memory_write)

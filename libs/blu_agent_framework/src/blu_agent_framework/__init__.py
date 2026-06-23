@@ -65,7 +65,14 @@ from blu_agent_framework.supervisor import (
     WorkerTurnLimitError,
 )
 
+# GOAL: Hook de handoff entre agentes na shared memory
+# BEHAVIOR: B4 — Criar handoff/__init__.py com exports
+# DECISÃO: create_new
+# Implementação mínima para teste RED passar (GREEN)
+from blu_agent_framework import handoff
+
 __all__ = [
+    "handoff",
     "__version__",
     # Config
     "AgentConfig",

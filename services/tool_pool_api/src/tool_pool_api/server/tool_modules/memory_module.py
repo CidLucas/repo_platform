@@ -1277,6 +1277,90 @@ async def _shared_memory_link_logic(
     }
 
 
+# GOAL: Implementar auto-linking de entidades nas páginas da shared memory (Issue #28)
+# BEHAVIOR: B2 — _auto_create_links function
+# DECISÃO: create_new
+# Implementação mínima para teste RED passar (GREEN)
+async def _auto_create_links(
+    client_id: str,
+    entity_type: str,
+    entity_name: str,
+    value: str,
+    metadata: dict | None = None,
+) -> dict:
+    """Auto-create semantic links from entity references found in value.
+
+    Scans value for [label](entity_type:entity_name) references via
+    _extract_entity_references and creates links with source="system",
+    confidence=1.0, link_type="references".
+
+    Duplicate links (uq_shared_memory_link violations) are silently ignored.
+
+    Returns a dict with:
+        links_created: number of links successfully created
+        references_found: list of references extracted
+    """
+    # 1. Serialize value to string if needed
+    if not isinstance(value, str):
+        try:
+            if isinstance(value, (dict, list)):
+                value_str = json.dumps(value)
+            else:
+                value_str = str(value)
+        except Exception:
+            value_str = str(value)
+    else:
+        value_str = value
+
+    # 2. Extract entity references from the value
+    references = _extract_entity_references(value_str)
+
+    # 3. Create links for each reference found
+    links_created = 0
+    for ref in references:
+        try:
+            await _shared_memory_link_logic(
+                client_id=client_id,
+                source_entity_type=entity_type,
+                source_entity_name=entity_name,
+                target_entity_type=ref["entity_type"],
+                target_entity_name=ref["entity_name"],
+                link_type="references",
+                source="system",
+                confidence=1.0,
+            )
+            links_created += 1
+        except ValueError:
+            # Duplicate link — silently ignore (uq_shared_memory_link)
+            pass
+
+    # 4. Update last_auto_link_at and auto_link_count on the source entity
+    if links_created > 0:
+        try:
+            db = await get_supabase_client()
+            await (
+                db.schema("public")
+                .table(_TABLE)
+                .update({
+                    "last_auto_link_at": text("now()"),
+                    "auto_link_count": text(
+                        f"COALESCE(auto_link_count, 0) + {links_created}"
+                    ),
+                })
+                .eq("client_id", client_id)
+                .eq("entity_type", entity_type)
+                .eq("entity_name", entity_name)
+                .execute()
+            )
+        except Exception:
+            pass  # Non-critical — log and continue
+
+    return {
+        "links_created": links_created,
+        "references_found": references,
+    }
+
+
 async def _shared_memory_unlink_logic(
     client_id: str,
     link_id: str,

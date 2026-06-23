@@ -33,7 +33,8 @@ from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
-from blu_supabase_client import get_supabase_client
+from blu_supabase_client import get_direct_engine, get_supabase_client
+from sqlalchemy import text
 
 from tool_pool_api.server.dependencies import get_context_service
 from blu_context_service.context_schemas import _SNAPSHOT_DIMENSION_FIELDS
@@ -1388,6 +1389,579 @@ async def _shared_memory_get_links_logic(
         "outgoing": outgoing,
         "incoming": incoming,
     }
+
+
+# ---------------------------------------------------------------------------
+# Graph traversal business logic (T3.3a — Issue #27)
+# ---------------------------------------------------------------------------
+
+_VALID_GRAPH_MODES: frozenset[str] = frozenset(
+    {"neighbors", "reachable", "path", "cluster"}
+)
+_VALID_DIRECTIONS: frozenset[str] = frozenset(
+    {"outgoing", "incoming", "both"}
+)
+
+_MAX_DEPTH_MIN: int = 1
+_MAX_DEPTH_MAX: int = 5
+_MAX_NODES_MIN: int = 1
+_MAX_NODES_MAX: int = 500
+_DEFAULT_MAX_DEPTH: int = 3
+_DEFAULT_MAX_NODES: int = 100
+
+
+def _node_id(entity_type: str, entity_name: str) -> str:
+    """Composite string id for a graph node."""
+    return f"{entity_type}:{entity_name}"
+
+
+async def _shared_memory_graph_logic(
+    client_id: str,
+    mode: str,
+    entity_type: str,
+    entity_name: str,
+    max_depth: int = _DEFAULT_MAX_DEPTH,
+    max_nodes: int = _DEFAULT_MAX_NODES,
+    direction: str = "both",
+    link_type_filter: str | None = None,
+    target_entity_type: str | None = None,
+    target_entity_name: str | None = None,
+) -> dict:
+    """
+    Traverse and navigate the semantic link graph in shared memory.
+
+    Modes:
+      - "neighbors": direct neighbours of an entity (depth=1, no CTE).
+      - "reachable": all entities reachable up to ``max_depth`` via BFS
+                     using a recursive CTE in PostgreSQL.
+      - "path": shortest path between ``entity_type:entity_name`` and
+                ``target_entity_type:target_entity_name`` using a recursive CTE.
+      - "cluster": connected component (BFS) around an entity up to
+                   ``max_depth`` and ``max_nodes`` via recursive CTE.
+
+    Args:
+        client_id: Tenant UUID (RLS enforced).
+        mode: One of ``neighbors`` | ``reachable`` | ``path`` | ``cluster``.
+        entity_type: Source entity type (validated against allowed set).
+        entity_name: Source entity name (normalized to lowercase).
+        max_depth: Maximum traversal depth (1..5, default 3).
+        max_nodes: Maximum number of nodes returned (1..500, default 100).
+        direction: ``outgoing`` | ``incoming`` | ``both`` (default).
+        link_type_filter: Optional -- restrict traversal to this link_type.
+        target_entity_type: Required when mode="path".
+        target_entity_name: Required when mode="path".
+
+    Returns:
+        dict with mode, direction, total_nodes, total_edges, nodes, edges.
+    """
+    _validate_entity_type(entity_type, "entity_type")
+    entity_name = _normalize_entity_name(entity_name)
+
+    if mode not in _VALID_GRAPH_MODES:
+        raise ValueError(
+            f"Invalid mode '{mode}'. "
+            f"Must be one of: {sorted(_VALID_GRAPH_MODES)}"
+        )
+    if direction not in _VALID_DIRECTIONS:
+        raise ValueError(
+            f"Invalid direction '{direction}'. "
+            f"Must be one of: {sorted(_VALID_DIRECTIONS)}"
+        )
+
+    max_depth = max(_MAX_DEPTH_MIN, min(int(max_depth), _MAX_DEPTH_MAX))
+    max_nodes = max(_MAX_NODES_MIN, min(int(max_nodes), _MAX_NODES_MAX))
+
+    if link_type_filter is not None:
+        link_type_filter = link_type_filter.strip().lower()
+        if not link_type_filter:
+            link_type_filter = None
+
+    if mode == "path":
+        if not target_entity_type or not target_entity_name:
+            raise ValueError(
+                "mode='path' requires both target_entity_type and "
+                "target_entity_name"
+            )
+        _validate_entity_type(target_entity_type, "target_entity_type")
+        target_entity_name = _normalize_entity_name(target_entity_name)
+
+    start_id = _node_id(entity_type, entity_name)
+
+    if mode == "neighbors":
+        return await _shared_memory_graph_neighbors(
+            client_id=client_id,
+            start_entity_type=entity_type,
+            start_entity_name=entity_name,
+            direction=direction,
+            link_type_filter=link_type_filter,
+            max_nodes=max_nodes,
+            start_id=start_id,
+        )
+
+    if mode == "path":
+        return await _shared_memory_graph_path(
+            client_id=client_id,
+            start_entity_type=entity_type,
+            start_entity_name=entity_name,
+            target_entity_type=target_entity_type,
+            target_entity_name=target_entity_name,
+            direction=direction,
+            link_type_filter=link_type_filter,
+            max_depth=max_depth,
+            max_nodes=max_nodes,
+            start_id=start_id,
+        )
+
+    if mode == "cluster":
+        return await _shared_memory_graph_cluster(
+            client_id=client_id,
+            start_entity_type=entity_type,
+            start_entity_name=entity_name,
+            direction=direction,
+            link_type_filter=link_type_filter,
+            max_depth=max_depth,
+            max_nodes=max_nodes,
+            start_id=start_id,
+        )
+
+    return await _shared_memory_graph_reachable(
+        client_id=client_id,
+        start_entity_type=entity_type,
+        start_entity_name=entity_name,
+        direction=direction,
+        link_type_filter=link_type_filter,
+        max_depth=max_depth,
+        max_nodes=max_nodes,
+        start_id=start_id,
+    )
+
+
+async def _shared_memory_graph_neighbors(
+    client_id: str,
+    start_entity_type: str,
+    start_entity_name: str,
+    direction: str,
+    link_type_filter: str | None,
+    max_nodes: int,
+    start_id: str,
+) -> dict:
+    """Direct-neighbour mode — single-hop, no CTE, uses Supabase SDK."""
+    db = await get_supabase_client()
+
+    nodes_map: dict[str, dict] = {
+        start_id: {
+            "id": start_id,
+            "entity_type": start_entity_type,
+            "entity_name": start_entity_name,
+            "level": 0,
+            "is_start": True,
+        }
+    }
+    edges: list[dict] = []
+
+    async def _fetch_outgoing() -> list[dict]:
+        q = (
+            db.schema("public")
+            .table(_LINKS_TABLE)
+            .select("*")
+            .eq("client_id", client_id)
+            .eq("source_entity_type", start_entity_type)
+            .eq("source_entity_name", start_entity_name)
+        )
+        if link_type_filter:
+            q = q.eq("link_type", link_type_filter)
+        result = await q.order("created_at", desc=True).execute()
+        return result.data or []
+
+    async def _fetch_incoming() -> list[dict]:
+        q = (
+            db.schema("public")
+            .table(_LINKS_TABLE)
+            .select("*")
+            .eq("client_id", client_id)
+            .eq("target_entity_type", start_entity_type)
+            .eq("target_entity_name", start_entity_name)
+        )
+        if link_type_filter:
+            q = q.eq("link_type", link_type_filter)
+        result = await q.order("created_at", desc=True).execute()
+        return result.data or []
+
+    rows: list[dict] = []
+    if direction in ("outgoing", "both"):
+        rows.extend(await _fetch_outgoing())
+    if direction in ("incoming", "both"):
+        rows.extend(await _fetch_incoming())
+
+    for row in rows:
+        neighbour_type = row["target_entity_type"]
+        neighbour_name = row["target_entity_name"]
+        neighbour_id = _node_id(neighbour_type, neighbour_name)
+
+        if neighbour_id not in nodes_map and len(nodes_map) >= (max_nodes + 1):
+            continue
+
+        nodes_map[neighbour_id] = {
+            "id": neighbour_id,
+            "entity_type": neighbour_type,
+            "entity_name": neighbour_name,
+            "level": 1,
+            "is_start": False,
+        }
+        edges.append({
+            "id": row.get("id"),
+            "source_id": _node_id(
+                row["source_entity_type"], row["source_entity_name"]
+            ),
+            "target_id": neighbour_id,
+            "link_type": row.get("link_type"),
+            "confidence": row.get("confidence"),
+            "depth": 1,
+        })
+
+    return {
+        "mode": "neighbors",
+        "direction": direction,
+        "total_nodes": len(nodes_map),
+        "total_edges": len(edges),
+        "nodes": list(nodes_map.values()),
+        "edges": edges,
+    }
+
+
+def _build_graph_cte(
+    mode: str,
+    client_id: str,
+    start_entity_type: str,
+    start_entity_name: str,
+    direction: str,
+    link_type_filter: str | None,
+    max_depth: int,
+    max_nodes: int,
+    target_entity_type: str | None = None,
+    target_entity_name: str | None = None,
+) -> tuple[str, dict]:
+    """Build the WITH RECURSIVE SQL for reachable/path/cluster modes.
+
+    Returns (sql_query, params) ready to pass to ``text()``.
+    Uses cycle detection via ``is_cycle`` flag (Postgres built-in).
+    """
+    params: dict = {
+        "client_id": client_id,
+        "start_entity_type": start_entity_type,
+        "start_entity_name": start_entity_name,
+        "max_depth": max_depth,
+        "max_nodes": max_nodes,
+    }
+    if link_type_filter:
+        params["link_type_filter"] = link_type_filter
+    if mode == "path":
+        params["target_entity_type"] = target_entity_type
+        params["target_entity_name"] = target_entity_name
+
+    seed_where = """
+        source_entity_type = :start_entity_type
+        AND source_entity_name = :start_entity_name
+    """
+
+    link_type_clause = ""
+    if link_type_filter:
+        link_type_clause = "AND link_type = :link_type_filter"
+
+    if direction == "outgoing":
+        recursive_join = """
+            graph.source_entity_type = next.source_entity_type
+            AND graph.source_entity_name = next.source_entity_name
+            AND graph.depth < :max_depth
+            AND NOT next.is_cycle
+        """
+    elif direction == "incoming":
+        recursive_join = """
+            graph.target_entity_type = next.target_entity_type
+            AND graph.target_entity_name = next.target_entity_name
+            AND graph.depth < :max_depth
+            AND NOT next.is_cycle
+        """
+    else:
+        recursive_join = """
+            (
+                (graph.source_entity_type = next.source_entity_type
+                 AND graph.source_entity_name = next.source_entity_name)
+                OR
+                (graph.target_entity_type = next.target_entity_type
+                 AND graph.target_entity_name = next.target_entity_name)
+            )
+            AND graph.depth < :max_depth
+            AND NOT next.is_cycle
+        """
+
+    cycle_arr = "ARRAY[ROW(next.source_entity_type, next.source_entity_name)::text, ROW(next.target_entity_type, next.target_entity_name)::text]"
+
+    target_filter = ""
+    if mode == "path":
+        target_filter = """
+            AND (next.target_entity_type, next.target_entity_name) IN (
+                (:target_entity_type, :target_entity_name)
+            )
+        """
+
+    sql = f"""
+        WITH RECURSIVE graph AS (
+            SELECT
+                source_entity_type,
+                source_entity_name,
+                target_entity_type,
+                target_entity_name,
+                id,
+                link_type,
+                confidence,
+                0 AS depth,
+                ARRAY[ROW(source_entity_type, source_entity_name)::text, ROW(target_entity_type, target_entity_name)::text] AS path,
+                FALSE AS is_cycle
+            FROM public.shared_memory_links
+            WHERE client_id = :client_id
+              AND {seed_where}
+              {link_type_clause}
+            UNION ALL
+            SELECT
+                next.source_entity_type,
+                next.source_entity_name,
+                next.target_entity_type,
+                next.target_entity_name,
+                next.id,
+                next.link_type,
+                next.confidence,
+                graph.depth + 1,
+                graph.path || {cycle_arr},
+                ROW(next.source_entity_type, next.source_entity_name)::text = ANY(graph.path)
+                    OR ROW(next.target_entity_type, next.target_entity_name)::text = ANY(graph.path) AS is_cycle
+            FROM graph
+            JOIN public.shared_memory_links next
+              ON {recursive_join}
+            WHERE next.client_id = :client_id
+              {link_type_clause}
+              {target_filter}
+        )
+        SELECT
+            source_entity_type,
+            source_entity_name,
+            target_entity_type,
+            target_entity_name,
+            id,
+            link_type,
+            confidence,
+            depth
+        FROM graph
+        WHERE NOT is_cycle
+        ORDER BY depth ASC, source_entity_type, source_entity_name
+        LIMIT :max_nodes
+    """
+    return sql, params
+
+
+def _shape_graph_result(
+    mode: str,
+    direction: str,
+    rows: list,
+    start_entity_type: str,
+    start_entity_name: str,
+    target_entity_type: str | None = None,
+    target_entity_name: str | None = None,
+) -> dict:
+    """Shape CTE rows into the standard {nodes, edges} response.
+
+    For mode="path" the BFS is breadth-first so the *first* hit at
+    ``depth=target_depth`` gives the shortest path. We then walk the
+    accumulated ``path`` arrays to reconstruct the node sequence.
+    """
+    start_id = _node_id(start_entity_type, start_entity_name)
+    nodes_map: dict[str, dict] = {
+        start_id: {
+            "id": start_id,
+            "entity_type": start_entity_type,
+            "entity_name": start_entity_name,
+            "level": 0,
+            "is_start": True,
+        }
+    }
+    edges: list[dict] = []
+
+    target_id: str | None = None
+    if mode == "path" and target_entity_type and target_entity_name:
+        target_id = _node_id(target_entity_type, target_entity_name)
+        nodes_map[target_id] = {
+            "id": target_id,
+            "entity_type": target_entity_type,
+            "entity_name": target_entity_name,
+            "level": -1,
+            "is_start": False,
+        }
+
+    for row in rows:
+        src_type = row.source_entity_type
+        src_name = row.source_entity_name
+        tgt_type = row.target_entity_type
+        tgt_name = row.target_entity_name
+        depth = int(row.depth)
+
+        src_id = _node_id(src_type, src_name)
+        tgt_id = _node_id(tgt_type, tgt_name)
+
+        if src_id not in nodes_map:
+            if len(nodes_map) >= 500:
+                continue
+            nodes_map[src_id] = {
+                "id": src_id,
+                "entity_type": src_type,
+                "entity_name": src_name,
+                "level": depth,
+                "is_start": src_id == start_id,
+            }
+        if tgt_id not in nodes_map:
+            if len(nodes_map) >= 500:
+                continue
+            nodes_map[tgt_id] = {
+                "id": tgt_id,
+                "entity_type": tgt_type,
+                "entity_name": tgt_name,
+                "level": depth + 1,
+                "is_start": tgt_id == start_id,
+            }
+
+        edges.append({
+            "id": str(row.id) if row.id is not None else None,
+            "source_id": src_id,
+            "target_id": tgt_id,
+            "link_type": row.link_type,
+            "confidence": float(row.confidence) if row.confidence is not None else None,
+            "depth": depth,
+        })
+
+    if mode == "path" and target_id is not None and target_id in nodes_map:
+        nodes_map[target_id]["level"] = max(
+            (e["depth"] + 1 for e in edges if e["target_id"] == target_id),
+            default=nodes_map[target_id]["level"],
+        )
+
+    return {
+        "mode": mode,
+        "direction": direction,
+        "total_nodes": len(nodes_map),
+        "total_edges": len(edges),
+        "nodes": list(nodes_map.values()),
+        "edges": edges,
+    }
+
+
+async def _shared_memory_graph_reachable(
+    client_id: str,
+    start_entity_type: str,
+    start_entity_name: str,
+    direction: str,
+    link_type_filter: str | None,
+    max_depth: int,
+    max_nodes: int,
+    start_id: str,
+) -> dict:
+    """Reachable-entities mode: BFS via recursive CTE up to max_depth."""
+    engine = get_direct_engine()
+    sql, params = _build_graph_cte(
+        mode="reachable",
+        client_id=client_id,
+        start_entity_type=start_entity_type,
+        start_entity_name=start_entity_name,
+        direction=direction,
+        link_type_filter=link_type_filter,
+        max_depth=max_depth,
+        max_nodes=max_nodes,
+    )
+    with engine.connect() as conn:
+        result = conn.execute(text(sql), params)
+        rows = result.fetchall()
+
+    return _shape_graph_result(
+        mode="reachable",
+        direction=direction,
+        rows=rows,
+        start_entity_type=start_entity_type,
+        start_entity_name=start_entity_name,
+    )
+
+
+async def _shared_memory_graph_path(
+    client_id: str,
+    start_entity_type: str,
+    start_entity_name: str,
+    target_entity_type: str,
+    target_entity_name: str,
+    direction: str,
+    link_type_filter: str | None,
+    max_depth: int,
+    max_nodes: int,
+    start_id: str,
+) -> dict:
+    """Shortest-path mode: BFS via recursive CTE up to max_depth."""
+    engine = get_direct_engine()
+    sql, params = _build_graph_cte(
+        mode="path",
+        client_id=client_id,
+        start_entity_type=start_entity_type,
+        start_entity_name=start_entity_name,
+        direction=direction,
+        link_type_filter=link_type_filter,
+        max_depth=max_depth,
+        max_nodes=max_nodes,
+        target_entity_type=target_entity_type,
+        target_entity_name=target_entity_name,
+    )
+    with engine.connect() as conn:
+        result = conn.execute(text(sql), params)
+        rows = result.fetchall()
+
+    return _shape_graph_result(
+        mode="path",
+        direction=direction,
+        rows=rows,
+        start_entity_type=start_entity_type,
+        start_entity_name=start_entity_name,
+        target_entity_type=target_entity_type,
+        target_entity_name=target_entity_name,
+    )
+
+
+async def _shared_memory_graph_cluster(
+    client_id: str,
+    start_entity_type: str,
+    start_entity_name: str,
+    direction: str,
+    link_type_filter: str | None,
+    max_depth: int,
+    max_nodes: int,
+    start_id: str,
+) -> dict:
+    """Cluster mode: connected component (BFS) up to max_depth/max_nodes."""
+    engine = get_direct_engine()
+    sql, params = _build_graph_cte(
+        mode="cluster",
+        client_id=client_id,
+        start_entity_type=start_entity_type,
+        start_entity_name=start_entity_name,
+        direction=direction,
+        link_type_filter=link_type_filter,
+        max_depth=max_depth,
+        max_nodes=max_nodes,
+    )
+    with engine.connect() as conn:
+        result = conn.execute(text(sql), params)
+        rows = result.fetchall()
+
+    return _shape_graph_result(
+        mode="cluster",
+        direction=direction,
+        rows=rows,
+        start_entity_type=start_entity_type,
+        start_entity_name=start_entity_name,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -2962,5 +3536,121 @@ def register_tools(mcp: FastMCP) -> list[str]:
 
     logger.info("[Memory Module] Tool 'shared_memory_flush' registered.")
     registered_tools.append("shared_memory_flush")
+
+    # ----------------------------------------------------------------------
+    # shared_memory_graph --  navigate the semantic link graph (T3.3b)
+    # ----------------------------------------------------------------------
+
+    @mcp.tool(
+        name="shared_memory_graph",
+        description=(
+            "[Shared Memory] Navigate the semantic link graph in shared "
+            "business memory. Four traversal modes: "
+            "1) 'neighbors' — direct (depth=1) links for an entity; "
+            "2) 'reachable' — all entities reachable up to max_depth via BFS; "
+            "3) 'path' — shortest path between two entities "
+            "(requires target_entity_type and target_entity_name); "
+            "4) 'cluster' — connected component around an entity up to "
+            "max_depth/max_nodes. "
+            "Filter by direction (outgoing|incoming|both) and link_type. "
+            "Returns a graph with nodes and edges including depth and "
+            "confidence for each edge."
+        ),
+    )
+    @mcp_inject_client_id
+    async def shared_memory_graph(
+        ctx: Context,
+        mode: str,
+        entity_type: str,
+        entity_name: str,
+        max_depth: int = 3,
+        max_nodes: int = 100,
+        direction: str = "both",
+        link_type_filter: str | None = None,
+        target_entity_type: str | None = None,
+        target_entity_name: str | None = None,
+        client_id: str | None = None,
+    ) -> dict:
+        """
+        Traverse and navigate the semantic link graph in shared memory.
+
+        Args:
+            mode: "neighbors" | "reachable" | "path" | "cluster".
+            entity_type: Source entity type (skill, client, contact, etc.).
+            entity_name: Source entity name (case-insensitive).
+            max_depth: Maximum traversal depth (1..5, default 3).
+            max_nodes: Maximum number of nodes returned (1..500, default 100).
+            direction: "outgoing" | "incoming" | "both" (default).
+            link_type_filter: Optional -- restrict traversal to this link_type.
+            target_entity_type: Required when mode="path".
+            target_entity_name: Required when mode="path".
+
+        Returns:
+            dict with mode, direction, total_nodes, total_edges, nodes, edges.
+        """
+        if not client_id:
+            raise ToolError(
+                "client_id is required -- authentication context missing"
+            )
+
+        if mode not in ("neighbors", "reachable", "path", "cluster"):
+            raise ToolError(
+                "mode must be 'neighbors', 'reachable', 'path', or 'cluster'"
+            )
+        if direction not in ("outgoing", "incoming", "both"):
+            raise ToolError(
+                "direction must be 'outgoing', 'incoming', or 'both'"
+            )
+        if not (1 <= int(max_depth) <= 5):
+            raise ToolError("max_depth must be between 1 and 5")
+        if not (1 <= int(max_nodes) <= 500):
+            raise ToolError("max_nodes must be between 1 and 500")
+        if mode == "path" and (not target_entity_type or not target_entity_name):
+            raise ToolError(
+                "mode='path' requires both target_entity_type and "
+                "target_entity_name"
+            )
+
+        logger.info(
+            "[memory_module] shared_memory_graph mode=%s entity_type=%s "
+            "entity_name=%s max_depth=%s max_nodes=%s direction=%s "
+            "link_type_filter=%s target=%s:%s client_id=%s",
+            mode,
+            entity_type,
+            entity_name,
+            max_depth,
+            max_nodes,
+            direction,
+            link_type_filter,
+            target_entity_type,
+            target_entity_name,
+            client_id,
+        )
+
+        try:
+            return await _shared_memory_graph_logic(
+                client_id=client_id,
+                mode=mode,
+                entity_type=entity_type,
+                entity_name=entity_name,
+                max_depth=max_depth,
+                max_nodes=max_nodes,
+                direction=direction,
+                link_type_filter=link_type_filter,
+                target_entity_type=target_entity_type,
+                target_entity_name=target_entity_name,
+            )
+        except ValueError as exc:
+            raise ToolError(str(exc))
+        except Exception as exc:
+            logger.error(
+                "[memory_module] shared_memory_graph failed: %s", exc
+            )
+            raise ToolError(
+                f"Failed to traverse shared-memory graph: {exc}"
+            )
+
+    logger.info("[Memory Module] Tool 'shared_memory_graph' registered.")
+    registered_tools.append("shared_memory_graph")
 
     return registered_tools

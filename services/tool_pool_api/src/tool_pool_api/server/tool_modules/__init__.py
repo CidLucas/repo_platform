@@ -334,6 +334,7 @@ AVAILABLE_MODULES = {
             "shared_memory_link",
             "shared_memory_unlink",
             "shared_memory_get_links",
+            "shared_memory_graph",
         ],
         "requires_auth": True,
     },

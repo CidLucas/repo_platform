@@ -802,15 +802,32 @@ shared memory automaticamente, sempre que um fato é escrito. Por exemplo:
 > `{"empresa": "Distribuidora X"}`, um link é automaticamente criado:
 > `contact:joao_silva → works_for → supplier:distribuidora_x`
 
-### 7.2 Mecanismo Proposto
+### 7.2 Mecanismo de Auto-Linking
 
-**Fase 1:** Auto-linking via flag `auto_link` em `shared_memory_write`.
-Quando `auto_link=True`, o write path:
+A partir da Fase 3 (Issue #28), o auto-linking é implementado como um fluxo
+automático disparado após cada escrita bem-sucedida na shared memory.
 
-1. Insere o fato normalmente
-2. Varre o `value` em busca de referências a outras entidades
-   (entity_type + entity_name conhecidos)
-3. Para cada referência encontrada, cria um link via `shared_memory_link`
+**Parâmetro `auto_link`:** A tool `shared_memory_write` aceita o parâmetro
+`auto_link: bool = True`. Quando `auto_link=True` (padrão), o fluxo de
+auto-linking é disparado automaticamente após o write. Quando
+`auto_link=False`, a criação automática de links é desativada, e o write
+prossegue normalmente sem quebrar — a única diferença é que a chamada a
+`_auto_create_links` é omitida.
+
+**Fluxo de funções (ordem canônica):**
+
+1. `_auto_create_links` — entry point do auto-linking; verifica `auto_link`;
+   serializa o `value`, atualiza `last_auto_link_at` (TIMESTAMPTZ, nullable)
+   e `auto_link_count` na tabela `shared_business_memory`
+2. `_extract_entity_references` — varre o `value` serializado em busca de
+   referências a entidades conhecidas (entity_type + entity_name)
+3. `_shared_memory_link_logic` — persiste cada link semântico encontrado
+   via INSERT na tabela `shared_memory_links`
+
+**Convenção de source e confidence:** Todos os links criados automaticamente
+por este fluxo são inseridos com `source="system"` e `confidence=1.0`,
+refletindo que são gerados deterministicamente pelo próprio sistema (não por
+um agente ou humano).
 
 **Fase 2:** Entity Linking completo será integrado ao Memory Agent, que fará
 análise semântica de toda a conversa para detectar relações entre entidades.
@@ -828,6 +845,18 @@ análise semântica de toda a conversa para detectar relações entre entidades.
 
 A constraint `uq_shared_memory_link` previne links duplicados. Se o mesmo
 link já existe, o auto-linking é ignorado (idempotente).
+
+### 7.5 Tracking Columns (shared_business_memory)
+
+Para rastrear a atividade de auto-linking, duas colunas foram adicionadas à
+tabela `shared_business_memory` (migration Issue #28, behavior B1):
+
+- `last_auto_link_at  TIMESTAMPTZ` — nullable. Timestamp da última execução
+  de auto-linking (`NULL` até a primeira execução; permanece `NULL` quando
+  `auto_link=False` é usado consistentemente).
+- `auto_link_count  INTEGER  DEFAULT  0` — contador de execuções de
+  auto-linking. Incrementado a cada execução bem-sucedida de
+  `_auto_create_links`, independentemente do número de links gerados.
 
 ---
 

@@ -60,6 +60,7 @@ Revisado em: 2026-06-02 | Fonte: ToolRegistry (registry.py) + AGENT_SYSTEM.md + 
 || `shared_memory_list` | CUSTOM | SME | memoria/compartilhada | memory_module.py |
 || `shared_memory_link` | CUSTOM | SME | memoria/compartilhada | memory_module.py |
 || `shared_memory_unlink` | CUSTOM | SME | memoria/compartilhada | memory_module.py |
+|| `shared_memory_write` | CUSTOM | SME | memoria/compartilhada | memory_module.py — auto_link: bool = True (T3.4) |
 || `shared_memory_get_links` | CUSTOM | SME | memoria/compartilhada | memory_module.py |
 || `confirm_memory_item` | CUSTOM | SME | memoria/compartilhada | ⚠️ T1.3.5 — a implementar |
 | `shared_memory_post_flight` | INTERNAL | — | memoria/post-flight | memory_post_flight.py — não exposta via MCP. Persiste agent_result, agent_metadata, agent_link_pending após execução de agente. |

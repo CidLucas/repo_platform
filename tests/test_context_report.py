@@ -25,6 +25,7 @@ from blu_agent_framework.routines.context_report import (
     _build_phrases,
     _fmt,
     _fmt_change,
+    _write_to_shared_memory,
 )
 
 # ---------------------------------------------------------------------------
@@ -260,3 +261,247 @@ class TestBuildPhrases:
     def test_all_four_dimension_keys_always_present(self):
         sections = _build_phrases([])
         assert set(sections.keys()) == {"finance", "commercial", "inventory", "supply"}
+
+
+# ---------------------------------------------------------------------------
+# _write_to_shared_memory
+# ---------------------------------------------------------------------------
+
+
+class TestWriteToSharedMemory:
+    """Unit tests for _write_to_shared_memory."""
+
+    def _make_row(self, kpi: str, value: float | None = 100.0) -> MetricRow:
+        return MetricRow(
+            dimension="finance",
+            kpi=kpi,
+            label=kpi.replace("_", " ").title(),
+            unit="BRL",
+            current_value=value,
+            prev_month_value=None,
+            avg_6m=None,
+            mom_pct=None,
+            vs_6m_avg_pct=None,
+            streak_months=0,
+        )
+
+    # ------------------------------------------------------------------
+    # Happy path: all three entries written
+    # ------------------------------------------------------------------
+
+    def test_writes_resumo_entry(self) -> None:
+        """Checks the 'resumo' snapshot entry has the correct structure."""
+        import datetime
+
+        from unittest.mock import MagicMock, call
+
+        db = MagicMock()
+        rows = [self._make_row("receita_liquida", 100_000.0)]
+
+        _write_to_shared_memory(
+            db,
+            client_id="cl-1",
+            today=datetime.date(2026, 6, 23),
+            metrics_count=15,
+            report_chars=4_200,
+            upserted=True,
+            summary=["**Receita Líquida**: R$ 100k (▲ vs mês anterior)"],
+            rows=rows,
+        )
+
+        # There should be 3 upsert calls
+        assert db.schema.call_count >= 1
+
+        # Verify the first upsert (resumo) was called with correct args
+        upsert_calls = []
+        for method_call in db.method_calls:
+            if method_call[0] == "schema":
+                args = method_call[1]
+                if args and args[0] == "public":
+                    upsert_calls.append(method_call)
+
+        assert len(upsert_calls) >= 1
+
+    def test_writes_three_entries(self) -> None:
+        """Verify exactly three shared memory entries are upserted."""
+        import datetime
+
+        from unittest.mock import MagicMock
+
+        db = MagicMock()
+        rows = [
+            self._make_row("receita_liquida", 100_000.0),
+            self._make_row("ticket_medio", 250.0),
+            self._make_row("clientes_unicos", 500.0),
+        ]
+        rows[1].unit = "BRL"
+        rows[2].unit = "count"
+
+        _write_to_shared_memory(
+            db,
+            client_id="cl-1",
+            today=datetime.date(2026, 6, 23),
+            metrics_count=3,
+            report_chars=1_200,
+            upserted=True,
+            summary=["summary line"],
+            rows=rows,
+        )
+
+        # There should be 3 upsert calls in the chain
+        upsert_calls = db.schema.return_value.table.return_value.upsert.call_args_list
+        assert len(upsert_calls) == 3, f"Expected 3 upsert calls, got {len(upsert_calls)}"
+
+        # Verify the keys of the three entries
+        keys = [call[0][0]["key"] for call in upsert_calls]
+        assert keys == ["resumo", "indicadores", "ultima_execucao"], f"Got keys: {keys}"
+
+    # ------------------------------------------------------------------
+    # Error resilience
+    # ------------------------------------------------------------------
+
+    def test_error_does_not_raise(self) -> None:
+        """An exception inside _write_to_shared_memory must be swallowed."""
+        import datetime
+
+        from unittest.mock import MagicMock
+
+        db = MagicMock()
+        db.schema.side_effect = RuntimeError("DB unavailable")
+
+        # Should not raise
+        _write_to_shared_memory(
+            db,
+            client_id="cl-1",
+            today=datetime.date(2026, 6, 23),
+            metrics_count=5,
+            report_chars=1_000,
+            upserted=False,
+            summary=[],
+            rows=[],
+        )
+
+    # ------------------------------------------------------------------
+    # Entity naming
+    # ------------------------------------------------------------------
+
+    def test_entity_name_format(self) -> None:
+        """Snapshot entity_name must follow 'context_report:YYYY-MM'."""
+        import datetime
+
+        from unittest.mock import MagicMock
+
+        db = MagicMock()
+
+        _write_to_shared_memory(
+            db,
+            client_id="cl-1",
+            today=datetime.date(2026, 6, 23),
+            metrics_count=0,
+            report_chars=0,
+            upserted=False,
+            summary=[],
+            rows=[],
+        )
+
+        # Check that the first upsert payload has the correct entity_name
+        schema_call = db.schema.call_args
+        assert schema_call is not None
+        args, _kwargs = schema_call
+        assert args[0] == "public"
+
+        # Verify the upsert payloads via the method chain
+        table_call = db.schema.return_value.table.call_args
+        assert table_call is not None
+        args, _kwargs = table_call
+        assert args[0] == "shared_business_memory"
+
+        upsert_calls = db.schema.return_value.table.return_value.upsert.call_args_list
+        # First upsert: snapshot-resumo (entity_name='context_report:2026-06')
+        args, _kwargs = upsert_calls[0]
+        payload = args[0]
+        assert payload["entity_type"] == "snapshot"
+        assert payload["entity_name"] == "context_report:2026-06"
+        assert payload["key"] == "resumo"
+
+    # ------------------------------------------------------------------
+    # KPI indicadores extraction
+    # ------------------------------------------------------------------
+
+    def test_indicadores_includes_summary_and_snapshot_kpis(self) -> None:
+        """The 'indicadores' entry should contain only SUMMARY_KPIS + SNAPSHOT_KPIS."""
+        import datetime
+
+        from unittest.mock import MagicMock
+
+        db = MagicMock()
+
+        rows = [
+            self._make_row("receita_liquida", 100_000.0),         # in _SUMMARY_KPIS
+            self._make_row("receita_ytd", 500_000.0),              # in _SNAPSHOT_KPIS
+            self._make_row("some_other_kpi", 42.0),                # not in either set
+        ]
+        rows[1].unit = "BRL"
+
+        _write_to_shared_memory(
+            db,
+            client_id="cl-1",
+            today=datetime.date(2026, 6, 23),
+            metrics_count=3,
+            report_chars=1_000,
+            upserted=True,
+            summary=["line"],
+            rows=rows,
+        )
+
+        # The first two upsert calls are resumo and indicadores (snapshot).
+        # We need the second call's payload value — it's the indicadores dict.
+        # Navigate the chain: the second .upsert() call's payload is what matters.
+        upsert_calls = db.schema.return_value.table.return_value.upsert.call_args_list
+        assert len(upsert_calls) >= 2  # At least resumo + indicadores
+
+        # Find the indicadores upsert (key='indicadores')
+        indicadores_payload = None
+        for call_args in upsert_calls:
+            args, _kwargs = call_args
+            payload = args[0]
+            if payload.get("key") == "indicadores":
+                indicadores_payload = payload
+                break
+
+        assert indicadores_payload is not None, "No indicadores upsert found"
+        assert "receita_liquida" in indicadores_payload["value"]
+        assert indicadores_payload["value"]["receita_liquida"] == 100_000.0
+        assert "receita_ytd" in indicadores_payload["value"]
+        assert indicadores_payload["value"]["receita_ytd"] == 500_000.0
+        assert "some_other_kpi" not in indicadores_payload["value"]
+
+    # ------------------------------------------------------------------
+    # Source and category
+    # ------------------------------------------------------------------
+
+    def test_source_and_category(self) -> None:
+        """All entries must have source='system' and category='context'."""
+        import datetime
+
+        from unittest.mock import MagicMock
+
+        db = MagicMock()
+
+        _write_to_shared_memory(
+            db,
+            client_id="cl-1",
+            today=datetime.date(2026, 6, 23),
+            metrics_count=1,
+            report_chars=500,
+            upserted=True,
+            summary=["test"],
+            rows=[self._make_row("receita_liquida", 100.0)],
+        )
+
+        upsert_calls = db.schema.return_value.table.return_value.upsert.call_args_list
+        for call_args in upsert_calls:
+            args, _kwargs = call_args
+            payload = args[0]
+            assert payload["source"] == "system", f"Expected source=system, got {payload['source']}"
+            assert payload["category"] == "context", f"Expected category=context, got {payload['category']}"

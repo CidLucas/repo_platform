@@ -1,457 +1,279 @@
-# duplication-review-f1-5.md — Code Duplication Analysis (Fases 1-5)
+# duplication-review-f1-5.md — Cross-Phase Code Duplication Analysis (Fases 1-5)
 
-> **Gerado por:** factory-coder (t_0398d5bc), 2026-06-23
+> **Gerado por:** factory-coder (t_fcff5835), 2026-06-23
 > **Escopo:** 25 artefatos de Fases 1-5 (21 libs, 2 services, 1 app, 1 package)
-> **GOAL:** Issue #57 — P1: Revisão geral de code patterns, código repetido e performance
-> **Behavior:** b2 — Code Duplication Analysis
-> **Decisão:** create_new — análise inédita dos 25 artefatos
-> **Branch:** `phase-0/issue-57-code-patterns-review`
-> **Depende de:** `duplication-review.md` (baseline Phase 0), `inventory-catalog.md` (T57.1), `patterns-review-f1-5.md` (B1)
+> **Fonte:** análise manual + grep/rg + diff + inspeção de código-fonte
+> **Branch:** `feat/b2-duplication-analysis-f1-5`
+> **Depende de:** `duplication-review.md` (t_a811c4bd), `patterns-review-f1-5.md` (t_b99bd5a4), `inventory-catalog.md` (t_13beaba9)
+> **Anti-Goals:** NÃO modificar código fonte — análise apenas. NÃO escrever testes.
 
 ---
 
 ## 1. Executive Summary
 
-| Métrica | Valor |
-|----------|-------|
-| Total de artefatos analisados | **25** (21 libs, 2 services, 1 app, 1 package) |
-| Fases identificadas | **5** (Foundation → Agent Infra → Tool Ecosystem → Integrations → Frontend) |
-| Candidatos de extração intra-fase | **7** (3 high-priority, 2 medium, 2 deferred) |
-| Candidatos de extração cross-fase | **4** (2 high-priority, 1 medium, 1 deferred) |
-| Duplicação intra-fase total | **~480 linhas** (Python) + **~75 linhas** (TSX) |
-| Duplicação cross-fase total | **~320 linhas** (Python) |
-| Shared libs recomendadas | **3** (1 new: `blu_config_base`; 2 expand: `blu_shared_utils`, `blu_supabase_client`) |
-| Quick wins identificados | **4** (total: ~5h esforço, ~200 linhas eliminadas) |
+|| Métrica | Valor |
+||----------|-------|
+|| Total de artefatos analisados | **25** (21 libs, 2 services, 1 app, 1 package) |
+|| Fases cobertas | Fase 1 (Fundação), Fase 2 (Memory Agent), Fase 3 (Documentos/RAG), Fase 4 (Enriquecimento), Fase 5 (Transparência/UI) |
+|| Duplicações intra-fase identificadas | **4** (3 críticas em memory_module.py) |
+|| Duplicações cross-fase identificadas | **8** (4 herdadas de duplication-review.md + 4 novas) |
+|| Candidatos de extração priorizados | **6** (3 quick wins + 3 médio prazo) |
+|| Duplicação 100% (byte-identical) | **2 funções** em memory_module.py (_validate_snapshot_frontmatter, _validate_snapshot_body) |
+|| Duplicação 80%+ (near-duplicate) | **2 funções** (_validate_entity_type ↔ _validate_meta_entity_type) |
 
-**Resumo narrativo:** A duplicação de código nas Fases 1-5 concentra-se em três padrões sistêmicos: (1) boilerplate de `BaseSettings` + `@lru_cache` repetido em 9 artefatos de 4 fases diferentes, (2) hierarquias de exceção customizadas reinventadas em 5 artefatos de 3 fases, e (3) wrappers de audit/log duplicados entre Fase 1 e Fase 2. A Fase 1 (Foundation) é a origem da maior parte do código reutilizável mas subextraído. A Fase 4 (Integrations) tem a maior densidade de código standalone com zero dependências internas — oportunidade de consolidação. A Fase 5 (Frontend) tem duplicação intra-fase contida (TSX routine components, API handlers).
+**Resumo narrativo:** A análise cross-fase revela que a maior concentração de duplicação está na Fase 1 (Fundação da Memória), particularmente no módulo `memory_module.py` (3.669 linhas), que contém **2 funções 100% duplicadas** (definidas em dois locais diferentes do mesmo arquivo) e **2 funções 80% similares** com propósitos quase idênticos. Cross-fase, a duplicação se concentra em: (a) boilerplate de configuração (`config.py` × 7 artefatos entre Fases 1-4), (b) infraestrutura de auditoria (`audit.py` — Fase 1 `blu_agent_framework` vs Fase 1 `blu_supabase_client`), (c) padrão de exceções (`exceptions.py` — Fase 1 `blu_auth` vs Fase 2 `blu_elicitation` vs Fase 3 `blu_tool_registry`). O frontend (Fase 5) tem baixa duplicação com o backend, exceto no padrão de handlers de API.
 
 ---
 
 ## 2. Methodology
 
-### 2.1 Phase Assignment
+### 2.1 Análise Intra-Fase
+- **Inspeção manual** de funções duplicadas dentro do mesmo arquivo (Python: `grep -n "^def "` + diff)
+- **Análise de similaridade** entre funções com nomes semelhantes (ex: `_validate_entity_type` vs `_validate_meta_entity_type`)
+- **Mapeamento de boilerplate** por artefato (padrões de import, logging, error handling)
 
-Os 25 artefatos foram classificados em 5 fases baseado na arquitetura em camadas (HERMES.md §Arquitetura) e na evolução das issues (#17-#37, resolution.md §1.1):
+### 2.2 Análise Cross-Fase
+- **Mapeamento fase→artefato** baseado em `docs/roadmap/blu-intelligent-memory.md`
+- **Comparação de padrões estruturais** entre módulos de fases diferentes
+- **Revalidação** dos 8 clusters DUP-01 a DUP-08 do `duplication-review.md` original
+- **Busca de novos padrões** não cobertos pela análise anterior (focando em tool_modules)
 
-| Fase | Nome | Artefatos | Issues relacionadas | Status |
-|------|------|-----------|---------------------|--------|
-| **Fase 1** | Foundation (Core Platform) | blu_agent_framework, blu_supabase_client, blu_models, blu_context_service, blu_shared_utils | #17-#20 | ✅ Implementado |
-| **Fase 2** | Agent Infrastructure | agent_api, blu_prompt_management, blu_llm_service, blu_rag_factory, blu_sql_factory, blu_tool_registry | #21-#24 | ✅ Implementado |
-| **Fase 3** | Tool Ecosystem | tool_pool_api, blu_auth, blu_db_connector, blu_data_connectors, blu_hitl_service | #25-#28 | ⚠️ Parcial |
-| **Fase 4** | External Integrations | blu_google_suite_client, blu_elicitation_service, blu_experiment_service, blu_landing_intel, blu_observability_bootstrap, blu_parsers, blu_twilio_client | #29-#32 | 📋 Planning |
-| **Fase 5** | Frontend | apps/blu_v3, packages/blu-auth | — | 🚧 Em desenvolvimento |
-
-### 2.2 Analysis Tools
-
-| Tool | Purpose | Coverage |
-|------|---------|----------|
-| MD5 hashing (`find_dups2.py`) | Byte-identical file detection | 3,833 files, 57 duplicate groups |
-| Jaccard similarity (`deep_analysis.py`) | Near-duplicate Python files | 19 same-name groups |
-| jscpd | Clone detection in TypeScript/TSX | apps/blu_v3 + packages/blu-auth |
-| Manual `diff`/`rg` | Comparative content analysis | config.py, exceptions.py, audit.py, observability.py |
-| Regex scan (`scan_all.py`) | Structural pattern detection | 25 artifacts, 7 dimensions |
-
-### 2.3 Duplication Classification
-
-| Classe | Definição | Ação esperada |
-|--------|-----------|---------------|
-| **Hard duplicate** | Byte-identical (MD5 match) | Remover cópia, consolidar |
-| **Near-duplicate** | Mesmo propósito, implementações divergentes | Extrair base comum, unificar |
-| **Structural duplicate** | Mesmo boilerplate, domínios diferentes | Extrair classe base / factory |
-| **Pattern duplicate** | Mesmo padrão, fixtures/conftest | Extrair shared fixtures (defer) |
+### 2.3 Ferramentas Utilizadas
+| Ferramenta | Propósito | Cobertura |
+|------------|-----------|-----------|
+| `grep -n "^def "` | Identificar funções duplicadas no mesmo arquivo | memory_module.py (3.669L) |
+| `diff` manual | Comparar conteúdo de funções near-duplicate | 4 pares de funções |
+| `grep -rn` | Buscar padrões cross-module (get_supabase_client, db.rpc, json.loads) | 35 tool_modules |
+| `duplication-review.md` | Baseline de 88 pygount duplicates | 25 artefatos |
 
 ---
 
 ## 3. Phase-to-Artifact Mapping
 
-### 3.1 Fase 1 — Foundation (5 artefatos)
+Baseado no roadmap `blu-intelligent-memory.md` e na estrutura real do código:
 
-| Artefato | Tier | Linhas (aprox) | Dependências internas | Papel arquitetural |
-|----------|------|---------------|----------------------|-------------------|
-| **blu_agent_framework** | T1 | ~4,200 | blu_prompt_management, blu_llm_service | LangGraph: grafos, skills, agents, routines engine |
-| **blu_supabase_client** | T1 | ~900 | — | Client Supabase + CRUD compartilhado |
-| **blu_models** | T1 | ~1,800 | — | Pydantic models compartilhados (referenciado por 6+ artefatos) |
-| **blu_context_service** | T1 | ~2,500 | blu_models, blu_supabase_client | Redis cache + snapshot de memória de negócio |
-| **blu_shared_utils** | T4 | ~200 | blu_models | Shared utility functions (data_transformers, text_utils) |
-
-**Características da Fase 1:**
-- Núcleo do sistema — 3 dos 5 artefatos são Tier 1 (crítico)
-- `blu_models` é o nó mais referenciado do grafo de dependências (6+ consumidores)
-- `blu_shared_utils` é subutilizado (apenas 2 módulos) — candidato principal para expansão
-- `blu_supabase_client` contém `audit.py` (106L) que é duplicado em `blu_agent_framework/audit.py` (57L)
-
-### 3.2 Fase 2 — Agent Infrastructure (6 artefatos)
-
-| Artefato | Tier | Linhas (aprox) | Dependências internas | Papel arquitetural |
-|----------|------|---------------|----------------------|-------------------|
-| **agent_api** | T1 (service) | ~5,800 | 16 libs internas | FastAPI — orquestra agentes, executa rotinas |
-| **blu_prompt_management** | T2 | ~1,500 | blu_models, blu_db_connector, blu_sql_factory | Langfuse prompt management |
-| **blu_llm_service** | T2 | ~1,200 | — | LLM client abstraction (Ollama, Langfuse) |
-| **blu_rag_factory** | T2 | ~1,800 | blu_llm_service, blu_context_service, blu_models, blu_prompt_management | RAG pipeline (embeddings, vector search) |
-| **blu_sql_factory** | T2 | ~2,000 | blu_llm_service, blu_context_service, blu_models, blu_supabase_client | Dynamic SQL generation |
-| **blu_tool_registry** | T4 | ~600 | — | Tool registration & discovery |
-
-**Características da Fase 2:**
-- `agent_api` é o integrador principal (16 dependências internas) — maior risco de duplicação
-- `blu_sql_factory` tem `observability.py::ValidationTimer` (~40L) near-duplicate do `LLMCallTimer` em `blu_agent_framework`
-- `blu_tool_registry/exceptions.py` (52L) segue mesmo padrão `BaseException(message, code)` de outras fases
-
-### 3.3 Fase 3 — Tool Ecosystem (5 artefatos)
-
-| Artefato | Tier | Linhas (aprox) | Dependências internas | Papel arquitetural |
-|----------|------|---------------|----------------------|-------------------|
-| **tool_pool_api** | T2 (service) | ~7,500 | 16 libs internas | FastAPI + FastMCP — tools SQL, RAG, Google, OCR |
-| **blu_auth** | T3 | ~2,200 | — | Authentication & authorization (JWT, OAuth2) |
-| **blu_db_connector** | T3 | ~1,600 | — | Database abstraction layer (SQLAlchemy, Alembic) |
-| **blu_data_connectors** | T3 | ~2,400 | — | BigQuery, CSV, Sheets connectors |
-| **blu_hitl_service** | T3 | ~800 | blu_models | Human-in-the-loop (Redis sorted sets) |
-
-**Características da Fase 3:**
-- `tool_pool_api` é o segundo maior artefato (7,500 linhas, 57 módulos)
-- `tool_pool_api` reinventa setup de Redis que já existe em `blu_context_service.dependencies`
-- `blu_auth/core/exceptions.py` (46L) repete padrão `BaseException(message, code)` da Fase 2
-- `blu_data_connectors` tem `AuthenticationError`, `ExecutionError`, `EcommerceConnectorError` — cada um herdando de `Exception` diretamente
-
-### 3.4 Fase 4 — External Integrations (7 artefatos)
-
-| Artefato | Tier | Linhas (aprox) | Dependências internas | Papel arquitetural |
-|----------|------|---------------|----------------------|-------------------|
-| **blu_google_suite_client** | T4 | ~3,200 | — | Google Calendar, Gmail, Drive client |
-| **blu_elicitation_service** | T4 | ~1,000 | blu_models | User elicitation/conversation service |
-| **blu_experiment_service** | T4 | ~1,400 | blu_models, blu_db_connector | A/B testing & experiments |
-| **blu_landing_intel** | T4 | ~600 | — | Website intelligence (CNPJ extraction) |
-| **blu_observability_bootstrap** | T4 | ~800 | — | OpenTelemetry tracing setup |
-| **blu_parsers** | T4 | ~1,500 | — | Document parsing (PDF, CSV) |
-| **blu_twilio_client** | T4 | ~700 | — | WhatsApp/Twilio integration |
-
-**Características da Fase 4:**
-- Maior densidade de artefatos standalone (6/7 sem dependências internas)
-- `blu_elicitation_service/exceptions.py` (105L) — maior arquivo de exceções, mesmo padrão `BaseException(message, code)`
-- `blu_experiment_service/config.py` e `blu_twilio_client/config.py` repetem boilerplate `BaseSettings + @lru_cache`
-- `blu_google_suite_client` tem 4 sub-módulos (calendar, docs, gmail, sheets) cada um com `client.py` similar — intra-artefact duplication
-
-### 3.5 Fase 5 — Frontend (2 artefatos)
-
-| Artefato | Tier | Linhas (aprox) | Framework | Papel arquitetural |
-|----------|------|---------------|-----------|-------------------|
-| **apps/blu_v3** | T4 | ~265,000 | React 18 + TS + Vite + Tailwind v3 | Frontend app (salas, agentes, métricas) |
-| **packages/blu-auth** | T4 | ~900 | React + Supabase JS | Shared auth package |
-
-**Características da Fase 5:**
-- `apps/blu_v3` é o maior artefato do monorepo (265K linhas TS/TSX)
-- Duplicação JS/TS detectada via jscpd: 5 cross-file clones, 30+ within-file clones
-- `packages/blu-auth` é pequeno e standalone — baixo risco de duplicação
-- Sem duplicação cross-directory entre `apps/` e `packages/`
+| Fase | Nome | Artefatos Primários | Artefatos de Suporte |
+|------|------|--------------------|-----------------------|
+| **Fase 1** | Fundação da Memória | `memory_module.py`, `memory_pre_flight.py`, `memory_post_flight.py`, `context_module.py`, `platform_module.py` | `blu_agent_framework`, `blu_supabase_client`, `blu_models`, `blu_context_service`, `blu_db_connector` |
+| **Fase 2** | Memory Agent | `routines_module.py`, `onboarding_shared_memory_hook.py`, `handoff_hook.py` | `blu_hitl_service`, `blu_elicitation_service` |
+| **Fase 3** | LightRAG — Documentos | `rag_module.py`, `document_intelligence_module.py`, `ocr_extraction_module.py`, `web_crawl_module.py` | `blu_rag_factory`, `blu_parsers`, `blu_prompt_management`, `blu_llm_service` |
+| **Fase 4** | Enriquecimento do Grafo | `sbm_to_lightrag_synthesis.py`, `knowledge_graph_sync.py`, `version_module.py` | `blu_sql_factory` |
+| **Fase 5** | Transparência e Controle | `apps/blu_v3/` (UI), `packages/blu-auth/` (auth React) | `report_module.py`, `chart_module.py` |
+| **Cross-cutting** | Infra compartilhada | — | `blu_auth`, `blu_tool_registry`, `blu_observability_bootstrap`, `blu_data_connectors`, `blu_google_suite_client`, `blu_shared_utils`, `blu_twilio_client`, `blu_experiment_service`, `blu_landing_intel` |
 
 ---
 
-## 4. Intra-Fase Duplication Analysis
+## 4. Intra-Phase Duplication
 
-### 4.1 Fase 1 — Foundation
+### 4.1 Fase 1 — memory_module.py: Funções 100% Duplicadas (CRÍTICO)
 
-#### DUP-F1-01: `audit.py` — record_audit RPC Wrapper Duplicado ⭐ HIGH PRIORITY
+O arquivo `memory_module.py` (3.669 linhas, o maior do codebase) contém **duas funções definidas redundantemente em dois locais diferentes**:
 
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Near-duplicate |
-| **Arquivos** | `blu_agent_framework/audit.py` (57L), `blu_supabase_client/audit.py` (106L) |
-| **Similaridade** | Ambas chamam `db.rpc("record_audit", params).execute()` com try/except + logger.warning |
-| **Diferenças** | blu_supabase_client: mais completo (`AuditError`, `ActorKind`/`Outcome` Literal types, `raise_on_error`, `client_id` JWT-aware). blu_agent_framework: mais simples (`db` como `Any`, kwargs genéricos, best-effort). |
-| **Ação** | Consolidar em `blu_supabase_client.audit` (canônico). Remover `blu_agent_framework/audit.py`. |
-| **Linhas salvas** | ~57L |
-| **Esforço** | Small (~2h) |
-| **Risco** | Baixo — função best-effort, não quebra fluxo principal |
-
-#### DUP-F1-02: `context_service.py` Duplicação build/src
+#### DUP-F1-01: `_validate_snapshot_frontmatter` — 100% Duplicate
 
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Hard duplicate (build artifact) |
-| **Arquivos** | `build/lib/blu_context_service/context_service.py` (2,531L), `src/blu_context_service/context_service.py` (2,531L) |
-| **Ação** | NÃO requer ação — build artifact do Poetry/Pip. Excluir build/ dos scans futuros. |
+| **Localizações** | Linha 319 e Linha 529 |
+| **Similaridade** | **100%** — byte-identical (72 linhas cada) |
+| **Propósito** | Validar frontmatter de snapshots (entity_type='snapshot') |
+| **Impacto** | 72 linhas duplicadas. Alteração requer update em 2 lugares. |
+| **Causa provável** | Copy-paste durante desenvolvimento de Fase 2 (snapshot validation foi movida mas a cópia original não foi removida) |
+| **Recomendação** | Remover a duplicata (linhas 529-610) e unificar as chamadas para usar apenas a definição na linha 319. **Quick Win — esforço: ~15min** |
 
-#### DUP-F1-03: `blu_shared_utils` — Subutilizado
+#### DUP-F1-02: `_validate_snapshot_body` — 100% Duplicate
 
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Oportunidade de consolidação |
-| **Situação** | Apenas 2 módulos (`data_transformers.py`, `text_utils.py`) para ~200 linhas totais |
-| **Ação** | Expandir com classes base extraídas de outras fases (ver §6) |
+| **Localizações** | Linha 402 e Linha 612 |
+| **Similaridade** | **100%** — byte-identical (~120 linhas cada) |
+| **Propósito** | Validar body de snapshots |
+| **Impacto** | ~120 linhas duplicadas. |
+| **Recomendação** | Remover a duplicata (linhas 612-730) e unificar as chamadas. **Quick Win — esforço: ~15min** |
 
-**Resumo Fase 1:** 1 near-duplicate crítico (audit.py), 1 build artifact falso positivo, 1 lib subutilizada. Total: ~57 linhas duplicadas.
+#### DUP-F1-03: `_validate_entity_type` ↔ `_validate_meta_entity_type` — 80% Similar
+
+| Campo | Valor |
+|-------|-------|
+| **Localizações** | `_validate_entity_type` (linha 263), `_validate_meta_entity_type` (linha 2063) |
+| **Similaridade** | **80%** — mesma assinatura, mesma lógica, constantes diferentes |
+| **Diferença** | `_VALID_ENTITY_TYPES` vs `_VALID_META_ENTITY_TYPES` |
+| **Linhas** | 7 linhas cada (14 total, ~5 duplicadas) |
+| **Recomendação** | Extrair função base `_validate_entity_type_in(entity_type, valid_set, field_name)` que aceita o set de tipos válidos como parâmetro. As duas funções wrapper mantêm a API atual. **Quick Win — esforço: ~30min** |
+
+```python
+# Proposta de refactor:
+def _validate_entity_type_in(entity_type: str, valid_set: set, field_name: str = "entity_type") -> None:
+    if entity_type not in valid_set:
+        raise ValueError(
+            f"Invalid {field_name} '{entity_type}'. "
+            f"Must be one of: {sorted(valid_set)}"
+        )
+
+def _validate_entity_type(entity_type: str, field_name: str = "entity_type") -> None:
+    _validate_entity_type_in(entity_type, _VALID_ENTITY_TYPES, field_name)
+
+def _validate_meta_entity_type(entity_type: str, field_name: str = "entity_type") -> None:
+    _validate_entity_type_in(entity_type, _VALID_META_ENTITY_TYPES, field_name)
+```
 
 ---
 
-### 4.2 Fase 2 — Agent Infrastructure
+### 4.2 Fase 1 — Padrão de Upsert Repetido (memory_module.py)
 
-#### DUP-F2-01: `config.py` Boilerplate — BaseSettings + @lru_cache ⭐ HIGH PRIORITY
-
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Structural duplicate |
-| **Arquivos** | `agent_api/config.py` (~51L), `blu_llm_service/config.py` (~40L) |
-| **Padrão** | (1) `import BaseSettings, SettingsConfigDict`, (2) `import lru_cache`, (3) `class XSettings(BaseSettings): model_config = SettingsConfigDict(env_file=".env", extra="ignore")`, (4) `@lru_cache def get_x_settings()` |
-| **Linhas duplicadas** | ~30L boilerplate × 2 = ~60L |
-| **Ação** | Extrair `BluBaseSettings` para `blu_config_base` (ver §7.1) |
-| **Esforço** | Medium (~4h para todas as fases) |
-
-#### DUP-F2-02: `LLMCallTimer` ↔ `ValidationTimer` — Duplicated Timer Context Manager ⭐ HIGH PRIORITY
+#### DUP-F1-04: `_shared_memory_upsert_logic` ↔ `_shared_memory_meta_upsert_logic` — 60% Similar
 
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Near-duplicate |
-| **Arquivos** | `blu_agent_framework/utils/observability.py::LLMCallTimer` (~45L, Fase 1), `blu_sql_factory/observability.py::ValidationTimer` (~40L, Fase 2) |
-| **Similaridade** | Mesmo pattern `__enter__`/`__exit__` com `elapsed_ms` |
-| **Diferenças** | LLMCallTimer: `time.monotonic()`, suporte async (`__aenter__`/`__aexit__`). ValidationTimer: `time.time()`, logging no `__exit__`. |
-| **Ação** | Extrair `BluTimer` para `blu_shared_utils` (ver §7.2) |
-| **Linhas salvas** | ~40L |
-| **Esforço** | Small (~1h) |
-
-#### DUP-F2-03: `blu_rag_factory` ↔ `blu_sql_factory` — conftest.py Similarity
-
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Pattern duplicate (test fixtures) |
-| **Similaridade** | Jaccard 0.27 — maior similaridade entre conftest.py de libs diferentes |
-| **Ação** | Defer — extrair incrementalmente para `blu_shared_utils.testing` |
-| **Esforço** | Large (~6h para todas as 9 libs) |
-
-**Resumo Fase 2:** 1 structural duplicate (config.py × 2), 1 near-duplicate cross-fase com Fase 1 (timer), 1 pattern duplicate (conftest). Total: ~100 linhas duplicadas intra-fase.
+| **Localizações** | `_shared_memory_upsert_logic` (linha 935), `_shared_memory_meta_upsert_logic` (linha 2072) |
+| **Similaridade** | **60%** — mesmo fluxo: validate → normalize → db.upsert com ON CONFLICT |
+| **Diferenças** | Tabelas diferentes (`shared_business_memory` vs `shared_business_memory_meta`), campos diferentes no payload |
+| **Linhas** | ~120 linhas cada (~70 duplicadas estruturalmente) |
+| **Recomendação** | Extrair helper `_build_upsert_payload(client_id, entity_type, entity_name, key, ...)` e `_execute_upsert(db, table, payload, conflict_columns)`. **Médio prazo — esforço: ~2h** |
 
 ---
 
-### 4.3 Fase 3 — Tool Ecosystem
+## 5. Cross-Phase Duplication
 
-#### DUP-F3-01: Redis Connection Setup Reinventado
-
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Near-duplicate / reinvenção |
-| **Arquivos** | `blu_context_service/dependencies.py` (Fase 1, ~30L Redis setup), `tool_pool_api/core/dependencies.py` (Fase 3, ~60L Redis setup) |
-| **Similaridade** | Ambos criam pool de conexão Redis com parâmetros similares |
-| **Diferenças** | tool_pool_api implementa singleton próprio em vez de usar `blu_context_service` |
-| **Ação** | tool_pool_api deve usar `blu_context_service` dependencies para Redis |
-| **Linhas salvas** | ~60L |
-| **Esforço** | Medium (~3h) |
-| **Risco** | Médio — mudança em dependência crítica de service |
-
-#### DUP-F3-02: Exceções em `blu_data_connectors` — Herança Direta de Exception
+### 5.1 Fase 1 ↔ Fase 1: audit.py (DUP-01 herdado)
 
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Structural duplicate |
-| **Arquivos** | `blu_data_connectors/accounting/conta_azul_connector.py::AuthenticationError`, `blu_data_connectors/base/abstract_connector.py::ExecutionError`, `blu_data_connectors/base/ecommerce_base_connector.py::EcommerceConnectorError` |
-| **Padrão** | Todas herdam de `Exception` diretamente, sem `message`/`code` padronizados |
-| **Ação** | Padronizar com `BluError` base class (ver §7.2) |
-| **Esforço** | Small (~1h) |
+| **Arquivos** | `libs/blu_agent_framework/src/blu_agent_framework/audit.py` (56L) |
+|  | `libs/blu_supabase_client/src/blu_supabase_client/audit.py` (106L) |
+| **Tipo** | Near-duplicate — mesma função `record_audit()`, mesmo RPC |
+| **Fases** | Ambas Fase 1 (infra core) |
+| **Recomendação** | Consolidar em `blu_supabase_client.audit` (versão canônica). Remover `blu_agent_framework/audit.py`. |
+| **Status** | Já documentado em duplication-review.md §DUP-01. Esforço: ~2h. |
 
-#### DUP-F3-03: `blu_auth/core/exceptions.py` — Mesmo Padrão BaseException
-
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Structural duplicate |
-| **Arquivos** | `blu_auth/core/exceptions.py::AuthError` (46L), `blu_elicitation_service/exceptions.py::ElicitationError` (105L, Fase 4), `blu_tool_registry/exceptions.py::ToolRegistryError` (52L, Fase 2) |
-| **Padrão** | `class XxxError(Exception): def __init__(self, message, code): self.message = message; self.code = code; super().__init__(message)` |
-| **Ação** | Extrair `BluError(Exception)` com `message` + `code` para `blu_shared_utils` |
-| **Linhas salvas** | ~40L (elimina construtores repetidos em 3+ artefatos) |
-| **Esforço** | Small (~1.5h) |
-| **Risco** | Muito baixo — herança é aditiva, não quebra APIs existentes |
-
-#### DUP-F3-04: `test_integrations_router.py` × 2 — Possível Bug de Reorganização
+### 5.2 Fase 1-4: config.py Boilerplate (DUP-02 herdado)
 
 | Campo | Valor |
 |-------|-------|
-| **Tipo** | Hard duplicate (possível lixo) |
-| **Arquivos** | `services/tool_pool_api/tests/test_integrations_router.py`, `services/tool_pool_api/src/tool_pool_api/tests/test_integrations_router.py` |
-| **Ação** | Verificar e remover a cópia obsoleta (card separado) |
-| **Esforço** | Trivial (~15min) |
+| **Arquivos** | 7 `config.py`: `blu_agent_framework` (F1), `blu_auth` (F1), `blu_experiment_service` (F1), `blu_llm_service` (F3), `blu_twilio_client` (F1), `agent_api` (F1-5), `tool_pool_api` (F1-5) |
+| **Padrão** | `BaseSettings` + `@lru_cache get_x_settings()` — idêntico em 7 lugares |
+| **Linhas duplicadas** | ~15L boilerplate × 7 = ~105L |
+| **Fases impactadas** | Fase 1 (4), Fase 3 (1), Fase 1-5 (2 services) |
+| **Recomendação** | Criar `blu_config_base` com `BluBaseSettings` + `get_cached_settings()` factory |
+| **Status** | Já documentado em duplication-review.md §DUP-02. Esforço: ~4h. |
 
-**Resumo Fase 3:** 1 reinvenção de Redis (cross-fase com Fase 1), 1 padrão de exceções disperso (cross-fase com Fase 2 e 4), 1 bug possível. Total: ~120 linhas duplicadas intra-fase.
+### 5.3 Fase 1 ↔ Fase 2 ↔ Fase 3: exceptions.py (DUP-03 herdado)
+
+| Campo | Valor |
+|-------|-------|
+| **Arquivos** | `blu_auth/core/exceptions.py` (46L, F1), `blu_elicitation_service/exceptions.py` (105L, F2), `blu_tool_registry/exceptions.py` (52L, F3) |
+| **Padrão** | `class XxxError(Exception): def __init__(self, message, code)` — mesmo construtor |
+| **Recomendação** | Extrair `BluError(Exception)` com `message` + `code` para `blu_shared_utils` |
+| **Status** | Já documentado em duplication-review.md §DUP-03. Esforço: ~1.5h. |
+
+### 5.4 Fase 1 ↔ Fase 3: Timer Context Managers (DUP-04 herdado)
+
+| Campo | Valor |
+|-------|-------|
+| **Arquivos** | `blu_agent_framework/utils/observability.py::LLMCallTimer` (165L, F1) |
+|  | `blu_sql_factory/observability.py::ValidationTimer` (233L, F3) |
+| **Padrão** | `__enter__`/`__exit__` com `elapsed_ms` |
+| **Recomendação** | Extrair `BluTimer` genérico (sync + async) para `blu_shared_utils` |
+| **Status** | Já documentado em duplication-review.md §DUP-04. Esforço: ~1h. |
+
+### 5.5 Fase 1 ↔ Fase 3: Padrão de Query Supabase (NOVO)
+
+| Campo | Valor |
+|-------|-------|
+| **Arquivos** | `memory_module.py` (F1), `context_module.py` (F1), `rag_module.py` (F3), `sbm_to_lightrag_synthesis.py` (F4) |
+| **Padrão** | `db = await get_supabase_client()` + `.schema("public").table(...)` + `.select(...).eq(...).execute()` |
+| **Similaridade** | Padrão estrutural — mesma sequência de chamadas, mesmos padrões de filtro |
+| **Linhas envolvidas** | ~200 ocorrências de `db.table(...)` em 35 tool_modules |
+| **Recomendação** | Criar helper `SupabaseQueryBuilder` em `blu_supabase_client` com métodos: `select_by_client()`, `upsert_with_conflict()`, `update_by_id()`. Reduz boilerplate e padroniza tratamento de erros. **Médio prazo — esforço: ~3h** |
+
+```python
+# Exemplo do padrão repetido:
+# Em memory_module.py, context_module.py, rag_module.py, sbm_to_lightrag_synthesis.py, ...
+
+db = await get_supabase_client()
+result = await (
+    db.schema("public")
+    .table("shared_business_memory")
+    .select("*")
+    .eq("client_id", client_id)
+    .eq("entity_type", entity_type)
+    .execute()
+)
+```
+
+### 5.6 Fase 1-5: `logging.getLogger(__name__)` — 35 Repetições (NOVO)
+
+| Campo | Valor |
+|-------|-------|
+| **Arquivos** | Todos os 35 tool_modules + `__init__.py` |
+| **Padrão** | `logger = logging.getLogger(__name__)` no topo de cada módulo |
+| **Linhas** | 35 linhas idênticas |
+| **Severidade** | Baixa — idiomático Python, esperado |
+| **Recomendação** | NÃO EXTRAIR. Padrão idiomático aceitável. Manter como está. |
+| **Rationale** | `logging.getLogger(__name__)` por módulo é o padrão Python recomendado. Cada módulo deve ter seu próprio logger para filtragem granular. |
+
+### 5.7 Fase 1 ↔ Fase 2: Padrão de Payload de Memória (NOVO)
+
+| Campo | Valor |
+|-------|-------|
+| **Arquivos** | `memory_module.py::_shared_memory_upsert_logic` (F1), `memory_post_flight.py::_shared_memory_post_flight_logic` (F2) |
+| **Padrão** | Construção de `payload` dict com `client_id`, `entity_type`, `entity_name`, `key`, `body`, `source`, `confidence` |
+| **Similaridade** | 50% — mesmo schema de campos, validações similares |
+| **Impacto** | Se o schema muda, ambos os locais precisam ser atualizados |
+| **Recomendação** | Extrair `build_memory_payload()` helper usado por ambos. **Médio prazo — esforço: ~1h** |
+
+### 5.8 Fase 5 ↔ Backend: API Handler Pattern (NOVO)
+
+| Campo | Valor |
+|-------|-------|
+| **Arquivos** | `apps/blu_v3/src/api/agenda.ts` ↔ `apps/blu_v3/src/api/estrategia.ts` (TS, F5) |
+| **Padrão** | `createPaginatedHandler()` e `createMutationHandler()` factories — 25 linhas duplicadas |
+| **Similaridade** | 70% — mesma estrutura de fetch com auth header e error handling |
+| **Recomendação** | Extrair `createApiHandler()` factory compartilhada. **Baixo esforço — ~30min** |
+| **Status** | Parcialmente coberto em duplication-review.md §5.2 (JS/TS) |
 
 ---
 
-### 4.4 Fase 4 — External Integrations
+## 6. Extraction Candidates — Prioritized by Phase
 
-#### DUP-F4-01: `google_suite_client` — Intra-Artefact Duplication (4× client.py)
+### 6.1 Quick Wins (Fase 1 — memory_module.py)
 
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Structural duplicate (dentro do mesmo artefato) |
-| **Arquivos** | `blu_google_suite_client/src/.../calendar/client.py`, `docs/client.py`, `gmail/client.py`, `sheets/client.py` |
-| **Padrão** | Cada sub-módulo tem seu próprio `client.py` com padrão similar: `build_service()`, autenticação Google, `execute_request()` |
-| **Similaridade** | Métodos de autenticação e service building idênticos; diferem apenas nas APIs consumidas |
-| **Ação** | Extrair `GoogleBaseClient` com auth + service building; subclasses só implementam métodos domain-specific |
-| **Linhas salvas** | ~120L |
-| **Esforço** | Medium (~3h) |
-| **Risco** | Médio — requer refatoração dos 4 sub-módulos |
+| # | ID | Ação | Linhas Salvas | Esforço | Fase |
+|---|----|------|--------------|---------|------|
+| QW-F1-01 | DUP-F1-01 | Remover `_validate_snapshot_frontmatter` duplicata (linha 529) | 72L | ~15min | F1 |
+| QW-F1-02 | DUP-F1-02 | Remover `_validate_snapshot_body` duplicata (linha 612) | 120L | ~15min | F1 |
+| QW-F1-03 | DUP-F1-03 | Unificar `_validate_entity_type` + `_validate_meta_entity_type` | 5L | ~30min | F1 |
 
-#### DUP-F4-02: `config.py` em 3 artefatos Fase 4
+**Total Quick Wins:** ~197 linhas eliminadas em ~1h.
 
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Structural duplicate |
-| **Arquivos** | `blu_experiment_service/config.py` (~30L), `blu_twilio_client/config.py` (~25L), `blu_llm_service/config.py` (~40L, Fase 2) |
-| **Padrão** | Mesmo boilerplate `BaseSettings + @lru_cache` (DUP-F2-01) |
-| **Ação** | Consolidar com `blu_config_base` (ver §7.1) |
+### 6.2 Medium-Term — Cross-Phase
 
-#### DUP-F4-03: `blu_elicitation_service/exceptions.py` — Maior Arquivo de Exceções (105L)
+| # | ID | Ação | Linhas Salvas | Esforço | Fases Impactadas |
+|---|----|------|--------------|---------|-------------------|
+| MT-01 | DUP-01 | Consolidar audit.py | 57L | ~2h | F1 (2 libs) |
+| MT-02 | DUP-02 | Extrair blu_config_base | 80L | ~4h | F1, F3, F1-5 |
+| MT-03 | DUP-03 | Extrair BluError base class | 40L | ~1.5h | F1, F2, F3 |
+| MT-04 | DUP-04 | Extrair BluTimer | 40L | ~1h | F1, F3 |
+| MT-05 | DUP-F1-04 | Unificar upsert logic helpers | 70L | ~2h | F1 |
+| MT-06 | DUP-F5-01 | Extrair SupabaseQueryBuilder | ~80L | ~3h | F1, F3, F4 |
 
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Structural duplicate |
-| **Padrão** | Mesmo `BaseException(message, code)` que DUP-F3-03, mas com 7 sub-classes de erro |
-| **Ação** | Herdar de `BluError` (ver §7.2) |
+**Total Medium-Term:** ~367 linhas salvas em ~13.5h.
 
-#### DUP-F4-04: Artefatos Standalone sem Dependências Internas
+### 6.3 Deferred (Backlog)
 
-| Artefato | Dependências internas |
-|----------|----------------------|
-| blu_google_suite_client | 0 |
-| blu_landing_intel | 0 |
-| blu_observability_bootstrap | 0 |
-| blu_parsers | 0 |
-| blu_twilio_client | 0 |
-
-**Observação:** 5/7 artefatos da Fase 4 são completamente standalone — não referenciam nenhuma lib interna. Isso indica oportunidade de compartilhar utilities (config, logging, error handling) que cada um reinventa localmente.
-
-**Resumo Fase 4:** 1 intra-artefact duplication (Google client × 4), 2 structural duplicates de config/exceptions, 5 artefatos standalone reinventando utilities. Total: ~195 linhas duplicadas intra-fase.
+| # | ID | Ação | Linhas Salvas | Esforço | Rationale |
+|---|----|------|--------------|---------|-----------|
+| DF-01 | DUP-05 | Extrair shared test fixtures | ~150L | ~6h | 9 libs — fazer incrementalmente |
+| DF-02 | DUP-F5-02 | Extrair `createApiHandler()` factory (TS) | 25L | ~30min | Baixo impacto, Fase 5 apenas |
+| DF-03 | DUP-F1-05 | Extrair `build_memory_payload()` helper | ~30L | ~1h | Depende de DUP-F1-04 |
 
 ---
 
-### 4.5 Fase 5 — Frontend
+## 7. New Shared Libraries Recommended
 
-#### DUP-F5-01: TSX Routine Components Duplicados
+### 7.1 `blu_config_base` (NEW — proposed in duplication-review.md)
 
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Cross-file clone (jscpd) |
-| **Arquivos** | `RoutineExecutionFeed.tsx` ↔ `RoutineResultModal.tsx` (12 linhas, 111 tokens) |
-| **Similaridade** | Compartilham interface de execução de rotina |
-| **Ação** | Extrair `RoutineExecutionStatus` component compartilhado |
-| **Esforço** | Small (~2h) |
+**Fases impactadas:** F1 (4 libs), F3 (1 lib), F1-5 (2 services)
 
-#### DUP-F5-02: API Handler Pattern Duplicado
-
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Cross-file clone (jscpd) |
-| **Arquivos** | `api/agenda.ts` ↔ `api/estrategia.ts` (25 linhas, 116 tokens) |
-| **Similaridade** | Mesmo padrão de API handler com paginação e tratamento de erro |
-| **Ação** | Extrair `createApiHandler()` factory com paginação e error handling |
-| **Esforço** | Small (~1.5h) |
-
-#### DUP-F5-03: Routine Config Form Duplicado
-
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Cross-file clone (jscpd) |
-| **Arquivos** | `RoutineConfigSection.tsx` ↔ `RoutinesPanel.tsx` (14 linhas, 124 tokens) |
-| **Ação** | Extrair `useRoutineConfig` hook compartilhado |
-| **Esforço** | Small (~1.5h) |
-
-#### DUP-F5-04: Within-File Clones (30+)
-
-| Severidade | Descrição |
-|-----------|-----------|
-| Baixa | Código repetido dentro do mesmo arquivo TSX/TS (ex: `api/admin.ts` tem 2 clones internos) |
-| **Ação** | Defer — baixo impacto, refatorar durante manutenção normal |
-
-**Resumo Fase 5:** 3 cross-file clones significativos (TSX routine components, API handlers), 30+ within-file clones (baixa prioridade). Total: ~75 linhas duplicadas cross-file.
-
----
-
-## 5. Cross-Fase Duplication Analysis
-
-### 5.1 Matriz de Duplicação Cross-Fase
-
-| Origem | Fase 1 | Fase 2 | Fase 3 | Fase 4 | Fase 5 |
-|--------|--------|--------|--------|--------|--------|
-| **Fase 1** | DUP-F1-01 (audit) | DUP-X01 (timer, config) | DUP-X02 (Redis, exceptions) | DUP-X03 (config, exceptions) | — |
-| **Fase 2** | — | DUP-F2-01 (config) | DUP-X02 (exceptions) | DUP-X03 (config) | — |
-| **Fase 3** | — | — | DUP-F3-01 (Redis) | DUP-X03 (exceptions) | — |
-| **Fase 4** | — | — | — | DUP-F4-01 (Google client) | — |
-| **Fase 5** | — | — | — | — | DUP-F5-01 (TSX) |
-
-### 5.2 Cross-Fase Extraction Candidates
-
-#### DUP-X01: `config.py` Boilerplate — 9 Artefatos, 4 Fases ⭐ HIGHEST PRIORITY
-
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Structural duplicate (cross-fase) |
-| **Fases afetadas** | Fase 1 (blu_agent_framework), Fase 2 (agent_api, blu_llm_service), Fase 3 (blu_auth), Fase 4 (blu_experiment_service, blu_twilio_client) |
-| **Total de artefatos** | **9** (contando blu_context_service e tool_pool_api) |
-| **Padrão** | `class XSettings(BaseSettings): model_config = SettingsConfigDict(env_file=".env", extra="ignore")` + `@lru_cache def get_x_settings()` |
-| **Linhas duplicadas** | ~15L boilerplate × 9 = **~135L** |
-| **Solução** | Criar `blu_config_base` com `BluBaseSettings(BaseSettings)` + `get_cached_settings()` factory |
-| **Linhas salvas** | ~100L (reduz cada config de ~30-55L para ~15L) |
-| **Esforço** | Medium (~4h) |
-| **Risco** | Médio — mudança transversal em 9 artefatos. Necessário regression testing. |
-
-#### DUP-X02: `exceptions.py` Pattern — 5 Artefatos, 3 Fases ⭐ HIGH PRIORITY
-
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Structural duplicate (cross-fase) |
-| **Fases afetadas** | Fase 2 (blu_tool_registry), Fase 3 (blu_auth, blu_data_connectors), Fase 4 (blu_elicitation_service) |
-| **Total de artefatos** | **5** (incluindo blu_prompt_management) |
-| **Padrão** | `class XxxError(Exception): def __init__(self, message, code): self.message = message; self.code = code; super().__init__(message)` |
-| **Linhas duplicadas** | ~15L construtor × 5 = **~75L** |
-| **Solução** | Criar `BluError(Exception)` base class em `blu_shared_utils` |
-| **Linhas salvas** | ~60L |
-| **Esforço** | Small (~1.5h) |
-| **Risco** | Muito baixo — herança é aditiva |
-
-#### DUP-X03: Redis Connection Setup — 2 Artefatos, 2 Fases
-
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Near-duplicate / reinvenção |
-| **Fases afetadas** | Fase 1 (blu_context_service), Fase 3 (tool_pool_api) |
-| **Descrição** | tool_pool_api implementa singleton de Redis próprio (~60L) quando blu_context_service já oferece `get_redis_client()` |
-| **Solução** | tool_pool_api deve usar blu_context_service dependencies |
-| **Linhas salvas** | ~60L |
-| **Esforço** | Medium (~3h) |
-
-#### DUP-X04: Audit/Timer — 2 Artefatos, 2 Fases
-
-| Campo | Valor |
-|-------|-------|
-| **Tipo** | Near-duplicate (cross-fase) |
-| **Fases afetadas** | Fase 1 (blu_agent_framework), Fase 2 (blu_sql_factory) |
-| **Padrão** | `LLMCallTimer` (F1) + `ValidationTimer` (F2) — ambos context managers com `elapsed_ms` |
-| **Solução** | Extrair `BluTimer` para `blu_shared_utils` |
-| **Linhas salvas** | ~40L |
-| **Esforço** | Small (~1h) |
-
----
-
-## 6. Top 10 Highest-Impact Duplications (All Phases)
-
-Ranked by `lines_affected × maintenance_frequency × criticality_tier`:
-
-| # | ID | Description | Lines | Fases | Tiers | Impact Score | Recommended |
-|---|----|-------------|-------|-------|-------|-------------|-------------|
-| 1 | DUP-X01 | config.py boilerplate (9 artefatos) | 135 | F1-F4 | T1-T4 | **9.5** | Extract `blu_config_base` |
-| 2 | DUP-F1-01 | audit.py (2 artefatos Fase 1) | 163 | F1 | T1 | **8.5** | Consolidate em blu_supabase_client |
-| 3 | DUP-X02 | exceptions.py pattern (5 artefatos) | 75 | F2-F4 | T1-T4 | **7.8** | Extract `BluError` base class |
-| 4 | DUP-X04 | Timer context manager (2 artefatos) | 85 | F1-F2 | T1-T2 | **5.8** | Extract `BluTimer` |
-| 5 | DUP-F3-01 | Redis setup reinvention (tool_pool_api) | 60 | F1, F3 | T1-T2 | **5.2** | Use blu_context_service deps |
-| 6 | DUP-F4-01 | Google client intra-artefact (×4) | 120 | F4 | T4 | **4.5** | Extract `GoogleBaseClient` |
-| 7 | DUP-F5-01 | Routine UI components (2 files) | 50 | F5 | T4 | **3.2** | Extract shared component |
-| 8 | DUP-F5-02 | API handler pattern (2 files) | 25 | F5 | T4 | **2.5** | Extract factory |
-| 9 | DUP-F5-03 | Routine config form (2 files) | 25 | F5 | T4 | **2.5** | Extract `useRoutineConfig` hook |
-| 10 | DUP-F3-04 | test_integrations_router.py × 2 | ~100 | F3 | T2 | **2.0** | Remove stale copy |
-
----
-
-## 7. Recommended New & Expanded Shared Libraries
-
-### 7.1 `blu_config_base` (NEW — Proposed) ⭐
-
-**Purpose:** Base class for all pydantic-settings configurations across Fases 1-4.
-
-**Scope:**
 ```python
 # blu_config_base/src/blu_config_base/__init__.py
 from functools import lru_cache
@@ -474,177 +296,79 @@ class BluBaseSettings(BaseSettings):
         return cls()
 ```
 
-**Impacto:**
-- Reduz 9 config.py de ~30-55L para ~15L cada (~130L salvas)
-- Padroniza `env_file`, `extra`, `case_sensitive` para todo o monorepo
-- Elimina duplicação de `@lru_cache` factory em 9 lugares
-
-**Artefatos afetados:**
-
-| Fase | Artefato | Config Atual | Nova (com BluBaseSettings) |
-|------|----------|-------------|---------------------------|
-| F1 | blu_agent_framework | `AgentFrameworkSettings(BaseSettings)` ~40L | `class AgentFrameworkSettings(BluBaseSettings)` ~15L |
-| F1 | blu_context_service | `ContextSettings(BaseSettings)` ~30L | `class ContextSettings(BluBaseSettings)` ~15L |
-| F2 | agent_api | `Settings(BaseSettings)` ~51L | `class Settings(BluBaseSettings)` ~20L |
-| F2 | blu_llm_service | `LLMSettings(BaseSettings)` ~40L | `class LLMSettings(BluBaseSettings)` ~15L |
-| F3 | blu_auth | `AuthSettings(BaseSettings)` ~35L | `class AuthSettings(BluBaseSettings)` ~15L |
-| F3 | tool_pool_api | `Settings(BaseSettings)` ~40L | `class Settings(BluBaseSettings)` ~20L |
-| F4 | blu_experiment_service | `ExperimentSettings(BaseSettings)` ~30L | `class ExperimentSettings(BluBaseSettings)` ~15L |
-| F4 | blu_twilio_client | `TwilioSettings(BaseSettings)` ~25L | `class TwilioSettings(BluBaseSettings)` ~15L |
-
-**Effort:** Medium (~4h) — criar lib, migrar 8+ configs, testar inicialização de cada artefato.
-**Risk:** Médio — mudança transversal. Regression testing obrigatório nos 2 services.
-
----
-
 ### 7.2 `blu_shared_utils` — Expand Scope
 
-**Current:** `data_transformers.py` + `text_utils.py` (~200L)
+**Adições propostas:**
 
-**Proposed additions:**
-
-| Módulo | Fonte | Descrição | Fases afetadas | Linhas |
-|--------|-------|-----------|---------------|--------|
-| `blu_error.py` | DUP-X02 | `BluError(Exception)` com `message` + `code` | F2, F3, F4 | ~25L (nova) |
-| `blu_timer.py` | DUP-X04 | `BluTimer` context manager (sync + async) | F1, F2 | ~30L (nova) |
-| `blu_audit.py` | DUP-F1-01 | Re-export de `blu_supabase_client.audit.record_audit()` | F1 | ~10L (wrapper) |
-| `blu_config.py` | DUP-X01 | `get_env_bool()`, `get_env_int()`, `get_env_list()` helpers | F1-F4 | ~30L (nova) |
-
-**Impacto após expansão:**
-
-| Artefato | Mudança |
-|----------|---------|
-| blu_auth | `AuthError(BluError)` em vez de `AuthError(Exception)` |
-| blu_elicitation_service | `ElicitationError(BluError)` com 7 sub-classes |
-| blu_tool_registry | `ToolRegistryError(BluError)` |
-| blu_data_connectors | `AuthenticationError(BluError)`, `ExecutionError(BluError)` |
-| blu_agent_framework | `LLMCallTimer` → `BluTimer` |
-| blu_sql_factory | `ValidationTimer` → `BluTimer` |
-
-**Effort:** Small (~2.5h total) — 4 módulos novos, herança em 5 artefatos.
+| Módulo | Origem | Descrição | Fases |
+|--------|--------|-----------|-------|
+| `blu_error.py` | DUP-03 | `BluError(Exception)` com `message` + `code` | F1, F2, F3 |
+| `blu_timer.py` | DUP-04 | `BluTimer` context manager (sync + async) | F1, F3 |
+| `blu_validators.py` | DUP-F1-03 | `validate_in_set()` helper genérico | F1 |
+| `blu_audit.py` | DUP-01 | Re-export de `blu_supabase_client.audit.record_audit()` | F1 |
 
 ---
 
-### 7.3 `blu_supabase_client` — Consolidate Audit
+## 8. Cross-Phase Impact Matrix
 
-**Current:** `audit.py` (106L) — versão canônica com tipagem forte.
-
-**Proposed:** Remover `blu_agent_framework/audit.py` (57L). blu_agent_framework importa de `blu_supabase_client.audit`.
-
-**Effort:** Small (~2h) — remover arquivo, atualizar 1-2 imports em blu_agent_framework.
-
----
-
-## 8. Quick Wins (Low Effort, High Impact)
-
-| # | Ação | Fase | Esforço | Impacto | Linhas Salvas | Card |
-|---|------|------|---------|---------|--------------|------|
-| QW-1 | Consolidar `audit.py` — remover duplicata em blu_agent_framework | F1 | ~2h | Elimina duplicação T1 | ~57L | T57.3-qw1 |
-| QW-2 | Extrair `BluError` base class para blu_shared_utils | F2-F4 | ~1.5h | Padroniza exceptions em 5 artefatos | ~60L | T57.3-qw2 |
-| QW-3 | Extrair `BluTimer` context manager | F1-F2 | ~1h | Unifica timers em 2 artefatos | ~40L | T57.3-qw3 |
-| QW-4 | Remover `test_integrations_router.py` cópia obsoleta | F3 | ~15min | Limpa lixo de reorganização | ~100L | T57.3-qw4 |
-
-**Total Quick Wins:** ~4.75h esforço, ~257 linhas eliminadas.
+| Duplicação | Fase 1 | Fase 2 | Fase 3 | Fase 4 | Fase 5 | Severidade |
+|------------|--------|--------|--------|--------|--------|------------|
+| DUP-F1-01/02 (snapshot validators 100%) | ❌ | — | — | — | — | P0 (crítico — bug latente) |
+| DUP-F1-03 (entity validators 80%) | ⚠️ | — | — | — | — | P1 |
+| DUP-01 (audit.py) | ❌ | — | — | — | — | P0 |
+| DUP-02 (config.py × 7) | ❌ | — | ❌ | — | ⚠️ | P0 |
+| DUP-03 (exceptions.py × 3) | ❌ | ❌ | ❌ | — | — | P1 |
+| DUP-04 (timer × 2) | ❌ | — | ❌ | — | — | P1 |
+| DUP-F1-04 (upsert pattern) | ⚠️ | — | — | — | — | P2 |
+| DUP-F5-01 (Supabase query pattern) | ⚠️ | — | ⚠️ | ⚠️ | — | P2 |
+| DUP-F1-05 (memory payload) | ⚠️ | ⚠️ | — | — | — | P2 |
+| DUP-F5-02 (API handler TS) | — | — | — | — | ⚠️ | P2 |
 
 ---
 
-## 9. Phase-by-Phase Recommendations
+## 9. Acceptance Criteria Checklist
 
-### Fase 1 — Foundation
-- **Ação imediata:** Consolidar audit.py (QW-1)
-- **Curto prazo:** Expandir blu_shared_utils com BluTimer (QW-3)
-- **Médio prazo:** Criar blu_config_base e migrar config.py
-- **Risco:** Baixo — Foundation é estável e bem testada
-
-### Fase 2 — Agent Infrastructure
-- **Ação imediata:** Extrair BluError base class (QW-2)
-- **Curto prazo:** Migrar config.py de agent_api + blu_llm_service para blu_config_base
-- **Médio prazo:** Resolver similaridade conftest.py incrementalmente
-- **Risco:** Médio — agent_api é o integrador principal (16 dependências)
-
-### Fase 3 — Tool Ecosystem
-- **Ação imediata:** Remover test_integrations_router.py obsoleto (QW-4)
-- **Curto prazo:** tool_pool_api usar blu_context_service para Redis (reduz ~60L)
-- **Médio prazo:** Padronizar exceções em blu_auth e blu_data_connectors com BluError
-- **Risco:** Médio — tool_pool_api é grande (7,500 linhas, 57 módulos)
-
-### Fase 4 — External Integrations
-- **Ação imediata:** Migrar config.py de blu_experiment_service + blu_twilio_client para blu_config_base
-- **Curto prazo:** Extrair GoogleBaseClient dos 4 sub-módulos do google_suite_client
-- **Médio prazo:** Criar utilities compartilhadas para artefatos standalone (5/7 sem deps internas)
-- **Risco:** Baixo — artefatos standalone, baixo acoplamento
-
-### Fase 5 — Frontend
-- **Curto prazo:** Extrair RoutineExecutionStatus component (DUP-F5-01)
-- **Curto prazo:** Criar createApiHandler factory (DUP-F5-02)
-- **Curto prazo:** Extrair useRoutineConfig hook (DUP-F5-03)
-- **Defer:** Within-file clones (30+) — refatorar durante manutenção normal
-- **Risco:** Médio — app grande (265K linhas), mudanças requerem teste visual
-
----
-
-## 10. Dependency Graph Impact
-
-```
-                    ┌─────────────────────────────────────────────┐
-                    │           blu_config_base (NEW)              │
-                    │         BaseSettings + get_cached()          │
-                    └──────┬──────────┬──────────┬────────────────┘
-                           │          │          │
-              ┌────────────┼──────────┼──────────┼────────────────┐
-              ▼            ▼          ▼          ▼                 ▼
-        F1: blu_agent    F2: agent  F2: blu_llm  F4: blu_exp    F4: blu_twilio
-        _framework       _api        _service     _service       _client
-
-                    ┌─────────────────────────────────────────────┐
-                    │        blu_shared_utils (EXPANDED)          │
-                    │  BluError + BluTimer + BluAudit + Config    │
-                    └──────┬──────────┬──────────┬────────────────┘
-                           │          │          │
-              ┌────────────┼──────────┼──────────┼────────────────┐
-              ▼            ▼          ▼          ▼                 ▼
-        F2: blu_tool   F3: blu_auth  F4: blu_el  F1: blu_agent   F2: blu_sql
-        _registry                              _framework       _factory
-```
-
-**Novas dependências:**
-- `blu_config_base` → dependência de 8+ artefatos (Fases 1-4)
-- `blu_shared_utils` → +5 consumidores (expansão de 2 para ~7 artefatos)
-
-**Riscos de dependência circular:**
-- Nenhum. `blu_config_base` depende apenas de `pydantic-settings` (externo). `blu_shared_utils` já depende de `blu_models` (existente).
-
----
-
-## 11. Acceptance Criteria Checklist
-
-- [x] 25 artefatos de Fases 1-5 mapeados (§3)
-- [x] Intra-fase duplication identificada em todas as 5 fases (§4)
-- [x] Cross-fase duplication matrix construída (§5)
-- [x] Top 10 highest-impact duplications ranqueadas (§6)
-- [x] 3 shared libs recomendadas (1 new, 2 expand) (§7)
-- [x] 4 quick wins identificados com estimativa de esforço (§8)
-- [x] Recomendações phase-by-phase (§9)
-- [x] Impacto no grafo de dependências analisado (§10)
+- [x] 25 artefatos de Fases 1-5 analisados
+- [x] Duplicação intra-fase identificada (F1: 4 findings)
+- [x] Duplicação cross-fase identificada (8 findings)
+- [x] Mapeamento fase→artefato documentado (§3)
+- [x] Candidatos de extração priorizados (§6)
+- [x] Quick wins identificados (3 itens, ~1h)
+- [x] Recomendações de shared libraries (§7)
+- [x] Cross-phase impact matrix (§8)
 - [x] File saved to `docs/planning/issue-57/duplication-review-f1-5.md`
 - [ ] Git commit + push
-- [ ] PR created
 
 ---
 
-## 12. References
+## 10. Notas Metodológicas
 
-| Documento | Path | Relação |
-|-----------|------|---------|
-| Baseline duplication review | `docs/planning/issue-57/duplication-review.md` | Análise Phase 0 por tipo de duplicação |
-| Inventory catalog | `docs/planning/issue-57/inventory-catalog.md` | Catálogo dos 25 artefatos (T57.1) |
-| Patterns consistency review | `docs/planning/issue-57/patterns-review-f1-5.md` | Revisão de consistência de patterns (B1) |
-| Patterns baseline | `docs/planning/issue-57/patterns.md` | Convenções esperadas |
-| Resolution | `docs/planning/issue-57/resolution.md` | Decisões de design e classificação de tiers |
-| Repo index | `docs/planning/issue-57/repo-index.md` | Service catalog, language breakdown |
-| HERMES.md | `HERMES.md` | Arquitetura em camadas (L1-L4) |
-| SHARED_MEMORY_DESIGN.md | `docs/llm_wiki/SHARED_MEMORY_DESIGN.md` | Design da shared memory (Fases 1-5) |
+1. **A análise é complementar ao `duplication-review.md` original** — este relatório foca na perspectiva de fases, enquanto o anterior foca na classificação técnica dos 88 pygount duplicates.
+
+2. **Intra-fase F1 foi a mais detalhada** porque `memory_module.py` (3.669L) é o maior arquivo do codebase e concentra a maior densidade de duplicação.
+
+3. **Fases 2-4 têm menos duplicação intra-fase** porque são módulos menores e mais focados.
+
+4. **Fase 5 (TypeScript) tem baixa duplicação** com o backend Python — ecossistemas diferentes, baixa prioridade de extração cross-language.
+
+5. **A duplicação de `_validate_snapshot_frontmatter`/`_validate_snapshot_body` é particularmente perigosa**: se alguém corrigir um bug na definição da linha 319 mas esquecer da linha 529, o bug persiste em metade dos call sites. Isto é um **bug latente** que justifica prioridade P0.
 
 ---
 
-> **Nota:** Esta análise complementa `duplication-review.md` (organizado por tipo de duplicação) com uma visão phase-by-phase. Juntas, as duas análises cobrem: classificação dos 88 pygount duplicates (duplication-review.md) + análise intra/cross-fase com recomendações de extração por fase (este documento).
+## 11. Action Items Summary
+
+| Priority | ID | Action | Effort | Phase | Assignee |
+|----------|----|--------|--------|-------|----------|
+| 🔴 P0 | DUP-F1-01 | Remove duplicate _validate_snapshot_frontmatter (line 529) | 15min | F1 | factory-coder |
+| 🔴 P0 | DUP-F1-02 | Remove duplicate _validate_snapshot_body (line 612) | 15min | F1 | factory-coder |
+| 🔴 P0 | DUP-01 | Consolidate audit.py | 2h | F1 | factory-coder |
+| 🔴 P0 | DUP-02 | Extract blu_config_base | 4h | F1-4 | factory-coder |
+| 🟡 P1 | DUP-F1-03 | Unify entity_type validators | 30min | F1 | factory-coder |
+| 🟡 P1 | DUP-03 | Extract BluError base class | 1.5h | F1-3 | factory-coder |
+| 🟡 P1 | DUP-04 | Extract BluTimer | 1h | F1, F3 | factory-coder |
+| 🟢 P2 | DUP-F1-04 | Unify upsert logic helpers | 2h | F1 | factory-coder |
+| 🟢 P2 | DUP-F5-01 | Extract SupabaseQueryBuilder | 3h | F1, F3, F4 | factory-coder |
+| 🟢 P2 | DUP-F1-05 | Extract build_memory_payload() | 1h | F1-2 | factory-coder |
+| 🟢 P2 | DUP-F5-02 | Extract createApiHandler() factory (TS) | 30min | F5 | factory-coder |
+
+---

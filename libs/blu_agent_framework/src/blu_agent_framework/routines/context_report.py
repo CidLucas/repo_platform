@@ -188,6 +188,18 @@ async def run_for_client(
                 db, client_id=client_id, markdown=markdown, today=today
             )
 
+            # ── Write metrics snapshot to shared business memory ─────────────
+            _write_to_shared_memory(
+                db,
+                client_id=client_id,
+                today=today,
+                metrics_count=result.metrics_count,
+                report_chars=result.report_chars,
+                upserted=result.upserted,
+                summary=summary,
+                rows=rows,
+            )
+
         return _finalise(result, start, db, today)
 
     except Exception as exc:  # noqa: BLE001
@@ -910,6 +922,120 @@ def _finalise(
     except Exception:  # noqa: BLE001
         logger.warning("context_report: failed to record audit log entry", exc_info=True)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Step 6 — shared business memory
+# ---------------------------------------------------------------------------
+
+
+def _write_to_shared_memory(
+    db: Any,
+    *,
+    client_id: str,
+    today: date,
+    metrics_count: int,
+    report_chars: int,
+    upserted: bool,
+    summary: list[str],
+    rows: list[MetricRow],
+) -> None:
+    """Write context report metrics to shared_business_memory.
+
+    Writes two entries:
+      1. entity_type='snapshot',  entity_name='context_report:{year_month}'
+         → keys: 'resumo' (summary lines, metrics count, report chars)
+         → keys: 'indicadores' (top KPI values from the report)
+      2. entity_type='routine',  entity_name='context_report'
+         → key: 'ultima_execucao' (run metadata)
+
+    This is purely additive — failures are logged but never raised.
+    """
+    try:
+        year_month = today.strftime("%Y-%m")
+        entity_name = f"context_report:{year_month}"
+
+        # ── 1. Snapshot: resumo ────────────────────────────────────────────
+        db.schema("public").table("shared_business_memory").upsert(
+            {
+                "client_id":    client_id,
+                "entity_type":  "snapshot",
+                "entity_name":  entity_name,
+                "key":          "resumo",
+                "value": {
+                    "summary_lines":   summary,
+                    "metrics_count":   metrics_count,
+                    "report_chars":    report_chars,
+                },
+                "source":      "system",
+                "confidence":  1.0,
+                "category":    "context",
+                "metadata":    {},
+                "version":     1,
+            },
+            on_conflict="client_id,entity_type,entity_name,key",
+            default_to_null=True,
+        ).execute()
+
+        # ── 2. Snapshot: indicadores ───────────────────────────────────────
+        indicadores: dict[str, float | None] = {}
+        for row in rows:
+            if row.kpi in _SUMMARY_KPIS or row.kpi in _SNAPSHOT_KPIS:
+                indicadores[row.kpi] = row.current_value
+
+        if indicadores:
+            db.schema("public").table("shared_business_memory").upsert(
+                {
+                    "client_id":    client_id,
+                    "entity_type":  "snapshot",
+                    "entity_name":  entity_name,
+                    "key":          "indicadores",
+                    "value":        indicadores,
+                    "source":       "system",
+                    "confidence":   1.0,
+                    "category":     "context",
+                    "metadata":     {},
+                    "version":      1,
+                },
+                on_conflict="client_id,entity_type,entity_name,key",
+                default_to_null=True,
+            ).execute()
+
+        # ── 3. Routine: ultima_execucao ────────────────────────────────────
+        from datetime import UTC, datetime
+
+        db.schema("public").table("shared_business_memory").upsert(
+            {
+                "client_id":    client_id,
+                "entity_type":  "routine",
+                "entity_name":  "context_report",
+                "key":          "ultima_execucao",
+                "value": {
+                    "client_id":     client_id,
+                    "data":          datetime.now(UTC).isoformat(),
+                    "metrics_count": metrics_count,
+                    "upserted":      upserted,
+                },
+                "source":      "system",
+                "confidence":  1.0,
+                "category":    "context",
+                "metadata":    {},
+                "version":     1,
+            },
+            on_conflict="client_id,entity_type,entity_name,key",
+            default_to_null=True,
+        ).execute()
+
+        logger.info(
+            "context_report: wrote shared memory entries for %s (%s)",
+            client_id, year_month,
+        )
+
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "context_report: failed to write shared memory entries",
+            exc_info=True,
+        )
 
 
 # ---------------------------------------------------------------------------

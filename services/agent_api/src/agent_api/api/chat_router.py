@@ -73,6 +73,7 @@ async def chat_endpoint(
             elicitation_response=elicitation_response,
             user_jwt=authorization,
             extra_tags=body.tags or [],
+            system_prompt_override=body.system_prompt,
         )
     except ValueError as exc:
         raise HTTPException(status_code=401, detail=str(exc))

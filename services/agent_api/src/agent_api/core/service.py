@@ -320,6 +320,7 @@ class ChatService:
         elicitation_response: dict[str, Any] | None = None,
         user_jwt: str | None = None,
         extra_tags: list[str] | None = None,
+        system_prompt_override: str | None = None,
     ) -> ChatResult:
         """Run frontdesk graph and return a sync ChatResult."""
         client_ctx = await self._get_client_context(str(client_id), context_service)
@@ -332,7 +333,7 @@ class ChatService:
         await self._connect_mcp(client_id=client_id, session_id=session_id, user_jwt=user_jwt)
 
         factory = get_factory()
-        system_prompt = await _build_frontdesk_prompt(
+        system_prompt = system_prompt_override or await _build_frontdesk_prompt(
             client_ctx=client_ctx,
             context_service=context_service,
         )

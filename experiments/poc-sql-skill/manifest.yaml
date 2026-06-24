@@ -1,0 +1,50 @@
+name: "poc-sql-skill"
+version: "1.0.0"
+description: "PoC: validar pipeline de skills & prompts — SQL skill com config atual (modelo padrao da Agent API)"
+api_url: "http://localhost:8003"
+
+clients:
+  - client_id: "persona-maria-lojista"
+    name: "Maria — dona de loja de roupas"
+    description: "Portugues informal, perguntas diretas sobre vendas e estoque. Loja de bairro em SP."
+  - client_id: "persona-joao-atacadista"
+    name: "Joao — dono de distribuidora"
+    description: "Mais formal, perguntas sobre margens e fornecedores. Distribuidora de alimentos em MG."
+
+cases:
+  - id: "sql-001"
+    message: "Quanto vendi ontem?"
+    client_id: "persona-maria-lojista"
+    expected_tool: "executar_sql_agent"
+    expected_contains: ["vendas", "ontem"]
+    expected_not_contains: ["erro", "não encontrei"]
+    tags: ["sql", "simples", "vendas"]
+
+  - id: "sql-002"
+    message: "Qual cliente comprou mais esse mes? Me da o nome e o valor"
+    client_id: "persona-joao-atacadista"
+    expected_tool: "executar_sql_agent"
+    expected_contains: ["cliente", "R$"]
+    expected_not_contains: ["erro"]
+    tags: ["sql", "agregacao", "clientes"]
+
+  - id: "sql-003"
+    message: "Produtos com estoque baixo, menos de 10 unidades. Quais sao?"
+    client_id: "persona-maria-lojista"
+    expected_tool: "executar_sql_agent"
+    expected_contains: ["estoque", "produto"]
+    expected_not_contains: ["erro"]
+    tags: ["sql", "filtro", "estoque"]
+
+parallel_requests: 3
+timeout_seconds: 120
+
+langfuse:
+  enabled: true
+  tags: ["experiment", "poc", "sql-skill"]
+
+hitl:
+  enabled: false
+
+created_by: "experiment-pm (E9 PoC)"
+tags: ["poc", "sql-skill", "experiment-v1"]

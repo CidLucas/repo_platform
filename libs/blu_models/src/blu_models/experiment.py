@@ -124,6 +124,40 @@ class LangfuseConfig(BaseModel):
     )
 
 
+class ModelOverride(BaseModel):
+    """Override for model/provider in a prompt variant."""
+
+    provider: str = Field(..., description="LLM provider (ollama_cloud, openai, anthropic, etc.)")
+    model: str = Field(..., description="Model name/ID")
+
+
+class PromptVariant(BaseModel):
+    """
+    A variant of system prompt / skill config / model to test.
+
+    Each variant represents one configuration in a multi-variant experiment.
+    The 'baseline' variant should match current production settings.
+    """
+
+    id: str = Field(..., description="Unique identifier (e.g. 'baseline', 'v1-fewshot')")
+    name: str = Field(..., description="Human-readable name (e.g. 'Prompt atual', 'Com few-shot')")
+    system_prompt: str | None = Field(
+        None, description="System prompt text (overrides API default). Can include Jinja2."
+    )
+    skill_config: dict[str, Any] | None = Field(
+        None, description="Override of skill configuration (tools, temperature, etc.)"
+    )
+    model_override: ModelOverride | None = Field(
+        None, description="Override provider/model for this variant"
+    )
+    langfuse_prompt_label: str | None = Field(
+        None, description="Langfuse prompt label to use (e.g. 'experiment-v1-fewshot')"
+    )
+    metadata: dict[str, Any] | None = Field(
+        default_factory=dict, description="Additional metadata for this variant"
+    )
+
+
 class ExperimentManifest(BaseModel):
     """
     Complete experiment definition.
@@ -162,6 +196,11 @@ class ExperimentManifest(BaseModel):
 
     # Langfuse config
     langfuse: LangfuseConfig = Field(default_factory=LangfuseConfig)
+
+    # Prompt/Skill/Model variants (EXTENSION: Skills & Prompts Factory)
+    configs: list[PromptVariant] | None = Field(
+        None, description="Prompt/skill/model variants to test. When provided, experiment runs ONCE PER VARIANT, enabling direct comparison. Each variant is a different system prompt, skill config, or model override."
+    )
 
     # Metadata
     created_by: str | None = None

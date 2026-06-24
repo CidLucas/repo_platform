@@ -84,3 +84,6 @@ tmp_normalize_prompts.py
 langfuse/
 .ssh/
 *.pem
+.env
+.hermes/
+.coverage

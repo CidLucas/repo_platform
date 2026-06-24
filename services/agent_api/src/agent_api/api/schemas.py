@@ -48,6 +48,19 @@ class ChatRequest(BaseModel):
     model: str | None = None
     tags: list[str] = []
     elicitation_response: ElicitationResponseBody | None = None
+    # Experiment overrides (Skills & Prompts Factory)
+    system_prompt: str | None = Field(
+        None, description="Override system prompt for this request. Used by experiment runner to test prompt variations."
+    )
+    model_provider: str | None = Field(
+        None, description="Override LLM provider (ollama_cloud, openai, anthropic). Used with model for multi-provider experiments."
+    )
+    skill_config: dict[str, Any] | None = Field(
+        None, description="Override skill configuration (tools, temperature, etc.). Used by experiment runner."
+    )
+    langfuse_prompt_label: str | None = Field(
+        None, description="Override Langfuse prompt label to use (e.g. 'experiment-v1'). When set, loader looks for this label instead of 'production'."
+    )
 
 
 class ChatResponse(BaseModel):

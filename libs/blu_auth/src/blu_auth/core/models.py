@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AuthMethod(Enum):
@@ -24,8 +24,7 @@ class JWTClaims(BaseModel):
     role: str | None = None
     client_id: UUID | None = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class AuthResult(BaseModel):

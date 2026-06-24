@@ -102,6 +102,29 @@ async def list_agents(client_tier: str = Query("BASIC")):
     ]
 
 
+@router.get("/catalog/agents/admin", response_model=list[CatalogAgentResponse])
+async def list_agents_admin(auth_result: AuthResult = Depends(get_admin_auth_result)):
+    db = get_supabase_client()
+    result = db.table("agent_catalog").select(_ALL_CATALOG_COLUMNS).order(
+        "created_at", desc=False
+    ).execute()
+    return [CatalogAgentResponse(**a) for a in (result.data or [])]
+
+
+@router.get("/catalog/agents/admin/{agent_id}", response_model=CatalogAgentResponse)
+async def get_agent_admin(
+    agent_id: UUID,
+    auth_result: AuthResult = Depends(get_admin_auth_result),
+):
+    db = get_supabase_client()
+    result = db.table("agent_catalog").select(_ALL_CATALOG_COLUMNS).eq(
+        "id", str(agent_id)
+    ).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
+    return CatalogAgentResponse(**result.data[0])
+
+
 @router.get("/catalog/agents/{agent_id}", response_model=AgentDetailsResponse)
 async def get_agent(agent_id: UUID):
     """Get public agent details."""
@@ -525,29 +548,6 @@ async def update_session_config(
 # ---------------------------------------------------------------------------
 # Admin — catalog CRUD
 # ---------------------------------------------------------------------------
-
-
-@router.get("/catalog/agents/admin", response_model=list[CatalogAgentResponse])
-async def list_agents_admin(auth_result: AuthResult = Depends(get_admin_auth_result)):
-    db = get_supabase_client()
-    result = db.table("agent_catalog").select(_ALL_CATALOG_COLUMNS).order(
-        "created_at", desc=False
-    ).execute()
-    return [CatalogAgentResponse(**a) for a in (result.data or [])]
-
-
-@router.get("/catalog/agents/admin/{agent_id}", response_model=CatalogAgentResponse)
-async def get_agent_admin(
-    agent_id: UUID,
-    auth_result: AuthResult = Depends(get_admin_auth_result),
-):
-    db = get_supabase_client()
-    result = db.table("agent_catalog").select(_ALL_CATALOG_COLUMNS).eq(
-        "id", str(agent_id)
-    ).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
-    return CatalogAgentResponse(**result.data[0])
 
 
 @router.post("/catalog/agents", response_model=CatalogAgentResponse, status_code=201)

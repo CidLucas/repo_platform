@@ -10,6 +10,7 @@ log = logging.getLogger("uvicorn")
 
 class Settings(BaseSettings):
     SERVICE_NAME: str = "agent-api"
+    LOG_LEVEL: str = "INFO"
 
     # Infrastructure
     REDIS_URL: str = "redis://localhost:6379"

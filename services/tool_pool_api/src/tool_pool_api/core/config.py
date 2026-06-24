@@ -65,6 +65,7 @@ def get_settings() -> Settings:
 
 if __name__ == "__main__":
     # Um pequeno utilitário para verificar se o .env está sendo lido
-    print("Verificando carregamento de configurações...")
+    log.info("Verificando carregamento de configurações...")
     settings = get_settings()
-    print(settings.model_dump_json(indent=2))
+    log.info(settings.model_dump_json(indent=2))
+

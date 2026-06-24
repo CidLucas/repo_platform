@@ -14,6 +14,11 @@ You can also pass an explicit DB URL:
 
 from __future__ import annotations  # noqa: I001
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 import argparse
 import os
 import sys
@@ -29,16 +34,14 @@ def main() -> None:
 
     db_url = args.db or os.getenv("DATABASE_URL")
     if not db_url:
-        print(
-            "Error: set DATABASE_URL environment variable or pass --db", file=sys.stderr
-        )
+        logger.error(            "Error: set DATABASE_URL environment variable or pass --db")
         sys.exit(1)
 
     # Build path to the alembic.ini inside the blu_db_connector package
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     alembic_ini = os.path.join(repo_root, "libs", "blu_db_connector", "alembic.ini")
     if not os.path.exists(alembic_ini):
-        print(f"Error: could not find alembic.ini at {alembic_ini}", file=sys.stderr)
+        logger.error(f"Error: could not find alembic.ini at {alembic_ini}")
         sys.exit(1)
 
     cfg = Config(alembic_ini)
@@ -48,9 +51,10 @@ def main() -> None:
     script_location = os.path.join(package_dir, "alembic")
     cfg.set_main_option("script_location", script_location)
 
-    print(f"Running migrations from {alembic_ini} -> {db_url}")
+    logger.info(f"Running migrations from {alembic_ini} -> {db_url}")
     command.upgrade(cfg, "head")
 
 
 if __name__ == "__main__":
     main()
+

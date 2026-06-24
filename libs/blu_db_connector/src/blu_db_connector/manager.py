@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger(__name__)
 import argparse
 import os
 import subprocess
@@ -47,8 +50,8 @@ def get_db_url(args=None):
             url = os.getenv("DATABASE_URL")
 
     if not url:
-        print("\n❌ ERRO: DATABASE_URL não encontrada.")
-        print(f"   Tentamos ler de: {PROJECT_ROOT / '.env'}")
+        logger.error("\n❌ ERRO: DATABASE_URL não encontrada.")
+        logger.info(f"   Tentamos ler de: {PROJECT_ROOT / '.env'}")
         sys.exit(1)
 
     return url
@@ -66,19 +69,18 @@ def run_alembic_cmd(args):
 def cmd_migrate(args):
     """Aplica migrações."""
     url = get_db_url(args)
-    print(
-        f"🔄 Aplicando migrações em: {url.split('@')[-1]}"
-    )  # Mostra apenas o host/db para segurança
+    logger.info(        f"🔄 Aplicando migrações em: {url.split('@')[-1]}"
+    )  # Mostra apenas o host/db para segurança)
     cfg = run_alembic_cmd(args)
     command.upgrade(cfg, "head")
-    print("✅ Migrações aplicadas com sucesso!")
+    logger.info("✅ Migrações aplicadas com sucesso!")
 
 
 def cmd_makemigrations(args):
     """Cria uma nova revisão."""
     cfg = run_alembic_cmd(args)
     command.revision(cfg, message=args.message, autogenerate=True)
-    print("✅ Arquivo de revisão gerado.")
+    logger.info("✅ Arquivo de revisão gerado.")
 
 
 def cmd_seed(args):
@@ -87,15 +89,15 @@ def cmd_seed(args):
         from .cli.seed import run_seed
 
         url = get_db_url(args)
-        print(f"🌱 Semeando banco de dados em: {url.split('@')[-1]}")
+        logger.info(f"🌱 Semeando banco de dados em: {url.split('@')[-1]}")
         run_seed(url)
     except ImportError as e:
-        print(f"⚠️  Erro de importação: {e}")
+        logger.error(f"⚠️  Erro de importação: {e}")
 
 
 def cmd_export_supabase(args):
     """Gera o SQL para o Supabase."""
-    print("📦 Exportando migração para formato Supabase SQL...")
+    logger.info("📦 Exportando migração para formato Supabase SQL...")
 
     # Para export, usamos o ENV ou args, mas precisamos passar pro subprocesso
     target_url = get_db_url(args)
@@ -119,7 +121,7 @@ def cmd_export_supabase(args):
         )
 
         if result.returncode != 0:
-            print(f"❌ Erro ao gerar SQL via Alembic:\n{result.stderr}")
+            logger.error(f"❌ Erro ao gerar SQL via Alembic:\n{result.stderr}")
             return
 
         sql_content = result.stdout
@@ -135,10 +137,10 @@ def cmd_export_supabase(args):
             f.write(f"-- Gerado via blu-db export-supabase em {datetime.now()}\n")
             f.write(sql_content)
 
-        print(f"✅ Arquivo gerado: supabase/migrations/{filename}")
+        logger.info(f"✅ Arquivo gerado: supabase/migrations/{filename}")
 
     except Exception as e:
-        print(f"❌ Erro inesperado: {e}")
+        logger.error(f"❌ Erro inesperado: {e}")
 
 
 def main():
@@ -177,3 +179,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

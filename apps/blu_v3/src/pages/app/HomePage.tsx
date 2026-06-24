@@ -21,6 +21,7 @@ import RColResizeHandle from '../../components/shared/RColResizeHandle'
 import CollapsiblePanel from '../../components/shared/CollapsiblePanel'
 import PostBoardingEmptyState from '../../components/shared/PostBoardingEmptyState'
 import ConnectionsSection from '../../components/home/ConnectionsSection'
+import ConnectionsModal from '../../components/onboarding/ConnectionsModal'
 
 const DAY_ABBR = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
@@ -309,6 +310,12 @@ export default function HomePage() {
   const openInsight = insights.find(i => i.id === openInsightId) ?? null
 
   const hasNoData = !!clientId && !localStorage.getItem(`blu_has_data:${clientId}`)
+  const [connectionsOpen, setConnectionsOpen] = useState(false)
+
+  function handleConnectionsClose() {
+    setConnectionsOpen(false)
+    if (clientId) localStorage.setItem(`blu_has_data:${clientId}`, '1')
+  }
 
   function handleIchClick(e: React.MouseEvent<HTMLDivElement>, ins: InsightItem) {
     track('insight_click', { id: ins.id, room: ins.room })
@@ -326,7 +333,12 @@ export default function HomePage() {
     setInsightAnchor(null)
   }
 
-  if (hasNoData) return <PostBoardingEmptyState onAddConnection={() => {}} />
+  if (hasNoData) return (
+    <>
+      <ConnectionsModal open={connectionsOpen} onClose={handleConnectionsClose} />
+      <PostBoardingEmptyState onAddConnection={() => setConnectionsOpen(true)} />
+    </>
+  )
 
   return (
     <div className="home-grid">

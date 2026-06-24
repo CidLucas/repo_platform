@@ -80,4 +80,3 @@ __all__ = [
     "OAuthTokenResponse",
     "IntegrationProvider",
 ]
-from sqlmodel import Column, SQLModel

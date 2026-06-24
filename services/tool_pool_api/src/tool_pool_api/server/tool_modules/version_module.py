@@ -553,7 +553,7 @@ async def _store_memory_version(
     if not row:
         raise ValueError(
             f"No current value found for {entity_type}:{entity_name}/{key}. "
-            f"Cannot store version for a non-existent key."
+            "Cannot store version for a non-existent key."
         )
 
     current_value = row["value"]

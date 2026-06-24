@@ -18,6 +18,10 @@ from blu_models.blu_client_context import BluClientContext
 from blu_rag_factory.factory import create_rag_retriever
 from tool_pool_api.server.dependencies import get_context_service
 from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
+from tool_pool_api.server.utils.mcp_context import (
+    extract_client_id,
+    extract_document_ids,
+)
 
 from tool_pool_api.server.tool_modules import register_module
 
@@ -69,22 +73,15 @@ async def _executar_rag_cliente_logic(
     # Priority: 1) client_id param, 2) request meta, 3) access token
     blu_context: BluClientContext | None = None
 
-    # Try to get client_id and document_ids from request meta (passed by atendente_core via _meta)
-    document_ids: list[str] | None = None
-    if ctx and hasattr(ctx, "request_context"):
-        meta = getattr(ctx.request_context, "meta", None)
-        if meta:
-            meta_dict = meta.model_dump() if hasattr(meta, "model_dump") else dict(meta)
-            if not client_id:
-                client_id = meta_dict.get("client_id")
-                if client_id:
-                    logger.info(f"[RAG] Using client_id from request meta: {client_id}")
-            # Extract document_ids for scoped RAG search
-            # Standalone agents use "uploaded_document_ids", atendente_core uses "attached_document_ids"
-            raw_doc_ids = meta_dict.get("uploaded_document_ids") or meta_dict.get("attached_document_ids")
-            if raw_doc_ids and isinstance(raw_doc_ids, list):
-                document_ids = [str(d) for d in raw_doc_ids]
-                logger.info(f"[RAG] Scoping search to {len(document_ids)} attached documents")
+    # Resolve client_id and document_ids from request meta (passed by
+    # atendente_core via _meta) using the shared MCP context helpers.
+    if not client_id:
+        client_id = extract_client_id(ctx)
+        if client_id:
+            logger.info(f"[RAG] Using client_id from request meta: {client_id}")
+    document_ids = extract_document_ids(ctx)
+    if document_ids:
+        logger.info(f"[RAG] Scoping search to {len(document_ids)} attached documents")
 
     try:
         if client_id:

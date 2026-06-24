@@ -16,6 +16,11 @@ from fastmcp.exceptions import ToolError
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from tool_pool_api.server.dependencies import get_context_service
 from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
+from tool_pool_api.server.utils.mcp_context import (
+    extract_client_id,
+    extract_document_ids,
+    extract_meta,
+)
 
 from tool_pool_api.server.tool_modules import register_module
 
@@ -23,36 +28,6 @@ logger = logging.getLogger(__name__)
 
 MAX_CHUNKS_FOR_EXTRACTION = 80
 MAX_CONTENT_CHARS = 120_000  # ~30k tokens for gpt-4o
-
-
-# =============================================================================
-# HELPERS
-# =============================================================================
-
-
-def _extract_meta(ctx: Context) -> dict:
-    """Extract metadata dict from MCP request context."""
-    if not ctx or not hasattr(ctx, "request_context"):
-        return {}
-    meta = getattr(ctx.request_context, "meta", None)
-    if not meta:
-        return {}
-    return meta.model_dump() if hasattr(meta, "model_dump") else dict(meta)
-
-
-def _extract_document_ids(ctx: Context) -> list[str] | None:
-    """Extract document IDs from context metadata (supports both key names)."""
-    meta = _extract_meta(ctx)
-    raw = meta.get("uploaded_document_ids") or meta.get("attached_document_ids")
-    if raw and isinstance(raw, list):
-        return [str(d) for d in raw]
-    return None
-
-
-def _extract_client_id(ctx: Context) -> str | None:
-    """Extract client_id from context metadata."""
-    meta = _extract_meta(ctx)
-    return meta.get("client_id") or meta.get("client_id")
 
 
 # =============================================================================
@@ -121,7 +96,7 @@ async def _extract_structured_data_logic(
         )
 
     # 2. Get document IDs from context
-    document_ids = _extract_document_ids(ctx)
+    document_ids = extract_document_ids(ctx)
     if not document_ids:
         raise ToolError(
             "No documents attached to this session. "
@@ -130,7 +105,7 @@ async def _extract_structured_data_logic(
 
     # 3. Resolve client context for auth
     if not client_id:
-        client_id = _extract_client_id(ctx)
+        client_id = extract_client_id(ctx)
     if not client_id:
         raise ToolError("Could not determine client identity.")
 
@@ -417,7 +392,7 @@ async def _write_summary_to_kb_logic(
 
     # 1. Resolve client
     if not client_id:
-        client_id = _extract_client_id(ctx)
+        client_id = extract_client_id(ctx)
     if not client_id:
         raise ToolError("Could not determine client identity.")
 

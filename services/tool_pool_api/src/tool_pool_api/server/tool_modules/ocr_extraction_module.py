@@ -27,6 +27,11 @@ from fastmcp.exceptions import ToolError
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from tool_pool_api.server.dependencies import get_context_service
 from tool_pool_api.server.tool_helpers import is_tool_accessible_by_tier
+from tool_pool_api.server.utils.mcp_context import (
+    extract_client_id,
+    extract_document_ids,
+    extract_meta,
+)
 
 from tool_pool_api.server.tool_modules import register_module
 
@@ -39,31 +44,6 @@ MAX_CONTENT_CHARS_FOR_SUMMARY = 80_000  # ~20k tokens
 # =============================================================================
 # HELPERS
 # =============================================================================
-
-
-def _extract_meta(ctx: Context) -> dict:
-    """Extract metadata dict from MCP request context."""
-    if not ctx or not hasattr(ctx, "request_context"):
-        return {}
-    meta = getattr(ctx.request_context, "meta", None)
-    if not meta:
-        return {}
-    return meta.model_dump() if hasattr(meta, "model_dump") else dict(meta)
-
-
-def _extract_document_ids(ctx: Context) -> list[str] | None:
-    """Extract document IDs from context metadata."""
-    meta = _extract_meta(ctx)
-    raw = meta.get("uploaded_document_ids") or meta.get("attached_document_ids")
-    if raw and isinstance(raw, list):
-        return [str(d) for d in raw]
-    return None
-
-
-def _extract_client_id(ctx: Context) -> str | None:
-    """Extract client_id from context metadata."""
-    meta = _extract_meta(ctx)
-    return meta.get("client_id") or meta.get("client_id")
 
 
 def _parse_brazilian_number(val: str) -> float | None:
@@ -132,7 +112,7 @@ async def _extract_document_with_ocr_logic(
         raise ToolError("table_mode must be 'fast' or 'accurate'")
 
     # 2. Get document IDs from context
-    document_ids = _extract_document_ids(ctx)
+    document_ids = extract_document_ids(ctx)
     if not document_ids:
         raise ToolError(
             "No documents attached to this session. "
@@ -141,7 +121,7 @@ async def _extract_document_with_ocr_logic(
 
     # 3. Resolve client context
     if not client_id:
-        client_id = _extract_client_id(ctx)
+        client_id = extract_client_id(ctx)
     if not client_id:
         raise ToolError("Could not determine client identity.")
 
@@ -314,7 +294,7 @@ async def _summarize_document_sections_logic(
 
     # 2. Resolve client context
     if not client_id:
-        client_id = _extract_client_id(ctx)
+        client_id = extract_client_id(ctx)
     if not client_id:
         raise ToolError("Could not determine client identity.")
 

@@ -1,6 +1,7 @@
 README.md
 pyproject.toml
 src/blu_context_service/__init__.py
+src/blu_context_service/context_schemas.py
 src/blu_context_service/context_service.py
 src/blu_context_service/dependencies.py
 src/blu_context_service/redis_service.py

@@ -31,7 +31,7 @@ from fastmcp.exceptions import ToolError
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_supabase_client import get_supabase_client
 
-from . import register_module
+from tool_pool_api.server.tool_modules import register_module
 
 logger = logging.getLogger(__name__)
 
@@ -464,22 +464,25 @@ async def _prune_old_versions(
     # IDs to delete: the oldest (total - max_versions) entries
     to_delete = [r["id"] for r in rows[:total - max_versions]]
 
-    deleted_count = 0
-    for vid in to_delete:
-        try:
-            await (
-                db.schema("public")
-                .table(_VERSION_TABLE)
-                .delete()
-                .eq("id", vid)
-                .eq("client_id", client_id)
-                .execute()
-            )
-            deleted_count += 1
-        except Exception as exc:
-            logger.warning(
-                "[version_module] Failed to prune version %s: %s", vid, exc
-            )
+    if not to_delete:
+        return 0
+
+    try:
+        await (
+            db.schema("public")
+            .table(_VERSION_TABLE)
+            .delete()
+            .in_("id", to_delete)
+            .eq("client_id", client_id)
+            .execute()
+        )
+        deleted_count = len(to_delete)
+    except Exception as exc:
+        logger.warning(
+            "[version_module] Failed to batch-prune %d versions: %s",
+            len(to_delete), exc,
+        )
+        return 0
 
     if deleted_count > 0:
         logger.info(
@@ -553,7 +556,7 @@ async def _store_memory_version(
     if not row:
         raise ValueError(
             f"No current value found for {entity_type}:{entity_name}/{key}. "
-            f"Cannot store version for a non-existent key."
+            "Cannot store version for a non-existent key."
         )
 
     current_value = row["value"]

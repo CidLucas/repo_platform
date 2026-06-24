@@ -18,8 +18,8 @@ from blu_models import (
     TestCaseDefinition,
 )
 
-from .config import settings
-from .manifest import ManifestLoader
+from blu_experiment_service.config import settings
+from blu_experiment_service.manifest import ManifestLoader
 
 logger = logging.getLogger(__name__)
 

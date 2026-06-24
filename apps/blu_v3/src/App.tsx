@@ -3,6 +3,8 @@ import { useAuth } from '@blu/auth'
 import LandingPage from './pages/LandingPage'
 import OnboardingApp from './pages/onboarding/OnboardingApp'
 import AppShell from './components/shell/AppShell'
+import ErrorBoundary from './components/shared/ErrorBoundary'
+import ErrorFallback from './components/shared/ErrorFallback'
 
 function LandingRoute() {
   const { user, loading } = useAuth()
@@ -31,20 +33,31 @@ function ComingSoon({ title }: { title: string }) {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<LandingRoute />} />
-      <Route path="/privacidade" element={<ComingSoon title="Política de Privacidade" />} />
-      <Route path="/termos" element={<ComingSoon title="Termos de Uso" />} />
-      <Route path="/lgpd" element={<ComingSoon title="LGPD" />} />
-      <Route path="/onboarding/*" element={<OnboardingApp />} />
-      <Route
-        path="/app/*"
-        element={
-          <RequireAuth>
-            <AppShell />
-          </RequireAuth>
-        }
-      />
-    </Routes>
+    <ErrorBoundary fallback={<ErrorFallback />}>
+      <Routes>
+        <Route path="/" element={<LandingRoute />} />
+        <Route path="/privacidade" element={<ComingSoon title="Política de Privacidade" />} />
+        <Route path="/termos" element={<ComingSoon title="Termos de Uso" />} />
+        <Route path="/lgpd" element={<ComingSoon title="LGPD" />} />
+        <Route
+          path="/onboarding/*"
+          element={
+            <ErrorBoundary fallback={<ErrorFallback />}>
+              <OnboardingApp />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/app/*"
+          element={
+            <RequireAuth>
+              <ErrorBoundary fallback={<ErrorFallback />}>
+                <AppShell />
+              </ErrorBoundary>
+            </RequireAuth>
+          }
+        />
+      </Routes>
+    </ErrorBoundary>
   )
 }

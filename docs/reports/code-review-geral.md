@@ -817,3 +817,349 @@ Print() as Log:   ██████████░░░░░░░░░░ 8
 ---
 
 *Consolidado em 2026-06-22 por factory-coder (t_f572c42). Baseado em 7 relatórios de code review (T57.1–T57.7), 25 artefatos, 68 findings únicos.*
+
+---
+
+## Fases 1-5 — Code Review Findings
+
+> **Consolidado por:** factory-coder (t_3457e9d2), 2026-06-23
+> **Fonte:** Compilação de 6 análises cross-phase (B1–B6): Patterns, Duplication, Performance, Security, Error Handling, Test Coverage
+> **Escopo:** 25 artefatos (21 libs, 2 services, 1 app, 1 package) — 23 Python, 2 TypeScript/TSX
+> **Artefatos de entrada:**
+> - `docs/planning/issue-57/patterns-review-f1-5.md` (B1, 463 linhas)
+> - `docs/planning/issue-57/duplication-review-f1-5.md` (B2, 374 linhas)
+> - `docs/planning/issue-57/performance-review-f1-5.md` (B3, 403 linhas)
+> - `docs/planning/issue-57/security-review-f1-5.md` (B4, 507 linhas)
+> - `docs/planning/issue-57/error-handling-review-f1-5.md` (B5, 273 linhas)
+> - `docs/planning/issue-57/test-coverage-review-f1-5.md` (B6, 385 linhas)
+
+---
+
+### A. Executive Summary — Fases 1-5
+
+| Métrica | Valor |
+|---|---|
+| Artefatos revisados | **25** (21 libs + 2 services + 1 app + 1 package) |
+| Dimensões cobertas (cross-phase) | **6**: patterns (7 sub), duplication (intra+cross), performance, security (8 sub), error handling (6 sub), test coverage (6 sub) |
+| Total de findings únicos (cross-referenced) | **63** (após deduplicação entre B1-B6) |
+| **P0** — Imediato | **14** (3 pattern type gaps + 4 duplication + 3 performance + 5 error handling Tier 1) |
+| **P1** — Next Sprint | **25** (logging, correlation IDs, rate limiting, CSP, code splitting, broad excepts, circuit breakers, broken tests, retry library) |
+| **P2** — Backlog | **24** (relative imports, any TS, documentation gaps, edge cases, test fixtures, timers, shared utils) |
+| Top 3 riscos cross-phase | 1) 3 libs Tier 1 com <27% type coverage + 67% broad excepts 2) Zero retry library — sem resiliência de rede padronizada 3) 2 serviços Tier 2 com coleção de testes totalmente quebrada (tool_pool_api, blu_llm_service) |
+| Broad excepts | **625/932 (67.1%)** — Tier 1 inteiro >75% |
+| Retry/Circuit Breaker | **0** uso de tenacity/backoff, 2 circuit breakers ad-hoc |
+| Testes executáveis | **48%** (12/25 artefatos); 73.7% pass rate (~815/1106) |
+| Coleção de testes quebrada | **4 artefatos** (tool_pool_api, blu_llm_service, blu_auth, blu_db_connector) |
+| Funções duplicadas 100% | **2** (_validate_snapshot_frontmatter, _validate_snapshot_body) |
+| Extração candidates | **6** (3 quick wins ~1h + 3 medium-term ~13.5h) |
+
+**Avaliação geral cross-phase:** O codebase mantém excelente disciplina em fundamentos (0 bare excepts, 0 camelCase Python, 0 SQL injection, validação consistente Pydantic/Zod). Os problemas concentram-se em três eixos cross-cutting: **(a) resiliência operacional** (sem retry library padronizada, 67% broad excepts mascarando falhas, 0 circuit breakers para Supabase/Redis/LLM), **(b) qualidade de tipos e exceções** (65% funções sem type hints, 16/25 artefatos sem hierarchy de exceções própria, sem base class comum), e **(c) cobertura de testes** (52% artefatos sem testes executáveis, 2 serviços Tier 2 com coleção quebrada). O custo estimado de remediação é de aproximadamente **80-120 horas de engenharia** adicional ao baseline da Fase 0.
+
+---
+
+### B. Cross-Cutting Themes (Fases 1-5)
+
+#### B.1 Broad Excepts — 67% das capturas mascaram falhas
+
+**Métrica global:** 625/932 blocos `except` são `except Exception:` (67.1%). Todos os 5 artefatos Tier 1 têm >75% de broad excepts.
+
+| Artefato (Tier 1) | Total Excepts | Broad % | Custom Exceptions | Severidade |
+|---|---|---|---|---|
+| agent_api | 123 | 79% | ❌ | P0 |
+| blu_agent_framework | 72 | 88% | ✅ (3) | P0 |
+| blu_supabase_client | 21 | 90% | ✅ (1) | P0 |
+| blu_context_service | 49 | 87% | ❌ | P0 |
+| blu_models | 2 | 100% | ❌ | P0 |
+
+**Pontos fortes:** blu_auth (39% broad, AuthError + 7 subclasses) e blu_elicitation_service (0% broad) são os modelos a seguir. Zero bare excepts e zero error swallowing em todo o codebase.
+
+#### B.2 Resiliência de Rede — Sem Biblioteca de Retry Padronizada
+
+| Serviço Externo | Retry (tenacity) | Circuit Breaker | Impacto |
+|---|---|---|---|
+| **Supabase** (RPC/REST) | ❌ | ❌ | P0 — banco principal sem resiliência |
+| **Redis** | ❌ | ❌ | P1 — cache sem proteção |
+| **LLM APIs** | ⚠️ (text-to-sql only) | ❌ | P1 |
+| Google APIs | ❌ | ❌ | P2 |
+| BigQuery | ❌ | ❌ | P2 |
+| Twilio | ❌ | ❌ | P2 |
+| Langfuse | ❌ | ✅ (2 impls ad-hoc duplicadas) | ⚠️ P2 |
+| MCP (external) | ✅ (exponential backoff manual) | ❌ | ✅ |
+
+**Finding crítico:** Nenhum artefato importa `tenacity` ou `backoff`. Os retries existentes são implementações manuais ad-hoc. Os 2 circuit breakers (Langfuse) estão duplicados entre `blu_observability_bootstrap` e `blu_prompt_management`.
+
+#### B.3 Type Hints — 65% das Funções sem Tipo
+
+**Métrica global:** 626/1773 funções tipadas (35%). Mesmo patamar da Fase 0 — nenhum progresso cross-phase.
+
+**Tier 1 críticos (<30% typed):**
+- blu_agent_framework: 27% (240 funções sem tipo)
+- blu_context_service: 25% (21 funções sem tipo)
+- blu_supabase_client: 23% (85 funções sem tipo)
+
+**Best exemplars:** agent_api (81%), blu_models (84%), blu_observability_bootstrap (100%).
+
+#### B.4 Duplicação Cross-Phase — 12 Findings Intra + Cross
+
+**Intra-Fase (Fase 1 — memory_module.py, 3.669 linhas):**
+
+| ID | Descrição | Similaridade | Impacto |
+|---|---|---|---|
+| DUP-F1-01 | `_validate_snapshot_frontmatter` (linhas 319 e 529) | 100% byte-identical | 72 linhas duplicadas — bug latente |
+| DUP-F1-02 | `_validate_snapshot_body` (linhas 402 e 612) | 100% byte-identical | ~120 linhas duplicadas |
+| DUP-F1-03 | `_validate_entity_type` ↔ `_validate_meta_entity_type` | 80% similar | 5 linhas duplicadas |
+
+**Cross-Fase (top 4 por impacto):**
+
+| ID | Padrão | Artefatos | Fases |
+|---|---|---|---|
+| DUP-02 | config.py boilerplate `BaseSettings` + `@lru_cache` | 7 artefatos | F1, F3, F1-5 |
+| DUP-01 | audit.py `record_audit()` | blu_agent_framework + blu_supabase_client | F1 |
+| DUP-03 | `BluError(Exception)` com `message` + `code` | 3 libs (blu_auth, blu_elicitation, blu_tool_registry) | F1, F2, F3 |
+| DUP-04 | Timer context managers | blu_agent_framework + blu_sql_factory | F1, F3 |
+
+**Extraction candidates prioritizados:** 3 quick wins (~1h, 197 linhas) + 3 medium-term (~13.5h, 367 linhas). Proposta de 2 novas shared libraries: `blu_config_base` e expansão de `blu_shared_utils`.
+
+#### B.5 Test Coverage — 52% dos Artefatos sem Testes Executáveis
+
+**Métrica global:** 12/25 artefatos (48%) com testes executáveis. Dos que executam, 73.7% passam (~815/1106).
+
+| Categoria | Count | Artefatos |
+|---|---|---|
+| Artefatos sem testes | 9 | blu_hitl_service, blu_data_connectors, blu_google_suite_client, blu_experiment_service, blu_landing_intel, blu_observability_bootstrap, blu_parsers, apps/blu_v3, packages/blu-auth |
+| Coleção quebrada (P0) | 2 | **tool_pool_api** (11 arquivos), **blu_llm_service** (3 arquivos) |
+| Coleção quebrada (P1) | 2 | blu_auth (2 arquivos), blu_db_connector (1 arquivo) |
+| Fixtures duplicadas | 1 padrão | `mock_blu_client_context` × 3 (blu_context_service, blu_rag_factory, blu_sql_factory) |
+| Flaky candidates | 2 | `time.sleep(0.05)` em blu_agent_framework |
+| Cobertura de linha configurada | 1/25 | blu_shared_utils (quebrado — 0% reportado) |
+
+**P0 — Blocker:** tool_pool_api (58 source files, serviço central) e blu_llm_service (crítico para text-to-sql) com coleção totalmente quebrada.
+
+#### B.6 Logging — 88 print() + 35 console.log em Produção
+
+| Artefato | Tier | Chamadas | Severidade |
+|---|---|---|---|
+| agent_api | T1 | 32 | P0 (T1 escalation) |
+| blu_db_connector | T3 | 19 | P1 |
+| tool_pool_api | T2 | 18 | P1 |
+| blu_sql_factory | T2 | 14 | P1 |
+| blu_agent_framework | T1 | 4 | P1 |
+| routine_engine | T4 | 30 | P1 |
+| apps/blu_v3 (console.log) | T4 | 35 | P2 |
+
+**Structured JSON logging:** Apenas 1/25 artefatos (blu_observability_bootstrap). **Correlation IDs:** Apenas 1/25 (blu_agent_framework).
+
+#### B.7 Security — 4 High, Nenhum Critical
+
+**High findings:**
+| ID | Descrição | Artefato |
+|---|---|---|
+| RATE-01 | Nenhum rate limiting nos 2 serviços | agent_api, tool_pool_api |
+| CSP-01 | Nenhum Content-Security-Policy | apps/blu_v3 |
+| SEC-01 | .secrets.baseline gitignored — detecção de secrets desabilitada | Global |
+| DEP-01 | xlsx sem fix para Prototype Pollution + ReDoS | apps/blu_v3 |
+
+**Segurança positiva:** Zero SQL injection, validação consistente Pydantic/Zod, JWT auth bem estruturado via blu_auth, PostgREST parameterizado, RLS enforced.
+
+---
+
+### C. Prioritized Findings — Cross-Phase Consolidated
+
+#### C.1 P0 — Imediato (14 findings)
+
+| # | ID | Dimensão | Origem | Artefato | Descrição |
+|---|---|---|---|---|---|
+| 1 | TYPE-T1-01 | Types | B1 | blu_agent_framework (T1) | 27% typed — 240 funções sem tipo |
+| 2 | TYPE-T1-02 | Types | B1 | blu_context_service (T1) | 25% typed — 21 funções sem tipo |
+| 3 | TYPE-T1-03 | Types | B1 | blu_supabase_client (T1) | 23% typed — 85 funções sem tipo |
+| 4 | DUP-F1-01 | Duplication | B2 | memory_module.py (F1) | `_validate_snapshot_frontmatter` 100% duplicada (linhas 319 e 529) |
+| 5 | DUP-F1-02 | Duplication | B2 | memory_module.py (F1) | `_validate_snapshot_body` 100% duplicada (linhas 402 e 612) |
+| 6 | DUP-01 | Duplication | B2 | blu_agent_framework + blu_supabase_client | audit.py duplicado — consolidar |
+| 7 | DUP-02 | Duplication | B2 | 7 artefatos | config.py boilerplate — extrair blu_config_base |
+| 8 | PERF-P0-01 | Performance | B3 | blu_agent_framework/nodes.py:961-990 | N+1 select+update: 2N round-trips |
+| 9 | PERF-P0-02 | Performance | B3 | blu_agent_framework/nodes.py:901-904 | N+1 updates: batch virou N queries |
+| 10 | PERF-P0-03 | Performance | B3 | blu_agent_framework/nodes.py | Schema gap: tabela `rfq_requests` potencialmente deprecated |
+| 11 | EH-P0-01 | Error Handling | B5 | agent_api (T1) | 79% broad excepts, sem custom exceptions, 32 print() |
+| 12 | EH-P0-02 | Error Handling | B5 | blu_agent_framework (T1) | 88% broad excepts — orquestrador mascara falhas |
+| 13 | EH-P0-03 | Error Handling | B5 | blu_supabase_client (T1) | 90% broad excepts — falhas de DB indiferenciadas |
+| 14 | EH-P0-04 | Error Handling | B5 | blu_context_service (T1) | 87% broad excepts — dependency de todos os agents |
+
+#### C.2 P1 — Next Sprint (25 findings)
+
+| # | ID | Dimensão | Origem | Descrição |
+|---|---|---|---|---|
+| 1 | LOG-P1-01 | Logging | B1 | Substituir print() por logging: agent_api (32, T1→P0), blu_db_connector (19), tool_pool_api (18), blu_sql_factory (14), routine_engine (30), blu_agent_framework (4) |
+| 2 | CORR-P1-01 | Observability | B1 | Correlation IDs não propagados — apenas 1/25 artefatos (blu_agent_framework) |
+| 3 | LOG-P1-02 | Logging | B1 | Structured JSON logging ausente em 24/25 artefatos |
+| 4 | SEC-P1-01 | Security | B4 | Rate limiting ausente em agent_api e tool_pool_api (RATE-01 HIGH) |
+| 5 | SEC-P1-02 | Security | B4 | CSP headers ausentes no frontend (CSP-01 HIGH) |
+| 6 | SEC-P1-03 | Security | B4 | .secrets.baseline gitignored — ferramenta de detecção desabilitada (SEC-01 HIGH) |
+| 7 | SEC-P1-04 | Security | B4 | xlsx sem fix — Prototype Pollution + ReDoS (DEP-01 HIGH) |
+| 8 | SEC-P1-05 | Security | B4 | Shared bearer token sem escopo em inbox_dispatch (AUTH-01) |
+| 9 | SEC-P1-06 | Security | B4 | Shared token sem escopo em routines dispatch (AUTH-04) |
+| 10 | PERF-P1-01 | Performance | B3 | Serial awaits em routine_functions.py:1727 (3 queries sequenciais) |
+| 11 | PERF-P1-02 | Performance | B3 | HTTP em loop sem paralelismo em routine_functions.py:1781 |
+| 12 | PERF-P1-03 | Performance | B3 | Serial snapshot: 7+ queries em context_service.py:585-730 |
+| 13 | PERF-P1-04 | Performance | B3 | N+1 auto-link inserts em memory_module.py:1321 |
+| 14 | PERF-P1-05 | Performance | B3 | N+1 tool_usage upsert em memory_post_flight.py:162 |
+| 15 | PERF-P1-06 | Performance | B3 | N+1 version delete em version_module.py:468 |
+| 16 | PERF-P1-07 | Performance | B3 | Sem code splitting no frontend — React.lazy/Suspense ausente |
+| 17 | EH-P1-01 | Error Handling | B5 | Zero uso de biblioteca de retry (tenacity/backoff) em todo o codebase |
+| 18 | EH-P1-02 | Error Handling | B5 | 16/25 artefatos sem custom exception hierarchy |
+| 19 | EH-P1-03 | Error Handling | B5 | Sem base class comum (BluError) para exceções do monorepo |
+| 20 | EH-P1-04 | Error Handling | B5 | tool_pool_api: 222 broad excepts (maior número absoluto) |
+| 21 | TEST-P1-01 | Tests | B6 | Corrigir coleção quebrada: tool_pool_api (11 arquivos), blu_llm_service (3), blu_auth (2), blu_db_connector (1) |
+| 22 | TEST-P1-02 | Tests | B6 | Adicionar testes: blu_hitl_service (T3, 0 testes), blu_data_connectors (T3, 0 testes) |
+| 23 | TEST-P1-03 | Tests | B6 | Corrigir 45 falhas em blu_sql_factory (25% failure rate, Tier 2) |
+| 24 | TEST-P1-04 | Tests | B6 | Corrigir 6 falhas em agent_api (Tier 1, test_routine_checkpoint.py) |
+| 25 | TEST-P1-05 | Tests | B6 | Corrigir 38 falhas em blu_tool_registry (25% failure rate) |
+
+#### C.3 P2 — Backlog (24 findings)
+
+| # | ID | Dimensão | Origem | Descrição |
+|---|---|---|---|---|
+| 1 | IMP-P2-01 | Patterns | B1 | 196 relative imports — spec conflict com patterns.md |
+| 2 | IMP-P2-02 | Patterns | B1 | 10 arquivos com import order quebrado |
+| 3 | TS-P2-01 | Patterns | B1 | 17 `any` em apps/blu_v3 |
+| 4 | TS-P2-02 | Patterns | B1 | 35 `console.log` em produção + 33 console.log residuais (B3) |
+| 5 | TS-P2-03 | Patterns | B1 | 4 variáveis snake_case em TypeScript |
+| 6 | STR-P2-01 | Patterns | B1 | blu_shared_utils sem `__init__.py` |
+| 7 | DUP-P2-01 | Duplication | B2 | Extrair BluError base class para blu_shared_utils (DUP-03) |
+| 8 | DUP-P2-02 | Duplication | B2 | Extrair BluTimer context manager (DUP-04) |
+| 9 | DUP-P2-03 | Duplication | B2 | Extrair SupabaseQueryBuilder (DUP-F5-01) |
+| 10 | DUP-P2-04 | Duplication | B2 | Unificar upsert logic helpers (DUP-F1-04) |
+| 11 | DUP-P2-05 | Duplication | B2 | Extrair shared TSX API handler factory (DUP-F5-02) |
+| 12 | PERF-P2-01 | Performance | B3 | Missing index: `agent_catalog_id` em `agent_sessions` |
+| 13 | PERF-P2-02 | Performance | B3 | Loop DB: report_module e config_helper_module |
+| 14 | PERF-P2-03 | Performance | B3 | Sem otimização de imagens no frontend |
+| 15 | SEC-P2-01 | Security | B4 | Shared static tokens sem runbook de rotação (SEC-02) |
+| 16 | SEC-P2-02 | Security | B4 | CORS localhost regex permissivo em produção (CORS-01) |
+| 17 | SEC-P2-03 | Security | B4 | Dev mode bypass webhook validation (AUTH-02) |
+| 18 | SEC-P2-04 | Security | B4 | Security headers ausentes: X-Frame-Options, HSTS, X-Content-Type (SECHEAD-01) |
+| 19 | SEC-P2-05 | Security | B4 | pip-audit não integrado ao CI (DEP-02) |
+| 20 | SEC-P2-06 | Security | B4 | npm audit fix não aplicado (DEP-03) — 6 vulns com fix disponível |
+| 21 | EH-P2-01 | Error Handling | B5 | Circuit breaker Langfuse duplicado (blu_observability_bootstrap + blu_prompt_management) |
+| 22 | EH-P2-02 | Error Handling | B5 | `raise ... from exc` em apenas ~6 pontos de 932 excepts |
+| 23 | EH-P2-03 | Error Handling | B5 | blu_sql_factory: ValidationError não herda de Exception |
+| 24 | TEST-P2-01 | Tests | B6 | Consolidar fixture `mock_blu_client_context` (×3 duplicada) |
+
+---
+
+### D. Maturity Matrix — Por Fase e Dimensão
+
+| Fase | Artefatos | Patterns | Duplication | Performance | Security | Error Handling | Tests | Score |
+|---|---|---|---|---|---|---|---|---|
+| **Fase 1** — Fundação | blu_agent_framework, blu_supabase_client, blu_models, blu_context_service, blu_db_connector | ⚠️ P0 types | ❌ 4 intra + 4 cross | ❌ 3 P0 N+1 | ✅ (sem issues diretos) | ❌ 5 P0 broad excepts | ⚠️ P0 (blu_models 0 tests) | ❌ 38% |
+| **Fase 2** — Memory Agent | routines_module, memory_module, blu_hitl_service, blu_elicitation_service | ⚠️ (via F1 deps) | ⚠️ (via F1 memory_module) | ⚠️ P1 N+1 upserts | ✅ | ⚠️ P1 sem custom exc | ❌ P1 (hitl 0 tests) | ⚠️ 46% |
+| **Fase 3** — LightRAG | blu_rag_factory, blu_parsers, blu_prompt_management, blu_llm_service, blu_sql_factory | ⚠️ P1 types (16-32%) | ⚠️ P2 timer + exceptions | ✅ (sem DB direto) | ✅ | ⚠️ P2 (sem custom exc) | ❌ P0 (llm coleção quebrada) | ⚠️ 42% |
+| **Fase 4** — Enriquecimento | sbm_to_lightrag, knowledge_graph_sync, version_module, blu_sql_factory | ⚠️ (via deps) | ⚠️ P2 query pattern | ⚠️ P2 loop DB | ✅ | ⚠️ (via deps) | ⚠️ P2 | ⚠️ 50% |
+| **Fase 5** — Transparência/UI | apps/blu_v3, packages/blu-auth, report_module, chart_module | ⚠️ P2 (any, console.log) | ⚠️ P2 API handlers | ❌ P1 (sem code splitting) | ❌ P1 (sem CSP, sem Error Boundaries) | ❌ P1 (0 Error Boundaries) | ❌ P1 (0 testes frontend) | ❌ 25% |
+| **Cross-cutting** | agent_api, tool_pool_api, blu_auth, blu_data_connectors, blu_observability_bootstrap, blu_tool_registry, blu_twilio_client, blu_shared_utils, blu_landing_intel, blu_google_suite_client, blu_experiment_service | ⚠️ P0 types T1 | ⚠️ P0 config ×7 | ❌ P0 N+1 + serial | ⚠️ P1 (rate limit, CSP) | ❌ P0 broad T1 + P1 sem retry | ❌ P0 (2 services coleção quebrada) | ❌ 30% |
+
+**Score geral cross-phase: 38%** — as fases com mais atividade de desenvolvimento (Fase 1 fundação, Fase 2 memory agent) concentram os problemas mais graves, enquanto as fases mais novas (Fase 5 frontend) têm lacunas estruturais de foundation (sem testes, sem CSP, sem Error Boundaries).
+
+---
+
+### E. Remediation Recommendations — Cross-Phase
+
+#### E.1 Sprint Imediato — P0 (14 findings, ~25-35 horas)
+
+1. **Fix N+1 queries + schema gap em nodes.py** (B3, 3 P0): Batch select/update + verificar `rfq_requests` no DB de produção. **Esforço: ~2h.**
+2. **Remover funções 100% duplicadas em memory_module.py** (B2, DUP-F1-01/02): Eliminar `_validate_snapshot_frontmatter` (linha 529) e `_validate_snapshot_body` (linha 612). **Quick win: ~30min.**
+3. **Adicionar retry com tenacity ao blu_supabase_client** (B5, EH-P0-03): Substituir broad excepts por retry com exponential backoff. **Esforço: ~3h.**
+4. **Criar custom exceptions para Tier 1** (B5, 5 P0): `AgentAPIError`, `ContextServiceError`, `SupabaseClientError`, `ModelError`. **Esforço: ~4h.**
+5. **Substituir print() por logging em agent_api** (B1, LOG-P1-01 T1→P0): 32 chamadas no serviço Tier 1. **Esforço: ~2h.**
+6. **Adicionar type hints a funções públicas Tier 1** (B1, 3 P0): blu_agent_framework (240), blu_context_service (21), blu_supabase_client (85). Priorizar funções exportadas. **Esforço: ~10h.**
+7. **Consolidar audit.py** (B2, DUP-01): Mover para blu_supabase_client, remover de blu_agent_framework. **Esforço: ~2h.**
+8. **Extrair blu_config_base** (B2, DUP-02): Shared library com `BluBaseSettings` + `get_cached_settings()`. **Esforço: ~4h.**
+
+#### E.2 Próximo Sprint — P1 (25 findings, ~45-60 horas)
+
+9. **Implementar rate limiting com slowapi** (B4, SEC-P1-01): agent_api e tool_pool_api. **Esforço: ~4h.**
+10. **Adicionar CSP + Security Headers** (B4, SEC-P1-02, SEC-P2-04): Meta tag no index.html + middleware FastAPI. **Esforço: ~3h.**
+11. **Versionar .secrets.baseline** (B4, SEC-P1-03): Remover do .gitignore, configurar pre-commit hook. **Esforço: ~30min.**
+12. **Avaliar migração xlsx → exceljs** (B4, SEC-P1-04): Prototype Pollution sem fix. **Esforço: ~4-8h.**
+13. **Migrar tokens internos para JWT com escopo** (B4, SEC-P1-05/06): inbox_dispatch + routines dispatch. **Esforço: ~8h.**
+14. **Paralelizar serial awaits** (B3, PERF-P1-01/02/03): routine_functions.py + context_service.py. **Esforço: ~4h.**
+15. **Corrigir N+1 upserts em tool_pool_api** (B3, PERF-P1-04/05/06): Batch upsert/delete. **Esforço: ~3h.**
+16. **Adotar tenacity como biblioteca padrão de retry** (B5, EH-P1-01): Substituir retries manuais. **Esforço: ~4h.**
+17. **Criar BluError base class** (B2, DUP-P2-01; B5, EH-P1-03): `BluError(Exception)` com `message` + `code` em blu_shared_utils. **Esforço: ~2h.**
+18. **Corrigir coleção de testes quebrada** (B6, TEST-P1-01): tool_pool_api (11 arquivos), blu_llm_service (3), blu_auth (2), blu_db_connector (1). **Esforço: ~8h.**
+19. **Adicionar testes a artefatos críticos sem cobertura** (B6, TEST-P1-02): blu_hitl_service + blu_data_connectors. **Esforço: ~6h.**
+20. **Corrigir falhas em suites existentes** (B6, TEST-P1-03/04/05): blu_sql_factory (45), agent_api (6), blu_tool_registry (38). **Esforço: ~6h.**
+21. **Adicionar code splitting + Error Boundaries ao frontend** (B3, PERF-P1-07; B5): React.lazy + Suspense + ErrorBoundary. **Esforço: ~5h.**
+22. **Propagar correlation IDs** (B1, CORR-P1-01): Middleware HTTP nos services. **Esforço: ~4h.**
+
+#### E.3 Backlog — P2 (24 findings, ~30-40 horas)
+
+23. **npm audit fix** (B4, SEC-P2-06): 6 vulns com fix disponível. **Quick win: ~30min.**
+24. **Extrair BluTimer context manager** (B2, DUP-P2-02): Unificar em blu_shared_utils. **Esforço: ~1h.**
+25. **Extrair SupabaseQueryBuilder** (B2, DUP-P2-03): Padronizar queries batch. **Esforço: ~3h.**
+26. **Resolver 196 relative imports** (B1, IMP-P2-01): Atualizar patterns.md para aceitar relative imports como padrão idiomático. **Esforço: ~1h (doc).**
+27. **Eliminar `any` e `console.log` do frontend** (B1, TS-P2-01/02): 17 any + 35 console.log. **Esforço: ~3h.**
+28. **Criar 9 documentos system_reference faltantes** (Fase 0, DOC-P2-01): CODE_MAP.md, FRONTEND.md, DATABASE_SCHEMA.md, etc. **Esforço: ~8h.**
+29. **Unificar circuit breaker Langfuse** (B5, EH-P2-01): Extrair implementação compartilhada. **Esforço: ~2h.**
+30. **Adotar `raise ... from exc` consistentemente** (B5, EH-P2-02): ~6 usos atuais em 932 excepts. **Esforço: progressivo.**
+31. **Adicionar pytest-cov a Tier 1 e Tier 2** (B6): Threshold 70% Tier 1, 60% Tier 2. **Esforço: ~4h.**
+32. **Consolidar fixture mock_blu_client_context** (B6, TEST-P2-01): 3 definições divergentes. **Esforço: ~2h.**
+
+---
+
+### F. Quick Wins (<2h total)
+
+| # | Ação | Origem | Esforço | Impacto |
+|---|---|---|---|---|
+| QW-1 | Remover `_validate_snapshot_frontmatter` duplicata | B2 | 15 min | 72 linhas, bug latente eliminado |
+| QW-2 | Remover `_validate_snapshot_body` duplicata | B2 | 15 min | 120 linhas |
+| QW-3 | N+1 update fix: `.in_("id", expired)` 1-liner | B3 | 5 min | Elimina N queries |
+| QW-4 | Versionar `.secrets.baseline` (remover do .gitignore) | B4 | 30 min | Habilita detecção de secrets |
+| QW-5 | `npm audit fix` em blu_v3 e blu-auth | B4 | 30 min | Corrige 6 high vulns |
+| QW-6 | Unificar `_validate_entity_type` + `_validate_meta_entity_type` | B2 | 30 min | 5 linhas, padroniza |
+
+**Total Quick Wins: ~2h — 197+ linhas eliminadas, 6 vulnerabilidades corrigidas.**
+
+---
+
+### G. Shared Libraries Proposed (Cross-Phase)
+
+| Library | Origem | Fases Impactadas | Conteúdo |
+|---|---|---|---|
+| **blu_config_base** (NEW) | B2 DUP-02 | F1, F3, F1-5 | `BluBaseSettings` + `get_cached_settings()` factory — elimina boilerplate em 7 artefatos |
+| **blu_shared_utils** (EXPAND) | B2 DUP-03/04, B5 EH-P1-03 | F1, F2, F3 | +`BluError(Exception)` com `message`+`code`, +`BluTimer` (sync+async), +`validate_in_set()` |
+| **blu_test_utils** (NEW) | B6 §5.1 | F1-5 | `mock_blu_client_context` canônico, shared fixtures, test helpers |
+| **SupabaseQueryBuilder** (blu_supabase_client) | B2 DUP-F5-01 | F1, F3, F4 | `select_by_client()`, `upsert_with_conflict()`, `update_by_id()` — padroniza queries batch |
+
+---
+
+### H. Gap Analysis — T4.1 LightRAG Synthesis (Enriquecimento Pendente)
+
+**Status:** NÃO COBERTO pelas análises B1-B6.
+
+O task T4.1 (LightRAG synthesis — enriquecimento do grafo de memória com síntese cross-artifact) foi identificado como gap na Fase 0 e permanece pendente. Nenhum dos 6 artefatos de análise (patterns, duplication, performance, security, error handling, test coverage) aborda especificamente:
+
+- Qualidade da síntese LightRAG (relevância, precisão, cobertura)
+- Integração entre `sbm_to_lightrag_synthesis.py` e o pipeline de enriquecimento
+- Performance da síntese cross-artifact em escala
+- Validação semântica dos links gerados automaticamente
+
+**Recomendação:** Criar task T4.1 específica após a conclusão deste ciclo de remediação, com foco em:
+1. Métricas de qualidade da síntese (precision/recall dos links gerados)
+2. Performance da síntese com volume real de dados
+3. Integração com o pipeline de observabilidade (correlation IDs, tracing)
+
+---
+
+### I. References — Input Artifacts
+
+| Artefato | Task | Linhas | Status |
+|---|---|---|---|
+| `docs/planning/issue-57/patterns-review-f1-5.md` | B1 | 463 | ✅ Revisado e aprovado (PR #95) |
+| `docs/planning/issue-57/duplication-review-f1-5.md` | B2 | 374 | ✅ Revisado e aprovado (PR #96) |
+| `docs/planning/issue-57/performance-review-f1-5.md` | B3 | 403 | ✅ Revisado e aprovado (PR #97) |
+| `docs/planning/issue-57/security-review-f1-5.md` | B4 | 507 | ✅ Revisado e aprovado (PR #96) |
+| `docs/planning/issue-57/error-handling-review-f1-5.md` | B5 | 273 | ✅ Revisado e aprovado (PR #98) |
+| `docs/planning/issue-57/test-coverage-review-f1-5.md` | B6 | 385 | ✅ Revisado (PR #99, com ressalvas editoriais) |
+
+---
+
+*Seção Fases 1-5 consolidada em 2026-06-23 por factory-coder (t_3457e9d2). Baseado em 6 relatórios cross-phase (B1–B6), 25 artefatos, 63 findings únicos cross-referenced.*

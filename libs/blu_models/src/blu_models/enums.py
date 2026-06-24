@@ -1,4 +1,6 @@
 # libs/blu_models/src/blu_models/enums.py
+from __future__ import annotations
+
 from enum import Enum
 
 

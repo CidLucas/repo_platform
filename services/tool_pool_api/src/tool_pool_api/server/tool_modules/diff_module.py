@@ -23,8 +23,8 @@ from fastmcp.exceptions import ToolError
 
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 
-from . import register_module
-from .version_module import _get_memory_version as _fetch_version
+from tool_pool_api.server.tool_modules import register_module
+from tool_pool_api.server.tool_modules.version_module import _get_memory_version as _fetch_version
 
 logger = logging.getLogger(__name__)
 

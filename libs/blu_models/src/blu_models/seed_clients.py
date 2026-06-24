@@ -9,6 +9,7 @@ referenciar as collections RAG correspondentes.
 IMPORTANTE: Este arquivo deve ser o ÚNICO local onde SEED_CLIENTS é definido.
 Todos os outros módulos devem importar daqui.
 """
+from __future__ import annotations
 
 from typing import Any
 

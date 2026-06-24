@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger(__name__)
 #!/usr/bin/env python3
 import logging
 logger = logging.getLogger(__name__)
@@ -16,12 +19,16 @@ from blu_context_service.redis_service import RedisService
 from blu_supabase_client import get_supabase_client
 
 
-async def main():
+async def main() -> None:
     key = os.environ.get("CREDENTIALS_ENCRYPTION_KEY")
     if not key:
         key = Fernet.generate_key().decode()
         os.environ["CREDENTIALS_ENCRYPTION_KEY"] = key
+<<<<<<< HEAD
     logger.info(f"Using CREDENTIALS_ENCRYPTION_KEY (len): {len(key)}")
+=======
+    logger.info("Using CREDENTIALS_ENCRYPTION_KEY (len):", len(key))
+>>>>>>> origin/main
 
     redis_client = Redis(host="redis", port=6379, db=0, decode_responses=False)
     cache = RedisService(redis_client)
@@ -35,7 +42,11 @@ async def main():
         return
 
     client_id = uuid.UUID(row.data[0]["client_id"])
+<<<<<<< HEAD
     logger.info(f"Using existing client_id: {client_id}")
+=======
+    logger.info("Using existing client_id:", client_id)
+>>>>>>> origin/main
 
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",

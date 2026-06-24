@@ -89,30 +89,46 @@ def create_health_router(
         check_results: dict[str, dict[str, Any]] = {}
         overall_status = "healthy"
 
-        for check_name, check_func in _checks.items():
+        async def _run_health_check(name: str, func: Callable[[], Coroutine[Any, Any, bool]]):
             start = time.time()
             try:
-                result = await asyncio.wait_for(check_func(), timeout=timeout_seconds)
+                result = await asyncio.wait_for(func(), timeout=timeout_seconds)
                 duration = time.time() - start
+                return name, result, duration
+            except TimeoutError:
+                return name, TimeoutError(), timeout_seconds
+            except Exception as e:
+                return name, e, time.time() - start
+
+        results = await asyncio.gather(
+            *(_run_health_check(n, f) for n, f in _checks.items()),
+            return_exceptions=True,
+        )
+
+        for item in results:
+            if isinstance(item, Exception):
+                continue
+            check_name, result, duration = item
+            if isinstance(result, TimeoutError):
+                check_results[check_name] = {
+                    "status": "timeout",
+                    "duration_ms": duration * 1000,
+                }
+                overall_status = "degraded"
+            elif isinstance(result, Exception):
+                check_results[check_name] = {
+                    "status": "error",
+                    "error": str(result),
+                }
+                overall_status = "unhealthy"
+                logger.error(f"Health check {check_name} failed: {result}")
+            else:
                 check_results[check_name] = {
                     "status": "ok" if result else "fail",
                     "duration_ms": round(duration * 1000, 2),
                 }
                 if not result:
                     overall_status = "degraded"
-            except TimeoutError:
-                check_results[check_name] = {
-                    "status": "timeout",
-                    "duration_ms": timeout_seconds * 1000,
-                }
-                overall_status = "degraded"
-            except Exception as e:
-                check_results[check_name] = {
-                    "status": "error",
-                    "error": str(e),
-                }
-                overall_status = "unhealthy"
-                logger.error(f"Health check {check_name} failed: {e}")
 
         return HealthStatus(
             status=overall_status,
@@ -136,14 +152,24 @@ def create_health_router(
         check_results: dict[str, bool] = {}
         all_ready = True
 
-        for check_name, check_func in _checks.items():
+        async def _run_ready_check(name: str, func: Callable[[], Coroutine[Any, Any, bool]]):
             try:
-                result = await asyncio.wait_for(check_func(), timeout=timeout_seconds)
-                check_results[check_name] = result
-                if not result:
-                    all_ready = False
+                result = await asyncio.wait_for(func(), timeout=timeout_seconds)
+                return name, result
             except Exception:
-                check_results[check_name] = False
+                return name, False
+
+        results = await asyncio.gather(
+            *(_run_ready_check(n, f) for n, f in _checks.items()),
+            return_exceptions=True,
+        )
+
+        for item in results:
+            if isinstance(item, Exception):
+                continue
+            check_name, ok = item
+            check_results[check_name] = bool(ok)
+            if not ok:
                 all_ready = False
 
         if not all_ready:

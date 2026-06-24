@@ -13,7 +13,7 @@ This module provides the TierValidator class which handles:
 import logging
 from typing import Any
 
-from .tool_metadata import TierLevel
+from blu_tool_registry.tool_metadata import TierLevel
 
 logger = logging.getLogger(__name__)
 
@@ -213,7 +213,7 @@ class TierValidator:
             return enabled_tools
 
         # Import here to avoid circular dependency
-        from .registry import ToolRegistry
+        from blu_tool_registry.registry import ToolRegistry
 
         accessible = []
         for tool_name in enabled_tools:

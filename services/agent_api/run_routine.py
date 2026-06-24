@@ -172,7 +172,11 @@ async def run_routine(routine_id: str, client_id: str) -> None:
         on_failure: str = step.get("on_failure", "halt")
 
         logger.info(f"\n{'━'*72}")
+<<<<<<< HEAD
         logger.info(f"  STEP {step_n}: {step_id}  [type={step_type or 'legacy'}]  on_failure={on_failure}")
+=======
+        logger.error(f"  STEP {step_n}: {step_id}  [type={step_type or 'legacy'}]  on_failure={on_failure}")
+>>>>>>> origin/main
         logger.info(f"{'━'*72}")
 
         # Resolve inputs against current state
@@ -258,7 +262,11 @@ async def run_routine(routine_id: str, client_id: str) -> None:
                 }).eq("id", exec_id).execute()
                 break
             else:
+<<<<<<< HEAD
                 logger.warning("  on_failure=continue → proceeding to next step")
+=======
+                logger.error("  on_failure=continue → proceeding to next step")
+>>>>>>> origin/main
 
     # ── 7. Mark execution complete ────────────────────────────────────────────
     all_ok = all(r["status"] == "ok" for r in step_results)

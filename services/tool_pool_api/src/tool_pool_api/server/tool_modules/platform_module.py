@@ -21,7 +21,7 @@ from fastmcp.exceptions import ToolError
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_supabase_client import get_supabase_client
 
-from . import register_module
+from tool_pool_api.server.tool_modules import register_module
 
 logger = logging.getLogger(__name__)
 
@@ -324,7 +324,7 @@ async def _listar_metas_logic(
     try:
         db = get_supabase_client()
 
-        def _query():
+        def _query() -> Any:
             q = (
                 db.table("client_goals")
                 .select("*")

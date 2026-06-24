@@ -6,8 +6,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastmcp import FastMCP
 
-from .resources import register_resources
-from .tools import get_available_modules, register_tools
+from tool_pool_api.server.resources import register_resources
+from tool_pool_api.server.tools import get_available_modules, register_tools
 
 load_dotenv()
 
@@ -37,7 +37,7 @@ async def _initialize_docker_mcp(mcp: FastMCP):
             return
 
         try:
-            from .docker_mcp_adapter import get_docker_mcp_adapter
+            from tool_pool_api.server.docker_mcp_adapter import get_docker_mcp_adapter
 
             adapter = get_docker_mcp_adapter()
             await adapter.initialize()
@@ -60,7 +60,7 @@ async def _initialize_docker_mcp(mcp: FastMCP):
             _docker_mcp_initialized = True  # Mark as done to avoid retries
 
 
-def create_mcp_server():
+def create_mcp_server() -> FastMCP:
     """
     Factory para criar e configurar a instância principal do FastMCP.
 
@@ -87,7 +87,7 @@ def create_mcp_server():
     # BLU-MVP-070: instrument mcp.tool with OTel spans + metrics BEFORE any
     # registration happens so every tool is auto-traced (tool_name, client_id,
     # tier as standard span attributes; latency histogram + error counter).
-    from .otel_instrumentation import instrument_mcp_tools
+    from tool_pool_api.server.otel_instrumentation import instrument_mcp_tools
 
     instrument_mcp_tools(mcp)
 
@@ -117,12 +117,12 @@ def create_mcp_server():
 
     # 5. Endpoints determinísticos (não passados para LLM)
     @app.get("/health")
-    async def health_check():
+    async def health_check() -> dict:
         """Health check para load balancers e k8s probes."""
         return {"status": "healthy", "service": "tool_pool_api"}
 
     @app.get("/info")
-    async def server_info():
+    async def server_info() -> dict:
         """Informações do servidor para debugging/admin."""
         modules = get_available_modules()
 

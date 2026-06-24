@@ -27,7 +27,7 @@ from fastmcp import FastMCP
 
 logger = logging.getLogger(__name__)
 
-from . import knowledge_graph_sync  # noqa: F401  # T4.3b — internal tool
+from tool_pool_api.server.tool_modules import knowledge_graph_sync  # noqa: F401  # T4.3b — internal tool
 
 # Registry de módulos de tools
 # Cada módulo exporta uma função register_tools(mcp: FastMCP) -> List[str]
@@ -60,7 +60,7 @@ def register_all_tools(mcp: FastMCP) -> dict:
     modules_loaded = []
 
     # Importa módulos para trigger os decorators
-    from . import (
+    from tool_pool_api.server.tool_modules import (
         common_module,
         config_helper_module,
         monday_module,  # noqa: F401
@@ -90,19 +90,19 @@ def register_all_tools(mcp: FastMCP) -> dict:
 
     # Optional chart module
     try:
-        from . import chart_module  # noqa: F401
+        from tool_pool_api.server.tool_modules import chart_module  # noqa: F401
     except Exception as e:
         logger.warning(f"Chart module not available: {e}")
 
     # Optional Google module (integration)
     try:
-        from . import google_module  # noqa: F401
+        from tool_pool_api.server.tool_modules import google_module  # noqa: F401
     except Exception as e:
         logger.warning(f"Google module not available at import time: {e}")
 
     # Optional Fiscal module (stub)
     try:
-        from . import fiscal_module  # noqa: F401
+        from tool_pool_api.server.tool_modules import fiscal_module  # noqa: F401
     except Exception as e:
         logger.warning(f"Fiscal module not available at import time: {e}")
 

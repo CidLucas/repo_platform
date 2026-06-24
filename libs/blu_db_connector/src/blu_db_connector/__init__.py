@@ -2,7 +2,7 @@
 
 import blu_models as models  # noqa: F401
 
-from . import (
+from blu_db_connector import (
     database,  # noqa: F401
     manager,  # noqa: F401
     operations,  # noqa: F401

@@ -898,10 +898,9 @@ async def rfq_wait_responses_node(state: AgentState) -> dict[str, Any]:
 
         # Mark expired
         if expired:
-            for rfq_id in expired:
-                db.table("rfq_requests").update(
-                    {"status": "expired"}
-                ).eq("id", rfq_id).execute()
+            db.table("rfq_requests").update(
+                {"status": "expired"}
+            ).in_("id", expired).execute()
             logger.info(f"[rfq_wait] {len(expired)} RFQs expired")
 
         # If some responded + rest expired → optimize with partial

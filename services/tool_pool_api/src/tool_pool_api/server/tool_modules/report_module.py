@@ -37,9 +37,9 @@ from blu_agent_framework import record_audit as _record_audit
 from blu_auth.mcp.auth_middleware import mcp_inject_client_id
 from blu_supabase_client import get_supabase_client
 
-from . import register_module
-from .report_format_adapters import to_markdown, to_pdf, to_xlsx
-from .report_templates import (
+from tool_pool_api.server.tool_modules import register_module
+from tool_pool_api.server.tool_modules.report_format_adapters import to_markdown, to_pdf, to_xlsx
+from tool_pool_api.server.tool_modules.report_templates import (
     REPORT_TEMPLATES,
     ReportTemplate,
     get_template,

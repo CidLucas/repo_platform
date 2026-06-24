@@ -28,7 +28,7 @@ from uuid import UUID
 from fastmcp import Context, FastMCP
 from fastmcp.exceptions import ToolError
 
-from . import register_module
+from tool_pool_api.server.tool_modules import register_module
 
 logger = logging.getLogger(__name__)
 

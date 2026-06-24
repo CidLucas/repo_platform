@@ -15,6 +15,7 @@ Categorias:
 4. Chat/Message - Request/response patterns
 5. Structured Data - SQL query results display
 """
+from __future__ import annotations
 
 from enum import Enum
 from typing import Any
@@ -279,6 +280,6 @@ class ClientContextResponse(BaseModel):
 
 # Resolve forward reference for StructuredDataResponse
 # Import at end to avoid circular imports
-from .structured_data import StructuredDataResponse  # noqa: E402
+from blu_models.structured_data import StructuredDataResponse  # noqa: E402
 
 AgentChatResponse.model_rebuild()

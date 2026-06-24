@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import logging
 
-from .features import FeatureRegistry
-from .tool_metadata import TierLevel
+from blu_tool_registry.features import FeatureRegistry
+from blu_tool_registry.tool_metadata import TierLevel
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +161,7 @@ class ResourceResolver:
         in factory.py (×2) and routines.py (×1).
         """
         # Import locally to avoid circular imports at module level.
-        from .registry import ToolRegistry  # noqa: PLC0415
+        from blu_tool_registry.registry import ToolRegistry  # noqa: PLC0415
 
         tier_str: str = tier.value if isinstance(tier, TierLevel) else tier
         feature_tools = set(cls.resolve_tools(agent_slug, tier))

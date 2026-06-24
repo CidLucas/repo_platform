@@ -2,6 +2,8 @@
 Agent configuration dataclass.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -42,7 +44,7 @@ class AgentConfig:
     enable_skills: bool = False  # Enables the complex-path skill escalation fork
     fail_on_placeholders: bool = True
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         if not self.name:
             raise ValueError("Agent name is required")

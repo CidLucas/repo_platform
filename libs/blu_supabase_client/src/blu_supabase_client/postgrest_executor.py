@@ -5,6 +5,8 @@ Executes read-only queries via Supabase PostgREST API with user JWT tokens
 to enforce Row-Level Security (RLS) policies.
 """
 
+from __future__ import annotations
+
 import logging
 import time
 from dataclasses import dataclass
@@ -176,7 +178,7 @@ class PostgRESTQueryExecutor:
             logger.error(f"Query failed: {e}")
             raise
 
-    def _get_client_with_jwt(self, jwt_token: str):
+    def _get_client_with_jwt(self, jwt_token: str) -> None:
         """
         Create a Supabase client with user JWT token.
 

@@ -5,6 +5,8 @@ This module handles JWT token parsing and claim extraction for
 tenant isolation and role-based access control.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from dataclasses import dataclass
@@ -21,7 +23,7 @@ class AuthContext:
     client_id: str
     role: str
     email: str | None = None
-    scopes: list | None = None
+    scopes: list[Any] | None = None
     issued_at: int | None = None
     expires_at: int | None = None
 
@@ -62,7 +64,7 @@ class JWTContextExtractor:
         "exp_claim": "exp",  # Expiration
     }
 
-    def __init__(self, claim_mapping: dict[str, str] | None = None):
+    def __init__(self, claim_mapping: dict[str, str] | None = None) -> None:
         """
         Initialize extractor with optional custom claim mapping.
 

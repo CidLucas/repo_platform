@@ -1,3 +1,5 @@
+
+from __future__ import annotations
 # GOAL: Hook de handoff entre agentes na shared memory
 # BEHAVIOR: B4 — Criar handoff/__init__.py com exports
 # DECISÃO: create_new

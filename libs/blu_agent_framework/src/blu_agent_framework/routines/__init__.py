@@ -5,6 +5,8 @@ Each module exports a `run_for_client(client_id, ...)` coroutine and a
 under `python -m blu_agent_framework.routines.<name>`.
 """
 
+from __future__ import annotations
+
 from blu_agent_framework.routines import context_report
 
 __all__ = ["context_report"]

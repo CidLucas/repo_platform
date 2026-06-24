@@ -2,6 +2,8 @@
 Redis checkpointer for LangGraph state persistence.
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
@@ -518,7 +520,7 @@ class RedisCheckpointer(BaseCheckpointSaver):
     def put_writes(
         self,
         config: RunnableConfig,
-        writes: list,
+        writes: list[Any],
         task_id: str,
     ) -> None:
         """Put writes (sync) - not implemented for basic checkpointer."""
@@ -527,7 +529,7 @@ class RedisCheckpointer(BaseCheckpointSaver):
     async def aput_writes(
         self,
         config: RunnableConfig,
-        writes: list,
+        writes: list[Any],
         task_id: str,
     ) -> None:
         """Put writes (async) - not implemented for basic checkpointer."""

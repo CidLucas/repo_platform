@@ -5,6 +5,8 @@ Provides a shared MCP connection manager using StreamableHTTP transport,
 compatible with tool_pool_api's FastMCP server.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from contextlib import AsyncExitStack
@@ -147,12 +149,12 @@ class MCPConnectionManager:
         """Check if connected to MCP server."""
         return self._connected and self._session is not None
 
-    async def connect(self):
+    async def connect(self) -> None:
         """Estabelece conexão HTTP com reconexão automática."""
         async with self._lock:
             await self._connect_inner()
 
-    async def _connect_inner(self):
+    async def _connect_inner(self) -> None:
         """Internal connect (must be called under lock)."""
         backoff = 1
         max_retries = 5
@@ -223,7 +225,7 @@ class MCPConnectionManager:
                     logger.error("MCP max retries reached")
                     raise
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Fecha conexão MCP."""
         async with self._lock:
             if self._exit_stack:
@@ -237,7 +239,7 @@ class MCPConnectionManager:
             self._connected = False
             self.tools = []
 
-    async def ensure_connected(self):
+    async def ensure_connected(self) -> None:
         """Ensure session is connected, reconnect if needed."""
         if not self.is_connected:
             await self.connect()

@@ -3,7 +3,8 @@ Blu Supabase Client - SDK wrapper for Supabase operations.
 
 Provides a singleton client for database operations via Supabase REST API.
 """
-from blu_supabase_client.auth_context import (
+from __future__ import annotations
+from .auth_context import (
     AuthContext,
     JWTContextExtractor,
     get_jwt_extractor,

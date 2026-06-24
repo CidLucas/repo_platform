@@ -1,3 +1,5 @@
+
+from __future__ import annotations
 import json
 import logging
 from typing import Any
@@ -16,7 +18,7 @@ class RedisService:
     instância de cliente Redis e a utiliza para operações de cache.
     """
 
-    def __init__(self, redis_client: redis.Redis):
+    def __init__(self, redis_client: redis.Redis) -> None:
         """
         Inicializa o serviço com um cliente Redis conectado.
 
@@ -44,7 +46,7 @@ class RedisService:
         except TypeError as e:
             logger.error(f"Erro de serialização JSON ao SETAR cache para {key}: {e}")
 
-    def get_json(self, key: str) -> dict | None:
+    def get_json(self, key: str) -> dict[str, Any] | None:
         """
         Recupera um valor JSON do cache e o desserializa para um dicionário.
         """
